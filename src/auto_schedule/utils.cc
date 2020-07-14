@@ -32,16 +32,16 @@ NullStream& NullStream::Global() {
   return stream;
 }
 
-ParallelFor& ParallelFor::Global() {
-  static ParallelFor* pool = new ParallelFor();
+ThreadPool& ThreadPool::Global() {
+  static ThreadPool* pool = new ThreadPool();
   static int ct = 0;
 
-  ct = (ct + 1) % ParallelFor::REFRESH_EVERY;
+  ct = (ct + 1) % ThreadPool::REFRESH_EVERY;
 
   if (ct == 0) {
     pool->Abort();
     delete pool;
-    pool = new ParallelFor();
+    pool = new ThreadPool();
   }
 
   if (pool->NumWorkers() == 0) {
@@ -49,6 +49,17 @@ ParallelFor& ParallelFor::Global() {
   }
 
   return *pool;
+}
+
+void parallel_for(int start, int end, std::function<void(int index)> f, int stride) {
+  auto& pf = ThreadPool::Global();
+  int batch_count = (end - start) / stride;
+  CHECK_GT(batch_count, 0);
+  pf.BeginBatch(batch_count);
+  for (int i = start; i < end; i += stride) {
+    pf.Enqueue(f, i);
+  }
+  pf.WaitBatch();
 }
 
 }  // namespace auto_schedule

@@ -187,7 +187,7 @@ inline void PrintTitle(const std::string& title, int verbose) {
  * \brief A simple thread pool to perform parallel for.
  * TODO(merrymercy): Move this to `src/support/parallel_for`
  */
-class ParallelFor {
+class ThreadPool {
  public:
   /*!
    * \brief Set the thread number used in this pool.
@@ -269,9 +269,9 @@ class ParallelFor {
   size_t NumWorkers() { return threads_.size(); }
 
   static const int REFRESH_EVERY = 128;
-  static ParallelFor& Global();
+  static ThreadPool& Global();
 
-  ~ParallelFor() { Join(); }
+  ~ThreadPool() { Join(); }
 
  private:
   void WorkerFunc() {
@@ -310,6 +310,20 @@ class ParallelFor {
   std::atomic<int> finish_ct_;
   std::condition_variable finish_signal_;
 };
+
+/*!
+ * \brief A runtime api provided to run the task function in parallel.
+ * TODO(merrymercy): Move this to `src/support/parallel_for`
+ * Example:
+ *   parallel_for(1, 11, [](int index) {
+ *     std::cout << index << "\n";
+ *   });
+ * \param start The start index.
+ * \param end The end index.
+ * \param f The task function to be excuted. Assert to take an int index as input with no output.
+ * \param stride The stride of the index.
+ */
+void parallel_for(int start, int end, std::function<void(int index)> f, int stride = 1);
 
 }  // namespace auto_schedule
 }  // namespace tvm
