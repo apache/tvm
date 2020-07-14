@@ -1007,15 +1007,9 @@ class Conv3DTransposeOpConverter : public TrtOpConverter {
     if (attrs->output_padding.size()) {
       GetPadding3D(attrs->output_padding, &use_asymmetric_padding, &prepadding, &postpadding);
       // Are any post-padding values non-zero?
-      if (std::any_of(postpadding.d, postpadding.d + postpadding.nbDims,
-                      [](int x) { return x != 0; })) {
-        // TODO(trevmorr): TRT only supports 2-D padding, so this is currently not supported.
-        CHECK(false) << "TRT does not support padding on 3 dimensions.";
-        // Output padding for Conv2D transpose is always asymmetric and applied to post only.
-        prepadding = nvinfer1::Dims3(0, 0, 0);
-        auto pad_layer = params->network->addPaddingNd(*output, prepadding, postpadding);
-        output = pad_layer->getOutput(0);
-      }
+      CHECK(!std::any_of(postpadding.d, postpadding.d + postpadding.nbDims, [](int x) {
+        return x != 0;
+      })) << "TRT does not support padding on 3 dimensions.";
     }
     params->outputs.push_back(output);
   }

@@ -67,27 +67,6 @@ class RemoveDropout(ExprMutator):
             return visit.tuple_value.args[0]
         return visit
 
-class SimplifySliceLike(ExprMutator):
-    """
-    Legalize Relay layout transforms to transpose ops to simplify TensorRT conversion.
-    """
-    def visit_call(self, expr):
-        if expr.op == tvm.relay.op.get("slice_like"):
-            axes = expr.attrs['axes']
-            shape0 = expr.args[0].checked_type.shape
-            end = [int(x) for x in shape0]
-            if axes is not None:
-                shape1 = expr.args[1].checked_type.shape
-                for axis in axes:
-                    if shape1[int(axis)] is None:
-                        return super().visit_call(expr)
-                    end[int(axis)] = shape1[int(axis)]
-            begin = [0] * len(end)
-            arg = super().visit(expr.args[0])
-            x = relay.strided_slice(arg, begin=begin, end=end)
-            return x
-        return super().visit_call(expr)
-
 @transform.function_pass(opt_level=0)
 class LegalizeLayoutTranformPass:
     def transform_function(self, func, mod, _):
@@ -97,11 +76,6 @@ class LegalizeLayoutTranformPass:
 class RemoveDropoutPass:
     def transform_function(self, func, mod, _):
         return RemoveDropout().visit(func)
-
-@transform.function_pass(opt_level=0)
-class SimplifySliceLikePass:
-    def transform_function(self, func, mod, _):
-        return SimplifySliceLike().visit(func)
 
 def GetTrtVersion():
     """Gets the version of TensorRT that TVM is built against.
@@ -546,6 +520,9 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
         if any([x.checked_type.dtype != "float32" for x in args]):
             print("Only float32 inputs are supported for TensorRT.")
             return False
+        if trt_version < (6, 0, 1):
+            print("nn.conv3d_transpose: requires TensorRT version 6.0.1 or higher.")
+            return False
         if attrs.data_layout != "NCDHW":
             print("nn.conv3d_transpose: data_layout is {} but must be NCDHW.".format(
                 attrs.data_layout))
@@ -751,7 +728,6 @@ def EnableTrt(mod, params=None, trt_version=None, use_implicit_batch=True,
     # Apply passes required for TRT
     mod = transform.InferType()(mod)
     seq = tvm.transform.Sequential([transform.InferType(),
-                                    SimplifySliceLikePass(),
                                     RemoveDropoutPass(),
                                     transform.RemoveUnusedFunctions(),
                                     transform.ConvertLayout({'nn.conv2d': ['NCHW', 'default'],
