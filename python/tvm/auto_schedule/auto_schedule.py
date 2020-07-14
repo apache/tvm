@@ -36,7 +36,7 @@ from . import _ffi_api
 
 @tvm._ffi.register_object("auto_schedule.HardwareParams")
 class HardwareParams(Object):
-    """ The parameters of target hardware used to guide the search process of SearchPolicy.
+    """ The parameters of target hardware used to guide the search policy
 
     TODO(jcf94): This is considered to be merged with the new Target:
     https://discuss.tvm.ai/t/rfc-tvm-target-specification/6844
