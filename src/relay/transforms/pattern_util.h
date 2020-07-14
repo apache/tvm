@@ -42,6 +42,8 @@
 #include <utility>
 #include <vector>
 
+#include "../op/make_op.h"
+
 namespace tvm {
 namespace relay {
 
@@ -448,12 +450,7 @@ T GetScalarFromConstant(Expr expr) {
   return static_cast<T*>(n->data->data)[0];
 }
 
-inline Expr Cast(Expr x, DataType dtype) {
-  static const Op& op = Op::Get("cast");
-  auto attrs = make_object<CastAttrs>();
-  attrs->dtype = dtype;
-  return Call(op, {x}, Attrs(attrs), {});
-}
+inline Expr Cast(Expr x, DataType dtype) { return MakeCast(x, dtype); }
 
 inline Expr Negative(Expr x) {
   static const Op& op = Op::Get("negative");
@@ -475,13 +472,7 @@ inline Expr Round(Expr x) {
   return Call(op, {x}, Attrs(), {});
 }
 
-inline Expr Clip(Expr x, double a_min, double a_max) {
-  static const Op& op = Op::Get("clip");
-  auto attrs = make_object<ClipAttrs>();
-  attrs->a_min = a_min;
-  attrs->a_max = a_max;
-  return Call(op, {x}, Attrs(attrs), {});
-}
+inline Expr Clip(Expr x, double a_min, double a_max) { return MakeClip(x, a_min, a_max); }
 
 inline Expr Add(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("add");
@@ -513,8 +504,6 @@ inline Expr ZerosLike(Expr e) {
   return Call(op, {e});
 }
 
-Expr MakeZeros(Expr shape, DataType dtype);
-
 inline Expr Zeros(Array<IndexExpr> shape, DataType dtype) {
   return MakeZeros(CheckConstantShape(shape), dtype);
 }
@@ -523,8 +512,6 @@ inline Expr OnesLike(Expr e) {
   static const Op& op = Op::Get("ones_like");
   return Call(op, {e});
 }
-
-Expr MakeOnes(Expr shape, DataType dtype);
 
 inline Expr Ones(Array<IndexExpr> shape, DataType dtype) {
   return MakeOnes(CheckConstantShape(shape), dtype);
@@ -561,21 +548,11 @@ inline Expr Copy(Expr data) {
 }
 
 inline Expr Mean(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
-  auto attrs = make_object<ReduceAttrs>();
-  attrs->axis = std::move(axis);
-  attrs->keepdims = keepdims;
-  attrs->exclude = exclude;
-  static const Op& op = Op::Get("mean");
-  return Call(op, {data}, Attrs(attrs), {});
+  return MakeReduce(data, axis, keepdims, exclude, "mean");
 }
 
 inline Expr Variance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, bool exclude) {
-  auto attrs = make_object<ReduceAttrs>();
-  attrs->axis = std::move(axis);
-  attrs->keepdims = keepdims;
-  attrs->exclude = exclude;
-  static const Op& op = Op::Get("variance");
-  return Call(op, {data, mean}, Attrs(attrs), {});
+  return MakeVariance(data, mean, axis, keepdims, exclude);
 }
 
 static inline Expr Where(const Expr& condition, const Expr& x, const Expr& y) {
@@ -588,8 +565,6 @@ static inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
   return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
-Expr MakeFull(Expr fill_value, Expr shape, DataType dtype);
-
 static inline Expr Full(Expr fill_value, Array<IndexExpr> shape, DataType dtype) {
   return MakeFull(fill_value, CheckConstantShape(shape), dtype);
 }
@@ -598,39 +573,18 @@ static inline Expr Conv2D(Expr data, Expr weight, Array<IndexExpr> strides,
                           Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
                           IndexExpr channels, Array<IndexExpr> kernel_size, std::string data_layout,
                           std::string kernel_layout, std::string out_layout, DataType out_dtype) {
-  auto attrs = make_object<Conv2DAttrs>();
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = std::move(channels);
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->out_dtype = std::move(out_dtype);
-  static const Op& op = Op::Get("nn.conv2d");
-  return Call(op, {data, weight}, Attrs(attrs), {});
+  return MakeConv<Conv2DAttrs>(data, weight, strides, padding, dilation, groups, channels,
+                               kernel_size, data_layout, kernel_layout, out_layout, out_dtype,
+                               "nn.conv2d");
 }
 
 static inline Expr Dense(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
-  auto attrs = make_object<DenseAttrs>();
-  attrs->units = units;
-  attrs->out_dtype = out_dtype;
-  static const Op& op = Op::Get("nn.dense");
-  return Call(op, {data, weight}, Attrs(attrs), {});
+  return MakeDense(data, weight, units, out_dtype);
 }
 
 static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
-  auto attrs = make_object<ReduceAttrs>();
-  attrs->axis = std::move(axis);
-  attrs->keepdims = keepdims;
-  attrs->exclude = exclude;
-  static const Op& op = Op::Get("sum");
-  return Call(op, {data}, Attrs(attrs), {});
+  return MakeReduce(data, axis, keepdims, exclude, "sum");
 }
-
-Expr MakeReshape(Expr data, Array<Integer> newshape);
 
 static inline Expr Reshape(Expr data, Array<Integer> newshape) {
   return MakeReshape(data, newshape);
@@ -639,55 +593,20 @@ static inline Expr Reshape(Expr data, Array<Integer> newshape) {
 static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
                              Array<IndexExpr> padding, std::string layout, bool ceil_mode,
                              bool count_include_pad) {
-  auto attrs = make_object<AvgPool2DAttrs>();
-  attrs->pool_size = std::move(pool_size);
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->layout = std::move(layout);
-  attrs->ceil_mode = ceil_mode;
-  attrs->count_include_pad = count_include_pad;
-  static const Op& op = Op::Get("nn.avg_pool2d");
-  return Call(op, {data}, Attrs(attrs), {});
+  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+                                     count_include_pad, "nn.avg_pool2d");
 }
 
 static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value,
                        std::string pad_mode) {
-  auto attrs = make_object<PadAttrs>();
-  attrs->pad_value = pad_value;
-  attrs->pad_width = std::move(pad_width);
-  attrs->pad_mode = std::move(pad_mode);
-  static const Op& op = Op::Get("nn.pad");
-  return Call(op, {data}, Attrs(attrs), {});
+  return MakePad(data, pad_width, pad_value, pad_mode);
 }
 
-static inline Expr Tile(Expr data, Array<Integer> reps) {
-  auto attrs = make_object<TileAttrs>();
-  attrs->reps = reps;
-  static const Op& op = Op::Get("tile");
-  return Call(op, {data}, Attrs(attrs), {});
-}
-
-Expr MakeBroadCastTo(Expr data, Expr shape);
+static inline Expr Tile(Expr data, Array<Integer> reps) { return MakeTile(data, reps); }
 
 static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
   return MakeBroadCastTo(data, CheckConstantShape(shape));
 }
-
-Expr MakeConcatenate(Expr data, int axis);
-
-Expr MakeRepeat(Expr data, int repeats, int axis);
-
-Expr MakeStridedSlice(Expr data, Expr begin, Expr end, Expr strides, String slice_mode);
-
-Expr MakeStack(Expr data, int axis);
-
-Expr MakeSplit(Expr data, ObjectRef indices_or_sections, int axis);
-
-Expr MakeSqueeze(Expr data, Array<Integer> axis);
-
-Expr MakeExpandDims(Expr data, int axis, int num_newaxis);
-
-Expr MakeLayoutTransform(Expr data, String src_layout, String dst_layout);
 
 Expr StopFusion(Expr data);
 

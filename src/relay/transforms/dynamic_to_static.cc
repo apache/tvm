@@ -33,48 +33,32 @@ namespace relay {
 
 class DynamicToStaticMutator : public MixedModeMutator {
  public:
-  DynamicToStaticMutator()
-      : dyn_reshape_op_(Op::Get("dyn.reshape")),
-        dyn_tile_op_(Op::Get("dyn.tile")),
-        dyn_topk_op_(Op::Get("dyn.topk")) {}
+  DynamicToStaticMutator() {}
 
  private:
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     const CallNode* call_node = post.as<CallNode>();
-    if (call_node->op == dyn_reshape_op_) {
+    if (call_node->op == Op::Get("dyn.reshape")) {
       if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
-        auto attrs = make_object<ReshapeAttrs>();
         CHECK_EQ(shape->data->ndim, 1);
-        attrs->newshape = ToVector(shape->data);
-        attrs->reverse = false;
-        static const Op& reshape = Op::Get("reshape");
-        return Call(reshape, {call_node->args[0]}, Attrs(attrs), {});
+        return MakeReshape(call_node->args[0], ToVector(shape->data));
       }
-    } else if (call_node->op == dyn_tile_op_) {
+    } else if (call_node->op == Op::Get("dyn.tile")) {
       if (const ConstantNode* reps = call_node->args[1].as<ConstantNode>()) {
-        auto attrs = make_object<TileAttrs>();
         CHECK_EQ(reps->data->ndim, 1);
-        attrs->reps = ToVector(reps->data);
-        static const Op& op = Op::Get("tile");
-        return Call(op, {call_node->args[0]}, Attrs(attrs), {});
+        return MakeTile(call_node->args[0], ToVector(reps->data));
       }
-    } else if (call_node->op == dyn_topk_op_) {
+    } else if (call_node->op == Op::Get("dyn.topk")) {
       if (const ConstantNode* k = call_node->args[1].as<ConstantNode>()) {
         const TopKAttrs* param = call_node->attrs.as<TopKAttrs>();
         CHECK(param);
-        auto attrs = make_object<TopKAttrs>();
-        attrs->k = Integer(ToScalar(k->data, 0));
-        std::cout << attrs->k << std::endl;
-        attrs->axis = param->axis;
-        attrs->ret_type = param->ret_type;
-        attrs->is_ascend = param->is_ascend;
-        attrs->dtype = param->dtype;
-        static const Op& op = Op::Get("topk");
-        return Call(op, {call_node->args[0]}, Attrs(attrs), {});
+        return MakeTopK(call_node->args[0], static_cast<int>(ToScalar(k->data, 0)), param->axis,
+                        param->ret_type, param->is_ascend, param->dtype);
       }
     }
     return post;
   }
+
   Expr DispatchVisitExpr(const Expr& expr) override {
     auto post = MixedModeMutator::DispatchVisitExpr(expr);
     if (auto op = post.as<FunctionNode>()) {
@@ -82,10 +66,6 @@ class DynamicToStaticMutator : public MixedModeMutator {
     }
     return post;
   }
-
-  const Op& dyn_reshape_op_;
-  const Op& dyn_tile_op_;
-  const Op& dyn_topk_op_;
 };
 
 Expr DynamicToStatic(Function f, IRModule m) {

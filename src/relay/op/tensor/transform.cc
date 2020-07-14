@@ -40,6 +40,7 @@
 
 #include "../../transforms/infer_layout_util.h"
 #include "../../transforms/pattern_util.h"
+#include "../make_op.h"
 #include "../op_common.h"
 
 namespace tvm {

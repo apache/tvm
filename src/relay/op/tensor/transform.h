@@ -35,10 +35,10 @@
 #include <utility>
 #include <vector>
 
+#include "../make_op.h"
+
 namespace tvm {
 namespace relay {
-
-Expr MakeReshape(Expr data, Array<Integer> newshape);
 
 template <typename AttrType>
 bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
