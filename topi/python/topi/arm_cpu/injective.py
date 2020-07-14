@@ -62,13 +62,10 @@ def schedule_injective(outs):
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
     x = outs[0]
-    ins = x.op.input_tensors
-    dtype = ins[0].dtype if len(ins) > 0 else x.dtype
-    max_vlen = 4 if dtype == 'int32' else 8
 
     if list(s[x].op.axis):
         # do not vectorize for broadcast
-        (io, ii) = s[x].split(list(s[x].op.axis)[-1], max_vlen)
+        (io, ii) = s[x].split(list(s[x].op.axis)[-1], 4)
         s[x].vectorize(ii)
     tvm.te.schedule.AutoInlineInjective(s)
 

@@ -304,8 +304,10 @@ struct FixedPointMultiplyAttrs : public tvm::AttrsNode<FixedPointMultiplyAttrs> 
   int32_t shift;
 
   TVM_DECLARE_ATTRS(FixedPointMultiplyAttrs, "relay.attrs.FixedPointMultiplyAttrs") {
-    TVM_ATTR_FIELD(multiplier).describe("Integer multiplier.");
-    TVM_ATTR_FIELD(shift).describe("Shift.");
+    TVM_ATTR_FIELD(multiplier)
+        .describe("Multiplier of a fixed floating point number described as multiplier*2^(shift)");
+    TVM_ATTR_FIELD(shift).describe(
+        "Shift of a fixed floating point number described as multiplier*2^(shift)");
   }
 };
 

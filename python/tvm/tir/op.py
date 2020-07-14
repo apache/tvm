@@ -982,7 +982,7 @@ def qmuls(x, y, q, s):
     y : PrimExpr
         Second Q-number
     q : PrimExpr
-        Q-ness of x and y
+        Number of fractional bits in x and y. Needs to be > 0
     s : PrimExpr
         Integer shift
 

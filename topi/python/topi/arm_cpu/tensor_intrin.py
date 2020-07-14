@@ -471,7 +471,7 @@ def _qmuls_arm(op):
 
     # Don't use this intrinsic if we don't have a int32x4 vector
     # and if we are not multiplying q31 numbers
-    if x.dtype != "int32x4" and q == 31:
+    if x.dtype != "int32x4" or q.val != 31:
         return op
 
     # Case 1, shift is negative

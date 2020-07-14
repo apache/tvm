@@ -159,11 +159,11 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
       const bool is_upward_rounding = (param->rounding == "UPWARD");
 
       // When using upward rounding (i.e., x.5 rounded to x+1), leverage
-      // the fixed_point_muliply intrinsic
-      scaled_int32_t = (is_upward_rounding ? relay::FixedPointMultiply(
-                                                 scaled_int32_t, fixed_point_multiplier, shift)
-                                           : FixedPointMultiply(scaled_int32_t, double_multiplier,
-                                                                input_shape, param->rounding));
+      // the FixedPointMultiply operator
+      scaled_int32_t =
+          (is_upward_rounding
+               ? FixedPointMultiply(scaled_int32_t, fixed_point_multiplier, shift)
+               : FixedPointMultiplyToNearest(scaled_int32_t, double_multiplier, input_shape));
     }
 
   } else {

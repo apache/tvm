@@ -56,8 +56,8 @@ std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(double double_multiplie
   return std::make_pair(significand, exponent);
 }
 
-Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& input_shape,
-                        const std::string& rounding) {
+Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
+                                 const Array<IndexExpr>& input_shape) {
   // Choose high precision datatype to be int64. This is for avoiding overflow
   // in multiplication of two int32 values.
   DataType hp_dtype = DataType::Int(64);
@@ -90,19 +90,15 @@ Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& 
   int64_t pos_rounding_value = (1ll << (total_right_shift - 1));
 
   Expr round_scalar;
-  if (rounding == "UPWARD") {
-    round_scalar = MakeConstantScalar(hp_dtype, pos_rounding_value);
-  } else if (rounding == "TONEAREST") {
-    auto pos_rounder = MakeConstantScalar(hp_dtype, pos_rounding_value);
-    auto neg_rounder = MakeConstantScalar(hp_dtype, pos_rounding_value - 1);
-    auto pos_rounder_t = Full(pos_rounder, input_shape, hp_dtype);
-    auto neg_rounder_t = Full(neg_rounder, input_shape, hp_dtype);
 
-    auto zero_t = Zeros(input_shape, hp_dtype);
-    round_scalar = Where(GreaterEqual(tensor, zero_t), pos_rounder_t, neg_rounder_t);
-  } else {
-    LOG(FATAL) << "Rounding mode " << rounding << " not supported.";
-  }
+  auto pos_rounder = MakeConstantScalar(hp_dtype, pos_rounding_value);
+  auto neg_rounder = MakeConstantScalar(hp_dtype, pos_rounding_value - 1);
+  auto pos_rounder_t = Full(pos_rounder, input_shape, hp_dtype);
+  auto neg_rounder_t = Full(neg_rounder, input_shape, hp_dtype);
+
+  auto zero_t = Zeros(input_shape, hp_dtype);
+  round_scalar = Where(GreaterEqual(tensor, zero_t), pos_rounder_t, neg_rounder_t);
+
   // Add the rounding scalar.
   tensor = Add(tensor, round_scalar);
 

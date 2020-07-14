@@ -558,13 +558,16 @@ TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
  *
  *    out = round(x*y*2^-s)
  *
+ * Please note that the two Q-numbers x and y are supposed to have
+ * the same number of fractional bits q.
+ *
  * More about Q-numbers here: https://en.wikipedia.org/wiki/Q_(number_format)
  *
  * The rounding rule is to the nearest value, rounding half up
  * (i.e., round(x.1) = x and round (x.5) = x+1)
  * \param x first Q-number
  * \param y second Q-number
- * \param q Q-ness of x and y
+ * \param q number of fractional bits in x and y. Needs to be > 0
  * \param s integer right shift
  * \return The constructed expression.
  */

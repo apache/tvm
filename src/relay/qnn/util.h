@@ -115,13 +115,12 @@ static inline int64_t get_const_int(const tvm::PrimExpr& x) {
 
 /*
  * \brief Fixed point multiplication between integer tensor with floating point
- scalar.
+ * scalar. This implementation rounds  to the nearest value when it is midway
+ * between two representable values.
  * \param tensor The quantized input tensor of dtype int64.
  * \param multiplier The scalar multiplier.
  * \param input_shape Shape of the input tensor.
- * \param rounding "UPWARD" or "TONEAREST". The rounding direction when the value
- is midway between" "two representable values.
- * \return The sequence of Relay ops for fixed point multiplication.
+ * \return The sequence of Relay ops for fixed point multiplication with TONEARES rounding.
 
  * \note Original compuation is scale_fp32 * quantized_tensor.  To convert into
  *       integer computation, the multiplication with fp32 scalar can be
@@ -135,8 +134,8 @@ static inline int64_t get_const_int(const tvm::PrimExpr& x) {
  *       2) Round the result.
  *       3) Right shift the result
  */
-Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& input_shape,
-                        const std::string& rounding);
+Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
+                                 const Array<IndexExpr>& input_shape);
 
 /*
  * \brief Fixed point multiplication between integer tensor with floating point

@@ -138,14 +138,14 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.qmuls")
 
       // 1) Calculating the integer multiplier and integer shift
       PrimExpr zero = make_const(s.dtype(), 0);
-      PrimExpr left_shift = tir::Select((s > zero), s, zero);
+      PrimExpr left_shift = tir::Select(s > zero, s, zero);
       PrimExpr right_shift = tir::Select(s > zero, zero, -s);
 
       // 2) Multiply the integer multiplier
       x = tir::Select(left_shift != zero, x << cast(hp_dtype, left_shift), cast(hp_dtype, x));
 
       // 3) Perform the multiplication in higher precision.
-      x = x * y;
+      x = x * cast(hp_dtype, y);
 
       // 4) Find the rounding scalar
       PrimExpr total_right_shift = right_shift + q;

@@ -620,8 +620,10 @@ def fixed_point_multiply(x, multiplier, shift):
     ----------
     x :          tvm.te.Tensor or Expr
                  Input argument.
-    multiplier:  Integer multiplier
-    shift:       Integer shift
+    multiplier:  int
+                 Multiplier of a fixed floating point number described as multiplier*2^(shift)
+    shift:       int
+                 Shift of a fixed floating point number described as multiplier*2^(shift)
 
     Returns
     -------
