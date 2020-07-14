@@ -2074,7 +2074,7 @@ def _mx_broadcast_logical(logical_op):
 def _mx_npi_transpose(inputs, attrs):
     axes = attrs.get_int_tuple("axes", None)
     # translate default case
-    axes = None if len(axes) == 0 or axes[0] == None else axes
+    axes = None if len(axes) == 0 or axes[0] is None else axes
     return _op.transpose(inputs[0], axes=axes)
 
 
@@ -2115,19 +2115,20 @@ def _mx_npx_reshape(inputs, attrs):
     reverse = attrs.get_bool("reverse", False)
     shape_list = list(shape)
     new_shape_list = []
-    for i in range(len(shape_list)):
-        if shape_list[i] > 0 or shape_list[i] == -1: 
-            new_shape_list.append(shape_list[i])
-        elif shape_list[i] == -2:
+    for num in shape_list:
+        if num > 0 or num == -1:
+            new_shape_list.append(num)
+        elif num == -2:
             new_shape_list.append(0)
-        elif shape_list[i] == -4:
+        elif num == -4:
             new_shape_list.append(-2)
-        elif shape_list[i] == -5:
+        elif num == -5:
             new_shape_list.append(-3)
-        elif shape_list[i] == -6:
+        elif num == -6:
             new_shape_list.append(-4)
         else:
-            raise tvm.error.OpAttributeInvalid('Shape dimension %d is not supported' % shape_list[i])
+            raise tvm.error.OpAttributeInvalid(
+              'Shape dimension %d is not supported' % num)
     shape = tuple(new_shape_list)
     if reverse:
         return _op.reverse_reshape(inputs[0], newshape=shape)
