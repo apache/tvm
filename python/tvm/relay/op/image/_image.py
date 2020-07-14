@@ -68,20 +68,28 @@ def compute_crop_and_resize(attrs, inputs, out_type):
 reg.register_injective_schedule("image.crop_and_resize")
 
 @script
-def _crop_and_resize_func(image_shape, boxes_shape, crop_size):
+def _crop_and_resize_func(image_shape, boxes_shape, crop_size, height_axis, width_axis, channel_axis):
     out = output_tensor((4,), "int64")
     out[0] = boxes_shape[0]
-    out[1] = int64(crop_size[0])
-    out[2] = int64(crop_size[1])
-    out[3] = image_shape[3]
-
+    out[height_axis] = int64(crop_size[0])
+    out[width_axis] = int64(crop_size[1])
+    out[channel_axis] = image_shape[channel_axis]
     return out
 
 @reg.register_shape_func("image.crop_and_resize", False)
 def crop_and_resize_func(attrs, inputs, _):
+    layout = attrs.layout
+    height_axis = width_axis = channel_axis= 1
+    for i, letter in enumerate(layout):
+        if letter == "H":
+            height_axis = i
+        if letter == "W":
+            width_axis = i
+        if letter == "C":
+            channel_axis = i
     crop_size = get_const_tuple(attrs.crop_size)
-
-    return [_crop_and_resize_func(inputs[0], inputs[1], convert(crop_size))]
+    return [_crop_and_resize_func(inputs[0], inputs[1], convert(crop_size), 
+                                  convert(height_axis), convert(width_axis), convert(channel_axis))]
 
 
 # dilation2d
