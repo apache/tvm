@@ -149,7 +149,7 @@ template <>
 class PEqualChecker<FloatImm> {
  public:
   bool operator()(const FloatImm& lhs, const FloatImm& rhs) const {
-    return BaseValueEqual()(lhs->value, rhs->value);
+    return BaseValueEqual()(rhs->value, lhs->value);
   }
 };
 
