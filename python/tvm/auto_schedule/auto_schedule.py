@@ -38,7 +38,7 @@ from . import _ffi_api
 class HardwareParams(Object):
     """ The parameters of target hardware used to guide the search policy
 
-    TODO(jcf94): This is considered to be merged with the new Target:
+    TODO(jcf94): This is considered to be merged with the new Target specification:
     https://discuss.tvm.ai/t/rfc-tvm-target-specification/6844
 
     Parameters
