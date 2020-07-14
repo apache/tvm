@@ -201,7 +201,7 @@ void CoreMLRuntime::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(symbol_);
   stream->Write((uint64_t)[dirData length]);
   stream->Write([dirData bytes], [dirData length]);
-  LOG(INFO) << "Save " << symbol_ << " (" << [dirData length] << " bytes)";
+  DLOG(INFO) << "Save " << symbol_ << " (" << [dirData length] << " bytes)";
 }
 
 /*!
