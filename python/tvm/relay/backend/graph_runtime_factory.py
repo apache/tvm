@@ -20,50 +20,16 @@ from tvm._ffi.base import string_types
 from tvm._ffi.registry import get_global_func
 from tvm.runtime import ndarray
 
-
-def create(graph_json_str, libmod, libmod_name, params):
-    """Create a runtime executor module.
-    Parameters
-    ----------
-    graph_json_str : str or graph class
-        The graph to be deployed in json format output by nnvm graph.
-        The graph can only contain one operator(tvm_op) that
-        points to the name of PackedFunc in the libmod.
-    libmod : tvm.Module
-        The module of the corresponding function
-    libmod_name: str
-        The name of module
-    params : dict of str to NDArray
-        The parameters of module
-
-    Returns
-    -------
-    graph_module : Module
-        Runtime graph runtime factory module.
-    """
-    if not isinstance(graph_json_str, string_types):
-        try:
-            graph_json_str = graph_json_str._tvm_graph_json()
-        except AttributeError:
-            raise ValueError("Type %s is not supported" % type(graph_json_str))
-    fcreate = get_global_func("tvm.graph_runtime_factory.create")
-    args = []
-    for k, v in params.items():
-        args.append(k)
-        args.append(ndarray.array(v))
-    return fcreate(graph_json_str, libmod, libmod_name, *args)
-
-
 class GraphRuntimeFactoryModule(object):
     """Graph runtime factory module.
     This is a module of graph runtime factory
 
     Parameters
     ----------
-    graph_json_str : str or graph class
-        The graph to be deployed in json format output by nnvm graph.
-        The graph can only contain one operator(tvm_op) that
-        points to the name of PackedFunc in the libmod.
+    graph_json_str : str
+        The graph to be deployed in json format output by graph compiler.
+        The graph can contain operator(tvm_op) that points to the name of
+        PackedFunc in the libmod.
     libmod : tvm.Module
         The module of the corresponding function
     libmod_name: str
@@ -73,12 +39,18 @@ class GraphRuntimeFactoryModule(object):
     """
 
     def __init__(self, graph_json_str, libmod, libmod_name, params):
+        assert isinstance(graph_json_str, string_types)
+        fcreate = get_global_func("tvm.graph_runtime_factory.create")
+        args = []
+        for k, v in params.items():
+            args.append(k)
+            args.append(ndarray.array(v))
+        self.module = fcreate(graph_json_str, libmod, libmod_name, *args)
         self.graph_json = graph_json_str
         self.lib = libmod
         self.libmod_name = libmod_name
         self.params = params
         self.iter_cnt = 0
-        self.module = create(graph_json_str, libmod, libmod_name, params)
 
     def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
         return self.module.export_library(file_name, fcompile, addons, **kwargs)
@@ -101,7 +73,6 @@ class GraphRuntimeFactoryModule(object):
             "removed in the next release ",
             DeprecationWarning, 2)
         return self
-
 
     def __next__(self):
         if self.iter_cnt > 2:
