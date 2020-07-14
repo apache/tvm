@@ -428,17 +428,18 @@ void* HexagonModuleNode::CreateRemoteTensor(const DLTensor* t) const {
   uint32_t remote_as_int = reinterpret_cast<uintptr_t>(remote);
   void* remote_ss = reinterpret_cast<void*>(remote_as_int + size_ht);
 
-  HexagonDLTensor local = {.data = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t->data)),
-                           .ctx_device_type = uint8_t(t->ctx.device_type),
-                           .pad0 = {0, 0, 0},
-                           .ctx_device_id = t->ctx.device_id,
-                           .ndim = t->ndim,
-                           .dtype_code = t->dtype.code,
-                           .dtype_bits = t->dtype.bits,
-                           .dtype_lanes = t->dtype.lanes,
-                           .shape = remote_as_int + size_ht,
-                           .strides = t->strides ? remote_as_int + size_ht + size_s : 0u,
-                           .byte_offset = t->byte_offset};
+  HexagonDLTensor local;
+  local.data = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t->data));
+  local.ctx_device_type = uint8_t(t->ctx.device_type);
+  local.pad0[0] = local.pad0[1] = local.pad0[2] = 0;
+  local.ctx_device_id = t->ctx.device_id;
+  local.ndim = t->ndim;
+  local.dtype_code = t->dtype.code;
+  local.dtype_bits = t->dtype.bits;
+  local.dtype_lanes = t->dtype.lanes;
+  local.shape = remote_as_int + size_ht;
+  local.strides = t->strides ? remote_as_int + size_ht + size_s : 0u;
+  local.byte_offset = t->byte_offset;
 
   std::vector<uint64_t> local_ss(size_ss / 8);
   for (int i = 0; i != ndim; ++i) local_ss[i] = t->shape[i];
