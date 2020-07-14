@@ -68,7 +68,7 @@ def compute_crop_and_resize(attrs, inputs, out_type):
 reg.register_injective_schedule("image.crop_and_resize")
 
 @script
-def _crop_and_resize_func(image_shape, boxes_shape, crop_size, 
+def _crop_and_resize_func(image_shape, boxes_shape, crop_size,
                           height_axis, width_axis, channel_axis):
     out = output_tensor((4,), "int64")
     out[0] = boxes_shape[0]
