@@ -267,7 +267,7 @@ def gemv_quantized_impl(M, N, data_type='uint8'):
     ll_path = temp.relpath("temp.ll")
     # Create LLVM ir from c source code
     ll_code = clang.create_llvm(cc_code,
-                                options=["-mtriple=aarch64-linux-gnu -mattr=+neon"],
+                                options=["--target=aarch64-linux-gnu -mattr=+neon"],
                                 output=ll_path)
     return ll_code
 
