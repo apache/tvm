@@ -32,16 +32,16 @@ NullStream& NullStream::Global() {
   return stream;
 }
 
-ThreadPool& ThreadPool::Global() {
-  static ThreadPool* pool = new ThreadPool();
+ParallelFor& ParallelFor::Global() {
+  static ParallelFor* pool = new ParallelFor();
   static int ct = 0;
 
-  ct = (ct + 1) % ThreadPool::REFRESH_EVERY;
+  ct = (ct + 1) % ParallelFor::REFRESH_EVERY;
 
   if (ct == 0) {
     pool->Abort();
     delete pool;
-    pool = new ThreadPool();
+    pool = new ParallelFor();
   }
 
   if (pool->NumWorkers() == 0) {

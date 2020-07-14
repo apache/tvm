@@ -237,7 +237,7 @@ void ProgramMeasurerNode::Measure(const SearchTask& task, const SearchPolicy& po
 void ProgramMeasurerNode::SilentMeasure(const SearchTask& task, const Array<MeasureInput>& inputs,
                                         Array<MeasureResult>* results) {
   // Close the thread pool to avoid the conflits with python environment
-  ThreadPool::Global().Abort();
+  ParallelFor::Global().Abort();
 
   results->clear();
   results->reserve(inputs.size());

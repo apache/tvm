@@ -184,22 +184,36 @@ inline void PrintTitle(const std::string& title, int verbose) {
 }
 
 /*!
- * \brief A simple thread pool.
+ * \brief A simple thread pool to perform parallel for.
  * TODO(merrymercy): Move this to `src/support/parallel_for`
  */
-class ThreadPool {
+class ParallelFor {
  public:
+  /*!
+   * \brief Set the thread number used in this pool.
+   * \param n The thread number of this pool.
+   */
   void Launch(size_t n = 1) {
     for (std::size_t i = 0; i < n; ++i) {
       threads_.emplace_back([this] { WorkerFunc(); });
     }
   }
 
+  /*!
+   * \brief Set the total task number to be executed in this parallel for run batch.
+   * \param n The task number of this parallel for run batch.
+   */
   void BeginBatch(int n) {
     finish_ct_ = n;
     is_finished_ = n <= 0;
   }
 
+  /*!
+   * \brief Add run task to task queue. The task added will be run in thread pool immediately.
+   * \param f The task function to be executed.
+   * \param args The args of the task function.
+   * \return The result of the task function.
+   */
   template <typename F, typename... Args, typename R = typename std::result_of<F(Args...)>::type>
   std::future<R> Enqueue(F&& f, Args&&... args) {
     std::packaged_task<R()> p(std::bind(f, args...));
@@ -213,6 +227,7 @@ class ThreadPool {
     return r;
   }
 
+  /*! \brief Wait until the parallel for run batch is finished. */
   void WaitBatch() {
     std::unique_lock<std::mutex> l(finish_mutex_);
     if (!is_finished_) {
@@ -220,16 +235,19 @@ class ThreadPool {
     }
   }
 
+  /*! \brief Stop the running process. */
   void Abort() {
     CancelPending();
     Join();
   }
 
+  /*! \brief Cancel all the tasks in task queue. */
   void CancelPending() {
     std::unique_lock<std::mutex> l(m_);
     work_.clear();
   }
 
+  /*! \brief Wait until all of the threads are finished. */
   void Join() {
     {
       std::unique_lock<std::mutex> l(m_);
@@ -244,12 +262,16 @@ class ThreadPool {
     threads_.clear();
   }
 
+  /*!
+   * \brief Get the working thread number of this pool.
+   * \return The thread number of this pool.
+   */
   size_t NumWorkers() { return threads_.size(); }
 
   static const int REFRESH_EVERY = 128;
-  static ThreadPool& Global();
+  static ParallelFor& Global();
 
-  ~ThreadPool() { Join(); }
+  ~ParallelFor() { Join(); }
 
  private:
   void WorkerFunc() {
