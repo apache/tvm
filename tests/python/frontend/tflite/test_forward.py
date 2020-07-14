@@ -1311,7 +1311,6 @@ def _test_elemwise(math_op, data, fused_activation_function=None, quantized=Fals
 
     assert len(data) == 2
 
-    # Test with two tensors
     def __test_elemwise( in_data ):
         assert 2 == len( in_data )
         if quantized:
