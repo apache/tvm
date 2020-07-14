@@ -1706,7 +1706,6 @@ class OperatorConverter(object):
         output_tensor_type = output_tensor.tensor.Type()
         output_tensor_type_str = self.get_tensor_type_str(output_tensor_type)
 
-        input_tensor_shape = input_tensor.tensor.ShapeAsNumpy()
         weight_tensor_shape = weight_tensor.tensor.ShapeAsNumpy()
 
         # Weight should have only 2 dimensions(TFLite convention)
@@ -1719,14 +1718,7 @@ class OperatorConverter(object):
         # Dense expected Input shape: [batch_size, n_units]
         # Dense expected Weight shape: [out_dim, n_units]
         # Dense output shape: [batch_size, out_dim]
-        # So it is evident that input shape: [batch_size = input_size / n_units, n_units]
-        input_size = 1
-        for _, shape in enumerate(input_tensor_shape):
-            input_size *= shape
-
-        # First get the batch size
-        batch_size = int(input_size / weight_tensor_shape[1])
-        target_shape = tuple((batch_size, weight_tensor_shape[1]))
+        target_shape = tuple((-1, weight_tensor_shape[1]))
         in_expr = self.get_expr(input_tensor_idx)
         in_expr = _op.reshape(in_expr, target_shape)
 

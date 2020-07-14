@@ -210,10 +210,12 @@ def run_tflite_graph(tflite_model_buf, input_data):
     input_data = convert_to_list(input_data)
 
     interpreter = interpreter_wrapper.Interpreter(model_content=tflite_model_buf)
-    interpreter.allocate_tensors()
-
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
+
+    for i in range(len(input_details)):
+        interpreter.resize_tensor_input(input_details[i]['index'], input_data[i].shape)
+    interpreter.allocate_tensors()
 
     # set input
     assert len(input_data) == len(input_details)
@@ -2548,6 +2550,20 @@ def test_forward_inception_v4_net():
     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
                                 rtol=1e-5, atol=1e-5)
 
+def test_forward_inception_v4_net_batched():
+    """Test the Inception V4 TF Lite model."""
+    # InceptionV4
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/download.tensorflow.org/models/tflite/model_zoo/upload_20180427/inception_v4_2018_04_27.tgz",
+        "inception_v4.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    data = np.random.uniform(size=(4, 299, 299, 3)).astype('float32')
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-5, atol=1e-5)
+
 def test_forward_qnn_inception_v1_net():
     """Test the Quantized TFLite Inception model."""
     # InceptionV1
@@ -2914,6 +2930,7 @@ if __name__ == '__main__':
     test_forward_mobilenet_v3()
     test_forward_inception_v3_net()
     test_forward_inception_v4_net()
+    test_forward_inception_v4_net_batched()
     test_forward_coco_ssd_mobilenet_v1()
     test_forward_mediapipe_hand_landmark()
 
