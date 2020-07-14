@@ -22,11 +22,12 @@
  * \brief A pass for simplifying the Relay expression.
  */
 
+#include <tvm/relay/dataflow_matcher.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include <tvm/relay/dataflow_matcher.h>
 #include <tvm/support/logging.h>
+
 #include "../op/tensor/transform.h"
 
 namespace tvm {
@@ -86,13 +87,11 @@ class ExprSimplifier {
       Map<DFPattern, Array<Expr>> node_map = args[2];
       *rv = simplify_reshape_.callback(pre, post, node_map);
     };
-    callbacks_.push_back(DFPatternCallback(simplify_reshape_.pattern(), PackedFunc(reshape_func),
-                                           true));
+    callbacks_.push_back(
+        DFPatternCallback(simplify_reshape_.pattern(), PackedFunc(reshape_func), true));
   }
 
-  Expr Simplify(const Expr& expr) {
-    return RewritePatterns(callbacks_, expr);
-  }
+  Expr Simplify(const Expr& expr) { return RewritePatterns(callbacks_, expr); }
 
  private:
   /*! \brief Simplify reshape pattern */
@@ -101,17 +100,13 @@ class ExprSimplifier {
   Array<DFPatternCallback> callbacks_;
 };
 
-Expr SimplifyExpr(const Expr& expr) {
-  return ExprSimplifier().Simplify(expr);
-}
+Expr SimplifyExpr(const Expr& expr) { return ExprSimplifier().Simplify(expr); }
 
 namespace transform {
 
 Pass SimplifyExpr() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(SimplifyExpr(f));
-      };
+      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(SimplifyExpr(f)); };
   return CreateFunctionPass(pass_func, 0, "SimplifyExpr", {"InferType"});
 }
 
