@@ -19,7 +19,6 @@
 """Transform operator"""
 import tvm
 from tvm import te
-from tvm.tir import if_then_else
 
 
 def invert_permutation_ir(data, out):
@@ -68,7 +67,7 @@ def invert_permutation(data):
     Parameters
     ----------
     data : tvm.te.Tensor
-        1-D tensor 
+        1-D tensor
 
     Returns
     -------
@@ -87,4 +86,3 @@ def invert_permutation(data):
                     tag="invert_permutation_gpu")
 
     return out
-

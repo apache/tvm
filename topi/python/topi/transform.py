@@ -806,7 +806,7 @@ def invert_permutation(data):
     Parameters
     ----------
     data : tvm.te.Tensor
-        1-D tensor 
+        1-D tensor
 
     Returns
     -------
