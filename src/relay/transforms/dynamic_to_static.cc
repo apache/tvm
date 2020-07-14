@@ -58,7 +58,6 @@ class DynamicToStaticMutator : public MixedModeMutator {
     } else if (call_node->op == Op::Get("dyn.broadcast_to")) {
       if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
         CHECK_EQ(shape->data->ndim, 1);
-   
         return MakeBroadCastTo(call_node->args[0], ToVector(shape->data));
       }
     } else if (call_node->op == Op::Get("dyn.zeros")) {
@@ -67,7 +66,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
         CHECK(param);
         return MakeZeros(ToVector(shape->data), param->dtype);
       }
-    } else if (call_node-> op == Op::Get("dyn.ones")) {
+    } else if (call_node->op == Op::Get("dyn.ones")) {
       if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
         const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
         CHECK(param);
