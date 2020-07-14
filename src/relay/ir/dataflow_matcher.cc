@@ -740,10 +740,10 @@ class PatternRewriter : protected MixedModeMutator {
         groups_ = grouper.GroupMatches(callback_->pattern_, post);
         gid_assignments_ = grouper.GetGIDAssignments();
         memo_.clear();
-        post = this->VisitExpr(post);
+        post = InferType(this->VisitExpr(post));
         count++;
       }
-    } while (last != post || count >= 100);
+    } while (!StructuralEqual()(last, post) || count >= 100);
     if (count >= 100) {
       throw("Observed 100 rewrite passes, possible conflicting passes?");
     }
