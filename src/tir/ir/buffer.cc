@@ -301,7 +301,7 @@ Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
   const BufferNode* n = operator->();
   DataType dtype = value.dtype();
   CHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
-      << "Cannot load " << dtype << " from buffer of " << n->dtype;
+      << "Cannot store " << dtype << " to buffer of " << n->dtype;
   if (value.dtype() == DataType::Bool()) {
     return tir::Store(n->data, tir::Cast(DataType::Int(8), value),
                       BufferOffset(n, begin, DataType::Int(8)), const_true());
