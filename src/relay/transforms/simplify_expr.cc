@@ -101,7 +101,7 @@ class ExprSimplifier {
   Array<DFPatternCallback> callbacks_;
 };
 
-Expr SimplifyExpr(const Expr& expr, const IRModule& module) {
+Expr SimplifyExpr(const Expr& expr) {
   return ExprSimplifier().Simplify(expr);
 }
 
@@ -110,7 +110,7 @@ namespace transform {
 Pass SimplifyExpr() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(SimplifyExpr(f, m));
+        return Downcast<Function>(SimplifyExpr(f));
       };
   return CreateFunctionPass(pass_func, 0, "SimplifyExpr", {"InferType"});
 }
