@@ -114,8 +114,8 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
           // do an eager copy of the PackedFunc
           PackedFunc f = value;
           // If we get a function from frontend, avoid deleting it.
-          auto* fcopy = new PackedFunc(f);
-          reg.set_attr(attr_key, *fcopy, plevel);
+          std::unique_ptr<PackedFunc> fcopy(new PackedFunc(f));
+          reg.set_attr(attr_key, fcopy.get(), plevel);
         } else {
           reg.set_attr(attr_key, value, plevel);
         }

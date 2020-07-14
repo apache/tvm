@@ -131,7 +131,7 @@ TVM_REGISTER_GLOBAL("target.GenericFuncGetGlobal").set_body([](TVMArgs args, TVM
 TVM_REGISTER_GLOBAL("target.GenericFuncSetDefault").set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
-  PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
+  std::unique_ptr<PackedFunc> func(new PackedFunc(args[1].operator PackedFunc()));
   bool allow_override = args[2];
 
   generic_func.set_default(*func, allow_override);
@@ -140,7 +140,7 @@ TVM_REGISTER_GLOBAL("target.GenericFuncSetDefault").set_body([](TVMArgs args, TV
 TVM_REGISTER_GLOBAL("target.GenericFuncRegisterFunc").set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
-  PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
+  std::unique_ptr<PackedFunc> func(new PackedFunc(args[1].operator PackedFunc()));
   Array<runtime::String> tags = args[2];
   bool allow_override = args[3];
 
