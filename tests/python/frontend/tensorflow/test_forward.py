@@ -2921,7 +2921,7 @@ def test_forward_invert_permutation():
     with tf.Graph().as_default():
         in_data = tf.placeholder(dtype=tf.int32, shape=(5), name="in_data")
         result = tf.invert_permutation(in_data, name='result')
-        compare_tf_with_tvm([np_data], ['in_data:0'], result.name, no_gpu=True)
+        compare_tf_with_tvm([np_data], ['in_data:0'], result.name)
 
 
 def test_forward_atan2():

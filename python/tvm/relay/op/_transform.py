@@ -661,8 +661,12 @@ def split_shape_func(attrs, inputs, _):
                               convert(indices_or_sections),
                               convert(axis)) for i in range(num_out)]
 
-
 # invert_permutation
+_reg.register_strategy("invert_permutation", strategy.invert_permutation_strategy)
+
+_reg.register_shape_func("invert_permutation", False, elemwise_shape_func)
+
+'''
 @_reg.register_compute("invert_permutation")
 def compute_invert_permutation(attrs, inputs, output_type):
     """Compute definition of invert_permutation"""
@@ -670,5 +674,4 @@ def compute_invert_permutation(attrs, inputs, output_type):
 
 
 _reg.register_injective_schedule("invert_permutation")
-
-_reg.register_shape_func("invert_permutation", False, elemwise_shape_func)
+'''
