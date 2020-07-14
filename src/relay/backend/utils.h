@@ -248,6 +248,18 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
   return GetRootCall(next_call, depth - 1, expected_op_names);
 }
 
+/*!
+ * \brief Get the external symbol of the Relay function name.
+ *
+ * \param func The provided function.
+ * \return An external symbol.
+ */
+inline std::string GetExtSymbol(const Function& func) {
+  const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  CHECK(name_node.defined()) << "Fail to retrieve external symbol.";
+  return std::string(name_node.value());
+}
+
 }  // namespace backend
 }  // namespace relay
 }  // namespace tvm

@@ -72,8 +72,8 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
    * \param call The call to be represented.
    * \return A JSON representation of a specific operator.
    */
-  std::shared_ptr<JSONGraphNode> CreateOp(const CallNode* cn);
-  std::shared_ptr<JSONGraphNode> CreateCompositeConvolution(const CallNode* cn);
+  std::shared_ptr<JSONGraphNode> CreateOpJSONNode(const CallNode* cn);
+  std::shared_ptr<JSONGraphNode> CreateCompositeConvJSONNode(const CallNode* cn);
 
   /* \brief Transposed constant tensors to serialize. Arm Compute Library expects constant tensors
    * in OHWI format. */
@@ -107,33 +107,10 @@ IRModule PreProcessModule(const IRModule& mod);
 runtime::Module ACLCompiler(const ObjectRef& ref);
 
 /*!
- * \brief Get the external symbol of the Relay function name.
- *
- * \param func The provided function.
- *
- * \return An external symbol.
- */
-std::string GetExtSymbol(const Function& func) {
-  const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  CHECK(name_node.defined()) << "Fail to retrieve external symbol.";
-  return std::string(name_node.value());
-}
-
-TVM_REGISTER_GLOBAL("relay.ext.arm_compute_lib").set_body_typed(ACLCompiler);
-
-/*!
  * \brief Check whether ACL graph runtime is used.
  * \return True if ACL graph runtime is enabled, False if not.
  */
-inline constexpr bool IsACLRuntimeEnabled() {
-#if TVM_GRAPH_RUNTIME_ACL
-  return true;
-#else
-  return false;
-#endif
-}
-
-TVM_REGISTER_GLOBAL("relay.op.is_arm_compute_runtime_enabled").set_body_typed(IsACLRuntimeEnabled);
+inline constexpr bool IsACLRuntimeEnabled();
 
 }  // namespace arm_compute_lib
 }  // namespace contrib

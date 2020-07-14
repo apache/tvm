@@ -78,8 +78,8 @@ std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeMemoryManager() {
 
 arm_compute::PadStrideInfo ToACLPadStride(const std::vector<std::string>& pad,
                                           const std::vector<std::string>& stride) {
-  int pad_0, pad_1, pad_2, pad_3;
-
+  int pad_0 = 0, pad_1 = 0, pad_2 = 0, pad_3 = 0;
+  int stride_0 = std::stoi(stride[0]), stride_1 = std::stoi(stride[1]);
   size_t size = pad.size();
   if (size == 1) {
     int pad_v = std::stoi(pad[0]);
@@ -103,11 +103,10 @@ arm_compute::PadStrideInfo ToACLPadStride(const std::vector<std::string>& pad,
     pad_3 = std::stoi(pad[2]);
   } else {
     LOG(FATAL) << "Unsupported padding dimensions";
-    return arm_compute::PadStrideInfo();
   }
 
-  return arm_compute::PadStrideInfo(std::stoi(stride[0]), std::stoi(stride[1]), pad_0, pad_1, pad_2,
-                                    pad_3, arm_compute::DimensionRoundingType::FLOOR);
+  return arm_compute::PadStrideInfo(stride_0, stride_1, pad_0, pad_1, pad_2, pad_3,
+                                    arm_compute::DimensionRoundingType::FLOOR);
 }
 
 }  // namespace arm_compute_lib

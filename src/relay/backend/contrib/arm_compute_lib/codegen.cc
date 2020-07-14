@@ -42,13 +42,13 @@ std::vector<JSONGraphNodeEntry> ACLJSONSerializer::VisitExpr_(const CallNode* cn
   std::shared_ptr<JSONGraphNode> json_node;
 
   if (cn->op.as<OpNode>()) {
-    json_node = CreateOp(cn);
+    json_node = CreateOpJSONNode(cn);
   } else if (const auto* fn = cn->op.as<FunctionNode>()) {
     auto comp = fn->GetAttr<String>(attr::kComposite);
     CHECK(comp.defined()) << "Arm Compute Library JSON runtime only supports composite functions.";
     name = comp.value();
     if (name == "arm_compute_lib.conv2d") {
-      json_node = CreateCompositeConvolution(cn);
+      json_node = CreateCompositeConvJSONNode(cn);
     } else {
       LOG(FATAL) << "Unrecognized Arm Compute Library pattern: " << name;
     }
@@ -65,7 +65,7 @@ std::vector<JSONGraphNodeEntry> ACLJSONSerializer::VisitExpr_(const ConstantNode
   return JSONSerializer::VisitExpr_(cn);
 }
 
-std::shared_ptr<JSONGraphNode> ACLJSONSerializer::CreateOp(const CallNode* cn) {
+std::shared_ptr<JSONGraphNode> ACLJSONSerializer::CreateOpJSONNode(const CallNode* cn) {
   const auto* op = cn->op.as<OpNode>();
   CHECK(op);
   const std::string name = op->name;
@@ -81,7 +81,7 @@ std::shared_ptr<JSONGraphNode> ACLJSONSerializer::CreateOp(const CallNode* cn) {
   return json_node;
 }
 
-std::shared_ptr<JSONGraphNode> ACLJSONSerializer::CreateCompositeConvolution(const CallNode* cn) {
+std::shared_ptr<JSONGraphNode> ACLJSONSerializer::CreateCompositeConvJSONNode(const CallNode* cn) {
   const std::string name = "arm_compute_lib.conv2d";
   const CallNode* pad = nullptr;
   const CallNode* conv;
@@ -162,7 +162,7 @@ IRModule PreProcessModule(const IRModule& mod) {
 runtime::Module ACLCompiler(const ObjectRef& ref) {
   CHECK(ref->IsInstance<FunctionNode>()) << "The input ref is expected to be a Relay function.";
   Function func = Downcast<Function>(ref);
-  std::string func_name = GetExtSymbol(func);
+  std::string func_name = backend::GetExtSymbol(func);
 
   IRModule mod;
   mod->Add(GlobalVar(func_name), func);
@@ -181,6 +181,18 @@ runtime::Module ACLCompiler(const ObjectRef& ref) {
   runtime::Module lib = (*pf)(func_name, graph_json, param_names, param_data);
   return lib;
 }
+
+TVM_REGISTER_GLOBAL("relay.ext.arm_compute_lib").set_body_typed(ACLCompiler);
+
+inline constexpr bool IsACLRuntimeEnabled() {
+#if TVM_GRAPH_RUNTIME_ARM_COMPUTE_LIB
+  return true;
+#else
+  return false;
+#endif
+}
+
+TVM_REGISTER_GLOBAL("relay.op.is_arm_compute_runtime_enabled").set_body_typed(IsACLRuntimeEnabled);
 
 }  // namespace arm_compute_lib
 }  // namespace contrib

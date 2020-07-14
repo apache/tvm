@@ -24,7 +24,7 @@ from ...dataflow_pattern import wildcard, is_op, is_constant
 from .register import register_pattern_table
 
 
-def is_arm_compute_runtime_present():
+def is_arm_compute_runtime_enabled():
     """Check if the ACL graph runtime is present.
 
     Returns
@@ -43,7 +43,7 @@ def partition_for_arm_compute_lib(mod, params=None):
     ----------
     mod : Module
         The module to run passes on.
-    params : dict[str, NDArray]
+    params : Optional[Dict[str, NDArray]]
         Constant input parameters.
 
     Returns
@@ -53,7 +53,7 @@ def partition_for_arm_compute_lib(mod, params=None):
     if params:
         mod['main'] = bind_params_by_name(mod['main'], params)
 
-    seq = tvm.transform.Sequential([transform.MergeComposite(pattern_table()),
+    seq = tvm.transform.Sequential([transform.MergeComposite(arm_compute_lib_pattern_table()),
                                     transform.AnnotateTarget('arm_compute_lib'),
                                     transform.PartitionGraph()])
 
@@ -61,7 +61,7 @@ def partition_for_arm_compute_lib(mod, params=None):
 
 
 @register_pattern_table("arm_compute_lib")
-def pattern_table():
+def arm_compute_lib_pattern_table():
     """Get the ACL pattern table."""
 
     def conv_pattern():

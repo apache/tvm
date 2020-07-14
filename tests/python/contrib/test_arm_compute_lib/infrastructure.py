@@ -74,7 +74,7 @@ def skip_runtime_test():
         return True
 
     # Remote device is in use or ACL runtime not present
-    if not Device.use_remote and not arm_compute_lib.is_arm_compute_runtime_present():
+    if not Device.use_remote and not arm_compute_lib.is_arm_compute_runtime_enabled():
         print("Skip because runtime isn't present or a remote device isn't being used.")
         return True
 

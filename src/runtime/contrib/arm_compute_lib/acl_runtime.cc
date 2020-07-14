@@ -218,7 +218,7 @@ class ACLRuntime : public JSONRuntimeBase {
     this->layer_.function->run();
 #else
     LOG(FATAL) << "Cannot call run on Arm Compute Library module without runtime enabled. "
-               << "Please build with USE_ACL_GRAPH_RUNTIME.";
+               << "Please build with USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME.";
 #endif
   }
 
@@ -260,9 +260,15 @@ class ACLRuntime : public JSONRuntimeBase {
       }
     }
 
+    bool found_kernel_node = false;
     for (size_t nid = 0; nid < nodes_.size(); ++nid) {
       const auto& node = nodes_[nid];
+      if (found_kernel_node) {
+        LOG(FATAL)
+            << "Arm Compute Library runtime module only supports one kernel node per function.";
+      }
       if (node.GetOpType() == "kernel") {
+        found_kernel_node = true;
         auto op_name = node.GetOpName();
         if ("nn.conv2d" == op_name || "arm_compute_lib.conv2d" == op_name) {
           CreateConvolution2DLayer(&layer_, node, mm);
@@ -274,8 +280,6 @@ class ACLRuntime : public JSONRuntimeBase {
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
-        // Only expect one op for the time being
-        break;
       }
     }
 

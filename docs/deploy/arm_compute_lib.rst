@@ -28,6 +28,7 @@ a performance boost on such devices.
 
 Building with ACL support
 -------------------------
+
 The current implementation has two separate build options in cmake. The reason for this split is
 because ACL cannot be used on an x86 machine. However, we still want to be able compile an ACL
 runtime module on an x86 machine.
@@ -51,7 +52,7 @@ relay graph can be input. The ACL integration will only pick supported operators
 whilst the rest will be computed via TVM. (For this example we will use a single
 max_pool2d operator).
 
-..code:: python
+.. code:: python
 
     import tvm
     from tvm import relay
@@ -79,7 +80,7 @@ Annotate and partition the graph for ACL.
 
 Build the Relay graph.
 
-..code:: python
+.. code:: python
 
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+neon"
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
@@ -88,7 +89,7 @@ Build the Relay graph.
 
 Export the module.
 
-..code:: python
+.. code:: python
 
     lib_path = '~/lib_acl.so'
     cross_compile = 'aarch64-linux-gnu-c++'
@@ -98,7 +99,7 @@ Export the module.
 Run Inference. This must be on an Arm device. If compiling on x86 device and running on aarch64
 consider using the RPC mechanism.
 
-..code:: python
+.. code:: python
 
     tvm.runtime.load_module('lib_acl.so')
     gen_module = tvm.contrib.graph_runtime.create(json, lib, ctx)
