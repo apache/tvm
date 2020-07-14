@@ -1314,54 +1314,51 @@ def _test_elemwise(math_op, data, fused_activation_function=None, quantized=Fals
     # Test with two tensors
     def __test_elemwise( in_data ):
         assert 2 == len( in_data )
-        if True:
-            if quantized:
-                # set the fp32 output range with respect to the operation
-                out_min, out_max = _test_elemwise_qnn_out_range(qnn_op)
-                # if requested use same quantization parameters provided by _test_elemwise_qnn_out_range
-                if same_qnn_params:
-                    inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0], min=out_min, max=out_max, name="inq_0")\
-                                if None != in_data[0]\
-                                else tf.quantization.fake_quant_with_min_max_args(data[0], min=out_min, max=out_max, name="const_tensor"),
-                                tf.quantization.fake_quant_with_min_max_args(in_data[1], min=out_min, max=out_max, name="inq_1")\
-                                if None != in_data[1]\
-                                else tf.quantization.fake_quant_with_min_max_args(data[1], min=out_min, max=out_max, name="const_tensor")]
+        if quantized:
+            # set the fp32 output range with respect to the operation
+            out_min, out_max = _test_elemwise_qnn_out_range(qnn_op)
+            inq0_min, inq0_max = (-100, 100)
+            inq1_min, inq1_max = (-50, 50)
 
-                    input_range = { x[1][0]:x[1][1] for x in zip( in_data, ( ( 'inq_0', (out_min, out_max) ),\
-                                                                             ( 'inq_1', (out_min, out_max) ) ) ) if None != x[0] }
-                else:
+            # if requested use same quantization parameters provided by _test_elemwise_qnn_out_range
+            if same_qnn_params:
+                inq0_min, inq0_max = (out_min, out_max)
+                inq1_min, inq1_max = (out_min, out_max)
+
             # fake_quant will keep the tensors in float32 until the conversion in the session
-                    inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0], min=-100, max=100, name="inq_0")\
-                                if None != in_data[0]\
-                                else tf.quantization.fake_quant_with_min_max_args(data[0], min=-100, max=100, name="const_tensor"),
-                                tf.quantization.fake_quant_with_min_max_args(in_data[1], min=-50, max=50, name="inq_1")
-                                if None != in_data[1]\
-                                else tf.quantization.fake_quant_with_min_max_args(data[1], min=-50, max=50, name="const_tensor")]
-                    input_range = { x[1][0]:x[1][1] for x in zip( in_data, ( ( 'inq_0', (-100, 100) ),\
-                                                                             ( 'inq_1', (-50, 50) ) ) ) if None != x[0] }
-                out = math_op(inq_data[0], inq_data[1])
-                out = with_fused_activation_function(out, fused_activation_function)
-                out = tf.quantization.fake_quant_with_min_max_args(out, min=out_min, max=out_max, name="out")
-                # Note same_qnn_params uses experimental_new_converter as toco failed
-                compare_tflite_with_tvm( [x[1] for x in zip(in_data, data) if None != x[0]],
-                    [x+":0" for x in input_range.keys()],
-                    [x[1] for x in zip( in_data, inq_data ) if None != x[0]],
-                    [out],
-                    quantized=True,
-                    input_range=input_range,
-                    experimental_new_converter=same_qnn_params)
-        else:
-            out = math_op( in_data[0] if None != in_data[0] else ops.convert_to_tensor(data[0], dtype=data[0].dtype),
-                           in_data[1] if None != in_data[1] else ops.convert_to_tensor(data[1], dtype=data[1].dtype) )
+            inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0], min=out_min, max=out_max, name="inq_0")\
+                        if None != in_data[0]\
+                        else tf.quantization.fake_quant_with_min_max_args(data[0], min=out_min, max=out_max, name="const_tensor0"),
+                        tf.quantization.fake_quant_with_min_max_args(in_data[1], min=out_min, max=out_max, name="inq_1")\
+                        if None != in_data[1]\
+                        else tf.quantization.fake_quant_with_min_max_args(data[1], min=out_min, max=out_max, name="const_tensor1")]
+
+            input_range = {x[1][0]:x[1][1] for x in zip(in_data, (('inq_0', (inq0_min, inq0_max)),\
+                                                                  ('inq_1', (inq1_min, inq1_max)))) if None != x[0]}
+
+            out = math_op(inq_data[0], inq_data[1])
             out = with_fused_activation_function(out, fused_activation_function)
-            compare_tflite_with_tvm( [ x[1] for x in zip( in_data, data ) if None != x[0]],
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=out_min, max=out_max, name="out")
+
+            # Note same_qnn_params uses experimental_new_converter as toco failed
+            compare_tflite_with_tvm([x[1] for x in zip(in_data, data) if None != x[0]],
+                [x + ":0" for x in input_range.keys()],
+                [x[1] for x in zip(in_data, inq_data) if None != x[0]],
+                [out],
+                quantized=True,
+                input_range=input_range,
+                experimental_new_converter=same_qnn_params)
+        else:
+            out = math_op(in_data[0] if None != in_data[0] else ops.convert_to_tensor(data[0], dtype=data[0].dtype),
+                          in_data[1] if None != in_data[1] else ops.convert_to_tensor(data[1], dtype=data[1].dtype))
+            out = with_fused_activation_function(out, fused_activation_function)
+            compare_tflite_with_tvm([x[1] for x in zip( in_data, data ) if None != x[0]],
                     [x[1] for x in zip( in_data, ('in_0:0', 'in_1:0') ) if None != x[0]],
                     [x for x in in_data if None != x],
                     [out])
 
-
+    # Test with two tensors
     with tf.Graph().as_default():
-        # Test with two tensors
         __test_elemwise( in_data = [array_ops.placeholder(shape=data[0].shape, dtype='float32', name='in_0'),
                                     array_ops.placeholder(shape=data[1].shape, dtype='float32', name='in_1')])
     # Test with tensor and constant
