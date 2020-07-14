@@ -181,10 +181,52 @@ def test_dynamic_to_static_topk():
             for ret_type in ["both", "values", "indices"]:
                 verify_topk(k, axis, ret_type, True, "int64")
                 verify_topk(k, axis, ret_type, False, "float32")
+def test_dynamic_to_static_broadcast_to():
+    def verify_broadcast_to(shape, broadcast_shape):
+        x = relay.var("x", relay.TensorType(shape, "float32"))
+        y = relay.var("y", relay.TensorType(broadcast_shape, "float32"))
+        z = relay.broadcast_to(x, shape=relay.shape_of(y))
+
+        func = run_infer_type(relay.Function([x, y], z))
+        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+
+        zz = func2.body
+        assert isinstance(zz, relay.Call)
+        assert zz.op == relay.op.get("broadcast_to")
+        assert zz.checked_type == relay.ty.TensorType(broadcast_shape, "float32")
+        
+        x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
+        y_data = np.random.uniform(low=-1, high=1, size=broadcast_shape).astype("float32")
+        
+        ref_res = np.broadcast_to(x_data, y_data.shape)
+        verify_func(func2, [x_data, y_data], ref_res)
+    verify_broadcast_to((3, 1), (3, 3))
+    
+def test_dynamic_to_static_zeros_ones():
+    def verify_ones_zeros(shape, dtype):
+        for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
+            x = relay.var("x", relay.TensorType(shape, dtype))
+            y = op(relay.shape_of(x), dtype)
+            
+            func = run_infer_type(relay.Function([x], y))
+            func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+
+            zz = func2.body
+            assert isinstance(zz, relay.Constant)
+            assert zz.checked_type == relay.ty.TensorType(shape, dtype)
+
+            x_data = np.random.uniform(low=1, high=1, size=shape)
+            ref_res = ref(x_data.shape)
+            verify_func(func2, [x_data], ref_res)
+
+    verify_ones_zeros((1, 2, 3), 'int64')
+    verify_ones_zeros((9, 8, 3, 4), 'float32')
+
 if __name__=="__main__":
     test_dynamic_to_static_reshape()
     test_dynamic_to_static_double_reshape()
     test_dynamic_to_static_quad_reshape()
     test_dynamic_to_static_tile()
     test_dynamic_to_static_topk()
-
+    test_dynamic_to_static_broadcast_to()
+    test_dynamic_to_static_zeros_ones()

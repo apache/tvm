@@ -55,6 +55,23 @@ class DynamicToStaticMutator : public MixedModeMutator {
         return MakeTopK(call_node->args[0], static_cast<int>(ToScalar(k->data, 0)), param->axis,
                         param->ret_type, param->is_ascend, param->dtype);
       }
+    } else if (call_node->op == Op::Get("dyn.broadcast_to")) {
+      if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
+        CHECK_EQ(shape->data->ndim, 1);
+        return MakeBroadCastTo(call_node->args[0], ToVector(shape->data));
+      }
+    } else if (call_node->op == Op::Get("dyn.zeros")) {
+      if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
+        const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
+        CHECK(param);
+        return MakeZeros(ToVector(shape->data), param->dtype);
+      }
+    } else if (call_node->op == Op::Get("dyn.ones")) {
+      if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
+        const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
+        CHECK(param);
+        return MakeOnes(ToVector(shape->data), param->dtype);
+      }
     }
     return post;
   }
@@ -106,6 +123,5 @@ TVM_REGISTER_GLOBAL("relay._transform.DynamicToStatic").set_body_typed([]() {
 });
 
 }  // namespace transform
-
 }  // namespace relay
 }  // namespace tvm
