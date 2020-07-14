@@ -17,6 +17,8 @@
 from itertools import zip_longest, combinations
 import json
 
+import numpy as np
+
 import tvm
 from tvm import relay
 from tvm import rpc
@@ -154,13 +156,18 @@ def update_lib(lib, device, cross_compile):
     return lib
 
 
-def verify(answers, atol, rtol):
+def verify(answers, atol, rtol, verify_saturation=False):
     """Compare the array of answers. Each entry is a list of outputs."""
     if len(answers) < 2:
         raise RuntimeError(
             f"No results to compare: expected at least two, found {len(answers)}")
     for answer in zip_longest(*answers):
         for outs in combinations(answer, 2):
+            if verify_saturation:
+                assert np.count_nonzero(outs[0].asnumpy() == 255) < 0.25 * outs[0].asnumpy().size, \
+                    "Output is saturated: {}".format(outs[0])
+                assert np.count_nonzero(outs[0].asnumpy() == 0) < 0.25 * outs[0].asnumpy().size, \
+                    "Output is saturated: {}".format(outs[0])
             tvm.testing.assert_allclose(
                outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol)
 
@@ -195,3 +202,24 @@ def verify_codegen(module, known_good_codegen, num_acl_modules,
             f"The JSON produced by codegen does not match the expected result. \n" \
             f"Actual={codegen_str} \n" \
             f"Expected={known_good_codegen_str}"
+
+
+def generate_trials(space, r_factor=3):
+    """Generate a list of trials given series of parameters."""
+    np.random.seed(0)
+    max_len = 1
+    for option in space:
+        max_len = max(max_len, len(option))
+
+    num_trials = r_factor * max_len
+    trials = []
+    for i in range(num_trials):
+        trial = []
+        for option in space:
+            if i % len(option) == 0:
+                np.random.shuffle(option)
+            trial.append(option[i % len(option)])
+
+        trials.append(trial)
+
+    return trials
