@@ -27,7 +27,7 @@ import mxnet as mx
 from mxnet import gluon
 from mxnet.gluon.model_zoo import vision
 import model_zoo
-
+import random
 
 def verify_mxnet_frontend_impl(mx_symbol,
                                data_shape=(1, 3, 224, 224),
@@ -1306,6 +1306,240 @@ def test_forward_interleaved_matmul_selfatt_valatt():
     verify(3, 10, 6, 8)
 
 
+def test_forward_npi_pad():
+    def verify(data_shape, out_shape, mode, pad_width, constant_value=0.0):
+        data_np = np.random.uniform(size=data_shape).astype("float32")
+        data = mx.sym.var('data')
+        if mode == 'constant':
+            ref_res = mx.ndarray.pad(mx.nd.array(data_np), mode=mode,pad_width=pad_width, constant_value=constant_value)
+            mx_sym = mx.sym.np.pad(data.as_np_ndarray(), mode=mode, pad_width=pad_width, constant_values=constant_value)
+        else:
+            ref_res = mx.ndarray.pad(mx.nd.array(data_np), mode=mode,pad_width=pad_width)
+            mx_sym = mx.sym.np.pad(data.as_np_ndarray(), mode=mode, pad_width=pad_width)
+        mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
+        for target, ctx in ctx_list():
+            for kind in ["debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(data_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+
+    verify(data_shape=(1,1,3,5), out_shape=(1,1,6,12), mode="constant",
+           pad_width=(0,0,0,0,1,2,3,4))
+    verify(data_shape=(1,1,3,5), out_shape=(1,1,6,12), mode="constant",
+           pad_width=(0,0,0,0,1,2,3,4), constant_value=3.0)
+    verify(data_shape=(1,1,3,5), out_shape=(1,1,6,12), mode="edge",
+           pad_width=(0,0,0,0,1,2,3,4))
+    verify(data_shape=(1,1,3,5), out_shape=(1,1,6,12), mode="reflect",
+           pad_width=(0,0,0,0,1,2,3,4))
+    verify(data_shape=(1,1,3,5,7), out_shape=(1,1,6,12,18), mode="constant",
+           pad_width=(0,0,0,0,1,2,3,4,5,6))
+    verify(data_shape=(1,1,3,5,7), out_shape=(1,1,6,12,18), mode="constant",
+           pad_width=(0,0,0,0,1,2,3,4,5,6), constant_value=3.0)
+    verify(data_shape=(1,1,3,5,7), out_shape=(1,1,6,12,18), mode="edge",
+           pad_width=(0,0,0,0,1,2,3,4,5,6))
+    verify(data_shape=(1,1,3,5,7), out_shape=(1,1,6,12,18), mode="reflect",
+           pad_width=(0,0,0,0,1,2,3,4,5,6))
+
+
+def test_forward_npi_transpose():
+    def verify(data_shape, axes=None):
+        data_np = np.random.uniform(size=data_shape).astype("float32")
+        data = mx.sym.var('data')
+        ref_res = mx.np.transpose(mx.nd.array(data_np), axes=axes)
+        mx_sym = mx.sym.np.transpose(data.as_np_ndarray(), axes=axes)
+        mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "vm", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(data_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+
+    verify(data_shape=(2,2,2), axes=(1,0,2))
+    verify(data_shape=(2,7,2), axes=None)
+
+
+def test_forward_npi_concatenate():
+    def verify(data_shape1, data_shape2, axis=None):
+        data_np1 = np.random.uniform(size=data_shape1).astype("float32")
+        data_np2 = np.random.uniform(size=data_shape2).astype("float32")
+        data1 = mx.sym.var('data1')
+        data2 = mx.sym.var('data2')
+        ref_res = mx.np.concatenate([mx.np.array(data_np1), mx.np.array(data_np2)], axis=axis)
+        mx_sym = mx.sym.np.concatenate([data1.as_np_ndarray(), data2.as_np_ndarray()], axis=axis)
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"data1": data_shape1, "data2": data_shape2})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "vm", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(data_np1, data_np2)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+    
+    verify(data_shape1=(2,2),data_shape2=(2,2),axis=1)
+    verify(data_shape1=(2,4),data_shape2=(2,3),axis=1)
+    verify(data_shape1=(1,3,2),data_shape2=(1,3,5),axis=2)
+    verify(data_shape1=(1,3,3),data_shape2=(1,3,3),axis=1)
+    verify(data_shape1=(1,3),data_shape2=(1,3),axis=0)
+    verify(data_shape1=(1,3,4),data_shape2=(1,3,4))
+    verify(data_shape1=(1,3,4),data_shape2=(1,3,4))
+
+
+def test_forward_np_copy():
+    def verify(data_shape, out_shape=None):
+        data_np = np.random.uniform(size=data_shape).astype("float32")
+        data = mx.sym.var('data')
+        ref_res = mx.np.copy(mx.np.array(data_np))
+        mx_sym = mx.sym.np.copy(data.as_np_ndarray())
+        mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "vm", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(data_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+
+    verify(data_shape=(2,2,2))
+    verify(data_shape=(2,2,2,1,2,3,1))
+    verify(data_shape=(1,8))
+
+
+def test_forward_npx_reshape():
+    def verify(data_shape, out_shape, reverse=False):
+        data_np = np.random.uniform(size=data_shape).astype("float32")
+        data = mx.sym.var('data')
+        ref_res = mx.npx.reshape(mx.np.array(data_np), newshape=out_shape, reverse=reverse)
+        mx_sym = mx.sym.npx.reshape(data.as_np_ndarray(), newshape=out_shape, reverse=reverse)
+        mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "vm", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(data_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+
+    verify(data_shape=(2, 3, 8), out_shape=(-2, -2, 2, -1))
+    verify(data_shape=(8, 3, 3, 3, 4, 4), out_shape=(-6, 2, -1, -4))
+    verify(data_shape=(8, 3, 3, 3, 4, 4), out_shape=(-5, -4))
+    verify(data_shape=(8, 3, 3, 3, 3, 8), out_shape=(-4, -5), reverse=True)
+    verify(data_shape=(8, 3, 2, 4, 8), out_shape=(-4, -1, 2, -6), reverse=True)
+
+
+def test_forward_npi_binary():
+    def verify(data_shape):
+        ref_ops = [mx.np.power, mx.np.multiply, mx.np.add, mx.np.less]
+        mx_ops = [mx.sym.np.power, mx.sym.np.multiply, mx.sym.np.add, mx.sym.np.less]
+        for i in range(len(ref_ops)):
+            ref_op = ref_ops[i]
+            mx_op = mx_ops[i]
+            data_np1 = np.random.uniform(size=data_shape).astype("float32")
+            data_np2 = np.random.uniform(size=data_shape).astype("float32")
+            data1 = mx.sym.var('lhs')
+            data2 = mx.sym.var('rhs')
+            ref_res = ref_op(mx.nd.array(data_np1), mx.nd.array(data_np2))
+            mx_sym = mx_op(data1.as_np_ndarray(), data2.as_np_ndarray())
+            mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"lhs": data_shape, "rhs": data_shape})
+            for target, ctx in ctx_list():
+                for kind in ["graph", "vm", "debug"]:
+                    intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                    op_res = intrp.evaluate()(data_np1, data_np2)
+                    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+    
+    verify(data_shape=(2,2))
+    verify(data_shape=(2,4))
+    verify(data_shape=(1,3,2))
+    verify(data_shape=(1,3,3))
+    verify(data_shape=(1,3))
+    verify(data_shape=(1,3,4))
+    verify(data_shape=(1,3,4))
+
+
+def test_forward_npi_binary_scalar():
+    def verify(data_shape, scalar):
+        ref_ops = [mx.np.power, mx.np.multiply, mx.np.add, mx.np.true_divide]
+        mx_ops = [mx.sym.np.power, mx.sym.np.multiply, mx.sym.np.add, mx.sym.np.true_divide]
+        for i in range(len(ref_ops)):
+            ref_op = ref_ops[i]
+            mx_op = mx_ops[i]
+            data_np1 = np.random.uniform(size=data_shape).astype("float32")
+            data1 = mx.sym.var('lhs')
+            ref_res = ref_op(mx.nd.array(data_np1), scalar)
+            mx_sym = mx_op(data1.as_np_ndarray(), scalar)
+            mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"lhs": data_shape}, dtype="float32")
+            for target, ctx in ctx_list():
+                for kind in ["graph", "vm", "debug"]:
+                    intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                    op_res = intrp.evaluate()(data_np1)
+                    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+    
+    verify(data_shape=(2,2), scalar=1.0)
+    verify(data_shape=(2,4), scalar=2.0)
+    verify(data_shape=(1,3,2), scalar=3.0)
+    verify(data_shape=(1,3,3), scalar=4.0)
+
+
+def test_forward_npi_tanh():
+    def verify(data_shape):
+        data_np1 = np.random.uniform(size=data_shape).astype("float32")
+        data1 = mx.sym.var('data')
+        ref_res = mx.np.tanh(mx.nd.array(data_np1))
+        mx_sym = mx.sym.np.tanh(data1.as_np_ndarray())
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"data": data_shape}, dtype="float32")
+        for target, ctx in ctx_list():
+            for kind in ["graph", "vm", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(data_np1)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+    
+    verify(data_shape=(2,2))
+    verify(data_shape=(2,4))
+    verify(data_shape=(1,3,2))
+    verify(data_shape=(1,3,3))
+
+
+def test_forward_npi_where_rscalar():
+    def verify(data_shape, scalar):
+        cond_np = np.random.uniform(size=data_shape).astype("bool")
+        data_np = np.random.uniform(size=data_shape).astype("float32")
+        cond = mx.sym.var('condition')
+        data = mx.sym.var('x')
+        ref_res = mx.np.where(mx.nd.array(cond_np), mx.nd.array(data_np), scalar)
+        mx_sym = mx.sym.np.where(cond.as_np_ndarray(), data.as_np_ndarray(), scalar)
+        mod, _ = relay.frontend.from_mxnet(
+            mx_sym, shape={"condition": data_shape, "x": data_shape}, 
+            dtype={"condition": "bool", "x": "float32"})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "vm", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(cond_np, data_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+    
+    verify(data_shape=(2,2), scalar=1.0)
+    verify(data_shape=(2,4), scalar=2.0)
+    verify(data_shape=(1,3,2), scalar=3.0)
+    verify(data_shape=(1,3,3), scalar=4.0)
+
+
+def test_forward_split_v2():
+    def verify(data_shape, axis=0, indices_or_sections=1, squeeze_axis=False):
+        data_np = np.random.uniform(size=data_shape).astype("float32")
+        data = mx.sym.var('data')
+        ref_res = mx.ndarray.split_v2(mx.nd.array(data_np), indices_or_sections, axis=axis, squeeze_axis=squeeze_axis)
+        mx_sym = mx.sym.split_v2(data.as_nd_ndarray(), indices_or_sections, axis=axis, squeeze_axis=squeeze_axis)
+        mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "vm", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(data_np)
+                op_res_ = []
+                for arr in op_res:
+                    op_res_.append(arr.asnumpy().tolist())
+                ref_res_ = []
+                for arr in  ref_res:
+                    ref_res_.append(arr.asnumpy().tolist())
+                tvm.testing.assert_allclose(op_res_, ref_res_, rtol=1e-5)
+
+    verify((3, 2, 1), axis=1, indices_or_sections=2)
+    verify((3, 2, 1), axis=0, indices_or_sections=3)
+    verify((3, 2, 1), axis=0, indices_or_sections=3, squeeze_axis=True)
+    verify((3, 2, 1), axis=0, indices_or_sections=(1, 2))
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -1379,3 +1613,14 @@ if __name__ == '__main__':
     test_forward_arange_like()
     test_forward_interleaved_matmul_selfatt_qk()
     test_forward_interleaved_matmul_selfatt_valatt()
+    test_forward_npi_pad()
+    test_forward_npi_transpose()
+    test_forward_npi_concatenate()
+    test_forward_np_copy()
+    test_forward_npx_reshape()
+    test_forward_npi_binary()
+    test_forward_npi_binary_scalar()
+    test_forward_npi_tanh()
+    test_forward_npi_where_rscalar()
+    test_forward_split_v2()
+    
