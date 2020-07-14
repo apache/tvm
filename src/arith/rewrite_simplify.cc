@@ -429,7 +429,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) * broadcast(x, lanes), ramp(b1 * x, s1 * x, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) * ramp(b1, s1, lanes), ramp(b1 * x, s1 * x, lanes));
     TVM_TRY_REWRITE_IF(broadcast(c3, lanes) * x, broadcast(c3, lanes),
-            BaseValueEqual()(c3.Eval()->value, 0.0f));
+                       BaseValueEqual()(c3.Eval()->value, 0.0f));
   }
 
   if (IsIndexType(op->dtype)) {
