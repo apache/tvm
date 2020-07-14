@@ -942,6 +942,6 @@ def invert_permutation_strategy(attrs, inputs, out_type, target):
     """invert_permutation generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(wrap_compute_invert_permutation(topi.invert_permutation),
-                                wrap_topi_schedule(topi.generic.schedule_injective), #topi.generic.schedule_invert_permutation
+                                wrap_topi_schedule(topi.generic.schedule_injective),
                                 name="invert_permutation.generic")
     return strategy
