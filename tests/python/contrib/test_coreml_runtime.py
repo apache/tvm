@@ -58,7 +58,7 @@ def test_coreml_runtime():
                                 mode='MULTIPLY')
         return coremltools.models.MLModel(builder.spec)
 
-    def verify(coreml_model, model_dir, ctx):
+    def verify(coreml_model, model_path, ctx):
         coreml_model = create_coreml_model()
 
         out_spec = coreml_model.output_description._fd_spec
@@ -74,7 +74,7 @@ def test_coreml_runtime():
         coreml_outputs = [coreml_model.predict(inputs)[name] for name in out_names]
 
         # inference via tvm coreml runtime
-        runtime = coreml_runtime.create(model_dir, ctx)
+        runtime = coreml_runtime.create('main', model_path, ctx)
         for name in inputs:
             runtime.set_input(name, tvm.nd.array(inputs[name], ctx))
         runtime.invoke()
@@ -88,15 +88,16 @@ def test_coreml_runtime():
         compiled_model = xcode.compile_coreml(coreml_model, out_dir=temp.temp_dir)
         xcode.popen_test_rpc(proxy_host, proxy_port, key, destination=destination,
                              libs=[compiled_model])
+        compiled_model = os.path.basename(compiled_model)
         remote = rpc.connect(proxy_host, proxy_port, key=key)
         ctx = remote.cpu(0)
-        verify(coreml_model, "tvm", ctx)
+        verify(coreml_model, compiled_model, ctx)
 
     def check_local(coreml_model):
         temp = util.tempdir()
-        xcode.compile_coreml(coreml_model, out_dir=temp.temp_dir)
+        compiled_model = xcode.compile_coreml(coreml_model, out_dir=temp.temp_dir)
         ctx = tvm.cpu(0)
-        verify(coreml_model, temp.temp_dir, ctx)
+        verify(coreml_model, compiled_model, ctx)
 
     coreml_model = create_coreml_model()
     check_remote(coreml_model)
