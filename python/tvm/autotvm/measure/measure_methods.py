@@ -181,7 +181,7 @@ class RPCRunner(Runner):
         call your template and get the reference output.
         This can work for TOPI templates, but may not work for your custom template.
     enable_cpu_cache_flush: bool
-        Whether to enable cpu cache flush
+        Whether to enable cpu cache flush, which only has effect on CPU task.
     """
     def __init__(self,
                  key, host, port, priority=1,
@@ -314,7 +314,7 @@ class LocalRunner(RPCRunner):
         call your template and get the reference output.
         This can work for TOPI templates, but may not work for your custom template.
     enable_cpu_cache_flush: bool
-        Whether to enable cpu cache flush
+        Whether to enable cpu cache flush, which only has effect on CPU task.
     Note
     ----
     This is a "fake" local mode. We start a silent rpc tracker and rpc server
@@ -462,7 +462,7 @@ def run_through_rpc(measure_input, build_result,
     ref_output: List of np.ndarray
         The reference output used for checking correctness
     enable_cpu_cache_flush: bool
-        Whether to enable cpu cache flush
+        Whether to enable cpu cache flush, which only has effect on CPU task.
     """
     if isinstance(build_result, MeasureResult):
         return build_result
@@ -482,10 +482,16 @@ def run_through_rpc(measure_input, build_result,
         remote.upload(build_result.filename)
         func = remote.load_module(os.path.split(build_result.filename)[1])
         ctx = remote.context(str(measure_input.target), 0)
+
+        # Limitation:
+        # We can not get PackFunction directly in the remote mode as it is wrapped
+        # under the std::function. We could lift the restriction later once we fold
+        # the PackedFunc as an object. Currently, we pass function name to work
+        # around it.
         f_prepare = 'cache_flush_cpu_non_first_arg' if enable_cpu_cache_flush else ''
         time_f = func.time_evaluator(
             func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms,
-            f_prepare=f_prepare)
+            f_preproc=f_prepare)
 
         # set input
         if ref_input:

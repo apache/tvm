@@ -114,6 +114,17 @@ os.environ["TVM_NUM_THREADS"] = str(num_threads)
 # We will use local mode for tuning configuration. RPC tracker
 # mode can be setup similarly to the approach in
 # :ref:`tune_relay_arm` tutorial.
+#
+# In the measure option, we turn on enable_cpu_cache_flush to
+# get more precise measurement. When we turn it on, we don't
+# need to set min_repeat_ms to dynamically adjust to run op
+# many times so that we get precise measurement as when we
+# have cache flush, we could get precise measurement even we
+# run serveral times. So, we could just set number be 1 and
+# repeat be 10 to run only 10 times. The reason we set number be 1
+# is we will turn on cache flush before every repeat run in
+# internal implementation. So if number is greater than 1, the
+# cache flush effect will be probably invalid.
 
 tuning_option = {
     'log_filename': log_file,

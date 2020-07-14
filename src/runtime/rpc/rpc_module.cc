@@ -186,7 +186,7 @@ class RPCModuleNode final : public ModuleNode {
   }
 
   PackedFunc GetTimeEvaluator(const std::string& name, TVMContext ctx, int number, int repeat,
-                              int min_repeat_ms, const std::string& f_prepare_name) {
+                              int min_repeat_ms, const std::string& f_preproc_name) {
     InitRemoteFunc(&remote_get_time_evaluator_, "runtime.RPCTimeEvaluator");
     // Remove session mask because we pass ctx by parts.
     int dev_type = ctx.device_type;
@@ -197,11 +197,11 @@ class RPCModuleNode final : public ModuleNode {
     if (module_handle_ != nullptr) {
       return remote_get_time_evaluator_(GetRef<Module>(this), name,
                                         static_cast<int>(ctx.device_type), ctx.device_id, number,
-                                        repeat, min_repeat_ms, f_prepare_name);
+                                        repeat, min_repeat_ms, f_preproc_name);
     } else {
       return remote_get_time_evaluator_(Optional<Module>(nullptr), name,
                                         static_cast<int>(ctx.device_type), ctx.device_id, number,
-                                        repeat, min_repeat_ms, f_prepare_name);
+                                        repeat, min_repeat_ms, f_preproc_name);
     }
   }
 
@@ -339,7 +339,7 @@ inline void CPUCacheFlush(int begin_index, const TVMArgs& args) {
 }
 
 PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repeat,
-                             int min_repeat_ms, PackedFunc f_prepare) {
+                             int min_repeat_ms, PackedFunc f_preproc) {
   CHECK(pf != nullptr);
 
   if (static_cast<int>(ctx.device_type) == static_cast<int>(kDLMicroDev)) {
@@ -348,7 +348,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repe
     return (*get_micro_time_evaluator)(pf, ctx, number, repeat);
   }
 
-  auto ftimer = [pf, ctx, number, repeat, min_repeat_ms, f_prepare](TVMArgs args,
+  auto ftimer = [pf, ctx, number, repeat, min_repeat_ms, f_preproc](TVMArgs args,
                                                                     TVMRetValue* rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;
@@ -358,8 +358,8 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repe
     DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
 
     for (int i = 0; i < repeat; ++i) {
-      if (f_prepare != nullptr) {
-        f_prepare.CallPacked(args, &temp);
+      if (f_preproc != nullptr) {
+        f_preproc.CallPacked(args, &temp);
       }
       std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin,
           tend;
@@ -400,7 +400,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repe
 
 TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
     .set_body_typed([](Optional<Module> opt_mod, std::string name, int device_type, int device_id,
-                       int number, int repeat, int min_repeat_ms, std::string f_prepare_name) {
+                       int number, int repeat, int min_repeat_ms, std::string f_preproc_name) {
       TVMContext ctx;
       ctx.device_type = static_cast<DLDeviceType>(device_type);
       ctx.device_id = device_id;
@@ -409,29 +409,29 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
         std::string tkey = m->type_key();
         if (tkey == "rpc") {
           return static_cast<RPCModuleNode*>(m.operator->())
-              ->GetTimeEvaluator(name, ctx, number, repeat, min_repeat_ms, f_prepare_name);
+              ->GetTimeEvaluator(name, ctx, number, repeat, min_repeat_ms, f_preproc_name);
         } else {
-          PackedFunc f_prepare;
-          if (!f_prepare_name.empty()) {
-            auto* pf_prepare = runtime::Registry::Get(f_prepare_name);
-            CHECK(pf_prepare != nullptr)
-                << "Cannot find " << f_prepare_name << " in the global function";
-            f_prepare = *pf_prepare;
+          PackedFunc f_preproc;
+          if (!f_preproc_name.empty()) {
+            auto* pf_preproc = runtime::Registry::Get(f_preproc_name);
+            CHECK(pf_preproc != nullptr)
+                << "Cannot find " << f_preproc_name << " in the global function";
+            f_preproc = *pf_preproc;
           }
           return WrapTimeEvaluator(m.GetFunction(name, false), ctx, number, repeat, min_repeat_ms,
-                                   f_prepare);
+                                   f_preproc);
         }
       } else {
         auto* pf = runtime::Registry::Get(name);
         CHECK(pf != nullptr) << "Cannot find " << name << " in the global function";
-        PackedFunc f_prepare;
-        if (!f_prepare_name.empty()) {
-          auto* pf_prepare = runtime::Registry::Get(f_prepare_name);
-          CHECK(pf_prepare != nullptr)
-              << "Cannot find " << f_prepare_name << " in the global function";
-          f_prepare = *pf_prepare;
+        PackedFunc f_preproc;
+        if (!f_preproc_name.empty()) {
+          auto* pf_preproc = runtime::Registry::Get(f_preproc_name);
+          CHECK(pf_preproc != nullptr)
+              << "Cannot find " << f_preproc_name << " in the global function";
+          f_preproc = *pf_preproc;
         }
-        return WrapTimeEvaluator(*pf, ctx, number, repeat, min_repeat_ms, f_prepare);
+        return WrapTimeEvaluator(*pf, ctx, number, repeat, min_repeat_ms, f_preproc);
       }
     });
 
