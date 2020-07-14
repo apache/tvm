@@ -755,15 +755,11 @@ def rewrite(callbacks, expr: Expr) -> Expr:
     result : tvm.relay.Expr
         The Expression with matched subgraphs rewritten by the callbacks.
     """
-    if isinstance(callbacks, DFPatternCallback):
-        assert callbacks.pattern is not None
-        tmp = [_DFPatternCallback(callbacks.pattern, callbacks.callback, callbacks.require_type)]
-    else:
-        tmp = []
-        for callback in callbacks:
-            assert callback.pattern is not None
-            tmp.append(_DFPatternCallback(callback.pattern, callback.callback,
-                                          callback.require_type))
+    callbacks = [callbacks] if isinstance(callbacks, DFPatternCallback) else callbacks
+    tmp = []
+    for callback in callbacks:
+        assert callback.pattern is not None
+        tmp.append(_DFPatternCallback(callback.pattern, callback.callback, callback.require_type))
 
     return ffi.rewrite(tmp, expr)
 
