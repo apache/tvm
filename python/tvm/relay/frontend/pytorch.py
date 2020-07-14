@@ -2172,6 +2172,8 @@ def _get_constant(node):
             return node.f(attr_name)
         elif ty in ["TensorType", "CompleteTensorType"]:
             tensor = node.t(attr_name)
+            if tensor.is_cuda:
+                tensor = tensor.cpu()
             if len(tensor.shape) == 0:  # tensor(0.1)
                 # TODO(t-vi): When is this needed?
                 return tensor.item()
