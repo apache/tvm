@@ -2128,7 +2128,7 @@ def _mx_npx_reshape(inputs, attrs):
             new_shape_list.append(-4)
         else:
             raise tvm.error.OpAttributeInvalid(
-              'Shape dimension %d is not supported' % num)
+                'Shape dimension %d is not supported' % num)
     shape = tuple(new_shape_list)
     if reverse:
         return _op.reverse_reshape(inputs[0], newshape=shape)
