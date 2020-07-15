@@ -101,10 +101,7 @@ data = np.empty([batch_size, net.c, net.h, net.w], dtype)
 shape = {'data': data.shape}
 print("Compiling the model...")
 with tvm.transform.PassContext(opt_level=3):
-    graph, lib, params = relay.build(mod,
-                                     target=target,
-                                     target_host=target_host,
-                                     params=params)
+    lib = relay.build(mod, target=target, target_host=target_host, params=params)
 
 [neth, netw] = shape['data'][2:] # Current image shape is 608x608
 ######################################################################
@@ -122,11 +119,10 @@ data = tvm.relay.testing.darknet.load_image(img_path, netw, neth)
 # The process is no different from other examples.
 from tvm.contrib import graph_runtime
 
-m = graph_runtime.create(graph, lib, ctx)
+m = graph_runtime.GraphModule(lib['default'](ctx))
 
 # set inputs
 m.set_input('data', tvm.nd.array(data.astype(dtype)))
-m.set_input(**params)
 # execute
 print("Running the test image...")
 

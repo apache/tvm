@@ -75,9 +75,7 @@ shape_dict = {'image': x.shape}
 mod, params = relay.frontend.from_coreml(mlmodel, shape_dict)
 
 with tvm.transform.PassContext(opt_level=3):
-    graph, lib, params = relay.build(mod,
-                                     target,
-                                     params=params)
+    lib = relay.build(mod, target, params=params)
 
 ######################################################################
 # Execute on TVM
@@ -86,10 +84,9 @@ with tvm.transform.PassContext(opt_level=3):
 from tvm.contrib import graph_runtime
 ctx = tvm.cpu(0)
 dtype = 'float32'
-m = graph_runtime.create(graph, lib, ctx)
+m = graph_runtime.GraphModule(lib['default'](ctx))
 # set inputs
 m.set_input('image', tvm.nd.array(x.astype(dtype)))
-m.set_input(**params)
 # execute
 m.run()
 # get outputs

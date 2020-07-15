@@ -363,10 +363,8 @@ class GraphExecutor(_interpreter.Executor):
             raise ValueError("Graph Runtime only supports static graphs, got output type",
                              ret_type)
         num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
-        graph_json, mod, params = build(self.mod, target=self.target)
-        gmodule = _graph_rt.create(graph_json, mod, self.ctx)
-        if params:
-            gmodule.set_input(**params)
+        mod = build(self.mod, target=self.target)
+        gmodule = _graph_rt.GraphModule(mod['default'](self.ctx))
 
         def _graph_wrapper(*args, **kwargs):
             args = self._convert_args(self.mod["main"], args, kwargs)
