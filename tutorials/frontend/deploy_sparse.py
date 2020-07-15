@@ -216,15 +216,14 @@ def import_graphdef(
 # tensors instead of sparse aware kernels.
 def run_relay_graph(mod, params, shape_dict, target, ctx):
     with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(mod, target=target, params=params)
+        lib = relay.build(mod, target=target, params=params)
     input_shape = shape_dict["input_1"]
     dummy_data = np.random.uniform(size=input_shape, low=0, high=input_shape[1]).astype(
         "int32"
     )
 
-    m = graph_runtime.create(graph, lib, ctx)
+    m = graph_runtime.GraphModule(lib['default'](ctx))
     m.set_input(0, dummy_data)
-    m.set_input(**params)
     m.run()
     tvm_output = m.get_output(0)
 

@@ -264,8 +264,8 @@ shape_dict = {input_name: x.shape}
 mod, params = relay.frontend.from_keras(keras_mobilenet_v2, shape_dict)
 
 with tvm.transform.PassContext(opt_level=3):
-    graph, lib, params = relay.build(mod, target=target,
-                                     target_host=target_host, params=params)
+    lib = relay.build(mod, target=target,
+                      target_host=target_host, params=params)
 
 # After `relay.build`, you will get three return values: graph,
 # library and the new parameter, since we do some optimization that will
@@ -309,14 +309,12 @@ remote.upload(lib_fname)
 rlib = remote.load_module('net.so')
 
 # create the remote runtime module
-module = runtime.create(graph, rlib, ctx)
+module = runtime.GraphModule(rlib['default'](ctx))
 
 ######################################################################
 # Execute on TVM
 # --------------
 
-# set parameter (upload params to the remote device. This may take a while)
-module.set_input(**params)
 # set input data
 module.set_input(input_name, tvm.nd.array(x.astype(dtype)))
 # run
