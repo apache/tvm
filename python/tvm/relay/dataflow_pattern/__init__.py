@@ -19,11 +19,10 @@
 from typing import Callable, Dict, List, Optional
 
 import tvm._ffi
-from tvm import IRModule
 from tvm.relay.expr import RelayExpr as Expr
 
 from ... import _ffi as tvm_ffi
-from ...ir import make_node
+from ...ir import make_node, IRModule
 from ...ir.base import Node
 from ...runtime import Object
 from ..op import get
@@ -750,7 +749,7 @@ def rewrite(callbacks, expr: Expr, mod: Optional[IRModule] = None) -> Expr:
         The input callback or list of callbacks.
     expr : tvm.relay.Expr
         The expression to rewrite.
-    mod : Optional[tvm.IRModule]
+    mod : Optional[tvm.ir.IRModule]
         The module that associates with the expression.
 
     Returns
