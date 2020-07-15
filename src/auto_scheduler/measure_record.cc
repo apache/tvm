@@ -275,7 +275,8 @@ struct Handler<::tvm::auto_scheduler::MeasureResultNode> {
     writer->WriteArrayItem(static_cast<int>((data.timestamp)));
     writer->EndArray();
   }
-  inline static void Read(dmlc::JSONReader* reader, ::tvm::auto_scheduler::MeasureResultNode* data) {
+  inline static void Read(dmlc::JSONReader* reader,
+                          ::tvm::auto_scheduler::MeasureResultNode* data) {
     bool s;
     std::vector<double> tmp;
 
