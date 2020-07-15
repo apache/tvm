@@ -763,7 +763,7 @@ class PatternRewriter : protected MixedModeMutator {
     auto last = post;
     // rewrite the graph until it stops changing to make sure all rewrites are complete
     int count = 0;
-    bool changed = false;
+    bool equal = true;
     static auto* structural_equal = runtime::Registry::Get("node.StructuralEqual");
     CHECK(structural_equal) << "node.StructuralEqual is not registered.";
     do {
@@ -780,8 +780,8 @@ class PatternRewriter : protected MixedModeMutator {
         post = this->VisitExpr(post);
         count++;
       }
-      changed = (*structural_equal)(last, post, false, true);
-    } while (!changed || count < 100);
+      equal = (*structural_equal)(last, post, false, true);
+    } while (!equal && count < 100);
     if (count >= 100) {
       LOG(FATAL) << "Observed 100 rewrite passes, possible conflicting passes?";
     }
