@@ -991,7 +991,7 @@ def qmuls(x, y, q, s):
     y : PrimExpr
         The result.
     """
-    return call_intrin(x.dtype, "tir.qmuls", x, y, q, s)
+    return call_intrin('int32', "tir.qmuls", x, y, q, s)
 
 def fmod(x, y):
     """Return the remainder of x divided by y with the same sign as x.

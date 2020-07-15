@@ -633,11 +633,9 @@ def fixed_point_multiply(x, multiplier, shift):
     def _compute(*indices):
         value = x(*indices)
         return tvm.tir.qmuls(value,
-                             tvm.tir.const(multiplier, x.dtype),
-                             tvm.tir.const(31, x.dtype),
-                             tvm.tir.const(shift, x.dtype))
-
-    assert x.dtype == "int32", "input tensor type needs to be int32"
+                             tvm.tir.const(multiplier, 'int32'),
+                             tvm.tir.const(31, 'int32'),
+                             tvm.tir.const(shift, 'int32'))
     return te.compute(x.shape, _compute)
 
 def cast(x, dtype):

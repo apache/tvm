@@ -129,7 +129,6 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.qmuls")
       PrimExpr s = call->args[3];
 
       // Only int32 types are supported (any number of lanes is allowed)
-      CHECK(x.dtype().code() == DLDataTypeCode::kDLInt && x.dtype().bits() == 32);
       CHECK(y.dtype().code() == DLDataTypeCode::kDLInt && y.dtype().bits() == 32);
       CHECK(s.dtype().code() == DLDataTypeCode::kDLInt && s.dtype().bits() == 32);
 
@@ -141,16 +140,18 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.qmuls")
       PrimExpr left_shift = tir::Select(s > zero, s, zero);
       PrimExpr right_shift = tir::Select(s > zero, zero, -s);
 
-      // 2) Multiply the integer multiplier
-      x = tir::Select(left_shift != zero, x << cast(hp_dtype, left_shift), cast(hp_dtype, x));
+      // 2) Cast and Multiply the integer multiplier
+      PrimExpr one = make_const(hp_dtype, 1);
+      x = cast(hp_dtype, x);
+      y = cast(hp_dtype, y);
+      x = tir::Select(left_shift != zero, x << left_shift, x);
 
       // 3) Perform the multiplication in higher precision.
-      x = x * cast(hp_dtype, y);
+      x = x * y;
 
       // 4) Find the rounding scalar
       PrimExpr total_right_shift = right_shift + q;
-      PrimExpr pos_rounding_value = (make_const(hp_dtype, 1) << (total_right_shift - 1));
-
+      PrimExpr pos_rounding_value = (one << (total_right_shift - 1));
       x = x + pos_rounding_value;
 
       // 5) Simply right shift the result to get the final output.
