@@ -280,6 +280,8 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
       ps->ApplyToSchedule(stages, stage_to_axes);
     } else if (auto ps = step.as<FuseStepNode>()) {
       ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<AnnotationStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
     } else {
       LOG(FATAL) << "Invalid Step";
     }
@@ -331,6 +333,8 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
     } else if (auto ps = step.as<SplitStepNode>()) {
       ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
     } else if (auto ps = step.as<FuseStepNode>()) {
+      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+    } else if (auto ps = step.as<AnnotationStepNode>()) {
       ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
     } else {
       LOG(FATAL) << "Invalid Step";

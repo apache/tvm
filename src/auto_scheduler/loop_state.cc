@@ -131,6 +131,54 @@ Iterator State::fuse(int stage_id, const Array<Iterator>& iters) {
   return DoFuseStep(step);
 }
 
+Iterator State::vectorize(int stage_id, const Iterator& it) {
+  const Stage& stage = operator->()->stages[stage_id];
+  AnnotationStep step = AnnotationStep(
+      stage_id, GetIndex(stage->iters, it), IteratorAnnotation::kVectorize);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return DoAnnotationStep(step);
+}
+
+Iterator State::parallel(int stage_id, const Iterator& it) {
+  const Stage& stage = operator->()->stages[stage_id];
+  AnnotationStep step =
+      AnnotationStep(stage_id, GetIndex(stage->iters, it), IteratorAnnotation::kParallel);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return DoAnnotationStep(step);
+}
+
+Iterator State::unroll(int stage_id, const Iterator& it, int max_unroll) {
+  const Stage& stage = operator->()->stages[stage_id];
+  AnnotationStep step =
+      AnnotationStep(stage_id, GetIndex(stage->iters, it), IteratorAnnotation::kUnroll);
+
+  // don't unroll if the extent is larger than max_unroll
+  if (max_unroll != -1 && it->range.defined()) {
+    if (auto imm = it->range->extent.as<IntImmNode>()) {
+      if (imm->value > max_unroll) {
+        return it;
+      }
+    }
+  }
+
+  CopyOnWrite()->transform_steps.push_back(step);
+  return DoAnnotationStep(step);
+}
+
+Iterator State::bind_thread(int stage_id, const Iterator& it,
+                            IteratorAnnotation thread_type) {
+  const Stage& stage = operator->()->stages[stage_id];
+  if (thread_type < IteratorAnnotation::kVThread || thread_type > IteratorAnnotation::kThreadY) {
+    LOG(FATAL) << "thread_type error, valide: kVThread, kBlockX, kBlockY, "
+               << "kThreadX, kThreadY";
+  }
+  AnnotationStep step = AnnotationStep(
+      stage_id, GetIndex(stage->iters, it), thread_type);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return DoAnnotationStep(step);
+}
+
+
 /********** Step implementations for state **********/
 void State::DoReorderStep(const ReorderStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
@@ -267,6 +315,20 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   return new_it;
 }
 
+Iterator State::DoAnnotationStep(const AnnotationStep& step) {
+  const Stage& stage = operator->()->stages[step->stage_id];
+  Iterator it = stage->iters[step->iter_id];
+
+  CHECK(it->annotation == IteratorAnnotation::kNone);
+  Iterator new_it = Iterator(it->name, it->range, it->iter_kind,
+                             step->annotation);
+  Stage new_stage = stage;
+  new_stage.CopyOnWrite()->iters.Set(step->iter_id, std::move(new_it));
+  StateNode* pstate = CopyOnWrite();
+  pstate->stages.Set(step->stage_id, std::move(new_stage));
+  return new_it;
+}
+
 void State::DoSteps(const ComputeDAG& dag) {
   CHECK(operator->()->stages.size()) << "Invalid State with empty operation stages.";
 
@@ -277,6 +339,8 @@ void State::DoSteps(const ComputeDAG& dag) {
       DoSplitStep(GetRef<SplitStep>(ps));
     } else if (auto ps = step.as<FuseStepNode>()) {
       DoFuseStep(GetRef<FuseStep>(ps));
+    } else if (auto ps = step.as<AnnotationStepNode>()) {
+      DoAnnotationStep(GetRef<AnnotationStep>(ps));
     } else {
       LOG(FATAL) << "Invalid step: " << step;
     }
@@ -404,6 +468,34 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateFuse")
       const auto& res = state.fuse(stage_id, iters);
       return Array<ObjectRef>{state, res};
     });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateVectorize")
+    .set_body_typed([](State state, int stage_id, const Iterator& it) {
+      const auto& res = state.vectorize(stage_id, it);
+      return Array<ObjectRef>{state, res};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateParallel")
+    .set_body_typed([](State state, int stage_id, const Iterator& it) {
+      const auto& res = state.parallel(stage_id, it);
+      return Array<ObjectRef>{state, res};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateUnroll")
+    .set_body_typed([](State state, int stage_id, const Iterator& it,
+                      int max_unroll) {
+      const auto& res = state.unroll(stage_id, it, max_unroll);
+      return Array<ObjectRef>{state, res};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateBindThread")
+    .set_body_typed([](State state, int stage_id, const Iterator& it,
+                      int thread_type) {
+      const auto& res =
+          state.bind_thread(stage_id, it, IteratorAnnotation(thread_type));
+      return Array<ObjectRef>{state, res};
+    });
+
 
 TVM_REGISTER_GLOBAL("auto_scheduler.StateEqual").set_body_typed([](State state1, State state2) {
   return std::equal_to<State>()(state1, state2);

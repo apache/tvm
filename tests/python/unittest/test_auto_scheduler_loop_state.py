@@ -26,7 +26,7 @@ import topi
 from test_auto_scheduler_common import matmul_auto_scheduler_test, conv2d_nchw_bn_relu
 
 
-def test_split_fuse_reorder():
+def test_split_fuse_reorder_annotation():
     A, B, C = matmul_auto_scheduler_test(512, 512, 512)
     dag = auto_scheduler.ComputeDAG([A, B, C])
     s0 = dag.get_init_state()
@@ -61,5 +61,13 @@ def test_split_fuse_reorder():
     assert s1[C].iters[4].range.extent == 8
     assert s1[C].iters[5].range.extent == 2
 
+    s1.parallel(C, j1)
+    s1.unroll(C, j2)
+    s1.vectorize(C, j3)
+    s1.bind_thread(C, i1, "blockIdx.x")
+    s1.bind_thread(C, i2, "vthread")
+    s1.bind_thread(C, i3, "threadIdx.y")
+
+
 if __name__ == "__main__":
-    test_split_fuse_reorder()
+    test_split_fuse_reorder_annotation()

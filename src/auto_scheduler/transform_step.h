@@ -53,6 +53,30 @@ namespace auto_scheduler {
 
 typedef Map<tvm::te::Stage, Array<tir::IterVar>, ObjectHash, ObjectEqual> StageToAxesMap;
 
+/*! \brief The type of an iterator's annotation. */
+enum class IteratorAnnotation : int {
+  /*! \brief This iterator has no annotation. */
+  kNone = 0,
+  /*! \brief This iterator has been unrolled. */
+  kUnroll = 1,
+  /*! \brief This iterator has been vectorized. */
+  kVectorize = 2,
+  /*! \brief This iterator has been paralleld. */
+  kParallel = 3,
+  /*! \brief This iterator has been bind to vthread. */
+  kVThread = 4,
+  /*! \brief This iterator has been bind to blockIdx.x. */
+  kBlockX = 5,
+  /*! \brief This iterator has been bind to threadIdx.x. */
+  kThreadX = 6,
+  /*! \brief This iterator has been bind to blockIdx.y. */
+  kBlockY = 7,
+  /*! \brief This iterator has been bind to threadIdx.y. */
+  kThreadY = 8,
+  /*! \brief This iterator has been mapped with a tensorize intrinsic. */
+  kTensorized = 9
+};
+
 /*!
  * \brief The base class of transformation steps. Each step has its corresponding tvm.te
  * schedule primitives.
@@ -218,6 +242,36 @@ class FuseStep : public Step {
   FuseStep(int stage_id, const Array<Integer>& fused_ids);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FuseStep, Step, FuseStepNode);
+};
+
+/*!
+ * \brief Annotation step that corresponds to vectorize, parallel, unroll and thread binding.
+ * (i.e. te::Stage::vectorize, te::Stage::parallel, te::Stage::vectorize, te::Stage::bind)
+ */
+class AnnotationStepNode: public StepNode {
+ public:
+  int iter_id;
+  IteratorAnnotation annotation;
+
+  void ApplyToSchedule(Array<te::Stage> *stages,
+                       StageToAxesMap *stage_to_axes) const;
+
+  String PrintAsPythonAPI(Array<te::Stage> *stages,
+                          StageToAxesMap *stage_to_axes) const;
+
+  static constexpr const char* _type_key = "auto_scheduler.AnnotationStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AnnotationStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to AnnotationStepNode.
+ * \sa AnnotationStepNode
+ */
+class AnnotationStep : public Step {
+ public:
+  AnnotationStep(int stage_id, int iter_id, IteratorAnnotation ann);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(AnnotationStep, Step, AnnotationStepNode);
 };
 
 }  // namespace auto_scheduler

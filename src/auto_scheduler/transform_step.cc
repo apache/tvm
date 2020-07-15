@@ -235,5 +235,80 @@ String FuseStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
   return ss.str();
 }
 
+/********** Annotation **********/
+AnnotationStep::AnnotationStep(int stage_id, int iter_id,
+                               IteratorAnnotation ann) {
+  auto node = make_object<AnnotationStepNode>();
+  node->stage_id = stage_id;
+  node->iter_id = iter_id;
+  node->annotation = ann;
+  data_ = std::move(node);
+}
+
+void AnnotationStepNode::ApplyToSchedule(Array<te::Stage> *stages,
+                                         StageToAxesMap *stage_to_axes) const {
+  te::Stage stage = (*stages)[stage_id];
+  const Array<IterVar>& axes = (*stage_to_axes)[stage];
+
+  switch (annotation) {
+    case IteratorAnnotation::kUnroll:
+      stage.unroll(axes[iter_id]); break;
+    case IteratorAnnotation::kVectorize:
+      stage.vectorize(axes[iter_id]); break;
+    case IteratorAnnotation::kParallel:
+      stage.parallel(axes[iter_id]); break;
+    case IteratorAnnotation::kVThread:
+      stage.bind(axes[iter_id], te::thread_axis(Range(), "vthread")); break;
+    case IteratorAnnotation::kBlockX:
+      stage.bind(axes[iter_id], te::thread_axis(Range(), "blockIdx.x")); break;
+    case IteratorAnnotation::kBlockY:
+      stage.bind(axes[iter_id], te::thread_axis(Range(), "blockIdx.y")); break;
+    case IteratorAnnotation::kThreadX:
+      stage.bind(axes[iter_id], te::thread_axis(Range(), "threadIdx.x")); break;
+    case IteratorAnnotation::kThreadY:
+      stage.bind(axes[iter_id], te::thread_axis(Range(), "threadIdx.y")); break;
+    case IteratorAnnotation::kNone: break;
+    default:
+      LOG(FATAL) << "Invalid Annotation " << static_cast<int>(annotation); break;
+  }
+
+  stages->Set(stage_id, std::move(stage));
+}
+
+String AnnotationStepNode::PrintAsPythonAPI(Array<te::Stage> *stages,
+                                                 StageToAxesMap *stage_to_axes) const {
+  std::stringstream ss;
+  const auto& stage = (*stages)[stage_id];
+  const auto& iter = (*stage_to_axes)[stage][iter_id];
+
+  ss << "s[" << CleanName(stage->op->name) << "].";
+  switch (annotation) {
+    case IteratorAnnotation::kUnroll:    ss << "unroll("; break;
+    case IteratorAnnotation::kVectorize: ss << "vectorize("; break;
+    case IteratorAnnotation::kParallel:  ss << "parallel("; break;
+    case IteratorAnnotation::kVThread:
+    case IteratorAnnotation::kBlockX:
+    case IteratorAnnotation::kBlockY:
+    case IteratorAnnotation::kThreadX:
+    case IteratorAnnotation::kThreadY:   ss << "bind("; break;
+    case IteratorAnnotation::kNone:      break;
+    default:
+      LOG(FATAL) << "Invalid annotation " << static_cast<int>(annotation); break;
+  }
+  ss << CleanName(iter->var->name_hint);
+  switch (annotation) {
+    case IteratorAnnotation::kVThread:   ss << ", tvm.thread_axis(\"vthread\")"; break;
+    case IteratorAnnotation::kBlockX:    ss << ", tvm.thread_axis(\"blockIdx.x\")"; break;
+    case IteratorAnnotation::kBlockY:    ss << ", tvm.thread_axis(\"blockIdy.y\")"; break;
+    case IteratorAnnotation::kThreadX:   ss << ", tvm.thread_axis(\"threadIdx.x\")"; break;
+    case IteratorAnnotation::kThreadY:   ss << ", tvm.thread_axis(\"threadIdx.y\")"; break;
+    default:         break;
+  }
+  ss << ")\n";
+
+  ApplyToSchedule(stages, stage_to_axes);
+  return ss.str();
+}
+
 }  // namespace auto_scheduler
 }  // namespace tvm

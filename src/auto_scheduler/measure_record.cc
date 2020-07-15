@@ -101,6 +101,11 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
         writer->WriteArrayItem(std::string("FU"));
         writer->WriteArrayItem(ps->stage_id);
         writer->WriteArrayItem(IntArrayToVector(ps->fused_ids));
+      } else if (auto ps = data[i].as<::tvm::auto_scheduler::AnnotationStepNode>()) {
+        writer->WriteArrayItem(std::string("AN"));
+        writer->WriteArrayItem(ps->stage_id);
+        writer->WriteArrayItem(ps->iter_id);
+        writer->WriteArrayItem(static_cast<int>(ps->annotation));
       } else {
         LOG(FATAL) << "Invalid step: " << data[i];
       }
@@ -114,7 +119,7 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
     std::vector<int> int_list;
     bool s, inner_to_outer;
     std::string name, scope_name, pragma_type, ti_func_name;
-    int stage_id, iter_id, extent;
+    int stage_id, iter_id, extent, ann;
 
     reader->BeginArray();
     data->clear();
@@ -169,6 +174,15 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
           fused_ids.push_back(i);
         }
         data->push_back(::tvm::auto_scheduler::FuseStep(stage_id, fused_ids));
+      } else if (name == "AN") {
+        s = reader->NextArrayItem(); CHECK(s);
+        reader->Read(&stage_id);
+        s = reader->NextArrayItem(); CHECK(s);
+        reader->Read(&iter_id);
+        s = reader->NextArrayItem(); CHECK(s);
+        reader->Read(&ann);
+        data->push_back(::tvm::auto_scheduler::AnnotationStep(stage_id,
+            iter_id, ::tvm::auto_scheduler::IteratorAnnotation(ann)));
       } else {
         LOG(FATAL) << "Invalid step format";
       }

@@ -91,30 +91,6 @@ enum class IteratorKind : int {
   kSpecial = 3
 };
 
-/*! \brief The type of an iterator's annotation. */
-enum class IteratorAnnotation : int {
-  /*! \brief This iterator has no annotation. */
-  kNone = 0,
-  /*! \brief This iterator has been unrolled. */
-  kUnroll = 1,
-  /*! \brief This iterator has been vectorized. */
-  kVectorize = 2,
-  /*! \brief This iterator has been paralleld. */
-  kParallel = 3,
-  /*! \brief This iterator has been bind to vthread. */
-  kVThread = 4,
-  /*! \brief This iterator has been bind to blockIdx.x. */
-  kBlockX = 5,
-  /*! \brief This iterator has been bind to threadIdx.x. */
-  kThreadX = 6,
-  /*! \brief This iterator has been bind to blockIdx.y. */
-  kBlockY = 7,
-  /*! \brief This iterator has been bind to threadIdx.y. */
-  kThreadY = 8,
-  /*! \brief This iterator has been mapped with a tensorize intrinsic. */
-  kTensorized = 9
-};
-
 /*!
  * \brief A for loop iterator
  * Similar to tvm::IterVar in `include/tvm/tir/expr.h`
@@ -308,6 +284,11 @@ class State : public ObjectRef {
    * \return The iterator result after fuse.
    */
   Iterator fuse(int stage_id, const Array<Iterator>& iters);
+  Iterator vectorize(int stage_id, const Iterator& it);
+  Iterator parallel(int stage_id, const Iterator& it);
+  Iterator unroll(int stage_id, const Iterator& it, int max_unroll = -1);
+  Iterator bind_thread(int stage_id, const Iterator& it,
+                       IteratorAnnotation thread_type);
 
   TVM_DEFINE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StateNode);
@@ -334,6 +315,7 @@ class State : public ObjectRef {
    * \return The iterator result after fuse.
    */
   Iterator DoFuseStep(const FuseStep& step);
+  Iterator DoAnnotationStep(const AnnotationStep& step);
 
   /*!
    * \brief Common function for DoSplitStep and DoFollowSplitStep(Will be added later).

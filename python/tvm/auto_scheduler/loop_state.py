@@ -173,6 +173,37 @@ class State:
         self.state_object, res = _ffi_api.StateFuse(self.state_object, stage_id, iters)
         return res
 
+    def vectorize(self, stage, iterator):
+        stage_id = self._resolve_stage_id(stage)
+        self.state_object, res = _ffi_api.StateVectorize(self.state_object, stage_id, iterator)
+        return res
+
+    def parallel(self, stage, iterator):
+        stage_id = self._resolve_stage_id(stage)
+        self.state_object, res = _ffi_api.StateParallel(self.state_object, stage_id, iterator)
+        return res
+
+    def unroll(self, stage, iterator, max_unroll=None):
+        stage_id = self._resolve_stage_id(stage)
+        self.state_object, res = _ffi_api.StateUnroll(self.state_object, stage_id, iterator,
+                                                      max_unroll if max_unroll else -1)
+        return res
+
+    def bind_thread(self, stage_id, iterator, thread_name):
+        trans_table = {
+            "vthread": 4,
+            "blockIdx.x": 5,
+            "threadIdx.x": 6,
+            "blockIdx.y": 7,
+            "threadIdx.y": 8,
+        }
+        thread_id = trans_table[thread_name]
+        stage_id = self._resolve_stage_id(stage_id)
+
+        self.state_object, res = _ffi_api.StateBindThread(self.state_object, stage_id, iterator,
+                                                          thread_id)
+        return res
+
     def copy(self):
         """ Do deep copy of this State. """
         state = State(self.state_object, self.compute_dag)
