@@ -181,7 +181,11 @@ class RPCRunner(Runner):
         call your template and get the reference output.
         This can work for TOPI templates, but may not work for your custom template.
     enable_cpu_cache_flush: bool
-        Whether to enable cpu cache flush, which only has effect on CPU task.
+        Whether to flush cache on CPU between repeated measurements.
+        Flushing cache can make the measured latency of one operator closer to
+        its actual latency during end-to-end inference.
+        To make this option effective, the argument `number` should also be set to 1.
+        This is only has effect on CPU task.
     """
     def __init__(self,
                  key, host, port, priority=1,
@@ -314,7 +318,11 @@ class LocalRunner(RPCRunner):
         call your template and get the reference output.
         This can work for TOPI templates, but may not work for your custom template.
     enable_cpu_cache_flush: bool
-        Whether to enable cpu cache flush, which only has effect on CPU task.
+        Whether to flush cache on CPU between repeated measurements.
+        Flushing cache can make the measured latency of one operator closer to
+        its actual latency during end-to-end inference.
+        To make this option effective, the argument `number` should also be set to 1.
+        This is only has effect on CPU task.
     Note
     ----
     This is a "fake" local mode. We start a silent rpc tracker and rpc server
@@ -462,7 +470,11 @@ def run_through_rpc(measure_input, build_result,
     ref_output: List of np.ndarray
         The reference output used for checking correctness
     enable_cpu_cache_flush: bool
-        Whether to enable cpu cache flush, which only has effect on CPU task.
+        Whether to flush cache on CPU between repeated measurements.
+        Flushing cache can make the measured latency of one operator closer to
+        its actual latency during end-to-end inference.
+        To make this option effective, the argument `number` should also be set to 1.
+        This is only has effect on CPU task.
     """
     if isinstance(build_result, MeasureResult):
         return build_result
