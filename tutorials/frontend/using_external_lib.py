@@ -71,13 +71,11 @@ import logging
 logging.basicConfig(level=logging.DEBUG) # to dump TVM IR after fusion
 
 target = "cuda"
-graph, lib, params = relay.build_module.build(
-    net, target, params=params)
+lib = relay.build_module.build(net, target, params=params)
 
 ctx = tvm.context(target, 0)
 data = np.random.uniform(-1, 1, size=data_shape).astype("float32")
-module = runtime.create(graph, lib, ctx)
-module.set_input(**params)
+module = runtime.GraphModule(lib['default'](ctx))
 module.set_input("data", data)
 module.run()
 out_shape = (batch_size, out_channels, 224, 224)
@@ -494,13 +492,11 @@ out_cuda = out.asnumpy()
 # To do that, all we need to do is to append the option " -libs=cudnn" to the target string.
 net, params = testing.create_workload(simple_net)
 target = "cuda -libs=cudnn" # use cudnn for convolution
-graph, lib, params = relay.build_module.build(
-        net, target, params=params)
+lib = relay.build_module.build(net, target, params=params)
 
 ctx = tvm.context(target, 0)
 data = np.random.uniform(-1, 1, size=data_shape).astype("float32")
-module = runtime.create(graph, lib, ctx)
-module.set_input(**params)
+module = runtime.GraphModule(lib['default'](ctx))
 module.set_input("data", data)
 module.run()
 out_shape = (batch_size, out_channels, 224, 224)

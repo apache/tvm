@@ -157,10 +157,9 @@ def run_tflite_model(tflite_model_buf, input_data):
 
 ###############################################################################
 # Lets run TVM compiled pre-quantized model inference and get the TVM prediction.
-def run_tvm(graph, lib, params):
+def run_tvm(lib):
     from tvm.contrib import graph_runtime
-    rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
-    rt_mod.set_input(**params)
+    rt_mod = graph_runtime.GraphModule(lib['default'](tvm.cpu(0)))
     rt_mod.set_input('input', data)
     rt_mod.run()
     tvm_res = rt_mod.get_output(0).asnumpy()
@@ -199,12 +198,11 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 # target platform that you are interested in.
 target = 'llvm'
 with tvm.transform.PassContext(opt_level=3):
-    graph, lib, params = relay.build_module.build(mod, target=target,
-                                                  params=params)
+    lib = relay.build_module.build(mod, target=target, params=params)
 
 ###############################################################################
 # Finally, lets call inference on the TVM compiled module.
-tvm_pred, rt_mod = run_tvm(graph, lib, params)
+tvm_pred, rt_mod = run_tvm(lib)
 
 ###############################################################################
 # Accuracy comparison
