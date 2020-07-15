@@ -69,5 +69,70 @@ def test_split_fuse_reorder_annotation():
     s1.bind_thread(C, i3, "threadIdx.y")
 
 
+def test_compute_at_root_inline():
+    dag = auto_scheduler.ComputeDAG(conv2d_nchw_bn_relu(1, 224, 224, 3, 64, 7, 2, 3))
+    s0 = dag.get_init_state()
+
+    # data, padding, kernel = 0, 1, 2
+    conv = s0.stage_ops[3]
+    # bias = 4
+    bias_add = s0.stage_ops[5]
+    # bn_scale = 6
+    bn_mul = s0.stage_ops[7]
+    # bn_offset = 8
+    bn_add = s0.stage_ops[9]
+    relu = s0.stage_ops[10]
+
+    s0.compute_inline(bn_add)
+    s0.compute_inline(bn_mul)
+    s0.compute_inline(bias_add)
+    s0.compute_at(conv, relu, s0[relu].iters[2])
+    assert str(s0) == \
+        "Placeholder: Data, Kernel, Bias, Bn_scale, Bn_offset\n" + \
+        "for i1 (0,3)\n" + \
+        "  for i2 (0,230)\n" + \
+        "    for i3 (0,230)\n" + \
+        "      pad_temp = ...\n" + \
+        "for i1 (0,64)\n" + \
+        "  for i2 (0,112)\n" + \
+        "    for nn (None)\n" + \
+        "      for ff (None)\n" + \
+        "        for yy (None)\n" + \
+        "          for xx (None)\n" + \
+        "            for rc (None)\n" + \
+        "              for ry (None)\n" + \
+        "                for rx (None)\n" + \
+        "                  compute = ...\n" + \
+        "    for i3 (0,112)\n" + \
+        "      compute = ...\n"
+
+    s0.compute_root(conv)
+    s0.compute_root(bn_mul)
+    assert str(s0) == \
+        "Placeholder: Data, Kernel, Bias, Bn_scale, Bn_offset\n" + \
+        "for i1 (0,3)\n" + \
+        "  for i2 (0,230)\n" + \
+        "    for i3 (0,230)\n" + \
+        "      pad_temp = ...\n" + \
+        "for nn (None)\n" + \
+        "  for ff (None)\n" + \
+        "    for yy (None)\n" + \
+        "      for xx (None)\n" + \
+        "        for rc (None)\n" + \
+        "          for ry (None)\n" + \
+        "            for rx (None)\n" + \
+        "              compute = ...\n" + \
+        "for i (None)\n" + \
+        "  for j (None)\n" + \
+        "    for k (None)\n" + \
+        "      for l (None)\n" + \
+        "        Bn_mul = ...\n" + \
+        "for i1 (0,64)\n" + \
+        "  for i2 (0,112)\n" + \
+        "    for i3 (0,112)\n" + \
+        "      compute = ...\n"
+
+
 if __name__ == "__main__":
     test_split_fuse_reorder_annotation()
+    test_compute_at_root_inline()

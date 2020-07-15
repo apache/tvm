@@ -123,6 +123,45 @@ class State:
 
         self.state_object = _ffi_api.StateReorder(self.state_object, stage_id, order)
 
+    def compute_at(self, stage_id, target_stage_id, target_iter):
+        """
+        Parameters
+        ----------
+        stage_id : Union[int, Operation, Tensor]
+            The index of source stage
+        target_stage_id : Union[int, Operation, Tensor]
+            The index of the target stage of compute_at
+        target_iter : Iterator
+            The target Iterator of compute_at
+        """
+        stage_id = self._resolve_stage_id(stage_id)
+        target_stage_id = self._resolve_stage_id(target_stage_id)
+
+        self.state_object = _ffi_api.StateComputeAt(self.state_object, stage_id,
+                                                    target_stage_id, target_iter)
+
+    def compute_root(self, stage_id):
+        """
+        Parameters
+        ----------
+        stage_id : Union[int, Operation, Tensor]
+            The index of the stage to compute root
+        """
+        stage_id = self._resolve_stage_id(stage_id)
+
+        self.state_object = _ffi_api.StateComputeRoot(self.state_object, stage_id)
+
+    def compute_inline(self, stage_id):
+        """
+        Parameters
+        ----------
+        stage_id : Union[int, Operation, Tensor]
+            The index of the stage to compute inline
+        """
+        stage_id = self._resolve_stage_id(stage_id)
+
+        self.state_object = _ffi_api.StateComputeInline(self.state_object, stage_id)
+
     def split(self, stage, iterator, lengths, inner_to_outer=True):
         """ Schedule primitive corresponds to te.split.
 

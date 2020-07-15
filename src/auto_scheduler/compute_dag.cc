@@ -276,6 +276,12 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
     // return value, so the ApplyToSchedule is not able to be merged to single interface
     if (auto ps = step.as<ReorderStepNode>()) {
       ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<ComputeAtStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<ComputeRootStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<ComputeInlineStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
     } else if (auto ps = step.as<SplitStepNode>()) {
       ps->ApplyToSchedule(stages, stage_to_axes);
     } else if (auto ps = step.as<FuseStepNode>()) {
@@ -329,6 +335,12 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
   // Call each step's PrintAsPythonAPI method
   for (const auto& step : transform_steps) {
     if (auto ps = step.as<ReorderStepNode>()) {
+      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+    } else if (auto ps = step.as<ComputeAtStepNode>()) {
+      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+    } else if (auto ps = step.as<ComputeRootStepNode>()) {
+      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+    } else if (auto ps = step.as<ComputeInlineStepNode>()) {
       ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
     } else if (auto ps = step.as<SplitStepNode>()) {
       ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);

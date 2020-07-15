@@ -143,6 +143,81 @@ class ReorderStep : public Step {
   TVM_DEFINE_OBJECT_REF_METHODS(ReorderStep, Step, ReorderStepNode);
 };
 
+/*! \brief Compute at step that corresponds to te::Stage::compute_at */
+class ComputeAtStepNode: public StepNode {
+ public:
+  int target_stage_id;
+  int target_iter_id;
+
+  void ApplyToSchedule(Array<te::Stage> *stages,
+                       StageToAxesMap *stage_to_axes) const;
+
+  String PrintAsPythonAPI(Array<te::Stage> *stages,
+                               StageToAxesMap *stage_to_axes) const;
+
+  static constexpr const char* _type_key = "auto_scheduler.ComputeAtStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeAtStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to ComputeAtStepNode.
+ * \sa ComputeAtStepNode
+ */
+class ComputeAtStep : public Step {
+ public:
+  ComputeAtStep(int stage_id, int target_stage_id, int target_iter_id);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ComputeAtStep, Step, ComputeAtStepNode);
+};
+
+/*! \brief Compute root step that corresponds to te::Stage::compute_root */
+class ComputeRootStepNode: public StepNode {
+ public:
+  void ApplyToSchedule(Array<te::Stage> *stages,
+                       StageToAxesMap *stage_to_axes) const;
+
+  String PrintAsPythonAPI(Array<te::Stage> *stages,
+                               StageToAxesMap *stage_to_axes) const;
+
+  static constexpr const char* _type_key = "auto_scheduler.ComputeRootStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeRootStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to ComputeRootStepNode.
+ * \sa ComputeRootStepNode
+ */
+class ComputeRootStep : public Step {
+ public:
+  explicit ComputeRootStep(int stage_id);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ComputeRootStep, Step, ComputeRootStepNode);
+};
+
+/*! \brief Compute inline step that corresponds to te::Stage::compute_inline */
+class ComputeInlineStepNode: public StepNode {
+ public:
+  void ApplyToSchedule(Array<te::Stage> *stages,
+                       StageToAxesMap *stage_to_axes) const;
+
+  String PrintAsPythonAPI(Array<te::Stage> *stages,
+                               StageToAxesMap *stage_to_axes) const;
+
+  static constexpr const char* _type_key = "auto_scheduler.ComputeInlineStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeInlineStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to ComputeInlineStepNode.
+ * \sa ComputeInlineStepNode
+ */
+class ComputeInlineStep : public Step {
+ public:
+  explicit ComputeInlineStep(int stage_id);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ComputeInlineStep, Step, ComputeInlineStepNode);
+};
+
 /*!
  * \brief Split step that corresponds to te::Stage::split with additional
  *  support of multiple-level of factors

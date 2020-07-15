@@ -89,6 +89,17 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
         writer->WriteArrayItem(std::string("RE"));
         writer->WriteArrayItem(ps->stage_id);
         writer->WriteArrayItem(IntArrayToVector(ps->after_ids));
+      } else if (auto ps = data[i].as<::tvm::auto_scheduler::ComputeAtStepNode>()) {
+        writer->WriteArrayItem(std::string("CA"));
+        writer->WriteArrayItem(ps->stage_id);
+        writer->WriteArrayItem(ps->target_stage_id);
+        writer->WriteArrayItem(ps->target_iter_id);
+      } else if (auto ps = data[i].as<::tvm::auto_scheduler::ComputeRootStepNode>()) {
+        writer->WriteArrayItem(std::string("CR"));
+        writer->WriteArrayItem(ps->stage_id);
+      } else if (auto ps = data[i].as<::tvm::auto_scheduler::ComputeInlineStepNode>()) {
+        writer->WriteArrayItem(std::string("CI"));
+        writer->WriteArrayItem(ps->stage_id);
       } else if (auto ps = data[i].as<::tvm::auto_scheduler::SplitStepNode>()) {
         writer->WriteArrayItem(std::string("SP"));
         writer->WriteArrayItem(ps->stage_id);
@@ -119,7 +130,7 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
     std::vector<int> int_list;
     bool s, inner_to_outer;
     std::string name, scope_name, pragma_type, ti_func_name;
-    int stage_id, iter_id, extent, ann;
+    int stage_id, iter_id, extent, ann, target_stage_id;
 
     reader->BeginArray();
     data->clear();
@@ -140,6 +151,28 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
           after_ids.push_back(i);
         }
         data->push_back(::tvm::auto_scheduler::ReorderStep(stage_id, after_ids));
+      } else if (name == "CA") {
+        s = reader->NextArrayItem();
+        CHECK(s);
+        reader->Read(&stage_id);
+        s = reader->NextArrayItem();
+        CHECK(s);
+        reader->Read(&target_stage_id);
+        s = reader->NextArrayItem();
+        CHECK(s);
+        reader->Read(&iter_id);
+        data->push_back(::tvm::auto_scheduler::ComputeAtStep(
+            stage_id, target_stage_id, iter_id));
+      } else if (name == "CR") {
+        s = reader->NextArrayItem();
+        CHECK(s);
+        reader->Read(&stage_id);
+        data->push_back(::tvm::auto_scheduler::ComputeRootStep(stage_id));
+      } else if (name == "CI") {
+        s = reader->NextArrayItem();
+        CHECK(s);
+        reader->Read(&stage_id);
+        data->push_back(::tvm::auto_scheduler::ComputeInlineStep(stage_id));
       } else if (name == "SP") {
         s = reader->NextArrayItem();
         CHECK(s);

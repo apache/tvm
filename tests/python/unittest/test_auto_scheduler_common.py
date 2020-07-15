@@ -40,7 +40,7 @@ def matmul_auto_scheduler_test_rename_0(N, M, K):
     C = te.compute((N, M), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
     return [A, B, C]
 
-
+@auto_scheduler.register_workload
 def conv2d_nchw_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation=1):
     data = te.placeholder((N, CI, H, W), name='Data')
     kernel = te.placeholder((CO, CI, kernel_size, kernel_size), name='Kernel')

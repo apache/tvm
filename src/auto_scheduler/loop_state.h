@@ -51,6 +51,9 @@
 #include <tvm/runtime/container.h>
 
 #include <functional>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "transform_step.h"
 
@@ -194,6 +197,48 @@ class Stage : public ObjectRef {
 };
 
 /*!
+ * \brief stores the compute_at relation between stages
+ * This stores a bi-directional mapping from stages and iter:
+ * 1. Stage to its attached iterator
+ * 2. Iterator to the stage attached to it 
+ * You can use AttachMapNode::stage_to_attach_iter and AttachMapNode::iter_to_attached_stages
+ * to query the relations
+ */
+class AttachMapNode: public Object {
+ public:
+  using StageKey = int;
+  using IterKey = std::pair<int, int>;  // stage_id and iter_id
+
+  std::unordered_map<StageKey, IterKey> stage_to_attach_iter;
+  std::unordered_map<IterKey, std::vector<StageKey>> iter_to_attached_stages;
+
+  static constexpr const char* _type_key = "ansor.AttachMap";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AttachMapNode, Object);
+};
+
+/*!
+ * \brief Managed reference to AttachMapNode.
+ * \sa AttachMapNode
+ */
+class AttachMap : public ObjectRef {
+ public:
+  using StageKey = int;
+  using IterKey = std::pair<int, int>;  // stage_id and iter_id
+
+  void SetComputeAtIter(int stage_id, int target_stage_id, int target_iter_id);
+  void DeleteStage(int stage_id);
+  void ReplaceIters(const std::vector<IterKey>& old_iters,
+                    const std::vector<IterKey>& new_iters);
+  AttachMap ApplyStageIdOfffset(int start_id, int offset) const;
+
+  TVM_DEFINE_OBJECT_REF_METHODS(AttachMap, ObjectRef, AttachMapNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AttachMapNode);
+
+ private:
+  static void DeleteStageEntry(AttachMapNode* pnode, int stage_id);
+};
+
+/*!
  * \brief A state in the search process.
  * It consists of the current loop structure and a list of transformation steps used to construct
  * it.
@@ -205,6 +250,7 @@ class StateNode : public Object {
   Array<Stage> stages;
   /*! \brief History transformation steps. */
   Array<Step> transform_steps;
+  AttachMap attach_map;
   /*!
    * \brief Indicate whether this state has unfilled tile sizes. A concrete state means that all
    * tile sizes of the state is filled. Only concrete state can be apply to TVM schedule.
@@ -214,6 +260,7 @@ class StateNode : public Object {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("stages", &stages);
     v->Visit("transform_steps", &transform_steps);
+    v->Visit("attach_map", &attach_map);
     v->Visit("concrete", &concrete);
   }
 
@@ -267,6 +314,9 @@ class State : public ObjectRef {
    * \param order The expected iterator order.
    */
   void reorder(int stage_id, const Array<Iterator>& order);
+  void compute_at(int stage_id, int target_stage_id, const Iterator& target_iter);
+  void compute_root(int stage_id);
+  void compute_inline(int stage_id);
   /*!
    * \brief Schedule primitive corresponds to te.split.
    * \param stage_id The index of the stage to be split.
@@ -303,6 +353,9 @@ class State : public ObjectRef {
    * \param step A ReorderStep.
    */
   void DoReorderStep(const ReorderStep& step);
+  void DoComputeAtStep(const ComputeAtStep& step);
+  void DoComputeRootStep(const ComputeRootStep& step);
+  void DoComputeInlineStep(const ComputeInlineStep& step);
   /*!
    * \brief Apply split step to current state.
    * \param step A SplitStep.
