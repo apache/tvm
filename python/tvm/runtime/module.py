@@ -163,7 +163,7 @@ class Module(object):
         """
         _ffi_api.ModuleSaveToFile(self, file_name, fmt)
 
-    def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0):
+    def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0, f_preproc=''):
         """Get an evaluator that measures time cost of running function.
 
         Parameters
@@ -192,6 +192,8 @@ class Module(object):
             minimum duration requirement of one `repeat`.
             i.e., When the run time of one `repeat` falls below this time, the `number` parameter
             will be automatically increased.
+        f_preproc: str, optional
+            The preprocess function name we want to execute before executing the time evaluator.
 
         Note
         ----
@@ -207,7 +209,7 @@ class Module(object):
         try:
             feval = _ffi_api.RPCTimeEvaluator(
                 self, func_name, ctx.device_type, ctx.device_id,
-                number, repeat, min_repeat_ms)
+                number, repeat, min_repeat_ms, f_preproc)
 
             def evaluator(*args):
                 """Internal wrapped evaluator."""
