@@ -23,8 +23,8 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
 
 #include <queue>
 #include <unordered_map>
@@ -39,7 +39,6 @@ namespace tir {
 
 using VarForMap = std::unordered_map<const Object*, const Object*>;
 using HoistForIfTuple = std::tuple<bool, const ForNode*, const IfThenElseNode*>;
-
 
 /*
  * This pass tries to hoist IfThenElse stmt out of For loop if condition is loop invariant.
@@ -96,18 +95,15 @@ using HoistForIfTuple = std::tuple<bool, const ForNode*, const IfThenElseNode*>;
  *
  */
 
-
 // Select potential candidate IRs that can be hoisted.
 class HoistCandidateSelector final : public StmtExprVisitor {
  public:
-  explicit HoistCandidateSelector() {
-    InitRecorder();
-  }
+  HoistCandidateSelector() { InitRecorder(); }
   void VisitStmt_(const ForNode* op) final {
-  // Check if it is first for loop, then start the recorder
-  if (!RecordingComplete()) {
-    StartOrAddRecord(op);
-  }
+    // Check if it is first for loop, then start the recorder
+    if (!RecordingComplete()) {
+      StartOrAddRecord(op);
+    }
 
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -122,114 +118,107 @@ class HoistCandidateSelector final : public StmtExprVisitor {
   }
 
   void VisitStmt_(const IfThenElseNode* op) final {
-	if (is_recorder_on) {
-	      	is_if_cond = true;
-	      	  StmtExprVisitor::VisitExpr(op->condition);
-	      	is_if_cond = false;
-	      	if (!CheckValidIf()) {
-	      	  ResetRecorder();
-	      	}
-	      	else {
-	      	  // Check corresponding for loop
-		     bool match_found = false;
-		     size_t match_for_loop_pos = 0;
-		     for (auto var : if_var_list_) {
-          		     for (size_t i = 0; i < ordered_for_list_.size() - 1; ++i) {
-          		       if (ordered_for_list_[i] == var_for_map_[var]) {
-          		           if (match_for_loop_pos < i) {match_for_loop_pos = i;}
-          			  match_found = true;
-          			  break;
-          		       }
-          		     }
-		     }
-			 // If none of the for loop has the matching loop variable as if condition,
-			 // then the if node need to be hoisted on top of all, provided no parent loop exists.
-			 int target_for_pos = match_found ? match_for_loop_pos + 1 : 0;
-			 
-			 // Check if target for loop is not the parent of current if node
-			 if (!IsParentForLoop(target_for_pos)) {
-			   StopAndAddRecord(ordered_for_list_[target_for_pos], op);
-			 }
-	      	}
-	      	if_var_list_.clear();
-	}
-	StmtExprVisitor::VisitStmt_(op);
+    if (is_recorder_on) {
+      is_if_cond = true;
+      StmtExprVisitor::VisitExpr(op->condition);
+      is_if_cond = false;
+      if (!CheckValidIf()) {
+        ResetRecorder();
+      } else {
+        // Check corresponding for loop
+        bool match_found = false;
+        size_t match_for_loop_pos = 0;
+        for (auto var : if_var_list_) {
+          for (size_t i = 0; i < ordered_for_list_.size() - 1; ++i) {
+            if (ordered_for_list_[i] == var_for_map_[var]) {
+              if (match_for_loop_pos < i) {
+                match_for_loop_pos = i;
+              }
+              match_found = true;
+              break;
+            }
+          }
+        }
+        // If none of the for loop has the matching loop variable as if condition,
+        // then the if node need to be hoisted on top of all, provided no parent loop exists.
+        int target_for_pos = match_found ? match_for_loop_pos + 1 : 0;
+
+        // Check if target for loop is not the parent of current if node
+        if (!IsParentForLoop(target_for_pos)) {
+          StopAndAddRecord(ordered_for_list_[target_for_pos], op);
+        }
+      }
+      if_var_list_.clear();
+    }
+    StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitExpr_(const VarNode* op) final {
-     if (is_if_cond) {
-     	if_var_list_.emplace_back(op);
-     }
+    if (is_if_cond) {
+      if_var_list_.emplace_back(op);
+    }
     StmtExprVisitor::VisitExpr_(op);
   }
 
   HoistForIfTuple hoist_for_if_recorder;
 
   void ResetRecorder() {
-   CHECK_GT(ordered_for_list_.size(), 0);
-   is_recorder_on = false;
-   ordered_for_list_.clear();
-   var_for_map_.clear();
-   hoist_for_if_recorder = std::make_tuple(false, nullptr, nullptr);
- }
+    CHECK_GT(ordered_for_list_.size(), 0);
+    is_recorder_on = false;
+    ordered_for_list_.clear();
+    var_for_map_.clear();
+    hoist_for_if_recorder = std::make_tuple(false, nullptr, nullptr);
+  }
 
   bool RecordingComplete() {
-   if (std::get<0>(hoist_for_if_recorder)) return true;
-   return false;
- }
-
- const ForNode* GetTargetForNode() {
-   return std::get<1>(hoist_for_if_recorder);
- }
-
- const IfThenElseNode* GetTargetIfNode() {
-	return std::get<2>(hoist_for_if_recorder);
+    if (std::get<0>(hoist_for_if_recorder)) return true;
+    return false;
   }
+
+  const ForNode* GetTargetForNode() { return std::get<1>(hoist_for_if_recorder); }
+
+  const IfThenElseNode* GetTargetIfNode() { return std::get<2>(hoist_for_if_recorder); }
 
  private:
-
-bool CheckValidIf() {
-  if (if_var_list_.size() > ordered_for_list_.size()) {
-  	return false;
-  }
-  return true;
-}
-
- bool IsParentForLoop(int loop_pos) {
-   // Check if the loop position is higher than the parent loop position
-   for (auto var : if_var_list_) {
-   	   if (GetParentLoopPos(var_for_map_[var]) >= loop_pos) {
-	   	return true;
-   	   }
-   	}
-   return false;
- }
-
- int GetParentLoopPos(const Object* node) {
- 	for (size_t i = 0; i < ordered_for_list_.size(); ++i) {
-		if (ordered_for_list_[i] == node)
-			{
-			  return i;
-			}
- 	}
-	return -1;
- }
-
-void InitRecorder() {
-  hoist_for_if_recorder = std::make_tuple(false, nullptr, nullptr);
-}
-
- void StartOrAddRecord(const ForNode* op) {
-   if (!is_recorder_on) is_recorder_on = true;
-   if (!var_for_map_.count(op->loop_var.get())) {
-          var_for_map_.insert({op->loop_var.get(), op});
+  bool CheckValidIf() {
+    if (if_var_list_.size() > ordered_for_list_.size()) {
+      return false;
     }
-   ordered_for_list_.emplace_back(op);
- }
+    return true;
+  }
 
- void StopAndAddRecord(const ForNode* for_node, const IfThenElseNode* if_node) {
-	hoist_for_if_recorder = std::make_tuple(true, for_node, if_node);
-	is_recorder_on = false;
+  bool IsParentForLoop(int loop_pos) {
+    // Check if the loop position is higher than the parent loop position
+    for (auto var : if_var_list_) {
+      if (GetParentLoopPos(var_for_map_[var]) >= loop_pos) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  int GetParentLoopPos(const Object* node) {
+    for (size_t i = 0; i < ordered_for_list_.size(); ++i) {
+      if (ordered_for_list_[i] == node) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  void InitRecorder() { hoist_for_if_recorder = std::make_tuple(false, nullptr, nullptr); }
+
+  void StartOrAddRecord(const ForNode* op) {
+    if (!is_recorder_on) is_recorder_on = true;
+    if (!var_for_map_.count(op->loop_var.get())) {
+      var_for_map_.insert({op->loop_var.get(), op});
+    }
+    ordered_for_list_.emplace_back(op);
+  }
+
+  void StopAndAddRecord(const ForNode* for_node, const IfThenElseNode* if_node) {
+    hoist_for_if_recorder = std::make_tuple(true, for_node, if_node);
+    is_recorder_on = false;
   }
 
   std::vector<const ForNode*> ordered_for_list_;
@@ -244,19 +233,18 @@ void InitRecorder() {
 
 class IfThenElseHoister : public StmtMutator {
  public:
-  explicit IfThenElseHoister()
-      : hoist_selector(HoistCandidateSelector()) {}
+  IfThenElseHoister() : hoist_selector(HoistCandidateSelector()) {}
 
   Stmt VisitAndMutate(Stmt stmt) {
     hoist_selector(stmt);
     Stmt stmt_copy = std::move(stmt);
     while (hoist_selector.RecordingComplete()) {
-	        target_for =  hoist_selector.GetTargetForNode();
-	        target_if =  hoist_selector.GetTargetIfNode();
+      target_for = hoist_selector.GetTargetForNode();
+      target_if = hoist_selector.GetTargetIfNode();
 
-	        stmt_copy = operator()(stmt_copy);
-		hoist_selector.ResetRecorder();
-		hoist_selector(stmt_copy);
+      stmt_copy = operator()(stmt_copy);
+      hoist_selector.ResetRecorder();
+      hoist_selector(stmt_copy);
     }
 
     // Support SSA Form
@@ -282,11 +270,11 @@ class IfThenElseHoister : public StmtMutator {
 
   Stmt VisitStmt_(const IfThenElseNode* op) final {
     if (is_updating && (target_if == op)) {
-	if (is_then_case) {
-	  return StmtMutator::VisitStmt(op->then_case);
-	} else if (op->else_case.defined()) {
-	  return StmtMutator::VisitStmt(op->else_case);
-	}
+      if (is_then_case) {
+        return StmtMutator::VisitStmt(op->then_case);
+      } else if (op->else_case.defined()) {
+        return StmtMutator::VisitStmt(op->else_case);
+      }
     }
     return StmtMutator::VisitStmt_(op);
   }
@@ -295,11 +283,9 @@ class IfThenElseHoister : public StmtMutator {
   const IfThenElseNode* target_if;
 
  private:
-
   bool is_updating{false};
   bool is_then_case{false};
   HoistCandidateSelector hoist_selector;
-
 };
 
 Stmt HoistIfThenElse(Stmt stmt) { return IfThenElseHoister().VisitAndMutate(stmt); }
@@ -319,7 +305,5 @@ TVM_REGISTER_GLOBAL("tir.transform.HoistIfThenElse").set_body_typed(HoistIfThenE
 
 }  // namespace transform
 
-
 }  // namespace tir
 }  // namespace tvm
-
