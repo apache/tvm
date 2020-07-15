@@ -2393,6 +2393,7 @@ _convert_map = {
     "_contrib_quantized_batch_norm" : _qnn_batch_norm,
     "_sg_mkldnn_fully_connected": _qnn_fully_connected,
     # numpy
+    "_np_transpose"     : _mx_npi_transpose,
     "_npi_transpose"    : _mx_npi_transpose,
     "_npi_pad"          : _mx_npi_pad,
     "_npi_concatenate"  : _mx_npi_concatenate,

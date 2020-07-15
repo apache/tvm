@@ -28,6 +28,7 @@ from mxnet import gluon
 from mxnet.gluon.model_zoo import vision
 import model_zoo
 import random
+import pytest
 
 def verify_mxnet_frontend_impl(mx_symbol,
                                data_shape=(1, 3, 224, 224),
