@@ -22,7 +22,8 @@ import tvm._ffi
 from tvm.relay.expr import RelayExpr as Expr
 
 from ... import _ffi as tvm_ffi
-from ...ir import make_node, IRModule
+from ... import ir as _ir
+from ...ir import make_node
 from ...ir.base import Node
 from ...runtime import Object
 from ..op import get
@@ -739,7 +740,7 @@ class _DFPatternCallback(Object):
         self.__init_handle_by_constructor__(ffi.DFPatternCallback, pattern, callback, require_type)
 
 
-def rewrite(callbacks, expr: Expr, mod: Optional[IRModule] = None) -> Expr:
+def rewrite(callbacks, expr: Expr, mod: Optional[_ir.IRModule] = None) -> Expr:
     """
     Rewrite expression with the given callbacks.
 
@@ -758,7 +759,7 @@ def rewrite(callbacks, expr: Expr, mod: Optional[IRModule] = None) -> Expr:
         The Expression with matched subgraphs rewritten by the callbacks.
     """
     if mod is None:
-        mod = IRModule()
+        mod = _ir.IRModule()
     callbacks = [callbacks] if isinstance(callbacks, DFPatternCallback) else callbacks
     tmp = []
     for callback in callbacks:
