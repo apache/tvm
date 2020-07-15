@@ -759,7 +759,7 @@ def rewrite(callbacks, expr: Expr, mod: Optional[IRModule] = None) -> Expr:
         The Expression with matched subgraphs rewritten by the callbacks.
     """
     if mod is None:
-        mod = IRModule.from_expr(expr)
+        mod = IRModule()
     callbacks = [callbacks] if isinstance(callbacks, DFPatternCallback) else callbacks
     tmp = []
     for callback in callbacks:
