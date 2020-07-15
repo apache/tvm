@@ -179,6 +179,7 @@ def lower(sch,
         tvm.tir.transform.BF16Legalize(),
         tvm.tir.transform.NarrowDataType(32),
         tvm.tir.transform.Simplify(),
+        tvm.tir.transform.HoistIfThenElse(),
     ]
     pass_list += lower_phase1
 
@@ -189,7 +190,6 @@ def lower(sch,
     pass_list += [
         tvm.tir.transform.VectorizeLoop(not disable_vectorize),
         tvm.tir.transform.InjectVirtualThread(),
-        tvm.tir.transform.HoistIfThenElse(),
         tvm.tir.transform.InjectDoubleBuffer(),
         tvm.tir.transform.StorageRewrite(),
         tvm.tir.transform.UnrollLoop()
