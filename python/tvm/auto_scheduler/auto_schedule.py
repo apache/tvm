@@ -176,7 +176,7 @@ def auto_schedule(task, search_policy='default', tuning_options=None):
     """
     if not isinstance(task, SearchTask):
         raise ValueError("Invalid task: " + task +
-                         " . `auto_scheduler.auto_scheduler` expects a SearchTask.")
+                         " . `auto_scheduler.auto_schedule` expects a SearchTask.")
 
     if isinstance(search_policy, str):
         if search_policy == 'default':
@@ -187,7 +187,7 @@ def auto_schedule(task, search_policy='default', tuning_options=None):
             raise ValueError("Invalid search policy: " + search_policy)
     elif not isinstance(search_policy, SearchPolicy):
         raise ValueError("Invalid search policy: " + search_policy +
-                         " . `auto_scheduler.auto_scheduler` expects a SearchPolicy or a string.")
+                         " . `auto_scheduler.auto_schedule` expects a SearchPolicy or a string.")
 
     sch, tensors = _ffi_api.AutoSchedule(task, search_policy,
                                          tuning_options if tuning_options else TuningOptions())
