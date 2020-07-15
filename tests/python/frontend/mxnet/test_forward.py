@@ -1374,6 +1374,9 @@ def test_forward_box_decode():
 
     
 def test_forward_npi_pad():
+    if not hasattr(mx.sym.np, 'pad'):
+        pytest.skip("mx.sym.np.pad hasn't been publish yet")
+
     def verify(data_shape, out_shape, mode, pad_width, constant_value=0.0):
         data_np = np.random.uniform(size=data_shape).astype("float32")
         data = mx.sym.var('data')
@@ -1412,7 +1415,7 @@ def test_forward_npi_transpose():
     def verify(data_shape, axes=None):
         data_np = np.random.uniform(size=data_shape).astype("float32")
         data = mx.sym.var('data')
-        ref_res = mx.np.transpose(mx.nd.array(data_np), axes=axes)
+        ref_res = mx.np.transpose(mx.np.array(data_np), axes=axes)
         mx_sym = mx.sym.np.transpose(data.as_np_ndarray(), axes=axes)
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
         for target, ctx in ctx_list():
@@ -1498,7 +1501,7 @@ def test_forward_npi_binary():
             data_np2 = np.random.uniform(size=data_shape).astype("float32")
             data1 = mx.sym.var('lhs')
             data2 = mx.sym.var('rhs')
-            ref_res = ref_op(mx.nd.array(data_np1), mx.nd.array(data_np2))
+            ref_res = ref_op(mx.np.array(data_np1), mx.np.array(data_np2))
             mx_sym = mx_op(data1.as_np_ndarray(), data2.as_np_ndarray())
             mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"lhs": data_shape, "rhs": data_shape})
             for target, ctx in ctx_list():
@@ -1525,7 +1528,7 @@ def test_forward_npi_binary_scalar():
             mx_op = mx_ops[i]
             data_np1 = np.random.uniform(size=data_shape).astype("float32")
             data1 = mx.sym.var('lhs')
-            ref_res = ref_op(mx.nd.array(data_np1), scalar)
+            ref_res = ref_op(mx.np.array(data_np1), scalar)
             mx_sym = mx_op(data1.as_np_ndarray(), scalar)
             mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"lhs": data_shape}, dtype="float32")
             for target, ctx in ctx_list():
@@ -1544,7 +1547,7 @@ def test_forward_npi_tanh():
     def verify(data_shape):
         data_np1 = np.random.uniform(size=data_shape).astype("float32")
         data1 = mx.sym.var('data')
-        ref_res = mx.np.tanh(mx.nd.array(data_np1))
+        ref_res = mx.np.tanh(mx.np.array(data_np1))
         mx_sym = mx.sym.np.tanh(data1.as_np_ndarray())
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"data": data_shape}, dtype="float32")
         for target, ctx in ctx_list():
@@ -1560,12 +1563,15 @@ def test_forward_npi_tanh():
 
 
 def test_forward_npi_where_rscalar():
+    if not hasattr(mx.np, 'where'):
+        pytest.skip("mx.np.where hasn't been publish yet")
+
     def verify(data_shape, scalar):
         cond_np = np.random.uniform(size=data_shape).astype("bool")
         data_np = np.random.uniform(size=data_shape).astype("float32")
         cond = mx.sym.var('condition')
         data = mx.sym.var('x')
-        ref_res = mx.np.where(mx.nd.array(cond_np), mx.nd.array(data_np), scalar)
+        ref_res = mx.np.where(mx.np.array(cond_np), mx.np.array(data_np), scalar)
         mx_sym = mx.sym.np.where(cond.as_np_ndarray(), data.as_np_ndarray(), scalar)
         mod, _ = relay.frontend.from_mxnet(
             mx_sym, shape={"condition": data_shape, "x": data_shape}, 
