@@ -30,6 +30,7 @@ from . import _build_module
 from . import ty as _ty
 from . import expr as _expr
 from . import function as _function
+from .backend import graph_runtime_factory as _graph_runtime_factory
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
@@ -181,7 +182,7 @@ class BuildModule(object):
         return ret
 
 
-def build(mod, target=None, target_host=None, params=None):
+def build(mod, target=None, target_host=None, params=None, mod_name='default'):
     """Helper function that builds a Relay function to run on TVM graph
     runtime.
 
@@ -207,6 +208,9 @@ def build(mod, target=None, target_host=None, params=None):
     params : dict of str to NDArray
         Input parameters to the graph that do not change
         during inference time. Used for constant folding.
+
+    mod_name: Optional[str]
+        The module name we will build
 
     Returns
     -------
@@ -249,7 +253,8 @@ def build(mod, target=None, target_host=None, params=None):
     with tophub_context:
         bld_mod = BuildModule()
         graph_json, mod, params = bld_mod.build(mod, target, target_host, params)
-    return graph_json, mod, params
+        mod = _graph_runtime_factory.GraphRuntimeFactoryModule(graph_json, mod, mod_name, params)
+        return mod
 
 
 def optimize(mod, target=None, params=None):
