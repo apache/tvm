@@ -82,11 +82,12 @@ bool MatchPattern(DFPattern pattern, Expr expr);
  *
  * \param callbacks An array of DFPatternCallback Nodes
  * \param expr The expression to rewrite
+ * \param mod The module that associates with the expr
  *
  * \return Return An Expr with every match of the pattern inside the callbacks rewritten by the
  * functions inside the callbacks
  */
-Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr);
+Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr, IRModule mod);
 
 /*!
  * \brief Partition all matches of a DFPattern inside an Expr into separate Function calls

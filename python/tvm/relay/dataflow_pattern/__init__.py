@@ -19,6 +19,7 @@
 from typing import Callable, Dict, List, Optional
 
 import tvm._ffi
+from tvm import IRModule
 from tvm.relay.expr import RelayExpr as Expr
 
 from ... import _ffi as tvm_ffi
@@ -739,7 +740,7 @@ class _DFPatternCallback(Object):
         self.__init_handle_by_constructor__(ffi.DFPatternCallback, pattern, callback, require_type)
 
 
-def rewrite(callbacks, expr: Expr) -> Expr:
+def rewrite(callbacks, expr: Expr, mod: Optional[IRModule] = None) -> Expr:
     """
     Rewrite expression with the given callbacks.
 
@@ -749,19 +750,23 @@ def rewrite(callbacks, expr: Expr) -> Expr:
         The input callback or list of callbacks.
     expr : tvm.relay.Expr
         The expression to rewrite.
+    mod : Optional[tvm.IRModule]
+        The module that associates with the expression.
 
     Returns
     -------
     result : tvm.relay.Expr
         The Expression with matched subgraphs rewritten by the callbacks.
     """
+    if mod is None:
+        mod = IRModule.from_expr(expr)
     callbacks = [callbacks] if isinstance(callbacks, DFPatternCallback) else callbacks
     tmp = []
     for callback in callbacks:
         assert callback.pattern is not None
         tmp.append(_DFPatternCallback(callback.pattern, callback.callback, callback.require_type))
 
-    return ffi.rewrite(tmp, expr)
+    return ffi.rewrite(tmp, expr, mod)
 
 
 def partition(pattern: "DFPattern",

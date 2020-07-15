@@ -390,6 +390,34 @@ Expr InferType(const Expr& expr) {
   }
 }
 
+Expr InferTypeWithModule(const Expr& expr, const IRModule& m) {
+  IRModule mod(m->functions, m->type_definitions, m->Imports());
+  int idx = 0;
+  std::string gv_name;
+  do {
+    std::ostringstream oss;
+    oss << "_tmp" << idx;
+    gv_name = oss.str();
+    ++idx;
+  } while (mod->ContainGlobalVar(gv_name));
+  GlobalVar gvar(gv_name);
+  BaseFunc func;
+  if (expr.as<FunctionNode>()) {
+    func = Downcast<Function>(expr);
+  } else {
+    func = relay::Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod), {});
+  }
+  mod->Add(gvar, func);
+  mod = transform::InferType()(mod);
+  Expr ret;
+  if (expr.as<FunctionNode>()) {
+    ret = mod->Lookup(gvar);
+  } else {
+    ret = mod->Lookup(gvar).as<FunctionNode>()->body;
+  }
+  return ret;
+}
+
 bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr) {
   auto expr_type = InferType(expr).as<ExprNode>()->checked_type();
   return (StructuralEqual()(op->type, expr_type)) && VisitDFPattern(op->pattern, expr);
@@ -727,7 +755,7 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.DFPatternCallback")
  */
 class PatternRewriter : protected MixedModeMutator {
  public:
-  PatternRewriter() {}
+  PatternRewriter(IRModule mod) : mod_(mod) {}
   /*! \brief Rewrite can take a number of callbacks and will repeatedly rewrite the graph with the
    * callbacks until it stops changing */
   Expr Rewrite(const Array<DFPatternCallback>& callbacks, const Expr& pre) {
@@ -735,12 +763,15 @@ class PatternRewriter : protected MixedModeMutator {
     auto last = post;
     // rewrite the graph until it stops changing to make sure all rewrites are complete
     int count = 0;
+    bool changed = false;
+    static auto* structural_equal = runtime::Registry::Get("node.StructuralEqual");
+    CHECK(structural_equal) << "node.StructuralEqual is not registered.";
     do {
       last = post;
       for (auto callback : callbacks) {
         callback_ = callback;
         if (callback_->require_type) {
-          post = InferType(post);
+          post = InferTypeWithModule(post, mod_);
         }
         auto grouper = PatternGrouper();
         groups_ = grouper.GroupMatches(callback_->pattern, post);
@@ -749,9 +780,10 @@ class PatternRewriter : protected MixedModeMutator {
         post = this->VisitExpr(post);
         count++;
       }
-    } while (!StructuralEqual()(last, post) || count >= 100);
+      changed = (*structural_equal)(last, post, false, true);
+    } while (!changed || count < 100);
     if (count >= 100) {
-      throw("Observed 100 rewrite passes, possible conflicting passes?");
+      LOG(FATAL) << "Observed 100 rewrite passes, possible conflicting passes?";
     }
     return post;
   }
@@ -776,13 +808,14 @@ class PatternRewriter : protected MixedModeMutator {
     return post;
   }
 
+  IRModule mod_;
   DFPatternCallback callback_;
   std::unordered_map<int, PatternGrouper::Group> groups_;
   std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
 };
 
-Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr) {
-  return PatternRewriter().Rewrite(callbacks, expr);
+Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr, IRModule mod) {
+  return PatternRewriter(mod).Rewrite(callbacks, expr);
 }
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.rewrite").set_body_typed(RewritePatterns);

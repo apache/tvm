@@ -80,7 +80,7 @@ class SimplifyReshape {
  */
 class ExprSimplifier {
  public:
-  ExprSimplifier() {
+  ExprSimplifier(IRModule mod) : mod_(mod) {
     auto reshape_func = [this](TVMArgs args, TVMRetValue* rv) {
       Expr pre = args[0];
       Expr post = args[1];
@@ -91,22 +91,27 @@ class ExprSimplifier {
         DFPatternCallback(simplify_reshape_.pattern(), PackedFunc(reshape_func), true));
   }
 
-  Expr Simplify(const Expr& expr) { return RewritePatterns(callbacks_, expr); }
+  Expr Simplify(const Expr& expr) { return RewritePatterns(callbacks_, expr, mod_); }
 
  private:
+  IRModule mod_;
   /*! \brief Simplify reshape pattern */
   SimplifyReshape simplify_reshape_;
   /*! \brief Callbacks for expr simplification */
   Array<DFPatternCallback> callbacks_;
 };
 
-Expr SimplifyExpr(const Expr& expr) { return ExprSimplifier().Simplify(expr); }
+Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
+  return ExprSimplifier(mod).Simplify(expr);
+}
 
 namespace transform {
 
 Pass SimplifyExpr() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(SimplifyExpr(f)); };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(SimplifyExpr(f, m));
+      };
   return CreateFunctionPass(pass_func, 0, "SimplifyExpr", {"InferType"});
 }
 
