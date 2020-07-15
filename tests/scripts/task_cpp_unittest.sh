@@ -30,7 +30,8 @@ export OMP_NUM_THREADS=1
 # Remove existing testcases
 rm -f build/*_test
 
-make crttest cpptest -j3
+make cpptest -j8
+make crttest -j8
 for test in build/*_test; do
     ./$test
 done
