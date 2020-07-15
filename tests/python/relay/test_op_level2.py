@@ -663,8 +663,7 @@ def test_conv3d_transpose_ncdhw_run():
 
     data = np.random.uniform(size=dshape).astype(dtype)
     kernel = np.random.uniform(size=kshape).astype(dtype)
-
-    ref_res = tvm.topi.testing.conv3d_transpose_ncdhw_python(data, kernel, 1, 1)
+    ref_res = tvm.topi.testing.conv3d_transpose_ncdhw_python(data, kernel, 1, 1, 0)
 
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
