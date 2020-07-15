@@ -80,7 +80,7 @@ class SimplifyReshape {
  */
 class ExprSimplifier {
  public:
-  ExprSimplifier(IRModule mod) : mod_(mod) {
+  explicit ExprSimplifier(IRModule mod) : mod_(mod) {
     auto reshape_func = [this](TVMArgs args, TVMRetValue* rv) {
       Expr pre = args[0];
       Expr post = args[1];
