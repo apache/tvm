@@ -28,7 +28,6 @@
 #include <arm_compute/runtime/IAllocator.h>
 #include <arm_compute/runtime/IMemoryRegion.h>
 #include <arm_compute/runtime/MemoryRegion.h>
-#include <support/ToolchainSupport.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""ACL runtime tests."""
+"""Arm Compute Library runtime tests."""
 
 import numpy as np
 
@@ -27,7 +27,7 @@ from .infrastructure import Device
 
 def test_multiple_ops():
     """
-    Test multiple operators destined for acl.
+    Test multiple operators destined for ACL.
     ACL will expect these ops as in 2 separate functions.
     """
     if skip_runtime_test():

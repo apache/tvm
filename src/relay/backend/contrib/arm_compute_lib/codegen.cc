@@ -60,11 +60,6 @@ std::vector<JSONGraphNodeEntry> ACLJSONSerializer::VisitExpr_(const CallNode* cn
   return AddNode(json_node, GetRef<Expr>(cn));
 }
 
-std::vector<JSONGraphNodeEntry> ACLJSONSerializer::VisitExpr_(const ConstantNode* cn) {
-  this->constants_.push_back(cn->data);
-  return JSONSerializer::VisitExpr_(cn);
-}
-
 std::shared_ptr<JSONGraphNode> ACLJSONSerializer::CreateOpJSONNode(const CallNode* cn) {
   const auto* op = cn->op.as<OpNode>();
   CHECK(op);
@@ -148,37 +143,28 @@ std::shared_ptr<JSONGraphNode> ACLJSONSerializer::CreateCompositeConvJSONNode(co
   return json_node;
 }
 
-Array<runtime::NDArray> ACLJSONSerializer::GetParamsData() { return constants_; }
-
 IRModule PreProcessModule(const IRModule& mod) {
   IRModule preprocessed_module;
-  tvm::Map<String, Array<String>> desired_layouts = {
-      {"nn.conv2d", {String("NHWC"), String("OHWI")}}};
+  tvm::Map<String, Array<String>> desired_layouts = {{"nn.conv2d", {"NHWC", "OHWI"}}};
   preprocessed_module = transform::ConvertLayout(desired_layouts)(mod);
   preprocessed_module = transform::FoldConstant()(preprocessed_module);
   return preprocessed_module;
 }
+
+TVM_REGISTER_GLOBAL("relay.ext.arm_compute_lib.optimize").set_body_typed(PreProcessModule);
 
 runtime::Module ACLCompiler(const ObjectRef& ref) {
   CHECK(ref->IsInstance<FunctionNode>()) << "The input ref is expected to be a Relay function.";
   Function func = Downcast<Function>(ref);
   std::string func_name = backend::GetExtSymbol(func);
 
-  IRModule mod;
-  mod->Add(GlobalVar(func_name), func);
-  mod = PreProcessModule(mod);
-
-  CHECK(mod->functions.size() == 1) << "Module should only contain single function";
-  Function processed_func = Downcast<Function>(mod->functions.begin().operator*().second);
-
-  ACLJSONSerializer serializer(func_name, processed_func);
+  ACLJSONSerializer serializer(func_name, func);
   serializer.serialize();
   std::string graph_json = serializer.GetJSON();
   auto param_names = serializer.GetParams();
-  auto param_data = serializer.GetParamsData();
   const auto* pf = runtime::Registry::Get("runtime.arm_compute_lib_runtime_create");
   CHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
-  runtime::Module lib = (*pf)(func_name, graph_json, param_names, param_data);
+  runtime::Module lib = (*pf)(func_name, graph_json, param_names);
   return lib;
 }
 

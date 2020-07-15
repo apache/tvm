@@ -97,7 +97,7 @@ arm_compute::TensorShape MakeTensorShape(const std::vector<int64_t>& shape);
  */
 std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeMemoryManager();
 
-/*
+/*!
  * \brief Convert TVM padding and stride format to acl PadStrideInfo.
  *
  * \param pad The pad vector.

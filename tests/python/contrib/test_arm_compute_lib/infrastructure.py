@@ -99,11 +99,10 @@ def build_module(mod, target, params=None, enable_acl=True):
 
 def build_and_run(mod, inputs, outputs, params, device, enable_acl=True, no_runs=1):
     """Build and run the relay module."""
-    graph, lib, params = build_module(mod, device.target, params, enable_acl)
+    lib = build_module(mod, device.target, params, enable_acl)
     lib = update_lib(lib, device.device, device.cross_compile)
-    gen_module = graph_runtime.create(graph, lib, ctx=device.device.cpu(0))
+    gen_module = graph_runtime.GraphModule(lib['default'](device.device.cpu(0)))
     gen_module.set_input(**inputs)
-    gen_module.set_input(**params)
     for _ in range(no_runs):
         gen_module.run()
     out = [gen_module.get_output(i) for i in range(outputs)]
@@ -138,13 +137,13 @@ def verify(answers, atol, rtol):
 def extract_acl_modules(module):
     """Get the ACL module(s) from llvm module."""
     return list(filter(lambda mod: mod.type_key == "arm_compute_lib",
-                       module.imported_modules))
+                       module.lib.imported_modules))
 
 
 def verify_codegen(module, known_good_codegen, num_acl_modules,
                    target="llvm -mtriple=aarch64-linux-gnu -mattr=+neon"):
     """Check acl codegen against a known good output."""
-    _, module, _ = build_module(module, target)
+    module = build_module(module, target)
     acl_modules = extract_acl_modules(module)
 
     assert len(acl_modules) == num_acl_modules, \

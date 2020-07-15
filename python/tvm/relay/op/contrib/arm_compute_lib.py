@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""ACL library supported operators."""
+"""Arm Compute Library supported operators."""
 import tvm
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name

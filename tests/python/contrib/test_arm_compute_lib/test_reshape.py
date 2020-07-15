@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""ACL Integration reshape tests."""
+"""Arm Compute Library integration reshape tests."""
 
 import numpy as np
 

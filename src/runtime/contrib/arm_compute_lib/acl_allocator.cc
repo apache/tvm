@@ -64,8 +64,7 @@ ACLMemoryRegion::~ACLMemoryRegion() {
 std::unique_ptr<arm_compute::IMemoryRegion> ACLMemoryRegion::extract_subregion(size_t offset,
                                                                                size_t size) {
   if (this->ptr_ != nullptr && (offset < _size) && (_size - offset >= size)) {
-    return arm_compute::support::cpp14::make_unique<ACLMemoryRegion>(
-        static_cast<uint8_t*>(this->ptr_) + offset, size);
+    return std::make_unique<ACLMemoryRegion>(static_cast<uint8_t*>(this->ptr_) + offset, size);
   } else {
     return nullptr;
   }

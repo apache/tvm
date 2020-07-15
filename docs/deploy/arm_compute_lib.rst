@@ -39,13 +39,15 @@ runtime module on an x86 machine.
 
 These flags can be used in different scenarios depending on your setup. For example, if you want
 to compile ACL on an x86 machine and then run the module on a remote Arm device via RPC, you will
-need to use USE_ACL=ON on the x86 machine and USE_GRAPH_RUNTIME_ACL=ON on the remote AArch64
-device.
+need to use USE_ARM_COMPUTE_LIB=ON on the x86 machine and USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME=ON on the remote
+AArch64 device.
 
 Usage
 -----
 
-*Note:* this section may not stay up-to-date with changes to the API.
+.. note::
+
+    This section may not stay up-to-date with changes to the API.
 
 Create a relay graph. This may be a single operator or a whole graph. The intention is that any
 relay graph can be input. The ACL integration will only pick supported operators to be offloaded
@@ -84,7 +86,7 @@ Build the Relay graph.
 
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+neon"
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        json, lib, params = relay.build(module, target=target)
+        lib = relay.build(module, target=target)
 
 
 Export the module.
@@ -96,16 +98,17 @@ Export the module.
     lib.export_library(lib_path, cc=cross_compile)
 
 
-Run Inference. This must be on an Arm device. If compiling on x86 device and running on aarch64
+Run Inference. This must be on an Arm device. If compiling on x86 device and running on aarch64,
 consider using the RPC mechanism.
 
 .. code:: python
 
-    tvm.runtime.load_module('lib_acl.so')
-    gen_module = tvm.contrib.graph_runtime.create(json, lib, ctx)
+    ctx = tvm.cpu(0)
+    loaded_lib = tvm.runtime.load_module('lib_acl.so')
+    gen_module = tvm.contrib.graph_runtime.GraphModule(loaded_lib['default'](ctx))
     d_data = np.random.uniform(0, 1, data_shape).astype(data_type)
     map_inputs = {'data': d_data}
-    gen_module.map_inputs(**map_inputs)
+    gen_module.set_input(**map_inputs)
     gen_module.run()
 
 

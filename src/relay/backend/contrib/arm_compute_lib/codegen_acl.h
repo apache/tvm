@@ -55,15 +55,6 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
   ACLJSONSerializer(const std::string& symbol, const Expr& expr) : JSONSerializer(symbol, expr) {}
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* cn) override;
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const ConstantNode* cn) override;
-
-  /*!
-   * \brief Get the constant data transposed when pre-processing the
-   * input function.
-   *
-   * \return An array of constants
-   */
-  Array<runtime::NDArray> GetParamsData();
 
  private:
   /*!
@@ -74,10 +65,6 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
    */
   std::shared_ptr<JSONGraphNode> CreateOpJSONNode(const CallNode* cn);
   std::shared_ptr<JSONGraphNode> CreateCompositeConvJSONNode(const CallNode* cn);
-
-  /* \brief Transposed constant tensors to serialize. Arm Compute Library expects constant tensors
-   * in OHWI format. */
-  Array<runtime::NDArray> constants_;
 };
 
 /*!
@@ -98,7 +85,7 @@ IRModule PreProcessModule(const IRModule& mod);
  * one another. Each function consists of serialized JSON describing the sub-graph
  * and serialized constant tensors.
  *
- * \note The ACL runtime module only currently supports a single operator per
+ * \note The ACL runtime module only supports a single operator per
  * sub-graph currently.
  *
  * \param ref The ext_func Relay expression/module to be executed using extern ops.
