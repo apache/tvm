@@ -28,6 +28,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 
+#include <algorithm>
+#include <iterator>
 #include <stack>
 #include <unordered_set>
 
@@ -362,10 +364,24 @@ Pass GetPass(const String& pass_name) {
 // a Sequential without the consideration of their orders. The phase
 // ordering problem needs to be handled in the future.
 IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
+  const auto PassEnabledByName = [this](const String& pass_name) {
+    return PassEnabled(GetPass(pass_name)->Info());
+  };
+
   for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
+
+    // check if this pass and its required passes are all enabled
+    using std::begin;
+    using std::end;
+
     if (!PassEnabled(pass_info)) continue;
+    const Array<runtime::String>& required_passes = pass_info->required;
+    if (!std::all_of(begin(required_passes), end(required_passes), PassEnabledByName)) {
+      continue;
+    }
+
     // resolve dependencies
     for (const auto& it : pass_info->required) {
       mod = GetPass(it)(std::move(mod), pass_ctx);
