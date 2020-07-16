@@ -70,6 +70,7 @@
 #include <tvm/tir/expr.h>
 
 #include <tuple>
+#include <cmath>
 
 #include "const_fold.h"
 
@@ -149,7 +150,8 @@ template <>
 class PEqualChecker<FloatImm> {
  public:
   bool operator()(const FloatImm& lhs, const FloatImm& rhs) const {
-    return BaseValueEqual()(rhs->value, lhs->value);
+    // use 1e-20 here because the approximation in fast_tanh uses constants smaller than 1e-16
+    return std::fabs(rhs->value - lhs->value) < 1e-20;
   }
 };
 
