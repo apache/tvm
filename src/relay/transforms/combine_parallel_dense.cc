@@ -51,9 +51,9 @@ namespace relay {
 /*
  * Class that find and combine parallel dense ops into batch_matmul.
  */
-class ParallelDenseBatchCombiner : public ParallelOpBatchCombiner {
+class ParallelDenseToBatchCombiner : public ParallelOpBatchCombiner {
  public:
-  explicit ParallelDenseBatchCombiner(uint64_t min_num_branches)
+  explicit ParallelDenseToBatchCombiner(uint64_t min_num_branches)
       : ParallelOpBatchCombiner("nn.dense", "nn.batch_matmul", min_num_branches) {}
 
  protected:
@@ -75,9 +75,9 @@ class ParallelDenseBatchCombiner : public ParallelOpBatchCombiner {
  * Class that find and combine parallel dense ops into one dense op
  * whose num of output units equals to sum of each sub-ops.
  */
-class ParallelDenseFlatCombiner : public ParallelOpCombiner {
+class ParallelDenseToDenseCombiner : public ParallelOpCombiner {
  public:
-  explicit ParallelDenseFlatCombiner(uint64_t min_num_branches)
+  explicit ParallelDenseToDenseCombiner(uint64_t min_num_branches)
       : ParallelOpCombiner("nn.dense", min_num_branches) {}
 
  protected:
@@ -221,18 +221,18 @@ class ParallelDenseFlatCombiner : public ParallelOpCombiner {
 /*! \brief Combine parallel dense if number of branches >= min_num_branches */
 Expr CombineParallelDense(const Expr& expr, uint64_t min_num_branches, bool to_batch) {
   if (to_batch) {
-    return ParallelDenseBatchCombiner(min_num_branches).Combine(expr);
+    return ParallelDenseToBatchCombiner(min_num_branches).Combine(expr);
   } else {
-    return ParallelDenseFlatCombiner(min_num_branches).Combine(expr);
+    return ParallelDenseToDenseCombiner(min_num_branches).Combine(expr);
   }
 }
 
 namespace transform {
 
-Pass CombineParallelDense(uint64_t min_num_branches, bool to_batch) {
+Pass CombineParallelDense(uint64_t min_num_branches, bool to_batch_matmul) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(CombineParallelDense(f, min_num_branches, to_batch));
+        return Downcast<Function>(CombineParallelDense(f, min_num_branches, to_batch_matmul));
       };
   return CreateFunctionPass(pass_func, 4, "CombineParallelDense", {"InferType"});
 }

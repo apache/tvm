@@ -309,8 +309,9 @@ def CombineParallelDense(min_num_branches=3, to_batch=True):
         The minimum number of required parallel branches for performing this
         optimization.
 
-    to_batch : bool
-        Whether convert multiple dense into batch_matmul.
+    to_batch_matmul : bool
+        If True, combine parallel dense ops into batch_matmul op.
+        If False, combine parallel dense ops into dense op.
 
     Returns
     -------
