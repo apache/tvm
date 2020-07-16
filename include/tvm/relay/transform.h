@@ -360,6 +360,13 @@ TVM_DLL Pass Inline();
  */
 TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 
+/*!
+ * \brief Simplify the Relay expression.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass SimplifyExpr();
+
 }  // namespace transform
 
 /*!
