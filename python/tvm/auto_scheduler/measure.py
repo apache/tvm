@@ -57,6 +57,7 @@ MAX_ERROR_MSG_LEN = 512
 # We use fork and a global variable to copy arguments between processings.
 # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
 GLOBAL_BUILD_ARGUMENTS = None
+GLOBAL_RUN_ARGUMENTS = None
 
 @tvm._ffi.register_object("auto_scheduler.MeasureCallback")
 class MeasureCallback(Object):
@@ -237,30 +238,50 @@ class LocalRunner(ProgramRunner):
 
 @tvm._ffi.register_object("auto_scheduler.RPCRunner")
 class RPCRunner(ProgramRunner):
-    """
+    """ RPCRunner that uses RPC call to measures the time cost of programs on remote devices.
+    Or sometime we may need to use RPC even in local running to insulate the thread environment.
+    (e.g. running CUDA programs)
+
     Parameters
     ----------
-    key : Str
-    host : Str
-    port : Int
-    priority : Int
-    n_parallel : Int
-    timeout : Int
-    number : Int
-    repeat : Int
-    min_repeat_ms : Int
-    cooldown_interval : Float
+    key : str
+        The key of the device registered in the RPC tracker.
+    host : str
+        The host address of the RPC Tracker.
+    port : int
+        The port of RPC Tracker.
+    priority : int = 1
+        The priority of this run request, larger is more prior.
+    n_parallel : int = 1
+        The number of tasks run in parallel.
+    timeout : int = 10
+        The timeout limit (in second) for each run.
+        This is used in a wrapper of the multiprocessing.Process.join().
+    number : int = 3
+        The number of times to run the generated code for taking average.
+        We call these runs as one `repeat` of measurement.
+    repeat : int = 1
+        The number of times to repeat the measurement.
+        In total, the generated code will be run (1 + number x repeat) times,
+        where the first "1" is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
+    min_repeat_ms : int = 0
+        The minimum duration of one `repeat` in milliseconds.
+        By default, one `repeat` contains `number` runs. If this parameter is set,
+        the parameters `number` will be dynamically adjusted to meet the
+        minimum duration requirement of one `repeat`.
+        i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+        will be automatically increased.
+    cooldown_interval : float = 0.0
+        The cool down interval between two measurements.
     """
 
-    def __init__(self, key, host, port, priority=1,
-                 n_parallel=1,
-                 timeout=10,
-                 number=3,
-                 repeat=1,
-                 min_repeat_ms=0,
-                 cooldown_interval=0.0):
+    def __init__(self, key, host, port,
+                 priority=1, n_parallel=1, timeout=10, number=3, repeat=1,
+                 min_repeat_ms=0, cooldown_interval=0.0):
         self.__init_handle_by_constructor__(
-            _ffi_api.RPCRunner, key, host, port, priority, timeout, n_parallel,
+            _ffi_api.RPCRunner, key, host, port, priority, n_parallel, timeout,
             number, repeat, min_repeat_ms, cooldown_interval)
 
         if check_remote(key, host, port, priority, timeout):
@@ -278,23 +299,35 @@ class LocalRPCMeasureContext:
 
     Parameters
     ----------
-    priority : Int
-    n_parallel : Int
-    timeout : Int
-    number : Int
-    repeat : Int
-    min_repeat_ms : Int
-    cooldown_interval : Float
+    priority : int = 1
+        The priority of this run request, larger is more prior.
+    n_parallel : int = 1
+        The number of tasks run in parallel.
+    timeout : int = 10
+        The timeout limit (in second) for each run.
+        This is used in a wrapper of the multiprocessing.Process.join().
+    number : int = 3
+        The number of times to run the generated code for taking average.
+        We call these runs as one `repeat` of measurement.
+    repeat : int = 1
+        The number of times to repeat the measurement.
+        In total, the generated code will be run (1 + number x repeat) times,
+        where the first "1" is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
+    min_repeat_ms : int = 0
+        The minimum duration of one `repeat` in milliseconds.
+        By default, one `repeat` contains `number` runs. If this parameter is set,
+        the parameters `number` will be dynamically adjusted to meet the
+        minimum duration requirement of one `repeat`.
+        i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+        will be automatically increased.
+    cooldown_interval : float = 0.0
+        The cool down interval between two measurements.
     """
 
-    def __init__(self,
-                 priority=1,
-                 n_parallel=1,
-                 timeout=10,
-                 number=10,
-                 repeat=1,
-                 min_repeat_ms=0,
-                 cooldown_interval=0.0):
+    def __init__(self, priority=1, n_parallel=1, timeout=10, number=3, repeat=1,
+                 min_repeat_ms=0, cooldown_interval=0.0):
         ctx = tvm.context("cuda", 0)
         if ctx.exist:
             cuda_arch = "sm_" + "".join(ctx.compute_version.split('.'))
@@ -308,10 +341,11 @@ class LocalRPCMeasureContext:
         self.runner = RPCRunner(device_key, host, self.tracker.port, priority,
                                 n_parallel, timeout, number, repeat,
                                 min_repeat_ms, cooldown_interval)
-        # wait for the processes to start
+        # Wait for the processes to start
         time.sleep(0.5)
 
     def __del__(self):
+        # Close the tracker and server before exit
         self.tracker.terminate()
         self.server.terminate()
 
@@ -464,7 +498,8 @@ def local_builder_build(inputs, timeout, n_parallel, build_func='default', verbo
 
 
 @tvm._ffi.register_func("auto_scheduler.local_runner.run")
-def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, cooldown_interval,
+def local_run(inputs, build_results,
+              timeout=10, number=3, repeat=1, min_repeat_ms=0, cooldown_interval=0,
               verbose=1):
     """
     Run function of LocalRunner to test the performance of the input BuildResults.
@@ -475,7 +510,7 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
         The MeasureInputs to be measured.
     build_results : List[BuildResult]
         The BuildResults to be measured.
-    timeout : int
+    timeout : int = 10
         The timeout limit (in second) for each run.
         This is used in a wrapper of the multiprocessing.Process.join().
     number : int = 3
@@ -568,17 +603,28 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
 
 
 def rpc_run_worker(index):
-    """ ...
-    """
-    inputs, build_results, key, host, port, priority, timeout, number, \
-        repeat, min_repeat_ms, cooldown_interval, verbose = global_run_arguments
+    """ Function to be ran in the RPCRunner thread pool.
 
-    MAX_FLOAT = 1e10  # We use 1e10 instead of sys.float_info.max for better readability in log
+    Parameters
+    ----------
+    index : int
+        The MeasureInput and BuildResult index to be processed by the current Runner thread.
+
+    Returns
+    -------
+    res : MeasureResult
+        The measure result of this Runner thread.
+    """
+    global GLOBAL_RUN_ARGUMENTS
+    inputs, build_results, key, host, port, priority, timeout, number, \
+        repeat, min_repeat_ms, cooldown_interval, verbose = GLOBAL_RUN_ARGUMENTS
+
+    max_float = 1e10  # We use 1e10 instead of sys.float_info.max for better readability in log
     inp = inputs[index]
     build_res = build_results[index]
 
     if build_res.error_no != MeasureErrorNo.NO_ERROR:
-        return (MAX_FLOAT,), build_res.error_no, build_res.error_msg, build_res.time_cost, \
+        return (max_float,), build_res.error_no, build_res.error_msg, build_res.time_cost, \
             time.time()
 
     def timed_func():
@@ -593,8 +639,9 @@ def rpc_run_worker(index):
             ctx = remote.context(str(inp.task.target), 0)
             time_f = func.time_evaluator(
                 func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
+        # pylint: disable=broad-except
         except Exception:
-            costs = (MAX_FLOAT,)
+            costs = (max_float,)
             error_no = MeasureErrorNo.COMPILE_DEVICE
             error_msg = make_error_msg()
 
@@ -609,8 +656,9 @@ def rpc_run_worker(index):
                 remote.remove(build_res.filename)
                 remote.remove(os.path.splitext(build_res.filename)[0] + '.so')
                 remote.remove('')
+            # pylint: disable=broad-except
             except Exception:
-                costs = (MAX_FLOAT,)
+                costs = (max_float,)
                 error_no = MeasureErrorNo.RUNTIME_DEVICE
                 error_msg = make_error_msg()
 
@@ -631,18 +679,64 @@ def rpc_run_worker(index):
     if isinstance(res, TimeoutError):
         if verbose >= 1:
             print("*T", end="")  # Run timeout
-        res = (MAX_FLOAT,), MeasureErrorNo.RUN_TIMEOUT, None, build_res.time_cost + \
+        res = (max_float,), MeasureErrorNo.RUN_TIMEOUT, None, build_res.time_cost + \
             timeout, time.time()
     return res
 
 
 @tvm._ffi.register_func("auto_scheduler.rpc_runner.run")
-def rpc_runner_run(inputs, build_results,
-                   key: str, host: str, port: int, priority: int, timeout: float,
-                   n_parallel: int, number: int, repeat: int, min_repeat_ms: int,
-                   cooldown_interval: float, verbose: int):
-    global global_run_arguments
-    global_run_arguments = (inputs, build_results, key, host, port, priority, timeout, number,
+def rpc_runner_run(inputs, build_results, key, host, port,
+                   priority=1, n_parallel=1, timeout=10, number=3, repeat=1, min_repeat_ms=0,
+                   cooldown_interval=0.0, verbose=1):
+    """ Run function of RPCRunner to test the performance of the input BuildResults.
+
+    Parameters
+    ----------
+    inputs : List[MeasureInput]
+        The MeasureInputs to be measured.
+    build_results : List[BuildResult]
+        The BuildResults to be measured.
+    key : str
+        The key of the device registered in the RPC tracker.
+    host : str
+        The host address of the RPC Tracker.
+    port : int
+        The port of RPC Tracker.
+    priority : int = 1
+        The priority of this run request, larger is more prior.
+    n_parallel : int = 1
+        The number of tasks run in parallel.
+    timeout : int = 10
+        The timeout limit (in second) for each run.
+        This is used in a wrapper of the multiprocessing.Process.join().
+    number : int = 3
+        The number of times to run the generated code for taking average.
+        We call these runs as one `repeat` of measurement.
+    repeat : int = 1
+        The number of times to repeat the measurement.
+        In total, the generated code will be run (1 + number x repeat) times,
+        where the first "1" is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
+    min_repeat_ms : int = 0
+        The minimum duration of one `repeat` in milliseconds.
+        By default, one `repeat` contains `number` runs. If this parameter is set,
+        the parameters `number` will be dynamically adjusted to meet the
+        minimum duration requirement of one `repeat`.
+        i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+        will be automatically increased.
+    cooldown_interval : float = 0.0
+        The cool down interval between two measurements.
+    verbose: int = 1
+        Verbosity level. 0 for silent, 1 to output information during program measuring.
+
+    Returns
+    -------
+    res : List[MeasureResult]
+        The measure results of these MeasureInputs.
+    """
+    global GLOBAL_RUN_ARGUMENTS
+    GLOBAL_RUN_ARGUMENTS = (inputs, build_results, key, host, port, priority, timeout, number,
                             repeat, min_repeat_ms, cooldown_interval, verbose)
 
     assert len(inputs) == len(build_results), \

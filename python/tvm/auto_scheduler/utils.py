@@ -255,7 +255,7 @@ def check_remote(device_key, host=None, port=None, priority=100, timeout=10):
     """
 
     def _check():
-        remote = request_remote(device_key, host, port, priority)
+        request_remote(device_key, host, port, priority)
 
     t = threading.Thread(target=_check, )
     t.start()

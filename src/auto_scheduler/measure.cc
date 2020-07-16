@@ -148,9 +148,9 @@ Array<MeasureResult> LocalRunnerNode::Run(const Array<MeasureInput>& inputs,
 }
 
 /********** RPCRunner **********/
-RPCRunner::RPCRunner(const std::string& key, const std::string& host, int port,
-                     int priority, int timeout, int n_parallel, int number,
-                     int repeat, int min_repeat_ms, double cooldown_interval) {
+RPCRunner::RPCRunner(const String& key, const String& host, int port, int priority, int n_parallel,
+                     int timeout, int number, int repeat, int min_repeat_ms,
+                     double cooldown_interval) {
   auto node = make_object<RPCRunnerNode>();
   node->key = key;
   node->host = host;
@@ -166,15 +166,16 @@ RPCRunner::RPCRunner(const std::string& key, const std::string& host, int port,
 }
 
 Array<MeasureResult> RPCRunnerNode::Run(const Array<MeasureInput>& inputs,
-                                        const Array<BuildResult>& build_results,
-                                        int verbose) {
+                                        const Array<BuildResult>& build_results, int verbose) {
   if (const auto* f = runtime::Registry::Get("auto_scheduler.rpc_runner.run")) {
-    Array<MeasureResult> results = (*f)(
-        inputs, build_results, key, host, port, priority, timeout, n_parallel,
-        number, repeat, min_repeat_ms, cooldown_interval, verbose);
+    Array<MeasureResult> results =
+        (*f)(inputs, build_results, key, host, port, priority, n_parallel, timeout, number, repeat,
+             min_repeat_ms, cooldown_interval, verbose);
     return results;
   } else {
-    LOG(FATAL) << "auto_scheduler.rpc_runner.run is not registered";
+    LOG(FATAL) << "auto_scheduler.rpc_runner.run is not registered. "
+               << "This is a function registered in Python, "
+               << "make sure the TVM Python runtime has been loaded successfully.";
   }
   return Array<MeasureResult>();
 }
@@ -361,11 +362,11 @@ TVM_REGISTER_GLOBAL("auto_scheduler.LocalRunner")
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.RPCRunner")
-    .set_body_typed([](const std::string& key, const std::string& host, int port,
-                       int priority, int timeout, int n_parallel, int number,
-                       int repeat, int min_repeat_ms, double cooldown_interval){
-      return RPCRunner(key, host, port, priority, timeout, n_parallel, number,
-                       repeat, min_repeat_ms, cooldown_interval);
+    .set_body_typed([](const String& key, const String& host, int port, int priority,
+                       int n_parallel, int timeout, int number, int repeat, int min_repeat_ms,
+                       double cooldown_interval) {
+      return RPCRunner(key, host, port, priority, n_parallel, timeout, number, repeat,
+                       min_repeat_ms, cooldown_interval);
     });
 
 }  // namespace auto_scheduler
