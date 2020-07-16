@@ -324,7 +324,17 @@ def verify_any_layout_transform(data_shape, src_layout, dst_layout, static_data_
 
 def test_any_layout_transform():
     verify_any_layout_transform(any_dims(4), "NCHW", "NHWC", (3, 4, 5, 6), (3, 5, 6, 4))
+    verify_any_layout_transform((3, relay.Any(), relay.Any(), 6), "NHWC", "NCHW", (3, 4, 5, 6), (3, 6, 4, 5))
+    verify_any_layout_transform((relay.Any(), 4, 5, relay.Any()), "NHWC", "NCHW", (3, 4, 5, 6), (3, 6, 4, 5))
+    verify_any_layout_transform((3, 4, 5, relay.Any()), "NHWC", "NCHW", (3, 4, 5, 6), (3, 6, 4, 5))
+    verify_any_layout_transform((relay.Any(), 4, 5, 6), "NHWC", "NCHW", (3, 4, 5, 6), (3, 6, 4, 5))
+    verify_any_layout_transform((3, 4, 5, 6), "NHWC", "NCHW", (3, 4, 5, 6), (3, 6, 4, 5))
+    verify_any_layout_transform((3, relay.Any(), 5, 6), "NHWC", "NCHW", (3, 4, 5, 6), (3, 6, 4, 5))
+    verify_any_layout_transform((3, 4, relay.Any(), 6), "NHWC", "NCHW", (3, 4, 5, 6), (3, 6, 4, 5))
     verify_any_layout_transform(any_dims(5), "NCHW16c", "NCHW2c", (1, 2, 8, 8, 16), (1, 16, 8, 8, 2))
+    verify_any_layout_transform((1, relay.Any(), 8, 8, relay.Any()), "NCHW16c", "NCHW2c", (1, 2, 8, 8, 16), (1, 16, 8, 8, 2))
+    verify_any_layout_transform((1, relay.Any(), relay.Any(), 8, 16), "NCHW16c", "NCHW2c", (1, 2, 8, 8, 16), (1, 16, 8, 8, 2))
+    verify_any_layout_transform((1, 2, 8, relay.Any(), 16), "NCHW16c", "NCHW2c", (1, 2, 8, 8, 16), (1, 16, 8, 8, 2))
     verify_any_layout_transform(any_dims(5), "NCHW6n", "NHWC", (3, 4, 5, 6, 6), (18, 5, 6, 4))
     verify_any_layout_transform(any_dims(4), "NCHW", "NCHW4c", (3, 4, 5, 6), (3, 1, 5, 6, 4))
     verify_any_layout_transform((16, 1), "CH", "C4cH", (16, 1), (4, 4, 1))

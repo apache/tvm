@@ -323,7 +323,12 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
       if (symbolic_var_set.count(i)) {
         result.push_back(tir::Any());
       } else {
-        result.push_back(ana.Simplify(tir::Substitute(rule, bind_map)));
+        auto sub = tir::Substitute(rule, bind_map);
+        if (sub.as<tir::AnyNode>()) {
+          result.push_back(tir::Any());
+        } else {
+          result.push_back(ana.Simplify(sub));
+        }
       }
     }
   }
