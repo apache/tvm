@@ -2554,13 +2554,13 @@ Expr MakeReverseReshape(Expr data, Array<Integer> newshape) {
   auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
   attrs->reverse = true;
-  static const Op& op = Op::Get("_contrib_reverse_reshape");
+  static const Op& op = Op::Get("contrib_reverse_reshape");
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make._contrib_reverse_reshape").set_body_typed(MakeReverseReshape);
+TVM_REGISTER_GLOBAL("relay.op._make.contrib_reverse_reshape").set_body_typed(MakeReverseReshape);
 
-RELAY_REGISTER_OP("_contrib_reverse_reshape")
+RELAY_REGISTER_OP("contrib_reverse_reshape")
     .describe(R"code(Reshapes the input array where the special values are inferred from
 right to left.
 
