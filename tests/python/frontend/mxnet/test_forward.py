@@ -1373,57 +1373,56 @@ def test_forward_box_decode():
     verify((1, 10, 4), (1, 10, 4), clip=1)
     verify((1, 10, 4), (1, 10, 4), in_format="center")
 
-    
+
+dtype_list = ['float64', 'float32', 'int64', 'int32', 'uint64', 'uint32', 'bool']
+
 def test_forward_npi_pad():
     if not hasattr(mx.sym.np, 'pad'):
         pytest.skip("mx.sym.np.pad hasn't been publish yet")
 
-    def verify(data_shape, out_shape, mode, pad_width, constant_value=0.0):
-        data_np = np.random.uniform(size=data_shape).astype("float32")
-        data = mx.sym.var('data')
-        if mode == 'constant':
-            ref_res = mx.ndarray.pad(mx.nd.array(data_np), mode=mode,pad_width=pad_width, constant_value=constant_value)
-            mx_sym = mx.sym.np.pad(data.as_np_ndarray(), mode=mode, pad_width=pad_width, constant_values=constant_value)
-        else:
-            ref_res = mx.ndarray.pad(mx.nd.array(data_np), mode=mode,pad_width=pad_width)
-            mx_sym = mx.sym.np.pad(data.as_np_ndarray(), mode=mode, pad_width=pad_width)
-        mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
-        for target, ctx in ctx_list():
-            for kind in ["debug"]:
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate()(data_np)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+    def verify(data_shape, mode, pad_width, constant_value=0.0):
+        for dtype in dtype_list:
+            data_np = np.random.uniform(size=data_shape).astype(dtype)
+            data = mx.sym.var('data')
+            # mx.np.pad only support double type
+            if dtype == 'bool': 
+                continue
+            if mode == 'constant':
+                ref_res = mx.ndarray.pad(mx.nd.array(data_np), mode=mode,pad_width=pad_width, constant_value=constant_value)
+                mx_sym = mx.sym.np.pad(data.as_np_ndarray(), mode=mode, pad_width=pad_width, constant_values=constant_value)
+            else:
+                ref_res = mx.ndarray.pad(mx.nd.array(data_np), mode=mode,pad_width=pad_width)
+                mx_sym = mx.sym.np.pad(data.as_np_ndarray(), mode=mode, pad_width=pad_width)
+            mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape}, dtype=dtype)
+            for target, ctx in ctx_list():
+                for kind in ["debug"]:
+                    intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                    op_res = intrp.evaluate()(data_np)
+                    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
 
-    verify(data_shape=(1,1,3,5), out_shape=(1,1,6,12), mode="constant",
-           pad_width=(0,0,0,0,1,2,3,4))
-    verify(data_shape=(1,1,3,5), out_shape=(1,1,6,12), mode="constant",
-           pad_width=(0,0,0,0,1,2,3,4), constant_value=3.0)
-    verify(data_shape=(1,1,3,5), out_shape=(1,1,6,12), mode="edge",
-           pad_width=(0,0,0,0,1,2,3,4))
-    verify(data_shape=(1,1,3,5), out_shape=(1,1,6,12), mode="reflect",
-           pad_width=(0,0,0,0,1,2,3,4))
-    verify(data_shape=(1,1,3,5,7), out_shape=(1,1,6,12,18), mode="constant",
-           pad_width=(0,0,0,0,1,2,3,4,5,6))
-    verify(data_shape=(1,1,3,5,7), out_shape=(1,1,6,12,18), mode="constant",
-           pad_width=(0,0,0,0,1,2,3,4,5,6), constant_value=3.0)
-    verify(data_shape=(1,1,3,5,7), out_shape=(1,1,6,12,18), mode="edge",
-           pad_width=(0,0,0,0,1,2,3,4,5,6))
-    verify(data_shape=(1,1,3,5,7), out_shape=(1,1,6,12,18), mode="reflect",
-           pad_width=(0,0,0,0,1,2,3,4,5,6))
+    verify(data_shape=(1,1,3,5), mode="constant", pad_width=(0,0,0,0,1,2,3,4))
+    verify(data_shape=(1,1,3,5), mode="constant", pad_width=(0,0,0,0,1,2,3,4), constant_value=3.0)
+    verify(data_shape=(1,1,3,5), mode="edge", pad_width=(0,0,0,0,1,2,3,4))
+    verify(data_shape=(1,1,3,5), mode="reflect", pad_width=(0,0,0,0,1,2,3,4))
+    verify(data_shape=(1,1,3,5,7), mode="constant", pad_width=(0,0,0,0,1,2,3,4,5,6))
+    verify(data_shape=(1,1,3,5,7), mode="constant", pad_width=(0,0,0,0,1,2,3,4,5,6), constant_value=3.0)
+    verify(data_shape=(1,1,3,5,7), mode="edge", pad_width=(0,0,0,0,1,2,3,4,5,6))
+    verify(data_shape=(1,1,3,5,7), mode="reflect", pad_width=(0,0,0,0,1,2,3,4,5,6))
 
 
 def test_forward_npi_transpose():
     def verify(data_shape, axes=None):
-        data_np = np.random.uniform(size=data_shape).astype("float32")
-        data = mx.sym.var('data')
-        ref_res = mx.np.transpose(mx.np.array(data_np), axes=axes)
-        mx_sym = mx.sym.np.transpose(data.as_np_ndarray(), axes=axes)
-        mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
-        for target, ctx in ctx_list():
-            for kind in ["graph", "vm", "debug"]:
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate()(data_np)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+        for dtype in dtype_list:
+            data_np = np.random.uniform(size=data_shape).astype(dtype)
+            data = mx.sym.var('data')
+            ref_res = mx.np.transpose(mx.np.array(data_np), axes=axes)
+            mx_sym = mx.sym.np.transpose(data.as_np_ndarray(), axes=axes)
+            mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape}, dtype=dtype)
+            for target, ctx in ctx_list():
+                for kind in ["graph", "vm", "debug"]:
+                    intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                    op_res = intrp.evaluate()(data_np)
+                    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
 
     verify(data_shape=(2,2,2), axes=(1,0,2))
     verify(data_shape=(2,7,2), axes=None)
@@ -1431,18 +1430,19 @@ def test_forward_npi_transpose():
 
 def test_forward_npi_concatenate():
     def verify(data_shape1, data_shape2, axis=None):
-        data_np1 = np.random.uniform(size=data_shape1).astype("float32")
-        data_np2 = np.random.uniform(size=data_shape2).astype("float32")
-        data1 = mx.sym.var('data1')
-        data2 = mx.sym.var('data2')
-        ref_res = mx.np.concatenate([mx.np.array(data_np1), mx.np.array(data_np2)], axis=axis)
-        mx_sym = mx.sym.np.concatenate([data1.as_np_ndarray(), data2.as_np_ndarray()], axis=axis)
-        mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"data1": data_shape1, "data2": data_shape2})
-        for target, ctx in ctx_list():
-            for kind in ["graph", "vm", "debug"]:
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate()(data_np1, data_np2)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+        for dtype in dtype_list:
+            data_np1 = np.random.uniform(size=data_shape1).astype(dtype)
+            data_np2 = np.random.uniform(size=data_shape2).astype(dtype)
+            data1 = mx.sym.var('data1')
+            data2 = mx.sym.var('data2')
+            ref_res = mx.np.concatenate([mx.np.array(data_np1), mx.np.array(data_np2)], axis=axis)
+            mx_sym = mx.sym.np.concatenate([data1.as_np_ndarray(), data2.as_np_ndarray()], axis=axis)
+            mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"data1": data_shape1, "data2": data_shape2}, dtype=dtype)
+            for target, ctx in ctx_list():
+                for kind in ["graph", "vm", "debug"]:
+                    intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                    op_res = intrp.evaluate()(data_np1, data_np2)
+                    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
     
     verify(data_shape1=(2,2),data_shape2=(2,2),axis=1)
     verify(data_shape1=(2,4),data_shape2=(2,3),axis=1)
@@ -1455,16 +1455,17 @@ def test_forward_npi_concatenate():
 
 def test_forward_np_copy():
     def verify(data_shape, out_shape=None):
-        data_np = np.random.uniform(size=data_shape).astype("float32")
-        data = mx.sym.var('data')
-        ref_res = mx.np.copy(mx.np.array(data_np))
-        mx_sym = mx.sym.np.copy(data.as_np_ndarray())
-        mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
-        for target, ctx in ctx_list():
-            for kind in ["graph", "vm", "debug"]:
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate()(data_np)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+        for dtype in dtype_list:
+            data_np = np.random.uniform(size=data_shape).astype(dtype)
+            data = mx.sym.var('data')
+            ref_res = mx.np.copy(mx.np.array(data_np))
+            mx_sym = mx.sym.np.copy(data.as_np_ndarray())
+            mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape}, dtype=dtype)
+            for target, ctx in ctx_list():
+                for kind in ["graph", "vm", "debug"]:
+                    intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                    op_res = intrp.evaluate()(data_np)
+                    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
 
     verify(data_shape=(2,2,2))
     verify(data_shape=(2,2,2,1,2,3,1))
@@ -1473,16 +1474,17 @@ def test_forward_np_copy():
 
 def test_forward_npx_reshape():
     def verify(data_shape, out_shape, reverse=False):
-        data_np = np.random.uniform(size=data_shape).astype("float32")
-        data = mx.sym.var('data')
-        ref_res = mx.npx.reshape(mx.np.array(data_np), newshape=out_shape, reverse=reverse)
-        mx_sym = mx.sym.npx.reshape(data.as_np_ndarray(), newshape=out_shape, reverse=reverse)
-        mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
-        for target, ctx in ctx_list():
-            for kind in ["graph", "vm", "debug"]:
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate()(data_np)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+        for dtype in dtype_list:
+            data_np = np.random.uniform(size=data_shape).astype(dtype)
+            data = mx.sym.var('data')
+            ref_res = mx.npx.reshape(mx.np.array(data_np), newshape=out_shape, reverse=reverse)
+            mx_sym = mx.sym.npx.reshape(data.as_np_ndarray(), newshape=out_shape, reverse=reverse)
+            mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape}, dtype=dtype)
+            for target, ctx in ctx_list():
+                for kind in ["graph", "vm", "debug"]:
+                    intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                    op_res = intrp.evaluate()(data_np)
+                    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
 
     verify(data_shape=(2, 3, 8), out_shape=(-2, -2, 2, -1))
     verify(data_shape=(8, 3, 3, 3, 4, 4), out_shape=(-6, 2, -1, -4))
@@ -1498,18 +1500,22 @@ def test_forward_npi_binary():
         for i in range(len(ref_ops)):
             ref_op = ref_ops[i]
             mx_op = mx_ops[i]
-            data_np1 = np.random.uniform(size=data_shape).astype("float32")
-            data_np2 = np.random.uniform(size=data_shape).astype("float32")
-            data1 = mx.sym.var('lhs')
-            data2 = mx.sym.var('rhs')
-            ref_res = ref_op(mx.np.array(data_np1), mx.np.array(data_np2))
-            mx_sym = mx_op(data1.as_np_ndarray(), data2.as_np_ndarray())
-            mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"lhs": data_shape, "rhs": data_shape})
-            for target, ctx in ctx_list():
-                for kind in ["graph", "vm", "debug"]:
-                    intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                    op_res = intrp.evaluate()(data_np1, data_np2)
-                    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+            # mx.np.power only support float type
+            if ref_op == mx.np.power:
+                dtype_list = ['float64', 'float32']
+            for dtype in dtype_list:
+                data_np1 = np.random.uniform(size=data_shape).astype(dtype)
+                data_np2 = np.random.uniform(size=data_shape).astype(dtype)
+                data1 = mx.sym.var('lhs')
+                data2 = mx.sym.var('rhs')
+                ref_res = ref_op(mx.np.array(data_np1), mx.np.array(data_np2))
+                mx_sym = mx_op(data1.as_np_ndarray(), data2.as_np_ndarray())
+                mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"lhs": data_shape, "rhs": data_shape}, dtype=dtype)
+                for target, ctx in ctx_list():
+                    for kind in ["graph", "vm", "debug"]:
+                        intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                        op_res = intrp.evaluate()(data_np1, data_np2)
+                        tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
     
     verify(data_shape=(2,2))
     verify(data_shape=(2,4))
@@ -1527,16 +1533,20 @@ def test_forward_npi_binary_scalar():
         for i in range(len(ref_ops)):
             ref_op = ref_ops[i]
             mx_op = mx_ops[i]
-            data_np1 = np.random.uniform(size=data_shape).astype("float32")
-            data1 = mx.sym.var('lhs')
-            ref_res = ref_op(mx.np.array(data_np1), scalar)
-            mx_sym = mx_op(data1.as_np_ndarray(), scalar)
-            mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"lhs": data_shape}, dtype="float32")
-            for target, ctx in ctx_list():
-                for kind in ["graph", "vm", "debug"]:
-                    intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                    op_res = intrp.evaluate()(data_np1)
-                    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+            # mx.np.power only support float type
+            if ref_op == mx.np.power:
+                dtype_list = ['float64', 'float32']
+            for dtype in dtype_list:
+                data_np1 = np.random.uniform(size=data_shape).astype(dtype)
+                data1 = mx.sym.var('lhs')
+                ref_res = ref_op(mx.np.array(data_np1), scalar)
+                mx_sym = mx_op(data1.as_np_ndarray(), scalar)
+                mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"lhs": data_shape}, dtype=dtype)
+                for target, ctx in ctx_list():
+                    for kind in ["graph", "vm", "debug"]:
+                        intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                        op_res = intrp.evaluate()(data_np1)
+                        tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
     
     verify(data_shape=(2,2), scalar=1.0)
     verify(data_shape=(2,4), scalar=2.0)
@@ -1546,16 +1556,18 @@ def test_forward_npi_binary_scalar():
 
 def test_forward_npi_tanh():
     def verify(data_shape):
-        data_np1 = np.random.uniform(size=data_shape).astype("float32")
-        data1 = mx.sym.var('data')
-        ref_res = mx.np.tanh(mx.np.array(data_np1))
-        mx_sym = mx.sym.np.tanh(data1.as_np_ndarray())
-        mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"data": data_shape}, dtype="float32")
-        for target, ctx in ctx_list():
-            for kind in ["graph", "vm", "debug"]:
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate()(data_np1)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+        dtype_list = ['float64', 'float32']
+        for dtype in dtype_list:
+            data_np1 = np.random.uniform(size=data_shape).astype(dtype)
+            data1 = mx.sym.var('data')
+            ref_res = mx.np.tanh(mx.np.array(data_np1))
+            mx_sym = mx.sym.np.tanh(data1.as_np_ndarray())
+            mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"data": data_shape}, dtype=dtype)
+            for target, ctx in ctx_list():
+                for kind in ["graph", "vm", "debug"]:
+                    intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                    op_res = intrp.evaluate()(data_np1)
+                    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
     
     verify(data_shape=(2,2))
     verify(data_shape=(2,4))
@@ -1568,20 +1580,27 @@ def test_forward_npi_where_rscalar():
         pytest.skip("mx.np.where hasn't been publish yet")
 
     def verify(data_shape, scalar):
-        cond_np = np.random.uniform(size=data_shape).astype("bool")
-        data_np = np.random.uniform(size=data_shape).astype("float32")
-        cond = mx.sym.var('condition')
-        data = mx.sym.var('x')
-        ref_res = mx.np.where(mx.np.array(cond_np), mx.np.array(data_np), scalar)
-        mx_sym = mx.sym.np.where(cond.as_np_ndarray(), data.as_np_ndarray(), scalar)
-        mod, _ = relay.frontend.from_mxnet(
-            mx_sym, shape={"condition": data_shape, "x": data_shape}, 
-            dtype={"condition": "bool", "x": "float32"})
-        for target, ctx in ctx_list():
-            for kind in ["graph", "vm", "debug"]:
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate()(cond_np, data_np)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+        for cond_dtype in dtype_list:
+            for data_dtype in dtype_list:
+                if data_dtype == 'bool':
+                    scalar = scalar == 0.0
+                cond_np = np.random.uniform(size=data_shape).astype(cond_dtype)
+                data_np = np.random.uniform(size=data_shape).astype(data_dtype)
+                cond = mx.sym.var('condition')
+                data = mx.sym.var('x')
+                ref_res = mx.np.where(mx.np.array(cond_np), mx.np.array(data_np), scalar)
+                mx_sym = mx.sym.np.where(cond.as_np_ndarray(), data.as_np_ndarray(), scalar)
+                dtypeDic = {}
+                dtypeDic["condition"] = cond_dtype
+                dtypeDic["x"] = data_dtype
+                mod, _ = relay.frontend.from_mxnet(
+                    mx_sym, shape={"condition": data_shape, "x": data_shape}, 
+                    dtype=dtypeDic)
+                for target, ctx in ctx_list():
+                    for kind in ["graph", "vm", "debug"]:
+                        intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                        op_res = intrp.evaluate()(cond_np, data_np)
+                        tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
     
     verify(data_shape=(2,2), scalar=1.0)
     verify(data_shape=(2,4), scalar=2.0)
@@ -1591,22 +1610,23 @@ def test_forward_npi_where_rscalar():
 
 def test_forward_split_v2():
     def verify(data_shape, axis=0, indices_or_sections=1, squeeze_axis=False):
-        data_np = np.random.uniform(size=data_shape).astype("float32")
-        data = mx.sym.var('data')
-        ref_res = mx.ndarray.split_v2(mx.nd.array(data_np), indices_or_sections, axis=axis, squeeze_axis=squeeze_axis)
-        mx_sym = mx.sym.split_v2(data.as_nd_ndarray(), indices_or_sections, axis=axis, squeeze_axis=squeeze_axis)
-        mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
-        for target, ctx in ctx_list():
-            for kind in ["graph", "vm", "debug"]:
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate()(data_np)
-                op_res_ = []
-                for arr in op_res:
-                    op_res_.append(arr.asnumpy().tolist())
-                ref_res_ = []
-                for arr in  ref_res:
-                    ref_res_.append(arr.asnumpy().tolist())
-                tvm.testing.assert_allclose(op_res_, ref_res_, rtol=1e-5)
+        for dtype in dtype_list:
+            data_np = np.random.uniform(size=data_shape).astype(dtype)
+            data = mx.sym.var('data')
+            ref_res = mx.ndarray.split_v2(mx.nd.array(data_np), indices_or_sections, axis=axis, squeeze_axis=squeeze_axis)
+            mx_sym = mx.sym.split_v2(data.as_nd_ndarray(), indices_or_sections, axis=axis, squeeze_axis=squeeze_axis)
+            mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape}, dtype=dtype)
+            for target, ctx in ctx_list():
+                for kind in ["graph", "vm", "debug"]:
+                    intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                    op_res = intrp.evaluate()(data_np)
+                    op_res_ = []
+                    for arr in op_res:
+                        op_res_.append(arr.asnumpy().tolist())
+                    ref_res_ = []
+                    for arr in  ref_res:
+                        ref_res_.append(arr.asnumpy().tolist())
+                    tvm.testing.assert_allclose(op_res_, ref_res_, rtol=1e-5)
 
     verify((3, 2, 1), axis=1, indices_or_sections=2)
     verify((3, 2, 1), axis=0, indices_or_sections=3)
