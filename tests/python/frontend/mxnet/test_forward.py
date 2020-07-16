@@ -1374,7 +1374,7 @@ def test_forward_box_decode():
     verify((1, 10, 4), (1, 10, 4), in_format="center")
 
 
-dtype_list = ['float64', 'float32', 'int64', 'int32', 'uint64', 'uint32', 'bool']
+dtype_list = ['float64', 'float32', 'int64', 'int32', 'bool']
 
 def test_forward_npi_pad():
     if not hasattr(mx.sym.np, 'pad'):
