@@ -261,37 +261,26 @@ class Partitioner : public MixedModeMutator {
   }
 
   /*!
-   * \brief Create a function and its function call for the given region. If the function has
-   * multiple outputs, a Tuple will be formed to aggregate all outputs, and TupleGetItem nodes
-   * will be created to serve output consumers.
+   * \brief Check if an expr is a constant or a tuple that only contain constants.
    */
-  void CreateFunction(AnnotatedRegion region, const CallNode* end_node) {
-    // Create fields which is a unique list of outputs.
-    Array<Expr> fields;
-    std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> out_expr_to_idx;
-    int out_idx = 0;
-    for (auto region_end_node : region->GetOutputs()) {
-      auto ret_node = Downcast<Call>(region_end_node)->args[0];
-      // Don't duplicate outputs.
-      if (!out_expr_to_idx.count(ret_node)) {
-        auto ret_expr = MixedModeMutator::VisitExpr(ret_node);
-        fields.push_back(ret_expr);
-        out_expr_to_idx[ret_node] = out_idx++;
-      }
-    }
+  bool IsConstant(const Expr& expr) const {
+    if (expr->IsInstance<ConstantNode>()) return true;
+    if (!expr->IsInstance<TupleNode>()) return false;
+    const auto* tn = expr.as<TupleNode>();
+    return std::all_of(tn->fields.begin(), tn->fields.end(),
+                       [](const Expr& e) { return e->IsInstance<ConstantNode>(); });
+  }
 
+  /*!
+   * \brief Create a call to the function that represents a region.
+   * \note The customized optimization pipeline will be invoked as well to
+   *       optimize each function that is handled by external codegen.
+   */
+  Call CreateRegionCall(AnnotatedRegion region, const Array<Expr>& fields,
+                        const CallNode* end_node) {
     Array<Var> params;
     Array<Expr> param_expr;
     Map<Var, Expr> params_bind;
-
-    auto IsConstant = [](const Expr& expr) {
-      if (expr->IsInstance<ConstantNode>()) return true;
-      if (!expr->IsInstance<TupleNode>()) return false;
-      const auto* tn = expr.as<TupleNode>();
-      return std::all_of(tn->fields.begin(), tn->fields.end(),
-                         [](const Expr& e) { return e->IsInstance<ConstantNode>(); });
-    };
-
     for (auto pair : region_func_meta_[region].args) {
       params.push_back(pair.first);
       if (IsConstant(pair.second)) {
@@ -314,17 +303,24 @@ class Partitioner : public MixedModeMutator {
     std::string target = end_node->attrs.as<CompilerAttrs>()->compiler;
     std::string name = target + "_" + std::to_string(region->GetID());
 
+    // Constant propagation
+    if (!params_bind.empty()) {
+      global_region_func = Downcast<Function>(relay::Bind(global_region_func, params_bind));
+    }
+    std::string ext_opt = "relay.ext." + target + ".optimize";
+    auto pf = tvm::runtime::Registry::Get(ext_opt);
+    if (pf != nullptr) {
+      auto mod = IRModule::FromExpr(global_region_func);
+      mod = (*pf)(mod);
+      global_region_func = Downcast<Function>(mod->Lookup("main"));
+    }
+
     global_region_func =
         WithAttr(std::move(global_region_func), tvm::attr::kGlobalSymbol, runtime::String(name));
     global_region_func = WithAttr(std::move(global_region_func), attr::kPrimitive, tvm::Integer(1));
     global_region_func =
         WithAttr(std::move(global_region_func), attr::kCompiler, tvm::runtime::String(target));
     global_region_func = WithAttr(std::move(global_region_func), attr::kInline, tvm::Integer(1));
-
-    // Constant propagation
-    if (!params_bind.empty()) {
-      global_region_func = Downcast<Function>(relay::Bind(global_region_func, params_bind));
-    }
 
     std::string fname = name;
     CHECK(!module_->ContainGlobalVar(fname)) << "Global function " << fname << " already exists";
@@ -339,6 +335,31 @@ class Partitioner : public MixedModeMutator {
     // Create a call node for the function.
     auto call = Call(glob_func, param_expr);
     region_func_meta_[region].func_call = call;
+
+    return call;
+  }
+
+  /*!
+   * \brief Create a function and its function call for the given region. If the function has
+   * multiple outputs, a Tuple will be formed to aggregate all outputs, and TupleGetItem nodes
+   * will be created to serve output consumers.
+   */
+  void CreateFunction(AnnotatedRegion region, const CallNode* end_node) {
+    // Create fields which is a unique list of outputs.
+    Array<Expr> fields;
+    std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> out_expr_to_idx;
+    int out_idx = 0;
+    for (auto region_end_node : region->GetOutputs()) {
+      auto ret_node = Downcast<Call>(region_end_node)->args[0];
+      // Don't duplicate outputs.
+      if (!out_expr_to_idx.count(ret_node)) {
+        auto ret_expr = MixedModeMutator::VisitExpr(ret_node);
+        fields.push_back(ret_expr);
+        out_expr_to_idx[ret_node] = out_idx++;
+      }
+    }
+
+    Call call = CreateRegionCall(region, fields, end_node);
 
     // Create output expr(s) for the function call.
     if (out_expr_to_idx.size() == 1) {
