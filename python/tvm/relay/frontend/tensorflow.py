@@ -281,7 +281,7 @@ def _conv(opname):
                 attr['strides'][3], attr['strides'][1], attr['strides'][2]
             attr['data_format'] = 'NCHW'
 
-            if opname == 'conv_transpose' and len(attr['_output_shapes']) > 0:
+            if opname == 'conv_transpose' and len(attr['_output_shapes']) > 0 and attr['_output_shapes'][0] is not None:
                 tmp_shape = attr['_output_shapes'][0]
                 tmp_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
                 attr['_output_shapes'][0] = tmp_shape
@@ -366,7 +366,7 @@ def _conv(opname):
             kernel_h, kernel_w = attr['kernel_shape']
 
             pdata_shape = input_shape
-            if opname == 'conv_transpose' and len(attr['_output_shapes']) > 0:
+            if opname == 'conv_transpose' and len(attr['_output_shapes']) > 0 and attr['_output_shapes'][0] is not None:
                 pdata_shape = attr['_output_shapes'][0]
 
             if attr['data_format'] == 'NHWC':
