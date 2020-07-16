@@ -26,7 +26,6 @@ import tvm.relay as relay
 import tvm.relay.op as op
 from tvm.relay import Prelude
 
-
 from . import mlp
 from . import resnet
 from . import resnet_3d
@@ -47,6 +46,7 @@ from .nat import add_nat_definitions, count, make_nat_value, make_nat_expr
 from .py_converter import to_python, run_as_python
 from ..transform import gradient
 
+
 def run_opt_pass(expr, opt_pass, import_prelude=False):
     assert isinstance(opt_pass, tvm.transform.Pass)
     mod = tvm.IRModule.from_expr(expr)
@@ -65,7 +65,14 @@ def _np_randn_from_type(t, scale=1, mean=0):
     return (mean + (scale * np.random.randn(*(int(d) for d in t.shape)))).astype(t.dtype)
 
 
-def check_grad(func, inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, mean=0):
+def check_grad(func,
+               inputs=None,
+               test_inputs=None,
+               eps=1e-6,
+               atol=1e-5,
+               rtol=1e-3,
+               scale=None,
+               mean=0):
     """Perform numerical gradient checking given a relay function.
 
     Compare analytical gradients to numerical gradients derived from two-sided approximation. Note
@@ -79,6 +86,11 @@ def check_grad(func, inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, me
     inputs: List[np.array]
         Optional user-provided input parameters to use. If not given, will generate random normal
         inputs scaled to be close to the chosen epsilon value to avoid numerical precision loss.
+
+    test_inputs: List[np.array]
+        The inputs to test for gradient matching. Useful in cases where some inputs are not
+        differentiable, such as symbolic inputs to dynamic ops. If not given, all inputs are
+        tested.
 
     eps: float
         The epsilon value to use for computing numerical gradient approximation.
@@ -109,6 +121,9 @@ def check_grad(func, inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, me
         # Generate random inputs on the same scale as epsilon to avoid numerical precision loss.
         inputs = [_np_randn_from_type(x.checked_type, scale=scale, mean=mean) for x in params]
 
+    if test_inputs is None:
+        test_inputs = inputs
+
     for target, ctx in ctx_list():
         intrp = relay.create_executor(ctx=ctx, target=target)
 
@@ -118,7 +133,7 @@ def check_grad(func, inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, me
 
         # Get numeric gradients for each dimension of each param, using two-sided approximation.
         approx_grads = []
-        for x in inputs:
+        for x in test_inputs:
             approx_grad = np.zeros(x.shape)
             for i in np.ndindex(*x.shape):
                 x_i = x[i]
@@ -129,8 +144,8 @@ def check_grad(func, inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, me
                 x[i] = x_i
                 approx_grad[i] = np.sum((fwd_plus - fwd_minus) / (2 * eps))
             approx_grads.append(approx_grad)
-
         # Compare gradients by checking that relative difference is below tolerance.
+        grads = [grads[i] for i in range(len(grads)) if inputs[i] in test_inputs]
         for grad, approx_grad in zip(grads, approx_grads):
             np.testing.assert_allclose(grad, approx_grad, atol=atol, rtol=rtol)
 
@@ -146,9 +161,11 @@ def count_ops(expr):
             if hasattr(call, 'op'):
                 self.node_counter[call.op.name] += 1
             return super().visit_call(call)
+
         def count(self, expr):
             self.node_set = {}
             self.node_counter = collections.Counter()
             self.visit(expr)
             return self.node_counter
+
     return OpCounter().count(expr)
