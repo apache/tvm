@@ -22,6 +22,7 @@
  * \brief Native threading backend
  */
 #include <dmlc/logging.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
 #include <algorithm>
@@ -264,6 +265,10 @@ int MaxConcurrency() {
   }
   return std::max(max_concurrency, 1);
 }
+
+TVM_REGISTER_GLOBAL("runtime.max_concurrency").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = MaxConcurrency();
+});
 
 }  // namespace threading
 }  // namespace runtime

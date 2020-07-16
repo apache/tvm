@@ -26,8 +26,11 @@
 
 #include <topi/detail/fuse.h>
 #include <topi/tags.h>
+#include <tvm/runtime/threading_backend.h>
 #include <tvm/target/generic_func.h>
 #include <tvm/te/operation.h>
+
+#include <vector>
 
 namespace topi {
 using namespace tvm;
@@ -44,14 +47,29 @@ namespace x86 {
  * \return The updated schedule.
  */
 inline Schedule schedule_injective_from_existing(Schedule sch, const Tensor& out) {
-  auto axis = sch[out]->op.as<ComputeOpNode>()->axis;
-  if (axis.size() == 4) {
-    auto n = axis[0];
-    auto c = axis[1];
-    auto fused = detail::Fuse(sch[out], {n, c});  // for nhwc layout, fuse n and h
-    sch[out].parallel(fused);
+  const auto& axes = sch[out]->op.as<ComputeOpNode>()->axis;
+  std::vector<IterVar> to_fuse;
+  int64_t prod_len = 1;
+
+  for (const auto& axis : axes) {
+    const auto* pint = axis->dom->extent.as<IntImmNode>();
+    if (pint == nullptr) {
+      break;
+    }
+    prod_len *= pint->value;
+    to_fuse.push_back(axis);
+    if (prod_len >= tvm::runtime::threading::MaxConcurrency()) {
+      break;
+    }
+  }
+
+  if (to_fuse.empty()) {
+    return sch;
+  } else if (to_fuse.size() == 1) {
+    sch[out].parallel(to_fuse[0]);
   } else {
-    sch[out].parallel(axis[0]);
+    auto fused = detail::Fuse(sch[out], to_fuse);
+    sch[out].parallel(fused);
   }
   return sch;
 }

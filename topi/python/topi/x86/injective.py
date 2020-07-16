@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name
 """x86 declaration and schedules."""
-from tvm import te
-from ..util import is_empty_shape
+from tvm import te, tir, target, runtime
+from ..util import is_empty_shape, get_const_int
 
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
@@ -34,20 +34,61 @@ def schedule_injective_from_existing(sch, out):
     sch: Schedule
          The updated schedule.
     """
-    if len(sch[out].op.axis) >= 5:
-        fused = sch[out].fuse(sch[out].op.axis[0], sch[out].op.axis[1], sch[out].op.axis[2])
-        sch[out].parallel(fused)
-    elif len(sch[out].op.axis) >= 3:
-        fused = sch[out].fuse(sch[out].op.axis[0], sch[out].op.axis[1])
-        sch[out].parallel(fused)
-    elif len(sch[out].op.axis) >= 1:
-        sch[out].parallel(sch[out].op.axis[0])
+    max_concurrency = runtime._ffi_api.max_concurrency()
+    max_vectorization = 32
 
-    # Vectorize the inner most for loop. Tiling first to get a const extent
-    if len(sch[out].op.axis) >= 1:
-        l = sch[out].op.axis[-1]
-        _, li = sch[out].split(l, factor=16)
-        sch[out].vectorize(li)
+    if len(sch[out].op.axis) == 0:
+        return sch
+
+    # Try to fuse and parallel outer loops until we have enough parallelsim
+    fused_len = 1
+    has_unknown = False
+    to_fuse = []
+    for axis in sch[out].op.axis:
+        to_fuse.append(axis)
+
+        if isinstance(axis.dom.extent, tir.IntImm):
+            fused_len *= axis.dom.extent.value
+        else:
+            has_unknown = True
+            break
+
+        if fused_len > max_concurrency:
+            break
+
+    if len(to_fuse) == 1:
+        to_parallel = to_fuse[0]
+    elif len(to_fuse) > 1:
+        to_parallel = sch[out].fuse(*to_fuse)
+
+    # Try to vectorize the inner loop
+    if not has_unknown:
+        num_remaining = len(sch[out].op.axis) - len(to_fuse)
+
+        if num_remaining >= 1:
+            # if there are remaining axes, directly vectroize the inner most one
+            to_vectorize = sch[out].op.axis[-1]
+            if isinstance(to_vectorize.dom.extent, tir.IntImm):
+                to_vectorize_len = max_factor = to_vectorize.dom.extent.value
+            else:
+                to_vectorize = max_factor = 0
+        else:  # otherwise, split out one axis from the fused outer axis
+            to_vectorize = to_parallel
+            to_vectorize_len = fused_len
+            max_factor = fused_len // max_concurrency
+
+        for factor in range(min(max_factor, max_vectorization), -1, -1):
+            if factor <= 0 or to_vectorize_len % factor == 0:
+                break
+
+        if factor > 1:
+            outer, inner = sch[out].split(to_vectorize, factor)
+            sch[out].vectorize(inner)
+
+            if to_vectorize == to_parallel:
+                to_parallel = outer
+
+    sch[out].parallel(to_parallel)
     return sch
 
 def schedule_injective(outs):

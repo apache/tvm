@@ -24,6 +24,8 @@
 #ifndef TVM_RUNTIME_THREADING_BACKEND_H_
 #define TVM_RUNTIME_THREADING_BACKEND_H_
 
+#include <tvm/runtime/c_runtime_api.h>
+
 #include <functional>
 #include <memory>
 #include <vector>
@@ -92,7 +94,7 @@ void Yield();
 /*!
  * \return the maximum number of effective workers for this system.
  */
-int MaxConcurrency();
+TVM_DLL int MaxConcurrency();
 
 }  // namespace threading
 }  // namespace runtime
