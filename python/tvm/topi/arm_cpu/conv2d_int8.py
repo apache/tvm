@@ -142,6 +142,7 @@ def schedule_conv2d_NHWC_quantized(cfg, outs):
     n, h, w, c = out.op.axis
     outer, inner = s[out].split(c, 4)
     s[out].vectorize(inner)
+    s[out].parallel(h)
 
     def _callback(op):
         """Traverse operators from computation graph"""
