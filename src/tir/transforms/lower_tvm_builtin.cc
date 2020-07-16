@@ -212,7 +212,7 @@ class BuiltinLower : public StmtExprMutator {
   }
   // call packed.
   PrimExpr MakeCallPacked(const CallNode* op) {
-    size_t restore_shape_stack = run_shape_stack_;
+    int64_t restore_shape_stack = run_shape_stack_;
     size_t restore_array_stack = run_array_stack_;
     size_t arg_stack_begin = run_arg_stack_;
     run_arg_stack_ += op->args.size();
@@ -251,7 +251,7 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   PrimExpr MakeCallTracePacked(const CallNode* op) {
-    size_t restore_shape_stack = run_shape_stack_;
+    int64_t restore_shape_stack = run_shape_stack_;
     size_t restore_array_stack = run_array_stack_;
     size_t arg_stack_begin = run_arg_stack_;
     run_arg_stack_ += op->args.size();
