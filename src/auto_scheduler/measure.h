@@ -364,6 +364,44 @@ class LocalRunner : public ProgramRunner {
 };
 
 /*!
+ * \brief RPCRunner that uses RPC call to measures the time cost of programs
+ * on remote devices.
+ */
+class RPCRunnerNode : public ProgramRunnerNode {
+ public:
+  std::string key;
+  std::string host;
+  int port;
+  int priority;
+  int n_parallel;
+  int number;
+  int repeat;
+  int min_repeat_ms;
+  double cooldown_interval;
+
+  /*! \biref Run measurement and return results */
+  Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
+                           const Array<BuildResult>& build_results,
+                           int verbose) final;
+
+  static constexpr const char* _type_key = "auto_scheduler.RPCRunner";
+  TVM_DECLARE_FINAL_OBJECT_INFO(RPCRunnerNode, ProgramRunnerNode);
+};
+
+/*!
+ * \brief Managed reference to RPCRunnerNode.
+ * \sa RPCRunnerNode
+ */
+class RPCRunner : public ProgramRunner {
+ public:
+  RPCRunner(const std::string& key, const std::string& host, int port,
+            int priority, int timeout, int n_parallel, int number,
+            int repeat, int min_repeat_ms, double cooldown_interval);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RPCRunner, ProgramRunner, RPCRunnerNode);
+};
+
+/*!
  * \brief Measurer that measures the time costs of tvm programs
  * This class combines ProgramBuilder and ProgramRunner, and provides a simpler API */
 class ProgramMeasurerNode : public Object {
