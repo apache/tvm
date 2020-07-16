@@ -295,7 +295,6 @@ bool ReduceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 Expr MakeReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude, String op_name) {
-  std::cout << "making " << op_name << std::endl;
   auto attrs = make_object<ReduceAttrs>();
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
