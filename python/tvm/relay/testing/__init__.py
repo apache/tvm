@@ -157,6 +157,7 @@ def rand(dtype, *shape):
 def count_ops(expr):
     """count number of times a given op is called in the graph"""
     class OpCounter(tvm.relay.ExprVisitor):
+        """OpCounter"""
         def visit_call(self, call):
             if hasattr(call, 'op'):
                 self.node_counter[call.op.name] += 1
