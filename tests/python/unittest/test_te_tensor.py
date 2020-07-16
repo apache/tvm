@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import numpy as np
 from tvm import te
 from topi.nn.pooling import pool
 
@@ -303,6 +304,26 @@ def test_tensor_pool():
     s[P].tensorize(oh, intrin)
     tvm.lower(s, [A, P])
 
+def test_tensor_scalar():
+    # test te with scalar shape
+    a = np.array(np.random.uniform(size=(1))[0], 'float32')
+    b = np.array(0.0, 'float32')
+
+    @tvm.register_func("tvm.test_tensor_scalar_copy")
+    def mycopy(x, y):
+        x.copyto(y)
+
+    A = te.placeholder(a.shape, name='A')
+    B = te.extern(a.shape, [A],
+                  lambda ins, outs: tvm.tir.call_packed(
+                  "tvm.test_tensor_scalar_copy", ins[0], outs[0]), name="B")
+    s = te.create_schedule(B.op)
+    f = tvm.build(s, [A, B], 'llvm')
+
+    ta = tvm.nd.array(a)
+    tb = tvm.nd.array(b)
+    f(ta, tb)
+    tvm.testing.assert_allclose(ta.asnumpy(), tb.asnumpy())
 
 if __name__ == "__main__":
     test_rank_zero()
