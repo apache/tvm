@@ -161,8 +161,7 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
         s = reader->NextArrayItem();
         CHECK(s);
         reader->Read(&iter_id);
-        data->push_back(::tvm::auto_scheduler::ComputeAtStep(
-            stage_id, target_stage_id, iter_id));
+        data->push_back(::tvm::auto_scheduler::ComputeAtStep(stage_id, target_stage_id, iter_id));
       } else if (name == "CR") {
         s = reader->NextArrayItem();
         CHECK(s);
@@ -208,14 +207,17 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
         }
         data->push_back(::tvm::auto_scheduler::FuseStep(stage_id, fused_ids));
       } else if (name == "AN") {
-        s = reader->NextArrayItem(); CHECK(s);
+        s = reader->NextArrayItem();
+        CHECK(s);
         reader->Read(&stage_id);
-        s = reader->NextArrayItem(); CHECK(s);
+        s = reader->NextArrayItem();
+        CHECK(s);
         reader->Read(&iter_id);
-        s = reader->NextArrayItem(); CHECK(s);
+        s = reader->NextArrayItem();
+        CHECK(s);
         reader->Read(&ann);
-        data->push_back(::tvm::auto_scheduler::AnnotationStep(stage_id,
-            iter_id, ::tvm::auto_scheduler::IteratorAnnotation(ann)));
+        data->push_back(::tvm::auto_scheduler::AnnotationStep(
+            stage_id, iter_id, ::tvm::auto_scheduler::IteratorAnnotation(ann)));
       } else {
         LOG(FATAL) << "Invalid step format";
       }

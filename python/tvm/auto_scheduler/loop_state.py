@@ -119,48 +119,51 @@ class State:
         order : List[Iterator]
             Iterators in the expected order.
         """
-        stage_id = self._resolve_stage_id(stage)
+        self.state_object = _ffi_api.StateReorder(self.state_object, self._resolve_stage_id(stage),
+                                                  order)
 
-        self.state_object = _ffi_api.StateReorder(self.state_object, stage_id, order)
+    def compute_at(self, stage, target_stage, target_iter):
+        """ Schedule primitive corresponds to te.compute_at.
 
-    def compute_at(self, stage_id, target_stage_id, target_iter):
-        """
         Parameters
         ----------
-        stage_id : Union[int, Operation, Tensor]
-            The index of source stage
-        target_stage_id : Union[int, Operation, Tensor]
-            The index of the target stage of compute_at
+        stage : Union[int, Operation, Tensor]
+            The Stage to be compute at, can be a Stage order index, Stage operation or stage
+            output tensor.
+        target_stage : Union[int, Operation, Tensor]
+            The target stage of compute_at, can be a Stage order index, Stage operation or stage
+            output tensor.
         target_iter : Iterator
-            The target Iterator of compute_at
+            The target Iterator of compute_at.
         """
-        stage_id = self._resolve_stage_id(stage_id)
-        target_stage_id = self._resolve_stage_id(target_stage_id)
+        self.state_object = _ffi_api.StateComputeAt(self.state_object,
+                                                    self._resolve_stage_id(stage),
+                                                    self._resolve_stage_id(target_stage),
+                                                    target_iter)
 
-        self.state_object = _ffi_api.StateComputeAt(self.state_object, stage_id,
-                                                    target_stage_id, target_iter)
+    def compute_root(self, stage):
+        """ Schedule primitive corresponds to te.compute_root.
 
-    def compute_root(self, stage_id):
-        """
         Parameters
         ----------
-        stage_id : Union[int, Operation, Tensor]
-            The index of the stage to compute root
+        stage : Union[int, Operation, Tensor]
+            The Stage to be compute root, can be a Stage order index, Stage operation or stage
+            output tensor.
         """
-        stage_id = self._resolve_stage_id(stage_id)
+        self.state_object = _ffi_api.StateComputeRoot(self.state_object,
+                                                      self._resolve_stage_id(stage))
 
-        self.state_object = _ffi_api.StateComputeRoot(self.state_object, stage_id)
+    def compute_inline(self, stage):
+        """ Schedule primitive corresponds to te.compute_inline.
 
-    def compute_inline(self, stage_id):
-        """
         Parameters
         ----------
-        stage_id : Union[int, Operation, Tensor]
-            The index of the stage to compute inline
+        stage : Union[int, Operation, Tensor]
+            The Stage to be compute inline, can be a Stage order index, Stage operation or stage
+            output tensor.
         """
-        stage_id = self._resolve_stage_id(stage_id)
-
-        self.state_object = _ffi_api.StateComputeInline(self.state_object, stage_id)
+        self.state_object = _ffi_api.StateComputeInline(self.state_object,
+                                                        self._resolve_stage_id(stage))
 
     def split(self, stage, iterator, lengths, inner_to_outer=True):
         """ Schedule primitive corresponds to te.split.
@@ -185,10 +188,9 @@ class State:
         res_its : List[Iterator]
             The splitted new Iterators
         """
-        stage_id = self._resolve_stage_id(stage)
-
-        self.state_object, res = _ffi_api.StateSplit(self.state_object, stage_id, iterator, lengths,
-                                                     inner_to_outer)
+        self.state_object, res = _ffi_api.StateSplit(self.state_object,
+                                                     self._resolve_stage_id(stage),
+                                                     iterator, lengths, inner_to_outer)
         return res
 
     def fuse(self, stage, iters):
@@ -200,35 +202,103 @@ class State:
             The Stage to be fused, can be a Stage order index, Stage operation or stage
             output tensor.
         iters : List[Iterator]
-            The iterators to be fused
+            The iterators to be fused.
 
         Returns
         -------
         res_it : Iterator
-            The fused Iterator
+            The fused Iterator.
         """
-        stage_id = self._resolve_stage_id(stage)
-
-        self.state_object, res = _ffi_api.StateFuse(self.state_object, stage_id, iters)
+        self.state_object, res = _ffi_api.StateFuse(self.state_object,
+                                                    self._resolve_stage_id(stage), iters)
         return res
 
     def vectorize(self, stage, iterator):
-        stage_id = self._resolve_stage_id(stage)
-        self.state_object, res = _ffi_api.StateVectorize(self.state_object, stage_id, iterator)
+        """ Schedule primitive corresponds to te.vectorize.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be vectorized, can be a Stage order index, Stage operation or stage
+            output tensor.
+        iterator : Iterator
+            The iterator to be vectorized.
+
+        Returns
+        -------
+        res_it : Iterator
+            The vectorized Iterator.
+        """
+        self.state_object, res = _ffi_api.StateVectorize(self.state_object,
+                                                         self._resolve_stage_id(stage), iterator)
         return res
 
     def parallel(self, stage, iterator):
-        stage_id = self._resolve_stage_id(stage)
-        self.state_object, res = _ffi_api.StateParallel(self.state_object, stage_id, iterator)
+        """ Schedule primitive corresponds to te.parallel.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be paralleled, can be a Stage order index, Stage operation or stage
+            output tensor.
+        iterator : Iterator
+            The iterator to be paralleled.
+
+        Returns
+        -------
+        res_it : Iterator
+            The paralleled Iterator.
+        """
+        self.state_object, res = _ffi_api.StateParallel(self.state_object,
+                                                        self._resolve_stage_id(stage), iterator)
         return res
 
     def unroll(self, stage, iterator, max_unroll=None):
-        stage_id = self._resolve_stage_id(stage)
-        self.state_object, res = _ffi_api.StateUnroll(self.state_object, stage_id, iterator,
+        """ Schedule primitive corresponds to te.unrolled.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be unrolled, can be a Stage order index, Stage operation or stage
+            output tensor.
+        iterator : Iterator
+            The iterator to be unrolled.
+        max_unroll : Optional[int]
+            The max unroll limit. Iterator with extent larger than this limit will be skipped.
+
+        Returns
+        -------
+        res_it : Iterator
+            The unrolled Iterator.
+        """
+        self.state_object, res = _ffi_api.StateUnroll(self.state_object,
+                                                      self._resolve_stage_id(stage), iterator,
                                                       max_unroll if max_unroll else -1)
         return res
 
-    def bind_thread(self, stage_id, iterator, thread_name):
+    def bind(self, stage, iterator, thread_name):
+        """ Schedule primitive corresponds to te.bind.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be binded, can be a Stage order index, Stage operation or stage
+            output tensor.
+        iterator : Iterator
+            The iterator to be binded.
+        thread_name : str
+            The thread type to be binded. Currently support:
+            - vthread
+            - blockIdx.x
+            - threadIdx.x
+            - blockIdx.y
+            - threadIdx.y
+
+        Returns
+        -------
+        res_it : Iterator
+            The binded Iterator.
+        """
         trans_table = {
             "vthread": 4,
             "blockIdx.x": 5,
@@ -236,11 +306,12 @@ class State:
             "blockIdx.y": 7,
             "threadIdx.y": 8,
         }
-        thread_id = trans_table[thread_name]
-        stage_id = self._resolve_stage_id(stage_id)
+        if not thread_name in trans_table.keys():
+            raise ValueError("Invalid thread_name: ", thread_name)
 
-        self.state_object, res = _ffi_api.StateBindThread(self.state_object, stage_id, iterator,
-                                                          thread_id)
+        self.state_object, res = _ffi_api.StateBind(self.state_object,
+                                                    self._resolve_stage_id(stage), iterator,
+                                                    trans_table[thread_name])
         return res
 
     def copy(self):

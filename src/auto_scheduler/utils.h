@@ -89,15 +89,6 @@ inline int GetIndex(const Array<T>& array, const T& to_locate) {
   return -1;
 }
 
-/*! \brief Delete an element in a vector */
-template <typename T>
-inline void DeleteItem(Array<T>* array, const T& to_delete) {
-  auto iter = std::find(array->begin(), array->end(), to_delete);
-  if (iter != array->end()) {
-    array->erase(iter);
-  }
-}
-
 template <typename T>
 inline void DeleteItem(std::vector<T>* array, const T& to_delete) {
   auto iter = std::find(array->begin(), array->end(), to_delete);

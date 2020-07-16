@@ -64,9 +64,9 @@ def test_split_fuse_reorder_annotation():
     s1.parallel(C, j1)
     s1.unroll(C, j2)
     s1.vectorize(C, j3)
-    s1.bind_thread(C, i1, "blockIdx.x")
-    s1.bind_thread(C, i2, "vthread")
-    s1.bind_thread(C, i3, "threadIdx.y")
+    s1.bind(C, i1, "blockIdx.x")
+    s1.bind(C, i2, "vthread")
+    s1.bind(C, i3, "threadIdx.y")
 
 
 def test_compute_at_root_inline():
@@ -87,6 +87,7 @@ def test_compute_at_root_inline():
     s0.compute_inline(bn_mul)
     s0.compute_inline(bias_add)
     s0.compute_at(conv, relu, s0[relu].iters[2])
+    print(s0)
     assert str(s0) == \
         "Placeholder: Data, Kernel, Bias, Bn_scale, Bn_offset\n" + \
         "for i1 (0,3)\n" + \

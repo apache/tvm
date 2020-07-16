@@ -144,16 +144,27 @@ class ReorderStep : public Step {
 };
 
 /*! \brief Compute at step that corresponds to te::Stage::compute_at */
-class ComputeAtStepNode: public StepNode {
+class ComputeAtStepNode : public StepNode {
  public:
+  /*! \brief The index of stage that this step will compute at to. */
   int target_stage_id;
+  /*! \brief The index of iterator in target stage that this step will compute at to. */
   int target_iter_id;
 
-  void ApplyToSchedule(Array<te::Stage> *stages,
-                       StageToAxesMap *stage_to_axes) const;
+  /*!
+   * \brief Apply the current state to tvm.schedule
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   */
+  void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
-  String PrintAsPythonAPI(Array<te::Stage> *stages,
-                               StageToAxesMap *stage_to_axes) const;
+  /*!
+   * \brief Print step as equivalent python schedule API.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \return Python schedule code.
+   */
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "auto_scheduler.ComputeAtStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeAtStepNode, Object);
@@ -165,19 +176,35 @@ class ComputeAtStepNode: public StepNode {
  */
 class ComputeAtStep : public Step {
  public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to be compute at.
+   * \param target_stage_id The index of stage that this step will compute at to.
+   * \param target_iter_id The index of iterator in target stage that this step will compute at to.
+   */
   ComputeAtStep(int stage_id, int target_stage_id, int target_iter_id);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeAtStep, Step, ComputeAtStepNode);
 };
 
 /*! \brief Compute root step that corresponds to te::Stage::compute_root */
-class ComputeRootStepNode: public StepNode {
+class ComputeRootStepNode : public StepNode {
  public:
-  void ApplyToSchedule(Array<te::Stage> *stages,
-                       StageToAxesMap *stage_to_axes) const;
+  /*!
+   * \brief Apply the current state to tvm.schedule
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \return The iterator result after fuse.
+   */
+  void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
-  String PrintAsPythonAPI(Array<te::Stage> *stages,
-                               StageToAxesMap *stage_to_axes) const;
+  /*!
+   * \brief Print step as equivalent python schedule API.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \return Python schedule code.
+   */
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "auto_scheduler.ComputeRootStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeRootStepNode, Object);
@@ -189,19 +216,33 @@ class ComputeRootStepNode: public StepNode {
  */
 class ComputeRootStep : public Step {
  public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to be compute root
+   */
   explicit ComputeRootStep(int stage_id);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeRootStep, Step, ComputeRootStepNode);
 };
 
 /*! \brief Compute inline step that corresponds to te::Stage::compute_inline */
-class ComputeInlineStepNode: public StepNode {
+class ComputeInlineStepNode : public StepNode {
  public:
-  void ApplyToSchedule(Array<te::Stage> *stages,
-                       StageToAxesMap *stage_to_axes) const;
+  /*!
+   * \brief Apply the current state to tvm.schedule
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \return The iterator result after fuse.
+   */
+  void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
-  String PrintAsPythonAPI(Array<te::Stage> *stages,
-                               StageToAxesMap *stage_to_axes) const;
+  /*!
+   * \brief Print step as equivalent python schedule API.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \return Python schedule code.
+   */
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "auto_scheduler.ComputeInlineStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeInlineStepNode, Object);
@@ -213,6 +254,10 @@ class ComputeInlineStepNode: public StepNode {
  */
 class ComputeInlineStep : public Step {
  public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to be compute inline.
+   */
   explicit ComputeInlineStep(int stage_id);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeInlineStep, Step, ComputeInlineStepNode);
@@ -323,16 +368,28 @@ class FuseStep : public Step {
  * \brief Annotation step that corresponds to vectorize, parallel, unroll and thread binding.
  * (i.e. te::Stage::vectorize, te::Stage::parallel, te::Stage::vectorize, te::Stage::bind)
  */
-class AnnotationStepNode: public StepNode {
+class AnnotationStepNode : public StepNode {
  public:
+  /*! \brief The index of the iterator to add annotation. */
   int iter_id;
+  /*! \brief The annotation type of this step. */
   IteratorAnnotation annotation;
 
-  void ApplyToSchedule(Array<te::Stage> *stages,
-                       StageToAxesMap *stage_to_axes) const;
+  /*!
+   * \brief Apply the current state to tvm.schedule
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \return The iterator result after fuse.
+   */
+  void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
-  String PrintAsPythonAPI(Array<te::Stage> *stages,
-                          StageToAxesMap *stage_to_axes) const;
+  /*!
+   * \brief Print step as equivalent python schedule API.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \return Python schedule code.
+   */
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "auto_scheduler.AnnotationStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(AnnotationStepNode, Object);
@@ -344,6 +401,12 @@ class AnnotationStepNode: public StepNode {
  */
 class AnnotationStep : public Step {
  public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to add annotation.
+   * \param iter_id The index of the iterator to add annotation.
+   * \param ann The annotation type of this step.
+   */
   AnnotationStep(int stage_id, int iter_id, IteratorAnnotation ann);
 
   TVM_DEFINE_OBJECT_REF_METHODS(AnnotationStep, Step, AnnotationStepNode);

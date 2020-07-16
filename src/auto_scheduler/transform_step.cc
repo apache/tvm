@@ -91,25 +91,23 @@ ComputeAtStep::ComputeAtStep(int stage_id, int target_stage_id, int target_iter_
   data_ = std::move(node);
 }
 
-void ComputeAtStepNode::ApplyToSchedule(Array<te::Stage> *stages,
-                                        StageToAxesMap *stage_to_axes) const {
+void ComputeAtStepNode::ApplyToSchedule(Array<te::Stage>* stages,
+                                        StageToAxesMap* stage_to_axes) const {
   te::Stage stage = (*stages)[stage_id];
-  const IterVar& target_axis =
-      (*stage_to_axes)[(*stages)[target_stage_id]][target_iter_id];
+  const IterVar& target_axis = (*stage_to_axes)[(*stages)[target_stage_id]][target_iter_id];
   stage.compute_at((*stages)[target_stage_id], target_axis);
 
   stages->Set(stage_id, std::move(stage));
 }
 
-String ComputeAtStepNode::PrintAsPythonAPI(Array<te::Stage> *stages,
-                                                StageToAxesMap *stage_to_axes) const {
+String ComputeAtStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
+                                           StageToAxesMap* stage_to_axes) const {
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
   const auto& target_stage = (*stages)[target_stage_id];
 
-  ss << "s[" << CleanName(stage->op->name) << "].compute_at(s["
-      << CleanName(target_stage->op->name) << "], "
-      << CleanName((*stage_to_axes)[target_stage][target_iter_id]->var->name_hint);
+  ss << "s[" << CleanName(stage->op->name) << "].compute_at(s[" << CleanName(target_stage->op->name)
+     << "], " << CleanName((*stage_to_axes)[target_stage][target_iter_id]->var->name_hint);
 
   ss << ")\n";
   ApplyToSchedule(stages, stage_to_axes);
@@ -123,15 +121,15 @@ ComputeRootStep::ComputeRootStep(int stage_id) {
   data_ = std::move(node);
 }
 
-void ComputeRootStepNode::ApplyToSchedule(Array<te::Stage> *stages,
-                                          StageToAxesMap *stage_to_axes) const {
+void ComputeRootStepNode::ApplyToSchedule(Array<te::Stage>* stages,
+                                          StageToAxesMap* stage_to_axes) const {
   auto stage = (*stages)[stage_id];
   stage.compute_root();
   stages->Set(stage_id, std::move(stage));
 }
 
-String ComputeRootStepNode::PrintAsPythonAPI(Array<te::Stage> *stages,
-                                                  StageToAxesMap *stage_to_axes) const {
+String ComputeRootStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
+                                             StageToAxesMap* stage_to_axes) const {
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
 
@@ -148,16 +146,15 @@ ComputeInlineStep::ComputeInlineStep(int stage_id) {
   data_ = std::move(node);
 }
 
-void ComputeInlineStepNode::ApplyToSchedule(Array<te::Stage> *stages,
-                                            StageToAxesMap *stage_to_axes) const {
+void ComputeInlineStepNode::ApplyToSchedule(Array<te::Stage>* stages,
+                                            StageToAxesMap* stage_to_axes) const {
   auto stage = (*stages)[stage_id];
   stage.compute_inline();
   stages->Set(stage_id, std::move(stage));
 }
 
-String ComputeInlineStepNode::PrintAsPythonAPI(
-    Array<te::Stage> *stages,
-    StageToAxesMap *stage_to_axes) const {
+String ComputeInlineStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
+                                               StageToAxesMap* stage_to_axes) const {
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
 
@@ -321,8 +318,7 @@ String FuseStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
 }
 
 /********** Annotation **********/
-AnnotationStep::AnnotationStep(int stage_id, int iter_id,
-                               IteratorAnnotation ann) {
+AnnotationStep::AnnotationStep(int stage_id, int iter_id, IteratorAnnotation ann) {
   auto node = make_object<AnnotationStepNode>();
   node->stage_id = stage_id;
   node->iter_id = iter_id;
@@ -330,64 +326,95 @@ AnnotationStep::AnnotationStep(int stage_id, int iter_id,
   data_ = std::move(node);
 }
 
-void AnnotationStepNode::ApplyToSchedule(Array<te::Stage> *stages,
-                                         StageToAxesMap *stage_to_axes) const {
+void AnnotationStepNode::ApplyToSchedule(Array<te::Stage>* stages,
+                                         StageToAxesMap* stage_to_axes) const {
   te::Stage stage = (*stages)[stage_id];
   const Array<IterVar>& axes = (*stage_to_axes)[stage];
 
   switch (annotation) {
     case IteratorAnnotation::kUnroll:
-      stage.unroll(axes[iter_id]); break;
+      stage.unroll(axes[iter_id]);
+      break;
     case IteratorAnnotation::kVectorize:
-      stage.vectorize(axes[iter_id]); break;
+      stage.vectorize(axes[iter_id]);
+      break;
     case IteratorAnnotation::kParallel:
-      stage.parallel(axes[iter_id]); break;
+      stage.parallel(axes[iter_id]);
+      break;
     case IteratorAnnotation::kVThread:
-      stage.bind(axes[iter_id], te::thread_axis(Range(), "vthread")); break;
+      stage.bind(axes[iter_id], te::thread_axis(Range(), "vthread"));
+      break;
     case IteratorAnnotation::kBlockX:
-      stage.bind(axes[iter_id], te::thread_axis(Range(), "blockIdx.x")); break;
+      stage.bind(axes[iter_id], te::thread_axis(Range(), "blockIdx.x"));
+      break;
     case IteratorAnnotation::kBlockY:
-      stage.bind(axes[iter_id], te::thread_axis(Range(), "blockIdx.y")); break;
+      stage.bind(axes[iter_id], te::thread_axis(Range(), "blockIdx.y"));
+      break;
     case IteratorAnnotation::kThreadX:
-      stage.bind(axes[iter_id], te::thread_axis(Range(), "threadIdx.x")); break;
+      stage.bind(axes[iter_id], te::thread_axis(Range(), "threadIdx.x"));
+      break;
     case IteratorAnnotation::kThreadY:
-      stage.bind(axes[iter_id], te::thread_axis(Range(), "threadIdx.y")); break;
-    case IteratorAnnotation::kNone: break;
+      stage.bind(axes[iter_id], te::thread_axis(Range(), "threadIdx.y"));
+      break;
+    case IteratorAnnotation::kNone:
+      break;
     default:
-      LOG(FATAL) << "Invalid Annotation " << static_cast<int>(annotation); break;
+      LOG(FATAL) << "Invalid Annotation " << static_cast<int>(annotation);
+      break;
   }
 
   stages->Set(stage_id, std::move(stage));
 }
 
-String AnnotationStepNode::PrintAsPythonAPI(Array<te::Stage> *stages,
-                                                 StageToAxesMap *stage_to_axes) const {
+String AnnotationStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
+                                            StageToAxesMap* stage_to_axes) const {
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
   const auto& iter = (*stage_to_axes)[stage][iter_id];
 
   ss << "s[" << CleanName(stage->op->name) << "].";
   switch (annotation) {
-    case IteratorAnnotation::kUnroll:    ss << "unroll("; break;
-    case IteratorAnnotation::kVectorize: ss << "vectorize("; break;
-    case IteratorAnnotation::kParallel:  ss << "parallel("; break;
+    case IteratorAnnotation::kUnroll:
+      ss << "unroll(";
+      break;
+    case IteratorAnnotation::kVectorize:
+      ss << "vectorize(";
+      break;
+    case IteratorAnnotation::kParallel:
+      ss << "parallel(";
+      break;
     case IteratorAnnotation::kVThread:
     case IteratorAnnotation::kBlockX:
     case IteratorAnnotation::kBlockY:
     case IteratorAnnotation::kThreadX:
-    case IteratorAnnotation::kThreadY:   ss << "bind("; break;
-    case IteratorAnnotation::kNone:      break;
+    case IteratorAnnotation::kThreadY:
+      ss << "bind(";
+      break;
+    case IteratorAnnotation::kNone:
+      break;
     default:
-      LOG(FATAL) << "Invalid annotation " << static_cast<int>(annotation); break;
+      LOG(FATAL) << "Invalid annotation " << static_cast<int>(annotation);
+      break;
   }
   ss << CleanName(iter->var->name_hint);
   switch (annotation) {
-    case IteratorAnnotation::kVThread:   ss << ", tvm.thread_axis(\"vthread\")"; break;
-    case IteratorAnnotation::kBlockX:    ss << ", tvm.thread_axis(\"blockIdx.x\")"; break;
-    case IteratorAnnotation::kBlockY:    ss << ", tvm.thread_axis(\"blockIdy.y\")"; break;
-    case IteratorAnnotation::kThreadX:   ss << ", tvm.thread_axis(\"threadIdx.x\")"; break;
-    case IteratorAnnotation::kThreadY:   ss << ", tvm.thread_axis(\"threadIdx.y\")"; break;
-    default:         break;
+    case IteratorAnnotation::kVThread:
+      ss << ", tvm.thread_axis(\"vthread\")";
+      break;
+    case IteratorAnnotation::kBlockX:
+      ss << ", tvm.thread_axis(\"blockIdx.x\")";
+      break;
+    case IteratorAnnotation::kBlockY:
+      ss << ", tvm.thread_axis(\"blockIdy.y\")";
+      break;
+    case IteratorAnnotation::kThreadX:
+      ss << ", tvm.thread_axis(\"threadIdx.x\")";
+      break;
+    case IteratorAnnotation::kThreadY:
+      ss << ", tvm.thread_axis(\"threadIdx.y\")";
+      break;
+    default:
+      break;
   }
   ss << ")\n";
 

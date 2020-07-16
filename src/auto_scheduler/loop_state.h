@@ -196,23 +196,27 @@ class Stage : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StageNode);
 };
 
+/*! \brief Use stage_id to represent a stage. */
+using StageKey = int;
+/*! \brief Use stage_id and iter_id to represent a iterator. */
+using IterKey = std::pair<int, int>;
+
 /*!
  * \brief stores the compute_at relation between stages
  * This stores a bi-directional mapping from stages and iter:
  * 1. Stage to its attached iterator
- * 2. Iterator to the stage attached to it 
+ * 2. Iterator to the stage attached to it
  * You can use AttachMapNode::stage_to_attach_iter and AttachMapNode::iter_to_attached_stages
  * to query the relations
  */
-class AttachMapNode: public Object {
+class AttachMapNode : public Object {
  public:
-  using StageKey = int;
-  using IterKey = std::pair<int, int>;  // stage_id and iter_id
-
+  /*! \brief A Map to store the mapping of stage to its attached iterator. */
   std::unordered_map<StageKey, IterKey> stage_to_attach_iter;
+  /*! \brief A Map to store the mapping of iterator to the stage attached to it. */
   std::unordered_map<IterKey, std::vector<StageKey>> iter_to_attached_stages;
 
-  static constexpr const char* _type_key = "ansor.AttachMap";
+  static constexpr const char* _type_key = "auto_scheduler.AttachMap";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttachMapNode, Object);
 };
 
@@ -222,19 +226,35 @@ class AttachMapNode: public Object {
  */
 class AttachMap : public ObjectRef {
  public:
-  using StageKey = int;
-  using IterKey = std::pair<int, int>;  // stage_id and iter_id
-
+  /*!
+   * \brief Process the stage/iterator mapping after compute at.
+   * \param stage_id The index of the stage to be compute at.
+   * \param target_stage_id The index of stage that this step will compute at to.
+   * \param target_iter_id The index of iterator in target stage that this step will compute at to.
+   */
   void SetComputeAtIter(int stage_id, int target_stage_id, int target_iter_id);
+  /*!
+   * \brief This is a public wrapper of `DeleteStageEntry`. To delete the entry of a specific stage.
+   * \param stage_id The index of the stage to be compute at.
+   */
   void DeleteStage(int stage_id);
-  void ReplaceIters(const std::vector<IterKey>& old_iters,
-                    const std::vector<IterKey>& new_iters);
-  AttachMap ApplyStageIdOfffset(int start_id, int offset) const;
+  /*!
+   * \brief Update the iterator relations in AttachMap.
+   * \param old_iters The original IterKey.
+   * \param new_iters The new IterKey to update.
+   */
+  void UpdateIters(const std::vector<IterKey>& old_iters, const std::vector<IterKey>& new_iters);
 
   TVM_DEFINE_OBJECT_REF_METHODS(AttachMap, ObjectRef, AttachMapNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttachMapNode);
 
  private:
+  /*!
+   * \brief To delete the entry of a specific stage. This will remove the items related to this
+   * stage in both `stage_to_attach_iter` and `iter_to_attached_stages` map.
+   * \param pnode A mutable pointer to AttachMapNode.
+   * \param stage_id The index of stage that will be removed from the map.
+   */
   static void DeleteStageEntry(AttachMapNode* pnode, int stage_id);
 };
 
@@ -314,13 +334,27 @@ class State : public ObjectRef {
    * \param order The expected iterator order.
    */
   void reorder(int stage_id, const Array<Iterator>& order);
+  /*!
+   * \brief Schedule primitive corresponds to te.compute_at.
+   * \param stage_id The index of the stage to be reordered.
+   * \param target_stage_id The index of stage that this step will compute at to.
+   * \param target_iter The iterator in target stage that this step will compute at to.
+   */
   void compute_at(int stage_id, int target_stage_id, const Iterator& target_iter);
+  /*!
+   * \brief Schedule primitive corresponds to te.compute_root.
+   * \param stage_id The index of the stage to be reordered.
+   */
   void compute_root(int stage_id);
+  /*!
+   * \brief Schedule primitive corresponds to te.compute_inline.
+   * \param stage_id The index of the stage to be reordered.
+   */
   void compute_inline(int stage_id);
   /*!
    * \brief Schedule primitive corresponds to te.split.
    * \param stage_id The index of the stage to be split.
-   * \param it The iterator the be split.
+   * \param it The iterator to be split.
    * \param lengths The multiple split factors. Can be None to be filled by search policy.
    * \param inner_to_outer Whether the factor go from inner to outer, or from outer to inner.
    * \return The iterator results after split.
@@ -334,11 +368,38 @@ class State : public ObjectRef {
    * \return The iterator result after fuse.
    */
   Iterator fuse(int stage_id, const Array<Iterator>& iters);
+  /*!
+   * \brief Schedule primitive corresponds to te.vectorize.
+   * \param stage_id The index of the stage to be vectorized.
+   * \param it The iterator to be vectorized.
+   * \return The iterator result after vectorize.
+   */
   Iterator vectorize(int stage_id, const Iterator& it);
+  /*!
+   * \brief Schedule primitive corresponds to te.parallel.
+   * \param stage_id The index of the stage to be paralleled.
+   * \param it The iterator to be paralleled.
+   * \return The iterator result after parallel.
+   */
   Iterator parallel(int stage_id, const Iterator& it);
+  /*!
+   * \brief Schedule primitive corresponds to te.unroll.
+   * \param stage_id The index of the stage to be unrolled.
+   * \param it The iterator to be unrolled.
+   * \param max_unroll The max unroll limit. Iterator with extent larger than this limit will be
+   * skipped.
+   * \return The iterator result after unrolled.
+   */
   Iterator unroll(int stage_id, const Iterator& it, int max_unroll = -1);
-  Iterator bind_thread(int stage_id, const Iterator& it,
-                       IteratorAnnotation thread_type);
+  /*!
+   * \brief Schedule primitive corresponds to te.bind.
+   * \param stage_id The index of the stage to be binded.
+   * \param it The iterator to be binded.
+   * \param thread_type The thread type to be binded. We dirctly use the IteratorAnnotation as
+   * this input.
+   * \return The iterator result after binded.
+   */
+  Iterator bind(int stage_id, const Iterator& it, IteratorAnnotation thread_type);
 
   TVM_DEFINE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StateNode);
