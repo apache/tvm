@@ -3737,7 +3737,7 @@ def test_forward_dynamic_input_shape():
             graph_def = tf_testing.AddShapesToGraphDef(sess, out_name)
             tf_output = run_tf_graph(sess, np_data, 'data:0', ['{}:0'.format(out_name)])
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
-            for device in ["llvm"]:
+            for device in ["llvm", "cuda"]:
                 ctx = tvm.context(device, 0)
                 if not ctx.exist:
                     print("Skip because %s is not enabled" % device)

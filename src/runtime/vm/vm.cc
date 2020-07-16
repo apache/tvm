@@ -804,21 +804,50 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, In
   std::vector<int> codes(arity);
   runtime::TVMArgsSetter setter(values.data(), codes.data());
   int idx = 0;
-  for (Index i = 0; i < arg_count; i++) {
-    if (const auto* dt_cell = args[i].as<ADTObj>()) {
-      for (size_t fi = 0; fi < dt_cell->size; ++fi) {
-        auto obj = (*dt_cell)[fi];
-        auto nd_array = Downcast<NDArray>(obj);
+  if(shape_funcs_recorder_.at(packed_index)) {
+    Index output_start_ind = arg_count - output_size;
+    DLContext cpu_ctx;
+    cpu_ctx.device_type = kDLCPU;
+    cpu_ctx.device_id = 0;
+    std::vector<NDArray> cpu_outputs;
+    // prepare tensors, create cpu NDarray for outputs if necessary 
+    for (Index i = 0; i < arg_count; i++) {
+      if(i < output_start_ind) {
+        auto nd_array = Downcast<NDArray>(args[i]);
+        setter(idx++, nd_array);
+      }else {
+        auto default_output = Downcast<NDArray>(args[i]);
+        if(default_output->ctx.device_type == kDLCPU) {
+          setter(idx++, default_output);
+        }else {
+          auto cpu_output = NDArray::Empty(default_output.Shape(), default_output.DataType(), cpu_ctx);
+          cpu_outputs.push_back(cpu_output);
+          setter(idx++, cpu_output);
+        }
+      }
+    }
+    TVMRetValue rv;
+    func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
+    // copy cpu_outputs back to args
+    for(size_t o_ind=0; o_ind<cpu_outputs.size(); o_ind++) {
+      cpu_outputs.at(o_ind).CopyTo(Downcast<NDArray>(args[o_ind+output_start_ind]));
+    }
+  }else {
+    for (Index i = 0; i < arg_count; i++) {
+      if (const auto* dt_cell = args[i].as<ADTObj>()) {
+        for (size_t fi = 0; fi < dt_cell->size; ++fi) {
+          auto obj = (*dt_cell)[fi];
+          auto nd_array = Downcast<NDArray>(obj);
+          setter(idx++, nd_array);
+        }
+      } else {
+        auto nd_array = Downcast<NDArray>(args[i]);
         setter(idx++, nd_array);
       }
-    } else {
-      auto nd_array = Downcast<NDArray>(args[i]);
-      setter(idx++, nd_array);
     }
+    TVMRetValue rv;
+    func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
   }
-
-  TVMRetValue rv;
-  func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
 }
 
 void VirtualMachine::LoadExecutable(const Executable* exec) {
@@ -839,6 +868,11 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
     tvm::runtime::PackedFunc pf = lib.GetFunction(packed_name, true);
     CHECK(pf != nullptr) << "Cannot find function in module: " << packed_name;
     packed_funcs_[packed_index] = pf;
+    if(packed_name.rfind("shape_func_") == 0) {
+      shape_funcs_recorder_.insert(std::make_pair(packed_index, true));
+    }else {
+      shape_funcs_recorder_.insert(std::make_pair(packed_index, false));
+    }
   }
   for (size_t i = 0; i < packed_funcs_.size(); ++i) {
     CHECK(packed_funcs_[i] != nullptr) << "Packed function " << i << " is not initialized";

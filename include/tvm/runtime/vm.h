@@ -700,6 +700,8 @@ class VirtualMachine : public runtime::ModuleNode {
  protected:
   /*! \brief The virtual machine's packed function table. */
   std::vector<PackedFunc> packed_funcs_;
+  /*! \brief The virtual machine's shape function recorder. */
+  std::unordered_map<Index, bool> shape_funcs_recorder_;
   /*! \brief The current stack of call frames. */
   std::vector<VMFrame> frames_;
   /*! \brief The fuction table index of the current function. */
