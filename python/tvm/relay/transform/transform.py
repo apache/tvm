@@ -909,6 +909,7 @@ def DenseToSparse(weight_name, weight_shape):
     """
     return _ffi_api.DenseToSparse(weight_name, weight_shape)
 
+
 def SimplifyFCTranspose(target_weight_name):
     """
     Rewrite ```y = nn.dense(x, transpose(w, [1, 0]))``` to ```y = nn.dense(x, wt)```
@@ -926,3 +927,15 @@ def SimplifyFCTranspose(target_weight_name):
         The registered SimplifyFCTranspose pass.
     """
     return _ffi_api.SimplifyFCTranspose(target_weight_name)
+
+
+def SimplifyExpr():
+    """
+    Simplify the Relay expression, including merging consecutive reshapes.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered SimplifyExpr pass.
+    """
+    return _ffi_api.SimplifyExpr()

@@ -1286,6 +1286,37 @@ def test_tuple_output_exec():
                  [(10, 10), (10, 10)],
                  [(a_data + b_data), (a_data - b_data)])
 
+def test_extern_opt():
+    def Optimize(mod):
+        return relay.transform.FoldConstant()(mod)
+
+    tvm.register_func("relay.ext.test_target.optimize", Optimize)
+
+    x = relay.var('x', shape=(2, 2))
+    y0 = relay.var('y0', shape=(2, 2))
+    y1 = relay.var('y1', shape=(2, 2))
+    yy0 = relay.annotation.compiler_begin(y0, 'test_target')
+    yy1 = relay.annotation.compiler_begin(y1, 'test_target')
+    z = yy0 + yy1
+    end = relay.annotation.compiler_end(z, 'test_target')
+    f = relay.Function([x, y0, y1], end * x)
+    c = np.ones(shape=(2, 2), dtype="float32")
+    f = bind_params_by_name(f, {"y0": tvm.nd.array(c), "y1": tvm.nd.array(c)})
+    mod = tvm.IRModule()
+    mod["main"] = f
+    mod = transform.PartitionGraph()(mod)
+
+    try:
+        t0 = mod["test_target_0"]
+    except:
+        raise KeyError("test_target_0 not found")
+
+    assert isinstance(t0.body, relay.Constant)
+    expected = np.empty([2, 2])
+    expected.fill(2)
+    tvm.testing.assert_allclose(t0.body.data.asnumpy(), expected, rtol=1e-5,
+                                atol=1e-5)
+
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
@@ -1305,3 +1336,4 @@ if __name__ == "__main__":
     test_constant_tuples()
     test_flatten_tuple_output()
     test_tuple_output_exec()
+    test_extern_opt()

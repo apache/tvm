@@ -842,6 +842,13 @@ def schedule_scatter(attrs, outs, target):
     with target:
         return topi.generic.schedule_scatter(outs)
 
+# scatter_add
+@generic_func
+def schedule_scatter_add(attrs, outs, target):
+    """schedule scatter_add"""
+    with target:
+        return topi.generic.schedule_scatter_add(outs)
+
 # bitserial_conv2d
 def wrap_compute_bitserial_conv2d(topi_compute):
     """wrap bitserial_conv2d topi compute"""
