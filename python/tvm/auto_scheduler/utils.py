@@ -23,6 +23,7 @@ import multiprocessing.pool
 import queue
 import signal
 import threading
+import os
 
 try:
     import psutil
@@ -202,22 +203,22 @@ def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
 
     Parameters
     ----------
-    device_key: string
+    device_key : str
         The device key of registered device in tracker
-    host: host, optional
+    host : Optional[str]
         The host address of rpc tracker.
         If is none, will use environment variable "TVM_TRACKER_HOST"
-    port: int, optional
+    port : Optional[int]
         The port of rpc tracker.
         If is none, will use environment variable "TVM_TRACKER_PORT"
-    priority: int, optional
+    priority : int = 1
         The priority of this request, larger is more prior
-    timeout: float, optional
+    timeout : int = 60
         The timeout of this session (units: second)
 
     Returns
-    ------
-    session: RPCSession
+    -------
+    session : RPCSession
     """
     # connect to the tracker
     host = host or os.environ['TVM_TRACKER_HOST']
@@ -235,17 +236,17 @@ def check_remote(device_key, host=None, port=None, priority=100, timeout=10):
 
     Parameters
     ----------
-    device_key: string
+    device_key: str
         device key of registered device in tracker
-    host: host, optional
+    host: Optional[str]
         The host address of rpc tracker.
         If is none, will use environment variable "TVM_TRACKER_HOST"
-    port: int, optional
+    port: Optional[int]
         The port address of rpc tracker.
         If is none, will use environment variable "TVM_TRACKER_PORT"
-    priority: int, optional
+    priority: int = 100
         The priority of this request, larger is more prior
-    timeout: float, optional
+    timeout: int = 10
         The timeout of this check (units: seconds).
 
     Returns
