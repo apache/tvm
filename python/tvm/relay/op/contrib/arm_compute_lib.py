@@ -32,7 +32,7 @@ def is_arm_compute_runtime_enabled():
     ret: bool
         True if present, False if not.
     """
-    return tvm.get_global_func("relay.op.is_arm_compute_runtime_enabled", True)
+    return tvm.get_global_func("relay.op.is_arm_compute_runtime_enabled")()
 
 
 def partition_for_arm_compute_lib(mod, params=None):
