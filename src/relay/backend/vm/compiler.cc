@@ -284,6 +284,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       case Opcode::AllocClosure:
       case Opcode::AllocStorage:
       case Opcode::ShapeOf:
+      case Opcode::ReshapeTensor:
       case Opcode::Move:
       case Opcode::InvokeClosure:
         last_register_ = instr.dst;
@@ -601,6 +602,15 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                    this->VisitExpr(args[0]);
                    Emit(Instruction::ShapeOf(last_register_, NewRegister()));
                  })
+          .Match("vm.reshape_tensor",
+                 [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+                   CHECK_EQ(args.size(), 2u);
+                   this->VisitExpr(args[0]);
+                   auto tensor_reg = last_register_;
+                   this->VisitExpr(args[1]);
+                   auto shape_reg = last_register_;
+                   Emit(Instruction::ReshapeTensor(tensor_reg, shape_reg, NewRegister()));
+                 })
           .Match("memory.kill",
                  [](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
                    LOG(FATAL) << "memory.kill is not yet supported";
@@ -886,6 +896,7 @@ transform::Sequential MemoryOpt(tvm::Target host_target) {
 
   // Manifest the allocations needed for the shape functions.
   pass_seqs.push_back(transform::ManifestAlloc(host_target));
+  pass_seqs.push_back(tvm::transform::PrintIR("", false));
 
   // Fuse the shape functions.
   pass_seqs.push_back(transform::FuseOps());

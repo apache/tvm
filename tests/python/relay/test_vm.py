@@ -622,5 +622,50 @@ def test_loop_free_var():
         mod["main"] = relay.Function(relay.analysis.free_vars(ret), ret)
         check_result(args, expected, mod=mod)
 
+def test_vm_reshape_tensor():
+    x = relay.var("x", shape=(8, 16), dtype="float32")
+    y = relay.reshape(x, [-1, 4, 8])
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], y)
+    with tvm.transform.PassContext(opt_level=3):
+        exec = relay.vm.compile(mod, "llvm")
+    assert "reshape_tensor" in exec.bytecode
+
+    x = relay.var("x", shape=(8, 16), dtype="float32")
+    y = relay.reverse_reshape(x, [-1, 4, 8])
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], y)
+    with tvm.transform.PassContext(opt_level=3):
+        exec = relay.vm.compile(mod, "llvm")
+    assert "reshape_tensor" in exec.bytecode
+
+    n = tvm.te.size_var('n')
+    #n = tvm.tir.Any()
+    x = relay.var("x", shape=(n, 16), dtype="float32")
+    y = relay.reshape(x, [-1, 4])
+    y = relay.reshape(y, [0, 8, -1])
+    print(y)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], y)
+    print(mod)
+    with tvm.transform.PassContext(opt_level=3):
+        exec = relay.vm.compile(mod, "llvm")
+    print(exec.bytecode)
+    assert exec.bytecode.count("reshape_tensor") == 1
+
+    x = relay.var("x", shape=(8, 16), dtype="float32")
+    y = relay.var("y", shape=(3,), dtype="int")
+    z = relay.reshape(x, y)
+    z = relay.reshape(z, [-1, 4, 8])
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], z)
+    with tvm.transform.PassContext(opt_level=3):
+        exec = relay.vm.compile(mod, "llvm")
+    print(exec.bytecode)
+    assert exec.bytecode.count("reshape_tensor") == 2
+    assert "reshape_tensor" in exec.bytecode
+
 if __name__ == "__main__":
+    test_vm_reshape_tensor()
+    exit()
     pytest.main([__file__])
