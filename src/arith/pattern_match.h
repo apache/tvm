@@ -69,6 +69,7 @@
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 
+#include <cmath>
 #include <tuple>
 
 #include "const_fold.h"
@@ -143,6 +144,14 @@ template <>
 class PEqualChecker<IntImm> {
  public:
   bool operator()(const IntImm& lhs, const IntImm& rhs) const { return lhs->value == rhs->value; }
+};
+
+template <>
+class PEqualChecker<FloatImm> {
+ public:
+  bool operator()(const FloatImm& lhs, const FloatImm& rhs) const {
+    return std::fabs(lhs->value - rhs->value) < 1e-20;
+  }
 };
 
 template <>

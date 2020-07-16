@@ -40,6 +40,8 @@ def test_vector_simplify():
               (y + x).astype("int32x2"))
     ck.verify(tvm.tir.Broadcast(0, 4) + y,
               tvm.tir.Broadcast(y, 4))
+    ck.verify(tvm.tir.Ramp(x, 1, 4).astype('float32x4') + tvm.tir.Broadcast(0.0, 4),
+              tvm.tir.Ramp(x, 1, 4).astype('float32x4'))
     # Sub rules
     ck.verify(tvm.tir.Ramp(x, 4, 4) - tvm.tir.Ramp(y, 2, 4),
               tvm.tir.Ramp(x - y, 2, 4))
@@ -59,6 +61,8 @@ def test_vector_simplify():
               tvm.tir.Ramp(x * 2, 8, 4))
     ck.verify(tvm.tir.Broadcast(0, 4) * x,
               tvm.tir.Broadcast(0, 4))
+    ck.verify(tvm.tir.Broadcast(0.0, 4) * x,
+              tvm.tir.Broadcast(0.0, 4))
 
     ## DivMod rules
     tdiv = tvm.tir.truncdiv
