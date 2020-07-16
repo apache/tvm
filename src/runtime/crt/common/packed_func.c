@@ -23,6 +23,7 @@
  * \file src/runtime/crt/common/packed_func.c
  * \brief PackedFunc implementation.
  */
+#include <stdio.h>
 #include <string.h>
 #include <tvm/runtime/crt/internal/common/logging.h>
 #include <tvm/runtime/crt/packed_func.h>
@@ -85,6 +86,7 @@ int TVMPackedFunc_InitGlobalFunc(TVMPackedFunc* pf, const char* name, const TVMA
     return status;
   }
 
+  snprintf(pf->name, sizeof(pf->name), "%s", name);
   TVMPackedFunc_SetArgs(pf, args);
   return status;
 }
@@ -101,6 +103,7 @@ int TVMPackedFunc_InitModuleFunc(TVMPackedFunc* pf, TVMModuleHandle module, cons
     return status;
   }
 
+  snprintf(pf->name, sizeof(pf->name), "%s", name);
   TVMPackedFunc_SetArgs(pf, args);
   return status;
 }
