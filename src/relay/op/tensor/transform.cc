@@ -806,6 +806,55 @@ RELAY_REGISTER_OP("scatter")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_support_level(10);
 
+// Scatter_add
+TVM_REGISTER_NODE_TYPE(ScatterAddAttrs);
+
+// Scatter Add
+bool ScatterAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                   const TypeReporter& reporter) {
+  CHECK_EQ(num_inputs, 3);
+  CHECK_EQ(types.size(), 4);
+  auto data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    return false;
+  }
+  auto indices = types[1].as<TensorTypeNode>();
+  if (indices == nullptr) {
+    return false;
+  }
+  auto updates = types[2].as<TensorTypeNode>();
+  if (updates == nullptr) {
+    return false;
+  }
+  CHECK(indices->dtype.is_int()) << "indices of scatter_add must be tensor of integer";
+  const auto param = attrs.as<ScatterAddAttrs>();
+  CHECK(param != nullptr);
+  reporter->Assign(types[3], TensorType(data->shape, data->dtype));
+  return true;
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.scatter_add")
+    .set_body_typed([](Expr data, Expr indices, Expr updates, int axis) {
+      auto attrs = make_object<ScatterAddAttrs>();
+      attrs->axis = std::move(axis);
+      static const Op& op = Op::Get("scatter_add");
+      return Call(op, {data, indices, updates}, Attrs(attrs), {});
+    });
+
+RELAY_REGISTER_OP("scatter_add")
+    .describe(
+        R"doc(Update data by adding values in updates at positions defined by indices)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The input data tensor.")
+    .add_argument("indicies", "Tensor", "The indicies location tensor.")
+    .add_argument("updates", "Tensor", "The values to update the input with.")
+    .add_type_rel("ScatterAdd", ScatterAddRel)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_support_level(10);
+
+////
+
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 

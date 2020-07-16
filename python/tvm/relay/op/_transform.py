@@ -101,6 +101,14 @@ def compute_scatter(attrs, inputs, output_type):
 
 _reg.register_schedule("scatter", strategy.schedule_scatter)
 
+# scatter_add
+@_reg.register_compute("scatter_add")
+def compute_scatter_add(attrs, inputs, output_type):
+    """Compute definition of scatter_add"""
+    return [topi.scatter_add(inputs[0], inputs[1], inputs[2], attrs.axis)]
+
+_reg.register_schedule("scatter_add", strategy.schedule_scatter_add)
+
 #####################
 #  Shape functions  #
 #####################
@@ -396,6 +404,7 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
     return ValueError("Does not support rank higher than 5 in argwhere")
 
 _reg.register_shape_func("scatter", False, elemwise_shape_func)
+_reg.register_shape_func("scatter_add", False, elemwise_shape_func)
 
 @script
 def _layout_transform_shape_func(data_shape,

@@ -101,6 +101,14 @@ struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
   }
 };
 
+struct ScatterAddAttrs : public tvm::AttrsNode<ScatterAddAttrs> {
+  Integer axis;
+
+  TVM_DECLARE_ATTRS(ScatterAddAttrs, "relay.attrs.ScatterAddAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
+  }
+};
+
 struct GatherAttrs : public tvm::AttrsNode<GatherAttrs> {
   Integer axis;
 
