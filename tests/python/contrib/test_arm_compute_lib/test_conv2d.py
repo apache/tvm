@@ -143,7 +143,7 @@ def test_conv2d():
         for acl in [False, True]:
             outputs.append(build_and_run(func, inputs, 1,
                                          params, device,
-                                         enable_acl=acl))
+                                         enable_acl=acl)[0])
         verify(outputs, atol=0.002, rtol=0.01)
 
     for pad_ksize in [((1, 1), 3), ((2, 2), 5), ((2, 1), 3)]:
@@ -153,7 +153,7 @@ def test_conv2d():
         for acl in [False, True]:
             outputs.append(build_and_run(func, inputs, 1,
                                          params, device,
-                                         enable_acl=acl))
+                                         enable_acl=acl)[0])
         verify(outputs, atol=0.002, rtol=0.01)
 
     for strides in [(1, 1), (2, 2)]:
@@ -163,7 +163,7 @@ def test_conv2d():
         for acl in [False, True]:
             outputs.append(build_and_run(func, inputs, 1,
                                          params, device,
-                                         enable_acl=acl))
+                                         enable_acl=acl)[0])
         verify(outputs, atol=0.002, rtol=0.01)
 
     # Test composite convolution: (has_pad, has_bias, has_activation).
@@ -178,7 +178,7 @@ def test_conv2d():
         for acl in [False, True]:
             outputs.append(build_and_run(func, inputs, 1,
                                          params, device,
-                                         enable_acl=acl))
+                                         enable_acl=acl)[0])
         verify(outputs, atol=0.002, rtol=0.01)
 
 

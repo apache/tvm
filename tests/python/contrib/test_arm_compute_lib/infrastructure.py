@@ -66,6 +66,24 @@ class Device:
             return device
 
 
+def get_cpu_op_count(mod):
+    """Traverse graph counting ops offloaded to TVM."""
+    class Counter(tvm.relay.ExprVisitor):
+        def __init__(self):
+            super().__init__()
+            self.count = 0
+
+        def visit_call(self, call):
+            if isinstance(call.op, tvm.ir.Op):
+                self.count += 1
+
+            super().visit_call(call)
+
+    c = Counter()
+    c.visit(mod["main"])
+    return c.count
+
+
 def skip_runtime_test():
     """Skip test if it requires the runtime and it's not present."""
     # ACL codegen not present.
@@ -86,26 +104,39 @@ def skip_codegen_test():
         return True
 
 
-def build_module(mod, target, params=None, enable_acl=True):
+def build_module(mod, target, params=None, enable_acl=True, tvm_ops=0, acl_partitions=1):
     """Build module with option to build for ACL."""
     if isinstance(mod, tvm.relay.expr.Call):
         mod = tvm.IRModule.from_expr(mod)
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
         if enable_acl:
             mod = arm_compute_lib.partition_for_arm_compute_lib(mod, params)
+            tvm_op_count = get_cpu_op_count(mod)
+            assert tvm_op_count == tvm_ops, \
+                "Got {} TVM operators, expected {}".format(tvm_op_count, tvm_ops)
+            partition_count = 0
+            for global_var in mod.get_global_vars():
+                if "arm_compute_lib" in global_var.name_hint:
+                    partition_count += 1
+
+            assert acl_partitions == partition_count, \
+                "Got {} Arm Compute Library partitions, expected {}".format(
+                    partition_count, acl_partitions)
         relay.backend.compile_engine.get().clear()
         return relay.build(mod, target=target, params=params)
 
 
-def build_and_run(mod, inputs, outputs, params, device, enable_acl=True, no_runs=1):
+def build_and_run(mod, inputs, outputs, params, device, enable_acl=True, no_runs=1,
+                  tvm_ops=0, acl_partitions=1):
     """Build and run the relay module."""
-    lib = build_module(mod, device.target, params, enable_acl)
+    lib = build_module(mod, device.target, params, enable_acl, tvm_ops, acl_partitions)
     lib = update_lib(lib, device.device, device.cross_compile)
     gen_module = graph_runtime.GraphModule(lib['default'](device.device.cpu(0)))
     gen_module.set_input(**inputs)
+    out = []
     for _ in range(no_runs):
         gen_module.run()
-    out = [gen_module.get_output(i) for i in range(outputs)]
+        out.append([gen_module.get_output(i) for i in range(outputs)])
     return out
 
 

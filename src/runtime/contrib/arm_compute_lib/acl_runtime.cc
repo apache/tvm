@@ -288,7 +288,8 @@ class ACLRuntime : public JSONRuntimeBase {
   }
 
   void BuildEngine() {
-    // Do nothing.
+    LOG(WARNING) << "Arm Compute Library engine is not initialized. "
+                 << "Please build with USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME.";
   }
 #endif
 };

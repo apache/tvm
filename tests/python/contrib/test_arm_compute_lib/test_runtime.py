@@ -28,7 +28,8 @@ from .infrastructure import Device
 def test_multiple_ops():
     """
     Test multiple operators destined for ACL.
-    ACL will expect these ops as in 2 separate functions.
+    The ACL runtime will expect these ops as 2 separate functions for
+    the time being.
     """
     if skip_runtime_test():
         return
@@ -51,14 +52,45 @@ def test_multiple_ops():
     for acl in [False, True]:
         func = get_model(inputs["a"].shape, iter(inputs))
         outputs.append(build_and_run(func, inputs, 1, None, device,
-                                     enable_acl=acl))
+                                     enable_acl=acl, acl_partitions=2)[0])
+    verify(outputs, atol=0.002, rtol=0.01)
+
+
+def test_heterogeneous():
+    """
+    Test to check if offloading only supported operators works,
+    while leaving unsupported operators computed via tvm.
+    """
+    if skip_runtime_test():
+        return
+
+    device = Device()
+    np.random.seed(0)
+
+    def get_model(input_shape, var_names):
+        """Return a model and any parameters it may have."""
+        a = relay.var(next(var_names), shape=input_shape, dtype="float32")
+        out = relay.reshape(a, (1, 1, 1000))
+        out = relay.sigmoid(out)
+        out = relay.reshape(out, (1, 1000))
+        return out
+
+    inputs = {
+        "a": tvm.nd.array(np.random.uniform(-127, 128, (1, 1, 1, 1000)).astype("float32"))
+    }
+
+    outputs = []
+    for acl in [False, True]:
+        func = get_model(inputs["a"].shape, iter(inputs))
+        outputs.append(build_and_run(func, inputs, 1, None, device,
+                                     enable_acl=acl, tvm_ops=1,
+                                     acl_partitions=2)[0])
     verify(outputs, atol=0.002, rtol=0.01)
 
 
 def test_multiple_runs():
     """
     Test that multiple runs of an operator work.
-    Note: the result isn't checked.
     """
     if skip_runtime_test():
         return
@@ -83,16 +115,18 @@ def test_multiple_runs():
         return conv, params
 
     inputs = {
-        "a": tvm.nd.array(np.ones((1, 28, 28, 512), dtype="float32")),
+        "a": tvm.nd.array(np.random.uniform(-127, 128, (1, 28, 28, 512)).astype("float32")),
     }
 
     func, params = get_model()
-    build_and_run(func, inputs, 1,
+    outputs = build_and_run(func, inputs, 1,
                   params, device,
                   enable_acl=True,
                   no_runs=3)
+    verify(outputs, atol=0.002, rtol=0.01)
 
 
 if __name__ == "__main__":
     test_multiple_ops()
+    test_heterogeneous()
     test_multiple_runs()

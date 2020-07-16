@@ -73,7 +73,7 @@ def test_reshape():
         func = _get_model(inputs["a"].shape, shape, iter(inputs))
         for acl in [False, True]:
             outputs.append(build_and_run(func, inputs, 1, None, device,
-                                         enable_acl=acl))
+                                         enable_acl=acl)[0])
         verify(outputs, atol=1e-7, rtol=1e-7)
 
 

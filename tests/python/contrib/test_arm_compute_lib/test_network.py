@@ -24,7 +24,7 @@ from .infrastructure import skip_runtime_test, build_and_run, verify
 from .infrastructure import Device
 
 
-def _build_and_run_keras_network(mod, params, inputs, device):
+def _build_and_run_keras_network(mod, params, inputs, device, tvm_ops, acl_partitions):
     """Helper function to build and run a network from the Keras frontend."""
     data = {}
     np.random.seed(0)
@@ -34,7 +34,9 @@ def _build_and_run_keras_network(mod, params, inputs, device):
     outputs = []
     for acl in [False, True]:
         outputs.append(build_and_run(mod, data, 1, params,
-                                     device, enable_acl=acl))
+                                     device, enable_acl=acl,
+                                     tvm_ops=tvm_ops,
+                                     acl_partitions=acl_partitions)[0])
     verify(outputs, atol=0.002, rtol=0.01)
 
 
@@ -52,7 +54,8 @@ def test_vgg16():
         mod, params = relay.frontend.from_keras(vgg16, inputs, layout="NHWC")
         return mod, params, inputs
 
-    _build_and_run_keras_network(*get_model(), device=device)
+    _build_and_run_keras_network(*get_model(), device=device,
+                                 tvm_ops=10, acl_partitions=18)
 
 
 def test_mobilenet():
@@ -69,7 +72,8 @@ def test_mobilenet():
         mod, params = relay.frontend.from_keras(mobilenet, inputs, layout="NHWC")
         return mod, params, inputs
 
-    _build_and_run_keras_network(*get_model(), device=device)
+    _build_and_run_keras_network(*get_model(), device=device,
+                                 tvm_ops=74, acl_partitions=17)
 
 
 if __name__ == "__main__":
