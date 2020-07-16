@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name
 """x86 declaration and schedules."""
-from tvm import te, tir, target, runtime
-from ..util import is_empty_shape, get_const_int
+from tvm import te, tir, runtime
+from ..util import is_empty_shape
 
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
