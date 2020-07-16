@@ -63,7 +63,7 @@ struct hash<std::tuple<T1, T2, T3>> {
 namespace tvm {
 namespace auto_scheduler {
 
-/********** Utilities for Array, std::string **********/
+/********** Utilities for Array, std::vector, std::string **********/
 /*! \brief Get the first appearance index of elements in an Array */
 template <typename T>
 inline void GetIndices(const Array<T>& array, const Array<T>& to_locate, Array<Integer>* indices) {
@@ -89,6 +89,7 @@ inline int GetIndex(const Array<T>& array, const T& to_locate) {
   return -1;
 }
 
+/*! \brief Delete the item in a std::vector. */
 template <typename T>
 inline void DeleteItem(std::vector<T>* array, const T& to_delete) {
   auto iter = std::find(array->begin(), array->end(), to_delete);

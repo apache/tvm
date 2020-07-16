@@ -105,11 +105,8 @@ String ComputeAtStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
   const auto& target_stage = (*stages)[target_stage_id];
-
   ss << "s[" << CleanName(stage->op->name) << "].compute_at(s[" << CleanName(target_stage->op->name)
-     << "], " << CleanName((*stage_to_axes)[target_stage][target_iter_id]->var->name_hint);
-
-  ss << ")\n";
+     << "], " << CleanName((*stage_to_axes)[target_stage][target_iter_id]->var->name_hint) << ")\n";
   ApplyToSchedule(stages, stage_to_axes);
   return ss.str();
 }
@@ -125,6 +122,7 @@ void ComputeRootStepNode::ApplyToSchedule(Array<te::Stage>* stages,
                                           StageToAxesMap* stage_to_axes) const {
   auto stage = (*stages)[stage_id];
   stage.compute_root();
+
   stages->Set(stage_id, std::move(stage));
 }
 
@@ -132,10 +130,8 @@ String ComputeRootStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                              StageToAxesMap* stage_to_axes) const {
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
-
   ss << "s[" << CleanName(stage->op->name) << "].compute_root()\n";
   ApplyToSchedule(stages, stage_to_axes);
-
   return ss.str();
 }
 
@@ -150,6 +146,7 @@ void ComputeInlineStepNode::ApplyToSchedule(Array<te::Stage>* stages,
                                             StageToAxesMap* stage_to_axes) const {
   auto stage = (*stages)[stage_id];
   stage.compute_inline();
+
   stages->Set(stage_id, std::move(stage));
 }
 
@@ -157,10 +154,8 @@ String ComputeInlineStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                                StageToAxesMap* stage_to_axes) const {
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
-
   ss << "s[" << CleanName(stage->op->name) << "].compute_inline()\n";
   ApplyToSchedule(stages, stage_to_axes);
-
   return ss.str();
 }
 

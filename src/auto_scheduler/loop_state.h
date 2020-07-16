@@ -270,6 +270,10 @@ class StateNode : public Object {
   Array<Stage> stages;
   /*! \brief History transformation steps. */
   Array<Step> transform_steps;
+  /*!
+   * \brief The attach relations of stages and iterators. This is used to track the compute at
+   * operation.
+   */
   AttachMap attach_map;
   /*!
    * \brief Indicate whether this state has unfilled tile sizes. A concrete state means that all
@@ -280,7 +284,6 @@ class StateNode : public Object {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("stages", &stages);
     v->Visit("transform_steps", &transform_steps);
-    v->Visit("attach_map", &attach_map);
     v->Visit("concrete", &concrete);
   }
 
@@ -414,8 +417,20 @@ class State : public ObjectRef {
    * \param step A ReorderStep.
    */
   void DoReorderStep(const ReorderStep& step);
+  /*!
+   * \brief Apply compute at step to current state.
+   * \param step A ComputeAtStep.
+   */
   void DoComputeAtStep(const ComputeAtStep& step);
+  /*!
+   * \brief Apply compute root step to current state.
+   * \param step A ComputeRootStep.
+   */
   void DoComputeRootStep(const ComputeRootStep& step);
+  /*!
+   * \brief Apply compute inline to current state.
+   * \param step A ComputeInline.
+   */
   void DoComputeInlineStep(const ComputeInlineStep& step);
   /*!
    * \brief Apply split step to current state.
@@ -429,6 +444,11 @@ class State : public ObjectRef {
    * \return The iterator result after fuse.
    */
   Iterator DoFuseStep(const FuseStep& step);
+  /*!
+   * \brief Apply annotation step to current state.
+   * \param step A AnnotationStep.
+   * \return The iterator result after annotate.
+   */
   Iterator DoAnnotationStep(const AnnotationStep& step);
 
   /*!

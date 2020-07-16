@@ -226,10 +226,8 @@ Iterator State::parallel(int stage_id, const Iterator& it) {
 
 Iterator State::unroll(int stage_id, const Iterator& it, int max_unroll) {
   const Stage& stage = operator->()->stages[stage_id];
-  AnnotationStep step =
-      AnnotationStep(stage_id, GetIndex(stage->iters, it), IteratorAnnotation::kUnroll);
 
-  // don't unroll if the extent is larger than max_unroll
+  // Don't unroll if the extent is larger than max_unroll
   if (max_unroll != -1 && it->range.defined()) {
     if (auto imm = it->range->extent.as<IntImmNode>()) {
       if (imm->value > max_unroll) {
@@ -238,6 +236,8 @@ Iterator State::unroll(int stage_id, const Iterator& it, int max_unroll) {
     }
   }
 
+  AnnotationStep step =
+      AnnotationStep(stage_id, GetIndex(stage->iters, it), IteratorAnnotation::kUnroll);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoAnnotationStep(step);
 }
@@ -493,8 +493,7 @@ Iterator State::DoAnnotationStep(const AnnotationStep& step) {
   Iterator new_it = Iterator(it->name, it->range, it->iter_kind, step->annotation);
   Stage new_stage = stage;
   new_stage.CopyOnWrite()->iters.Set(step->iter_id, std::move(new_it));
-  StateNode* pstate = CopyOnWrite();
-  pstate->stages.Set(step->stage_id, std::move(new_stage));
+  CopyOnWrite()->stages.Set(step->stage_id, std::move(new_stage));
   return new_it;
 }
 
