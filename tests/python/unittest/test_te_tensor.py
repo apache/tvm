@@ -342,3 +342,4 @@ if __name__ == "__main__":
     test_tuple_inputs()
     test_tuple_with_different_deps()
     test_tensor_pool()
+    test_tensor_scalar()

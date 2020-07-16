@@ -54,6 +54,7 @@ class BuiltinLower : public StmtExprMutator {
     stack_value_ = Var("stack_value", DataType::Handle());
     stack_tcode_ = Var("stack_tcode", DataType::Handle());
     stmt = this->VisitStmt(stmt);
+    // create a shape var if any shape is made (including scalar shapes)
     if (max_shape_stack_ != -1) {
       stmt = LetStmt(stack_shape_, StackAlloca("shape", max_shape_stack_), stmt);
     }
