@@ -186,7 +186,7 @@ class State:
         Returns
         -------
         res_its : List[Iterator]
-            The splitted new Iterators
+            The splitted new Iterators.
         """
         self.state_object, res = _ffi_api.StateSplit(self.state_object,
                                                      self._resolve_stage_id(stage),
@@ -254,7 +254,7 @@ class State:
         return res
 
     def unroll(self, stage, iterator, max_unroll=None):
-        """ Schedule primitive corresponds to te.unrolled.
+        """ Schedule primitive corresponds to te.unroll.
 
         Parameters
         ----------

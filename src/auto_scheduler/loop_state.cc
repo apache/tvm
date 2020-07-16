@@ -268,10 +268,9 @@ void State::DoReorderStep(const ReorderStep& step) {
 void State::DoComputeAtStep(const ComputeAtStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
 
-  // after compute_at, we don't know the accurate length information any more
-  // If we do want to know the accurate lengths, we can call
-  // ComputeDAG::ReplayAndInferBound
-  std::vector<Iterator> new_iters;
+  // After compute_at, we don't know the accurate length information any more
+  // If we do want to know the accurate lengths, we can call ComputeDAG::InferBound
+  Array<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
     new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation));
   }
@@ -279,43 +278,44 @@ void State::DoComputeAtStep(const ComputeAtStep& step) {
   StateNode* pstate = CopyOnWrite();
   pstate->stages.Set(step->stage_id, Stage(stage->op, stage->op_type, std::move(new_iters),
                                            ComputeAtKind::kIter, stage->attrs));
+  // Update attach map
   pstate->attach_map.SetComputeAtIter(step->stage_id, step->target_stage_id, step->target_iter_id);
 }
 
 void State::DoComputeRootStep(const ComputeRootStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
 
-  // after compute_root, we don't know the accurate length information any more
-  // If we do want to know the accurate lengths, we can call
-  // ComputeDAG::ReplayAndInferBound
-  std::vector<Iterator> new_iters;
+  // After compute_at, we don't know the accurate length information any more
+  // If we do want to know the accurate lengths, we can call ComputeDAG::InferBound
+  Array<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
     new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation));
   }
 
-  // update attach map
   StateNode* pstate = CopyOnWrite();
   pstate->stages.Set(step->stage_id, Stage(stage->op, stage->op_type, std::move(new_iters),
                                            ComputeAtKind::kRoot, stage->attrs));
+  // Update attach map
   pstate->attach_map.DeleteStage(step->stage_id);
 }
 
 void State::DoComputeInlineStep(const ComputeInlineStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
 
-  StateNode* pstate = CopyOnWrite();
-
   // CHECK the validity of compute_inline
-  const auto& iter_to_attached_stages = pstate->attach_map->iter_to_attached_stages;
   for (size_t i = 0; i < stage->iters.size(); ++i) {
-    CHECK_EQ(iter_to_attached_stages.count(std::make_pair(step->stage_id, i)), 0)
+    CHECK_EQ(operator->()->attach_map->iter_to_attached_stages.count(
+                 std::make_pair(step->stage_id, i)),
+             0)
         << "Invalid compute_inline: Because there are some other stages "
            "that are attached to the target stage";
   }
 
+  StateNode* pstate = CopyOnWrite();
   auto new_stage = pstate->stages[step->stage_id];
   new_stage.CopyOnWrite()->compute_at = ComputeAtKind::kInlined;
   pstate->stages.Set(step->stage_id, std::move(new_stage));
+  // Update attach map
   pstate->attach_map.DeleteStage(step->stage_id);
 }
 
