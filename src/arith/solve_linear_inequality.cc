@@ -94,35 +94,6 @@ struct ExprLess {
   }
 };
 
-/*!
- * \brief Combine the information into an array of (in)equalities.
- */
-Array<PrimExpr> as_conditions(const Array<Var>& variables, const Map<Var, IntGroupBounds>& bounds,
-                              const Array<PrimExpr>& relations) {
-  Array<PrimExpr> res;
-  // use variables to keep the order of iteration
-  // so as to get rid of any non-determinism.
-  CHECK_EQ(variables.size(), bounds.size());
-  for (const auto v : variables) {
-    CHECK(bounds.count(v));
-    const auto& bnds = bounds[v];
-    PrimExpr lhs = bnds->coef * v;
-    for (const PrimExpr& rhs : bnds->equal) {
-      res.push_back(tir::EQ(lhs, rhs));
-    }
-    for (const PrimExpr& rhs : bnds->lower) {
-      res.push_back(tir::GE(lhs, rhs));
-    }
-    for (const PrimExpr& rhs : bnds->upper) {
-      res.push_back(tir::LE(lhs, rhs));
-    }
-  }
-  for (const PrimExpr& e : relations) {
-    res.push_back(e);
-  }
-  return res;
-}
-
 void DebugPrint(
     const std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>& current_ineq_set,
     const std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>& next_ineq_set,
@@ -491,7 +462,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
   arith::Analyzer analyzer;
   analyzer.Bind(vranges);
   for (const PrimExpr& old_cond :
-       as_conditions(inequalities->variables, solved_bounds, solved_other_relations)) {
+       AsConditions(inequalities->variables, solved_bounds, solved_other_relations)) {
     if (!analyzer.CanProve(old_cond)) {
       // those not represented in vranges (res_ranges)
       res_relations.push_back(old_cond);
@@ -584,7 +555,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
 
   // Add the original conditions (with variables substituted) to the resulting conditions
   for (const PrimExpr& old_cond :
-       as_conditions(inequalities->variables, solved_bounds, solved_other_relations)) {
+       AsConditions(inequalities->variables, solved_bounds, solved_other_relations)) {
     PrimExpr new_cond = analyzer.Simplify(Substitute(old_cond, res_src_to_dst));
     if (!is_const_int(new_cond, 1)) {
       // those not represented in vranges (res_ranges)
@@ -615,7 +586,7 @@ TVM_REGISTER_GLOBAL("arith.SolveInequalitiesAsCondition")
         LOG(FATAL) << "arith.SolveInequalitiesAsCondition expects 1 or 3 arguments, gets "
                    << args.size();
       }
-      *ret = as_conditions(problem->variables, ret_ineq.first, ret_ineq.second);
+      *ret = AsConditions(problem->variables, ret_ineq.first, ret_ineq.second);
     });
 
 TVM_REGISTER_GLOBAL("arith.SolveInequalitiesToRange").set_body([](TVMArgs args, TVMRetValue* ret) {

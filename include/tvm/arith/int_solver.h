@@ -251,6 +251,15 @@ class IntConstraintsTransform : public ObjectRef {
   TVM_DLL IntConstraintsTransform(IntConstraints src, IntConstraints dst,
                                   Map<Var, PrimExpr> src_to_dst, Map<Var, PrimExpr> dst_to_src);
 
+  /*!
+   * \brief Chain-compose two IntConstraintsTransform together.
+   *        this->dst must be the same as other->src.
+   * @param other another IntConstraintsTransform whose src is same as this->dst.
+   * @return composed IntConstraintsTransform(this->src, other->dst)
+   *         with its variables and ranges are properly modified.
+   */
+  IntConstraintsTransform operator+(const IntConstraintsTransform& other) const;
+
   TVM_DEFINE_OBJECT_REF_METHODS(IntConstraintsTransform, ObjectRef, IntConstraintsTransformNode);
 };
 
@@ -305,6 +314,17 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
  *         and constrains that cannot be solved to bounds.
  */
 PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_to_solve);
+
+/*!
+ * \brief Combine the information into an array of (in)equalities.
+ * \param variables The variables in \p bounds.
+ *        It is used to determine the iteration order to avoid indeterministic results.
+ * \param bounds grouped boundary of the variables.
+ * \param relations other relations.
+ */
+Array<PrimExpr> AsConditions(const Array<Var>& variables,
+                             const Map<Var, IntGroupBounds>& bounds,
+                             const Array<PrimExpr>& relations);
 
 /*!
  * \brief Solve linear inequalities and infer the range of each variable.

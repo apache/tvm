@@ -39,6 +39,8 @@
 #include <memory>
 #include <vector>
 
+#include "ad_util.h"
+
 namespace tvm {
 namespace te {
 
@@ -63,6 +65,10 @@ Tensor VectorJacobianProduct(const Tensor& output, const Tensor& input, const Te
   Tensor jac = Jacobian(output, input);
   Tensor result = topi::tensordot(head, jac, /*axes=*/output->shape.size(),
                                   output->op->name + "." + input->op->name + ".grad");
+  result = InlineTensorAccess(result, {jac}, false);
+  result = RemoveJacobianAndLiftNonzeroCond(result);
+  // inline tail call
+  result = InlineTailTensorAccess(result);
   return result;
 }
 
