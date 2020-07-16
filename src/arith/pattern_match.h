@@ -150,7 +150,7 @@ template <>
 class PEqualChecker<FloatImm> {
  public:
   bool operator()(const FloatImm& lhs, const FloatImm& rhs) const {
-    return std::fabs(rhs->value - lhs->value) < 1e-20;
+    return std::fabs(lhs->value - rhs->value) < 1e-20;
   }
 };
 
