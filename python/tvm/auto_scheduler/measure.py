@@ -200,6 +200,8 @@ class LocalBuilder(ProgramBuilder):
 class LocalRunner(ProgramRunner):
     """ LocalRunner that uses local CPU/GPU to measures the time cost of programs.
 
+    TODO(FrozenGene): Add cpu cache flush to this runner
+
     Parameters
     ----------
     timeout : int = 10
@@ -241,6 +243,8 @@ class RPCRunner(ProgramRunner):
     """ RPCRunner that uses RPC call to measures the time cost of programs on remote devices.
     Or sometime we may need to use RPC even in local running to insulate the thread environment.
     (e.g. running CUDA programs)
+
+    TODO(FrozenGene): Add cpu cache flush to this runner.
 
     Parameters
     ----------
@@ -296,6 +300,8 @@ class RPCRunner(ProgramRunner):
 class LocalRPCMeasureContext:
     """ A context wrapper for running RPCRunner locally.
     This will launch a local RPC Tracker and local RPC Server.
+
+    TODO(FrozenGene): Add cpu cache flush to this RPC context.
 
     Parameters
     ----------
@@ -548,6 +554,7 @@ def local_run(inputs, build_results,
         try:
             func = module.load_module(build_res.filename)
             ctx = ndarray.context(str(inp.task.target), 0)
+            # TODO(FrozenGene): Add cpu cache flush to this function.
             time_f = func.time_evaluator(
                 func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
         # pylint: disable=broad-except
@@ -558,6 +565,7 @@ def local_run(inputs, build_results,
 
         if error_no == 0:
             try:
+                # TODO(FrozenGene): Update to ndarray.non-empty
                 args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
                         build_res.args]
                 ctx.sync()
@@ -637,6 +645,7 @@ def rpc_run_worker(index):
             remote.upload(build_res.filename)
             func = remote.load_module(os.path.split(build_res.filename)[1])
             ctx = remote.context(str(inp.task.target), 0)
+            # TODO(FrozenGene): Add cpu cache flush to this function.
             time_f = func.time_evaluator(
                 func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
         # pylint: disable=broad-except
@@ -647,6 +656,7 @@ def rpc_run_worker(index):
 
         if error_no == 0:
             try:
+                # TODO(FrozenGene): Update to ndarray.non-empty
                 args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
                         build_res.args]
                 ctx.sync()
