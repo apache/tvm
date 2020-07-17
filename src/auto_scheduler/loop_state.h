@@ -453,12 +453,16 @@ class State : public ObjectRef {
    * \brief Apply split step to current state.
    * \param step A SplitStep.
    * \return The iterator results after split.
+   * \note If we do split on an iterator which has stages attached at it(by compute_at), the inner
+   * most iterator of split results will become the new attach point.
    */
   Array<Iterator> DoSplitStep(const SplitStep& step);
   /*!
    * \brief Apply fuse step to current state.
    * \param step A FuseStep.
    * \return The iterator result after fuse.
+   * \note If the iterators to be fused have stages attached at them(by compute_at), the fused
+   * result will become the new attach point.
    */
   Iterator DoFuseStep(const FuseStep& step);
   /*!
