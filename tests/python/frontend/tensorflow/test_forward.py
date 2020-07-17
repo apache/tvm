@@ -2051,46 +2051,41 @@ def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
     input_size = num_hidden
     input_data = np.full((batch_size, input_size), 1., dtype=dtype)
     in_state_c = np.full(
-        (num_layers, batch_size, num_hidden), 0.1, dtype=dtype)
+        (batch_size, num_hidden), 0.1, dtype=dtype)
     in_state_h = np.full(
-        (num_layers, batch_size, num_hidden), 0.1, dtype=dtype)
+        (batch_size, num_hidden), 0.1, dtype=dtype)
 
     def _get_tensorflow_output():
         with tf.Session() as sess:
             with variable_scope.variable_scope(
                     "root", initializer=init_ops.constant_initializer(0.5)):
-                m0 = array_ops.zeros([batch_size, num_hidden])
-                m1 = array_ops.zeros([batch_size, num_hidden])
-                x = tf.placeholder(shape=(batch_size, input_size), dtype=dtype)
+                m0 = tf.placeholder(dtype, [batch_size, num_hidden], name="m0")
+                m1 = tf.placeholder(dtype, [batch_size, num_hidden], name="m1")
+                x = tf.placeholder(shape=(batch_size, input_size), dtype=dtype, name="input")
                 g, ((out_m0, out_m1)) = \
                     tensorflow.contrib.rnn.LSTMBlockCell(num_hidden,
                                                          forget_bias=forget_bias)(x, (m0, m1))
                 sess.run([variables.global_variables_initializer()])
                 res = sess.run([g, out_m0, out_m1], {
                     x.name: np.array([[1., 1.]]),
-                    m0.name: 0.1 * np.ones([batch_size, num_hidden]),
-                    m1.name: 0.1 * np.ones([batch_size, num_hidden]),
+                    m0.name: in_state_c,
+                    m1.name: in_state_h,
                 })
             graph_def = sess.graph.as_graph_def(add_shapes=True)
             final_graph_def = graph_util.convert_variables_to_constants(
                 sess,
                 graph_def,
                 ['root/lstm_cell/LSTMBlockCell'])
+
             return final_graph_def, res
 
     graph_def, tf_out = _get_tensorflow_output()
     tvm_output = run_tvm_graph(graph_def, [input_data, in_state_c, in_state_h],
-                               ['root/Placeholder', 'root/lstm_cell/LSTMBlockCell_c',
-                                'root/lstm_cell/LSTMBlockCell_h'], num_output=2)
+                               ['root/input', "root/m0", "root/m1"], num_output=7)
     assert isinstance(tvm_output, list)
 
-    out = tvm_output[0]
-    out_state = tvm_output[1]
-    out_state_tup = np.split(out_state, indices_or_sections=2, axis=1)
-    out_state_c = np.reshape(out_state_tup[0], (batch_size, num_hidden))
-    out_state_h = np.reshape(out_state_tup[1], (batch_size, num_hidden))
-    tvm_out = [out, out_state_c, out_state_h]
-    tvm.testing.assert_allclose(tf_out[0], tvm_out[0], rtol=1e-3, atol=1e-3)
+    tvm.testing.assert_allclose(tf_out[0], tvm_output[6], rtol=1e-3, atol=1e-3)
+    tvm.testing.assert_allclose(tf_out[1], tvm_output[1], rtol=1e-3, atol=1e-3)
 
 
 def test_forward_lstm():
@@ -2477,7 +2472,7 @@ def test_forward_ptb():
     batch_size = config.batch_size
     vocab_size = config.vocab_size
     out_sample_shape = (batch_size, vocab_size)
-    out_state_shape = (num_layers, 2, batch_size, num_hidden)
+    out_state_shape = (batch_size, num_hidden)
     # Sample input
     inpt = "we have no useful information on"
     cnt_sample = 20
@@ -2490,18 +2485,17 @@ def test_forward_ptb():
 
     def _get_tvm_graph_module(graph_def):
         # Cell inputs 'c and 'h' consist of all layers values
-        shape_dict = {'Model/Placeholder': (batch_size, num_steps),
-                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c':
-                      (num_layers, batch_size, num_hidden),
-                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h':
-                      (num_layers, batch_size, num_hidden)}
+        shape_dict = {'Model/Placeholder': (batch_size, num_steps)}
 
         mod, params = relay.frontend.from_tensorflow(
-            graph_def, shape=shape_dict)
+            graph_def, shape=shape_dict,
+            outputs=['Model/Softmax:0',
+                     'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:1',
+                     'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:6',
+                     'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:1',
+                     'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:6',
+                    ])
 
-        dtype_dict = {'Model/Placeholder': 'int32',
-                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c': 'float32',
-                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h': 'float32'}
         target = 'llvm'
         with tvm.transform.PassContext(opt_level=0):
             graph, lib, params = relay.build(mod,
@@ -2519,24 +2513,26 @@ def test_forward_ptb():
 
         def _get_sample(data, state):
             input_data = np.full((batch_size, num_steps), data, dtype="int32")
-            in_state_tup = np.split(state, indices_or_sections=2, axis=1)
-            in_state_c = np.reshape(
-                in_state_tup[0], (num_layers, batch_size, num_hidden))
-            in_state_h = np.reshape(
-                in_state_tup[1], (num_layers, batch_size, num_hidden))
 
             model.set_input('Model/Placeholder',
                             tvm.nd.array(input_data.astype("int32")))
-            model.set_input('Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c',
-                            tvm.nd.array(in_state_c.astype("float32")))
-            model.set_input('Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h',
-                            tvm.nd.array(in_state_h.astype("float32")))
+            model.set_input('Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros',
+                            tvm.nd.array(state[0].astype("float32")))
+            model.set_input('Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros_1',
+                            tvm.nd.array(state[1].astype("float32")))
+            model.set_input('Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros',
+                            tvm.nd.array(state[2].astype("float32")))
+            model.set_input('Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros_1',
+                            tvm.nd.array(state[3].astype("float32")))
             model.set_input(**params)
             model.run()
             tvm_output = model.get_output(0, tvm.nd.empty(out_sample_shape,
                                                           "float32")).asnumpy()
-            state_output = model.get_output(1, tvm.nd.empty(out_state_shape,
-                                                            "float32")).asnumpy()
+
+            state_output = []
+            for i in range(4):
+                state_output.append(model.get_output(i+1, tvm.nd.empty(out_state_shape,
+                                                            "float32")).asnumpy())
             sample = tf_testing.pick_from_weight(tvm_output[0])
 
             return sample, state_output
@@ -2570,8 +2566,7 @@ def test_forward_ptb():
     cnt_stm = 0
     while cnt_stm < 10:
         cnt_stm += 1
-        in_state = np.full(
-            (num_layers, 2, batch_size, num_hidden), 0, dtype="float32")
+        in_state = [np.full((batch_size, num_hidden), 0, dtype="float32")] * 2 * num_layers
         seed_for_sample = inpt.split()
         tvm_samples, tvm_state = _do_tvm_sample(m, [word_to_id[word]
                                                     for word in seed_for_sample],
@@ -3748,6 +3743,94 @@ def test_forward_dynamic_input_shape():
                 tvm.testing.assert_allclose(tvm_output[0], tf_output[0],
                                             rtol=1e-5, atol=1e-5)
 
+def test_forward_dynmaic_rnn_lstmblockcell():
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.0.0'):
+        return
+
+    total_series_length = 50000
+    truncated_backprop_length = 15
+    state_size = 4
+    echo_step = 3
+    batch_size = 5
+    num_layers = 5
+
+    def generateData():
+        x = np.array(np.random.choice(2, total_series_length, p=[0.5, 0.5]))
+        y = np.roll(x, echo_step)
+        y[0:echo_step] = 0
+
+        x = x.reshape((batch_size, -1))  # The first index changing slowest, subseries as rows
+        y = y.reshape((batch_size, -1))
+
+        return (x, y)
+
+    batchX_placeholder = tf.placeholder(tf.float32, [batch_size, truncated_backprop_length])
+
+    init_state = tf.placeholder(tf.float32, [num_layers, 2, batch_size, state_size])
+
+    state_per_layer_list = tf.unstack(init_state, axis=0)
+    rnn_tuple_state = tuple(
+        [tf.nn.rnn_cell.LSTMStateTuple(state_per_layer_list[idx][0], state_per_layer_list[idx][1])
+         for idx in range(num_layers)]
+    )
+
+    # Forward passes
+    def lstm_cell():
+        return tensorflow.contrib.rnn.LSTMBlockCell(state_size)
+    cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell() for _ in range(num_layers)], state_is_tuple=True)
+    states_series, current_state = tf.nn.dynamic_rnn(cell, tf.expand_dims(batchX_placeholder, -1),
+                                                     initial_state=rnn_tuple_state)
+
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        x, y = generateData()
+        _current_state = np.zeros((num_layers, 2, batch_size, state_size))
+
+        start_idx = 0
+        end_idx = start_idx + truncated_backprop_length
+
+        batchX = x[:, start_idx:end_idx]
+
+        # Save current state for TVM
+        current_state_tvm = _current_state
+
+        _current_state, _states_series = sess.run(
+            [current_state, states_series],
+            feed_dict={
+               batchX_placeholder: batchX,
+               init_state: _current_state
+            })
+
+        # Organize results and corresponding names
+        tf_output = [_states_series]
+
+        for c in _current_state:
+            tf_output.append(c.c)
+            tf_output.append(c.h)
+
+        name = [states_series.name.split(':')[0]]
+
+        for t in current_state:
+            name.append(t.c.name.split(':')[0])
+            name.append(t.h.name.split(':')[0])
+
+        graph_def = sess.graph.as_graph_def(add_shapes=True)
+
+        final_graph_def = graph_util.convert_variables_to_constants(
+            sess,
+            graph_def,
+            name)
+
+        tvm_output = run_tvm_graph(final_graph_def,
+                      [batchX.astype('float32'), current_state_tvm.astype('float32')],
+                      ["Placeholder", "Placeholder_1"], out_names=name,
+                      num_output=len(name), mode='vm', disabled_pass=["FoldScaleAxis"])
+
+        # Compare result
+        for i in range(len(tf_output)):
+            tvm.testing.assert_allclose(
+                tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
+
 
 #######################################################################
 # Main
@@ -3887,3 +3970,5 @@ if __name__ == '__main__':
 
     # Test dynamic input shape
     test_forward_dynamic_input_shape()
+
+    test_forward_dynmaic_rnn_lstmblockcell()
