@@ -149,7 +149,8 @@ bool CanFactorZeroFromCombiner(const CommReducer& combiner, int value_index,
 
   PrimExpr zero = make_zero(combiner->result[value_index].dtype());
   PrimExpr in = Substitute(combiner->result[value_index],
-                           {{combiner->lhs[value_index], zero}, {combiner->rhs[value_index], zero}});
+                           {{combiner->lhs[value_index], zero},
+                            {combiner->rhs[value_index], zero}});
   in = analyzer.Simplify(in, 3);
 
   return is_const_value(in, 0);
@@ -389,7 +390,7 @@ class FactorOutAtomicFormulasFunctor
     } else if (const AndNode* and_expr = op->a.as<AndNode>()) {
       PrimExpr expr = !and_expr->a || !and_expr->b;
       return VisitExpr(expr);
-    } if (const SelectNode* sel_expr = op->a.as<SelectNode>()) {
+    } else if (const SelectNode* sel_expr = op->a.as<SelectNode>()) {
       PrimExpr expr = ((!sel_expr->condition || !sel_expr->true_value) &&
                        (sel_expr->condition || !sel_expr->false_value));
       return VisitExpr(expr);
@@ -514,7 +515,8 @@ class EliminateDivModMutator : public ExprMutator {
     if (imm && imm->value != 0) {
       if (imm->value < 0) {
         // x / -c == -(x/c) for truncated division
-        return make_zero(op->dtype) - VisitExpr(truncdiv(op->a, make_const(op->dtype, -imm->value)));
+        return make_zero(op->dtype) -
+               VisitExpr(truncdiv(op->a, make_const(op->dtype, -imm->value)));
       }
 
       // Try to find the already existing variables for this expression
@@ -566,7 +568,8 @@ class EliminateDivModMutator : public ExprMutator {
     if (imm && imm->value != 0) {
       if (imm->value < 0) {
         // x / -c == (-x) / c for flooring division
-        return VisitExpr(floordiv(make_zero(op->dtype) - op->a, make_const(op->dtype, -imm->value)));
+        return VisitExpr(floordiv(make_zero(op->dtype) - op->a,
+                                  make_const(op->dtype, -imm->value)));
       }
 
       // Try to find the already existing variables for this expression
@@ -1005,8 +1008,8 @@ PrimExpr TrySimplifyCompute(const PrimExpr& expr, const PrimExpr& cond,
   arith::Analyzer analyzer;
   analyzer.Bind(res->dst->ranges);
   PrimExpr new_expr = analyzer.Simplify(Substitute(expr, res->src_to_dst), 3);
-  // TODO: This is mostly done to simplify if_then_else
-  // which is not known by the canonical simplifier
+  // TODO(yzhliu): This is mostly done to simplify if_then_else
+  // which is not realized by the canonical simplifier
   new_expr = RemoveRedundantInequalities(new_expr, res->dst->relations);
 
   // Keep only those variables of the new vars which are used in the new_expr

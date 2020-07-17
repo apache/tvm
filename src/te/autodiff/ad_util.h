@@ -31,6 +31,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <string>
 
 namespace tvm {
 namespace te {

@@ -27,6 +27,7 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include <string>
+#include <set>
 
 #include "../schedule/operation_inline.h"
 
