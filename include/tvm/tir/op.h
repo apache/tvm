@@ -571,7 +571,7 @@ TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
  * \param s integer right shift
  * \return The constructed expression.
  */
-TVM_DLL PrimExpr qmuls(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s);
+TVM_DLL PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s);
 
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)           \

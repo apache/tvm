@@ -89,7 +89,7 @@ TIR_DEFINE_BUILTIN_FUNC(if_then_else)
     .set_num_inputs(3)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
-TIR_DEFINE_BUILTIN_FUNC(qmuls)
+TIR_DEFINE_BUILTIN_FUNC(q_multiply_shift)
     .set_num_inputs(3)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
     .set_attr<TVectorizable>("TVectorizable", true);

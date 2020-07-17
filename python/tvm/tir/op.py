@@ -965,7 +965,7 @@ def popcount(x):
     """
     return call_intrin(x.dtype, "tir.popcount", x)
 
-def qmuls(x, y, q, s):
+def q_multiply_shift(x, y, q, s):
     """Execute a multiplication between two Q-numbers x and y
     followed by a right shift s. The mathematical expression is:
 
@@ -991,7 +991,7 @@ def qmuls(x, y, q, s):
     y : PrimExpr
         The result.
     """
-    return call_intrin('int32', "tir.qmuls", x, y, q, s)
+    return call_intrin('int32', "tir.q_multiply_shift", x, y, q, s)
 
 def fmod(x, y):
     """Return the remainder of x divided by y with the same sign as x.

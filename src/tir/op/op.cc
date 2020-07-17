@@ -91,8 +91,9 @@ PrimExpr LargeUIntImm(DataType t, int64_t low, int64_t high) {
 }
 
 // Q-multiplication
-PrimExpr qmuls(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s) {
-  return tir::Call(DataType::Int(32, x.dtype().lanes()), tir::builtin::qmuls(), {x, y, q, s});
+PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s) {
+  return tir::Call(DataType::Int(32, x.dtype().lanes()), tir::builtin::q_multiply_shift(),
+                   {x, y, q, s});
 }
 
 // The public function with a quick checking path.

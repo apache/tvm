@@ -115,7 +115,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.isinf")
       *rv = isinf(call->args[0]);
     });
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.qmuls")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.q_multiply_shift")
     .set_body([](const TVMArgs& args, TVMRetValue* rv) {
       using tir::make_const;
 

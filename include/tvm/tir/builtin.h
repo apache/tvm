@@ -98,7 +98,7 @@ TVM_DLL const Op& large_uint_imm();
  * The default rounding rule is to the nearest value, rounding half up
  * (i.e., round(x.1) = x and round (x.5) = x+1)
  */
-TVM_DLL const Op& qmuls();
+TVM_DLL const Op& q_multiply_shift();
 
 /*!
  * \brief See pesudo code

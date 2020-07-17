@@ -452,17 +452,17 @@ def dot_int8_int8_int32(int32_lanes, dtype='uint'):
         C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer},
         default_buffer_params=buffer_params)
 
-def _qmuls_arm(op):
+def _q_multiply_shift_arm(op):
     """
-    Implementation of qmuls through arm intrinsics sqrdmulh and srshl
-    when q == 31.
+    Implementation of q_multiply_shift_arm through arm intrinsics
+    sqrdmulh and srshl when q == 31.
 
     Please note that this is introducing a small round-up error for
     some corner cases. This is because we are rounding twice instead
     than only once. I.e.:
 
-        * original qmuls: round(x*y*2^-s)
-        * arm qmuls: round(round(x*y)*2^-s)
+        * original q_multiply_shift: round(x*y*2^-s)
+        * arm q_multiply_shift: round(round(x*y)*2^-s)
     """
     x = op.args[0]
     y = op.args[1]
@@ -470,8 +470,8 @@ def _qmuls_arm(op):
     s = op.args[3]
 
     # Don't use this intrinsic if we don't have a int32x4 vector
-    # and if we are not multiplying q31 numbers
-    if x.dtype != "int32x4" or q.val != 31:
+    # or if we are not multiplying q31 numbers
+    if x.dtype != "int32x4" or q.value != 31:
         return op
 
     # Case 1, shift is negative
@@ -501,5 +501,5 @@ def _qmuls_arm(op):
     return tvm.tir.Select(s < 0, out_1, out_2)
 
 tvm.target.intrin.register_intrin_rule("llvm.aarch64",
-                                       "qmuls",
-                                       _qmuls_arm, override=True)
+                                       "q_multiply_shift",
+                                       _q_multiply_shift_arm, override=True)
