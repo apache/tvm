@@ -14,11 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin, invalid-name
-"""The Relay namespace containing dynamic ops."""
+"""Constructor APIs"""
+import tvm._ffi
 
-from . import _algorithm
-from . import _transform
-from . import _tensor
-
-from .import image
+tvm._ffi._init_api("relay.op.dyn.image._make", __name__)

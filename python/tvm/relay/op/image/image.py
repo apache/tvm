@@ -16,6 +16,8 @@
 # under the License.
 """Image operations."""
 from . import _make
+from ..dyn.image import _make as _dyn_make
+from ...expr import Expr
 
 def resize(data,
            size,
@@ -38,7 +40,7 @@ def resize(data,
     data : relay.Expr
         The input data to the operator.
 
-    size: Tuple of Expr
+    size: Tuple of Int or Expr
         The out size to which the image will be resized.
 
     layout : str, optional
@@ -61,6 +63,8 @@ def resize(data,
     result: relay.Expr
         The resized result.
     """
+    if isinstance(size, Expr):
+        return _dyn_make.resize(data, size, layout, method, coordinate_transformation_mode, out_dtype)
     return _make.resize(data, size, layout, method, coordinate_transformation_mode, out_dtype)
 
 
