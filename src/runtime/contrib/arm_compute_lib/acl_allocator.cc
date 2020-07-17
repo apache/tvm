@@ -27,7 +27,6 @@
 namespace tvm {
 namespace runtime {
 namespace contrib {
-namespace arm_compute_lib {
 
 void* ACLAllocator::allocate(size_t size, size_t alignment) {
   CHECK_GT(size, 0) << "Cannot allocate size less than or equal to zero";
@@ -70,7 +69,6 @@ std::unique_ptr<arm_compute::IMemoryRegion> ACLMemoryRegion::extract_subregion(s
   }
 }
 
-}  // namespace arm_compute_lib
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm

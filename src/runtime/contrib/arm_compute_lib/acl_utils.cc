@@ -31,7 +31,6 @@
 namespace tvm {
 namespace runtime {
 namespace contrib {
-namespace arm_compute_lib {
 
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 
@@ -109,7 +108,6 @@ arm_compute::PadStrideInfo ToACLPadStride(const std::vector<std::string>& pad,
                                     arm_compute::DimensionRoundingType::FLOOR);
 }
 
-}  // namespace arm_compute_lib
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm

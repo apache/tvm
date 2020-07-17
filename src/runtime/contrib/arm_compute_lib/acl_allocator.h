@@ -37,7 +37,6 @@
 namespace tvm {
 namespace runtime {
 namespace contrib {
-namespace arm_compute_lib {
 
 /*!
  * \brief Override ACL memory allocator and replace with TVM workspace based allocation.
@@ -131,7 +130,6 @@ class ACLMemoryRegion : public arm_compute::IMemoryRegion {
   runtime::DeviceAPI* device_api_ = runtime::DeviceAPI::Get(ctx_);
 };
 
-}  // namespace arm_compute_lib
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm

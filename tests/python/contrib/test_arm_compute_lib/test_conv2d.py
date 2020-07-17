@@ -78,7 +78,7 @@ def _get_expected_codegen(shape, kernel_size, padding, strides,
 
     node = {
             "op": "kernel",
-            "name": "arm_compute_lib.conv2d",
+            "name": "nn.conv2d",
             "inputs": [[0, 0, 0], [1, 0, 0]],
             "attrs": {
                 "groups": [["1"]],

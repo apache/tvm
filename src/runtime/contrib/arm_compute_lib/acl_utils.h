@@ -38,7 +38,6 @@
 namespace tvm {
 namespace runtime {
 namespace contrib {
-namespace arm_compute_lib {
 
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 
@@ -107,7 +106,6 @@ std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeMemoryManager();
 arm_compute::PadStrideInfo ToACLPadStride(const std::vector<std::string>& pad,
                                           const std::vector<std::string>& stride);
 
-}  // namespace arm_compute_lib
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm

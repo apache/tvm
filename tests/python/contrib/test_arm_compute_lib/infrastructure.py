@@ -168,7 +168,7 @@ def verify(answers, atol, rtol):
 def extract_acl_modules(module):
     """Get the ACL module(s) from llvm module."""
     return list(filter(lambda mod: mod.type_key == "arm_compute_lib",
-                       module.lib.imported_modules))
+                       module.get_lib().imported_modules))
 
 
 def verify_codegen(module, known_good_codegen, num_acl_modules,

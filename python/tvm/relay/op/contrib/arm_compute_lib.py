@@ -109,7 +109,14 @@ def conv2d(attrs, args):
         return False
     if attrs.data_layout != "NHWC":
         return False
-
+    if attrs.out_dtype != "float32" and attrs.out_dtype != "":
+        return False
+    data_typ = args[0].checked_type
+    if len(data_typ.shape) != 4 or data_typ.shape[0] != 1 or data_typ.dtype != "float32":
+        return False
+    kernel_typ = args[1].checked_type
+    if kernel_typ.dtype != "float32":
+        return False
     return True
 
 
@@ -118,5 +125,7 @@ def max_pool2d(attrs, args):
     """Check if the external ACL codegen for maxpool2d should be used."""
     if attrs.layout != "NHWC":
         return False
-
+    typ = args[0].checked_type
+    if typ.dtype != "float32":
+        return False
     return True
