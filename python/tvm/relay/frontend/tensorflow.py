@@ -1990,6 +1990,65 @@ def _add_n():
         return  _res
     return _impl
 
+def _LSTMBlockCell():
+    def _impl(inputs, attr, params, mod):
+        """LSTM Block cell.
+        Calculations and return values are described in:
+        https://github.com/tensorflow/tensorflow/blob/
+        r1.8/tensorflow/contrib/rnn/python/ops/lstm_ops.py#L41-L114
+
+        Parameters
+        ----------
+        inputs : relay.Expr
+            Input data
+        in_state_c: list of relay.Expr
+            Cell state input values for all the layers
+        in_state_h: list of relay.Expr
+            Hidden state input values for all the layers
+        attrs : dict
+            Dict of operator attributes
+        params : dict
+            List of pretrained weights and bias
+
+        Returns
+        -------
+        relay.Expr.TupleWapper
+            [i, cs, f, o, ci, co, h]
+        """
+        in_data = inputs[0]
+        in_state_c = inputs[1]
+        in_state_h = inputs[2]
+        in_weight = inputs[3]
+        in_bias = inputs[7]
+        forget_bias = attr.pop('forget_bias')
+        input_shape = _infer_shape(inputs[0], mod)
+        weight_shape = _infer_shape(inputs[3], mod)
+        batch_size, input_size = input_shape[0], input_shape[1]
+        num_hidden_layers = weight_shape[1]
+
+        in_data = _op.reshape(in_data,
+                              newshape=(batch_size, input_size))
+        ixh = _op.concatenate([in_data, in_state_h], axis=1)
+        in_weight = _op.transpose(in_weight, axes=None)
+        gates = _op.nn.dense(ixh, in_weight,
+                             units=num_hidden_layers)
+        gates_bias = _op.add(gates, in_bias)
+        gate_list = _op.split(gates_bias, indices_or_sections=4, axis=1)
+        in_gate = _op.sigmoid(gate_list[0])
+        in_transform = _op.tanh(gate_list[1])
+        forget_gate = _op.add(gate_list[2], tvm.relay.const(forget_bias, attr['T'].name))
+        forget_gate = _op.sigmoid(forget_gate)
+        out_gate = _op.sigmoid(gate_list[3])
+        next_c = _op.add(_op.multiply(forget_gate, in_state_c),
+                         _op.multiply(in_gate, in_transform))
+        co = _op.tanh(next_c)
+        next_h = out_gate * co
+
+        return tvm.relay.TupleWrapper(
+            tvm.relay.Tuple([in_gate, next_c, forget_gate, out_gate, in_transform, co, next_h]), 7)
+
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -2078,6 +2137,7 @@ _convert_map = {
     'LogicalOr'                         : _logical('logical_or'),
     'LogSoftmax'                        : AttrCvt('log_softmax'),
     'LRN'                               : _lrn(),
+    'LSTMBlockCell'                     : _LSTMBlockCell(),
     'MatMul'                            : _matmul(),
     'Max'                               : _reduce('max'),
     'Maximum'                           : _elemwise('maximum'),
@@ -2154,252 +2214,7 @@ _convert_map = {
     'UnravelIndex'                      : _unravel_index(),
     'Where'                             : _where(),
     'ZerosLike'                         : AttrCvt('zeros_like'),
-
 }
-
-def _LSTMBlockCell():
-    def _impl(inputs, in_state_c, in_state_h, attr, params, mod):
-        """LSTM Block cell.
-        Calculations are described in: https://github.com/tensorflow/tensorflow/blob/
-        r1.8/tensorflow/contrib/rnn/python/ops/lstm_ops.py#L41-L114
-
-        Parameters
-        ----------
-        inputs : relay.Expr
-            Input data
-        in_state_c: list of relay.Expr
-            Cell state input values for all the layers
-        in_state_h: list of relay.Expr
-            Hidden state input values for all the layers
-        attrs : dict
-            Dict of operator attributes
-        params : dict
-            List of pretrained weights and bias
-
-        Returns
-        -------
-        sym : relay.Expr
-            Converted relay.Expr
-        output: relay.Expr
-            Output state value.
-        """
-        in_data = inputs[0]
-        in_weight = inputs[3]
-        in_bias = inputs[7]
-        forget_bias = attr.pop('forget_bias')
-        input_shape = _infer_shape(inputs[0], mod)
-        weight_shape = _infer_shape(inputs[3], mod)
-        batch_size, input_size = input_shape[0], input_shape[1]
-        num_hidden_layers = weight_shape[1]
-        num_hidden = num_hidden_layers // 4
-
-        in_data = _op.reshape(in_data,
-                              newshape=(batch_size, input_size))
-        ixh = _op.concatenate([in_data, in_state_h], axis=1)
-        in_weight = _op.transpose(in_weight, axes=None)
-        gates = _op.nn.dense(ixh, in_weight,
-                             units=num_hidden_layers)
-        gates_bias = _op.add(gates, in_bias)
-        gate_list = _op.split(gates_bias, indices_or_sections=4, axis=1)
-        in_gate = _op.sigmoid(gate_list[0])
-        in_transform = _op.tanh(gate_list[1])
-        forget_gate = _op.add(gate_list[2], tvm.relay.const(forget_bias, attr['T'].name))
-        forget_gate = _op.sigmoid(forget_gate)
-        out_gate = _op.sigmoid(gate_list[3])
-        next_c = _op.add(_op.multiply(forget_gate, in_state_c),
-                         _op.multiply(in_gate, in_transform))
-        next_h = out_gate * _op.tanh(next_c)
-        out_state = _op.concatenate([next_c, next_h], axis=1)
-        out_state = _op.reshape(out_state,
-                                newshape=(2, batch_size, num_hidden))
-        return next_h, out_state
-    return _impl
-
-# _convert_map_rnn defines maps of rnn operator name to
-# converter functor(callable) for 1 to 1 mapping.
-_convert_map_rnn = {
-    'LSTMBlockCell'                     : _LSTMBlockCell(),
-}
-
-class RecurrentNetworks(object):
-    """Recurrent network layer handlers.
-
-    Handle Layer operations.
-    ToDo: Operators like RNN/GRU layer concepts also can be handled here
-
-    Parameters
-    ----------
-    nodes : list
-        list of graph nodes used for tensorflow parsing.
-
-    out_rnn : list
-        List of RecurrentNetwork outputs. This output will be appended to the
-        'head' nodes of the graph.
-
-    graph : tensorflow graph definition object
-        The loaded tensorflow GraphDef
-
-    convert_map : dict
-        Dict of name : callable, where name is the op's name that
-        require conversion to relay, callable are functions which
-        take attrs and return (new_op_name, new_attrs)
-    """
-    def __init__(self, nodes, out_rnn, graph, convert_map):
-        self._graph = graph
-        self._convert_map = convert_map
-        self._nodes = nodes
-        self._out_rnn = out_rnn
-        self._cur_lstm_layer = 0
-        self._layer_name_list = []
-        self._recurrent_ops_layer_map = {
-            'LSTMBlockCell'               : self._LSTMBlockCellLayer(),
-        }
-
-    def _LSTMBlockCellLayer(self):
-        """LSTMBlockCell layer handler.
-
-        Parameters
-        ----------
-        op_name : str
-            Operator name, eg:LSTMBlockCell
-
-        layer_name : str list
-            Layer name is used for creating the state input placeholder.
-
-        inputs : relay.Expr
-            Input data
-
-        attrs : dict
-            Dict of operator attributes
-
-        params : dict
-            List of pretrained weights and bias
-
-        num_layers : int
-            Total number of LSTM layer presented in the graph
-
-        Returns
-        -------
-        sym : relay.Expr
-            The returned relay Expr
-        """
-        def _impl(op_name, layer_name, inputs, attrs, params, num_layers, mod):
-            in_state_c_name = layer_name+'_c'
-            in_state_h_name = layer_name+'_h'
-
-            def _init_state(num_layers, batch_size, num_hidden):
-                """Create the initial states for the first layer in the graph."""
-                in_state_c = [_expr.var(in_state_c_name,
-                                        shape=(num_layers, batch_size, num_hidden),
-                                        dtype='float32')]
-
-                in_state_h = [_expr.var(in_state_h_name,
-                                        shape=(num_layers, batch_size, num_hidden),
-                                        dtype='float32')]
-                return in_state_c, in_state_h
-
-            def _get_cur_input_state(in_state_c, in_state_h, num_layers,
-                                     layer, batch_size, num_hidden):
-                """Select the appropriate states for the current layer"""
-                in_state_c_tup = _op.split(in_state_c[0],
-                                           indices_or_sections=num_layers, axis=0)
-                in_state_h_tup = _op.split(in_state_h[0],
-                                           indices_or_sections=num_layers, axis=0)
-                cur_in_state_c = _op.reshape(in_state_c_tup[layer],
-                                             newshape=(batch_size, num_hidden))
-                cur_in_state_h = _op.reshape(in_state_h_tup[layer],
-                                             newshape=(batch_size, num_hidden))
-                return cur_in_state_c, cur_in_state_h
-
-            def _LSTMBlockCellWrapper(inputs, attr, params,
-                                      num_layers, layer):
-                """LSTM cell warapper to prepare the inputs"""
-                input_shape = _infer_shape(inputs[0], mod)
-                weight_shape = _infer_shape(inputs[3], mod)
-
-                batch_size = input_shape[0]
-                num_hidden = weight_shape[1] // 4
-
-                if layer == 0:
-                    #Create initial states placeholder in case of first layer
-                    in_state_c, in_state_h = _init_state(num_layers,
-                                                         batch_size, num_hidden)
-                else:
-                    in_state_c = self._nodes[in_state_c_name]
-                    in_state_h = self._nodes[in_state_h_name]
-
-                cur_in_state_c, cur_in_state_h = _get_cur_input_state(
-                    in_state_c, in_state_h,
-                    num_layers, layer,
-                    batch_size, num_hidden)
-                output, out_state = self._convert_map[op_name](inputs, cur_in_state_c,
-                                                               cur_in_state_h,
-                                                               attr, params, mod)
-                return output, out_state, in_state_c, in_state_h
-
-            sym, cur_out_state, in_state_c, in_state_h = \
-                    _LSTMBlockCellWrapper(inputs, attrs, params,
-                                          num_layers, self._cur_lstm_layer)
-            self._nodes[in_state_c_name] = in_state_c
-            self._nodes[in_state_h_name] = in_state_h
-            cur_out_state = _op.expand_dims(cur_out_state, axis=0, num_newaxis=1)
-            self._out_rnn.append(cur_out_state)
-            self._cur_lstm_layer += 1
-            return sym
-        return _impl
-
-    def process_op(self, op_name, inputs, attrs, params, mod):
-        """Process recurrent layer operators.
-
-        List '_recurrent_ops_layer_map' map each Layer based operators with its
-        layer handlers. Total number of layers are calculated to form the input
-        data shapes.
-
-        Parameters
-        ----------
-        op_name : str
-            Operator name, such as LSTMBlockCell
-
-        inputs : relay.Expr
-            Input data
-
-        attrs : dict
-            Dict of operator attributes
-
-        params : dict
-            List of pretrained weights and bias
-
-        Returns
-        -------
-        sym : relay.Expr
-            Returns relay.Expr
-        """
-        def _get_abs_layer_name(node):
-            """Identify the layer name is already handled. Return the absolute name
-            """
-            if not self._layer_name_list:
-                self._layer_name_list.append(node.name)
-                return node.name
-
-            for _name in self._layer_name_list:
-                if _name in node.name:
-                    abs_name = _name
-                else:
-                    self._layer_name_list.append(node.name)
-                    abs_name = node.name
-            return abs_name
-
-        #Find number of layers of this same operator node in the graph
-        #and also read the inputs name for the current op.
-        num_layers = 0
-        for _, node in enumerate(self._graph.node):
-            if node.op == op_name:
-                layer_name = _get_abs_layer_name(node)
-                num_layers += 1
-
-        sym = self._recurrent_ops_layer_map[op_name](op_name, layer_name, inputs, attrs,
-                                                     params, num_layers, mod)
-        return sym
 
 # An internal list to contain all the control flow primitives used in Tensorflow
 # 1.x.
@@ -2889,7 +2704,9 @@ class GraphProto(object):
                 elif cnode.name != wnode.name:
                     if is_tensor_array_constuctor(cnode):
                         inode = self._tf_node_map[wnode.input[inode_idx].split(":")[0]]
-                        self._tensor_array_shape_nodes[cnode.name] = (inode, wnode.op)
+                        tn = wnode.input[inode_idx].split(":")
+                        output_index = int(tn[1]) if len(tn) > 1 else 0
+                        self._tensor_array_shape_nodes[cnode.name] = (inode, wnode.op, output_index)
                     break
 
         # First, parse all control flow nodes.
@@ -2942,15 +2759,10 @@ class GraphProto(object):
                 else:
                     out.append(self._nodes[out_name][0])
 
-        #Add the RNN outputs also with 'head' nodes of the relay graph
-        if self._num_rnn_layer:
-            if len(self._out_rnn) == 1:
-                out.append(self._out_rnn[0])
-            else:
-                out_rnn = _op.concatenate(self._out_rnn, axis=0)
-                out.append(out_rnn)
-
-        out = out[0] if len(out) == 1 else _expr.Tuple(out)
+        if isinstance(out, _expr.TupleWrapper):
+            out = out.tuple_value
+        else:
+            out = out[0] if len(out) == 1 else _expr.Tuple(out)
         fvars = analysis.free_vars(out)
         func = _function.Function(fvars, out)
         final_params = {}
@@ -2988,7 +2800,6 @@ class GraphProto(object):
                 pass
             else:
                 if any([node.op in t for t in [_identity_list, _convert_map,
-                                               _convert_map_rnn,
                                                _control_flow_nodes]]):
                     pass
                 elif op_def is not None and op_def.is_stateful:
@@ -3081,42 +2892,6 @@ class GraphProto(object):
             attrs[key] = self._get_attr(value)
 
         return attrs
-
-    def _convert_rnn_operator(self, op_name, inputs,
-                              attrs, params, graph, convert_map):
-        """Convert RNN and its variant operators to Relay operators.
-        This converter read the input states of each layers and
-        also maintain the output states of each layer in a list.
-
-        Parameters
-        ----------
-        op_name : str
-            Operator name, such as LSTMBlockCell
-        inputs : list of relay.Expr
-            List of input symbols.
-        attrs : dict
-            Dict of operator attributes
-        params : dict
-            List of pretrained weights and bias
-        graph : Tensorflow graph object
-            Graph is to find the number of upcoming same operator to
-            calculate the number of layers.
-        convert_map : dict
-            Dict of name : callable, where name is the op's name that
-            require conversion to relay, callable are functions which
-            take attrs and return (new_op_name, new_attrs)
-
-        Returns
-        -------
-        sym : relay.Expr
-            Converted relay.Expr
-        """
-        if not self._num_rnn_layer:
-            self._out_rnn = []
-            self.rnn = RecurrentNetworks(self._nodes, self._out_rnn, graph, convert_map)
-            self._num_rnn_layer = True
-        sym = self.rnn.process_op(op_name, inputs, attrs, params, self._mod)
-        return sym
 
     def _convert_control_flow_operator(self, node, inputs, attrs, control_flow_node_map):
         """
@@ -3355,7 +3130,6 @@ class GraphProto(object):
         """
         identity_list = identity_list if identity_list else _identity_list
         convert_map = convert_map if convert_map else _convert_map
-        convert_map_rnn = _convert_map_rnn
         if op_name in identity_list:
             sym = get_relay_op(op_name)(*inputs, **attrs)
         elif op_name in convert_map:
@@ -3363,12 +3137,6 @@ class GraphProto(object):
                 sym = convert_map[op_name](inputs, attrs, self._params, self._prelude)
             else:
                 sym = convert_map[op_name](inputs, attrs, self._params, self._mod)
-
-        elif op_name in convert_map_rnn:
-            sym = self._convert_rnn_operator(op_name, inputs, attrs,
-                                             self._params, graph,
-                                             convert_map_rnn)
-
         elif op_name in ["PartitionedCall", "StatefulPartitionedCall"]:
             sym = self._partition_call_operator(inputs, attrs)
         else:
@@ -3482,8 +3250,12 @@ class GraphProto(object):
                     if elem_shape:
                         attr["shape"] = elem_shape
                     if attr['identical_element_shapes'] or elem_shape:
-                        shape_node, wnode_op = self._tensor_array_shape_nodes[node.name]
-                        converted = self._backtrack_construct(shape_node.name)
+                        shape_node, wnode_op, output_index = \
+                            self._tensor_array_shape_nodes[node.name]
+                        name = shape_node.name
+                        if output_index > 0:
+                            name += ":" + str(output_index)
+                        converted = self._backtrack_construct(name)
                         shape = _infer_shape(converted, self._mod)
                         if wnode_op.startswith("TensorArraySplit"):
                             shape = (Any(),) + shape[1:]

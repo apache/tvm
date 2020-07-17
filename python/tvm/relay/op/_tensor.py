@@ -131,6 +131,14 @@ def clip_compute(attrs, inputs, output_type):
 
 register_injective_schedule("clip")
 
+# fixed point multiply
+@register_compute("fixed_point_multiply")
+def fixed_point_multiply_compute(attrs, inputs, output_type):
+    assert len(inputs) == 1
+    return [topi.fixed_point_multiply(inputs[0], attrs.multiplier, attrs.shift)]
+
+register_injective_schedule("fixed_point_multiply")
+
 # full
 @script
 def _full_shape_func(shape):
