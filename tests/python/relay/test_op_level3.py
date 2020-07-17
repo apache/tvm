@@ -84,6 +84,22 @@ def test_clip():
     ref_res = np.clip(data, 1., 4.)
     np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
+def test_fixed_point_multiply():
+    # Test 23 * 1/16
+    # [m,s] = [0.5, -3] = frexp(1/16)
+    # M = 0.5*2^31 = 1073741824
+    # so M = 1073741824 and s = -3
+
+    a = relay.var("a", relay.TensorType((10, 4), "int32"))
+    y = relay.fixed_point_multiply(a, 1073741824, -3)
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((10, 4), "int32")
+
+    data = 23*np.ones((10, 4)).astype('int32')
+    intrp = create_executor()
+    op_res = intrp.evaluate(y, { a: relay.const(data) })
+    ref_res = np.ones((10, 4)).astype('int32')
+    np.testing.assert_allclose(op_res.asnumpy(), ref_res, atol=1)
 
 def test_reinterpret():
     a = relay.var("a", relay.TensorType((1000, 4), "float32"))
@@ -1079,3 +1095,4 @@ if __name__ == "__main__":
     test_isinf()
     test_unravel_index()
     test_sparse_to_dense()
+    test_fixed_point_multiply()

@@ -115,6 +115,52 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.isinf")
       *rv = isinf(call->args[0]);
     });
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.q_multiply_shift")
+    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
+      using tir::make_const;
+
+      PrimExpr e = args[0];
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      CHECK(call != nullptr);
+
+      PrimExpr x = call->args[0];
+      PrimExpr y = call->args[1];
+      PrimExpr q = call->args[2];
+      PrimExpr s = call->args[3];
+
+      // Only int32 types are supported (any number of lanes is allowed)
+      CHECK(y.dtype().code() == DLDataTypeCode::kDLInt && y.dtype().bits() == 32);
+      CHECK(s.dtype().code() == DLDataTypeCode::kDLInt && s.dtype().bits() == 32);
+
+      DataType hp_dtype = DataType::Int(64, x.dtype().lanes());
+      DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
+
+      // 1) Calculating the integer multiplier and integer shift
+      PrimExpr zero = make_const(s.dtype(), 0);
+      PrimExpr left_shift = tir::Select(s > zero, s, zero);
+      PrimExpr right_shift = tir::Select(s > zero, zero, -s);
+
+      // 2) Cast and Multiply the integer multiplier
+      PrimExpr one = make_const(hp_dtype, 1);
+      x = cast(hp_dtype, x);
+      y = cast(hp_dtype, y);
+      x = tir::Select(left_shift != zero, x << left_shift, x);
+
+      // 3) Perform the multiplication in higher precision.
+      x = x * y;
+
+      // 4) Find the rounding scalar
+      PrimExpr total_right_shift = right_shift + q;
+      PrimExpr pos_rounding_value = (one << (total_right_shift - 1));
+      x = x + pos_rounding_value;
+
+      // 5) Simply right shift the result to get the final output.
+      x = x >> total_right_shift;
+
+      // 6) The fixed point multiplication keeps the value in int32 range. Casting back to int32.
+      *rv = cast(lp_dtype, x);
+    });
+
 }  // namespace intrin
 }  // namespace codegen
 }  // namespace tvm
