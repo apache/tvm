@@ -652,7 +652,6 @@ def test_fuse_take():
         return relay.Function([x], y)
 
     orig = before()
-    fuse0(tvm.IRModule.from_expr(orig))
     m = fuse2(tvm.IRModule.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(), transform.InferType())
@@ -689,7 +688,6 @@ def test_fuse_gather_nd():
         return relay.Function([x], y)
 
     orig = before()
-    fuse0(tvm.IRModule.from_expr(orig))
     m = fuse2(tvm.IRModule.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(), transform.InferType())
