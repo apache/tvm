@@ -89,7 +89,7 @@ class LocalBuilder(Builder):
                 build_func = ndk.create_shared
             else:
                 raise ValueError("Invalid build_func" + build_func)
-        self.build_func = _wrap_build_func(build_func)
+        self.build_func = _WrappedBuildFunc(build_func)
         self.executor = LocalExecutor(timeout=timeout)
         self.tmp_dir = tempfile.mkdtemp()
 
@@ -390,9 +390,12 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
-def _wrap_build_func(build_func):
+class _WrappedBuildFunc():
     """
     Wrap build_func to a function that can be used in measure.
+
+    Note: this is a class instead of a closure so that it can be pickled when
+    using multiprocessing.
 
     Parameters
     ----------
@@ -401,14 +404,15 @@ def _wrap_build_func(build_func):
 
     Returns
     -------
-    wrapped_build_func : function
+    wrapped_build_func : callable
         The wrapped build function
     """
-    if not hasattr(build_func, "output_format"):
-        raise AttributeError("Expect build_func to have the attribute output_format.")
-    output_format = build_func.output_format
+    def __init__(self, build_func):
+        if not hasattr(build_func, "output_format"):
+            raise AttributeError("Expect build_func to have the attribute output_format.")
+        self.build_func = build_func
 
-    def _wrapped(measure_input, tmp_dir, **kwargs):
+    def __call__(self, measure_input, tmp_dir, **kwargs):
         """
         Wrapped build func.
 
@@ -423,15 +427,13 @@ def _wrap_build_func(build_func):
         tic = time.time()
         try:
             filename = os.path.join(tmp_dir, "tmp_func_%0x.%s" % (
-                getrandbits(64), output_format))
+                getrandbits(64), self.build_func.output_format))
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, **kwargs)
-            func.export_library(filename, build_func)
+            func.export_library(filename, self.build_func)
         except Exception as e:  # pylint: disable=broad-except
             return BuildResult(None, None, e, time.time() - tic)
         return BuildResult(filename, arg_info, None, time.time() - tic)
-    return _wrapped
-
 
 def run_through_rpc(measure_input, build_result,
                     number, repeat, min_repeat_ms, cooldown_interval,
