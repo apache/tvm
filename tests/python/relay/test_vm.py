@@ -623,6 +623,7 @@ def test_loop_free_var():
         check_result(args, expected, mod=mod)
 
 def test_vm_reshape_tensor():
+    x_np = np.random.uniform(size=(8, 16)).astype("float32")
     x = relay.var("x", shape=(8, 16), dtype="float32")
     y = relay.reshape(x, [-1, 4, 8])
     mod = tvm.IRModule()
@@ -630,42 +631,43 @@ def test_vm_reshape_tensor():
     with tvm.transform.PassContext(opt_level=3):
         exec = relay.vm.compile(mod, "llvm")
     assert "reshape_tensor" in exec.bytecode
+    check_result([x_np], x_np.reshape([4, 4, 8]), mod)
 
     x = relay.var("x", shape=(8, 16), dtype="float32")
-    y = relay.reverse_reshape(x, [-1, 4, 8])
+    y = relay.reshape(x, [16, -1])
+    y = relay.reverse_reshape(y, [-1, 4, 0])
     mod = tvm.IRModule()
     mod["main"] = relay.Function([x], y)
     with tvm.transform.PassContext(opt_level=3):
         exec = relay.vm.compile(mod, "llvm")
-    assert "reshape_tensor" in exec.bytecode
-
-    n = tvm.te.size_var('n')
-    #n = tvm.tir.Any()
-    x = relay.var("x", shape=(n, 16), dtype="float32")
-    y = relay.reshape(x, [-1, 4])
-    y = relay.reshape(y, [0, 8, -1])
-    print(y)
-    mod = tvm.IRModule()
-    mod["main"] = relay.Function([x], y)
-    print(mod)
-    with tvm.transform.PassContext(opt_level=3):
-        exec = relay.vm.compile(mod, "llvm")
-    print(exec.bytecode)
     assert exec.bytecode.count("reshape_tensor") == 1
+    check_result([x_np], x_np.reshape([4, 4, 8]), mod)
 
+    # reshape with symbolic/any shape
+    for n in [tvm.tir.Any(), tvm.te.size_var('n')]:
+        x = relay.var("x", shape=(n, 16), dtype="float32")
+        y = relay.reshape(x, [-1, 4])
+        y = relay.reshape(y, [0, 2, -1])
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([x], y)
+        with tvm.transform.PassContext(opt_level=3):
+            exec = relay.vm.compile(mod, "llvm")
+        assert exec.bytecode.count("reshape_tensor") == 1
+        check_result([x_np], x_np.reshape([32, 2, 2]), mod)
+
+    # dyn.reshape
     x = relay.var("x", shape=(8, 16), dtype="float32")
-    y = relay.var("y", shape=(3,), dtype="int")
-    z = relay.reshape(x, y)
-    z = relay.reshape(z, [-1, 4, 8])
+    y = relay.var("y", shape=(3,), dtype="int32")
+    z = relay.reshape(x, [-1, 4, 8])
+    z = relay.reshape(z, y)
     mod = tvm.IRModule()
-    mod["main"] = relay.Function([x], z)
+    mod["main"] = relay.Function([x, y], z)
     with tvm.transform.PassContext(opt_level=3):
         exec = relay.vm.compile(mod, "llvm")
-    print(exec.bytecode)
     assert exec.bytecode.count("reshape_tensor") == 2
     assert "reshape_tensor" in exec.bytecode
+    y_np = np.array([8, 2, 8]).astype("int32")
+    check_result([x_np, y_np], x_np.reshape([8, 2, 8]), mod)
 
 if __name__ == "__main__":
-    test_vm_reshape_tensor()
-    exit()
     pytest.main([__file__])

@@ -221,7 +221,6 @@ class ManifestAllocPass(ExprMutator):
         return to_tuple_type(ret_type, tuple_outs.fields)
 
     def emit_reshape_tensor(self, scope, func, new_args, ret_type):
-        print(func)
         if self.is_dynamic(ret_type):
             out_shapes = self.emit_shape_func(scope, func, new_args)
             shape_expr = out_shapes[0]

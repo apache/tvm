@@ -896,7 +896,6 @@ transform::Sequential MemoryOpt(tvm::Target host_target) {
 
   // Manifest the allocations needed for the shape functions.
   pass_seqs.push_back(transform::ManifestAlloc(host_target));
-  pass_seqs.push_back(tvm::transform::PrintIR("", false));
 
   // Fuse the shape functions.
   pass_seqs.push_back(transform::FuseOps());

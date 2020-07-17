@@ -184,6 +184,8 @@ RELAY_REGISTER_OP("vm.invoke_tvm_op")
                            });
 
 // vm.reshape
+TVM_REGISTER_NODE_TYPE(ReshapeTensorAttrs);
+
 bool ReshapeTensorRel(const Array<Type>& types,
                       int num_inputs,
                       const Attrs& attrs,
