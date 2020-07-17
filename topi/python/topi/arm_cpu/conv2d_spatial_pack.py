@@ -110,7 +110,8 @@ def conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding, dilation,
                               name='data_vec')
 
     if autotvm.GLOBAL_SCOPE.in_tuning:
-        kernel_vec = tvm.te.placeholder(kvshape, kernel.dtype, name="kernel")
+        # use "kernel_autotvm" instead of "kernel" to avoid naming conflict with OpenCL keyword
+        kernel_vec = tvm.te.placeholder(kvshape, kernel.dtype, name="kernel_autotvm")
     else:
         if pre_packed:
             kernel_vec = kernel
