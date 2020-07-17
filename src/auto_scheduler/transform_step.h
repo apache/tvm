@@ -73,9 +73,15 @@ enum class IteratorAnnotation : int {
   kBlockY = 7,
   /*! \brief This iterator has been bind to threadIdx.y. */
   kThreadY = 8,
+  /*! \brief This iterator has been bind to blockIdx.y. */
+  kBlockZ = 9,
+  /*! \brief This iterator has been bind to threadIdx.y. */
+  kThreadZ = 10,
   /*! \brief This iterator has been mapped with a tensorize intrinsic. */
-  kTensorized = 9
+  kTensorize = 11
 };
+
+extern const char* IteratorAnnotationString[];
 
 /*!
  * \brief The base class of transformation steps. Each step has its corresponding tvm.te

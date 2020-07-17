@@ -112,6 +112,8 @@ class IteratorNode : public Object {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("range", &range);
+    v->Visit("iter_kind", &iter_kind);
+    v->Visit("annotation", &annotation);
   }
 
   static constexpr const char* _type_key = "auto_scheduler.Iterator";
@@ -239,11 +241,13 @@ class AttachMap : public ObjectRef {
    */
   void DeleteStage(int stage_id);
   /*!
-   * \brief Update the iterator relations in AttachMap.
-   * \param old_iters The original IterKey.
+   * \brief Find the relations of original iterators in AttachMap, and update them with the new
+   * iterators. Both `stage_to_attach_iter` and `iter_to_attached_stages` will be updated.
+   * \param original_iters The original IterKey.
    * \param new_iters The new IterKey to update.
    */
-  void UpdateIters(const std::vector<IterKey>& old_iters, const std::vector<IterKey>& new_iters);
+  void UpdateIters(const std::vector<IterKey>& original_iters,
+                   const std::vector<IterKey>& new_iters);
 
   TVM_DEFINE_OBJECT_REF_METHODS(AttachMap, ObjectRef, AttachMapNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttachMapNode);
@@ -342,11 +346,15 @@ class State : public ObjectRef {
    * \param stage_id The index of the stage to be reordered.
    * \param target_stage_id The index of stage that this step will compute at to.
    * \param target_iter The iterator in target stage that this step will compute at to.
+   * \note After compute_at, the extent of each iterator may not be accurate any more, so the
+   * bound information will be removed from this state. Run ComputeDAG::InferBound to recover.
    */
   void compute_at(int stage_id, int target_stage_id, const Iterator& target_iter);
   /*!
    * \brief Schedule primitive corresponds to te.compute_root.
    * \param stage_id The index of the stage to be reordered.
+   * \note After compute_root, the extent of each iterator may not be accurate any more, so the
+   * bound information will be removed from this state. Run ComputeDAG::InferBound to recover.
    */
   void compute_root(int stage_id);
   /*!
@@ -361,6 +369,8 @@ class State : public ObjectRef {
    * \param lengths The multiple split factors. Can be None to be filled by search policy.
    * \param inner_to_outer Whether the factor go from inner to outer, or from outer to inner.
    * \return The iterator results after split.
+   * \note If we do split on an iterator which has stages attached at it(by compute_at), the inner
+   * most iterator of split results will become the new attach point.
    */
   Array<Iterator> split(int stage_id, const Iterator& it, const Array<Optional<Integer>>& lengths,
                         bool inner_to_outer = true);
@@ -369,6 +379,8 @@ class State : public ObjectRef {
    * \param stage_id The index of the stage to be fused.
    * \param iters The iterators to be fused.
    * \return The iterator result after fuse.
+   * \note If the iterators to be fused have stages attached at them(by compute_at), the fused
+   * result will become the new attach point.
    */
   Iterator fuse(int stage_id, const Array<Iterator>& iters);
   /*!
@@ -408,8 +420,9 @@ class State : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StateNode);
 
  private:
-  /* Do transform steps
-   * Note: The following functions only change loop state but do not change transform_history.
+  /*!
+   * \brief Do transform steps.
+   * \note The following functions only change loop state but do not change transform_history.
    * We separate these functions out, so you can call them for replay easily given history steps */
 
   /*!
@@ -420,11 +433,15 @@ class State : public ObjectRef {
   /*!
    * \brief Apply compute at step to current state.
    * \param step A ComputeAtStep.
+   * \note After compute_at, the extent of each iterator may not be accurate any more, so the
+   * bound information will be removed from this state. Run ComputeDAG::InferBound to recover.
    */
   void DoComputeAtStep(const ComputeAtStep& step);
   /*!
    * \brief Apply compute root step to current state.
    * \param step A ComputeRootStep.
+   * \note After compute_root, the extent of each iterator may not be accurate any more, so the
+   * bound information will be removed from this state. Run ComputeDAG::InferBound to recover.
    */
   void DoComputeRootStep(const ComputeRootStep& step);
   /*!

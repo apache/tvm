@@ -97,7 +97,7 @@ void AttachMap::SetComputeAtIter(int stage_id, int target_stage_id, int target_i
   // Delete the current entry of this stage
   DeleteStageEntry(pnode, stage_id);
 
-  // Store the new relations to map
+  // Store the new stage/iterator relations to map
   IterKey iter_key(target_stage_id, target_iter_id);
   pnode->stage_to_attach_iter[stage_id] = iter_key;
   pnode->iter_to_attached_stages[iter_key].push_back(stage_id);
@@ -109,23 +109,25 @@ void AttachMap::DeleteStage(int stage_id) {
   DeleteStageEntry(pnode, stage_id);
 }
 
-void AttachMap::UpdateIters(const std::vector<IterKey>& old_iters,
+void AttachMap::UpdateIters(const std::vector<IterKey>& original_iters,
                             const std::vector<IterKey>& new_iters) {
+  CHECK_EQ(original_iters.size(), new_iters.size());
   AttachMapNode* pnode = CopyOnWrite();
-
-  CHECK_EQ(old_iters.size(), new_iters.size());
-  for (size_t i = 0; i < old_iters.size(); ++i) {
-    auto entry = pnode->iter_to_attached_stages.find(old_iters[i]);
+  for (size_t i = 0; i < original_iters.size(); ++i) {
+    auto entry = pnode->iter_to_attached_stages.find(original_iters[i]);
+    // We get <IterKey, std::vector<StageKey>> from this map
     if (entry == pnode->iter_to_attached_stages.end()) {
+      // Skip if this iterator does not have any attach relations
       continue;
     }
 
-    // Replace iter in the value of `stage_to_attach_iter`
+    // Update the attaching target of an stage to the new iter in `stage_to_attach_iter`
     for (const auto& s : entry->second) {
       pnode->stage_to_attach_iter[s] = new_iters[i];
     }
 
-    // Replace iter in the key of `iter_to_attached_stages`
+    // Remove the original iterator relation from `iter_to_attached_stages` and add the new
+    // iterator to it
     std::vector<int> attached_stages = std::move(entry->second);
     pnode->iter_to_attached_stages.erase(entry);
     pnode->iter_to_attached_stages[new_iters[i]] = std::move(attached_stages);
@@ -134,14 +136,17 @@ void AttachMap::UpdateIters(const std::vector<IterKey>& old_iters,
 
 void AttachMap::DeleteStageEntry(AttachMapNode* pnode, int stage_id) {
   auto old_entry = pnode->stage_to_attach_iter.find(stage_id);
+  // We get <StageKey, IterKey> from this map
   if (old_entry != pnode->stage_to_attach_iter.end()) {
-    // Delete value in `iter_to_attached_stages`
+    // Delete the stage in `iter_to_attached_stages`, if the corresponding iterator does not have
+    // any attatched stage, delete this iterm too
     auto entry2 = pnode->iter_to_attached_stages.find(old_entry->second);
-    DeleteItem(&entry2->second, stage_id);
+    // We get <IterKey, std::vector<StageKey>> from this map
+    FindAndDeleteItem(&entry2->second, stage_id);
     if (entry2->second.size() == 0) {
       pnode->iter_to_attached_stages.erase(entry2);
     }
-    // Delete key in `stage_to_attach_iter`
+    // Delete the stage in `stage_to_attach_iter`
     pnode->stage_to_attach_iter.erase(old_entry);
   }
 }
@@ -244,9 +249,9 @@ Iterator State::unroll(int stage_id, const Iterator& it, int max_unroll) {
 
 Iterator State::bind(int stage_id, const Iterator& it, IteratorAnnotation thread_type) {
   const Stage& stage = operator->()->stages[stage_id];
-  if (thread_type < IteratorAnnotation::kVThread || thread_type > IteratorAnnotation::kThreadY) {
+  if (thread_type < IteratorAnnotation::kVThread || thread_type > IteratorAnnotation::kThreadZ) {
     LOG(FATAL) << "thread_type error, valide: kVThread, kBlockX, kBlockY, "
-               << "kThreadX, kThreadY";
+               << "kThreadX, kThreadY, kBlockZ, kThreadZ";
   }
   AnnotationStep step = AnnotationStep(stage_id, GetIndex(stage->iters, it), thread_type);
   CopyOnWrite()->transform_steps.push_back(step);
@@ -268,8 +273,8 @@ void State::DoReorderStep(const ReorderStep& step) {
 void State::DoComputeAtStep(const ComputeAtStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
 
-  // After compute_at, we don't know the accurate length information any more
-  // If we do want to know the accurate lengths, we can call ComputeDAG::InferBound
+  // Remove the bound information of each iterator since they may not be accurate after
+  // compute at
   Array<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
     new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation));
@@ -285,8 +290,8 @@ void State::DoComputeAtStep(const ComputeAtStep& step) {
 void State::DoComputeRootStep(const ComputeRootStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
 
-  // After compute_at, we don't know the accurate length information any more
-  // If we do want to know the accurate lengths, we can call ComputeDAG::InferBound
+  // Remove the bound information of each iterator since they may not be accurate after
+  // compute root
   Array<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
     new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation));
@@ -302,13 +307,13 @@ void State::DoComputeRootStep(const ComputeRootStep& step) {
 void State::DoComputeInlineStep(const ComputeInlineStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
 
-  // CHECK the validity of compute_inline
+  // Check the validity of compute_inline
   for (size_t i = 0; i < stage->iters.size(); ++i) {
     CHECK_EQ(operator->()->attach_map->iter_to_attached_stages.count(
                  std::make_pair(step->stage_id, i)),
              0)
-        << "Invalid compute_inline: Because there are some other stages "
-           "that are attached to the target stage";
+        << "Invalid compute_inline: There are some other stages that are attached to the "
+        << "target stage";
   }
 
   StateNode* pstate = CopyOnWrite();
@@ -387,8 +392,8 @@ Array<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id,
                      Stage(stage->op, stage->op_type, new_iters, stage->compute_at, stage->attrs));
   pstate->concrete &= concrete;
 
-  // We have to update the iterator relations in attach map, these two vectors keep the replacement
-  // mapping
+  // Two vectors are used to represent the iterator relation before and after split
+  // The original iterators in AttachMap will be updated with the new iterators
   std::vector<IterKey> from_iters;
   std::vector<IterKey> to_iters;
   for (size_t i = iter_id; i < old_iter_size; ++i) {
@@ -462,8 +467,8 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   pstate->stages.Set(stage_id,
                      Stage(stage->op, stage->op_type, new_iters, stage->compute_at, stage->attrs));
 
-  // We have to update the iterator relations in attach map, these two vectors keep the replacement
-  // mapping
+  // Two vectors are used to represent the iterator relation before and after fuse
+  // The original iterators in AttachMap will be updated with the new iterators
   std::vector<IterKey> from_iters;
   std::vector<IterKey> to_iters;
   const size_t begin_id = step->fused_ids.front(), end_id = step->fused_ids.back();
@@ -492,7 +497,7 @@ Iterator State::DoAnnotationStep(const AnnotationStep& step) {
   CHECK(it->annotation == IteratorAnnotation::kNone);
   Iterator new_it = Iterator(it->name, it->range, it->iter_kind, step->annotation);
   Stage new_stage = stage;
-  new_stage.CopyOnWrite()->iters.Set(step->iter_id, std::move(new_it));
+  new_stage.CopyOnWrite()->iters.Set(step->iter_id, new_it);
   CopyOnWrite()->stages.Set(step->stage_id, std::move(new_stage));
   return new_it;
 }
@@ -520,19 +525,6 @@ void State::DoSteps(const ComputeDAG& dag) {
     }
   }
 }
-
-static const char* IteratorAnnotationString[] = {
-    "for",              // kNone = 0
-    "unroll",           // kUnroll = 1
-    "vectorize",        // kVectorize = 2
-    "parallel",         // kParallel = 3
-    "vthread",          // kVThread = 4
-    "gpu.blockIdx.x",   // kBlockX = 5
-    "gpu.threadIdx.x",  // kThreadX = 6
-    "gpu.blockIdx.y",   // kBlockY = 7
-    "gpu.threadIdx.y",  // kThreadY = 8
-    "tensorize"         // kTensorized = 9
-};
 
 // Print stage to ostream
 void PrintStage(std::ostream* os, int stage_id, const State& state, size_t base_indent,

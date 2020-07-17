@@ -27,7 +27,7 @@ from test_auto_scheduler_common import matmul_auto_scheduler_test, conv2d_nchw_b
 
 
 def test_split_fuse_reorder_annotation():
-    A, B, C = matmul_auto_scheduler_test(512, 512, 512)
+    A, B, C = matmul_auto_scheduler_test(N=512, M=512, K=512)
     dag = auto_scheduler.ComputeDAG([A, B, C])
     s0 = dag.get_init_state()
     i, j, k = s0[C].iters
@@ -61,16 +61,34 @@ def test_split_fuse_reorder_annotation():
     assert s1[C].iters[4].range.extent == 8
     assert s1[C].iters[5].range.extent == 2
 
-    s1.parallel(C, j1)
-    s1.unroll(C, j2)
-    s1.vectorize(C, j3)
-    s1.bind(C, i1, "blockIdx.x")
-    s1.bind(C, i2, "vthread")
-    s1.bind(C, i3, "threadIdx.y")
+    res = s1.bind(C, i1, "blockIdx.x")
+    assert res == s1[C].iters[0]
+    assert res.annotation == auto_scheduler.loop_state.State.ANNOTATION_TRANS_TABLE["blockIdx.x"]
+
+    res = s1.bind(C, i2, "vthread")
+    assert res == s1[C].iters[1]
+    assert res.annotation == auto_scheduler.loop_state.State.ANNOTATION_TRANS_TABLE["vthread"]
+
+    res = s1.bind(C, i3, "threadIdx.y")
+    assert res == s1[C].iters[2]
+    assert res.annotation == auto_scheduler.loop_state.State.ANNOTATION_TRANS_TABLE["threadIdx.y"]
+
+    res = s1.parallel(C, j1)
+    assert res == s1[C].iters[3]
+    assert res.annotation == auto_scheduler.loop_state.State.ANNOTATION_TRANS_TABLE["parallel"]
+
+    res = s1.unroll(C, j2)
+    assert res == s1[C].iters[4]
+    assert res.annotation == auto_scheduler.loop_state.State.ANNOTATION_TRANS_TABLE["unroll"]
+
+    res = s1.vectorize(C, j3)
+    assert res == s1[C].iters[5]
+    assert res.annotation == auto_scheduler.loop_state.State.ANNOTATION_TRANS_TABLE["vectorize"]
 
 
 def test_compute_at_root_inline():
-    dag = auto_scheduler.ComputeDAG(conv2d_nchw_bn_relu(1, 224, 224, 3, 64, 7, 2, 3))
+    dag = auto_scheduler.ComputeDAG(conv2d_nchw_bn_relu(N=1, H=224, W=224, CI=3, CO=64,
+                                                        kernel_size=7, strides=2, padding=3))
     s0 = dag.get_init_state()
 
     # data, padding, kernel = 0, 1, 2
@@ -87,51 +105,50 @@ def test_compute_at_root_inline():
     s0.compute_inline(bn_mul)
     s0.compute_inline(bias_add)
     s0.compute_at(conv, relu, s0[relu].iters[2])
-    print(s0)
     assert str(s0) == \
-        "Placeholder: Data, Kernel, Bias, Bn_scale, Bn_offset\n" + \
-        "for i1 (0,3)\n" + \
-        "  for i2 (0,230)\n" + \
-        "    for i3 (0,230)\n" + \
-        "      pad_temp = ...\n" + \
-        "for i1 (0,64)\n" + \
-        "  for i2 (0,112)\n" + \
-        "    for nn (None)\n" + \
-        "      for ff (None)\n" + \
-        "        for yy (None)\n" + \
-        "          for xx (None)\n" + \
-        "            for rc (None)\n" + \
-        "              for ry (None)\n" + \
-        "                for rx (None)\n" + \
-        "                  compute = ...\n" + \
-        "    for i3 (0,112)\n" + \
-        "      compute = ...\n"
+        """Placeholder: Data, Kernel, Bias, Bn_scale, Bn_offset\n""" + \
+        """for i1 (0,3)\n""" + \
+        """  for i2 (0,230)\n""" + \
+        """    for i3 (0,230)\n""" + \
+        """      pad_temp = ...\n""" + \
+        """for i1 (0,64)\n""" + \
+        """  for i2 (0,112)\n""" + \
+        """    for nn (None)\n""" + \
+        """      for ff (None)\n""" + \
+        """        for yy (None)\n""" + \
+        """          for xx (None)\n""" + \
+        """            for rc (None)\n""" + \
+        """              for ry (None)\n""" + \
+        """                for rx (None)\n""" + \
+        """                  compute = ...\n""" + \
+        """    for i3 (0,112)\n""" + \
+        """      compute = ...\n"""
 
     s0.compute_root(conv)
     s0.compute_root(bn_mul)
     assert str(s0) == \
-        "Placeholder: Data, Kernel, Bias, Bn_scale, Bn_offset\n" + \
-        "for i1 (0,3)\n" + \
-        "  for i2 (0,230)\n" + \
-        "    for i3 (0,230)\n" + \
-        "      pad_temp = ...\n" + \
-        "for nn (None)\n" + \
-        "  for ff (None)\n" + \
-        "    for yy (None)\n" + \
-        "      for xx (None)\n" + \
-        "        for rc (None)\n" + \
-        "          for ry (None)\n" + \
-        "            for rx (None)\n" + \
-        "              compute = ...\n" + \
-        "for i (None)\n" + \
-        "  for j (None)\n" + \
-        "    for k (None)\n" + \
-        "      for l (None)\n" + \
-        "        Bn_mul = ...\n" + \
-        "for i1 (0,64)\n" + \
-        "  for i2 (0,112)\n" + \
-        "    for i3 (0,112)\n" + \
-        "      compute = ...\n"
+        """Placeholder: Data, Kernel, Bias, Bn_scale, Bn_offset\n""" + \
+        """for i1 (0,3)\n""" + \
+        """  for i2 (0,230)\n""" + \
+        """    for i3 (0,230)\n""" + \
+        """      pad_temp = ...\n""" + \
+        """for nn (None)\n""" + \
+        """  for ff (None)\n""" + \
+        """    for yy (None)\n""" + \
+        """      for xx (None)\n""" + \
+        """        for rc (None)\n""" + \
+        """          for ry (None)\n""" + \
+        """            for rx (None)\n""" + \
+        """              compute = ...\n""" + \
+        """for i (None)\n""" + \
+        """  for j (None)\n""" + \
+        """    for k (None)\n""" + \
+        """      for l (None)\n""" + \
+        """        Bn_mul = ...\n""" + \
+        """for i1 (0,64)\n""" + \
+        """  for i2 (0,112)\n""" + \
+        """    for i3 (0,112)\n""" + \
+        """      compute = ...\n"""
 
 
 if __name__ == "__main__":

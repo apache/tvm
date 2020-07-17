@@ -26,6 +26,9 @@ from test_auto_scheduler_common import get_tiled_matmul
 
 
 def test_record():
+    if not tvm.runtime.enabled("llvm"):
+        return
+
     A = te.placeholder((512, 512), name='A')
     B = te.placeholder((512, 512), name='B')
     k = te.reduce_axis((0, 512), name='k')
@@ -64,8 +67,6 @@ def test_record():
     # Vectorize
     s.vectorize(C, s[C].iters[6])
 
-    if not tvm.runtime.enabled("llvm"):
-        return
     target = tvm.target.create("llvm")
     task = auto_scheduler.SearchTask(dag, "test", target)
 

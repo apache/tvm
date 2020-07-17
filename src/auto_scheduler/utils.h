@@ -89,9 +89,9 @@ inline int GetIndex(const Array<T>& array, const T& to_locate) {
   return -1;
 }
 
-/*! \brief Delete the item in a std::vector. */
+/*! \brief Delete the item in a std::vector if it exists. */
 template <typename T>
-inline void DeleteItem(std::vector<T>* array, const T& to_delete) {
+inline void FindAndDeleteItem(std::vector<T>* array, const T& to_delete) {
   auto iter = std::find(array->begin(), array->end(), to_delete);
   if (iter != array->end()) {
     array->erase(iter);

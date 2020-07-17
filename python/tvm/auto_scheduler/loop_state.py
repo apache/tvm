@@ -83,6 +83,24 @@ class State:
     -----
     This is a wrapper class of StateObject to deal with copy-on-write property
     """
+
+    # Static trans table for thread bind
+    # This is used to transform the annotation name to C++ enum
+    ANNOTATION_TRANS_TABLE = {
+        "none": 0,
+        "unroll": 1,
+        "vectorize": 2,
+        "parallel": 3,
+        "vthread": 4,
+        "blockIdx.x": 5,
+        "threadIdx.x": 6,
+        "blockIdx.y": 7,
+        "threadIdx.y": 8,
+        "blockIdx.z": 9,
+        "threadIdx.z": 10,
+        "tensorize": 11
+    }
+
     def __init__(self, state_object, dag):
         self.state_object = state_object
         self.compute_dag = dag
@@ -135,6 +153,11 @@ class State:
             output tensor.
         target_iter : Iterator
             The target Iterator of compute_at.
+
+        Notes
+        -----
+        After compute_at, the extent of each iterator may not be accurate any more, so the bound
+        information will be removed from this state. Run ComputeDAG::InferBound to recover.
         """
         self.state_object = _ffi_api.StateComputeAt(self.state_object,
                                                     self._resolve_stage_id(stage),
@@ -149,6 +172,11 @@ class State:
         stage : Union[int, Operation, Tensor]
             The Stage to be compute root, can be a Stage order index, Stage operation or stage
             output tensor.
+
+        Notes
+        -----
+        After compute_root, the extent of each iterator may not be accurate any more, so the bound
+        information will be removed from this state. Run ComputeDAG::InferBound to recover.
         """
         self.state_object = _ffi_api.StateComputeRoot(self.state_object,
                                                       self._resolve_stage_id(stage))
@@ -187,6 +215,11 @@ class State:
         -------
         res_its : List[Iterator]
             The splitted new Iterators.
+
+        Notes
+        -----
+        If we do split on an iterator which has stages attached at it(by compute_at), the inner
+        most iterator of split results will become the new attach point.
         """
         self.state_object, res = _ffi_api.StateSplit(self.state_object,
                                                      self._resolve_stage_id(stage),
@@ -208,6 +241,11 @@ class State:
         -------
         res_it : Iterator
             The fused Iterator.
+
+        Notes
+        -----
+        If the iterators to be fused have stages attached at them(by compute_at), the fused
+        result will become the new attach point.
         """
         self.state_object, res = _ffi_api.StateFuse(self.state_object,
                                                     self._resolve_stage_id(stage), iters)
@@ -293,25 +331,20 @@ class State:
             - threadIdx.x
             - blockIdx.y
             - threadIdx.y
+            - blockIdx.z
+            - threadIdx.z
 
         Returns
         -------
         res_it : Iterator
             The binded Iterator.
         """
-        trans_table = {
-            "vthread": 4,
-            "blockIdx.x": 5,
-            "threadIdx.x": 6,
-            "blockIdx.y": 7,
-            "threadIdx.y": 8,
-        }
-        if not thread_name in trans_table.keys():
+        if not thread_name in State.ANNOTATION_TRANS_TABLE.keys():
             raise ValueError("Invalid thread_name: ", thread_name)
 
         self.state_object, res = _ffi_api.StateBind(self.state_object,
                                                     self._resolve_stage_id(stage), iterator,
-                                                    trans_table[thread_name])
+                                                    State.ANNOTATION_TRANS_TABLE[thread_name])
         return res
 
     def copy(self):

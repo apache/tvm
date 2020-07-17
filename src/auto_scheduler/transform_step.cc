@@ -36,6 +36,21 @@
 namespace tvm {
 namespace auto_scheduler {
 
+const char* IteratorAnnotationString[] = {
+    "for",          // kNone = 0
+    "unroll",       // kUnroll = 1
+    "vectorize",    // kVectorize = 2
+    "parallel",     // kParallel = 3
+    "vthread",      // kVThread = 4
+    "blockIdx.x",   // kBlockX = 5
+    "threadIdx.x",  // kThreadX = 6
+    "blockIdx.y",   // kBlockY = 7
+    "threadIdx.y",  // kThreadY = 8
+    "blockIdx.z",   // kBlockZ = 9
+    "threadIdx.z",  // kThreadZ = 10
+    "tensorize"     // kTensorized = 11
+};
+
 /********** Reorder **********/
 ReorderStep::ReorderStep(int stage_id, const Array<Integer>& after_ids) {
   auto node = make_object<ReorderStepNode>();
@@ -94,8 +109,9 @@ ComputeAtStep::ComputeAtStep(int stage_id, int target_stage_id, int target_iter_
 void ComputeAtStepNode::ApplyToSchedule(Array<te::Stage>* stages,
                                         StageToAxesMap* stage_to_axes) const {
   te::Stage stage = (*stages)[stage_id];
-  const IterVar& target_axis = (*stage_to_axes)[(*stages)[target_stage_id]][target_iter_id];
-  stage.compute_at((*stages)[target_stage_id], target_axis);
+  const auto& target_stage = (*stages)[target_stage_id];
+  const auto& target_axis = (*stage_to_axes)[target_stage][target_iter_id];
+  stage.compute_at(target_stage, target_axis);
 
   stages->Set(stage_id, std::move(stage));
 }
@@ -122,7 +138,6 @@ void ComputeRootStepNode::ApplyToSchedule(Array<te::Stage>* stages,
                                           StageToAxesMap* stage_to_axes) const {
   auto stage = (*stages)[stage_id];
   stage.compute_root();
-
   stages->Set(stage_id, std::move(stage));
 }
 
@@ -146,7 +161,6 @@ void ComputeInlineStepNode::ApplyToSchedule(Array<te::Stage>* stages,
                                             StageToAxesMap* stage_to_axes) const {
   auto stage = (*stages)[stage_id];
   stage.compute_inline();
-
   stages->Set(stage_id, std::move(stage));
 }
 
@@ -337,19 +351,14 @@ void AnnotationStepNode::ApplyToSchedule(Array<te::Stage>* stages,
       stage.parallel(axes[iter_id]);
       break;
     case IteratorAnnotation::kVThread:
-      stage.bind(axes[iter_id], te::thread_axis(Range(), "vthread"));
-      break;
     case IteratorAnnotation::kBlockX:
-      stage.bind(axes[iter_id], te::thread_axis(Range(), "blockIdx.x"));
-      break;
     case IteratorAnnotation::kBlockY:
-      stage.bind(axes[iter_id], te::thread_axis(Range(), "blockIdx.y"));
-      break;
+    case IteratorAnnotation::kBlockZ:
     case IteratorAnnotation::kThreadX:
-      stage.bind(axes[iter_id], te::thread_axis(Range(), "threadIdx.x"));
-      break;
     case IteratorAnnotation::kThreadY:
-      stage.bind(axes[iter_id], te::thread_axis(Range(), "threadIdx.y"));
+    case IteratorAnnotation::kThreadZ:
+      stage.bind(axes[iter_id],
+                 te::thread_axis(Range(), IteratorAnnotationString[static_cast<int>(annotation)]));
       break;
     case IteratorAnnotation::kNone:
       break;
@@ -381,8 +390,10 @@ String AnnotationStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
     case IteratorAnnotation::kVThread:
     case IteratorAnnotation::kBlockX:
     case IteratorAnnotation::kBlockY:
+    case IteratorAnnotation::kBlockZ:
     case IteratorAnnotation::kThreadX:
     case IteratorAnnotation::kThreadY:
+    case IteratorAnnotation::kThreadZ:
       ss << "bind(";
       break;
     case IteratorAnnotation::kNone:
@@ -394,19 +405,14 @@ String AnnotationStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
   ss << CleanName(iter->var->name_hint);
   switch (annotation) {
     case IteratorAnnotation::kVThread:
-      ss << ", tvm.thread_axis(\"vthread\")";
-      break;
     case IteratorAnnotation::kBlockX:
-      ss << ", tvm.thread_axis(\"blockIdx.x\")";
-      break;
     case IteratorAnnotation::kBlockY:
-      ss << ", tvm.thread_axis(\"blockIdy.y\")";
-      break;
+    case IteratorAnnotation::kBlockZ:
     case IteratorAnnotation::kThreadX:
-      ss << ", tvm.thread_axis(\"threadIdx.x\")";
-      break;
     case IteratorAnnotation::kThreadY:
-      ss << ", tvm.thread_axis(\"threadIdx.y\")";
+    case IteratorAnnotation::kThreadZ:
+      ss << ", tvm.thread_axis(\"" << IteratorAnnotationString[static_cast<int>(annotation)]
+         << "\")";
       break;
     default:
       break;
