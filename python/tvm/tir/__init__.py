@@ -45,6 +45,7 @@ from .op import trunc, abs, round, nextafter, nearbyint, power, popcount, fmod, 
 from .op import isnan, isfinite, isinf, copysign
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from .op import comm_reducer, min, max, sum
+from .op import q_multiply_shift
 
 from . import ir_builder
 from . import transform

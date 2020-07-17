@@ -40,8 +40,15 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
-  IntrinInjecter(arith::Analyzer* analyzer, std::string target) : IRMutatorWithAnalyzer(analyzer) {
+  IntrinInjecter(arith::Analyzer* analyzer, std::string target, std::string mtriple = "")
+      : IRMutatorWithAnalyzer(analyzer) {
     patterns_.push_back("tvm.intrin.rule." + target + ".");
+
+    bool is_llvm_aarch64 = (mtriple.find("aarch64") != std::string::npos);
+    if (is_llvm_aarch64) {
+      patterns_.push_back("tvm.intrin.rule." + target + "." + "aarch64.");
+    }
+
     patterns_.push_back("tvm.intrin.rule.default.");
     fma_ = runtime::Registry::Get(patterns_[0] + "fma");
     if (target == "stackvm") {
@@ -287,7 +294,9 @@ Pass LowerIntrin() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     CHECK(target.defined()) << "LowerIntrin: Require the target attribute";
     arith::Analyzer analyzer;
-    n->body = IntrinInjecter(&analyzer, target.value()->id->name)(std::move(n->body));
+    auto mtriple = target.value()->GetAttr<runtime::String>("mtriple", "");
+    n->body =
+        IntrinInjecter(&analyzer, target.value()->id->name, mtriple.value())(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerIntrin", {});
