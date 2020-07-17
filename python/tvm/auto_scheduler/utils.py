@@ -199,26 +199,27 @@ def call_func_with_timeout(timeout, func, args=(), kwargs=None):
 
 
 def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
-    """Request a remote session
+    """ Request a remote session.
 
     Parameters
     ----------
     device_key : str
-        The device key of registered device in tracker
+        The device key of registered device in tracker.
     host : Optional[str]
         The host address of rpc tracker.
-        If is none, will use environment variable "TVM_TRACKER_HOST"
+        If is none, will use environment variable "TVM_TRACKER_HOST".
     port : Optional[int]
         The port of rpc tracker.
-        If is none, will use environment variable "TVM_TRACKER_PORT"
+        If is none, will use environment variable "TVM_TRACKER_PORT".
     priority : int = 1
-        The priority of this request, larger is more prior
+        The priority of this request, larger is more prior.
     timeout : int = 60
-        The timeout of this session (units: second)
+        The timeout of this session in second.
 
     Returns
     -------
-    session : RPCSession
+    remote : RPCSession
+        The connected remote RPCSession.
     """
     # connect to the tracker
     host = host or os.environ['TVM_TRACKER_HOST']
@@ -232,27 +233,27 @@ def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
 
 def check_remote(device_key, host=None, port=None, priority=100, timeout=10):
     """
-    Check the availability of a remote device
+    Check the availability of a remote device.
 
     Parameters
     ----------
     device_key: str
-        device key of registered device in tracker
+        device key of registered device in tracker.
     host: Optional[str]
         The host address of rpc tracker.
-        If is none, will use environment variable "TVM_TRACKER_HOST"
+        If is none, will use environment variable "TVM_TRACKER_HOST".
     port: Optional[int]
         The port address of rpc tracker.
-        If is none, will use environment variable "TVM_TRACKER_PORT"
+        If is none, will use environment variable "TVM_TRACKER_PORT".
     priority: int = 100
-        The priority of this request, larger is more prior
+        The priority of this request, larger is more prior.
     timeout: int = 10
-        The timeout of this check (units: seconds).
+        The timeout of this check in seconds.
 
     Returns
     -------
     available: bool
-        True if can find available device
+        True if can find available device.
     """
 
     def _check():

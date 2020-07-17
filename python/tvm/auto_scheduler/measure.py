@@ -200,7 +200,7 @@ class LocalBuilder(ProgramBuilder):
 class LocalRunner(ProgramRunner):
     """ LocalRunner that uses local CPU/GPU to measures the time cost of programs.
 
-    TODO(FrozenGene): Add cpu cache flush to this runner
+    TODO(FrozenGene): Add cpu cache flush to this runner.
 
     Parameters
     ----------
@@ -235,7 +235,6 @@ class LocalRunner(ProgramRunner):
                  cooldown_interval=0.0):
         self.__init_handle_by_constructor__(
             _ffi_api.LocalRunner, timeout, number, repeat, min_repeat_ms, cooldown_interval)
-
 
 
 @tvm._ffi.register_object("auto_scheduler.RPCRunner")
@@ -433,7 +432,8 @@ def local_build_worker(index):
                 dirname, "tmp_func." + build_func.output_format)
 
             try:
-                with transform.PassContext():  # todo(lmzheng): port the unroll pass
+                # TODO(merrymercy): Port the unroll pass.
+                with transform.PassContext():
                     func = build_module.build(
                         sch, args, target=task.target, target_host=task.target_host)
                 func.export_library(filename, build_func)
@@ -565,7 +565,7 @@ def local_run(inputs, build_results,
 
         if error_no == 0:
             try:
-                # TODO(FrozenGene): Update to ndarray.non-empty
+                # TODO(FrozenGene): Update to ndarray.non-empty.
                 args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
                         build_res.args]
                 ctx.sync()
@@ -656,7 +656,7 @@ def rpc_run_worker(index):
 
         if error_no == 0:
             try:
-                # TODO(FrozenGene): Update to ndarray.non-empty
+                # TODO(FrozenGene): Update to ndarray.non-empty.
                 args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
                         build_res.args]
                 ctx.sync()
