@@ -186,9 +186,7 @@ RELAY_REGISTER_OP("vm.invoke_tvm_op")
 // vm.reshape
 TVM_REGISTER_NODE_TYPE(ReshapeTensorAttrs);
 
-bool ReshapeTensorRel(const Array<Type>& types,
-                      int num_inputs,
-                      const Attrs& attrs,
+bool ReshapeTensorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3u);
   auto reshape_attrs = attrs.as<ReshapeTensorAttrs>();
@@ -200,7 +198,7 @@ bool ReshapeTensorRel(const Array<Type>& types,
 }
 
 RELAY_REGISTER_OP("vm.reshape_tensor")
-.describe(R"code(Use VM reshape_tensor instruction to reshape the tensor.
+    .describe(R"code(Use VM reshape_tensor instruction to reshape the tensor.
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor")
@@ -213,12 +211,12 @@ RELAY_REGISTER_OP("vm.reshape_tensor")
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 TVM_REGISTER_GLOBAL("relay.op.vm.reshape_tensor")
-.set_body_typed([](Expr data, Expr shape, Array<PrimExpr> newshape) {
-  static const Op& op = Op::Get("vm.reshape_tensor");
-  auto attrs = make_object<ReshapeTensorAttrs>();
-  attrs->newshape = std::move(newshape);
-  return Call(op, {data, shape}, Attrs(attrs), {});
-});
+    .set_body_typed([](Expr data, Expr shape, Array<PrimExpr> newshape) {
+      static const Op& op = Op::Get("vm.reshape_tensor");
+      auto attrs = make_object<ReshapeTensorAttrs>();
+      attrs->newshape = std::move(newshape);
+      return Call(op, {data, shape}, Attrs(attrs), {});
+    });
 
 }  // namespace relay
 }  // namespace tvm

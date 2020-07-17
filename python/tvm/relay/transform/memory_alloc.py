@@ -40,8 +40,9 @@ def is_primitive(call):
 
 
 class CheckReshapeOnly(ExprVisitor):
+    """A pass to check if the fused op contains only reshape ops."""
     def __init__(self):
-        super(ExprVisitor, self).__init__()
+        super().__init__()
         self._reshape_ops = [op.get("reshape"), op.get("contrib_reverse_reshape"),
                              op.get("dyn.reshape")]
         self.reshape_only = True
@@ -56,6 +57,7 @@ class CheckReshapeOnly(ExprVisitor):
 
 
 def is_reshape_only(func):
+    """Check if the primitive function contains only reshape ops."""
     check = CheckReshapeOnly()
     check.visit(func)
     return check.reshape_only
@@ -196,7 +198,7 @@ class ManifestAllocPass(ExprMutator):
         out_shapes = self.emit_shape_func(scope, func, new_args)
 
         storages = []
-        for out_shape, out_type in zip(out_shapes, out_types):
+        for i, (out_shape, out_type) in enumerate(zip(out_shapes, out_types)):
             size = self.compute_storage_in_relay(
                 out_shape, out_type.dtype)
             alignment = self.compute_alignment(out_type.dtype)

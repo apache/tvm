@@ -49,8 +49,7 @@ struct ReshapeTensorAttrs : public tvm::AttrsNode<ReshapeTensorAttrs> {
   Array<PrimExpr> newshape;
 
   TVM_DECLARE_ATTRS(ReshapeTensorAttrs, "relay.attrs.ReshapeTensorAttrs") {
-    TVM_ATTR_FIELD(newshape)
-        .describe("The new shape of output tensor");
+    TVM_ATTR_FIELD(newshape).describe("The new shape of output tensor");
   }
 };
 
