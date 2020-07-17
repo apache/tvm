@@ -197,7 +197,7 @@ def get_workload_official(model_url, model_sub_path):
         raise RuntimeError('Could not decompress the file: ' + model_path)
     return os.path.join(dir_path, model_sub_path)
 
-def get_workload(model_path, model_sub_path=None):
+def get_workload(model_path, model_sub_path=None, inputs_dict=None, output=None):
     """ Import workload from frozen protobuf
 
     Parameters
@@ -226,8 +226,14 @@ def get_workload(model_path, model_sub_path=None):
     with tf_compat_v1.gfile.FastGFile(path_model, 'rb') as f:
         graph_def = tf_compat_v1.GraphDef()
         graph_def.ParseFromString(f.read())
-        graph = tf_compat_v1.import_graph_def(graph_def, name='')
-        return graph_def
+        graph = tf_compat_v1.import_graph_def(graph_def, name='', input_map=inputs_dict)
+
+    if inputs_dict is not None:
+        # graph is changed so generate graph_def again
+        with tf_compat_v1.Session(graph=graph) as sess:
+            graph_def = AddShapesToGraphDef(sess, output)
+
+    return graph_def
 
 #######################################################################
 # PTB LSTMBlockCell Model
@@ -266,7 +272,7 @@ def do_tf_sample(session, data, in_states, num_samples):
                         'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros_1:0',
                         'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros:0',
                         'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros_1:0']
-    state = session.run(state_input_name)
+    state = in_states
 
     #Graph nodes to be fetched as run output. Tensorflow LSTMBlockCell create internal
     #nodes for intermediate operations (gates) in the cell during run.
@@ -364,4 +370,27 @@ def get_workload_ptb():
     t.extractall(dir_path)
 
     word_to_id, id_to_word = _create_ptb_vocabulary(dir_path)
-    return word_to_id, id_to_word, get_workload(ptb_model_file)
+    dtype = 'float32'
+    shape = (1, 200)
+
+    # Convert states of LSTMBlockCell to placeholder, so TVM can feed data
+    state_name = [
+        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros:0',
+        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros_1:0',
+        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros:0',
+        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros_1:0',
+        ]
+
+    inputs_dict = {
+        state_name[0]:
+            tf_compat_v1.placeholder(dtype, shape, state_name[0].split(':')[0]),
+        state_name[1]:
+            tf_compat_v1.placeholder(dtype, shape, state_name[1].split(':')[0]),
+        state_name[2]:
+            tf_compat_v1.placeholder(dtype, shape, state_name[2].split(':')[0]),
+        state_name[3]:
+            tf_compat_v1.placeholder(dtype, shape, state_name[3].split(':')[0]),
+    }
+    return word_to_id, id_to_word, get_workload(ptb_model_file,
+                                                inputs_dict=inputs_dict,
+                                                output='Model/Softmax')
