@@ -3737,7 +3737,7 @@ def test_forward_dynamic_input_shape():
             graph_def = tf_testing.AddShapesToGraphDef(sess, out_name)
             tf_output = run_tf_graph(sess, np_data, 'data:0', ['{}:0'.format(out_name)])
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
-            for device in ["llvm", "cuda"]:
+            for device in ["llvm"]:
                 ctx = tvm.context(device, 0)
                 if not ctx.exist:
                     print("Skip because %s is not enabled" % device)
@@ -3748,6 +3748,32 @@ def test_forward_dynamic_input_shape():
                 tvm.testing.assert_allclose(tvm_output[0], tf_output[0],
                                             rtol=1e-5, atol=1e-5)
 
+#######################################################################
+# Dynamic cuda virtual machine
+# -------------------
+def test_forward_cuda_dynamic_vm():
+    debug_graph = tf.Graph()
+    with debug_graph.as_default():
+        input_1 = tf.placeholder(dtype=tf.int32, shape=[None], name='input_1')
+        result = tf.nn.relu(input_1, name='result')
+
+    layout = "NHWC"
+    mod, params = relay.frontend.from_tensorflow(
+        debug_graph.as_graph_def(),
+        layout=layout,
+        outputs=['result']
+    )
+
+    target = "cuda"
+    context = tvm.gpu()
+
+    exe = relay.vm.compile(mod, target=target, params=params)
+    des_vm = tvm.runtime.vm.VirtualMachine(exe)
+    des_vm.init(context)
+    in_data = np.array([-1, 2, -3, 4, -5], dtype=np.int32)
+    ret = des_vm.run(in_data)
+    expect_ret = np.array([0, 2, 0, 4, 0], dtype=np.int32)
+    np.array_equal(ret, expect_ret)
 
 #######################################################################
 # Main
@@ -3887,3 +3913,7 @@ if __name__ == '__main__':
 
     # Test dynamic input shape
     test_forward_dynamic_input_shape()
+
+    # Test dynamic cuda virtual machine
+    test_forward_cuda_dynamic_vm()
+
