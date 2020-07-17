@@ -819,6 +819,7 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
                       dilations, strides, padding, data_format,
                       is_depthwise=False, quantized=False):
     """ One iteration of convolution with given shapes and attributes """
+
     np.random.seed(0)
     total_size_1 = 1
     total_size_2 = 1
