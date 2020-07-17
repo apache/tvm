@@ -131,6 +131,17 @@ def check_grad(func,
         _, grads = intrp.evaluate(bwd_func)(*inputs)
         grads = [grad.asnumpy().astype("float64") for grad in grads]
 
+        # Throw out gradients we aren't testing
+        if inputs != test_inputs:
+            tmp = []
+            # find the gradient that corresponds to every test input
+            for test_input in test_inputs:
+                for i, grad in enumerate(grads):
+                    if inputs[i] is test_input:
+                        tmp.append(grad)
+                        break
+            grads = tmp
+
         # Get numeric gradients for each dimension of each param, using two-sided approximation.
         approx_grads = []
         for x in test_inputs:
@@ -145,7 +156,6 @@ def check_grad(func,
                 approx_grad[i] = np.sum((fwd_plus - fwd_minus) / (2 * eps))
             approx_grads.append(approx_grad)
         # Compare gradients by checking that relative difference is below tolerance.
-        grads = [grads[i] for i in range(len(grads)) if inputs[i] in test_inputs]
         for grad, approx_grad in zip(grads, approx_grads):
             np.testing.assert_allclose(grad, approx_grad, atol=atol, rtol=rtol)
 
