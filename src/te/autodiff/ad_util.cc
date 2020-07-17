@@ -26,8 +26,8 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include <string>
 #include <set>
+#include <string>
 
 #include "../schedule/operation_inline.h"
 
@@ -65,8 +65,7 @@ PrimExpr CloneReduction(const PrimExpr& expr) {
 
 Operation ComputeOpFromExprs(const Array<PrimExpr>& exprs, const Array<IterVar>& axis,
                              const std::string& name, const std::string& tag,
-                             const Map<String, ObjectRef>& attrs,
-                             bool clone_axis) {
+                             const Map<String, ObjectRef>& attrs, bool clone_axis) {
   if (clone_axis) {
     Array<IterVar> new_axis = axis;
     Map<Var, PrimExpr> vmap;
@@ -83,8 +82,7 @@ Operation ComputeOpFromExprs(const Array<PrimExpr>& exprs, const Array<IterVar>&
   // If this is a reduction then we have to replicate it
   if (const ReduceNode* red = exprs[0].as<ReduceNode>()) {
     for (size_t i = 0; i < red->source.size(); ++i) {
-      PrimExpr ith_red = Reduce(
-          red->combiner, red->source, red->axis, red->condition, i);
+      PrimExpr ith_red = Reduce(red->combiner, red->source, red->axis, red->condition, i);
       new_exprs.push_back(ith_red);
     }
   } else {
@@ -94,9 +92,8 @@ Operation ComputeOpFromExprs(const Array<PrimExpr>& exprs, const Array<IterVar>&
   return ComputeOp(name, tag, attrs, axis, new_exprs);
 }
 
-Tensor TensorFromExpr(const PrimExpr& expr, const Array<IterVar>& axis,
-                      const std::string& name, const std::string& tag,
-                      const Map<String, ObjectRef>& attrs,
+Tensor TensorFromExpr(const PrimExpr& expr, const Array<IterVar>& axis, const std::string& name,
+                      const std::string& tag, const Map<String, ObjectRef>& attrs,
                       bool clone_axis) {
   int new_value_index = 0;
   if (const ReduceNode* red = expr.as<ReduceNode>()) {
@@ -105,9 +102,9 @@ Tensor TensorFromExpr(const PrimExpr& expr, const Array<IterVar>& axis,
   return ComputeOpFromExprs({expr}, axis, name, tag, attrs, clone_axis).output(new_value_index);
 }
 
-Tensor TransformTensorBody(const Tensor& tensor,
-                           const std::function<PrimExpr(
-                               const PrimExpr&, const Array<IterVar>&)>& func) {
+Tensor TransformTensorBody(
+    const Tensor& tensor,
+    const std::function<PrimExpr(const PrimExpr&, const Array<IterVar>&)>& func) {
   if (const ComputeOpNode* op = tensor->op.as<ComputeOpNode>()) {
     // Transform only one body
     PrimExpr new_body = func(op->body[tensor->value_index], op->axis);
@@ -124,7 +121,7 @@ Tensor TransformTensorBody(const Tensor& tensor,
 }
 
 Tensor TransformTensorBody(const Tensor& tensor,
-                     const std::function<PrimExpr(const PrimExpr&)>& func) {
+                           const std::function<PrimExpr(const PrimExpr&)>& func) {
   return TransformTensorBody(tensor,
                              [func](const PrimExpr& e, const Array<IterVar>&) { return func(e); });
 }
@@ -139,8 +136,8 @@ PrimExpr InlineImmediateTensorAccess(const PrimExpr& expr) {
         tensor_axes.push_back(var->var);
       }
 
-      Stmt inlined = Inline(Evaluate(expr), tensor->op, tensor_axes,
-                            op_comp->body[tensor->value_index]);
+      Stmt inlined =
+          Inline(Evaluate(expr), tensor->op, tensor_axes, op_comp->body[tensor->value_index]);
       if (const EvaluateNode* ev = inlined.as<EvaluateNode>()) {
         // If it is a reduction, clone it
         return CloneReduction(ev->value);
@@ -185,12 +182,11 @@ class InlineTensorsMutator : public ExprMutator {
 
 Tensor InlineTensorAccess(const Tensor& tensor, const Array<Tensor>& inlineable,
                           bool inline_reductions) {
-  auto transformation =
-      [inlineable, inline_reductions](const PrimExpr& e) {
-        return InlineTensorsMutator(inlineable, inline_reductions)(e); };
+  auto transformation = [inlineable, inline_reductions](const PrimExpr& e) {
+    return InlineTensorsMutator(inlineable, inline_reductions)(e);
+  };
   return TransformTensorBody(tensor, transformation);
 }
-
 
 Tensor InlineTailTensorAccess(const Tensor& tensor) {
   return TransformTensorBody(tensor, InlineImmediateTensorAccess);

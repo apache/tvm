@@ -24,14 +24,14 @@
 #ifndef TVM_TE_AUTODIFF_AD_UTIL_H_
 #define TVM_TE_AUTODIFF_AD_UTIL_H_
 
+#include <tvm/arith/int_solver.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
-#include <tvm/arith/int_solver.h>
 
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <string>
 
 namespace tvm {
 namespace te {
@@ -64,16 +64,14 @@ PrimExpr CloneReduction(const PrimExpr& expr);
  */
 Tensor TensorFromExpr(const PrimExpr& expr, const Array<IterVar>& axis,
                       const std::string& name = "tensor", const std::string& tag = "",
-                      const Map<String, ObjectRef>& attrs = {},
-                      bool clone_axis = true);
+                      const Map<String, ObjectRef>& attrs = {}, bool clone_axis = true);
 
 Tensor TransformTensorBody(
     const Tensor& tensor,
     const std::function<PrimExpr(const PrimExpr&, const Array<IterVar>&)>& func);
 
-Tensor TransformTensorBody(
-    const Tensor& tensor,
-    const std::function<PrimExpr(const PrimExpr&)>& func);
+Tensor TransformTensorBody(const Tensor& tensor,
+                           const std::function<PrimExpr(const PrimExpr&)>& func);
 
 /*!
  * \brief Inline tensors access recursively.
@@ -117,8 +115,8 @@ TVM_DLL Tensor InlineTailTensorAccess(const Tensor& tensor);
  * \param iter_domains The original domain.
  * \param eliminate_div_mod Whether to eliminate div and mod by introducing new variables.
  */
-TVM_DLL arith::IntConstraintsTransform SimplifyDomain(
-    const arith::IntConstraints& iter_domains, bool eliminate_div_mod = true);
+TVM_DLL arith::IntConstraintsTransform SimplifyDomain(const arith::IntConstraints& iter_domains,
+                                                      bool eliminate_div_mod = true);
 
 /*!
  * \brief Perform lifting of conditions of being possible to be non-zero together with
@@ -129,9 +127,8 @@ TVM_DLL arith::IntConstraintsTransform SimplifyDomain(
  * \param vranges Optional map from free variables to their value ranges.
  * \return An optimized tensor.
  */
-TVM_DLL Tensor RemoveJacobianAndLiftNonzeroCond(
-    const Tensor& tensor,
-    const Map<Var, Range>& vranges = Map<Var, Range>());
+TVM_DLL Tensor RemoveJacobianAndLiftNonzeroCond(const Tensor& tensor,
+                                                const Map<Var, Range>& vranges = Map<Var, Range>());
 
 }  // namespace te
 }  // namespace tvm

@@ -89,8 +89,8 @@ Array<IterVar> IterVarsFromMap(const Array<Var>& vars, const Map<Var, Range>& vr
                                IterVarType iter_type = kDataPar, std::string thread_tag = "") {
   Array<IterVar> res;
   for (const Var& v : vars) {
-    CHECK(vranges.count(v)) << "A range for the variable " << v
-                               << " was not provided in map " << vranges;
+    CHECK(vranges.count(v)) << "A range for the variable " << v << " was not provided in map "
+                            << vranges;
     res.push_back(IterVar(vranges[v], v, iter_type, thread_tag));
   }
   return res;
@@ -136,7 +136,7 @@ bool IsSumCombiner(const CommReducer& combiner, const Map<Var, Range>& vranges) 
   PrimExpr combiner_result = analyzer.Simplify(combiner->result[0], 3);
 
   return tir::ExprDeepEqual()(combiner_result, combiner->lhs[0] + combiner->rhs[0]) ||
-        tir::ExprDeepEqual()(combiner_result, combiner->rhs[0] + combiner->lhs[0]);
+         tir::ExprDeepEqual()(combiner_result, combiner->rhs[0] + combiner->lhs[0]);
 }
 
 bool CanFactorZeroFromCombiner(const CommReducer& combiner, int value_index,
@@ -148,9 +148,8 @@ bool CanFactorZeroFromCombiner(const CommReducer& combiner, int value_index,
   }
 
   PrimExpr zero = make_zero(combiner->result[value_index].dtype());
-  PrimExpr in = Substitute(combiner->result[value_index],
-                           {{combiner->lhs[value_index], zero},
-                            {combiner->rhs[value_index], zero}});
+  PrimExpr in = Substitute(combiner->result[value_index], {{combiner->lhs[value_index], zero},
+                                                           {combiner->rhs[value_index], zero}});
   in = analyzer.Simplify(in, 3);
 
   return is_const_value(in, 0);
@@ -160,9 +159,7 @@ struct NonzeroConditionResult {
   PrimExpr cond;
   PrimExpr value;
 
-  PrimExpr to_expr() const {
-    return Select(cond, value, make_zero(value.dtype()));
-  }
+  PrimExpr to_expr() const { return Select(cond, value, make_zero(value.dtype())); }
 
   friend std::ostream& operator<<(std::ostream& os, const NonzeroConditionResult& r) {
     return os << r.to_expr();
@@ -329,6 +326,7 @@ class NonzeroConditionFunctor : public ExprFunctor<NonzeroConditionResult(const 
       return {nz_a.cond, T(nz_a.value, op->b)};
     }
   }
+
  private:
   arith::Analyzer analyzer_;
 };
@@ -405,14 +403,12 @@ class FactorOutAtomicFormulasFunctor
     // For the And case we return the union of the sets of atomic formulas
     std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> res_set;
     res_set.reserve(res_a.atomic_formulas.size() + res_b.atomic_formulas.size());
-    std::copy(res_a.atomic_formulas.begin(),
-              res_a.atomic_formulas.end(),
+    std::copy(res_a.atomic_formulas.begin(), res_a.atomic_formulas.end(),
               std::inserter(res_set, res_set.end()));
-    std::copy(res_b.atomic_formulas.begin(),
-              res_b.atomic_formulas.end(),
+    std::copy(res_b.atomic_formulas.begin(), res_b.atomic_formulas.end(),
               std::inserter(res_set, res_set.end()));
 
-    std::vector<PrimExpr> res {res_set.begin(), res_set.end()};
+    std::vector<PrimExpr> res{res_set.begin(), res_set.end()};
 
     // And the residuals are combined with &&
     return {res, res_a.rest && res_b.rest};
@@ -428,10 +424,10 @@ class FactorOutAtomicFormulasFunctor
     auto res_a = VisitExpr(op->a);
     auto res_b = VisitExpr(op->b);
 
-    std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> res_a_set {
-        res_a.atomic_formulas.begin(), res_a.atomic_formulas.end() };
-    std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> res_b_set {
-        res_b.atomic_formulas.begin(), res_b.atomic_formulas.end() };
+    std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> res_a_set{
+        res_a.atomic_formulas.begin(), res_a.atomic_formulas.end()};
+    std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> res_b_set{
+        res_b.atomic_formulas.begin(), res_b.atomic_formulas.end()};
 
     // For the Or case we intersect the sets of atomic formulas
     std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> res_set;
@@ -460,7 +456,7 @@ class FactorOutAtomicFormulasFunctor
     res_b.atomic_formulas = std::move(new_cond_b);
 
     PrimExpr new_rest = res_a.to_expr() || res_b.to_expr();
-    std::vector<PrimExpr> res {res_set.begin(), res_set.end()};
+    std::vector<PrimExpr> res{res_set.begin(), res_set.end()};
 
     return {res, new_rest};
   }
@@ -507,8 +503,7 @@ class EliminateDivModMutator : public ExprMutator {
   Array<PrimExpr> conditions;
   Map<Var, Range> ranges;
 
-  explicit EliminateDivModMutator(Map<Var, Range> ranges)
-      : ranges(std::move(ranges)) {}
+  explicit EliminateDivModMutator(Map<Var, Range> ranges) : ranges(std::move(ranges)) {}
 
   virtual PrimExpr VisitExpr_(const DivNode* op) {
     const IntImmNode* imm = op->b.as<IntImmNode>();
@@ -568,8 +563,8 @@ class EliminateDivModMutator : public ExprMutator {
     if (imm && imm->value != 0) {
       if (imm->value < 0) {
         // x / -c == (-x) / c for flooring division
-        return VisitExpr(floordiv(make_zero(op->dtype) - op->a,
-                                  make_const(op->dtype, -imm->value)));
+        return VisitExpr(
+            floordiv(make_zero(op->dtype) - op->a, make_const(op->dtype, -imm->value)));
       }
 
       // Try to find the already existing variables for this expression
@@ -618,10 +613,8 @@ class EliminateDivModMutator : public ExprMutator {
   }
 
  private:
-  dmlc::optional<std::pair<Var, Var>> AddNewVarPair(const PrimExpr& e,
-                                                    const PrimExpr& mut,
-                                                    int64_t val,
-                                                    DivMode mode) {
+  dmlc::optional<std::pair<Var, Var>> AddNewVarPair(const PrimExpr& e, const PrimExpr& mut,
+                                                    int64_t val, DivMode mode) {
     using tresult = dmlc::optional<std::pair<Var, Var>>;
 
     // Try to find the variables using the mutated expressions
@@ -672,7 +665,7 @@ class EliminateDivModMutator : public ExprMutator {
     ranges.Set(mod, mod_range);
 
     // This additional condition works as a definition for the new variables
-    conditions.push_back(mut == div*val_e + mod);
+    conditions.push_back(mut == div * val_e + mod);
 
     if (!analyzer_.CanProve(mod_range->extent <= val_e)) {
       // Since we use the C/C++ definition of mod, there may be multiple values of `mod`
@@ -696,17 +689,17 @@ class EliminateDivModMutator : public ExprMutator {
     bool operator()(const std::tuple<DivMode, PrimExpr, int64_t>& lhs,
                     const std::tuple<DivMode, PrimExpr, int64_t>& rhs) const {
       return std::get<0>(lhs) == std::get<0>(rhs) &&
-          tir::ExprDeepEqual()(std::get<1>(lhs), std::get<1>(rhs)) &&
-          std::get<2>(lhs) == std::get<2>(rhs);
+             tir::ExprDeepEqual()(std::get<1>(lhs), std::get<1>(rhs)) &&
+             std::get<2>(lhs) == std::get<2>(rhs);
     }
   };
 
   class TupleHasher_ {
    public:
     size_t operator()(const std::tuple<DivMode, PrimExpr, int64_t>& key) const {
-      return ((std::hash<int>()(std::get<0>(key))
-               ^ (StructuralHash()(std::get<1>(key)) << 1)) >> 1)
-               ^ (std::hash<int64_t>()(std::get<2>(key)) << 1);
+      return ((std::hash<int>()(std::get<0>(key)) ^ (StructuralHash()(std::get<1>(key)) << 1)) >>
+              1) ^
+             (std::hash<int64_t>()(std::get<2>(key)) << 1);
     }
   };
 
@@ -714,10 +707,9 @@ class EliminateDivModMutator : public ExprMutator {
   int idx_{0};
   // A map from pairs of exprs and numbers (e, n) to pairs of new vars (div, mod)
   // such that `div = e / n` and `mod = e % n`
-  std::unordered_map<std::tuple<DivMode, PrimExpr, int64_t>,
-                     std::pair<Var, Var>,
-                     TupleHasher_,
-                     TupleEqual_> expr_to_vars_;
+  std::unordered_map<std::tuple<DivMode, PrimExpr, int64_t>, std::pair<Var, Var>, TupleHasher_,
+                     TupleEqual_>
+      expr_to_vars_;
   arith::Analyzer analyzer_;
 };
 
@@ -742,8 +734,7 @@ arith::IntConstraintsTransform EliminateDivModFromDomainConditions(
   Array<Var> new_axis = Concat(domain->variables, elim_res.new_variables);
   PrimExpr new_cond = elim_res.expr && All(elim_res.conditions);
 
-  arith::IntConstraints new_domain(new_axis,
-                                   new_vranges,
+  arith::IntConstraints new_domain(new_axis, new_vranges,
                                    FactorOutAtomicFormulas(new_cond).to_array());
 
   Map<Var, PrimExpr> src_to_dst;
@@ -766,7 +757,7 @@ inline arith::IntConstraintsTransform IdentityTransformation(const arith::IntCon
 }
 
 arith::IntConstraintsTransform SimplifyDomain(const arith::IntConstraints& iter_domains,
-                                                      bool eliminate_div_mod) {
+                                              bool eliminate_div_mod) {
   arith::IntConstraintsTransform transf = IdentityTransformation(iter_domains);
 
   if (eliminate_div_mod) {
@@ -804,17 +795,12 @@ PrimExpr SimplifyReductionDomain(const PrimExpr& expr, const Map<Var, Range>& ou
       new_source.push_back(Substitute(src, res->src_to_dst));
     }
 
-    Array<IterVar> new_axis =
-        IterVarsFromMap(res->dst->variables, res->dst->ranges, kCommReduce);
+    Array<IterVar> new_axis = IterVarsFromMap(res->dst->variables, res->dst->ranges, kCommReduce);
 
     // Perform simplification mainly to remove a possibly empty reduction.
     arith::Analyzer analyzer;
     return analyzer.Simplify(
-        Reduce(red->combiner,
-               new_source,
-               new_axis,
-               All(res->dst->relations),
-               red->value_index), 3);
+        Reduce(red->combiner, new_source, new_axis, All(res->dst->relations), red->value_index), 3);
   } else {
     return expr;
   }
@@ -828,15 +814,13 @@ std::pair<PrimExpr, PrimExpr> ImplicationNotContainingVars(
   if (const AndNode* op = cond.as<AndNode>()) {
     auto pair_a = ImplicationNotContainingVars(op->a, vars);
     auto pair_b = ImplicationNotContainingVars(op->b, vars);
-    return {pair_a.first && pair_b.first,
-            pair_a.second && pair_b.second};
+    return {pair_a.first && pair_b.first, pair_a.second && pair_b.second};
   } else if (const OrNode* op = cond.as<OrNode>()) {
     auto pair_a = ImplicationNotContainingVars(op->a, vars);
     auto pair_b = ImplicationNotContainingVars(op->b, vars);
-    return {pair_a.first || pair_b.first,
-            (pair_a.first || pair_b.second) &&
-            (pair_b.first || pair_a.second) &&
-            (pair_a.second || pair_b.second)};
+    return {pair_a.first || pair_b.first, (pair_a.first || pair_b.second) &&
+                                              (pair_b.first || pair_a.second) &&
+                                              (pair_a.second || pair_b.second)};
   } else if (!tir::ExprUseVar(cond, [&vars](const VarNode* var) { return vars.count(var); })) {
     return {cond, const_true()};
   } else {
@@ -971,9 +955,7 @@ class RemoveRedundantInequalitiesMutator : public ExprMutator {
   virtual PrimExpr VisitExpr_(const GTNode* op) { return MutateAtomic_(GetRef<PrimExpr>(op)); }
   virtual PrimExpr VisitExpr_(const GENode* op) { return MutateAtomic_(GetRef<PrimExpr>(op)); }
 
-  virtual PrimExpr VisitExpr_(const AndNode* op) {
-    return VisitExpr(op->a) && VisitExpr(op->b);
-  }
+  virtual PrimExpr VisitExpr_(const AndNode* op) { return VisitExpr(op->a) && VisitExpr(op->b); }
 
  private:
   PrimExpr MutateAtomic_(const PrimExpr& e) {
@@ -998,8 +980,7 @@ inline PrimExpr RemoveRedundantInequalities(const PrimExpr& expr, const Array<Pr
 // Extract the given expr under the given condition as a separate tensor if the volume of the
 // extracted tensor will be less than the volume of the outer_axis
 PrimExpr TrySimplifyCompute(const PrimExpr& expr, const PrimExpr& cond,
-                            const Array<Var>& outer_axis,
-                            const Map<Var, Range>& vranges) {
+                            const Array<Var>& outer_axis, const Map<Var, Range>& vranges) {
   // solve cond, e.g., (jac_i0 == i) && (jac_i1 == j)
   arith::IntConstraints domain_to_solve(outer_axis, vranges,
                                         FactorOutAtomicFormulas(cond).to_array());
@@ -1053,9 +1034,8 @@ PrimExpr TrySimplifyCompute(const PrimExpr& expr, const PrimExpr& cond,
     return expr;
   }
 
-  Tensor tensor =
-      TensorFromExpr(new_expr, IterVarsFromMap(used_res_variables, res->dst->ranges),
-                     "extracted_tensor");
+  Tensor tensor = TensorFromExpr(new_expr, IterVarsFromMap(used_res_variables, res->dst->ranges),
+                                 "extracted_tensor");
 
   Array<PrimExpr> args;
   for (const Var& var : used_res_variables) {
@@ -1118,15 +1098,13 @@ class FreeVarsVisitor : public StmtExprVisitor {
 
 class ReductionAsTensorAccessMutator : public ExprMutator {
  public:
-  explicit ReductionAsTensorAccessMutator(const Array<Var>& outer_axis,
-                                          Map<Var, Range> vranges,
+  explicit ReductionAsTensorAccessMutator(const Array<Var>& outer_axis, Map<Var, Range> vranges,
                                           std::string name = "extracted_reduction")
       : outer_axis_(outer_axis), vranges_(std::move(vranges)), name_(std::move(name)) {}
 
   PrimExpr VisitExpr_(const ReduceNode* op) final {
     ReductionAsTensorAccessMutator new_mutator(Concat(IterVarsToVars(op->axis), outer_axis_),
-                                         Merge(vranges_, IterVarsToMap(op->axis)),
-                                         name_);
+                                               Merge(vranges_, IterVarsToMap(op->axis)), name_);
 
     Array<PrimExpr> new_source;
     for (const PrimExpr& src : op->source) {
@@ -1173,14 +1151,12 @@ class ReductionAsTensorAccessMutator : public ExprMutator {
 };
 
 // Extract reductions as separate tensors.
-inline PrimExpr ReductionAsTensorAccess(const PrimExpr& expr,
-                                        const Array<Var>& outer_axis,
+inline PrimExpr ReductionAsTensorAccess(const PrimExpr& expr, const Array<Var>& outer_axis,
                                         const Map<Var, Range>& vranges) {
   return ReductionAsTensorAccessMutator(outer_axis, vranges)(expr);
 }
 
-PrimExpr LiftReductions(const PrimExpr& expr,
-                        const Array<Var>& outer_axis,
+PrimExpr LiftReductions(const PrimExpr& expr, const Array<Var>& outer_axis,
                         const Map<Var, Range>& vranges) {
   if (const ReduceNode* red = expr.as<ReduceNode>()) {
     Array<Var> new_outer_axis = Concat(IterVarsToVars(red->axis), outer_axis);
@@ -1191,15 +1167,13 @@ PrimExpr LiftReductions(const PrimExpr& expr,
     }
     PrimExpr new_condition = ReductionAsTensorAccess(red->condition, new_outer_axis, new_vranges);
 
-    return Reduce(red->combiner, new_source, red->axis,
-                  new_condition, red->value_index);
+    return Reduce(red->combiner, new_source, red->axis, new_condition, red->value_index);
   } else {
     return ReductionAsTensorAccess(expr, outer_axis, vranges);
   }
 }
 
-PrimExpr RemoveJacobianAndLiftNonzeroCondImpl(const PrimExpr& expr_orig,
-                                              const Array<IterVar>& axis,
+PrimExpr RemoveJacobianAndLiftNonzeroCondImpl(const PrimExpr& expr_orig, const Array<IterVar>& axis,
                                               const Map<Var, Range>& vranges) {
   PrimExpr result;
   Map<Var, Range> combined_vranges = Merge(vranges, IterVarsToMap(axis));
@@ -1248,15 +1222,13 @@ PrimExpr RemoveJacobianAndLiftNonzeroCondImpl(const PrimExpr& expr_orig,
         // Append conditions from the reduction
         nz_cond = new_reduce_cond && nz.cond;
         nz_source = nz.value;
-        std::tie(outer_nz_cond, nz_cond) =
-            LiftConditionsThroughReduction(nz_cond, red->axis, axis);
+        std::tie(outer_nz_cond, nz_cond) = LiftConditionsThroughReduction(nz_cond, red->axis, axis);
         new_outer_cond = new_outer_cond && outer_nz_cond;
-        new_source.Set(red->value_index,
-                       Select(nz_cond, nz_source, make_zero(nz_source.dtype())));
+        new_source.Set(red->value_index, Select(nz_cond, nz_source, make_zero(nz_source.dtype())));
       }
 
-      PrimExpr new_reduce = Reduce(red->combiner, new_source, red->axis,
-                                   new_reduce_cond, red->value_index);
+      PrimExpr new_reduce =
+          Reduce(red->combiner, new_source, red->axis, new_reduce_cond, red->value_index);
       new_reduce =
           TrySimplifyCompute(new_reduce, new_outer_cond, IterVarsToVars(axis), combined_vranges);
       result = Select(new_outer_cond, new_reduce, make_zero(new_reduce.dtype()));
@@ -1292,4 +1264,3 @@ Tensor RemoveJacobianAndLiftNonzeroCond(const Tensor& tensor, const Map<Var, Ran
 
 }  // namespace te
 }  // namespace tvm
-

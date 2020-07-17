@@ -322,8 +322,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
  * \param bounds grouped boundary of the variables.
  * \param relations other relations.
  */
-Array<PrimExpr> AsConditions(const Array<Var>& variables,
-                             const Map<Var, IntGroupBounds>& bounds,
+Array<PrimExpr> AsConditions(const Array<Var>& variables, const Map<Var, IntGroupBounds>& bounds,
                              const Array<PrimExpr>& relations);
 
 /*!

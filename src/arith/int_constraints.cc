@@ -266,8 +266,7 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
   Analyzer ana_first;
   ana_first.Bind(operator->()->src->ranges);
   for (auto p : other->dst_to_src) {
-    dst_to_src.Set(p.first,
-                   ana_first.Simplify(Substitute(p.second, operator->()->dst_to_src)));
+    dst_to_src.Set(p.first, ana_first.Simplify(Substitute(p.second, operator->()->dst_to_src)));
   }
 
   Analyzer ana_second;
@@ -275,8 +274,7 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
   for (auto p : operator->()->src_to_dst) {
     src_to_dst.Set(p.first, ana_second.Simplify(Substitute(p.second, other->src_to_dst)));
   }
-  return IntConstraintsTransform(operator->()->src, other->dst,
-                                 src_to_dst, dst_to_src);
+  return IntConstraintsTransform(operator->()->src, other->dst, src_to_dst, dst_to_src);
 }
 
 TVM_REGISTER_NODE_TYPE(IntConstraintsTransformNode);
