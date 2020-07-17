@@ -137,11 +137,23 @@ def compute_conv2d_NHWC_quantized_without_transform(cfg, data, B, strides, paddi
 def schedule_conv2d_NHWC_quantized(cfg, outs):
     """Create schedule for tensors"""
     s = te.create_schedule([x.op for x in outs])
+    # Vectorize the output and then inline all the rest
+    out = outs[0]
+    n, h, w, c = out.op.axis
+    outer, inner = s[out].split(c, 4)
+    s[out].vectorize(inner)
 
     def _callback(op):
         """Traverse operators from computation graph"""
         if op.name == "conv2d_gemm_output":
-            schedule_conv2d_gemm(cfg, s, op.output(0))
+            conv_out = op.output(0)
+            schedule_conv2d_gemm(cfg, s, conv_out, out)
+            if out != conv_out:
+                s[conv_out].compute_at(s[out], inner)
+            else:
+                C = conv_out.op.input_tensors[0]
+                s[C].compute_at(s[out], inner)
+
 
     traverse_inline(s, outs[0].op, _callback)
     return s

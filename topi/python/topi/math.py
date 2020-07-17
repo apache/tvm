@@ -612,6 +612,33 @@ def clip(x, a_min, a_max):
         return tvm.te.max(tvm.te.min(value, const_max), const_min)
     return te.compute(x.shape, _compute)
 
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def fixed_point_multiply(x, multiplier, shift):
+    """Fixed point multiplication between data and a fixed point
+    constant expressed as multiplier * 2^(-shift), where multiplier
+    is a Q-number with 31 fractional bits
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor or Expr
+        Input argument.
+    multiplier : int
+        Multiplier of a fixed floating point number described as multiplier*2^(-shift).
+    shift : int
+        Shift of a fixed floating point number described as multiplier*2^(-shift).
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    def _compute(*indices):
+        value = x(*indices)
+        return tvm.tir.q_multiply_shift(value,
+                                        tvm.tir.const(multiplier, 'int32'),
+                                        tvm.tir.const(31, 'int32'),
+                                        tvm.tir.const(shift, 'int32'))
+    return te.compute(x.shape, _compute)
 
 def cast(x, dtype):
     """Cast input to specified data type.

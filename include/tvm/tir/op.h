@@ -552,6 +552,27 @@ TVM_DLL PrimExpr trunc(PrimExpr x);
  */
 TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
 
+/*!
+ * \brief Execute a multiplication between two Q-numbers x and y
+ * followed by a right shift s. The mathematical expression is:
+ *
+ *    out = round(x*y*2^-s)
+ *
+ * Please note that the two Q-numbers x and y are supposed to have
+ * the same number of fractional bits q.
+ *
+ * More about Q-numbers here: https://en.wikipedia.org/wiki/Q_(number_format)
+ *
+ * The rounding rule is to the nearest value, rounding half up
+ * (i.e., round(x.1) = x and round (x.5) = x+1)
+ * \param x first Q-number
+ * \param y second Q-number
+ * \param q number of fractional bits in x and y. Needs to be > 0
+ * \param s integer right shift
+ * \return The constructed expression.
+ */
+TVM_DLL PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s);
+
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)           \
   inline PrimExpr OpName(PrimExpr x) {             \
