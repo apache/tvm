@@ -32,7 +32,7 @@ void ExprVisitor::VisitExpr_(const SizeVarNode* op) {
   this->VisitExpr_(static_cast<const VarNode*>(op));
 }
 
-void ExprVisitor::VisitExpr_(const AnyNode *op) {}
+void ExprVisitor::VisitExpr_(const AnyNode* op) {}
 
 void ExprVisitor::VisitExpr_(const LoadNode* op) {
   this->VisitExpr(op->index);
