@@ -74,6 +74,8 @@ To cut a release candidate, one needs to first cut a branch using selected versi
 	git branch v0.6.0
 	git push --set-upstream origin v0.6.0
 
+(*Make sure the version numbers in the source code are correct.* Run :code:`python3 version.py` to update the version.)
+
 Go to the GitHub repositories "releases" tab and click "Draft a new release",
 
 - Provide the release tag in the form of “v1.0.0.rc0” where 0 means it’s the first release candidate
@@ -88,7 +90,7 @@ Remove previous release candidate (if applied),
 
 .. code-block:: bash
 
-	git push --delete origin 0.6.0.rc1
+	git push --delete origin v0.6.0.rc1
 
 Create source code artifacts,
 
@@ -177,9 +179,20 @@ After the vote passes, to upload the binaries to Apache mirrors, you move the bi
 	curl "https://dist.apache.org/repos/dist/dev/incubator/tvm/KEYS" > svn-tvm/KEYS
 	(cd svn-tvm && svn ci --username $ASF_USERNAME --password "$ASF_PASSWORD" -m"Update KEYS")
 
+Remember to create a new release TAG (v0.6.0 in this case) on Github and remove the pre-release candidate TAG.
+
+ .. code-block:: bash
+
+     git push --delete origin v0.6.0.rc2
+
 
 Update the TVM Website
 ----------------------
 
 The website repository is located at `https://github.com/apache/incubator-tvm-site <https://github.com/apache/incubator-tvm-site>`_. Modify the download page to include the release artifacts as well as the GPG signature and SHA hash.
 
+
+Post the Announcement
+---------------------
+
+Send out an announcement email to general@incubator.apache.org, announce@apache.org, and dev@tvm.apache.org. The announcement should include the link to release note and download page.
