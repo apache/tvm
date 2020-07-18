@@ -26,6 +26,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target_info.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -131,7 +132,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     }
   }
   void VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_address_of)) {
+    if (op->op.same_as(builtin::address_of())) {
       const LoadNode* l = op->args[0].as<LoadNode>();
       this->VisitExpr(l->index);
     } else {
@@ -387,7 +388,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
       CHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
       const VarNode* buffer = op->args[1].as<VarNode>();
@@ -403,8 +404,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       if (se->bits_offset != 0) {
         offset = make_const(offset.dtype(), se->bits_offset / elem_bits) + offset;
       }
-      return Call(op->dtype, op->name, {op->args[0], se->alloc_var, offset, extent, op->args[4]},
-                  op->call_type);
+      return Call(op->dtype, op->op, {op->args[0], se->alloc_var, offset, extent, op->args[4]});
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -911,7 +911,7 @@ class VectorAllocRewriter : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
       DataType dtype = op->args[0].dtype();
       const VarNode* buffer = op->args[1].as<VarNode>();
       UpdateTypeMap(buffer, dtype);

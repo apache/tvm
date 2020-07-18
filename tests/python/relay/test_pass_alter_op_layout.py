@@ -1053,6 +1053,70 @@ def test_alter_layout_nhwc_arm():
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
+def test_alter_layout_nhwc_int8_aarch64():
+    """ Check that AlterOplayout does not alter NHWC data layout. """
+    from tvm import autotvm
+    expected_workload_shape = (20, 42, 4, 16)
+
+    # We use Int8Fallback  to disable the fallback flag
+    # and to test the new workload produced during the pass
+    class Int8Fallback(autotvm.FallbackContext):
+        def _query_inside(self, target, workload):
+            key = (target, workload)
+            if key in self.memory:
+                return self.memory[key]
+            cfg = autotvm.task.space.FallbackConfigEntity()
+            cfg.is_fallback = False
+            cfg.cost = 0
+            self.memory[key] = cfg
+            return cfg
+        def update(self, target, workload, cfg):
+            key = (str(target), workload)
+            assert workload[2][1] == expected_workload_shape
+            assert workload[0] == "conv2d_NHWC_quantized_without_transform.arm_cpu"
+            self.memory[key] = cfg
+
+    def alter_conv2d(attrs, inputs, tinfos, out_type):
+        import topi
+        with tvm.target.create("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu"):
+            with Int8Fallback():
+                tmp =  topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
+                return tmp
+
+    # Check NHWC conversion.
+    def before_nhwc_int8():
+        x = relay.var("x", shape=(1, 56, 56, 73), dtype='int8')
+        weight = relay.var('weight1', shape=(3, 3, 73, 79), dtype='int8')
+        y = relay.nn.conv2d(x, weight,
+                            channels=79,
+                            kernel_size=(3, 3),
+                            data_layout='NHWC',
+                            kernel_layout='HWIO',
+                            out_dtype='int32')
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected_nhwc_int8():
+        x = relay.var("x", shape=(1, 56, 56, 73), dtype='int8')
+        weight = relay.var('weight1', shape=(3, 3, 73, 79), dtype='int8')
+        tile_rows = 4
+        tile_cols = 16
+        weight_transformed = relay.nn.contrib_conv2d_gemm_weight_transform(weight, tile_rows, tile_cols)
+        y = relay.nn.contrib_conv2d_gemm_without_weight_transform(x, weight_transformed,
+                            channels=79,
+                            kernel_size=(3, 3),
+                            data_layout='NHWC',
+                            kernel_layout='HWIO',
+                            out_dtype='int32')
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before_nhwc_int8()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected_nhwc_int8(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
 def test_alter_op_with_global_var():
     """Test directly replacing an operator with a new one"""
     def before():
@@ -1114,4 +1178,5 @@ if __name__ == "__main__":
     test_alter_layout_pool()
     test_alter_layout_sum()
     test_alter_layout_nhwc_arm()
+    test_alter_layout_nhwc_int8_aarch64()
     test_alter_op_with_global_var()

@@ -571,7 +571,8 @@ class CompileEngineImpl : public CompileEngineNode {
   }
 
   Array<tvm::runtime::Module> LowerExternalFunctions() {
-    std::unordered_map<std::string, IRModule> ext_mods;
+    Array<tvm::runtime::Module> ret;
+    std::unordered_map<std::string, std::string> cached_symbol;
     std::vector<CCacheKey> cached_ext_funcs;
     for (const auto& it : cache_) {
       auto src_func = it.first->source_func;
@@ -580,29 +581,31 @@ class CompileEngineImpl : public CompileEngineNode {
         auto code_gen = src_func->GetAttr<String>(attr::kCompiler);
         CHECK(code_gen.defined()) << "No external codegen is set";
         std::string code_gen_name = code_gen.value();
-        if (ext_mods.find(code_gen_name) == ext_mods.end()) {
-          ext_mods[code_gen_name] = IRModule({}, {});
-        }
+        cached_ext_funcs.push_back(it.first);
+
         auto symbol_name = src_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
         CHECK(symbol_name.defined()) << "No external symbol is set for:\n"
                                      << AsText(src_func, false);
-        auto gv = GlobalVar(symbol_name.value());
+
+        std::string sn = symbol_name.value();
+        if (cached_symbol.count(sn)) {
+          cached_symbol[sn] = code_gen_name;
+        } else {
+          CHECK_NE(sn, code_gen_name)
+              << "Found duplicated symbol: " << sn << " for: " << code_gen_name;
+        }
+
+        std::string ext_name = "relay.ext." + code_gen_name;
+        auto pf = tvm::runtime::Registry::Get(ext_name);
+        CHECK(pf) << "Failed to find the codegen tool for " << ext_name << "\n";
         // No need to keep compiler attribute at this point, functions have been
         // extracted for specific codegen.
         src_func = WithAttr(std::move(src_func), attr::kCompiler, NullValue<ObjectRef>());
-        ext_mods[code_gen_name]->Add(gv, src_func);
-        cached_ext_funcs.push_back(it.first);
-      }
-    }
+        runtime::Module ext_mod = (*pf)(src_func);
 
-    Array<tvm::runtime::Module> ret;
-    for (const auto& it : ext_mods) {
-      std::string ext_name = "relay.ext." + it.first;
-      auto pf = tvm::runtime::Registry::Get(ext_name);
-      CHECK(pf) << "Failed to find the codegen tool for " << ext_name << "\n";
-      runtime::Module ext_mod = (*pf)(it.second);
-      CHECK(ext_mod.defined()) << "No external runtime is generated.";
-      ret.push_back(ext_mod);
+        CHECK(ext_mod.defined()) << "No external runtime is generated.";
+        ret.push_back(ext_mod);
+      }
     }
 
     // No need to cache external functions as we collected them all to create
@@ -658,6 +661,7 @@ class CompileEngineImpl : public CompileEngineNode {
       CHECK(name_node.defined()) << "External function has not been attached a name yet.";
       cache_node->func_name = std::string(name_node.value());
       cache_node->target = tvm::target::ext_dev();
+      cache_node->funcs->Add(GlobalVar(cache_node->func_name), key->source_func);
       value->cached_func = CachedFunc(cache_node);
       return value;
     }

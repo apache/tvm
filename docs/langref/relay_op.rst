@@ -128,6 +128,7 @@ This level enables additional math and transform operators.
    tvm.relay.reinterpret
    tvm.relay.split
    tvm.relay.arange
+   tvm.relay.meshgrid
    tvm.relay.stack
    tvm.relay.repeat
    tvm.relay.tile

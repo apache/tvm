@@ -28,20 +28,24 @@ from topi.nn.util import get_pad_tuple
 from ..environment import get_env
 
 @autotvm.register_topi_compute("conv2d_transpose_packed.vta")
-def conv2d_transpose_packed(cfg, data, kernel, strides, padding, out_dtype):
+def conv2d_transpose_packed(cfg, data, kernel, strides, padding, out_dtype,
+                            output_padding=(0, 0)):
     """Packed conv2d_transpose compute"""
     ishape = get_const_tuple(data.shape)
     kshape = get_const_tuple(kernel.shape)
     b, c_i, i_h, i_w, t_b, t_ci = ishape
     c_o, _, k_h, k_w, t_co, t_ci = kshape
     stride_h, stride_w = strides
+    opad_h, opad_w = output_padding
+    # FIXME(tmoreau89): currently IR pass breaks when output padding != (0,0)
+    assert opad_h == 0 and opad_w == 0, "VTA does not support output padding for now"
 
     # derive padding parameters
     fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (k_h, k_w))
     bpad_top = k_h - 1 - fpad_top
-    bpad_bottom = k_h - 1 - fpad_bottom
+    bpad_bottom = k_h - 1 - fpad_bottom + opad_h
     bpad_left = k_w - 1 - fpad_left
-    bpad_right = k_w - 1 - fpad_right
+    bpad_right = k_w - 1 - fpad_right + opad_w
 
     # padding stage
     dilated_input = topi.nn.dilate(data, [1, 1, stride_h, stride_w, 1, 1])
@@ -50,8 +54,8 @@ def conv2d_transpose_packed(cfg, data, kernel, strides, padding, out_dtype):
                            [0, 0, bpad_bottom, bpad_right, 0, 0])
 
     # convolution transpose stage
-    out_h = (i_h - 1) * stride_h - fpad_top - fpad_bottom + k_h
-    out_w = (i_w - 1) * stride_w - fpad_left - fpad_right + k_w
+    out_h = (i_h - 1) * stride_h - fpad_top - fpad_bottom + k_h + opad_h
+    out_w = (i_w - 1) * stride_w - fpad_left - fpad_right + k_w + opad_w
     oshape = (b, c_o, out_h, out_w, t_b, t_co)
     d_c = te.reduce_axis((0, c_i), name='d_c')
     d_h = te.reduce_axis((0, k_h), name='d_h')

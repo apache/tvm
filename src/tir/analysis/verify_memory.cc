@@ -25,6 +25,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -120,7 +121,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
       const auto& iter = defs_.find(V);
       if (iter == defs_.end()) return false;
       const CallNode* C = iter->second.as<const CallNode>();
-      if (!C || C->name != intrinsic::tvm_struct_get) return false;
+      if (!C || !C->op.same_as(builtin::tvm_struct_get())) return false;
       V = C->args[0].as<VarNode>();
     }
     return false;
@@ -176,7 +177,7 @@ bool VerifyMemory(const PrimFunc& func) {
 
   if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
       CallingConv::kDefault) {
-    MemoryAccessVerifier v(func, target.value()->device_type);
+    MemoryAccessVerifier v(func, target.value()->id->device_type);
     v.Run();
     return !v.Failed();
   } else {

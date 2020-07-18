@@ -32,6 +32,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -175,7 +176,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // create intrinstic given call
   virtual llvm::Value* CreateIntrinsic(const CallNode* op);
   // create extern function call
-  virtual llvm::Value* CreateCallExtern(const CallNode* op);
+  // skip first arg mode used for call extern intrinsic.
+  virtual llvm::Value* CreateCallExtern(Type ret_type, String global_symbol,
+                                        const Array<PrimExpr>& args, bool skip_first_arg);
   // Get the corresponding thread index
   virtual llvm::Value* GetThreadIndex(const IterVar& iv);
   // Get the corresponding thread index
@@ -261,7 +264,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
   llvm::Value* CreateBufferPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
-  llvm::Value* CreateBufferVecPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);
@@ -271,7 +273,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
                        const Var& loop_var, const Stmt& body);
   // add alias information.
-  void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index, DataType type);
+  void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index);
   // The IRBuilder.
   using IRBuilder = llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>;
   // The current function
@@ -319,6 +321,14 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   std::unordered_set<const VarNode*> alias_var_set_;
   // set of volatile buffer.
   std::unordered_set<const VarNode*> volatile_buf_;
+  // Cache potential common path ops to slightly improve lookup time.
+  // global symbol table.
+  OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");
+  const Op& builtin_call_extern_ = builtin::call_extern();
+  const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
+  const Op& builtin_call_llvm_intrin_ = builtin::call_llvm_intrin();
+  const Op& builtin_call_llvm_pure_intrin_ = builtin::call_llvm_pure_intrin();
+
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {
     std::unique_ptr<llvm::DIBuilder> di_builder_;

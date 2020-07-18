@@ -29,12 +29,12 @@ def test_llvm_intrin():
     n = tvm.runtime.convert(4)
     A = ib.pointer("float32", name="A")
     args = [
-        tvm.tir.call_pure_intrin("handle", "tvm_address_of", A[0]),
+        tvm.tir.call_intrin("handle", "tir.address_of", A[0]),
         0, 3, 1
     ]
     ib.emit(tvm.tir.Evaluate(
         tvm.tir.Call(
-            "int32", "prefetch", args, tvm.tir.Call.Intrinsic)))
+            "int32", "tir.prefetch", args)))
     body = ib.get()
 
     mod = tvm.IRModule.from_expr(
@@ -65,7 +65,7 @@ def test_llvm_overloaded_intrin():
     def use_llvm_intrinsic(A, C):
         ib = tvm.tir.ir_builder.create()
         L = A.vload((0,0))
-        I = tvm.tir.call_llvm_intrin('int32', 'llvm.ctlz',
+        I = tvm.tir.call_llvm_pure_intrin('int32', 'llvm.ctlz',
             tvm.tir.const(2, 'uint32'), L, tvm.tir.const(0, 'int1'))
         S = C.vstore((0,0), I)
         ib.emit(S)
@@ -124,7 +124,7 @@ def test_llvm_lookup_intrin():
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("uint8x8", name="A")
     z = tvm.tir.const(0, 'int32')
-    x = tvm.tir.call_llvm_intrin("uint8x8", "llvm.ctpop.v8i8", tvm.tir.const(1, 'uint32'), A[z])
+    x = tvm.tir.call_llvm_pure_intrin("uint8x8", "llvm.ctpop.v8i8", tvm.tir.const(1, 'uint32'), A[z])
     ib.emit(x)
     body = ib.get()
     mod = tvm.IRModule.from_expr(
@@ -685,7 +685,7 @@ def test_dwarf_debug_information():
         # build two functions
         f2 = tvm.lower(s, [A, B, C], name="fadd1")
         f1 = tvm.lower(s, [A, B, C], name="fadd2")
-        m = tvm.build([f1, f2], target="llvm -target=aarch64-linux-gnu")
+        m = tvm.build([f1, f2], target="llvm -mtriple=aarch64-linux-gnu")
         ll = m.get_source("ll")
 
         # On non-Darwin OS, don't explicitly specify DWARF version.
@@ -695,7 +695,7 @@ def test_dwarf_debug_information():
 
         # Try Darwin, require DWARF-2
         m = tvm.build([f1, f2],
-                      target="llvm -target=x86_64-apple-darwin-macho")
+                      target="llvm -mtriple=x86_64-apple-darwin-macho")
         ll = m.get_source("ll")
         assert re.search(r"""i32 4, !"Dwarf Version", i32 2""", ll)
         assert re.search(r"""llvm.dbg.value""", ll)
@@ -737,6 +737,53 @@ def test_llvm_shuffle():
         module(a_, b_, c_)
         tvm.testing.assert_allclose(c_.asnumpy(), (a_.asnumpy() * 2).astype('int32'))
 
+def np_float2np_bf16(arr):
+    ''' Convert a numpy array of float to a numpy array
+    of bf16 in uint16'''
+    orig = arr.view('<u4')
+    bias = np.bitwise_and(np.right_shift(orig, 16), 1) + 0x7FFF
+    return np.right_shift(orig + bias, 16).astype('uint16')
+
+def np_float2tvm_bf16(arr):
+    ''' Convert a numpy array of float to a TVM array
+    of bf16'''
+    nparr = np_float2np_bf16(arr)
+    return tvm.nd.empty(nparr.shape, 'uint16').copyfrom(nparr)
+
+def np_bf162np_float(arr):
+    ''' Convert a numpy array of bf16 (uint16) to a numpy array
+    of float'''
+    u32 = np.left_shift(arr.astype('uint32'), 16)
+    return u32.view('<f4')
+
+def np_bf16_cast_and_cast_back(arr):
+    ''' Convert a numpy array of float to bf16 and cast back'''
+    return np_bf162np_float(np_float2np_bf16(arr))
+
+def test_llvm_bf16():
+    def dotest(do_vectorize):
+        np.random.seed(122)
+        A = te.placeholder((32, ), dtype='bfloat16')
+        B = te.placeholder((32, ), dtype='bfloat16')
+        d = te.compute((32, ), lambda x: A[x] + B[x])
+        sch = te.create_schedule(d.op)
+        print(tvm.lower(sch, [A,B,d]))
+        if do_vectorize:
+            sch[d].vectorize(d.op.axis[0])
+        module = tvm.build(sch, [A, B, d])
+        npa = np.random.rand(32).astype('float32')
+        npb = np.random.rand(32).astype('float32')
+        va = np_bf16_cast_and_cast_back(npa)
+        vb = np_bf16_cast_and_cast_back(npb)
+        res = np_bf16_cast_and_cast_back(va + vb)
+        a_ = np_float2tvm_bf16(npa)
+        b_ = np_float2tvm_bf16(npb)
+        c_ = tvm.nd.empty((32,), 'uint16')
+        module(a_, b_, c_)
+        tvm.testing.assert_allclose(np_bf162np_float(c_.asnumpy()), res)
+    dotest(True)
+    dotest(False)
+
 if __name__ == "__main__":
     test_multiple_func()
     test_llvm_large_uintimm()
@@ -759,3 +806,4 @@ if __name__ == "__main__":
     test_llvm_fp_math()
     test_dwarf_debug_information()
     test_llvm_shuffle()
+    test_llvm_bf16()

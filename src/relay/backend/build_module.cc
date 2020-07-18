@@ -276,6 +276,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       }
     });
     pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
+    pass_seqs.push_back(transform::SimplifyExpr());
     pass_seqs.push_back(transform::CombineParallelConv2D(3));
     pass_seqs.push_back(transform::CombineParallelDense(3));
     pass_seqs.push_back(transform::CombineParallelBatchMatmul(3));
@@ -441,7 +442,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       if (!target_host.defined())
         target_host = (pf != nullptr) ? target::llvm() : target::stackvm();
 
-      if (target_host.defined() && target_host->target_name == "llvm") {
+      if (target_host.defined() && target_host->id->name == "llvm") {
         // If we can decide the target is LLVM, we then create an empty LLVM module.
         ret_.mod = (*pf)(target_host->str(), "empty_module");
       } else {
@@ -455,8 +456,11 @@ class RelayBuildModule : public runtime::ModuleNode {
     }
 
     Array<tvm::runtime::Module> ext_mods = graph_codegen_->GetExternalModules();
-    // Import all external runtime modules.
-    for (const auto& it : ext_mods) ret_.mod.Import(it);
+    // TODO(zhiics) We should be able to completely switch to MetadataModule no
+    // matter whether there are external modules or not.
+    if (!ext_mods.empty()) {
+      ret_.mod = tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods);
+    }
   }
 
  private:
@@ -464,7 +468,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     Target target_host = target_host_;
     if (!target_host_.defined()) {
       for (const auto& it : targets_) {
-        if (it.second->device_type == kDLCPU) {
+        if (it.second->id->device_type == kDLCPU) {
           target_host = it.second;
           break;
         }

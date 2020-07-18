@@ -19,9 +19,21 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <tvm/runtime/crt/crt.h>
+#include <tvm/runtime/crt/graph_runtime.h>
+#include <tvm/runtime/crt/packed_func.h>
 
 #include "bundle.h"
-#include "runtime.c"
+
+/*! \brief macro to do C API call */
+#define TVM_CCALL(func)                                                              \
+  do {                                                                               \
+    tvm_crt_error_t ret = (func);                                                    \
+    if (ret != kTvmErrorNoError) {                                                   \
+      fprintf(stderr, "%s: %d: error: %s\n", __FILE__, __LINE__, TVMGetLastError()); \
+      exit(ret);                                                                     \
+    }                                                                                \
+  } while (0)
 
 TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
                                  const uint64_t params_size) {
@@ -36,44 +48,43 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
   ctx.device_type = (DLDeviceType)device_type;
   ctx.device_id = device_id;
 
-  // declare pointers
-  void* (*SystemLibraryCreate)();
-  TVMGraphRuntime* (*TVMGraphRuntimeCreate)(const char*, const TVMModuleHandle, const TVMContext*);
-  int (*TVMGraphRuntime_LoadParams)(TVMModuleHandle, const char*, const uint32_t);
-
   // get pointers
-  TVMFuncGetGlobal("runtime.SystemLib", (TVMFunctionHandle*)&SystemLibraryCreate);
-  TVMFuncGetGlobal("tvm.graph_runtime.create", (TVMFunctionHandle*)&TVMGraphRuntimeCreate);
+  TVM_CCALL(TVMInitializeRuntime());
+  TVMPackedFunc pf;
+  TVMArgs args = TVMArgs_Create(NULL, NULL, 0);
+  TVM_CCALL(TVMPackedFunc_InitGlobalFunc(&pf, "runtime.SystemLib", &args));
+  TVM_CCALL(TVMPackedFunc_Call(&pf));
+
+  TVMModuleHandle mod_syslib = TVMArgs_AsModuleHandle(&pf.ret_value, 0);
 
   // run modules
-  TVMModuleHandle mod_syslib = SystemLibraryCreate();
-  TVMModuleHandle mod = TVMGraphRuntimeCreate(json_data, mod_syslib, &ctx);
-  TVMModGetFunction(mod, "load_params", 0, (TVMFunctionHandle*)&TVMGraphRuntime_LoadParams);
-  TVMGraphRuntime_LoadParams(mod, params.data, params.size);
+  TVMGraphRuntime* graph_runtime = TVMGraphRuntime_Create(json_data, mod_syslib, &ctx);
+  TVMGraphRuntime_LoadParams(graph_runtime, params.data, params.size);
 
-  return mod;
+  return graph_runtime;
 }
 
 TVM_DLL void tvm_runtime_destroy(void* runtime) {
-  void (*TVMGraphRuntimeRelease)(TVMModuleHandle*);
-  TVMFuncGetGlobal("tvm.graph_runtime.release", (TVMFunctionHandle*)&TVMGraphRuntimeRelease);
-  TVMGraphRuntimeRelease(&runtime);
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*)runtime;
+  TVMGraphRuntime_Release(&graph_runtime);
 }
 
 TVM_DLL void tvm_runtime_set_input(void* runtime, const char* name, DLTensor* tensor) {
-  void (*TVMGraphRuntime_SetInput)(TVMModuleHandle, const char*, DLTensor*);
-  TVMFuncGetGlobal("tvm.graph_runtime.set_input", (TVMFunctionHandle*)&TVMGraphRuntime_SetInput);
-  TVMGraphRuntime_SetInput(runtime, name, tensor);
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*)runtime;
+  TVMGraphRuntime_SetInput(graph_runtime, name, tensor);
 }
 
 TVM_DLL void tvm_runtime_run(void* runtime) {
-  void (*TVMGraphRuntime_Run)(TVMModuleHandle runtime);
-  TVMFuncGetGlobal("tvm.graph_runtime.run", (TVMFunctionHandle*)&TVMGraphRuntime_Run);
-  TVMGraphRuntime_Run(runtime);
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*)runtime;
+  TVMGraphRuntime_Run(graph_runtime);
 }
 
 TVM_DLL void tvm_runtime_get_output(void* runtime, int32_t index, DLTensor* tensor) {
-  int (*TVMGraphRuntime_GetOutput)(TVMModuleHandle, const int32_t, DLTensor*);
-  TVMFuncGetGlobal("tvm.graph_runtime.get_output", (TVMFunctionHandle*)&TVMGraphRuntime_GetOutput);
-  TVMGraphRuntime_GetOutput(runtime, index, tensor);
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*)runtime;
+  TVMGraphRuntime_GetOutput(graph_runtime, index, tensor);
+}
+
+void __attribute__((noreturn)) TVMPlatformAbort(int error_code) {
+  fprintf(stderr, "TVMPlatformAbort: %d\n", error_code);
+  exit(-1);
 }

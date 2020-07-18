@@ -310,9 +310,7 @@ TEST(Map, Mutate) {
   CHECK(it != dict.end() && (*it).second.same_as(x));
 
   it = dict2.find(zz);
-  CHECK(it == dict.end());
-
-  LOG(INFO) << dict;
+  CHECK(it == dict2.end());
 }
 
 TEST(Map, Iterator) {
@@ -322,6 +320,51 @@ TEST(Map, Iterator) {
   std::unordered_map<PrimExpr, PrimExpr, ObjectPtrHash, ObjectPtrEqual> map2(map1.begin(),
                                                                              map1.end());
   CHECK(map2[a].as<IntImmNode>()->value == 2);
+}
+
+TEST(Map, Insert) {
+  using namespace tvm;
+  auto check = [](const Map<String, Integer>& result,
+                  std::unordered_map<std::string, int64_t> expected) {
+    CHECK_EQ(result.size(), expected.size());
+    for (const auto& kv : result) {
+      CHECK(expected.count(kv.first));
+      CHECK_EQ(expected[kv.first], kv.second.operator int64_t());
+      expected.erase(kv.first);
+    }
+  };
+  Map<String, Integer> result;
+  std::unordered_map<std::string, int64_t> expected;
+  char key = 'a';
+  int64_t val = 1;
+  for (int i = 0; i < 26; ++i, ++key, ++val) {
+    std::string s(1, key);
+    result.Set(s, val);
+    expected[s] = val;
+    check(result, expected);
+  }
+}
+
+TEST(Map, Erase) {
+  auto check = [](const Map<String, Integer>& result,
+                  std::unordered_map<std::string, int64_t> expected) {
+    CHECK_EQ(result.size(), expected.size());
+    for (const auto& kv : result) {
+      CHECK(expected.count(kv.first));
+      CHECK_EQ(expected[kv.first], kv.second.operator int64_t());
+      expected.erase(kv.first);
+    }
+  };
+  Map<String, Integer> map{{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"e", 5}};
+  std::unordered_map<std::string, int64_t> stl(map.begin(), map.end());
+  for (char c = 'a'; c <= 'e'; ++c) {
+    Map<String, Integer> result = map;
+    std::unordered_map<std::string, int64_t> expected(stl);
+    std::string key(1, c);
+    result.erase(key);
+    expected.erase(key);
+    check(result, expected);
+  }
 }
 
 TEST(String, MoveFromStd) {

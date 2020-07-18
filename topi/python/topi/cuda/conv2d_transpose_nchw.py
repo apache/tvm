@@ -25,8 +25,10 @@ from .. import nn
 from ..util import get_const_tuple, traverse_inline
 
 
+
 @autotvm.register_topi_compute("conv2d_transpose_nchw.cuda")
-def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype):
+def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype,
+                          output_padding):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -43,6 +45,8 @@ def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype):
         Padding size, or ['VALID', 'SAME']
     out_dtype: str
         The output type. This is used in mixed precision
+    output_padding : tuple of two ints
+        Used to disambiguate output shape.
 
     Returns
     -------
@@ -52,18 +56,20 @@ def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype):
     batch, inp_channels, inp_height, inp_width = get_const_tuple(data.shape)
     _, out_channels, kernel_height, kernel_width = get_const_tuple(kernel.shape)
     stride_height, stride_width = stride
+    outpad_height, outpad_width = output_padding
+    assert outpad_height < stride_height and outpad_width < stride_width
     cfg.stride = stride
     pad_top, pad_left, pad_bottom, pad_right = nn.get_pad_tuple(
         padding, (kernel_height, kernel_width))
 
     out_width = (inp_width - 1) * stride_width + \
-        kernel_width - pad_left - pad_right
+        kernel_width - pad_left - pad_right + outpad_width
     pad_left = kernel_width - 1 - pad_left
     pad_right = kernel_width - 1 - pad_right
     dilated_width = stride_width * (inp_width - 1) + 1
 
     out_height = (inp_height - 1) * stride_height + \
-        kernel_height - pad_top - pad_bottom
+        kernel_height - pad_top - pad_bottom + outpad_height
     pad_top = kernel_height - 1 - pad_top
     pad_bottom = kernel_height - 1 - pad_bottom
     dilated_height = stride_height * (inp_height - 1) + 1
@@ -171,7 +177,7 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
             cfg.define_knob("auto_unroll_max_step", [64, 512, 1500])
 
             target = tvm.target.Target.current()
-            if target.target_name in ['nvptx', 'rocm']:
+            if target.id.name in ['nvptx', 'rocm']:
                 cfg.define_knob("unroll_explicit", [1])
             else:
                 cfg.define_knob("unroll_explicit", [0, 1])

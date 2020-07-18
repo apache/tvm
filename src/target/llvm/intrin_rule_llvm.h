@@ -27,6 +27,7 @@
 
 #include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 
 #include <string>
@@ -49,7 +50,7 @@ inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = tir::Call(call->dtype, "llvm_intrin", cargs, tir::CallNode::PureIntrinsic);
+  *rv = tir::Call(call->dtype, tir::builtin::call_llvm_pure_intrin(), cargs);
 }
 
 template <unsigned id, int num_signature>
@@ -64,7 +65,7 @@ inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = tir::Call(call->dtype, "llvm_intrin", cargs, tir::CallNode::Intrinsic);
+  *rv = tir::Call(call->dtype, tir::builtin::call_llvm_intrin(), cargs);
 }
 
 }  // namespace codegen

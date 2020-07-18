@@ -26,6 +26,7 @@
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -50,7 +51,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
 
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   CHECK(target.defined()) << "MakePackedAPI: Require the target attribute";
-  int target_device_type = target.value()->device_type;
+  int target_device_type = target.value()->id->device_type;
 
   std::string name_hint = global_symbol.value();
 
@@ -67,6 +68,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   Var v_num_packed_args("num_args", DataType::Int(32));
   Var v_out_ret_value("out_ret_value", DataType::Handle());
   Var v_out_ret_tcode("out_ret_tcode", DataType::Handle());
+  Var v_resource_handle("resource_handle", DataType::Handle());
   // The arguments of the function.
   Array<Var> args;
   // The device context
@@ -82,10 +84,10 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   // load i-th argument as type t
   auto f_arg_value = [&](DataType t, int i) {
     Array<PrimExpr> call_args{v_packed_args, IntImm(DataType::Int(32), i),
-                              IntImm(DataType::Int(32), intrinsic::kTVMValueContent)};
+                              IntImm(DataType::Int(32), builtin::kTVMValueContent)};
     // load 64 bit version
     DataType api_type = APIType(t);
-    PrimExpr res = Call(api_type, intrinsic::tvm_struct_get, call_args, CallNode::PureIntrinsic);
+    PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args);
     // cast to the target version.
     if (api_type != t) {
       res = Cast(t, res);
@@ -155,9 +157,10 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   if (num_packed_args != 0) {
     args.push_back(v_out_ret_value);
     args.push_back(v_out_ret_tcode);
+    args.push_back(v_resource_handle);
   }
 
-  size_t expected_nargs = num_unpacked_args + (num_packed_args != 0 ? 5 : 0);
+  size_t expected_nargs = num_unpacked_args + (num_packed_args != 0 ? 6 : 0);
   CHECK_EQ(args.size(), expected_nargs);
 
   // Arg definitions are defined before buffer binding to avoid the use before
@@ -189,9 +192,8 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
 
     if (runtime::DeviceAPI::NeedSetDeviceContext(target_device_type)) {
       Stmt set_device =
-          Evaluate(Call(DataType::Int(32), intrinsic::tvm_call_packed,
-                        {StringImm(runtime::symbol::tvm_set_device), device_type, device_id},
-                        CallNode::Intrinsic));
+          Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(),
+                        {StringImm(runtime::symbol::tvm_set_device), device_type, device_id}));
       body = SeqStmt({set_device, body});
     }
   }

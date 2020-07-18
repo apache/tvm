@@ -274,6 +274,12 @@ def conv2d_winograd_without_weight_transfrom_strategy(attrs, inputs, out_type, t
     """conv2d_winograd_without_weight_transfrom generic strategy"""
     raise ValueError("No generic implemenation for conv2d_winograd_without_weight_transform")
 
+# conv2d_gemm_without_weight_transform
+@override_native_generic_func("conv2d_gemm_without_weight_transform_strategy")
+def conv2d_gemm_without_weight_transform_strategy(attrs, inputs, out_type, target):
+    """conv2d_gemm_without_weight_transfrom generic strategy"""
+    raise ValueError("No generic implemenation for conv2d_gemm_without_weight_transform")
+
 # conv2d_winograd_weight_transform
 @generic_func
 def schedule_conv2d_winograd_weight_transform(attrs, outs, target):
@@ -287,6 +293,13 @@ def schedule_conv2d_winograd_nnpack_weight_transform(attrs, outs, target):
     """Schedule conv2d_winograd_nnpack_weight_transform"""
     with target:
         return topi.generic.schedule_conv2d_winograd_nnpack_weight_transform(outs)
+
+# conv2d_gemm_weight_transform
+@generic_func
+def schedule_conv2d_gemm_weight_transform(attrs, outs, target):
+    """Schedule conv2d_gemm_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv2d_gemm_weight_transform(outs)
 
 # deformable_conv2d
 def wrap_compute_deformable_conv2d(topi_compute):
@@ -328,13 +341,9 @@ def wrap_compute_conv2d_transpose(topi_compute):
         out_dtype = attrs.out_dtype
         out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                      else out_dtype)
-        out = topi_compute(
-            inputs[0], inputs[1], strides, padding, out_dtype)
         output_padding = get_const_tuple(attrs.output_padding)
-        if output_padding[0] != 0 or output_padding[1] != 0:
-            pad_before = [0] * len(out.shape)
-            pad_after = [0, 0, output_padding[0], output_padding[1]] + [0] * (len(out.shape) - 4)
-            out = topi.nn.pad(out, pad_before, pad_after)
+        out = topi_compute(
+            inputs[0], inputs[1], strides, padding, out_dtype, output_padding)
         return [out]
     return compute_conv2d_transpose
 
@@ -499,9 +508,8 @@ def wrap_compute_conv1d_transpose(topi_compute):
         strides = get_const_tuple(attrs.strides)
         out_dtype = attrs.out_dtype
         out_dtype = (inputs[0].dtype if out_dtype in ("same", "") else out_dtype)
-        out = topi_compute(inputs[0], inputs[1], strides, padding, out_dtype)
         output_padding = get_const_tuple(attrs.output_padding)
-        out = topi.nn.pad(out, [0, 0, 0], [0, 0, output_padding[0]])
+        out = topi_compute(inputs[0], inputs[1], strides, padding, out_dtype, output_padding)
         return [out]
     return _compute_conv1d_tranpsoe
 
@@ -656,9 +664,10 @@ def argsort_strategy(attrs, inputs, out_type, target):
 def wrap_compute_topk(topi_compute):
     """Wrap topk compute"""
     def _compute_topk(attrs, inputs, out_type):
-        k = inputs[1]
         if attrs.k is not None:
             k = attrs.k
+        else:
+            k = inputs[1]
         axis = get_const_int(attrs.axis)
         ret_type = attrs.ret_type
         is_ascend = bool(get_const_int(attrs.is_ascend))
@@ -744,8 +753,10 @@ def get_valid_counts_strategy(attrs, inputs, out_type, target):
 def wrap_compute_nms(topi_compute):
     """wrap nms topi compute"""
     def _compute_nms(attrs, inputs, out_type):
+        max_output_size = inputs[3]
+        if attrs.max_output_size is not None:
+            max_output_size = attrs.max_output_size
         return_indices = bool(get_const_int(attrs.return_indices))
-        max_output_size = get_const_int(attrs.max_output_size)
         iou_threshold = get_const_float(attrs.iou_threshold)
         force_suppress = bool(get_const_int(attrs.force_suppress))
         top_k = get_const_int(attrs.top_k)
@@ -838,6 +849,13 @@ def schedule_scatter(attrs, outs, target):
     """schedule scatter"""
     with target:
         return topi.generic.schedule_scatter(outs)
+
+# scatter_add
+@generic_func
+def schedule_scatter_add(attrs, outs, target):
+    """schedule scatter_add"""
+    with target:
+        return topi.generic.schedule_scatter_add(outs)
 
 # bitserial_conv2d
 def wrap_compute_bitserial_conv2d(topi_compute):

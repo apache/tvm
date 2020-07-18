@@ -56,7 +56,7 @@ bool LLVMEnabled() {
 
 /*! \return The default host target for a given device target */
 Target DefaultTargetHost(Target target) {
-  if (target.defined() && target->device_type == kDLCPU) {
+  if (target.defined() && target->id->device_type == kDLCPU) {
     return target;
   } else {
     if (LLVMEnabled()) {
@@ -162,6 +162,7 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   pass_list.push_back(tir::transform::InjectPrefetch());
   pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
   // Phase 1
+  pass_list.push_back(tir::transform::BF16Legalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
   pass_list.push_back(tir::transform::LoopPartition());
@@ -231,14 +232,14 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   auto mdevice = opt_device(mod_mixed);
 
   // some final misc checks.
-  auto keys = target->keys();
+  auto keys = target->GetKeys();
   bool target_is_gpu = std::find(keys.begin(), keys.end(), "gpu") != keys.end();
   if (target_is_gpu && mdevice->functions.size() == 0) {
     LOG(WARNING) << "Specified target " << target->str()
                  << " but cannot find device code. Did you forget to bind?";
   }
 
-  if (target->device_type == target::llvm()->device_type && target_host == target) {
+  if (target->id->device_type == kDLCPU && target_host == target) {
     CHECK(mdevice->functions.empty()) << "No device code should be generated when target "
                                       << "and host_target are both llvm target."
                                       << "\n";
@@ -255,7 +256,7 @@ runtime::Module build(const Map<Target, IRModule>& inputs, const Target& target_
   Target target_host_val = target_host;
   if (!target_host.defined()) {
     for (const auto& it : inputs) {
-      if (it.first->device_type == kDLCPU || it.first->device_type == kDLMicroDev) {
+      if (it.first->id->device_type == kDLCPU || it.first->id->device_type == kDLMicroDev) {
         target_host_val = it.first;
         break;
       }
@@ -294,7 +295,8 @@ runtime::Module build(const Map<String, IRModule>& inputs, const Target& target_
   Map<Target, IRModule> updated_input;
   for (const auto& it : inputs) {
     auto target = Target::Create(it.first);
-    if (target->device_name == "vta") {
+    Optional<String> device = target->GetAttr<String>("device");
+    if (device.defined() && device.value() == "vta") {
       target = Target::Create("ext_dev");
     }
     updated_input.Set(target, it.second);

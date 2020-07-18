@@ -171,18 +171,19 @@ def test_all():
 def test_bitwise():
     x = te.var('x')
     y = te.var('y')
-    assert str(x << y) == '@shift_left(x: int32, y: int32, dtype=int32, type="pure_intrin")'
-    assert str(x >> y) == '@shift_right(x: int32, y: int32, dtype=int32, type="pure_intrin")'
-    assert str(x & y) == '@bitwise_and(x: int32, y: int32, dtype=int32, type="pure_intrin")'
-    assert str(x | y) == '@bitwise_or(x: int32, y: int32, dtype=int32, type="pure_intrin")'
-    assert str(x ^ y) == '@bitwise_xor(x: int32, y: int32, dtype=int32, type="pure_intrin")'
-    assert str(10 & x) == '@bitwise_and(10, x: int32, dtype=int32, type="pure_intrin")'
-    assert str(10 | x) == '@bitwise_or(10, x: int32, dtype=int32, type="pure_intrin")'
-    assert str(10 ^ x) == '@bitwise_xor(10, x: int32, dtype=int32, type="pure_intrin")'
-    assert str(10 >> x) == '@shift_right(10, x: int32, dtype=int32, type="pure_intrin")'
-    assert str(10 << x) == '@shift_left(10, x: int32, dtype=int32, type="pure_intrin")'
+    assert str(x << y) == '@tir.shift_left(x: int32, y: int32, dtype=int32)'
+    assert str(x >> y) == '@tir.shift_right(x: int32, y: int32, dtype=int32)'
+    assert str(x & y) == '@tir.bitwise_and(x: int32, y: int32, dtype=int32)'
+    assert str(x | y) == '@tir.bitwise_or(x: int32, y: int32, dtype=int32)'
+    assert str(x ^ y) == '@tir.bitwise_xor(x: int32, y: int32, dtype=int32)'
+    assert str(10 & x) == '@tir.bitwise_and(10, x: int32, dtype=int32)'
+    assert str(10 | x) == '@tir.bitwise_or(10, x: int32, dtype=int32)'
+    assert str(10 ^ x) == '@tir.bitwise_xor(10, x: int32, dtype=int32)'
+    assert str(10 >> x) == '@tir.shift_right(10, x: int32, dtype=int32)'
+    assert str(10 << x) == '@tir.shift_left(10, x: int32, dtype=int32)'
     assert str(10 % x) == 'floormod(10, x: int32)'
-    assert str(~x) == '@bitwise_not(x: int32, dtype=int32, type="pure_intrin")'
+
+    assert str(~x) == '@tir.bitwise_not(x: int32, dtype=int32)'
     assert(tvm.tir.const(1, "int8x2") >> 1).dtype == "int8x2"
     assert(x >> tvm.tir.const(1, "int32x2")).dtype == "int32x2"
     assert(te.var("z", "int8x2") << tvm.tir.const(1, "int8x2")).dtype == "int8x2"
@@ -239,10 +240,10 @@ def test_divide_by_zero():
 
 def test_isnan():
     x = te.var('x', 'float32')
-    assert str(tvm.tir.isnan(x)) == '@isnan(x: float32, dtype=bool, type="pure_intrin")'
+    assert str(tvm.tir.isnan(x)) == '@tir.isnan(x: float32, dtype=bool)'
     assert str(tvm.tir.isnan(x).dtype) == 'bool'
     y = te.var('y', 'float16')
-    assert str(tvm.tir.isnan(y)) == '@isnan(cast(float32, y: float16), dtype=bool, type="pure_intrin")'
+    assert str(tvm.tir.isnan(y)) == '@tir.isnan(cast(float32, y: float16), dtype=bool)'
     z = te.var('z', 'int32')
     assert str(tvm.tir.isnan(z)) == 'False'
     k = te.var('k', 'int8x2')
@@ -273,7 +274,8 @@ def test_prim_func():
 
     func = tvm.tir.PrimFunc(
         [x, y, b], stmt)
-
+    # make sure we can print
+    func.astext()
     assert func.buffer_map[func.params[2]].same_as(b)
 
     assert len(func.buffer_map) == 1

@@ -26,9 +26,13 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
 #include <unordered_map>
+#include <utility>
 #include <vector>
+
+#include "analyzer.h"
 
 namespace tvm {
 namespace arith {
@@ -36,6 +40,95 @@ namespace arith {
 using tir::IterVar;
 using tir::Var;
 using tir::VarNode;
+
+/*!
+ * \brief Represent integer grouped bounds which are classified into
+ *        lower bounds (inclusive), upper bounds (inclusive) and equalities.
+ *        It also contains coefficient as a multiplier for the bounds, i.e.,
+ *        coef * var >= lower
+ *        coef * var == equal
+ *        coef * var <= upper
+ * \sa IntGroupBounds
+ */
+class IntGroupBoundsNode : public Object {
+ public:
+  PrimExpr coef;
+  Array<PrimExpr> lower;
+  Array<PrimExpr> equal;
+  Array<PrimExpr> upper;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("coef", &coef);
+    v->Visit("lower", &lower);
+    v->Visit("equal", &equal);
+    v->Visit("upper", &upper);
+  }
+
+  bool SEqualReduce(const IntGroupBoundsNode* other, SEqualReducer eq) const {
+    return eq(coef, other->coef) && eq(lower, other->lower) && eq(equal, other->equal) &&
+           eq(upper, other->upper);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(coef);
+    hash_reduce(lower);
+    hash_reduce(equal);
+    hash_reduce(upper);
+  }
+
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const char* _type_key = "arith.IntGroupBounds";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IntGroupBoundsNode, Object);
+};
+
+/*!
+ * \brief Managed reference to IntGroupBoundsNode.
+ * \sa IntGroupBoundsNode
+ */
+class IntGroupBounds : public ObjectRef {
+ public:
+  /*!
+   * \brief Constructor by fields
+   * \param coef The coefficient. Must be integer.
+   *        coef * var >= lower
+   *        coef * var == equal
+   *        coef * var >= upper
+   * \param lower the lower bounds (include)
+   * \param equal equalities
+   * \param upper the upper bounds (include)
+   */
+  TVM_DLL IntGroupBounds(PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
+                         Array<PrimExpr> upper);
+
+  /*!
+   * \brief Construct bounds from a range.
+   * \param r The range
+   * \return constructed bounds.
+   */
+  static IntGroupBounds FromRange(const Range& r);
+
+  /*!
+   * \brief Perform substitution on all components of the struct.
+   */
+  IntGroupBounds Substitute(const Map<Var, PrimExpr>& subst) const;
+
+  /*!
+   * \brief Find the best range from the grouped bounds.
+   * \param vranges_addl additional variable ranges that help infer the best range.
+   * \return The best range (has the least difference between the lower bound and upper bound).
+   *         undefined if (-inf, +inf).
+   */
+  Range FindBestRange(const Map<Var, Range>& vranges_addl = {}) const;
+
+  /*!
+   * \brief Combine the bounds with another range.
+   * \param r range to be combined.
+   * \return combined bounds.
+   */
+  IntGroupBounds operator+(const Range& r);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(IntGroupBounds, ObjectRef, IntGroupBoundsNode);
+};
 
 /*!
  * \brief Represent integer constrains including (integer) variables, their ranges and
@@ -161,6 +254,8 @@ class IntConstraintsTransform : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(IntConstraintsTransform, ObjectRef, IntConstraintsTransformNode);
 };
 
+typedef std::pair<Map<Var, IntGroupBounds>, Array<PrimExpr>> PartialSolvedInequalities;
+
 /*!
  * \brief Obtain Smith Normal Form of linear equation A x = y.
  *        Smith Normal Form of matrix A_{mxn} is S_{mxn} = U_{mxm} A_{mxn} V_{nxn},
@@ -190,6 +285,56 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t>>* S, std::vector<std::
  *          You can get the mapping from the original variables to the solution via ret->src_to_dst.
  */
 IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_solve);
+
+/*!
+ * \brief Solve linear inequalities.
+ * \param system_to_solve the variables to solve, their ranges, and a list of inequalities.
+ *        The inequalities are rewritten using Fourier-Motzkin elimination.
+ *        This function takes an array of (in)equalities and an array of variables, and essentially
+ *        rewrites the (in)equalities into an array of (in)equalities of the following form,
+ *
+ *        x0 >= f0(x1, x2, ..., xn)
+ *        x0 <= g0(x1, x2, ..., xn)
+ *        x1 >= f1(x2, ..., xn)
+ *        x1 <= g1(x2, ..., xn)
+ *        ...
+ *        xn >= fn()  // just a constant
+ *        xn <= gn()  // just a constant
+ *
+ * \return A map of variables and their solved bounds,
+ *         and constrains that cannot be solved to bounds.
+ */
+PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_to_solve);
+
+/*!
+ * \brief Solve linear inequalities and infer the range of each variable.
+ * \param system_to_solve the variables to solve, their ranges, and a list of inequalities.
+ * \return The result ranges for each variables.
+ *         The returned IntConstraints(variables, ranges, relations) contains,
+ *         1. variables  - the variables that have been solved.
+ *         2. ranges     - the best range of each variable.
+ *         3. relations  - constraints that cannot be transformed to
+ *                         Range will be stored in relations.
+ */
+IntConstraints SolveInequalitiesToRange(const IntConstraints& system_to_solve);
+
+/*!
+ * \brief Solve linear inequalities and deskew the ranges towards zero.
+ * \param system_to_solve the variables to solve, their ranges, and a list of inequalities.
+ * \return A transform (src IntConstraints -> dst IntConstraints)
+ *         from original variables to a set of new variables.
+ *         The ranges of new variables always start from zero,
+ *         their extents are solved from \p system_to_solve.
+ *         src IntConstraints is the same as \p system_to_solve.
+ *         dst IntConstraints(variables, ranges, relations) contains,
+ *         1. variables  - the variables that have been solved.
+ *         2. ranges     - the best range (start from zero) of each variable.
+ *         3. relations  - constraints that cannot be transformed to
+ *                         Range will be stored in relations.
+ *         Variable mapping can be obtained from
+ *         IntConstraintsTransform.src_to_dst and IntConstraintsTransform.dst_to_src.
+ */
+IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& system_to_solve);
 
 }  // namespace arith
 }  // namespace tvm

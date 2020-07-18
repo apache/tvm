@@ -27,6 +27,8 @@ use crate::util::get_tvm_rt_crate;
 
 pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
     let tvm_rt_crate = get_tvm_rt_crate();
+    let result = quote! { #tvm_rt_crate::function::Result };
+    let error = quote! { #tvm_rt_crate::errors::Error };
     let derive_input = syn::parse_macro_input!(input as DeriveInput);
     let payload_id = derive_input.ident;
 
@@ -77,9 +79,15 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
         #[derive(Clone)]
         pub struct #ref_id(Option<#tvm_rt_crate::object::ObjectPtr<#payload_id>>);
 
-        impl #tvm_rt_crate::object::ToObjectRef for #ref_id {
-            fn to_object_ref(&self) -> ObjectRef {
-                ObjectRef(self.0.as_ref().map(|o| o.upcast()))
+        impl #tvm_rt_crate::object::IsObjectRef for #ref_id {
+            type Object = #payload_id;
+
+            fn as_object_ptr(&self) -> Option<&ObjectPtr<Self::Object>> {
+                self.0.as_ref()
+            }
+
+            fn from_object_ptr(object_ptr: Option<ObjectPtr<Self::Object>>) -> Self {
+                #ref_id(object_ptr)
             }
         }
 
@@ -92,9 +100,9 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
         }
 
         impl std::convert::TryFrom<#tvm_rt_crate::RetValue> for #ref_id {
-            type Error = #tvm_rt_crate::Error;
+            type Error = #error;
 
-            fn try_from(ret_val: #tvm_rt_crate::RetValue) -> Result<#ref_id, Self::Error> {
+            fn try_from(ret_val: #tvm_rt_crate::RetValue) -> #result<#ref_id> {
                 use std::convert::TryInto;
                 let oref: ObjectRef = ret_val.try_into()?;
                 let ptr = oref.0.ok_or(#tvm_rt_crate::Error::Null)?;
@@ -125,24 +133,15 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
         }
 
         impl<'a> std::convert::TryFrom<#tvm_rt_crate::ArgValue<'a>> for #ref_id {
-            type Error = #tvm_rt_crate::Error;
+            type Error = #error;
 
-            fn try_from(arg_value: #tvm_rt_crate::ArgValue<'a>) -> Result<#ref_id, Self::Error> {
+            fn try_from(arg_value: #tvm_rt_crate::ArgValue<'a>) -> #result<#ref_id> {
                 use std::convert::TryInto;
                 let optr = arg_value.try_into()?;
                 Ok(#ref_id(Some(optr)))
             }
         }
 
-        impl<'a> std::convert::TryFrom<&#tvm_rt_crate::ArgValue<'a>> for #ref_id {
-            type Error = #tvm_rt_crate::Error;
-
-            fn try_from(arg_value: &#tvm_rt_crate::ArgValue<'a>) -> Result<#ref_id, Self::Error> {
-                use std::convert::TryInto;
-                let optr = arg_value.try_into()?;
-                Ok(#ref_id(Some(optr)))
-            }
-        }
 
         impl From<#ref_id> for #tvm_rt_crate::RetValue {
             fn from(object_ref: #ref_id) -> #tvm_rt_crate::RetValue {

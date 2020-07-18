@@ -29,6 +29,7 @@
 
 #include <vector>
 
+#include "../make_op.h"
 #include "../op_common.h"
 
 namespace tvm {

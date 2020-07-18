@@ -36,7 +36,7 @@ def test_vthread():
             bbuffer = tvm.tir.decl_buffer((m,), dtype=B.dtype, data=B.asobject())
             ib.emit(tvm.tir.call_extern("int32", "Run",
                                     bbuffer.access_ptr("r"),
-                                    tvm.tir.call_pure_intrin("int32", "tvm_context_id")))
+                                    tvm.tir.call_intrin("int32", "tir.tvm_context_id")))
             C[i * nthread + tx] = B[i] + 1
         return ib.get()
 

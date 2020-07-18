@@ -78,11 +78,10 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
             # Its possible for some onnx inputs to not be needed in the tvm
             # module, confirm its present before setting.
             try:
-                m.get_input(input_names[i])
+                m.set_input(input_names[i], tvm.nd.array(
+                    input_data[i].astype(input_data[i].dtype)))
             except:
                 continue
-            m.set_input(input_names[i], tvm.nd.array(
-                input_data[i].astype(input_data[i].dtype)))
     else:
         m.set_input(input_names, tvm.nd.array(
             input_data.astype(input_data.dtype)))
@@ -2021,6 +2020,89 @@ def test_or():
     verify_or(indata=[x, y], dtype=bool)
 
 
+def test_batch_norm():
+    def verify_batch_norm(in_shape):
+        batchnorm = onnx.helper.make_node('BatchNormalization',
+                                          inputs=["x", "scale", "B", "mean", "var"],
+                                          outputs=['Y'])
+
+        graph = helper.make_graph([batchnorm],
+                                  "batchnorm_test",
+                                  inputs=[helper.make_tensor_value_info("x",
+                                                                        TensorProto.FLOAT, list(in_shape)),
+                                          helper.make_tensor_value_info("scale",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("B",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("mean",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("var",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                         ],
+                                  outputs=[helper.make_tensor_value_info("Y",
+                                                                         TensorProto.FLOAT, list(in_shape))])
+
+        model = helper.make_model(graph, producer_name='batchnorm_test')
+
+        for target, ctx in ctx_list():
+            x = np.random.uniform(size=in_shape).astype('float32')
+            scale = np.random.uniform(size=in_shape[1]).astype('float32')
+            b = np.random.uniform(size=in_shape[1]).astype('float32')
+            mean = np.random.uniform(size=in_shape[1]).astype('float32')
+            var = np.random.uniform(size=in_shape[1]).astype('float32')
+            onnx_out = get_onnxruntime_output(model, [x, scale, b, mean, var], 'float32')[0]
+            tvm_out = get_tvm_output(model, [x, scale, b, mean, var], target, ctx, in_shape, 'float32')
+            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+    verify_batch_norm([1, 3, 224, 224])
+    verify_batch_norm([1, 3, 24, 24])
+    verify_batch_norm([16, 3, 24, 24])
+    verify_batch_norm([16, 16, 24, 24])
+    verify_batch_norm([16, 16, 10, 10])
+
+
+def test_batch_norm_dynamic_subgraph():
+    def verify_batch_norm_dynamic_subgraph(in_shape, o_shape):
+        batchnorm = onnx.helper.make_node('BatchNormalization',
+                                          inputs=["x", "scale", "B", "mean", "var"],
+                                          outputs=['Y'])
+
+        shape_node = helper.make_node("Shape", ['Y'], ['shape'])
+        reshape_node = helper.make_node("Reshape", ["in", "shape"], ["out"])
+        graph = helper.make_graph([batchnorm, shape_node, reshape_node],
+                                  "batchnorm_test",
+                                  inputs=[helper.make_tensor_value_info("x",
+                                                                        TensorProto.FLOAT, list(in_shape)),
+                                          helper.make_tensor_value_info("in",
+                                                                        TensorProto.FLOAT, list(o_shape)),
+                                          helper.make_tensor_value_info("scale",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("B",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("mean",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("var",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                         ],
+                                  outputs=[helper.make_tensor_value_info("out",
+                                                                         TensorProto.FLOAT, list(in_shape))])
+
+        model = helper.make_model(graph, producer_name='batchnorm_test')
+
+        for target, ctx in ctx_list():
+            x = np.random.uniform(size=in_shape).astype('float32')
+            inp = np.random.uniform(size=o_shape).astype('float32')
+            scale = np.random.uniform(size=in_shape[1]).astype('float32')
+            b = np.random.uniform(size=in_shape[1]).astype('float32')
+            mean = np.random.uniform(size=in_shape[1]).astype('float32')
+            var = np.random.uniform(size=in_shape[1]).astype('float32')
+            onnx_out = get_onnxruntime_output(model, [x, inp, scale, b, mean, var], 'float32')[0]
+            tvm_out = get_tvm_output(model, [x, inp, scale, b, mean, var], target, ctx, in_shape, 'float32')
+            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+    verify_batch_norm_dynamic_subgraph([16, 16, 10, 10], [160, 160])
+
+
 def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilations, auto_pad="NOTSET", unset_pad=False):
     if unset_pad:
         node = helper.make_node('Conv',
@@ -2098,6 +2180,15 @@ def test_conv():
                     repeat(1, D),
                     repeat(1, D),
                     auto_pad="SAME_UPPER")
+        # Convolution with valid autopadding
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(3, D),
+                    None,
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(1, D),
+                    auto_pad="VALID")
         # Convolution with unset padding
         verify_conv((1, 1) + repeat(5, D),
                     (1, 1) + repeat(3, D),
@@ -2482,19 +2573,30 @@ def test_lppool():
                   pads=None, out_shape=[1, 1, 16, 16, 16], auto_pad='SAME_UPPER')
 
 
-def verify_lstm(seq_length,
-                batch_size,
-                input_size,
-                hidden_size,
-                use_bias=False,
-                activations=None,
-                alphas=None,
-                betas=None,
-                use_initial_state=False,
-                use_peep=False):
-    x_np = np.random.uniform(size=(seq_length, batch_size, input_size)).astype('float32')
-    w_np = np.random.uniform(size=(1, 4 * hidden_size, input_size)).astype('float32')
-    r_np = np.random.uniform(size=(1, 4 * hidden_size, hidden_size)).astype('float32')
+def verify_rnn(seq_length,
+               batch_size,
+               input_size,
+               hidden_size,
+               rnn_type='LSTM',
+               use_bias=False,
+               activations=None,
+               alphas=None,
+               betas=None,
+               use_initial_state=False,
+               use_peep=False,
+               linear_before_reset=False):
+    if rnn_type == 'LSTM':
+        multiplier = 4
+    elif rnn_type == 'GRU':
+        multiplier = 3
+    else:
+        raise NotImplementedError("%s RNNs not yet supported." % rnn_type)
+    x_np = np.random.uniform(size=(seq_length, batch_size,
+                                   input_size)).astype('float32')
+    w_np = np.random.uniform(size=(1, multiplier * hidden_size,
+                                   input_size)).astype('float32')
+    r_np = np.random.uniform(size=(1, multiplier * hidden_size,
+                                   hidden_size)).astype('float32')
     input_names = ["X", "W", "R"]
     input_tensors = [
         helper.make_tensor_value_info("X", TensorProto.FLOAT, list(x_np.shape)),
@@ -2504,78 +2606,87 @@ def verify_lstm(seq_length,
     input_values = [x_np, w_np, r_np]
 
     if use_bias:
-        b_np = np.random.uniform(size=(1, 8 * hidden_size)).astype('float32')
+        b_np = np.random.uniform(size=(1, multiplier * 2 *
+                                       hidden_size)).astype('float32')
         input_names.append("B")
         input_tensors.append(
-            helper.make_tensor_value_info("B", TensorProto.FLOAT, [1, 8 * hidden_size]))
+            helper.make_tensor_value_info("B", TensorProto.FLOAT,
+                                          [1, multiplier * 2 * hidden_size]))
         input_values.append(b_np)
 
     if use_initial_state:
         assert use_bias == True, "Initial states must have bias specified."
         sequence_np = np.repeat(seq_length, batch_size).astype('int32')
         input_names.append("sequence_lens")
-        input_tensors.append(helper.make_tensor_value_info("sequence_lens", TensorProto.INT32, [batch_size]))
+        input_tensors.append(
+            helper.make_tensor_value_info("sequence_lens", TensorProto.INT32,
+                                          [batch_size]))
         input_values.append(sequence_np)
 
-        initial_h_np = np.random.uniform(size=(1, batch_size, hidden_size)).astype('float32')
+        initial_h_np = np.random.uniform(size=(1, batch_size,
+                                               hidden_size)).astype('float32')
         input_names.append("initial_h")
         input_tensors.append(
             helper.make_tensor_value_info("initial_h", TensorProto.FLOAT,
                                           [1, batch_size, hidden_size]))
         input_values.append(initial_h_np)
 
-        initial_c_np = np.random.uniform(size=(1, batch_size, hidden_size)).astype('float32')
-        input_names.append("initial_c")
-        input_tensors.append(
-            helper.make_tensor_value_info("initial_c", TensorProto.FLOAT,
-                                          [1, batch_size, hidden_size]))
-        input_values.append(initial_c_np)
+        if rnn_type == 'LSTM':
+            initial_c_np = np.random.uniform(
+                size=(1, batch_size, hidden_size)).astype('float32')
+            input_names.append("initial_c")
+            input_tensors.append(
+                helper.make_tensor_value_info("initial_c", TensorProto.FLOAT,
+                                              [1, batch_size, hidden_size]))
+            input_values.append(initial_c_np)
 
-    if use_peep:
+    if use_peep and rnn_type == 'LSTM':
         assert use_initial_state == True, "Peepholes require initial state to be specified."
         p_np = np.random.uniform(size=(1, 3 * hidden_size)).astype('float32')
         input_names.append("P")
         input_tensors.append(
-            helper.make_tensor_value_info("P", TensorProto.FLOAT, [1, 3 * hidden_size]))
+            helper.make_tensor_value_info("P", TensorProto.FLOAT,
+                                          [1, 3 * hidden_size]))
         input_values.append(p_np)
 
     Y_shape = [seq_length, 1, batch_size, hidden_size]
     Y_h_shape = [1, batch_size, hidden_size]
-    Y_c_shape = [1, batch_size, hidden_size]
+    outputs = ["Y", "Y_h"]
+    graph_outputs = [
+        helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(Y_shape)),
+        helper.make_tensor_value_info("Y_h", TensorProto.FLOAT, list(Y_h_shape))
+    ]
+    output_shapes = [Y_shape, Y_h_shape]
 
-    if activations is None:
-        lstm_node = helper.make_node(
-            'LSTM', inputs=input_names, outputs=["Y", "Y_h", "Y_c"], hidden_size=hidden_size)
-    elif alphas is None:
-        lstm_node = helper.make_node(
-            'LSTM',
-            inputs=input_names,
-            outputs=["Y", "Y_h", "Y_c"],
-            hidden_size=hidden_size,
-            activations=activations)
-    else:
-        lstm_node = helper.make_node(
-            'LSTM',
-            inputs=input_names,
-            outputs=["Y", "Y_h", "Y_c"],
-            hidden_size=hidden_size,
-            activations=activations,
-            activation_alpha=alphas,
-            activation_beta=betas)
+    if rnn_type == 'LSTM':
+        Y_c_shape = [1, batch_size, hidden_size]
+        outputs.append("Y_c")
+        graph_outputs.append(
+            helper.make_tensor_value_info("Y_c", TensorProto.FLOAT,
+                                          list(Y_c_shape)))
+        output_shapes.append(Y_c_shape)
 
-    graph = helper.make_graph([lstm_node],
-                              "lstm_test",
+    rnn_node = helper.make_node(
+        rnn_type, inputs=input_names, outputs=outputs, hidden_size=hidden_size)
+    if activations is not None:
+        activations_attr = helper.make_attribute('activations', activations)
+        rnn_node.attribute.append(activations_attr)
+    if alphas is not None:
+        alphas_attr = helper.make_attribute('activation_alpha', alphas)
+        rnn_node.attribute.append(alphas_attr)
+    if betas is not None:
+        betas_attr = helper.make_attribute('activation_beta', betas)
+        rnn_node.attribute.append(betas_attr)
+    if linear_before_reset and rnn_type == 'GRU':
+        lbr_attr = helper.make_attribute('linear_before_reset', 1)
+        rnn_node.attribute.append(lbr_attr)
+
+    graph = helper.make_graph([rnn_node],
+                              "rnn_test",
                               inputs=input_tensors,
-                              outputs=[
-                                  helper.make_tensor_value_info("Y", TensorProto.FLOAT,
-                                                                list(Y_shape)),
-                                  helper.make_tensor_value_info("Y_h", TensorProto.FLOAT,
-                                                                list(Y_h_shape)),
-                                  helper.make_tensor_value_info("Y_c", TensorProto.FLOAT,
-                                                                list(Y_c_shape))
-                              ])
+                              outputs=graph_outputs)
 
-    model = helper.make_model(graph, producer_name='lstm_test')
+    model = helper.make_model(graph, producer_name='rnn_test')
 
     for target, ctx in ctx_list():
         onnx_out = get_onnxruntime_output(model, input_values, 'float32')
@@ -2583,37 +2694,75 @@ def verify_lstm(seq_length,
             model,
             input_values,
             target,
-            ctx, [Y_shape, Y_h_shape, Y_c_shape],
-            output_dtype=['float32', 'float32', 'float32'])
+            ctx,
+            output_shapes,
+            output_dtype=['float32'] * len(output_shapes))
         for o_out, t_out in zip(onnx_out, tvm_out):
             tvm.testing.assert_allclose(o_out, t_out, rtol=5e-3, atol=5e-3)
 
 
 def test_lstm():
     # No bias.
-    verify_lstm(seq_length=2, batch_size=1, input_size=16, hidden_size=32, use_bias=False)
-    # large batch.
-    verify_lstm(seq_length=4, batch_size=8, input_size=16, hidden_size=32, use_bias=True)
-    # Non power of two.
-    verify_lstm(seq_length=3, batch_size=3, input_size=16, hidden_size=40, use_bias=True)
-    # Long sequence.
-    verify_lstm(seq_length=8, batch_size=1, input_size=16, hidden_size=32, use_bias=True)
-    # Large hidden.
-    verify_lstm(seq_length=2, batch_size=1, input_size=16, hidden_size=128, use_bias=True)
-    # Large input.
-    verify_lstm(seq_length=2, batch_size=1, input_size=64, hidden_size=32, use_bias=True)
-
-    # Different activation testing.
-    # Default value hardsigmoid.
-    verify_lstm(
+    verify_rnn(
         seq_length=2,
         batch_size=1,
         input_size=16,
         hidden_size=32,
         use_bias=False,
-        activations=['HardSigmoid', 'Tanh', 'Tanh'])
+        rnn_type='LSTM')
+    # large batch.
+    verify_rnn(
+        seq_length=4,
+        batch_size=8,
+        input_size=16,
+        hidden_size=32,
+        use_bias=True,
+        rnn_type='LSTM')
+    # Non power of two.
+    verify_rnn(
+        seq_length=3,
+        batch_size=3,
+        input_size=16,
+        hidden_size=40,
+        use_bias=True,
+        rnn_type='LSTM')
+    # Long sequence.
+    verify_rnn(
+        seq_length=8,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=True,
+        rnn_type='LSTM')
+    # Large hidden.
+    verify_rnn(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=128,
+        use_bias=True,
+        rnn_type='LSTM')
+    # Large input.
+    verify_rnn(
+        seq_length=2,
+        batch_size=1,
+        input_size=64,
+        hidden_size=32,
+        use_bias=True,
+        rnn_type='LSTM')
+
+    # Different activation testing.
+    # Default value hardsigmoid.
+    verify_rnn(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=False,
+        activations=['HardSigmoid', 'Tanh', 'Tanh'],
+        rnn_type='LSTM')
     # Multiple parameterized activations.
-    verify_lstm(
+    verify_rnn(
         seq_length=2,
         batch_size=1,
         input_size=16,
@@ -2621,9 +2770,10 @@ def test_lstm():
         use_bias=False,
         activations=['HardSigmoid', 'LeakyRelu', 'Tanh'],
         alphas=[2.0, 0.5],
-        betas=[.3])
+        betas=[.3],
+        rnn_type='LSTM')
     # All parameterized with new Affine activation.
-    verify_lstm(
+    verify_rnn(
         seq_length=2,
         batch_size=1,
         input_size=16,
@@ -2631,24 +2781,123 @@ def test_lstm():
         use_bias=False,
         activations=['HardSigmoid', 'LeakyRelu', 'Affine'],
         alphas=[2.0, 0.5, 0.8],
-        betas=[.3, 0.1])
+        betas=[.3, 0.1],
+        rnn_type='LSTM')
 
     # Testing with initial state and peepholes
-    verify_lstm(
-        seq_length=2,
-        batch_size=1,
-        input_size=16,
-        hidden_size=32,
-        use_bias=True,
-        use_initial_state=True)
-    verify_lstm(
+    verify_rnn(
         seq_length=2,
         batch_size=1,
         input_size=16,
         hidden_size=32,
         use_bias=True,
         use_initial_state=True,
-        use_peep=True)
+        rnn_type='LSTM')
+
+    verify_rnn(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=True,
+        use_initial_state=True,
+        use_peep=True,
+        rnn_type='LSTM')
+
+
+def test_gru():
+    # No bias.
+    verify_rnn(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=False,
+        rnn_type='GRU')
+    # large batch.
+    verify_rnn(
+        seq_length=4,
+        batch_size=8,
+        input_size=16,
+        hidden_size=32,
+        use_bias=True,
+        rnn_type='GRU',
+        linear_before_reset=True)
+    # Non power of two.
+    verify_rnn(
+        seq_length=3,
+        batch_size=3,
+        input_size=16,
+        hidden_size=40,
+        use_bias=True,
+        rnn_type='GRU')
+    # Long sequence.
+    verify_rnn(
+        seq_length=8,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=True,
+        rnn_type='GRU')
+    # Large hidden.
+    verify_rnn(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=128,
+        use_bias=True,
+        rnn_type='GRU')
+    # Large input.
+    verify_rnn(
+        seq_length=2,
+        batch_size=1,
+        input_size=64,
+        hidden_size=32,
+        use_bias=True,
+        rnn_type='GRU')
+
+    # Different activation testing.
+    # Default value hardsigmoid.
+    verify_rnn(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=False,
+        activations=['HardSigmoid', 'Softsign'],
+        rnn_type='GRU')
+    # Multiple parameterized activations.
+    verify_rnn(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=False,
+        activations=['HardSigmoid', 'LeakyRelu'],
+        alphas=[2.0, 0.5],
+        betas=[.3],
+        rnn_type='GRU')
+    # All parameterized with new Affine activation.
+    verify_rnn(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=False,
+        activations=['HardSigmoid', 'Affine'],
+        alphas=[2.0, 0.8],
+        betas=[.3, 0.1],
+        rnn_type='GRU')
+
+    # Testing with initial state
+    verify_rnn(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=True,
+        use_initial_state=True,
+        rnn_type='GRU')
 
 
 def test_resize():
@@ -2893,12 +3142,15 @@ if __name__ == '__main__':
     test_or()
     test_depth_to_space()
     test_space_to_depth()
+    test_batch_norm()
+    test_batch_norm_dynamic_subgraph()
     test_conv()
     test_convtranspose()
     test_unsqueeze_constant()
     test_pooling()
     test_lppool()
     test_lstm()
+    test_gru()
     test_resize()
     test_nonzero()
     test_topk()

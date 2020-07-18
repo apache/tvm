@@ -46,28 +46,32 @@ pub use tvm_sys::{ffi, ArgValue, RetValue};
 /// And the implementation of it to `ToFunction`.
 pub trait Typed<I, O> {
     fn args(i: &[ArgValue<'static>]) -> Result<I>;
-    fn ret(o: O) -> RetValue;
+    fn ret(o: O) -> Result<RetValue>;
 }
 
-impl<F, O: Into<RetValue>> Typed<(), O> for F
+impl<F, O, E> Typed<(), O> for F
 where
     F: Fn() -> O,
+    Error: From<E>,
+    O: TryInto<RetValue, Error = E>,
 {
     fn args(_args: &[ArgValue<'static>]) -> Result<()> {
         debug_assert!(_args.len() == 0);
         Ok(())
     }
 
-    fn ret(o: O) -> RetValue {
-        o.into()
+    fn ret(o: O) -> Result<RetValue> {
+        o.try_into().map_err(|e| e.into())
     }
 }
 
-impl<F, A, O: Into<RetValue>, E> Typed<(A,), O> for F
+impl<F, A, O, E1, E2> Typed<(A,), O> for F
 where
     F: Fn(A) -> O,
-    Error: From<E>,
-    A: TryFrom<ArgValue<'static>, Error = E>,
+    Error: From<E1>,
+    Error: From<E2>,
+    A: TryFrom<ArgValue<'static>, Error = E1>,
+    O: TryInto<RetValue, Error = E2>,
 {
     fn args(args: &[ArgValue<'static>]) -> Result<(A,)> {
         debug_assert!(args.len() == 1);
@@ -75,17 +79,19 @@ where
         Ok((a,))
     }
 
-    fn ret(o: O) -> RetValue {
-        o.into()
+    fn ret(o: O) -> Result<RetValue> {
+        o.try_into().map_err(|e| e.into())
     }
 }
 
-impl<F, A, B, O: Into<RetValue>, E> Typed<(A, B), O> for F
+impl<F, A, B, O, E1, E2> Typed<(A, B), O> for F
 where
     F: Fn(A, B) -> O,
-    Error: From<E>,
-    A: TryFrom<ArgValue<'static>, Error = E>,
-    B: TryFrom<ArgValue<'static>, Error = E>,
+    Error: From<E1>,
+    Error: From<E2>,
+    A: TryFrom<ArgValue<'static>, Error = E1>,
+    B: TryFrom<ArgValue<'static>, Error = E1>,
+    O: TryInto<RetValue, Error = E2>,
 {
     fn args(args: &[ArgValue<'static>]) -> Result<(A, B)> {
         debug_assert!(args.len() == 2);
@@ -94,18 +100,20 @@ where
         Ok((a, b))
     }
 
-    fn ret(o: O) -> RetValue {
-        o.into()
+    fn ret(o: O) -> Result<RetValue> {
+        o.try_into().map_err(|e| e.into())
     }
 }
 
-impl<F, A, B, C, O: Into<RetValue>, E> Typed<(A, B, C), O> for F
+impl<F, A, B, C, O, E1, E2> Typed<(A, B, C), O> for F
 where
     F: Fn(A, B, C) -> O,
-    Error: From<E>,
-    A: TryFrom<ArgValue<'static>, Error = E>,
-    B: TryFrom<ArgValue<'static>, Error = E>,
-    C: TryFrom<ArgValue<'static>, Error = E>,
+    Error: From<E1>,
+    Error: From<E2>,
+    A: TryFrom<ArgValue<'static>, Error = E1>,
+    B: TryFrom<ArgValue<'static>, Error = E1>,
+    C: TryFrom<ArgValue<'static>, Error = E1>,
+    O: TryInto<RetValue, Error = E2>,
 {
     fn args(args: &[ArgValue<'static>]) -> Result<(A, B, C)> {
         debug_assert!(args.len() == 3);
@@ -115,8 +123,8 @@ where
         Ok((a, b, c))
     }
 
-    fn ret(o: O) -> RetValue {
-        o.into()
+    fn ret(o: O) -> Result<RetValue> {
+        o.try_into().map_err(|e| e.into())
     }
 }
 
@@ -230,7 +238,7 @@ where
     {
         // Ideally we shouldn't need to clone, probably doesn't really matter.
         let out = unsafe { (*handle)() };
-        Ok(F::ret(out))
+        F::ret(out)
     }
 
     fn drop(_: *mut Self::Handle) {}
@@ -253,7 +261,7 @@ macro_rules! to_function_instance {
                 let out = unsafe {
                     (*handle)($(args.$index),+)
                 };
-                Ok(F::ret(out))
+                F::ret(out)
             }
 
             fn drop(_: *mut Self::Handle) {}

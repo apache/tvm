@@ -79,6 +79,10 @@ The model should be exported with a number of transformations to prepare the mod
                 [
                     "remove_nodes(op=Identity, op=CheckNumerics, op=StopGradient)",
                     "sort_by_execution_order", # sort by execution order after each transform to ensure correct node ordering
+                    "remove_attribute(attribute_name=_XlaSeparateCompiledGradients)",
+                    "remove_attribute(attribute_name=_XlaCompile)",
+                    "remove_attribute(attribute_name=_XlaScope)",
+                    "sort_by_execution_order",
                     "remove_device",
                     "sort_by_execution_order",
                     "fold_batch_norms",

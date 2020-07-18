@@ -49,6 +49,9 @@ void CoreMLModel::SetInput(const std::string& key, DLTensor* data_in) {
   } else if (dtype == DataType::Float(32)) {
     dataType = MLMultiArrayDataTypeFloat32;
     size *= sizeof(float);
+  } else if (dtype == DataType::Int(32)) {
+    dataType = MLMultiArrayDataTypeInt32;
+    size *= sizeof(int);
   } else {
     LOG(FATAL) << "unsupported data type " << dtype;
     return;
@@ -88,6 +91,9 @@ NDArray CoreMLModel::GetOutput(int index) const {
   } else if (data_desc.dataType == MLMultiArrayDataTypeFloat32) {
     dtype = DataType::Float(32);
     size *= sizeof(float);
+  } else if (data_desc.dataType == MLMultiArrayDataTypeInt32) {
+    dtype = DataType::Int(32);
+    size *= sizeof(int);
   } else {
     LOG(FATAL) << "unexpected data type " << data_desc.dataType;
   }
@@ -107,55 +113,39 @@ int CoreMLModel::GetNumOutputs() const {
   return [[model_desc outputDescriptionsByName] count];
 }
 
-void CoreMLRuntime::Init(const std::string& _model_dir) {
-  NSString* model_dir = [NSString stringWithUTF8String:(_model_dir).c_str()];
-  if (![model_dir hasPrefix:@"/"]) {
+void CoreMLRuntime::Init(const std::string& symbol, const std::string& _model_path) {
+  symbol_ = symbol;
+
+  NSString* model_path = [NSString stringWithUTF8String:(_model_path).c_str()];
+  if (![model_path hasPrefix:@"/"]) {
     // find models in the bundle's framework
     NSBundle* bundle = [NSBundle mainBundle];
-    NSString* base = [bundle privateFrameworksPath];
-    model_dir = [base stringByAppendingPathComponent:model_dir];
+    NSString* base = [[bundle privateFrameworksPath] stringByAppendingPathComponent:@"tvm"];
+    model_path = [base stringByAppendingPathComponent:model_path];
   }
-  NSFileManager* fileMamager = [NSFileManager defaultManager];
-  NSArray<NSString*>* files = [fileMamager contentsOfDirectoryAtPath:model_dir error:nil];
-  for (NSString* file in files) {
-    if ([[file pathExtension] isEqualToString:@"mlmodelc"]) {
-      NSString* model_path = [model_dir stringByAppendingPathComponent:file];
-      NSURL* url = [NSURL fileURLWithPath:model_path];
-      const std::string& model_name = [[file stringByDeletingPathExtension] UTF8String];
-      model_map_[model_name] = std::unique_ptr<CoreMLModel>(new CoreMLModel(url));
-    }
-  }
-}
 
-CoreMLModel& CoreMLRuntime::GetModel(const std::string& model_name) {
-  CHECK(model_map_.count(model_name) > 0) << "No such model in this module: " << model_name;
-  return *model_map_[model_name];
+  NSURL* url = [NSURL fileURLWithPath:model_path];
+  model_ = std::unique_ptr<CoreMLModel>(new CoreMLModel(url));
 }
 
 PackedFunc CoreMLRuntime::GetFunction(const std::string& name,
                                       const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
-  if (name == "invoke") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { GetModel("main").Invoke(); });
+  if (name == "invoke" || name == "run") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { model_->Invoke(); });
   } else if (name == "set_input") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
       const auto& input_name = args[0].operator std::string();
-      GetModel("main").SetInput(input_name, args[1]);
+      model_->SetInput(input_name, args[1]);
     });
   } else if (name == "get_output") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = GetModel("main").GetOutput(args[0]);
-    });
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = model_->GetOutput(args[0]); });
   } else if (name == "get_num_outputs") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = GetModel("main").GetNumOutputs();
-    });
-  } else {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = model_->GetNumOutputs(); });
+  } else if (name == symbol_) {
     // Return the packedfunc which executes the subgraph.
-    return PackedFunc([sptr_to_self, name, this](TVMArgs args, TVMRetValue* rv) {
-      CoreMLModel& model = GetModel(name);
-      MLModelDescription* model_desc = [model.model_ modelDescription];
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+      MLModelDescription* model_desc = [model_->model_ modelDescription];
       NSString* metadata = [model_desc metadata][MLModelDescriptionKey];
       NSData* data = [metadata dataUsingEncoding:NSUTF8StringEncoding];
       NSDictionary* json = [NSJSONSerialization JSONObjectWithData:data
@@ -168,17 +158,17 @@ PackedFunc CoreMLRuntime::GetFunction(const std::string& name,
         CHECK(args[i].type_code() == kTVMDLTensorHandle || args[i].type_code() == kTVMNDArrayHandle)
             << "Expect NDArray or DLTensor as inputs\n";
         if (args[i].type_code() == kTVMDLTensorHandle) {
-          model.SetInput([input_names[i] UTF8String], args[i]);
+          model_->SetInput([input_names[i] UTF8String], args[i]);
         } else {
           LOG(FATAL) << "Not implemented";
         }
       }
 
       // Execute the subgraph.
-      model.Invoke();
+      model_->Invoke();
 
       // TODO: Support multiple outputs.
-      NDArray out = model.GetOutput(0);
+      NDArray out = model_->GetOutput(0);
       if (args[args.size() - 1].type_code() == kTVMDLTensorHandle) {
         DLTensor* arg = args[args.size() - 1];
         out.CopyTo(arg);
@@ -188,32 +178,30 @@ PackedFunc CoreMLRuntime::GetFunction(const std::string& name,
       }
       *rv = out;
     });
+  } else {
+    return PackedFunc();
   }
 }
 
-Module CoreMLRuntimeCreate(const std::string& model_dir) {
+Module CoreMLRuntimeCreate(const std::string& symbol, const std::string& model_path) {
   auto exec = make_object<CoreMLRuntime>();
-  exec->Init(model_dir);
+  exec->Init(symbol, model_path);
   return Module(exec);
 }
 
 TVM_REGISTER_GLOBAL("tvm.coreml_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = CoreMLRuntimeCreate(args[0]);
+  *rv = CoreMLRuntimeCreate(args[0], args[1]);
 });
 
 void CoreMLRuntime::SaveToBinary(dmlc::Stream* stream) {
-  stream->Write((uint32_t)model_map_.size());
-  for (const auto& kv : model_map_) {
-    const std::string& model_name = kv.first;
-    NSURL* url = kv.second->url_;
-    NSFileWrapper* dirWrapper = [[[NSFileWrapper alloc] initWithURL:url options:0
-                                                              error:nil] autorelease];
-    NSData* dirData = [dirWrapper serializedRepresentation];
-    stream->Write(model_name);
-    stream->Write((uint64_t)[dirData length]);
-    stream->Write([dirData bytes], [dirData length]);
-    LOG(INFO) << "Save " << model_name << " (" << [dirData length] << " bytes)";
-  }
+  NSURL* url = model_->url_;
+  NSFileWrapper* dirWrapper = [[[NSFileWrapper alloc] initWithURL:url options:0
+                                                            error:nil] autorelease];
+  NSData* dirData = [dirWrapper serializedRepresentation];
+  stream->Write(symbol_);
+  stream->Write((uint64_t)[dirData length]);
+  stream->Write([dirData bytes], [dirData length]);
+  DLOG(INFO) << "Save " << symbol_ << " (" << [dirData length] << " bytes)";
 }
 
 /*!
@@ -226,9 +214,6 @@ void CoreMLRuntime::SaveToBinary(dmlc::Stream* stream) {
 Module CoreMLRuntimeLoadFromBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
 
-  uint32_t nr_models;
-  stream->Read(&nr_models);
-
   NSString* tempBaseDir = NSTemporaryDirectory();
   if (tempBaseDir == nil) tempBaseDir = @"/tmp";
 
@@ -240,26 +225,23 @@ Module CoreMLRuntimeLoadFromBinary(void* strm) {
   char* result = mkdtemp(buffer);
   NSString* tempDir = [NSString stringWithUTF8String:result];
 
-  for (int i = 0; i < nr_models; i++) {
-    std::string model_name;
-    stream->Read(&model_name);
-    uint64_t length;
-    stream->Read(&length);
-    void* ptr = new char[length];
-    stream->Read(ptr, length);
-    NSData* data = [[NSData alloc] initWithBytesNoCopy:ptr length:length];
-    NSFileWrapper* dirWrapper =
-        [[[NSFileWrapper alloc] initWithSerializedRepresentation:data] autorelease];
-    NSString* model_dir = [tempDir
-        stringByAppendingPathComponent:[NSString stringWithUTF8String:(model_name + ".mlmodelc")
-                                                                          .c_str()]];
-    NSURL* url = [NSURL fileURLWithPath:model_dir];
-    BOOL res = [dirWrapper writeToURL:url options:0 originalContentsURL:nil error:nil];
-    CHECK(res) << "Failed to create model directory " << [model_dir UTF8String];
-  }
+  std::string symbol;
+  stream->Read(&symbol);
+  uint64_t length;
+  stream->Read(&length);
+  void* ptr = new char[length];
+  stream->Read(ptr, length);
+  NSData* data = [[NSData alloc] initWithBytesNoCopy:ptr length:length];
+  NSFileWrapper* dirWrapper =
+      [[[NSFileWrapper alloc] initWithSerializedRepresentation:data] autorelease];
+  NSString* dirname = [NSString stringWithUTF8String:(symbol + ".mlmodelc").c_str()];
+  NSString* model_path = [tempDir stringByAppendingPathComponent:dirname];
+  NSURL* url = [NSURL fileURLWithPath:model_path];
+  BOOL res = [dirWrapper writeToURL:url options:0 originalContentsURL:nil error:nil];
+  CHECK(res) << "Failed to create model directory " << [model_path UTF8String];
 
   auto exec = make_object<CoreMLRuntime>();
-  exec->Init([tempDir UTF8String]);
+  exec->Init(symbol, [model_path UTF8String]);
   return Module(exec);
 }
 

@@ -38,8 +38,8 @@ them on the runtime. Graph runtime provides a fast execution experience but only
 subset of Relay programs.
 
 An alternative but not-standard approach is Relay's ahead-of-time compiler,
-which compiles a Relay program into a shared library containing an ahead-
-of-time implementation. The ahead-of-time compiler provides compelling performance
+which compiles a Relay program into a shared library containing an ahead-of-time
+implementation. The ahead-of-time compiler provides compelling performance
 but is difficult to extend and instrument, which can only be done by modifying the
 code generation and optimization mechanisms.
 

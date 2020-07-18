@@ -22,7 +22,7 @@ import tvm.te
 from tvm.ir.container import Array
 from tvm import target as _tgt
 from tvm.tir import expr as _expr
-from tvm.tir import call_pure_intrin
+from tvm.tir import call_intrin
 from tvm.tir.stmt import For
 
 from .util import _internal_assert
@@ -148,7 +148,7 @@ def likely(func_id, args):
     _internal_assert(args.__len__() == 1, \
                      "Only one expression can be likely")
     _internal_assert(func_id == "likely", "This function cannot be directly invoked!")
-    return call_pure_intrin(args[0].dtype, 'likely', *args)
+    return call_intrin(args[0].dtype, 'tir.likely', *args)
 
 
 def max_num_threads(func_id, args):

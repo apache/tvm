@@ -259,9 +259,52 @@ def test_extern_dnnl():
                  (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
 
 
+def test_extern_dnnl_const():
+    if not tvm.get_global_func("relay.ext.dnnl", True):
+        print("skip because DNNL codegen is not available")
+        return
+
+    dtype = 'float32'
+    ishape = (1, 32, 14, 14)
+    w1shape = (32, 1, 3, 3)
+    data0 = relay.var('data0', shape=(ishape), dtype=dtype)
+    w_data = np.random.uniform(0, 1, w1shape).astype(dtype)
+
+    data1 = relay.var('data0', shape=(ishape), dtype=dtype)
+    weight1 = relay.const(w_data, dtype=dtype)
+    weight2 = relay.const(w_data, dtype=dtype)
+    depthwise_conv2d_1 = relay.nn.conv2d(data1,
+                                         weight1,
+                                         kernel_size=(3, 3),
+                                         padding=(1, 1),
+                                         groups=32)
+    depthwise_conv2d_2 = relay.nn.conv2d(depthwise_conv2d_1,
+                                         weight2,
+                                         kernel_size=(3, 3),
+                                         padding=(1, 1),
+                                         groups=32)
+    out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
+
+    f = relay.Function([data1], out)
+    ref_mod = tvm.IRModule()
+    ref_mod['main'] = f
+
+    f = set_external_func_attr(f, "dnnl", "dnnl_0")
+    call = relay.Call(f, [data0])
+    mod = tvm.IRModule.from_expr(call)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+
+    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
+    ref_res = ref_ex.evaluate()(i_data)
+    check_result(mod, {"data0": i_data},
+                 (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
+
+
 if __name__ == "__main__":
     test_multi_node_subgraph()
     test_extern_gcc_single_op()
     test_extern_gcc_single_op_int()
     test_extern_gcc()
     test_extern_dnnl()
+    test_extern_dnnl_const()

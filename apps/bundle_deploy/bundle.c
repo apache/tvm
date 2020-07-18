@@ -49,6 +49,8 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
   TVMModuleHandle (*TVMGraphRuntimeCreate)(const char*, const TVMModuleHandle, const TVMContext*);
   int (*TVMGraphRuntime_LoadParams)(TVMModuleHandle, const char*, const uint32_t);
 
+  TVM_CCALL(TVMRuntimeInitialize());
+
   // get pointers
   TVM_CCALL(TVMFuncGetGlobal("runtime.SystemLib", (TVMFunctionHandle*)&SystemLibraryCreate));
   TVM_CCALL(

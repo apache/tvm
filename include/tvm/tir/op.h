@@ -28,6 +28,7 @@
 #ifndef TVM_TIR_OP_H_
 #define TVM_TIR_OP_H_
 
+#include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
@@ -551,10 +552,32 @@ TVM_DLL PrimExpr trunc(PrimExpr x);
  */
 TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
 
+/*!
+ * \brief Execute a multiplication between two Q-numbers x and y
+ * followed by a right shift s. The mathematical expression is:
+ *
+ *    out = round(x*y*2^-s)
+ *
+ * Please note that the two Q-numbers x and y are supposed to have
+ * the same number of fractional bits q.
+ *
+ * More about Q-numbers here: https://en.wikipedia.org/wiki/Q_(number_format)
+ *
+ * The rounding rule is to the nearest value, rounding half up
+ * (i.e., round(x.1) = x and round (x.5) = x+1)
+ * \param x first Q-number
+ * \param y second Q-number
+ * \param q number of fractional bits in x and y. Needs to be > 0
+ * \param s integer right shift
+ * \return The constructed expression.
+ */
+TVM_DLL PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s);
+
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                                     \
-  inline PrimExpr OpName(PrimExpr x) {                                       \
-    return tir::Call(x.dtype(), #OpName, {x}, tir::CallNode::PureIntrinsic); \
+#define TVM_DECLARE_INTRIN_UNARY(OpName)           \
+  inline PrimExpr OpName(PrimExpr x) {             \
+    static const Op& op = Op::Get("tir." #OpName); \
+    return tir::Call(x.dtype(), op, {x});          \
   }
 
 TVM_DECLARE_INTRIN_UNARY(exp);
@@ -580,6 +603,18 @@ TVM_DECLARE_INTRIN_UNARY(atan);
 TVM_DECLARE_INTRIN_UNARY(acosh);
 TVM_DECLARE_INTRIN_UNARY(asinh);
 TVM_DECLARE_INTRIN_UNARY(atanh);
+
+#define TVM_DECLARE_INTRIN_BINARY(OpName)          \
+  inline PrimExpr OpName(PrimExpr x, PrimExpr y) { \
+    static const Op& op = Op::Get("tir." #OpName); \
+    return tir::Call(x.dtype(), op, {x, y});       \
+  }
+
+TVM_DECLARE_INTRIN_BINARY(atan2);
+TVM_DECLARE_INTRIN_BINARY(nextafter);
+TVM_DECLARE_INTRIN_BINARY(copysign);
+TVM_DECLARE_INTRIN_BINARY(hypot);
+TVM_DECLARE_INTRIN_BINARY(ldexp);
 
 namespace tir {
 /*!
@@ -657,11 +692,18 @@ inline bool is_one(const PrimExpr& x) { return is_const_int(x, 1); }
 inline bool is_zero(const PrimExpr& x) { return is_const_int(x, 0); }
 
 /*!
- * \brief Check whether x is a constant.
+ * \brief Check whether x is an integer constant.
  * \note This only return true for integer types.
  * \return whether x is constant
  */
-inline bool is_const(const PrimExpr& x);
+inline bool is_const_int(const PrimExpr& x);
+
+/*!
+ * \brief Check whether x is an integer/float constant.
+ * \note This only return true for integer types.
+ * \return whether x is constant
+ */
+inline bool is_const_number(const PrimExpr& x);
 
 /*!
  * \brief Left fold.
@@ -685,7 +727,7 @@ inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr
 TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
 
 // Implementation details after this
-inline bool is_const(const PrimExpr& x) {
+inline bool is_const_int(const PrimExpr& x) {
   if (x.as<tir::IntImmNode>()) {
     return true;
   } else if (const auto* op = x.as<tir::BroadcastNode>()) {
@@ -693,6 +735,17 @@ inline bool is_const(const PrimExpr& x) {
     if (val.as<tir::IntImmNode>()) {
       return true;
     }
+  }
+  return false;
+}
+
+inline bool is_const_number(const PrimExpr& x) {
+  if (x.as<tir::IntImmNode>()) {
+    return true;
+  } else if (x.as<tir::FloatImmNode>()) {
+    return true;
+  } else if (const auto* op = x.as<tir::BroadcastNode>()) {
+    return (op->value->IsInstance<tir::IntImmNode>() || op->value->IsInstance<tir::FloatImmNode>());
   }
   return false;
 }
@@ -728,7 +781,7 @@ inline bool is_const_int(const PrimExpr& x, int64_t value) {
 inline bool is_no_op(const tir::Stmt& stmt) {
   if (!stmt.defined()) return true;
   if (const auto* op = stmt.as<tir::EvaluateNode>()) {
-    return is_const(op->value);
+    return is_const_int(op->value);
   }
   if (const auto* op = stmt.as<tir::SeqStmtNode>()) {
     return op->seq.size() == 0;
@@ -751,7 +804,7 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value) {
       return LargeUIntImm(t, static_cast<int64_t>(low), static_cast<int64_t>(high));
     }
   }
-  if (t.is_float()) return FloatImm(t, static_cast<double>(value));
+  if (t.is_float() || t.is_bfloat16()) return FloatImm(t, static_cast<double>(value));
   // For now, we store const scalar values of custom datatypes within doubles; later, during the
   // datatypes lowering pass, we will lower the value to its true representation in the format
   // specified by the datatype.

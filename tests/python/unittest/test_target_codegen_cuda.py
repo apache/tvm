@@ -485,6 +485,33 @@ def test_cuda_floordiv_with_vectorization():
         func(a_nd, b_nd)
         tvm.testing.assert_allclose(b_nd.asnumpy(), b_np, rtol=1e-3)
 
+def test_cuda_floormod_with_vectorization():
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+        print("skip because cuda is not enabled..")
+        return
+
+    with tvm.target.cuda():
+        # B[i] = A[floormod(i, k)]
+        n = 256
+        k = 37
+        A = te.placeholder((n,), name='A')
+        B = te.compute((n,), lambda i: A[tvm.tir.floormod(i, k)], name='B')
+        s = te.create_schedule(B.op)
+        xo, xi = s[B].split(B.op.axis[0], nparts=1)
+        xio, xii = s[B].split(xi, factor=4)
+        s[B].vectorize(xii)
+        s[B].bind(xo, bx)
+        s[B].bind(xio, tx)
+        func = tvm.build(s, [A, B], 'cuda')
+
+        ctx = tvm.gpu(0)
+        a_np = np.random.uniform(size=(n,)).astype(A.dtype)
+        b_np = np.array([a_np[i % k] for i in range(0, n)])
+        a_nd = tvm.nd.array(a_np, ctx)
+        b_nd = tvm.nd.array(np.zeros(b_np.shape, dtype=b_np.dtype), ctx)
+        func(a_nd, b_nd)
+        tvm.testing.assert_allclose(b_nd.asnumpy(), b_np, rtol=1e-3)
+
 def test_vectorized_casts():
     if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled..")
@@ -693,6 +720,200 @@ def test_cuda_vectorize_load_permute_pad():
     check_cuda("float16", 64, 16, 3, 4)
     check_cuda("float32", 64, 16, 3, 4)
 
+def vcf_check_common(s, args):
+    N = 512
+
+    # To check if every vectorize loop transforms to ramp expr successfully
+    stmt = tvm.lower(s, args)
+    # Use this as a stack flag to show whether this stmt is inside a BroadcastNode
+    inside_broadcast = [False]
+
+    # Possible patterns:
+    # Reduce init:          Store[Ramp] = Broadcast(0)
+    # Shared memory copy:   Store[Ramp] = Load[Ramp]
+    # Compute:              Store[Ramp] = Load[Ramp] ... Broadcast[Load]
+
+    def pre_visit(stmt):
+        if isinstance(stmt, tvm.tir.Broadcast):
+            inside_broadcast[0] = True
+            # Check Broadcast[Imm numbers] or Broadcast[Load] patterns
+            assert isinstance(stmt.value, (tvm.tir.IntImm, tvm.tir.FloatImm, tvm.tir.Load))
+        if isinstance(stmt, tvm.tir.Store):
+            # Check Store[Ramp] pattern
+            assert isinstance(stmt.index, tvm.tir.Ramp)
+        if isinstance(stmt, tvm.tir.Load):
+            # Check Broadcast[Load] or Load[Ramp] patterns
+            assert inside_broadcast[0] or isinstance(stmt.index, tvm.tir.Ramp)
+            # Skip the rest
+            return stmt
+        return None
+
+    def post_visit(stmt):
+        if isinstance(stmt, tvm.tir.Broadcast):
+            inside_broadcast[0] = False
+        return None
+
+    tvm.tir.stmt_functor.ir_transform(stmt['main'].body, pre_visit, post_visit)
+
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+        print("CUDA device not found, skip the verification.")
+        return
+    else:
+        tgt = tvm.target.cuda()
+        mod = tvm.build(s, args, tgt)
+        # To check if every vectorize loop transforms to correct instruction
+        # print(mod.imported_modules[0].get_source())
+
+        ctx = tvm.context("cuda", 0)
+        a = tvm.nd.array(np.random.uniform(size=(512, 512)).astype("float32"), ctx)
+        b = tvm.nd.array(np.random.uniform(size=(512, 512)).astype("float32"), ctx)
+        c = tvm.nd.array(np.zeros((512, 512), dtype="float32"), ctx)
+        mod(a, b, c)
+        tvm.testing.assert_allclose(c.asnumpy(), np.dot(
+            a.asnumpy(), b.asnumpy()), rtol=1e-5)
+
+def test_vectorized_cooperative_fetching_x():
+    N = 512
+    A = te.placeholder((N, N), name='A', dtype='float32')
+    B = te.placeholder((N, N), name='B', dtype='float32')
+    k = te.reduce_axis((0, N), name='k')
+    C = te.compute((N, N), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k))
+    s = te.create_schedule(C.op)
+    i, j = s[C].op.axis
+    k = s[C].op.reduce_axis[0]
+
+    AA = s.cache_read(A, "shared", [C])
+    BB = s.cache_read(B, "shared", [C])
+
+    i3, i4 = s[C].split(i, factor=4)
+    i2, i3 = s[C].split(i3, factor=2)
+    i1, i2 = s[C].split(i2, factor=8)
+    i0, i1 = s[C].split(i1, factor=1)
+    j3, j4 = s[C].split(j, factor=4)
+    j2, j3 = s[C].split(j3, factor=2)
+    j1, j2 = s[C].split(j2, factor=8)
+    j0, j1 = s[C].split(j1, factor=2)
+    k1, k2 = s[C].split(k, factor=8)
+    k0, k1 = s[C].split(k1, factor=8)
+    s[C].reorder(i0, j0, i1, j1, i2, j2, k0, k1, i3, j3, k2, i4, j4)
+    block_it = s[C].fuse(i0, j0)
+    s[C].bind(block_it, tvm.te.thread_axis("blockIdx.x"))
+    vthread_it = s[C].fuse(i1, j1)
+    s[C].bind(vthread_it, tvm.te.thread_axis("vthread"))
+    thread_it = s[C].fuse(i2, j2)
+    s[C].bind(thread_it, tvm.te.thread_axis("threadIdx.x"))
+    s[C].vectorize(j4)
+
+    s[AA].compute_at(s[C], k0)
+    iaa, jaa = s[AA].op.axis
+    s[BB].compute_at(s[C], k0)
+    ibb, jbb = s[BB].op.axis
+    aa_fused = s[AA].fuse(iaa, jaa)
+    bb_fused = s[BB].fuse(ibb, jbb)
+    aa1, aa2 = s[AA].split(aa_fused, factor=4)
+    aa0, aa1 = s[AA].split(aa1, factor=64)
+    bb1, bb2 = s[BB].split(bb_fused, factor=4)
+    bb0, bb1 = s[BB].split(bb1, factor=64)
+    s[AA].bind(aa1, tvm.te.thread_axis("threadIdx.x"))
+    s[AA].vectorize(aa2)
+    s[BB].bind(bb1, tvm.te.thread_axis("threadIdx.x"))
+    s[BB].vectorize(bb2)
+
+    vcf_check_common(s, [A, B, C])
+
+def test_vectorized_cooperative_fetching_xy():
+    N = 512
+    A = te.placeholder((N, N), name='A')
+    B = te.placeholder((N, N), name='B')
+    k = te.reduce_axis((0, N), name='k')
+    C = te.compute((N, N), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k))
+    s = te.create_schedule(C.op)
+    i, j = s[C].op.axis
+    k = s[C].op.reduce_axis[0]
+
+    AA = s.cache_read(A, "shared", [C])
+    BB = s.cache_read(B, "shared", [C])
+
+    i3, i4 = s[C].split(i, factor=4)
+    i2, i3 = s[C].split(i3, factor=2)
+    i1, i2 = s[C].split(i2, factor=8)
+    i0, i1 = s[C].split(i1, factor=1)
+    j3, j4 = s[C].split(j, factor=4)
+    j2, j3 = s[C].split(j3, factor=2)
+    j1, j2 = s[C].split(j2, factor=8)
+    j0, j1 = s[C].split(j1, factor=2)
+    k1, k2 = s[C].split(k, factor=8)
+    k0, k1 = s[C].split(k1, factor=8)
+    s[C].reorder(i0, j0, i1, j1, i2, j2, k0, k1, i3, j3, k2, i4, j4)
+    block_it = s[C].fuse(i0, j0)
+    s[C].bind(block_it, tvm.te.thread_axis("blockIdx.x"))
+    vthread_it = s[C].fuse(i1, j1)
+    s[C].bind(vthread_it, tvm.te.thread_axis("vthread"))
+    s[C].bind(i2, tvm.te.thread_axis("threadIdx.y"))
+    s[C].bind(j2, tvm.te.thread_axis("threadIdx.x"))
+    s[C].vectorize(j4)
+
+    s[AA].compute_at(s[C], k0)
+    iaa, jaa = s[AA].op.axis
+    s[BB].compute_at(s[C], k0)
+    ibb, jbb = s[BB].op.axis
+    aa_fused = s[AA].fuse(iaa, jaa)
+    bb_fused = s[BB].fuse(ibb, jbb)
+    aa2, aa3 = s[AA].split(aa_fused, factor=4)
+    aa1, aa2 = s[AA].split(aa2, factor=8)
+    aa0, aa1 = s[AA].split(aa1, factor=8)
+    bb2, bb3 = s[BB].split(bb_fused, factor=4)
+    bb1, bb2 = s[BB].split(bb2, factor=8)
+    bb0, bb1 = s[BB].split(bb1, factor=8)
+    s[AA].bind(aa1, tvm.te.thread_axis("threadIdx.y"))
+    s[AA].bind(aa2, tvm.te.thread_axis("threadIdx.x"))
+    s[AA].vectorize(aa3)
+    s[BB].bind(bb1, tvm.te.thread_axis("threadIdx.y"))
+    s[BB].bind(bb2, tvm.te.thread_axis("threadIdx.x"))
+    s[BB].vectorize(bb3)
+
+    vcf_check_common(s, [A, B, C])
+
+def test_unrolled_vectorization():
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+        print("skip because cuda is not enabled..")
+        return
+
+    dtype = 'float32'
+    target = 'cuda'
+    
+    ## Compute declaration
+    N = 128
+    A = te.placeholder((N, N), name='A')
+    B = te.placeholder((N, N), name='B')
+    k = te.reduce_axis((0, N), name='k')
+    C = te.compute((N, N), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+    
+    ## Schedule
+    s = te.create_schedule([C.op])
+    CC = s.cache_write(C, "local")
+    i, j = s[C].op.axis
+    bx, tx, ii, ji = s[C].tile(i, j, 1, 2)
+    s[C].bind(bx, te.thread_axis("blockIdx.x"))
+    s[C].bind(tx, te.thread_axis("threadIdx.x"))
+    s[C].vectorize(ji)
+    s[CC].compute_at(s[C], tx)
+    i, j = s[CC].op.axis
+    k = s[CC].op.reduce_axis[0]
+    ko, ki = s[CC].split(k, 2)
+    s[CC].unroll(ki)
+    s[CC].vectorize(j)
+    
+    ## Check correctness
+    ctx = tvm.context(target)
+    a_tvm = tvm.nd.array(np.ones((N, N)).astype(dtype), ctx=ctx)
+    b_tvm = tvm.nd.array(np.ones((N, N)).astype(dtype), ctx=ctx)
+    c_tvm = tvm.nd.empty((N, N), ctx=ctx)
+    func_tvm = tvm.build(s, [A, B, C], target=target)
+    func_tvm(a_tvm, b_tvm, c_tvm)
+    c_np = c_tvm.asnumpy()
+    tvm.testing.assert_allclose(c_np, N * np.ones((N, N)))
+
 if __name__ == "__main__":
     test_cuda_vectorize_add()
     test_cuda_multiply_add()
@@ -709,7 +930,12 @@ if __name__ == "__main__":
     test_cuda_reduction()
     test_cuda_mix_threaded_and_normal_reduction()
     test_cuda_floordiv_with_vectorization()
+    test_cuda_floormod_with_vectorization()
     test_vectorized_intrin1()
     test_vectorized_intrin2()
     test_vectorized_popcount()
     test_cuda_vectorize_load_permute_pad()
+    test_vectorized_cooperative_fetching_x()
+    test_vectorized_cooperative_fetching_xy()
+    test_unrolled_vectorization()
+

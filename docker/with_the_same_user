@@ -50,12 +50,11 @@ else
     CUDA_ENV=""
 fi
 
-HOME=${CI_BUILD_HOME}\
-    sudo -u "#${CI_BUILD_UID}" --preserve-env\
-    ${CUDA_ENV}\
-    PATH=${PATH}\
-    JAVA_HOME=${JAVA_HOME}\
-    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}\
-    PYTHONPATH=${PYTHONPATH}\
-    HOME=${CI_BUILD_HOME}\
-    ${COMMAND[@]}
+sudo -u "#${CI_BUILD_UID}" --preserve-env \
+${CUDA_ENV} \
+PATH=${PATH} \
+JAVA_HOME=${JAVA_HOME} \
+LD_LIBRARY_PATH=${LD_LIBRARY_PATH} \
+PYTHONPATH=${PYTHONPATH} \
+HOME=${CI_BUILD_HOME} \
+${COMMAND[@]}

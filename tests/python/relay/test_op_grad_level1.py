@@ -36,9 +36,8 @@ def relu(x):
 
 
 def test_unary_op():
-    def check_single_op(opfunc, ref):
+    def check_single_op(opfunc, ref, dtype):
         shape = (10, 4)
-        dtype = 'float32'
         tp = relay.TensorType(shape, dtype)
         x = relay.var("x", tp)
         y = opfunc(x)
@@ -62,6 +61,7 @@ def test_unary_op():
                         (tvm.relay.sqrt, lambda x: 0.5 * np.power(x, -0.5)),
                         (tvm.relay.abs, lambda x: np.where(x < 0, -np.ones_like(x), np.ones_like(x))),
                         (relay.nn.relu, lambda x: np.where(x < 0, np.zeros_like(x), np.ones_like(x))),
+                        (tvm.relay.erf, lambda x: 2.0 / (np.pi**(0.5)) * np.exp(-x * x)),
                         (tvm.relay.cos, lambda x: -1.0 * np.sin(x)),
                         (tvm.relay.sin, lambda x: np.cos(x)),
                         (tvm.relay.tan, lambda x: 1.0 / (np.cos(x) ** 2)),
@@ -75,16 +75,17 @@ def test_unary_op():
                         (tvm.relay.acosh, lambda x: 1./ (x**2 - 1.)**(1./2.)),
                         (tvm.relay.asinh, lambda x: 1./ (x**2 + 1.)**(1./2.)),
                         (tvm.relay.atanh, lambda x: -1./ (x**2 - 1.))]:
-        check_single_op(opfunc, ref)
+        for dtype in ('float32', 'float64'):
+            check_single_op(opfunc, ref, dtype)
 
 
 def test_binary_op():
     def inst(vars, sh):
         return [vars.get(s, s) for s in sh]
 
-    def check_binary_op(opfunc, ref):
+    def check_binary_op(opfunc, ref, dtype):
         s = (5, 10, 5)
-        t = relay.TensorType((5, 10, 5))
+        t = relay.TensorType((5, 10, 5), dtype=dtype)
         x = relay.var("x", t)
         y = relay.var("y", t)
         z = opfunc(x, y)
@@ -106,7 +107,8 @@ def test_binary_op():
                         (relay.subtract, lambda x, y: [np.ones_like(x), -np.ones_like(y)]),
                         (relay.multiply, lambda x, y: [y, x]),
                         (relay.divide, lambda x, y: [1 / y, - x / (y**2)])]:
-        check_binary_op(opfunc, ref)
+        for dtype in ('float32', 'float64'):
+            check_binary_op(opfunc, ref, dtype)
 
 
 def test_softmax_grad():

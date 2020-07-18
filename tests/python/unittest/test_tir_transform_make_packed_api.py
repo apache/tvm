@@ -39,7 +39,7 @@ def test_makeapi():
 
     num_unpacked_args = 2
     f = tvm.tir.transform.MakePackedAPI(num_unpacked_args)(mod)["main"]
-    assert(len(f.params) == 7)
+    assert(len(f.params) == 8)
 
 
 if __name__ == "__main__":

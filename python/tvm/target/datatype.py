@@ -18,8 +18,9 @@
 import tvm._ffi
 
 import tvm.runtime._ffi_api
-from tvm.runtime import convert, DataType
-from tvm.tir.expr import Call as _Call, Cast as _Cast, FloatImm as _FloatImm
+from tvm.runtime import DataType
+import tvm.tir
+from tvm.tir.expr import Cast as _Cast, FloatImm as _FloatImm
 
 
 def register(type_name, type_code):
@@ -135,9 +136,7 @@ def create_lower_func(extern_func_name):
             if t.lanes > 1:
                 dtype += "x" + str(t.lanes)
         if isinstance(op, (_Cast, _FloatImm)):
-            return _Call(dtype, extern_func_name, convert([op.value]),
-                         _Call.Extern)
-        return _Call(dtype, extern_func_name, convert([op.a, op.b]),
-                     _Call.Extern)
+            return tvm.tir.call_pure_extern(dtype, extern_func_name, op.value)
+        return tvm.tir.call_pure_extern(dtype, extern_func_name, op.a, op.b)
 
     return lower

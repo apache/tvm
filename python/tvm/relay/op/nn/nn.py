@@ -108,8 +108,7 @@ def conv1d(data,
         strides = (strides, )
     if isinstance(dilation, int):
         dilation = (dilation, )
-    if isinstance(padding, int):
-        padding = (padding, padding)
+    padding = get_pad_tuple1d(padding)
     return _make.conv1d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
@@ -494,7 +493,7 @@ def conv2d_transpose(data,
         Layout of the output, by default, out_layout is the same as data_layout
 
     output_padding : Tuple[int], optional
-        Additional zero-padding to be added to one side of the output.
+        Used to disambiguate the output shape.
 
     out_dtype : str, optional
         Specifies the output data type for mixed precision conv2d.
@@ -562,7 +561,7 @@ def conv1d_transpose(data,
         Layout of the output, by default, out_layout is the same as data_layout
 
     output_padding : Tuple[int], optional
-        Additional zero-padding to be added to one side of the output.
+        Used to disambiguate the output shape.
 
     out_dtype : str, optional
         Specifies the output data type for mixed precision conv2d.
@@ -2046,6 +2045,74 @@ def contrib_conv2d_winograd_without_weight_transform(data,
         kernel_layout, out_layout, out_dtype)
 
 
+def contrib_conv2d_gemm_without_weight_transform(data,
+                                                 weight,
+                                                 strides=(1, 1),
+                                                 padding=(0, 0),
+                                                 dilation=(1, 1),
+                                                 groups=1,
+                                                 channels=None,
+                                                 kernel_size=None,
+                                                 data_layout="NCHW",
+                                                 kernel_layout="OIHW",
+                                                 out_layout="",
+                                                 out_dtype=""):
+    r"""2D convolution with gemm algorithm.
+
+    The basic parameters are the same as the ones in vanilla conv2d.
+    It assumes the weight is pre-transformed by nn.contrib_conv2d_gemm_weight_transform
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    strides : tuple of int, optional
+        The strides of convolution.
+
+    padding : tuple of int, optional
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilation : tuple of int, optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the weight.
+
+    out_layout : str, optional
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
+    return _make.contrib_conv2d_gemm_without_weight_transform(
+        data, weight, strides, padding, dilation,
+        groups, channels, kernel_size, data_layout,
+        kernel_layout, out_layout, out_dtype)
+
+
 def contrib_conv2d_nchwc(data,
                          kernel,
                          strides=(1, 1),
@@ -2202,6 +2269,29 @@ def contrib_conv2d_winograd_weight_transform(weight,
         The computed result.
     """
     return _make.contrib_conv2d_winograd_weight_transform(weight, tile_size)
+
+
+def contrib_conv2d_gemm_weight_transform(weights, tile_rows, tile_cols):
+    r"""Weight Transformation part for 2D convolution with gemm algorithm.
+
+    We separate this as a single op to enable pre-compute for inference.
+    Use this together with nn.contrib_conv2d_gemm_without_weight_transform
+
+    Parameters
+    ----------
+    weights : tvm.relay.Expr
+        The weight expressions.
+    tile_rows: int
+        Tile rows of the weight transformation for ConvGemm.
+    tile_cols: int
+       Tile columns of the weight transformation for ConvGemm.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.contrib_conv2d_gemm_weight_transform(weights, tile_rows, tile_cols)
 
 
 def contrib_conv3d_winograd_weight_transform(weight,

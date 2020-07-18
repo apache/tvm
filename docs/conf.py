@@ -201,6 +201,7 @@ subsection_order = ExplicitOrder(
      '../tutorials/dev',
      '../tutorials/topi',
      '../tutorials/deployment',
+     '../tutorials/micro',
      '../vta/tutorials/frontend',
      '../vta/tutorials/optimize',
      '../vta/tutorials/autotvm'])

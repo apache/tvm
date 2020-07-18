@@ -31,51 +31,10 @@
 
 #include "../../transforms/infer_layout_util.h"
 #include "../op_common.h"
+#include "convolution_make.h"
 
 namespace tvm {
 namespace relay {
-
-template <typename T>
-Expr MakeConv(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
-              Array<IndexExpr> dilation, int groups, IndexExpr channels,
-              Array<IndexExpr> kernel_size, std::string data_layout, std::string kernel_layout,
-              std::string out_layout, DataType out_dtype, std::string op_name) {
-  auto attrs = make_object<T>();
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = std::move(channels);
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->out_dtype = std::move(out_dtype);
-  const Op& op = Op::Get(op_name);
-  return Call(op, {data, weight}, Attrs(attrs), {});
-}
-
-template <typename T>
-Expr MakeConvWinograd(Expr data, Expr weight, int tile_size, Array<IndexExpr> strides,
-                      Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
-                      IndexExpr channels, Array<IndexExpr> kernel_size, std::string data_layout,
-                      std::string kernel_layout, std::string out_layout, DataType out_dtype,
-                      std::string op_name) {
-  auto attrs = make_object<T>();
-  attrs->tile_size = tile_size;
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = std::move(channels);
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->out_dtype = std::move(out_dtype);
-  const Op& op = Op::Get(op_name);
-  return Call(op, {data, weight}, Attrs(attrs), {});
-}
 
 Expr MakeConvWinogradWeightTransform(Expr weight, int tile_size, std::string op_name) {
   auto attrs = make_object<ConvWinogradWeightTransformAttrs>();
@@ -84,48 +43,12 @@ Expr MakeConvWinogradWeightTransform(Expr weight, int tile_size, std::string op_
   return Call(op, {weight}, Attrs(attrs), {});
 }
 
-template <typename T>
-Expr MakeConvTranspose(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
-                       Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                       Array<IndexExpr> kernel_size, std::string data_layout,
-                       std::string kernel_layout, std::string out_layout,
-                       Array<IndexExpr> output_padding, DataType out_dtype, std::string op_name) {
-  auto attrs = make_object<T>();
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = std::move(channels);
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->output_padding = std::move(output_padding);
-  attrs->out_dtype = std::move(out_dtype);
+Expr MakeConvGemmWeightTransform(Expr weight, int tile_rows, int tile_cols, std::string op_name) {
+  auto attrs = make_object<ConvGemmWeightTransformAttrs>();
+  attrs->tile_rows = tile_rows;
+  attrs->tile_cols = tile_cols;
   const Op& op = Op::Get(op_name);
-  return Call(op, {data, weight}, Attrs(attrs), {});
-}
-
-template <typename T>
-Expr MakeDeformableConv(Expr data, Expr offset, Expr weight, Array<IndexExpr> strides,
-                        Array<IndexExpr> padding, Array<IndexExpr> dilation, int deformable_groups,
-                        int groups, int channels, Array<IndexExpr> kernel_size,
-                        std::string data_layout, std::string kernel_layout, std::string out_layout,
-                        DataType out_dtype, std::string op_name) {
-  auto attrs = make_object<T>();
-  attrs->strides = strides;
-  attrs->padding = padding;
-  attrs->dilation = dilation;
-  attrs->deformable_groups = deformable_groups;
-  attrs->groups = groups;
-  attrs->channels = channels;
-  attrs->kernel_size = kernel_size;
-  attrs->data_layout = data_layout;
-  attrs->kernel_layout = kernel_layout;
-  attrs->out_layout = out_layout;
-  attrs->out_dtype = out_dtype;
-  const Op& op = Op::Get(op_name);
-  return Call(op, {data, offset, weight}, Attrs{attrs}, {});
+  return Call(op, {weight}, Attrs(attrs), {});
 }
 
 // relay.nn.conv1d
@@ -503,6 +426,60 @@ weight transformation in advance.
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_support_level(10)
     .add_type_rel("Conv2DWinogradNNPACKWeightTransform", Conv2DWinogradNNPACKWeightTransformRel);
+
+// relay.nn.contrib_conv2d_gemm_without_weight_transform
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_gemm_without_weight_transform")
+    .set_body_typed([](Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
+                       Array<IndexExpr> dilation, int groups, IndexExpr channels,
+                       Array<IndexExpr> kernel_size, std::string data_layout,
+                       std::string kernel_layout, std::string out_layout, DataType out_dtype) {
+      return MakeConvGemm<Conv2DAttrs>(
+          data, weight, strides, padding, dilation, groups, channels, kernel_size, data_layout,
+          kernel_layout, out_layout, out_dtype, "nn.contrib_conv2d_gemm_without_weight_transform");
+    });
+
+RELAY_REGISTER_OP("nn.contrib_conv2d_gemm_without_weight_transform")
+    .describe(R"code(Compute conv2d with gemm algorithm. Only supports NHWC layout.
+                 This operator assumes the weight tensor is already pre-transformed by
+                 nn.contrib_conv2d_gemm_weight_transform.
+
+- **data**: Input is 4D array of shape  (batch_size, height, width, in_channels)
+- **weight**: Any shape
+            We do not check the shape for this input tensor. Since different backend
+            has different layout strategy.
+
+- **out**:  Output is 4D array of shape (batch_size, channels, out_height, out_width)
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<Conv2DAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("weight", "Tensor", "The weight tensor.")
+    .set_support_level(10)
+    .add_type_rel("Conv2DGemm", Conv2DGemmRel<Conv2DAttrs>)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
+
+// relay.nn.contrib_conv2d_gemm_weight_transform
+
+TVM_REGISTER_NODE_TYPE(ConvGemmWeightTransformAttrs);
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_gemm_weight_transform")
+    .set_body_typed([](Expr weights, int tile_rows, int tile_cols) {
+      return MakeConvGemmWeightTransform(weights, tile_rows, tile_cols,
+                                         "nn.contrib_conv2d_gemm_weight_transform");
+    });
+
+RELAY_REGISTER_OP("nn.contrib_conv2d_gemm_weight_transform")
+    .describe(R"code(Weight transformation of GEMM convolution algorithm.
+
+Separate this into another operator in order to enable Precompute Pass to compute the
+weight transformation in advance.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<ConvGemmWeightTransformAttrs>()
+    .set_num_inputs(1)
+    .add_argument("weights", "Tensor", "The weights tensor.")
+    .set_support_level(10)
+    .add_type_rel("Conv2DGemmWeightTransform", Conv2DGemmWeightTransformRel);
 
 // Positional relay function to create conv2d NCHWc operator
 // used by frontend FFI.

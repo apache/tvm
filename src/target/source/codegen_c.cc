@@ -223,12 +223,12 @@ std::string CodeGenC::GetBufferRef(DataType t, const VarNode* buffer, PrimExpr i
 // Print a reference expression to a buffer.
 std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const PrimExpr& index,
                                    int kind) {
-  if (kind < intrinsic::kArrKindBound_) {
+  if (kind < builtin::kArrKindBound_) {
     std::ostringstream os;
     os << "(((DLTensor*)";
     this->PrintExpr(buffer, os);
     os << ")";
-    if (kind == intrinsic::kArrAddr) {
+    if (kind == builtin::kArrAddr) {
       os << " + ";
       this->PrintExpr(index, os);
       os << ")";
@@ -239,34 +239,34 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     os << "].";
     // other case: get fields.
     switch (kind) {
-      case intrinsic::kArrData:
+      case builtin::kArrData:
         os << "data";
         break;
-      case intrinsic::kArrShape:
+      case builtin::kArrShape:
         os << "shape";
         break;
-      case intrinsic::kArrStrides:
+      case builtin::kArrStrides:
         os << "strides";
         break;
-      case intrinsic::kArrNDim:
+      case builtin::kArrNDim:
         os << "ndim";
         break;
-      case intrinsic::kArrTypeCode:
+      case builtin::kArrTypeCode:
         os << "dtype.code";
         break;
-      case intrinsic::kArrTypeBits:
+      case builtin::kArrTypeBits:
         os << "dtype.bits";
         break;
-      case intrinsic::kArrByteOffset:
+      case builtin::kArrByteOffset:
         os << "byte_offset";
         break;
-      case intrinsic::kArrTypeLanes:
+      case builtin::kArrTypeLanes:
         os << "dtype.lanes";
         break;
-      case intrinsic::kArrDeviceId:
+      case builtin::kArrDeviceId:
         os << "ctx.device_id";
         break;
-      case intrinsic::kArrDeviceType:
+      case builtin::kArrDeviceType:
         os << "ctx.device_type";
         break;
       default:
@@ -275,7 +275,7 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     os << ')';
     return os.str();
   } else {
-    CHECK_LT(kind, intrinsic::kTVMValueKindBound_);
+    CHECK_LT(kind, builtin::kTVMValueKindBound_);
     std::ostringstream os;
     os << "(((TVMValue*)";
     this->PrintExpr(buffer, os);
@@ -559,80 +559,94 @@ void CodeGenC::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT(*)
   PrintExpr(op->a, os);
 }
 
+void CodeGenC::PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                               bool skip_first_arg, std::ostream& os) {  // NOLINT(*)
+  os << global_symbol << "(";
+  for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
+    this->PrintExpr(args[i], os);
+    if (i < args.size() - 1) {
+      os << ", ";
+    }
+  }
+  os << ")";
+}
+
 void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
-  if (op->call_type == CallNode::Extern || op->call_type == CallNode::PureExtern) {
-    os << op->name << "(";
-    for (size_t i = 0; i < op->args.size(); i++) {
-      this->PrintExpr(op->args[i], os);
-      if (i < op->args.size() - 1) {
-        os << ", ";
-      }
-    }
-    os << ")";
-  } else if (op->is_intrinsic(CallNode::bitwise_and)) {
-    PrintBinaryIntrinsic(op, " & ", os, this);
-  } else if (op->is_intrinsic(intrinsic::tvm_large_uint_imm)) {
-    CHECK_EQ(op->args.size(), 2U);
-    uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
-    uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
-    uint64_t val = (high << 32U) | low;
-    PrintUIntConst(op->dtype, val, os, this);
-  } else if (op->is_intrinsic(CallNode::bitwise_xor)) {
-    PrintBinaryIntrinsic(op, " ^ ", os, this);
-  } else if (op->is_intrinsic(CallNode::bitwise_or)) {
-    PrintBinaryIntrinsic(op, " | ", os, this);
-  } else if (op->is_intrinsic(CallNode::bitwise_not)) {
-    CHECK_EQ(op->args.size(), 1U);
-    os << "(~";
-    this->PrintExpr(op->args[0], os);
-    os << ')';
-  } else if (op->is_intrinsic(CallNode::shift_left)) {
-    PrintBinaryIntrinsic(op, " << ", os, this);
-  } else if (op->is_intrinsic(CallNode::shift_right)) {
-    PrintBinaryIntrinsic(op, " >> ", os, this);
-  } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
-    os << "(";
-    PrintExpr(op->args[0], os);
-    os << " ? ";
-    PrintExpr(op->args[1], os);
-    os << " : ";
-    PrintExpr(op->args[2], os);
-    os << ")";
-  } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-    const LoadNode* l = op->args[0].as<LoadNode>();
-    CHECK(op->args.size() == 1 && l);
-    os << "((";
-    this->PrintType(l->dtype.element_of(), os);
-    os << " *)" << this->GetVarID(l->buffer_var.get()) << " + ";
-    this->PrintExpr(l->index, os);
-    os << ')';
-  } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
-    CHECK_EQ(op->args.size(), 3U);
-    os << GetStructRef(op->dtype, op->args[0], op->args[1], op->args[2].as<IntImmNode>()->value);
-  } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
-    CHECK_EQ(op->args.size(), 1U);
-    os << "(";
-    this->PrintExpr(op->args[0], os);
-    os << " == NULL)";
-  } else if (op->is_intrinsic(CallNode::reinterpret)) {
-    // generate (*( TYPE *)(&(ARG)))
-    os << "(*(";
-    this->PrintType(op->dtype, os);
-    os << " *)(&(";
-    this->PrintExpr(op->args[0], os);
-    os << ")))";
-  } else if (op->is_intrinsic(CallNode::isnan)) {
-    os << "(";
-    this->PrintExpr(op->args[0], os);
-    os << " != ";
-    this->PrintExpr(op->args[0], os);
-    os << ")";
-  } else {
-    if (op->call_type == CallNode::Intrinsic || op->call_type == CallNode::PureIntrinsic) {
-      LOG(FATAL) << "Unresolved intrinsic " << op->name << " with return type " << op->dtype;
+  if (auto* ptr_op = op->op.as<OpNode>()) {
+    auto call_op = GetRef<Op>(ptr_op);
+
+    if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
+      CHECK_GE(op->args.size(), 1U);
+      auto func = Downcast<StringImm>(op->args[0]);
+      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), func->value, op->args, true, os);
+    } else if (op_attr_global_symbol_.count(call_op)) {
+      // call extern if the op itself have a global symbol.
+      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), op_attr_global_symbol_[call_op],
+                            op->args, false, os);
+    } else if (op->op.same_as(builtin::bitwise_and())) {
+      PrintBinaryIntrinsic(op, " & ", os, this);
+    } else if (op->op.same_as(builtin::large_uint_imm())) {
+      CHECK_EQ(op->args.size(), 2U);
+      uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
+      uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
+      uint64_t val = (high << 32U) | low;
+      PrintUIntConst(op->dtype, val, os, this);
+    } else if (op->op.same_as(builtin::bitwise_xor())) {
+      PrintBinaryIntrinsic(op, " ^ ", os, this);
+    } else if (op->op.same_as(builtin::bitwise_or())) {
+      PrintBinaryIntrinsic(op, " | ", os, this);
+    } else if (op->op.same_as(builtin::bitwise_not())) {
+      CHECK_EQ(op->args.size(), 1U);
+      os << "(~";
+      this->PrintExpr(op->args[0], os);
+      os << ')';
+    } else if (op->op.same_as(builtin::shift_left())) {
+      PrintBinaryIntrinsic(op, " << ", os, this);
+    } else if (op->op.same_as(builtin::shift_right())) {
+      PrintBinaryIntrinsic(op, " >> ", os, this);
+    } else if (op->op.same_as(builtin::if_then_else())) {
+      os << "(";
+      PrintExpr(op->args[0], os);
+      os << " ? ";
+      PrintExpr(op->args[1], os);
+      os << " : ";
+      PrintExpr(op->args[2], os);
+      os << ")";
+    } else if (op->op.same_as(builtin::address_of())) {
+      const LoadNode* l = op->args[0].as<LoadNode>();
+      CHECK(op->args.size() == 1 && l);
+      os << "((";
+      this->PrintType(l->dtype.element_of(), os);
+      os << " *)" << this->GetVarID(l->buffer_var.get()) << " + ";
+      this->PrintExpr(l->index, os);
+      os << ')';
+    } else if (op->op.same_as(builtin::tvm_struct_get())) {
+      CHECK_EQ(op->args.size(), 3U);
+      os << GetStructRef(op->dtype, op->args[0], op->args[1], op->args[2].as<IntImmNode>()->value);
+    } else if (op->op.same_as(builtin::isnullptr())) {
+      CHECK_EQ(op->args.size(), 1U);
+      os << "(";
+      this->PrintExpr(op->args[0], os);
+      os << " == NULL)";
+    } else if (op->op.same_as(builtin::reinterpret())) {
+      int ssa_scope = BeginScope();
+      std::string rhs = SSAGetID(PrintExpr(op->args[0]), op->args[0]->dtype);
+      os << "(*(";
+      this->PrintType(op->dtype, os);
+      os << " *)(&(" << rhs << ")))";
+      EndScope(ssa_scope);
+    } else if (op->op.same_as(builtin::isnan())) {
+      os << "(";
+      this->PrintExpr(op->args[0], os);
+      os << " != ";
+      this->PrintExpr(op->args[0], os);
+      os << ")";
     } else {
-      LOG(FATAL) << "Unresolved call type " << op->call_type;
+      LOG(FATAL) << "Unresolved call " << op->op;
     }
+  } else {
+    CHECK(op->op.as<GlobalVarNode>());
+    LOG(FATAL) << "Do not yet support cross function call";
   }
 }
 
@@ -706,14 +720,15 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
   } else {
     CHECK(is_one(op->predicate)) << "Predicated store is not supported";
     arith::PVar<PrimExpr> base;
+
+    // The assignment below introduces side-effect, and the resulting value cannot
+    // be reused across multiple expression, thus a new scope is needed
+    int vec_scope = BeginScope();
+
     if (arith::ramp(base, 1, t.lanes()).Match(op->index)) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer_var.get(), t, base.Eval(), value);
     } else {
-      // The assignment below introduces side-effect, and the resulting value cannot
-      // be reused across multiple expression, thus a new scope is needed
-      int vec_scope = BeginScope();
-
       // store elements seperately
       std::string index = SSAGetID(PrintExpr(op->index), op->index.dtype());
       std::string value = SSAGetID(PrintExpr(op->value), op->value.dtype());
@@ -740,8 +755,8 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
         PrintVecElemLoad(value, op->value.dtype(), i, stream);
         stream << ";\n";
       }
-      EndScope(vec_scope);
     }
+    EndScope(vec_scope);
   }
 }
 
@@ -900,13 +915,13 @@ void CodeGenC::VisitStmt_(const SeqStmtNode* op) {
 }
 
 void CodeGenC::VisitStmt_(const EvaluateNode* op) {
-  if (is_const(op->value)) return;
+  if (is_const_int(op->value)) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call) {
-    if (call->is_intrinsic(intrinsic::tvm_storage_sync)) {
+    if (call->op.same_as(builtin::tvm_storage_sync())) {
       this->PrintStorageSync(call);
       return;
-    } else if (call->is_intrinsic(intrinsic::tvm_struct_set)) {
+    } else if (call->op.same_as(builtin::tvm_struct_set())) {
       CHECK_EQ(call->args.size(), 4);
       std::string value = PrintExpr(call->args[3]);
       std::string ref = GetStructRef(call->args[3].dtype(), call->args[0], call->args[1],

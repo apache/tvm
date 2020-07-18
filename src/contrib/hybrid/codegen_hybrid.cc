@@ -23,6 +23,7 @@
 #include "codegen_hybrid.h"
 
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 
 #include <cctype>
 #include <iomanip>
@@ -216,29 +217,44 @@ void CodeGenHybrid::VisitExpr_(const ProducerLoadNode* op, std::ostream& os) {  
   os << "]";
 }
 void CodeGenHybrid::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
-  if (op->is_intrinsic(CallNode::bitwise_and)) {
+  if (op->op.same_as(builtin::bitwise_and())) {
     PrintBinaryIntrinsitc(op, "&", os, this);
-  } else if (op->is_intrinsic(CallNode::bitwise_xor)) {
+  } else if (op->op.same_as(builtin::bitwise_xor())) {
     PrintBinaryIntrinsitc(op, "^", os, this);
-  } else if (op->is_intrinsic(CallNode::bitwise_or)) {
+  } else if (op->op.same_as(builtin::bitwise_or())) {
     PrintBinaryIntrinsitc(op, "|", os, this);
-  } else if (op->is_intrinsic(CallNode::shift_left)) {
+  } else if (op->op.same_as(builtin::shift_left())) {
     PrintBinaryIntrinsitc(op, "<<", os, this);
-  } else if (op->is_intrinsic(CallNode::shift_right)) {
+  } else if (op->op.same_as(builtin::shift_right())) {
     PrintBinaryIntrinsitc(op, ">>", os, this);
-  } else if (op->is_intrinsic(CallNode::bitwise_not)) {
+  } else if (op->op.same_as(builtin::bitwise_not())) {
     CHECK_EQ(op->args.size(), 1U);
     os << "(~";
     PrintExpr(op->args[0], os);
     os << ')';
-  } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
+  } else if (op->op.same_as(builtin::if_then_else())) {
     PrintExpr(op->args[1], os);
     os << " if ";
     PrintExpr(op->args[0], os);
     os << " else ";
     PrintExpr(op->args[2], os);
+  } else if (op->op.same_as(builtin::call_pure_extern()) ||
+             op->op.same_as(builtin::call_extern())) {
+    StringImm fname = Downcast<StringImm>(op->args[0]);
+    os << fname << "(";
+    for (size_t i = 1; i < op->args.size(); i++) {
+      PrintExpr(op->args[i], os);
+      if (i < op->args.size() - 1) {
+        os << ", ";
+      }
+    }
+    os << ")";
   } else {
-    os << op->name << "(";
+    auto* ptr_op = op->op.as<OpNode>();
+    CHECK(ptr_op != nullptr);
+    std::string name = ptr_op->name;
+    CHECK_EQ(name.compare(0, 4, "tir."), 0);
+    os << name.substr(4) << "(";
     for (size_t i = 0; i < op->args.size(); i++) {
       PrintExpr(op->args[i], os);
       if (i < op->args.size() - 1) {
@@ -365,7 +381,7 @@ void CodeGenHybrid::VisitStmt_(const ForNode* op) {
 
 bool is_noop(const Stmt& stmt) {
   if (!stmt.defined()) return true;
-  if (auto eval = stmt.as<EvaluateNode>()) return is_const(eval->value);
+  if (auto eval = stmt.as<EvaluateNode>()) return is_const_int(eval->value);
   return false;
 }
 
@@ -393,7 +409,7 @@ void CodeGenHybrid::VisitStmt_(const SeqStmtNode* op) {
 }
 
 void CodeGenHybrid::VisitStmt_(const EvaluateNode* op) {
-  if (is_const(op->value)) return;
+  if (is_const_int(op->value)) return;
   std::string str = PrintExpr(op->value);
   if (!str.empty()) stream << str << "\n";
 }

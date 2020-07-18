@@ -226,7 +226,7 @@ std::unique_ptr<llvm::Module> CodeGenCPU::Finish() {
 }
 llvm::Value* CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value* buf, llvm::Value* index,
                                             int kind) {
-  if (kind < intrinsic::kArrKindBound_) {
+  if (kind < builtin::kArrKindBound_) {
     if (buf->getType() == t_void_p_) {
       buf = builder_->CreatePointerCast(buf, t_tvm_array_->getPointerTo());
     } else {
@@ -234,40 +234,40 @@ llvm::Value* CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value* buf, llvm::
     }
   }
   switch (kind) {
-    case intrinsic::kArrAddr: {
+    case builtin::kArrAddr: {
       return builder_->CreateInBoundsGEP(buf, index);
     }
-    case intrinsic::kArrData: {
+    case builtin::kArrData: {
       return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(0)});
     }
-    case intrinsic::kArrShape: {
+    case builtin::kArrShape: {
       return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(4)});
     }
-    case intrinsic::kArrStrides: {
+    case builtin::kArrStrides: {
       return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(5)});
     }
-    case intrinsic::kArrNDim: {
+    case builtin::kArrNDim: {
       return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(2)});
     }
-    case intrinsic::kArrTypeCode: {
+    case builtin::kArrTypeCode: {
       return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(3), ConstInt32(0)});
     }
-    case intrinsic::kArrTypeBits: {
+    case builtin::kArrTypeBits: {
       return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(3), ConstInt32(1)});
     }
-    case intrinsic::kArrTypeLanes: {
+    case builtin::kArrTypeLanes: {
       return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(3), ConstInt32(2)});
     }
-    case intrinsic::kArrByteOffset: {
+    case builtin::kArrByteOffset: {
       return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(6)});
     }
-    case intrinsic::kArrDeviceId: {
+    case builtin::kArrDeviceId: {
       return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(1), ConstInt32(1)});
     }
-    case intrinsic::kArrDeviceType: {
+    case builtin::kArrDeviceType: {
       return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(1), ConstInt32(0)});
     }
-    case intrinsic::kTVMValueContent: {
+    case builtin::kTVMValueContent: {
       CHECK_EQ(t.lanes(), 1);
       CHECK(t.is_handle() || t.bits() == 64);
       if (t.is_int()) {
@@ -289,23 +289,23 @@ llvm::Value* CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value* buf, llvm::
   }
 }
 
-llvm::Value* CodeGenCPU::CreateCallExtern(const CallNode* op) {
-  std::vector<llvm::Value*> arg_values(op->args.size());
-  for (size_t i = 0; i < op->args.size(); ++i) {
-    arg_values[i] = MakeValue(op->args[i]);
+llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
+                                          const Array<PrimExpr>& args, bool skip_first_arg) {
+  std::vector<llvm::Value*> arg_values;
+  for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
+    arg_values.push_back(MakeValue(args[i]));
   }
   std::vector<llvm::Type*> arg_types;
   for (llvm::Value* v : arg_values) {
     arg_types.push_back(v->getType());
   }
-  llvm::FunctionType* ftype =
-      llvm::FunctionType::get(GetLLVMType(GetRef<PrimExpr>(op)), arg_types, false);
+  llvm::FunctionType* ftype = llvm::FunctionType::get(GetLLVMType(ret_type), arg_types, false);
   // Check if it is available in global function table as injected function.
-  auto it = gv_func_map_.find(op->name);
+  auto it = gv_func_map_.find(global_symbol);
   if (it != gv_func_map_.end()) {
     if (it->second == nullptr) {
-      gv_func_map_[op->name] = InitContextPtr(ftype->getPointerTo(), "__" + op->name);
-      it = gv_func_map_.find(op->name);
+      gv_func_map_[global_symbol] = InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
+      it = gv_func_map_.find(global_symbol);
     }
 #if TVM_LLVM_VERSION >= 90
     auto ext_callee = llvm::FunctionCallee(ftype, GetContextPtr(it->second));
@@ -314,10 +314,10 @@ llvm::Value* CodeGenCPU::CreateCallExtern(const CallNode* op) {
 #endif
     return builder_->CreateCall(ext_callee, arg_values);
   } else {
-    llvm::Function* f = module_->getFunction(op->name);
+    llvm::Function* f = module_->getFunction(global_symbol);
     if (f == nullptr) {
       f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                 op->name.operator llvm::StringRef(), module_.get());
+                                 global_symbol.operator llvm::StringRef(), module_.get());
     }
 #if TVM_LLVM_VERSION >= 90
     auto ext_callee = llvm::FunctionCallee(f);
@@ -773,38 +773,41 @@ void CodeGenCPU::AddStartupFunction() {
 }
 
 llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
-  if (op->is_intrinsic(intrinsic::tvm_call_packed_lowered)) {
+  if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
     return CreateCallPacked(op);
-  } else if (op->is_intrinsic(intrinsic::tvm_call_trace_packed_lowered)) {
+  } else if (op->op.same_as(builtin::tvm_call_trace_packed_lowered())) {
     return CreateCallTracePacked(op);
-  } else if (op->is_intrinsic(intrinsic::tvm_static_handle)) {
+  } else if (op->op.same_as(builtin::tvm_static_handle())) {
     return CreateStaticHandle();
-  } else if (op->is_intrinsic(intrinsic::tvm_throw_last_error)) {
+  } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
     builder_->CreateRet(ConstInt32(-1));
+    auto next_block = std::next(builder_->GetInsertBlock()->getIterator());
+    llvm::BasicBlock* new_bb = llvm::BasicBlock::Create(*ctx_, "cont", function_, &*next_block);
+    builder_->SetInsertPoint(new_bb);
     return ConstInt32(-1);
-  } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
+  } else if (op->op.same_as(builtin::tvm_struct_get())) {
     CHECK_EQ(op->args.size(), 3U);
     int kind = op->args[2].as<IntImmNode>()->value;
     llvm::Value* ref =
         this->CreateStructRefPtr(op->dtype, MakeValue(op->args[0]), MakeValue(op->args[1]), kind);
-    if (kind == intrinsic::kArrAddr) {
+    if (kind == builtin::kArrAddr) {
       return builder_->CreatePointerCast(ref, t_void_p_);
     } else {
       return builder_->CreateLoad(ref);
     }
-  } else if (op->is_intrinsic(intrinsic::tvm_struct_set)) {
+  } else if (op->op.same_as(builtin::tvm_struct_set())) {
     CHECK_EQ(op->args.size(), 4U);
     int kind = op->args[2].as<IntImmNode>()->value;
     llvm::Value* value = MakeValue(op->args[3]);
     llvm::Value* ref = this->CreateStructRefPtr(op->args[3].dtype(), MakeValue(op->args[0]),
                                                 MakeValue(op->args[1]), kind);
-    CHECK(kind != intrinsic::kArrAddr);
+    CHECK(kind != builtin::kArrAddr);
     if (value->getType()->isPointerTy()) {
       value = builder_->CreatePointerCast(value, ref->getType()->getPointerElementType());
     }
     builder_->CreateStore(value, ref);
     return ConstInt32(0);
-  } else if (op->is_intrinsic(intrinsic::tvm_stack_alloca)) {
+  } else if (op->op.same_as(builtin::tvm_stack_alloca())) {
     CHECK_EQ(op->args.size(), 2U);
     const std::string& type = op->args[0].as<StringImmNode>()->value;
     return WithFunctionEntry([&]() -> llvm::AllocaInst* {

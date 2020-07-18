@@ -22,6 +22,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr_functor.h>
 
 #include <algorithm>
@@ -95,17 +96,17 @@ class ConstIntBoundAnalyzer::Impl
     BoundInfo(PrimExpr expr, Entry bound) : expr(expr), bound(bound) {}
   };
 
-  void Bind(const Var& var, const Range& range, bool override) {
+  void Bind(const Var& var, const Range& range, bool allow_override) {
     Entry a = VisitExpr(range->min);
     Entry b = VisitExpr(range->extent);
     Entry ret;
     ret.min_value = a.min_value;
     ret.max_value = InfAwareAdd(a.max_value, InfAwareAdd(b.max_value, -1));
-    Update(var, ret, override);
+    Update(var, ret, allow_override);
   }
 
-  void Update(const Var& var, const Entry& info, bool override) {
-    if (!override) {
+  void Update(const Var& var, const Entry& info, bool allow_override) {
+    if (!allow_override) {
       auto it = var_map_.find(var);
       if (it != var_map_.end()) {
         CHECK(it->second == info) << "Trying to update var \'" << var << "\'"
@@ -118,8 +119,21 @@ class ConstIntBoundAnalyzer::Impl
     var_map_[var] = info;
   }
 
-  void Update(const Var& var, const ConstIntBound& info, bool override) {
-    Update(var, MakeBound(info->min_value, info->max_value), override);
+  Entry VisitExpr_(const LetNode* op) final {
+    auto it = var_map_.find(op->var);
+    // if the var has not been binded, update the info.
+    if (it == var_map_.end()) {
+      var_map_[op->var] = this->VisitExpr(op->value);
+      Entry ret = VisitExpr(op->body);
+      var_map_.erase(op->var);
+      return ret;
+    } else {
+      return VisitExpr(op->body);
+    }
+  }
+
+  void Update(const Var& var, const ConstIntBound& info, bool allow_override) {
+    Update(var, MakeBound(info->min_value, info->max_value), allow_override);
   }
 
   // Override visitor behaviors
@@ -284,9 +298,10 @@ class ConstIntBoundAnalyzer::Impl
   Entry VisitExpr_(const CallNode* op) final {
     // only special handle >> and & which can be
     // used for index calculation.
-    if (op->is_intrinsic(CallNode::shift_right)) {
+
+    if (op->op.same_as(tir::builtin::shift_right())) {
       return VisitRightShift(op);
-    } else if (op->is_intrinsic(CallNode::bitwise_and)) {
+    } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
     } else {
       return Everything(op->dtype);
@@ -556,12 +571,12 @@ ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr, BoundMapTy
   return ConstIntBound(ret.min_value, ret.max_value);
 }
 
-void ConstIntBoundAnalyzer::Update(const Var& var, const ConstIntBound& info, bool override) {
-  impl_->Update(var, info, override);
+void ConstIntBoundAnalyzer::Update(const Var& var, const ConstIntBound& info, bool allow_override) {
+  impl_->Update(var, info, allow_override);
 }
 
-void ConstIntBoundAnalyzer::Bind(const Var& var, const Range& range, bool override) {
-  impl_->Bind(var, range, override);
+void ConstIntBoundAnalyzer::Bind(const Var& var, const Range& range, bool allow_override) {
+  impl_->Bind(var, range, allow_override);
 }
 
 std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& constraint) {

@@ -114,6 +114,7 @@ enum class Opcode {
   LoadConsti = 14U,
   Fatal = 15U,
   AllocStorage = 16U,
+  ShapeOf = 17U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -241,10 +242,13 @@ struct Instruction {
       /*! \brief The size of the allocation. */
       RegName allocation_size;
       /*! \brief The alignment of the allocation. */
-      RegName alignment;
+      Index alignment;
       /*! \brief The hint of the dtype. */
       DLDataType dtype_hint;
     } alloc_storage;
+    struct /* ShapeOf Operands */ {
+      RegName tensor;
+    } shape_of;
   };
 
   /*!
@@ -386,8 +390,16 @@ struct Instruction {
    * \param dst The destination to place the storage.
    * \return The alloc storage instruction.
    */
-  static Instruction AllocStorage(RegName size, RegName alignment, DLDataType dtype_hint,
+  static Instruction AllocStorage(RegName size, Index alignment, DLDataType dtype_hint,
                                   RegName dst);
+
+  /*!
+   * \brief Get the shape of an input tensor.
+   * \param tensor The input tensor.
+   * \param dst The destination to store the shape of the given tensor.
+   * \return The shape of instruction.
+   */
+  static Instruction ShapeOf(RegName tensor, RegName dst);
 
   Instruction();
   Instruction(const Instruction& instr);
@@ -733,7 +745,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param reg The register to read from.
    * \return The read scalar.
    */
-  int32_t LoadScalarInt(RegName reg) const;
+  inline int64_t LoadScalarInt(RegName reg) const;
 
   /*!
    * \brief Invoke a VM function.

@@ -56,7 +56,9 @@ def _lower(mod,
         opt_mod, _ = relay.optimize(mod, target, params)
         grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
         grc.codegen(opt_mod["main"])
-    except tvm.TVMError:
+    except tvm.TVMError as e:
+        print("Get errors with GraphRuntimeCodegen for task extraction. "
+              "Fallback to VMCompiler. Error details:\n%s" % str(e))
         compiler = relay.vm.VMCompiler()
         if params:
             compiler.set_params(params)

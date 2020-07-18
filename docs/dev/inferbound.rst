@@ -181,8 +181,8 @@ The Ranges of the inner and outer IterVars of the split are set based on the par
 
 .. code:: cpp
 
-   rmap[split->inner] = Range::make_by_min_extent(0, split->factor)
-   rmap[split->outer] = Range::make_by_min_extent(0, DivCeil(rmap[split->parent]->extent, split->factor))
+   rmap[split->inner] = Range::FromMinExtent(0, split->factor)
+   rmap[split->outer] = Range::FromMinExtent(0, DivCeil(rmap[split->parent]->extent, split->factor))
 
 There is an opportunity here to tighten the bounds produced by InferBound, when ``split->factor`` does not evenly divide the parent's extent. Suppose the parent's extent is 20, and the split factor is 16. Then on the second iteration of the outer loop, the inner loop only needs to perform 4 iterations, not 16. If PassDownDomain could set the extent of ``split->inner`` to ``min(split->factor, rmap[split->parent]->extent - (split->outer * split->factor))``, then the extent of the inner variable would properly adapt, based on which iteration of the outer loop is being executed.
 
@@ -190,7 +190,7 @@ For Fuse relations, the Range of the fused IterVar is set based on the known Ran
 
 .. code:: cpp
 
-   rmap[fuse->fused] = Range::make_by_min_extent(0, rmap[fuse->outer]->extent * rmap[fuse->inner]->extent)
+   rmap[fuse->fused] = Range::FromMinExtent(0, rmap[fuse->outer]->extent * rmap[fuse->inner]->extent)
 
 
 InferRootBound
