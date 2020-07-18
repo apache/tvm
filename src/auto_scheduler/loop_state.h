@@ -154,10 +154,10 @@ class StageNode : public Object {
  public:
   /*! \brief The operator of this stage */
   te::Operation op;
-  /*! \brief The type of this stage. */
-  StageKind op_type;
   /*! \brief The iterators in this stage. */
   Array<Iterator> iters;
+  /*! \brief The type of this stage. */
+  StageKind op_type;
   /*! \brief The compute location of this stage. */
   ComputeAtKind compute_at;
   /*! \brief Other stage-level attributes. */
@@ -166,6 +166,8 @@ class StageNode : public Object {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("op", &op);
     v->Visit("iters", &iters);
+    v->Visit("op_type", &op_type);
+    v->Visit("compute_at", &compute_at);
   }
 
   static constexpr const char* _type_key = "auto_scheduler.Stage";
@@ -346,15 +348,19 @@ class State : public ObjectRef {
    * \param stage_id The index of the stage to be reordered.
    * \param target_stage_id The index of stage that this step will compute at to.
    * \param target_iter The iterator in target stage that this step will compute at to.
-   * \note After compute_at, the extent of each iterator may not be accurate any more, so the
-   * bound information will be removed from this state. Run ComputeDAG::InferBound to recover.
+   * \note After compute_at, we need careful dependency analysis to compute the accurate bound
+   * information. However, it is relatively expensive and complicated, so we just fill "None" as
+   * bound for the newly created iterators.
+   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
    */
   void compute_at(int stage_id, int target_stage_id, const Iterator& target_iter);
   /*!
    * \brief Schedule primitive corresponds to te.compute_root.
    * \param stage_id The index of the stage to be reordered.
-   * \note After compute_root, the extent of each iterator may not be accurate any more, so the
-   * bound information will be removed from this state. Run ComputeDAG::InferBound to recover.
+   * \note After compute_root, we need careful dependency analysis to compute the accurate bound
+   * information. However, it is relatively expensive and complicated, so we just fill "None" as
+   * bound for the newly created iterators.
+   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
    */
   void compute_root(int stage_id);
   /*!
@@ -433,15 +439,19 @@ class State : public ObjectRef {
   /*!
    * \brief Apply compute at step to current state.
    * \param step A ComputeAtStep.
-   * \note After compute_at, the extent of each iterator may not be accurate any more, so the
-   * bound information will be removed from this state. Run ComputeDAG::InferBound to recover.
+   * \note After compute_at, we need careful dependency analysis to compute the accurate bound
+   * information. However, it is relatively expensive and complicated, so we just fill "None" as
+   * bound for the newly created iterators.
+   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
    */
   void DoComputeAtStep(const ComputeAtStep& step);
   /*!
    * \brief Apply compute root step to current state.
    * \param step A ComputeRootStep.
-   * \note After compute_root, the extent of each iterator may not be accurate any more, so the
-   * bound information will be removed from this state. Run ComputeDAG::InferBound to recover.
+   * \note After compute_root, we need careful dependency analysis to compute the accurate bound
+   * information. However, it is relatively expensive and complicated, so we just fill "None" as
+   * bound for the newly created iterators.
+   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
    */
   void DoComputeRootStep(const ComputeRootStep& step);
   /*!

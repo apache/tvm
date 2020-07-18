@@ -102,53 +102,45 @@ def test_compute_at_root_inline():
     relu = s0.stage_ops[10]
 
     s0.compute_inline(bn_add)
+    assert s0[bn_add].compute_at == 1
+
     s0.compute_inline(bn_mul)
+    assert s0[bn_mul].compute_at == 1
+
     s0.compute_inline(bias_add)
+    assert s0[bias_add].compute_at == 1
+
+    assert s0[conv].iters[0].range.extent == 1
+    assert s0[conv].iters[1].range.extent == 64
+    assert s0[conv].iters[2].range.extent == 112
+    assert s0[conv].iters[3].range.extent == 112
+    assert s0[conv].iters[4].range.extent == 3
+    assert s0[conv].iters[5].range.extent == 7
+    assert s0[conv].iters[6].range.extent == 7
     s0.compute_at(conv, relu, s0[relu].iters[2])
-    assert str(s0) == \
-        """Placeholder: Data, Kernel, Bias, Bn_scale, Bn_offset\n""" + \
-        """for i1 (0,3)\n""" + \
-        """  for i2 (0,230)\n""" + \
-        """    for i3 (0,230)\n""" + \
-        """      pad_temp = ...\n""" + \
-        """for i1 (0,64)\n""" + \
-        """  for i2 (0,112)\n""" + \
-        """    for nn (None)\n""" + \
-        """      for ff (None)\n""" + \
-        """        for yy (None)\n""" + \
-        """          for xx (None)\n""" + \
-        """            for rc (None)\n""" + \
-        """              for ry (None)\n""" + \
-        """                for rx (None)\n""" + \
-        """                  compute = ...\n""" + \
-        """    for i3 (0,112)\n""" + \
-        """      compute = ...\n"""
+    assert s0[conv].compute_at == 2
+    s0 = dag.infer_bound_from_state(s0)
+    assert s0[conv].iters[0].range.extent == 1
+    assert s0[conv].iters[1].range.extent == 1
+    assert s0[conv].iters[2].range.extent == 1
+    assert s0[conv].iters[3].range.extent == 112
+    assert s0[conv].iters[4].range.extent == 3
+    assert s0[conv].iters[5].range.extent == 7
+    assert s0[conv].iters[6].range.extent == 7
+
+    s0.compute_root(bn_mul)
+    assert s0[bn_mul].compute_at == 0
 
     s0.compute_root(conv)
-    s0.compute_root(bn_mul)
-    assert str(s0) == \
-        """Placeholder: Data, Kernel, Bias, Bn_scale, Bn_offset\n""" + \
-        """for i1 (0,3)\n""" + \
-        """  for i2 (0,230)\n""" + \
-        """    for i3 (0,230)\n""" + \
-        """      pad_temp = ...\n""" + \
-        """for nn (None)\n""" + \
-        """  for ff (None)\n""" + \
-        """    for yy (None)\n""" + \
-        """      for xx (None)\n""" + \
-        """        for rc (None)\n""" + \
-        """          for ry (None)\n""" + \
-        """            for rx (None)\n""" + \
-        """              compute = ...\n""" + \
-        """for i (None)\n""" + \
-        """  for j (None)\n""" + \
-        """    for k (None)\n""" + \
-        """      for l (None)\n""" + \
-        """        Bn_mul = ...\n""" + \
-        """for i1 (0,64)\n""" + \
-        """  for i2 (0,112)\n""" + \
-        """    for i3 (0,112)\n""" + \
-        """      compute = ...\n"""
+    assert s0[conv].compute_at == 0
+    s0 = dag.infer_bound_from_state(s0)
+    assert s0[conv].iters[0].range.extent == 1
+    assert s0[conv].iters[1].range.extent == 64
+    assert s0[conv].iters[2].range.extent == 112
+    assert s0[conv].iters[3].range.extent == 112
+    assert s0[conv].iters[4].range.extent == 3
+    assert s0[conv].iters[5].range.extent == 7
+    assert s0[conv].iters[6].range.extent == 7
 
 
 if __name__ == "__main__":

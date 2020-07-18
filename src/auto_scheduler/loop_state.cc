@@ -250,7 +250,7 @@ Iterator State::unroll(int stage_id, const Iterator& it, int max_unroll) {
 Iterator State::bind(int stage_id, const Iterator& it, IteratorAnnotation thread_type) {
   const Stage& stage = operator->()->stages[stage_id];
   if (thread_type < IteratorAnnotation::kVThread || thread_type > IteratorAnnotation::kThreadZ) {
-    LOG(FATAL) << "thread_type error, valide: kVThread, kBlockX, kBlockY, "
+    LOG(FATAL) << "thread_type error, valid: kVThread, kBlockX, kBlockY, "
                << "kThreadX, kThreadY, kBlockZ, kThreadZ";
   }
   AnnotationStep step = AnnotationStep(stage_id, GetIndex(stage->iters, it), thread_type);

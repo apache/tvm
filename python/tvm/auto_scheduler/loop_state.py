@@ -132,8 +132,8 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be reordered, can be a Stage order index, Stage operation or stage
-            output tensor.
+            The Stage to be reordered, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
         order : List[Iterator]
             Iterators in the expected order.
         """
@@ -146,18 +146,20 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be compute at, can be a Stage order index, Stage operation or stage
-            output tensor.
+            The Stage to be compute at, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
         target_stage : Union[int, Operation, Tensor]
-            The target stage of compute_at, can be a Stage order index, Stage operation or stage
-            output tensor.
+            The target stage of compute_at, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
         target_iter : Iterator
             The target Iterator of compute_at.
 
         Notes
         -----
-        After compute_at, the extent of each iterator may not be accurate any more, so the bound
-        information will be removed from this state. Run ComputeDAG::InferBound to recover.
+        After compute_at, we need careful dependency analysis to compute the accurate bound
+        information. However, it is relatively expensive and complicated, so we just fill "None"
+        as bound for the newly created iterators.
+        Call ComputeDAG::InferBound on the returned state to get the complete bound information.
         """
         self.state_object = _ffi_api.StateComputeAt(self.state_object,
                                                     self._resolve_stage_id(stage),
@@ -170,13 +172,15 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be compute root, can be a Stage order index, Stage operation or stage
-            output tensor.
+            The Stage to be compute root, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
 
         Notes
         -----
-        After compute_root, the extent of each iterator may not be accurate any more, so the bound
-        information will be removed from this state. Run ComputeDAG::InferBound to recover.
+        After compute_root, we need careful dependency analysis to compute the accurate bound
+        information. However, it is relatively expensive and complicated, so we just fill "None"
+        as bound for the newly created iterators.
+        Call ComputeDAG::InferBound on the returned state to get the complete bound information.
         """
         self.state_object = _ffi_api.StateComputeRoot(self.state_object,
                                                       self._resolve_stage_id(stage))
@@ -187,8 +191,8 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be compute inline, can be a Stage order index, Stage operation or stage
-            output tensor.
+            The Stage to be compute inlined, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
         """
         self.state_object = _ffi_api.StateComputeInline(self.state_object,
                                                         self._resolve_stage_id(stage))
@@ -202,8 +206,8 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be split, can be a Stage order index, Stage operation or stage
-            output tensor.
+            The Stage to be split, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
         iterator : Iterator
             The iterator to be split.
         lengths: List[int]
@@ -232,8 +236,8 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be fused, can be a Stage order index, Stage operation or stage
-            output tensor.
+            The Stage to be fused, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
         iters : List[Iterator]
             The iterators to be fused.
 
@@ -257,8 +261,8 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be vectorized, can be a Stage order index, Stage operation or stage
-            output tensor.
+            The Stage to be vectorized, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
         iterator : Iterator
             The iterator to be vectorized.
 
@@ -277,8 +281,8 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be paralleled, can be a Stage order index, Stage operation or stage
-            output tensor.
+            The Stage to be paralleled, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
         iterator : Iterator
             The iterator to be paralleled.
 
@@ -297,8 +301,8 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be unrolled, can be a Stage order index, Stage operation or stage
-            output tensor.
+            The Stage to be unrolled, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
         iterator : Iterator
             The iterator to be unrolled.
         max_unroll : Optional[int]
@@ -320,12 +324,12 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be binded, can be a Stage order index, Stage operation or stage
-            output tensor.
+            The Stage to be binded, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
         iterator : Iterator
             The iterator to be binded.
         thread_name : str
-            The thread type to be binded. Currently support:
+            The thread type to be binded. Candidates:
             - vthread
             - blockIdx.x
             - threadIdx.x
