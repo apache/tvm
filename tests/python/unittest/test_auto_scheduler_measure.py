@@ -25,10 +25,10 @@ from test_auto_scheduler_common import get_tiled_matmul
 
 
 def test_record():
-    dag, s = get_tiled_matmul()
-
     if not tvm.runtime.enabled("llvm"):
         return
+
+    dag, s = get_tiled_matmul()
     target = tvm.target.create("llvm")
     task = auto_scheduler.SearchTask(dag, "test", target)
 
@@ -50,10 +50,10 @@ def test_record():
 
 
 def test_measure_local_builder_runner():
-    dag, s0 = get_tiled_matmul()
-
     if not tvm.runtime.enabled("llvm"):
         return
+
+    dag, s0 = get_tiled_matmul()
     tgt = tvm.target.create("llvm")
     task = auto_scheduler.SearchTask(dag, "test", tgt)
 
@@ -68,10 +68,10 @@ def test_measure_local_builder_runner():
 
 
 def test_measure_local_builder_rpc_runner():
-    dag, s0 = get_tiled_matmul()
-
     if not tvm.runtime.enabled("llvm"):
         return
+
+    dag, s0 = get_tiled_matmul()
     tgt = tvm.target.create("llvm")
     task = auto_scheduler.SearchTask(dag, "test", tgt)
 
