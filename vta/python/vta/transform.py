@@ -382,10 +382,6 @@ def InjectDMAIntrin():
 
     def _get_2d_pattern(buf, elem_width, elem_bytes, dtype, scope, allow_fold):
         elem_block = elem_bytes * 8 // elem_width
-        # remove the checking as we have load_int8 insn
-        # if buf.dtype != dtype:
-        #     raise RuntimeError("Expect buffer type to be %s instead of %s" %
-        #                        (dtype, buf.dtype))
         shape, strides = buf.shape, buf.strides
         if not util.equal_const_int(idxm(buf.elem_offset, elem_block), 0):
             raise RuntimeError("scope %s need to have block=%d" % (scope, elem_block))
