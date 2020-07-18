@@ -332,22 +332,22 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
          << "tuple(" << stage->op->name << ".op.reduce_axis)\n";
     }
   }
-  // Call each step's PrintAsPythonAPI method
+  // Call each step's ApplyToPythonAPI method
   for (const auto& step : transform_steps) {
     if (auto ps = step.as<ReorderStepNode>()) {
-      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
     } else if (auto ps = step.as<ComputeAtStepNode>()) {
-      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
     } else if (auto ps = step.as<ComputeRootStepNode>()) {
-      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
     } else if (auto ps = step.as<ComputeInlineStepNode>()) {
-      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
     } else if (auto ps = step.as<SplitStepNode>()) {
-      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
     } else if (auto ps = step.as<FuseStepNode>()) {
-      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
     } else if (auto ps = step.as<AnnotationStepNode>()) {
-      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
     } else {
       LOG(FATAL) << "Invalid Step";
     }
@@ -368,7 +368,7 @@ State ComputeDAG::InferBound(const State& state) const {
     ret_state = operator->()->init_state;
     pstate = ret_state.CopyOnWrite();
     pstate->transform_steps = state->transform_steps;
-    ret_state.DoSteps(*this);
+    ret_state.ApplySteps(*this);
   } else {
     ret_state = state;
     pstate = ret_state.CopyOnWrite();

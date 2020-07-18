@@ -82,62 +82,6 @@ enum class ComputeAtKind : int {
   kIter = 2,
 };
 
-/*! \brief The type of an iterator. */
-enum class IteratorKind : int {
-  /*! \brief Spatial iterator. */
-  kSpatial = 0,
-  /*! \brief Reduction iterator. */
-  kReduction = 1,
-  /*! \brief Fused spatial and reduction iterator. */
-  kMixed = 2,
-  /*! \brief Special iterator. (e.g. virtual root iterator) */
-  kSpecial = 3
-};
-
-/*!
- * \brief A for loop iterator
- * Similar to tvm::IterVar in `include/tvm/tir/expr.h`
- */
-class IteratorNode : public Object {
- public:
-  /*! \brief The name of this iterator. */
-  String name;
-  /*! \brief The range of this iterator. */
-  Range range;
-  /*! \brief The iterator type of this iterator. */
-  IteratorKind iter_kind;
-  /*! \brief The annotation type of this iterator. */
-  IteratorAnnotation annotation;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("range", &range);
-    v->Visit("iter_kind", &iter_kind);
-    v->Visit("annotation", &annotation);
-  }
-
-  static constexpr const char* _type_key = "auto_scheduler.Iterator";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IteratorNode, Object);
-};
-
-/*!
- * \brief Managed reference to IteratorNode.
- * \sa IteratorNode
- */
-class Iterator : public ObjectRef {
- public:
-  /*!
-   * \brief The constructor.
-   * \param name The name of this iterator.
-   * \param range The range of this iterator.
-   * \param iter_kind The iterator type of this iterator.
-   * \param annotation The annotation type of this iterator.
-   */
-  Iterator(String name, Range range, IteratorKind iter_kind, IteratorAnnotation annotation);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Iterator, ObjectRef, IteratorNode);
-};
-
 /*! \brief Stage-level attributes. */
 struct StageAttributes {
   /*! \brief The maximum steps for the pragma `auto_unroll_max_step`. */
@@ -327,13 +271,15 @@ class State : public ObjectRef {
   String ToStr(bool delete_trivial_loop = true) const;
 
   /*!
-   * \brief General do step functions with a runtime dynamic dispatcher. This will re-apply all the
-   * transform steps with the initial state.
+   * \brief General call step functions with a runtime dynamic dispatcher. This will re-apply all
+   * the transform steps from the initial state.
    * \param dag The original ComputeDAG of this state.
-   * \note This is different from the class member `current_compute_dag`, for some transform step
-   * may change the op stage structure of the ComputeDAG.
+   * \note The input `dag` is different from the class member `current_compute_dag`.
+   * This function takes the initial ComputeDAG as input to replay all the history. While the
+   * `current_compute_dag` is used to track the current stage status, for some transform step may
+   * change the op stage structure.
    */
-  void DoSteps(const ComputeDAG& dag);
+  void ApplySteps(const ComputeDAG& dag);
 
   /* Step APIs for State. */
 
@@ -424,74 +370,6 @@ class State : public ObjectRef {
 
   TVM_DEFINE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StateNode);
-
- private:
-  /*!
-   * \brief Do transform steps.
-   * \note The following functions only change loop state but do not change transform_history.
-   * We separate these functions out, so you can call them for replay easily given history steps */
-
-  /*!
-   * \brief Apply reorder step to current state.
-   * \param step A ReorderStep.
-   */
-  void DoReorderStep(const ReorderStep& step);
-  /*!
-   * \brief Apply compute at step to current state.
-   * \param step A ComputeAtStep.
-   * \note After compute_at, we need careful dependency analysis to compute the accurate bound
-   * information. However, it is relatively expensive and complicated, so we just fill "None" as
-   * bound for the newly created iterators.
-   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
-   */
-  void DoComputeAtStep(const ComputeAtStep& step);
-  /*!
-   * \brief Apply compute root step to current state.
-   * \param step A ComputeRootStep.
-   * \note After compute_root, we need careful dependency analysis to compute the accurate bound
-   * information. However, it is relatively expensive and complicated, so we just fill "None" as
-   * bound for the newly created iterators.
-   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
-   */
-  void DoComputeRootStep(const ComputeRootStep& step);
-  /*!
-   * \brief Apply compute inline to current state.
-   * \param step A ComputeInline.
-   */
-  void DoComputeInlineStep(const ComputeInlineStep& step);
-  /*!
-   * \brief Apply split step to current state.
-   * \param step A SplitStep.
-   * \return The iterator results after split.
-   * \note If we do split on an iterator which has stages attached at it(by compute_at), the inner
-   * most iterator of split results will become the new attach point.
-   */
-  Array<Iterator> DoSplitStep(const SplitStep& step);
-  /*!
-   * \brief Apply fuse step to current state.
-   * \param step A FuseStep.
-   * \return The iterator result after fuse.
-   * \note If the iterators to be fused have stages attached at them(by compute_at), the fused
-   * result will become the new attach point.
-   */
-  Iterator DoFuseStep(const FuseStep& step);
-  /*!
-   * \brief Apply annotation step to current state.
-   * \param step A AnnotationStep.
-   * \return The iterator result after annotate.
-   */
-  Iterator DoAnnotationStep(const AnnotationStep& step);
-
-  /*!
-   * \brief Common function for DoSplitStep and DoFollowSplitStep(Will be added later).
-   * \param stage_id The index of the stage to be split.
-   * \param iter_id The index of the iterator to be split.
-   * \param lengths The multiple split factors.
-   * \param inner_to_outer The split direction.
-   * \return The iterator results after split.
-   */
-  Array<Iterator> DoSplitStepCommon(int stage_id, int iter_id,
-                                    const Array<Optional<Integer>>& lengths, bool inner_to_outer);
 };
 
 }  // namespace auto_scheduler

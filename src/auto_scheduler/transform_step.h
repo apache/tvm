@@ -28,7 +28,7 @@
  * Take fuse step for example:
  * 1. Define class `FuseStepNode`, `FuseStep` in `transform_steps.h`, and implement its construction
  *    function `FuseStep::FuseStep(...)` in `transform_steps.cc`
- * 2. Implement `FuseStepNode::ApplyToSchedule` and `FuseStepNode::PrintAsPythonAPI`.
+ * 2. Implement `FuseStepNode::ApplyToSchedule` and `FuseStepNode::ApplyToPythonAPI`.
  *    - In these two functions you need to lower this step with tvm's te schedule API
  * 3. Implement `State::fuse` and `State::DoFuseStep`.
  *    - In these two functions you need to incrementally update all data structures in State with
@@ -52,6 +52,18 @@ namespace tvm {
 namespace auto_scheduler {
 
 typedef Map<tvm::te::Stage, Array<tir::IterVar>, ObjectHash, ObjectEqual> StageToAxesMap;
+
+/*! \brief The type of an iterator. */
+enum class IteratorKind : int {
+  /*! \brief Spatial iterator. */
+  kSpatial = 0,
+  /*! \brief Reduction iterator. */
+  kReduction = 1,
+  /*! \brief Fused spatial and reduction iterator. */
+  kMixed = 2,
+  /*! \brief Special iterator. (e.g. virtual root iterator) */
+  kSpecial = 3
+};
 
 /*! \brief The type of an iterator's annotation. */
 enum class IteratorAnnotation : int {
@@ -82,6 +94,52 @@ enum class IteratorAnnotation : int {
 };
 
 extern const char* IteratorAnnotationString[];
+
+/*!
+ * \brief A for loop iterator
+ * Similar to tvm::IterVar in `include/tvm/tir/expr.h`
+ */
+class IteratorNode : public Object {
+ public:
+  /*! \brief The name of this iterator. */
+  String name;
+  /*! \brief The range of this iterator. */
+  Range range;
+  /*! \brief The iterator type of this iterator. */
+  IteratorKind iter_kind;
+  /*! \brief The annotation type of this iterator. */
+  IteratorAnnotation annotation;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("name", &name);
+    v->Visit("range", &range);
+    v->Visit("iter_kind", &iter_kind);
+    v->Visit("annotation", &annotation);
+  }
+
+  static constexpr const char* _type_key = "auto_scheduler.Iterator";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IteratorNode, Object);
+};
+
+/*!
+ * \brief Managed reference to IteratorNode.
+ * \sa IteratorNode
+ */
+class Iterator : public ObjectRef {
+ public:
+  /*!
+   * \brief The constructor.
+   * \param name The name of this iterator.
+   * \param range The range of this iterator.
+   * \param iter_kind The iterator type of this iterator.
+   * \param annotation The annotation type of this iterator.
+   */
+  Iterator(String name, Range range, IteratorKind iter_kind, IteratorAnnotation annotation);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Iterator, ObjectRef, IteratorNode);
+};
+
+class State;
 
 /*!
  * \brief The base class of transformation steps. Each step has its corresponding tvm.te
@@ -115,7 +173,13 @@ class ReorderStepNode : public StepNode {
   Array<Integer> after_ids;
 
   /*!
-   * \brief Apply the current state to tvm.schedule
+   * \brief Apply the current step to State
+   * \param state A mutable pointer to State.
+   */
+  void ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    */
@@ -127,7 +191,7 @@ class ReorderStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "auto_scheduler.ReorderStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReorderStepNode, Object);
@@ -158,7 +222,17 @@ class ComputeAtStepNode : public StepNode {
   int target_iter_id;
 
   /*!
-   * \brief Apply the current state to tvm.schedule
+   * \brief Apply the current step to State
+   * \param state A mutable pointer to State.
+   * \note After compute_at, we need careful dependency analysis to compute the accurate bound
+   * information. However, it is relatively expensive and complicated, so we just fill "None" as
+   * bound for the newly created iterators.
+   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
+   */
+  void ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    */
@@ -170,7 +244,7 @@ class ComputeAtStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "auto_scheduler.ComputeAtStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeAtStepNode, Object);
@@ -197,7 +271,17 @@ class ComputeAtStep : public Step {
 class ComputeRootStepNode : public StepNode {
  public:
   /*!
-   * \brief Apply the current state to tvm.schedule
+   * \brief Apply the current step to State
+   * \param state A mutable pointer to State.
+   * \note After compute_at, we need careful dependency analysis to compute the accurate bound
+   * information. However, it is relatively expensive and complicated, so we just fill "None" as
+   * bound for the newly created iterators.
+   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
+   */
+  void ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return The iterator result after fuse.
@@ -210,7 +294,7 @@ class ComputeRootStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "auto_scheduler.ComputeRootStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeRootStepNode, Object);
@@ -235,7 +319,13 @@ class ComputeRootStep : public Step {
 class ComputeInlineStepNode : public StepNode {
  public:
   /*!
-   * \brief Apply the current state to tvm.schedule
+   * \brief Apply the current step to State
+   * \param state A mutable pointer to State.
+   */
+  void ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return The iterator result after fuse.
@@ -248,7 +338,7 @@ class ComputeInlineStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "auto_scheduler.ComputeInlineStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeInlineStepNode, Object);
@@ -288,7 +378,16 @@ class SplitStepNode : public StepNode {
   bool inner_to_outer;
 
   /*!
-   * \brief Apply the current state to tvm.schedule
+   * \brief Apply the current step to State
+   * \param state A mutable pointer to State.
+   * \return The iterator results after split.
+   * \note If we do split on an iterator which has stages attached at it(by compute_at), the inner
+   * most iterator of split results will become the new attach point.
+   */
+  Array<Iterator> ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return The iterator results after split.
@@ -302,7 +401,7 @@ class SplitStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "auto_scheduler.SplitStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(SplitStepNode, Object);
@@ -335,7 +434,16 @@ class FuseStepNode : public StepNode {
   Array<Integer> fused_ids;
 
   /*!
-   * \brief Apply the current state to tvm.schedule
+   * \brief Apply the current step to State
+   * \param state A mutable pointer to State.
+   * \return The iterator result after fuse.
+   * \note If the iterators to be fused have stages attached at them(by compute_at), the fused
+   * result will become the new attach point.
+   */
+  Iterator ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return The iterator result after fuse.
@@ -348,7 +456,7 @@ class FuseStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "auto_scheduler.FuseStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuseStepNode, Object);
@@ -382,7 +490,14 @@ class AnnotationStepNode : public StepNode {
   IteratorAnnotation annotation;
 
   /*!
-   * \brief Apply the current state to tvm.schedule
+   * \brief Apply the current step to State
+   * \param state A mutable pointer to State.
+   * \return The iterator result after annotate.
+   */
+  Iterator ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return The iterator result after fuse.
@@ -395,7 +510,7 @@ class AnnotationStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "auto_scheduler.AnnotationStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(AnnotationStepNode, Object);
