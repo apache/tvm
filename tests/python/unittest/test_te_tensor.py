@@ -304,6 +304,32 @@ def test_tensor_pool():
     s[P].tensorize(oh, intrin)
     tvm.lower(s, [A, P])
 
+def test_tensor_scalar_mixed():
+    # test te with tensor and scalar
+    a = np.array(np.random.uniform(size=(10,)), 'float32')
+    b = np.array(np.random.uniform(size=(1))[0], 'float32')
+    c = np.array(np.random.uniform(size=(10,)), 'float32')
+
+    @tvm.register_func("tvm.test_tensor_scalar_scale")
+    def my_scale(tensor, scalar, out):
+        out_np = tensor.asnumpy() * scalar.asnumpy()
+        tvm.nd.array(out_np).copyto(out)
+
+    A = te.placeholder(a.shape, name='A')
+    B = te.placeholder(b.shape, name='B')
+    C = te.extern(a.shape, [A, B],
+                  lambda ins, outs: tvm.tir.call_packed(
+                  "tvm.test_tensor_scalar_scale", ins[0], ins[1], outs[0]), name="C")
+    s = te.create_schedule(C.op)
+    f = tvm.build(s, [A, B, C], 'llvm')
+
+    ta = tvm.nd.array(a)
+    tb = tvm.nd.array(b)
+    tc = tvm.nd.array(c)
+    f(ta, tb, tc)
+    tvm.testing.assert_allclose(a * b, tc.asnumpy())
+
+
 def test_tensor_scalar():
     # test te with scalar shape
     a = np.array(np.random.uniform(size=(1))[0], 'float32')
@@ -343,3 +369,4 @@ if __name__ == "__main__":
     test_tuple_with_different_deps()
     test_tensor_pool()
     test_tensor_scalar()
+    test_tensor_scalar_mixed()
