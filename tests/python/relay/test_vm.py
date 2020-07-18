@@ -39,7 +39,11 @@ def check_result(args, expected_result, mod=None):
     expected_result:
         The expected result of running the expression.
     """
+    # TODO(@zhiics, @icemelon9): Disable the gpu test for now until the heterogeneous support
+    #   is ready
     for target, ctx in ctx_list():
+        if "cuda" in target:
+            continue
         vm = relay.create_executor('vm', ctx=ctx, target=target, mod=mod)
 
         rts_result = vm.evaluate()(*args)
