@@ -17,9 +17,10 @@
  * under the License.
  */
 
-use std::{cmp, collections::HashMap, convert::TryFrom, iter::FromIterator, mem, str};
+use std::{
+    cmp, collections::HashMap, convert::TryFrom, error::Error, iter::FromIterator, mem, str,
+};
 
-use failure::{ensure, format_err, Error};
 use itertools::izip;
 use nom::{
     character::complete::{alpha1, digit1},
@@ -27,7 +28,6 @@ use nom::{
     number::complete::{le_i32, le_i64, le_u16, le_u32, le_u64, le_u8},
     opt, tag, take, tuple,
 };
-
 use serde::{Deserialize, Serialize};
 use serde_json;
 
@@ -35,7 +35,7 @@ use tvm_sys::ffi::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCod
 
 use tvm_sys::{ffi::DLTensor, ArgValue, Context, DataType, DeviceType};
 
-use crate::{errors::GraphFormatError, Module, Storage, Tensor};
+use crate::{errors::*, Module, Storage, Tensor};
 
 // @see `kTVMNDArrayMagic` in `ndarray.h`
 const _NDARRAY_MAGIC: u64 = 0xDD5E_40F0_96B4_A13F;
@@ -114,7 +114,7 @@ macro_rules! get_node_attr {
 }
 
 impl Node {
-    fn parse_attrs(&self) -> Result<NodeAttrs, Error> {
+    fn parse_attrs(&self) -> Result<NodeAttrs, GraphFormatError> {
         let attrs = self
             .attrs
             .as_ref()
@@ -128,15 +128,15 @@ impl Node {
 }
 
 impl<'a> TryFrom<&'a String> for Graph {
-    type Error = Error;
-    fn try_from(graph_json: &String) -> Result<Self, self::Error> {
+    type Error = GraphFormatError;
+    fn try_from(graph_json: &String) -> Result<Self, GraphFormatError> {
         let graph = serde_json::from_str(graph_json)?;
         Ok(graph)
     }
 }
 
 impl<'a> TryFrom<&'a str> for Graph {
-    type Error = Error;
+    type Error = GraphFormatError;
     fn try_from(graph_json: &'a str) -> Result<Self, Self::Error> {
         let graph = serde_json::from_str(graph_json)?;
         Ok(graph)
@@ -177,7 +177,7 @@ pub struct GraphExecutor<'m, 't> {
 unsafe impl<'m, 't> Send for GraphExecutor<'m, 't> {}
 
 impl<'m, 't> GraphExecutor<'m, 't> {
-    pub fn new<M: 'm + Module>(graph: Graph, lib: &'m M) -> Result<Self, Error> {
+    pub fn new<M: 'm + Module>(graph: Graph, lib: &'m M) -> Result<Self, Box<dyn Error>> {
         let tensors = Self::setup_storages(&graph)?;
         Ok(GraphExecutor {
             op_execs: Self::setup_op_execs(&graph, lib, &tensors)?,
@@ -194,7 +194,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
     }
 
     /// Allocates `Storages` for each `storage_id` and returns `Tensor`s to hold each output.
-    fn setup_storages<'a>(graph: &'a Graph) -> Result<Vec<Tensor<'t>>, Error> {
+    fn setup_storages<'a>(graph: &'a Graph) -> Result<Vec<Tensor<'t>>, Box<dyn Error>> {
         let storage_ids = graph.get_attr::<(String, Vec<usize>)>("storage_id")?.1;
         let shapes = graph.get_attr::<(String, Vec<Vec<i64>>)>("shape")?.1;
         let dtypes = graph
@@ -221,7 +221,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         let mut storages: Vec<Storage> = storage_num_bytes
             .into_iter()
             .map(|nbytes| Storage::new(nbytes, align))
-            .collect::<Result<Vec<Storage>, Error>>()?;
+            .collect::<Result<Vec<Storage>, std::alloc::LayoutErr>>()?;
 
         let tensors = izip!(storage_ids, shapes, dtypes)
             .map(|(storage_id, shape, dtype)| {
@@ -246,8 +246,10 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         graph: &Graph,
         lib: &'m M,
         tensors: &[Tensor<'t>],
-    ) -> Result<Vec<Box<dyn Fn() + 'm>>, Error> {
-        ensure!(graph.node_row_ptr.is_some(), "Missing node_row_ptr.");
+    ) -> Result<Vec<Box<dyn Fn() + 'm>>, Box<dyn Error + 'static>> {
+        if !graph.node_row_ptr.is_some() {
+            return Err(GraphFormatError::MissingField("node_row_ptr").into());
+        }
         let node_row_ptr = graph.node_row_ptr.as_ref().unwrap();
 
         let mut op_execs = Vec::new();
@@ -255,10 +257,14 @@ impl<'m, 't> GraphExecutor<'m, 't> {
             if node.op == "null" {
                 continue;
             }
-            ensure!(node.op == "tvm_op", "Only TVM ops are supported.");
-            ensure!(node.attrs.is_some(), "Missing node attrs.");
+            if node.op != "tvm_op" {
+                return Err(GraphFormatError::UnsupportedOp(node.op.to_owned()).into());
+            }
+            if !node.attrs.is_some() {
+                return Err(GraphFormatError::MissingAttr(node.op.clone(), "".to_string()).into());
+            }
 
-            let attrs = node.parse_attrs()?;
+            let attrs: NodeAttrs = node.parse_attrs()?.into();
 
             if attrs.func_name == "__nop" {
                 continue;
@@ -266,14 +272,14 @@ impl<'m, 't> GraphExecutor<'m, 't> {
 
             let func = lib
                 .get_function(&attrs.func_name)
-                .ok_or_else(|| format_err!("Library is missing function {}", attrs.func_name))?;
+                .ok_or_else(|| FunctionNotFound(attrs.func_name.clone()))?;
             let arg_indices = node
                 .inputs
                 .iter()
                 .map(|entry| graph.entry_index(entry))
                 .chain((0..attrs.num_outputs).map(|oi| Ok(node_row_ptr[i] + oi)));
 
-            let dl_tensors = arg_indices
+            let dl_tensors: Vec<DLTensor> = arg_indices
                 .map(|idx| {
                     let tensor = &tensors[idx?];
                     Ok(if attrs.flatten_data {
@@ -282,14 +288,15 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                         DLTensor::from(tensor)
                     })
                 })
-                .collect::<Result<Vec<DLTensor>, Error>>()
-                .unwrap();
+                .collect::<Result<Vec<DLTensor>, GraphFormatError>>()?
+                .into();
             let op: Box<dyn Fn()> = Box::new(move || {
-                let args = dl_tensors
+                let args: Vec<ArgValue> = dl_tensors
                     .iter()
                     .map(|t| t.into())
                     .collect::<Vec<ArgValue>>();
-                func(&args).unwrap();
+                let err_str = format!("Function {} failed to execute", attrs.func_name);
+                func(&args).expect(&err_str);
             });
             op_execs.push(op);
         }

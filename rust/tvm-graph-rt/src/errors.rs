@@ -17,18 +17,39 @@
  * under the License.
  */
 
-use failure::Fail;
+use thiserror::Error;
+use tvm_sys::DataType;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum GraphFormatError {
-    #[fail(display = "Could not parse graph json")]
-    Parse(#[fail(cause)] failure::Error),
-    #[fail(display = "Could not parse graph params")]
+    #[error("Could not parse graph json")]
+    Parse(#[from] serde_json::Error),
+    #[error("Could not parse graph params")]
     Params,
-    #[fail(display = "{} is missing attr: {}", 0, 1)]
+    #[error("{0} is missing attr: {1}")]
     MissingAttr(String, String),
-    #[fail(display = "Missing field: {}", 0)]
+    #[error("Graph has invalid attr that can't be parsed: {0}")]
+    InvalidAttr(#[from] std::num::ParseIntError),
+    #[error("Missing field: {0}")]
     MissingField(&'static str),
-    #[fail(display = "Invalid DLType: {}", 0)]
+    #[error("Invalid DLType: {0}")]
     InvalidDLType(String),
+    #[error("Unsupported Op: {0}")]
+    UnsupportedOp(String),
+}
+
+#[derive(Debug, Error)]
+#[error("Function {0} not found")]
+pub struct FunctionNotFound(pub String);
+
+#[derive(Debug, Error)]
+#[error("Pointer {0:?} invalid when freeing")]
+pub struct InvalidPointer(pub *mut u8);
+
+#[derive(Debug, Error)]
+pub enum ArrayError {
+    #[error("Cannot convert Tensor with dtype {0} to ndarray")]
+    IncompatibleDataType(DataType),
+    #[error("Shape error when casting ndarray to TVM Array with shape {0:?}")]
+    ShapeError(Vec<i64>),
 }

@@ -29,7 +29,7 @@ use std::{
 #[cfg(not(target_arch = "wasm32"))]
 use std::env;
 
-use crossbeam::channel::{bounded, Receiver, Sender};
+use crossbeam_channel::{bounded, Receiver, Sender};
 use tvm_sys::ffi::TVMParallelGroupEnv;
 
 pub(crate) type FTVMParallelLambda =
