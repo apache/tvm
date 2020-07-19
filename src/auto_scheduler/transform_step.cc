@@ -28,6 +28,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -52,6 +53,30 @@ const char* IteratorAnnotationString[] = {
     "tensorize"     // kTensorized = 11
 };
 
+Step StepReadFromRecord(dmlc::JSONReader* reader) {
+  std::string name;
+  CHECK(reader->NextArrayItem());
+  reader->Read(&name);
+  if (name == ReorderStepNode::record_prefix_str) {
+    return ReorderStep(reader);
+  } else if (name == ComputeAtStepNode::record_prefix_str) {
+    return ComputeAtStep(reader);
+  } else if (name == ComputeRootStepNode::record_prefix_str) {
+    return ComputeRootStep(reader);
+  } else if (name == ComputeInlineStepNode::record_prefix_str) {
+    return ComputeInlineStep(reader);
+  } else if (name == SplitStepNode::record_prefix_str) {
+    return SplitStep(reader);
+  } else if (name == FuseStepNode::record_prefix_str) {
+    return FuseStep(reader);
+  } else if (name == AnnotationStepNode::record_prefix_str) {
+    return AnnotationStep(reader);
+  } else {
+    LOG(FATAL) << "Invalid step format";
+  }
+  return Step();
+}
+
 /********** Reorder **********/
 ReorderStep::ReorderStep(int stage_id, const Array<Integer>& after_ids) {
   auto node = make_object<ReorderStepNode>();
@@ -61,6 +86,28 @@ ReorderStep::ReorderStep(int stage_id, const Array<Integer>& after_ids) {
   }
   node->after_ids = after_ids;
   data_ = std::move(node);
+}
+
+ReorderStep::ReorderStep(dmlc::JSONReader* reader) {
+  auto node = make_object<ReorderStepNode>();
+  CHECK(reader->NextArrayItem());
+  reader->Read(&node->stage_id);
+  CHECK(reader->NextArrayItem());
+  std::vector<int> int_list;
+  reader->Read(&int_list);
+  ::tvm::Array<::tvm::Integer> after_ids;
+  for (const auto& i : int_list) {
+    after_ids.push_back(i);
+  }
+  node->after_ids = after_ids;
+  data_ = std::move(node);
+}
+
+void ReorderStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
+  writer->WriteArrayItem(IntArrayToVector(after_ids));
 }
 
 void ReorderStepNode::ApplyToState(State* state) const {
@@ -117,6 +164,24 @@ ComputeAtStep::ComputeAtStep(int stage_id, int target_stage_id, int target_iter_
   data_ = std::move(node);
 }
 
+ComputeAtStep::ComputeAtStep(dmlc::JSONReader* reader) {
+  auto node = make_object<ComputeAtStepNode>();
+  CHECK(reader->NextArrayItem());
+  reader->Read(&node->stage_id);
+  CHECK(reader->NextArrayItem());
+  reader->Read(&node->target_stage_id);
+  CHECK(reader->NextArrayItem());
+  reader->Read(&node->target_iter_id);
+  data_ = std::move(node);
+}
+
+void ComputeAtStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
+  writer->WriteArrayItem(target_stage_id);
+  writer->WriteArrayItem(target_iter_id);
+}
 void ComputeAtStepNode::ApplyToState(State* state) const {
   const Stage& stage = (*state)->stages[stage_id];
 
@@ -162,6 +227,19 @@ ComputeRootStep::ComputeRootStep(int stage_id) {
   data_ = std::move(node);
 }
 
+ComputeRootStep::ComputeRootStep(dmlc::JSONReader* reader) {
+  auto node = make_object<ComputeRootStepNode>();
+  CHECK(reader->NextArrayItem());
+  reader->Read(&node->stage_id);
+  data_ = std::move(node);
+}
+
+void ComputeRootStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
+}
+
 void ComputeRootStepNode::ApplyToState(State* state) const {
   const Stage& stage = (*state)->stages[stage_id];
 
@@ -200,6 +278,19 @@ ComputeInlineStep::ComputeInlineStep(int stage_id) {
   auto node = make_object<ComputeInlineStepNode>();
   node->stage_id = stage_id;
   data_ = std::move(node);
+}
+
+ComputeInlineStep::ComputeInlineStep(dmlc::JSONReader* reader) {
+  auto node = make_object<ComputeInlineStepNode>();
+  CHECK(reader->NextArrayItem());
+  reader->Read(&node->stage_id);
+  data_ = std::move(node);
+}
+
+void ComputeInlineStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
 }
 
 void ComputeInlineStepNode::ApplyToState(State* state) const {
@@ -405,6 +496,41 @@ SplitStep::SplitStep(int stage_id, int iter_id, Optional<PrimExpr> extent,
   data_ = std::move(node);
 }
 
+SplitStep::SplitStep(dmlc::JSONReader* reader) {
+  auto node = make_object<SplitStepNode>();
+  CHECK(reader->NextArrayItem());
+  reader->Read(&node->stage_id);
+  CHECK(reader->NextArrayItem());
+  reader->Read(&node->iter_id);
+  int int_val;
+  CHECK(reader->NextArrayItem());
+  reader->Read(&int_val);
+  if (int_val) {
+    node->extent = Integer(int_val);
+  }
+  CHECK(reader->NextArrayItem());
+  std::vector<int> int_list;
+  reader->Read(&int_list);
+  ::tvm::Array<::tvm::Optional<::tvm::Integer>> lengths;
+  for (const auto& i : int_list) {
+    lengths.push_back(::tvm::Integer(i));
+  }
+  node->lengths = lengths;
+  CHECK(reader->NextArrayItem());
+  reader->Read(&node->inner_to_outer);
+  data_ = std::move(node);
+}
+
+void SplitStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
+  writer->WriteArrayItem(iter_id);
+  writer->WriteArrayItem(extent ? GetIntImm(extent.value()) : 0);
+  writer->WriteArrayItem(IntArrayToVector(lengths));
+  writer->WriteArrayItem(static_cast<int>(inner_to_outer));
+}
+
 Array<Iterator> SplitStepNode::ApplyToState(State* state) const {
   return ApplySplitToState(state, stage_id, iter_id, lengths, inner_to_outer);
 }
@@ -428,6 +554,28 @@ FuseStep::FuseStep(int stage_id, const Array<Integer>& fused_ids) {
   }
   node->fused_ids = fused_ids;
   data_ = std::move(node);
+}
+
+FuseStep::FuseStep(dmlc::JSONReader* reader) {
+  auto node = make_object<FuseStepNode>();
+  CHECK(reader->NextArrayItem());
+  reader->Read(&node->stage_id);
+  std::vector<int> int_list;
+  CHECK(reader->NextArrayItem());
+  reader->Read(&int_list);
+  ::tvm::Array<::tvm::Integer> fused_ids;
+  for (const auto& i : int_list) {
+    fused_ids.push_back(i);
+  }
+  node->fused_ids = fused_ids;
+  data_ = std::move(node);
+}
+
+void FuseStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
+  writer->WriteArrayItem(IntArrayToVector(fused_ids));
 }
 
 Iterator FuseStepNode::ApplyToState(State* state) const {
@@ -559,6 +707,27 @@ AnnotationStep::AnnotationStep(int stage_id, int iter_id, IteratorAnnotation ann
   node->iter_id = iter_id;
   node->annotation = ann;
   data_ = std::move(node);
+}
+
+AnnotationStep::AnnotationStep(dmlc::JSONReader* reader) {
+  auto node = make_object<AnnotationStepNode>();
+  CHECK(reader->NextArrayItem());
+  reader->Read(&node->stage_id);
+  CHECK(reader->NextArrayItem());
+  reader->Read(&node->iter_id);
+  CHECK(reader->NextArrayItem());
+  int int_val;
+  reader->Read(&int_val);
+  node->annotation = IteratorAnnotation(int_val);
+  data_ = std::move(node);
+}
+
+void AnnotationStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
+  writer->WriteArrayItem(iter_id);
+  writer->WriteArrayItem(static_cast<int>(annotation));
 }
 
 Iterator AnnotationStepNode::ApplyToState(State* state) const {

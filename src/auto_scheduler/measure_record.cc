@@ -42,25 +42,6 @@
 namespace dmlc {
 namespace json {
 
-inline std::vector<int> IntArrayToVector(const ::tvm::Array<::tvm::Integer>& data) {
-  std::vector<int> out;
-  for (const auto& x : data) {
-    CHECK(x.defined());
-    out.push_back(x);
-  }
-  return out;
-}
-
-inline std::vector<int> IntArrayToVector(
-    const ::tvm::Array<::tvm::Optional<::tvm::Integer>>& data) {
-  std::vector<int> out;
-  for (const auto& x : data) {
-    CHECK(x);
-    out.push_back(x.value());
-  }
-  return out;
-}
-
 template <>
 struct Handler<::tvm::Array<::tvm::auto_scheduler::Stage>> {
   inline static void Write(dmlc::JSONWriter* writer,
@@ -82,44 +63,10 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
   inline static void Write(dmlc::JSONWriter* writer,
                            const ::tvm::Array<::tvm::auto_scheduler::Step>& data) {
     writer->BeginArray(false);
-    for (size_t i = 0; i < data.size(); ++i) {
+    for (const auto& step : data) {
       writer->WriteArraySeperator();
       writer->BeginArray(false);
-      if (auto ps = data[i].as<::tvm::auto_scheduler::ReorderStepNode>()) {
-        writer->WriteArrayItem(std::string("RE"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(IntArrayToVector(ps->after_ids));
-      } else if (auto ps = data[i].as<::tvm::auto_scheduler::ComputeAtStepNode>()) {
-        writer->WriteArrayItem(std::string("CA"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(ps->target_stage_id);
-        writer->WriteArrayItem(ps->target_iter_id);
-      } else if (auto ps = data[i].as<::tvm::auto_scheduler::ComputeRootStepNode>()) {
-        writer->WriteArrayItem(std::string("CR"));
-        writer->WriteArrayItem(ps->stage_id);
-      } else if (auto ps = data[i].as<::tvm::auto_scheduler::ComputeInlineStepNode>()) {
-        writer->WriteArrayItem(std::string("CI"));
-        writer->WriteArrayItem(ps->stage_id);
-      } else if (auto ps = data[i].as<::tvm::auto_scheduler::SplitStepNode>()) {
-        writer->WriteArrayItem(std::string("SP"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(ps->iter_id);
-        writer->WriteArrayItem(ps->extent ? ::tvm::auto_scheduler::GetIntImm(ps->extent.value())
-                                          : 0);
-        writer->WriteArrayItem(IntArrayToVector(ps->lengths));
-        writer->WriteArrayItem(static_cast<int>(ps->inner_to_outer));
-      } else if (auto ps = data[i].as<::tvm::auto_scheduler::FuseStepNode>()) {
-        writer->WriteArrayItem(std::string("FU"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(IntArrayToVector(ps->fused_ids));
-      } else if (auto ps = data[i].as<::tvm::auto_scheduler::AnnotationStepNode>()) {
-        writer->WriteArrayItem(std::string("AN"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(ps->iter_id);
-        writer->WriteArrayItem(static_cast<int>(ps->annotation));
-      } else {
-        LOG(FATAL) << "Invalid step: " << data[i];
-      }
+      step->WriteToRecord(writer);
       writer->EndArray();
     }
     writer->EndArray();
@@ -127,102 +74,12 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
 
   inline static void Read(dmlc::JSONReader* reader,
                           ::tvm::Array<::tvm::auto_scheduler::Step>* data) {
-    std::vector<int> int_list;
-    bool s, inner_to_outer;
-    std::string name, scope_name, pragma_type, ti_func_name;
-    int stage_id, iter_id, extent, ann, target_stage_id;
-
     reader->BeginArray();
     data->clear();
     while (reader->NextArrayItem()) {
       reader->BeginArray();
-      s = reader->NextArrayItem();
-      CHECK(s);
-      reader->Read(&name);
-      if (name == "RE") {
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&int_list);
-        ::tvm::Array<::tvm::Integer> after_ids;
-        for (const auto& i : int_list) {
-          after_ids.push_back(i);
-        }
-        data->push_back(::tvm::auto_scheduler::ReorderStep(stage_id, after_ids));
-      } else if (name == "CA") {
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&target_stage_id);
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&iter_id);
-        data->push_back(::tvm::auto_scheduler::ComputeAtStep(stage_id, target_stage_id, iter_id));
-      } else if (name == "CR") {
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&stage_id);
-        data->push_back(::tvm::auto_scheduler::ComputeRootStep(stage_id));
-      } else if (name == "CI") {
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&stage_id);
-        data->push_back(::tvm::auto_scheduler::ComputeInlineStep(stage_id));
-      } else if (name == "SP") {
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&iter_id);
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&extent);
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&int_list);
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&inner_to_outer);
-        ::tvm::Array<::tvm::Optional<::tvm::Integer>> lengths;
-        for (const auto& i : int_list) {
-          lengths.push_back(::tvm::Integer(i));
-        }
-        data->push_back(::tvm::auto_scheduler::SplitStep(
-            stage_id, iter_id, extent == 0 ? ::tvm::PrimExpr() : extent, lengths, inner_to_outer));
-      } else if (name == "FU") {
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&int_list);
-        ::tvm::Array<::tvm::Integer> fused_ids;
-        for (const auto& i : int_list) {
-          fused_ids.push_back(i);
-        }
-        data->push_back(::tvm::auto_scheduler::FuseStep(stage_id, fused_ids));
-      } else if (name == "AN") {
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&iter_id);
-        s = reader->NextArrayItem();
-        CHECK(s);
-        reader->Read(&ann);
-        data->push_back(::tvm::auto_scheduler::AnnotationStep(
-            stage_id, iter_id, ::tvm::auto_scheduler::IteratorAnnotation(ann)));
-      } else {
-        LOG(FATAL) << "Invalid step format";
-      }
-      s = reader->NextArrayItem();
-      CHECK(!s);
+      data->push_back(::tvm::auto_scheduler::StepReadFromRecord(reader));
+      CHECK(!reader->NextArrayItem());
     }
   }
 };
@@ -237,15 +94,11 @@ struct Handler<::tvm::auto_scheduler::StateNode> {
   }
   inline static void Read(dmlc::JSONReader* reader, ::tvm::auto_scheduler::StateNode* data) {
     reader->BeginArray();
-    bool s;
-    s = reader->NextArrayItem();
-    CHECK(s);
+    CHECK(reader->NextArrayItem());
     reader->Read(&data->stages);
-    s = reader->NextArrayItem();
-    CHECK(s);
+    CHECK(reader->NextArrayItem());
     reader->Read(&data->transform_steps);
-    s = reader->NextArrayItem();
-    CHECK(!s);
+    CHECK(!reader->NextArrayItem());
   }
 };
 
@@ -260,19 +113,14 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
   }
   inline static void Read(dmlc::JSONReader* reader, ::tvm::auto_scheduler::SearchTaskNode* data) {
     std::string target_str;
-    bool s;
-
     reader->BeginArray();
-    s = reader->NextArrayItem();
-    CHECK(s);
+    CHECK(reader->NextArrayItem());
     reader->Read(&target_str);
     data->workload_key = std::move(target_str);
-    s = reader->NextArrayItem();
-    CHECK(s);
+    CHECK(reader->NextArrayItem());
     reader->Read(&target_str);
     data->target = ::tvm::Target::Create(target_str);
-    s = reader->NextArrayItem();
-    CHECK(!s);
+    CHECK(!reader->NextArrayItem());
   }
 };
 
@@ -286,20 +134,16 @@ struct Handler<::tvm::auto_scheduler::MeasureInputNode> {
     writer->EndArray();
   }
   inline static void Read(dmlc::JSONReader* reader, ::tvm::auto_scheduler::MeasureInputNode* data) {
-    bool s;
     auto task_node = ::tvm::make_object<::tvm::auto_scheduler::SearchTaskNode>();
     auto state_node = ::tvm::make_object<::tvm::auto_scheduler::StateNode>();
     state_node->concrete = true;
 
     reader->BeginArray();
-    s = reader->NextArrayItem();
-    CHECK(s);
+    CHECK(reader->NextArrayItem());
     reader->Read(task_node.get());
-    s = reader->NextArrayItem();
-    CHECK(s);
+    CHECK(reader->NextArrayItem());
     reader->Read(state_node.get());
-    s = reader->NextArrayItem();
-    CHECK(!s);
+    CHECK(!reader->NextArrayItem());
 
     data->task = ::tvm::auto_scheduler::SearchTask(task_node);
     data->state = ::tvm::auto_scheduler::State(state_node);
@@ -326,28 +170,22 @@ struct Handler<::tvm::auto_scheduler::MeasureResultNode> {
   }
   inline static void Read(dmlc::JSONReader* reader,
                           ::tvm::auto_scheduler::MeasureResultNode* data) {
-    bool s;
     std::vector<double> tmp;
 
     reader->BeginArray();
-    s = reader->NextArrayItem();
-    CHECK(s);
+    CHECK(reader->NextArrayItem());
     reader->Read(&tmp);
     data->costs.clear();
     for (const auto& i : tmp) {
       data->costs.push_back(::tvm::FloatImm(::tvm::DataType::Float(64), i));
     }
-    s = reader->NextArrayItem();
-    CHECK(s);
+    CHECK(reader->NextArrayItem());
     reader->Read(&data->error_no);
-    s = reader->NextArrayItem();
-    CHECK(s);
+    CHECK(reader->NextArrayItem());
     reader->Read(&data->all_cost);
-    s = reader->NextArrayItem();
-    CHECK(s);
+    CHECK(reader->NextArrayItem());
     reader->Read(&data->timestamp);
-    s = reader->NextArrayItem();
-    CHECK(!s);
+    CHECK(!reader->NextArrayItem());
   }
 };
 

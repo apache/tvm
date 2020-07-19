@@ -43,6 +43,7 @@
 #define TVM_AUTO_SCHEDULER_TRANSFORM_STEP_H_
 
 #include <dmlc/common.h>
+#include <dmlc/json.h>
 #include <tvm/node/node.h>
 #include <tvm/te/schedule.h>
 
@@ -150,6 +151,12 @@ class StepNode : public Object {
   /*! \brief The index of the stage. */
   int stage_id;
 
+  /*!
+   * \brief Serialize the current step record to JSONWriter.
+   * \param writer The output JSONWriter.
+   */
+  virtual void WriteToRecord(dmlc::JSONWriter* writer) const = 0;
+
   static constexpr const char* _type_key = "auto_scheduler.Step";
   TVM_DECLARE_BASE_OBJECT_INFO(StepNode, Object);
 };
@@ -163,6 +170,12 @@ class Step : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Step, ObjectRef, StepNode);
 };
 
+/*!
+ * \brief Read a step record from JSONReader and create the corresponding step.
+ * \param reader The input JSONReader.
+ */
+Step StepReadFromRecord(dmlc::JSONReader* reader);
+
 /*! \brief Reorder step that corresponds to te::Stage::reorder */
 class ReorderStepNode : public StepNode {
  public:
@@ -171,6 +184,8 @@ class ReorderStepNode : public StepNode {
    * This array should specify the order of all iterators.
    */
   Array<Integer> after_ids;
+
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
 
   /*!
    * \brief Apply the current step to State
@@ -193,6 +208,8 @@ class ReorderStepNode : public StepNode {
    */
   String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
+  static constexpr const char* record_prefix_str = "RE";
+
   static constexpr const char* _type_key = "auto_scheduler.ReorderStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReorderStepNode, Object);
 };
@@ -210,6 +227,13 @@ class ReorderStep : public Step {
    */
   ReorderStep(int stage_id, const Array<Integer>& after_ids);
 
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit ReorderStep(dmlc::JSONReader* reader);
+
   TVM_DEFINE_OBJECT_REF_METHODS(ReorderStep, Step, ReorderStepNode);
 };
 
@@ -220,6 +244,8 @@ class ComputeAtStepNode : public StepNode {
   int target_stage_id;
   /*! \brief The index of iterator in target stage that this step will compute at to. */
   int target_iter_id;
+
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
 
   /*!
    * \brief Apply the current step to State
@@ -245,6 +271,8 @@ class ComputeAtStepNode : public StepNode {
    * \return Python schedule code.
    */
   String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+
+  static constexpr const char* record_prefix_str = "CA";
 
   static constexpr const char* _type_key = "auto_scheduler.ComputeAtStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeAtStepNode, Object);
@@ -264,12 +292,21 @@ class ComputeAtStep : public Step {
    */
   ComputeAtStep(int stage_id, int target_stage_id, int target_iter_id);
 
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit ComputeAtStep(dmlc::JSONReader* reader);
+
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeAtStep, Step, ComputeAtStepNode);
 };
 
 /*! \brief Compute root step that corresponds to te::Stage::compute_root */
 class ComputeRootStepNode : public StepNode {
  public:
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
+
   /*!
    * \brief Apply the current step to State
    * \param state A mutable pointer to State.
@@ -296,6 +333,8 @@ class ComputeRootStepNode : public StepNode {
    */
   String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
+  static constexpr const char* record_prefix_str = "CR";
+
   static constexpr const char* _type_key = "auto_scheduler.ComputeRootStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeRootStepNode, Object);
 };
@@ -312,12 +351,20 @@ class ComputeRootStep : public Step {
    */
   explicit ComputeRootStep(int stage_id);
 
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit ComputeRootStep(dmlc::JSONReader* reader);
+
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeRootStep, Step, ComputeRootStepNode);
 };
 
 /*! \brief Compute inline step that corresponds to te::Stage::compute_inline */
 class ComputeInlineStepNode : public StepNode {
  public:
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
   /*!
    * \brief Apply the current step to State
    * \param state A mutable pointer to State.
@@ -340,6 +387,8 @@ class ComputeInlineStepNode : public StepNode {
    */
   String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
+  static constexpr const char* record_prefix_str = "CI";
+
   static constexpr const char* _type_key = "auto_scheduler.ComputeInlineStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeInlineStepNode, Object);
 };
@@ -355,6 +404,13 @@ class ComputeInlineStep : public Step {
    * \param stage_id The index of the stage to be compute inline.
    */
   explicit ComputeInlineStep(int stage_id);
+
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit ComputeInlineStep(dmlc::JSONReader* reader);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeInlineStep, Step, ComputeInlineStepNode);
 };
@@ -377,6 +433,7 @@ class SplitStepNode : public StepNode {
    */
   bool inner_to_outer;
 
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
   /*!
    * \brief Apply the current step to State
    * \param state A mutable pointer to State.
@@ -403,6 +460,8 @@ class SplitStepNode : public StepNode {
    */
   String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
+  static constexpr const char* record_prefix_str = "SP";
+
   static constexpr const char* _type_key = "auto_scheduler.SplitStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(SplitStepNode, Object);
 };
@@ -424,6 +483,13 @@ class SplitStep : public Step {
   SplitStep(int stage_id, int iter_id, Optional<PrimExpr> extent,
             const Array<Optional<Integer>>& lengths, bool inner_to_outer);
 
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit SplitStep(dmlc::JSONReader* reader);
+
   TVM_DEFINE_OBJECT_REF_METHODS(SplitStep, Step, SplitStepNode);
 };
 
@@ -433,6 +499,7 @@ class FuseStepNode : public StepNode {
   /*! \brief The ids of iterators to fuse. */
   Array<Integer> fused_ids;
 
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
   /*!
    * \brief Apply the current step to State
    * \param state A mutable pointer to State.
@@ -458,6 +525,8 @@ class FuseStepNode : public StepNode {
    */
   String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
+  static constexpr const char* record_prefix_str = "FU";
+
   static constexpr const char* _type_key = "auto_scheduler.FuseStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuseStepNode, Object);
 };
@@ -475,6 +544,13 @@ class FuseStep : public Step {
    */
   FuseStep(int stage_id, const Array<Integer>& fused_ids);
 
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit FuseStep(dmlc::JSONReader* reader);
+
   TVM_DEFINE_OBJECT_REF_METHODS(FuseStep, Step, FuseStepNode);
 };
 
@@ -489,6 +565,7 @@ class AnnotationStepNode : public StepNode {
   /*! \brief The annotation type of this step. */
   IteratorAnnotation annotation;
 
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
   /*!
    * \brief Apply the current step to State
    * \param state A mutable pointer to State.
@@ -512,6 +589,8 @@ class AnnotationStepNode : public StepNode {
    */
   String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
+  static constexpr const char* record_prefix_str = "AN";
+
   static constexpr const char* _type_key = "auto_scheduler.AnnotationStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(AnnotationStepNode, Object);
 };
@@ -529,6 +608,13 @@ class AnnotationStep : public Step {
    * \param ann The annotation type of this step.
    */
   AnnotationStep(int stage_id, int iter_id, IteratorAnnotation ann);
+
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit AnnotationStep(dmlc::JSONReader* reader);
 
   TVM_DEFINE_OBJECT_REF_METHODS(AnnotationStep, Step, AnnotationStepNode);
 };
