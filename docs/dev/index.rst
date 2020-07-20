@@ -283,8 +283,8 @@ these scheduling components to the a `tir::PrimFunc` itself.
 
 topi
 ----
-While we can build different kinds of operators directly via tir or tensor expression.
-It is still tedious to do so. `topi` provides a set of pre-defined operators (in tensor expression or tir) in
+While possible to construct operators directly via TIR or tensor expressions (TE) for each use case it is tedious to do so. 
+`topi` provides a set of pre-defined operators (in TE or TIR) defined by 
 numpy and found in common deep learning workloads. We also provide a collection of common schedule templates to obtain performant implementations across different target platforms.
 
 
