@@ -45,7 +45,7 @@ pub use tvm_sys::{ffi, ArgValue, RetValue};
 ///
 /// And the implementation of it to `ToFunction`.
 pub trait Typed<I, O> {
-    fn args(i: &[ArgValue<'static>]) -> Result<I>;
+    fn args(i: Vec<ArgValue<'static>>) -> Result<I>;
     fn ret(o: O) -> Result<RetValue>;
 }
 
@@ -55,7 +55,7 @@ where
     Error: From<E>,
     O: TryInto<RetValue, Error = E>,
 {
-    fn args(_args: &[ArgValue<'static>]) -> Result<()> {
+    fn args(_args: Vec<ArgValue<'static>>) -> Result<()> {
         debug_assert!(_args.len() == 0);
         Ok(())
     }
@@ -73,7 +73,7 @@ where
     A: TryFrom<ArgValue<'static>, Error = E1>,
     O: TryInto<RetValue, Error = E2>,
 {
-    fn args(args: &[ArgValue<'static>]) -> Result<(A,)> {
+    fn args(args: Vec<ArgValue<'static>>) -> Result<(A,)> {
         debug_assert!(args.len() == 1);
         let a: A = args[0].clone().try_into()?;
         Ok((a,))
@@ -93,7 +93,7 @@ where
     B: TryFrom<ArgValue<'static>, Error = E1>,
     O: TryInto<RetValue, Error = E2>,
 {
-    fn args(args: &[ArgValue<'static>]) -> Result<(A, B)> {
+    fn args(args: Vec<ArgValue<'static>>) -> Result<(A, B)> {
         debug_assert!(args.len() == 2);
         let a: A = args[0].clone().try_into()?;
         let b: B = args[1].clone().try_into()?;
@@ -115,7 +115,7 @@ where
     C: TryFrom<ArgValue<'static>, Error = E1>,
     O: TryInto<RetValue, Error = E2>,
 {
-    fn args(args: &[ArgValue<'static>]) -> Result<(A, B, C)> {
+    fn args(args: Vec<ArgValue<'static>>) -> Result<(A, B, C)> {
         debug_assert!(args.len() == 3);
         let a: A = args[0].clone().try_into()?;
         let b: B = args[1].clone().try_into()?;
@@ -133,7 +133,7 @@ pub trait ToFunction<I, O>: Sized {
 
     fn into_raw(self) -> *mut Self::Handle;
 
-    fn call(handle: *mut Self::Handle, args: &[ArgValue<'static>]) -> Result<RetValue>
+    fn call(handle: *mut Self::Handle, args: Vec<ArgValue<'static>>) -> Result<RetValue>
     where
         Self: Typed<I, O>;
 
@@ -169,69 +169,70 @@ pub trait ToFunction<I, O>: Sized {
         Self: Typed<I, O>,
     {
         #![allow(unused_assignments, unused_unsafe)]
-        // turning off the incorrect linter complaints
-        let len = num_args as usize;
-        let args_list = slice::from_raw_parts_mut(args, len);
-        let type_codes_list = slice::from_raw_parts_mut(type_codes, len);
-        let mut local_args: Vec<ArgValue> = Vec::new();
-        let mut value = ffi::TVMValue { v_int64: 0 };
-        let mut tcode = 0;
-        let resource_handle = resource_handle as *mut Self::Handle;
-        for i in 0..len {
-            value = args_list[i];
-            tcode = type_codes_list[i];
-            if tcode == ffi::TVMArgTypeCode_kTVMObjectHandle as c_int
-                || tcode == ffi::TVMArgTypeCode_kTVMPackedFuncHandle as c_int
-                || tcode == ffi::TVMArgTypeCode_kTVMModuleHandle as c_int
-            {
-                check_call!(ffi::TVMCbArgToReturn(
-                    &mut value as *mut _,
-                    &mut tcode as *mut _
-                ));
+        let result = std::panic::catch_unwind(|| {
+            // turning off the incorrect linter complaints
+            let len = num_args as usize;
+            let args_list = slice::from_raw_parts_mut(args, len);
+            let type_codes_list = slice::from_raw_parts_mut(type_codes, len);
+            let mut local_args: Vec<ArgValue> = Vec::new();
+            let mut value = ffi::TVMValue { v_int64: 0 };
+            let mut tcode = 0;
+            let resource_handle = resource_handle as *mut Self::Handle;
+            for i in 0..len {
+                value = args_list[i];
+                tcode = type_codes_list[i];
+                if tcode == ffi::TVMArgTypeCode_kTVMObjectHandle as c_int
+                    || tcode == ffi::TVMArgTypeCode_kTVMPackedFuncHandle as c_int
+                    || tcode == ffi::TVMArgTypeCode_kTVMModuleHandle as c_int
+                {
+                    check_call!(ffi::TVMCbArgToReturn(
+                        &mut value as *mut _,
+                        &mut tcode as *mut _
+                    ));
+                }
+                let arg_value = ArgValue::from_tvm_value(value, tcode as u32);
+                local_args.push(arg_value);
             }
-            let arg_value = ArgValue::from_tvm_value(value, tcode as u32);
-            local_args.push(arg_value);
-        }
 
-        // Ref-count be 2.
-        let rv = match Self::call(resource_handle, local_args.as_slice()) {
-            Ok(v) => v,
-            Err(msg) => {
-                crate::set_last_error(&msg);
+            // Ref-count be 2.
+            let rv = match Self::call(resource_handle, local_args) {
+                Ok(v) => v,
+                Err(msg) => {
+                    return Err(msg);
+                }
+            };
+
+
+            let (mut ret_val, ret_tcode) = rv.to_tvm_value();
+            let mut ret_type_code = ret_tcode as c_int;
+
+            check_call!(ffi::TVMCFuncSetReturn(
+                ret,
+                &mut ret_val as *mut _,
+                &mut ret_type_code as *mut _,
+                1 as c_int
+            ));
+
+            Ok(())
+        });
+
+        // Here we handle either a panic or true error to isolate
+        // the unwinding as it will cause issues if we allow Rust
+        // to unwind over C++ boundary without care.
+        match result {
+            Err(_) => {
+                // TODO(@jroesch): figure out how to improve error here.
+                crate::set_last_error(&Error::Panic);
                 return -1;
             }
-        };
-
-        match rv {
-            RetValue::ObjectHandle(object) =>
-            { let optr = crate::object::ObjectPtr::from_raw(object as _).unwrap();
-              println!("after call: {}", optr.count());
-              crate::object::ObjectPtr::leak(optr);
-            },
-            _ => {}
-        };
-
-        let (mut ret_val, ret_tcode) = rv.to_tvm_value();
-        let mut ret_type_code = ret_tcode as c_int;
-
-        check_call!(ffi::TVMCFuncSetReturn(
-            ret,
-            &mut ret_val as *mut _,
-            &mut ret_type_code as *mut _,
-            1 as c_int
-        ));
-
-        // ref-count 3
-        match rv {
-            RetValue::ObjectHandle(object) =>
-            { let optr = crate::object::ObjectPtr::from_raw(object as _).unwrap();
-              println!("after set return: {}", optr.count());
-              crate::object::ObjectPtr::leak(optr);
-            },
-            _ => {}
-        };
-
-        0
+            Ok(inner_res) => match inner_res {
+                Err(err) => {
+                    crate::set_last_error(&err);
+                    return -1;
+                },
+                Ok(()) => return 0
+            }
+        }
     }
 
     /// The finalizer which is invoked when the packed function's
@@ -253,7 +254,7 @@ where
         Box::into_raw(ptr)
     }
 
-    fn call(handle: *mut Self::Handle, _: &[ArgValue<'static>]) -> Result<RetValue>
+    fn call(handle: *mut Self::Handle, _: Vec<ArgValue<'static>>) -> Result<RetValue>
     where
         F: Typed<(), O>,
     {
@@ -276,7 +277,7 @@ macro_rules! to_function_instance {
                 Box::into_raw(ptr)
             }
 
-            fn call(handle: *mut Self::Handle, args: &[ArgValue<'static>]) -> Result<RetValue> where F: Typed<($($param,)+), O> {
+            fn call(handle: *mut Self::Handle, args: Vec<ArgValue<'static>>) -> Result<RetValue> where F: Typed<($($param,)+), O> {
                 // Ideally we shouldn't need to clone, probably doesn't really matter.
                 let args = F::args(args)?;
                 let out = unsafe {
