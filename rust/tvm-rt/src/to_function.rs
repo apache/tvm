@@ -202,7 +202,6 @@ pub trait ToFunction<I, O>: Sized {
                 }
             };
 
-
             let (mut ret_val, ret_tcode) = rv.to_tvm_value();
             let mut ret_type_code = ret_tcode as c_int;
 
@@ -229,9 +228,9 @@ pub trait ToFunction<I, O>: Sized {
                 Err(err) => {
                     crate::set_last_error(&err);
                     return -1;
-                },
-                Ok(()) => return 0
-            }
+                }
+                Ok(()) => return 0,
+            },
         }
     }
 
