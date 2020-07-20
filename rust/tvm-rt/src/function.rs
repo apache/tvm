@@ -282,6 +282,25 @@ where
     Ok(())
 }
 
+pub fn register_untyped<S: Into<String>>(
+    f: fn(Vec<ArgValue<'static>>) -> Result<RetValue>,
+    name: S,
+    override_: bool,
+) -> Result<()> {
+    // TODO(@jroesch): can we unify all the code.
+    let func = f.to_function();
+    let name = name.into();
+    // Not sure about this code
+    let handle = func.handle();
+    let name = CString::new(name)?;
+    check_call!(ffi::TVMFuncRegisterGlobal(
+        name.into_raw(),
+        handle,
+        override_ as c_int
+    ));
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

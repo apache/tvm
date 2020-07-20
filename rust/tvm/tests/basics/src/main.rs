@@ -17,9 +17,6 @@
  * under the License.
  */
 
-extern crate ndarray as rust_ndarray;
-extern crate tvm_frontend as tvm;
-
 use std::str::FromStr;
 
 use tvm::*;
@@ -29,11 +26,11 @@ fn main() {
     let mut data = vec![3f32, 4.0];
 
     let (ctx, ctx_name) = if cfg!(feature = "cpu") {
-        (TVMContext::cpu(0), "cpu")
+        (Context::cpu(0), "cpu")
     } else {
-        (TVMContext::gpu(0), "gpu")
+        (Context::gpu(0), "gpu")
     };
-    let dtype = DLDataType::from_str("float32").unwrap();
+    let dtype = DataType::from_str("float32").unwrap();
     let mut arr = NDArray::empty(shape, ctx, dtype);
     arr.copy_from_buffer(data.as_mut_slice());
     let mut ret = NDArray::empty(shape, ctx, dtype);
@@ -44,11 +41,10 @@ fn main() {
     if cfg!(feature = "gpu") {
         fadd.import_module(Module::load(&concat!(env!("OUT_DIR"), "/test_add.ptx")).unwrap());
     }
-    function::Builder::from(&mut fadd)
-        .arg(&arr)
-        .arg(&arr)
-        .arg(&mut ret)
-        .invoke()
+
+    fadd.entry()
+        .expect("module must have entry point")
+        .invoke(vec![(&arr).into(), (&arr).into(), (&mut ret).into()])
         .unwrap();
 
     assert_eq!(ret.to_vec::<f32>().unwrap(), vec![6f32, 8.0]);

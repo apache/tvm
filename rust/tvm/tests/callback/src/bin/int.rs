@@ -17,31 +17,27 @@
  * under the License.
  */
 
-#![allow(unused_imports)]
-
-extern crate tvm_frontend as tvm;
-
 use std::convert::TryInto;
-use tvm::{errors::Error, *};
+use tvm::{
+    errors::Error,
+    runtime::{ArgValue, RetValue},
+    *,
+};
 
 fn main() {
-    fn sum(args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
+    fn sum(args: Vec<ArgValue<'static>>) -> Result<RetValue, Error> {
         let mut ret = 0i64;
         for arg in args.iter() {
             let val: i64 = arg.try_into()?;
             ret += val;
         }
-        Ok(TVMRetValue::from(ret))
+        Ok(RetValue::from(ret))
     }
 
-    tvm::function::register(sum, "mysum".to_owned(), false).unwrap();
-
-    let mut registered = function::Builder::default();
-    registered.get_function("mysum");
-    assert!(registered.func.is_some());
-    let ret: i64 = registered
-        .args(&[10, 20, 30])
-        .invoke()
+    tvm::function::register_untyped(sum, "mysum".to_owned(), false).unwrap();
+    let func = Function::get("mysum").unwrap();
+    let ret: i64 = func
+        .invoke(vec![10.into(), 20.into(), 30.into()])
         .unwrap()
         .try_into()
         .unwrap();

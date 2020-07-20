@@ -20,8 +20,6 @@
 #![allow(unused_imports)]
 
 extern crate ndarray as rust_ndarray;
-#[macro_use]
-extern crate tvm_frontend as tvm;
 
 use rust_ndarray::ArrayD;
 use std::{
@@ -29,44 +27,40 @@ use std::{
     str::FromStr,
 };
 
-use tvm::{errors::Error, *};
+use tvm::{
+    errors::Error,
+    function::register_untyped,
+    runtime::{ArgValue, RetValue},
+    *,
+};
 
 fn main() {
-    register_global_func! {
-        fn sum(args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
-            let mut ret = 0f32;
-            let shape = &mut [2];
-            for arg in args.iter() {
-                let e = NDArray::empty(
-                    shape, TVMContext::cpu(0),
-                    DLDataType::from_str("float32").unwrap()
-                );
-                let arg: NDArray = arg.try_into()?;
-                let arr = arg.copy_to_ndarray(e)?;
-                let rnd: ArrayD<f32> = ArrayD::try_from(&arr)?;
-                ret += rnd.scalar_sum();
-            }
-            Ok(TVMRetValue::from(ret))
+    fn sum(args: Vec<ArgValue<'static>>) -> Result<RetValue, Error> {
+        let mut ret = 0f32;
+        let shape = &mut [2];
+        for arg in args.iter() {
+            let e = NDArray::empty(shape, Context::cpu(0), DataType::float(32, 1));
+            let arg: NDArray = arg.try_into()?;
+            let arr = arg.copy_to_ndarray(e)?;
+            let rnd: ArrayD<f32> = ArrayD::try_from(&arr)?;
+            ret += rnd.scalar_sum();
         }
+        Ok(RetValue::from(ret))
     }
 
     let shape = &mut [2];
     let mut data = vec![3f32, 4.0];
-    let mut arr = NDArray::empty(
-        shape,
-        TVMContext::cpu(0),
-        DLDataType::from_str("float32").unwrap(),
-    );
+    let mut arr = NDArray::empty(shape, Context::cpu(0), DataType::float(32, 1));
     arr.copy_from_buffer(data.as_mut_slice());
 
-    let mut registered = function::Builder::default();
-    let ret: f32 = registered
-        .get_function("sum")
-        .arg(&arr)
-        .arg(&arr)
-        .invoke()
+    register_untyped(sum, "sum", true).unwrap();
+    let func = Function::get("sum").expect("function registered");
+
+    let ret: f32 = func
+        .invoke(vec![(&arr).into(), (&arr).into()])
         .unwrap()
         .try_into()
-        .unwrap();
+        .expect("call should succeed");
+
     assert_eq!(ret, 7f32);
 }

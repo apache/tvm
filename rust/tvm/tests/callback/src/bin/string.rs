@@ -17,38 +17,43 @@
  * under the License.
  */
 
-#![allow(unused_imports)]
-
-#[macro_use]
-extern crate tvm_frontend as tvm;
 use std::convert::TryInto;
-use tvm::{errors::Error, *};
+use tvm::{
+    errors::Error,
+    runtime::{ArgValue, RetValue},
+    *,
+};
 
 // FIXME
 fn main() {
-    register_global_func! {
-        fn concate_str(args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
-            let mut ret = "".to_string();
-            for arg in args.iter() {
-                let val: &str = arg.try_into()?;
-                ret += val;
-            }
-            Ok(TVMRetValue::from(ret))
+    fn concat_str(args: Vec<ArgValue<'static>>) -> Result<RetValue, Error> {
+        let mut ret = "".to_string();
+        for arg in args.iter() {
+            let val: &str = arg.try_into()?;
+            ret += val;
         }
+        Ok(RetValue::from(ret))
     }
+
     let a = std::ffi::CString::new("a").unwrap();
     let b = std::ffi::CString::new("b").unwrap();
     let c = std::ffi::CString::new("c").unwrap();
-    let mut registered = function::Builder::default();
-    registered.get_function("concate_str");
-    assert!(registered.func.is_some());
-    let ret: String = registered
-        .arg(a.as_c_str())
-        .arg(b.as_c_str())
-        .arg(c.as_c_str())
-        .invoke()
-        .unwrap()
+
+    tvm::function::register_untyped(concat_str, "concat_str".to_owned(), false).unwrap();
+
+    let func = Function::get("concat_str").expect("just registered a function");
+
+    let args = vec![
+        a.as_c_str().into(),
+        b.as_c_str().into(),
+        c.as_c_str().into(),
+    ];
+
+    let ret: String = func
+        .invoke(args)
+        .expect("function call should succeed")
         .try_into()
         .unwrap();
+
     assert_eq!(ret, "abc".to_owned());
 }

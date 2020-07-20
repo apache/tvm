@@ -19,38 +19,27 @@
 
 use std::panic;
 
-use tvm_frontend::{errors::Error, *};
+use tvm::{
+    errors::Error,
+    runtime::{ArgValue, RetValue},
+    *,
+};
 
 fn main() {
-    register_global_func! {
-        fn error(_args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
-            Err(errors::TypeMismatchError{
-                expected: "i64".to_string(),
-                actual: "f64".to_string(),
-            }.into())
+    fn error(_args: Vec<ArgValue<'static>>) -> Result<RetValue, Error> {
+        Err(errors::NDArrayError::DataTypeMismatch {
+            expected: DataType::int(64, 1),
+            actual: DataType::float(64, 1),
         }
+        .into())
     }
 
-    let mut registered = function::Builder::default();
-    registered.get_function("error");
-    assert!(registered.func.is_some());
-    registered.args(&[10, 20]);
+    function::register_untyped(error, "error", true).unwrap();
 
-    println!("expected error message is:");
-    panic::set_hook(Box::new(|panic_info| {
-        // if let Some(msg) = panic_info.message() {
-        //     println!("{:?}", msg);
-        // }
-        if let Some(location) = panic_info.location() {
-            println!(
-                "panic occurred in file '{}' at line {}",
-                location.file(),
-                location.line()
-            );
-        } else {
-            println!("panic occurred but can't get location information");
-        }
-    }));
-
-    let _result = registered.invoke();
+    let func = Function::get("error");
+    assert!(func.is_some());
+    match func.unwrap().invoke(vec![10.into(), 20.into()]) {
+        Err(_) => {}
+        Ok(_) => panic!("expected error"),
+    }
 }

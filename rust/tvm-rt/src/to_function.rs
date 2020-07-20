@@ -242,6 +242,33 @@ pub trait ToFunction<I, O>: Sized {
     }
 }
 
+impl Typed<Vec<ArgValue<'static>>, RetValue> for fn(Vec<ArgValue<'static>>) -> Result<RetValue> {
+    fn args(args: Vec<ArgValue<'static>>) -> Result<Vec<ArgValue<'static>>> {
+        Ok(args)
+    }
+
+    fn ret(o: RetValue) -> Result<RetValue> {
+        Ok(o)
+    }
+}
+
+impl ToFunction<Vec<ArgValue<'static>>, RetValue>
+    for fn(Vec<ArgValue<'static>>) -> Result<RetValue>
+{
+    type Handle = fn(Vec<ArgValue<'static>>) -> Result<RetValue>;
+
+    fn into_raw(self) -> *mut Self::Handle {
+        let ptr: Box<Self::Handle> = Box::new(self);
+        Box::into_raw(ptr)
+    }
+
+    fn call(handle: *mut Self::Handle, args: Vec<ArgValue<'static>>) -> Result<RetValue> {
+        unsafe { (*handle)(args) }
+    }
+
+    fn drop(_: *mut Self::Handle) {}
+}
+
 impl<O, F> ToFunction<(), O> for F
 where
     F: Fn() -> O + 'static,
