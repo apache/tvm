@@ -18,20 +18,20 @@
 Design and Architecture
 =======================
 
-This document is for developers who want to understand the
-architectures of the TVM stack and help to develop the project.
-We organize this page as follows:
+This document is intended for developers who want to understand the
+architecture of TVM and/or actively develop on the project.
+This page is organized as follows:
 
-- The `Example Compilation Flow Walkthrough`_ section contains a guide to walk you through the components used during a compilation.
+- The `Example Compilation Flow Walkthrough`_ section is a walk through of a typical compilation flow explaining each component used during compilation.
 - The `Logical Architecture Components`_ section describes the logical components.
-  The sections after are specific guides about the logical components, organized
+  The sections after are specific guides focused on each logical component, organized
   by the component's name.
 - The `How Tos`_ section contains useful tutorials to solve specific development problems.
 
 This guide provides a few complementary views of the architecture.
-First, we will review an example of end to end compilation flow and discuss the key data structures and the transformations.
-This runtime-based view shows the interactions of the components when running the compiler.
-Then we will review the logical modules of the codebase and their relations. This part provides a more static view of the overall design.
+First, we review a single end to end compilation flow and discuss the key data structures and the transformations.
+This runtime-based view focuses on the interactions of each components when running the compiler.
+Then we will review the logical modules of the codebase and their relationship. This part provides a static overarching view of the design.
 
 To get started, please read the `Example Compilation Flow Walkthrough`_  section first for the runtime-based view.
 You can then refer to the architecture diagram in `Logical Architecture Components`_.
@@ -45,7 +45,7 @@ Example Compilation Flow Walkthrough
 
 In this guide, we will study an example compilation flow in the compiler. The figure below shows the flow. At a high-level, it contains several steps:
 
-- Importation: The frontend component ingests a model into an IRModule, which contains a collection of functions that internally represent the model.
+- Import: The frontend component ingests a model into an IRModule, which contains a collection of functions that internally represent the model.
 - Transformation: The compiler transforms an IRModule to another functionally equivalent or approximately equivalent(e.g. in the case of quantization) IRModule.
 - Target Translation: The compiler translate(codegen) the IRModule to an executable format specified by the target.
   The target translation result is encapsulated as a `runtime.Module` that can be exported, loaded, and executed on the target runtime environment.
@@ -104,14 +104,13 @@ We use search based optimizations to handle the initial tir function generation 
 Target Translation
 ~~~~~~~~~~~~~~~~~~
 
-
-The target translation phase transforms an IRModule to the corresponding target executable format. For backends such as x86, ARM, we will use the LLVM IRBuilder to build in-memory LLVM IR. We can also generate source-level languages such as CUDA C and OpenCL. Finally, we also support the direct translation of a relay function(sub-graph) to external code generators. Importantly, we want to keep the target translation as lightweight as possible and perform most of the lowerings before target translation.
+The target translation phase transforms an IRModule to the corresponding target executable format. For backends such as x86, ARM, we will use the LLVM IRBuilder to build in-memory LLVM IR. We can also generate source-level languages such as CUDA C and OpenCL. Finally, we support the direct translation of a Relay function (sub-graph) for external code generators. Importantly, the final code generation phase should be lightweight as possible with the vast majority of transformations and lowering performed before target translation.
 We also provide a Target structure to specify the compilation target. The transformations before the target translation phase can also be affected by the target — for example, a target's vector length would change the vectorization behavior.
 
 Runtime Execution
 ~~~~~~~~~~~~~~~~~
 
-The main goal of tvm's runtime is to provide a minimum set of APIs to allow a user to load and execute the compiled artifact in their language of choice, including python, c++, rust, go, java, and javascript. The code snippet below shows such an example in python:
+The main goal of TVM's runtime is to provide a minimal API for loading and executing the compiled artifact in a language of their choice, including Python, C++, Rust, Go, Java, and JavaScript. The code snippet below shows such an example in Python:
 
 .. code-block:: python
 
@@ -286,12 +285,12 @@ topi
 ----
 While we can build different kinds of operators directly via tir or tensor expression.
 It is still tedious to do so. `topi` provides a set of pre-defined operators (in tensor expression or tir) in
-numpy and common deep learning workloads. We also provide a collection of common scheduling templates to schedule those operators on different target platforms.
+numpy and found in common deep learning workloads. We also provide a collection of common schedule templates to obtain performant implementations across different target platforms.
 
 
 tvm/relay
 ---------
-Relay is the high-level functional IR used to represent the end to end models. Various optimizations are supported in relay/transform. There are multiple dialects in relay to support specific perspectives of high-level optimization. Notably ones include qnn(for importing pre-quantized models), vm(for lowering to dynamic vm), memory(for memory optimization).
+Relay is the high-level functional IR used to represent full models. Various optimizations are defined in `relay.transform`. The Relay compiler defines multiple dialects, each dialect is designed to support specific styles of optimization. Notable ones include QNN(for importing pre-quantized models), VM(for lowering to dynamic vm), memory(for memory optimization).
 
 .. toctree::
    :maxdepth: 1
@@ -305,13 +304,13 @@ Relay is the high-level functional IR used to represent the end to end models. V
 tvm/autotvm
 -----------
 
-AutoTVM and Autoscheduler are components for automating the search based transformations. This part of the codebase is fast evolving with the following components:
+AutoTVM and AutoScheduler are both components which automate search based program optimization. This is rapidly evolving and primarily consists of: 
 
-- Cost model and feature extraction.
-- Logging format to store the benchmark result.
-- Search policy
+- Cost models and feature extraction.
+- A record format for storing program benchmark results for cost model construction. 
+- A set of search policies over program transformations. 
 
-Automated program optimization is still an active research field. As a result, we try to modularize the design so that researchers can quickly
+Automated program optimization is still an active research field. As a result, we have attempted to modularize the design so that researchers may quickly modify a component or apply their own algorithms via the Python bindings. 
 customize the search and plugin their algorithms from the python binding.
 
 .. toctree::
