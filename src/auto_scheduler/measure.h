@@ -266,6 +266,14 @@ class ProgramRunnerNode : public Object {
  public:
   /*! \brief Timeout of a run. */
   int timeout;
+  /*! \brief The number of times to run the generated code for taking average. */
+  int number;
+  /*! \brief The number of times to repeat the measurement. */
+  int repeat;
+  /*! \brief The minimum duration of one repeat in milliseconds. */
+  int min_repeat_ms;
+  /*! \brief The cool down interval between two measurements. */
+  double cooldown_interval;
 
   /*!
    * \brief Run measurement and return results.
@@ -326,15 +334,6 @@ class LocalBuilder : public ProgramBuilder {
 /*! \brief LocalRunner that uses local CPU/GPU to measures the time cost of programs */
 class LocalRunnerNode : public ProgramRunnerNode {
  public:
-  /*! \brief Number of measure times. */
-  int number;
-  /*! \brief Number of repeat times in each measure. */
-  int repeat;
-  /*! \brief The minimum duration of one repeat in milliseconds. */
-  int min_repeat_ms;
-  /*! \brief The cool down interval between two measurements. */
-  double cooldown_interval;
-
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
                            const Array<BuildResult>& build_results, int verbose) final;
 
@@ -353,14 +352,65 @@ class LocalRunner : public ProgramRunner {
    * for more detailed parameter explaination.
    * \param timeout The timeout limit (in second) for each run.
    * This is used in a wrapper of the multiprocessing.Process.join().
-   * \param number Number of measure times.
-   * \param repeat Number of repeat times in each measure.
+   * \param number The number of times to run the generated code for taking average.
+   * \param repeat The number of times to repeat the measurement.
    * \param min_repeat_ms The minimum duration of one repeat in milliseconds.
    * \param cooldown_interval The cool down interval between two measurements.
    */
   LocalRunner(int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LocalRunner, ProgramRunner, LocalRunnerNode);
+};
+
+/*!
+ * \brief RPCRunner that uses RPC call to measures the time cost of programs on remote devices.
+ * Or sometime we may need to use RPC even in local running to insulate the thread environment.
+ * (e.g. running CUDA programs)
+ */
+class RPCRunnerNode : public ProgramRunnerNode {
+ public:
+  /*! \brief The key of the device registered in the RPC tracker. */
+  String key;
+  /*! \brief The host address of the RPC Tracker. */
+  String host;
+  /*! \brief The port of RPC Tracker. */
+  int port;
+  /*! \brief The priority of this run request, larger is more prior. */
+  int priority;
+  /*! \brief The number of tasks run in parallel. */
+  int n_parallel;
+  /*! \brief The number of times to run the generated code for taking average. */
+
+  Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
+                           const Array<BuildResult>& build_results, int verbose) final;
+
+  static constexpr const char* _type_key = "auto_scheduler.RPCRunner";
+  TVM_DECLARE_FINAL_OBJECT_INFO(RPCRunnerNode, ProgramRunnerNode);
+};
+
+/*!
+ * \brief Managed reference to RPCRunnerNode.
+ * \sa RPCRunnerNode
+ */
+class RPCRunner : public ProgramRunner {
+ public:
+  /*!
+   * \brief The constructor.
+   * \param key The key of the device registered in the RPC tracker.
+   * \param host The host address of the RPC Tracker.
+   * \param prot The port of RPC Tracker.
+   * \param priority The priority of this run request, larger is more prior.
+   * \param n_parallel The number of tasks run in parallel.
+   * \param timeout Timeout of a run.
+   * \param number The number of times to run the generated code for taking average.
+   * \param repeat The number of times to repeat the measurement.
+   * \param min_repeat_ms The minimum duration of one repeat in milliseconds.
+   * \param cooldown_interval The cool down interval between two measurements.
+   */
+  RPCRunner(const String& key, const String& host, int port, int priority, int n_parallel,
+            int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RPCRunner, ProgramRunner, RPCRunnerNode);
 };
 
 /*!
