@@ -54,7 +54,13 @@ def de10nano_bitstream_program(bitstream_path):
     program = get_global_func("vta.de10nano.program")
     program(bitstream_path)
 
-def bitstream_program(target, bitstream):
+def intelfocl_bitstream_program(bitstream_path, mem_size=4*1024*1024*1024):
+    # pylint: disable=import-outside-toplevel
+    from tvm import get_global_func
+    program = get_global_func("vta.intelfocl.program")
+    program(bitstream_path, mem_size)
+
+def bitstream_program(target, bitstream, *args):
     if target in ['pynq', 'ultra96']:
         pynq_bitstream_program(bitstream)
     elif target in ['de10nano']:
@@ -62,6 +68,8 @@ def bitstream_program(target, bitstream):
     elif target in ['sim', 'tsim']:
         # In simulation, bit stream programming is a no-op
         return
+    elif target in ['intelfocl']:
+        intelfocl_bitstream_program(bitstream, *args)
     else:
         raise RuntimeError("Unknown target {}".format(target))
 

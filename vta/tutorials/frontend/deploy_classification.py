@@ -129,6 +129,10 @@ if env.TARGET not in ["sim", "tsim", "intelfocl"]:
 else:
     remote = rpc.LocalSession()
 
+    if env.TARGET in ["intelfocl"]:
+        # program intelfocl aocx
+        vta.program_fpga(remote, bitstream="vta_opencl.aocx")
+
 # Get execution context from remote
 ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 
