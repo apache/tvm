@@ -189,6 +189,8 @@ set(USE_DNNL_CODEGEN OFF)
 # This is useful for cases where you want to cross-compile a relay graph
 # on x86 then run on AArch.
 #
+# An example of how to use this can be found here: docs/deploy/arm_compute_lib.rst.
+#
 # USE_ARM_COMPUTE_LIB - Support for compiling a relay graph offloading supported
 #                       operators to Arm Compute Library. OFF/ON
 # USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME - Run Arm Compute Library annotated functions via the ACL

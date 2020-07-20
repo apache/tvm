@@ -38,7 +38,7 @@ runtime module on an x86 machine.
   compute the ACL offloaded functions.
 
 These flags can be used in different scenarios depending on your setup. For example, if you want
-to compile ACL on an x86 machine and then run the module on a remote Arm device via RPC, you will
+to compile an ACL module on an x86 machine and then run the module on a remote Arm device via RPC, you will
 need to use USE_ARM_COMPUTE_LIB=ON on the x86 machine and USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME=ON on the remote
 AArch64 device.
 
@@ -77,7 +77,7 @@ Annotate and partition the graph for ACL.
 ..code:: python
 
     from tvm.relay.op.contrib.arm_compute_lib import partition_for_arm_compute_lib
-    partition_for_arm_compute_lib(module)
+    module = partition_for_arm_compute_lib(module)
 
 
 Build the Relay graph.
@@ -98,8 +98,9 @@ Export the module.
     lib.export_library(lib_path, cc=cross_compile)
 
 
-Run Inference. This must be on an Arm device. If compiling on x86 device and running on aarch64,
-consider using the RPC mechanism.
+Run Inference. This must be on an Arm device. If compiling on x86 device and running on AArch64,
+consider using the RPC mechanism. Tutorials for using the RPC mechanism:
+https://tvm.apache.org/docs/tutorials/cross_compilation_and_rpc.html#sphx-glr-tutorials-cross-compilation-and-rpc-py
 
 .. code:: python
 
@@ -130,7 +131,7 @@ There are a series of files we need to make changes to:
 * `python/relay/op/contrib/arm_compute_lib.py` In this file we define the operators we wish to offload using the
 `op.register` decorator. This will mean the annotation pass recognizes this operator as ACL
 offloadable.
-* `src/relay/backend/contrib/arm_compute_lib/codegen_acl.h` Implement `Make[OpName]` method. This is where we
+* `src/relay/backend/contrib/arm_compute_lib/codegen.cc` Implement `Create[OpName]JSONNode` method. This is where we
 declare how the operator should be represented by JSON. This will be used to create the ACL module.
 * `src/runtime/contrib/arm_compute_lib/acl_kernel.h` Implement `Create[OpName]Layer` method. This is where we
 define how the JSON representation can be used to create an ACL function. We simply define how to

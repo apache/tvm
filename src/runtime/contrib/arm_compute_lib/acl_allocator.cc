@@ -37,7 +37,7 @@ void ACLAllocator::free(void* ptr) { this->device_api_->FreeWorkspace(this->ctx_
 
 std::unique_ptr<arm_compute::IMemoryRegion> ACLAllocator::make_region(size_t size,
                                                                       size_t alignment) {
-  return arm_compute::support::cpp14::make_unique<ACLMemoryRegion>(size, alignment);
+  return std::make_unique<ACLMemoryRegion>(size, alignment);
 }
 
 ACLMemoryRegion::ACLMemoryRegion(size_t size, size_t alignment)
