@@ -229,7 +229,7 @@ class ManifestAllocPass(ExprMutator):
         else:
             # constant output shape
             shape = [int(dim) for dim in ret_type.shape]
-            shape_expr = expr.const(np.array(shape), dtype=self.compute_dtype)
+            shape_expr = expr.const(shape, dtype=self.compute_dtype)
         return self.reshape_tensor(new_args[0], shape_expr, ret_type.shape)
 
     def is_dynamic(self, ret_type):
