@@ -92,7 +92,7 @@ struct StageAttributes {
 
 /*!
  * \brief A op stage in the compute declaration.
- * Similar to te::Stage in `include/schedule.h`.
+ * Similar to te::Stage in `include/tvm/te/schedule.h`.
  */
 class StageNode : public Object {
  public:

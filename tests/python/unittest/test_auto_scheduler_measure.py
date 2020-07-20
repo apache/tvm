@@ -60,7 +60,7 @@ def test_record():
     s.parallel(C, s[C].iters[0])
     # Thread bind(The blockIdx & threadIdx are used in GPU, just for record testing here)
     s.bind(C, s[C].iters[1], "blockIdx.x")
-    s.bind(C, s[C].iters[2], "threadIdx.y")
+    s.bind(C, s[C].iters[2], "threadIdx.z")
     s.bind(C, s[C].iters[3], "vthread")
     # Unroll
     s.unroll(C, s[C].iters[4])

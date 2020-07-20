@@ -261,24 +261,9 @@ Iterator State::bind(int stage_id, const Iterator& it, IteratorAnnotation thread
 void State::ApplySteps(const ComputeDAG& dag) {
   CHECK(operator->()->stages.size()) << "Invalid State with empty operation stages.";
 
+  // Call each step's ApplyToState method
   for (const auto& step : operator->()->transform_steps) {
-    if (auto ps = step.as<ReorderStepNode>()) {
-      ps->ApplyToState(this);
-    } else if (auto ps = step.as<ComputeAtStepNode>()) {
-      ps->ApplyToState(this);
-    } else if (auto ps = step.as<ComputeRootStepNode>()) {
-      ps->ApplyToState(this);
-    } else if (auto ps = step.as<ComputeInlineStepNode>()) {
-      ps->ApplyToState(this);
-    } else if (auto ps = step.as<SplitStepNode>()) {
-      ps->ApplyToState(this);
-    } else if (auto ps = step.as<FuseStepNode>()) {
-      ps->ApplyToState(this);
-    } else if (auto ps = step.as<AnnotationStepNode>()) {
-      ps->ApplyToState(this);
-    } else {
-      LOG(FATAL) << "Invalid step: " << step;
-    }
+    StepApplyToState(step, this, dag);
   }
 }
 

@@ -270,27 +270,9 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
   }
 
   // Apply the history steps to TVM schedule
+  // Call each step's ApplyToSchedule method
   for (const auto& step : transform_steps) {
-    // Call each step's ApplyToSchedule method
-    // Note: some steps have extra parameters that must be passed and they may need different
-    // return value, so the ApplyToSchedule is not able to be merged to single interface
-    if (auto ps = step.as<ReorderStepNode>()) {
-      ps->ApplyToSchedule(stages, stage_to_axes);
-    } else if (auto ps = step.as<ComputeAtStepNode>()) {
-      ps->ApplyToSchedule(stages, stage_to_axes);
-    } else if (auto ps = step.as<ComputeRootStepNode>()) {
-      ps->ApplyToSchedule(stages, stage_to_axes);
-    } else if (auto ps = step.as<ComputeInlineStepNode>()) {
-      ps->ApplyToSchedule(stages, stage_to_axes);
-    } else if (auto ps = step.as<SplitStepNode>()) {
-      ps->ApplyToSchedule(stages, stage_to_axes);
-    } else if (auto ps = step.as<FuseStepNode>()) {
-      ps->ApplyToSchedule(stages, stage_to_axes);
-    } else if (auto ps = step.as<AnnotationStepNode>()) {
-      ps->ApplyToSchedule(stages, stage_to_axes);
-    } else {
-      LOG(FATAL) << "Invalid Step";
-    }
+    StepApplyToSchedule(step, stages, stage_to_axes);
   }
 
   return std::make_pair(schedule, operator->()->tensors);
@@ -334,23 +316,7 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
   }
   // Call each step's ApplyToPythonAPI method
   for (const auto& step : transform_steps) {
-    if (auto ps = step.as<ReorderStepNode>()) {
-      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
-    } else if (auto ps = step.as<ComputeAtStepNode>()) {
-      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
-    } else if (auto ps = step.as<ComputeRootStepNode>()) {
-      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
-    } else if (auto ps = step.as<ComputeInlineStepNode>()) {
-      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
-    } else if (auto ps = step.as<SplitStepNode>()) {
-      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
-    } else if (auto ps = step.as<FuseStepNode>()) {
-      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
-    } else if (auto ps = step.as<AnnotationStepNode>()) {
-      ss << ps->ApplyToPythonAPI(&stages, &stage_to_axes);
-    } else {
-      LOG(FATAL) << "Invalid Step";
-    }
+    ss << StepApplyToPythonAPI(step, &stages, &stage_to_axes);
   }
 
   return ss.str();

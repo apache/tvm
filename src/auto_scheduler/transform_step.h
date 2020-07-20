@@ -20,23 +20,27 @@
 /*!
  * \file auto_scheduler/transform_step.h
  * \brief Transformation steps. For each schedule primitive, there is a corresponding transform
- * step. The implementation of each step consists of 2 parts:
- * - transform_step.cc: How each step interacts with TE and TE's schedule primitives
- * - loop_state.cc:     How each step updates LoopState
+ * step.
  *
  * \note To add a new transform step:
  * Take fuse step for example:
- * 1. Define class `FuseStepNode`, `FuseStep` in `transform_steps.h`, and implement its construction
- *    function `FuseStep::FuseStep(...)` in `transform_steps.cc`
- * 2. Implement `FuseStepNode::ApplyToSchedule` and `FuseStepNode::ApplyToPythonAPI`.
+ * 1. Define class `FuseStepNode`, `FuseStep` in `transform_steps.h`, and implement its first
+ *    construction function `FuseStep::FuseStep()` in `transform_steps.cc`.
+ * 2. Implement `FuseStepNode::ApplyToSchedule()` and `FuseStepNode::ApplyToPythonAPI()`.
  *    - In these two functions you need to lower this step with tvm's te schedule API
- * 3. Implement `State::fuse` and `State::DoFuseStep`.
+ * 3. Implement `FuseStepNode::ApplyToState` and the state API `State::fuse`.
  *    - In these two functions you need to incrementally update all data structures in State with
- *      CopyOnWrite style
- * 4. Add you step to `ComputeDAG::ApplySteps` and make sure it works.
- * 5. Add log record serialization support in `struct Handler<Array<::tvm::auto_scheduler::Step>>`
- *    in `record.cc`.
- * 6. Add its corresponding Python API to `loop_state.py` and necessary unit test.
+ *      CopyOnWrite style.
+ * 4. Add your step implementation to `StepApplyToState`, `StepApplyToSchedule` and
+ *    `StepApplyToPythonAPI`, make sure it works.
+ * 5. Log record serialization support:
+ *    - Add `FuseStepNode::WriteToRecord` which takes a mutable JSONWriter pointer as input and
+ *      output the record to it.
+ *    - Add another construction function that takes a mutable JSONReader as input, this will get a
+ *      step record from the reader and create the step.
+ *    - Add the step implementation to `StepReadFromRecord`.
+ * 6. Add its corresponding Python API to `loop_state.py` and necessary unit test, the test should
+ *    at lease consists of two parts: the functional test and the record serialization test.
  */
 
 #ifndef TVM_AUTO_SCHEDULER_TRANSFORM_STEP_H_
@@ -140,8 +144,6 @@ class Iterator : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(Iterator, ObjectRef, IteratorNode);
 };
 
-class State;
-
 /*!
  * \brief The base class of transformation steps. Each step has its corresponding tvm.te
  * schedule primitives.
@@ -170,11 +172,171 @@ class Step : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Step, ObjectRef, StepNode);
 };
 
+// Forward declaration
+class State;
+class ComputeDAG;
+
 /*!
  * \brief Read a step record from JSONReader and create the corresponding step.
  * \param reader The input JSONReader.
  */
 Step StepReadFromRecord(dmlc::JSONReader* reader);
+
+/*!
+ * \brief Apply the step to State.
+ * \param step The step to be applied to State.
+ * \param state A mutable pointer to State.
+ * \param dag The original ComputeDAG of this state.
+ * \return The iterator result after annotate.
+ */
+void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag);
+
+/*!
+ * \brief Apply the step to tvm.schedule.
+ * \param step The step to be applied to tvm.schedule.
+ * \param stages A pointer to a `te::Stage` Array.
+ * \param stage_to_axes A pointer to a StageToAxesMap.
+ */
+void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxesMap* stage_to_axes);
+
+/*!
+ * \brief Print the step as equivalent python schedule API.
+ * \param step The step to be applied to python API.
+ * \param stages A pointer to a `te::Stage` Array.
+ * \param stage_to_axes A pointer to a StageToAxesMap.
+ * \return Python schedule code.
+ */
+String StepApplyToPythonAPI(const Step& step, Array<te::Stage>* stages,
+                            StageToAxesMap* stage_to_axes);
+
+/********** Primitives working on single stage **********/
+
+/*!
+ * \brief Annotation step that corresponds to vectorize, parallel, unroll and thread binding.
+ * (i.e. te::Stage::vectorize, te::Stage::parallel, te::Stage::vectorize, te::Stage::bind)
+ */
+class AnnotationStepNode : public StepNode {
+ public:
+  /*! \brief The index of the iterator to add annotation. */
+  int iter_id;
+  /*! \brief The annotation type of this step. */
+  IteratorAnnotation annotation;
+
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
+
+  /*!
+   * \brief Apply the current step to State.
+   * \param state A mutable pointer to State.
+   * \return The iterator result after annotate.
+   */
+  Iterator ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   */
+  void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+
+  /*!
+   * \brief Print the current step as equivalent python schedule API.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \return Python schedule code.
+   */
+  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+
+  static constexpr const char* record_prefix_str = "AN";
+
+  static constexpr const char* _type_key = "auto_scheduler.AnnotationStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AnnotationStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to AnnotationStepNode.
+ * \sa AnnotationStepNode
+ */
+class AnnotationStep : public Step {
+ public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to add annotation.
+   * \param iter_id The index of the iterator to add annotation.
+   * \param ann The annotation type of this step.
+   */
+  AnnotationStep(int stage_id, int iter_id, IteratorAnnotation ann);
+
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit AnnotationStep(dmlc::JSONReader* reader);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(AnnotationStep, Step, AnnotationStepNode);
+};
+
+/*! \brief Fuse step that corresponds to te::Stage::fuse */
+class FuseStepNode : public StepNode {
+ public:
+  /*! \brief The ids of iterators to fuse. */
+  Array<Integer> fused_ids;
+
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
+
+  /*!
+   * \brief Apply the current step to State.
+   * \param state A mutable pointer to State.
+   * \return The iterator result after fuse.
+   * \note If the iterators to be fused have stages attached at them(by compute_at), the fused
+   * result will become the new attach point.
+   */
+  Iterator ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \return The iterator result after fuse.
+   */
+  tir::IterVar ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+
+  /*!
+   * \brief Print the current step as equivalent python schedule API.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \return Python schedule code.
+   */
+  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+
+  static constexpr const char* record_prefix_str = "FU";
+
+  static constexpr const char* _type_key = "auto_scheduler.FuseStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FuseStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to FuseStepNode.
+ * \sa FuseStepNode
+ */
+class FuseStep : public Step {
+ public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to be fused.
+   * \param fused_ids The index of the iterators to be fused.
+   */
+  FuseStep(int stage_id, const Array<Integer>& fused_ids);
+
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit FuseStep(dmlc::JSONReader* reader);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(FuseStep, Step, FuseStepNode);
+};
 
 /*! \brief Reorder step that corresponds to te::Stage::reorder */
 class ReorderStepNode : public StepNode {
@@ -188,20 +350,20 @@ class ReorderStepNode : public StepNode {
   void WriteToRecord(dmlc::JSONWriter* writer) const final;
 
   /*!
-   * \brief Apply the current step to State
+   * \brief Apply the current step to State.
    * \param state A mutable pointer to State.
    */
   void ApplyToState(State* state) const;
 
   /*!
-   * \brief Apply the current step to tvm.schedule
+   * \brief Apply the current step to tvm.schedule.
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    */
   void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   /*!
-   * \brief Print step as equivalent python schedule API.
+   * \brief Print the current step as equivalent python schedule API.
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
@@ -237,184 +399,6 @@ class ReorderStep : public Step {
   TVM_DEFINE_OBJECT_REF_METHODS(ReorderStep, Step, ReorderStepNode);
 };
 
-/*! \brief Compute at step that corresponds to te::Stage::compute_at */
-class ComputeAtStepNode : public StepNode {
- public:
-  /*! \brief The index of stage that this step will compute at to. */
-  int target_stage_id;
-  /*! \brief The index of iterator in target stage that this step will compute at to. */
-  int target_iter_id;
-
-  void WriteToRecord(dmlc::JSONWriter* writer) const final;
-
-  /*!
-   * \brief Apply the current step to State
-   * \param state A mutable pointer to State.
-   * \note After compute_at, we need careful dependency analysis to compute the accurate bound
-   * information. However, it is relatively expensive and complicated, so we just fill "None" as
-   * bound for the newly created iterators.
-   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
-   */
-  void ApplyToState(State* state) const;
-
-  /*!
-   * \brief Apply the current step to tvm.schedule
-   * \param stages A pointer to a `te::Stage` Array.
-   * \param stage_to_axes A pointer to a StageToAxesMap.
-   */
-  void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
-
-  /*!
-   * \brief Print step as equivalent python schedule API.
-   * \param stages A pointer to a `te::Stage` Array.
-   * \param stage_to_axes A pointer to a StageToAxesMap.
-   * \return Python schedule code.
-   */
-  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
-
-  static constexpr const char* record_prefix_str = "CA";
-
-  static constexpr const char* _type_key = "auto_scheduler.ComputeAtStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeAtStepNode, Object);
-};
-
-/*!
- * \brief Managed reference to ComputeAtStepNode.
- * \sa ComputeAtStepNode
- */
-class ComputeAtStep : public Step {
- public:
-  /*!
-   * \brief The constructor.
-   * \param stage_id The index of the stage to be compute at.
-   * \param target_stage_id The index of stage that this step will compute at to.
-   * \param target_iter_id The index of iterator in target stage that this step will compute at to.
-   */
-  ComputeAtStep(int stage_id, int target_stage_id, int target_iter_id);
-
-  /*!
-   * \brief The constructor used to read a step record from JSONReader and create the
-   * corresponding step.
-   * \param reader The input JSONReader.
-   */
-  explicit ComputeAtStep(dmlc::JSONReader* reader);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ComputeAtStep, Step, ComputeAtStepNode);
-};
-
-/*! \brief Compute root step that corresponds to te::Stage::compute_root */
-class ComputeRootStepNode : public StepNode {
- public:
-  void WriteToRecord(dmlc::JSONWriter* writer) const final;
-
-  /*!
-   * \brief Apply the current step to State
-   * \param state A mutable pointer to State.
-   * \note After compute_at, we need careful dependency analysis to compute the accurate bound
-   * information. However, it is relatively expensive and complicated, so we just fill "None" as
-   * bound for the newly created iterators.
-   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
-   */
-  void ApplyToState(State* state) const;
-
-  /*!
-   * \brief Apply the current step to tvm.schedule
-   * \param stages A pointer to a `te::Stage` Array.
-   * \param stage_to_axes A pointer to a StageToAxesMap.
-   * \return The iterator result after fuse.
-   */
-  void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
-
-  /*!
-   * \brief Print step as equivalent python schedule API.
-   * \param stages A pointer to a `te::Stage` Array.
-   * \param stage_to_axes A pointer to a StageToAxesMap.
-   * \return Python schedule code.
-   */
-  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
-
-  static constexpr const char* record_prefix_str = "CR";
-
-  static constexpr const char* _type_key = "auto_scheduler.ComputeRootStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeRootStepNode, Object);
-};
-
-/*!
- * \brief Managed reference to ComputeRootStepNode.
- * \sa ComputeRootStepNode
- */
-class ComputeRootStep : public Step {
- public:
-  /*!
-   * \brief The constructor.
-   * \param stage_id The index of the stage to be compute root
-   */
-  explicit ComputeRootStep(int stage_id);
-
-  /*!
-   * \brief The constructor used to read a step record from JSONReader and create the
-   * corresponding step.
-   * \param reader The input JSONReader.
-   */
-  explicit ComputeRootStep(dmlc::JSONReader* reader);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ComputeRootStep, Step, ComputeRootStepNode);
-};
-
-/*! \brief Compute inline step that corresponds to te::Stage::compute_inline */
-class ComputeInlineStepNode : public StepNode {
- public:
-  void WriteToRecord(dmlc::JSONWriter* writer) const final;
-  /*!
-   * \brief Apply the current step to State
-   * \param state A mutable pointer to State.
-   */
-  void ApplyToState(State* state) const;
-
-  /*!
-   * \brief Apply the current step to tvm.schedule
-   * \param stages A pointer to a `te::Stage` Array.
-   * \param stage_to_axes A pointer to a StageToAxesMap.
-   * \return The iterator result after fuse.
-   */
-  void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
-
-  /*!
-   * \brief Print step as equivalent python schedule API.
-   * \param stages A pointer to a `te::Stage` Array.
-   * \param stage_to_axes A pointer to a StageToAxesMap.
-   * \return Python schedule code.
-   */
-  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
-
-  static constexpr const char* record_prefix_str = "CI";
-
-  static constexpr const char* _type_key = "auto_scheduler.ComputeInlineStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeInlineStepNode, Object);
-};
-
-/*!
- * \brief Managed reference to ComputeInlineStepNode.
- * \sa ComputeInlineStepNode
- */
-class ComputeInlineStep : public Step {
- public:
-  /*!
-   * \brief The constructor.
-   * \param stage_id The index of the stage to be compute inline.
-   */
-  explicit ComputeInlineStep(int stage_id);
-
-  /*!
-   * \brief The constructor used to read a step record from JSONReader and create the
-   * corresponding step.
-   * \param reader The input JSONReader.
-   */
-  explicit ComputeInlineStep(dmlc::JSONReader* reader);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ComputeInlineStep, Step, ComputeInlineStepNode);
-};
-
 /*!
  * \brief Split step that corresponds to te::Stage::split with additional
  *  support of multiple-level of factors
@@ -434,8 +418,9 @@ class SplitStepNode : public StepNode {
   bool inner_to_outer;
 
   void WriteToRecord(dmlc::JSONWriter* writer) const final;
+
   /*!
-   * \brief Apply the current step to State
+   * \brief Apply the current step to State.
    * \param state A mutable pointer to State.
    * \return The iterator results after split.
    * \note If we do split on an iterator which has stages attached at it(by compute_at), the inner
@@ -444,7 +429,7 @@ class SplitStepNode : public StepNode {
   Array<Iterator> ApplyToState(State* state) const;
 
   /*!
-   * \brief Apply the current step to tvm.schedule
+   * \brief Apply the current step to tvm.schedule.
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return The iterator results after split.
@@ -453,7 +438,7 @@ class SplitStepNode : public StepNode {
                                       StageToAxesMap* stage_to_axes) const;
 
   /*!
-   * \brief Print step as equivalent python schedule API.
+   * \brief Print the current step as equivalent python schedule API.
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
@@ -493,88 +478,86 @@ class SplitStep : public Step {
   TVM_DEFINE_OBJECT_REF_METHODS(SplitStep, Step, SplitStepNode);
 };
 
-/*! \brief Fuse step that corresponds to te::Stage::fuse */
-class FuseStepNode : public StepNode {
+/********** Primitives working on multiple stages **********/
+
+/*! \brief Compute at step that corresponds to te::Stage::compute_at */
+class ComputeAtStepNode : public StepNode {
  public:
-  /*! \brief The ids of iterators to fuse. */
-  Array<Integer> fused_ids;
+  /*! \brief The index of stage that this step will compute at to. */
+  int target_stage_id;
+  /*! \brief The index of iterator in target stage that this step will compute at to. */
+  int target_iter_id;
 
   void WriteToRecord(dmlc::JSONWriter* writer) const final;
-  /*!
-   * \brief Apply the current step to State
-   * \param state A mutable pointer to State.
-   * \return The iterator result after fuse.
-   * \note If the iterators to be fused have stages attached at them(by compute_at), the fused
-   * result will become the new attach point.
-   */
-  Iterator ApplyToState(State* state) const;
 
   /*!
-   * \brief Apply the current step to tvm.schedule
+   * \brief Apply the current step to State.
+   * \param state A mutable pointer to State.
+   * \note After compute_at, we need careful dependency analysis to compute the accurate bound
+   * information. However, it is relatively expensive and complicated, so we just fill "None" as
+   * bound for the newly created iterators.
+   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
+   */
+  void ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule.
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
-   * \return The iterator result after fuse.
    */
-  tir::IterVar ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   /*!
-   * \brief Print step as equivalent python schedule API.
+   * \brief Print the current step as equivalent python schedule API.
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
   String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
-  static constexpr const char* record_prefix_str = "FU";
+  static constexpr const char* record_prefix_str = "CA";
 
-  static constexpr const char* _type_key = "auto_scheduler.FuseStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FuseStepNode, Object);
+  static constexpr const char* _type_key = "auto_scheduler.ComputeAtStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeAtStepNode, Object);
 };
 
 /*!
- * \brief Managed reference to FuseStepNode.
- * \sa FuseStepNode
+ * \brief Managed reference to ComputeAtStepNode.
+ * \sa ComputeAtStepNode
  */
-class FuseStep : public Step {
+class ComputeAtStep : public Step {
  public:
   /*!
    * \brief The constructor.
-   * \param stage_id The index of the stage to be fused.
-   * \param fused_ids The index of the iterators to be fused.
+   * \param stage_id The index of the stage to be compute at.
+   * \param target_stage_id The index of stage that this step will compute at to.
+   * \param target_iter_id The index of iterator in target stage that this step will compute at to.
    */
-  FuseStep(int stage_id, const Array<Integer>& fused_ids);
+  ComputeAtStep(int stage_id, int target_stage_id, int target_iter_id);
 
   /*!
    * \brief The constructor used to read a step record from JSONReader and create the
    * corresponding step.
    * \param reader The input JSONReader.
    */
-  explicit FuseStep(dmlc::JSONReader* reader);
+  explicit ComputeAtStep(dmlc::JSONReader* reader);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(FuseStep, Step, FuseStepNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(ComputeAtStep, Step, ComputeAtStepNode);
 };
 
-/*!
- * \brief Annotation step that corresponds to vectorize, parallel, unroll and thread binding.
- * (i.e. te::Stage::vectorize, te::Stage::parallel, te::Stage::vectorize, te::Stage::bind)
- */
-class AnnotationStepNode : public StepNode {
+/*! \brief Compute inline step that corresponds to te::Stage::compute_inline */
+class ComputeInlineStepNode : public StepNode {
  public:
-  /*! \brief The index of the iterator to add annotation. */
-  int iter_id;
-  /*! \brief The annotation type of this step. */
-  IteratorAnnotation annotation;
-
   void WriteToRecord(dmlc::JSONWriter* writer) const final;
-  /*!
-   * \brief Apply the current step to State
-   * \param state A mutable pointer to State.
-   * \return The iterator result after annotate.
-   */
-  Iterator ApplyToState(State* state) const;
 
   /*!
-   * \brief Apply the current step to tvm.schedule
+   * \brief Apply the current step to State.
+   * \param state A mutable pointer to State.
+   */
+  void ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule.
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return The iterator result after fuse.
@@ -582,41 +565,98 @@ class AnnotationStepNode : public StepNode {
   void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   /*!
-   * \brief Print step as equivalent python schedule API.
+   * \brief Print the current step as equivalent python schedule API.
    * \param stages A pointer to a `te::Stage` Array.
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
   String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
-  static constexpr const char* record_prefix_str = "AN";
+  static constexpr const char* record_prefix_str = "CI";
 
-  static constexpr const char* _type_key = "auto_scheduler.AnnotationStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AnnotationStepNode, Object);
+  static constexpr const char* _type_key = "auto_scheduler.ComputeInlineStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeInlineStepNode, Object);
 };
 
 /*!
- * \brief Managed reference to AnnotationStepNode.
- * \sa AnnotationStepNode
+ * \brief Managed reference to ComputeInlineStepNode.
+ * \sa ComputeInlineStepNode
  */
-class AnnotationStep : public Step {
+class ComputeInlineStep : public Step {
  public:
   /*!
    * \brief The constructor.
-   * \param stage_id The index of the stage to add annotation.
-   * \param iter_id The index of the iterator to add annotation.
-   * \param ann The annotation type of this step.
+   * \param stage_id The index of the stage to be compute inline.
    */
-  AnnotationStep(int stage_id, int iter_id, IteratorAnnotation ann);
+  explicit ComputeInlineStep(int stage_id);
 
   /*!
    * \brief The constructor used to read a step record from JSONReader and create the
    * corresponding step.
    * \param reader The input JSONReader.
    */
-  explicit AnnotationStep(dmlc::JSONReader* reader);
+  explicit ComputeInlineStep(dmlc::JSONReader* reader);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(AnnotationStep, Step, AnnotationStepNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(ComputeInlineStep, Step, ComputeInlineStepNode);
+};
+
+/*! \brief Compute root step that corresponds to te::Stage::compute_root */
+class ComputeRootStepNode : public StepNode {
+ public:
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
+
+  /*!
+   * \brief Apply the current step to State.
+   * \param state A mutable pointer to State.
+   * \note After compute_at, we need careful dependency analysis to compute the accurate bound
+   * information. However, it is relatively expensive and complicated, so we just fill "None" as
+   * bound for the newly created iterators.
+   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
+   */
+  void ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \return The iterator result after fuse.
+   */
+  void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+
+  /*!
+   * \brief Print the current step as equivalent python schedule API.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \return Python schedule code.
+   */
+  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+
+  static constexpr const char* record_prefix_str = "CR";
+
+  static constexpr const char* _type_key = "auto_scheduler.ComputeRootStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeRootStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to ComputeRootStepNode.
+ * \sa ComputeRootStepNode
+ */
+class ComputeRootStep : public Step {
+ public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to be compute root
+   */
+  explicit ComputeRootStep(int stage_id);
+
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit ComputeRootStep(dmlc::JSONReader* reader);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ComputeRootStep, Step, ComputeRootStepNode);
 };
 
 }  // namespace auto_scheduler
