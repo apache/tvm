@@ -103,6 +103,9 @@ class HoistCandidateSelector final : public StmtExprVisitor {
     // Check if it is first for loop, then start the recorder
     if (!RecordingComplete()) {
       StartOrAddRecord(op);
+      StmtExprVisitor::VisitStmt_(op);
+      RemoveRecord(op);
+      return;
     }
 
     StmtExprVisitor::VisitStmt_(op);
@@ -111,20 +114,32 @@ class HoistCandidateSelector final : public StmtExprVisitor {
   void VisitStmt_(const SeqStmtNode* op) final {
     // If SeqStmt is encountered in the middle of recording
     //  then need to purge all, as it can not be hoisted
-    if (is_recorder_on) {
+    if (IsRecordingOn()) {
       ResetRecorder();
     }
     StmtExprVisitor::VisitStmt_(op);
   }
 
+  void VisitStmt_(const AttrStmtNode* op) final {
+    // Maintain list of all vars in AttrStmt
+    // To stop hoisting if any of the block variables are used.
+    //
+    // NOTE: If in future
+    // hoisting is required for any specific case,
+    // then add exception to only those case
+    // rather than allowing for all.
+    UpdateAttrVarList(op);
+    StmtExprVisitor::VisitStmt_(op);
+    RemoveAttrVarList(op);
+  }
+
   void VisitStmt_(const IfThenElseNode* op) final {
-    if (is_recorder_on) {
+    if (IsRecordingOn()) {
       is_if_cond = true;
       StmtExprVisitor::VisitExpr(op->condition);
       is_if_cond = false;
-      if (!CheckValidIf()) {
-        ResetRecorder();
-      } else {
+
+      if (CheckValidIf()) {
         // Check corresponding for loop
         bool match_found = false;
         size_t match_for_loop_pos = 0;
@@ -149,7 +164,11 @@ class HoistCandidateSelector final : public StmtExprVisitor {
         }
       }
       if_var_list_.clear();
+      StmtExprVisitor::VisitStmt_(op);
+      StopRecording();
+      return;
     }
+
     StmtExprVisitor::VisitStmt_(op);
   }
 
@@ -157,14 +176,15 @@ class HoistCandidateSelector final : public StmtExprVisitor {
     if (is_if_cond) {
       if_var_list_.emplace_back(op);
     }
-    StmtExprVisitor::VisitExpr_(op);
   }
 
   HoistForIfTuple hoist_for_if_recorder;
 
   void ResetRecorder() {
-    CHECK_GT(ordered_for_list_.size(), 0);
-    is_recorder_on = false;
+    if (is_recorder_on) {
+      CHECK_GT(ordered_for_list_.size(), 0);
+      is_recorder_on = false;
+    }
     ordered_for_list_.clear();
     var_for_map_.clear();
     hoist_for_if_recorder = std::make_tuple(false, nullptr, nullptr);
@@ -181,7 +201,7 @@ class HoistCandidateSelector final : public StmtExprVisitor {
 
  private:
   bool CheckValidIf() {
-    if (if_var_list_.size() > ordered_for_list_.size()) {
+    if (CheckAttrVar()) {
       return false;
     }
     return true;
@@ -208,6 +228,12 @@ class HoistCandidateSelector final : public StmtExprVisitor {
 
   void InitRecorder() { hoist_for_if_recorder = std::make_tuple(false, nullptr, nullptr); }
 
+  void StopRecording() {
+    if (is_recorder_on) is_recorder_on = false;
+  }
+
+  bool IsRecordingOn() { return is_recorder_on; }
+
   void StartOrAddRecord(const ForNode* op) {
     if (!is_recorder_on) is_recorder_on = true;
     if (!var_for_map_.count(op->loop_var.get())) {
@@ -216,14 +242,43 @@ class HoistCandidateSelector final : public StmtExprVisitor {
     ordered_for_list_.emplace_back(op);
   }
 
+  void RemoveRecord(const ForNode* op) {
+    StopRecording();
+    var_for_map_.erase(op->loop_var.get());
+    if (ordered_for_list_.size() > 0) ordered_for_list_.pop_back();
+  }
+
   void StopAndAddRecord(const ForNode* for_node, const IfThenElseNode* if_node) {
     hoist_for_if_recorder = std::make_tuple(true, for_node, if_node);
-    is_recorder_on = false;
+    StopRecording();
+  }
+
+  void UpdateAttrVarList(const AttrStmtNode* op) {
+    if (const auto* iv = op->node.as<IterVarNode>()) {
+      attr_var_list_.insert(iv->var.get());
+    }
+  }
+
+  void RemoveAttrVarList(const AttrStmtNode* op) {
+    if (const auto* iv = op->node.as<IterVarNode>()) {
+      attr_var_list_.erase(iv->var.get());
+    }
+  }
+
+  bool CheckAttrVar() {
+    for (auto var : if_var_list_) {
+      if (attr_var_list_.count(var)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   std::vector<const ForNode*> ordered_for_list_;
 
   std::vector<const VarNode*> if_var_list_;
+
+  std::unordered_set<const VarNode*> attr_var_list_;
 
   VarForMap var_for_map_;
 
@@ -238,11 +293,13 @@ class IfThenElseHoister : public StmtMutator {
   Stmt VisitAndMutate(Stmt stmt) {
     hoist_selector(stmt);
     Stmt stmt_copy = std::move(stmt);
+
     while (hoist_selector.RecordingComplete()) {
       target_for = hoist_selector.GetTargetForNode();
       target_if = hoist_selector.GetTargetIfNode();
 
       stmt_copy = operator()(stmt_copy);
+
       hoist_selector.ResetRecorder();
       hoist_selector(stmt_copy);
     }
