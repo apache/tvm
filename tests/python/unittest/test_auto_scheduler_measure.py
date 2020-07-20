@@ -59,7 +59,7 @@ def test_measure_local_builder_runner():
 
     minp = auto_scheduler.MeasureInput(task, s0)
     local_builder = auto_scheduler.LocalBuilder()
-    local_runner = auto_scheduler.LocalRunner()
+    local_runner = auto_scheduler.LocalRunner(timeout=60)
 
     bress = local_builder.build([minp])
     assert bress[0].error_no == 0
@@ -77,7 +77,7 @@ def test_measure_local_builder_rpc_runner():
 
     minp = auto_scheduler.MeasureInput(task, s0)
     local_builder = auto_scheduler.LocalBuilder()
-    measure_ctx = auto_scheduler.LocalRPCMeasureContext()
+    measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=60)
     rpc_runner = measure_ctx.runner
 
     bress = local_builder.build([minp])
