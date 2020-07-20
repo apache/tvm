@@ -126,153 +126,37 @@ class State:
         """
         return [stage.op for stage in self.stages]
 
-    def reorder(self, stage, order):
-        """ Schedule primitive corresponds to te.reorder.
+    def bind(self, stage, iterator, thread_name):
+        """ Schedule primitive corresponds to te.bind.
 
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be reordered, which can be specified by the integer index, Operation,
-            or output tensor of the stage.
-        order : List[Iterator]
-            Iterators in the expected order.
-        """
-        self.state_object = _ffi_api.StateReorder(self.state_object, self._resolve_stage_id(stage),
-                                                  order)
-
-    def compute_at(self, stage, target_stage, target_iter):
-        """ Schedule primitive corresponds to te.compute_at.
-
-        Parameters
-        ----------
-        stage : Union[int, Operation, Tensor]
-            The Stage to be compute at, which can be specified by the integer index, Operation,
-            or output tensor of the stage.
-        target_stage : Union[int, Operation, Tensor]
-            The target stage of compute_at, which can be specified by the integer index, Operation,
-            or output tensor of the stage.
-        target_iter : Iterator
-            The target Iterator of compute_at.
-
-        Notes
-        -----
-        After compute_at, we need careful dependency analysis to compute the accurate bound
-        information. However, it is relatively expensive and complicated, so we just fill "None"
-        as bound for the newly created iterators.
-        Call ComputeDAG::InferBound on the returned state to get the complete bound information.
-        """
-        self.state_object = _ffi_api.StateComputeAt(self.state_object,
-                                                    self._resolve_stage_id(stage),
-                                                    self._resolve_stage_id(target_stage),
-                                                    target_iter)
-
-    def compute_root(self, stage):
-        """ Schedule primitive corresponds to te.compute_root.
-
-        Parameters
-        ----------
-        stage : Union[int, Operation, Tensor]
-            The Stage to be compute root, which can be specified by the integer index, Operation,
-            or output tensor of the stage.
-
-        Notes
-        -----
-        After compute_root, we need careful dependency analysis to compute the accurate bound
-        information. However, it is relatively expensive and complicated, so we just fill "None"
-        as bound for the newly created iterators.
-        Call ComputeDAG::InferBound on the returned state to get the complete bound information.
-        """
-        self.state_object = _ffi_api.StateComputeRoot(self.state_object,
-                                                      self._resolve_stage_id(stage))
-
-    def compute_inline(self, stage):
-        """ Schedule primitive corresponds to te.compute_inline.
-
-        Parameters
-        ----------
-        stage : Union[int, Operation, Tensor]
-            The Stage to be compute inlined, which can be specified by the integer index, Operation,
-            or output tensor of the stage.
-        """
-        self.state_object = _ffi_api.StateComputeInline(self.state_object,
-                                                        self._resolve_stage_id(stage))
-
-    def split(self, stage, iterator, lengths, inner_to_outer=True):
-        """ Schedule primitive corresponds to te.split.
-
-        This API supports multiple split factors. (e.g. with 2 split factors, the original iterator
-        will be split to 3 parts, use `inner_to_outer` to control the split order)
-
-        Parameters
-        ----------
-        stage : Union[int, Operation, Tensor]
-            The Stage to be split, which can be specified by the integer index, Operation,
+            The Stage to be binded, which can be specified by the integer index, Operation,
             or output tensor of the stage.
         iterator : Iterator
-            The iterator to be split.
-        lengths: List[int]
-            The multiple split factors. Can be None to be filled by search policy.
-        inner_to_outer: boolean = True
-            Whether the factor go from inner to outer, or from outer to inner.
-
-        Returns
-        -------
-        res_its : List[Iterator]
-            The splitted new Iterators.
-
-        Notes
-        -----
-        If we do split on an iterator which has stages attached at it(by compute_at), the inner
-        most iterator of split results will become the new attach point.
-        """
-        self.state_object, res = _ffi_api.StateSplit(self.state_object,
-                                                     self._resolve_stage_id(stage),
-                                                     iterator, lengths, inner_to_outer)
-        return res
-
-    def fuse(self, stage, iters):
-        """ Schedule primitive corresponds to te.fuse.
-
-        Parameters
-        ----------
-        stage : Union[int, Operation, Tensor]
-            The Stage to be fused, which can be specified by the integer index, Operation,
-            or output tensor of the stage.
-        iters : List[Iterator]
-            The iterators to be fused.
+            The iterator to be binded.
+        thread_name : str
+            The thread type to be binded. Candidates:
+            - vthread
+            - blockIdx.x
+            - threadIdx.x
+            - blockIdx.y
+            - threadIdx.y
+            - blockIdx.z
+            - threadIdx.z
 
         Returns
         -------
         res_it : Iterator
-            The fused Iterator.
-
-        Notes
-        -----
-        If the iterators to be fused have stages attached at them(by compute_at), the fused
-        result will become the new attach point.
+            The binded Iterator.
         """
-        self.state_object, res = _ffi_api.StateFuse(self.state_object,
-                                                    self._resolve_stage_id(stage), iters)
-        return res
+        if not thread_name in State.ANNOTATION_TRANS_TABLE.keys():
+            raise ValueError("Invalid thread_name: ", thread_name)
 
-    def vectorize(self, stage, iterator):
-        """ Schedule primitive corresponds to te.vectorize.
-
-        Parameters
-        ----------
-        stage : Union[int, Operation, Tensor]
-            The Stage to be vectorized, which can be specified by the integer index, Operation,
-            or output tensor of the stage.
-        iterator : Iterator
-            The iterator to be vectorized.
-
-        Returns
-        -------
-        res_it : Iterator
-            The vectorized Iterator.
-        """
-        self.state_object, res = _ffi_api.StateVectorize(self.state_object,
-                                                         self._resolve_stage_id(stage), iterator)
+        self.state_object, res = _ffi_api.StateBind(self.state_object,
+                                                    self._resolve_stage_id(stage), iterator,
+                                                    State.ANNOTATION_TRANS_TABLE[thread_name])
         return res
 
     def parallel(self, stage, iterator):
@@ -318,38 +202,154 @@ class State:
                                                       max_unroll if max_unroll else -1)
         return res
 
-    def bind(self, stage, iterator, thread_name):
-        """ Schedule primitive corresponds to te.bind.
+    def vectorize(self, stage, iterator):
+        """ Schedule primitive corresponds to te.vectorize.
 
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be binded, which can be specified by the integer index, Operation,
+            The Stage to be vectorized, which can be specified by the integer index, Operation,
             or output tensor of the stage.
         iterator : Iterator
-            The iterator to be binded.
-        thread_name : str
-            The thread type to be binded. Candidates:
-            - vthread
-            - blockIdx.x
-            - threadIdx.x
-            - blockIdx.y
-            - threadIdx.y
-            - blockIdx.z
-            - threadIdx.z
+            The iterator to be vectorized.
 
         Returns
         -------
         res_it : Iterator
-            The binded Iterator.
+            The vectorized Iterator.
         """
-        if not thread_name in State.ANNOTATION_TRANS_TABLE.keys():
-            raise ValueError("Invalid thread_name: ", thread_name)
-
-        self.state_object, res = _ffi_api.StateBind(self.state_object,
-                                                    self._resolve_stage_id(stage), iterator,
-                                                    State.ANNOTATION_TRANS_TABLE[thread_name])
+        self.state_object, res = _ffi_api.StateVectorize(self.state_object,
+                                                         self._resolve_stage_id(stage), iterator)
         return res
+
+    def fuse(self, stage, iters):
+        """ Schedule primitive corresponds to te.fuse.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be fused, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        iters : List[Iterator]
+            The iterators to be fused.
+
+        Returns
+        -------
+        res_it : Iterator
+            The fused Iterator.
+
+        Notes
+        -----
+        If the iterators to be fused have stages attached at them(by compute_at), the fused
+        result will become the new attach point.
+        """
+        self.state_object, res = _ffi_api.StateFuse(self.state_object,
+                                                    self._resolve_stage_id(stage), iters)
+        return res
+
+    def reorder(self, stage, order):
+        """ Schedule primitive corresponds to te.reorder.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be reordered, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        order : List[Iterator]
+            Iterators in the expected order.
+        """
+        self.state_object = _ffi_api.StateReorder(self.state_object, self._resolve_stage_id(stage),
+                                                  order)
+
+    def split(self, stage, iterator, lengths, inner_to_outer=True):
+        """ Schedule primitive corresponds to te.split.
+
+        This API supports multiple split factors. (e.g. with 2 split factors, the original iterator
+        will be split to 3 parts, use `inner_to_outer` to control the split order)
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be split, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        iterator : Iterator
+            The iterator to be split.
+        lengths: List[int]
+            The multiple split factors. Can be None to be filled by search policy.
+        inner_to_outer: boolean = True
+            Whether the factor go from inner to outer, or from outer to inner.
+
+        Returns
+        -------
+        res_its : List[Iterator]
+            The splitted new Iterators.
+
+        Notes
+        -----
+        If we do split on an iterator which has stages attached at it(by compute_at), the inner
+        most iterator of split results will become the new attach point.
+        """
+        self.state_object, res = _ffi_api.StateSplit(self.state_object,
+                                                     self._resolve_stage_id(stage),
+                                                     iterator, lengths, inner_to_outer)
+        return res
+
+    def compute_at(self, stage, target_stage, target_iter):
+        """ Schedule primitive corresponds to te.compute_at.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be compute at, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        target_stage : Union[int, Operation, Tensor]
+            The target stage of compute_at, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        target_iter : Iterator
+            The target Iterator of compute_at.
+
+        Notes
+        -----
+        After compute_at, we need careful dependency analysis to compute the accurate bound
+        information. However, it is relatively expensive and complicated, so we just fill "None"
+        as bound for the newly created iterators.
+        Call ComputeDAG::InferBound on the returned state to get the complete bound information.
+        """
+        self.state_object = _ffi_api.StateComputeAt(self.state_object,
+                                                    self._resolve_stage_id(stage),
+                                                    self._resolve_stage_id(target_stage),
+                                                    target_iter)
+
+    def compute_inline(self, stage):
+        """ Schedule primitive corresponds to te.compute_inline.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be compute inlined, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        """
+        self.state_object = _ffi_api.StateComputeInline(self.state_object,
+                                                        self._resolve_stage_id(stage))
+
+    def compute_root(self, stage):
+        """ Schedule primitive corresponds to te.compute_root.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be compute root, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+
+        Notes
+        -----
+        After compute_root, we need careful dependency analysis to compute the accurate bound
+        information. However, it is relatively expensive and complicated, so we just fill "None"
+        as bound for the newly created iterators.
+        Call ComputeDAG::InferBound on the returned state to get the complete bound information.
+        """
+        self.state_object = _ffi_api.StateComputeRoot(self.state_object,
+                                                      self._resolve_stage_id(stage))
 
     def copy(self):
         """ Do deep copy of this State. """

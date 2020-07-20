@@ -163,60 +163,13 @@ State::State(const Array<te::Operation>& ops) {
 }
 
 /********** Schedule primitives apis for state **********/
-void State::reorder(int stage_id, const Array<Iterator>& order) {
+Iterator State::bind(int stage_id, const Iterator& it, IteratorAnnotation thread_type) {
   const Stage& stage = operator->()->stages[stage_id];
-  CHECK_EQ(order.size(), stage->iters.size()) << "The order of all iterators "
-                                              << "should be specified";
-  Array<Integer> after_ids;
-  GetIndices(stage->iters, order, &after_ids);
-  ReorderStep step = ReorderStep(stage_id, after_ids);
-  CopyOnWrite()->transform_steps.push_back(step);
-  step->ApplyToState(this);
-}
-
-void State::compute_at(int stage_id, int target_stage_id, const Iterator& target_iter) {
-  const Stage& target_stage = operator->()->stages[target_stage_id];
-  ComputeAtStep step =
-      ComputeAtStep(stage_id, target_stage_id, GetIndex(target_stage->iters, target_iter));
-  CopyOnWrite()->transform_steps.push_back(step);
-  step->ApplyToState(this);
-}
-
-void State::compute_root(int stage_id) {
-  ComputeRootStep step = ComputeRootStep(stage_id);
-  CopyOnWrite()->transform_steps.push_back(step);
-  step->ApplyToState(this);
-}
-
-void State::compute_inline(int stage_id) {
-  ComputeInlineStep step = ComputeInlineStep(stage_id);
-  CopyOnWrite()->transform_steps.push_back(step);
-  step->ApplyToState(this);
-}
-
-Array<Iterator> State::split(int stage_id, const Iterator& it,
-                             const Array<Optional<Integer>>& lengths, bool inner_to_outer) {
-  const Stage& stage = operator->()->stages[stage_id];
-  SplitStep step =
-      SplitStep(stage_id, GetIndex(stage->iters, it),
-                it->range.defined() ? it->range->extent : PrimExpr(), lengths, inner_to_outer);
-  CopyOnWrite()->transform_steps.push_back(step);
-  return step->ApplyToState(this);
-}
-
-Iterator State::fuse(int stage_id, const Array<Iterator>& iters) {
-  const Stage& stage = operator->()->stages[stage_id];
-  Array<Integer> indices;
-  GetIndices(stage->iters, iters, &indices);
-  FuseStep step = FuseStep(stage_id, indices);
-  CopyOnWrite()->transform_steps.push_back(step);
-  return step->ApplyToState(this);
-}
-
-Iterator State::vectorize(int stage_id, const Iterator& it) {
-  const Stage& stage = operator->()->stages[stage_id];
-  AnnotationStep step =
-      AnnotationStep(stage_id, GetIndex(stage->iters, it), IteratorAnnotation::kVectorize);
+  if (thread_type < IteratorAnnotation::kVThread || thread_type > IteratorAnnotation::kThreadZ) {
+    LOG(FATAL) << "thread_type error, valid: kVThread, kBlockX, kBlockY, "
+               << "kThreadX, kThreadY, kBlockZ, kThreadZ";
+  }
+  AnnotationStep step = AnnotationStep(stage_id, GetIndex(stage->iters, it), thread_type);
   CopyOnWrite()->transform_steps.push_back(step);
   return step->ApplyToState(this);
 }
@@ -247,15 +200,62 @@ Iterator State::unroll(int stage_id, const Iterator& it, int max_unroll) {
   return step->ApplyToState(this);
 }
 
-Iterator State::bind(int stage_id, const Iterator& it, IteratorAnnotation thread_type) {
+Iterator State::vectorize(int stage_id, const Iterator& it) {
   const Stage& stage = operator->()->stages[stage_id];
-  if (thread_type < IteratorAnnotation::kVThread || thread_type > IteratorAnnotation::kThreadZ) {
-    LOG(FATAL) << "thread_type error, valid: kVThread, kBlockX, kBlockY, "
-               << "kThreadX, kThreadY, kBlockZ, kThreadZ";
-  }
-  AnnotationStep step = AnnotationStep(stage_id, GetIndex(stage->iters, it), thread_type);
+  AnnotationStep step =
+      AnnotationStep(stage_id, GetIndex(stage->iters, it), IteratorAnnotation::kVectorize);
   CopyOnWrite()->transform_steps.push_back(step);
   return step->ApplyToState(this);
+}
+
+Iterator State::fuse(int stage_id, const Array<Iterator>& iters) {
+  const Stage& stage = operator->()->stages[stage_id];
+  Array<Integer> indices;
+  GetIndices(stage->iters, iters, &indices);
+  FuseStep step = FuseStep(stage_id, indices);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this);
+}
+
+void State::reorder(int stage_id, const Array<Iterator>& order) {
+  const Stage& stage = operator->()->stages[stage_id];
+  CHECK_EQ(order.size(), stage->iters.size()) << "The order of all iterators "
+                                              << "should be specified";
+  Array<Integer> after_ids;
+  GetIndices(stage->iters, order, &after_ids);
+  ReorderStep step = ReorderStep(stage_id, after_ids);
+  CopyOnWrite()->transform_steps.push_back(step);
+  step->ApplyToState(this);
+}
+
+Array<Iterator> State::split(int stage_id, const Iterator& it,
+                             const Array<Optional<Integer>>& lengths, bool inner_to_outer) {
+  const Stage& stage = operator->()->stages[stage_id];
+  SplitStep step =
+      SplitStep(stage_id, GetIndex(stage->iters, it),
+                it->range.defined() ? it->range->extent : PrimExpr(), lengths, inner_to_outer);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this);
+}
+
+void State::compute_at(int stage_id, int target_stage_id, const Iterator& target_iter) {
+  const Stage& target_stage = operator->()->stages[target_stage_id];
+  ComputeAtStep step =
+      ComputeAtStep(stage_id, target_stage_id, GetIndex(target_stage->iters, target_iter));
+  CopyOnWrite()->transform_steps.push_back(step);
+  step->ApplyToState(this);
+}
+
+void State::compute_inline(int stage_id) {
+  ComputeInlineStep step = ComputeInlineStep(stage_id);
+  CopyOnWrite()->transform_steps.push_back(step);
+  step->ApplyToState(this);
+}
+
+void State::compute_root(int stage_id) {
+  ComputeRootStep step = ComputeRootStep(stage_id);
+  CopyOnWrite()->transform_steps.push_back(step);
+  step->ApplyToState(this);
 }
 
 void State::ApplySteps(const ComputeDAG& dag) {
@@ -368,47 +368,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 /********** State interface API for ffi **********/
-TVM_REGISTER_GLOBAL("auto_scheduler.StateReorder")
-    .set_body_typed([](State state, int stage_id, const Array<Iterator>& order) {
-      state.reorder(stage_id, order);
-      return state;
-    });
-
-TVM_REGISTER_GLOBAL("auto_scheduler.StateComputeAt")
-    .set_body_typed([](State state, int stage_id, int target_stage_id,
-                       const Iterator& target_iter) {
-      state.compute_at(stage_id, target_stage_id, target_iter);
-      return state;
-    });
-
-TVM_REGISTER_GLOBAL("auto_scheduler.StateComputeRoot")
-    .set_body_typed([](State state, int stage_id) {
-      state.compute_root(stage_id);
-      return state;
-    });
-
-TVM_REGISTER_GLOBAL("auto_scheduler.StateComputeInline")
-    .set_body_typed([](State state, int stage_id) {
-      state.compute_inline(stage_id);
-      return state;
-    });
-
-TVM_REGISTER_GLOBAL("auto_scheduler.StateSplit")
-    .set_body_typed([](State state, int stage_id, const Iterator& it,
-                       const Array<Optional<Integer>>& lengths, bool inner_to_outer) {
-      const auto& res = state.split(stage_id, it, lengths, inner_to_outer);
-      return Array<ObjectRef>{state, res};
-    });
-
-TVM_REGISTER_GLOBAL("auto_scheduler.StateFuse")
-    .set_body_typed([](State state, int stage_id, const Array<Iterator>& iters) {
-      const auto& res = state.fuse(stage_id, iters);
-      return Array<ObjectRef>{state, res};
-    });
-
-TVM_REGISTER_GLOBAL("auto_scheduler.StateVectorize")
-    .set_body_typed([](State state, int stage_id, const Iterator& it) {
-      const auto& res = state.vectorize(stage_id, it);
+TVM_REGISTER_GLOBAL("auto_scheduler.StateBind")
+    .set_body_typed([](State state, int stage_id, const Iterator& it, int thread_type) {
+      const auto& res = state.bind(stage_id, it, IteratorAnnotation(thread_type));
       return Array<ObjectRef>{state, res};
     });
 
@@ -424,10 +386,48 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateUnroll")
       return Array<ObjectRef>{state, res};
     });
 
-TVM_REGISTER_GLOBAL("auto_scheduler.StateBind")
-    .set_body_typed([](State state, int stage_id, const Iterator& it, int thread_type) {
-      const auto& res = state.bind(stage_id, it, IteratorAnnotation(thread_type));
+TVM_REGISTER_GLOBAL("auto_scheduler.StateVectorize")
+    .set_body_typed([](State state, int stage_id, const Iterator& it) {
+      const auto& res = state.vectorize(stage_id, it);
       return Array<ObjectRef>{state, res};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateFuse")
+    .set_body_typed([](State state, int stage_id, const Array<Iterator>& iters) {
+      const auto& res = state.fuse(stage_id, iters);
+      return Array<ObjectRef>{state, res};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateReorder")
+    .set_body_typed([](State state, int stage_id, const Array<Iterator>& order) {
+      state.reorder(stage_id, order);
+      return state;
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateSplit")
+    .set_body_typed([](State state, int stage_id, const Iterator& it,
+                       const Array<Optional<Integer>>& lengths, bool inner_to_outer) {
+      const auto& res = state.split(stage_id, it, lengths, inner_to_outer);
+      return Array<ObjectRef>{state, res};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateComputeAt")
+    .set_body_typed([](State state, int stage_id, int target_stage_id,
+                       const Iterator& target_iter) {
+      state.compute_at(stage_id, target_stage_id, target_iter);
+      return state;
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateComputeInline")
+    .set_body_typed([](State state, int stage_id) {
+      state.compute_inline(stage_id);
+      return state;
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateComputeRoot")
+    .set_body_typed([](State state, int stage_id) {
+      state.compute_root(stage_id);
+      return state;
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.StateEqual").set_body_typed([](State state1, State state2) {
