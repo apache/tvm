@@ -83,6 +83,9 @@ RUN bash /install/ubuntu_install_dgl.sh
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
 RUN bash /install/ubuntu_install_vulkan.sh
 
+COPY install/ubuntu_install_caffe.sh /install/ubuntu_install_caffe.sh
+RUN bash /install/ubuntu_install_caffe.sh
+
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
 RUN bash /install/ubuntu_install_redis.sh
