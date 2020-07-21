@@ -99,6 +99,7 @@ using HoistForIfTuple = std::tuple<bool, const ForNode*, const IfThenElseNode*>;
 class HoistCandidateSelector final : public StmtExprVisitor {
  public:
   HoistCandidateSelector() { InitRecorder(); }
+
   void VisitStmt_(const ForNode* op) final {
     // Check if it is first for loop, then start the recorder
     if (!RecordingComplete()) {
@@ -201,6 +202,11 @@ class HoistCandidateSelector final : public StmtExprVisitor {
 
  private:
   bool CheckValidIf() {
+    // If no if var list is present, then all the condition vars are possibly from AttrStmt, so stop
+    // hoisting
+    if (if_var_list_.size() == 0) {
+      return false;
+    }
     if (CheckAttrVar()) {
       return false;
     }
@@ -256,12 +262,16 @@ class HoistCandidateSelector final : public StmtExprVisitor {
   void UpdateAttrVarList(const AttrStmtNode* op) {
     if (const auto* iv = op->node.as<IterVarNode>()) {
       attr_var_list_.insert(iv->var.get());
+    } else if (const auto* iv = op->node.as<VarNode>()) {
+      attr_var_list_.insert(iv);
     }
   }
 
   void RemoveAttrVarList(const AttrStmtNode* op) {
     if (const auto* iv = op->node.as<IterVarNode>()) {
       attr_var_list_.erase(iv->var.get());
+    } else if (const auto* iv = op->node.as<VarNode>()) {
+      attr_var_list_.erase(iv);
     }
   }
 
