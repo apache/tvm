@@ -68,3 +68,4 @@ target device without relying on RPC. see the following resources on how to do s
    android
    integrate
    hls
+   arm_compute_lib
