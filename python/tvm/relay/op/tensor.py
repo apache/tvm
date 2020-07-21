@@ -1034,6 +1034,27 @@ def clip(a, a_min, a_max):
     """
     return _make.clip(a, a_min, a_max)
 
+def fixed_point_multiply(data, multiplier, shift):
+    """Fixed point multiplication between data and a fixed point
+    constant expressed as multiplier * 2^(-shift), where multiplier
+    is a Q-number with 31 fractional bits
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+    multiplier : int
+        The integer multiplier of the fixed point constant.
+    a_max : float
+        The integer shift of the fixed point constant.
+
+    Returns
+    -------
+    result : relay.Expr
+        The output of the fixed point multiplication
+    """
+    return _make.fixed_point_multiply(data, multiplier, shift)
+
 
 def concatenate(data, axis):
     """Concatenate the input tensors along the given axis.

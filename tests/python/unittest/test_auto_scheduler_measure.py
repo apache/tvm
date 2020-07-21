@@ -88,16 +88,16 @@ def test_record():
 
 
 def test_measure_local_builder_runner():
-    dag, s0 = get_tiled_matmul()
-
     if not tvm.runtime.enabled("llvm"):
         return
+
+    dag, s0 = get_tiled_matmul()
     tgt = tvm.target.create("llvm")
     task = auto_scheduler.SearchTask(dag, "test", tgt)
 
     minp = auto_scheduler.MeasureInput(task, s0)
     local_builder = auto_scheduler.LocalBuilder()
-    local_runner = auto_scheduler.LocalRunner()
+    local_runner = auto_scheduler.LocalRunner(timeout=60)
 
     bress = local_builder.build([minp])
     assert bress[0].error_no == 0
@@ -105,6 +105,26 @@ def test_measure_local_builder_runner():
     assert mress[0].error_no == 0
 
 
+def test_measure_local_builder_rpc_runner():
+    if not tvm.runtime.enabled("llvm"):
+        return
+
+    dag, s0 = get_tiled_matmul()
+    tgt = tvm.target.create("llvm")
+    task = auto_scheduler.SearchTask(dag, "test", tgt)
+
+    minp = auto_scheduler.MeasureInput(task, s0)
+    local_builder = auto_scheduler.LocalBuilder()
+    measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=60)
+    rpc_runner = measure_ctx.runner
+
+    bress = local_builder.build([minp])
+    assert bress[0].error_no == 0
+    mress = rpc_runner.run([minp], bress)
+    assert mress[0].error_no == 0
+
+
 if __name__ == "__main__":
     test_record()
     test_measure_local_builder_runner()
+    test_measure_local_builder_rpc_runner()

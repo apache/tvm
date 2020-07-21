@@ -14,3 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+if(USE_TARGET_ONNX)
+  message(STATUS "Build with contrib.codegen_onnx")
+  file(GLOB ONNX_CONTRIB_SRC src/runtime/contrib/onnx/onnx_module.cc)
+  list(APPEND RUNTIME_SRCS ${ONNX_CONTRIB_SRC})
+endif(USE_TARGET_ONNX)

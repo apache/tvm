@@ -121,7 +121,8 @@ def quantize(data,
 
 def dequantize(data,
                input_scale,
-               input_zero_point):
+               input_zero_point,
+               axis=-1):
     r""" Dequantize op
     This operator takes quantized int8 and unit8 as input and produces
     dequantized float32 as output. The output shape is the same as input shape. The input
@@ -135,6 +136,8 @@ def dequantize(data,
         The input zero_point.
     input_scale : tvm.relay.Expr
         The input scale.
+    axis : int
+        The channel axis for quantization. Default value is -1 which corresponds to the last axis.
     Returns
     -------
     result : tvm.relay.Expr
@@ -143,7 +146,8 @@ def dequantize(data,
 
     return _make.dequantize(data,
                             input_scale,
-                            input_zero_point)
+                            input_zero_point,
+                            axis)
 
 
 def concatenate(data,

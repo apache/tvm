@@ -93,6 +93,14 @@ TVM_DLL const Op& shift_right();
 TVM_DLL const Op& large_uint_imm();
 
 /*!
+ * \brief Execute a multiplication between two Q-numbers x and y
+ * followed by a right shift s
+ * The default rounding rule is to the nearest value, rounding half up
+ * (i.e., round(x.1) = x and round (x.5) = x+1)
+ */
+TVM_DLL const Op& q_multiply_shift();
+
+/*!
  * \brief See pesudo code
  *
  *  Handle address_of(Load *op) {

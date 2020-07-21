@@ -84,6 +84,22 @@ def test_clip():
     ref_res = np.clip(data, 1., 4.)
     np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
+def test_fixed_point_multiply():
+    # Test 23 * 1/16
+    # [m,s] = [0.5, -3] = frexp(1/16)
+    # M = 0.5*2^31 = 1073741824
+    # so M = 1073741824 and s = -3
+
+    a = relay.var("a", relay.TensorType((10, 4), "int32"))
+    y = relay.fixed_point_multiply(a, 1073741824, -3)
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((10, 4), "int32")
+
+    data = 23*np.ones((10, 4)).astype('int32')
+    intrp = create_executor()
+    op_res = intrp.evaluate(y, { a: relay.const(data) })
+    ref_res = np.ones((10, 4)).astype('int32')
+    np.testing.assert_allclose(op_res.asnumpy(), ref_res, atol=1)
 
 def test_reinterpret():
     a = relay.var("a", relay.TensorType((1000, 4), "float32"))
@@ -811,6 +827,51 @@ def test_scatter():
     verify_scatter((16, 16, 4, 5), (16, 16, 4, 5), 3)
 
 
+def test_scatter_add():
+
+    def ref_scatter_add(data, indices, updates, axis=0):
+        output = np.copy(data)
+        for index in np.ndindex(*indices.shape):
+            new_index = list(index)
+            new_index[axis] = indices[index]
+            output[tuple(new_index)] += updates[index]
+        return output
+
+    def verify_scatter_add(dshape, ishape, axis=0):
+        d = relay.var("d", relay.TensorType(dshape, "float32"))
+        i = relay.var("i", relay.TensorType(ishape, "int64"))
+        u = relay.var("u", relay.TensorType(ishape, "float32"))
+        z = relay.op.scatter_add(d, i, u, axis)
+
+        func = relay.Function([d, i, u], z)
+
+        data_np = np.random.uniform(size=dshape).astype("float32")
+        updates_np = np.random.uniform(size=ishape).astype("float32")
+        indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
+
+        ref_res = ref_scatter_add(data_np, indices_np, updates_np, axis)
+        # TODO(mbrookhart): expand testing when adding more backend schedules
+        for target, ctx in [("llvm", tvm.cpu())]:
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
+                tvm.testing.assert_allclose(
+                    op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    verify_scatter_add((10, ), (10, ), 0)
+    verify_scatter_add((10, 5), (10, 5), -2)
+    verify_scatter_add((10, 5), (10, 5), -1)
+    verify_scatter_add((10, 5), (3, 5), 0)
+    verify_scatter_add((12, 4), (7, 2), 1)
+    verify_scatter_add((2, 3, 4), (1, 3, 4), 0)
+    verify_scatter_add((2, 3, 4), (2, 1, 4), 1)
+    verify_scatter_add((2, 3, 4), (2, 3, 1), 2)
+    verify_scatter_add((2, 3, 4, 5), (1, 3, 4, 5), 0)
+    verify_scatter_add((6, 3, 4, 5), (2, 3, 4, 5), 1)
+    verify_scatter_add((2, 3, 8, 5), (2, 3, 1, 1), 2)
+    verify_scatter_add((16, 16, 4, 5), (16, 16, 4, 5), 3)
+
+
 def test_gather():
     def verify_gather(data, axis, indices, ref_res):
         data = np.asarray(data, dtype='float32')
@@ -1034,3 +1095,4 @@ if __name__ == "__main__":
     test_isinf()
     test_unravel_index()
     test_sparse_to_dense()
+    test_fixed_point_multiply()
