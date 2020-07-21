@@ -28,7 +28,6 @@ from . import _ffi_api
 def _pack_buffer(buf):
     """Build intrinsics that packs the buffer.
     """
-    assert buf.shape
     shape = Call("handle", "tir.tvm_stack_make_shape", buf.shape)
     strides = Call("handle", "tir.tvm_stack_make_shape", buf.strides) if buf.strides else 0
     pack_args = [buf.data,
