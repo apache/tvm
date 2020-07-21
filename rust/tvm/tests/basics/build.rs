@@ -19,8 +19,9 @@
 
 fn main() {
     let out_dir = std::env::var("OUT_DIR").unwrap();
+    let tvm_mk_add = concat!(env!("CARGO_MANIFEST_DIR"), "/src/tvm_add.py");
 
-    let output = std::process::Command::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src/tvm_add.py"))
+    let output = std::process::Command::new(tvm_mk_add)
         .args(&[
             if cfg!(feature = "cpu") {
                 "llvm"
@@ -31,6 +32,7 @@ fn main() {
         ])
         .output()
         .expect("Failed to execute command");
+
     assert!(
         std::path::Path::new(&format!("{}/test_add.so", out_dir)).exists(),
         "Could not build tvm lib: {}",

@@ -38,8 +38,6 @@ def main(target, out_dir):
 
     fadd = tvm.build(s, [A, B, C], target, target_host='llvm', name='myadd')
 
-    import pdb; pdb.set_trace()
-
     fadd.save(osp.join(out_dir, 'test_add.o'))
     if target == 'cuda':
         fadd.imported_modules[0].save(osp.join(out_dir, 'test_add.ptx'))
