@@ -817,14 +817,14 @@ def test_mixed_input_type():
             "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
 
 def verify_any_crop_and_resize(data_shape, boxes_shape, box_indices_shape, crop_size, 
-                               static_boxes, static_box_indices_shape, ref_out_shape):
+                               layout, static_boxes, static_box_indices_shape, ref_out_shape):
     mod = tvm.IRModule()
     dtype = "float32"
     indices_dtype = "int32"
     data = relay.var('data', shape=data_shape, dtype=dtype)
     boxes = relay.var('boxes', shape=boxes_shape, dtype=dtype)
     box_indices = relay.var('box_indices', shape=box_indices_shape, dtype=indices_dtype)
-    y = relay.image.crop_and_resize(data, boxes, box_indices, crop_size, 'NHWC')
+    y = relay.image.crop_and_resize(data, boxes, box_indices, crop_size, layout)
     mod["main"] = relay.Function([data, boxes, box_indices], y)
     data_np = np.random.uniform(size=data_shape).astype(dtype)
     boxes_np = np.random.uniform(size=static_boxes).astype(dtype)
@@ -841,9 +841,20 @@ def test_any_crop_and_resize():
         boxes_shape=(relay.Any(), 4), 
         box_indices_shape=(relay.Any(),),
         crop_size=(14, 14),
+        layout='NHWC',
         static_boxes=(128, 4),
         static_box_indices_shape=(128,),
         ref_out_shape=(128, 14, 14, 256))
+    verify_any_crop_and_resize(
+        data_shape=(1, 256, 234, 234), 
+        boxes_shape=(relay.Any(), 4), 
+        box_indices_shape=(relay.Any(),),
+        crop_size=(14, 14),
+        layout='NCHW',
+        static_boxes=(128, 4),
+        static_box_indices_shape=(128,),
+        ref_out_shape=(128, 256, 14, 14)
+        )
 
 def verify_any_mirror_pad(data_shape, pad_width, static_data_shape, ref_out_shape):
     mod = tvm.IRModule()
