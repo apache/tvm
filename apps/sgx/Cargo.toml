@@ -23,6 +23,3 @@ edition = "2018"
 
 [dependencies]
 tvm-runtime = { path = "../../rust/runtime" }
-
-[patch.crates-io]
-"backtrace" = { git = "https://github.com/nhynes/backtrace-rs", branch = "fix-sgx" }
