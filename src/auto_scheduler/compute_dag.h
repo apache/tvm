@@ -59,8 +59,8 @@ class AccessAnalyzerNode : public Object {
   /*! \brief Map an operation to all operations it is read by.
    * For each operation pair, use a two-dimentional array to multiple multi-dimentional accesses*/
   OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_by;
-  /*! \brief Store the number of common outer iterators for operation pairs that have read-write
-   * relations. */
+  /*! \brief Store the number of common outer iterators for operation pairs that have
+   * read-write relations. */
   OperationMap<OperationMap<int>> num_common_outer_iterators;
   /*! \brief Store whether the operation is injective */
   OperationMap<bool> is_injective;
@@ -145,12 +145,12 @@ class AccessAnalyzer : public ObjectRef {
    * \param target_op The target operation
    * \note This function propagates the relation for chains with multiple ops.
    */
-  int GetNumCommonOuterIterator(const State& state, const te::Operation& op,
-                                const te::Operation& target_op) const;
+  int GetNumCommonOuterIterator(const te::Operation& op, const te::Operation& target_op) const;
 
   /*!
    * \brief Return whether two operations are elementwise-matched
    *  (e.g. conv2d and relu are elementwise matched)
+   * \note This function propagates the relation for chains with multiple ops.
    */
   bool ElementWiseMatch(const te::Operation& op, const te::Operation& target_op) const;
 
@@ -171,7 +171,8 @@ class ComputeDAGNode : public Object {
   double flop_ct;
   /*! \brief The initial state without any transform steps. */
   State init_state;
-  // TODO(merrymercy): Add more analyses later.
+  /*! \brief Static read-write access analyzer */
+  AccessAnalyzer access_analyzer;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tensors", &tensors);

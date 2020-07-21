@@ -33,7 +33,7 @@ def matmul_auto_scheduler_test(N, M, K):
 
 
 @auto_scheduler.register_workload("matmul_auto_scheduler_test_rename_1")
-def matmul_auto_scheduler_test_rename_0(N, M, K):
+def matmul_auto_scheduler_test_rename_1(N, M, K):
     A = te.placeholder((N, K), name='A')
     B = te.placeholder((K, M), name='B')
     k = te.reduce_axis((0, K), name='k')

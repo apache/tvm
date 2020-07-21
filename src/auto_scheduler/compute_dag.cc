@@ -308,8 +308,7 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
       node->is_strict_inlineable[op] = false;
       node->is_output[op] = false;
     } else if (auto pop = op.as<te::ComputeOpNode>()) {
-      // check whether is element-wise and strict-inlineable
-      // (see definition in compute_dag.h)
+      // check whether this op is element-wise and strict-inlineable
       bool is_injective = true;
       bool is_strict_inlineable = true;
 
@@ -346,7 +345,6 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
       node->is_strict_inlineable[op] = is_strict_inlineable && !has_expensive_op;
 
       // check whether the op needs multi-level tiling
-      // (see definition in compute_dag.h)
       bool needs_multi_level_tiling = false;
       int n_missing = 0;
 
@@ -457,7 +455,7 @@ void AccessAnalyzer::GetProducers(const State& state, const te::Operation& op,
   collect(op);
 }
 
-int AccessAnalyzer::GetNumCommonOuterIterator(const State& state, const te::Operation& op,
+int AccessAnalyzer::GetNumCommonOuterIterator(const te::Operation& op,
                                               const te::Operation& target_op) const {
   int ret = INT32_MAX;
   bool meet = false;
@@ -656,7 +654,8 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
 ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   auto node = make_object<ComputeDAGNode>();
   node->tensors = std::move(tensors);
-  node->ops = TopoSortOps(node->tensors);
+  node->access_analyzer = AccessAnalyzer(node->tensors);
+  node->ops = node->access_analyzer->ops_topo_order;
   node->flop_ct = FlopEstimator().EstimateFlop(node->ops);
   node->init_state = State(node->ops);
   data_ = std::move(node);
