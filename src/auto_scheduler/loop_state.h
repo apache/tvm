@@ -181,11 +181,13 @@ class AttachMap : public ObjectRef {
    * \param target_iter_id The index of iterator in target stage that this step will compute at to.
    */
   void SetComputeAtIter(int stage_id, int target_stage_id, int target_iter_id);
+
   /*!
    * \brief This is a public wrapper of `DeleteStageEntry`. To delete the entry of a specific stage.
    * \param stage_id The index of the stage to be compute at.
    */
   void DeleteStage(int stage_id);
+
   /*!
    * \brief Find the relations of original iterators in AttachMap, and update them with the new
    * iterators. Both `stage_to_attach_iter` and `iter_to_attached_stages` will be updated.
@@ -194,6 +196,17 @@ class AttachMap : public ObjectRef {
    */
   void UpdateIters(const std::vector<IterKey>& original_iters,
                    const std::vector<IterKey>& new_iters);
+
+  /*!
+   * \brief Traverse through `stage_to_attach_iter` and `iter_to_attached_stages` map, add offset
+   * to stage indexes that are larger than the start_id. Used for steps that inserts net stages to
+   * ComputeDAG(e.g. CacheRead/CacheWrite step).
+   * \param start_id The index threshold, stage indexes in AttachMap which are larger than this
+   * will be applied the extra offset.
+   * \param offset The index offset to be added to the stage index.
+   * \return The updated AttachMap after applying stage index offset.
+   */
+  AttachMap ApplyStageIdOfffset(int start_id, int offset) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(AttachMap, ObjectRef, AttachMapNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttachMapNode);
@@ -226,6 +239,13 @@ class StateNode : public Object {
    */
   AttachMap attach_map;
   /*!
+   * \brief The up-to-date ComputeDAG of this state, used for some steps that may change the
+   * stage structure of the ComputeDAG (e.g. CacheReadStep/CacheWriteStep which Will be added
+   * later).
+   * The default value is an empty ObjectRef. (means no modification to the original DAG)
+   */
+  ObjectRef current_compute_dag;
+  /*!
    * \brief Indicate whether this state has unfilled tile sizes. A concrete state means that all
    * tile sizes of the state is filled. Only concrete state can be apply to TVM schedule.
    */
@@ -239,15 +259,6 @@ class StateNode : public Object {
 
   static constexpr const char* _type_key = "auto_scheduler.State";
   TVM_DECLARE_FINAL_OBJECT_INFO(StateNode, Object);
-
- private:
-  /*!
-   * \brief The up-to-date ComputeDAG of this state, used for some steps that may change the
-   * stage structure of the ComputeDAG (e.g. CacheReadStep/CacheWriteStep which Will be added
-   * later).
-   * The default value is an empty ObjectRef. (means no modification to the original DAG)
-   */
-  ObjectRef current_compute_dag;
 };
 
 /*!
@@ -347,7 +358,7 @@ class State : public ObjectRef {
 
   /*!
    * \brief Schedule primitive corresponds to te.compute_at.
-   * \param stage_id The index of the stage to be reordered.
+   * \param stage_id The index of the stage to be compute at.
    * \param target_stage_id The index of stage that this step will compute at to.
    * \param target_iter The iterator in target stage that this step will compute at to.
    * \note After compute_at, we need careful dependency analysis to compute the accurate bound
@@ -358,18 +369,42 @@ class State : public ObjectRef {
   void compute_at(int stage_id, int target_stage_id, const Iterator& target_iter);
   /*!
    * \brief Schedule primitive corresponds to te.compute_inline.
-   * \param stage_id The index of the stage to be reordered.
+   * \param stage_id The index of the stage to be compute inlined.
    */
   void compute_inline(int stage_id);
   /*!
    * \brief Schedule primitive corresponds to te.compute_root.
-   * \param stage_id The index of the stage to be reordered.
+   * \param stage_id The index of the stage to be compute root.
    * \note After compute_root, we need careful dependency analysis to compute the accurate bound
    * information. However, it is relatively expensive and complicated, so we just fill "None" as
    * bound for the newly created iterators.
    * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
    */
   void compute_root(int stage_id);
+
+  /********** Step APIs adding new stages **********/
+
+  /*!
+   * \brief Schedule primitive corresponds to te.schedule.cache_read.
+   * \param stage_id The index of the stage to be cache read.
+   * \param scope_name The scope name to be set for the new added read stage.
+   * \param reader_stage_ids The indexes of reader stages.
+   * \param dag The original ComputeDAG of this state.
+   * \note Cache read step will add an extra stage to the original ComputeDAG, a up-to-date
+   * ComputeDAG is stored in State's `current_compute_dag`.
+   */
+  int cache_read(int stage_id, const String& scope_name, const Array<Integer>& reader_stage_ids,
+                 const ComputeDAG& dag);
+  /*!
+   * \brief Schedule primitive corresponds to te.schedule.cache_write.
+   * \param stage_id The index of the stage to be cache write.
+   * \param scope_name The scope name to be set for the new added write stage.
+   * \param dag The original ComputeDAG of this state.
+   * \note Cache write step will add an extra stage to the original ComputeDAG, a up-to-date
+   * ComputeDAG is stored in State's `current_compute_dag`.
+   * This step will cache write all output tensors of the target stage.
+   */
+  int cache_write(int stage_id, const String& scope_name, const ComputeDAG& dag);
 
   TVM_DEFINE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StateNode);

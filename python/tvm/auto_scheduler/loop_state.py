@@ -351,6 +351,68 @@ class State:
         self.state_object = _ffi_api.StateComputeRoot(self.state_object,
                                                       self._resolve_stage_id(stage))
 
+    def cache_read(self, stage, scope_name, reader_stages):
+        """ Schedule primitive corresponds to te.schedule.cache_read.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be cache read, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        scope_name : str
+            The scope name to be set for the new added read stage.
+        reader_stages : List[Union[int, Operation, Tensor]]
+            The reader stages. Each of the list can be specified by the integer index, Operation,
+            or output tensor of the stage.
+
+        Returns
+        -------
+        new_stage_op : Operator
+            The Operator of the new added stage.
+
+        Notes
+        -----
+        Cache read step will add an extra stage to the original ComputeDAG.
+        """
+        if isinstance(reader_stages, list):
+            reader_stage_ids = [self._resolve_stage_id(id) for id in reader_stages]
+        else:
+            raise ValueError("reader_stages must be a list of the integer index, Operation, " + \
+                             "or output tensor of the stage")
+
+        self.state_object, new_stage_id = _ffi_api.StateCacheRead(self.state_object,
+                                                                  self._resolve_stage_id(stage),
+                                                                  scope_name, reader_stage_ids,
+                                                                  self.compute_dag)
+        return self._insert_new_stage(int(new_stage_id))
+
+    def cache_write(self, stage, scope_name):
+        """ Schedule primitive corresponds to te.schedule.cache_write.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be cache write, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        scope_name : str
+            The scope name to be set for the new added write stage.
+
+        Returns
+        -------
+        new_stage_op : Operator
+            The Operator of the new added stage.
+
+        Notes
+        -----
+        Cache write step will add an extra stage to the original ComputeDAG, a up-to-date
+        ComputeDAG is stored in State's `current_compute_dag`.
+        This step will cache write all output tensors of the target stage.
+        """
+        self.state_object, new_stage_id = _ffi_api.StateCacheWrite(self.state_object,
+                                                                   self._resolve_stage_id(stage),
+                                                                   scope_name, self.compute_dag)
+        return self._insert_new_stage(int(new_stage_id))
+
     def copy(self):
         """ Do deep copy of this State. """
         state = State(self.state_object, self.compute_dag)
@@ -370,6 +432,23 @@ class State:
     def _update_stage_id_map(self):
         for index, stage in enumerate(self.stages):
             self.stage_id_map[stage.op] = index
+
+    def _insert_new_stage(self, new_stage_id):
+        added_op = self.stages[new_stage_id].op
+
+        # Add a new stage will change all ops. But we still want to use the old ops to index stages,
+        # So we keep updating them and do not remove the old ops.
+
+        # Update stage_id_map for old ops, so we can still use the old ops to index stages.
+        for key, value in self.stage_id_map.items():
+            if value >= new_stage_id:
+                self.stage_id_map[key] = value + 1
+        self.stage_id_map[added_op] = new_stage_id
+
+        # Update stage_id_map for new ops
+        self._update_stage_id_map()
+
+        return added_op
 
     def __getitem__(self, key):
         if isinstance(key, Tensor):

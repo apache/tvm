@@ -32,11 +32,30 @@
 #include <utility>
 #include <vector>
 
+#include "compute_dag.h"
 #include "loop_state.h"
 #include "utils.h"
 
 namespace tvm {
 namespace auto_scheduler {
+
+// Update the te::stage to tir::IterVar axis mapping
+void UpdateStageToAxesMap(const te::Stage& stage, StageToAxesMap* stage_to_axes) {
+  if (auto pop = stage->op.as<te::ComputeOpNode>()) {
+    Array<IterVar> axes;
+    for (const auto& axis : pop->axis) {
+      axes.push_back(axis);
+    }
+    for (const auto& axis : pop->reduce_axis) {
+      axes.push_back(axis);
+    }
+    stage_to_axes->Set(stage, std::move(axes));
+  } else if (stage->op->IsInstance<te::PlaceholderOpNode>()) {
+    {}  // do nothing on Placeholder
+  } else {
+    LOG(FATAL) << "Invalid op " << stage->op;
+  }
+}
 
 const char* IteratorAnnotationString[] = {
     "for",          // kNone = 0
@@ -73,6 +92,10 @@ Step StepReadFromRecord(dmlc::JSONReader* reader) {
     return ComputeInlineStep(reader);
   } else if (name == ComputeRootStepNode::record_prefix_str) {
     return ComputeRootStep(reader);
+  } else if (name == CacheReadStepNode::record_prefix_str) {
+    return CacheReadStep(reader);
+  } else if (name == CacheWriteStepNode::record_prefix_str) {
+    return CacheWriteStep(reader);
   } else {
     LOG(FATAL) << "Invalid step format: " << name;
   }
@@ -94,13 +117,17 @@ void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag) {
     ps->ApplyToState(state);
   } else if (auto ps = step.as<ComputeRootStepNode>()) {
     ps->ApplyToState(state);
+  } else if (auto ps = step.as<CacheReadStepNode>()) {
+    ps->ApplyToState(state, dag);
+  } else if (auto ps = step.as<CacheWriteStepNode>()) {
+    ps->ApplyToState(state, dag);
   } else {
     LOG(FATAL) << "Invalid step: " << step;
   }
 }
 
-void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages,
-                         StageToAxesMap* stage_to_axes) {
+void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                         te::Schedule* schedule) {
   if (auto ps = step.as<AnnotationStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes);
   } else if (auto ps = step.as<FuseStepNode>()) {
@@ -115,13 +142,17 @@ void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages,
     ps->ApplyToSchedule(stages, stage_to_axes);
   } else if (auto ps = step.as<ComputeRootStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes);
+  } else if (auto ps = step.as<CacheReadStepNode>()) {
+    ps->ApplyToSchedule(stages, stage_to_axes, schedule);
+  } else if (auto ps = step.as<CacheWriteStepNode>()) {
+    ps->ApplyToSchedule(stages, stage_to_axes, schedule);
   } else {
     LOG(FATAL) << "Invalid Step: " << step;
   }
 }
 
 String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
-                            StageToAxesMap* stage_to_axes) {
+                            StageToAxesMap* stage_to_axes, te::Schedule* schedule) {
   if (auto ps = step.as<AnnotationStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<FuseStepNode>()) {
@@ -136,6 +167,10 @@ String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<ComputeRootStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
+  } else if (auto ps = step.as<CacheReadStepNode>()) {
+    return ps->PrintAsPythonAPI(stages, stage_to_axes, schedule);
+  } else if (auto ps = step.as<CacheWriteStepNode>()) {
+    return ps->PrintAsPythonAPI(stages, stage_to_axes, schedule);
   } else {
     LOG(FATAL) << "Invalid Step: " << step;
   }
@@ -920,6 +955,276 @@ String ComputeRootStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
   const auto& stage = (*stages)[stage_id];
   ss << "s[" << CleanName(stage->op->name) << "].compute_root()\n";
   ApplyToSchedule(stages, stage_to_axes);
+  return ss.str();
+}
+
+/********** Primitives adding new stages **********/
+
+// Common part for steps that add new stages
+// (e.g. CacheReadStep, CacheWriteStep, RfactorStep)
+void AddStageModificationSteps(int step_id, const Array<Step>& transform_steps,
+                               Array<Step>* replay_steps) {
+  const Step& step = transform_steps[step_id];
+  if (step->IsInstance<CacheWriteStepNode>() || step->IsInstance<CacheReadStepNode>()) {
+    replay_steps->push_back(step);
+  }
+  // TODO(jcf94): add rfactor support
+}
+
+/********** Cache Read **********/
+CacheReadStep::CacheReadStep(int stage_id, String scope_name,
+                             const Array<Integer>& reader_stage_ids) {
+  auto node = make_object<CacheReadStepNode>();
+  node->stage_id = stage_id;
+  node->scope_name = std::move(scope_name);
+  node->reader_stage_ids = reader_stage_ids;
+  data_ = std::move(node);
+}
+
+CacheReadStep::CacheReadStep(dmlc::JSONReader* reader) {
+  auto node = make_object<CacheReadStepNode>();
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->stage_id);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  std::string string_value;
+  reader->Read(&string_value);
+  node->scope_name = std::move(string_value);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  std::vector<int> int_list;
+  reader->Read(&int_list);
+  Array<Integer> reader_stage_ids;
+  for (int i : int_list) {
+    reader_stage_ids.push_back(i);
+  }
+  node->reader_stage_ids = std::move(reader_stage_ids);
+  data_ = std::move(node);
+}
+
+void CacheReadStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
+  writer->WriteArraySeperator();
+  writer->WriteString(scope_name);
+  writer->WriteArrayItem(IntArrayToVector(reader_stage_ids));
+}
+
+int CacheReadStepNode::ApplyToState(State* state, const ComputeDAG& dag) const {
+  StateNode* pstate = state->CopyOnWrite();
+  Array<Step> replay_steps;
+  for (size_t i = 0; i < pstate->transform_steps.size(); ++i) {
+    AddStageModificationSteps(i, pstate->transform_steps, &replay_steps);
+    if (pstate->transform_steps[i].same_as(GetRef<Step>(this))) {
+      break;
+    }
+  }
+  const ComputeDAG& current_compute_dag = dag.ReplayAndGetDAG(replay_steps);
+
+  // target -> target + target_store
+  // Should update target's op, insert new stage, update the later stage's op
+  int added_stage_id = stage_id + 1;
+  Stage tmp_stage = pstate->stages[stage_id];
+  tmp_stage.CopyOnWrite()->op = current_compute_dag->ops[stage_id];
+  pstate->stages.Set(stage_id, std::move(tmp_stage));
+  pstate->stages.insert(pstate->stages.begin() + added_stage_id,
+                        Stage(current_compute_dag->ops[added_stage_id]));
+  for (size_t i = added_stage_id + 1; i < pstate->stages.size(); ++i) {
+    tmp_stage = pstate->stages[i];
+    tmp_stage.CopyOnWrite()->op = current_compute_dag->ops[i];
+    pstate->stages.Set(i, std::move(tmp_stage));
+  }
+  pstate->attach_map = pstate->attach_map.ApplyStageIdOfffset(added_stage_id, 1);
+  pstate->current_compute_dag = std::move(current_compute_dag);
+
+  return added_stage_id;
+}
+
+te::Tensor CacheReadStepNode::ApplyToSchedule(Array<te::Stage>* stages,
+                                              StageToAxesMap* stage_to_axes,
+                                              te::Schedule* schedule) const {
+  const te::Stage& stage = (*stages)[stage_id];
+
+  Array<te::Operation> readers;
+  for (const auto& i : reader_stage_ids) {
+    readers.push_back((*stages)[i]->origin_op);
+  }
+  auto out = schedule->cache_read(stage->origin_op.output(0), scope_name, readers);
+
+  const auto& new_stage = (*schedule)[out->op];
+  UpdateStageToAxesMap(new_stage, stage_to_axes);
+  stages->insert(stages->begin() + stage_id + 1, new_stage);
+
+  return out;
+}
+
+String CacheReadStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                                           te::Schedule* schedule) const {
+  std::stringstream ss;
+  // Copy stage here, for the original stage will change after apply
+  auto stage = (*stages)[stage_id];
+  std::vector<te::Stage> reader_stages;
+  for (size_t i = 0; i < reader_stage_ids.size(); ++i) {
+    reader_stages.push_back((*stages)[reader_stage_ids[i]]);
+  }
+
+  auto out = ApplyToSchedule(stages, stage_to_axes, schedule);
+
+  ss << CleanName(out->op->name) << " = "
+     << "s.cache_read(" << CleanName(stage->op->name) << ", \"" << scope_name << "\", ["
+     << CleanName(reader_stages[0]->op->name);
+  for (size_t i = 1; i < reader_stage_ids.size(); ++i) {
+    ss << ", " << CleanName(reader_stages[i]->op->name);
+  }
+  ss << "])\n";
+
+  const auto& iters = out->op->root_iter_vars();
+  for (size_t i = 0; i < iters.size(); ++i) {
+    ss << CleanName(iters[i]->var->name_hint);
+    if (i != iters.size() - 1) {
+      ss << ", ";
+    }
+  }
+  ss << " = "
+     << "tuple(" << CleanName(out->op->name) << ".op.axis)\n";
+
+  return ss.str();
+}
+
+/********** Cache Write **********/
+CacheWriteStep::CacheWriteStep(int stage_id, String scope_name) {
+  auto node = make_object<CacheWriteStepNode>();
+  node->stage_id = stage_id;
+  node->scope_name = std::move(scope_name);
+  data_ = std::move(node);
+}
+
+CacheWriteStep::CacheWriteStep(dmlc::JSONReader* reader) {
+  auto node = make_object<CacheWriteStepNode>();
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->stage_id);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  std::string string_value;
+  reader->Read(&string_value);
+  node->scope_name = std::move(string_value);
+  data_ = std::move(node);
+}
+
+void CacheWriteStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
+  writer->WriteArraySeperator();
+  writer->WriteString(scope_name);
+}
+
+int CacheWriteStepNode::ApplyToState(State* state, const ComputeDAG& dag) const {
+  StateNode* pstate = state->CopyOnWrite();
+  Array<Step> replay_steps;
+  for (size_t i = 0; i < pstate->transform_steps.size(); ++i) {
+    AddStageModificationSteps(i, pstate->transform_steps, &replay_steps);
+    if (pstate->transform_steps[i].same_as(GetRef<Step>(this))) {
+      break;
+    }
+  }
+  int last_dag_op_size = pstate->current_compute_dag.defined()
+                             ? pstate->current_compute_dag.as<ComputeDAGNode>()->ops.size()
+                             : dag->ops.size();
+  const ComputeDAG& current_compute_dag = dag.ReplayAndGetDAG(replay_steps);
+  int added_ops = current_compute_dag->ops.size() - last_dag_op_size;
+  CHECK_GE(added_ops, 1);
+
+  // target -> target_compute + target
+  // Assume target stage has never been applied any steps before cache_write
+  // Should insert new stage, update target stage, update the later stage's op
+  pstate->stages.insert(pstate->stages.begin() + stage_id,
+                        Stage(current_compute_dag->ops[stage_id]));
+  pstate->stages.Set(stage_id + 1, Stage(current_compute_dag->ops[stage_id + 1]));
+  int next_stage_id = stage_id + 2;
+  // Notice: added_ops should actually assert to be 1
+  // branch of 2 here is somehow a hack to TVM's cache_write bug with multi outputs
+  // see `tests/python/unittest/test_auto_scheduler_loop_state.py::test_cache_read_write` test for
+  // more information
+  // TODO(jcf94): Fix the cache write bug in TVM and remove these branches here
+  if (added_ops == 2) {
+    pstate->stages.insert(pstate->stages.begin() + next_stage_id,
+                          Stage(current_compute_dag->ops[next_stage_id]));
+    next_stage_id++;
+  } else if (added_ops > 2) {
+    LOG(ERROR) << "Unexpected behavior of CacheWrite.";
+  }
+  for (size_t i = next_stage_id; i < current_compute_dag->ops.size(); ++i) {
+    Stage tmp_stage = pstate->stages[i];
+    tmp_stage.CopyOnWrite()->op = current_compute_dag->ops[i];
+    pstate->stages.Set(i, std::move(tmp_stage));
+  }
+  pstate->attach_map = pstate->attach_map.ApplyStageIdOfffset(stage_id, added_ops);
+  pstate->current_compute_dag = std::move(current_compute_dag);
+
+  return stage_id;
+}
+
+Array<te::Tensor> CacheWriteStepNode::ApplyToSchedule(Array<te::Stage>* stages,
+                                                      StageToAxesMap* stage_to_axes,
+                                                      te::Schedule* schedule) const {
+  const te::Stage& stage = (*stages)[stage_id];
+
+  Array<te::Tensor> tensor_array;
+  // If the target stage has multi outputs, TVM requires to cache_write
+  // all of them or schedule.cache_write will raise an error
+  for (auto i = 0; i < stage->op->num_outputs(); ++i) {
+    tensor_array.push_back(stage->origin_op.output(i));
+  }
+  auto outs = schedule->cache_write(tensor_array, scope_name);
+
+  UpdateStageToAxesMap(stage, stage_to_axes);
+  // Even if there is multi outputs, TVM schedule only generate one
+  // new stage
+  const auto& new_stage = (*schedule)[outs[0]->op];
+  UpdateStageToAxesMap(new_stage, stage_to_axes);
+  stages->insert(stages->begin() + stage_id, new_stage);
+
+  return outs;
+}
+
+String CacheWriteStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                                            te::Schedule* schedule) const {
+  std::stringstream ss;
+  // Copy stage here, for the original stage will change after apply
+  te::Stage stage = (*stages)[stage_id];
+
+  auto outs = ApplyToSchedule(stages, stage_to_axes, schedule);
+
+  for (size_t i = 0; i < outs.size(); ++i) {
+    ss << CleanName(outs[i]->op->name) << ", ";
+  }
+  ss << "= "
+     << "s.cache_write([" << CleanName(stage->op.output(0)->op->name);
+  for (auto i = 1; i < stage->op->num_outputs(); ++i) {
+    ss << ", " << CleanName(stage->op.output(i)->op->name);
+  }
+  ss << "], \"" << scope_name << "\")\n";
+
+  for (const auto& out : outs) {
+    const auto& iters = out->op->root_iter_vars();
+    for (size_t i = 0; i < iters.size(); ++i) {
+      ss << CleanName(iters[i]->var->name_hint);
+      if (i != iters.size() - 1) {
+        ss << ", ";
+      }
+    }
+    ss << " = "
+       << "tuple(" << CleanName(out->op->name) << ".op.axis)"
+       << " + "
+       << "tuple(" << CleanName(out->op->name) << ".op.reduce_axis)\n";
+  }
+
   return ss.str();
 }
 
