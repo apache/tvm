@@ -22,7 +22,10 @@ set -o pipefail
 
 apt-get update --fix-missing
 
-# avoid manually selecting the time zone
+# The precompiled caffe dependents on tzdata.
+# While installing tzdata in docker, we need set the time zone manually,
+# which will cause the container to hang during installation.
+# So in order to avoid manually selecting the time zone, set as following:
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y tzdata
 
