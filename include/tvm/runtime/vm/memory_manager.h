@@ -75,7 +75,7 @@ class Allocator {
   virtual ~Allocator() = default;
   /*! \brief Allocate an empty NDArray using from the allocator.
    *  \param shape The shape of the NDArray.
-   *  \param alignment The datatype of the NDArray.
+   *  \param dtype The datatype of the NDArray.
    *  \param ctx The context where the array is allocated.
    *  \return The empty NDArray.
    */
