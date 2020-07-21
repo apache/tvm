@@ -25,8 +25,6 @@ apt-get update --fix-missing
 # avoid manually selecting the time zone
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y tzdata
-ln -fs /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-dpkg-reconfigure --frontend noninteractive tzdata
 
 apt install caffe-cpu -y
 
