@@ -37,7 +37,7 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
-class VMFunction;
+struct VMFunction;
 
 /*!
  * \brief The executable emitted by the VM compiler.
