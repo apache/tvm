@@ -220,6 +220,9 @@ set(USE_ETHOSN OFF)
 # otherwise use ETHOSN_HW (OFF) to use the software test infrastructure
 set(USE_ETHOSN_HW OFF)
 
+# Whether use VITIS-AI codegen
+set(USE_VITIS_AI OFF)
+ 
 # Build ANTLR parser for Relay text format
 # Possible values:
 # - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)
