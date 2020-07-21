@@ -18,7 +18,8 @@
 """ Test measurement and log serialization. """
 
 import tvm
-from tvm import auto_scheduler
+import topi
+from tvm import te, auto_scheduler
 import tempfile
 
 from test_auto_scheduler_common import get_tiled_matmul
@@ -28,7 +29,44 @@ def test_record():
     if not tvm.runtime.enabled("llvm"):
         return
 
-    dag, s = get_tiled_matmul()
+    A = te.placeholder((512, 512), name='A')
+    B = te.placeholder((512, 512), name='B')
+    k = te.reduce_axis((0, 512), name='k')
+    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+    D = topi.nn.relu(C)
+    k = te.reduce_axis((0, 512), name='k')
+    E = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * D[k][j], axis=[k]), name='C')
+    F = topi.nn.relu(E)
+
+    dag = auto_scheduler.ComputeDAG([A, B, F])
+    s = dag.get_init_state()
+
+    # Split
+    its0 = s.split(C, s[C].iters[0], [4, 8, 8])
+    its1 = s.split(C, s[C].iters[4], [8, 4, 4])
+    # Reorder
+    s.reorder(C, [its0[0], its1[0], its0[1], its1[1], its0[2], its1[2], its0[3], s[C].iters[8],
+                  its1[3]])
+    # Fuse
+    s.fuse(C, [s[C].iters[0], s[C].iters[1], s[C].iters[2]])
+    # Compute at
+    s.split(F, s[F].iters[0], [2])
+    s.compute_at(E, F, s[F].iters[0])
+    # Compute inline
+    s.compute_inline(D)
+    # Compute root
+    s.compute_root(D)
+    # Parallel
+    s.parallel(C, s[C].iters[0])
+    # Thread bind(The blockIdx & threadIdx are used in GPU, just for record testing here)
+    s.bind(C, s[C].iters[1], "blockIdx.x")
+    s.bind(C, s[C].iters[2], "threadIdx.z")
+    s.bind(C, s[C].iters[3], "vthread")
+    # Unroll
+    s.unroll(C, s[C].iters[4])
+    # Vectorize
+    s.vectorize(C, s[C].iters[6])
+
     target = tvm.target.create("llvm")
     task = auto_scheduler.SearchTask(dag, "test", target)
 

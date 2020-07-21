@@ -270,19 +270,9 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
   }
 
   // Apply the history steps to TVM schedule
+  // Call each step's ApplyToSchedule method
   for (const auto& step : transform_steps) {
-    // Call each step's ApplyToSchedule method
-    // Note: some steps have extra parameters that must be passed and they may need different
-    // return value, so the ApplyToSchedule is not able to be merged to single interface
-    if (auto ps = step.as<ReorderStepNode>()) {
-      ps->ApplyToSchedule(stages, stage_to_axes);
-    } else if (auto ps = step.as<SplitStepNode>()) {
-      ps->ApplyToSchedule(stages, stage_to_axes);
-    } else if (auto ps = step.as<FuseStepNode>()) {
-      ps->ApplyToSchedule(stages, stage_to_axes);
-    } else {
-      LOG(FATAL) << "Invalid Step";
-    }
+    StepApplyToSchedule(step, stages, stage_to_axes);
   }
 
   return std::make_pair(schedule, operator->()->tensors);
@@ -326,15 +316,7 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
   }
   // Call each step's PrintAsPythonAPI method
   for (const auto& step : transform_steps) {
-    if (auto ps = step.as<ReorderStepNode>()) {
-      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
-    } else if (auto ps = step.as<SplitStepNode>()) {
-      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
-    } else if (auto ps = step.as<FuseStepNode>()) {
-      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
-    } else {
-      LOG(FATAL) << "Invalid Step";
-    }
+    ss << StepPrintAsPythonAPI(step, &stages, &stage_to_axes);
   }
 
   return ss.str();
@@ -352,7 +334,7 @@ State ComputeDAG::InferBound(const State& state) const {
     ret_state = operator->()->init_state;
     pstate = ret_state.CopyOnWrite();
     pstate->transform_steps = state->transform_steps;
-    ret_state.DoSteps(*this);
+    ret_state.ApplySteps(*this);
   } else {
     ret_state = state;
     pstate = ret_state.CopyOnWrite();
