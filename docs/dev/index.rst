@@ -41,7 +41,9 @@ Example Compilation Flow
 In this guide, we will study an example compilation flow in the compiler. The figure below shows the flow. At a high-level, it contains several steps:
 
 - Import: The frontend component ingests a model into an IRModule, which contains a collection of functions that internally represent the model.
-- Transformation: The compiler transforms an IRModule to another functionally equivalent or approximately equivalent(e.g. in the case of quantization) IRModule.
+- Transformation: The compiler transforms an IRModule to another functionally equivalent or approximately
+  equivalent(e.g. in the case of quantization) IRModule. Many of the transformatons are target (backend) independent.
+  We also allow target to affect the configuration of the transformation pipeline.
 - Target Translation: The compiler translates(codegen) the IRModule to an executable format specified by the target.
   The target translation result is encapsulated as a `runtime.Module` that can be exported, loaded, and executed on the target runtime environment.
 - Runtime Execution: the user loads back a `runtime.Module` and runs the compiled functions in the supported runtime environment.
@@ -55,12 +57,20 @@ In this guide, we will study an example compilation flow in the compiler. The fi
 Key data structures
 ~~~~~~~~~~~~~~~~~~~
 
-One of the best ways to design and understand a complex system is to identify the key data structures and APIs that transform these data structures. One we identified the key data structures, we can then de-couple a system into logical components that either define a collection of key data structures or transformations among the data structures.
+One of the best ways to design and understand a complex system is to identify the key data structures and APIs that
+manipulate (transform) these data structures. Once we identified the key data structures, we can then breakdown a system into logical
+components that either define a collection of key data structures or transformations among the data structures.
 
-**IRModule** is the primary data structure used across the entire stack. An IRModule (intermediate representation module) contains a collection of functions. Currently, we support two primary variants of functions.
+**IRModule** is the primary data structure used across the entire stack. An IRModule (intermediate representation module)
+contains a collection of functions. Currently, we support two primary variants of functions.
 
-- **relay::Function** is a high-level functional program representation. A relay.Function usually corresponds to an end to end model. You can view a relay.Function as a computational graph with additional support for control-flow, recursion, and complex data structures, if you are familiar with the computational graph terminology in deep learning systems,
-- **tir:PrimFunc** is a low-level program representation that contains elements including loop-nest choices, multi-dimensional load/store, threading, and vector/tensor instructions. It is usually used to represent an operator program that executes a (possibly-fused) layer in a model.
+- **relay::Function** is a high-level functional program representation. A relay.Function usually corresponds to an end to end model.
+  You can view a relay.Function as a computational graph with additional support for control-flow, recursion, and complex data structures.
+- **tir::PrimFunc** is a low-level program representation that contains elements including loop-nest choices, multi-dimensional load/store,
+  threading, and vector/tensor instructions. It is usually used to represent an operator program that executes a (possibly-fused) layer in a model.
+
+During the compilation, a relay function may be lowered to multiple tir::PrimFunc functions and a top-level function that calls into
+those tir::PrimFunc functions.
 
 Transformations
 ~~~~~~~~~~~~~~~
@@ -70,12 +80,16 @@ Now that we have covered the key data structures, let us talk about the transfor
 - optimization: transform a program to an equivalent, possibly more optimized version.
 - lowering: transform a program to a lower-level representation that is closer to the target.
 
-**relay/transform** contains a collection of passes that optimize the model. The optimizations include common program optimizations such as constant folding and dead-code elimination, and tensor-computation specific passes such as layout transformation and scaling factor folding.
+**relay/transform** contains a collection of passes that optimize the model. The optimizations include common program
+optimizations such as constant folding and dead-code elimination, and tensor-computation specific passes such as layout
+transformation and scaling factor folding.
 
-Near the end of the relay optimization pipeline, we will run a pass(FuseOps) to break the end to end function(e.g. mobilenet) into sub-function(e.g. conv2d-relu) segments. We call these segments primitive functions. This process helps us to divide the original problem into two sub-problems:
+Near the end of the relay optimization pipeline, we will run a pass(FuseOps) to break the end to end function(e.g. mobilenet)
+into sub-function(e.g. conv2d-relu) segments. We call these segments of functions.
+This process helps us to divide the original problem into two sub-problems:
 
-- Compilation and optimization for each primitive function.
-- Overall execution structure: we need to do a sequence of calls into the generated primitive functions to execute the whole model.
+- Compilation and optimization for each sub-function.
+- Overall execution structure: we need to do a sequence of calls into the generated sub-functions to execute the whole model.
 
 We use the low-level tir phase to compile and optimize each sub-functions. For specific targets, we may also directly go to the target translation phase and use external code generators.
 
@@ -90,17 +104,32 @@ Search-space and Learning-based Transformations
 
 The transformation passes we described so far are deterministic and rule-based. One design goal of the TVM stack is to support high-performance code optimizations for different hardware platforms. To do so, we will need to investigate as many optimizations choices as possible, including but not limited to, multi-dimensional tensor access, loop tiling behavior, special accelerator memory hierarchy, and threading.
 
-It is hard to define a heuristic to make all of the choices. Instead, we will take a search and learning-based approach. We first define a collection of actions we can take to transform a program. Example actions include loop transformations, inlining, vectorization. We call these actions **scheduling primitives**. The collection of scheduling primitives defines a search space of possible optimizations we can make to a program. The system will use then searches over different possible scheduling combinations to pick the best one. The search procedure is usually guided by a machine learning algorithm.
+It is hard to define a heuristic to make all of the choices. Instead, we will take a search and learning-based approach.
+We first define a collection of actions we can take to transform a program. Example actions include loop transformations, inlining,
+vectorization. We call these actions **scheduling primitives**. The collection of scheduling primitives defines a search space of possible
+optimizations we can make to a program. The system will use then searches over different possible scheduling
+sequence to pick the best scheduling combination.
+The search procedure is usually guided by a machine learning algorithm.
 
-We can record the best schedule sequence for an operator once the search is completed. The compiler can then just lookup the best schedule sequence and apply it to the program. Notably, this schedule application phase **exactly like** the rule-based transformations, enabling us to share the same interface convention with tradition passes.
+We can record the best schedule sequence for an (possibly-fused) operator once the search is completed. The compiler can then just lookup the best
+schedule sequence and apply it to the program. Notably, this schedule application phase **exactly like** the rule-based transformations,
+enabling us to share the same interface convention with tradition passes.
 
-We use search based optimizations to handle the initial tir function generation problem. This part of the module is called AutoTVM(auto_scheduler). We expect to expand the learning-based transformations to more areas as we continue to develop the TVM stack.
+We use search based optimizations to handle the initial tir function generation problem. This part of the module is called AutoTVM(auto_scheduler).
+We expect to expand the learning-based transformations to more areas as we continue to develop the TVM stack.
 
 Target Translation
 ~~~~~~~~~~~~~~~~~~
 
-The target translation phase transforms an IRModule to the corresponding target executable format. For backends such as x86, ARM, we will use the LLVM IRBuilder to build in-memory LLVM IR. We can also generate source-level languages such as CUDA C and OpenCL. Finally, we support the direct translation of a Relay function (sub-graph) for external code generators. Importantly, the final code generation phase should be lightweight as possible with the vast majority of transformations and lowering performed before target translation.
-We also provide a Target structure to specify the compilation target. The transformations before the target translation phase can also be affected by the target — for example, a target's vector length would change the vectorization behavior.
+The target translation phase transforms an IRModule to the corresponding target executable format.
+For backends such as x86 and ARM, we will use the LLVM IRBuilder to build in-memory LLVM IR.
+We can also generate source-level languages such as CUDA C and OpenCL.
+Finally, we support the direct translation of a Relay function (sub-graph) for external code generators.
+Importantly, the final code generation phase should be lightweight as possible with the vast majority of transformations
+and lowering performed before target translation.
+We also provide a Target structure to specify the compilation target.
+The transformations before the target translation phase can also be affected by the target — for example,
+a target's vector length would change the vectorization behavior.
 
 Runtime Execution
 ~~~~~~~~~~~~~~~~~
@@ -151,17 +180,18 @@ In summary, the key data structures in the compilation flows are:
 - IRModule: contains relay.Function and tir.PrimFunc
 - runtime.Module: contains runtime.PackedFunc
 
-Most of part of the compilation are transformations among the key data structures.
+Most parts of the compilation are transformations among the key data structures.
 
 - relay/transform and tir/transform are determinstic rule-based transformations
 - auto_scheduler and autotvm contains the search-based transformations
 
-Finally, the compilation flow example is only a typical use-case of the TVM stack. We expose these key data structures and transformations to python and C++ APIs. As a result, you can use TVM just like the way you use numpy, except that the data structure of interest changes from the numpy.ndarray to tvm.IRModule. Here are some example use-cases:
+Finally, the compilation flow example is only a typical use-case of the TVM stack.
+We expose these key data structures and transformations to python and C++ APIs. As a result, you can use TVM just like the way you use numpy,
+except that the data structure of interest changes from the numpy.ndarray to tvm.IRModule. Here are some example use-cases:
 
-- Directly construct IRModule using hybrid script for compilations.
+- Directly construct IRModule using the python API.
 - Compose a custom set of transformations(e.g. customize quantization).
-- Manipulate the IR directly using tvm's python API.
-
+- Manipulate the IR directly using TVM's python API.
 
 
 Logical Architecture Components
@@ -181,15 +211,23 @@ The support module contains the most common utilities for the infrastructure, su
 tvm/runtime
 -----------
 
-The runtime serves as the foundation of the TVM stack. It provides the mechanism to load and execute compiled artifacts. The runtime defines a stable standard set of C API to interface with frontend languages such as python and rust.
+The runtime serves as the foundation of the TVM stack. It provides the mechanism to load and execute compiled artifacts.
+The runtime defines a stable standard set of C API to interface with frontend languages such as Python and Rust.
 
-`runtime::Object` is one of the primary data structures in TVM runtime besides the `runtime::PackedFunc`. It is a reference-counted base class with type index to support runtime type checking and downcasting. The object system allows the developer to introduce new data structures to the runtime, such as Array, Map, and new IR data structures.
+`runtime::Object` is one of the primary data structures in TVM runtime besides the `runtime::PackedFunc`.
+It is a reference-counted base class with type index to support runtime type checking and downcasting.
+The object system allows the developer to introduce new data structures to the runtime, such as Array, Map, and new IR data structures.
 
-Besides the deployment use-cases, the compiler itself also makes heavy use of the tvm's runtime mechanism. All of the IR data structures are subclasses of `runtime::Object`, as a result, they can be directly accessed and manipulated from the python frontend. We expose the PackedFunc to expose various APIs to the frontend.
+Besides the deployment use-cases, the compiler itself also makes heavy use of the TVM's runtime mechanism.
+All of the IR data structures are subclasses of `runtime::Object`, as a result, they can be directly accessed and manipulated from the Python frontend.
+We use the PackedFunc mechanism to expose various APIs to the frontend.
 
-Runtime support for different hardware backends are defined in subdirectories of runtime(e.g. runtime/opencl). These hardware-specific runtime modules define APIs for device memory allocation and device function serialization.
+Runtime support for different hardware backends are defined in subdirectories of runtime(e.g. runtime/opencl).
+These hardware-specific runtime modules define APIs for device memory allocation and device function serialization.
 
-`runtime/rpc` implements an RPC support for PackedFunc. We can use the RPC mechanism to send a cross-compiled library to a remote device and benchmark the execution performance. The rpc infrastructure enables data collection from a wide range of hardware backends for learning-based optimizations.
+`runtime/rpc` implements an RPC support for PackedFunc. We can use the RPC mechanism to send a cross-compiled library to a remote
+device and benchmark the execution performance. The rpc infrastructure enables data collection from a wide range of hardware backends
+for learning-based optimizations.
 
 
 .. toctree::
