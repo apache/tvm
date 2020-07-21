@@ -91,7 +91,8 @@ This process helps us to divide the original problem into two sub-problems:
 - Compilation and optimization for each sub-function.
 - Overall execution structure: we need to do a sequence of calls into the generated sub-functions to execute the whole model.
 
-We use the low-level tir phase to compile and optimize each sub-functions. For specific targets, we may also directly go to the target translation phase and use external code generators.
+We use the low-level tir phase to compile and optimize each sub-functions. For specific targets, we may also directly go to the target translation
+phase and use external code generators.
 
 There are a few different ways(in relay/backend) to handle the calls into the overall execution problem. For simple models with known shapes and no control flow, we can lower to a graph runtime that stores the execution structure in a graph. We also support a virtual machine backend for dynamic executions. Finally, we plan to support ahead of time compilation that compiles the high-level execution structure into the executable and generated primitive functions. All of these execution modes are encapsulated by a unified **runtime.Module** interface, which we will discuss in the latter part of the guide.
 
@@ -124,7 +125,7 @@ Target Translation
 The target translation phase transforms an IRModule to the corresponding target executable format.
 For backends such as x86 and ARM, we will use the LLVM IRBuilder to build in-memory LLVM IR.
 We can also generate source-level languages such as CUDA C and OpenCL.
-Finally, we support the direct translation of a Relay function (sub-graph) for external code generators.
+Finally, we support direct translations of a Relay function (sub-graph) to specific targets via external code generators.
 Importantly, the final code generation phase should be lightweight as possible with the vast majority of transformations
 and lowering performed before target translation.
 We also provide a Target structure to specify the compilation target.
