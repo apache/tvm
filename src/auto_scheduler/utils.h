@@ -63,7 +63,7 @@ struct hash<std::tuple<T1, T2, T3>> {
 namespace tvm {
 namespace auto_scheduler {
 
-/********** Utilities for Array, std::string **********/
+/********** Utilities for Array, std::vector, std::string **********/
 /*! \brief Get the first appearance index of elements in an Array */
 template <typename T>
 inline void GetIndices(const Array<T>& array, const Array<T>& to_locate, Array<Integer>* indices) {
@@ -89,6 +89,15 @@ inline int GetIndex(const Array<T>& array, const T& to_locate) {
   return -1;
 }
 
+/*! \brief Delete the item in a std::vector if it exists. */
+template <typename T>
+inline void FindAndDeleteItem(std::vector<T>* array, const T& to_delete) {
+  auto iter = std::find(array->begin(), array->end(), to_delete);
+  if (iter != array->end()) {
+    array->erase(iter);
+  }
+}
+
 /*! \brief Replace a sub-string to another sub-string in a string */
 inline void StrReplace(std::string* base, const std::string& from, const std::string& to) {
   auto pos = base->find(from);
@@ -96,6 +105,27 @@ inline void StrReplace(std::string* base, const std::string& from, const std::st
     base->replace(pos, from.size(), to);
     pos = base->find(from, pos + to.size());
   }
+}
+
+/*! \brief Convert a Array<Integer> to std::vector<int>. */
+inline std::vector<int> IntArrayToVector(const ::tvm::Array<::tvm::Integer>& data) {
+  std::vector<int> out;
+  for (const auto& x : data) {
+    CHECK(x.defined());
+    out.push_back(x);
+  }
+  return out;
+}
+
+/*! \brief Convert a Array<Optional<Integer>> to std::vector<int>. */
+inline std::vector<int> IntArrayToVector(
+    const ::tvm::Array<::tvm::Optional<::tvm::Integer>>& data) {
+  std::vector<int> out;
+  for (const auto& x : data) {
+    CHECK(x);
+    out.push_back(x.value());
+  }
+  return out;
 }
 
 /********** Utilities for TVM Containers / ByteArray **********/
