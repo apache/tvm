@@ -22,7 +22,8 @@ This document is intended for developers who want to understand the
 architecture of TVM and/or actively develop on the project.
 This page is organized as follows:
 
-- The `Example Compilation Flow Walkthrough`_ section is a walk through of a typical compilation flow explaining each component used during compilation.
+- The `Example Compilation Flow`_ gives an overview of the steps that TVM takes to turn a high level description of a model into a deployable module.
+  To get started, please read the this section first.
 - The `Logical Architecture Components`_ section describes the logical components.
   The sections after are specific guides focused on each logical component, organized
   by the component's name.
@@ -33,21 +34,15 @@ First, we review a single end to end compilation flow and discuss the key data s
 This runtime-based view focuses on the interactions of each components when running the compiler.
 Then we will review the logical modules of the codebase and their relationship. This part provides a static overarching view of the design.
 
-To get started, please read the `Example Compilation Flow Walkthrough`_  section first for the runtime-based view.
-You can then refer to the architecture diagram in `Logical Architecture Components`_.
-Each architecture component section contains a short introduction to the corresponding component
-and links to detailed guides that you can dive into.
-Feel free to browse the `How Tos`_ to useful development tips.
 
-
-Example Compilation Flow Walkthrough
-------------------------------------
+Example Compilation Flow
+------------------------
 
 In this guide, we will study an example compilation flow in the compiler. The figure below shows the flow. At a high-level, it contains several steps:
 
 - Import: The frontend component ingests a model into an IRModule, which contains a collection of functions that internally represent the model.
 - Transformation: The compiler transforms an IRModule to another functionally equivalent or approximately equivalent(e.g. in the case of quantization) IRModule.
-- Target Translation: The compiler translate(codegen) the IRModule to an executable format specified by the target.
+- Target Translation: The compiler translates(codegen) the IRModule to an executable format specified by the target.
   The target translation result is encapsulated as a `runtime.Module` that can be exported, loaded, and executed on the target runtime environment.
 - Runtime Execution: the user loads back a `runtime.Module` and runs the compiled functions in the supported runtime environment.
 
@@ -283,8 +278,8 @@ these scheduling components to the a `tir::PrimFunc` itself.
 
 topi
 ----
-While possible to construct operators directly via TIR or tensor expressions (TE) for each use case it is tedious to do so. 
-`topi` provides a set of pre-defined operators (in TE or TIR) defined by 
+While possible to construct operators directly via TIR or tensor expressions (TE) for each use case it is tedious to do so.
+`topi` provides a set of pre-defined operators (in TE or TIR) defined by
 numpy and found in common deep learning workloads. We also provide a collection of common schedule templates to obtain performant implementations across different target platforms.
 
 
@@ -304,13 +299,13 @@ Relay is the high-level functional IR used to represent full models. Various opt
 tvm/autotvm
 -----------
 
-AutoTVM and AutoScheduler are both components which automate search based program optimization. This is rapidly evolving and primarily consists of: 
+AutoTVM and AutoScheduler are both components which automate search based program optimization. This is rapidly evolving and primarily consists of:
 
 - Cost models and feature extraction.
-- A record format for storing program benchmark results for cost model construction. 
-- A set of search policies over program transformations. 
+- A record format for storing program benchmark results for cost model construction.
+- A set of search policies over program transformations.
 
-Automated program optimization is still an active research field. As a result, we have attempted to modularize the design so that researchers may quickly modify a component or apply their own algorithms via the Python bindings. 
+Automated program optimization is still an active research field. As a result, we have attempted to modularize the design so that researchers may quickly modify a component or apply their own algorithms via the Python bindings.
 customize the search and plugin their algorithms from the python binding.
 
 .. toctree::
