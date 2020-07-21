@@ -27,7 +27,7 @@ import tvm.runtime.ndarray as _nd
 import tvm.runtime.vm as vm_rt
 from tvm import autotvm
 from tvm.relay import expr as _expr
-from tvm.relay.ty import type_has_any
+from tvm.relay.ty import is_dynamic
 from tvm.relay.backend.interpreter import Executor
 from . import _vm
 
@@ -257,7 +257,7 @@ class VMExecutor(Executor):
         def _vm_wrapper(*args, **kwargs):
             args = self._convert_args(main, args, kwargs)
             ret_type = self.mod["main"].checked_type.ret_type
-            if type_has_any(ret_type) and "llvm" not in str(self.target) and "arm" not in str(
+            if is_dynamic(ret_type) and "llvm" not in str(self.target) and "arm" not in str(
                     self.target):
                 raise ValueError(
                     "Virtual Machine only supports dynamic graphs on CPU, got output type",

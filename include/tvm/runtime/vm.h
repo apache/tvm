@@ -115,6 +115,7 @@ enum class Opcode {
   Fatal = 15U,
   AllocStorage = 16U,
   ShapeOf = 17U,
+  ReshapeTensor = 18U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -249,6 +250,10 @@ struct Instruction {
     struct /* ShapeOf Operands */ {
       RegName tensor;
     } shape_of;
+    struct /* ReshapeTensor Operands */ {
+      RegName tensor;
+      RegName newshape;
+    } reshape_tensor;
   };
 
   /*!
@@ -400,6 +405,15 @@ struct Instruction {
    * \return The shape of instruction.
    */
   static Instruction ShapeOf(RegName tensor, RegName dst);
+
+  /*!
+   * \brief Reshape the tensor given the new shape.
+   * \param tensor The input tensor.
+   * \param newshape The shape tensor.
+   * \param dst The destination to store the output tensor with new shape.
+   * \return The reshape tensor instruction.
+   */
+  static Instruction ReshapeTensor(RegName tensor, RegName newshape, RegName dst);
 
   Instruction();
   Instruction(const Instruction& instr);

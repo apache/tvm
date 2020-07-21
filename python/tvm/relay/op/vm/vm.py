@@ -81,3 +81,20 @@ def shape_func(func, inputs, outputs, is_inputs):
         The shape function expression.
     """
     return _ffi_api.shape_func(func, inputs, outputs, is_inputs)
+
+
+def reshape_tensor(data, shape, newshape):
+    """Invoke the VM ReshapeTensor instruction.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data.
+
+    shape : tvm.relay.Expr
+        The newshape tensor.
+
+    newshape : List[tvm.ir.PrimExpr]
+        The new shape.
+    """
+    return _ffi_api.reshape_tensor(data, shape, newshape)
