@@ -86,7 +86,7 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
   std::shared_ptr<JSONGraphNode> CreateCompositeConvJSONNode(const CallNode* cn) {
     const std::string name = "nn.conv2d";
     const CallNode* pad = nullptr;
-    const CallNode* conv;
+    const CallNode* conv = nullptr;
     const CallNode* bias = nullptr;
     bool has_activation = false;
 
