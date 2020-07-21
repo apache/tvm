@@ -314,9 +314,9 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
          << "tuple(" << stage->op->name << ".op.reduce_axis)\n";
     }
   }
-  // Call each step's ApplyToPythonAPI method
+  // Call each step's PrintAsPythonAPI method
   for (const auto& step : transform_steps) {
-    ss << StepApplyToPythonAPI(step, &stages, &stage_to_axes);
+    ss << StepPrintAsPythonAPI(step, &stages, &stage_to_axes);
   }
 
   return ss.str();

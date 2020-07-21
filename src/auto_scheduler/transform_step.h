@@ -26,13 +26,13 @@
  * Take fuse step for example:
  * 1. Define class `FuseStepNode`, `FuseStep` in `transform_steps.h`, and implement its first
  *    construction function `FuseStep::FuseStep()` in `transform_steps.cc`.
- * 2. Implement `FuseStepNode::ApplyToSchedule()` and `FuseStepNode::ApplyToPythonAPI()`.
+ * 2. Implement `FuseStepNode::ApplyToSchedule()` and `FuseStepNode::PrintAsPythonAPI()`.
  *    - In these two functions you need to lower this step with tvm's te schedule API
  * 3. Implement `FuseStepNode::ApplyToState` and the state API `State::fuse`.
  *    - In these two functions you need to incrementally update all data structures in State with
  *      CopyOnWrite style.
  * 4. Add your step implementation to `StepApplyToState`, `StepApplyToSchedule` and
- *    `StepApplyToPythonAPI`, make sure it works.
+ *    `StepPrintAsPythonAPI`, make sure it works.
  * 5. Log record serialization support:
  *    - Add `FuseStepNode::WriteToRecord` which takes a mutable JSONWriter pointer as input and
  *      output the record to it.
@@ -206,7 +206,7 @@ void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxes
  * \param stage_to_axes A pointer to a StageToAxesMap.
  * \return Python schedule code.
  */
-String StepApplyToPythonAPI(const Step& step, Array<te::Stage>* stages,
+String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
                             StageToAxesMap* stage_to_axes);
 
 /********** Primitives working on single stage **********/
@@ -244,7 +244,7 @@ class AnnotationStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* record_prefix_str = "AN";
 
@@ -307,7 +307,7 @@ class FuseStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* record_prefix_str = "FU";
 
@@ -368,7 +368,7 @@ class ReorderStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* record_prefix_str = "RE";
 
@@ -443,7 +443,7 @@ class SplitStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* record_prefix_str = "SP";
 
@@ -513,7 +513,7 @@ class ComputeAtStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* record_prefix_str = "CA";
 
@@ -570,7 +570,7 @@ class ComputeInlineStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* record_prefix_str = "CI";
 
@@ -629,7 +629,7 @@ class ComputeRootStepNode : public StepNode {
    * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
-  String ApplyToPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* record_prefix_str = "CR";
 

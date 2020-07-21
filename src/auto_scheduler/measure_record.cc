@@ -74,12 +74,14 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
 
   inline static void Read(dmlc::JSONReader* reader,
                           ::tvm::Array<::tvm::auto_scheduler::Step>* data) {
+    bool s;
     reader->BeginArray();
     data->clear();
     while (reader->NextArrayItem()) {
       reader->BeginArray();
       data->push_back(::tvm::auto_scheduler::StepReadFromRecord(reader));
-      CHECK(!reader->NextArrayItem());
+      s = reader->NextArrayItem();
+      CHECK(!s);
     }
   }
 };
@@ -93,12 +95,16 @@ struct Handler<::tvm::auto_scheduler::StateNode> {
     writer->EndArray();
   }
   inline static void Read(dmlc::JSONReader* reader, ::tvm::auto_scheduler::StateNode* data) {
+    bool s;
     reader->BeginArray();
-    CHECK(reader->NextArrayItem());
+    s = reader->NextArrayItem();
+    CHECK(s);
     reader->Read(&data->stages);
-    CHECK(reader->NextArrayItem());
+    s = reader->NextArrayItem();
+    CHECK(s);
     reader->Read(&data->transform_steps);
-    CHECK(!reader->NextArrayItem());
+    s = reader->NextArrayItem();
+    CHECK(!s);
   }
 };
 
@@ -112,15 +118,19 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     writer->EndArray();
   }
   inline static void Read(dmlc::JSONReader* reader, ::tvm::auto_scheduler::SearchTaskNode* data) {
-    std::string target_str;
+    bool s;
+    std::string str_value;
     reader->BeginArray();
-    CHECK(reader->NextArrayItem());
-    reader->Read(&target_str);
-    data->workload_key = std::move(target_str);
-    CHECK(reader->NextArrayItem());
-    reader->Read(&target_str);
-    data->target = ::tvm::Target::Create(target_str);
-    CHECK(!reader->NextArrayItem());
+    s = reader->NextArrayItem();
+    CHECK(s);
+    reader->Read(&str_value);
+    data->workload_key = std::move(str_value);
+    s = reader->NextArrayItem();
+    CHECK(s);
+    reader->Read(&str_value);
+    data->target = ::tvm::Target::Create(str_value);
+    s = reader->NextArrayItem();
+    CHECK(!s);
   }
 };
 
@@ -138,12 +148,16 @@ struct Handler<::tvm::auto_scheduler::MeasureInputNode> {
     auto state_node = ::tvm::make_object<::tvm::auto_scheduler::StateNode>();
     state_node->concrete = true;
 
+    bool s;
     reader->BeginArray();
-    CHECK(reader->NextArrayItem());
+    s = reader->NextArrayItem();
+    CHECK(s);
     reader->Read(task_node.get());
-    CHECK(reader->NextArrayItem());
+    s = reader->NextArrayItem();
+    CHECK(s);
     reader->Read(state_node.get());
-    CHECK(!reader->NextArrayItem());
+    s = reader->NextArrayItem();
+    CHECK(!s);
 
     data->task = ::tvm::auto_scheduler::SearchTask(task_node);
     data->state = ::tvm::auto_scheduler::State(state_node);
@@ -170,22 +184,27 @@ struct Handler<::tvm::auto_scheduler::MeasureResultNode> {
   }
   inline static void Read(dmlc::JSONReader* reader,
                           ::tvm::auto_scheduler::MeasureResultNode* data) {
-    std::vector<double> tmp;
-
+    std::vector<double> double_list;
+    bool s;
     reader->BeginArray();
-    CHECK(reader->NextArrayItem());
-    reader->Read(&tmp);
+    s = reader->NextArrayItem();
+    CHECK(s);
+    reader->Read(&double_list);
     data->costs.clear();
-    for (const auto& i : tmp) {
+    for (const auto& i : double_list) {
       data->costs.push_back(::tvm::FloatImm(::tvm::DataType::Float(64), i));
     }
-    CHECK(reader->NextArrayItem());
+    s = reader->NextArrayItem();
+    CHECK(s);
     reader->Read(&data->error_no);
-    CHECK(reader->NextArrayItem());
+    s = reader->NextArrayItem();
+    CHECK(s);
     reader->Read(&data->all_cost);
-    CHECK(reader->NextArrayItem());
+    s = reader->NextArrayItem();
+    CHECK(s);
     reader->Read(&data->timestamp);
-    CHECK(!reader->NextArrayItem());
+    s = reader->NextArrayItem();
+    CHECK(!s);
   }
 };
 

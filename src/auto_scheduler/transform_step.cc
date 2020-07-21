@@ -55,7 +55,9 @@ const char* IteratorAnnotationString[] = {
 
 Step StepReadFromRecord(dmlc::JSONReader* reader) {
   std::string name;
-  CHECK(reader->NextArrayItem());
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&name);
   if (name == AnnotationStepNode::record_prefix_str) {
     return AnnotationStep(reader);
@@ -118,22 +120,22 @@ void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages,
   }
 }
 
-String StepApplyToPythonAPI(const Step& step, Array<te::Stage>* stages,
+String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
                             StageToAxesMap* stage_to_axes) {
   if (auto ps = step.as<AnnotationStepNode>()) {
-    return ps->ApplyToPythonAPI(stages, stage_to_axes);
+    return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<FuseStepNode>()) {
-    return ps->ApplyToPythonAPI(stages, stage_to_axes);
+    return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<ReorderStepNode>()) {
-    return ps->ApplyToPythonAPI(stages, stage_to_axes);
+    return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<SplitStepNode>()) {
-    return ps->ApplyToPythonAPI(stages, stage_to_axes);
+    return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<ComputeAtStepNode>()) {
-    return ps->ApplyToPythonAPI(stages, stage_to_axes);
+    return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<ComputeInlineStepNode>()) {
-    return ps->ApplyToPythonAPI(stages, stage_to_axes);
+    return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<ComputeRootStepNode>()) {
-    return ps->ApplyToPythonAPI(stages, stage_to_axes);
+    return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else {
     LOG(FATAL) << "Invalid Step: " << step;
   }
@@ -153,11 +155,15 @@ AnnotationStep::AnnotationStep(int stage_id, int iter_id, IteratorAnnotation ann
 
 AnnotationStep::AnnotationStep(dmlc::JSONReader* reader) {
   auto node = make_object<AnnotationStepNode>();
-  CHECK(reader->NextArrayItem());
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&node->stage_id);
-  CHECK(reader->NextArrayItem());
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&node->iter_id);
-  CHECK(reader->NextArrayItem());
+  s = reader->NextArrayItem();
+  CHECK(s);
   int int_val;
   reader->Read(&int_val);
   node->annotation = IteratorAnnotation(int_val);
@@ -219,7 +225,7 @@ void AnnotationStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   stages->Set(stage_id, std::move(stage));
 }
 
-String AnnotationStepNode::ApplyToPythonAPI(Array<te::Stage>* stages,
+String AnnotationStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                             StageToAxesMap* stage_to_axes) const {
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
@@ -285,10 +291,13 @@ FuseStep::FuseStep(int stage_id, const Array<Integer>& fused_ids) {
 
 FuseStep::FuseStep(dmlc::JSONReader* reader) {
   auto node = make_object<FuseStepNode>();
-  CHECK(reader->NextArrayItem());
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&node->stage_id);
   std::vector<int> int_list;
-  CHECK(reader->NextArrayItem());
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&int_list);
   ::tvm::Array<::tvm::Integer> fused_ids;
   for (const auto& i : int_list) {
@@ -406,7 +415,7 @@ IterVar FuseStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   return fused_axis;
 }
 
-String FuseStepNode::ApplyToPythonAPI(Array<te::Stage>* stages,
+String FuseStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                       StageToAxesMap* stage_to_axes) const {
   const auto& stage = (*stages)[stage_id];
   std::stringstream to_fuse;
@@ -440,9 +449,12 @@ ReorderStep::ReorderStep(int stage_id, const Array<Integer>& after_ids) {
 
 ReorderStep::ReorderStep(dmlc::JSONReader* reader) {
   auto node = make_object<ReorderStepNode>();
-  CHECK(reader->NextArrayItem());
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&node->stage_id);
-  CHECK(reader->NextArrayItem());
+  s = reader->NextArrayItem();
+  CHECK(s);
   std::vector<int> int_list;
   reader->Read(&int_list);
   ::tvm::Array<::tvm::Integer> after_ids;
@@ -487,7 +499,7 @@ void ReorderStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   stages->Set(stage_id, std::move(stage));
 }
 
-String ReorderStepNode::ApplyToPythonAPI(Array<te::Stage>* stages,
+String ReorderStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                          StageToAxesMap* stage_to_axes) const {
   const auto& stage = (*stages)[stage_id];
   std::stringstream ss;
@@ -676,17 +688,22 @@ SplitStep::SplitStep(int stage_id, int iter_id, Optional<PrimExpr> extent,
 
 SplitStep::SplitStep(dmlc::JSONReader* reader) {
   auto node = make_object<SplitStepNode>();
-  CHECK(reader->NextArrayItem());
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&node->stage_id);
-  CHECK(reader->NextArrayItem());
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&node->iter_id);
   int int_val;
-  CHECK(reader->NextArrayItem());
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&int_val);
   if (int_val) {
     node->extent = Integer(int_val);
   }
-  CHECK(reader->NextArrayItem());
+  s = reader->NextArrayItem();
+  CHECK(s);
   std::vector<int> int_list;
   reader->Read(&int_list);
   ::tvm::Array<::tvm::Optional<::tvm::Integer>> lengths;
@@ -694,7 +711,8 @@ SplitStep::SplitStep(dmlc::JSONReader* reader) {
     lengths.push_back(::tvm::Integer(i));
   }
   node->lengths = lengths;
-  CHECK(reader->NextArrayItem());
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&node->inner_to_outer);
   data_ = std::move(node);
 }
@@ -718,7 +736,7 @@ Array<IterVar> SplitStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   return ApplySplitToSchedule(stages, stage_to_axes, stage_id, iter_id, lengths, inner_to_outer);
 }
 
-String SplitStepNode::ApplyToPythonAPI(Array<te::Stage>* stages,
+String SplitStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                        StageToAxesMap* stage_to_axes) const {
   return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id, lengths, inner_to_outer);
 }
@@ -736,11 +754,15 @@ ComputeAtStep::ComputeAtStep(int stage_id, int target_stage_id, int target_iter_
 
 ComputeAtStep::ComputeAtStep(dmlc::JSONReader* reader) {
   auto node = make_object<ComputeAtStepNode>();
-  CHECK(reader->NextArrayItem());
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&node->stage_id);
-  CHECK(reader->NextArrayItem());
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&node->target_stage_id);
-  CHECK(reader->NextArrayItem());
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&node->target_iter_id);
   data_ = std::move(node);
 }
@@ -779,7 +801,7 @@ void ComputeAtStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   stages->Set(stage_id, std::move(stage));
 }
 
-String ComputeAtStepNode::ApplyToPythonAPI(Array<te::Stage>* stages,
+String ComputeAtStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                            StageToAxesMap* stage_to_axes) const {
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
@@ -799,7 +821,9 @@ ComputeInlineStep::ComputeInlineStep(int stage_id) {
 
 ComputeInlineStep::ComputeInlineStep(dmlc::JSONReader* reader) {
   auto node = make_object<ComputeInlineStepNode>();
-  CHECK(reader->NextArrayItem());
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&node->stage_id);
   data_ = std::move(node);
 }
@@ -835,7 +859,7 @@ void ComputeInlineStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   stages->Set(stage_id, std::move(stage));
 }
 
-String ComputeInlineStepNode::ApplyToPythonAPI(Array<te::Stage>* stages,
+String ComputeInlineStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                                StageToAxesMap* stage_to_axes) const {
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
@@ -853,7 +877,9 @@ ComputeRootStep::ComputeRootStep(int stage_id) {
 
 ComputeRootStep::ComputeRootStep(dmlc::JSONReader* reader) {
   auto node = make_object<ComputeRootStepNode>();
-  CHECK(reader->NextArrayItem());
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
   reader->Read(&node->stage_id);
   data_ = std::move(node);
 }
@@ -888,7 +914,7 @@ void ComputeRootStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   stages->Set(stage_id, std::move(stage));
 }
 
-String ComputeRootStepNode::ApplyToPythonAPI(Array<te::Stage>* stages,
+String ComputeRootStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                              StageToAxesMap* stage_to_axes) const {
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
