@@ -25,17 +25,11 @@ export LD_LIBRARY_PATH="$TVM_HOME/lib:$TVM_HOME/build:${LD_LIBRARY_PATH:-}"
 export PYTHONPATH="$TVM_HOME/python":"$TVM_HOME/topi/python"
 export RUST_DIR="$TVM_HOME/rust"
 
-[ -z "$LLVM_CONFIG_PATH" ] && LLVM_CONFIG_PATH=`which llvm-config-10`
 
-if env | grep -q ^VARIABLE=
-then
-  echo "Using user provided LLVM config path."
-else
-  echo "Using default LLVM config path."
-  export LLVM_CONFIG_PATH
-fi
+export LLVM_CONFIG_DEFAULT=`which llvm-config-10`
+export LLVM_CONFIG_PATH="${LLVM_CONFIG_PATH:-$LLVM_CONFIG_DEFAULT}"
 
-echo "Using $LLVM_CONFIG_PATH"
+echo "Using LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH"
 
 # to avoid CI CPU thread throttling.
 export TVM_BIND_THREADS=0
