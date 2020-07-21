@@ -37,12 +37,125 @@
 
 #include <tvm/te/schedule.h>
 
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "loop_state.h"
 
 namespace tvm {
 namespace auto_scheduler {
+
+/*! \brief Static analysis result for a ComputeDAG */
+class AccessAnalyzerNode : public Object {
+ public:
+  template <class T>
+  using OperationMap = std::unordered_map<te::Operation, T, ObjectHash, ObjectEqual>;
+
+  /*! \brief Map an operation to all operations it reads from.
+   * For each operation pair, use a two-dimentional array to multiple multi-dimentional accesses*/
+  OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_from;
+  /*! \brief Map an operation to all operations it is read by.
+   * For each operation pair, use a two-dimentional array to multiple multi-dimentional accesses*/
+  OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_by;
+  /*! \brief Store the number of common outer iterators for operation pairs that have read-write
+   * relations. */
+  OperationMap<OperationMap<int>> num_common_outer_iterators;
+  /*! \brief Store whether the operation is injective */
+  OperationMap<bool> is_injective;
+  /*! \brief Store whether the operation is strictly-inlineable */
+  OperationMap<bool> is_strict_inlineable;
+  /*! \brief Store whether the operation needs multi-level tiling */
+  OperationMap<bool> needs_multi_level_tiling;
+  /*! \brief Store whether the operation is an output operation */
+  OperationMap<bool> is_output;
+  /*! \brief Store the topological order of operations */
+  Array<te::Operation> ops_topo_order;
+
+  static constexpr const char* _type_key = "auto_scheduler.AccessAnalyzer";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AccessAnalyzerNode, Object);
+};
+
+/*!
+ * \brief Managed reference to AccessAnalyzerNode.
+ * \sa AccessAnalyzerNode
+ */
+class AccessAnalyzer : public ObjectRef {
+ public:
+  explicit AccessAnalyzer(const Array<te::Tensor>& tensors);
+
+  /*!
+   * \brief Return whether this operation needs multi-level tiling
+   * \param op The operation
+   */
+  bool NeedsMultiLevelTiling(const te::Operation& op) const;
+
+  /*!
+   * \brief Return whether this operation is an injective operation
+   * \param op The operation
+   */
+  bool IsInjective(const te::Operation& op) const;
+
+  /*!
+   * \brief Return whether this operation is strictly inlinable
+   * \param op The operation
+   */
+  bool IsStrictInlineable(const te::Operation& op) const;
+
+  /*!
+   * \brief Return whether this operation is an output op
+   * \param op The operation
+   */
+  bool IsOutput(const te::Operation& op) const;
+
+  /*!
+   * \brief Get all consumers of on operation
+   * \param state The current loop state
+   * \param op The operation
+   * \param consumers The return consumer set
+   * \note This function propagates the relation for inlined ops
+   */
+  void GetConsumers(const State& state, const te::Operation& op,
+                    std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* consumers) const;
+
+  /*!
+   * \brief Get all producers of on operation
+   * \param state The current loop state
+   * \param op The operation
+   * \param producers The return producer set
+   * \note This function propagates the relation for inlined ops
+   */
+  void GetProducers(const State& state, const te::Operation& op,
+                    std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* producers) const;
+
+  /*!
+   * \brief Get all direct producers of on operation
+   * \param op The operation
+   * \param producers The return producer set
+   * \note This function DOES NOT propagate the relation for inlined ops
+   */
+  void GetDirectProducers(
+      const te::Operation& op,
+      std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* producers) const;
+
+  /*!
+   * \brief Get the number of common outer iterators.
+   * \param op The operation
+   * \param target_op The target operation
+   * \note This function propagates the relation for chains with multiple ops.
+   */
+  int GetNumCommonOuterIterator(const State& state, const te::Operation& op,
+                                const te::Operation& target_op) const;
+
+  /*!
+   * \brief Return whether two operations are elementwise-matched
+   *  (e.g. conv2d and relu are elementwise matched)
+   */
+  bool ElementWiseMatch(const te::Operation& op, const te::Operation& target_op) const;
+
+  TVM_DEFINE_OBJECT_REF_METHODS(AccessAnalyzer, ObjectRef, AccessAnalyzerNode);
+};
 
 /*! \brief The TVM Auto-scheduler computational graph and related program analyses. */
 class ComputeDAGNode : public Object {

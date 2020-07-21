@@ -28,6 +28,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <algorithm>
@@ -43,6 +44,10 @@ namespace tvm {
 namespace auto_scheduler {
 
 using namespace tvm::tir;
+
+template <class T>
+using OperationMap = AccessAnalyzerNode::OperationMap<T>;
+using OperationSet = std::unordered_set<te::Operation, ObjectHash, ObjectEqual>;
 
 TVM_REGISTER_NODE_TYPE(ComputeDAGNode);
 
@@ -114,7 +119,434 @@ Array<te::Operation> TopoSortOps(const Array<te::Tensor>& tensors) {
   return ops;
 }
 
-// Estimate number of float operations in an expression
+// Extract all tensor accesses in an expr
+class TensorAccessExtractor : public StmtExprVisitor {
+ public:
+  void Extract(PrimExpr expr) { this->VisitExpr(expr); }
+
+  void VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(builtin::if_then_else())) {
+      has_branch = true;
+    }
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitExpr_(const ProducerLoadNode* op) final {
+    buf_accesses[Downcast<te::Tensor>(op->producer)->op].emplace_back(op->indices.begin(),
+                                                                      op->indices.end());
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const IfThenElseNode* op) final {
+    has_branch = true;
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitExpr_(const SelectNode* op) final {
+    has_branch = true;
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  OperationMap<std::vector<std::vector<PrimExpr>>> buf_accesses;
+  bool has_branch{false};
+};
+
+// Returns whether the expr equals to the var with a const shift
+bool IsConstShiftEqual(const Var& var, const PrimExpr& expr) {
+  if (auto pv = expr.as<VarNode>()) {
+    return pv == var.get();
+  } else if (auto padd = expr.as<AddNode>()) {
+    return ((padd->a.get() == var.get() && padd->b->IsInstance<IntImmNode>()) ||
+            (padd->b.get() == var.get() && padd->a->IsInstance<IntImmNode>()));
+  } else if (auto psub = expr.as<SubNode>()) {
+    return ((psub->a.get() == var.get() && psub->b->IsInstance<IntImmNode>()) ||
+            (psub->b.get() == var.get() && psub->a->IsInstance<IntImmNode>()));
+  } else {
+    return false;
+  }
+}
+
+// Return whether the access is injective
+bool IsInjective(const te::Operation& op, const std::vector<PrimExpr>& index, bool* axis_missing,
+                 bool* axis_duplicated, bool* same_order) {
+  auto cop = op.as<te::ComputeOpNode>();
+  if (cop == nullptr) {
+    return false;
+  }
+
+  std::vector<int> index_to_var_idx;
+  std::vector<int> var_idx_ct(cop->axis.size(), 0);
+
+  for (const auto& expr : index) {
+    if (!is_const_int(expr)) {
+      bool found = false;
+      for (size_t i = 0; i < cop->axis.size(); ++i) {
+        if (IsConstShiftEqual(cop->axis[i]->var, expr)) {
+          index_to_var_idx.push_back(i);
+          var_idx_ct[i]++;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        return false;
+      }
+    }
+  }
+
+  *axis_missing = false;     // Some axes are missing
+  *axis_duplicated = false;  // Some axes appear more than once
+  *same_order = true;        // The axis order is the same as op->axis
+  for (int ct : var_idx_ct) {
+    if (ct == 0) {
+      *axis_missing = true;
+    } else if (ct > 1) {
+      *axis_duplicated = true;
+    }
+  }
+  for (size_t i = 1; i < index_to_var_idx.size(); ++i) {
+    if (index_to_var_idx[i] < index_to_var_idx[i - 1]) {
+      *same_order = false;
+      break;
+    }
+  }
+
+  return true;
+}
+
+// Gather all VarNodes in an expr
+static void GatherVars(const PrimExpr& expr, std::unordered_set<const VarNode*>* vars) {
+  PostOrderVisit(expr, [&vars](const ObjectRef& node) {
+    if (const VarNode* op = node.as<VarNode>()) {
+      vars->insert(op);
+    }
+  });
+}
+
+// Check whether an expr has expensive operations (e.g. exp)
+static bool HasExpensiveOp(const PrimExpr& expr) {
+  bool found = false;
+  PostOrderVisit(expr, [&found](const ObjectRef& node) {
+    if (const CallNode* op = node.as<CallNode>()) {
+      if (op->op.as<OpNode>()->name == "tir.exp") {
+        found = true;
+      }
+    }
+  });
+  return found;
+}
+
+AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
+  auto node = make_object<AccessAnalyzerNode>();
+  OperationMap<bool> has_branch;
+
+  // get all ops
+  node->ops_topo_order = TopoSortOps(tensors);
+
+  arith::Analyzer analyzer;
+
+  // build read & write access map
+  for (const auto& op : node->ops_topo_order) {
+    if (op->IsInstance<te::PlaceholderOpNode>()) {
+      node->read_from[op] = OperationMap<std::vector<std::vector<PrimExpr>>>();
+    } else if (auto cop = op.as<te::ComputeOpNode>()) {
+      TensorAccessExtractor extractor;
+      for (const auto& exp : cop->body) {
+        extractor.Extract(exp);
+      }
+
+      // read_by and read_from map
+      for (const auto& iter : extractor.buf_accesses) {
+        std::vector<std::vector<PrimExpr>>& accesses = node->read_by[iter.first][op];
+        accesses.insert(accesses.begin(), iter.second.begin(), iter.second.end());
+      }
+
+      node->read_from[op] = std::move(extractor.buf_accesses);
+      has_branch[op] = extractor.has_branch;
+
+      // compute number of common outer iterators
+      for (const auto& pair : node->read_from[op]) {
+        const te::Operation& producer = pair.first;
+        const std::vector<std::vector<PrimExpr>>& access_list = pair.second;
+        const Array<PrimExpr>& output_shape = op->output_shape(0);
+        const Array<PrimExpr>& producer_shape = producer->output_shape(0);
+
+        int n_common;
+        for (n_common = 0;
+             n_common < static_cast<int>(std::min(output_shape.size(), producer_shape.size()));
+             n_common++) {
+          if (!is_zero(analyzer.Simplify(output_shape[n_common] - producer_shape[n_common]))) {
+            break;
+          }
+
+          bool direct_access = true;
+          for (const auto& access : access_list) {
+            if (!IsConstShiftEqual(cop->axis[n_common]->var, access[n_common])) {
+              direct_access = false;
+              break;
+            }
+          }
+
+          if (!direct_access) {
+            break;
+          }
+        }
+
+        node->num_common_outer_iterators[op][producer] = n_common;
+        node->num_common_outer_iterators[producer][op] = n_common;
+      }
+    } else {
+      LOG(FATAL) << "Invalid op: " << op;
+    }
+  }
+
+  // do some static analysis
+  for (const auto& op : node->ops_topo_order) {
+    if (op->IsInstance<te::PlaceholderOpNode>()) {
+      node->is_injective[op] = true;
+      node->needs_multi_level_tiling[op] = false;
+      node->is_strict_inlineable[op] = false;
+      node->is_output[op] = false;
+    } else if (auto pop = op.as<te::ComputeOpNode>()) {
+      // check whether is element-wise and strict-inlineable
+      // (see definition in compute_dag.h)
+      bool is_injective = true;
+      bool is_strict_inlineable = true;
+
+      bool axis_missing, axis_duplicated, same_order;
+      for (const auto& pair : node->read_from[op]) {
+        const std::vector<std::vector<PrimExpr>>& access = pair.second;
+        for (const auto& index : access) {
+          if (!auto_scheduler::IsInjective(op, index, &axis_missing, &axis_duplicated,
+                                           &same_order)) {
+            is_injective = false;
+            is_strict_inlineable = false;
+            break;
+          }
+          if (!same_order || axis_duplicated) {
+            // do not strictly inline transpose
+            is_strict_inlineable = false;
+          }
+        }
+        if (!is_injective) {
+          break;
+        }
+      }
+      if (has_branch[op]) {
+        is_strict_inlineable = false;
+      }
+
+      // don't strictly inline expensive op (e.g. exp)
+      bool has_expensive_op = false;
+      for (const auto& expr : pop->body) {
+        has_expensive_op |= HasExpensiveOp(expr);
+      }
+
+      node->is_injective[op] = is_injective;
+      node->is_strict_inlineable[op] = is_strict_inlineable && !has_expensive_op;
+
+      // check whether the op needs multi-level tiling
+      // (see definition in compute_dag.h)
+      bool needs_multi_level_tiling = false;
+      int n_missing = 0;
+
+      for (const auto& pair : node->read_from[op]) {
+        const std::vector<std::vector<PrimExpr>>& access = pair.second;
+        std::unordered_set<const VarNode*> vars;
+        for (const std::vector<PrimExpr>& indices : access) {
+          for (const PrimExpr& expr : indices) {
+            GatherVars(expr, &vars);
+          }
+        }
+        bool missing = false;
+        for (const auto& axis : pop->axis) {
+          if (GetIntImm(axis->dom->extent) > 1 && vars.count(axis->var.get()) == 0) {
+            missing = true;
+          }
+        }
+        if (missing) {
+          n_missing++;
+        }
+
+        if (n_missing >= 2 || (n_missing >= 1 && !pop->reduce_axis.empty())) {
+          needs_multi_level_tiling = true;
+          break;
+        }
+      }
+
+      node->needs_multi_level_tiling[op] = needs_multi_level_tiling;
+
+      // check whether is output
+      node->is_output[op] = node->read_by[op].empty();
+    } else {
+      LOG(FATAL) << "Invalid op" << op;
+    }
+  }
+
+  data_ = std::move(node);
+}
+
+bool AccessAnalyzer::NeedsMultiLevelTiling(const te::Operation& op) const {
+  return operator->()->needs_multi_level_tiling.at(op);
+}
+
+bool AccessAnalyzer::IsOutput(const te::Operation& op) const {
+  return operator->()->is_output.at(op);
+}
+
+bool AccessAnalyzer::IsInjective(const te::Operation& op) const {
+  return operator->()->is_injective.at(op);
+}
+
+bool AccessAnalyzer::IsStrictInlineable(const te::Operation& op) const {
+  return operator->()->is_strict_inlineable.at(op);
+}
+
+void AccessAnalyzer::GetConsumers(const State& state, const te::Operation& op,
+                                  OperationSet* consumers) const {
+  OperationSet inlined_ops;
+  for (const auto& stage : state->stages) {
+    if (stage->compute_at == ComputeAtKind::kInlined) {
+      inlined_ops.insert(stage->op);
+    }
+  }
+
+  std::function<void(const te::Operation&)> collect;
+  collect = [this, &collect, &inlined_ops, &consumers](const te::Operation& op) {
+    for (const auto& iter : operator->()->read_by.at(op)) {
+      if (inlined_ops.count(iter.first)) {
+        collect(iter.first);
+      } else {
+        consumers->insert(iter.first);
+      }
+    }
+  };
+
+  consumers->clear();
+  collect(op);
+}
+
+void AccessAnalyzer::GetDirectProducers(const te::Operation& op, OperationSet* producers) const {
+  producers->clear();
+  for (const auto& iter : operator->()->read_from.at(op)) {
+    producers->insert(iter.first);
+  }
+}
+
+void AccessAnalyzer::GetProducers(const State& state, const te::Operation& op,
+                                  OperationSet* producers) const {
+  OperationSet inlined_ops;
+  for (const auto& stage : state->stages) {
+    if (stage->compute_at == ComputeAtKind::kInlined) {
+      inlined_ops.insert(stage->op);
+    }
+  }
+
+  std::function<void(const te::Operation&)> collect;
+  collect = [this, &collect, &inlined_ops, &producers](const te::Operation& op) {
+    for (const auto& iter : operator->()->read_from.at(op)) {
+      if (inlined_ops.count(iter.first)) {
+        collect(iter.first);
+      } else {
+        producers->insert(iter.first);
+      }
+    }
+  };
+
+  producers->clear();
+  collect(op);
+}
+
+int AccessAnalyzer::GetNumCommonOuterIterator(const State& state, const te::Operation& op,
+                                              const te::Operation& target_op) const {
+  int ret = INT32_MAX;
+  bool meet = false;
+
+  std::function<void(const te::Operation&, int)> traverse;
+  traverse = [this, &traverse, &target_op, &ret, &meet](const te::Operation& cur_op, int cur_num) {
+    if (cur_op == target_op) {
+      ret = std::min(ret, cur_num);
+      meet = true;
+      return;
+    }
+
+    for (const auto& iter : operator->()->read_by.at(cur_op)) {
+      traverse(
+          iter.first,
+          std::min(cur_num, operator->()->num_common_outer_iterators.at(cur_op).at(iter.first)));
+    }
+  };
+
+  traverse(op, op->output_shape(0).size());
+  return meet ? ret : 0;
+}
+
+// Return whether two int arrays are elementwise-equal
+bool IntArrayEqual(const Array<PrimExpr>& arr1, const Array<PrimExpr>& arr2) {
+  if (arr1.size() != arr2.size()) {
+    return false;
+  }
+
+  for (size_t i = 0; i < arr1.size(); ++i) {
+    auto int1 = arr1[i].as<IntImmNode>();
+    auto int2 = arr2[i].as<IntImmNode>();
+    CHECK(int1 != nullptr);
+    CHECK(int2 != nullptr);
+    if (int1->value != int2->value) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool AccessAnalyzer::ElementWiseMatch(const te::Operation& op,
+                                      const te::Operation& target_op) const {
+  te::Operation cur_op = op;
+  while (cur_op != target_op) {
+    const AccessAnalyzerNode::OperationMap<std::vector<std::vector<PrimExpr>>>& map =
+    operator->()->read_by.at(cur_op);
+
+    if (map.size() != 1) {
+      return false;
+    }
+    te::Operation next_op = map.begin()->first;
+
+    // Check condition 1: has the same output size
+    auto p_cur = cur_op.as<te::ComputeOpNode>();
+    auto p_next = next_op.as<te::ComputeOpNode>();
+    if (p_cur == nullptr || p_next == nullptr) {
+      return false;
+    }
+
+    Array<PrimExpr> output_shape = p_cur->output_shape(0);
+    for (int i = 1; i < p_cur->num_outputs(); ++i) {
+      if (!IntArrayEqual(p_cur->output_shape(i), output_shape)) {
+        return false;
+      }
+    }
+    for (int i = 0; i < p_next->num_outputs(); ++i) {
+      if (!IntArrayEqual(p_next->output_shape(i), output_shape)) {
+        return false;
+      }
+    }
+
+    // Check condition 2: read is elementwise
+    const std::vector<std::vector<PrimExpr>> reads = map.begin()->second;
+    bool is_injective, axis_missing, axis_duplicated, same_order;
+    for (const auto& read : reads) {
+      is_injective =
+          auto_scheduler::IsInjective(next_op, read, &axis_missing, &axis_duplicated, &same_order);
+      if (!is_injective || axis_missing || axis_duplicated || !same_order) {
+        return false;
+      }
+    }
+
+    cur_op = std::move(next_op);
+  }
+  return true;
+}
+
+// Estimate the number of float operations in an expression
 class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
  public:
   double EstimateFlop(const Array<te::Operation>& ops) {
@@ -126,6 +558,7 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
           fail_ = true;
           break;
         }
+        cur_type_code_ = pop->output_dtype(0).code();
         double op_per_element = 0;
         for (const auto& x : pop->body) {
           op_per_element += VisitExpr(x);
@@ -171,10 +604,17 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
            std::max(VisitExpr(op->true_value), VisitExpr(op->false_value));
   }
 
-#define VisitBinary(Node) \
-  double VisitExpr_(const Node* op) final { return 1.0 + VisitExpr(op->a) + VisitExpr(op->b); }
-#define VisitUnary(Node) \
-  double VisitExpr_(const Node* op) final { return 1.0 + VisitExpr(op->a); }
+#define VisitBinary(Node)                                         \
+  double VisitExpr_(const Node* op) final {                       \
+    double base = op->dtype.code() == cur_type_code_ ? 1.0 : 0.0; \
+    return base + VisitExpr(op->a) + VisitExpr(op->b);            \
+  }
+
+#define VisitUnary(Node)                                          \
+  double VisitExpr_(const Node* op) final {                       \
+    double base = op->dtype.code() == cur_type_code_ ? 1.0 : 0.0; \
+    return base + VisitExpr(op->a);                               \
+  }
 
   VisitBinary(AddNode);
   VisitBinary(SubNode);
@@ -210,6 +650,7 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
 
  private:
   bool fail_{false};
+  int cur_type_code_;
 };
 
 ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
