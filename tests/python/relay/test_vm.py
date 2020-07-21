@@ -45,7 +45,6 @@ def check_result(args, expected_result, mod=None):
         if "cuda" in target:
             continue
         vm = relay.create_executor('vm', ctx=ctx, target=target, mod=mod)
-
         rts_result = vm.evaluate()(*args)
         tvm.testing.assert_allclose(expected_result, rts_result.asnumpy())
 
@@ -57,8 +56,7 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         assert isinstance(f, tvm.IRModule), "expected expression or module"
         mod = f
     exe = relay.vm.compile(mod, target)
-    vm = runtime.vm.VirtualMachine(exe)
-    vm.init(ctx)
+    vm = runtime.vm.VirtualMachine(exe, ctx)
     return vm.invoke("main", *args)
 
 def vmobj_to_list(o):

@@ -25,7 +25,6 @@
 #include "vm.h"
 
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/vm.h>
 
 #include <algorithm>
 #include <chrono>
