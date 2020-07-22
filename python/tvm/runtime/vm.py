@@ -296,8 +296,8 @@ class VirtualMachine(object):
 
     def __init__(self, exe, ctx, memory_cfg=None):
         if not isinstance(exe, Executable):
-            raise TypeError("mod is expected to be the type of Executable, " +
-                            "but received {}".format(type(mod)))
+            raise TypeError("exe is expected to be the type of Executable, " +
+                            "but received {}".format(type(exe)))
         self.module = _ffi_api._VirtualMachine(exe.module)
         self._exec = exe
         self._init = self.module["init"]
@@ -317,6 +317,9 @@ class VirtualMachine(object):
             if memory_cfg == "naive":
                 default_alloc_type = VirtualMachine.NAIVE_ALLOCATOR
             memory_cfg = {}
+        elif not isinstance(memory_cfg, dict):
+            raise TypeError("memory_cfg is expected be string or dictionary, " +
+                            "but received {}".format(type(memory_cfg)))
         init_args = []
         for context in ctx:
             init_args.append(context.device_type)
