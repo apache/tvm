@@ -22,16 +22,15 @@
  * \brief Infer and correct layout.
  */
 #include <nnvm/graph.h>
-#include <nnvm/op_attr_types.h>
 #include <nnvm/graph_attr_types.h>
-#include <nnvm/pass.h>
 #include <nnvm/layout.h>
+#include <nnvm/op_attr_types.h>
+#include <nnvm/pass.h>
 
 namespace nnvm {
 namespace pass {
 
-nnvm::ObjectPtr CreateLayoutTransformNode(const Layout& src,
-                                        const Layout& dst) {
+nnvm::ObjectPtr CreateLayoutTransformNode(const Layout& src, const Layout& dst) {
   static const nnvm::Op* trans_op = nnvm::Op::Get("__layout_transform__");
   static int count = 0;
   nnvm::ObjectPtr n = nnvm::Node::Create();
@@ -50,8 +49,7 @@ using LayoutAttrDict = std::unordered_map<const Node*, std::vector<Layout> >;
  *        insert layout transform nodes automatically.
  */
 nnvm::Graph CorrectLayout(nnvm::Graph src) {
-  static auto& op_correct_layout =
-    nnvm::Op::GetAttr<FCorrectLayout>("FCorrectLayout");
+  static auto& op_correct_layout = nnvm::Op::GetAttr<FCorrectLayout>("FCorrectLayout");
 
   const IndexedGraph& idx = src.indexed_graph();
   std::vector<nnvm::ObjectPtr> mirror_vec(idx.num_nodes(), nullptr);
@@ -65,13 +63,12 @@ nnvm::Graph CorrectLayout(nnvm::Graph src) {
     *new_node = *(inode.source);
     if (new_node->is_variable()) {
       // Variable node. No operator. Only one output entry.
-      auto input_iter = std::find(
-        idx.input_nodes().cbegin(), idx.input_nodes().cend(), nid);
+      auto input_iter = std::find(idx.input_nodes().cbegin(), idx.input_nodes().cend(), nid);
       CHECK(input_iter != idx.input_nodes().cend());
       int64_t input_id = std::distance(idx.input_nodes().cbegin(), input_iter);
       if (src.HasAttr("layout_inputs")) {
-        new_layouts[new_node.get()] =
-          {src.GetAttr<std::vector<Layout> >("layout_inputs")[input_id]};
+        new_layouts[new_node.get()] = {
+            src.GetAttr<std::vector<Layout> >("layout_inputs")[input_id]};
       } else {
         new_layouts[new_node.get()] = {Layout::Undef()};
       }
@@ -110,9 +107,9 @@ nnvm::Graph CorrectLayout(nnvm::Graph src) {
     }
 
     if (op_correct_layout.count(new_node->op())) {
-      const auto &flayout = op_correct_layout[new_node->op()];
+      const auto& flayout = op_correct_layout[new_node->op()];
       CHECK(flayout(new_node->attrs, &request_ilayouts, &last_request_ilayouts, &produce_olayouts))
-        << "Layout infer fail";
+          << "Layout infer fail";
       CHECK_EQ(request_ilayouts.size(), num_inputs);
       CHECK_EQ(produce_olayouts.size(), num_outputs);
     }
@@ -175,10 +172,10 @@ nnvm::Graph CorrectLayout(nnvm::Graph src) {
 
 // register pass
 NNVM_REGISTER_PASS(CorrectLayout)
-.describe("Return a layout-transformed graph of src.")
-.set_body(CorrectLayout)
-.provide_graph_attr("layout")
-.set_change_graph(true);
+    .describe("Return a layout-transformed graph of src.")
+    .set_body(CorrectLayout)
+    .provide_graph_attr("layout")
+    .set_change_graph(true);
 
 DMLC_JSON_ENABLE_ANY(LayoutVector, list_layout);
 

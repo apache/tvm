@@ -20,23 +20,24 @@
 /*!
  * \file sdaccel_module.cc
  */
+#include "sdaccel_module.h"
+
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/registry.h>
-#include <vector>
+
 #include <string>
 #include <unordered_map>
+#include <vector>
+
 #include "sdaccel_common.h"
-#include "sdaccel_module.h"
 
 namespace tvm {
 namespace runtime {
 
 class SDAccelModuleNode : public OpenCLModuleNode {
  public:
-  explicit SDAccelModuleNode(std::string data,
-                             std::string fmt,
-                             std::unordered_map<std::string, FunctionInfo> fmap,
-                             std::string source)
+  explicit SDAccelModuleNode(std::string data, std::string fmt,
+                             std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : OpenCLModuleNode(data, fmt, fmap, source) {}
   const std::shared_ptr<cl::OpenCLWorkspace>& GetGlobalWorkspace() final;
 };
@@ -45,18 +46,14 @@ const std::shared_ptr<cl::OpenCLWorkspace>& SDAccelModuleNode::GetGlobalWorkspac
   return cl::SDAccelWorkspace::Global();
 }
 
-Module SDAccelModuleCreate(
-    std::string data,
-    std::string fmt,
-    std::unordered_map<std::string, FunctionInfo> fmap,
-    std::string source) {
+Module SDAccelModuleCreate(std::string data, std::string fmt,
+                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
   auto n = make_object<SDAccelModuleNode>(data, fmt, fmap, source);
   n->Init();
   return Module(n);
 }
 
-Module SDAccelModuleLoadFile(const std::string& file_name,
-                             const std::string& format) {
+Module SDAccelModuleLoadFile(const std::string& file_name, const std::string& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
@@ -77,10 +74,8 @@ Module SDAccelModuleLoadBinary(void* strm) {
   return SDAccelModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_xclbin")
-.set_body_typed(SDAccelModuleLoadFile);
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_xclbin").set_body_typed(SDAccelModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_awsxclbin")
-.set_body_typed(SDAccelModuleLoadFile);
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_awsxclbin").set_body_typed(SDAccelModuleLoadFile);
 }  // namespace runtime
 }  // namespace tvm

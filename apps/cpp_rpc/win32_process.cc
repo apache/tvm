@@ -20,15 +20,18 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#include "win32_process.h"
+
+#include <conio.h>
+#include <dmlc/logging.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+
 #include <cstdio>
 #include <memory>
-#include <conio.h>
-#include <string>
 #include <stdexcept>
-#include <dmlc/logging.h>
-#include "win32_process.h"
+#include <string>
+
 #include "rpc_server.h"
 
 using namespace std::chrono;
@@ -82,36 +85,36 @@ UniqueHandle MakeUniqueHandle(HANDLE handle) {
  */
 SOCKET GetSocket(const std::string& mmap_path) {
   WSAPROTOCOL_INFO protocol_info;
- 
+
   const std::string parent_event_name = mmap_path + kParent;
   const std::string child_event_name = mmap_path + kChild;
 
   // Open the events
   UniqueHandle parent_file_mapping_event;
-  if ((parent_file_mapping_event = MakeUniqueHandle(OpenEventA(SYNCHRONIZE, false, parent_event_name.c_str()))) == nullptr) {
+  if ((parent_file_mapping_event = MakeUniqueHandle(
+           OpenEventA(SYNCHRONIZE, false, parent_event_name.c_str()))) == nullptr) {
     LOG(FATAL) << "OpenEvent() failed: " << GetLastError();
   }
 
   UniqueHandle child_file_mapping_event;
-  if ((child_file_mapping_event = MakeUniqueHandle(OpenEventA(EVENT_MODIFY_STATE, false, child_event_name.c_str()))) == nullptr) {
+  if ((child_file_mapping_event = MakeUniqueHandle(
+           OpenEventA(EVENT_MODIFY_STATE, false, child_event_name.c_str()))) == nullptr) {
     LOG(FATAL) << "OpenEvent() failed: " << GetLastError();
   }
-  
+
   // Wait for the parent to set the event, notifying WSAPROTOCOL_INFO is ready to be read
-  if (WaitForSingleObject(parent_file_mapping_event.get(), uint32_t(kEventTimeout.count())) != WAIT_OBJECT_0) {
-      LOG(FATAL) << "WaitForSingleObject() failed: " << GetLastError();
+  if (WaitForSingleObject(parent_file_mapping_event.get(), uint32_t(kEventTimeout.count())) !=
+      WAIT_OBJECT_0) {
+    LOG(FATAL) << "WaitForSingleObject() failed: " << GetLastError();
   }
 
-  const UniqueHandle file_map = MakeUniqueHandle(OpenFileMappingA(FILE_MAP_READ | FILE_MAP_WRITE,
-                                                  false,
-                                                  mmap_path.c_str()));
+  const UniqueHandle file_map =
+      MakeUniqueHandle(OpenFileMappingA(FILE_MAP_READ | FILE_MAP_WRITE, false, mmap_path.c_str()));
   if (!file_map) {
-      LOG(INFO) << "CreateFileMapping() failed: " << GetLastError();
+    LOG(INFO) << "CreateFileMapping() failed: " << GetLastError();
   }
 
-  void* map_view = MapViewOfFile(file_map.get(),
-                  FILE_MAP_READ | FILE_MAP_WRITE,
-                  0, 0, 0);
+  void* map_view = MapViewOfFile(file_map.get(), FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, 0);
 
   SOCKET sock_duplicated = INVALID_SOCKET;
 
@@ -120,12 +123,8 @@ SOCKET GetSocket(const std::string& mmap_path) {
     UnmapViewOfFile(map_view);
 
     // Creates the duplicate socket, that was created in the parent
-    sock_duplicated = WSASocket(FROM_PROTOCOL_INFO,
-                        FROM_PROTOCOL_INFO,
-                        FROM_PROTOCOL_INFO,
-                        &protocol_info,
-                        0,
-                        0);
+    sock_duplicated =
+        WSASocket(FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, &protocol_info, 0, 0);
 
     // Let the parent know we are finished dupicating the socket
     SetEvent(child_file_mapping_event.get());
@@ -135,7 +134,7 @@ SOCKET GetSocket(const std::string& mmap_path) {
 
   return sock_duplicated;
 }
-}// Anonymous namespace
+}  // Anonymous namespace
 
 namespace tvm {
 namespace runtime {
@@ -146,7 +145,7 @@ namespace runtime {
  */
 void SpawnRPCChild(SOCKET fd, seconds timeout) {
   STARTUPINFOA startup_info;
-  
+
   memset(&startup_info, 0, sizeof(startup_info));
   startup_info.cb = sizeof(startup_info);
 
@@ -157,13 +156,15 @@ void SpawnRPCChild(SOCKET fd, seconds timeout) {
 
   // Create an event to let the child know the socket info was set to the mmap file
   UniqueHandle parent_file_mapping_event;
-  if ((parent_file_mapping_event = MakeUniqueHandle(CreateEventA(nullptr, true, false, parent_event_name.c_str()))) == nullptr) {
+  if ((parent_file_mapping_event = MakeUniqueHandle(
+           CreateEventA(nullptr, true, false, parent_event_name.c_str()))) == nullptr) {
     LOG(FATAL) << "CreateEvent for parent file mapping failed";
   }
 
   UniqueHandle child_file_mapping_event;
   // An event to let the parent know the socket info was read from the mmap file
-  if ((child_file_mapping_event = MakeUniqueHandle(CreateEventA(nullptr, true, false, child_event_name.c_str()))) == nullptr) {
+  if ((child_file_mapping_event = MakeUniqueHandle(
+           CreateEventA(nullptr, true, false, child_event_name.c_str()))) == nullptr) {
     LOG(FATAL) << "CreateEvent for child file mapping failed";
   }
 
@@ -181,35 +182,22 @@ void SpawnRPCChild(SOCKET fd, seconds timeout) {
   strcpy(command_line_ptr.get(), child_command_line.c_str());
 
   PROCESS_INFORMATION child_process_info;
-  if (CreateProcessA(nullptr,
-                     command_line_ptr.get(),
-                     nullptr,
-                     nullptr,
-                     false,
-                     CREATE_NO_WINDOW,
-                     nullptr,
-                     nullptr,
-                     &startup_info,
-                     &child_process_info)) {
+  if (CreateProcessA(nullptr, command_line_ptr.get(), nullptr, nullptr, false, CREATE_NO_WINDOW,
+                     nullptr, nullptr, &startup_info, &child_process_info)) {
     // Child process and thread handles must be closed, so wrapped in RAII
     auto child_process_handle = MakeUniqueHandle(child_process_info.hProcess);
     auto child_process_thread_handle = MakeUniqueHandle(child_process_info.hThread);
 
     WSAPROTOCOL_INFO protocol_info;
     // Get info needed to duplicate the socket
-    if (WSADuplicateSocket(fd,
-                           child_process_info.dwProcessId,
-                           &protocol_info) == SOCKET_ERROR) {
+    if (WSADuplicateSocket(fd, child_process_info.dwProcessId, &protocol_info) == SOCKET_ERROR) {
       LOG(FATAL) << "WSADuplicateSocket(): failed. Error =" << WSAGetLastError();
     }
 
     // Create a mmap file to store the info needed for duplicating the SOCKET in the child proc
-    UniqueHandle file_map = MakeUniqueHandle(CreateFileMappingA(INVALID_HANDLE_VALUE,
-                                                  nullptr,
-                                                  PAGE_READWRITE,
-                                                  0,
-                                                  sizeof(WSAPROTOCOL_INFO),
-                                                  file_map_path.c_str()));
+    UniqueHandle file_map =
+        MakeUniqueHandle(CreateFileMappingA(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0,
+                                            sizeof(WSAPROTOCOL_INFO), file_map_path.c_str()));
     if (!file_map) {
       LOG(INFO) << "CreateFileMapping() failed: " << GetLastError();
     }
@@ -225,11 +213,13 @@ void SpawnRPCChild(SOCKET fd, seconds timeout) {
 
         // Let child proc know the mmap file is ready to be read
         SetEvent(parent_file_mapping_event.get());
-       
+
         // Wait for the child to finish reading mmap file
-        if (WaitForSingleObject(child_file_mapping_event.get(), uint32_t(kEventTimeout.count())) != WAIT_OBJECT_0) {
+        if (WaitForSingleObject(child_file_mapping_event.get(), uint32_t(kEventTimeout.count())) !=
+            WAIT_OBJECT_0) {
           TerminateProcess(child_process_handle.get(), 0);
-          LOG(FATAL) << "WaitForSingleObject for child file mapping timed out.  Terminating child process.";
+          LOG(FATAL) << "WaitForSingleObject for child file mapping timed out.  Terminating child "
+                        "process.";
         }
       } else {
         TerminateProcess(child_process_handle.get(), 0);
@@ -237,9 +227,8 @@ void SpawnRPCChild(SOCKET fd, seconds timeout) {
       }
     }
 
-    const DWORD process_timeout = timeout.count()
-        ? uint32_t(duration_cast<milliseconds>(timeout).count())
-        : INFINITE;
+    const DWORD process_timeout =
+        timeout.count() ? uint32_t(duration_cast<milliseconds>(timeout).count()) : INFINITE;
 
     // Wait for child process to exit, or hit configured timeout
     if (WaitForSingleObject(child_process_handle.get(), process_timeout) != WAIT_OBJECT_0) {
@@ -251,8 +240,9 @@ void SpawnRPCChild(SOCKET fd, seconds timeout) {
   }
 }
 /*!
- * \brief ChildProcSocketHandler Ran from the child process and runs server to handle the client socket
- * \param mmap_path The memory mapped file path that will contain the information to duplicate the client socket from the parent
+ * \brief ChildProcSocketHandler Ran from the child process and runs server to handle the client
+ * socket \param mmap_path The memory mapped file path that will contain the information to
+ * duplicate the client socket from the parent
  */
 void ChildProcSocketHandler(const std::string& mmap_path) {
   SOCKET socket;
@@ -260,14 +250,12 @@ void ChildProcSocketHandler(const std::string& mmap_path) {
   // Set high thread priority to avoid the thread scheduler from
   // interfering with any measurements in the RPC server.
   SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
- 
+
   if ((socket = GetSocket(mmap_path)) != INVALID_SOCKET) {
     tvm::runtime::ServerLoopFromChild(socket);
-  }
-  else {
+  } else {
     LOG(FATAL) << "GetSocket() failed";
   }
-  
 }
 }  // namespace runtime
 }  // namespace tvm

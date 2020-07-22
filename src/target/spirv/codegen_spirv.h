@@ -26,15 +26,16 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/stmt_functor.h>
 
-#include <vector>
 #include <memory>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
-#include "ir_builder.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "ir_builder.h"
 
 namespace tvm {
 namespace codegen {
@@ -44,24 +45,22 @@ using namespace tir;
 /*!
  * \brief Code generator into SPIRV
  */
-class CodeGenSPIRV:
-      public ExprFunctor<spirv::Value(const PrimExpr&)>,
-      public StmtFunctor<void(const Stmt&)> {
+class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
+                     public StmtFunctor<void(const Stmt&)> {
  public:
   /*!
    * \brief Compile and add function f to the current module.
    * \param f The function to be added.
+   * \param name The name of the target function.
    * \return The final spirv module.
    */
-  virtual std::vector<uint32_t> BuildFunction(const PrimFunc& f);
+  virtual std::vector<uint32_t> BuildFunction(const PrimFunc& f, const std::string& name);
   /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.
    * \return created value.
    */
-  spirv::Value MakeValue(const PrimExpr& e) {
-    return VisitExpr(e);
-  }
+  spirv::Value MakeValue(const PrimExpr& e) { return VisitExpr(e); }
   // override codegen
   spirv::Value VisitExpr_(const VarNode* op) override;
   spirv::Value VisitExpr_(const CastNode* op) override;
@@ -116,8 +115,7 @@ class CodeGenSPIRV:
     // Update content type if it hasn't beenupdated.
     void UpdateContentType(DataType type) {
       if (content_fixed) {
-        CHECK_EQ(type, content_type)
-            << "Cannot use two different content type in GLSL model";
+        CHECK_EQ(type, content_type) << "Cannot use two different content type in GLSL model";
       } else {
         this->content_type = type;
         content_fixed = true;
@@ -129,8 +127,7 @@ class CodeGenSPIRV:
   // Get the thread index
   spirv::Value GetThreadIndex(const IterVar& iv, const PrimExpr& extent);
   spirv::Value CreateStorageSync(const CallNode* op);
-  void Scalarize(const PrimExpr& e,
-                 std::function<void(int i, spirv::Value v)> f);
+  void Scalarize(const PrimExpr& e, std::function<void(int i, spirv::Value v)> f);
   // The builder
   std::unique_ptr<spirv::IRBuilder> builder_;
   // Work group size of three
@@ -147,6 +144,5 @@ class CodeGenSPIRV:
 
 }  // namespace codegen
 }  // namespace tvm
-
 
 #endif  // TVM_TARGET_SPIRV_CODEGEN_SPIRV_H_

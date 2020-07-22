@@ -24,13 +24,12 @@
 #ifndef TVM_TARGET_CODEGEN_H_
 #define TVM_TARGET_CODEGEN_H_
 
-#include <tvm/runtime/packed_func.h>
 #include <tvm/ir/module.h>
-#include <tvm/tir/expr.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
+#include <tvm/tir/expr.h>
 
 #include <string>
-
 
 namespace tvm {
 /*! \brief namespace for target translation and codegen. */
@@ -71,8 +70,7 @@ std::string PackImportsToC(const runtime::Module& m, bool system_lib);
  * \param target_triple LLVM target triple
  * \return runtime::Module The generated LLVM module.
  */
-runtime::Module PackImportsToLLVM(const runtime::Module& m,
-                                  bool system_lib,
+runtime::Module PackImportsToLLVM(const runtime::Module& m, bool system_lib,
                                   const std::string& target_triple);
 }  // namespace codegen
 }  // namespace tvm

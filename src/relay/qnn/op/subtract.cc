@@ -23,6 +23,7 @@
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
+
 #include "op_common.h"
 
 namespace tvm {
@@ -36,8 +37,7 @@ namespace qnn {
  * \param arg_types The types of input and output.
  * \return The sequence of Relay ops for add op.
  */
-Expr QnnSubtractCanonicalize(const Attrs& attrs,
-                             const Array<Expr>& new_args,
+Expr QnnSubtractCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                              const Array<tvm::relay::Type>& arg_types) {
   // Get the args.
   QnnBinaryOpArguments args(new_args);
@@ -66,17 +66,13 @@ Expr QnnSubtractCanonicalize(const Attrs& attrs,
   // The subtract op is done in int32 precision.
 
   // Requantize LHS if necessary. Computes Q_a'
-  auto requantized_lhs = RequantizeOrUpcast(args.lhs, args.lhs_scale,
-                                            args.lhs_zero_point,
-                                            args.output_scale,
-                                            args.output_zero_point,
-                                            input_type.shape);
+  auto requantized_lhs =
+      RequantizeOrUpcast(args.lhs, args.lhs_scale, args.lhs_zero_point, args.output_scale,
+                         args.output_zero_point, input_type.shape);
   // Requantize RHS if necessary. Computes Q_b'
-  auto requantized_rhs = RequantizeOrUpcast(args.rhs, args.rhs_scale,
-                                            args.rhs_zero_point,
-                                            args.output_scale,
-                                            args.output_zero_point,
-                                            input_type.shape);
+  auto requantized_rhs =
+      RequantizeOrUpcast(args.rhs, args.rhs_scale, args.rhs_zero_point, args.output_scale,
+                         args.output_zero_point, input_type.shape);
 
   // Computes Q_a' - Q_b'
   auto output = Subtract(requantized_lhs, requantized_rhs);
@@ -93,10 +89,9 @@ Expr QnnSubtractCanonicalize(const Attrs& attrs,
 
 // QNN Subtraction operator.
 QNN_REGISTER_BINARY_OP("subtract")
-.describe("Elementwise subtract with with broadcasting for quantized tensors.")
-.set_support_level(11)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnSubtractCanonicalize);
-
+    .describe("Elementwise subtract with with broadcasting for quantized tensors.")
+    .set_support_level(11)
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnSubtractCanonicalize);
 
 }  // namespace qnn
 }  // namespace relay

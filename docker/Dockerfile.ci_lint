@@ -18,13 +18,17 @@
 # For lint test
 # CI docker lint env
 # tag: v0.60
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 
-RUN apt-get update && apt-get install -y sudo wget
-COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
-RUN bash /install/ubuntu_install_python.sh
+RUN apt-get update --fix-missing
 
-RUN apt-get install -y doxygen graphviz git
+RUN apt-get update && apt-get install -y wget git sudo make
+
+COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
+RUN bash /install/ubuntu1804_install_python.sh
+
+RUN apt-get update && apt-get install -y doxygen graphviz
+
 RUN pip3 install cpplint pylint==2.4.4 mypy
 
 # java deps for rat
@@ -33,3 +37,9 @@ RUN bash /install/ubuntu_install_java.sh
 
 COPY install/ubuntu_install_rat.sh /install/ubuntu_install_rat.sh
 RUN bash /install/ubuntu_install_rat.sh
+
+COPY install/ubuntu1804_install_clang_format.sh /install/ubuntu1804_install_clang_format.sh
+RUN bash /install/ubuntu1804_install_clang_format.sh
+
+COPY install/ubuntu_install_nodejs.sh /install/ubuntu_install_nodejs.sh
+RUN bash /install/ubuntu_install_nodejs.sh

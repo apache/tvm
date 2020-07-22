@@ -16,13 +16,13 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The expression functor of Relay."""
+from tvm.ir import Op
 
 from .function import Function
 from .expr import Call, Let, Var, GlobalVar
 from .expr import If, Tuple, TupleGetItem, Constant
 from .expr import RefCreate, RefRead, RefWrite
 from .adt import Constructor, Match, Clause
-from .op import Op
 
 class ExprFunctor:
     """

@@ -24,13 +24,15 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 #define TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 
+#include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
-#include <tvm/target/codegen.h>
-#include <string>
-#include <vector>
+
 #include <functional>
+#include <string>
 #include <unordered_map>
+#include <vector>
+
 #include "../../runtime/meta_data.h"
 
 namespace tvm {
@@ -103,8 +105,7 @@ class CodeGenSourceBase {
    * \param src The source expression.
    * \param t The type of target.
    */
-  virtual void PrintSSAAssign(
-      const std::string& target, const std::string& src, DataType t) = 0;
+  virtual void PrintSSAAssign(const std::string& target, const std::string& src, DataType t) = 0;
 
   /*! \brief the declaration stream */
   std::ostringstream decl_stream;
@@ -134,9 +135,26 @@ runtime::Module SourceModuleCreate(std::string code, std::string fmt);
 /*!
  * \brief Create a C source module for viewing and compiling GCC code.
  * \param code The code to be viewed.
- * \param fmt The code. format.
+ * \param fmt The code format.
+ * \param symbol The symbol that the c source module represents.
+ * \param const_vars. The constant variables that the c source module needs.
+ * \return The created module.
  */
-runtime::Module CSourceModuleCreate(std::string code, std::string fmt);
+runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
+                                    const String& symbol = "",
+                                    const Array<String>& const_vars = {});
+
+/*!
+ * \brief Wrap the submodules in a metadata module.
+ * \param params The variable to constant mapping that is collected by the host
+ *        module.
+ * \param dso_module The host module to be wrapped.
+ * \param modules The modules to be wrapped.
+ * \return The wrapped module.
+ */
+runtime::Module CreateMetadataModule(
+    const std::unordered_map<std::string, runtime::NDArray>& params,
+    const runtime::Module& dso_module, const Array<runtime::Module>& modules);
 
 /*!
  * \brief Create a source module for viewing and limited saving for device.
@@ -147,11 +165,8 @@ runtime::Module CSourceModuleCreate(std::string code, std::string fmt);
  * \param fget_source a closure to replace default get source behavior.
  */
 runtime::Module DeviceSourceModuleCreate(
-  std::string data,
-  std::string fmt,
-  std::unordered_map<std::string, runtime::FunctionInfo> fmap,
-  std::string type_key,
-  std::function<std::string(const std::string&)> fget_source = nullptr);
+    std::string data, std::string fmt, std::unordered_map<std::string, runtime::FunctionInfo> fmap,
+    std::string type_key, std::function<std::string(const std::string&)> fget_source = nullptr);
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_

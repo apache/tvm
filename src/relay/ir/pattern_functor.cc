@@ -27,13 +27,9 @@
 namespace tvm {
 namespace relay {
 
-Pattern PatternMutator::Mutate(const Pattern& pat) {
-  return (*this)(pat);
-}
+Pattern PatternMutator::Mutate(const Pattern& pat) { return (*this)(pat); }
 
-Pattern PatternMutator::VisitPattern_(const PatternWildcardNode* op) {
-  return GetRef<Pattern>(op);
-}
+Pattern PatternMutator::VisitPattern_(const PatternWildcardNode* op) { return GetRef<Pattern>(op); }
 
 Pattern PatternMutator::VisitPattern_(const PatternVarNode* op) {
   return PatternVar(VisitVar(op->var));
@@ -55,28 +51,20 @@ Pattern PatternMutator::VisitPattern_(const PatternTupleNode* op) {
   return PatternTuple(pat);
 }
 
-Type PatternMutator::VisitType(const Type& t) {
-  return t;
-}
+Type PatternMutator::VisitType(const Type& t) { return t; }
 
 Var PatternMutator::VisitVar(const Var& v) {
   if (var_map_.count(v) == 0) {
-    var_map_.insert(std::pair<Var, Var>(v,
-                                        Var(v->name_hint(),
-                                                      VisitType(v->type_annotation))));
+    var_map_.insert(std::pair<Var, Var>(v, Var(v->name_hint(), VisitType(v->type_annotation))));
   }
   return var_map_.at(v);
 }
 
-Constructor PatternMutator::VisitConstructor(const Constructor& v) {
-  return v;
-}
+Constructor PatternMutator::VisitConstructor(const Constructor& v) { return v; }
 
-void PatternVisitor::VisitPattern_(const PatternWildcardNode* op) { }
+void PatternVisitor::VisitPattern_(const PatternWildcardNode* op) {}
 
-void PatternVisitor::VisitPattern_(const PatternVarNode* op) {
-  VisitVar(op->var);
-}
+void PatternVisitor::VisitPattern_(const PatternVarNode* op) { VisitVar(op->var); }
 
 void PatternVisitor::VisitPattern_(const PatternConstructorNode* op) {
   VisitConstructor(op->constructor);
@@ -91,11 +79,9 @@ void PatternVisitor::VisitPattern_(const PatternTupleNode* op) {
   }
 }
 
-void PatternVisitor::VisitType(const Type& t) { }
+void PatternVisitor::VisitType(const Type& t) {}
 
-void PatternVisitor::VisitVar(const Var& v) {
-  VisitType(v->type_annotation);
-}
+void PatternVisitor::VisitVar(const Var& v) { VisitType(v->type_annotation); }
 
 void PatternVisitor::VisitConstructor(const Constructor& c) {
   for (const auto& inp : c->inputs) {

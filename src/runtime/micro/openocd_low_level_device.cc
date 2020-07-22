@@ -20,11 +20,11 @@
 /*!
  * \file openocd_low_level_device.cc
  */
-#include <sstream>
 #include <iomanip>
+#include <sstream>
 
-#include "micro_common.h"
 #include "low_level_device.h"
+#include "micro_common.h"
 #include "tcl_socket.h"
 
 namespace tvm {
@@ -40,13 +40,15 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
    * \param server_addr address of the OpenOCD server to connect to
    * \param port port of the OpenOCD server to connect to
    */
-  explicit OpenOCDLowLevelDevice(const std::string& server_addr,
-                                 int port) : socket_() {
+  explicit OpenOCDLowLevelDevice(const std::string& server_addr, int port) : socket_() {
     server_addr_ = server_addr;
     port_ = port;
 
     socket_.Connect(tvm::support::SockAddr(server_addr_.c_str(), port_));
-    socket_.cmd_builder() << "halt 0";
+    socket_.cmd_builder() << "reset run";
+    socket_.SendCommand();
+
+    socket_.cmd_builder() << "halt 500";
     socket_.SendCommand();
   }
 
@@ -77,13 +79,12 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
       socket_.cmd_builder() << "array unset output";
       socket_.SendCommand();
 
-      socket_.cmd_builder()
-        << "mem2array output"
-        << " " << std::dec << kWordSize
-        << " " << addr.cast_to<void*>()
-        // Round up any request sizes under a byte, since OpenOCD doesn't support
-        // sub-byte-sized transfers.
-        << " " << std::dec << (num_bytes < 8 ? 8 : num_bytes);
+      socket_.cmd_builder() << "mem2array output"
+                            << " " << std::dec << kWordSize << " "
+                            << addr.cast_to<void*>()
+                            // Round up any request sizes under a byte, since OpenOCD doesn't
+                            // support sub-byte-sized transfers.
+                            << " " << std::dec << (num_bytes < 8 ? 8 : num_bytes);
       socket_.SendCommand();
     }
 
@@ -101,9 +102,8 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
         // The response from this command pairs indices with the contents of the
         // memory at that index.
         values >> index;
-        CHECK(index < num_bytes)
-          << "index " << index <<
-          " out of bounds (length " << num_bytes << ")";
+        CHECK(index < num_bytes) << "index " << index << " out of bounds (length " << num_bytes
+                                 << ")";
         // Read the value into `curr_val`, instead of reading directly into
         // `buf_iter`, because otherwise it's interpreted as the ASCII value and
         // not the integral value.
@@ -162,11 +162,9 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
       socket_.SendCommand();
     }
     {
-      socket_.cmd_builder()
-        << "array2mem input"
-        << " " << std::dec << kWordSize
-        << " " << addr.cast_to<void*>()
-        << " " << std::dec << num_bytes;
+      socket_.cmd_builder() << "array2mem input"
+                            << " " << std::dec << kWordSize << " " << addr.cast_to<void*>() << " "
+                            << std::dec << num_bytes;
       socket_.SendCommand();
     }
   }
@@ -193,9 +191,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     socket_.SendCommand();
   }
 
-  const char* device_type() const final {
-    return "openocd";
-  }
+  const char* device_type() const final { return "openocd"; }
 
  private:
   /*! \brief socket used to communicate with the device through Tcl */
@@ -217,8 +213,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
 
 const std::shared_ptr<LowLevelDevice> OpenOCDLowLevelDeviceCreate(const std::string& server_addr,
                                                                   int port) {
-  std::shared_ptr<LowLevelDevice> lld =
-      std::make_shared<OpenOCDLowLevelDevice>(server_addr, port);
+  std::shared_ptr<LowLevelDevice> lld = std::make_shared<OpenOCDLowLevelDevice>(server_addr, port);
   return lld;
 }
 

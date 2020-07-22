@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -28,13 +28,14 @@
 #ifndef NNVM_PASS_FUNCTIONS_H_
 #define NNVM_PASS_FUNCTIONS_H_
 
-#include <string>
 #include <memory>
-#include <vector>
+#include <string>
 #include <utility>
+#include <vector>
+
 #include "base.h"
-#include "pass.h"
 #include "graph_attr_types.h"
+#include "pass.h"
 
 namespace nnvm {
 namespace pass {
@@ -60,7 +61,6 @@ inline std::string SaveJSON(Graph graph) {
   return ret.GetAttr<std::string>("json");
 }
 
-
 /*!
  * \brief Print graph ir
  * \param graph The graph to be printed
@@ -81,9 +81,7 @@ inline std::string PrintGraphIR(Graph graph) {
  * \param src The input graph.
  * \return A graph with proper control flow dependencies added.
  */
-inline Graph OrderMutation(Graph src) {
-  return ApplyPass(std::move(src), "OrderMutation");
-}
+inline Graph OrderMutation(Graph src) { return ApplyPass(std::move(src), "OrderMutation"); }
 
 /*!
  * \brief Infer shapes in the graph given the information.
@@ -94,9 +92,7 @@ inline Graph OrderMutation(Graph src) {
  * \return A graph with new attribute "shape" containing inferred shape of each NodeEntry.
  *         The index of ShapeVector is given by graph.indexed_graph().entry_id.
  */
-inline Graph InferShape(Graph graph,
-                        ShapeVector shape_inputs,
-                        std::string shape_attr_key = "") {
+inline Graph InferShape(Graph graph, ShapeVector shape_inputs, std::string shape_attr_key = "") {
   if (shape_inputs.size() != 0) {
     graph.attrs["shape_inputs"] = std::make_shared<any>(std::move(shape_inputs));
   }
@@ -115,9 +111,7 @@ inline Graph InferShape(Graph graph,
  * \return A graph with new attribute "dtype" containing inferred type of each NodeEntry.
  *         The index of ShapeVector is given by graph.indexed_graph().entry_id.
  */
-inline Graph InferType(Graph graph,
-                       DTypeVector dtype_inputs,
-                       std::string dtype_attr_key = "") {
+inline Graph InferType(Graph graph, DTypeVector dtype_inputs, std::string dtype_attr_key = "") {
   if (dtype_inputs.size() != 0) {
     graph.attrs["dtype_inputs"] = std::make_shared<any>(std::move(dtype_inputs));
   }
@@ -141,10 +135,8 @@ inline Graph InferType(Graph graph,
  * \param device_copy_op The name of copy op to be inserted when cross device copy happened.
  * \return A graph with new attribute "device", cotaining device information of each node.
  */
-inline Graph PlaceDevice(Graph graph,
-                         std::string device_group_attr_key,
-                         DeviceAssignMap device_assign_map,
-                         std::string device_copy_op) {
+inline Graph PlaceDevice(Graph graph, std::string device_group_attr_key,
+                         DeviceAssignMap device_assign_map, std::string device_copy_op) {
   graph.attrs["device_group_attr_key"] = std::make_shared<any>(std::move(device_group_attr_key));
   graph.attrs["device_assign_map"] = std::make_shared<any>(std::move(device_assign_map));
   graph.attrs["device_copy_op"] = std::make_shared<any>(std::move(device_copy_op));
@@ -159,22 +151,18 @@ inline Graph PlaceDevice(Graph graph,
  * \param ys_out_grad The symbol for additional gradient to be propagate back to y.
  * \param aggregate_fun Aggregation function applied to aggregate the inputs.
  * \param mirror_fun Optional mirror function to do mirror optimization and save memory.
- * \param attr_hint_fun Optional, hint function to output a node that like src, but its attr is same as like.
- * \param zero_ops Optional, list of operators that outputs a single zero array. The first one
- *  must be zeros_like.
- * \param copy_op_str Optional, name of the copy operation required to handle duplicates
- *  on the edge of the graph
- * \return A new graph, whose outputs correspond to inputs of xs.
+ * \param attr_hint_fun Optional, hint function to output a node that like src, but its attr is same
+ * as like. \param zero_ops Optional, list of operators that outputs a single zero array. The first
+ * one must be zeros_like. \param copy_op_str Optional, name of the copy operation required to
+ * handle duplicates on the edge of the graph \return A new graph, whose outputs correspond to
+ * inputs of xs.
  */
 inline Graph Gradient(
-    Graph graph,
-    std::vector<NodeEntry> ys,
-    std::vector<NodeEntry> xs,
+    Graph graph, std::vector<NodeEntry> ys, std::vector<NodeEntry> xs,
     std::vector<NodeEntry> ys_out_grad,
     std::function<NodeEntry(std::vector<NodeEntry>&& inputs)> aggregate_fun = nullptr,
     std::function<int(const Node& node)> mirror_fun = nullptr,
-    std::function<NodeEntry(const NodeEntry& src, const NodeEntry &like)>
-    attr_hint_fun = nullptr,
+    std::function<NodeEntry(const NodeEntry& src, const NodeEntry& like)> attr_hint_fun = nullptr,
     std::vector<const Op*> zero_ops = std::vector<const Op*>(),
     std::string copy_op_str = std::string()) {
   graph.attrs["grad_ys"] = std::make_shared<any>(std::move(ys));
@@ -198,7 +186,7 @@ inline Graph Gradient(
   }
 
   if (copy_op_str != std::string()) {
-      graph.attrs["copy_op"] = std::make_shared<any>(std::move(copy_op_str));
+    graph.attrs["copy_op"] = std::make_shared<any>(std::move(copy_op_str));
   }
 
   return ApplyPass(std::move(graph), "Gradient");

@@ -41,8 +41,7 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-static_assert(sizeof(HEX_VA_t) == sizeof(uint32_t),
-              "Hexagon VA must be uint32");
+static_assert(sizeof(HEX_VA_t) == sizeof(uint32_t), "Hexagon VA must be uint32");
 
 template <typename T>
 struct unalign {
@@ -89,8 +88,7 @@ std::unique_ptr<T> make_unique(size_t size) {
 // user from memory reallocation and copying.
 struct non_const_str {
   non_const_str() {}
-  explicit non_const_str(const std::string& str)
-      : non_const_str(std::vector<std::string>{str}) {}
+  explicit non_const_str(const std::string& str) : non_const_str(std::vector<std::string>{str}) {}
   explicit non_const_str(const std::vector<std::string>& vec) {
     for (const std::string& s : vec) {
       auto c = detail::make_unique<char[]>(s.size() + 1);
@@ -220,8 +218,7 @@ class HexagonSimulator final : public tvm::runtime::hexagon::Device {
   void* Load(const std::string& data, const std::string& fmt) final;
   void Unload(void* mod) final;
   void* Resolve(const std::string& sym) final;
-  void Call(void* func, uint32_t* scalar, unsigned sc_num, uint32_t* stack,
-            unsigned st_num) final;
+  void Call(void* func, uint32_t* scalar, unsigned sc_num, uint32_t* stack, unsigned st_num) final;
 
   static std::string to_string(HEXAPI_Status status);
 
@@ -312,10 +309,8 @@ class HexagonSimulator final : public tvm::runtime::hexagon::Device {
 
   bool should_parse_next(const string_list& rest);
   llvm::Optional<HEXAPI_Interval> to_interval(const detail::MaybeString& str);
-  llvm::Optional<HEXAPI_TimingMode> to_timingmode(
-      const detail::MaybeString& str);
-  llvm::Optional<HEXAPI_VerboseMode> to_verbosemode(
-      const detail::MaybeString& str);
+  llvm::Optional<HEXAPI_TimingMode> to_timingmode(const detail::MaybeString& str);
+  llvm::Optional<HEXAPI_VerboseMode> to_verbosemode(const detail::MaybeString& str);
   llvm::Optional<HEXAPI_Nullptr> to_nullptr(const detail::MaybeString& str);
 
   MaybeUIntRange ahb_, axi2_;
@@ -399,12 +394,11 @@ decltype(HexagonSimulator::opt_map_) HexagonSimulator::opt_map_ = {
     {"--verbose", &HexagonSimulator::HandleVerbose},
 };
 
-#define CHECKED_CALL(func, ...)                            \
-  do {                                                     \
-    HEXAPI_Status s = sim_->func(__VA_ARGS__);             \
-    CHECK_EQ(s, HEX_STAT_SUCCESS)                          \
-        << "HexagonSimulator: " #func " failed with code " \
-        << HexagonSimulator::to_string(s);                 \
+#define CHECKED_CALL(func, ...)                                                      \
+  do {                                                                               \
+    HEXAPI_Status s = sim_->func(__VA_ARGS__);                                       \
+    CHECK_EQ(s, HEX_STAT_SUCCESS) << "HexagonSimulator: " #func " failed with code " \
+                                  << HexagonSimulator::to_string(s);                 \
   } while (false)
 
 inline HEX_VA_t HexagonSimulator::p2va(const void* p) {
@@ -444,8 +438,7 @@ void HexagonSimulator::CopyNFromV(void* host_dst, HEX_VA_t src) {
   pd->value = v;
 }
 
-void HexagonSimulator::CopyToV(HEX_VA_t dst, const void* host_src,
-                               unsigned len) {
+void HexagonSimulator::CopyToV(HEX_VA_t dst, const void* host_src, unsigned len) {
   const uint8_t* src = static_cast<const uint8_t*>(host_src);
 
   while (len >= 8) {
@@ -556,18 +549,15 @@ HexagonSimulator::HexagonSimulator(bool enable_queuing) {
   using iterator = std::istream_iterator<std::string>;
   auto sim_args = string_list(iterator(sim_args_iss), iterator());
 
-  std::string target_str =
-      !sim_args.empty() ? *detail::pop_front(sim_args) : std::string("v66");
+  std::string target_str = !sim_args.empty() ? *detail::pop_front(sim_args) : std::string("v66");
 
   arch_ = target_str;
-  sim_ =
-      detail::make_unique<HexagonWrapper>(detail::non_const_str(target_str));
+  sim_ = detail::make_unique<HexagonWrapper>(detail::non_const_str(target_str));
   LOG(INFO) << "HexagonSimulator: Core version: " << arch_;
 
   // Locate the sim_dev binary in PATH, or in the current working directory.
   llvm::StringRef sim_dev = "sim_dev";
-  detail::MaybeString path_sim_dev =
-      llvm::sys::Process::FindInEnvPath("PATH", sim_dev);
+  detail::MaybeString path_sim_dev = llvm::sys::Process::FindInEnvPath("PATH", sim_dev);
   if (!path_sim_dev) {
     if (!llvm::sys::fs::exists(sim_dev)) {
       LOG(FATAL) << "Cannot find sim_dev in PATH.";
@@ -615,8 +605,7 @@ HexagonSimulator::HexagonSimulator(bool enable_queuing) {
 }
 
 void* HexagonSimulator::Alloc(unsigned size, unsigned align) {
-  LOG(INFO) << "HexagonSimulator::Alloc(size=" << size << ", align=" << align
-            << ')';
+  LOG(INFO) << "HexagonSimulator::Alloc(size=" << size << ", align=" << align << ')';
   Message m = {kAlloc, sizeof(MsgAlloc), 0u};
   MsgAlloc ma = {size, align};
   SendMsg(m, &ma, true);
@@ -631,8 +620,7 @@ void* HexagonSimulator::Alloc(unsigned size, unsigned align) {
 }
 
 void HexagonSimulator::Free(void* ptr) {
-  LOG(INFO) << "HexagonSimulator::Free(ptr=" << std::hex << ptr << std::dec
-            << ')';
+  LOG(INFO) << "HexagonSimulator::Free(ptr=" << std::hex << ptr << std::dec << ')';
   if (task_queuing_) {
     Message mf = {kFlush, 0, 0};
     SendMsg(mf, 0, true);
@@ -643,8 +631,7 @@ void HexagonSimulator::Free(void* ptr) {
 }
 
 void* HexagonSimulator::AllocVtcm(unsigned size, unsigned align) {
-  LOG(INFO) << "HexagonSimulator::AllocVtcm(size=" << size
-            << ", align=" << align << ')';
+  LOG(INFO) << "HexagonSimulator::AllocVtcm(size=" << size << ", align=" << align << ')';
   Message m = {kAllocVtcm, sizeof(MsgAlloc), 0u};
   MsgAlloc ma = {size, align};
   SendMsg(m, &ma, true);
@@ -653,28 +640,25 @@ void* HexagonSimulator::AllocVtcm(unsigned size, unsigned align) {
   MsgPointer mp;
   CopyFromV(&mp, m.va, m.len);
 
-  LOG(INFO) << "HexagonSimulator::AllocVtcm -> " << std::hex << mp.va
-            << std::dec;
+  LOG(INFO) << "HexagonSimulator::AllocVtcm -> " << std::hex << mp.va << std::dec;
   CHECK_NE(mp.va, 0);
   return va2p(mp.va);
 }
 
 void HexagonSimulator::FreeVtcm(void* ptr) {}
 
-void HexagonSimulator::CopyDeviceToDevice(void* dst, const void* src,
-                                          unsigned len) {
-  LOG(INFO) << "HexagonSimulator::CopyDeviceToDevice(dst=" << std::hex << dst
-            << ", src=" << src << ", len=" << std::dec << len << ')';
+void HexagonSimulator::CopyDeviceToDevice(void* dst, const void* src, unsigned len) {
+  LOG(INFO) << "HexagonSimulator::CopyDeviceToDevice(dst=" << std::hex << dst << ", src=" << src
+            << ", len=" << std::dec << len << ')';
   CHECK(dst != nullptr && src != nullptr);
   Message m = {kCopy, sizeof(MsgCopy), 0u};
   MsgCopy mc = {p2va(dst), p2va(src), len};
   SendMsg(m, &mc, true);
 }
 
-void HexagonSimulator::CopyDeviceToHost(void* host_dst, const void* src,
-                                        unsigned len) {
-  LOG(INFO) << "HexagonSimulator::CopyDeviceToHost(host_dst=" << host_dst
-            << ", src=" << src << ", len=" << len << ')';
+void HexagonSimulator::CopyDeviceToHost(void* host_dst, const void* src, unsigned len) {
+  LOG(INFO) << "HexagonSimulator::CopyDeviceToHost(host_dst=" << host_dst << ", src=" << src
+            << ", len=" << len << ')';
   if (task_queuing_) {
     Message mf = {kFlush, 0, 0};
     SendMsg(mf, 0, true);
@@ -682,10 +666,9 @@ void HexagonSimulator::CopyDeviceToHost(void* host_dst, const void* src,
   CopyFromV(host_dst, p2va(src), len);
 }
 
-void HexagonSimulator::CopyHostToDevice(void* dst, const void* host_src,
-                                        unsigned len) {
-  LOG(INFO) << "HexagonSimulator::CopyHostToDevice(dst=" << dst
-            << ", host_src=" << host_src << ", len=" << len << ')';
+void HexagonSimulator::CopyHostToDevice(void* dst, const void* host_src, unsigned len) {
+  LOG(INFO) << "HexagonSimulator::CopyHostToDevice(dst=" << dst << ", host_src=" << host_src
+            << ", len=" << len << ')';
   CopyToV(p2va(dst), host_src, len);
 }
 
@@ -717,19 +700,17 @@ void* HexagonSimulator::Resolve(const std::string& sym) {
   MsgPointer mp;
   CopyFromV(&mp, m.va, sizeof(mp));
 
-  LOG(INFO) << "HexagonSimulator::Resolve -> " << std::hex << mp.va
-            << std::dec;
+  LOG(INFO) << "HexagonSimulator::Resolve -> " << std::hex << mp.va << std::dec;
   return va2p(mp.va);
 }
 
-void HexagonSimulator::Call(void* func, uint32_t* scalar, unsigned sc_num,
-                            uint32_t* stack, unsigned st_num) {
-  LOG(INFO) << "HexagonSimulator::Call(func=" << std::hex << func
-            << ", scalar=" << scalar << ", sc_num=" << std::dec
+void HexagonSimulator::Call(void* func, uint32_t* scalar, unsigned sc_num, uint32_t* stack,
+                            unsigned st_num) {
+  LOG(INFO) << "HexagonSimulator::Call(func=" << std::hex << func << ", scalar=" << scalar
+            << ", sc_num=" << std::dec
             << sc_num
             // NOLINTNEXTLINE(build/include_what_you_use)
-            << ", stack=" << std::hex << stack << ", st_num=" << std::dec
-            << st_num;
+            << ", stack=" << std::hex << stack << ", st_num=" << std::dec << st_num;
 
   std::vector<uint32_t> data;
 
@@ -753,8 +734,7 @@ void HexagonSimulator::Call(void* func, uint32_t* scalar, unsigned sc_num,
   log_data << std::dec << " }" << std::flush;
   LOG(INFO) << log_data.str();
 
-  Message m = {kCall, static_cast<uint32_t>(data.size() * sizeof(uint32_t)),
-               0u};
+  Message m = {kCall, static_cast<uint32_t>(data.size() * sizeof(uint32_t)), 0u};
   SendMsg(m, data.data(), true);
 
   if (!task_queuing_) {
@@ -768,8 +748,7 @@ void HexagonSimulator::Call(void* func, uint32_t* scalar, unsigned sc_num,
   std::ostringstream log_rv;
   log_rv << "HexagonSimulator::Call -> {" << std::hex;
   for (unsigned i = 0, e = std::min<unsigned>(rv.size(), 4u); i != e; ++i) {
-    log_rv << ' ' << std::setw(2) << std::setfill('0')
-           << static_cast<uint32_t>(rv[i]);
+    log_rv << ' ' << std::setw(2) << std::setfill('0') << static_cast<uint32_t>(rv[i]);
   }
   if (rv.size() > 4) log_rv << "...";
   log_rv << std::dec << " }";
@@ -1059,8 +1038,7 @@ bool HexagonSimulator::HandlePacketAnalyze(string_list& rest) {
 }
 
 bool HexagonSimulator::HandlePCFilter(string_list& rest) {
-  auto range =
-      detail::to_range<uint64_t, detail::to_uint>(detail::pop_front(rest));
+  auto range = detail::to_range<uint64_t, detail::to_uint>(detail::pop_front(rest));
   if (range) {
     CHECKED_CALL(ConfigurePCRangeFilter, range->first, range->second);
   }
@@ -1222,11 +1200,9 @@ bool HexagonSimulator::HandleTCMLowAddr(string_list& rest) {
 }
 
 bool HexagonSimulator::HandleTimeFilterNS(string_list& rest) {
-  auto range =
-      detail::to_range<uint64_t, detail::to_uint>(detail::pop_front(rest));
+  auto range = detail::to_range<uint64_t, detail::to_uint>(detail::pop_front(rest));
   if (range) {
-    CHECKED_CALL(ConfigureTimeRangeFilter, range->first, HEX_NANOSEC,
-                 range->second, HEX_NANOSEC);
+    CHECKED_CALL(ConfigureTimeRangeFilter, range->first, HEX_NANOSEC, range->second, HEX_NANOSEC);
   }
   return static_cast<bool>(range);
 }
@@ -1284,8 +1260,7 @@ bool HexagonSimulator::should_parse_next(const string_list& rest) {
   return false;
 }
 
-llvm::Optional<HEXAPI_Interval> HexagonSimulator::to_interval(
-    const detail::MaybeString& str) {
+llvm::Optional<HEXAPI_Interval> HexagonSimulator::to_interval(const detail::MaybeString& str) {
   auto none = llvm::Optional<HEXAPI_Interval>();
   if (!str) return none;
 
@@ -1309,8 +1284,7 @@ llvm::Optional<HEXAPI_Interval> HexagonSimulator::to_interval(
       .Default(none);
 }
 
-llvm::Optional<HEXAPI_TimingMode> HexagonSimulator::to_timingmode(
-    const detail::MaybeString& str) {
+llvm::Optional<HEXAPI_TimingMode> HexagonSimulator::to_timingmode(const detail::MaybeString& str) {
   auto none = llvm::Optional<HEXAPI_TimingMode>();
   if (!str) return none;
 
@@ -1357,8 +1331,7 @@ llvm::Optional<HEXAPI_VerboseMode> HexagonSimulator::to_verbosemode(
       .Default(none);
 }
 
-llvm::Optional<HEXAPI_Nullptr> HexagonSimulator::to_nullptr(
-    const detail::MaybeString& str) {
+llvm::Optional<HEXAPI_Nullptr> HexagonSimulator::to_nullptr(const detail::MaybeString& str) {
   auto none = llvm::Optional<HEXAPI_Nullptr>();
   if (!str) return none;
 

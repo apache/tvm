@@ -23,11 +23,12 @@
 #ifndef TVM_NODE_STRUCTURAL_HASH_H_
 #define TVM_NODE_STRUCTURAL_HASH_H_
 
-#include <tvm/runtime/data_type.h>
-#include <tvm/node/functor.h>
 #include <tvm/node/container.h>
-#include <string>
+#include <tvm/node/functor.h>
+#include <tvm/runtime/data_type.h>
+
 #include <functional>
+#include <string>
 
 namespace tvm {
 
@@ -36,39 +37,25 @@ namespace tvm {
  */
 class BaseValueHash {
  public:
-  size_t operator()(const double& key) const {
-    return std::hash<double>()(key);
-  }
+  size_t operator()(const double& key) const { return std::hash<double>()(key); }
 
-  size_t operator()(const int64_t& key) const {
-    return std::hash<int64_t>()(key);
-  }
+  size_t operator()(const int64_t& key) const { return std::hash<int64_t>()(key); }
 
-  size_t operator()(const uint64_t& key) const {
-    return std::hash<uint64_t>()(key);
-  }
+  size_t operator()(const uint64_t& key) const { return std::hash<uint64_t>()(key); }
 
-  size_t operator()(const int& key) const {
-    return std::hash<int>()(key);
-  }
+  size_t operator()(const int& key) const { return std::hash<int>()(key); }
 
-  size_t operator()(const bool& key) const {
-    return std::hash<bool>()(key);
-  }
+  size_t operator()(const bool& key) const { return std::hash<bool>()(key); }
 
-  size_t operator()(const std::string& key) const {
-    return std::hash<std::string>()(key);
-  }
+  size_t operator()(const std::string& key) const { return std::hash<std::string>()(key); }
 
   size_t operator()(const runtime::DataType& key) const {
-    return std::hash<int32_t>()(
-        static_cast<int32_t>(key.code()) |
-        (static_cast<int32_t>(key.bits()) << 8) |
-        (static_cast<int32_t>(key.lanes()) << 16));
+    return std::hash<int32_t>()(static_cast<int32_t>(key.code()) |
+                                (static_cast<int32_t>(key.bits()) << 8) |
+                                (static_cast<int32_t>(key.lanes()) << 16));
   }
 
-  template<typename ENum,
-           typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
+  template <typename ENum, typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
   bool operator()(const ENum& key) const {
     return std::hash<size_t>()(static_cast<size_t>(key));
   }
@@ -173,9 +160,8 @@ class SHashReducer {
    * \brief Push hash of key to the current sequence of hash values.
    * \param key The key to be hashed.
    */
-  template<typename T,
-           typename = typename std::enable_if<
-             !std::is_base_of<ObjectRef, T>::value>::type>
+  template <typename T,
+            typename = typename std::enable_if<!std::is_base_of<ObjectRef, T>::value>::type>
   void operator()(const T& key) const {
     // handle normal values.
     handler_->SHashReduceHashedValue(BaseValueHash()(key));
@@ -184,17 +170,13 @@ class SHashReducer {
    * \brief Push hash of key to the current sequence of hash values.
    * \param key The key to be hashed.
    */
-  void operator()(const ObjectRef& key) const {
-    return handler_->SHashReduce(key, map_free_vars_);
-  }
+  void operator()(const ObjectRef& key) const { return handler_->SHashReduce(key, map_free_vars_); }
   /*!
    * \brief Push hash of key to the current sequence of hash values.
    * \param key The key to be hashed.
    * \note This function indicate key could contain var defintions.
    */
-  void DefHash(const ObjectRef& key) const {
-    return handler_->SHashReduce(key, true);
-  }
+  void DefHash(const ObjectRef& key) const { return handler_->SHashReduce(key, true); }
   /*!
    * \brief Implementation for hash for a free var.
    * \param var The variable.
@@ -205,9 +187,7 @@ class SHashReducer {
   }
 
   /*! \return Get the internal handler. */
-  Handler* operator->() const {
-    return handler_;
-  }
+  Handler* operator->() const { return handler_; }
 
  private:
   /*! \brief Internal class pointer. */

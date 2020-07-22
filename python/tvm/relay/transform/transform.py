@@ -21,6 +21,7 @@ Relay pass transformation infrastructure.
 import types
 import inspect
 import functools
+import warnings
 
 import tvm.ir
 from tvm import te
@@ -31,11 +32,12 @@ from . import _ffi_api
 
 
 def build_config(opt_level=2,
-                 fallback_device=_nd.cpu(),
                  required_pass=None,
                  disabled_pass=None,
                  trace=None):
-    """Configure the build behavior by setting config variables.
+    """Configure the build behavior by setting config variables. This function
+    will be deprecated in TVM v0.7. Instead, we should directly use
+    tvm.transform.PassContext.
 
     Parameters
     ----------
@@ -56,12 +58,9 @@ def build_config(opt_level=2,
                 "EliminateCommonSubexpr": 3,
                 "CombineParallelConv2D": 4,
                 "CombineParallelDense": 4,
+                "CombineParallelBatchMatmul": 4,
                 "FastMath": 4
             }
-
-    fallback_device : int, str, or tvmContext, optional
-        The fallback device. It is also used as the default device for
-        operators without specified device during heterogeneous execution.
 
     required_pass: set of str, optional
         Optimization passes that are required regardless of optimization level.
@@ -77,9 +76,9 @@ def build_config(opt_level=2,
     pass_context: PassContext
         The pass context for optimizations.
     """
-    return tvm.ir.transform.PassContext(
-        opt_level, fallback_device, required_pass,
-        disabled_pass, trace)
+    warnings.warn("relay.build_config will be deprecated. Please use \
+                  tvm.transform.PassContext directly", DeprecationWarning)
+    return tvm.transform.PassContext(opt_level, required_pass, disabled_pass, trace)
 
 
 @tvm._ffi.register_object("relay.FunctionPass")
@@ -309,6 +308,39 @@ def CombineParallelDense(min_num_branches=3):
     """
     return _ffi_api.CombineParallelDense(min_num_branches)
 
+def CombineParallelBatchMatmul(min_num_branches=3):
+    """Combine multiple batch matmul operators into one. For example:
+
+    .. code-block
+                             data (1, 2, 3)
+                         /                  \
+        batch_matmul(data, (1, 4, 3))    batch_matmul(data, (1, 5, 3))
+            |                                |
+        elemwise/bcast (1, 2, 4)         elemwise/bcast (1, 2, 5)
+
+    Would become:
+
+    .. code-block
+
+                data (1, 2, 3)
+                |
+            batch_matmul(data, (1, 4+5, 3))
+                |
+            elemwise/bcast (1 ,2, 4+5)
+
+    Parameters
+    ----------
+    min_num_branches : int
+        The minimum number of required parallel branches for performing this
+        optimization.
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The registered pass that combines parallel dense operators.
+    """
+    return _ffi_api.CombineParallelBatchMatmul(min_num_branches)
+
 
 def AlterOpLayout():
     """Alternate the layouts of operators or replace primitive operators with
@@ -324,7 +356,7 @@ def AlterOpLayout():
     return _ffi_api.AlterOpLayout()
 
 
-def ConvertLayout(desired_layout):
+def ConvertLayout(desired_layouts):
     """ Given a dest layout, this pass transforms the expr such that most of the ops input data
     layout is changed to the dest layout. In ideal situation, there are only 2 layout transforms,
     one at the start and one at the end.
@@ -341,15 +373,18 @@ def ConvertLayout(desired_layout):
 
     Parameters
     ----------
-    desired_layout : str
-      The desired layout for the transformed expr.
+    desired_layouts : map of op_name to list of layouts
+        Specify a mapping of operator names to a list of layouts to convert to, in the order
+        defined by the operator. An example for nn.conv2d could be: {"nn.conv2d", ["NHWC", "OHWI]},
+        where the first item in the list specifies the data layout and the second specifies the
+        kernel layout.
 
     Returns
     -------
     pass: FunctionPass
       The pass.
     """
-    return _ffi_api.ConvertLayout(desired_layout)
+    return _ffi_api.ConvertLayout(desired_layouts)
 
 
 def Legalize(legalize_map_attr_name="FTVMLegalize"):
@@ -377,7 +412,7 @@ def MergeComposite(pattern_table):
 
     Parameters
     ----------
-    pattern_table : list(tuple)
+    pattern_table : List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Function]]
         A list of (pattern_name, pattern, check) tuples.
         The order of the patterns in the list will determine the order
         of priority in which they are matched.
@@ -653,7 +688,8 @@ def to_cps(func, mod=None):
     result: tvm.relay.Function
       The output function.
     """
-    return _ffi_api.to_cps(func, mod)
+    use_mod = mod if mod is not None else tvm.ir.IRModule()
+    return _ffi_api.to_cps(func, use_mod)
 
 
 def un_cps(func):

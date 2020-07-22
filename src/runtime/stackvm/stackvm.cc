@@ -21,86 +21,87 @@
  * Implementation stack VM.
  * \file stackvm.cc
  */
+#include "stackvm.h"
+
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_backend_api.h>
+
 #include <algorithm>
-#include "stackvm.h"
 
 namespace tvm {
 namespace runtime {
 
 typedef dmlc::ThreadLocalStore<StackVM::State> StackVMStateStore;
 
-StackVM::State* StackVM::ThreadLocalState() {
-  return StackVMStateStore::Get();
-}
+StackVM::State* StackVM::ThreadLocalState() { return StackVMStateStore::Get(); }
 
 #define STACK_VM_BINOP(OP, FIELD)                                 \
   {                                                               \
     stack[sp - 1].FIELD = stack[sp - 1].FIELD OP stack[sp].FIELD; \
-    sp -= 1; pc += 1;                                             \
+    sp -= 1;                                                      \
+    pc += 1;                                                      \
   }
 
 #define STACK_VM_CMPOP(OP, FIELD)                                   \
   {                                                                 \
     stack[sp - 1].v_int64 = stack[sp - 1].FIELD OP stack[sp].FIELD; \
-    sp -= 1; pc += 1;                                               \
+    sp -= 1;                                                        \
+    pc += 1;                                                        \
   }
 
-#define STACK_VM_LOAD(FIELD, DST_TYPE, SRC_TYPE)                        \
-  {                                                                     \
-    int index = code[pc + 1].v_int;                                     \
-    stack[sp]FIELD = static_cast<DST_TYPE>(                             \
-        static_cast<SRC_TYPE*>(stack[sp].v_handle)[index]);             \
-    pc += 2;                                                            \
+#define STACK_VM_LOAD(FIELD, DST_TYPE, SRC_TYPE)                                                \
+  {                                                                                             \
+    int index = code[pc + 1].v_int;                                                             \
+    stack[sp] FIELD = static_cast<DST_TYPE>(static_cast<SRC_TYPE*>(stack[sp].v_handle)[index]); \
+    pc += 2;                                                                                    \
   }
 
-#define STACK_VM_STORE(FIELD, DST_TYPE)                                 \
-  {                                                                     \
-    int index = code[pc + 1].v_int;                                     \
-    static_cast<DST_TYPE*>(stack[sp - 1].v_handle)[index] =             \
-        static_cast<DST_TYPE>(stack[sp]FIELD);                          \
-    sp -= 2; pc += 2;                                                   \
+#define STACK_VM_STORE(FIELD, DST_TYPE)                     \
+  {                                                         \
+    int index = code[pc + 1].v_int;                         \
+    static_cast<DST_TYPE*>(stack[sp - 1].v_handle)[index] = \
+        static_cast<DST_TYPE>(stack[sp] FIELD);             \
+    sp -= 2;                                                \
+    pc += 2;                                                \
   }
 
-#define STACK_VM_PRINT_CODE0(CODE)                            \
-  case CODE:  {                                                     \
-    os << "[" << pc << "]\t" << #CODE << std::endl; return pc + 1;  \
+#define STACK_VM_PRINT_CODE0(CODE)                  \
+  case CODE: {                                      \
+    os << "[" << pc << "]\t" << #CODE << std::endl; \
+    return pc + 1;                                  \
   }
 
-#define STACK_VM_PRINT_CODE1(CODE)                                      \
-  case CODE:  {                                                         \
+#define STACK_VM_PRINT_CODE1(CODE)                                         \
+  case CODE: {                                                             \
     os << "[" << pc << "]\t" << #CODE << " " << code[pc + 1].v_int << "\n" \
-       <<  "[" << pc + 1 << "]" << std::endl;                           \
-        return pc + 2;                                                  \
+       << "[" << pc + 1 << "]" << std::endl;                               \
+    return pc + 2;                                                         \
   }
 
-#define STACK_VM_PRINT_CODE2(CODE)                                      \
-  case CODE:  {                                                         \
-    os << "[" << pc << "]\t" << #CODE                                   \
-        << " " << code[pc + 1].v_int                                    \
-        << " " << code[pc + 2].v_int << "\n"                            \
-       <<  "[" << pc + 1 << "]" << std::endl                            \
-       <<  "[" << pc + 2 << "]" << std::endl;                           \
-        return pc + 3;                                                  \
+#define STACK_VM_PRINT_CODE2(CODE)                                                              \
+  case CODE: {                                                                                  \
+    os << "[" << pc << "]\t" << #CODE << " " << code[pc + 1].v_int << " " << code[pc + 2].v_int \
+       << "\n"                                                                                  \
+       << "[" << pc + 1 << "]" << std::endl                                                     \
+       << "[" << pc + 2 << "]" << std::endl;                                                    \
+    return pc + 3;                                                                              \
   }
 
-#define STACK_VM_PRINT_HEAP_ACCESS(CODE)                                \
-  case CODE:  {                                                         \
-    os << "[" << pc << "]\t" << #CODE << " " << code[pc + 1].v_int      \
-       << " " << heap_id_name[code[pc + 1].v_int] << "\n"               \
-       <<  "[" << pc + 1 << "]" << std::endl;                           \
-        return pc + 2;                                                  \
+#define STACK_VM_PRINT_HEAP_ACCESS(CODE)                                  \
+  case CODE: {                                                            \
+    os << "[" << pc << "]\t" << #CODE << " " << code[pc + 1].v_int << " " \
+       << heap_id_name[code[pc + 1].v_int] << "\n"                        \
+       << "[" << pc + 1 << "]" << std::endl;                              \
+    return pc + 2;                                                        \
   }
 
-#define STACK_VM_PRINT_JUMP(CODE)                                     \
-  case CODE:  {                                                        \
-    os << "[" << pc << "]\t" << #CODE << " rel=" << code[pc + 1].v_int \
-       << " to " << pc + code[pc + 1].v_int << '\n'                    \
-       << "[" << pc + 1 << "]" << std::endl;                         \
-    return pc + 2;                                                     \
+#define STACK_VM_PRINT_JUMP(CODE)                                                \
+  case CODE: {                                                                   \
+    os << "[" << pc << "]\t" << #CODE << " rel=" << code[pc + 1].v_int << " to " \
+       << pc + code[pc + 1].v_int << '\n'                                        \
+       << "[" << pc + 1 << "]" << std::endl;                                     \
+    return pc + 2;                                                               \
   }
-
 
 int64_t StackVM::PrintCode(std::ostream& os, int64_t pc) const {
   switch (code[pc].op_code) {
@@ -164,9 +165,7 @@ int64_t StackVM::PrintCode(std::ostream& os, int64_t pc) const {
       int begin = code[pc + 2].v_int;
       int end = code[pc + 3].v_int;
       os << "[" << pc << "]\tCALL_PACKED_FUNC "
-         << " fid=" << call_fid
-         << " begin=" << begin
-         << " end=" << end;
+         << " fid=" << call_fid << " begin=" << begin << " end=" << end;
       os << '\n';
       for (int i = 0; i < 3; ++i) {
         os << "[" << pc + 1 + i << "]" << std::endl;
@@ -181,8 +180,7 @@ int64_t StackVM::PrintCode(std::ostream& os, int64_t pc) const {
 std::ostream& operator<<(std::ostream& os, const StackVM& vm) {  // NOLINT(*)
   int64_t pc = 0;
   const int64_t code_size = static_cast<int64_t>(vm.code.size());
-  os << "Program dump: code-size=" << code_size << '\n'
-     << "----------begin-----------------\n";
+  os << "Program dump: code-size=" << code_size << '\n' << "----------begin-----------------\n";
   while (pc < code_size) {
     pc = vm.PrintCode(os, pc);
   }
@@ -190,8 +188,7 @@ std::ostream& operator<<(std::ostream& os, const StackVM& vm) {  // NOLINT(*)
   return os;
 }
 
-void StackVM::Run(const runtime::TVMArgs& args,
-                  runtime::ModuleNode* mod_ctx) const {
+void StackVM::Run(const runtime::TVMArgs& args, runtime::ModuleNode* mod_ctx) const {
   StackVM::State* s = StackVM::ThreadLocalState();
   if (s->heap.size() < heap_size) {
     s->heap.resize(heap_size);
@@ -199,7 +196,7 @@ void StackVM::Run(const runtime::TVMArgs& args,
   s->sp = 0;
   s->pc = 0;
   s->mod_ctx = mod_ctx;
-  s->heap[0].v_handle = (void*)args.values;  // NOLINT(*)
+  s->heap[0].v_handle = (void*)args.values;      // NOLINT(*)
   s->heap[1].v_handle = (void*)args.type_codes;  // NOLINT(*)
   s->heap[2].v_int64 = args.num_args;
   this->Run(s);
@@ -207,16 +204,13 @@ void StackVM::Run(const runtime::TVMArgs& args,
 
 void StackVM::InitCache() {
   extern_func_cache_.clear();
-  extern_func_cache_.resize(
-      extern_func_name.size(), PackedFunc(nullptr));
+  extern_func_cache_.resize(extern_func_name.size(), PackedFunc(nullptr));
 }
 
 void StackVM::Save(dmlc::Stream* strm) const {
   // to be endian invariant.
   std::vector<int32_t> code_copy(code.size());
-  std::transform(code.begin(), code.end(), code_copy.begin(), [](Code c) {
-      return c.v_int;
-    });
+  std::transform(code.begin(), code.end(), code_copy.begin(), [](Code c) { return c.v_int; });
   strm->Write(code_copy);
   strm->Write(str_data);
   strm->Write(extern_func_name);
@@ -225,14 +219,16 @@ void StackVM::Save(dmlc::Stream* strm) const {
   strm->Write(stack_size);
 }
 
-bool StackVM::Load(dmlc::Stream* strm)  {
+bool StackVM::Load(dmlc::Stream* strm) {
   // to be endian invariant.
   std::vector<int32_t> code_copy;
   if (!strm->Read(&code_copy)) return false;
   code.resize(code_copy.size());
   std::transform(code_copy.begin(), code_copy.end(), code.begin(), [](int v) {
-      Code code; code.v_int = v; return code;
-    });
+    Code code;
+    code.v_int = v;
+    return code;
+  });
   if (!strm->Read(&str_data)) return false;
   if (!strm->Read(&extern_func_name)) return false;
   if (!strm->Read(&heap_id_name)) return false;
@@ -258,36 +254,92 @@ void StackVM::Run(State* s) const {
   const int64_t code_size = static_cast<int64_t>(code.size());
   while (pc < code_size) {
     switch (code[pc].op_code) {
-      case ADD_I64: STACK_VM_BINOP(+, v_int64); break;
-      case SUB_I64: STACK_VM_BINOP(-, v_int64); break;
-      case MUL_I64: STACK_VM_BINOP(*, v_int64); break;
-      case DIV_I64: STACK_VM_BINOP(/, v_int64); break;
-      case MOD_I64: STACK_VM_BINOP(%, v_int64); break;
-      case EQ_I64: STACK_VM_CMPOP(==, v_int64); break;
-      case LT_I64: STACK_VM_CMPOP(<, v_int64); break;
-      case LE_I64: STACK_VM_CMPOP(<=, v_int64); break;
-      case ADD_F64: STACK_VM_BINOP(+, v_float64); break;
-      case SUB_F64: STACK_VM_BINOP(-, v_float64); break;
-      case MUL_F64: STACK_VM_BINOP(*, v_float64); break;
-      case DIV_F64: STACK_VM_BINOP(/, v_float64); break;
-      case EQ_F64: STACK_VM_CMPOP(==, v_float64); break;
-      case LT_F64: STACK_VM_CMPOP(<, v_float64); break;
-      case LE_F64: STACK_VM_CMPOP(<=, v_float64); break;
-      case EQ_HANDLE: STACK_VM_CMPOP(==, v_handle); break;
+      case ADD_I64:
+        STACK_VM_BINOP(+, v_int64);
+        break;
+      case SUB_I64:
+        STACK_VM_BINOP(-, v_int64);
+        break;
+      case MUL_I64:
+        STACK_VM_BINOP(*, v_int64);
+        break;
+      case DIV_I64:
+        STACK_VM_BINOP(/, v_int64);
+        break;
+      case MOD_I64:
+        STACK_VM_BINOP(%, v_int64);
+        break;
+      case EQ_I64:
+        STACK_VM_CMPOP(==, v_int64);
+        break;
+      case LT_I64:
+        STACK_VM_CMPOP(<, v_int64);
+        break;
+      case LE_I64:
+        STACK_VM_CMPOP(<=, v_int64);
+        break;
+      case ADD_F64:
+        STACK_VM_BINOP(+, v_float64);
+        break;
+      case SUB_F64:
+        STACK_VM_BINOP(-, v_float64);
+        break;
+      case MUL_F64:
+        STACK_VM_BINOP(*, v_float64);
+        break;
+      case DIV_F64:
+        STACK_VM_BINOP(/, v_float64);
+        break;
+      case EQ_F64:
+        STACK_VM_CMPOP(==, v_float64);
+        break;
+      case LT_F64:
+        STACK_VM_CMPOP(<, v_float64);
+        break;
+      case LE_F64:
+        STACK_VM_CMPOP(<=, v_float64);
+        break;
+      case EQ_HANDLE:
+        STACK_VM_CMPOP(==, v_handle);
+        break;
       // addressing
-      case ARRAY_LOAD_UINT32: STACK_VM_LOAD(.v_int64, int64_t, uint32_t); break;
-      case ARRAY_LOAD_INT32: STACK_VM_LOAD(.v_int64, int64_t, int32_t); break;
-      case ARRAY_LOAD_INT64: STACK_VM_LOAD(.v_int64, int64_t, int64_t); break;
-      case ARRAY_LOAD_FP64: STACK_VM_LOAD(.v_float64, double, double); break;
-      case ARRAY_LOAD_HANDLE: STACK_VM_LOAD(.v_handle, void*, void*); break;
-      case ARRAY_LOAD_TVMVALUE: STACK_VM_LOAD(, TVMValue, TVMValue); break;
+      case ARRAY_LOAD_UINT32:
+        STACK_VM_LOAD(.v_int64, int64_t, uint32_t);
+        break;
+      case ARRAY_LOAD_INT32:
+        STACK_VM_LOAD(.v_int64, int64_t, int32_t);
+        break;
+      case ARRAY_LOAD_INT64:
+        STACK_VM_LOAD(.v_int64, int64_t, int64_t);
+        break;
+      case ARRAY_LOAD_FP64:
+        STACK_VM_LOAD(.v_float64, double, double);
+        break;
+      case ARRAY_LOAD_HANDLE:
+        STACK_VM_LOAD(.v_handle, void*, void*);
+        break;
+      case ARRAY_LOAD_TVMVALUE:
+        STACK_VM_LOAD(, TVMValue, TVMValue);
+        break;
       // store
-      case ARRAY_STORE_UINT32: STACK_VM_STORE(.v_int64, uint32_t); break;
-      case ARRAY_STORE_INT32: STACK_VM_STORE(.v_int64, int32_t); break;
-      case ARRAY_STORE_INT64: STACK_VM_STORE(.v_int64, int64_t); break;
-      case ARRAY_STORE_FP64: STACK_VM_STORE(.v_float64, double); break;
-      case ARRAY_STORE_HANDLE: STACK_VM_STORE(.v_handle, void*); break;
-      case ARRAY_STORE_TVMVALUE: STACK_VM_STORE(, TVMValue); break;
+      case ARRAY_STORE_UINT32:
+        STACK_VM_STORE(.v_int64, uint32_t);
+        break;
+      case ARRAY_STORE_INT32:
+        STACK_VM_STORE(.v_int64, int32_t);
+        break;
+      case ARRAY_STORE_INT64:
+        STACK_VM_STORE(.v_int64, int64_t);
+        break;
+      case ARRAY_STORE_FP64:
+        STACK_VM_STORE(.v_float64, double);
+        break;
+      case ARRAY_STORE_HANDLE:
+        STACK_VM_STORE(.v_handle, void*);
+        break;
+      case ARRAY_STORE_TVMVALUE:
+        STACK_VM_STORE(, TVMValue);
+        break;
       // add
       case ADDR_ADD: {
         stack[sp - 1].v_handle = (char*)(stack[sp - 1].v_handle) + stack[sp].v_int64;  // NOLINT(*)
@@ -365,9 +417,8 @@ void StackVM::Run(State* s) const {
       }
       case ASSERT_SP: {
         int64_t expected = code[pc + 1].v_int;
-        CHECK_EQ(sp, expected)
-            << "sp assertion failed, expected="
-            << expected << " now=" << sp << ", pc=" << pc;
+        CHECK_EQ(sp, expected) << "sp assertion failed, expected=" << expected << " now=" << sp
+                               << ", pc=" << pc;
         pc += 2;
         break;
       }
@@ -379,11 +430,10 @@ void StackVM::Run(State* s) const {
         int begin = code[pc + 2].v_int;
         int end = code[pc + 3].v_int;
         int num_args = end - begin;
-        static_assert(sizeof(Code) == sizeof(int) &&
-                      alignof(Code) == alignof(int), "asusmption");
+        static_assert(sizeof(Code) == sizeof(int) && alignof(Code) == alignof(int), "asusmption");
         runtime::TVMRetValue rv;
-        GetExtern(s, call_fid).CallPacked(
-            runtime::TVMArgs(value_stack + begin, type_stack + begin, num_args), &rv);
+        GetExtern(s, call_fid)
+            .CallPacked(runtime::TVMArgs(value_stack + begin, type_stack + begin, num_args), &rv);
         sp = sp - 1;
         stack[sp] = rv.value();
         pc += 4;
@@ -396,47 +446,55 @@ void StackVM::Run(State* s) const {
         DLTensor* arr = static_cast<DLTensor*>(stack[sp].v_handle);
         switch (kind) {
           case StackVM::kArrData: {
-            stack[sp].v_handle = arr[index].data; break;
+            stack[sp].v_handle = arr[index].data;
+            break;
           }
           case StackVM::kArrShape: {
-            stack[sp].v_handle = arr[index].shape; break;
+            stack[sp].v_handle = arr[index].shape;
+            break;
           }
           case StackVM::kArrStrides: {
-            stack[sp].v_handle = arr[index].strides; break;
+            stack[sp].v_handle = arr[index].strides;
+            break;
           }
           case StackVM::kArrNDim: {
-            stack[sp].v_int64 = arr[index].ndim; break;
+            stack[sp].v_int64 = arr[index].ndim;
+            break;
           }
           case StackVM::kArrTypeCode: {
-            stack[sp].v_int64 = static_cast<int64_t>(
-                arr[index].dtype.code); break;
+            stack[sp].v_int64 = static_cast<int64_t>(arr[index].dtype.code);
+            break;
           }
           case StackVM::kArrTypeBits: {
-            stack[sp].v_int64 = static_cast<int64_t>(
-                arr[index].dtype.bits); break;
+            stack[sp].v_int64 = static_cast<int64_t>(arr[index].dtype.bits);
+            break;
           }
           case StackVM::kArrTypeLanes: {
-            stack[sp].v_int64 = static_cast<int64_t>(
-                arr[index].dtype.lanes); break;
+            stack[sp].v_int64 = static_cast<int64_t>(arr[index].dtype.lanes);
+            break;
           }
           case StackVM::kArrByteOffset: {
-            stack[sp].v_int64 = static_cast<int64_t>(
-                arr[index].byte_offset); break;
+            stack[sp].v_int64 = static_cast<int64_t>(arr[index].byte_offset);
+            break;
           }
           case StackVM::kArrDeviceId: {
-            stack[sp].v_int64 = arr[index].ctx.device_id; break;
+            stack[sp].v_int64 = arr[index].ctx.device_id;
+            break;
           }
           case StackVM::kArrDeviceType: {
-            stack[sp].v_int64 = static_cast<int64_t>(
-                arr[index].ctx.device_type); break;
+            stack[sp].v_int64 = static_cast<int64_t>(arr[index].ctx.device_type);
+            break;
           }
           case StackVM::kArrAddr: {
-            stack[sp].v_handle = arr + index; break;
+            stack[sp].v_handle = arr + index;
+            break;
           }
           case StackVM::kTVMValueContent: {
-            stack[sp] = static_cast<TVMValue*>(stack[sp].v_handle)[index]; break;
+            stack[sp] = static_cast<TVMValue*>(stack[sp].v_handle)[index];
+            break;
           }
-          default: LOG(FATAL) << "unhandled get " << kind;
+          default:
+            LOG(FATAL) << "unhandled get " << kind;
         }
         pc = pc + 3;
         break;
@@ -447,7 +505,8 @@ void StackVM::Run(State* s) const {
         DLTensor* arr = static_cast<DLTensor*>(stack[sp - 1].v_handle);
         switch (kind) {
           case StackVM::kArrData: {
-            arr[index].data = stack[sp].v_handle; break;
+            arr[index].data = stack[sp].v_handle;
+            break;
           }
           case StackVM::kArrShape: {
             arr[index].shape = static_cast<int64_t*>(stack[sp].v_handle);
@@ -486,9 +545,11 @@ void StackVM::Run(State* s) const {
             break;
           }
           case StackVM::kTVMValueContent: {
-            static_cast<TVMValue*>(stack[sp - 1].v_handle)[index] = stack[sp]; break;
+            static_cast<TVMValue*>(stack[sp - 1].v_handle)[index] = stack[sp];
+            break;
           }
-          default: LOG(FATAL) << "unhandled tvm_struct_set " << kind;
+          default:
+            LOG(FATAL) << "unhandled tvm_struct_set " << kind;
         }
         sp -= 2;
         pc += 3;
@@ -511,8 +572,8 @@ void StackVM::Run(State* s) const {
         size_t nbytes = static_cast<size_t>(stack[sp - 2].v_int64);
         int dtype_code_hint = static_cast<int>(stack[sp - 1].v_int64);
         int dtype_bits_hint = static_cast<int>(stack[sp].v_int64);
-        void* ptr = TVMBackendAllocWorkspace(device_type, device_id, nbytes,
-                                             dtype_code_hint, dtype_bits_hint);
+        void* ptr = TVMBackendAllocWorkspace(device_type, device_id, nbytes, dtype_code_hint,
+                                             dtype_bits_hint);
         stack[sp - 4].v_handle = ptr;
         sp = sp - 4;
         pc = pc + 1;
@@ -543,8 +604,7 @@ const PackedFunc& StackVM::GetExtern(State* s, int fid) const {
   // allow race write in this, since write is idempotent
   PackedFunc& f = extern_func_cache_[fid];
   if (f == nullptr) {
-    CHECK(s->mod_ctx != nullptr)
-        << "No local context is set in stackvm";
+    CHECK(s->mod_ctx != nullptr) << "No local context is set in stackvm";
     const PackedFunc* pf = s->mod_ctx->GetFuncFromEnv(extern_func_name[fid]);
     CHECK(pf != nullptr);
     f = *pf;

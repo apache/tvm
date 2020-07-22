@@ -22,13 +22,13 @@
  * \brief Symbolic graph composition API.
  */
 #include <nnvm/graph.h>
-#include <nnvm/symbolic.h>
 #include <nnvm/op_attr_types.h>
+#include <nnvm/symbolic.h>
 
 namespace nnvm {
 
 namespace symbol_constants {
-const char *kNamespaceSeparator = "$";
+const char* kNamespaceSeparator = "$";
 }  // namespace symbol_constants
 
 // auxililary version attribute in variable.
@@ -48,7 +48,7 @@ ObjectPtr CreateVariableNode(const std::string& name) {
 // If the node's op mutates a certain input variable,
 // The version of that varaible will increase
 // version is used to implicitly order the mutation sequences
-inline void UpdateNodeVersion(Node *n) {
+inline void UpdateNodeVersion(Node* n) {
   static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
   for (NodeEntry& e : n->inputs) {
     if (e.node->is_variable()) {
@@ -58,16 +58,14 @@ inline void UpdateNodeVersion(Node *n) {
   if (fmutate_inputs.count(n->op()) != 0) {
     for (uint32_t i : fmutate_inputs[n->op()](n->attrs)) {
       NodeEntry& e = n->inputs[i];
-      CHECK(e.node->is_variable())
-          << "Mutation target can only be Variable";
+      CHECK(e.node->is_variable()) << "Mutation target can only be Variable";
       // increase the version of the variable.
       e.version = ++nnvm::get<VariableParam>(e.node->attrs.parsed).version;
     }
   }
 }
 
-inline std::string DefaultVarName(const std::string &op_name,
-                                  const std::string &arg_name) {
+inline std::string DefaultVarName(const std::string& op_name, const std::string& arg_name) {
   if (op_name.length() == 0) {
     return arg_name;
   } else {
@@ -75,8 +73,7 @@ inline std::string DefaultVarName(const std::string &op_name,
   }
 }
 
-inline void KeywordArgumentMismatch(const char *source,
-                                    const std::vector<std::string>& user_args,
+inline void KeywordArgumentMismatch(const char* source, const std::vector<std::string>& user_args,
                                     const array_view<std::string>& args) {
   std::unordered_set<std::string> keys(args.begin(), args.end());
   std::ostringstream head, msg;
@@ -87,16 +84,13 @@ inline void KeywordArgumentMismatch(const char *source,
 
   for (const auto& key : user_args) {
     if (keys.count(key) == 0) {
-      LOG(FATAL) << source
-                 << "Keyword argument name " << key << " not found."
-                 << msg.str();
+      LOG(FATAL) << source << "Keyword argument name " << key << " not found." << msg.str();
     }
   }
 }
 
-template<typename T>
-inline std::vector<std::string> GetKeys(
-    const std::unordered_map<std::string, T>& kwargs) {
+template <typename T>
+inline std::vector<std::string> GetKeys(const std::unordered_map<std::string, T>& kwargs) {
   std::vector<std::string> keys(kwargs.size());
   std::transform(kwargs.begin(), kwargs.end(), keys.begin(),
                  [](decltype(*kwargs.begin())& kv) { return kv.first; });
@@ -117,14 +111,14 @@ Symbol Symbol::Copy() const {
   std::unordered_map<Node*, ObjectPtr> old_new;
   // use DFSVisit to copy all the nodes
   DFSVisit(this->outputs, [&old_new](const ObjectPtr& node) {
-      ObjectPtr np = Node::Create();
-      np->attrs = node->attrs;
-      old_new[node.get()] = std::move(np);
-    });
+    ObjectPtr np = Node::Create();
+    np->attrs = node->attrs;
+    old_new[node.get()] = std::move(np);
+  });
   // connect nodes of new graph
-  for (const auto &kv : old_new) {
+  for (const auto& kv : old_new) {
     for (const NodeEntry& e : kv.first->inputs) {
-      Node *ptr = e.node.get();
+      Node* ptr = e.node.get();
       kv.second->inputs.emplace_back(NodeEntry{old_new[ptr], e.index, e.version});
     }
     for (const ObjectPtr& p : kv.first->control_deps) {
@@ -133,66 +127,64 @@ Symbol Symbol::Copy() const {
   }
   // set the head
   Symbol ret;
-  for (const NodeEntry &e : outputs) {
+  for (const NodeEntry& e : outputs) {
     ret.outputs.emplace_back(NodeEntry{old_new[e.node.get()], e.index, e.version});
   }
   return ret;
 }
 
-void Symbol::Print(std::ostream &os) const {
-  if (outputs.size() == 1 &&
-      outputs[0].node->inputs.size() == 0 &&
+void Symbol::Print(std::ostream& os) const {
+  if (outputs.size() == 1 && outputs[0].node->inputs.size() == 0 &&
       outputs[0].node->control_deps.size() == 0) {
     if (outputs[0].node->is_variable()) {
       os << "Variable:" << outputs[0].node->attrs.name << '\n';
     } else {
-      os << "AtomicFunctor "<< " Op:" << outputs[0].node->op()->name << '\n';
+      os << "AtomicFunctor "
+         << " Op:" << outputs[0].node->op()->name << '\n';
     }
   } else {
     // use DFSVisit to copy all the nodes
     os << "Symbol Outputs:\n";
     for (size_t i = 0; i < outputs.size(); ++i) {
-      os << "\toutput[" << i << "]=" << outputs[i].node->attrs.name
-         << '(' << outputs[i].index << ")\n";
+      os << "\toutput[" << i << "]=" << outputs[i].node->attrs.name << '(' << outputs[i].index
+         << ")\n";
     }
     DFSVisit(this->outputs, [&os](const ObjectPtr& node) {
-        if (node->is_variable()) {
-          os << "Variable:" << node->attrs.name << '\n';
-        } else {
-          os << "--------------------\n";
-          os << "Op:" << node->op()->name << ", Name=" << node->attrs.name << '\n'
-             << "Inputs:\n";
-          for (size_t i = 0; i < node->inputs.size(); ++i) {
-            const NodeEntry& e = node->inputs[i];
-            os << "\targ[" << i << "]=" << e.node->attrs.name
-               << '(' << e.index << ")";
-            if (e.node->is_variable()) {
-              os << " version=" << e.version << '\n';
-            } else {
-              os << '\n';
-            }
-          }
-          if (!node->attrs.dict.empty()) {
-            os << "Attrs:\n";
-            // make an ordered copy because unordered_map doesn't guarantee order.
-            std::map<std::string, std::string> sorted_dict(
-              node->attrs.dict.begin(), node->attrs.dict.end());
-            for (auto &kv : sorted_dict) {
-              os << '\t' << kv.first << '=' << kv.second << '\n';
-            }
-          }
-          if (node->control_deps.size() != 0) {
-            os << "Control deps:\n";
-            for (size_t i = 0; i < node->control_deps.size(); ++i) {
-              os << "\tcdep[" << i << "]=" << node->control_deps[i]->attrs.name << '\n';
-            }
+      if (node->is_variable()) {
+        os << "Variable:" << node->attrs.name << '\n';
+      } else {
+        os << "--------------------\n";
+        os << "Op:" << node->op()->name << ", Name=" << node->attrs.name << '\n' << "Inputs:\n";
+        for (size_t i = 0; i < node->inputs.size(); ++i) {
+          const NodeEntry& e = node->inputs[i];
+          os << "\targ[" << i << "]=" << e.node->attrs.name << '(' << e.index << ")";
+          if (e.node->is_variable()) {
+            os << " version=" << e.version << '\n';
+          } else {
+            os << '\n';
           }
         }
-      });
+        if (!node->attrs.dict.empty()) {
+          os << "Attrs:\n";
+          // make an ordered copy because unordered_map doesn't guarantee order.
+          std::map<std::string, std::string> sorted_dict(node->attrs.dict.begin(),
+                                                         node->attrs.dict.end());
+          for (auto& kv : sorted_dict) {
+            os << '\t' << kv.first << '=' << kv.second << '\n';
+          }
+        }
+        if (node->control_deps.size() != 0) {
+          os << "Control deps:\n";
+          for (size_t i = 0; i < node->control_deps.size(); ++i) {
+            os << "\tcdep[" << i << "]=" << node->control_deps[i]->attrs.name << '\n';
+          }
+        }
+      }
+    });
   }
 }
 
-Symbol Symbol::operator[] (size_t index) const {
+Symbol Symbol::operator[](size_t index) const {
   size_t nreturn = outputs.size();
   CHECK_LT(index, nreturn) << "Symbol only accept nonnegative index";
   if (nreturn == 1) {
@@ -208,25 +200,25 @@ std::vector<ObjectPtr> Symbol::ListInputs(ListInputOption option) const {
   std::vector<ObjectPtr> ret;
   if (option == kAll) {
     ret.reserve(this->outputs.size());
-    DFSVisit(this->outputs, [&ret](const ObjectPtr &node) {
-        if (node->is_variable()) {
-          ret.push_back(node);
-        }
-      });
+    DFSVisit(this->outputs, [&ret](const ObjectPtr& node) {
+      if (node->is_variable()) {
+        ret.push_back(node);
+      }
+    });
   } else {
     std::unordered_set<Node*> mutable_set;
     std::vector<ObjectPtr> vlist;
     vlist.reserve(this->outputs.size());
     static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
-    DFSVisit(this->outputs, [&mutable_set, &vlist](const ObjectPtr &node) {
-        if (node->is_variable()) {
-          vlist.push_back(node);
-        } else if (fmutate_inputs.count(node->op())) {
-          for (uint32_t i : fmutate_inputs[node->op()](node->attrs)){
-            mutable_set.insert(node->inputs[i].node.get());
-          }
+    DFSVisit(this->outputs, [&mutable_set, &vlist](const ObjectPtr& node) {
+      if (node->is_variable()) {
+        vlist.push_back(node);
+      } else if (fmutate_inputs.count(node->op())) {
+        for (uint32_t i : fmutate_inputs[node->op()](node->attrs)) {
+          mutable_set.insert(node->inputs[i].node.get());
         }
-      });
+      }
+    });
     ret.reserve(vlist.size());
     for (const ObjectPtr& node : vlist) {
       if ((option == kReadOnlyArgs && mutable_set.count(node.get()) == 0) ||
@@ -252,7 +244,7 @@ std::vector<std::string> Symbol::ListOutputNames() const {
 
   std::vector<std::string> ret;
   ret.reserve(outputs.size());
-  for (auto &head : outputs) {
+  for (auto& head : outputs) {
     if (head.node->is_variable()) {
       ret.push_back(head.node->attrs.name);
     } else {
@@ -291,8 +283,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
   Node* n = outputs[0].node.get();
   FInputGraph fng = fgraph.get(n->op(), nullptr);
   std::vector<uint32_t> garg_idx;
-  if (fng != nullptr)
-    garg_idx = fng(n->attrs);
+  if (fng != nullptr) garg_idx = fng(n->attrs);
 
   // The names of the arguments that contain graphs.
   FListInputNames name_fn = flist_inputs.get(n->op(), nullptr);
@@ -300,8 +291,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
   std::vector<std::string> garg_names(garg_idx.size());
   for (size_t i = 0; i < garg_idx.size(); i++) {
     size_t idx = garg_idx[i];
-    if (idx < arg_names.size())
-      garg_names[i] = arg_names[idx];
+    if (idx < arg_names.size()) garg_names[i] = arg_names[idx];
   }
 
   // parameter check.
@@ -309,13 +299,13 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
     // If the argument isn't a graph, it should have only one output.
     if (garg_idx.empty() || std::find(garg_idx.begin(), garg_idx.end(), i) == garg_idx.end())
       CHECK_EQ(args[i]->outputs.size(), 1U)
-        << "Argument " << i << " is a tuple, single value is required";
+          << "Argument " << i << " is a tuple, single value is required";
   }
   for (const auto& kv : kwargs) {
-    if (garg_names.empty()
-        || std::find(garg_names.begin(), garg_names.end(), kv.first) == garg_names.end())
+    if (garg_names.empty() ||
+        std::find(garg_names.begin(), garg_names.end(), kv.first) == garg_names.end())
       CHECK_EQ(kv.second->outputs.size(), 1U)
-        << "Keyword Argument " << kv.first << " is a tuple, single value is required";
+          << "Keyword Argument " << kv.first << " is a tuple, single value is required";
   }
   // assign new name
   if (!name.empty()) outputs[0].node->attrs.name = name;
@@ -323,14 +313,14 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
   // Atomic functor composition.
   if (IsAtomic(outputs)) {
     uint32_t n_req = n->num_inputs();
-    std::vector<const Symbol *> arg_vec(args.begin(), args.end());
+    std::vector<const Symbol*> arg_vec(args.begin(), args.end());
     std::unordered_map<std::string, const Symbol*> kwarg_map(kwargs.begin(), kwargs.end());
     // If one of the input arguments is a graph, we need to remove it from the
     // list.
     if (fng != nullptr) {
       std::vector<uint32_t> idxes = fng(n->attrs);
       for (auto idx : idxes) {
-        const Symbol *sym;
+        const Symbol* sym;
         if (idx < arg_vec.size()) {
           sym = arg_vec[idx];
         } else {
@@ -339,8 +329,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
           sym = it->second;
           kwarg_map.erase(it);
         }
-        if (n_req != kVarg)
-          n_req--;
+        if (n_req != kVarg) n_req--;
         n->attrs.subgraphs.push_back(std::make_shared<Symbol>(*sym));
       }
       // Because idxes does not contain duplicates, the loop below functions well.
@@ -358,8 +347,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
     if (n_req != kVarg) {
       n->inputs.resize(n_req);
       CHECK_LE(arg_vec.size(), n_req)
-          << "Incorrect number of arguments, requires " << n_req
-          << ", provided " << arg_vec.size();
+          << "Incorrect number of arguments, requires " << n_req << ", provided " << arg_vec.size();
       for (size_t i = 0; i < arg_vec.size(); ++i) {
         n->inputs[i] = arg_vec[i]->outputs[0];
       }
@@ -375,8 +363,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
             n->inputs[i] = it->second->outputs[0];
             ++nmatched;
           } else {
-            n->inputs[i] = NodeEntry{
-              CreateVariableNode(DefaultVarName(name, arg_names[i])), 0, 0};
+            n->inputs[i] = NodeEntry{CreateVariableNode(DefaultVarName(name, arg_names[i])), 0, 0};
             // copy attribute of parent over automatically created variables
             n->inputs[i].node->attrs.dict = n->attrs.dict;
           }
@@ -409,20 +396,19 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
     }
   } else {
     // general composition
-    CHECK_EQ(args.size(), 0U)
-        << "General composition only support kwargs for now";
+    CHECK_EQ(args.size(), 0U) << "General composition only support kwargs for now";
     size_t nmatched = 0;
     size_t arg_counter = 0;
-    std::unordered_map<Node *, const NodeEntry*> replace_map;
+    std::unordered_map<Node*, const NodeEntry*> replace_map;
     // replace map stores the existing replacement plan for arguments node
-    auto find_replace_map = [&nmatched, &arg_counter, &args, &kwargs, &replace_map]
-        (const ObjectPtr &node) {
+    auto find_replace_map = [&nmatched, &arg_counter, &args, &kwargs,
+                             &replace_map](const ObjectPtr& node) {
       if (node->is_variable()) {
         if (arg_counter < args.size()) {
           replace_map[node.get()] = &(args[arg_counter]->outputs[0]);
           ++arg_counter;
         } else {
-            // match kwargs
+          // match kwargs
           auto kit = kwargs.find(node->attrs.name);
           if (kit != kwargs.end()) {
             replace_map[node.get()] = &(kit->second->outputs[0]);
@@ -436,12 +422,11 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
     if (nmatched == kwargs.size() && arg_counter <= args.size()) {
       std::vector<Node*> update_nodes;
       std::vector<std::pair<NodeEntry*, const NodeEntry*> > replace_plan;
-      auto find_replace_plan = [&replace_map, &replace_plan, &update_nodes]
-          (const ObjectPtr &node) {
+      auto find_replace_plan = [&replace_map, &replace_plan, &update_nodes](const ObjectPtr& node) {
         // visit all the childs, find possible replacement
         bool repl = false;
         for (size_t i = 0; i < node->inputs.size(); ++i) {
-          NodeEntry *e = &(node->inputs[i]);
+          NodeEntry* e = &(node->inputs[i]);
           if (e->node->is_variable()) {
             auto iter = replace_map.find(e->node.get());
             if (iter != replace_map.end()) {
@@ -479,17 +464,16 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
   }
 }
 
-Symbol Symbol::operator () (const array_view<const Symbol*>& args,
-                            const std::unordered_map<std::string, const Symbol*>& kwargs,
-                            const std::string& name) const {
+Symbol Symbol::operator()(const array_view<const Symbol*>& args,
+                          const std::unordered_map<std::string, const Symbol*>& kwargs,
+                          const std::string& name) const {
   Symbol s = this->Copy();
   s.Compose(args, kwargs, name);
   return s;
 }
 
 void Symbol::AddControlDeps(const Symbol& src) {
-  CHECK_EQ(outputs.size(), 1U)
-      << "AddControlDeps only works for nongrouped symbol";
+  CHECK_EQ(outputs.size(), 1U) << "AddControlDeps only works for nongrouped symbol";
   Node* n = outputs[0].node.get();
   for (const NodeEntry& sp : src.outputs) {
     n->control_deps.push_back(sp.node);
@@ -500,21 +484,21 @@ Symbol Symbol::GetInternals() const {
   static auto& fnum_vis_output = Op::GetAttr<FNumVisibleOutputs>("FNumVisibleOutputs");
   Symbol ret;
   DFSVisit(this->outputs, [&ret](const ObjectPtr& node) {
-      Node* n = node.get();
-      if (n->is_variable()) {
-        // grab version from variable.
-        VariableParam& param = nnvm::get<VariableParam>(n->attrs.parsed);
-        ret.outputs.emplace_back(NodeEntry{node, 0, param.version});
-      } else {
-        uint32_t nout = n->num_outputs();
-        if (fnum_vis_output.count(n->op())) {
-          nout = fnum_vis_output[n->op()](n->attrs);
-        }
-        for (uint32_t i = 0; i < nout; ++i) {
-          ret.outputs.emplace_back(NodeEntry{node, i, 0});
-        }
+    Node* n = node.get();
+    if (n->is_variable()) {
+      // grab version from variable.
+      VariableParam& param = nnvm::get<VariableParam>(n->attrs.parsed);
+      ret.outputs.emplace_back(NodeEntry{node, 0, param.version});
+    } else {
+      uint32_t nout = n->num_outputs();
+      if (fnum_vis_output.count(n->op())) {
+        nout = fnum_vis_output[n->op()](n->attrs);
       }
-    });
+      for (uint32_t i = 0; i < nout; ++i) {
+        ret.outputs.emplace_back(NodeEntry{node, i, 0});
+      }
+    }
+  });
   return ret;
 }
 
@@ -533,8 +517,7 @@ Symbol Symbol::GetChildren() const {
 void Symbol::SetAttrs(const std::vector<std::pair<std::string, std::string> >& attrs) {
   Node* node = outputs[0].node.get();
   for (const NodeEntry& e : outputs) {
-    CHECK(node == e.node.get())
-        << "Symbol.SetAttrs only works for non-grouped symbol";
+    CHECK(node == e.node.get()) << "Symbol.SetAttrs only works for non-grouped symbol";
   }
   for (const auto& kv : attrs) {
     if (kv.first == "name") {
@@ -583,29 +566,27 @@ std::unordered_map<std::string, std::string> Symbol::ListAttrs(ListAttrOption op
   if (option == kRecursive) {
     std::unordered_map<std::string, std::string> ret;
     DFSVisit(this->outputs, [&ret](const ObjectPtr& n) {
-        for (const auto& it : n->attrs.dict) {
-          ret[n->attrs.name + symbol_constants::kNamespaceSeparator + it.first] = it.second;
-        }
-      });
+      for (const auto& it : n->attrs.dict) {
+        ret[n->attrs.name + symbol_constants::kNamespaceSeparator + it.first] = it.second;
+      }
+    });
     return ret;
   } else {
     return outputs[0].node->attrs.dict;
   }
 }
 
-std::vector<std::tuple<std::string, std::string, std::string> >
-    Symbol::ListAttrsRecursive() const {
+std::vector<std::tuple<std::string, std::string, std::string> > Symbol::ListAttrsRecursive() const {
   std::vector<std::tuple<std::string, std::string, std::string> > ret;
   DFSVisit(this->outputs, [&ret](const ObjectPtr& n) {
-      for (const auto& it : n->attrs.dict) {
-        ret.emplace_back(std::make_tuple(n->attrs.name, it.first, it.second));
-      }
-    });
+    for (const auto& it : n->attrs.dict) {
+      ret.emplace_back(std::make_tuple(n->attrs.name, it.first, it.second));
+    }
+  });
   return ret;
 }
 
-Symbol Symbol::CreateFunctor(const Op* op,
-                             std::unordered_map<std::string, std::string> attrs) {
+Symbol Symbol::CreateFunctor(const Op* op, std::unordered_map<std::string, std::string> attrs) {
   static auto& fnum_vis_output = Op::GetAttr<FNumVisibleOutputs>("FNumVisibleOutputs");
   Symbol s;
   ObjectPtr n = Node::Create();
@@ -641,9 +622,9 @@ Symbol Symbol::CreateFunctor(const NodeAttrs& attrs) {
   return s;
 }
 
-Symbol Symbol::CreateGroup(const std::vector<Symbol> &symbols) {
+Symbol Symbol::CreateGroup(const std::vector<Symbol>& symbols) {
   Symbol ret;
-  for (const auto &s : symbols) {
+  for (const auto& s : symbols) {
     ret.outputs.insert(ret.outputs.end(), s.outputs.begin(), s.outputs.end());
   }
   return ret;

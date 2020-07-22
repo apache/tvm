@@ -21,13 +21,13 @@
  * \file detect_linear_equation.cc
  * \brief Utility to detect patterns in the expression.
  */
-#include <tvm/runtime/registry.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/expr_functor.h>
-#include <tvm/tir/stmt_functor.h>
 #include <tvm/arith/analyzer.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/tir/analysis.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/expr_functor.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
 namespace arith {
@@ -45,11 +45,9 @@ struct IntervalEntry {
   PrimExpr max_value;
 };
 
-class LinearEqDetector
-    : public ExprFunctor<LinearEqEntry(const PrimExpr&, const PrimExpr &)> {
+class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const PrimExpr&)> {
  public:
-  explicit LinearEqDetector(Var var)
-      : var_(var) {}
+  explicit LinearEqDetector(Var var) : var_(var) {}
 
   bool Detect(const PrimExpr& e, LinearEqEntry* ret) {
     *ret = VisitExpr(e, e);
@@ -142,8 +140,7 @@ class LinearEqDetector
   }
 };
 
-Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
-                                          const Array<Var>& vars) {
+Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const Array<Var>& vars) {
   PrimExpr base = e;
   Array<PrimExpr> coeff;
 
@@ -157,9 +154,7 @@ Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
   }
 
   std::unordered_set<const VarNode*> vset;
-  auto vset_contains = [&](const VarNode* node) {
-    return vset.count(node) != 0;
-  };
+  auto vset_contains = [&](const VarNode* node) { return vset.count(node) != 0; };
 
   for (size_t i = vars.size(); i > 1; --i) {
     vset.insert(vars[i - 1].get());
@@ -173,9 +168,8 @@ Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
 }
 
 // Detect clip condition as min max value
-bool DetectClipBound(
-    const PrimExpr& cond,
-    std::unordered_map<const VarNode*, IntervalEntry>* bmap) {
+bool DetectClipBound(const PrimExpr& cond,
+                     std::unordered_map<const VarNode*, IntervalEntry>* bmap) {
   int flag = 0;
   Var var;
   auto fvisit = [&bmap, &flag, &var](const ObjectRef& n) {
@@ -219,7 +213,7 @@ bool DetectClipBound(
   if (is_const_int(ret.coeff, 1)) {
     // var + shift >=0 -> var >= -shift
     if (p.min_value.defined()) {
-      p.min_value = tir::MaxNode::make(p.min_value, -ret.base);
+      p.min_value = max(p.min_value, -ret.base);
     } else {
       p.min_value = -ret.base;
     }
@@ -228,7 +222,7 @@ bool DetectClipBound(
   if (is_const_int(ret.coeff, -1)) {
     // -var + shift >=0 -> var <= shift
     if (p.max_value.defined()) {
-      p.max_value = tir::MinNode::make(p.max_value, ret.base);
+      p.max_value = min(p.max_value, ret.base);
     } else {
       p.max_value = ret.base;
     }
@@ -237,8 +231,7 @@ bool DetectClipBound(
   return false;
 }
 
-
-template<typename OP>
+template <typename OP>
 void SplitCommExpr(const PrimExpr& e, std::vector<PrimExpr>* ret) {
   if (const OP* op = e.as<OP>()) {
     SplitCommExpr<OP>(op->a, ret);
@@ -276,12 +269,11 @@ Array<PrimExpr> DetectClipBound(const PrimExpr& e, const Array<Var>& vars) {
   return ret;
 }
 
-TVM_REGISTER_GLOBAL("arith.DetectLinearEquation")
-.set_body_typed(DetectLinearEquation);
+TVM_REGISTER_GLOBAL("arith.DetectLinearEquation").set_body_typed(DetectLinearEquation);
 
 TVM_REGISTER_GLOBAL("arith.DetectClipBound")
-.set_body_typed([](const PrimExpr& e, const Array<Var>& vars) {
-  return DetectClipBound(e, vars);
-});
+    .set_body_typed([](const PrimExpr& e, const Array<Var>& vars) {
+      return DetectClipBound(e, vars);
+    });
 }  // namespace arith
 }  // namespace tvm

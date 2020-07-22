@@ -45,7 +45,7 @@ def build_config(debug_flag=0, **kwargs):
 
     Returns
     -------
-    build_config: BuildConfig
+    build_config: tvm.transform.PassContext
         The build config that can be used in TVM.
 
     Example
@@ -83,7 +83,14 @@ def build_config(debug_flag=0, **kwargs):
     pass_list.append((3, tvm.tir.transform.LowerDeviceStorageAccessInfo()))
     pass_list.append((3, transform.FoldUopLoop()))
     pass_list.append((3, transform.CPUAccessRewrite()))
-    return tvm.target.build_config(add_lower_pass=pass_list, **kwargs)
+    config = {
+        "tir.add_lower_pass": pass_list
+    }
+    if kwargs.get("config"):
+        config.update(kwargs[config])
+        del kwargs["config"]
+
+    return tvm.transform.PassContext(config=config, **kwargs)
 
 
 def lower(*args, **kwargs):
@@ -96,8 +103,8 @@ def lower(*args, **kwargs):
     --------
     tvm.lower : The original TVM's lower function
     """
-    cfg = tvm.target.BuildConfig.current()
-    if not cfg.add_lower_pass:
+    pass_ctx = tvm.transform.PassContext.current()
+    if not pass_ctx.config.get("add_lower_pass"):
         with build_config():
             return tvm.lower(*args, **kwargs)
     return tvm.lower(*args, **kwargs)
@@ -113,8 +120,8 @@ def build(*args, **kwargs):
     --------
     tvm.build : The original TVM's build function
     """
-    cfg = tvm.target.BuildConfig.current()
-    if not cfg.add_lower_pass:
+    pass_ctx = tvm.transform.PassContext.current()
+    if not pass_ctx.config.get("tir.add_lower_pass"):
         with build_config():
             return tvm.build(*args, **kwargs)
     return tvm.build(*args, **kwargs)

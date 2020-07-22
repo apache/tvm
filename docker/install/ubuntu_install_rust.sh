@@ -29,5 +29,11 @@ curl -s -S -L https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --default
 . $CARGO_HOME/env
 rustup component add rustfmt
 
+# install wasmtime
+export WASMTIME_HOME=/opt/wasmtime
+curl https://wasmtime.dev/install.sh -sSf | bash
+export PATH="${WASMTIME_HOME}/bin:${PATH}"
+rustup target add wasm32-wasi
+
 # make rust usable by all users
 chmod -R a+w /opt/rust

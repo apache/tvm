@@ -133,6 +133,7 @@ macro_rules! impl_dltensor_from_ndarray {
                     shape: arr.shape().as_ptr() as *const i64 as *mut i64,
                     strides: arr.strides().as_ptr() as *const isize as *mut i64,
                     byte_offset: 0,
+                    ..Default::default()
                 }
             }
         }

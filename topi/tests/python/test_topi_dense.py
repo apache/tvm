@@ -33,7 +33,6 @@ _dense_implement = {
             (topi.cuda.dense_large_batch, topi.cuda.schedule_dense_large_batch)],
     "mali": [(topi.mali.dense, topi.mali.schedule_dense)],
     "bifrost": [(topi.bifrost.dense, topi.bifrost.schedule_dense)],
-    "opengl": [(topi.nn.dense, topi.opengl.schedule_dense)],
     "rocm": [(topi.rocm.dense, topi.rocm.schedule_dense)],
     "hls": [(topi.nn.dense, topi.hls.schedule_dense)],
 }

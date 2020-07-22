@@ -27,7 +27,6 @@
 namespace tvm {
 namespace micro {
 
-
 // A minimal wrapper, derived from https://github.com/Robbepop/dynarray/, that
 // supports a minimal subset of the std::vector API with a minimized code size.
 template <typename T>

@@ -53,9 +53,9 @@ class DebugResult(object):
         self._dump_path = dump_path
         self._output_tensor_list = []
         self._time_list = []
-        self._parse_graph(graph_json)
+        json_obj = self._parse_graph(graph_json)
         # dump the json information
-        self.dump_graph_json(graph_json)
+        self._dump_graph_json(json_obj)
 
     def _parse_graph(self, graph_json):
         """Parse and extract the JSON graph and update the nodes, shapes and dltype.
@@ -70,12 +70,12 @@ class DebugResult(object):
         self._shapes_list = json_obj['attrs']['shape']
         self._dtype_list = json_obj['attrs']['dltype']
         self._update_graph_json()
+        return json_obj
 
     def _update_graph_json(self):
         """update the nodes_list with name, shape and data type,
         for temporarily storing the output.
         """
-
         nodes_len = len(self._nodes_list)
         for i in range(nodes_len):
             node = self._nodes_list[i]
@@ -192,7 +192,7 @@ class DebugResult(object):
         with open(os.path.join(self._dump_path, CHROME_TRACE_FILE_NAME), "w") as trace_f:
             json.dump(result, trace_f)
 
-    def dump_graph_json(self, graph):
+    def _dump_graph_json(self, graph):
         """Dump json formatted graph.
 
         Parameters

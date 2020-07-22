@@ -80,8 +80,15 @@ def test_fmod():
 
             # launch the kernel.
             n = 1024
-            a = tvm.nd.array((np.random.uniform(size=n) * 256).astype(A.dtype), ctx)
-            b = tvm.nd.array((np.random.uniform(size=n) * 256).astype(B.dtype), ctx)
+            a_np = (np.random.uniform(size=n) * 256).astype(A.dtype)
+            b_np = (np.random.uniform(size=n) * 256).astype(B.dtype)
+
+            # "fix" the values in a and b to avoid the result being too small
+            b_np += ((b_np < 2.0) * 2)
+            a_np[np.abs(np.fmod(a_np, b_np)) < 1] += 1
+
+            a = tvm.nd.array(a_np, ctx)
+            b = tvm.nd.array(b_np, ctx)
             c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
             ftimer = fmod.time_evaluator(fmod.entry_name, ctx, number=1)
             tcost = ftimer(a, b, c).mean

@@ -345,9 +345,9 @@ class ExprPack(ExprMutator):
                                         method,
                                         align_corners)
             elif call.op == self.reshape and len(input_types[0].shape) == 4:
-                data, = args
+                data, _ = args
                 data = op.transpose(data, axes=(0, 4, 1, 5, 2, 3))
-                return op.reshape(data, input_types[0].shape)
+                return op.reshape(data, [int(x) for x in input_types[0].shape])
 
         return relay.Call(
             self.visit(call.op),
@@ -376,7 +376,7 @@ def get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, cou
         if isinstance(anf, relay.expr.Let):
             value = anf.value
             if isinstance(value, relay.expr.Call):
-                if isinstance(value.op, relay.op.Op):
+                if isinstance(value.op, tvm.ir.Op):
                     if value.op.name == start_name and not start_found:
                         if operator_current_idx == start_name_idx or start_name_idx is None:
                             value = relay.expr.Call(bitpack_start, [value])

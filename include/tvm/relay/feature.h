@@ -24,9 +24,9 @@
 #ifndef TVM_RELAY_FEATURE_H_
 #define TVM_RELAY_FEATURE_H_
 
+#include <tvm/ir/module.h>
 #include <tvm/node/container.h>
 #include <tvm/relay/expr.h>
-#include <tvm/ir/module.h>
 
 #include <bitset>
 
@@ -65,9 +65,7 @@ class FeatureSet {
  public:
   FeatureSet(const FeatureSet&) = default;
   /*! \brief A singleton set containing a single Feature. */
-  explicit FeatureSet(Feature ft) {
-    bs_.set(static_cast<size_t>(ft));
-  }
+  explicit FeatureSet(Feature ft) { bs_.set(static_cast<size_t>(ft)); }
   explicit FeatureSet(const tvm::Array<tvm::Integer>& ft) {
     for (Integer i : ft) {
       (*this) += Feature(static_cast<int>(i));
@@ -93,25 +91,25 @@ class FeatureSet {
     FeatureSet fs;
     return fs;
   }
-  template<typename T>
+  template <typename T>
   FeatureSet& operator+=(const T& rhs) {
     bs_ |= FeatureSet(rhs).bs_;
     return *this;
   }
   /*! \brief Set union. */
-  template<typename T>
+  template <typename T>
   FeatureSet operator+(const T& rhs) const {
     FeatureSet fs(*this);
     fs += rhs;
     return fs;
   }
-  template<typename T>
+  template <typename T>
   FeatureSet& operator-=(const T& rhs) {
     bs_ &= ~(FeatureSet(rhs)).bs_;
     return *this;
   }
   /*! \brief Set difference. */
-  template<typename T>
+  template <typename T>
   FeatureSet operator-(const T& rhs) const {
     FeatureSet fs(*this);
     fs -= rhs;
@@ -124,14 +122,12 @@ class FeatureSet {
    *
    * \return true only if this is a subset of rhs.
    */
-  bool is_subset_of(const FeatureSet& rhs) const {
-    return ((*this) - rhs).bs_.none();
-  }
+  bool is_subset_of(const FeatureSet& rhs) const { return ((*this) - rhs).bs_.none(); }
 
  private:
   std::bitset<feature_count> bs_;
   FeatureSet() = default;
-  explicit FeatureSet(const std::bitset<feature_count>& bs) : bs_(bs) { }
+  explicit FeatureSet(const std::bitset<feature_count>& bs) : bs_(bs) {}
 };
 
 /*!

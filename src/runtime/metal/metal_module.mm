@@ -20,18 +20,18 @@
 /*!
  * \file metal_module.cc
  */
-#include <dmlc/memory_io.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/module.h>
-#include <array>
-#include <string>
-#include <mutex>
 #include "metal_module.h"
-#include "metal_common.h"
+#include <dmlc/memory_io.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/registry.h>
+#include <array>
+#include <mutex>
+#include <string>
+#include "../file_util.h"
+#include "../meta_data.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
-#include "../meta_data.h"
-#include "../file_util.h"
+#include "metal_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -39,27 +39,18 @@ namespace runtime {
 // Module to support thread-safe multi-GPU execution.
 // The runtime will contain a per-device module table
 // The modules will be lazily loaded
-class MetalModuleNode final :public runtime::ModuleNode {
+class MetalModuleNode final : public runtime::ModuleNode {
  public:
-  explicit MetalModuleNode(std::string data,
-                           std::string fmt,
-                           std::unordered_map<std::string, FunctionInfo> fmap,
-                           std::string source)
-      : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {
-  }
-  const char* type_key() const final {
-    return "metal";
-  }
+  explicit MetalModuleNode(std::string data, std::string fmt,
+                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
+      : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {}
+  const char* type_key() const final { return "metal"; }
 
-  PackedFunc GetFunction(
-      const std::string& name,
-      const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
-  void SaveToFile(const std::string& file_name,
-                  const std::string& format) final {
+  void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
-    CHECK_EQ(fmt, fmt_)
-        << "Can only save to format=" << fmt_;
+    CHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     std::string meta_file = GetMetaFilePath(file_name);
     SaveMetaDataToFile(meta_file, fmap_);
     SaveBinaryToFile(file_name, data_);
@@ -81,8 +72,7 @@ class MetalModuleNode final :public runtime::ModuleNode {
     }
   }
   // get a from primary context in device_id
-  id<MTLComputePipelineState> GetPipelineState(
-      size_t device_id, const std::string& func_name) {
+  id<MTLComputePipelineState> GetPipelineState(size_t device_id, const std::string& func_name) {
     metal::MetalWorkspace* w = metal::MetalWorkspace::Global().get();
     CHECK_LT(device_id, w->devices.size());
     // start lock scope.
@@ -97,53 +87,43 @@ class MetalModuleNode final :public runtime::ModuleNode {
     NSError* err_msg = nil;
     if (e.lib == nil) {
       if (fmt_ == "metal") {
-        MTLCompileOptions *opts = [MTLCompileOptions alloc];
+        MTLCompileOptions* opts = [MTLCompileOptions alloc];
         // Use the Metal 1.2 for now.
         opts.languageVersion = MTLLanguageVersion1_2;
         opts.fastMathEnabled = YES;
         // opts = nil;
-        e.lib = [
-            w->devices[device_id]
-             newLibraryWithSource:[NSString stringWithUTF8String:data_.c_str()]
-             options:opts
-             error:&err_msg];
+        e.lib = [w->devices[device_id]
+            newLibraryWithSource:[NSString stringWithUTF8String:data_.c_str()]
+                         options:opts
+                           error:&err_msg];
         [opts dealloc];
         if (e.lib == nil) {
-          LOG(FATAL) << "Fail to compile metal lib:"
-                     << [[err_msg localizedDescription] UTF8String];
+          LOG(FATAL) << "Fail to compile metal lib:" << [[err_msg localizedDescription] UTF8String];
         }
         if (err_msg != nil) {
-          LOG(INFO) << "Warning: "
-                    << [[err_msg localizedDescription] UTF8String];
+          LOG(INFO) << "Warning: " << [[err_msg localizedDescription] UTF8String];
         }
       } else {
         // Build from library.
         auto q = dispatch_queue_create("q", DISPATCH_QUEUE_SERIAL);
-        auto data = dispatch_data_create(
-            data_.c_str(), data_.length(), q, ^{});
-        e.lib = [
-            w->devices[device_id]
-             newLibraryWithData:data
-             error:&err_msg];
+        auto data = dispatch_data_create(data_.c_str(), data_.length(), q,
+                                         ^{
+                                         });
+        e.lib = [w->devices[device_id] newLibraryWithData:data error:&err_msg];
         if (err_msg != nil || e.lib == nil) {
-          LOG(FATAL) << "Fail to compile metal lib:"
-                     << [[err_msg localizedDescription] UTF8String];
+          LOG(FATAL) << "Fail to compile metal lib:" << [[err_msg localizedDescription] UTF8String];
         }
       }
       [e.lib retain];
     }
-    id<MTLFunction> f = [
-        e.lib
-         newFunctionWithName:
-           [NSString stringWithUTF8String:func_name.c_str()]];
+    id<MTLFunction> f =
+        [e.lib newFunctionWithName:[NSString stringWithUTF8String:func_name.c_str()]];
     CHECK(f != nil) << "cannot find function " << func_name;
     id<MTLComputePipelineState> state =
-        [w->devices[device_id]
-          newComputePipelineStateWithFunction:f
-          error:&err_msg];
-    CHECK(state != nil)
-        << "cannot get state:" << " for function " << func_name
-        << [[err_msg localizedDescription] UTF8String];
+        [w->devices[device_id] newComputePipelineStateWithFunction:f error:&err_msg];
+    CHECK(state != nil) << "cannot get state:"
+                        << " for function " << func_name
+                        << [[err_msg localizedDescription] UTF8String];
     // The state.threadExecutionWidth can change dynamically according
     // to the resource constraint in kernel, so it is not strictly hold
     // Turn of warp aware optimziation for now.
@@ -162,7 +142,7 @@ class MetalModuleNode final :public runtime::ModuleNode {
 
     ~DeviceEntry() {
       if (lib != nil) [lib release];
-      for (auto &&kv : smap) {
+      for (auto&& kv : smap) {
         [kv.second release];
       }
     }
@@ -185,11 +165,8 @@ class MetalModuleNode final :public runtime::ModuleNode {
 class MetalWrappedFunc {
  public:
   // initialize the METAL function.
-  void Init(MetalModuleNode* m,
-            ObjectPtr<Object> sptr,
-            const std::string& func_name,
-            size_t num_buffer_args,
-            size_t num_pack_args,
+  void Init(MetalModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
+            size_t num_buffer_args, size_t num_pack_args,
             const std::vector<std::string>& thread_axis_tags) {
     w_ = metal::MetalWorkspace::Global().get();
     m_ = m;
@@ -204,9 +181,7 @@ class MetalWrappedFunc {
     scache_[dev_id] = m->GetPipelineState(dev_id, func_name);
   }
   // invoke the function with void arguments
-  void operator()(TVMArgs args,
-                  TVMRetValue* rv,
-                  const ArgUnion* pack_args) const {
+  void operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion* pack_args) const {
     metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
     int device_id = t->context.device_id;
     if (scache_[device_id] == nil) {
@@ -223,16 +198,13 @@ class MetalWrappedFunc {
     }
     if (num_pack_args_ != 0) {
       [encoder setBytes:pack_args
-               length:num_pack_args_ * sizeof(ArgUnion)
-               atIndex:num_buffer_args_];
+                 length:num_pack_args_ * sizeof(ArgUnion)
+                atIndex:num_buffer_args_];
     }
     // launch
-    MTLSize dimGrid = MTLSizeMake(
-        wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
-    MTLSize dimBlock = MTLSizeMake(
-        wl.block_dim(0), wl.block_dim(1), wl.block_dim(2));
-    [encoder dispatchThreadgroups: dimGrid
-             threadsPerThreadgroup: dimBlock];
+    MTLSize dimGrid = MTLSizeMake(wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
+    MTLSize dimBlock = MTLSizeMake(wl.block_dim(0), wl.block_dim(1), wl.block_dim(2));
+    [encoder dispatchThreadgroups:dimGrid threadsPerThreadgroup:dimBlock];
     [encoder endEncoding];
     [cb commit];
   }
@@ -257,36 +229,29 @@ class MetalWrappedFunc {
   ThreadAxisConfig thread_axis_cfg_;
 };
 
-PackedFunc MetalModuleNode::GetFunction(
-      const std::string& name,
-      const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc MetalModuleNode::GetFunction(const std::string& name,
+                                        const ObjectPtr<Object>& sptr_to_self) {
   CHECK_EQ(sptr_to_self.get(), this);
-  CHECK_NE(name, symbol::tvm_module_main)
-      << "Device function do not have main";
+  CHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();
   const FunctionInfo& info = it->second;
   MetalWrappedFunc f;
   size_t num_buffer_args = NumBufferArgs(info.arg_types);
-  f.Init(this, sptr_to_self, name,
-         num_buffer_args, info.arg_types.size() - num_buffer_args,
+  f.Init(this, sptr_to_self, name, num_buffer_args, info.arg_types.size() - num_buffer_args,
          info.thread_axis_tags);
   return PackFuncNonBufferArg(f, info.arg_types);
 }
 
-Module MetalModuleCreate(
-    std::string data,
-    std::string fmt,
-    std::unordered_map<std::string, FunctionInfo> fmap,
-    std::string source) {
+Module MetalModuleCreate(std::string data, std::string fmt,
+                         std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
   metal::MetalWorkspace::Global()->Init();
   auto n = make_object<MetalModuleNode>(data, fmt, fmap, source);
   return Module(n);
 }
 
 // Load module from module.
-Module MetalModuleLoadFile(const std::string& file_name,
-                           const std::string& format) {
+Module MetalModuleLoadFile(const std::string& file_name, const std::string& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
@@ -307,10 +272,8 @@ Module MetalModuleLoadBinary(void* strm) {
   return MetalModuleCreate(data, fmt, fmap, "");
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_metal")
-.set_body_typed(MetalModuleLoadFile);
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_metal").set_body_typed(MetalModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_metal")
-.set_body_typed(MetalModuleLoadBinary);
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_metal").set_body_typed(MetalModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

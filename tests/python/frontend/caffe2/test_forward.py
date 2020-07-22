@@ -43,7 +43,7 @@ def get_tvm_output(model,
     dtype_dict = {input_names: input_data.dtype}
     mod, params = relay.frontend.from_caffe2(
         model.init_net, model.predict_net, shape_dict, dtype_dict)
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(mod, target, params=params)
 
     m = graph_runtime.create(graph, lib, ctx)

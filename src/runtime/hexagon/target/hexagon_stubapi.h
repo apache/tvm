@@ -162,8 +162,7 @@ class StubAPI {
   // two types identical in the function types created below.
   // For example, int foo(tvm_remote_buffer*) and
   // int bar(tvm_remote_nd_buffer*) should both have the same type.
-#define MAPTYPE(fn, ty) \
-  using fn##_t = typename map_func_type<ty, void, decltype(::fn)>::type;
+#define MAPTYPE(fn, ty) using fn##_t = typename map_func_type<ty, void, decltype(::fn)>::type;
   MAPTYPE(tvm_remote_load_library, tvm_remote_buffer)
   MAPTYPE(tvm_remote_release_library, tvm_remote_buffer)
   MAPTYPE(tvm_remote_get_symbol, tvm_remote_buffer)
@@ -196,8 +195,7 @@ class StubAPI {
 
  public:
   template <typename Fd, typename Fnd, typename... Ts>
-  int invoke(Fd func_d, Fnd func_nd, remote_handle64 handle,
-             Ts... args) const {
+  int invoke(Fd func_d, Fnd func_nd, remote_handle64 handle, Ts... args) const {
     if (enable_domains_) {
       return func_d(handle, args...);
     }
@@ -219,11 +217,10 @@ class StubAPI {
 #define FUNC_ND(name) CONCAT_STR(tvm_remote_nd_, name)
 #define PTRNAME(fn) CONCAT_STR(p, CONCAT_STR(fn, _))
 
-#define DECLFUNC(name)                                                   \
-  template <typename... Ts>                                              \
-  int FUNC(name)(remote_handle64 handle, Ts... args) const {             \
-    return invoke(PTRNAME(FUNC_D(name)), PTRNAME(FUNC_ND(name)), handle, \
-                  args...);                                              \
+#define DECLFUNC(name)                                                             \
+  template <typename... Ts>                                                        \
+  int FUNC(name)(remote_handle64 handle, Ts... args) const {                       \
+    return invoke(PTRNAME(FUNC_D(name)), PTRNAME(FUNC_ND(name)), handle, args...); \
   }
 
 #define DECLFUNC_D(name)                                     \

@@ -61,7 +61,7 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, groups, in_size, num_filte
             break
 
     ic_block = 8
-    autotvm.DispatchContext.current.silent = True
+    autotvm.GLOBAL_SCOPE.silent = True
     A = te.placeholder((batch, in_channel//ic_block, in_height, in_width, ic_block), name='A', dtype='uint8')
     W = te.placeholder((num_filter//oc_block, in_channel//ic_block//groups, kernel, kernel, ic_block//4, oc_block, 4), name='W', dtype='int8')
 
@@ -103,6 +103,7 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, groups, in_size, num_filte
     for device in ["llvm -mcpu=skylake-avx512"]:
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
             check_device(device)
+    autotvm.GLOBAL_SCOPE.silent = False
 
 @pytest.mark.skip
 def test_conv2d_NCHWc():

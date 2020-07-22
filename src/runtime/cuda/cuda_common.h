@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,7 +26,9 @@
 
 #include <cuda_runtime.h>
 #include <tvm/runtime/packed_func.h>
+
 #include <string>
+
 #include "../workspace_pool.h"
 
 namespace tvm {
@@ -36,18 +38,16 @@ namespace runtime {
   {                                                                     \
     CUresult result = x;                                                \
     if (result != CUDA_SUCCESS && result != CUDA_ERROR_DEINITIALIZED) { \
-      const char *msg;                                                  \
+      const char* msg;                                                  \
       cuGetErrorName(result, &msg);                                     \
-      LOG(FATAL)                                                        \
-          << "CUDAError: " #x " failed with error: " << msg;            \
+      LOG(FATAL) << "CUDAError: " #x " failed with error: " << msg;     \
     }                                                                   \
   }
 
-#define CUDA_CALL(func)                                            \
-  {                                                                \
-    cudaError_t e = (func);                                        \
-    CHECK(e == cudaSuccess || e == cudaErrorCudartUnloading)       \
-        << "CUDA: " << cudaGetErrorString(e);                      \
+#define CUDA_CALL(func)                                                                            \
+  {                                                                                                \
+    cudaError_t e = (func);                                                                        \
+    CHECK(e == cudaSuccess || e == cudaErrorCudartUnloading) << "CUDA: " << cudaGetErrorString(e); \
   }
 
 /*! \brief Thread local workspace */

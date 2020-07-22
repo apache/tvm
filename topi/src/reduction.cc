@@ -18,58 +18,49 @@
  */
 
 /*!
-* \brief Registration of reduction operators
-* \file reduction.cc
-*/
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
-
+ * \brief Registration of reduction operators
+ * \file reduction.cc
+ */
 #include <topi/reduction.h>
 #include <topi/util.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 
 namespace topi {
 
 using namespace tvm;
 using namespace tvm::runtime;
 
-TVM_REGISTER_GLOBAL("topi.sum")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
+TVM_REGISTER_GLOBAL("topi.sum").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = topi::sum(args[0], ArrayOrInt(args[1]), args[2]);
-  });
+});
 
-TVM_REGISTER_GLOBAL("topi.min")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
+TVM_REGISTER_GLOBAL("topi.min").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = topi::min(args[0], ArrayOrInt(args[1]), args[2]);
-  });
+});
 
-TVM_REGISTER_GLOBAL("topi.max")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
+TVM_REGISTER_GLOBAL("topi.max").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = topi::max(args[0], ArrayOrInt(args[1]), args[2]);
-  });
+});
 
-TVM_REGISTER_GLOBAL("topi.argmin")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
+TVM_REGISTER_GLOBAL("topi.argmin").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = topi::argmin(args[0], ArrayOrInt(args[1]), args[2]);
-  });
+});
 
-TVM_REGISTER_GLOBAL("topi.argmax")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
+TVM_REGISTER_GLOBAL("topi.argmax").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = topi::argmax(args[0], ArrayOrInt(args[1]), args[2]);
-  });
+});
 
-TVM_REGISTER_GLOBAL("topi.prod")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
+TVM_REGISTER_GLOBAL("topi.prod").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = topi::prod(args[0], ArrayOrInt(args[1]), args[2]);
-  });
+});
 
-TVM_REGISTER_GLOBAL("topi.all")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
+TVM_REGISTER_GLOBAL("topi.all").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = topi::all(args[0], ArrayOrInt(args[1]), args[2]);
-  });
+});
 
-TVM_REGISTER_GLOBAL("topi.any")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
+TVM_REGISTER_GLOBAL("topi.any").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = topi::any(args[0], ArrayOrInt(args[1]), args[2]);
-  });
+});
 
 }  // namespace topi

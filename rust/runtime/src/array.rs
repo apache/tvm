@@ -297,6 +297,7 @@ impl<'a> Tensor<'a> {
                 self.strides.as_ref().unwrap().as_ptr()
             } as *mut i64,
             byte_offset: 0,
+            ..Default::default()
         }
     }
 }

@@ -22,9 +22,9 @@
  * \brief Inference the device of each operator given known information.
  *  Insert a copy node automatically when there is a cross device.
  */
-#include <nnvm/pass.h>
-#include <nnvm/op_attr_types.h>
 #include <nnvm/graph_attr_types.h>
+#include <nnvm/op_attr_types.h>
+#include <nnvm/pass.h>
 
 namespace nnvm {
 namespace pass {
@@ -43,8 +43,7 @@ Graph PlaceDevice(Graph src) {
   const Op* copy_op = Op::Get(src.GetAttr<std::string>("device_copy_op"));
   auto& device_assign_map = src.GetAttr<DeviceAssignMap>("device_assign_map");
   const IndexedGraph& idx = src.indexed_graph();
-  static auto& is_backward =
-      Op::GetAttr<TIsBackward>("TIsBackward");
+  static auto& is_backward = Op::GetAttr<TIsBackward>("TIsBackward");
   DeviceVector device;
   // copy on write semanatics
   if (src.attrs.count("device") != 0) {
@@ -65,15 +64,15 @@ Graph PlaceDevice(Graph src) {
           << "The device assignment not found for group " << device_group;
       device[nid] = dit->second;
     } else {
-      if (!inode.source->is_variable() &&
-          is_backward.get(inode.source->op(), false)) {
+      if (!inode.source->is_variable() && is_backward.get(inode.source->op(), false)) {
         if (device[inode.control_deps[0]] != -1) {
           device[nid] = device[inode.control_deps[0]];
         }
       } else {
         for (const IndexedGraph::NodeEntry& e : inode.inputs) {
           if (device[e.node_id] != -1) {
-            device[nid] = device[e.node_id]; break;
+            device[nid] = device[e.node_id];
+            break;
           }
         }
       }
@@ -121,20 +120,21 @@ Graph PlaceDevice(Graph src) {
         auto e = inode.inputs[index];
         if (new_node_map[e.node_id] != nullptr || dev_id != device[e.node_id]) {
           LOG(FATAL) << " mutable state cannot go across device"
-                     << " op=" << inode.source->op()->name
-                     << " input_state_index=" << index;
+                     << " op=" << inode.source->op()->name << " input_state_index=" << index;
         }
       }
     }
     for (const IndexedGraph::NodeEntry& e : inode.inputs) {
       if (new_node_map[e.node_id] != nullptr || dev_id != device[e.node_id]) {
-        need_mutate = true; break;
+        need_mutate = true;
+        break;
       }
     }
     if (!need_mutate) {
       for (const uint32_t cid : inode.control_deps) {
-        if (new_node_map[cid] != nullptr)  {
-          need_mutate = true; break;
+        if (new_node_map[cid] != nullptr) {
+          need_mutate = true;
+          break;
         }
       }
     }
@@ -151,17 +151,15 @@ Graph PlaceDevice(Graph src) {
           auto copy_key = std::make_tuple(e.node_id, e.index, dev_id);
           auto it = copy_map.find(copy_key);
           if (it != copy_map.end() && it->first == copy_key) {
-            new_node->inputs.emplace_back(
-                NodeEntry{it->second, 0, 0});
+            new_node->inputs.emplace_back(NodeEntry{it->second, 0, 0});
           } else {
             ObjectPtr copy_node = Node::Create();
             std::ostringstream os;
-            os << inode.source->inputs[i].node->attrs.name << "_" << e.index <<"_copy";
+            os << inode.source->inputs[i].node->attrs.name << "_" << e.index << "_copy";
             copy_node->attrs.op = copy_op;
             copy_node->attrs.name = os.str();
             if (new_node_map[e.node_id] != nullptr) {
-              copy_node->inputs.emplace_back(
-                NodeEntry{new_node_map[e.node_id], e.index, 0});
+              copy_node->inputs.emplace_back(NodeEntry{new_node_map[e.node_id], e.index, 0});
             } else {
               copy_node->inputs.push_back(inode.source->inputs[i]);
             }
@@ -170,13 +168,11 @@ Graph PlaceDevice(Graph src) {
             }
             copy_map[copy_key] = copy_node;
             new_device_map[copy_node.get()] = dev_id;
-            new_node->inputs.emplace_back(
-                NodeEntry{std::move(copy_node), 0, 0});
+            new_node->inputs.emplace_back(NodeEntry{std::move(copy_node), 0, 0});
           }
         } else {
           if (new_node_map[e.node_id] != nullptr) {
-            new_node->inputs.emplace_back(
-                NodeEntry{new_node_map[e.node_id], e.index, 0});
+            new_node->inputs.emplace_back(NodeEntry{new_node_map[e.node_id], e.index, 0});
           } else {
             new_node->inputs.push_back(inode.source->inputs[i]);
           }
@@ -220,14 +216,15 @@ Graph PlaceDevice(Graph src) {
 }
 
 NNVM_REGISTER_PASS(PlaceDevice)
-.describe("Infer the device type of each operator."\
-          "Insert a copy node when there is cross device copy")
-.set_body(PlaceDevice)
-.set_change_graph(true)
-.provide_graph_attr("device")
-.depend_graph_attr("device_group_attr_key")
-.depend_graph_attr("device_assign_map")
-.depend_graph_attr("device_copy_op");
+    .describe(
+        "Infer the device type of each operator."
+        "Insert a copy node when there is cross device copy")
+    .set_body(PlaceDevice)
+    .set_change_graph(true)
+    .provide_graph_attr("device")
+    .depend_graph_attr("device_group_attr_key")
+    .depend_graph_attr("device_assign_map")
+    .depend_graph_attr("device_copy_op");
 
 DMLC_JSON_ENABLE_ANY(DeviceAssignMap, dict_str_int);
 

@@ -26,33 +26,34 @@
 
 #include <tvm/ir/error.h>
 #include <tvm/relay/attrs/transform.h>
-#include <vector>
+#include <tvm/relay/op_attr_types.h>
+
 #include <algorithm>
 #include <limits>
 #include <string>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace relay {
 
+extern Expr MakeReshape(Expr data, Expr newshape);
+
 template <typename AttrType>
-bool ConcatenateRel(const Array<Type>& types,
-                    int num_inputs,
-                    const Attrs& attrs,
+bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
   // types: [data, result]
   CHECK_EQ(types.size(), 2);
   /* If we receive a tuple we can continue, if we receive
    * anything but an incomplete type we should signal an
    * error.
-  */
+   */
   const auto* tensor_tuple = types[0].as<TupleTypeNode>();
   if (tensor_tuple == nullptr) {
     throw Error(
-        ErrorBuilder()
-        << "concatenate requires a tuple of tensors as the first argument, found "
-        << PrettyPrint(types[0]));
+        ErrorBuilder() << "concatenate requires a tuple of tensors as the first argument, found "
+                       << PrettyPrint(types[0]));
   } else if (types[0].as<IncompleteTypeNode>() != nullptr) {
     return false;
   }
@@ -69,10 +70,8 @@ bool ConcatenateRel(const Array<Type>& types,
   // Sanity check: axis
   int axis = param->axis;
   if (!(-ndim <= axis && axis < ndim)) {
-    throw Error(ErrorBuilder() <<
-      "concatenate only accepts `axis` in [-ndim, ndim)" <<
-      ", but got axis = " << axis <<
-      ", and ndim = " << ndim);
+    throw Error(ErrorBuilder() << "concatenate only accepts `axis` in [-ndim, ndim)"
+                               << ", but got axis = " << axis << ", and ndim = " << ndim);
   }
   axis = axis < 0 ? ndim + axis : axis;
 
@@ -91,33 +90,33 @@ bool ConcatenateRel(const Array<Type>& types,
     if (e_dtype != dtype) {
       throw Error("relay.concatenate requires all tensors have the same dtype");
     }
-    for (size_t j = 0; j < first->shape.size(); ++j) {
-      if (j == static_cast<size_t>(axis)) continue;
-      if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
-      throw Error("relay.concatenate requires all tensors have the same shape "
-                   "on non-concatenating axes");
-    }
   }
 
   // Calculate shape
   std::vector<IndexExpr> oshape(first->shape.begin(), first->shape.end());
-  IndexExpr &concat_dim = oshape[axis];
-  bool has_any = false;
-  if (concat_dim.as<Any>()) {
-    has_any = true;
-  } else {
-    for (int i = 1; i < static_cast<int>(tensor_tuple->fields.size()); ++i) {
-      const auto& e = Downcast<TensorType>(tensor_tuple->fields[i]);
-      if (e->shape[axis].as<Any>()) {
-        has_any = true;
-        break;
+  int data_length = static_cast<int>(tensor_tuple->fields.size());
+  for (int i = 0; i < ndim; ++i) {
+    std::vector<IndexExpr> non_any;
+    for (int j = 0; j < data_length; ++j) {
+      const auto& e = Downcast<TensorType>(tensor_tuple->fields[j]);
+      if (!e->shape[i].as<AnyNode>()) {
+        non_any.push_back(e->shape[i]);
+        // accumulate axis dimension
+        if (j > 0 && i == axis && !oshape[i].as<AnyNode>()) {
+          oshape[i] += e->shape[i];
+        }
       }
-      concat_dim += e->shape[axis];
     }
-  }
-
-  if (has_any) {
-    concat_dim = Any::make();
+    int non_any_size = static_cast<int>(non_any.size());
+    if (non_any_size != data_length) oshape[i] = Any();
+    if (i != axis) {
+      for (int k = 1; k < non_any_size; k++) {
+        if (reporter->AssertEQ(non_any[0], non_any[k])) continue;
+        throw Error(
+            "relay.concatenate requires all tensors have the same shape "
+            "on non-concatenating axes");
+      }
+    }
   }
 
   auto rtype = TensorType(oshape, dtype);
@@ -125,11 +124,10 @@ bool ConcatenateRel(const Array<Type>& types,
   return true;
 }
 
-static inline Array<Array<Layout>> ConcatenateLayout(
-    const Attrs& attrs,
-    const Array<Layout>& new_in_layouts,
-    const Array<Layout>& old_in_layouts,
-    const Array<tvm::relay::Type> &old_in_types) {
+static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
+                                                     const Array<Layout>& new_in_layouts,
+                                                     const Array<Layout>& old_in_layouts,
+                                                     const Array<tvm::relay::Type>& old_in_types) {
   ConcatenateAttrs* param = const_cast<ConcatenateAttrs*>(attrs.as<ConcatenateAttrs>());
 
   Array<Array<IndexExpr>> old_in_shapes;
@@ -141,8 +139,8 @@ static inline Array<Array<Layout>> ConcatenateLayout(
     }
   }
 
-  size_t axis = param->axis < 0 ? param->axis + old_in_shapes[0].size() :
-                static_cast<size_t>(param->axis);
+  size_t axis =
+      param->axis < 0 ? param->axis + old_in_shapes[0].size() : static_cast<size_t>(param->axis);
 
   Layout ret;
   bool is_new_layout_selected = false;
@@ -175,11 +173,11 @@ static inline Array<Array<Layout>> ConcatenateLayout(
     }
 
     if (ret.ndim() <= axis || !ret[axis].IsPrimal()) {
-      return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
+      return Array<Array<Layout>>{{Layout::Undef()}, {Layout::Undef()}};
     }
   }
 
-  return Array<Array<Layout> > {Array<Layout>(old_in_layouts.size(), ret), {ret}};
+  return Array<Array<Layout>>{Array<Layout>(old_in_layouts.size(), ret), {ret}};
 }
 
 }  // namespace relay

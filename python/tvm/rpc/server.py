@@ -43,6 +43,7 @@ from tvm._ffi.base import py_str
 from tvm._ffi.libinfo import find_lib_path
 from tvm.runtime.module import load_module as _load_module
 from tvm.contrib import util
+from . import _ffi_api
 from . import base
 from . base import TrackerCode
 
@@ -56,7 +57,7 @@ def _server_env(load_library, work_path=None):
         temp = util.tempdir()
 
     # pylint: disable=unused-variable
-    @tvm._ffi.register_func("tvm.rpc.server.workpath")
+    @tvm._ffi.register_func("tvm.rpc.server.workpath", override=True)
     def get_workpath(path):
         return temp.relpath(path)
 
@@ -81,7 +82,7 @@ def _serve_loop(sock, addr, load_library, work_path=None):
     """Server loop"""
     sockfd = sock.fileno()
     temp = _server_env(load_library, work_path)
-    base._ServerLoop(sockfd)
+    _ffi_api.ServerLoop(sockfd)
     if not work_path:
         temp.remove()
     logger.info("Finish serving %s", addr)
@@ -330,7 +331,7 @@ class Server(object):
                  utvm_dev_config_args=None,
                  ):
         try:
-            if base._ServerLoop is None:
+            if _ffi_api.ServerLoop is None:
                 raise RuntimeError("Please compile with USE_RPC=1")
         except NameError:
             raise RuntimeError("Please compile with USE_RPC=1")

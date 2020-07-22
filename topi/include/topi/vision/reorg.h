@@ -24,11 +24,11 @@
 #ifndef TOPI_VISION_REORG_H_
 #define TOPI_VISION_REORG_H_
 
-#include <tvm/te/operation.h>
 #include <topi/detail/constant_utils.h>
 #include <topi/reduction.h>
 #include <topi/tags.h>
 #include <topi/transform.h>
+#include <tvm/te/operation.h>
 
 #include <algorithm>
 #include <string>
@@ -39,18 +39,16 @@ using namespace tvm;
 using namespace tvm::te;
 
 /*!
-* \brief Reorg operation
-*
-* \param data The input tensor. Can be any dimension
-* \param stride The input integer used as stride in reorg operation
-* \param name The name of the operation
-* \param tag The tag to mark the operation
-*
-* \return A Tensor whose op member is the reorg operation
-*/
-inline Tensor reorg(const Tensor &data,
-                    int stride = 1,
-                    std::string name = "tensor",
+ * \brief Reorg operation
+ *
+ * \param data The input tensor. Can be any dimension
+ * \param stride The input integer used as stride in reorg operation
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the reorg operation
+ */
+inline Tensor reorg(const Tensor& data, int stride = 1, std::string name = "tensor",
                     std::string tag = "reorg_output") {
   auto input_shape = data->shape;
 
@@ -60,15 +58,14 @@ inline Tensor reorg(const Tensor &data,
   int w_in = GetConstInt(input_shape[3]);
   int out_c = c_in / (stride * stride);
 
-  auto out = tvm::te::compute(input_shape,
-                          [&](Var b, Var k, Var j, Var i) {
-                          return data(b * stride * stride,
-                                      indexmod(k, out_c) * stride * stride,
-                                      (j*stride + indexdiv(indexdiv(k, out_c), stride)) * stride,
-                                      (i*stride + indexmod(indexdiv(k, out_c), stride)));
-                          },
-                          name,
-                          tag);
+  auto out = tvm::te::compute(
+      input_shape,
+      [&](Var b, Var k, Var j, Var i) {
+        return data(b * stride * stride, indexmod(k, out_c) * stride * stride,
+                    (j * stride + indexdiv(indexdiv(k, out_c), stride)) * stride,
+                    (i * stride + indexmod(indexdiv(k, out_c), stride)));
+      },
+      name, tag);
 
   out_c = c_in * stride * stride;
   int out_h = h_in / stride;

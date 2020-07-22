@@ -22,10 +22,12 @@
  * \brief Assign memory tag to each of the data entries.
  */
 #include <nnvm/graph.h>
-#include <nnvm/pass.h>
 #include <nnvm/graph_attr_types.h>
 #include <nnvm/op_attr_types.h>
+#include <nnvm/pass.h>
+
 #include <memory>
+
 #include "graph_algorithm.h"
 
 namespace nnvm {
@@ -82,10 +84,10 @@ class GraphAllocator {
     auto end = free_.upper_bound(size * match_range_);
     // search for memory blocks larger than requested
     for (auto it = mid; it != end; ++it) {
-      StorageEntry *e = it->second;
+      StorageEntry* e = it->second;
       if (e->device_id != dev_id) continue;
-      if (node_color_.size() != 0 &&
-          node_color_[e->released_by_node] != node_color_[node_id]) continue;
+      if (node_color_.size() != 0 && node_color_[e->released_by_node] != node_color_[node_id])
+        continue;
       // Use exect matching strategy
       e->max_bytes = std::max(size, e->max_bytes);
       // find a exact match, erase from map and return
@@ -95,10 +97,10 @@ class GraphAllocator {
     // then search for memory blocks smaller than requested space
     for (auto it = mid; it != begin;) {
       --it;
-      StorageEntry *e = it->second;
+      StorageEntry* e = it->second;
       if (e->device_id != dev_id) continue;
-      if (node_color_.size() != 0 &&
-          node_color_[e->released_by_node] != node_color_[node_id]) continue;
+      if (node_color_.size() != 0 && node_color_[e->released_by_node] != node_color_[node_id])
+        continue;
       // Use exect matching strategy
       e->max_bytes = std::max(size, e->max_bytes);
       // erase from map and return
@@ -112,7 +114,7 @@ class GraphAllocator {
   void Release(StorageID id, uint32_t node_id) {
     CHECK_NE(id, kBadStorageID);
     if (id == kExternalStorageID || id == kDynamicStorageID) return;
-    StorageEntry *e = data_[id].get();
+    StorageEntry* e = data_[id].get();
     e->released_by_node = node_id;
     free_.insert({e->max_bytes, e});
   }
@@ -120,7 +122,7 @@ class GraphAllocator {
   // totoal number of bytes allocated
   size_t TotalAllocBytes() const {
     size_t total = 0;
-    for (auto &p : data_) {
+    for (auto& p : data_) {
       total += p->max_bytes;
     }
     return total;
@@ -142,8 +144,7 @@ class GraphAllocator {
         if ((*idx_)[nid].source->is_variable()) continue;
         importance[nid] = 1;
       }
-      num_match_color_ = pass::ColorNodeGroup(
-          *idx_, importance, num_match_color_, &node_color_);
+      num_match_color_ = pass::ColorNodeGroup(*idx_, importance, num_match_color_, &node_color_);
     }
   }
 
@@ -187,18 +188,16 @@ class GraphAllocator {
  * Internal method to perform the memory allocation for a graph
  * */
 size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
-                   const std::pair<uint32_t, uint32_t>& node_range,
-                   StorageVector* storage_ptr,
+                   const std::pair<uint32_t, uint32_t>& node_range, StorageVector* storage_ptr,
                    std::vector<int>* storage_inplace_index_ptr,
-                   const std::vector<uint32_t>& entry_ref_count,
-                   GraphAllocator* allocator) {
+                   const std::vector<uint32_t>& entry_ref_count, GraphAllocator* allocator) {
   static auto& finplace_option = Op::GetAttr<FInplaceOption>("FInplaceOption");
   static auto& finplace_identity = Op::GetAttr<FInplaceIdentity>("FInplaceIdentity");
   static auto& fignore_inputs = Op::GetAttr<FIgnoreInputs>("FIgnoreInputs");
 
   // Get reference
-  auto &storage = *storage_ptr;
-  auto &storage_inplace_index = *storage_inplace_index_ptr;
+  auto& storage = *storage_ptr;
+  auto& storage_inplace_index = *storage_inplace_index_ptr;
 
   // Get attributes from the graph
   const ShapeVector& shape_vec = ret.GetAttr<ShapeVector>("shape");
@@ -234,19 +233,16 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
         auto sid_out = storage[eid_out];
         auto sid_in = storage[eid_in];
         bool ignore_all_inputs = (fignore_inputs.count(inode.source->op()) != 0 &&
-                                  fignore_inputs[inode.source->op()](
-                                      inode.source->attrs).size() == inode.source->num_inputs());
+                                  fignore_inputs[inode.source->op()](inode.source->attrs).size() ==
+                                      inode.source->num_inputs());
         // Identity should only be true if shape.Size() and types match
         bool real_identity = identity[ipair] &&
                              shape_vec[eid_out].Size() == shape_vec[eid_in].Size() &&
                              dtype_vec[eid_out] == dtype_vec[eid_in];
-        if (taken[kv.first] == false &&
-            sid_out == GraphAllocator::kBadStorageID &&
-            sid_in >= 0 &&
+        if (taken[kv.first] == false && sid_out == GraphAllocator::kBadStorageID && sid_in >= 0 &&
             ((storage_ref_count[sid_in] == 1 && !ignore_all_inputs) || real_identity) &&
-            entry_ref_count[eid_out] > 0 &&
-            shape_vec[eid_out].Size() == shape_vec[eid_in].Size() &&
-             (dtype_vec[eid_out] == dtype_vec[eid_in] ||
+            entry_ref_count[eid_out] > 0 && shape_vec[eid_out].Size() == shape_vec[eid_in].Size() &&
+            (dtype_vec[eid_out] == dtype_vec[eid_in] ||
              GetDTypeSize(dtype_vec[eid_out]) == GetDTypeSize(dtype_vec[eid_in]))) {
           // inplace optimization
           taken[kv.first] = true;
@@ -267,19 +263,19 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
       uint32_t eid = idx.entry_id(nid, index);
       // only request memory for kBadStorageID
       if (storage[eid] == GraphAllocator::kBadStorageID) {
-        auto &eshape = shape_vec[eid];
+        auto& eshape = shape_vec[eid];
         size_t esize = 0;
         if (eshape.ndim() != 0) esize = eshape.Size();
         eids.insert(std::make_pair(esize, eid));
       }
     }
     for (auto rit = eids.rbegin(); rit != eids.rend(); ++rit) {
-        uint32_t eid = rit->second;
-        auto sid = allocator->Request(dev_id, dtype_vec[eid], shape_vec[eid], nid);
-        if (sid >= 0) {
-          storage_ref_count[sid] = entry_ref_count[eid];
-        }
-        storage[eid] = sid;
+      uint32_t eid = rit->second;
+      auto sid = allocator->Request(dev_id, dtype_vec[eid], shape_vec[eid], nid);
+      if (sid >= 0) {
+        storage_ref_count[sid] = entry_ref_count[eid];
+      }
+      storage[eid] = sid;
     }
     // check if certain inputs is ignored.
     std::vector<uint32_t> ignore_inputs;
@@ -319,7 +315,6 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
   }
   return num_not_allocated;
 }
-
 
 // function to plan memory
 Graph PlanMemory(Graph ret) {
@@ -368,7 +363,7 @@ Graph PlanMemory(Graph ret) {
   size_t min_allocated_bytes = -1;
   size_t max_match_range = dmlc::GetEnv("NNVM_EXEC_MATCH_RANGE", 16);
   size_t min_match_range =
-         dmlc::GetEnv("NNVM_AUTO_SEARCH_MATCH_RANGE", false) ? 1 : max_match_range;
+      dmlc::GetEnv("NNVM_AUTO_SEARCH_MATCH_RANGE", false) ? 1 : max_match_range;
   for (size_t match_range = min_match_range; match_range <= max_match_range; match_range *= 2) {
     // Make a copy of related fields
     StorageVector storage_vec(storage);
@@ -378,9 +373,8 @@ Graph PlanMemory(Graph ret) {
     GraphAllocator allocator(&idx, match_range);
 
     // number of entries that are not statically allocated.
-    size_t storage_num_not_allocated =
-      AllocMemory(ret, idx, node_range, &storage_vec, &storage_inplace_index,
-                  ref_count, &allocator);
+    size_t storage_num_not_allocated = AllocMemory(ret, idx, node_range, &storage_vec,
+                                                   &storage_inplace_index, ref_count, &allocator);
     size_t storage_allocated_bytes = allocator.TotalAllocBytes();
 
     // Choose the plan which leads to minimal memory usage
@@ -400,13 +394,13 @@ Graph PlanMemory(Graph ret) {
 }
 
 NNVM_REGISTER_PASS(PlanMemory)
-.describe("Plan the memory allocation of each node entries.")
-.set_body(PlanMemory)
-.set_change_graph(false)
-.depend_graph_attr("dtype")
-.depend_graph_attr("shape")
-.provide_graph_attr("storage_id")
-.provide_graph_attr("storage_inplace_index");
+    .describe("Plan the memory allocation of each node entries.")
+    .set_body(PlanMemory)
+    .set_change_graph(false)
+    .depend_graph_attr("dtype")
+    .depend_graph_attr("shape")
+    .provide_graph_attr("storage_id")
+    .provide_graph_attr("storage_inplace_index");
 
 }  // namespace
 }  // namespace pass

@@ -24,11 +24,12 @@
  * \file verify_ssa.cc
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/analysis.h>
-#include <unordered_set>
+
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace tvm {
@@ -101,7 +102,8 @@ class IRVerifySSA final : public StmtExprVisitor {
   void MarkDef(const VarNode* v, bool allow_dup = false) {
     if (defined_.count(v) != 0) {
       if (!allow_dup) {
-        is_ssa = false; return;
+        is_ssa = false;
+        return;
       }
     } else {
       defined_[v] = 1;
@@ -112,16 +114,13 @@ class IRVerifySSA final : public StmtExprVisitor {
   std::unordered_map<const VarNode*, int> defined_;
 };
 
-
 bool VerifySSA(const PrimFunc& func) {
   IRVerifySSA visitor;
   visitor.Run(func);
   return visitor.is_ssa;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.verify_ssa")
-.set_body_typed(VerifySSA);
-
+TVM_REGISTER_GLOBAL("tir.analysis.verify_ssa").set_body_typed(VerifySSA);
 
 namespace transform {
 
@@ -130,9 +129,7 @@ Pass VerifySSA() {
     for (auto kv : mod->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {
         auto func = GetRef<PrimFunc>(n);
-        CHECK(VerifySSA(func))
-            << "RuntimeError: IR is not in SSA form"
-            << func;
+        CHECK(VerifySSA(func)) << "RuntimeError: IR is not in SSA form" << func;
       }
     }
     return mod;
@@ -140,8 +137,7 @@ Pass VerifySSA() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifySSA", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.VerifySSA")
-.set_body_typed(VerifySSA);
+TVM_REGISTER_GLOBAL("tir.transform.VerifySSA").set_body_typed(VerifySSA);
 
 }  // namespace transform
 

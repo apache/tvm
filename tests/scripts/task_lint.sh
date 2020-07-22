@@ -46,6 +46,13 @@ fi
 
 echo "Check codestyle of c++ code..."
 make cpplint
+
+echo "clang-format check..."
+# check lastest change, for squash merge into master
+./tests/lint/git-clang-format.sh HEAD~1
+# chekc against origin/master for PRs.
+./tests/lint/git-clang-format.sh origin/master
+
 echo "Check codestyle of python code..."
 make pylint
 echo "Check codestyle of jni code..."

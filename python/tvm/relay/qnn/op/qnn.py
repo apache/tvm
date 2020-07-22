@@ -18,7 +18,7 @@
 """QNN dialect operators."""
 
 from __future__ import absolute_import as _abs
-from tvm.relay.expr import Tuple
+from tvm.relay.expr import Tuple, TupleWrapper
 from tvm.relay.op.nn.util import get_pad_tuple2d
 from . import _make
 
@@ -156,7 +156,7 @@ def concatenate(data,
 
     Parameters
     ----------
-    data : Union(List[relay.Expr], Tuple[relay.Expr])
+    data : Union(List[relay.Expr], Tuple[relay.Expr], TupleWrapper[relay.Expr])
         The list of quantized tensors.
 
     input_scales : List[relay.Expr]
@@ -180,15 +180,16 @@ def concatenate(data,
         The concatenated quantized tensor.
     """
 
-    data = list(data)
-    if not data:
-        raise ValueError("relay.concatenate requires data to be non-empty.")
+    if isinstance(data, (list, tuple)):
+        data = Tuple(data)
+    elif isinstance(data, TupleWrapper):
+        data = data.tuple_value
     if not isinstance(axis, int):
         raise ValueError("For now, we only support integer axis")
     input_scales = list(input_scales)
     input_zero_points = list(input_zero_points)
 
-    return _make.concatenate(Tuple(data),
+    return _make.concatenate(data,
                              Tuple(input_scales),
                              Tuple(input_zero_points),
                              output_scale,

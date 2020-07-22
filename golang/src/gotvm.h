@@ -32,11 +32,11 @@
 extern "C" {
 #endif
 
+#include <dlpack/dlpack.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <dlpack/dlpack.h>
 
 // Some type definitions for golang "C"
 typedef void* native_voidp;

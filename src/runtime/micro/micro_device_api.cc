@@ -21,9 +21,10 @@
  * \file micro_device_api.cc
  */
 
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/device_api.h>
+#include <tvm/runtime/registry.h>
+
 #include "../workspace_pool.h"
 #include "micro_session.h"
 
@@ -35,7 +36,7 @@ namespace runtime {
 class MicroDeviceAPI final : public DeviceAPI {
  public:
   /*! \brief constructor */
-  MicroDeviceAPI() { }
+  MicroDeviceAPI() {}
 
   void SetDevice(TVMContext ctx) final {}
 
@@ -45,9 +46,7 @@ class MicroDeviceAPI final : public DeviceAPI {
     }
   }
 
-  void* AllocDataSpace(TVMContext ctx,
-                       size_t nbytes,
-                       size_t alignment,
+  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
                        DLDataType type_hint) final {
     ObjectPtr<MicroSession>& session = MicroSession::Current();
     TargetPtr data = session->AllocateInSection(SectionKind::kHeap, nbytes);
@@ -61,14 +60,8 @@ class MicroDeviceAPI final : public DeviceAPI {
     delete dev_space;
   }
 
-  void CopyDataFromTo(const void* from,
-                      size_t from_offset,
-                      void* to,
-                      size_t to_offset,
-                      size_t size,
-                      TVMContext ctx_from,
-                      TVMContext ctx_to,
-                      DLDataType type_hint,
+  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
+                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
     std::tuple<int, int> type_from_to(ctx_from.device_type, ctx_to.device_type);
     if (type_from_to == std::make_tuple(kDLMicroDev, kDLMicroDev)) {
@@ -76,11 +69,10 @@ class MicroDeviceAPI final : public DeviceAPI {
       MicroDevSpace* from_space = static_cast<MicroDevSpace*>(const_cast<void*>(from));
       MicroDevSpace* to_space = static_cast<MicroDevSpace*>(const_cast<void*>(to));
       CHECK(from_space->session == to_space->session)
-          << "attempt to copy data between different micro sessions ("
-          << from_space->session.get()
+          << "attempt to copy data between different micro sessions (" << from_space->session.get()
           << " != " << to_space->session.get() << ")";
       CHECK(ctx_from.device_id == ctx_to.device_id)
-        << "can only copy between the same micro device";
+          << "can only copy between the same micro device";
       ObjectPtr<MicroSession>& session = from_space->session;
       // flush all pending tasks to ensure data is consistent
       session->FlushTaskQueue();
@@ -132,7 +124,7 @@ class MicroDeviceAPI final : public DeviceAPI {
 
     TargetPtr data = session->AllocateInSection(SectionKind::kWorkspace, size);
     CHECK(data.value().uint64() != 0)
-      << "unable to allocate " << size << " bytes on device workspace";
+        << "unable to allocate " << size << " bytes on device workspace";
     return static_cast<void*>(new MicroDevSpace{data, session});
   }
 
@@ -154,9 +146,7 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
  private:
-  TargetPtr GetDevLoc(MicroDevSpace* dev_space, size_t offset) {
-    return dev_space->data + offset;
-  }
+  TargetPtr GetDevLoc(MicroDevSpace* dev_space, size_t offset) { return dev_space->data + offset; }
 
   void* GetHostLoc(const void* ptr, size_t offset) {
     return reinterpret_cast<void*>(reinterpret_cast<std::uintptr_t>(ptr) + offset);
@@ -164,10 +154,9 @@ class MicroDeviceAPI final : public DeviceAPI {
 };
 
 // register device that can be obtained from Python frontend
-TVM_REGISTER_GLOBAL("device_api.micro_dev")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    DeviceAPI* ptr = MicroDeviceAPI::Global().get();
-    *rv = static_cast<void*>(ptr);
-    });
+TVM_REGISTER_GLOBAL("device_api.micro_dev").set_body([](TVMArgs args, TVMRetValue* rv) {
+  DeviceAPI* ptr = MicroDeviceAPI::Global().get();
+  *rv = static_cast<void*>(ptr);
+});
 }  // namespace runtime
 }  // namespace tvm

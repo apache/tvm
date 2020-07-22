@@ -45,42 +45,40 @@ ObjectPtr<Object> GetSourceNameNodeByStr(const std::string& name) {
   return GetSourceNameNode(name);
 }
 
-SourceName SourceName::Get(const String& name) {
-  return SourceName(GetSourceNameNode(name));
-}
+SourceName SourceName::Get(const String& name) { return SourceName(GetSourceNameNode(name)); }
 
-TVM_REGISTER_GLOBAL("ir.SourceName")
-.set_body_typed(SourceName::Get);
+TVM_REGISTER_GLOBAL("ir.SourceName").set_body_typed(SourceName::Get);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<SourceNameNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const SourceNameNode*>(ref.get());
-    p->stream << "SourceName(" << node->name << ", " << node << ")";
-  });
+    .set_dispatch<SourceNameNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const SourceNameNode*>(ref.get());
+      p->stream << "SourceName(" << node->name << ", " << node << ")";
+    });
 
 TVM_REGISTER_NODE_TYPE(SourceNameNode)
-.set_creator(GetSourceNameNodeByStr)
-.set_repr_bytes([](const Object* n) -> std::string {
-  return static_cast<const SourceNameNode*>(n)->name;
-});
+    .set_creator(GetSourceNameNodeByStr)
+    .set_repr_bytes([](const Object* n) -> std::string {
+      return static_cast<const SourceNameNode*>(n)->name;
+    });
 
-Span SpanNode::make(SourceName source, int lineno, int col_offset) {
+Span::Span(SourceName source, int lineno, int col_offset) {
   auto n = make_object<SpanNode>();
   n->source = std::move(source);
   n->lineno = lineno;
   n->col_offset = col_offset;
-  return Span(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(SpanNode);
 
-TVM_REGISTER_GLOBAL("ir.Span")
-.set_body_typed(SpanNode::make);
+TVM_REGISTER_GLOBAL("ir.Span").set_body_typed([](SourceName source, int lineno, int col_offset) {
+  return Span(source, lineno, col_offset);
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<SpanNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const SpanNode*>(ref.get());
-    p->stream << "Span(" << node->source << ", " << node->lineno << ", "
-              << node->col_offset << ")";
-  });
+    .set_dispatch<SpanNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const SpanNode*>(ref.get());
+      p->stream << "Span(" << node->source << ", " << node->lineno << ", " << node->col_offset
+                << ")";
+    });
 }  // namespace tvm

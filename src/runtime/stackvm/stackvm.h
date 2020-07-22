@@ -29,8 +29,9 @@
 #define TVM_RUNTIME_STACKVM_STACKVM_H_
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/packed_func.h>
+
 #include <string>
 #include <vector>
 
@@ -339,7 +340,7 @@ class StackVM {
    * \param pc The pc
    * \return the pc to next instruction.
    */
-  int64_t PrintCode(std::ostream&os, int64_t pc) const;  // NOLINT(*)
+  int64_t PrintCode(std::ostream& os, int64_t pc) const;  // NOLINT(*)
   /*! \brief Get thread local state of the stack VM */
   static State* ThreadLocalState();
   // The code below are programs
@@ -362,15 +363,26 @@ class StackVM {
    */
   static OpCode CodeI64ToF64(OpCode code) {
     switch (code) {
-      case ADD_I64: return ADD_F64;
-      case SUB_I64: return SUB_F64;
-      case MUL_I64: return MUL_F64;
-      case DIV_I64: return DIV_F64;
-      case EQ_I64: return EQ_F64;
-      case LT_I64: return LT_F64;
-      case LE_I64: return LE_F64;
-      case MOD_I64: LOG(FATAL) << "cannot handle mod for float"; return ADD_F64;
-      default: LOG(FATAL) << "cannot handle op " << code; return ADD_F64;
+      case ADD_I64:
+        return ADD_F64;
+      case SUB_I64:
+        return SUB_F64;
+      case MUL_I64:
+        return MUL_F64;
+      case DIV_I64:
+        return DIV_F64;
+      case EQ_I64:
+        return EQ_F64;
+      case LT_I64:
+        return LT_F64;
+      case LE_I64:
+        return LE_F64;
+      case MOD_I64:
+        LOG(FATAL) << "cannot handle mod for float";
+        return ADD_F64;
+      default:
+        LOG(FATAL) << "cannot handle op " << code;
+        return ADD_F64;
     }
   }
   /*!
@@ -383,16 +395,20 @@ class StackVM {
     if (t.code == kTVMOpaqueHandle) return ARRAY_LOAD_HANDLE;
     if (t.code == kDLInt) {
       switch (t.bits) {
-        case 32 : return ARRAY_LOAD_INT32;
-        case 64 : return ARRAY_LOAD_INT64;
+        case 32:
+          return ARRAY_LOAD_INT32;
+        case 64:
+          return ARRAY_LOAD_INT64;
       }
     } else if (t.code == kDLUInt) {
       switch (t.bits) {
-        case 32 : return ARRAY_LOAD_UINT32;
+        case 32:
+          return ARRAY_LOAD_UINT32;
       }
     } else if (t.code == kDLFloat) {
       switch (t.bits) {
-        case 64 : return ARRAY_LOAD_FP64;
+        case 64:
+          return ARRAY_LOAD_FP64;
       }
     }
     LOG(FATAL) << "Cannot load type " << t;
@@ -408,16 +424,20 @@ class StackVM {
     if (t.code == kTVMOpaqueHandle) return ARRAY_STORE_HANDLE;
     if (t.code == kDLInt) {
       switch (t.bits) {
-        case 32 : return ARRAY_STORE_INT32;
-        case 64 : return ARRAY_STORE_INT64;
+        case 32:
+          return ARRAY_STORE_INT32;
+        case 64:
+          return ARRAY_STORE_INT64;
       }
     } else if (t.code == kDLUInt) {
       switch (t.bits) {
-        case 32 : return ARRAY_STORE_UINT32;
+        case 32:
+          return ARRAY_STORE_UINT32;
       }
     } else if (t.code == kDLFloat) {
       switch (t.bits) {
-        case 64 : return ARRAY_STORE_FP64;
+        case 64:
+          return ARRAY_STORE_FP64;
       }
     }
     LOG(FATAL) << "Cannot store type " << t;

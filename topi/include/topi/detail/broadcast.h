@@ -24,8 +24,8 @@
 #ifndef TOPI_DETAIL_BROADCAST_H_
 #define TOPI_DETAIL_BROADCAST_H_
 
-#include <tvm/te/operation.h>
 #include <topi/detail/constant_utils.h>
+#include <tvm/te/operation.h>
 
 #include <algorithm>
 #include <deque>
@@ -77,10 +77,9 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::PrimExpr>& shape1,
       bh.vars1.push_front(bh.all_vars[0]);
       bh.vars2.push_front(bh.all_vars[0]);
     } else {
-      CHECK(false) << "Incompatible broadcast dims: " << shape1[s1_size - i]
-                   << " and " << shape2[s2_size - i] << " in: "
-                   << tvm::Array<tvm::PrimExpr>(shape1.begin(), shape1.end())
-                   << " and "
+      CHECK(false) << "Incompatible broadcast dims: " << shape1[s1_size - i] << " and "
+                   << shape2[s2_size - i]
+                   << " in: " << tvm::Array<tvm::PrimExpr>(shape1.begin(), shape1.end()) << " and "
                    << tvm::Array<tvm::PrimExpr>(shape2.begin(), shape2.end());
     }
   }
@@ -97,10 +96,8 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::PrimExpr>& shape1,
 }
 
 inline tvm::Array<tvm::PrimExpr> InputIndexFromBroadcast(
-    const tvm::Array<tvm::tir::Var>& ovars,
-    const tvm::te::Tensor& T,
-    const std::deque<tvm::tir::Var>& my_vars,
-    const std::deque<tvm::tir::Var>& all_vars) {
+    const tvm::Array<tvm::tir::Var>& ovars, const tvm::te::Tensor& T,
+    const std::deque<tvm::tir::Var>& my_vars, const std::deque<tvm::tir::Var>& all_vars) {
   tvm::Array<tvm::PrimExpr> ivars;
   CHECK_EQ(ovars.size(), all_vars.size());
   // N^2, could use a map but NBD.
@@ -125,21 +122,16 @@ inline tvm::Array<tvm::PrimExpr> InputIndexFromBroadcast(
 }
 
 template <typename FBinaryExpr>
-inline tvm::te::Tensor WithBroadcast(FBinaryExpr op,
-                                 const tvm::te::Tensor& A,
-                                 const tvm::te::Tensor& B,
-                                 const std::string& name = "tensor",
-                                 const std::string& tag = "") {
+inline tvm::te::Tensor WithBroadcast(FBinaryExpr op, const tvm::te::Tensor& A,
+                                     const tvm::te::Tensor& B, const std::string& name = "tensor",
+                                     const std::string& tag = "") {
   auto bh = BroadcastShape(A->shape, B->shape);
   auto l = [&](tvm::Array<tvm::tir::Var> ovars) {
     return op(A(InputIndexFromBroadcast(ovars, A, bh.vars1, bh.all_vars)),
               B(InputIndexFromBroadcast(ovars, B, bh.vars2, bh.all_vars)));
   };
-  return tvm::te::compute(
-      tvm::Array<tvm::PrimExpr>(bh.common_shape.begin(), bh.common_shape.end()),
-      l,
-      name,
-      tag);
+  return tvm::te::compute(tvm::Array<tvm::PrimExpr>(bh.common_shape.begin(), bh.common_shape.end()),
+                          l, name, tag);
 }
 
 }  // namespace detail

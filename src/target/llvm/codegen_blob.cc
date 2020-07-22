@@ -21,17 +21,17 @@
  * \file codegen_blob.cc
  */
 #ifdef TVM_LLVM_VERSION
-#include <tvm/runtime/module.h>
-#include <cstring>
 #include "codegen_blob.h"
+
+#include <tvm/runtime/module.h>
+
+#include <cstring>
 
 namespace tvm {
 namespace codegen {
 
-std::pair<std::unique_ptr<llvm::Module>,
-          std::shared_ptr<llvm::LLVMContext>> CodeGenBlob(const std::string& data,
-                                                          bool system_lib,
-                                                          const std::string& target_triple) {
+std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> CodeGenBlob(
+    const std::string& data, bool system_lib, const std::string& target_triple) {
   InitializeLLVM();
   auto tm = GetLLVMTargetMachine(std::string("-target ") + target_triple);
   auto triple = tm->getTargetTriple();
@@ -41,10 +41,9 @@ std::pair<std::unique_ptr<llvm::Module>,
   module->setTargetTriple(triple.str());
   module->setDataLayout(tm->createDataLayout());
   auto* blob_value = llvm::ConstantDataArray::getString(*ctx, data, false);
-  auto* tvm_dev_mblob = new llvm::GlobalVariable(*module, blob_value->getType(), true,
-                                                 llvm::GlobalValue::ExternalLinkage, blob_value,
-                                                 runtime::symbol::tvm_dev_mblob, nullptr,
-                                                 llvm::GlobalVariable::NotThreadLocal, 0);
+  auto* tvm_dev_mblob = new llvm::GlobalVariable(
+      *module, blob_value->getType(), true, llvm::GlobalValue::ExternalLinkage, blob_value,
+      runtime::symbol::tvm_dev_mblob, nullptr, llvm::GlobalVariable::NotThreadLocal, 0);
 
 #if TVM_LLVM_VERSION >= 100
   tvm_dev_mblob->setAlignment(llvm::Align(1));
@@ -64,11 +63,9 @@ std::pair<std::unique_ptr<llvm::Module>,
     auto int8_ptr_ty = int8_ty->getPointerTo(0);
 
     llvm::Constant* constant_zero = llvm::Constant::getNullValue(int32_ty);
-    auto* tvm_dev_mblob_reg =
-        new llvm::GlobalVariable(*module, int32_ty,
-                                 false, llvm::GlobalValue::InternalLinkage,
-                                 constant_zero,
-                                 std::string(runtime::symbol::tvm_dev_mblob) + "_reg_");
+    auto* tvm_dev_mblob_reg = new llvm::GlobalVariable(
+        *module, int32_ty, false, llvm::GlobalValue::InternalLinkage, constant_zero,
+        std::string(runtime::symbol::tvm_dev_mblob) + "_reg_");
     auto tvm_dev_mblob_reg_alignment = module->getDataLayout().getABITypeAlignment(int32_ty);
 #if TVM_LLVM_VERSION >= 100
     tvm_dev_mblob_reg->setAlignment(llvm::Align(tvm_dev_mblob_reg_alignment));
@@ -80,11 +77,9 @@ std::pair<std::unique_ptr<llvm::Module>,
         llvm::ArrayType::get(int8_ty, std::strlen(runtime::symbol::tvm_dev_mblob) + 1);
     auto* tvm_dev_mblob_string_value =
         llvm::ConstantDataArray::getString(*ctx, runtime::symbol::tvm_dev_mblob, true);
-    auto* tvm_dev_mblob_string =
-        new llvm::GlobalVariable(*module, tvm_dev_mblob_string_ty,
-                                 true, llvm::GlobalValue::PrivateLinkage,
-                                 tvm_dev_mblob_string_value,
-                                 std::string(runtime::symbol::tvm_dev_mblob) + ".str");
+    auto* tvm_dev_mblob_string = new llvm::GlobalVariable(
+        *module, tvm_dev_mblob_string_ty, true, llvm::GlobalValue::PrivateLinkage,
+        tvm_dev_mblob_string_value, std::string(runtime::symbol::tvm_dev_mblob) + ".str");
 #if TVM_LLVM_VERSION >= 100
     tvm_dev_mblob_string->setAlignment(llvm::Align(1));
 #else
@@ -92,33 +87,30 @@ std::pair<std::unique_ptr<llvm::Module>,
 #endif
 
     // Global init function
-    llvm::Function* init_fn = llvm::Function::Create(llvm::FunctionType::get(void_ty, false),
-                                                     llvm::GlobalValue::InternalLinkage,
-                                                     llvm::Twine("_GLOBAL__sub_I_", module_name),
-                                                     module.get());
+    llvm::Function* init_fn = llvm::Function::Create(
+        llvm::FunctionType::get(void_ty, false), llvm::GlobalValue::InternalLinkage,
+        llvm::Twine("_GLOBAL__sub_I_", module_name), module.get());
 
     // Create variable initialization function.
-    llvm::Function* var_init_fn = llvm::Function::Create(llvm::FunctionType::get(void_ty, false),
-                                                         llvm::GlobalValue::InternalLinkage,
-                                                         llvm::Twine("__cxx_global_var_init"),
-                                                         module.get());
+    llvm::Function* var_init_fn = llvm::Function::Create(
+        llvm::FunctionType::get(void_ty, false), llvm::GlobalValue::InternalLinkage,
+        llvm::Twine("__cxx_global_var_init"), module.get());
 
     // Create TVMBackendRegisterSystemLibSymbol function
     llvm::Function* tvm_backend_fn =
         llvm::Function::Create(llvm::FunctionType::get(int32_ty, {int8_ptr_ty, int8_ptr_ty}, false),
                                llvm::GlobalValue::ExternalLinkage,
-                               llvm::Twine("TVMBackendRegisterSystemLibSymbol"),
-                               module.get());
+                               llvm::Twine("TVMBackendRegisterSystemLibSymbol"), module.get());
 
     // Set necessary fn sections
     auto get_static_init_section_specifier = [&triple]() -> std::string {
-       if (triple.isOSLinux()) {
-         return ".text.startup";
-       } else if (triple.isOSDarwin()) {
-         return "__TEXT,__StaticInit,regular,pure_instructions";
-       } else {
-         return "";
-       }
+      if (triple.isOSLinux()) {
+        return ".text.startup";
+      } else if (triple.isOSDarwin()) {
+        return "__TEXT,__StaticInit,regular,pure_instructions";
+      } else {
+        return "";
+      }
     };
 
     auto static_init_section_specifier = get_static_init_section_specifier();
@@ -144,11 +136,9 @@ std::pair<std::unique_ptr<llvm::Module>,
     llvm::Constant* indices[] = {constant_zero, constant_zero};
     llvm::SmallVector<llvm::Value*, 2> args;
     args.push_back(llvm::ConstantExpr::getGetElementPtr(tvm_dev_mblob_string_ty,
-                                                        tvm_dev_mblob_string,
-                                                        indices));
-    args.push_back(llvm::ConstantExpr::getGetElementPtr(blob_value->getType(),
-                                                        tvm_dev_mblob,
-                                                        indices));
+                                                        tvm_dev_mblob_string, indices));
+    args.push_back(
+        llvm::ConstantExpr::getGetElementPtr(blob_value->getType(), tvm_dev_mblob, indices));
     auto* tvm_backend_fn_ret_value = ir_builder.CreateCall(tvm_backend_fn, args);
     ir_builder.CreateStore(tvm_backend_fn_ret_value, tvm_dev_mblob_reg);
     ir_builder.CreateRetVoid();

@@ -22,11 +22,12 @@
  * \brief Remove no op from the stmt
  */
 #include <tvm/runtime/registry.h>
-#include <tvm/tir/stmt.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
+
 #include <unordered_map>
 
 namespace tvm {
@@ -56,7 +57,7 @@ class NoOpRemover : public StmtMutator {
         if (is_no_op(op->then_case)) {
           return MakeEvaluate(op->condition);
         } else {
-          return IfThenElseNode::make(op->condition, op->then_case);
+          return IfThenElse(op->condition, op->then_case);
         }
       } else {
         return stmt;
@@ -73,7 +74,7 @@ class NoOpRemover : public StmtMutator {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<ForNode>();
     if (is_zero(op->extent)) {
-      return EvaluateNode::make(0);
+      return Evaluate(0);
     }
     return is_no_op(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
   }
@@ -83,14 +84,14 @@ class NoOpRemover : public StmtMutator {
     return is_no_op(op->body) ? MakeEvaluate(op->extents) : stmt;
   }
 
-  Stmt VisitStmt_(const RealizeNode* op) final {
+  Stmt VisitStmt_(const ProducerRealizeNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<RealizeNode>();
+    op = stmt.as<ProducerRealizeNode>();
     return is_no_op(op->body) ? op->body : stmt;
   }
   Stmt VisitStmt_(const EvaluateNode* op) final {
     if (HasSideEffect(op->value)) return GetRef<Stmt>(op);
-    return EvaluateNode::make(0);
+    return Evaluate(0);
   }
 
   Stmt VisitStmt_(const SeqStmtNode* op) final {
@@ -105,7 +106,7 @@ class NoOpRemover : public StmtMutator {
       auto n = CopyOnWrite(op);
       size_t top = 0;
       for (size_t i = 0; i < n->seq.size(); ++i) {
-        if (!is_no_op(n->seq[i]))  {
+        if (!is_no_op(n->seq[i])) {
           n->seq.Set(top++, n->seq[i]);
         }
       }
@@ -127,9 +128,9 @@ class NoOpRemover : public StmtMutator {
  private:
   Stmt MakeEvaluate(PrimExpr value) {
     if (HasSideEffect(value)) {
-      return EvaluateNode::make(value);
+      return Evaluate(value);
     } else {
-      return EvaluateNode::make(0);
+      return Evaluate(0);
     }
   }
   Stmt MakeEvaluate(const Array<PrimExpr>& values) {
@@ -137,19 +138,17 @@ class NoOpRemover : public StmtMutator {
     for (PrimExpr e : values) {
       if (HasSideEffect(e)) {
         if (stmt.defined()) {
-          stmt = SeqStmt({stmt, EvaluateNode::make(e)});
+          stmt = SeqStmt({stmt, Evaluate(e)});
         } else {
-          stmt = EvaluateNode::make(e);
+          stmt = Evaluate(e);
         }
       }
     }
-    return stmt.defined() ? stmt : EvaluateNode::make(0);
+    return stmt.defined() ? stmt : Evaluate(0);
   }
 };
 
-Stmt RemoveNoOp(Stmt stmt) {
-  return NoOpRemover()(std::move(stmt));
-}
+Stmt RemoveNoOp(Stmt stmt) { return NoOpRemover()(std::move(stmt)); }
 
 namespace transform {
 
@@ -162,8 +161,7 @@ Pass RemoveNoOp() {
   return CreatePrimFuncPass(pass_func, 0, "tir.RemoveNoOp", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.RemoveNoOp")
-.set_body_typed(RemoveNoOp);
+TVM_REGISTER_GLOBAL("tir.transform.RemoveNoOp").set_body_typed(RemoveNoOp);
 
 }  // namespace transform
 

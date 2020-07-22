@@ -19,17 +19,17 @@
 from tvm.ir import PrimExpr
 from tvm.runtime import const
 
-from .buffer import Buffer, decl_buffer
+from .buffer import Buffer, decl_buffer, DataProducer
 from .data_layout import Layout, BijectiveLayout, bijective_layout, layout
 from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
-from .expr import Select, BufferLoad, Load, Ramp, Broadcast, Shuffle, Call, Let
+from .expr import Select, BufferLoad, ProducerLoad, Load, Ramp, Broadcast, Shuffle, Call, Let
 from .expr import IterVar, Any
 
 from .stmt import Stmt, LetStmt, AssertStmt, For
-from .stmt import BufferStore, BufferRealize, Store, Provide, Allocate, AttrStmt
-from .stmt import Free, Realize, SeqStmt
+from .stmt import BufferStore, BufferRealize, Store, ProducerStore, Allocate, AttrStmt
+from .stmt import Free, ProducerRealize, SeqStmt
 from .stmt import IfThenElse, Evaluate, Prefetch, stmt_seq, stmt_list
 
 from .function import PrimFunc

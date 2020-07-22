@@ -35,8 +35,8 @@
 // Stub functions for targets that don't support VTCM.
 static void* HAP_request_VTCM(int a, int b) { return 0; }
 static int HAP_release_VTCM(void* a) { return 0; }
-static int HAP_query_avail_VTCM(unsigned* avail_block_size,
-                                unsigned* max_page_size, unsigned* num_pages) {
+static int HAP_query_avail_VTCM(unsigned* avail_block_size, unsigned* max_page_size,
+                                unsigned* num_pages) {
   FARF(ALWAYS, "%s: running on architecture V62 or less", __func__);
   return AEE_ENOMEMORY;
 }
@@ -62,8 +62,7 @@ int tvm_remote_open(const char* uri, remote_handle64* handle_ptr) {
     return rc;
   }
 
-  *handle_ptr =
-      static_cast<remote_handle64>(reinterpret_cast<uintptr_t>(malloc(1)));
+  *handle_ptr = static_cast<remote_handle64>(reinterpret_cast<uintptr_t>(malloc(1)));
   if (!*handle_ptr) {
     FARF(ERROR, "%s: cannot allocate memory", __func__);
     return AEE_ENOMEMORY;
@@ -98,9 +97,7 @@ int tvm_remote_close(remote_handle64 handle) {
  * This function is present as a workaround. See comment at the call site
  * in hexagon_device_target.cc.
  */
-int tvm_remote_call_mmap64(remote_handle64 handle) {
-  return AEE_SUCCESS;
-}
+int tvm_remote_call_mmap64(remote_handle64 handle) { return AEE_SUCCESS; }
 
 /*!
  *  \brief  Load a shared library.
@@ -112,8 +109,8 @@ int tvm_remote_call_mmap64(remote_handle64 handle) {
  *
  *  \return 0 on success, negative value on error.
  */
-int tvm_remote_load_library(remote_handle64 handle, const char* soname,
-                            int soname_len, tvm_remote_handle_t* lib_ptr) {
+int tvm_remote_load_library(remote_handle64 handle, const char* soname, int soname_len,
+                            tvm_remote_handle_t* lib_ptr) {
   return tvm_remote_nd_load_library(soname, soname_len, lib_ptr);
 }
 
@@ -128,9 +125,8 @@ int tvm_remote_load_library(remote_handle64 handle, const char* soname,
  *
  *  \return 0 on success, negative value on error.
  */
-int tvm_remote_get_symbol(remote_handle64 handle, tvm_remote_handle_t lib,
-                          const char* name, int name_len,
-                          tvm_remote_handle_t* sym_ptr) {
+int tvm_remote_get_symbol(remote_handle64 handle, tvm_remote_handle_t lib, const char* name,
+                          int name_len, tvm_remote_handle_t* sym_ptr) {
   return tvm_remote_nd_get_symbol(lib, name, name_len, sym_ptr);
 }
 
@@ -163,24 +159,20 @@ int tvm_remote_get_symbol(remote_handle64 handle, tvm_remote_handle_t lib,
  * The 8 "octet" arguments in this function are used for cache operations
  * only. They are not used for procesing.
  */
-int tvm_remote_kernel(
-    remote_handle64 handle, tvm_remote_handle_t lib,
-    tvm_remote_handle_t symbol, int* scalar, int scalar_len, int* stack,
-    int stack_len, const tvm_remote_buffer* scalar_in_octet,
-    int scalar_in_octet_len, tvm_remote_buffer* scalar_out_octet,
-    int scalar_out_octet_len, const tvm_remote_buffer* stack_in_octet,
-    int stack_in_octet_len, tvm_remote_buffer* stack_out_octet,
-    int stack_out_octet_len, uint64* pcycles, uint64* time_usec) {
+int tvm_remote_kernel(remote_handle64 handle, tvm_remote_handle_t lib, tvm_remote_handle_t symbol,
+                      const int* scalar, int scalar_len, const int* stack, int stack_len,
+                      const tvm_remote_buffer* scalar_in_octet, int scalar_in_octet_len,
+                      tvm_remote_buffer* scalar_out_octet, int scalar_out_octet_len,
+                      const tvm_remote_buffer* stack_in_octet, int stack_in_octet_len,
+                      tvm_remote_buffer* stack_out_octet, int stack_out_octet_len, uint64* pcycles,
+                      uint64* time_usec) {
   return tvm_remote_nd_kernel(
       lib, symbol, scalar, scalar_len, stack, stack_len,
-      reinterpret_cast<const tvm_remote_nd_buffer*>(scalar_in_octet),
-      scalar_in_octet_len,
-      reinterpret_cast<tvm_remote_nd_buffer*>(scalar_out_octet),
-      scalar_out_octet_len,
-      reinterpret_cast<const tvm_remote_nd_buffer*>(stack_in_octet),
-      stack_in_octet_len,
-      reinterpret_cast<tvm_remote_nd_buffer*>(stack_out_octet),
-      stack_out_octet_len, pcycles, time_usec);
+      reinterpret_cast<const tvm_remote_nd_buffer*>(scalar_in_octet), scalar_in_octet_len,
+      reinterpret_cast<tvm_remote_nd_buffer*>(scalar_out_octet), scalar_out_octet_len,
+      reinterpret_cast<const tvm_remote_nd_buffer*>(stack_in_octet), stack_in_octet_len,
+      reinterpret_cast<tvm_remote_nd_buffer*>(stack_out_octet), stack_out_octet_len, pcycles,
+      time_usec);
 }
 
 /*!
@@ -191,8 +183,7 @@ int tvm_remote_kernel(
  *
  *  \return 0 on success, negative value on error.
  */
-int tvm_remote_release_library(remote_handle64 handle,
-                               tvm_remote_handle_t lib) {
+int tvm_remote_release_library(remote_handle64 handle, tvm_remote_handle_t lib) {
   // FARF(ALWAYS, "tvm_remote_release_library begin ");
   return tvm_remote_nd_release_library(lib);
 }
@@ -208,8 +199,7 @@ int tvm_remote_release_library(remote_handle64 handle,
  *
  *  \return 0 on success, negative value on error.
  */
-int tvm_remote_alloc_vtcm(remote_handle64 handle, unsigned size,
-                          unsigned align, unsigned* dsp_va) {
+int tvm_remote_alloc_vtcm(remote_handle64 handle, unsigned size, unsigned align, unsigned* dsp_va) {
   FARF(ALWAYS, "%s: size=%u, align=%u", __func__, size, align);
   unsigned avail_block_size, max_page_size, num_pages;
   int rc = HAP_query_avail_VTCM(&avail_block_size, &max_page_size, &num_pages);
@@ -217,12 +207,11 @@ int tvm_remote_alloc_vtcm(remote_handle64 handle, unsigned size,
     FARF(ERROR, "%s: HAP_query_avail_VTCM failed, rc=%08x", __func__, rc);
     return rc;
   }
-  FARF(ALWAYS, "%s: avail_block_size=%u, max_page_size=%u, num_pages=%u",
-       __func__, avail_block_size, max_page_size, num_pages);
+  FARF(ALWAYS, "%s: avail_block_size=%u, max_page_size=%u, num_pages=%u", __func__,
+       avail_block_size, max_page_size, num_pages);
 
   if (max_page_size < MIN_VTCM_SZ) {
-    FARF(ERROR, "%s: available VTCM size less than %d KB, aborting", __func__,
-         MIN_VTCM_SZ / 1024);
+    FARF(ERROR, "%s: available VTCM size less than %d KB, aborting", __func__, MIN_VTCM_SZ / 1024);
     return AEE_ENOMEMORY;
   }
 

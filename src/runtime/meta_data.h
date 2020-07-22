@@ -24,15 +24,33 @@
 #ifndef TVM_RUNTIME_META_DATA_H_
 #define TVM_RUNTIME_META_DATA_H_
 
-#include <dmlc/json.h>
 #include <dmlc/io.h>
+#include <dmlc/json.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
+
 #include <string>
+#include <unordered_map>
 #include <vector>
+
 #include "runtime_base.h"
 
 namespace tvm {
 namespace runtime {
+
+/*!
+ * \brief Create a metadata module object.
+ *
+ * \param metadata The variable name to ndarray mapping.
+ * \param sym_vars The symbol to the list of required constant variables
+ * mapping.
+ *
+ * \return The created metadata module.
+ */
+Module MetadataModuleCreate(
+    const std::unordered_map<std::string, NDArray>& metadata,
+    const std::unordered_map<std::string, std::vector<std::string>>& sym_vars);
 
 /*! \brief function information needed by device */
 struct FunctionInfo {
@@ -40,10 +58,10 @@ struct FunctionInfo {
   std::vector<DLDataType> arg_types;
   std::vector<std::string> thread_axis_tags;
 
-  void Save(dmlc::JSONWriter *writer) const;
-  void Load(dmlc::JSONReader *reader);
-  void Save(dmlc::Stream *writer) const;
-  bool Load(dmlc::Stream *reader);
+  void Save(dmlc::JSONWriter* writer) const;
+  void Load(dmlc::JSONReader* reader);
+  void Save(dmlc::Stream* writer) const;
+  bool Load(dmlc::Stream* reader);
 };
 }  // namespace runtime
 }  // namespace tvm

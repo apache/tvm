@@ -44,6 +44,26 @@ namespace relay {
 namespace backend {
 
 /*!
+ * \brief A helper to expand the params by adding the ones used in a given expression.
+ */
+struct ConstantUpdater : public ExprVisitor {
+ public:
+  ConstantUpdater(const std::string& symbol,
+                  std::unordered_map<std::string, runtime::NDArray>* params)
+      : symbol_(symbol), params_(params) {}
+
+  void VisitExpr_(const ConstantNode* cn) final {
+    std::string name = symbol_ + "_const_" + std::to_string(const_idx_++);
+    (*params_)[name] = cn->data;
+  }
+
+ private:
+  int const_idx_{0};
+  std::string symbol_;
+  std::unordered_map<std::string, runtime::NDArray>* params_;
+};
+
+/*!
  * \brief A simple wrapper around ExprFunctor for a single argument case.
  *  The result of visit is memoized.
  */
@@ -73,7 +93,7 @@ class MemoizedExprTranslator : public ::tvm::relay::ExprFunctor<OutputType(const
 
  protected:
   /*! \brief Internal map used for memoization. */
-  std::unordered_map<Expr, OutputType, ObjectHash, ObjectEqual> memo_;
+  std::unordered_map<Expr, OutputType, ObjectPtrHash, ObjectPtrEqual> memo_;
 };
 
 /*!
@@ -128,7 +148,7 @@ inline std::string DType2String(const tvm::DataType dtype) {
 inline relay::Function BindParamsByName(
     relay::Function func, const std::unordered_map<std::string, runtime::NDArray>& params) {
   std::unordered_map<std::string, relay::Var> name_dict;
-  std::unordered_set<relay::Var, ObjectHash, ObjectEqual> repeat_var;
+  std::unordered_set<relay::Var, ObjectPtrHash, ObjectPtrEqual> repeat_var;
   for (auto arg : func->params) {
     const auto& name = arg->name_hint();
     if (name_dict.count(name)) {
@@ -138,7 +158,7 @@ inline relay::Function BindParamsByName(
     }
   }
 
-  std::unordered_map<relay::Var, Expr, ObjectHash, ObjectEqual> bind_dict;
+  std::unordered_map<relay::Var, Expr, ObjectPtrHash, ObjectPtrEqual> bind_dict;
   for (auto& kv : params) {
     if (name_dict.count(kv.first) == 0) {
       continue;
@@ -214,6 +234,5 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
 }  // namespace backend
 }  // namespace relay
 }  // namespace tvm
-
 
 #endif  // TVM_RELAY_BACKEND_UTILS_H_

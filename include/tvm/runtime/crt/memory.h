@@ -32,7 +32,7 @@ static int vleak_size = 0;
  * \param size The size of memory
  * \return The virtual address
  */
-void * vmalloc(size_t size);
+void* vmalloc(size_t size);
 
 /*!
  * \brief Reallocate memory from manager
@@ -40,13 +40,13 @@ void * vmalloc(size_t size);
  * \param size The size of memory
  * \return The virtual address
  */
-void * vrealloc(void * ptr, size_t size);
+void* vrealloc(void* ptr, size_t size);
 
 /*!
  * \brief Free the memory.
  * \param ptr The pointer to the memory to deallocate
  * \return The virtual address
  */
-void vfree(void * ptr);
+void vfree(void* ptr);
 
 #endif  // TVM_RUNTIME_CRT_MEMORY_H_

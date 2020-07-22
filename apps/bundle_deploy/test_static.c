@@ -17,27 +17,25 @@
  * under the License.
  */
 
-#include <tvm/runtime/c_runtime_api.h>
-
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
-#include <sys/time.h>
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <tvm/runtime/c_runtime_api.h>
 
 #include "bundle.h"
 
-
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   assert(argc == 5 && "Usage: test_static <data.bin> <output.bin> <graph.json> <params.bin>");
 
   struct stat st;
-  char * json_data;
-  char * params_data;
+  char* json_data;
+  char* params_data;
   uint64_t params_size;
 
-  FILE * fp = fopen(argv[3], "rb");
+  FILE* fp = fopen(argv[3], "rb");
   stat(argv[3], &st);
   json_data = (char*)malloc(st.st_size);
   fread(json_data, st.st_size, 1, fp);
@@ -53,7 +51,7 @@ int main(int argc, char **argv) {
   struct timeval t0, t1, t2, t3, t4, t5;
   gettimeofday(&t0, 0);
 
-  auto *handle = tvm_runtime_create(json_data, params_data, params_size);
+  auto* handle = tvm_runtime_create(json_data, params_data, params_size);
   gettimeofday(&t1, 0);
 
   float input_storage[10 * 5];
@@ -110,13 +108,14 @@ int main(int argc, char **argv) {
   tvm_runtime_destroy(handle);
   gettimeofday(&t5, 0);
 
-  printf("timing: %.2f ms (create), %.2f ms (set_input), %.2f ms (run), "
-         "%.2f ms (get_output), %.2f ms (destroy)\n",
-         (t1.tv_sec-t0.tv_sec)*1000 + (t1.tv_usec-t0.tv_usec)/1000.f,
-         (t2.tv_sec-t1.tv_sec)*1000 + (t2.tv_usec-t1.tv_usec)/1000.f,
-         (t3.tv_sec-t2.tv_sec)*1000 + (t3.tv_usec-t2.tv_usec)/1000.f,
-         (t4.tv_sec-t3.tv_sec)*1000 + (t4.tv_usec-t3.tv_usec)/1000.f,
-         (t5.tv_sec-t4.tv_sec)*1000 + (t5.tv_usec-t4.tv_usec)/1000.f);
+  printf(
+      "timing: %.2f ms (create), %.2f ms (set_input), %.2f ms (run), "
+      "%.2f ms (get_output), %.2f ms (destroy)\n",
+      (t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_usec - t0.tv_usec) / 1000.f,
+      (t2.tv_sec - t1.tv_sec) * 1000 + (t2.tv_usec - t1.tv_usec) / 1000.f,
+      (t3.tv_sec - t2.tv_sec) * 1000 + (t3.tv_usec - t2.tv_usec) / 1000.f,
+      (t4.tv_sec - t3.tv_sec) * 1000 + (t4.tv_usec - t3.tv_usec) / 1000.f,
+      (t5.tv_sec - t4.tv_sec) * 1000 + (t5.tv_usec - t4.tv_usec) / 1000.f);
 
   free(json_data);
   free(params_data);

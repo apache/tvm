@@ -24,6 +24,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
+
 #include "../../transforms/pattern_util.h"
 #include "../util.h"
 #include "op_common.h"
@@ -85,21 +86,17 @@ Expr QnnMulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto new_input_zero_point = zero_scalar;
 
   // Requantize to get Q_c
-  output = Requantize(output, input_type.shape,
-                      new_input_scale,
-                      new_input_zero_point,
-                      args.output_scale,
-                      args.output_zero_point,
-                      input_type.dtype);
+  output = Requantize(output, input_type.shape, new_input_scale, new_input_zero_point,
+                      args.output_scale, args.output_zero_point, input_type.dtype);
 
   return output;
 }
 
 // QNN Multiplication operator.
 QNN_REGISTER_BINARY_OP("mul")
-.describe("Elementwise mul with with broadcasting for quantized tensors.")
-.set_support_level(11)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnMulCanonicalize);
+    .describe("Elementwise mul with with broadcasting for quantized tensors.")
+    .set_support_level(11)
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnMulCanonicalize);
 
 }  // namespace qnn
 }  // namespace relay

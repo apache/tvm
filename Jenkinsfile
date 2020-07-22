@@ -43,9 +43,10 @@
 //
 //
 
-ci_lint = "tvmai/ci-lint:v0.60"
-ci_gpu = "tvmai/ci-gpu:v0.63"
-ci_cpu = "tvmai/ci-cpu:v0.61"
+ci_lint = "tvmai/ci-lint:v0.61"
+ci_gpu = "tvmai/ci-gpu:v0.64"
+ci_cpu = "tvmai/ci-cpu:v0.62"
+ci_wasm = "tvmai/ci-wasm:v0.60"
 ci_i386 = "tvmai/ci-i386:v0.52"
 
 // tvm libraries
@@ -158,7 +159,7 @@ stage('Build') {
         init_git()
         sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
         make(ci_cpu, 'build', '-j2')
-        pack_lib('cpu', tvm_lib)
+        pack_lib('cpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
@@ -166,6 +167,18 @@ stage('Build') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
+        }
+      }
+    }
+    },
+  'BUILD: WASM': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/build-wasm")) {
+        init_git()
+        sh "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh"
+        make(ci_wasm, 'build', '-j2')
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh"
         }
       }
     }
@@ -245,8 +258,19 @@ stage('Integration Test') {
       }
     }
   },
+  'frontend: CPU': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/frontend-python-cpu")) {
+        init_git()
+        unpack_lib('cpu', tvm_multilib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh"
+        }
+      }
+    }
+  },
   'docs: GPU': {
-    node('GPU') {
+    node('TensorCore') {
       ws(per_exec_ws("tvm/docs-python-gpu")) {
         init_git()
         unpack_lib('gpu', tvm_multilib)

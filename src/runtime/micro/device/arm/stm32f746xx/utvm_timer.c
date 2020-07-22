@@ -35,13 +35,11 @@ extern "C" {
 // and add Drivers/CMSIS to your C include path.
 #include "Device/ST/STM32F7xx/Include/stm32f746xx.h"
 
-
 #define utvm_SystemCoreClock 216000000UL
 
 int32_t UTVMTimerStart() {
   UTVMTimerReset();
-  TIM2->CR1 =
-    TIM_CR1_CEN;  // Start counter
+  TIM2->CR1 = TIM_CR1_CEN;  // Start counter
   return UTVM_ERR_OK;
 }
 
@@ -55,22 +53,22 @@ uint32_t UTVMTimerStop(int32_t* err) {
   uint32_t tim_cnt = TIM2->CNT;
   uint32_t millis = tim_cnt / (utvm_SystemCoreClock / 1000);
   uint32_t micros =
-    (tim_cnt - (millis * (utvm_SystemCoreClock / 1000))) /
-    (utvm_SystemCoreClock / 1000000);
+      (tim_cnt - (millis * (utvm_SystemCoreClock / 1000))) / (utvm_SystemCoreClock / 1000000);
   return millis * 1000 + micros;
 }
 
 void UTVMTimerReset() {
-  RCC->APB1RSTR |= RCC_APB1RSTR_TIM2RST;  // Hold TIM2 in reset
+  RCC->APB1RSTR |= RCC_APB1RSTR_TIM2RST;                       // Hold TIM2 in reset
   RCC->DCKCFGR1 = (RCC->DCKCFGR1 & ~RCC_DCKCFGR1_TIMPRE_Msk);  // disable 2x clock boost to TIM2
   RCC->CFGR = (RCC->CFGR & ~RCC_CFGR_PPRE1_Msk);  // No AHB clock division to APB1 (1:1).
-  RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;  // Enable TIM2 clock.
-  RCC->APB1RSTR &= ~RCC_APB1RSTR_TIM2RST;  // Exit TIM2 reset.
+  RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;             // Enable TIM2 clock.
+  RCC->APB1RSTR &= ~RCC_APB1RSTR_TIM2RST;         // Exit TIM2 reset.
 
   DBGMCU->APB1FZ |= DBGMCU_APB1_FZ_DBG_TIM2_STOP;  // stop TIM2 clock during debug halt.
   TIM2->ARR = 0xffffffff;
   if (TIM2->SR & TIM_SR_UIF_Msk) {
-    for (;;) ;
+    for (;;) {
+    }
   }
 }
 
