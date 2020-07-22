@@ -270,9 +270,9 @@ def test_get_valid_counts():
             intrp = relay.create_executor("debug", ctx=ctx, target=target)
             out = intrp.evaluate(func)(np_data)
             tvm.testing.assert_allclose(out[0].asnumpy(), np_out1, rtol=1e-3, atol=1e-04)
-            # get_valid_count for cuda, opencl doesn't do data rearrangement
-            if target in ['cuda', 'opencl']:
-                return
+            # get_valid_count for opencl doesn't do data rearrangement
+            if target in ['opencl']:
+                continue
             tvm.testing.assert_allclose(out[1].asnumpy(), np_out2, rtol=1e-3, atol=1e-04)
             tvm.testing.assert_allclose(out[2].asnumpy(), np_out3, rtol=1e-3, atol=1e-04)
 
@@ -321,8 +321,6 @@ def test_non_max_suppression():
             intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
             op_res2 = intrp2.evaluate(func)(x0_data, x1_data, x2_data, x3_data)
             tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
-            if target == 'cuda':
-                return
             op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
             tvm.testing.assert_allclose(op_indices_res1[0].asnumpy(), ref_indices_res, rtol=1e-5)
             op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)

@@ -93,8 +93,6 @@ def get_valid_counts_ir(data, valid_count, out, out_indices,
     valid_count = ib.buffer_ptr(valid_count)
     out = ib.buffer_ptr(out)
     out_indices = ib.buffer_ptr(out_indices)
-    atomic_add_return = ib.allocate(
-        valid_count.dtype, (1,), name='atomic_add_return', scope='local')
     one_count = tvm.tir.const(1, dtype=valid_count.dtype)
     one = tvm.tir.const(1, dtype=out.dtype)
     score_threshold = tvm.ir.make_node(
@@ -102,35 +100,29 @@ def get_valid_counts_ir(data, valid_count, out, out_indices,
     id_index = tvm.ir.make_node("IntImm", dtype="int32", value=id_index)
     score_index = tvm.ir.make_node("IntImm", dtype="int32", value=score_index)
 
-    max_threads = int(tvm.target.Target.current(
-        allow_none=False).max_num_threads)
-    nthread_tx = max_threads
-    nthread_bx = batch_size * num_anchors // max_threads + 1
+    nthread_tx = batch_size
+    nthread_bx = 1
     tx = te.thread_axis("threadIdx.x")
     bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
-    tid = bx * max_threads + tx
-    idxd = tvm.tir.indexdiv
+    tid = tx
 
-    # initialize valid_count
-    with ib.if_scope(tid < batch_size):
-        valid_count[tid] = 0
-    with ib.if_scope(tid < batch_size * num_anchors):
-        i = idxd(tid, num_anchors)
+    # each thread process one batch
+    valid_count[tid] = 0
+    with ib.for_range(0, num_anchors) as anchor_ind:
+        with ib.for_range(0, elem_length) as k:
+            out[anchor_ind * elem_length + k] = -one
+        out_indices[anchor_ind + tid*num_anchors] = -one_count
+
+    with ib.for_range(0, num_anchors) as anchor_ind:
         with ib.if_scope(
-                tvm.tir.all(data[tid * elem_length + score_index] > score_threshold,
-                            tvm.tir.any(id_index < 0, data[tid * elem_length + id_index] >= 0))):
-            atomic_add_return[0] = atomic_add(tvm.tir.call_intrin("handle", "tir.address_of",
-                                                                       valid_count[i]), one_count)
+                tvm.tir.all(data[anchor_ind * elem_length + score_index] > score_threshold,
+                            tvm.tir.any(id_index < 0, data[anchor_ind * elem_length + id_index] >= 0))):
+            valid_count[tid] = valid_count[tid] + 1
             with ib.for_range(0, elem_length) as k:
-                out[tid * elem_length + k] = data[tid * elem_length + k]
-                out_indices[tid + k] = tid + k
-        with ib.else_scope():
-            with ib.for_range(0, elem_length) as k:
-                out[tid * elem_length + k] = -one
-                out_indices[tid + k] = -one_count
-
+                out[(valid_count[tid]-1) * elem_length + k] = data[anchor_ind * elem_length + k]
+            out_indices[(valid_count[tid]-1) + tid*num_anchors] = anchor_ind
     return ib.get()
 
 
@@ -184,7 +176,101 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     return [valid_count, out, out_indices]
 
 
-def nms_ir(data, sorted_index, valid_count, out, box_indices,
+def rearrange_indices_out_ir(data, output, valid_box_count):
+    """Low level IR to get rearrange_indices_out.
+    Parameters
+    ----------
+    data : Buffer
+        Input data. 2-D Buffer with shape [batch_size, num_anchors].
+
+    output: Buffer
+        2-D Buffer with shape [batch_size, num_anchors].
+
+    valid_box_count : Buffer
+        2-D Buffer with shape [batch_size, 1].
+
+    Returns
+    -------
+    stmt : Stmt
+        The result IR statement.
+    """
+    batch_size = data.shape[0]
+    num_anchors = data.shape[1]
+    ib = tvm.tir.ir_builder.create()
+
+    data = ib.buffer_ptr(data)
+    output = ib.buffer_ptr(output)
+    valid_box_count = ib.buffer_ptr(valid_box_count)
+
+    one = tvm.tir.const(1, dtype=output.dtype)
+    zero = tvm.tir.const(0, dtype=output.dtype)
+
+    nthread_tx = batch_size
+    nthread_bx = 1
+    tx = te.thread_axis("threadIdx.x")
+    bx = te.thread_axis("blockIdx.x")
+    ib.scope_attr(tx, "thread_extent", nthread_tx)
+    ib.scope_attr(bx, "thread_extent", nthread_bx)
+    tid = tx
+    
+    valid_box_count[tid] = 0   
+    with ib.for_range(0, num_anchors) as anchor_ind:
+        output[tid * num_anchors + anchor_ind] = data[tid * num_anchors + anchor_ind]
+    '''
+    valid_box_count[tid] = 0    
+    with ib.for_range(0, num_anchors) as anchor_ind:
+        with ib.if_scope(data[tid * num_anchors + anchor_ind] >= zero):
+            output[tid * num_anchors + valid_box_count[tid]] = data[tid * num_anchors + anchor_ind]
+            valid_box_count[tid] = valid_box_count[tid] + 1
+        with ib.if_scope(tvm.tir.any(data[tid * num_anchors + anchor_ind] > num_anchors, 
+                                     data[tid * num_anchors + anchor_ind] < -num_anchors)):
+            output[tid * num_anchors + valid_box_count[tid]] = zero
+            valid_box_count[tid] = valid_box_count[tid] + 1
+        with ib.if_scope(anchor_ind >= valid_box_count[tid]):
+            output[tid * num_anchors + anchor_ind] = -one
+    '''
+    return ib.get()
+
+
+def rearrange_indices_out(data):
+    """Rearrange nms output to move all valid entries to top.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor or numpy NDArray
+        NMS output.  2-D
+        tensor with shape [batch_size, num_anchors].
+
+    Returns
+    -------
+    output : tvm.te.Tensor or numpy NDArray
+        2-D tensor with shape [batch_size, num_anchors].
+
+    valid_box_count : tvm.te.Tensor or numpy NDArray
+        Tensor with shape [batch_size, 1], indicates
+        the valid number of boxes.
+    """
+    batch_size = data.shape[0]
+    num_anchors = data.shape[1]
+    data_buf = tvm.tir.decl_buffer(
+        data.shape, data.dtype, "data_buf", data_alignment=8)
+    out_indices_buf = tvm.tir.decl_buffer(
+        data.shape, data.dtype, "out_indices_buf", data_alignment=8)
+    valid_count_buf = tvm.tir.decl_buffer(
+        (batch_size, 1), "int32", "valid_count_buf", data_alignment=8)
+    
+    output, valid_box_count = te.extern([out_indices_buf.shape, valid_count_buf.shape], 
+                                        [data],
+                                        lambda ins, outs: rearrange_indices_out_ir(
+                                            ins[0], outs[0], outs[1]),
+                                        in_buffers=[data_buf],
+                                        out_buffers=[out_indices_buf, valid_count_buf],
+                                        name="rearrange_indices_out",
+                                        tag="rearrange_indices_out_gpu")
+    return [output, valid_box_count]
+
+
+def nms_ir(data, sorted_index, valid_count, indices, out, box_indices,
            max_output_size, iou_threshold, force_suppress,
            top_k, coord_start, id_index, score_index):
     """Low level IR routing for transform location in multibox_detection operator.
@@ -199,6 +285,9 @@ def nms_ir(data, sorted_index, valid_count, out, box_indices,
 
     valid_count : Buffer
         Buffer of number of valid output boxes.
+
+    indices : Buffer
+        Buffer represents the index of box in original data.
 
     out : Buffer
         Output buffer.
@@ -253,6 +342,7 @@ def nms_ir(data, sorted_index, valid_count, out, box_indices,
     data = ib.buffer_ptr(data)
     sorted_index = ib.buffer_ptr(sorted_index)
     valid_count = ib.buffer_ptr(valid_count)
+    indices = ib.buffer_ptr(indices)
     out = ib.buffer_ptr(out)
     box_indices = ib.buffer_ptr(box_indices)
     num_valid_boxes = ib.allocate(
@@ -346,6 +436,10 @@ def nms_ir(data, sorted_index, valid_count, out, box_indices,
                         box_indices[i * num_anchors + j] = -1
                     with ib.else_scope():
                         num_valid_boxes[0] += 1
+        # convert box_indices to represent original data
+        org_idx = box_indices[i * num_anchors + j]
+        with ib.if_scope(box_indices[i * num_anchors + j] >= 0):
+            box_indices[i * num_anchors + j] = indices[i * num_anchors + org_idx]
 
     return ib.get()
 
@@ -454,19 +548,22 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
     data_buf = tvm.tir.decl_buffer(
         data.shape, data.dtype, "data_buf", data_alignment=8)
 
+    indices_buf = tvm.tir.decl_buffer(
+        indices.shape, indices.dtype, "indices_buf", data_alignment=8)
+
     out, box_indices = \
         te.extern([data.shape, score_shape],
-                  [data, sort_tensor, valid_count],
+                  [data, sort_tensor, valid_count, indices],
                   lambda ins, outs: nms_ir(
-            ins[0], ins[1], ins[2], outs[0], outs[1],
+            ins[0], ins[1], ins[2], ins[3], outs[0], outs[1],
             max_output_size, iou_threshold, force_suppress,
             top_k, coord_start, id_index, score_index),
             dtype=[data.dtype, "int32"],
-            in_buffers=[data_buf, sort_tensor_buf, valid_count_buf],
+            in_buffers=[data_buf, sort_tensor_buf, valid_count_buf, indices_buf],
             name="nms",
             tag="nms")
     # TODO(yongwww): Update cuda nms to be consistent with cpu version
     if return_indices:
-        return box_indices
+        return rearrange_indices_out(box_indices)
 
     return out
