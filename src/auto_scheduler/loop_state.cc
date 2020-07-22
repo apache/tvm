@@ -152,7 +152,7 @@ void AttachMap::DeleteStageEntry(AttachMapNode* pnode, int stage_id) {
   }
 }
 
-AttachMap AttachMap::ApplyStageIdOfffset(int start_id, int offset) const {
+AttachMap AttachMap::ApplyStageIdOffset(int start_id, int offset) const {
   AttachMap map = AttachMap(make_object<AttachMapNode>());
   auto pmap = map.CopyOnWrite();
   for (const auto& x : operator->()->stage_to_attach_iter) {

@@ -206,7 +206,7 @@ class AttachMap : public ObjectRef {
    * \param offset The index offset to be added to the stage index.
    * \return The updated AttachMap after applying stage index offset.
    */
-  AttachMap ApplyStageIdOfffset(int start_id, int offset) const;
+  AttachMap ApplyStageIdOffset(int start_id, int offset = 1) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(AttachMap, ObjectRef, AttachMapNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttachMapNode);

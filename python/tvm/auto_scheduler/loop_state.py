@@ -372,19 +372,19 @@ class State:
 
         Notes
         -----
-        Cache read step will add an extra stage to the original ComputeDAG.
+        Cache read step will insert an extra stage to the original ComputeDAG (at the back of the
+        target stage).
         """
-        if isinstance(reader_stages, list):
-            reader_stage_ids = [self._resolve_stage_id(id) for id in reader_stages]
-        else:
-            raise ValueError("reader_stages must be a list of the integer index, Operation, " + \
-                             "or output tensor of the stage")
-
+        reader_stage_ids = [self._resolve_stage_id(i) for i in reader_stages]
         self.state_object, new_stage_id = _ffi_api.StateCacheRead(self.state_object,
                                                                   self._resolve_stage_id(stage),
                                                                   scope_name, reader_stage_ids,
                                                                   self.compute_dag)
-        return self._insert_new_stage(int(new_stage_id))
+        # Add a new stage will change all ops behind the added stage. But we still want to keep the
+        # original ops map, apply stage id offset to stage_id_map to make them work.
+        self._apply_stage_id_offset(int(new_stage_id))
+        self._update_stage_id_map()
+        return self.stages[int(new_stage_id)].op
 
     def cache_write(self, stage, scope_name):
         """ Schedule primitive corresponds to te.schedule.cache_write.
@@ -404,14 +404,18 @@ class State:
 
         Notes
         -----
-        Cache write step will add an extra stage to the original ComputeDAG, a up-to-date
-        ComputeDAG is stored in State's `current_compute_dag`.
+        Cache write step will insert an extra stage to the original ComputeDAG (in the front of the
+        target stage).
         This step will cache write all output tensors of the target stage.
         """
         self.state_object, new_stage_id = _ffi_api.StateCacheWrite(self.state_object,
                                                                    self._resolve_stage_id(stage),
                                                                    scope_name, self.compute_dag)
-        return self._insert_new_stage(int(new_stage_id))
+        # Add a new stage will change all ops behind the added stage. But we still want to keep the
+        # original ops map, apply stage id offset to stage_id_map to make them work.
+        self._apply_stage_id_offset(int(new_stage_id))
+        self._update_stage_id_map()
+        return self.stages[int(new_stage_id)].op
 
     def copy(self):
         """ Do deep copy of this State. """
@@ -433,22 +437,10 @@ class State:
         for index, stage in enumerate(self.stages):
             self.stage_id_map[stage.op] = index
 
-    def _insert_new_stage(self, new_stage_id):
-        added_op = self.stages[new_stage_id].op
-
-        # Add a new stage will change all ops. But we still want to use the old ops to index stages,
-        # So we keep updating them and do not remove the old ops.
-
-        # Update stage_id_map for old ops, so we can still use the old ops to index stages.
+    def _apply_stage_id_offset(self, start_id, offset=1):
         for key, value in self.stage_id_map.items():
-            if value >= new_stage_id:
-                self.stage_id_map[key] = value + 1
-        self.stage_id_map[added_op] = new_stage_id
-
-        # Update stage_id_map for new ops
-        self._update_stage_id_map()
-
-        return added_op
+            if value >= start_id:
+                self.stage_id_map[key] = value + offset
 
     def __getitem__(self, key):
         if isinstance(key, Tensor):

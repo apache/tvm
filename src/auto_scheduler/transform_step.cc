@@ -1037,7 +1037,7 @@ int CacheReadStepNode::ApplyToState(State* state, const ComputeDAG& dag) const {
     tmp_stage.CopyOnWrite()->op = current_compute_dag->ops[i];
     pstate->stages.Set(i, std::move(tmp_stage));
   }
-  pstate->attach_map = pstate->attach_map.ApplyStageIdOfffset(added_stage_id, 1);
+  pstate->attach_map = pstate->attach_map.ApplyStageIdOffset(added_stage_id);
   pstate->current_compute_dag = std::move(current_compute_dag);
 
   return added_stage_id;
@@ -1164,7 +1164,7 @@ int CacheWriteStepNode::ApplyToState(State* state, const ComputeDAG& dag) const 
     tmp_stage.CopyOnWrite()->op = current_compute_dag->ops[i];
     pstate->stages.Set(i, std::move(tmp_stage));
   }
-  pstate->attach_map = pstate->attach_map.ApplyStageIdOfffset(stage_id, added_ops);
+  pstate->attach_map = pstate->attach_map.ApplyStageIdOffset(stage_id, added_ops);
   pstate->current_compute_dag = std::move(current_compute_dag);
 
   return stage_id;
