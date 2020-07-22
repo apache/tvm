@@ -23,7 +23,6 @@
  */
 #pragma once
 
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
 
