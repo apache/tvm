@@ -26,7 +26,7 @@
 
 pub use tvm_sys::{ffi, ArgValue, RetValue};
 
-use crate::{errors, Module};
+use crate::errors;
 
 use super::function::{Function, Result};
 
@@ -43,9 +43,8 @@ where
 {
     fn to_boxed_fn(func: Function) -> Box<Self> {
         Box::new(move || {
-            let mut builder = Builder::default();
-            builder.func = Some(func.clone());
-            let res = builder.invoke()?.try_into()?;
+            let res = func.invoke(vec![])?;
+            let res = res.try_into()?;
             Ok(res)
         })
     }
@@ -59,10 +58,9 @@ where
 {
     fn to_boxed_fn(func: Function) -> Box<Self> {
         Box::new(move |a: A| {
-            let mut builder = Builder::default();
-            builder.func = Some(func.clone());
-            builder.arg(a.into());
-            let res = builder.invoke()?.try_into()?;
+            let args = vec![a.into()];
+            let res = func.invoke(args)?;
+            let res = res.try_into()?;
             Ok(res)
         })
     }
@@ -77,11 +75,9 @@ where
 {
     fn to_boxed_fn(func: Function) -> Box<Self> {
         Box::new(move |a: A, b: B| {
-            let mut builder = Builder::default();
-            builder.func = Some(func.clone());
-            builder.arg(a.into());
-            builder.arg(b.into());
-            let res = builder.invoke()?.try_into()?;
+            let args = vec![a.into(), b.into()];
+            let res = func.invoke(args)?;
+            let res = res.try_into()?;
             Ok(res)
         })
     }
@@ -97,12 +93,9 @@ where
 {
     fn to_boxed_fn(func: Function) -> Box<Self> {
         Box::new(move |a: A, b: B, c: C| {
-            let mut builder = Builder::default();
-            builder.func = Some(func.clone());
-            builder.arg(a.into());
-            builder.arg(b.into());
-            builder.arg(c.into());
-            let res = builder.invoke()?.try_into()?;
+            let args = vec![a.into(), b.into(), c.into()];
+            let res = func.invoke(args)?;
+            let res = res.try_into()?;
             Ok(res)
         })
     }
@@ -119,96 +112,14 @@ where
 {
     fn to_boxed_fn(func: Function) -> Box<Self> {
         Box::new(move |a: A, b: B, c: C, d: D| {
-            let mut builder = Builder::default();
-            builder.func = Some(func.clone());
-            builder.arg(a.into());
-            builder.arg(b.into());
-            builder.arg(c.into());
-            builder.arg(d.into());
-            let res = builder.invoke()?.try_into()?;
+            let args = vec![a.into(), b.into(), c.into(), d.into()];
+            let res = func.invoke(args)?;
+            let res = res.try_into()?;
             Ok(res)
         })
     }
 }
 
-/// Function builder in order to create and call functions.
-///
-/// *Note:* Currently TVM functions accept *at most* one return value.
-#[derive(Default)]
-pub struct Builder<'a> {
-    pub func: Option<Function>,
-    pub arg_buf: Vec<ArgValue<'a>>,
-    pub ret_buf: Option<RetValue>,
-}
-
-impl<'a, 'm> Builder<'a> {
-    pub fn new(
-        func: Option<Function>,
-        arg_buf: Vec<ArgValue<'a>>,
-        ret_buf: Option<RetValue>,
-    ) -> Self {
-        Self {
-            func,
-            arg_buf,
-            ret_buf,
-        }
-    }
-
-    pub fn get_function(&mut self, name: &'m str) -> &mut Self {
-        self.func = Function::get(name);
-        self
-    }
-
-    /// Pushes a [`ArgValue`] into the function argument buffer.
-    pub fn arg<T: 'a>(&mut self, arg: T) -> &mut Self
-    where
-        ArgValue<'a>: From<T>,
-    {
-        self.arg_buf.push(arg.into());
-        self
-    }
-
-    /// Pushes multiple [`ArgValue`]s into the function argument buffer.
-    pub fn args<T: 'a, I>(&mut self, args: I) -> &mut Self
-    where
-        I: IntoIterator<Item = T>,
-        ArgValue<'a>: From<T>,
-    {
-        args.into_iter().for_each(|arg| {
-            self.arg(arg);
-        });
-        self
-    }
-
-    /// Sets an output for a function that requires a mutable output to be provided.
-    /// See the `basics` in tests for an example.
-    pub fn set_output<T>(&mut self, ret: T) -> &mut Self
-    where
-        RetValue: From<T>,
-    {
-        self.ret_buf = Some(ret.into());
-        self
-    }
-
-    pub fn invoke(self) -> Result<RetValue> {
-        self.func.unwrap().invoke(self.arg_buf)
-    }
-}
-
-/// Converts a [`Function`] to builder. Currently, this is the best way to work with
-/// TVM functions.
-impl<'a, 'm> From<Function> for Builder<'a> {
-    fn from(func: Function) -> Self {
-        Builder::new(Some(func), Vec::new(), None)
-    }
-}
-
-/// Converts a mutable reference of a [`Module`] to [`Builder`].
-impl<'a, 'm> From<&'m mut Module> for Builder<'a> {
-    fn from(module: &'m mut Module) -> Self {
-        Builder::new(module.entry(), Vec::new(), None)
-    }
-}
 #[cfg(test)]
 mod tests {
     use crate::function::{self, Function, Result};

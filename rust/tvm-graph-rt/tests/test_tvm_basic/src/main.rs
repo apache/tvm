@@ -17,15 +17,11 @@
  * under the License.
  */
 
-extern crate ndarray;
-#[macro_use]
-extern crate tvm_runtime;
-
 use ndarray::Array;
-use tvm_runtime::{DLTensor, Module as _, SystemLibModule};
+use tvm_graph_rt::{DLTensor, Module as _, SystemLibModule};
 
 mod tvm_mod {
-    import_module!("lib/test.o");
+    tvm_graph_rt::import_module!("lib/test.o");
 }
 
 fn main() {
@@ -37,7 +33,8 @@ fn main() {
     let mut a_dl: DLTensor = (&mut a).into();
     let mut b_dl: DLTensor = (&mut b).into();
     let mut c_dl: DLTensor = (&mut c).into();
-    call_packed!(tvm_mod::default_function, &mut a_dl, &mut b_dl, &mut c_dl).unwrap();
+    let args = vec![(&mut a_dl).into(), (&mut b_dl).into(), (&mut c_dl).into()];
+    tvm_mod::default_function(&args[..]).unwrap();
     assert!(c.all_close(&e, 1e-8f32));
 
     // try runtime
@@ -45,6 +42,6 @@ fn main() {
     let add = syslib
         .get_function("default_function")
         .expect("main function not found");
-    call_packed!(add, &mut a_dl, &mut b_dl, &mut c_dl).unwrap();
+    add(&args[..]).unwrap();
     assert!(c.all_close(&e, 1e-8f32));
 }

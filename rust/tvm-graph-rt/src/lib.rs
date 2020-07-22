@@ -28,6 +28,16 @@
 //! The main entrypoints to this crate are `GraphExecutor`
 //! For examples of use, please refer to the multi-file tests in the `tests` directory.
 
+extern crate tvm_macros;
+extern crate tvm_sys;
+
+// Re-export the import_module macro.
+pub use tvm_macros::import_module;
+
+// Re-export the called pack macro, eventually remove as its not a very good
+// abstraction.
+pub use tvm_sys::call_packed;
+
 use lazy_static::lazy_static;
 
 mod allocator;
@@ -38,9 +48,7 @@ mod module;
 mod threading;
 mod workspace;
 
-pub use tvm_macros::import_module;
 pub use tvm_sys::{
-    call_packed,
     errors::*,
     ffi::{self, DLTensor},
     packed_func::{self, *},
