@@ -390,8 +390,8 @@ class State : public ObjectRef {
    * \param scope_name The scope name to be set for the new added read stage.
    * \param reader_stage_ids The indexes of reader stages.
    * \param dag The original ComputeDAG of this state.
-   * \note Cache read step will add an extra stage to the original ComputeDAG, a up-to-date
-   * ComputeDAG is stored in State's `current_compute_dag`.
+   * \note Cache read step will add an extra stage to the original ComputeDAG (at the back of the
+   * target stage), a up-to-date ComputeDAG is stored in State's `current_compute_dag`.
    */
   int cache_read(int stage_id, const String& scope_name, const Array<Integer>& reader_stage_ids,
                  const ComputeDAG& dag);
@@ -400,8 +400,8 @@ class State : public ObjectRef {
    * \param stage_id The index of the stage to be cache write.
    * \param scope_name The scope name to be set for the new added write stage.
    * \param dag The original ComputeDAG of this state.
-   * \note Cache write step will add an extra stage to the original ComputeDAG, a up-to-date
-   * ComputeDAG is stored in State's `current_compute_dag`.
+   * \note Cache write step will add an extra stage to the original ComputeDAG (in the front of the
+   * target stage), a up-to-date ComputeDAG is stored in State's `current_compute_dag`.
    * This step will cache write all output tensors of the target stage.
    */
   int cache_write(int stage_id, const String& scope_name, const ComputeDAG& dag);

@@ -1024,8 +1024,9 @@ int CacheReadStepNode::ApplyToState(State* state, const ComputeDAG& dag) const {
   }
   const ComputeDAG& current_compute_dag = dag.ReplayAndGetDAG(replay_steps);
 
-  // target -> target + target_store
-  // Should update target's op, insert new stage, update the later stage's op
+  // target_stage -> target_stage + target_store
+  // Update the op of the target stage, insert a new cache read stage behind, update the op of
+  // later stages, then update the stage_id mapping in AttachMap
   int added_stage_id = stage_id + 1;
   Stage tmp_stage = pstate->stages[stage_id];
   tmp_stage.CopyOnWrite()->op = current_compute_dag->ops[stage_id];
@@ -1064,9 +1065,10 @@ te::Tensor CacheReadStepNode::ApplyToSchedule(Array<te::Stage>* stages,
 String CacheReadStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
                                            te::Schedule* schedule) const {
   std::stringstream ss;
-  // Copy stage here, for the original stage will change after apply
+  // Since the original stage will be changed after schedule apply, keep a copy here
+  // These information will be used to print Python API string later
   auto stage = (*stages)[stage_id];
-  std::vector<te::Stage> reader_stages;
+  Array<te::Stage> reader_stages;
   for (size_t i = 0; i < reader_stage_ids.size(); ++i) {
     reader_stages.push_back((*stages)[reader_stage_ids[i]]);
   }
@@ -1081,6 +1083,7 @@ String CacheReadStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxes
   }
   ss << "])\n";
 
+  // Print the iterators of the new added stage
   const auto& iters = out->op->root_iter_vars();
   for (size_t i = 0; i < iters.size(); ++i) {
     ss << CleanName(iters[i]->var->name_hint);
@@ -1138,20 +1141,21 @@ int CacheWriteStepNode::ApplyToState(State* state, const ComputeDAG& dag) const 
                              : dag->ops.size();
   const ComputeDAG& current_compute_dag = dag.ReplayAndGetDAG(replay_steps);
   int added_ops = current_compute_dag->ops.size() - last_dag_op_size;
+  // TODO(jcf94): Update this check to equal after fixing the cache write bug in TVM
   CHECK_GE(added_ops, 1);
 
-  // target -> target_compute + target
-  // Assume target stage has never been applied any steps before cache_write
-  // Should insert new stage, update target stage, update the later stage's op
+  // target_stage -> cache_write_stage + target_stage
+  // Assume no step has been applied to the target stage before cache write.
+  // Insert a new cache write stage ahead, update the op of the target stage and later stages, then
+  // update the stage_id mapping in AttachMap
   pstate->stages.insert(pstate->stages.begin() + stage_id,
                         Stage(current_compute_dag->ops[stage_id]));
   pstate->stages.Set(stage_id + 1, Stage(current_compute_dag->ops[stage_id + 1]));
   int next_stage_id = stage_id + 2;
-  // Notice: added_ops should actually assert to be 1
-  // branch of 2 here is somehow a hack to TVM's cache_write bug with multi outputs
-  // see `tests/python/unittest/test_auto_scheduler_loop_state.py::test_cache_read_write` test for
-  // more information
-  // TODO(jcf94): Fix the cache write bug in TVM and remove these branches here
+  // TODO(jc94): Fix the cache write bug in TVM and remove added_op == 2 support.
+  // TVM's cache_write has a bug with multi outputs. See
+  // `tests/python/unittest/test_auto_scheduler_loop_state.py::test_cache_read_write` test
+  // for more details
   if (added_ops == 2) {
     pstate->stages.insert(pstate->stages.begin() + next_stage_id,
                           Stage(current_compute_dag->ops[next_stage_id]));
@@ -1196,7 +1200,8 @@ Array<te::Tensor> CacheWriteStepNode::ApplyToSchedule(Array<te::Stage>* stages,
 String CacheWriteStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
                                             te::Schedule* schedule) const {
   std::stringstream ss;
-  // Copy stage here, for the original stage will change after apply
+  // Since the original stage will be changed after schedule apply, keep a copy here
+  // These information will be used to print Python API string later
   te::Stage stage = (*stages)[stage_id];
 
   auto outs = ApplyToSchedule(stages, stage_to_axes, schedule);
@@ -1211,6 +1216,7 @@ String CacheWriteStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxe
   }
   ss << "], \"" << scope_name << "\")\n";
 
+  // Print the iterators of the new added stage
   for (const auto& out : outs) {
     const auto& iters = out->op->root_iter_vars();
     for (size_t i = 0; i < iters.size(); ++i) {
