@@ -89,7 +89,7 @@ def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):
         if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
-        if not tvm.get_global_func("tvm.contrib.cblas.matmul", True):
+        if not tvm.get_global_func("tvm.contrib.cblas.matmul_u8s8s32", True):
             print("skip because extern function is not available")
             return
         ctx = tvm.cpu(0)

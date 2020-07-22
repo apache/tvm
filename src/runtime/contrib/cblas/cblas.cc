@@ -44,6 +44,7 @@ using namespace runtime;
 
 inline CBLAS_TRANSPOSE BooleanToTranspose(bool trans) { return trans ? CblasTrans : CblasNoTrans; }
 
+#if USE_MKL_BLAS == 1
 inline CBLAS_OFFSET StringToOffset(const std::string offset_type) {
   if (offset_type != "CblasFixOffset" && offset_type != "CblasColOffset" &&
       offset_type != "CblasRowOffset") {
@@ -56,6 +57,7 @@ inline CBLAS_OFFSET StringToOffset(const std::string offset_type) {
   }
   return CblasRowOffset;
 }
+#endif
 
 inline char BooleanToTransposeChar(bool trans) { return trans ? 'T' : 'N'; }
 
@@ -63,9 +65,13 @@ struct CblasGemmU8S8S32Op {
   void operator()(bool ta, bool tb, int M, int N, int K, float alpha, const void* A, int lda,
                   int offset_a, const void* B, int ldb, int offset_b, float beta, int* C, int ldc,
                   const std::string offset_ctype, int* offset_c) {
+#if USE_MKL_BLAS == 1
     cblas_gemm_s8u8s32(CblasColMajor, BooleanToTranspose(ta), BooleanToTranspose(tb),
                        StringToOffset(offset_ctype), M, N, K, alpha, A, lda, offset_a, B, ldb,
                        offset_b, beta, C, ldc, offset_c);
+#else
+    LOG(FATAL) << "Quantized Gemm is supported with MKL Blas only";
+#endif
   }
 };
 
