@@ -1374,6 +1374,7 @@ def test_forward_box_decode():
     verify((1, 10, 4), (1, 10, 4), in_format="center")
 
 
+@pytest.mark.skipif(not hasattr(mx.sym.np, 'pad'), reason="mx.sym.np.pad hasn't been publish yet")
 @pytest.mark.parametrize(
     "data_shape, pad_width",
     [((1,1,3,5),(0,0,0,0,1,2,3,4)), ((1,1,3,5,7),(0,0,0,0,1,2,3,4,5,6))]
@@ -1382,8 +1383,6 @@ def test_forward_box_decode():
 @pytest.mark.parametrize("dtype", ['float64', 'float32', 'int64', 'int32'])
 @pytest.mark.parametrize("constant_value", [0.0, 3.0])
 def test_forward_npi_pad(data_shape, pad_width, mode, dtype, constant_value):
-    if not hasattr(mx.sym.np, 'pad'):
-        pytest.skip("mx.sym.np.pad hasn't been publish yet")
     data_np = np.random.uniform(size=data_shape).astype(dtype)
     data = mx.sym.var('data')
     if mode == 'constant':
@@ -1421,7 +1420,7 @@ def test_forward_npi_transpose(data_shape, axes, dtype):
     "data_shape1, data_shape2, axis",
     [((2,2),(2,2),1),((2,4),(2,3),1),((1,3,2),(1,3,5),2),((1,3,3),(1,3,3),1),((1,3),(1,3),0)]
 )
-@pytest.mark.parametrize("dtype", ['float64', 'float32', 'int64', 'int32', 'bool'])
+@pytest.mark.parametrize("dtype", ['float64', 'float32', 'int64', 'int32'])
 def test_forward_npi_concatenate(data_shape1, data_shape2, axis, dtype):
     data_np1 = np.random.uniform(size=data_shape1).astype(dtype)
     data_np2 = np.random.uniform(size=data_shape2).astype(dtype)
@@ -1537,13 +1536,12 @@ def test_forward_npi_tanh(data_shape,dtype):
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
 
 
+@pytest.mark.skipif(not hasattr(mx.np, 'where'), reason="mx.np.where hasn't been publish yet")
 @pytest.mark.parametrize("data_shape", [(2,2,2),(2,7,2),(1,8),(2,2),(1,3)])
 @pytest.mark.parametrize("cond_dtype", ['float64', 'float32', 'int64', 'int32', 'bool'])
 @pytest.mark.parametrize("data_dtype", ['float64', 'float32', 'int64', 'int32', 'bool'])
 @pytest.mark.parametrize("scalar", [1.0,2.0])
 def test_forward_npi_where_rscalar(data_shape,cond_dtype,data_dtype,scalar):
-    if not hasattr(mx.np, 'where'):
-        pytest.skip("mx.np.where hasn't been publish yet")
     if data_dtype == 'bool':
         scalar = scalar == 0.0
     cond_np = np.random.uniform(size=data_shape).astype(cond_dtype)
@@ -1667,13 +1665,3 @@ if __name__ == '__main__':
     test_forward_box_decode()
     test_forward_amp_multicast()
     test_forward_amp_cast()
-    test_forward_npi_pad()
-    test_forward_npi_transpose()
-    test_forward_npi_concatenate()
-    test_forward_np_copy()
-    test_forward_npx_reshape()
-    test_forward_npi_binary()
-    test_forward_npi_binary_scalar()
-    test_forward_npi_tanh()
-    test_forward_npi_where_rscalar()
-    test_forward_split_v2()
