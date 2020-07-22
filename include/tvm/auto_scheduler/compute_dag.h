@@ -147,8 +147,8 @@ class AccessAnalyzer : public ObjectRef {
    * \param target_op The target operation
    * \note This function propagates the relation for chains with multiple ops.
    */
-  TVM_DLL int GetNumCommonOuterIterator(
-      const te::Operation& op, const te::Operation& target_op) const;
+  TVM_DLL int GetNumCommonOuterIterator(const te::Operation& op,
+                                        const te::Operation& target_op) const;
 
   /*!
    * \brief Return whether two operations are elementwise-matched
