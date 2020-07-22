@@ -154,6 +154,7 @@ setup(name='tvm',
       version=__version__,
       description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
       zip_safe=False,
+      entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
       install_requires=[
         'numpy',
         'scipy',
