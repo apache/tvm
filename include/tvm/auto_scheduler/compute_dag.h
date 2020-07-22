@@ -1,4 +1,4 @@
-/*
+/*r
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file auto_scheduler/compute_dag.h
- * \brief The TVM Auto-scheduler computational graph and related program analyses.
+ * \file tvm/auto_scheduler/compute_dag.h
+ * \brief The auto-scheduler's computational graph and related program analyses.
  *
  * We convert a compute declaration described by `tvm.compute` (could be a single operator or a
  * subgraph) to a ComputeDAG. It keeps the input/output tensors of the compute declaration,
@@ -35,14 +35,14 @@
 #ifndef TVM_AUTO_SCHEDULER_COMPUTE_DAG_H_
 #define TVM_AUTO_SCHEDULER_COMPUTE_DAG_H_
 
+#include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/te/schedule.h>
 
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include "loop_state.h"
 
 namespace tvm {
 namespace auto_scheduler {
@@ -89,25 +89,25 @@ class AccessAnalyzer : public ObjectRef {
    * \brief Return whether this operation needs multi-level tiling
    * \param op The operation
    */
-  bool NeedsMultiLevelTiling(const te::Operation& op) const;
+  TVM_DLL bool NeedsMultiLevelTiling(const te::Operation& op) const;
 
   /*!
    * \brief Return whether this operation is an injective operation
    * \param op The operation
    */
-  bool IsInjective(const te::Operation& op) const;
+  TVM_DLL bool IsInjective(const te::Operation& op) const;
 
   /*!
    * \brief Return whether this operation is strictly inlinable
    * \param op The operation
    */
-  bool IsStrictInlineable(const te::Operation& op) const;
+  TVM_DLL bool IsStrictInlineable(const te::Operation& op) const;
 
   /*!
    * \brief Return whether this operation is an output op
    * \param op The operation
    */
-  bool IsOutput(const te::Operation& op) const;
+  TVM_DLL bool IsOutput(const te::Operation& op) const;
 
   /*!
    * \brief Get all consumers of on operation
@@ -116,8 +116,9 @@ class AccessAnalyzer : public ObjectRef {
    * \param consumers The return consumer set
    * \note This function propagates the relation for inlined ops
    */
-  void GetConsumers(const State& state, const te::Operation& op,
-                    std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* consumers) const;
+  TVM_DLL void GetConsumers(
+      const State& state, const te::Operation& op,
+      std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* consumers) const;
 
   /*!
    * \brief Get all producers of on operation
@@ -126,8 +127,9 @@ class AccessAnalyzer : public ObjectRef {
    * \param producers The return producer set
    * \note This function propagates the relation for inlined ops
    */
-  void GetProducers(const State& state, const te::Operation& op,
-                    std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* producers) const;
+  TVM_DLL void GetProducers(
+      const State& state, const te::Operation& op,
+      std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* producers) const;
 
   /*!
    * \brief Get all direct producers of on operation
@@ -135,7 +137,7 @@ class AccessAnalyzer : public ObjectRef {
    * \param producers The return producer set
    * \note This function DOES NOT propagate the relation for inlined ops
    */
-  void GetDirectProducers(
+  TVM_DLL void GetDirectProducers(
       const te::Operation& op,
       std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* producers) const;
 
@@ -145,14 +147,15 @@ class AccessAnalyzer : public ObjectRef {
    * \param target_op The target operation
    * \note This function propagates the relation for chains with multiple ops.
    */
-  int GetNumCommonOuterIterator(const te::Operation& op, const te::Operation& target_op) const;
+  TVM_DLL int GetNumCommonOuterIterator(
+      const te::Operation& op, const te::Operation& target_op) const;
 
   /*!
    * \brief Return whether two operations are elementwise-matched
    *  (e.g. conv2d and relu are elementwise matched)
    * \note This function propagates the relation for chains with multiple ops.
    */
-  bool ElementWiseMatch(const te::Operation& op, const te::Operation& target_op) const;
+  TVM_DLL bool ElementWiseMatch(const te::Operation& op, const te::Operation& target_op) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(AccessAnalyzer, ObjectRef, AccessAnalyzerNode);
 };
@@ -167,11 +170,11 @@ class ComputeDAGNode : public Object {
   Array<te::Tensor> tensors;
   /*! \brief All related operations in topo order. */
   Array<te::Operation> ops;
-  /*! \brief Number of total float operations for this ComputeDAG. */
+  /*! \brief The number of total float operations for this ComputeDAG. */
   double flop_ct;
   /*! \brief The initial state without any transform steps. */
   State init_state;
-  /*! \brief Static read-write access analyzer */
+  /*! \brief The static read-write access analyzer */
   AccessAnalyzer access_analyzer;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -194,16 +197,17 @@ class ComputeDAG : public ObjectRef {
   /*! \brief The constructor.
    * \param tensors `te::Tensor`s for a compute declaration.
    */
-  explicit ComputeDAG(Array<te::Tensor> tensors);
+  TVM_DLL explicit ComputeDAG(Array<te::Tensor> tensors);
 
   /*!
-   * \brief Apply the history transform steps from a State to get a TVM schedule.
+   * \brief Apply the history transform steps to get a TVM schedule.
    * \param transform_steps Transform steps of a state.
-   * \param stages A pointer to a `te::Stage` Array, default to be nullptr.
-   * Pass a valid pointer if these information needs to be used outside this function.
-   * \param stage_to_axes A pointer to a StageToAxesMap, default to be nullptr.
-   * Pass a valid pointer if these information needs to be used outside this function.
-   * \return A `te.schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
+   * \param stages The list of stages after applying the steps.
+   * Pass a valid pointer if this information needs to be used outside this function.
+   * \param stage_to_axes The map that stores all axes for one stage.
+   * Pass a valid pointer if this information needs to be used outside this function.
+   * \return A `te.schedule` and the an Array of `te.Tensor` to be used in `tvm.lower`
+   * or `tvm.build`.
    */
   std::pair<te::Schedule, Array<te::Tensor>> ApplySteps(
       const Array<Step>& transform_steps, Array<te::Stage>* stages = nullptr,
@@ -222,9 +226,9 @@ class ComputeDAG : public ObjectRef {
    * The states can lose complete bound information after some transform steps (e.g., compute_at).
    * We can call this function to infer and fill all the bound information.
    * This function calls TVM InferBound pass internally to get the bound.
-   * The returned state of this function is guaranteed to have complete iterator extent information.
-   * \param state The state to.
-   * \return The State after inferbound.
+   * The returned state of this function is guaranteed to have complete bound information.
+   * \param state The input state.
+   * \return The State with complete bound information
    */
   State InferBound(const State& state) const;
 

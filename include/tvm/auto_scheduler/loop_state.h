@@ -48,14 +48,14 @@
 #ifndef TVM_AUTO_SCHEDULER_LOOP_STATE_H_
 #define TVM_AUTO_SCHEDULER_LOOP_STATE_H_
 
+#include <dmlc/common.h>
+#include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/container.h>
 
 #include <functional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-#include "transform_step.h"
 
 namespace tvm {
 namespace auto_scheduler {
@@ -159,10 +159,16 @@ using IterKey = std::pair<int, int>;
  */
 class AttachMapNode : public Object {
  public:
+  struct key_hash : public std::function<std::size_t(IterKey)> {
+    std::size_t operator()(const IterKey& k) const {
+      return ::dmlc::HashCombine(std::hash<int>()(k.first), std::hash<int>()(k.second));
+    }
+  };
+
   /*! \brief A Map to store the mapping of stage to its attached iterator. */
   std::unordered_map<StageKey, IterKey> stage_to_attach_iter;
   /*! \brief A Map to store the mapping of iterator to the stage attached to it. */
-  std::unordered_map<IterKey, std::vector<StageKey>> iter_to_attached_stages;
+  std::unordered_map<IterKey, std::vector<StageKey>, key_hash> iter_to_attached_stages;
 
   static constexpr const char* _type_key = "auto_scheduler.AttachMap";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttachMapNode, Object);
@@ -381,27 +387,25 @@ class State : public ObjectRef {
 // Hash and equal function for State
 namespace std {
 
-/*! \brief The hash function for auto_scheduler::State. */
-template <>
-struct hash<::tvm::auto_scheduler::State> {
-  std::size_t operator()(const ::tvm::auto_scheduler::State& state) const {
-    return tvm::runtime::ObjectHash()(state.ToStr());
-  }
-};
-
 /*!
  * \brief The equal_to function for auto_scheduler::State.
- * We use the schedule result(its string format) of a state to check if two states are `euqal`.
- * Equal States: 1. the transform steps are totally the same; 2. even with different steps, two
- * states may still result in a same schedule. e.g. To split a axis with extent 512 to 3 parts
- * [8, 16, 4]. We can split from inner to outter by factors [16, 4], while we can get a same result
- * to split from outter to inner by factors [8, 16])
+ * This function checkes the equality by looking at the lowered string format of states.
+ * If two states with different transform history have the same lowered string format,
+ * they will be considered being equal.
  */
 template <>
 struct equal_to<::tvm::auto_scheduler::State> {
   bool operator()(const ::tvm::auto_scheduler::State& lhs,
                   const ::tvm::auto_scheduler::State& rhs) const {
     return lhs.ToStr() == rhs.ToStr();
+  }
+};
+
+/*! \brief The hash function for auto_scheduler::State. */
+template <>
+struct hash<::tvm::auto_scheduler::State> {
+  std::size_t operator()(const ::tvm::auto_scheduler::State& state) const {
+    return tvm::runtime::ObjectHash()(state.ToStr());
   }
 };
 

@@ -22,8 +22,8 @@
  * \brief Compute declaration graph and its related analysis tools.
  */
 
-#include "compute_dag.h"
-
+#include <tvm/auto_scheduler/compute_dag.h>
+#include <tvm/auto_scheduler/loop_state.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
@@ -37,7 +37,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "loop_state.h"
 #include "utils.h"
 
 namespace tvm {
