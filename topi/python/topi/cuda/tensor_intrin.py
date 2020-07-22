@@ -223,4 +223,3 @@ def intrin_wmma_gemm(AL_gemm, WL_gemm, CL_compute, strides_A,
         return update(), init(), update()
 
     return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, B: BB, C: BC})
-    
