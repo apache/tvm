@@ -299,8 +299,10 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
             if cfg.is_fallback:
                 cfg['data_pad_inline'] = OtherOptionEntity(3)
             if cfg['data_pad_inline'].val == 1:
+                s[conv_data].vectorize(list(s[conv_data].op.axis)[-1])
                 s[conv_data].compute_at(s[conv], ho)
             if cfg['data_pad_inline'].val == 2:
+                s[conv_data].vectorize(list(s[conv_data].op.axis)[-1])
                 s[conv_data].compute_at(s[conv], wo)
             if cfg['data_pad_inline'].val == 3:
                 s[conv_data].compute_inline()
