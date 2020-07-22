@@ -182,7 +182,7 @@ def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape,
 
 
     def get_output(func, golden_inputs):
-        with relay.build_config(opt_level=2):
+        with tvm.transform.PassContext(opt_level=2):
             golden_data, golden_weight = golden_inputs
             params = {'kernel': golden_weight}
             graph, lib, params = relay.build(func, "llvm", params=params)
@@ -655,7 +655,7 @@ def test_tflite_large_irregular():
         golden_data = np.full(data_shape, 127).astype('uint8')
         golden_weight = np.full(kernel_shape, 127).astype('uint8')
 
-        with relay.build_config(opt_level=2):
+        with tvm.transform.PassContext(opt_level=2):
             params = {'kernel': golden_weight}
             graph, lib, params = relay.build(qnn_func, "llvm", params=params)
             mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
@@ -698,7 +698,7 @@ def test_tflite_output_multiplier_greater_than_one():
                                         -1, -1, 1, 1)).reshape(kernel_shape)
         golden_weight = golden_weight.astype('uint8')
 
-        with relay.build_config(opt_level=2):
+        with tvm.transform.PassContext(opt_level=2):
             params = {'kernel': golden_weight}
             graph, lib, params = relay.build(qnn_func, "llvm", params=params)
             mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
@@ -744,7 +744,7 @@ def test_tflite_anistropic_strides():
         golden_weight = np.array((129, 131, 133, 135)).reshape(kernel_shape)
         golden_weight = golden_weight.astype('uint8')
 
-        with relay.build_config(opt_level=2):
+        with tvm.transform.PassContext(opt_level=2):
             params = {'kernel': golden_weight}
             graph, lib, params = relay.build(qnn_func, "llvm", params=params)
             mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
@@ -789,7 +789,7 @@ def test_broadcast_layout():
         func = relay.add(func, bias)
         func = relay.Function(relay.analysis.free_vars(func), func)
         mod = tvm.IRModule.from_expr(func)
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build(mod, "llvm -mcpu=skylake-avx512")
 
 def test_depthwise_depth_multiplier():

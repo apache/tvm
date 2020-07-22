@@ -44,7 +44,12 @@ def test_basic_build():
     targets = {
         tvm.tir.IntImm("int32", ctx.device_type): tgt
     }
-    g_json, mmod, params = relay.build(tvm.IRModule.from_expr(func), targets, "llvm", params=params)
+    mod = tvm.IRModule.from_expr(func)
+    func_in_mod = mod["main"]
+    assert mod["main"] == func_in_mod, "cannot compare function to itself"
+
+    g_json, mmod, params = relay.build(mod, targets, "llvm", params=params)
+    assert mod["main"] == func_in_mod, "relay.build changed module in-place"
 
     # test
     rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)
@@ -115,7 +120,7 @@ def test_fp16_conversion():
             X = tvm.nd.array(n * np.random.randn(n).astype(src) - n / 2)
 
             # build
-            with relay.build_config(opt_level=1):
+            with tvm.transform.PassContext(opt_level=1):
                 g_json, mmod, params = relay.build(tvm.IRModule.from_expr(func), tgt)
 
             # test

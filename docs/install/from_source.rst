@@ -25,7 +25,12 @@ scratch on various systems. It consists of two steps:
 1. First build the shared library from the C++ codes (`libtvm.so` for linux, `libtvm.dylib` for macOS and `libtvm.dll` for windows).
 2. Setup for the language packages (e.g. Python Package).
 
-To get started, clone TVM repo from github. It is important to clone the submodules along, with ``--recursive`` option.
+To get started, download tvm source code from the `Download Page <https://tvm.apache.org/download>`_.
+
+Developers: Get Source from Github
+----------------------------------
+You can also choose to clone the source repo from github.
+It is important to clone the submodules along, with ``--recursive`` option.
 
 .. code:: bash
 
@@ -58,10 +63,11 @@ Our goal is to build the shared libraries:
 
 The minimal building requirements are
 
-- A recent c++ compiler supporting C++ 11 (g++-4.8 or higher)
+- A recent c++ compiler supporting C++ 14 (g++-5 or higher)
 - CMake 3.5 or higher
 - We highly recommend to build with LLVM to enable all the features.
 - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
+- On macOS, you may want to install `Homebrew <https://brew.sh>` to easily install and manage dependencies.
 
 
 We use cmake to build the library.
@@ -80,15 +86,15 @@ The configuration of TVM can be modified by `config.cmake`.
 - Edit ``build/config.cmake`` to customize the compilation options
 
   - On macOS, for some versions of Xcode, you need to add ``-lc++abi`` in the LDFLAGS or you'll get link errors.
-  - Change ``set(USE_CUDA OFF)`` to ``set(USE_CUDA ON)`` to enable CUDA backend. So do other backends and libraries
-    (OpenCL, RCOM, METAL, VULKAN, ...).
+  - Change ``set(USE_CUDA OFF)`` to ``set(USE_CUDA ON)`` to enable CUDA backend. Do the same for other backends and libraries
+    you want to build for (OpenCL, RCOM, METAL, VULKAN, ...).
+  - To help with debugging, ensure the embedded graph runtime and debugging functions are enabled with ``set(USE_GRAPH_RUNTIME ON)`` and ``set(USE_GRAPH_RUNTIME_DEBUG ON)``
 
 - TVM optionally depends on LLVM. LLVM is required for CPU codegen that needs LLVM.
 
   - LLVM 4.0 or higher is needed for build with LLVM. Note that version of LLVM from default apt may lower than 4.0.
   - Since LLVM takes long time to build from source, you can download pre-built version of LLVM from
     `LLVM Download Page <http://releases.llvm.org/download.html>`_.
-
 
     - Unzip to a certain location, modify ``build/config.cmake`` to add ``set(USE_LLVM /path/to/your/llvm/bin/llvm-config)``
     - You can also directly set ``set(USE_LLVM ON)`` and let cmake search for a usable version of LLVM.
@@ -149,6 +155,11 @@ Python Package Installation
 TVM package
 ~~~~~~~~~~~
 
+Depending on your development environment, you may want to use a virtual environment and package manager, such
+as ``virtualenv`` or ``conda``, to manage your python packages and dependencies.
+
+to install and maintain your python development environment.
+
 The python package is located at `tvm/python`
 There are two ways to install the package:
 
@@ -182,6 +193,10 @@ Method 2
 
 Python dependencies
 ~~~~~~~~~~~~~~~~~~~
+
+Note that the ``--user`` flag is not necessary if you're installing to a managed local environment,
+like ``virtualenv``.
+
    * Necessary dependencies:
 
    .. code:: bash

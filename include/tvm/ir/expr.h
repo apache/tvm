@@ -24,17 +24,20 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
-#include <tvm/runtime/object.h>
-#include <tvm/node/node.h>
-#include <tvm/node/container.h>
 #include <tvm/ir/span.h>
 #include <tvm/ir/type.h>
-#include <string>
+#include <tvm/node/container.h>
+#include <tvm/node/node.h>
+#include <tvm/runtime/object.h>
+
 #include <algorithm>
 #include <limits>
+#include <string>
 #include <type_traits>
 
 namespace tvm {
+
+using tvm::runtime::String;
 
 /*!
  * \brief Base type of all the expressions.
@@ -42,7 +45,10 @@ namespace tvm {
  */
 class BaseExprNode : public Object {
  public:
-  static constexpr const char* _type_key = "Expr";
+  static constexpr const char* _type_key = "BaseExpr";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr const uint32_t _type_child_slots = 58;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseExprNode, Object);
 };
 
@@ -86,6 +92,7 @@ class PrimExprNode : public BaseExprNode {
   DataType dtype;
 
   static constexpr const char* _type_key = "PrimExpr";
+  static constexpr const uint32_t _type_child_slots = 34;
   TVM_DECLARE_BASE_OBJECT_INFO(PrimExprNode, BaseExprNode);
 };
 
@@ -105,23 +112,16 @@ class PrimExpr : public BaseExpr {
    * \param value The value to be constructed.
    */
   TVM_DLL PrimExpr(float value);  // NOLINT(*)
-  /*!
-   * \brief construct from string.
-   * \param str The value to be constructed.
-   */
-  TVM_DLL PrimExpr(std::string str);  // NOLINT(*)
 
   /*! \return the data type of this expression. */
-  DataType dtype() const {
-    return static_cast<const PrimExprNode*>(get())->dtype;
-  }
+  DataType dtype() const { return static_cast<const PrimExprNode*>(get())->dtype; }
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
 
  private:
   // Internal function for conversion.
-  friend class runtime::TVMPODValue_;
-  TVM_DLL static PrimExpr FromObject_(ObjectPtr<Object> ptr);
+  friend struct runtime::PackedFuncValueConverter<PrimExpr>;
+  TVM_DLL static PrimExpr FromObject_(ObjectRef ref);
 };
 
 /*!
@@ -161,10 +161,11 @@ class RelayExprNode : public BaseExprNode {
    * \return The corresponding TTypeNode pointer.
    * \tparam The specific TypeNode we look for.
    */
-  template<typename TTypeNode>
+  template <typename TTypeNode>
   inline const TTypeNode* type_as() const;
 
-  static constexpr const char* _type_key = "relay.Expr";
+  static constexpr const char* _type_key = "RelayExpr";
+  static constexpr const uint32_t _type_child_slots = 22;
   TVM_DECLARE_BASE_OBJECT_INFO(RelayExprNode, BaseExprNode);
 };
 
@@ -189,12 +190,22 @@ class GlobalVar;
 class GlobalVarNode : public RelayExprNode {
  public:
   /*! \brief The name of the variable, this only acts as a hint. */
-  std::string name_hint;
+  String name_hint;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
+  }
+
+  bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {
+    // name matters for global var.
+    return equal(name_hint, other->name_hint) && equal.FreeVarEqualImpl(this, other);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(name_hint);
+    hash_reduce.FreeVarHashImpl(this);
   }
 
   static constexpr const char* _type_key = "GlobalVar";
@@ -207,7 +218,7 @@ class GlobalVarNode : public RelayExprNode {
  */
 class GlobalVar : public RelayExpr {
  public:
-  TVM_DLL explicit GlobalVar(std::string name_hint);
+  TVM_DLL explicit GlobalVar(String name_hint);
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelayExpr, GlobalVarNode);
 };
@@ -226,6 +237,15 @@ class IntImmNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("value", &value);
+  }
+
+  bool SEqualReduce(const IntImmNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype) && equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(value);
   }
 
   static constexpr const char* _type_key = "IntImm";
@@ -263,6 +283,15 @@ class FloatImmNode : public PrimExprNode {
     v->Visit("value", &value);
   }
 
+  bool SEqualReduce(const FloatImmNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype) && equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(value);
+  }
+
   static constexpr const char* _type_key = "FloatImm";
   TVM_DECLARE_FINAL_OBJECT_INFO(FloatImmNode, PrimExprNode);
 };
@@ -283,6 +312,33 @@ class FloatImm : public PrimExpr {
 
   TVM_DEFINE_OBJECT_REF_METHODS(FloatImm, PrimExpr, FloatImmNode);
 };
+
+/*!
+ * \brief Boolean constant.
+ *
+ *  This reference type is useful to add additional compile-time
+ *  type checks and helper functions for Integer equal comparisons.
+ */
+class Bool : public IntImm {
+ public:
+  explicit Bool(bool value) : IntImm(DataType::Bool(), value) {}
+  Bool operator!() const { return Bool((*this)->value == 0); }
+  operator bool() const { return (*this)->value != 0; }
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Bool, IntImm, IntImmNode);
+};
+
+// Overload operators to make sure we have the most fine grained types.
+inline Bool operator||(const Bool& a, bool b) { return Bool(a.operator bool() || b); }
+inline Bool operator||(bool a, const Bool& b) { return Bool(a || b.operator bool()); }
+inline Bool operator||(const Bool& a, const Bool& b) {
+  return Bool(a.operator bool() || b.operator bool());
+}
+inline Bool operator&&(const Bool& a, bool b) { return Bool(a.operator bool() && b); }
+inline Bool operator&&(bool a, const Bool& b) { return Bool(a && b.operator bool()); }
+inline Bool operator&&(const Bool& a, const Bool& b) {
+  return Bool(a.operator bool() && b.operator bool());
+}
 
 /*!
  * \brief Container of constant int that adds more constructors.
@@ -313,10 +369,9 @@ class Integer : public IntImm {
    * \tparam Enum The enum type.
    * \param value The enum value.
    */
-  template<typename ENum,
-           typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
-  explicit Integer(ENum value) : Integer(static_cast<int>(value)) {
-    static_assert(std::is_same<int, typename std::underlying_type<ENum>::type>::value,
+  template <typename Enum, typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
+  explicit Integer(Enum value) : Integer(static_cast<int>(value)) {
+    static_assert(std::is_same<int, typename std::underlying_type<Enum>::type>::value,
                   "declare enum to be enum int to use visitor");
   }
   /*!
@@ -331,9 +386,22 @@ class Integer : public IntImm {
    * \brief convert to int64_t
    */
   operator int64_t() const {
-    CHECK(data_ != nullptr)
-        << " Trying to reference a null Integer";
+    CHECK(data_ != nullptr) << " Trying to reference a null Integer";
     return (*this)->value;
+  }
+  // comparators
+  Bool operator==(int other) const {
+    if (data_ == nullptr) return Bool(false);
+    return Bool((*this)->value == other);
+  }
+  Bool operator!=(int other) const { return !(*this == other); }
+  template <typename Enum, typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
+  Bool operator==(Enum other) const {
+    return *this == static_cast<int>(other);
+  }
+  template <typename Enum, typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
+  Bool operator!=(Enum other) const {
+    return *this != static_cast<int>(other);
   }
 };
 
@@ -353,7 +421,18 @@ class RangeNode : public Object {
     v->Visit("extent", &extent);
   }
 
+  bool SEqualReduce(const RangeNode* other, SEqualReducer equal) const {
+    return equal(min, other->min) && equal(extent, other->extent);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(min);
+    hash_reduce(extent);
+  }
+
   static constexpr const char* _type_key = "Range";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);
 };
 
@@ -375,31 +454,28 @@ class Range : public ObjectRef {
    * \param min The minimum range.
    * \param extent The extent of the range.
    */
-  static Range make_by_min_extent(PrimExpr min, PrimExpr extent);
+  static Range FromMinExtent(PrimExpr min, PrimExpr extent);
   // declare range.
   TVM_DEFINE_OBJECT_REF_METHODS(Range, ObjectRef, RangeNode);
 };
 
 // implementataions
 inline const Type& RelayExprNode::checked_type() const {
-  CHECK(checked_type_.defined())
-      << "internal error: the type checker has "
-      << "not populated the checked_type "
-      << "field for "
-      << GetRef<RelayExpr>(this);
+  CHECK(checked_type_.defined()) << "internal error: the type checker has "
+                                 << "not populated the checked_type "
+                                 << "field for " << GetRef<RelayExpr>(this);
   return this->checked_type_;
 }
 
-template<typename TTypeNode>
+template <typename TTypeNode>
 inline const TTypeNode* RelayExprNode::type_as() const {
   static_assert(std::is_base_of<TypeNode, TTypeNode>::value,
                 "TType must be a special case of type");
   CHECK(checked_type_.defined())
       << "Type inference for this Expr has not completed. Try to call infer_type pass.";
   const TTypeNode* node = checked_type_.as<TTypeNode>();
-  CHECK(node != nullptr)
-      << "Expected type to be " << TTypeNode::_type_key
-      << ", but get " << checked_type_->GetTypeKey();
+  CHECK(node != nullptr) << "Expected type to be " << TTypeNode::_type_key << ", but get "
+                         << checked_type_->GetTypeKey();
   return node;
 }
 
@@ -407,22 +483,52 @@ inline const TTypeNode* RelayExprNode::type_as() const {
 
 namespace tvm {
 namespace runtime {
-// Additional implementattion overloads for PackedFunc.
-inline TVMPODValue_::operator tvm::PrimExpr() const {
-  if (type_code_ == kTVMNullptr) return PrimExpr();
-  if (type_code_ == kDLInt) {
-    CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
-    CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
-    return PrimExpr(static_cast<int>(value_.v_int64));
-  }
-  if (type_code_ == kDLFloat) {
-    return PrimExpr(static_cast<float>(value_.v_float64));
-  }
+// common rule for RetValue and ArgValue
+template <>
+struct PackedFuncValueConverter<PrimExpr> {
+  static PrimExpr From(const TVMPODValue_& val) {
+    if (val.type_code() == kTVMNullptr) {
+      return PrimExpr(ObjectPtr<Object>(nullptr));
+    }
+    if (val.type_code() == kDLInt) {
+      return PrimExpr(val.operator int());
+    }
+    if (val.type_code() == kDLFloat) {
+      return PrimExpr(static_cast<float>(val.operator double()));
+    }
 
-  TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle);
-  Object* ptr = static_cast<Object*>(value_.v_handle);
-  return PrimExpr::FromObject_(ObjectPtr<Object>(ptr));
-}
+    return PrimExpr::FromObject_(val.AsObjectRef<ObjectRef>());
+  }
+};
+
+template <>
+struct PackedFuncValueConverter<tvm::Integer> {
+  static tvm::Integer From(const TVMPODValue_& val) {
+    if (val.type_code() == kTVMNullptr) {
+      return Integer(ObjectPtr<Object>(nullptr));
+    }
+    if (val.type_code() == kTVMArgInt) {
+      return Integer(val.operator int());
+    }
+    return val.AsObjectRef<tvm::Integer>();
+  }
+};
+
+template <>
+struct PackedFuncValueConverter<tvm::Bool> {
+  static tvm::Bool From(const TVMPODValue_& val) {
+    if (val.type_code() == kTVMNullptr) {
+      return Bool(ObjectPtr<Object>(nullptr));
+    }
+    if (val.type_code() == kTVMArgInt) {
+      int v = val.operator int();
+      CHECK(v == 0 || v == 1) << "ValueError: boolean value can only be 0 or 1, but get " << v;
+      return Bool(static_cast<bool>(v));
+    }
+    return val.AsObjectRef<tvm::Bool>();
+  }
+};
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_IR_EXPR_H_

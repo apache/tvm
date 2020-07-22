@@ -24,6 +24,7 @@ from .. import nn, generic
 from ..nn.util import get_pad_tuple
 from ..util import get_const_tuple, traverse_inline
 from .conv2d_direct import schedule_direct_cuda
+from .conv2d_nhwc import schedule_conv2d_nhwc_direct
 
 
 @autotvm.register_topi_compute("conv2d_nchw.cuda")
@@ -46,29 +47,27 @@ def schedule_conv2d_nchw(cfg, outs):
     return s
 
 
-# TODO(@alexgl-github): It's invalid to call schedule_direct_cuda for NHWC layout
-#  as it assumes the input layout to be NCHW. Please fix this.
-# @autotvm.register_topi_compute("conv2d_nhwc.cuda")
-# def conv2d_nhwc(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
-#     return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
-#
-#
-# @autotvm.register_topi_schedule("conv2d_nhwc.cuda")
-# def schedule_conv2d_nhwc(cfg, outs):
-#     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-#     s = te.create_schedule([x.op for x in outs])
-#
-#     def _callback(op):
-#         if op.tag == 'conv2d_nhwc':
-#             schedule_direct_cuda(cfg, s, op.output(0))
-#
-#     traverse_inline(s, outs[0].op, _callback)
-#     return s
+@autotvm.register_topi_compute("conv2d_nhwc.cuda")
+def conv2d_nhwc(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
+    """Compute conv2d with NHWC layout"""
+    return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
+
+
+@autotvm.register_topi_schedule("conv2d_nhwc.cuda")
+def schedule_conv2d_nhwc(cfg, outs):
+    """Create the schedule for conv2d_nhwc"""
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    def _callback(op):
+        if op.tag == 'conv2d_nhwc':
+            schedule_conv2d_nhwc_direct(cfg, s, op.output(0))
+    traverse_inline(s, outs[0].op, _callback)
+    return s
 
 
 @autotvm.register_topi_compute("conv2d_cudnn.cuda")
-def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, layout='NCHW',
-                 out_dtype='float32'):
+def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, groups=1,
+                 layout='NCHW', out_dtype='float32'):
     """Compute conv2d using CuDNN library"""
     if layout == 'NCHW':
         tensor_format = 0 # CUDNN_TENSOR_NCHW
@@ -90,7 +89,7 @@ def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, layout='NCHW',
     pt, pl, pb, pr = get_pad_tuple(padding, (KH, KW))
     OH = (H + pt + pb - KH) // stride_h + 1
     OW = (W + pl + pr - KW) // stride_w + 1
-    cfg.add_flop(2 * N * OH * OW * CO * CI * ((KH - 1) * dilation_h + 1) * \
+    cfg.add_flop(groups * 2 * N * OH * OW * CO * CI * ((KH - 1) * dilation_h + 1) * \
                  ((KW - 1) * dilation_w + 1))
 
     if data.dtype == "int8" or kernel.dtype == "int8":
@@ -108,7 +107,8 @@ def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, layout='NCHW',
                               conv_mode=1,
                               tensor_format=tensor_format,
                               algo=-1,         # let CUDNN choose the best algo
-                              conv_dtype=dtype)
+                              conv_dtype=dtype,
+                              groups=groups)
 
 
 @autotvm.register_topi_schedule("conv2d_cudnn.cuda")

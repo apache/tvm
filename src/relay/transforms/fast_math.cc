@@ -22,29 +22,29 @@
  * \brief Replaces non linear activation functions with their fast but approximate counterparts.
  */
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
-#include <tvm/relay/transform.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
+#include <tvm/relay/transform.h>
+
 #include "pattern_util.h"
 
 namespace tvm {
 namespace relay {
 
-class FastMathMutator : public ExprMutator {
+class FastMathMutator : public ExprRewriter {
  public:
-  FastMathMutator()
-      : exp_op_(Op::Get("exp")),
-        tanh_op_(Op::Get("tanh")) {}
+  FastMathMutator() : exp_op_(Op::Get("exp")), erf_op_(Op::Get("erf")), tanh_op_(Op::Get("tanh")) {}
 
-  Expr VisitExpr_(const CallNode* n) {
-    auto new_n = ExprMutator::VisitExpr_(n);
-    if (n->op == exp_op_) {
-      return FastExp(new_n.as<CallNode>()->args[0]);
-    } else if (n->op == tanh_op_) {
-      return FastTanh(new_n.as<CallNode>()->args[0]);
+  Expr Rewrite_(const CallNode* pre, const Expr& post) override {
+    if (pre->op == exp_op_) {
+      return FastExp(post.as<CallNode>()->args[0]);
+    } else if (pre->op == erf_op_) {
+      return FastErf(post.as<CallNode>()->args[0]);
+    } else if (pre->op == tanh_op_) {
+      return FastTanh(post.as<CallNode>()->args[0]);
     }
-    return new_n;
+    return post;
   }
 
  private:
@@ -52,26 +52,24 @@ class FastMathMutator : public ExprMutator {
   // operator equivalence checking so that the registry lookup overhead can be
   // reduced.
   const Op& exp_op_;
+  const Op& erf_op_;
   const Op& tanh_op_;
 };
 
 Expr FastMath(const Expr& e) {
-  return FastMathMutator().Mutate(e);
+  auto rewriter = FastMathMutator();
+  return PostOrderRewrite(e, &rewriter);
 }
 
 namespace transform {
 
 Pass FastMath() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(FastMath(f));
-  };
-  return CreateFunctionPass(pass_func, 4, "FastMath",
-                            {tir::StringImmNode::make("InferType")});
+      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(FastMath(f)); };
+  return CreateFunctionPass(pass_func, 4, "FastMath", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.FastMath")
-.set_body_typed(FastMath);
+TVM_REGISTER_GLOBAL("relay._transform.FastMath").set_body_typed(FastMath);
 
 }  // namespace transform
 

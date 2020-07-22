@@ -24,10 +24,24 @@ tvm.tir
    :autosummary:
 
 
-
 tvm.tir.transform
 -----------------
 .. automodule:: tvm.tir.transform
    :members:
    :imported-members:
+   :autosummary:
+
+
+tvm.tir.analysis
+----------------
+.. automodule:: tvm.tir.analysis
+   :members:
+   :imported-members:
+   :autosummary:
+
+
+tvm.tir.stmt_functor
+--------------------
+.. automodule:: tvm.tir.stmt_functor
+   :members:
    :autosummary:

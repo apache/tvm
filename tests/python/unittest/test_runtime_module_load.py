@@ -57,9 +57,11 @@ def test_dso_module_load():
             tvm.tir.Store(Ab.data,
                            tvm.tir.Load(dtype, Ab.data, i) + 1,
                            i + 1))
-        fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-        fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
-        m = tvm.target.codegen.build_module(fapi, "llvm")
+        mod = tvm.IRModule.from_expr(
+            tvm.tir.PrimFunc([Ab], stmt).with_attr(
+                "global_symbol", "main")
+        )
+        m = tvm.driver.build(mod, target="llvm")
         for name in names:
             m.save(name)
 

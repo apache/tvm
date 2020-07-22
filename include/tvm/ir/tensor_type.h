@@ -24,8 +24,8 @@
 #ifndef TVM_IR_TENSOR_TYPE_H_
 #define TVM_IR_TENSOR_TYPE_H_
 
-#include <tvm/ir/type.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/type.h>
 
 namespace tvm {
 /*!
@@ -36,6 +36,7 @@ namespace tvm {
 class BaseTensorTypeNode : public TypeNode {
  public:
   static constexpr const char* _type_key = "relay.BaseTensorType";
+  static constexpr const uint32_t _type_child_slots = 1;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseTensorTypeNode, TypeNode);
 };
 
@@ -71,6 +72,15 @@ class TensorTypeNode : public BaseTensorTypeNode {
     v->Visit("shape", &shape);
     v->Visit("dtype", &dtype);
     v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const TensorTypeNode* other, SEqualReducer equal) const {
+    return equal(shape, other->shape) && equal(dtype, other->dtype);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(shape);
+    hash_reduce(dtype);
   }
 
   /*! \brief Return product of elements in the shape.

@@ -20,11 +20,12 @@
 This file contains the set of passes for Relay, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
-from tvm.ir import RelayExpr, IRModule
+from tvm.ir import IRModule
+from tvm.relay import transform, build_module
+from tvm.runtime.ndarray import cpu
 
 from . import _ffi_api
 from .feature import Feature
-from ..ty import Type
 
 
 def post_order_visit(expr, fvisit):
@@ -220,78 +221,6 @@ def all_type_vars(expr, mod=None):
     return _ffi_api.all_type_vars(expr, use_mod)
 
 
-def alpha_equal(lhs, rhs):
-    """Compare two Relay expr for structural equivalence (alpha equivalence).
-
-    Parameters
-    ----------
-    lhs : tvm.relay.Expr
-        One of the input Expression.
-
-    rhs : tvm.relay.Expr
-        One of the input Expression.
-
-    Returns
-    -------
-    result : bool
-        True iff lhs is alpha equal to rhs.
-    """
-    return bool(_ffi_api._alpha_equal(lhs, rhs))
-
-
-def assert_alpha_equal(lhs, rhs):
-    """Assert that two Relay expr is structurally equivalent. (alpha equivalence).
-
-    Parameters
-    ----------
-    lhs : tvm.relay.Expr
-        One of the input Expression.
-
-    rhs : tvm.relay.Expr
-        One of the input Expression.
-    """
-    _ffi_api._assert_alpha_equal(lhs, rhs)
-
-
-def graph_equal(lhs, rhs):
-    """Compare two Relay expr for data-flow equivalence.
-    The difference between this and alpha-equality is that
-    variables are not expected to match between lhs and rhs;
-    they are treated as sources and are mapped between each other.
-
-    Parameters
-    ----------
-    lhs : tvm.relay.Expr
-      One of the input Expression.
-
-    rhs : tvm.relay.Expr
-      One of the input Expression.
-
-    Returns
-    -------
-    result : bool
-      True iff lhs is data-flow equivalent to rhs.
-    """
-    return bool(_ffi_api._graph_equal(lhs, rhs))
-
-
-def assert_graph_equal(lhs, rhs):
-    """Compare two Relay expr for data-flow equivalence.
-    The difference between this and alpha-equality is that
-    variables are not expected to match between lhs and rhs;
-    they are treated as sources and are mapped between each other.
-
-    Parameters
-    ----------
-    lhs : tvm.relay.Expr
-      One of the input Expression.
-
-    rhs : tvm.relay.Expr
-      One of the input Expression.
-    """
-    _ffi_api._assert_graph_equal(lhs, rhs)
-
-
 def collect_device_info(expr):
     """Collect the device allocation map for the given expression. The device
     ids are propagated from the `device_copy` operators.
@@ -386,29 +315,6 @@ def detect_feature(a, b=None):
     return {Feature(int(x)) for x in _ffi_api.detect_feature(a, b)}
 
 
-def structural_hash(value):
-    """Hash a Relay expression structurally.
-
-    Parameters
-    ----------
-    expr : Union[tvm.relay.Expr, tvm.relay.Type]
-      The expression to hash.
-
-    Returns
-    -------
-    result : int
-      The hash value
-    """
-    if isinstance(value, RelayExpr):
-        return int(_ffi_api._expr_hash(value))
-    elif isinstance(value, Type):
-        return int(_ffi_api._type_hash(value))
-    else:
-        msg = ("found value of type {0} expected" +
-               "relay.Expr or relay.Type").format(type(value))
-        raise TypeError(msg)
-
-
 def extract_fused_functions(mod):
     """Pass to extract IRModule of only fused primitive functions.
 
@@ -429,3 +335,67 @@ def extract_fused_functions(mod):
     for hash_, func in ret_mod.functions.items():
         ret[hash_] = func
     return ret
+
+
+def search_fc_transpose(expr):
+    """Search fc weight name in the patten: y = nn.dense(x, transpose(w, [1, 0]))
+
+    This function is used in the data_dep_optimization.simplify_fc_transpose method
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+
+    Returns
+    -------
+    ret : Array[String]
+        Array of weight variable name in pattern y = nn.dense(x, transpose(w, [1, 0]))
+    """
+    ret = _ffi_api.search_fc_transpose(expr)
+    return ret
+
+
+def get_calibration_data(mod, data):
+    """Get the calibration data of a given relay graph
+
+    This pass uses the graph runtime to get the calibration data of a module, which
+    includes the input and output values of each function. The returned data uses
+    the GlobalVar of each function as a key. Users can further access the inputs and
+    outputs by using `inputs` or  `outputs` as the key.
+
+    Following are some limitations:
+    1. The input module (graph) cannot have control flows.
+    2. The input arguments of each function cannot be tuples (outputs can be tuples).
+    3. We only handle top-level functions (i.e., nested function is not handled).
+    4. We only handle functions with `Compiler` attribute being set.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The input module for collecting the calibration data
+
+    data : Dict[str, NDArray]
+        The input data for running the module
+
+    Returns
+    -------
+    data : Dict[tvm.relay.GlobalVar, Dict[str, NDArray]]
+    """
+    output_map = _ffi_api.get_calibrate_output_map(mod)
+
+    mod = _ffi_api.get_calibrate_module(mod)
+    mod = transform.Inline()(mod)
+
+    ref_ex = build_module.create_executor("graph", mod=mod, ctx=cpu(0))
+    ref_res = ref_ex.evaluate()(**data)
+
+    calib_data = {}
+    for gvar, indices in output_map.items():
+        offset = int(indices[0])
+        in_len = int(indices[1])
+        out_len = int(indices[2])
+        value = {"inputs": ref_res[offset:offset + in_len],
+                 "outputs": ref_res[offset + in_len:offset + in_len + out_len]}
+        calib_data[gvar] = value
+
+    return calib_data

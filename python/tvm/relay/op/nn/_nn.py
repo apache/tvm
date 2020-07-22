@@ -22,11 +22,12 @@ import topi
 from topi.util import get_const_tuple
 
 from tvm.runtime import convert
+from tvm.te.hybrid import script
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern
 from .._tensor import elemwise_shape_func
-from ....hybrid import script
+from ..strategy.generic import is_depthwise_conv2d
 
 # relu
 reg.register_broadcast_schedule("nn.relu")
@@ -34,12 +35,12 @@ reg.register_pattern("nn.relu", OpPattern.ELEMWISE)
 
 
 # softmax
-reg.register_schedule("nn.softmax", strategy.schedule_softmax)
+reg.register_strategy("nn.softmax", strategy.softmax_strategy)
 reg.register_pattern("nn.softmax", OpPattern.OPAQUE)
 
 
 # log_softmax
-reg.register_schedule("nn.log_softmax", strategy.schedule_softmax)
+reg.register_schedule("nn.log_softmax", strategy.schedule_log_softmax)
 reg.register_pattern("nn.log_softmax", OpPattern.OPAQUE)
 
 
@@ -68,7 +69,7 @@ def compute_sparse_dense(attrs, inputs, out_type):
     """Compute definition of sparse_dense"""
     return [topi.nn.sparse_dense(inputs[0], inputs[1], inputs[2], inputs[3])]
 
-reg.register_schedule("nn.sparse_dense", strategy.schedule_sparse_dense)
+reg.register_strategy("nn.sparse_dense", strategy.sparse_dense_strategy)
 reg.register_pattern("nn.sparse_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
@@ -117,7 +118,7 @@ def legalize_conv2d(attrs, inputs, types):
     return topi.nn.conv2d_legalize(attrs, inputs, types)
 
 @reg.register_convert_op_layout("nn.conv2d")
-def convert_conv2d(attrs, inputs, tinfos, desired_layout):
+def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     """Convert Layout pass registration for conv2d op.
 
     Parameters
@@ -128,8 +129,9 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layout):
         The args of the Relay expr to be legalized
     tinfos : list of types
         List of input and output types
-    desired_layout : str
-        The desired layout
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs respectively.
 
     Returns
     -------
@@ -139,19 +141,36 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layout):
     # pylint: disable=import-outside-toplevel
     from tvm import relay
     data, weight = inputs
-    assert desired_layout == 'NCHW', \
-            "Currently only transformation to NCHW layout is supported."
-    if desired_layout == 'NCHW':
-        new_attrs = dict(attrs)
-        new_attrs['data_layout'] = desired_layout
+    new_attrs = dict(attrs)
+    assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv2d's inputs"
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    new_attrs['data_layout'] = desired_data_layout
+
+    if desired_kernel_layout != "default":
+        new_attrs['kernel_layout'] = desired_kernel_layout
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    # Handle default kernel layouts
+    if desired_data_layout == 'NCHW':
         new_attrs['kernel_layout'] = 'OIHW'
         return relay.nn.conv2d(data, weight, **new_attrs)
-    return None
+    elif desired_data_layout == 'NHWC':
+        # Check for depthwise convolution.
+        if is_depthwise_conv2d(data.shape, attrs['data_layout'], weight.shape,
+                               attrs['kernel_layout'], attrs['groups']):
+            new_attrs['kernel_layout'] = 'HWOI'
+        else:
+            new_attrs['kernel_layout'] = 'HWIO'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    raise ValueError("Layout %s is not yet supported." % desired_data_layout)
 
 
 # conv2d_transpose
 reg.register_strategy("nn.conv2d_transpose", strategy.conv2d_transpose_strategy)
 reg.register_pattern("nn.conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
+
 
 @reg.register_legalize("nn.conv2d_transpose")
 def legalize_conv2d_transpose(attrs, inputs, types):
@@ -174,9 +193,102 @@ def legalize_conv2d_transpose(attrs, inputs, types):
     return topi.nn.conv2d_transpose_legalize(attrs, inputs, types)
 
 
+# conv3d_transpose
+reg.register_strategy("nn.conv3d_transpose", strategy.conv3d_transpose_strategy)
+reg.register_pattern("nn.conv3d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+@reg.register_legalize("nn.conv3d_transpose")
+def legalize_conv3d_transpose(attrs, inputs, types):
+    """Legalize conv3d_transpose op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current Transposed convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.conv3d_transpose_legalize(attrs, inputs, types)
+
+
 # conv3d
 reg.register_strategy("nn.conv3d", strategy.conv3d_strategy)
 reg.register_pattern("nn.conv3d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+@reg.register_alter_op_layout("nn.conv3d")
+def alter_op_layout_conv3d(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of conv3d"""
+    return topi.nn.conv3d_alter_layout(attrs, inputs, tinfos, out_type)
+
+@reg.register_convert_op_layout("nn.conv3d")
+def convert_conv3d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for conv3d op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs respectively.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    # pylint: disable=import-outside-toplevel
+    from tvm import relay
+    data, weight = inputs
+    new_attrs = dict(attrs)
+    assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv3d's inputs"
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    new_attrs['data_layout'] = desired_data_layout
+
+    if desired_kernel_layout != "default":
+        new_attrs['kernel_layout'] = desired_kernel_layout
+        return relay.nn.conv3d(data, weight, **new_attrs)
+
+    # Handle default kernel layouts
+    if desired_data_layout == 'NCDHW':
+        new_attrs['kernel_layout'] = 'OIDHW'
+        return relay.nn.conv3d(data, weight, **new_attrs)
+    elif desired_data_layout == "NDHWC":
+        new_attrs['kernel_layout'] = 'DHWIO'
+        return relay.nn.conv3d(data, weight, **new_attrs)
+
+    raise ValueError("Layout %s is not yet supported" % desired_data_layout)
+
+
+# conv3d_winograd related operators
+reg.register_strategy("nn.contrib_conv3d_winograd_without_weight_transform",
+                      strategy.conv3d_winograd_without_weight_transfrom_strategy)
+reg.register_pattern("nn.contrib_conv3d_winograd_without_weight_transform",
+                     OpPattern.OUT_ELEMWISE_FUSABLE)
+
+@reg.register_compute("nn.contrib_conv3d_winograd_weight_transform")
+def compute_contrib_conv3d_winograd_weight_transform(attrs, inputs, out_dtype):
+    """Compute definition of contrib_conv3d_winograd_weight_transform"""
+    out = topi.nn.conv3d_winograd_weight_transform(
+        inputs[0], attrs.get_int('tile_size'))
+    return [out]
+
+reg.register_schedule("nn.contrib_conv3d_winograd_weight_transform",
+                      strategy.schedule_conv3d_winograd_weight_transform)
+reg.register_pattern("nn.contrib_conv3d_winograd_weight_transform",
+                     OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # conv1d_transpose
@@ -335,6 +447,23 @@ reg.register_strategy("nn.contrib_conv2d_winograd_without_weight_transform",
 reg.register_pattern("nn.contrib_conv2d_winograd_without_weight_transform",
                      OpPattern.OUT_ELEMWISE_FUSABLE)
 
+# conv2d_gemm related operators
+reg.register_strategy("nn.contrib_conv2d_gemm_without_weight_transform",
+                      strategy.conv2d_gemm_without_weight_transform_strategy)
+reg.register_pattern("nn.contrib_conv2d_gemm_without_weight_transform",
+                     OpPattern.OUT_ELEMWISE_FUSABLE)
+
+@reg.register_compute("nn.contrib_conv2d_gemm_weight_transform")
+def compute_contrib_conv2d_gemm_weight_transform(attrs, inputs, out_dtype):
+    """Compute definition of contrib_conv2d_gemm_weight_transform"""
+    out = topi.nn.conv2d_gemm_weight_transform(
+        inputs[0], attrs.tile_rows, attrs.tile_cols)
+    return [out]
+
+reg.register_schedule("nn.contrib_conv2d_gemm_weight_transform",
+                      strategy.schedule_conv2d_gemm_weight_transform)
+reg.register_pattern("nn.contrib_conv2d_gemm_weight_transform",
+                     OpPattern.OUT_ELEMWISE_FUSABLE)
 
 @reg.register_compute("nn.contrib_conv2d_winograd_weight_transform")
 def compute_contrib_conv2d_winograd_weight_transform(attrs, inputs, out_dtype):
@@ -435,6 +564,15 @@ reg.register_reduce_schedule("nn.cross_entropy")
 reg.register_pattern("nn.cross_entropy", OpPattern.OPAQUE)
 
 
+# dilate
+@reg.register_compute("nn.dilate")
+def compute_dilate(attrs, inputs, out_dtype):
+    return [topi.nn.dilate(inputs[0], attrs.strides)]
+
+reg.register_broadcast_schedule("nn.dilate")
+reg.register_pattern("nn.dilate", OpPattern.INJECTIVE)
+
+
 # cross_entropy_with_logits
 @reg.register_compute("nn.cross_entropy_with_logits")
 def compute_cross_entropy_with_logits(attrs, inputs, out_dtype):
@@ -466,6 +604,11 @@ def compute_space_to_depth(attrs, inputs, out_dtype):
 
 reg.register_injective_schedule("nn.space_to_depth")
 reg.register_pattern("nn.space_to_depth", OpPattern.INJECTIVE)
+
+
+# correlation
+reg.register_strategy("nn.correlation", strategy.correlation_strategy)
+reg.register_pattern("nn.correlation", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 #####################
@@ -629,6 +772,21 @@ def pad_shape_func(attrs, inputs, _):
     for pair in attrs.pad_width:
         pad_width.append(get_const_tuple(pair))
     return [_pad_shape_func(inputs[0], convert(pad_width))]
+
+@script
+def _dilate_shape_func(data_shape, strides):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    for i in const_range(out.shape[0]):
+        out[i] = (data_shape[i] - 1) * strides[i] + 1
+
+    return out
+
+@reg.register_shape_func("nn.dilate", False)
+def dilate_shape_func(attrs, inputs, _):
+    """
+    Shape function for dilate op.
+    """
+    return [_dilate_shape_func(inputs[0], convert(attrs.strides))]
 
 reg.register_shape_func("nn.bias_add", False, elemwise_shape_func)
 reg.register_shape_func("nn.softmax", False, elemwise_shape_func)

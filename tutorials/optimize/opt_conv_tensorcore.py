@@ -163,7 +163,7 @@ def intrin_wmma_load_matrix(scope):
 
         BA = ins[0]
         BC = outs[0]
-        ib.emit(tvm.tir.call_intrin('handle', 'tvm_load_matrix_sync',
+        ib.emit(tvm.tir.call_intrin('handle', 'tir.tvm_load_matrix_sync',
                                 BC.data, n, n, n, BC.elem_offset // 256,
                                 BA.access_ptr('r'), n, 'row_major'))
         return ib.get()
@@ -190,12 +190,12 @@ def intrin_wmma_gemm():
 
         def init():
             ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_intrin('handle', 'tvm_fill_fragment', BC.data, n, n, n, BC.elem_offset // 256, 0.0))
+            ib.emit(tvm.tir.call_intrin('handle', 'tir.tvm_fill_fragment', BC.data, n, n, n, BC.elem_offset // 256, 0.0))
             return ib.get()
 
         def update():
             ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_intrin('handle', 'tvm_mma_sync',
+            ib.emit(tvm.tir.call_intrin('handle', 'tir.tvm_mma_sync',
                                     BC.data, BC.elem_offset // 256,
                                     BA.data, BA.elem_offset // 256,
                                     BB.data, BB.elem_offset // 256,
@@ -218,7 +218,7 @@ def intrin_wmma_store_matrix():
         ib = tvm.tir.ir_builder.create()
         BA = ins[0]
         BC = outs[0]
-        ib.emit(tvm.tir.call_intrin('handle', 'tvm_store_matrix_sync',
+        ib.emit(tvm.tir.call_intrin('handle', 'tir.tvm_store_matrix_sync',
                                 BA.data, n, n, n, BA.elem_offset // 256,
                                 BC.access_ptr('w'), n, 'row_major'))
         return ib.get()
@@ -331,7 +331,9 @@ print(tvm.lower(s, [A, W, Conv], simple_mode=True))
 
 ctx = tvm.gpu(0)
 if nvcc.have_tensorcore(ctx.compute_version):
-    with tvm.target.build_config(auto_unroll_max_step=16):
+    with tvm.transform.PassContext(config={"tir.UnrollLoop": {
+        "auto_max_step": 16
+    }}):
         func = tvm.build(s, [A, W, Conv], 'cuda')
     a_np = np.random.uniform(size=data_shape).astype(A.dtype)
     w_np = np.random.uniform(size=kernel_shape).astype(W.dtype)

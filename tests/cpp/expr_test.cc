@@ -34,7 +34,6 @@ TEST(Expr, Basic) {
   CHECK(os.str() == "max(((x + 1) + 2), 100)");
 }
 
-
 TEST(ExprNodeRef, Basic) {
   using namespace tvm;
   using namespace tvm::tir;
@@ -44,8 +43,7 @@ TEST(ExprNodeRef, Basic) {
   CHECK(GetRef<ObjectRef>(op).same_as(z));
 }
 
-
-int main(int argc, char ** argv) {
+int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
   return RUN_ALL_TESTS();

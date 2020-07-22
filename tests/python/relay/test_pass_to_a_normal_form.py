@@ -18,7 +18,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.analysis import alpha_equal, detect_feature
+from tvm.relay.analysis import detect_feature
 from tvm.relay import op, create_executor, transform
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, count
@@ -28,8 +28,8 @@ from tvm.relay.analysis import Feature
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
     mod = tvm.IRModule.from_expr(expr)
-    seq = transform.Sequential(passes)
-    with transform.PassContext(opt_level=3):
+    seq = tvm.transform.Sequential(passes)
+    with tvm.transform.PassContext(opt_level=3):
        mod = seq(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
@@ -76,7 +76,7 @@ def test_order():
     expected_output = relay.Let(b, y, expected_output)
     expected_output = relay.Let(a, x, expected_output)
     expected_output = run_opt_pass(expected_output, transform.InferType())
-    assert alpha_equal(anf, expected_output)
+    assert tvm.ir.structural_equal(anf, expected_output)
 
 
 def test_if():
@@ -93,7 +93,7 @@ def test_if():
     expected_output = relay.Let(d, expected_output, d)
     expected_output = relay.Let(c, cond, expected_output)
     expected_output = run_opt_pass(expected_output, transform.InferType())
-    assert alpha_equal(anf, expected_output)
+    assert tvm.ir.structural_equal(anf, expected_output)
 
 
 # make sure we dont infinite loop.

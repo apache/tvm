@@ -34,6 +34,8 @@ def test_check_numerical_grads():
         lambda x: (np.tan(x), 1.0 / (np.cos(x) * np.cos(x))),
     ]
 
+    np.random.seed(0)
+
     # Avoid values too close to 0 since singularities of our functions are there
     min_x = 0.5
 

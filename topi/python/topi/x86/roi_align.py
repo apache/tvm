@@ -19,7 +19,7 @@
 import math
 import tvm
 
-from tvm import hybrid
+from tvm.te import hybrid
 from ..tensor import full
 from ..util import get_const_tuple
 

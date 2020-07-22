@@ -18,10 +18,9 @@
 import tvm
 
 def check_json_roundtrip(node):
-    from tvm.relay.analysis import graph_equal
     json_str = tvm.ir.save_json(node)
     back = tvm.ir.load_json(json_str)
-    assert graph_equal(back, node)
+    assert tvm.ir.structural_equal(back, node, map_free_vars=True)
 
 
 def test_prim_type():
@@ -73,7 +72,7 @@ def test_func_type():
 
 def test_tuple_type():
     tp = tvm.ir.TypeVar('tp', tvm.ir.TypeKind.Type)
-    tf = tvm.ir.FuncType([], None, [], [])
+    tf = tvm.ir.FuncType([], tvm.ir.TupleType([]), [], [])
     tt = tvm.ir.TensorType(tvm.runtime.convert([1, 2, 3]), 'float32')
     fields = tvm.runtime.convert([tp, tf, tt])
 

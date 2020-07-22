@@ -22,6 +22,7 @@
 
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+
 #include <string>
 #include <unordered_map>
 
@@ -60,7 +61,7 @@ class Registry {
    * same code. Generally, this should be straightforward, as the user will be manually registering
    * all of their custom types.
    * \param type_name The name of the type, e.g. "bfloat"
-   * \param type_code The type code, which should be greater than TVMTypeCode::kTVMExtEnd
+   * \param type_code The type code, which should be greater than TVMArgTypeCode::kTVMExtEnd
    */
   void Register(const std::string& type_name, uint8_t type_code);
 
@@ -69,7 +70,7 @@ class Registry {
    * \param type_name The type name
    * \return The type code
    */
-  uint8_t GetTypeCode(const std::string &type_name);
+  uint8_t GetTypeCode(const std::string& type_name);
 
   /*!
    * \brief Get type name from type code

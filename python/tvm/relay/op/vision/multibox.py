@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Multibox operations."""
+from tvm.relay import expr
 from . import _make
-from ...expr import TupleWrapper
+
 
 def multibox_prior(data,
                    sizes=(1.0,),
@@ -86,6 +87,7 @@ def multibox_transform_loc(cls_prob,
     -------
     ret : tuple of tvm.relay.Expr
     """
-    return TupleWrapper(_make.multibox_transform_loc(cls_prob, loc_pred,
-                                                     anchor, clip, threshold,
-                                                     variances), 2)
+    return expr.TupleWrapper(
+        _make.multibox_transform_loc(cls_prob, loc_pred,
+                                     anchor, clip, threshold,
+                                     variances), 2)

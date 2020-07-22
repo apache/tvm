@@ -39,6 +39,8 @@ from .reduction import *
 from .transform import *
 from .broadcast import *
 from .sort import *
+from .scatter import *
+from .scatter_add import *
 from .argwhere import *
 from . import generic
 from . import nn
@@ -48,7 +50,6 @@ from . import arm_cpu
 from . import mali
 from . import bifrost
 from . import intel_graphics
-from . import opengl
 from . import util
 from . import rocm
 from . import vision

@@ -24,10 +24,11 @@ endif()
 tvm_option(USE_CUDA "Build with CUDA" OFF)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
-tvm_option(USE_OPENGL "Build with OpenGL" OFF)
 tvm_option(USE_METAL "Build with Metal" OFF)
 tvm_option(USE_ROCM "Build with ROCM" OFF)
 tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
+tvm_option(USE_HEXAGON_DEVICE "Build with Hexagon device support in TVM runtime" OFF)
+tvm_option(USE_HEXAGON_SDK "Path to the Hexagon SDK root (required for Hexagon support in TVM runtime or for building TVM runtime for Hexagon)" /path/to/sdk)
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
@@ -41,6 +42,8 @@ tvm_option(USE_MSVC_MT "Build with MT" OFF)
 tvm_option(USE_MICRO "Build with Micro" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
+tvm_option(USE_TF_TVMDSOOP "Build with TensorFlow TVMDSOOp" OFF)
+tvm_option(USE_FALLBACK_STL_MAP "Use TVM's POD compatible Map" OFF)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -53,6 +56,7 @@ tvm_option(PICOJSON_PATH "Path to PicoJSON" "3rdparty/picojson")
 tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_MKL_PATH "MKL root path when use MKL blas" none)
 tvm_option(USE_MKLDNN "Build with MKLDNN" OFF)
+tvm_option(USE_DNNL_CODEGEN "Enable MKLDNN (DNNL) codegen" OFF)
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
 tvm_option(USE_CUBLAS "Build with cuBLAS" OFF)
 tvm_option(USE_THRUST "Build with Thrust" OFF)
@@ -63,8 +67,17 @@ tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" OFF)
 tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
 tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
+tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
 tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
+tvm_option(USE_COREML "Build with coreml support" OFF)
+tvm_option(USE_TARGET_ONNX "Build with ONNX Codegen support" OFF)
+tvm_option(USE_ARM_COMPUTE_LIB "Build with Arm Compute Library" OFF)
+tvm_option(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME "Build with Arm Compute Library graph runtime" OFF)
+
+if(USE_CPP_RPC AND UNIX)
+  message(FATAL_ERROR "USE_CPP_RPC is only supported with WIN32. Use the Makefile for non-Windows.")
+endif()
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -77,7 +90,7 @@ include_directories(${PICOJSON_PATH})
 
 # initial variables
 set(TVM_LINKER_LIBS "")
-set(TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
+set(TVM_RUNTIME_LINKER_LIBS "")
 
 # Generic compilation options
 if(MSVC)
@@ -99,7 +112,7 @@ if(MSVC)
   endif()
 else(MSVC)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    message("Build in Debug mode")
+    message(STATUS "Build in Debug mode")
     set(CMAKE_C_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_CXX_FLAGS}")
     set(CMAKE_CUDA_FLAGS "-O0 -g -Xcompiler=-Wall -Xcompiler=-fPIC ${CMAKE_CUDA_FLAGS}")
@@ -117,7 +130,56 @@ else(MSVC)
       CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
     set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
   endif()
+
+  # Detect if we're compiling for Hexagon.
+  set(TEST_FOR_HEXAGON_CXX
+      "#ifndef __hexagon__"
+      "#error"
+      "#endif"
+      "int main() {}"
+      # Define _start_main to avoid linking errors with -fPIC.
+      "extern \"C\" void _start_main() {}")
+  set(TEST_FOR_HEXAGON_DIR
+      "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp")
+  set(TEST_FOR_HEXAGON_FILE "${TEST_FOR_HEXAGON_DIR}/test_for_hexagon.cc")
+  string(REPLACE ";" "\n" TEST_FOR_HEXAGON_CXX_TEXT "${TEST_FOR_HEXAGON_CXX}")
+  file(WRITE "${TEST_FOR_HEXAGON_FILE}" "${TEST_FOR_HEXAGON_CXX_TEXT}")
+  try_compile(BUILD_FOR_HEXAGON "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}"
+              "${TEST_FOR_HEXAGON_FILE}")
+  file(REMOVE "${TEST_FOR_HEXAGON_FILE}")
+  if(BUILD_FOR_HEXAGON)
+    message(STATUS "Building for Hexagon")
+  endif()
+
+  # Detect if we're compiling for Android.
+  set(TEST_FOR_ANDROID_CXX
+      "#ifndef __ANDROID__"
+      "#error"
+      "#endif"
+      "int main() {}")
+  set(TEST_FOR_ANDROID_DIR
+      "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp")
+  set(TEST_FOR_ANDROID_FILE "${TEST_FOR_ANDROID_DIR}/test_for_android.cc")
+  string(REPLACE ";" "\n" TEST_FOR_ANDROID_CXX_TEXT "${TEST_FOR_ANDROID_CXX}")
+  file(WRITE "${TEST_FOR_ANDROID_FILE}" "${TEST_FOR_ANDROID_CXX_TEXT}")
+  try_compile(BUILD_FOR_ANDROID "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}"
+              "${TEST_FOR_ANDROID_FILE}")
+  file(REMOVE "${TEST_FOR_ANDROID_FILE}")
+  if(BUILD_FOR_ANDROID)
+    message(STATUS "Building for Android")
+  endif()
 endif(MSVC)
+
+# Hexagon has dlopen built into QuRT (no need for static library).
+if(NOT BUILD_FOR_HEXAGON)
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
+endif()
+
+if(BUILD_FOR_ANDROID)
+  # EmuTLS on Android is in libgcc. Without it linked in, libtvm_runtime.so
+  # won't load on Android due to missing __emutls_XXX symbols.
+  list(APPEND TVM_RUNTIME_LINKER_LIBS "gcc")
+endif()
 
 # add source group
 FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc")
@@ -127,6 +189,7 @@ assign_source_group("Include" ${GROUP_INCLUDE})
 
 # Source file lists
 file(GLOB_RECURSE COMPILER_SRCS
+    src/auto_scheduler/*.cc
     src/node/*.cc
     src/ir/*.cc
     src/arith/*.cc
@@ -134,6 +197,7 @@ file(GLOB_RECURSE COMPILER_SRCS
     src/autotvm/*.cc
     src/tir/*.cc
     src/driver/*.cc
+    src/parser/*.cc
     src/printer/*.cc
     src/support/*.cc
     )
@@ -189,6 +253,13 @@ file(GLOB RUNTIME_SRCS
   src/runtime/vm/*.cc
 )
 
+if(BUILD_FOR_HEXAGON)
+  # Add file implementing posix_memalign.
+  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+
+  add_definitions(-D_MACH_I32=int)
+endif()
+
 # Package runtime rules
 if(NOT USE_RTTI)
   add_definitions(-DDMLC_ENABLE_RTTI=0)
@@ -240,9 +311,10 @@ endif(USE_EXAMPLE_EXT_RUNTIME)
 
 # Module rules
 include(cmake/modules/VTA.cmake)
+include(cmake/modules/StandaloneCrt.cmake)
 include(cmake/modules/CUDA.cmake)
+include(cmake/modules/Hexagon.cmake)
 include(cmake/modules/OpenCL.cmake)
-include(cmake/modules/OpenGL.cmake)
 include(cmake/modules/OpenMP.cmake)
 include(cmake/modules/Vulkan.cmake)
 include(cmake/modules/Metal.cmake)
@@ -259,12 +331,19 @@ include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/NNPack.cmake)
 include(cmake/modules/contrib/HybridDump.cmake)
 include(cmake/modules/contrib/TFLite.cmake)
+include(cmake/modules/contrib/TF_TVMDSOOP.cmake)
+include(cmake/modules/contrib/CoreML.cmake)
+include(cmake/modules/contrib/ONNX.cmake)
+include(cmake/modules/contrib/ArmComputeLib.cmake)
 
+include(CheckCXXCompilerFlag)
 if(NOT MSVC)
-  include(CheckCXXCompilerFlag)
   check_cxx_compiler_flag("-std=c++14" SUPPORT_CXX14)
-  message(STATUS "Build with c++14")
   set(CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS}")
+  set(CMAKE_CUDA_STANDARD 14)
+else()
+  check_cxx_compiler_flag("/std:c++14" SUPPORT_CXX14)
+  set(CMAKE_CXX_FLAGS "/std:c++14 ${CMAKE_CXX_FLAGS}")
   set(CMAKE_CUDA_STANDARD 14)
 endif()
 
@@ -272,6 +351,9 @@ add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
 
+if(USE_CPP_RPC)
+  add_subdirectory("apps/cpp_rpc")
+endif()
 
 if(USE_RELAY_DEBUG)
   message(STATUS "Building Relay in debug mode...")
@@ -281,7 +363,29 @@ else()
   set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
 endif(USE_RELAY_DEBUG)
 
-if(USE_THREADS)
+if(USE_FALLBACK_STL_MAP)
+  message(STATUS "Building with STL Map...")
+  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
+  set_target_properties(tvm_topi PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
+else()
+  message(STATUS "Building with TVM Map...")
+  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
+  set_target_properties(tvm_topi PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
+endif(USE_FALLBACK_STL_MAP)
+
+if(BUILD_FOR_HEXAGON)
+  # Wrap pthread_create to allow setting custom stack size.
+  set_target_properties(tvm_runtime PROPERTIES LINK_FLAGS
+                        "-Wl,--wrap=pthread_create")
+
+  target_include_directories(tvm_runtime
+    PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/posix"
+    PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/qurt"
+    PUBLIC "${USE_HEXAGON_SDK}/incs"
+    PUBLIC "${USE_HEXAGON_SDK}/incs/stddef")
+endif()
+
+if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   message(STATUS "Build with thread support...")
   set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
   set(THREADS_PREFER_PTHREAD_FLAG TRUE)
@@ -289,7 +393,7 @@ if(USE_THREADS)
   target_link_libraries(tvm Threads::Threads)
   target_link_libraries(tvm_topi Threads::Threads)
   target_link_libraries(tvm_runtime Threads::Threads)
-endif(USE_THREADS)
+endif()
 
 target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})

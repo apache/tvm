@@ -39,7 +39,7 @@ Type the following command to run the sample code under the current folder,
 after building TVM first.
 
 ```bash
-make demo
+make demo_dynamic
 ```
 
 This will:
@@ -48,7 +48,20 @@ This will:
 - Compile the model with Relay
 - Build a `bundle.so` shared object containing the model specification and
   parameters
-- Build a `demo` executable that `dlopen`'s `bundle.so` (or `bundle_c.so` in 
+- Build a `demo_dynamic` executable that `dlopen`'s `bundle.so` (or `bundle_c.so` in 
   terms of the MISRA-C runtime), instantiates the contained graph runtime,
   and invokes the `GraphRuntime::Run` function on a cat image, then prints
   the output results.
+
+Type the following command to run the sample code with static linking.
+  
+```bash
+make demo_static
+```
+
+This will:
+- Download the mobilenet0.25 model from the MXNet Gluon Model Zoo
+- Compile the model with Relay and outputs `model.o`
+- Build a `bundle_static.o` object containing the runtime functions
+- Build a `demo_static` executable which has static link to `bundle_static.o` and 
+  `model.o`, functions on a cat image, then prints the output results.

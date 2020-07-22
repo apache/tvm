@@ -169,7 +169,8 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layo
 
     cfg.define_split("tile_ic", in_channel, num_outputs=2)
     cfg.define_split("tile_oc", num_filter, num_outputs=2)
-    cfg.define_split("tile_ow", ow, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
+    cfg.define_split("tile_ow", ow, num_outputs=2, filter=lambda y: y.size[-1] <= 64,
+                     policy="verbose")
     if is_kernel_1x1:
         cfg.define_knob("tile_oh", [1, 2] if oh > 1 else [1])
     else:
@@ -185,7 +186,19 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layo
     # Pack data if raw 4-D data is provided.
     # This can only happen when autotuning.
     if len(data.shape) == 4:
-        data, kernel = _pack_data(cfg, data, kernel)
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            # Directly use modified data layout placeholder.
+            dshape = (n, in_channel // cfg["tile_ic"].size[-1],
+                      ih, iw, cfg["tile_ic"].size[-1])
+            data = tvm.te.placeholder(dshape, data.dtype, name="data")
+            kshape = (num_filter // cfg["tile_oc"].size[-1],
+                      in_channel // cfg["tile_ic"].size[-1],
+                      kernel_height, kernel_width,
+                      cfg["tile_ic"].size[-1],
+                      cfg["tile_oc"].size[-1])
+            kernel = tvm.te.placeholder(kshape, kernel.dtype, name="kernel")
+        else:
+            data, kernel = _pack_data(cfg, data, kernel)
 
     return nn.conv2d_NCHWc(data,
                            kernel,

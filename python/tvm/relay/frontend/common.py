@@ -456,22 +456,20 @@ def get_name(node):
 
 def infer_type(node, mod=None):
     """A method to infer the type of an intermediate node in the relay graph."""
-    new_mod = IRModule.from_expr(node)
-    if mod is not None:
-        new_mod.update(mod)
-    new_mod = _transform.InferType()(new_mod)
-    entry = new_mod["main"]
-    return entry if isinstance(node, _function.Function) else entry.body
+    if isinstance(mod, IRModule):
+        mod["main"] = _function.Function([], node)
+        mod = _transform.InferType()(mod)
+        entry = mod["main"]
+        ret = entry.body
+    else:
+        new_mod = IRModule.from_expr(node)
+        if mod is not None:
+            new_mod.update(mod)
+            new_mod = _transform.InferType()(new_mod)
+        entry = new_mod["main"]
+        ret = entry if isinstance(node, _function.Function) else entry.body
 
-def infer_shape(inputs, mod=None):
-    """A method to get the output type of an intermediate node in the graph."""
-    out_type = infer_type(inputs, mod=mod)
-    checked_type = out_type.checked_type
-    if hasattr(checked_type, 'shape'):
-        # Regular operator that outputs tensors
-        return get_const_tuple(out_type.checked_type.shape)
-    # The return type is not a tensor, for example List
-    return checked_type
+    return ret
 
 def infer_channels(inputs, transpose=False):
     """A hack for getting 'channels' or 'units' since caffe2 does not provide
@@ -483,20 +481,31 @@ def infer_channels(inputs, transpose=False):
     return channels
 
 
+def infer_shape(inputs, mod=None):
+    """A method to get the output type of an intermediate node in the graph."""
+    out_type = infer_type(inputs, mod=mod)
+    checked_type = out_type.checked_type
+    if hasattr(checked_type, 'shape'):
+        # Regular operator that outputs tensors
+        return get_const_tuple(checked_type.shape)
+    # The return type is not a tensor, for example List
+    return checked_type
+
+
 def infer_value(input_val, params, mod=None):
     """A hack for getting the value of an expression by evaluating a
     portion of the relay graph. This is often needed for functions that
     whose output shape depends on the value of a tensor.
     """
+    # Check that all free variables have associated parameters.
+    assert all(var.name_hint in params.keys() for var in analysis.free_vars(
+        input_val)), "All inputs to infer must be available in params."
     try:
         # TODO(kevinthesun): Use VM for all cases.
         # pylint: disable=import-outside-toplevel
         from tvm.contrib import graph_runtime
-        # Check that all free variables have associated parameters.
-        assert all(var.name_hint in params.keys() for var in analysis.free_vars(
-            input_val)), "All inputs to infer must be available in params."
         func = _function.Function(analysis.free_vars(input_val), input_val)
-        with tvm.relay.build_config(opt_level=0):
+        with tvm.transform.PassContext(opt_level=0):
             graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
         ctx = tvm.cpu(0)
         m = graph_runtime.create(graph, lib, ctx)
@@ -505,13 +514,13 @@ def infer_value(input_val, params, mod=None):
         return m.get_output(0)
     except Exception:
         if isinstance(mod, IRModule):
-            mod["main"] = _expr.Function(analysis.free_vars(input_val), input_val)
+            mod["main"] = _function.Function(analysis.free_vars(input_val), input_val)
         else:
             mod = IRModule.from_expr(input_val)
         exc = tvm.relay.create_executor("debug", mod=mod, ctx=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod['main'].params:
-            inputs.append(tvm.nd.array(params[param.name_hint]))
+            inputs.append(params[param.name_hint])
         result = exc.evaluate()(*inputs)
         return result
 

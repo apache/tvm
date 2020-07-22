@@ -115,8 +115,7 @@ def intrin_gemv(m, l):
                                 bb.access_ptr("r"),
                                 m, l, bb.strides[0]))
         return ib.get()
-    with tvm.target.build_config(offset_factor=1):
-        return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
+    return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
 
 ######################################################################
 # Here :code:`te.decl_tensor_intrin` declares how to execute the computation :code:`c.op`.
@@ -269,8 +268,7 @@ def intrin_gemv(m, l):
         def _reduce_update():
             return _body()
         return _body(), _reduce_reset(), _reduce_update()
-    with tvm.target.build_config(offset_factor=1):
-        return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
+    return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
 
 ######################################################################
 # Note that :code:`intrin_func` now returns a triplet:
@@ -304,7 +302,7 @@ tvm.testing.assert_allclose(c.asnumpy(), np.dot(a, b.T), rtol=1e-3)
 # For example, INT8 quantization on Intel CPUs uses tensorization
 # to invoke AVX instruction directly.
 # It also enables TVM to compile to ASICs -
-# checkout `VTA <https://docs.tvm.ai/vta/index.html>`_ for details.
+# checkout :ref:`vta-index` for details.
 # We also demonstrates how to use inline assembly importing,
 # which helps users inject asm easily into the schedule.
 #

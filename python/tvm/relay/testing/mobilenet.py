@@ -50,8 +50,15 @@ def separable_conv_block(data, name, depthwise_channels, pointwise_channels,
         strides = (2, 2)
     else:
         strides = (1, 1)
+
     # depthwise convolution + bn + relu
-    wshape = (depthwise_channels, 1) + kernel_size
+    if layout == "NCHW":
+        wshape = (depthwise_channels, 1) + kernel_size
+    elif layout == 'NHWC':
+        wshape = kernel_size + (depthwise_channels, 1)
+    else:
+        raise ValueError("Invalid layout: " + layout)
+    bn_axis = layout.index('C')
     weight = relay.var(name + "_weight", shape=wshape, dtype=dtype)
     conv1 = layers.conv2d(
         data=data,
@@ -64,7 +71,7 @@ def separable_conv_block(data, name, depthwise_channels, pointwise_channels,
         data_layout=layout,
         kernel_layout=layers.conv_kernel_layout(layout, True),
         name=name+'_depthwise_conv1')
-    bn1 = layers.batch_norm_infer(data=conv1, epsilon=epsilon, name=name+'_bn1')
+    bn1 = layers.batch_norm_infer(data=conv1, epsilon=epsilon, axis=bn_axis, name=name+'_bn1')
     act1 = relay.nn.relu(data=bn1)
     # pointwise convolution + bn + relu
     conv2 = layers.conv2d(
@@ -76,7 +83,7 @@ def separable_conv_block(data, name, depthwise_channels, pointwise_channels,
         data_layout=layout,
         kernel_layout=layers.conv_kernel_layout(layout),
         name=name + '_conv2')
-    bn2 = layers.batch_norm_infer(data=conv2, epsilon=epsilon, name=name+'_bn2')
+    bn2 = layers.batch_norm_infer(data=conv2, epsilon=epsilon, axis=bn_axis, name=name+'_bn2')
     act2 = relay.nn.relu(data=bn2)
     return act2
 

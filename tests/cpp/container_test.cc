@@ -20,6 +20,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/container.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
 #include <new>
@@ -34,8 +35,7 @@ class TestErrorSwitch {
  public:
   // Need this so that destructor of temporary objects don't interrupt our
   // testing.
-  TestErrorSwitch(const TestErrorSwitch& other)
-      : should_fail(other.should_fail) {
+  TestErrorSwitch(const TestErrorSwitch& other) : should_fail(other.should_fail) {
     const_cast<TestErrorSwitch&>(other).should_fail = false;
   }
 
@@ -49,8 +49,7 @@ class TestErrorSwitch {
   }
 };
 
-class TestArrayObj : public Object,
-                     public InplaceArrayBase<TestArrayObj, TestErrorSwitch> {
+class TestArrayObj : public Object, public InplaceArrayBase<TestArrayObj, TestErrorSwitch> {
  public:
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "test.TestArrayObj";
@@ -111,8 +110,7 @@ TEST(InplaceArrayBase, BadExceptionSafety) {
     TestErrorSwitch f2{true};
     TestErrorSwitch f3{false};
     std::vector<TestErrorSwitch> fields{f1, f2, f3};
-    auto ptr =
-        make_inplace_array_object<TestArrayObj, TestErrorSwitch>(fields.size());
+    auto ptr = make_inplace_array_object<TestArrayObj, TestErrorSwitch>(fields.size());
     try {
       ptr->WrongInit(fields.begin(), fields.end());
     } catch (...) {
@@ -132,8 +130,7 @@ TEST(InplaceArrayBase, ExceptionSafety) {
     // since it's not initalized.
     TestErrorSwitch f2{true};
     std::vector<TestErrorSwitch> fields{f1, f2};
-    auto ptr =
-        make_inplace_array_object<TestArrayObj, TestErrorSwitch>(fields.size());
+    auto ptr = make_inplace_array_object<TestArrayObj, TestErrorSwitch>(fields.size());
     try {
       ptr->Init(fields.begin(), fields.end());
     } catch (...) {
@@ -174,6 +171,106 @@ TEST(Array, Iterator) {
   CHECK(vector[1].as<IntImmNode>()->value == 2);
 }
 
+TEST(Array, PushPop) {
+  using namespace tvm;
+  Array<Integer> a;
+  std::vector<int> b;
+  for (int i = 0; i < 10; ++i) {
+    a.push_back(i);
+    b.push_back(i);
+    ASSERT_EQ(a.front(), b.front());
+    ASSERT_EQ(a.back(), b.back());
+    ASSERT_EQ(a.size(), b.size());
+    int n = a.size();
+    for (int j = 0; j < n; ++j) {
+      ASSERT_EQ(a[j], b[j]);
+    }
+  }
+  for (int i = 9; i >= 0; --i) {
+    ASSERT_EQ(a.front(), b.front());
+    ASSERT_EQ(a.back(), b.back());
+    ASSERT_EQ(a.size(), b.size());
+    a.pop_back();
+    b.pop_back();
+    int n = a.size();
+    for (int j = 0; j < n; ++j) {
+      ASSERT_EQ(a[j], b[j]);
+    }
+  }
+  ASSERT_EQ(a.empty(), true);
+}
+
+TEST(Array, ResizeReserveClear) {
+  using namespace tvm;
+  for (size_t n = 0; n < 10; ++n) {
+    Array<Integer> a;
+    Array<Integer> b;
+    a.resize(n);
+    b.reserve(n);
+    ASSERT_EQ(a.size(), n);
+    ASSERT_GE(a.capacity(), n);
+    a.clear();
+    b.clear();
+    ASSERT_EQ(a.size(), 0);
+    ASSERT_EQ(b.size(), 0);
+  }
+}
+
+TEST(Array, InsertErase) {
+  using namespace tvm;
+  Array<Integer> a;
+  std::vector<int> b;
+  for (int n = 1; n <= 10; ++n) {
+    a.insert(a.end(), n);
+    b.insert(b.end(), n);
+    for (int pos = 0; pos <= n; ++pos) {
+      a.insert(a.begin() + pos, pos);
+      b.insert(b.begin() + pos, pos);
+      ASSERT_EQ(a.front(), b.front());
+      ASSERT_EQ(a.back(), b.back());
+      ASSERT_EQ(a.size(), n + 1);
+      ASSERT_EQ(b.size(), n + 1);
+      for (int k = 0; k <= n; ++k) {
+        ASSERT_EQ(a[k], b[k]);
+      }
+      a.erase(a.begin() + pos);
+      b.erase(b.begin() + pos);
+    }
+    ASSERT_EQ(a.front(), b.front());
+    ASSERT_EQ(a.back(), b.back());
+    ASSERT_EQ(a.size(), n);
+  }
+}
+
+TEST(Array, InsertEraseRange) {
+  using namespace tvm;
+  Array<Integer> range_a{-1, -2, -3, -4};
+  std::vector<int> range_b{-1, -2, -3, -4};
+  Array<Integer> a;
+  std::vector<int> b;
+  for (size_t n = 1; n <= 10; ++n) {
+    a.insert(a.end(), n);
+    b.insert(b.end(), n);
+    for (size_t pos = 0; pos <= n; ++pos) {
+      a.insert(a.begin() + pos, range_a.begin(), range_a.end());
+      b.insert(b.begin() + pos, range_b.begin(), range_b.end());
+      ASSERT_EQ(a.front(), b.front());
+      ASSERT_EQ(a.back(), b.back());
+      ASSERT_EQ(a.size(), n + range_a.size());
+      ASSERT_EQ(b.size(), n + range_b.size());
+      size_t m = n + range_a.size();
+      for (size_t k = 0; k < m; ++k) {
+        ASSERT_EQ(a[k], b[k]);
+      }
+      a.erase(a.begin() + pos, a.begin() + pos + range_a.size());
+      b.erase(b.begin() + pos, b.begin() + pos + range_b.size());
+    }
+    ASSERT_EQ(a.front(), b.front());
+    ASSERT_EQ(a.back(), b.back());
+    ASSERT_EQ(a.size(), n);
+  }
+}
+
 TEST(Map, Expr) {
   using namespace tvm;
   Var x("x");
@@ -186,11 +283,11 @@ TEST(Map, Expr) {
   CHECK(!dict.count(zz));
 }
 
-TEST(StrMap, Expr) {
+TEST(Map, Str) {
   using namespace tvm;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
-  Map<std::string, PrimExpr> dict{{"x", z}, {"z", 2}};
+  Map<String, PrimExpr> dict{{"x", z}, {"z", 2}};
   CHECK(dict.size() == 2);
   CHECK(dict["x"].same_as(z));
 }
@@ -213,18 +310,61 @@ TEST(Map, Mutate) {
   CHECK(it != dict.end() && (*it).second.same_as(x));
 
   it = dict2.find(zz);
-  CHECK(it == dict.end());
-
-  LOG(INFO) << dict;
+  CHECK(it == dict2.end());
 }
 
 TEST(Map, Iterator) {
   using namespace tvm;
   PrimExpr a = 1, b = 2;
   Map<PrimExpr, PrimExpr> map1{{a, b}};
-  std::unordered_map<PrimExpr, PrimExpr, ObjectHash, ObjectEqual> map2(
-      map1.begin(), map1.end());
+  std::unordered_map<PrimExpr, PrimExpr, ObjectPtrHash, ObjectPtrEqual> map2(map1.begin(),
+                                                                             map1.end());
   CHECK(map2[a].as<IntImmNode>()->value == 2);
+}
+
+TEST(Map, Insert) {
+  using namespace tvm;
+  auto check = [](const Map<String, Integer>& result,
+                  std::unordered_map<std::string, int64_t> expected) {
+    CHECK_EQ(result.size(), expected.size());
+    for (const auto& kv : result) {
+      CHECK(expected.count(kv.first));
+      CHECK_EQ(expected[kv.first], kv.second.operator int64_t());
+      expected.erase(kv.first);
+    }
+  };
+  Map<String, Integer> result;
+  std::unordered_map<std::string, int64_t> expected;
+  char key = 'a';
+  int64_t val = 1;
+  for (int i = 0; i < 26; ++i, ++key, ++val) {
+    std::string s(1, key);
+    result.Set(s, val);
+    expected[s] = val;
+    check(result, expected);
+  }
+}
+
+TEST(Map, Erase) {
+  auto check = [](const Map<String, Integer>& result,
+                  std::unordered_map<std::string, int64_t> expected) {
+    CHECK_EQ(result.size(), expected.size());
+    for (const auto& kv : result) {
+      CHECK(expected.count(kv.first));
+      CHECK_EQ(expected[kv.first], kv.second.operator int64_t());
+      expected.erase(kv.first);
+    }
+  };
+  Map<String, Integer> map{{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"e", 5}};
+  std::unordered_map<std::string, int64_t> stl(map.begin(), map.end());
+  for (char c = 'a'; c <= 'e'; ++c) {
+    Map<String, Integer> result = map;
+    std::unordered_map<std::string, int64_t> expected(stl);
+    std::string key(1, c);
+    result.erase(key);
+    expected.erase(key);
+    check(result, expected);
+  }
 }
 
 TEST(String, MoveFromStd) {
@@ -261,7 +401,7 @@ TEST(String, empty) {
   using namespace std;
   String s{"hello"};
   CHECK_EQ(s.empty(), false);
-  s = "";
+  s = std::string("");
   CHECK_EQ(s.empty(), true);
 }
 
@@ -270,11 +410,26 @@ TEST(String, Comparisons) {
   string source = "a string";
   string mismatch = "a string but longer";
   String s{source};
+  String m{mismatch};
 
   CHECK_EQ(s == source, true);
   CHECK_EQ(s == mismatch, false);
   CHECK_EQ(s == source.data(), true);
   CHECK_EQ(s == mismatch.data(), false);
+
+  CHECK_EQ(s < m, source < mismatch);
+  CHECK_EQ(s > m, source > mismatch);
+  CHECK_EQ(s <= m, source <= mismatch);
+  CHECK_EQ(s >= m, source >= mismatch);
+  CHECK_EQ(s == m, source == mismatch);
+  CHECK_EQ(s != m, source != mismatch);
+
+  CHECK_EQ(m < s, mismatch < source);
+  CHECK_EQ(m > s, mismatch > source);
+  CHECK_EQ(m <= s, mismatch <= source);
+  CHECK_EQ(m >= s, mismatch >= source);
+  CHECK_EQ(m == s, mismatch == source);
+  CHECK_EQ(m != s, mismatch != source);
 }
 
 // Check '\0' handling
@@ -346,23 +501,54 @@ TEST(String, compare) {
 
   // compare with string
   CHECK_EQ(str_source.compare(source), 0);
+  CHECK(str_source == source);
+  CHECK(source == str_source);
+  CHECK(str_source <= source);
+  CHECK(source <= str_source);
+  CHECK(str_source >= source);
+  CHECK(source >= str_source);
   CHECK_LT(str_source.compare(mismatch1), 0);
+  CHECK(str_source < mismatch1);
+  CHECK(mismatch1 != str_source);
   CHECK_GT(str_source.compare(mismatch2), 0);
+  CHECK(str_source > mismatch2);
+  CHECK(mismatch2 < str_source);
   CHECK_GT(str_source.compare(mismatch3), 0);
+  CHECK(str_source > mismatch3);
   CHECK_LT(str_source.compare(mismatch4), 0);
+  CHECK(str_source < mismatch4);
+  CHECK(mismatch4 > str_source);
 
   // compare with char*
   CHECK_EQ(str_source.compare(source.data()), 0);
+  CHECK(str_source == source.data());
+  CHECK(source.data() == str_source);
+  CHECK(str_source <= source.data());
+  CHECK(source <= str_source.data());
+  CHECK(str_source >= source.data());
+  CHECK(source >= str_source.data());
   CHECK_LT(str_source.compare(mismatch1.data()), 0);
+  CHECK(str_source < mismatch1.data());
+  CHECK(str_source != mismatch1.data());
+  CHECK(mismatch1.data() != str_source);
   CHECK_GT(str_source.compare(mismatch2.data()), 0);
+  CHECK(str_source > mismatch2.data());
+  CHECK(mismatch2.data() < str_source);
   CHECK_GT(str_source.compare(mismatch3.data()), 0);
+  CHECK(str_source > mismatch3.data());
   CHECK_LT(str_source.compare(mismatch4.data()), 0);
+  CHECK(str_source < mismatch4.data());
+  CHECK(mismatch4.data() > str_source);
 
   // compare with String
   CHECK_LT(str_source.compare(str_mismatch1), 0);
+  CHECK(str_source < str_mismatch1);
   CHECK_GT(str_source.compare(str_mismatch2), 0);
+  CHECK(str_source > str_mismatch2);
   CHECK_GT(str_source.compare(str_mismatch3), 0);
+  CHECK(str_source > str_mismatch3);
   CHECK_LT(str_source.compare(str_mismatch4), 0);
+  CHECK(str_source < str_mismatch4);
 }
 
 TEST(String, c_str) {
@@ -399,6 +585,102 @@ TEST(String, Cast) {
   String s{source};
   ObjectRef r = s;
   String s2 = Downcast<String>(r);
+}
+
+TEST(String, Concat) {
+  String s1("hello");
+  String s2("world");
+  std::string s3("world");
+  String res1 = s1 + s2;
+  String res2 = s1 + s3;
+  String res3 = s3 + s1;
+  String res4 = s1 + "world";
+  String res5 = "world" + s1;
+
+  CHECK_EQ(res1.compare("helloworld"), 0);
+  CHECK_EQ(res2.compare("helloworld"), 0);
+  CHECK_EQ(res3.compare("worldhello"), 0);
+  CHECK_EQ(res4.compare("helloworld"), 0);
+  CHECK_EQ(res5.compare("worldhello"), 0);
+}
+
+TEST(Optional, Composition) {
+  Optional<String> opt0(nullptr);
+  Optional<String> opt1 = String("xyz");
+  Optional<String> opt2 = String("xyz1");
+  // operator bool
+  CHECK(!opt0);
+  CHECK(opt1);
+  // comparison op
+  CHECK(opt0 != "xyz");
+  CHECK(opt1 == "xyz");
+  CHECK(opt1 != nullptr);
+  CHECK(opt0 == nullptr);
+  CHECK(opt0.value_or("abc") == "abc");
+  CHECK(opt1.value_or("abc") == "xyz");
+  CHECK(opt0 != opt1);
+  CHECK(opt1 == Optional<String>(String("xyz")));
+  CHECK(opt0 == Optional<String>(nullptr));
+  opt0 = opt1;
+  CHECK(opt0 == opt1);
+  CHECK(opt0.value().same_as(opt1.value()));
+  opt0 = std::move(opt2);
+  CHECK(opt0 != opt2);
+}
+
+TEST(Optional, IntCmp) {
+  Integer val(CallingConv::kDefault);
+  Optional<Integer> opt = Integer(0);
+  CHECK(0 == static_cast<int>(CallingConv::kDefault));
+  CHECK(val == CallingConv::kDefault);
+  CHECK(opt == CallingConv::kDefault);
+
+  // check we can handle implicit 0 to nullptr conversion.
+  Optional<Integer> opt1(nullptr);
+  CHECK(opt1 != 0);
+  CHECK(opt1 != false);
+  CHECK(!(opt1 == 0));
+}
+
+TEST(Optional, PackedCall) {
+  auto tf = [](Optional<String> s, bool isnull) {
+    if (isnull) {
+      CHECK(s == nullptr);
+    } else {
+      CHECK(s != nullptr);
+    }
+    return s;
+  };
+  auto func = TypedPackedFunc<Optional<String>(Optional<String>, bool)>(tf);
+  CHECK(func(String("xyz"), false) == "xyz");
+  CHECK(func(Optional<String>(nullptr), true) == nullptr);
+
+  auto pf = [](TVMArgs args, TVMRetValue* rv) {
+    Optional<String> s = args[0];
+    bool isnull = args[1];
+    if (isnull) {
+      CHECK(s == nullptr);
+    } else {
+      CHECK(s != nullptr);
+    }
+    *rv = s;
+  };
+  auto packedfunc = PackedFunc(pf);
+  CHECK(packedfunc("xyz", false).operator String() == "xyz");
+  CHECK(packedfunc("xyz", false).operator Optional<String>() == "xyz");
+  CHECK(packedfunc(nullptr, true).operator Optional<String>() == nullptr);
+
+  // test FFI convention.
+  auto test_ffi = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
+    int tcode = args[1];
+    CHECK_EQ(args[0].type_code(), tcode);
+  });
+  String s = "xyz";
+  auto nd = NDArray::Empty({0, 1}, DataType::Float(32), DLContext{kDLCPU, 0});
+  test_ffi(Optional<NDArray>(nd), static_cast<int>(kTVMNDArrayHandle));
+  test_ffi(Optional<String>(s), static_cast<int>(kTVMObjectRValueRefArg));
+  test_ffi(s, static_cast<int>(kTVMObjectHandle));
+  test_ffi(String(s), static_cast<int>(kTVMObjectRValueRefArg));
 }
 
 int main(int argc, char** argv) {

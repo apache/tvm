@@ -24,8 +24,8 @@
 #ifndef TOPI_NN_DENSE_H_
 #define TOPI_NN_DENSE_H_
 
-#include <tvm/te/operation.h>
 #include <topi/tags.h>
+#include <tvm/te/operation.h>
 
 #include <string>
 
@@ -35,19 +35,17 @@ using namespace tvm;
 using namespace tvm::te;
 
 /*!
-* \brief Creates an operation that calculates data * weight^T + bias
-*
-* \param data Tensor with shape [batch, in_dim]
-* \param weight Tensor with shape [out_dim, in_dim]
-* \param bias Tensor with shape [out_dim]. Optional; to omit bias, pass Tensor()
-* \param out_dtype Output data type. Used for mixed precision.
-*
-* \return Tensor with shape [batch, out_dim]
-*/
-inline tvm::te::Tensor dense(const tvm::te::Tensor& data,
-                         const tvm::te::Tensor& weight,
-                         const tvm::te::Tensor& bias,
-                         const DataType& out_dtype) {
+ * \brief Creates an operation that calculates data * weight^T + bias
+ *
+ * \param data Tensor with shape [batch, in_dim]
+ * \param weight Tensor with shape [out_dim, in_dim]
+ * \param bias Tensor with shape [out_dim]. Optional; to omit bias, pass Tensor()
+ * \param out_dtype Output data type. Used for mixed precision.
+ *
+ * \return Tensor with shape [batch, out_dim]
+ */
+inline tvm::te::Tensor dense(const tvm::te::Tensor& data, const tvm::te::Tensor& weight,
+                             const tvm::te::Tensor& bias, const DataType& out_dtype) {
   CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias.defined()) {
@@ -60,18 +58,17 @@ inline tvm::te::Tensor dense(const tvm::te::Tensor& data,
 
   auto k = tvm::te::reduce_axis(Range(0, in_dim), "k");
   auto matmul = tvm::te::compute(
-    { batch, out_dim },
-    [&](Var i, Var j) {
-      return tvm::sum(tvm::cast(out_dtype, data(i, k)) *
-                      tvm::cast(out_dtype, weight(j, k)), { k });
-    }, "tensor", "dense");
+      {batch, out_dim},
+      [&](Var i, Var j) {
+        return tvm::sum(tvm::cast(out_dtype, data(i, k)) * tvm::cast(out_dtype, weight(j, k)), {k});
+      },
+      "tensor", "dense");
 
   if (bias.defined()) {
     matmul = tvm::te::compute(
-      { batch, out_dim },
-      [&](Var i, Var j) {
-        return matmul(i, j) + tvm::cast(out_dtype, bias(j));
-      }, "tensor", kBroadcast);
+        {batch, out_dim},
+        [&](Var i, Var j) { return matmul(i, j) + tvm::cast(out_dtype, bias(j)); }, "tensor",
+        kBroadcast);
   }
 
   return matmul;

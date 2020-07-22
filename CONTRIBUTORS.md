@@ -20,7 +20,7 @@ TVM Contributors
 TVM adopts the Apache way and governs by merit. We believe that it is important to create an inclusive community where everyone can use,
 contribute to, and influence the direction of the project. We actively invite contributors who have earned the merit to be part of the development community.
 
-See the [community structure document](http://docs.tvm.ai/contribute/community.html) for the explanation of community structure and contribution guidelines.
+See the [community structure document](https://tvm.apache.org/docs/contribute/community.html) for the explanation of community structure and contribution guidelines.
 
 ## Mentors
 
@@ -41,8 +41,9 @@ We do encourage everyone to work anything they are interested in.
 
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri - rocm
 - [Tianqi Chen](https://github.com/tqchen) (PPMC): @tqchen - topi, compiler, relay, docs
+- [Liangfu Chen](https://github.com/liangfu): @liangfu - vta, chisel, intel FPGA, c runtime
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
-- [Zhi Chen](https://github.com/zhiics): @zhiics - relay, quantization, pass manager
+- [Zhi Chen](https://github.com/zhiics) (PPMC): @zhiics - relay, quantization, pass manager
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Animesh Jain](https://github.com/anijain2305): @anijain2305 - quantization, relay
@@ -51,10 +52,11 @@ We do encourage everyone to work anything they are interested in.
 - [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PPMC): @yzhliu - jvm, topi, relay
 - [Hao Lu](https://github.com/hlu1): @hlu1 - nnpack, frontends
-- [Masahiro Masuda](https://github.com/masahi): @masahi - topi, relay
+- [Masahiro Masuda](https://github.com/masahi) (PPMC): @masahi - topi, relay
 - [Thierry Moreau](https://github.com/tmoreau89) (PPMC): @tmoreau89 - vta
 - [Kazutaka Morita](https://github.com/kazum): @kazum - frontends, opencl
 - [Jared Roesch](https://github.com/jroesch) (PPMC): @jroesch - relay
+- [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Haichen Shen](https://github.com/icemelon9) (PPMC): @icemelon9 - relay, topi
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
@@ -69,7 +71,9 @@ We do encourage everyone to work anything they are interested in.
 ## Reviewers
 
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri
+- [Matthew Barrett](https://github.com/mbaret): @mbaret
 - [Arnaud Bergeron](https://github.com/abergeron): @abergeron
+- [Matthew Brookhart](https://github.com/mbrookhart): @mbrookhart
 - [Tianqi Chen](https://github.com/tqchen): @tqchen
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
 - [Zhi Chen](https://github.com/zhiics): @zhiics
@@ -97,6 +101,8 @@ We do encourage everyone to work anything they are interested in.
 - [Thierry Moreau](https://github.com/tmoreau89): @tmoreau89
 - [Kazutaka Morita](https://github.com/kazum): @kazum
 - [Tatsuya Nishiyama](https://github.com/nishi-t): @nishi-t
+- [Wei Pan](https://github.com/wpan11nv): @wpan11nv
+- [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Jared Roesch](https://github.com/jroesch): @jroesch

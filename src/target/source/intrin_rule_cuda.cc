@@ -21,6 +21,9 @@
  * \file intrin_rule_cuda.cc
  * \brief CUDA intrinsic rules.
  */
+#include <tvm/tir/builtin.h>
+#include <tvm/tir/op_attr_types.h>
+
 #include "../intrin_rule.h"
 
 namespace tvm {
@@ -31,10 +34,14 @@ struct CUDAMath {
   std::string operator()(DataType t, std::string name) const {
     if (t.is_float()) {
       switch (t.bits()) {
-        case 64: return name;
-        case 32: return name + 'f';
-        case 16: return 'h' + name;
-        default: return "";
+        case 64:
+          return name;
+        case 32:
+          return name + 'f';
+        case 16:
+          return 'h' + name;
+        default:
+          return "";
       }
     }
     return "";
@@ -55,14 +62,18 @@ struct CUDAFastMath : public CUDAMath {
 struct CUDAFastMathTan : public CUDAMath {
   std::string operator()(DataType t, std::string name) const {
     if (t.is_float()) {
-        switch (t.bits()) {
-          case 64: return name;
-          // `__tanf` seems to produce some values too deviant from numpy tan version.
-          // So, let's use just `tanf` instead.
-          case 32: return name + 'f';
-          case 16: LOG(FATAL) << "cuda tan unsupported for float16";
-          default: return "";
-        }
+      switch (t.bits()) {
+        case 64:
+          return name;
+        // `__tanf` seems to produce some values too deviant from numpy tan version.
+        // So, let's use just `tanf` instead.
+        case 32:
+          return name + 'f';
+        case 16:
+          LOG(FATAL) << "cuda tan unsupported for float16";
+        default:
+          return "";
+      }
     }
     return "";
   }
@@ -72,92 +83,130 @@ struct CUDAPopcount {
   std::string operator()(DataType t, std::string name) const {
     if (t.is_uint()) {
       switch (t.bits()) {
-        case 32: return "__popc";
-        case 64: return "__popcll";
-        default: return "";
+        case 32:
+          return "__popc";
+        case 64:
+          return "__popcll";
+        default:
+          return "";
       }
     }
     return "";
   }
 };
 
-struct CUDAShuffle {
-  std::string operator()(DataType t, std::string name) const {
-    return "__shfl";
+struct CUDAWarpIntrinsic {
+  const Op operator()(DataType t, const Op& orig_op) const {
+    if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
+      return Op::Get("tir.cuda.__shfl_sync");
+    } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
+      return Op::Get("tir.cuda.__shfl_up_sync");
+    } else {
+      CHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
+      return Op::Get("tir.cuda.__shfl_down_sync");
+    }
   }
 };
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.floor")
-.set_body(DispatchExtern<CUDAMath>);
+static void DispatchCUDAWarpActiveMask(const TVMArgs& args, TVMRetValue* rv) {
+  Call call = args[0];
+  *rv = Call(call->dtype, Op::Get("tir.cuda.__activemask"), call->args);
+}
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.ceil")
-.set_body(DispatchExtern<CUDAMath>);
+template <typename T>
+static void DispatchCUDAShuffle(const TVMArgs& args, TVMRetValue* rv) {
+  PrimExpr e = args[0];
+  const CallNode* call = e.as<CallNode>();
+  CHECK(call != nullptr);
+  CHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
+  Array<PrimExpr> cuda_args{{call->args[0], call->args[1], call->args[2], call->args[3]}};
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.trunc")
-.set_body(DispatchExtern<CUDAMath>);
+  *rv = Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), cuda_args);
+}
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fabs")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.floor").set_body(DispatchPureExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.round")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.ceil").set_body(DispatchPureExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.trunc").set_body(DispatchPureExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp2")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fabs").set_body(DispatchPureExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp10")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.round").set_body(DispatchPureExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.erf")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp").set_body(DispatchPureExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp2").set_body(DispatchPureExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log2")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp10").set_body(DispatchPureExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log10")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.erf").set_body(DispatchPureExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tan")
-.set_body(DispatchExtern<CUDAFastMathTan>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log").set_body(DispatchPureExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cos")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log2").set_body(DispatchPureExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cosh")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log10").set_body(DispatchPureExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sin")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tan").set_body(DispatchPureExtern<CUDAFastMathTan>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sinh")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cos").set_body(DispatchPureExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.atan")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cosh").set_body(DispatchPureExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tanh")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sin").set_body(DispatchPureExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sqrt")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sinh").set_body(DispatchPureExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.pow")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.atan").set_body(DispatchPureExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.popcount")
-.set_body(DispatchExtern<CUDAPopcount>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tanh").set_body(DispatchPureExtern<CUDAMath>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sqrt").set_body(DispatchPureExtern<CUDAMath>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.pow").set_body(DispatchPureExtern<CUDAMath>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.popcount").set_body(DispatchPureExtern<CUDAPopcount>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle")
-.set_body(DispatchExtern<CUDAShuffle>);
+    .set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fmod")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle_up")
+    .set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle_down")
+    .set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_activemask")
+    .set_body(DispatchCUDAWarpActiveMask);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fmod").set_body(DispatchPureExtern<CUDAMath>);
+
+// Register low-level builtin ops.
+// TODO(tvm-team): consider make CUDA its own subfolder and create a file for low-level builtins.
+TVM_REGISTER_OP("tir.cuda.__shfl_sync")
+    .set_num_inputs(4)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_sync")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_attr<bool>("cuda.need_warp_shuffle", true);
+
+TVM_REGISTER_OP("tir.cuda.__shfl_up_sync")
+    .set_num_inputs(4)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_up_sync")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_attr<bool>("cuda.need_warp_shuffle", true);
+
+TVM_REGISTER_OP("tir.cuda.__shfl_down_sync")
+    .set_num_inputs(4)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_down_sync")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_attr<bool>("cuda.need_warp_shuffle", true);
+
+TVM_REGISTER_OP("tir.cuda.__activemask")
+    .set_num_inputs(0)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "__activemask")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_attr<bool>("cuda.need_warp_shuffle", true);
 
 }  // namespace intrin
 }  // namespace codegen

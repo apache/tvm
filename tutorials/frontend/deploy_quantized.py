@@ -132,7 +132,7 @@ def quantize(mod, params, data_aware):
         with relay.quantize.qconfig(calibrate_mode='kl_divergence', weight_scale='max'):
             mod = relay.quantize.quantize(mod, params, dataset=calibrate_dataset())
     else:
-        with relay.quantize.qconfig(calibrate_mode='global', global_scale=8.0):
+        with relay.quantize.qconfig(calibrate_mode='global_scale', global_scale=8.0):
             mod = relay.quantize.quantize(mod, params)
     return mod
 

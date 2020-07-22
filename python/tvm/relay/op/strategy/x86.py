@@ -18,12 +18,16 @@
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 import logging
 
+import re
 import topi
 from tvm.te import SpecializedCondition
 from .generic import *
 from .. import op as _op
 
 logger = logging.getLogger('strategy')
+
+_NCHWc_matcher = re.compile("^NCHW[0-9]+c$")
+_OIHWio_matcher = re.compile("^OIHW[0-9]+i[0-9]+o$")
 
 @schedule_injective.register("cpu")
 def schedule_injective_cpu(attrs, outs, target):
@@ -55,9 +59,19 @@ def schedule_adaptive_pool_cpu(attrs, outs, target):
     with target:
         return topi.x86.schedule_adaptive_pool(outs)
 
-@schedule_softmax.register("cpu")
-def schedule_softmax_cpu(attrs, outs, target):
-    """schedule softmax for x86"""
+@softmax_strategy.register("cpu")
+def softmax_strategy_cpu(attrs, inputs, out_type, target):
+    """softmax x86 strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.x86.schedule_softmax),
+        name="softmax.x86")
+    return strategy
+
+@schedule_log_softmax.register("cpu")
+def schedule_log_softmax_cpu(attrs, outs, target):
+    """schedule log_softmax op for x86"""
     with target:
         return topi.x86.schedule_softmax(outs)
 
@@ -86,6 +100,9 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                     wrap_compute_conv2d(topi.x86.conv2d_nchw),
                     wrap_topi_schedule(topi.x86.schedule_conv2d_nchw),
                     name="conv2d_nchw.x86")
+        elif _NCHWc_matcher.match(layout): # check if layout is NCHWxc
+            assert _OIHWio_matcher.match(kernel_layout) # check if kernel is OIHWio
+            return conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
             logger.warning("For x86 target, NCHW layout is recommended for conv2d.")
@@ -118,6 +135,9 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                     wrap_compute_conv2d(topi.nn.depthwise_conv2d_nchw),
                     wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nchw),
                     name="depthwise_conv2d_nchw.generic")
+        elif _NCHWc_matcher.match(layout): # check if layout is NCHWxc
+            assert _OIHWio_matcher.match(kernel_layout) # check if kernel is OIHWio
+            return depthwise_conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             logger.warning("depthwise_conv2d NHWC layout is not optimized for x86.")
@@ -181,6 +201,24 @@ def conv2d_transpose_strategy_cpu(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.x86.schedule_conv2d_transpose_nchw),
         name="conv2d_transpose_nchw.x86")
     return strategy
+
+
+@conv3d_transpose_strategy.register("cpu")
+def conv3d_transpose_strategy_cpu(attrs, inputs, out_type, target):
+    """conv3d_transpose x86 strategy"""
+    layout = attrs.data_layout
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    assert layout == "NCDHW", "only support ncdhw for now"
+    assert dilation == (1, 1, 1), "not support dilate now"
+    assert groups == 1, "only support groups == 1 for now"
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_conv3d_transpose(topi.x86.conv3d_transpose_ncdhw),
+        wrap_topi_schedule(topi.x86.schedule_conv3d_transpose_ncdhw),
+        name="conv3d_transpose_ncdhw.x86")
+    return strategy
+
 
 @conv3d_strategy.register("cpu")
 def conv3d_strategy_cpu(attrs, inputs, out_type, target):
@@ -256,11 +294,16 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
                                     plevel=15)
     return strategy
 
-@schedule_sparse_dense.register("cpu")
-def schedule_sparse_dense_cpu(attrs, outs, target):
-    """schedule sparse_dense for x86"""
-    with target:
-        return topi.x86.schedule_sparse_dense(outs)
+@sparse_dense_strategy.register("cpu")
+def sparse_dense_strategy_cpu(attrs, inputs, out_type, target):
+    """sparse dense x86 strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(wrap_compute_sparse_dense(topi.nn.sparse_dense),
+                                wrap_topi_schedule(topi.x86.schedule_sparse_dense),
+                                name="sparse_dense.x86",
+                                plevel=10)
+    return strategy
+
 
 @roi_align_strategy.register("cpu")
 def roi_align_strategy_cpu(attrs, inputs, out_type, target):

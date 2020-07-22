@@ -33,6 +33,7 @@ public class TVMContext {
     MASK2STR.put(7, "vulkan");
     MASK2STR.put(8, "metal");
     MASK2STR.put(9, "vpi");
+    MASK2STR.put(14, "hexagon");
 
     STR2MASK.put("cpu", 1);
     STR2MASK.put("gpu", 2);
@@ -42,6 +43,7 @@ public class TVMContext {
     STR2MASK.put("vulkan", 7);
     STR2MASK.put("metal", 8);
     STR2MASK.put("vpi", 9);
+    STR2MASK.put("hexagon", 14);
   }
 
   /**
@@ -120,6 +122,19 @@ public class TVMContext {
 
   public static TVMContext vpi() {
     return vpi(0);
+  }
+
+  /**
+   * Construct a Hexagon device.
+   * @param devId The device id
+   * @return The created context
+   */
+  public static TVMContext hexagon(int devId) {
+    return new TVMContext(14, devId);
+  }
+
+  public static TVMContext hexagon() {
+    return hexagon(0);
   }
 
   public final int deviceType;

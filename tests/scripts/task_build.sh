@@ -15,4 +15,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
 cd $1 && cmake .. && make $2 && cd ..

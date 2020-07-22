@@ -16,21 +16,29 @@
 # under the License.
 #pylint: disable=invalid-name, unused-argument, len-as-condition
 """Backend compiler related feature registration"""
+
+from tvm.te.hybrid import script
 import topi
 
-from tvm.runtime import convert
-from topi.util import get_const_tuple
 from .op import register_compute, register_shape_func
 from .op import register_broadcast_schedule, register_injective_schedule
 from .op import register_pattern, OpPattern
-from ...hybrid import script
 
 
 register_broadcast_schedule("log")
+register_broadcast_schedule("log2")
+register_broadcast_schedule("log10")
 register_broadcast_schedule("tan")
 register_broadcast_schedule("cos")
+register_broadcast_schedule("cosh")
 register_broadcast_schedule("sin")
+register_broadcast_schedule("sinh")
+register_broadcast_schedule("acos")
+register_broadcast_schedule("acosh")
+register_broadcast_schedule("asin")
+register_broadcast_schedule("asinh")
 register_broadcast_schedule("atan")
+register_broadcast_schedule("atanh")
 register_broadcast_schedule("exp")
 register_broadcast_schedule("erf")
 register_broadcast_schedule("sqrt")
@@ -53,6 +61,7 @@ register_broadcast_schedule("copy")
 register_broadcast_schedule("logical_not")
 register_broadcast_schedule("logical_and")
 register_broadcast_schedule("logical_or")
+register_broadcast_schedule("logical_xor")
 register_broadcast_schedule("bitwise_not")
 register_broadcast_schedule("bitwise_and")
 register_broadcast_schedule("bitwise_or")
@@ -66,6 +75,7 @@ register_broadcast_schedule("less")
 register_broadcast_schedule("less_equal")
 register_broadcast_schedule("greater")
 register_broadcast_schedule("greater_equal")
+register_broadcast_schedule("isnan")
 register_broadcast_schedule("isfinite")
 register_broadcast_schedule("isinf")
 register_injective_schedule("maximum")
@@ -74,6 +84,9 @@ register_injective_schedule("right_shift")
 register_injective_schedule("left_shift")
 register_injective_schedule("shape_of")
 register_injective_schedule("ndarray_size")
+register_broadcast_schedule("fast_exp")
+register_broadcast_schedule("fast_tanh")
+register_broadcast_schedule("fast_erf")
 
 
 # zeros
@@ -118,20 +131,18 @@ def clip_compute(attrs, inputs, output_type):
 
 register_injective_schedule("clip")
 
-@script
-def _cast_shape_function(x):
-    out_ndim = len(x)
-    out = output_tensor((out_ndim,), "int64")
-    for i in const_range(out_ndim):
-        out[i] = x[i]
-    return out
+# fixed point multiply
+@register_compute("fixed_point_multiply")
+def fixed_point_multiply_compute(attrs, inputs, output_type):
+    assert len(inputs) == 1
+    return [topi.fixed_point_multiply(inputs[0], attrs.multiplier, attrs.shift)]
 
-def cast_shape_func(attrs, inputs, out_ndims):
-    return [_cast_shape_function(*inputs)]
+register_injective_schedule("fixed_point_multiply")
 
+# full
 @script
 def _full_shape_func(shape):
-    out_ndim = len(shape)
+    out_ndim = shape.shape[0]
     out = output_tensor((out_ndim,), "int64")
     for i in const_range(out_ndim):
         out[i] = int64(shape[i])
@@ -139,10 +150,15 @@ def _full_shape_func(shape):
 
 def full_shape_func(attrs, inputs, out_ndims):
     """
-    Shape func for zeros, zeros_like, ones, ones_like.
+    Shape func for full.
     """
-    shape = get_const_tuple(attrs.shape)
-    return [_full_shape_func(convert(shape))]
+    return [_full_shape_func(inputs[1])]
+
+def no_data_full_shape_func(attrs, inputs, out_ndims):
+    """
+    Shape func for zeros and ones.
+    """
+    return [_full_shape_func(inputs[0])]
 
 @script
 def _broadcast_shape_func(x, y, ndim):
@@ -184,13 +200,14 @@ def elemwise_shape_func(attrs, inputs, _):
     """
     return [topi.math.identity(inputs[0])]
 
-register_shape_func("cast", False, cast_shape_func)
-register_shape_func("zeros", False, full_shape_func)
+register_shape_func("cast", False, elemwise_shape_func)
+register_shape_func("zeros", True, no_data_full_shape_func)
 register_shape_func("zeros_like", False, elemwise_shape_func)
-register_shape_func("ones", False, full_shape_func)
+register_shape_func("ones", True, no_data_full_shape_func)
 register_shape_func("ones_like", False, elemwise_shape_func)
-register_shape_func("full", False, full_shape_func)
+register_shape_func("full", True, full_shape_func)
 register_shape_func("full_like", False, elemwise_shape_func)
+register_shape_func("broadcast_to", True, full_shape_func)
 
 register_shape_func("add", False, broadcast_shape_func)
 register_shape_func("subtract", False, broadcast_shape_func)
@@ -201,6 +218,7 @@ register_shape_func("mod", False, broadcast_shape_func)
 register_shape_func("floor_mod", False, broadcast_shape_func)
 register_shape_func("logical_and", False, broadcast_shape_func)
 register_shape_func("logical_or", False, broadcast_shape_func)
+register_shape_func("logical_xor", False, broadcast_shape_func)
 register_shape_func("bitwise_not", False, broadcast_shape_func)
 register_shape_func("bitwise_and", False, broadcast_shape_func)
 register_shape_func("bitwise_or", False, broadcast_shape_func)
@@ -218,3 +236,6 @@ register_shape_func("sqrt", False, elemwise_shape_func)
 register_shape_func("negative", False, elemwise_shape_func)
 register_shape_func("exp", False, elemwise_shape_func)
 register_shape_func("tan", False, elemwise_shape_func)
+register_shape_func("fast_exp", False, elemwise_shape_func)
+register_shape_func("fast_tanh", False, elemwise_shape_func)
+register_shape_func("fast_erf", False, elemwise_shape_func)

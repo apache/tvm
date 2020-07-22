@@ -20,7 +20,7 @@ from tvm import relay
 import tvm.relay.testing
 import numpy as np
 from tvm.relay import Expr
-from tvm.relay.analysis import alpha_equal, assert_alpha_equal, assert_graph_equal, free_vars
+from tvm.relay.analysis import free_vars
 
 do_print = [False]
 
@@ -32,9 +32,9 @@ def astext(p, unify_free_vars=False):
         return txt
     x = relay.fromtext(txt)
     if unify_free_vars:
-        assert_graph_equal(x, p)
+        tvm.ir.assert_structural_equal(x, p, map_free_vars=True)
     else:
-        assert_alpha_equal(x, p)
+        tvm.ir.assert_structural_equal(x, p)
     return txt
 
 def show(text):
@@ -240,6 +240,15 @@ def @main[A]() -> fn (A, List[A]) -> List[A] {
     assert main_def_str.strip() in mod_str
 
 
+def test_null_attribute():
+    x = relay.var("x")
+    y = relay.var("y")
+    z = relay.Function([x], y)
+    z = z.with_attr("TestAttribute", None)
+    txt = astext(z)
+    assert "TestAttribute=(nullptr)" in txt
+
+
 if __name__ == "__main__":
     do_print[0] = True
     test_lstm()
@@ -262,3 +271,4 @@ if __name__ == "__main__":
     test_variable_name()
     test_call_node_order()
     test_unapplied_constructor()
+    test_null_attribute()

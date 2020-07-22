@@ -26,14 +26,15 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/tir/expr.h>
+
 #include <unordered_map>
 
 namespace tvm {
 namespace arith {
 
+using tir::IterVar;
 using tir::Var;
 using tir::VarNode;
-using tir::IterVar;
 
 //-----------------------------------------------
 // Integer set data structure.
@@ -44,12 +45,7 @@ using tir::IterVar;
 /*!
  * \brief Sign type of an integer expression.
  */
-enum SignType {
-  kPositive,
-  kNegative,
-  kZero,
-  kUnknown
-};
+enum SignType { kPositive, kNegative, kZero, kUnknown };
 
 /*!
  * \brief Base class of all Integer set containers.
@@ -59,6 +55,7 @@ enum SignType {
 class IntSetNode : public Object {
  public:
   static constexpr const char* _type_key = "IntSet";
+  static constexpr bool _type_has_method_sequal_reduce = false;
   TVM_DECLARE_BASE_OBJECT_INFO(IntSetNode, Object);
 };
 
@@ -68,89 +65,87 @@ class IntSetNode : public Object {
  */
 class IntSet : public ObjectRef {
  public:
-  /*! \brief constructor */
-  IntSet() {}
-  // constructor from not container.
-  explicit IntSet(ObjectPtr<Object> n) : ObjectRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  const IntSetNode* operator->() const {
-    return static_cast<const IntSetNode*>(get());
-  }
   /*!
    * \brief Find a range that covers the region.
    * \param max_range The range to be covered.
    * \return The covering range.
    */
-  Range cover_range(Range max_range) const;
+  Range CoverRange(Range max_range) const;
   /*! \return Lower bound of the set */
   PrimExpr min() const;
   /*! \return upper bound of the set */
   PrimExpr max() const;
-  /*! \return Whether the set represent nothing  */
-  bool is_nothing() const;
-  /*! \return Whether the set represent everything  */
-  bool is_everything() const;
-  /*! \return Whether the set is a single point */
-  bool is_single_point() const;
-  /*! \return Whether the set is proved to be bigger than 0 */
-  bool can_prove_positive() const;
-  /*! \return Whether the set is proved to be smaller than 0 */
-  bool can_prove_negative() const;
-  /*! \return Whether the set is proved to be smaller than or equal to 0 */
-  bool can_prove_non_positive() const;
-  /*! \return Whether the set is proved to be larger than or equal to 0 */
-  bool can_prove_non_negative() const;
   /*! \return The sign of the elements in the integer set */
-  SignType sign_type() const;
+  SignType GetSignType() const;
+  /*! \return Whether the set represent nothing  */
+  bool IsNothing() const;
+  /*! \return Whether the set represent everything  */
+  bool IsEverything() const;
+  /*! \return Whether the set is a single point */
+  bool IsSinglePoint() const;
+  /*! \return Whether the set is proved to be bigger than 0 */
+  bool CanProvePositive() const;
+  /*! \return Whether the set is proved to be smaller than 0 */
+  bool CanProveNegative() const;
+  /*! \return Whether the set is proved to be smaller than or equal to 0 */
+  bool CanProveNonPositive() const;
+  /*! \return Whether the set is proved to be larger than or equal to 0 */
+  bool CanProveNonNegative() const;
   /*!
-   * \brief The single point value, call only if is_single_point is true
+   * \brief The single point value, call only if IsSinglePoint is true
    * \return The point value.
    */
-  PrimExpr point_value() const;
+  PrimExpr PointValue() const;
   /*!
    * \brief Try to match IntSet with range r.
    *
-   * \note It is guanrateed that IntSet::range(r).match_range(r) == true
+   * \note It is guanrateed that IntSet::FromRange(r).MatchRange(r) == true
    * \return true if we can prove they are the same.
    */
-  bool match_range(const Range& r) const;
+  bool MatchRange(const tvm::Range& r) const;
   /*! \return The set contains nothing */
-  static IntSet nothing();
+  static IntSet Nothing();
   /*! \return The set contains everything */
-  static IntSet everything();
+  static IntSet Everything();
   /*!
    * \brief construct a point set.
    * \param point The point in the set.
    * \return construct a single point set
    */
-  static IntSet single_point(PrimExpr point);
+  static IntSet SinglePoint(PrimExpr point);
   /*!
    * \brief construct a integer set from vector expression.
    * \param vec The vector expression, can also be single point.
    * \return The result set containing the indices in the vector.
    */
-  static IntSet vector(PrimExpr vec);
+  static IntSet Vector(PrimExpr vec);
   /*!
    * \brief Construct a set representing a range.
    * \param r The range
    * \return constructed set.
    */
-  static IntSet range(Range r);
+  static IntSet FromRange(tvm::Range r);
   /*!
    * \brief Construct a set representing a interval.
    * \param min The minimum value of the interval.
    * \param max The maximum value of the interval.
    * \return constructed set.
    */
-  static IntSet interval(PrimExpr min, PrimExpr max);
+  static IntSet Interval(PrimExpr min, PrimExpr max);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(IntSet, ObjectRef, IntSetNode);
 };
 
 //-----------------------------------------------
 // Integer set legacy API.
 //------------------------------------------------
+/*!
+ * \brief Convert std::unordered_map<const VarNode*, IntSet> to Map<Var, IntSet>
+ *
+ * \param dom_map The domain map to convert.
+ * \return The converted map.
+ */
+Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, IntSet>& dom_map);
 /*!
  * \brief Find an symbolic integer set that contains all possible values of
  *  e given the domain of each iteration variables.
@@ -159,8 +154,7 @@ class IntSet : public ObjectRef {
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(PrimExpr e,
-               const Map<IterVar, IntSet>& dom_map);
+IntSet EvalSet(PrimExpr e, const Map<IterVar, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes unordered_map
  *
@@ -168,9 +162,7 @@ IntSet EvalSet(PrimExpr e,
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(PrimExpr e,
-               const std::unordered_map<const tir::VarNode*, IntSet>& dom_map);
-
+IntSet EvalSet(PrimExpr e, const std::unordered_map<const tir::VarNode*, IntSet>& dom_map);
 /*!
  * \brief Find an symbolic integer set that contains is union over
  *  all the possible conditional values in dom_map.
@@ -179,8 +171,7 @@ IntSet EvalSet(PrimExpr e,
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values.
  */
-IntSet EvalSet(Range r,
-               const Map<IterVar, IntSet>& dom_map);
+IntSet EvalSet(Range r, const Map<IterVar, IntSet>& dom_map);
 
 /*!
  * \brief Find an symbolic integer set that contains is union over
@@ -190,8 +181,7 @@ IntSet EvalSet(Range r,
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values.
  */
-IntSet EvalSet(IntSet s,
-               const std::unordered_map<const VarNode*, IntSet>& dom_map);
+IntSet EvalSet(IntSet s, const std::unordered_map<const VarNode*, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes unordered_map
  *
@@ -199,11 +189,9 @@ IntSet EvalSet(IntSet s,
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(Range r,
-               const std::unordered_map<const VarNode*, IntSet>& dom_map);
-
+IntSet EvalSet(Range r, const std::unordered_map<const VarNode*, IntSet>& dom_map);
 /*! \brief Map from Expr to IntSet */
-using ExprIntSetMap = std::unordered_map<PrimExpr, IntSet, ObjectHash, ObjectEqual>;
+using ExprIntSetMap = std::unordered_map<PrimExpr, IntSet, ObjectPtrHash, ObjectPtrEqual>;
 /*!
  * \brief Find the integer set of every sub-expression, given the
  *  domain of each iteration variables.
@@ -212,9 +200,8 @@ using ExprIntSetMap = std::unordered_map<PrimExpr, IntSet, ObjectHash, ObjectEqu
  * \param dom_map The domain of each variable.
  * \return the map from the expression to its possible value.
  */
-ExprIntSetMap EvalSetForEachSubExpr(
-    PrimExpr e,
-    const std::unordered_map<const VarNode*, IntSet>& dom_map);
+ExprIntSetMap EvalSetForEachSubExpr(PrimExpr e,
+                                    const std::unordered_map<const VarNode*, IntSet>& dom_map);
 
 /*!
  * \brief Create an union set of all sets

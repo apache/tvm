@@ -49,11 +49,12 @@
 #ifndef TVM_IR_TYPE_H_
 #define TVM_IR_TYPE_H_
 
-#include <tvm/runtime/object.h>
-#include <tvm/runtime/data_type.h>
-#include <tvm/node/node.h>
-#include <tvm/node/container.h>
 #include <tvm/ir/span.h>
+#include <tvm/node/container.h>
+#include <tvm/node/node.h>
+#include <tvm/runtime/data_type.h>
+#include <tvm/runtime/object.h>
+
 #include <string>
 
 namespace tvm {
@@ -79,6 +80,9 @@ class TypeNode : public Object {
   mutable Span span;
 
   static constexpr const char* _type_key = "Type";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr const uint32_t _type_child_slots = 14;
   TVM_DECLARE_BASE_OBJECT_INFO(TypeNode, Object);
 };
 
@@ -106,14 +110,17 @@ class PrimTypeNode : public TypeNode {
    */
   runtime::DataType dtype;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
+  void VisitAttrs(AttrVisitor* v) { v->Visit("dtype", &dtype); }
+
+  bool SEqualReduce(const PrimTypeNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype);
   }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(dtype); }
 
   static constexpr const char* _type_key = "PrimType";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimTypeNode, TypeNode);
 };
-
 
 /*
  * \brief Managed reference to PrimTypeNode.
@@ -129,7 +136,6 @@ class PrimType : public Type {
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimType, Type, PrimTypeNode);
 };
-
 
 /*!
  * \brief Low-level raw pointer type.
@@ -148,9 +154,13 @@ class PointerTypeNode : public TypeNode {
    */
   Type element_type;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("element_type", &element_type);
+  void VisitAttrs(AttrVisitor* v) { v->Visit("element_type", &element_type); }
+
+  bool SEqualReduce(const PointerTypeNode* other, SEqualReducer equal) const {
+    return equal(element_type, other->element_type);
   }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(element_type); }
 
   static constexpr const char* _type_key = "PointerType";
   TVM_DECLARE_FINAL_OBJECT_INFO(PointerTypeNode, TypeNode);
@@ -170,7 +180,6 @@ class PointerType : public Type {
 
   TVM_DEFINE_OBJECT_REF_METHODS(PointerType, Type, PointerTypeNode);
 };
-
 
 /*! \brief Possible kinds of TypeVars. */
 enum TypeKind : int {
@@ -208,7 +217,7 @@ class TypeVarNode : public TypeNode {
    *  this only acts as a hint to the user,
    *  and is not used for equality.
    */
-  std::string name_hint;
+  String name_hint;
   /*! \brief The kind of type parameter */
   TypeKind kind;
 
@@ -216,6 +225,15 @@ class TypeVarNode : public TypeNode {
     v->Visit("name_hint", &name_hint);
     v->Visit("kind", &kind);
     v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const TypeVarNode* other, SEqualReducer equal) const {
+    return equal(kind, other->kind) && equal.FreeVarEqualImpl(this, other);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(kind);
+    hash_reduce.FreeVarHashImpl(this);
   }
 
   static constexpr const char* _type_key = "TypeVar";
@@ -233,7 +251,7 @@ class TypeVar : public Type {
    * \param name_hint The name of the type var.
    * \param kind The kind of the type var.
    */
-  TVM_DLL TypeVar(std::string name_hint, TypeKind kind);
+  TVM_DLL TypeVar(String name_hint, TypeKind kind);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TypeVar, Type, TypeVarNode);
 };
@@ -249,13 +267,23 @@ class GlobalTypeVarNode : public TypeNode {
    *  this only acts as a hint to the user,
    *  and is not used for equality.
    */
-  std::string name_hint;
+  String name_hint;
   /*! \brief The kind of type parameter */
   TypeKind kind;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
     v->Visit("kind", &kind);
+  }
+
+  bool SEqualReduce(const GlobalTypeVarNode* other, SEqualReducer equal) const {
+    // name matters for now in global type var.
+    return equal(name_hint, other->name_hint) && equal.FreeVarEqualImpl(this, other);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(name_hint);
+    hash_reduce.FreeVarHashImpl(this);
   }
 
   static constexpr const char* _type_key = "GlobalTypeVar";
@@ -273,7 +301,7 @@ class GlobalTypeVar : public Type {
    * \param name_hint The name of the type var.
    * \param kind The kind of the type var.
    */
-  TVM_DLL GlobalTypeVar(std::string name_hint, TypeKind kind);
+  TVM_DLL GlobalTypeVar(String name_hint, TypeKind kind);
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalTypeVar, Type, GlobalTypeVarNode);
 };
@@ -293,6 +321,12 @@ class TupleTypeNode : public TypeNode {
     v->Visit("fields", &fields);
     v->Visit("span", &span);
   }
+
+  bool SEqualReduce(const TupleTypeNode* other, SEqualReducer equal) const {
+    return equal(fields, other->fields);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(fields); }
 
   static constexpr const char* _type_key = "TupleType";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleTypeNode, TypeNode);
@@ -322,9 +356,7 @@ class TupleType : public Type {
 /*!
  * \return a type that represents void.
  */
-inline Type VoidType() {
-  return TupleType::Empty();
-}
+inline Type VoidType() { return TupleType::Empty(); }
 
 /*!
  * \brief Check whether the tyep represents void.
@@ -342,6 +374,7 @@ inline bool IsVoidType(const Type& type) {
 class TypeConstraintNode : public TypeNode {
  public:
   static constexpr const char* _type_key = "TypeConstraint";
+  static constexpr const uint32_t _type_child_slots = 1;
   TVM_DECLARE_BASE_OBJECT_INFO(TypeConstraintNode, TypeNode);
 };
 
@@ -386,6 +419,19 @@ class FuncTypeNode : public TypeNode {
     v->Visit("span", &span);
   }
 
+  bool SEqualReduce(const FuncTypeNode* other, SEqualReducer equal) const {
+    // type params first as they defines type vars.
+    return equal.DefEqual(type_params, other->type_params) && equal(arg_types, other->arg_types) &&
+           equal(ret_type, other->ret_type) && equal(type_constraints, other->type_constraints);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(type_params);
+    hash_reduce(arg_types);
+    hash_reduce(ret_type);
+    hash_reduce(type_constraints);
+  }
+
   static constexpr const char* _type_key = "FuncType";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuncTypeNode, TypeNode);
 };
@@ -404,9 +450,7 @@ class FuncType : public Type {
    * \param type_constraints The type constraints.
    * \sa FuncTypeNode for more docs about these fields.
    */
-  TVM_DLL FuncType(Array<Type> arg_types,
-                   Type ret_type,
-                   Array<TypeVar> type_params,
+  TVM_DLL FuncType(Array<Type> arg_types, Type ret_type, Array<TypeVar> type_params,
                    Array<TypeConstraint> type_constraints);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FuncType, Type, FuncTypeNode);
@@ -432,6 +476,12 @@ class IncompleteTypeNode : public TypeNode {
     v->Visit("span", &span);
   }
 
+  bool SEqualReduce(const IncompleteTypeNode* other, SEqualReducer equal) const {
+    return equal(kind, other->kind) && equal.FreeVarEqualImpl(this, other);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(kind); }
+
   static constexpr const char* _type_key = "IncompleteType";
   TVM_DECLARE_FINAL_OBJECT_INFO(IncompleteTypeNode, TypeNode);
 };
@@ -451,7 +501,6 @@ class IncompleteType : public Type {
   TVM_DEFINE_OBJECT_REF_METHODS(IncompleteType, Type, IncompleteTypeNode);
 };
 
-
 /*!
  * \brief Reference Type High-level Relay IR.
  *
@@ -468,6 +517,12 @@ class RelayRefTypeNode : public TypeNode {
     v->Visit("value", &value);
     v->Visit("span", &span);
   }
+
+  bool SEqualReduce(const RelayRefTypeNode* other, SEqualReducer equal) const {
+    return equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
 
   // Keep the relay prefix in the type as this type is specific
   // to the relay itself.

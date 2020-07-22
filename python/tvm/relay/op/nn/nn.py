@@ -16,10 +16,10 @@
 # under the License.
 #pylint: disable=invalid-name, too-many-lines
 """Neural network operations."""
-from __future__ import absolute_import as _abs
-from ...expr import TupleWrapper
+from tvm.relay import expr
+
 from . import _make
-from .util import get_pad_tuple2d
+from .util import get_pad_tuple1d, get_pad_tuple2d, get_pad_tuple3d
 
 
 def conv1d(data,
@@ -108,8 +108,7 @@ def conv1d(data,
         strides = (strides, )
     if isinstance(dilation, int):
         dilation = (dilation, )
-    if isinstance(padding, int):
-        padding = (padding, padding)
+    padding = get_pad_tuple1d(padding)
     return _make.conv1d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
@@ -295,12 +294,153 @@ def conv3d(data,
         strides = (strides, strides, strides)
     if isinstance(dilation, int):
         dilation = (dilation, dilation, dilation)
-    if isinstance(padding, int):
-        padding = (padding, padding, padding)
+    padding = get_pad_tuple3d(padding)
     return _make.conv3d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
 
+
+def contrib_conv3d_winograd_without_weight_transform(data,
+                                                     weight,
+                                                     tile_size,
+                                                     strides=(1, 1, 1),
+                                                     padding=(0, 0, 0),
+                                                     dilation=(1, 1, 1),
+                                                     groups=1,
+                                                     channels=None,
+                                                     kernel_size=None,
+                                                     data_layout="NCDHW",
+                                                     kernel_layout="OIDHW",
+                                                     out_layout="",
+                                                     out_dtype=""):
+    r"""3D convolution with winograd algorithm.
+
+    The basic parameters are the same as the ones in vanilla conv3d.
+    It assumes the weight is pre-transformed by nn.contrib_conv3d_winograd_weight_transform
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    tile_size : int
+        The Tile size of winograd. E.g. 2 for F(2x2x2, 3x3x3) and 4 for F(4x4x4, 3x3x3)
+
+    strides : tuple of int, optional
+        The strides of convolution.
+
+    padding : tuple of int, optional
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilation : tuple of int, optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the weight.
+
+    out_layout : str, optional
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    # convert 3-way padding to 6-way padding
+    padding = get_pad_tuple3d(padding)
+    return _make.contrib_conv3d_winograd_without_weight_transform(
+        data, weight, tile_size, strides, padding, dilation,
+        groups, channels, kernel_size, data_layout,
+        kernel_layout, out_layout, out_dtype)
+
+def conv3d_transpose(data,
+                     weight,
+                     strides=(1, 1, 1),
+                     padding=(0, 0, 0),
+                     dilation=(1, 1, 1),
+                     groups=1,
+                     channels=None,
+                     kernel_size=None,
+                     data_layout="NCDHW",
+                     kernel_layout="OIDHW",
+                     out_layout="",
+                     output_padding=(0, 0, 0),
+                     out_dtype=""):
+    r"""3D transpose convolution.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    strides : Optional[Tuple[int]]
+        The strides of convolution.
+
+    padding : Optional[int, Tuple[int]]
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilation : Optional[int, Tuple[int]]
+        Specifies the dilation rate to be used for dilated convolution.
+
+    groups : Optional[int]
+        Number of groups for grouped convolution.
+
+    channels : Optional[int]
+        Number of output channels of this convolution.
+
+    kernel_size : Optional[int, Tuple[int]]
+        The spatial of the convolution kernel.
+
+    data_layout : Optional[str]
+        Layout of the input.
+
+    kernel_layout : Optional[str]
+        Layout of the weight.
+
+    out_layout : Optional[str]
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : Optional[str]
+        Specifies the output data type for mixed precision conv3d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, kernel_size, kernel_size)
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    if isinstance(dilation, int):
+        dilation = (dilation, dilation, dilation)
+    padding = get_pad_tuple3d(padding)
+
+    return _make.conv3d_transpose(data, weight, strides, padding, dilation,
+                                  groups, channels, kernel_size, data_layout,
+                                  kernel_layout, out_layout, output_padding, out_dtype)
 
 def conv2d_transpose(data,
                      weight,
@@ -353,7 +493,7 @@ def conv2d_transpose(data,
         Layout of the output, by default, out_layout is the same as data_layout
 
     output_padding : Tuple[int], optional
-        Additional zero-padding to be added to one side of the output.
+        Used to disambiguate the output shape.
 
     out_dtype : str, optional
         Specifies the output data type for mixed precision conv2d.
@@ -421,7 +561,7 @@ def conv1d_transpose(data,
         Layout of the output, by default, out_layout is the same as data_layout
 
     output_padding : Tuple[int], optional
-        Additional zero-padding to be added to one side of the output.
+        Used to disambiguate the output shape.
 
     out_dtype : str, optional
         Specifies the output data type for mixed precision conv2d.
@@ -475,8 +615,8 @@ def log_softmax(data, axis=-1):
     data: tvm.relay.Expr
         The input data to the operator.
 
-    axis: int
-        The axis to sum over when computing softmax
+    axis: int, optional
+        The axis to sum over when computing log softmax
 
     Returns
     -------
@@ -510,6 +650,9 @@ def max_pool1d(data,
     data : tvm.relay.Expr
         The input data to the operator.
 
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
+
     strides : int or tuple of int, optional
         The strides of pooling.
 
@@ -527,10 +670,11 @@ def max_pool1d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size,)
     if isinstance(strides, int):
         strides = (strides,)
-    if isinstance(padding, int):
-        padding = (padding,)
+    padding = get_pad_tuple1d(padding)
     return _make.max_pool1d(data, pool_size, strides, padding,
                             layout, ceil_mode)
 
@@ -567,6 +711,9 @@ def max_pool2d(data,
     data : tvm.relay.Expr
         The input data to the operator.
 
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
+
     strides : tuple of int, optional
         The strides of pooling.
 
@@ -584,6 +731,11 @@ def max_pool2d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides)
+    padding = get_pad_tuple2d(padding)
     return _make.max_pool2d(data, pool_size, strides, padding,
                             layout, ceil_mode)
 
@@ -612,6 +764,9 @@ def max_pool3d(data,
     data : tvm.relay.Expr
         The input data to the operator.
 
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
+
     strides : tuple of int, optional
         The strides of pooling.
 
@@ -629,6 +784,11 @@ def max_pool3d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    padding = get_pad_tuple3d(padding)
     return _make.max_pool3d(data, pool_size, strides, padding,
                             layout, ceil_mode)
 
@@ -658,6 +818,9 @@ def avg_pool1d(data,
     data : tvm.relay.Expr
         The input data to the operator.
 
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
+
     strides : int or tuple of int, optional
         The strides of pooling.
 
@@ -678,10 +841,11 @@ def avg_pool1d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size,)
     if isinstance(strides, int):
         strides = (strides,)
-    if isinstance(padding, int):
-        padding = (padding,)
+    padding = get_pad_tuple1d(padding)
     return _make.avg_pool1d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
 
@@ -720,6 +884,9 @@ def avg_pool2d(data,
     data : tvm.relay.Expr
         The input data to the operator.
 
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
+
     strides : tuple of int, optional
         The strides of pooling.
 
@@ -740,6 +907,11 @@ def avg_pool2d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides)
+    padding = get_pad_tuple2d(padding)
     return _make.avg_pool2d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
 
@@ -769,6 +941,9 @@ def avg_pool3d(data,
     data : tvm.relay.Expr
         The input data to the operator.
 
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
+
     strides : tuple of int, optional
         The strides of pooling.
 
@@ -789,6 +964,11 @@ def avg_pool3d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    padding = get_pad_tuple3d(padding)
     return _make.avg_pool3d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
 
@@ -810,6 +990,9 @@ def max_pool2d_grad(out_grad,
 
     data : tvm.relay.Expr
         The input data to the operator.
+
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
 
     strides : tuple of int, optional
         The strides of pooling.
@@ -850,6 +1033,9 @@ def avg_pool2d_grad(out_grad,
 
     data : tvm.relay.Expr
         The input data to the operator.
+
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
 
     strides : tuple of int, optional
         The strides of pooling.
@@ -1252,6 +1438,25 @@ def pad(data,
     return _make.pad(data, pad_width, pad_value, pad_mode)
 
 
+def dilate(data, strides):
+    """Dilate data with zeros.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        n-D, can be any layout.
+
+    strides : <tuple of <int>
+        Dilation stride on each dimension, 1 means no dilation.
+
+    Returns
+    -------
+    Output : tvm.relay.Expr
+        The computed result
+    """
+    return _make.dilate(data, strides)
+
+
 def mirror_pad(data,
                pad_width,
                mode="SYMMETRIC"):
@@ -1362,7 +1567,7 @@ def dropout(data, rate=0.5):
     result : tvm.relay.Expr
         The result of dropout
     """
-    return TupleWrapper(dropout_raw(data, rate), 2)[0]
+    return expr.TupleWrapper(dropout_raw(data, rate), 2)[0]
 
 
 def dropout_raw(data, rate=0.5):
@@ -1485,7 +1690,7 @@ def batch_norm(data,
                               epsilon,
                               center,
                               scale)
-    return TupleWrapper(result, 3)
+    return expr.TupleWrapper(result, 3)
 
 
 def instance_norm(data,
@@ -1613,6 +1818,75 @@ def layer_norm(data,
     return _make.layer_norm(data, gamma, beta, axis, epsilon, center, scale)
 
 
+def group_norm(data,
+               gamma,
+               beta,
+               num_groups,
+               axis=1,
+               epsilon=1e-5,
+               center=True,
+               scale=True):
+    r"""
+    Group normalization normalizes over group of channels for each training examples.
+    We can say that, Group Norm is in between Instance Norm and Layer Norm. When we put
+    all the channels into a single group, group normalization becomes Layer normalization.
+    And, when we put each channel into different groups it becomes Instance normalization
+
+    https://arxiv.org/pdf/1803.08494.pdf
+
+    Applies group normalization to the n-dimensional input array by seperating the input channels
+    into 'num_groups' groups, each containing 'num_channels / num_groups' channels.
+    The mean and standard-deviation are calculated separately over the each group. gamma and
+    beta are learnable per-channel affine transform parameter vectors of size num_channels.
+
+    .. math::
+
+        out = \frac{data - mean(data, axis)}{\sqrt{var(data, axis)+\epsilon}}
+            * gamma + beta
+
+    Unlike batch normalization, the mean and var are computed along a group of channels.
+
+    If the input has size k on axis 1, then both gamma and beta have shape (k,).
+
+    .. note::
+
+        This operator can be optimized away for inference.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        Input to which group_norm will be applied.
+
+    gamma : tvm.relay.Expr
+        The gamma scale factor.
+
+    beta : tvm.relay.Expr
+        The beta offset factor.
+
+    num_groups : int
+        The number of groups to separate the channels into.
+
+    axis : int, optional, default=1
+        The axis of the channels.
+
+    epsilon : double, optional, default=1e-5
+        Small float added to variance to avoid dividing by zero.
+
+    center : boolean, optional, default=True
+        If True, add offset of beta to normalized tensor, If False,
+        beta is ignored.
+
+    scale : boolean, optional, default=True
+        If True, multiply by gamma. If False, gamma is not used.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The normalized data.
+    """
+    return _make.group_norm(data, gamma, beta, num_groups, axis, epsilon, center, scale)
+
+
 def batch_matmul(x, y):
     r"""
     Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
@@ -1696,7 +1970,8 @@ def sparse_transpose(x):
         Tuple of output sparse tensor (same shape and format as input),
         i.e. if CSR then output is in ([data, indices, indptr]) form
     """
-    return TupleWrapper(_make.sparse_transpose(x.data, x.indices, x.indptr), 3)
+    return expr.TupleWrapper(
+        _make.sparse_transpose(x.data, x.indices, x.indptr), 3)
 
 def contrib_conv2d_winograd_without_weight_transform(data,
                                                      weight,
@@ -1766,6 +2041,74 @@ def contrib_conv2d_winograd_without_weight_transform(data,
     padding = get_pad_tuple2d(padding)
     return _make.contrib_conv2d_winograd_without_weight_transform(
         data, weight, tile_size, strides, padding, dilation,
+        groups, channels, kernel_size, data_layout,
+        kernel_layout, out_layout, out_dtype)
+
+
+def contrib_conv2d_gemm_without_weight_transform(data,
+                                                 weight,
+                                                 strides=(1, 1),
+                                                 padding=(0, 0),
+                                                 dilation=(1, 1),
+                                                 groups=1,
+                                                 channels=None,
+                                                 kernel_size=None,
+                                                 data_layout="NCHW",
+                                                 kernel_layout="OIHW",
+                                                 out_layout="",
+                                                 out_dtype=""):
+    r"""2D convolution with gemm algorithm.
+
+    The basic parameters are the same as the ones in vanilla conv2d.
+    It assumes the weight is pre-transformed by nn.contrib_conv2d_gemm_weight_transform
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    strides : tuple of int, optional
+        The strides of convolution.
+
+    padding : tuple of int, optional
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilation : tuple of int, optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the weight.
+
+    out_layout : str, optional
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
+    return _make.contrib_conv2d_gemm_without_weight_transform(
+        data, weight, strides, padding, dilation,
         groups, channels, kernel_size, data_layout,
         kernel_layout, out_layout, out_dtype)
 
@@ -1926,6 +2269,52 @@ def contrib_conv2d_winograd_weight_transform(weight,
         The computed result.
     """
     return _make.contrib_conv2d_winograd_weight_transform(weight, tile_size)
+
+
+def contrib_conv2d_gemm_weight_transform(weights, tile_rows, tile_cols):
+    r"""Weight Transformation part for 2D convolution with gemm algorithm.
+
+    We separate this as a single op to enable pre-compute for inference.
+    Use this together with nn.contrib_conv2d_gemm_without_weight_transform
+
+    Parameters
+    ----------
+    weights : tvm.relay.Expr
+        The weight expressions.
+    tile_rows: int
+        Tile rows of the weight transformation for ConvGemm.
+    tile_cols: int
+       Tile columns of the weight transformation for ConvGemm.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.contrib_conv2d_gemm_weight_transform(weights, tile_rows, tile_cols)
+
+
+def contrib_conv3d_winograd_weight_transform(weight,
+                                             tile_size):
+    r"""Weight Transformation part for 3D convolution with winograd algorithm.
+
+    We separate this as a single op to enable pre-compute for inference.
+    Use this together with nn.contrib_conv3d_winograd_without_weight_transform
+
+    Parameters
+    ----------
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    tile_size : int
+        The Tile size of winograd. E.g. 2 for F(2x2x2, 3x3x3) and 4 for F(4x4x4, 3x3x3)
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.contrib_conv3d_winograd_weight_transform(weight, tile_size)
 
 
 def contrib_conv2d_winograd_nnpack_weight_transform(weight,
@@ -2463,3 +2852,155 @@ def adaptive_avg_pool3d(data,
     """
     output_size = [] or output_size
     return _make.adaptive_avg_pool3d(data, output_size, layout)
+
+
+def global_max_pool3d(data,
+                      layout="NCDHW"):
+    r"""3D global maximum pooling operator.
+
+    This operator takes data as input and does 3D max value calculation
+    across each window represented by DxWxH.
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
+    to produce an output Tensor with the following rule:
+
+    with data of shape (b, c, d, h, w)
+    .. math::
+
+        \mbox{out}(b, c, 1, 1, 1)  =  \max_{l=0, \ldots, d},  \max_{m=0, \ldots, h},
+             \max_{n=0, \ldots, w} \mbox{data}(b, c, l, m, n)
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [1, 1, 1]
+    return _make.adaptive_max_pool3d(data, output_size, layout)
+
+
+def global_avg_pool3d(data,
+                      layout="NCDHW"):
+    r"""3D global average pooling operator.
+
+    This operator takes data as input and does 3D average value calculation
+    across each window represented by DxWxH.
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
+    to produce an output Tensor with the following rule:
+
+    with data of shape (b, c, d, h, w)
+
+    .. math::
+
+        \mbox{out}(b, c, 1, 1, 1)  = \frac{1}{d * h * w} \sum_{l=0}^{d-1}  \sum_{m=0}^{h-1}
+             \sum_{n=0}^{w-1} \mbox{data}(b, c, l, m, n)
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [1, 1, 1]
+    return _make.adaptive_avg_pool3d(data, output_size, layout)
+
+
+def correlation(data1, data2, kernel_size, max_displacement, stride1, stride2, padding,
+                is_multiply, layout):
+    r"""Applies correlation to inputs.
+
+    The correlation layer performs multiplicative patch comparisons between two feature maps.
+    Given two multi-channel feature maps :math:`f_{1}, f_{2}`, with :math:`w`, :math:`h`, and
+    :math:`c` being their width, height, and number of channels, the correlation layer lets the
+    network compare each patch from :math:`f_{1}` with each patch from :math:`f_{2}`.
+
+    For now we consider only a single comparison of two patches. The 'correlation' of two patches
+    centered at :math:`x_{1}` in the first map and :math:`x_{2}` in the second map is then defined
+    as:
+
+    .. math::
+
+        c(x_{1}, x_{2}) = \sum_{o \in [-k,k] \times [-k,k]} <f_{1}(x_{1} + o), f_{2}(x_{2} + o)>
+
+    for a square patch of size :math:`K:=2k+1`.
+
+    Note that the equation above is identical to one step of a convolution in neural networks, but
+    instead of convolving data with a filter, it convolves data with other    data. For this
+    reason, it has no training weights.
+
+    Computing :math:`c(x_{1}, x_{2})` involves :math:`c * K^{2}` multiplications. Comparing all
+    patch combinations involves :math:`w^{2}*h^{2}` such computations.
+
+    Given a maximum displacement :math:`d`, for each location :math:`x_{1}` it computes
+    correlations :math:`c(x_{1}, x_{2})` only in a neighborhood of size :math:`D:=2d+1`,
+    by limiting the range of :math:`x_{2}`. We use strides :math:`s_{1}, s_{2}`, to quantize
+    :math:`x_{1}` globally and to quantize :math:`x_{2}` within the neighborhood
+    centered around :math:`x_{1}`.
+
+    The final output is defined by the following expression:
+
+    .. math::
+
+        out[n, q, i, j] = c(x_{i, j}, x_{q})
+
+    where :math:`i` and :math:`j` enumerate spatial locations in :math:`f_{1}`, and :math:`q`
+    denotes the :math:`q^{th}` neighborhood of :math:`x_{i,j}`.
+
+    Parameters
+    ----------
+    data1 : tvm.te.Tensor
+        4-D with shape [batch, channel, height, width]
+
+    data2 : tvm.te.Tensor
+        4-D with shape [batch, channel, height, width]
+
+    kernel_size: int
+        Kernel size for correlation, must be an odd number
+
+    max_displacement: int
+        Max displacement of Correlation
+
+    stride1: int
+        Stride for data1
+
+    stride2: int
+        Stride for data2 within the neightborhood centered around data1
+
+    padding : int or a list/tuple of 2 or 4 ints
+        Padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
+
+    is_multiply: bool
+        operation type is either multiplication or substraction
+
+    layout: str
+        layout of data1, data2 and the output
+
+    Returns
+    -------
+    Output : tvm.te.Tensor
+        4-D with shape [batch, out_channel, out_height, out_width]
+    """
+    if isinstance(padding, int):
+        padding = (padding, padding)
+    return _make.correlation(data1, data2, kernel_size, max_displacement, stride1, stride2,
+                             padding, is_multiply, layout)

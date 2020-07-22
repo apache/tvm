@@ -107,9 +107,27 @@ def schedule_adaptive_pool(attrs, outs, target):
         return topi.generic.schedule_adaptive_pool(outs)
 
 # softmax
+def wrap_compute_softmax(topi_compute):
+    """Wrap softmax topi compute"""
+    def _compute_softmax(attrs, inputs, out_type):
+        axis = attrs.get_int("axis")
+        return [topi_compute(inputs[0], axis)]
+    return _compute_softmax
+
+@override_native_generic_func("softmax_strategy")
+def softmax_strategy(attrs, inputs, out_type, target):
+    """softmax generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.generic.schedule_softmax),
+        name="softmax.generic")
+    return strategy
+
+# log_softmax
 @generic_func
-def schedule_softmax(attrs, outs, target):
-    """Schedule softmax"""
+def schedule_log_softmax(attrs, outs, target):
+    """Schedule log_softmax op"""
     with target:
         return topi.generic.schedule_softmax(outs)
 
@@ -248,6 +266,12 @@ def conv2d_winograd_without_weight_transfrom_strategy(attrs, inputs, out_type, t
     """conv2d_winograd_without_weight_transfrom generic strategy"""
     raise ValueError("No generic implemenation for conv2d_winograd_without_weight_transform")
 
+# conv2d_gemm_without_weight_transform
+@override_native_generic_func("conv2d_gemm_without_weight_transform_strategy")
+def conv2d_gemm_without_weight_transform_strategy(attrs, inputs, out_type, target):
+    """conv2d_gemm_without_weight_transfrom generic strategy"""
+    raise ValueError("No generic implemenation for conv2d_gemm_without_weight_transform")
+
 # conv2d_winograd_weight_transform
 @generic_func
 def schedule_conv2d_winograd_weight_transform(attrs, outs, target):
@@ -261,6 +285,13 @@ def schedule_conv2d_winograd_nnpack_weight_transform(attrs, outs, target):
     """Schedule conv2d_winograd_nnpack_weight_transform"""
     with target:
         return topi.generic.schedule_conv2d_winograd_nnpack_weight_transform(outs)
+
+# conv2d_gemm_weight_transform
+@generic_func
+def schedule_conv2d_gemm_weight_transform(attrs, outs, target):
+    """Schedule conv2d_gemm_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv2d_gemm_weight_transform(outs)
 
 # deformable_conv2d
 def wrap_compute_deformable_conv2d(topi_compute):
@@ -302,11 +333,9 @@ def wrap_compute_conv2d_transpose(topi_compute):
         out_dtype = attrs.out_dtype
         out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                      else out_dtype)
-        out = topi_compute(
-            inputs[0], inputs[1], strides, padding, out_dtype)
         output_padding = get_const_tuple(attrs.output_padding)
-        out = topi.nn.pad(out, [0, 0, 0, 0],
-                          [0, 0, output_padding[0], output_padding[1]])
+        out = topi_compute(
+            inputs[0], inputs[1], strides, padding, out_dtype, output_padding)
         return [out]
     return compute_conv2d_transpose
 
@@ -325,6 +354,44 @@ def conv2d_transpose_strategy(attrs, inputs, out_type, target):
         wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
         wrap_topi_schedule(topi.generic.schedule_conv2d_transpose_nchw),
         name="conv2d_transpose_nchw.generic")
+    return strategy
+
+
+# conv3d_transpose
+def wrap_compute_conv3d_transpose(topi_compute):
+    """wrap conv3d_transpose topi compute"""
+    def compute_conv3d_transpose(attrs, inputs, out_dtype):
+        """Compute definition of conv3d_transpose"""
+        padding = get_const_tuple(attrs.padding)
+        strides = get_const_tuple(attrs.strides)
+        out_dtype = attrs.out_dtype
+        out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                     else out_dtype)
+        out = topi_compute(
+            inputs[0], inputs[1], strides, padding, out_dtype)
+        output_padding = get_const_tuple(attrs.output_padding)
+        out = topi.nn.pad(out,
+                          [0, 0, 0, 0, 0],
+                          [0, 0, output_padding[0], output_padding[1], output_padding[2]])
+        return [out]
+    return compute_conv3d_transpose
+
+
+@override_native_generic_func("conv3d_transpose_strategy")
+def conv3d_transpose_strategy(attrs, inputs, out_type, target):
+    """conv3d_transpose generic strategy"""
+    logger.warning("conv3d_transpose is not optimized for this platform.")
+    layout = attrs.data_layout
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    assert layout == "NCDHW", "only support ncdhw for now"
+    assert dilation == (1, 1, 1), "not support dilate now"
+    assert groups == 1, "only support groups == 1 for now"
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_conv3d_transpose(topi.nn.conv3d_transpose_ncdhw),
+        wrap_topi_schedule(topi.generic.schedule_conv3d_transpose_ncdhw),
+        name="conv3d_transpose_ncdhw.generic")
     return strategy
 
 # conv3d
@@ -374,6 +441,19 @@ def conv3d_strategy(attrs, inputs, out_type, target):
         raise ValueError("Not support this layout {} yet".format(layout))
     return strategy
 
+# conv3d_winograd_without_weight_transform
+@override_native_generic_func("conv3d_winograd_without_weight_transform_strategy")
+def conv3d_winograd_without_weight_transfrom_strategy(attrs, inputs, out_type, target):
+    """conv3d_winograd_without_weight_transfrom generic strategy"""
+    raise ValueError("No generic implemenation for conv3d_winograd_without_weight_transform")
+
+# conv3d_winograd_weight_transform
+@generic_func
+def schedule_conv3d_winograd_weight_transform(attrs, outs, target):
+    """Schedule conv3d_winograd_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv3d_winograd_weight_transform(outs)
+
 # conv1d
 def wrap_compute_conv1d(topi_compute):
     """wrap conv1d topi compute"""
@@ -420,9 +500,8 @@ def wrap_compute_conv1d_transpose(topi_compute):
         strides = get_const_tuple(attrs.strides)
         out_dtype = attrs.out_dtype
         out_dtype = (inputs[0].dtype if out_dtype in ("same", "") else out_dtype)
-        out = topi_compute(inputs[0], inputs[1], strides, padding, out_dtype)
         output_padding = get_const_tuple(attrs.output_padding)
-        out = topi.nn.pad(out, [0, 0, 0], [0, 0, output_padding[0]])
+        out = topi_compute(inputs[0], inputs[1], strides, padding, out_dtype, output_padding)
         return [out]
     return _compute_conv1d_tranpsoe
 
@@ -530,12 +609,22 @@ def batch_matmul_strategy(attrs, inputs, out_type, target):
                                 name="batch_matmul.generic")
     return strategy
 
-# sparse_dense
-@generic_func
-def schedule_sparse_dense(attrs, outs, target):
-    """schedule sparse_dense"""
-    with target:
-        return topi.generic.schedule_sparse_dense(outs)
+# sparse dense
+def wrap_compute_sparse_dense(topi_compute):
+    """wrap sparse dense topi compute"""
+    def _compute_sparse_dense(attrs, inputs, out_type):
+        return [topi_compute(inputs[0], inputs[1], inputs[2], inputs[3])]
+    return _compute_sparse_dense
+
+@override_native_generic_func("sparse_dense_strategy")
+def sparse_dense_strategy(attrs, inputs, out_type, target):
+    """sparse dense generic strategy"""
+    logger.warning("sparse dense is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(wrap_compute_sparse_dense(topi.nn.sparse_dense),
+                                wrap_topi_schedule(topi.generic.schedule_sparse_dense),
+                                name="sparse_dense.generic")
+    return strategy
 
 # sparse_transpose
 @generic_func
@@ -567,7 +656,10 @@ def argsort_strategy(attrs, inputs, out_type, target):
 def wrap_compute_topk(topi_compute):
     """Wrap topk compute"""
     def _compute_topk(attrs, inputs, out_type):
-        k = get_const_int(attrs.k)
+        if attrs.k is not None:
+            k = attrs.k
+        else:
+            k = inputs[1]
         axis = get_const_int(attrs.axis)
         ret_type = attrs.ret_type
         is_ascend = bool(get_const_int(attrs.is_ascend))
@@ -653,8 +745,10 @@ def get_valid_counts_strategy(attrs, inputs, out_type, target):
 def wrap_compute_nms(topi_compute):
     """wrap nms topi compute"""
     def _compute_nms(attrs, inputs, out_type):
+        max_output_size = inputs[3]
+        if attrs.max_output_size is not None:
+            max_output_size = attrs.max_output_size
         return_indices = bool(get_const_int(attrs.return_indices))
-        max_output_size = get_const_int(attrs.max_output_size)
         iou_threshold = get_const_float(attrs.iou_threshold)
         force_suppress = bool(get_const_int(attrs.force_suppress))
         top_k = get_const_int(attrs.top_k)
@@ -662,9 +756,13 @@ def wrap_compute_nms(topi_compute):
         score_index = get_const_int(attrs.score_index)
         id_index = get_const_int(attrs.id_index)
         invalid_to_bottom = bool(get_const_int(attrs.invalid_to_bottom))
-        return [topi_compute(inputs[0], inputs[1], max_output_size, iou_threshold,
-                             force_suppress, top_k, coord_start, score_index,
-                             id_index, return_indices, invalid_to_bottom)]
+        if return_indices:
+            return topi_compute(inputs[0], inputs[1], inputs[2], max_output_size, iou_threshold,
+                                force_suppress, top_k, coord_start, score_index, id_index,
+                                return_indices, invalid_to_bottom)
+        return [topi_compute(inputs[0], inputs[1], inputs[2], max_output_size, iou_threshold,
+                             force_suppress, top_k, coord_start, score_index, id_index,
+                             return_indices, invalid_to_bottom)]
     return _compute_nms
 
 @override_native_generic_func("non_max_suppression_strategy")
@@ -737,6 +835,20 @@ def schedule_argwhere(attrs, outs, target):
     with target:
         return topi.generic.schedule_argwhere(outs)
 
+# scatter
+@generic_func
+def schedule_scatter(attrs, outs, target):
+    """schedule scatter"""
+    with target:
+        return topi.generic.schedule_scatter(outs)
+
+# scatter_add
+@generic_func
+def schedule_scatter_add(attrs, outs, target):
+    """schedule scatter_add"""
+    with target:
+        return topi.generic.schedule_scatter_add(outs)
+
 # bitserial_conv2d
 def wrap_compute_bitserial_conv2d(topi_compute):
     """wrap bitserial_conv2d topi compute"""
@@ -797,4 +909,31 @@ def bitserial_dense_strategy(attrs, inputs, out_type, target):
         wrap_compute_bitserial_dense(topi.nn.bitserial_dense),
         wrap_topi_schedule(topi.generic.schedule_bitserial_dense),
         name="bitserial_dense.generic")
+    return strategy
+
+# correlation
+def wrap_compute_correlation(topi_compute):
+    """wrap correlation topi compute"""
+    def _compute_correlation(attrs, inputs, out_type):
+        kernel_size = attrs.kernel_size
+        max_displacement = attrs.max_displacement
+        stride1 = attrs.stride1
+        stride2 = attrs.stride2
+        padding = get_const_tuple(attrs.padding)
+        is_multiply = attrs.is_multiply
+        return [topi_compute(inputs[0], inputs[1], kernel_size, max_displacement, stride1, stride2,
+                             padding, is_multiply)]
+    return _compute_correlation
+
+@override_native_generic_func("correlation_strategy")
+def correlation_strategy(attrs, inputs, out_type, target):
+    """correlation generic strategy"""
+    logger.warning("correlation is not optimized for this platform.")
+    layout = attrs.layout
+    assert layout == "NCHW", "Only support NCHW layout"
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_correlation(topi.nn.correlation_nchw),
+        wrap_topi_schedule(topi.generic.schedule_correlation_nchw),
+        name="correlation.generic")
     return strategy

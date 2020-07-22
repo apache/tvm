@@ -355,6 +355,8 @@ def test_logical_binary_ele():
     test_apply(topi.logical_and, "logical_and", np.logical_and, [True, False], [False, False])
     test_apply(topi.logical_or, "logical_or", np.logical_or, True, False)
     test_apply(topi.logical_or, "logical_or", np.logical_or, [True, False], [False, False])
+    test_apply(topi.logical_xor, "logical_xor", np.logical_xor, True, False)
+    test_apply(topi.logical_xor, "logical_xor", np.logical_xor, [True, False], [False, False])
 
 
 def test_bitwise_and():

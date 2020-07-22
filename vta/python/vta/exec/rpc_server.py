@@ -30,8 +30,7 @@ from tvm import rpc
 from tvm.contrib import cc
 from vta import program_bitstream
 
-from ..environment import get_env
-from ..pkg_config import PkgConfig
+from ..environment import get_env, pkg_config
 from ..libinfo import find_libvta
 
 
@@ -43,7 +42,7 @@ def server_start():
         os.path.abspath(os.path.expanduser(__file__)))
     proj_root = os.path.abspath(os.path.join(curr_path, "../../../../"))
     dll_path = find_libvta("libvta")[0]
-    cfg_path = os.path.abspath(os.path.join(proj_root, "build/vta_config.json"))
+    cfg_path = os.path.abspath(os.path.join(proj_root, "3rdparty/vta-hw/config/vta_config.json"))
     runtime_dll = []
     _load_module = tvm.get_global_func("tvm.rpc.server.load_module")
 
@@ -101,14 +100,14 @@ def server_start():
             raise RuntimeError("Can only reconfig in the beginning of session...")
         cfg = json.loads(cfg_json)
         cfg["TARGET"] = env.TARGET
-        pkg = PkgConfig(cfg, proj_root)
+        pkg = pkg_config(cfg)
         # check if the configuration is already the same
         if os.path.isfile(cfg_path):
             old_cfg = json.loads(open(cfg_path, "r").read())
             if pkg.same_config(old_cfg):
                 logging.info("Skip reconfig_runtime due to same config.")
                 return
-        cflags = ["-O2", "-std=c++11"]
+        cflags = ["-O2", "-std=c++14"]
         cflags += pkg.cflags
         ldflags = pkg.ldflags
         lib_name = dll_path

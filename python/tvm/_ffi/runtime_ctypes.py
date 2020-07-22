@@ -23,7 +23,7 @@ from .base import _LIB, check_call
 
 tvm_shape_index_t = ctypes.c_int64
 
-class TypeCode(object):
+class ArgTypeCode(object):
     """Type code used in API calls"""
     INT = 0
     UINT = 1
@@ -39,13 +39,22 @@ class TypeCode(object):
     STR = 11
     BYTES = 12
     NDARRAY_HANDLE = 13
+    OBJECT_RVALUE_REF_ARG = 14
     EXT_BEGIN = 15
-
 
 class TVMByteArray(ctypes.Structure):
     """Temp data structure for byte array."""
     _fields_ = [("data", ctypes.POINTER(ctypes.c_byte)),
                 ("size", ctypes.c_size_t)]
+
+
+class DataTypeCode(object):
+    """DataType code in DLTensor."""
+    INT = 0
+    UINT = 1
+    FLOAT = 2
+    HANDLE = 3
+    BFLOAT = 4
 
 
 class DataType(ctypes.Structure):
@@ -54,10 +63,11 @@ class DataType(ctypes.Structure):
                 ("bits", ctypes.c_uint8),
                 ("lanes", ctypes.c_uint16)]
     CODE2STR = {
-        0 : 'int',
-        1 : 'uint',
-        2 : 'float',
-        4 : 'handle'
+        DataTypeCode.INT : 'int',
+        DataTypeCode.UINT : 'uint',
+        DataTypeCode.FLOAT : 'float',
+        DataTypeCode.HANDLE : 'handle',
+        DataTypeCode.BFLOAT : 'bfloat'
     }
     def __init__(self, type_str):
         super(DataType, self).__init__()
@@ -66,7 +76,7 @@ class DataType(ctypes.Structure):
 
         if type_str == "bool":
             self.bits = 1
-            self.type_code = 1
+            self.type_code = DataTypeCode.UINT
             self.lanes = 1
             return
 
@@ -76,18 +86,21 @@ class DataType(ctypes.Structure):
         bits = 32
 
         if head.startswith("int"):
-            self.type_code = 0
+            self.type_code = DataTypeCode.INT
             head = head[3:]
         elif head.startswith("uint"):
-            self.type_code = 1
+            self.type_code = DataTypeCode.UINT
             head = head[4:]
         elif head.startswith("float"):
-            self.type_code = 2
+            self.type_code = DataTypeCode.FLOAT
             head = head[5:]
         elif head.startswith("handle"):
-            self.type_code = 4
+            self.type_code = DataTypeCode.HANDLE
             bits = 64
             head = ""
+        elif head.startswith("bfloat"):
+            self.type_code = DataTypeCode.BFLOAT
+            head = head[6:]
         elif head.startswith("custom"):
             # pylint: disable=import-outside-toplevel
             import tvm.runtime._ffi_api
@@ -142,9 +155,10 @@ class TVMContext(ctypes.Structure):
         8 : 'metal',
         9 : 'vpi',
         10: 'rocm',
-        11: 'opengl',
         12: 'ext_dev',
         13: 'micro_dev',
+        14: 'hexagon',
+        15: 'webgpu'
     }
     STR2MASK = {
         'llvm': 1,
@@ -163,9 +177,10 @@ class TVMContext(ctypes.Structure):
         'metal': 8,
         'vpi': 9,
         'rocm': 10,
-        'opengl': 11,
         'ext_dev': 12,
         'micro_dev': 13,
+        'hexagon': 14,
+        'webgpu': 15,
     }
     def __init__(self, device_type, device_id):
         super(TVMContext, self).__init__()
@@ -278,5 +293,19 @@ class TVMArray(ctypes.Structure):
                 ("shape", ctypes.POINTER(tvm_shape_index_t)),
                 ("strides", ctypes.POINTER(tvm_shape_index_t)),
                 ("byte_offset", ctypes.c_uint64)]
+
+
+class ObjectRValueRef:
+    """Represent an RValue ref to an object that can be moved.
+
+    Parameters
+    ----------
+    obj : tvm.runtime.Object
+        The object that this value refers to
+    """
+    __slots__ = ["obj"]
+    def __init__(self, obj):
+        self.obj = obj
+
 
 TVMArrayHandle = ctypes.POINTER(TVMArray)

@@ -15,11 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """Target data structure."""
+import os
+import re
 import warnings
 import tvm._ffi
 
 from tvm.runtime import Object
 from . import _ffi_api
+
+
+@tvm._ffi.register_object
+class TargetId(Object):
+    """Id of a compilation target
+    """
 
 
 @tvm._ffi.register_object
@@ -37,49 +45,6 @@ class Target(Object):
     - :py:func:`tvm.target.mali` create Mali target
     - :py:func:`tvm.target.intel_graphics` create Intel Graphics target
     """
-    def __new__(cls):
-        # Always override new to enable class
-        obj = Object.__new__(cls)
-        obj._keys = None
-        obj._options = None
-        obj._libs = None
-        return obj
-
-    @property
-    def keys(self):
-        if not self._keys:
-            self._keys = [k.value for k in self.keys_array]
-        return self._keys
-
-    @property
-    def options(self):
-        if not self._options:
-            self._options = [o.value for o in self.options_array]
-        return self._options
-
-    @property
-    def libs(self):
-        if not self._libs:
-            self._libs = [l.value for l in self.libs_array]
-        return self._libs
-
-    @property
-    def model(self):
-        for opt in self.options_array:
-            if opt.value.startswith('-model='):
-                return opt.value[7:]
-        return 'unknown'
-
-    @property
-    def mcpu(self):
-        """Returns the mcpu from the target if it exists."""
-        mcpu = ''
-        if self.options is not None:
-            for opt in self.options:
-                if 'mcpu' in opt:
-                    mcpu = opt.split('=')[1]
-        return mcpu
-
     def __enter__(self):
         _ffi_api.EnterTargetScope(self)
         return self
@@ -101,6 +66,37 @@ class Target(Object):
         ValueError if current target is not set.
         """
         return _ffi_api.GetCurrentTarget(allow_none)
+
+    @property
+    def max_num_threads(self):
+        return int(self.attrs["max_num_threads"])
+
+    @property
+    def thread_warp_size(self):
+        return int(self.attrs["thread_warp_size"])
+
+    @property
+    def device_name(self):
+        return str(self.attrs.get("device", ""))
+
+    @property
+    def model(self):
+        """Returns model from the target if it exists."""
+        return str(self.attrs.get("model", "unknown"))
+
+    @property
+    def mcpu(self):
+        """Returns the mcpu from the target if it exists."""
+        return str(self.attrs.get("mcpu", ""))
+
+    @property
+    def mattr(self):
+        """Returns the mattr from the target if it exists."""
+        return list(self.attrs.get("mattr", []))
+
+    @property
+    def libs(self):
+        return list(self.attrs.get("libs", []))
 
 
 def _merge_opts(opts, new_opts):
@@ -167,21 +163,9 @@ def intel_graphics(model='unknown', options=None):
     options : str or list of str
         Additional options
     """
-    opts = ["-device=intel_graphics", '-model=%s' % model]
+    opts = ["-device=intel_graphics", "-model=%s" % model, "-thread_warp_size=16"]
     opts = _merge_opts(opts, options)
     return _ffi_api.TargetCreate("opencl", *opts)
-
-
-def opengl(model='unknown', options=None):
-    """Returns a OpenGL target.
-
-    Parameters
-    ----------
-    options : str or list of str
-        Additional options
-    """
-    opts = _merge_opts(["-model=%s" % model], options)
-    return _ffi_api.TargetCreate("opengl", *opts)
 
 
 def arm_cpu(model='unknown', options=None):
@@ -196,16 +180,16 @@ def arm_cpu(model='unknown', options=None):
         Additional options
     """
     trans_table = {
-        "pixel2":    ["-model=snapdragon835", "-target=arm64-linux-android -mattr=+neon"],
-        "mate10":    ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
-        "mate10pro": ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
-        "p20":       ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
-        "p20pro":    ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
-        "rasp3b":    ["-model=bcm2837", "-target=armv7l-linux-gnueabihf -mattr=+neon"],
-        "rasp4b":    ["-model=bcm2711", "-target=arm-linux-gnueabihf -mattr=+neon"],
-        "rk3399":    ["-model=rk3399", "-target=aarch64-linux-gnu -mattr=+neon"],
-        "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi -mattr=+neon"],
-        "ultra96":   ["-model=ultra96", "-target=aarch64-linux-gnu -mattr=+neon"],
+        "pixel2":    ["-model=snapdragon835", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "mate10":    ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "mate10pro": ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "p20":       ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "p20pro":    ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "rasp3b":    ["-model=bcm2837", "-mtriple=armv7l-linux-gnueabihf", "-mattr=+neon"],
+        "rasp4b":    ["-model=bcm2711", "-mtriple=arm-linux-gnueabihf", "-mattr=+neon"],
+        "rk3399":    ["-model=rk3399", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
+        "pynq":      ["-model=pynq", "-mtriple=armv7a-linux-eabi", "-mattr=+neon"],
+        "ultra96":   ["-model=ultra96", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
@@ -228,7 +212,7 @@ def rasp(options=None):
 
 
 def vta(model='unknown', options=None):
-    opts = ["-device=vta", '-keys=cpu', '-model=%s' % model]
+    opts = ["-device=vta", '-keys=vta,cpu', '-model=%s' % model]
     opts = _merge_opts(opts, options)
     ret = _ffi_api.TargetCreate("ext_dev", *opts)
     return ret
@@ -245,6 +229,103 @@ def bifrost(model='unknown', options=None):
     opts = ["-device=bifrost", '-model=%s' % model]
     opts = _merge_opts(opts, options)
     return _ffi_api.TargetCreate("opencl", *opts)
+
+
+def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
+    """Returns a Hexagon target.
+
+    Parameters
+    ----------
+    cpu_ver : str
+        CPU version used for code generation. Not all allowed cpu str
+        will be valid, LLVM will throw an error.
+    sim_args : str or list of str
+        User defined sim arguments. CPU version defaults to cpu_ver.
+        Otherwise, separate versions are used for codegen and sim. Not
+        all allowed cpu strings will be valid, simulator will throw an
+        error if invalid. Does not affect codegen.
+    hvx : int
+        Size of hvx register. Value of 0 indicates disabled hvx.
+    """
+    # Example compiler arguments
+    # llvm -mtriple=hexagon -mcpu=hexagonv66 -mattr=+hvxv66,+hvx-length128b
+
+    # Check for valid codegen cpu
+    valid_hex = ['v60', 'v62', 'v65', 'v66', 'v67', 'v67t']
+    try:
+        cpu_ver = cpu_ver[cpu_ver.index('v'):].lower()
+        assert 3 <= len(cpu_ver) <= 4
+    except:
+        msg = '{} is not a valid Hexagon version\nvalid versions include {}'
+        raise ValueError(msg.format(cpu_ver, valid_hex)) from None
+
+    assert hvx in [0, 64, 128]
+
+    # Target string
+    def create_target(cpu_ver):
+        target = ' -mtriple=hexagon'
+        mcpu = ' -mcpu=hexagon' + cpu_ver
+        mattr = ''
+        # HVX enable
+        if hvx:
+            mattr = ' -mattr=+hvx' + cpu_ver + ',+hvx-length' + str(hvx) + 'b'
+        return 'llvm' + target + mcpu + mattr
+
+    # Simulator string
+    def create_sim(cpu_ver, sim_args):
+        def validate_hvx_length(codegen_hvx, sim_args):
+            if sim_args and '--hvx_length' in sim_args:
+                # If --hvx_length was specified, check HVX length of sim
+                # vs codegen
+                i = sim_args.index('hvx_length') + len('hvx_length') + 1
+                sim_hvx = sim_args[i:i+3]
+                if sim_hvx != str(codegen_hvx):
+                    print('WARNING: sim hvx {} and codegen hvx {} mismatch!' \
+                          .format(sim_hvx, codegen_hvx))
+            elif codegen_hvx != 0:
+                # If --hvx_length was not given, add it if HVX is enabled
+                sim_args = sim_args + ' ' if isinstance(sim_args, str) else ''
+                sim_args += '--hvx_length ' + str(codegen_hvx)
+            return sim_args or ''
+
+        if not sim_args:
+            return cpu_ver + ' ' + validate_hvx_length(hvx, sim_args)
+
+        sim_cpu = cpu_ver + ' '
+
+        # Add user defined args
+        if isinstance(sim_args, list):
+            sim_args = ' '.join(sim_args)
+
+        # Check for supplied sim cpu version
+        if 'v6' in sim_args:
+            sim_cpu = ''
+
+            # Regex match for allowed cpus
+            valid_cpu_str_regex = r'(?P<pre>--.*\s)?(--m)?' +                 \
+                r'(?P<base_version>v6[25678])(?P<sub_version>[a-z])?' +       \
+                r'(?P<l2_size>_[0-9]+)?(?P<rev>_rev[0-9])?\s?(?P<post>--.*)?'
+            m = re.match(valid_cpu_str_regex, sim_args.lower())
+            if not m:
+                raise ValueError(
+                    'Invalid simulator argument string "{}"'.format(sim_args))
+
+            # Parse options into correct order
+            cpu_attr = {x: str(m.groupdict()[x] or '') for x in m.groupdict()}
+            sim_args = cpu_attr['base_version'] +  \
+                       cpu_attr['sub_version']  +  \
+                       cpu_attr['l2_size'] +       \
+                       cpu_attr['rev'] + ' ' +     \
+                       cpu_attr['pre'] + cpu_attr['post']
+
+        return sim_cpu + ' ' + validate_hvx_length(hvx, sim_args)
+
+    # Sim args
+    os.environ['HEXAGON_SIM_ARGS'] = create_sim(cpu_ver, sim_args)
+
+    target_str = create_target(cpu_ver)
+    args_list = target_str.split()
+    return _ffi_api.TargetCreate("hexagon", *args_list)
 
 
 def create(target_str):

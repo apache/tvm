@@ -139,6 +139,11 @@ def schedule_depthwise_conv2d_nchw(cfg, outs):
     return s
 
 
+# TODO:
+# This schedule has incorrect result on some hardware platforms (like NV Jetson TX2)
+# Let us comment it out but not remove.
+# see discussion:
+# https://discuss.tvm.ai/t/autotuner-incorrect-result-after-tuning-mobilenetv2-on-arm-cpu/6088
 @autotvm.register_topi_compute("depthwise_conv2d_nchw_spatial_pack.arm_cpu")
 def depthwise_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """TOPI compute callback for depthwise_conv2d nchw

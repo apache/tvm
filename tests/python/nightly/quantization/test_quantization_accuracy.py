@@ -66,7 +66,7 @@ def get_model(model_name, batch_size, qconfig, target=None, original=False, simu
     mod, params = relay.frontend.from_mxnet(gluon_model, {"data": data_shape})
     net = mod['main']
 
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         qfunc = relay.quantize.prerequisite_optimize(net, params=params)
     logging.debug('original')
     logging.debug(qfunc.astext(show_meta_data=False))
@@ -83,7 +83,7 @@ def get_model(model_name, batch_size, qconfig, target=None, original=False, simu
 
 
 def eval_acc(model, dataset, batch_fn, target=tvm.target.cuda(), ctx=tvm.gpu(), log_interval=100):
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(model, target)
     # create runtime module
     m = tvm.contrib.graph_runtime.create(graph, lib, ctx)

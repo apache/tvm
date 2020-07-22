@@ -22,15 +22,16 @@
  * \brief Utility functions for substituting expressions.
  */
 
-#include <tvm/relay/expr_functor.h>
 #include "./expr_subst.h"
+
+#include <tvm/relay/expr_functor.h>
 
 namespace tvm {
 namespace relay {
 
 class ExprSubstituter : public ExprMutator {
  public:
-  explicit ExprSubstituter(std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> subst_map)
+  explicit ExprSubstituter(std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> subst_map)
       : subst_map_(subst_map) {}
 
   Expr VisitExpr(const Expr& expr) final {
@@ -46,7 +47,7 @@ class ExprSubstituter : public ExprMutator {
 };
 
 Expr ExprSubst(const Expr& expr,
-               std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> subst_map) {
+               std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> subst_map) {
   return ExprSubstituter(std::move(subst_map)).Mutate(expr);
 }
 

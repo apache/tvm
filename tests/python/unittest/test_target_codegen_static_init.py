@@ -19,6 +19,7 @@ from tvm import te
 import ctypes
 import numpy as np
 
+
 def test_static_callback():
     dtype = 'int64'
     n = te.size_var('n')
@@ -32,9 +33,11 @@ def test_static_callback():
     with ib.for_range(0, n, "i", for_type="parallel") as i:
         A[i] = A[i] + 1
     stmt = ib.get()
-    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
-    f = tvm.target.codegen.build_module(fapi, "llvm")
+
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "ramp")
+    )
+    f = tvm.driver.build(mod, target="llvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f(a)
     f(a)
@@ -46,7 +49,7 @@ def test_static_init():
     Ab = tvm.tir.decl_buffer((n, ), dtype)
     i = te.size_var('i')
     ib = tvm.tir.ir_builder.create()
-    handle = tvm.tir.call_intrin("handle", "tvm_static_handle")
+    handle = tvm.tir.call_intrin("handle", "tir.tvm_static_handle")
     ib.emit(
         tvm.tir.call_packed("test_static_callback", handle, Ab))
 
@@ -56,9 +59,9 @@ def test_static_init():
         return sh
 
     stmt = ib.get()
-    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
-    f = tvm.target.codegen.build_module(fapi, "llvm")
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "ramp"))
+    f = tvm.driver.build(mod, target="llvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f(a)
 

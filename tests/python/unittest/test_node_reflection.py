@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import pytest
 from tvm import te
 
 def test_const_saveload_json():
@@ -25,8 +26,18 @@ def test_const_saveload_json():
     z = z + z
     json_str = tvm.ir.save_json(z)
     zz = tvm.ir.load_json(json_str)
-    assert tvm.ir.save_json(zz) == tvm.ir.save_json(z)
+    tvm.ir.assert_structural_equal(zz, z, map_free_vars=True)
 
+def _test_infinity_value(value, dtype):
+    x = tvm.tir.const(value, dtype)
+    json_str = tvm.ir.save_json(x)
+    tvm.ir.assert_structural_equal(x, tvm.ir.load_json(json_str))
+
+def test_infinity_value():
+    _test_infinity_value(float("inf"), 'float64')
+    _test_infinity_value(float("-inf"), 'float64')
+    _test_infinity_value(float("inf"), 'float32')
+    _test_infinity_value(float("-inf"), 'float32')
 
 def test_make_smap():
     # save load json
@@ -38,6 +49,7 @@ def test_make_smap():
     arr = tvm.ir.load_json(json_str)
     assert len(arr) == 1
     assert arr[0]["z"].a == arr[0]["x"]
+    tvm.ir.assert_structural_equal(arr, [smap], map_free_vars=True)
 
 
 def test_make_node():
@@ -88,10 +100,59 @@ def test_env_func():
     assert x.func(10) == 11
 
 
+def test_string():
+    # non printable str, need to store by b64
+    s1 = tvm.runtime.String("xy\x01z")
+    s2 = tvm.ir.load_json(tvm.ir.save_json(s1))
+    tvm.ir.assert_structural_equal(s1, s2)
+
+    # printable str, need to store by repr_str
+    s1 = tvm.runtime.String("xyz")
+    s2 = tvm.ir.load_json(tvm.ir.save_json(s1))
+    tvm.ir.assert_structural_equal(s1, s2)
+
+
+def test_pass_config():
+    cfg = tvm.transform.PassContext(opt_level=1, config={
+        "tir.UnrollLoop": {
+            "auto_max_step": 10,
+        }
+    })
+    cfg.opt_level  == 1
+
+    assert cfg.config["tir.UnrollLoop"].auto_max_step == 10
+    # default option
+    assert cfg.config["tir.UnrollLoop"].explicit_unroll == True
+
+    # schema checking for specific config key
+    with pytest.raises(AttributeError):
+        cfg = tvm.transform.PassContext(config={
+            "tir.UnrollLoop": { "invalid": 1 }
+        })
+
+    # schema check for un-registered config
+    with pytest.raises(AttributeError):
+        cfg = tvm.transform.PassContext(config={ "inavlid-opt": True })
+
+    # schema check for wrong type
+    with pytest.raises(AttributeError):
+        cfg = tvm.transform.PassContext(config={
+            "tir.UnrollLoop": 1
+        })
+
+def test_dict():
+    x = tvm.tir.const(1) # a class that has Python-defined methods
+    # instances should see the full class dict
+    assert set(dir(x.__class__)) <= set(dir(x))
+
+
 if __name__ == "__main__":
+    test_string()
     test_env_func()
-    test_make_attrs()
     test_make_node()
     test_make_smap()
     test_const_saveload_json()
     test_make_sum()
+    test_pass_config()
+    test_dict()
+    test_infinity_value()

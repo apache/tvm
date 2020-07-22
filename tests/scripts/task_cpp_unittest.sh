@@ -20,11 +20,18 @@ set -e
 set -u
 
 export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
+# NOTE: important to use abspath, when VTA is enabled.
+export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
+
+# to avoid CI thread throttling.
+export TVM_BIND_THREADS=0
+export OMP_NUM_THREADS=1
 
 # Remove existing testcases
 rm -f build/*_test
 
 make cpptest -j8
+make crttest -j8
 for test in build/*_test; do
     ./$test
 done

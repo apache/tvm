@@ -19,36 +19,32 @@
 
 /*!
  * \file src/runtime/container.cc
- * \brief Implementations of common plain old data (POD) containers.
+ * \brief Implementations of common containers.
  */
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/vm.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/vm.h>
 
 namespace tvm {
 namespace runtime {
 
 using namespace vm;
 
-TVM_REGISTER_GLOBAL("runtime.container._GetADTTag")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime.GetADTTag").set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   const auto& adt = Downcast<ADT>(obj);
   *rv = static_cast<int64_t>(adt.tag());
 });
 
-TVM_REGISTER_GLOBAL("runtime.container._GetADTSize")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime.GetADTSize").set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   const auto& adt = Downcast<ADT>(obj);
   *rv = static_cast<int64_t>(adt.size());
 });
 
-
-TVM_REGISTER_GLOBAL("runtime.container._GetADTFields")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime.GetADTFields").set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   int idx = args[1];
   const auto& adt = Downcast<ADT>(obj);
@@ -56,8 +52,7 @@ TVM_REGISTER_GLOBAL("runtime.container._GetADTFields")
   *rv = adt[idx];
 });
 
-TVM_REGISTER_GLOBAL("runtime.container._Tuple")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime.Tuple").set_body([](TVMArgs args, TVMRetValue* rv) {
   std::vector<ObjectRef> fields;
   for (auto i = 0; i < args.size(); ++i) {
     fields.push_back(args[i]);
@@ -65,8 +60,7 @@ TVM_REGISTER_GLOBAL("runtime.container._Tuple")
   *rv = ADT::Tuple(fields);
 });
 
-TVM_REGISTER_GLOBAL("runtime.container._ADT")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime.ADT").set_body([](TVMArgs args, TVMRetValue* rv) {
   int itag = args[0];
   size_t tag = static_cast<size_t>(itag);
   std::vector<ObjectRef> fields;
@@ -76,7 +70,16 @@ TVM_REGISTER_GLOBAL("runtime.container._ADT")
   *rv = ADT(tag, fields);
 });
 
+TVM_REGISTER_GLOBAL("runtime.String").set_body_typed([](std::string str) {
+  return String(std::move(str));
+});
+
+TVM_REGISTER_GLOBAL("runtime.GetFFIString").set_body_typed([](String str) {
+  return std::string(str);
+});
+
 TVM_REGISTER_OBJECT_TYPE(ADTObj);
+TVM_REGISTER_OBJECT_TYPE(StringObj);
 TVM_REGISTER_OBJECT_TYPE(ClosureObj);
 
 }  // namespace runtime

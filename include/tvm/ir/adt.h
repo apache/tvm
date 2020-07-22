@@ -27,11 +27,12 @@
 #ifndef TVM_IR_ADT_H_
 #define TVM_IR_ADT_H_
 
-#include <tvm/runtime/object.h>
-#include <tvm/node/node.h>
-#include <tvm/node/container.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
+#include <tvm/node/container.h>
+#include <tvm/node/node.h>
+#include <tvm/runtime/object.h>
+
 #include <string>
 
 namespace tvm {
@@ -44,7 +45,7 @@ namespace tvm {
 class ConstructorNode : public RelayExprNode {
  public:
   /*! \brief The name (only a hint) */
-  std::string name_hint;
+  String name_hint;
   /*! \brief Input to the constructor. */
   Array<Type> inputs;
   /*! \brief The datatype the constructor will construct. */
@@ -63,6 +64,17 @@ class ConstructorNode : public RelayExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
+  bool SEqualReduce(const ConstructorNode* other, SEqualReducer equal) const {
+    // Use namehint for now to be consistent with the legacy relay impl
+    // TODO(tvm-team) revisit, need to check the type var.
+    return equal(name_hint, other->name_hint) && equal(inputs, other->inputs);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(name_hint);
+    hash_reduce(inputs);
+  }
+
   static constexpr const char* _type_key = "relay.Constructor";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstructorNode, RelayExprNode);
 };
@@ -79,9 +91,7 @@ class Constructor : public RelayExpr {
    * \param inputs The input types.
    * \param belong_to The data type var the constructor will construct.
    */
-  TVM_DLL Constructor(std::string name_hint,
-                      Array<Type> inputs,
-                      GlobalTypeVar belong_to);
+  TVM_DLL Constructor(String name_hint, Array<Type> inputs, GlobalTypeVar belong_to);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Constructor, RelayExpr, ConstructorNode);
 };
@@ -108,6 +118,17 @@ class TypeDataNode : public TypeNode {
     v->Visit("span", &span);
   }
 
+  bool SEqualReduce(const TypeDataNode* other, SEqualReducer equal) const {
+    return equal.DefEqual(header, other->header) && equal.DefEqual(type_vars, other->type_vars) &&
+           equal(constructors, other->constructors);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(header);
+    hash_reduce.DefHash(type_vars);
+    hash_reduce(constructors);
+  }
+
   static constexpr const char* _type_key = "relay.TypeData";
   TVM_DECLARE_FINAL_OBJECT_INFO(TypeDataNode, TypeNode);
 };
@@ -131,9 +152,7 @@ class TypeData : public Type {
    * \param type_vars type variables.
    * \param constructors constructors field.
    */
-  TVM_DLL TypeData(GlobalTypeVar header,
-                   Array<TypeVar> type_vars,
-                   Array<Constructor> constructors);
+  TVM_DLL TypeData(GlobalTypeVar header, Array<TypeVar> type_vars, Array<Constructor> constructors);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TypeData, Type, TypeDataNode);
 };

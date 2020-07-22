@@ -84,7 +84,7 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout='NCHW'):
     def get_tvm_output(xs, target, ctx, dtype='float32'):
         shape_dict = {name: x.shape for (name, x) in zip(keras_model.input_names, xs)}
         mod, params = relay.frontend.from_keras(keras_model, shape_dict, layout=layout)
-        with relay.transform.build_config(opt_level=2):
+        with tvm.transform.PassContext(opt_level=2):
             graph, lib, params = relay.build(mod,
                                              target,
                                              params=params)
@@ -125,6 +125,7 @@ class TestKeras:
                     keras.layers.Subtract(),
                     keras.layers.Multiply(),
                     keras.layers.Maximum(),
+                    keras.layers.Minimum(),
                     keras.layers.Average(),
                     keras.layers.Concatenate()]
         for merge_func in merge_funcs:
@@ -421,6 +422,124 @@ class TestKeras:
             keras_model = keras.models.Model(data, x)
             verify_keras_frontend(keras_model, layout='NDHWC')
 
+
+    def test_forward_conv3d_transpose(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 3))
+        conv_funcs = [keras.layers.Conv3DTranspose(filters=10,
+                                          kernel_size=(3, 3, 3),
+                                          strides=(2, 2, 2),
+                                          padding='same'),
+                      keras.layers.Conv3DTranspose(filters=10,
+                                          kernel_size=(1, 1, 1),
+                                          dilation_rate=(1, 1, 1),
+                                          padding='same'),
+                      keras.layers.Conv3DTranspose(filters=1,
+                                          kernel_size=(3, 3, 3),
+                                          padding='valid',
+                                          use_bias=False),
+                      keras.layers.Conv3DTranspose(filters=10,
+                                          kernel_size=(2, 2, 2),
+                                          padding='valid'),
+                    ]
+        for conv_func in conv_funcs:
+            x = conv_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout='NDHWC')
+
+
+    def test_forward_pool3d(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 1))
+        pool_funcs = [# maxpool
+                      keras.layers.MaxPooling3D(pool_size=(2, 2, 2),
+                                                strides=(1, 1, 1),
+                                                padding='same'),
+                      keras.layers.MaxPooling3D(pool_size=(3, 3, 3),
+                                                strides=(2, 2, 2),
+                                                padding='valid'),
+                      # avgpool
+                      keras.layers.AveragePooling3D(pool_size=(3, 3, 3),
+                                                    strides=(2, 2, 2),
+                                                    padding='same'),
+                      keras.layers.AveragePooling3D(pool_size=(2, 2, 2),
+                                                    strides=(1, 1, 1),
+                                                    padding='valid'),
+                     ]
+        for pool_func in pool_funcs:
+            x = pool_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout='NDHWC')
+
+    def test_forward_upsample3d(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 3))
+        x = keras.layers.UpSampling3D(size=(2, 3, 4))(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, layout='NDHWC')
+
+    def test_forward_zero_padding3d(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 3))
+        pad_funcs = [# Integer
+                     keras.layers.ZeroPadding3D(padding=2),
+                     # tuple of 3 ints
+                     keras.layers.ZeroPadding3D(padding=(1, 2, 3)),
+                     # tuple of 3 tuples of 2 ints
+                     keras.layers.ZeroPadding3D(padding=((1,1), (2,2), (2,2))),
+                     # tuple of 3 tuples of 2 ints different values
+                     keras.layers.ZeroPadding3D(padding=((1,2), (2,3), (3,2))),
+                    ]
+        for pad_func in pad_funcs:
+            x = pad_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout='NDHWC')
+
+
+    def test_forward_embedding(self, keras):
+        data = keras.layers.Input(shape=(2, 4), dtype="int32")
+        x = keras.layers.Embedding(10, 3)(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
+
+        data = keras.layers.Input(shape=(2, 3, 4), dtype="int32")
+        x = keras.layers.Embedding(4, 5)(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
+
+        data = keras.layers.Input(shape=(6, 2, 3, 4), dtype="int32")
+        x = keras.layers.Embedding(4, 5)(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
+
+
+    def test_forward_repeat_vector(self, keras):
+        data = keras.layers.Input(shape=(5,), dtype="float32")
+        x = keras.layers.Dense(6)(data)
+        x = keras.layers.RepeatVector(2)(x)
+
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
+
+        data = keras.layers.Input(shape=(10,), dtype="float32")
+        x = keras.layers.RepeatVector(3)(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
+
+        data = keras.layers.Input(shape=(4,), dtype="float32")
+        x = keras.layers.RepeatVector(1)(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
+
+
+    def test_forward_global_pool3d(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 1))
+        pool_funcs = [# global maxpool
+                      keras.layers.GlobalMaxPooling3D(),
+                      # global avgpool
+                      keras.layers.GlobalAveragePooling3D()
+                     ]
+        for pool_func in pool_funcs:
+            x = pool_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout='NDHWC')
+
 if __name__ == '__main__':
     for k in [keras, tf_keras]:
         sut = TestKeras()
@@ -449,3 +568,10 @@ if __name__ == '__main__':
         sut.test_forward_mobilenet(keras=k)
         sut.test_forward_mobilenet(keras=k, layout='NHWC')
         sut.test_forward_conv3d(keras=k)
+        sut.test_forward_conv3d_transpose(keras=k)
+        sut.test_forward_pool3d(keras=k)
+        sut.test_forward_global_pool3d(keras=k)
+        sut.test_forward_upsample3d(keras=k)
+        sut.test_forward_zero_padding3d(keras=k)
+        sut.test_forward_embedding(keras=k)
+        sut.test_forward_repeat_vector(keras=k)

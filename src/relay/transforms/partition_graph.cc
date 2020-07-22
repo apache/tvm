@@ -25,340 +25,177 @@
  * These nodes are used as boundaries to partition the Relay function into
  * multiple regions that can be offloaded to different accelerators/backends.
  *
- * Each of these paritioned functions, a.k.a subgraphs, will be viewed as
+ * Each of these paritioned functions, a.k.a regions, will be viewed as
  * external functions, and they will use the provided compiler for codegen.
  */
 
+#include <tvm/ir/error.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
-#include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/container.h>
 
-#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "../analysis/annotated_region_set.h"
 #include "../backend/utils.h"
+#include "pass_util.h"
 
 namespace tvm {
 namespace relay {
 namespace partitioning {
 
-// Cache compiler_begin and compiler_end annotation ops for equivalence check to
-// reduce registry lookup overhead.
-static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
-static const Op& compiler_end_op = Op::Get("annotation.compiler_end");
-
-/*!
- * \brief The subgraph properties for partitioning.
+/*! \brief This struct maintains the required metadata for a region to generate a corresponding
+ * global function and function call. Global function will be passed to the target specific codegen
+ * and function call will be used in the transform Relay graph to invoke the function in runtime.
  */
-struct Subgraph {
-  /*! \brief The subgraph ID. */
-  int id;
+struct RegionFuncMetadata {
+  /*! \brief The call node of the generated global function for this region. */
+  Call func_call;
 
-  /*! \brief The input arguments of this subgraph. */
+  /*! \brief A list of argument pairs. Each pair includes (var, expr). var is used
+   * as a function node argument; input expression is used as a function call parameter.
+   */
   std::vector<std::pair<Var, Expr>> args;
 
-  /*! \brief Nodes in this subgraph. */
-  std::unordered_set<Expr, ObjectHash, ObjectEqual> nodes;
+  /*! \brief Map from each region output expr (compiler end) node to
+   * the corresponding function output expr.
+   */
+  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> region_func_out;
+
+  /*! \brief Map from each region input expression (compiler begin) to
+   * the corresponding function input variable. This cache is used to make sure
+   * a region function will not have duplicated inputs even if it refers to
+   * the same expr multiple times.
+   */
+  std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> region_func_in;
 };
 
-/*!
- * \brief The checker that verifies if a Relay program is annotated correctly
- * for partitioning.
- */
-class AnnotationChecker : public ExprVisitor {
- public:
-  bool Check() {
-    if (!found_start_ && !found_end_) {
-      LOG(WARNING) << "No compiler annotation found";
-    } else if (!found_start_) {
-      LOG(ERROR) << "compiler_begin annotation is missing";
-      return false;
-    } else if (!found_end_) {
-      LOG(ERROR) << "compiler_end annotation is missing";
-      return false;
-    }
-    return true;
-  }
-
-  void VisitExpr_(const CallNode* call) final {
-    auto op_node = call->op.as<OpNode>();
-    if (op_node == nullptr || call->attrs.as<CompilerAttrs>() == nullptr) {
-      return;
-    } else if (call->op == compiler_begin_op) {
-      found_start_ = true;
-    } else if (call->op == compiler_end_op) {
-      found_end_ = true;
-    }
-  }
-
- private:
-  bool found_start_{false};
-  bool found_end_{false};
-};
-
-/*! \brief This class partitions the expr labeled with begin and end annoations
+/*! \brief This class partitions the expr labeled with begin and end annotations
  * into function containing multiple regions. Each region is labeled with
  * a compiler attribute so that it will be handled by any compilers that are not
  * in the TVM stack.
  *
- * TODO(@zhiics) This following algorithm is not adequate to handle all cases,
- * i.e. multiple `compiler_end` nodes.
+ * Input : A Relay module that have functions with disjoint annotated regions
+ *         using compiler_begin and compiler_end. There could be multiple
+ * outputs.
+ *
+ * Output : A Relay module with global functions for such disjoint annotated
+ * regions with calls inserted at the respective location
+ *
+ * Dependencies : AnnotatedRegionSet Utility class.
+ *
+ * Methodology :
+ *      1) The AnnotatedRegionSet utility class is able to construct a collection
+ *      of nodes that are bound by a given annotation -- here we use
+ *      compiler_begin and compiler_end
+ *      2) Initially, for each function in the module RegionSets are populated.
+ *      3) Then, Vistor pass is traversed until a compiler_end node is encountered
+ *         that belongs to a "region".
+ *      4) When the first compiler_end of a given annotated region is found,
+ *         a function is formed and inserted.
+ *         a) if the region has multiple outputs, a Tuple node (capturing
+ *            all outputs) is returned.
+ *      5) Thereafter, if we encounter an another output of the same annotated
+ *         region, it is important to note that the function is already formed.
+ *         Therefore, it will lookup the function and add a TupleGetItemNode.
+ *         a) We will use the location index of "rets" of each Region" of
+ *         AnnotatedRegionSet as TupleGetItemNode index.
+ *      6) Therefore, functions will be created for all annotated regions.
+ *         The name for each global function is created using "Region" id and
+ *         the compiler name.
  */
-class Partitioner : public ExprMutator {
+
+class Partitioner : public MixedModeMutator {
  public:
-  explicit Partitioner(const IRModule& module) : module_(module) {}
+  explicit Partitioner(const IRModule& module) : module_(module) {
+    for (auto f : module->functions) {
+      GlobalVar f_var = f.first;
+      BaseFunc f_func = f.second;
 
-  std::shared_ptr<Subgraph> GetSubgraph(const Expr node) {
-    for (auto candidate : this->subgraphs_) {
-      if (candidate->nodes.find(node) != candidate->nodes.end()) {
-        return candidate;
-      }
-    }
-    return nullptr;
-  }
-
-  void MergeSubgraph(std::shared_ptr<Subgraph> subgraph1,
-                     std::shared_ptr<Subgraph> subgraph2) {
-    if (subgraph1 == subgraph2) {
-      return;
-    }
-
-    // Merge subgraph 2 to subgraph 1 and erase subgraph 2.
-    subgraph1->nodes.insert(subgraph2->nodes.begin(), subgraph2->nodes.end());
-    for (auto arg : subgraph2->args) {
-      subgraph1->args.push_back(arg);
-    }
-    this->subgraphs_.erase(subgraph2);
-  }
-
-  void AddToSubgraph(std::shared_ptr<Subgraph> subgraph, const Expr expr) {
-    auto subgraph2 = GetSubgraph(expr);
-    if (subgraph2) {
-      MergeSubgraph(subgraph, subgraph2);
-    } else {
-      subgraph->nodes.insert(expr);
+      // Creating regionset per function in the module.
+      auto region_set = AnnotatedRegionSet::Create(f_func, CompilerBeginOp(), CompilerEndOp());
+      regions_sets_[region_set] = f_func;
     }
   }
 
-  Expr VisitExpr_(const CallNode* call) final {
+  Expr Rewrite_(const CallNode* call, const Expr& post) final {
     auto op_node = call->op.as<OpNode>();
-
     if (op_node == nullptr || call->attrs.as<CompilerAttrs>() == nullptr) {
-      // Propogate subgraph to arguments
-      auto subgraph = GetSubgraph(GetRef<Call>(call));
-      if (subgraph) {
-        for (auto arg : call->args) {
-          AddToSubgraph(subgraph, arg);
-        }
-      }
-      return ExprMutator::VisitExpr_(call);
-    } else if (call->op == compiler_begin_op) {
+      return post;
+    } else if (call->op == CompilerBeginOp()) {
       // The annotation node is inserted on edge so it must have only one argument.
       CHECK_EQ(call->args.size(), 1U);
 
       // Traverse the rest graph.
-      auto input_expr = VisitExpr(call->args[0]);
+      Expr parent = call->args[0];
+      auto input_expr = Downcast<Call>(post)->args[0];
 
-      // Replace the begin annotation with an external call input variable.
-      auto compiler_attrs = call->attrs.as<CompilerAttrs>();
-      // The type of the created variable is the same as the compiler_begin
-      // node.
-      auto var = Var(compiler_attrs->compiler + "_input" + std::to_string(var_id_++),
-                               call->checked_type_);
-
-      // Find the corresponding subgraph and add the argument.
-      auto subgraph = GetSubgraph(GetRef<Call>(call));
-      if (!subgraph) {
-        throw Error(ErrorBuilder()
-                    << "Cannot find the corresponding subgraph for start annotation:\n"
-                    << AsText(GetRef<Call>(call), false));
-      }
-      subgraph->args.push_back({var, input_expr});
-      return std::move(var);
-    } else {
-      CHECK_EQ(call->op, compiler_end_op);
-      // The annotation node is inserted on edge so it must have only one argument.
-      CHECK_EQ(call->args.size(), 1U);
-
-      auto compiler_attrs = call->attrs.as<CompilerAttrs>();
-
-      // Check if the argument already belongs to an existing subgraph
-      auto subgraph = GetSubgraph(call->args[0]);
-      if (!subgraph) {
-        auto ret = this->subgraphs_.emplace(std::make_shared<Subgraph>());
-        subgraph = *ret.first;
-        subgraph->nodes.insert(call->args[0]);
-        subgraph->id = this->subgraph_id_++;
-      }
-      subgraph->nodes.insert(GetRef<Call>(call));
-
-      // Traverse subgraph inputs.
-      auto input = VisitExpr(call->args[0]);
-      Array<Var> params;
-      Array<Expr> args;
-      std::unordered_map<std::string, runtime::NDArray> params_bind;
-
-      // The subgraph may be merged so we need to update it again.
-      subgraph = GetSubgraph(GetRef<Call>(call));
-      CHECK(subgraph);
-
-      // Record the constants for propagation.
-      for (auto pair : subgraph->args) {
-        params.push_back(pair.first);
-        if (const auto* cn = pair.second.as<ConstantNode>()) {
-          params_bind[pair.first->name_hint()] = cn->data;
+      // Backtrace the parent to find the first ancestor node that is not a begin or end op
+      while (const auto* parent_call = parent.as<CallNode>()) {
+        if (parent_call->op == CompilerBeginOp() || parent_call->op == CompilerEndOp()) {
+          parent = parent_call->args[0];
         } else {
-          args.push_back(pair.second);
+          break;
         }
       }
 
-      auto subgraph_func =
-          Function(params, input, call->checked_type_, {});
+      AnnotatedRegion sg = GetRegion(GetRef<Call>(call));
+      int index = GetArgIdx(sg, GetRef<Call>(call));
+      CHECK_NE(index, -1);
 
-      std::string name = compiler_attrs->compiler + "_" + std::to_string(subgraph->id);
-      subgraph_func =
-          WithAttr(std::move(subgraph_func), attr::kExternalSymbol, tir::StringImmNode::make(name));
-      subgraph_func =
-          WithAttr(std::move(subgraph_func), attr::kPrimitive, tvm::Integer(1));
-      subgraph_func =
-          WithAttr(std::move(subgraph_func), attr::kCompiler,
-                   tvm::tir::StringImmNode::make(compiler_attrs->compiler));
-      subgraph_func =
-          WithAttr(std::move(subgraph_func), attr::kInline, tvm::Integer(1));
+      if (region_func_meta_[sg].region_func_in.count(parent)) {
+        return region_func_meta_[sg].region_func_in[parent];
+      } else {
+        // The type of the created variable is the same as the compiler_begin
+        // node.
+        std::string target = call->attrs.as<CompilerAttrs>()->compiler;
+        std::string varname =
+            target + "_" + std::to_string(sg->GetID()) + "_i" + std::to_string(index);
+        auto var = Var(varname, GetRef<Call>(call)->checked_type_);
 
-      // Constant propagation
-      if (!params_bind.empty()) {
-        subgraph_func = backend::BindParamsByName(subgraph_func, params_bind);
+        std::pair<Var, Expr> cand = std::make_pair(var, input_expr);
+
+        if (std::find(region_func_meta_[sg].args.begin(), region_func_meta_[sg].args.end(), cand) ==
+            region_func_meta_[sg].args.end()) {
+          region_func_meta_[sg].args.push_back(cand);
+        }
+        region_func_meta_[sg].region_func_in[parent] = var;
+        return std::move(var);
       }
-      CHECK(!module_->ContainGlobalVar(name))
-          << "Global function " << name << " already exists";
-      // Create a global function and add it to the IRModule for the subgraph.
-      // This way we lift the functions that should be handled by external
-      // codegen to the module scope and rely on the pass manager to prevent relay
-      // function level passes (i.e. simplify inference and fusion) optimizing it.
-      GlobalVar glob_func(name);
-      module_->Add(glob_func, subgraph_func);
-      // The return type of callnode is the same as the type of the
-      // compiler_end node.
-      auto ret = Call(glob_func, args);
-      ret->checked_type_ = call->checked_type_;
-      return std::move(ret);
-    }
-  }
-
-  Expr VisitExpr_(const TupleNode* op) final {
-    auto subgraph = GetSubgraph(GetRef<Tuple>(op));
-    if (!subgraph) {
-      return ExprMutator::VisitExpr_(op);
     } else {
-      for (auto field : op->fields) {
-        AddToSubgraph(subgraph, field);
+      CHECK_EQ(call->op, CompilerEndOp());
+      // The annotation node is inserted on edge so it must have only one
+      // argument.
+      CHECK_EQ(call->args.size(), 1U);
+
+      AnnotatedRegion region = GetRegion(GetRef<Call>(call));
+
+      // TODO(@manupa-arm) : need to use the parent function (to which region
+      // belongs to) name/key for the funtions that are created
+      BaseFunc f = GetFunc(GetRef<Call>(call));
+
+      // Traverse subgraph inputs.
+      auto input = Downcast<Call>(post)->args[0];
+      CHECK(region.defined()) << "Region not defined for " << GetRef<Call>(call);
+      // functions are created for each annotated regions,
+      // when their first output is encountered.
+      // If multiple outputs are there, a tuple node is inserted at the end.
+
+      if (!region_func_meta_[region].func_call.defined()) {
+        // First time this region is encountered in the traversal. Creating the function.
+        CreateFunction(region, call);
       }
-      Array<Expr> fields;
-      for (auto field : op->fields) {
-        fields.push_back(VisitExpr(field));
-      }
-      return Tuple(fields);
-    }
-  }
 
-  Expr VisitExpr_(const TupleGetItemNode* g) final {
-    auto subgraph = GetSubgraph(GetRef<TupleGetItem>(g));
-    if (!subgraph) {
-      return ExprMutator::VisitExpr_(g);
-    } else {
-      AddToSubgraph(subgraph, g->tuple);
-      auto t = VisitExpr(g->tuple);
-      return TupleGetItem(t, g->index);
-    }
-  }
-
-  Expr VisitExpr_(const FunctionNode* op) final {
-    auto subgraph = GetSubgraph(GetRef<Function>(op));
-    if (!subgraph) {
-      return ExprMutator::VisitExpr_(op);
-    } else {
-      Array<Var> params;
-      for (auto param : op->params) {
-        AddToSubgraph(subgraph, param);
-      }
-      for (auto param : op->params) {
-        Var new_param = Downcast<Var>(VisitExpr(param));
-        params.push_back(new_param);
-      }
-      auto body = VisitExpr(op->body);
-      return Function(params, body, op->ret_type, op->type_params, op->attrs);
-    }
-  }
-
-  Expr VisitExpr_(const LetNode* op) final {
-    auto subgraph = GetSubgraph(GetRef<Let>(op));
-    if (!subgraph) {
-      return ExprMutator::VisitExpr_(op);
-    } else {
-      AddToSubgraph(subgraph, op->var);
-      AddToSubgraph(subgraph, op->value);
-      AddToSubgraph(subgraph, op->body);
-      Var var = Downcast<Var>(VisitExpr(op->var));
-      auto value = VisitExpr(op->value);
-      auto body = VisitExpr(op->body);
-
-      return Let(var, value, body);
-    }
-  }
-
-  Expr VisitExpr_(const IfNode* op) final {
-    auto subgraph = GetSubgraph(GetRef<If>(op));
-    if (!subgraph) {
-      return ExprMutator::VisitExpr_(op);
-    } else {
-      AddToSubgraph(subgraph, op->cond);
-      AddToSubgraph(subgraph, op->true_branch);
-      AddToSubgraph(subgraph, op->false_branch);
-      auto guard = VisitExpr(op->cond);
-      auto true_b = VisitExpr(op->true_branch);
-      auto false_b = VisitExpr(op->false_branch);
-      return If(guard, true_b, false_b);
-    }
-  }
-
-  Expr VisitExpr_(const RefCreateNode* op) final {
-    auto subgraph = GetSubgraph(GetRef<RefCreate>(op));
-    if (!subgraph) {
-      return ExprMutator::VisitExpr_(op);
-    } else {
-      AddToSubgraph(subgraph, op->value);
-      Expr value = VisitExpr(op->value);
-      return RefCreate(value);
-    }
-  }
-
-  Expr VisitExpr_(const RefReadNode* op) final {
-    auto subgraph = GetSubgraph(GetRef<RefRead>(op));
-    if (!subgraph) {
-      return ExprMutator::VisitExpr_(op);
-    } else {
-      AddToSubgraph(subgraph, op->ref);
-      Expr ref = VisitExpr(op->ref);
-      return RefRead(ref);
-    }
-  }
-
-  Expr VisitExpr_(const RefWriteNode* op) final {
-    auto subgraph = GetSubgraph(GetRef<RefWrite>(op));
-    if (!subgraph) {
-      return ExprMutator::VisitExpr_(op);
-    } else {
-      AddToSubgraph(subgraph, op->ref);
-      Expr ref = VisitExpr(op->ref);
-      Expr value = VisitExpr(op->value);
-      return RefWrite(ref, value);
+      // Retrieve this particular output of function.
+      Expr region_out_expr = Downcast<Call>(GetRef<Call>(call))->args[0];
+      CHECK(region_func_meta_[region].region_func_out.count(region_out_expr));
+      return region_func_meta_[region].region_func_out[region_out_expr];
     }
   }
 
@@ -367,11 +204,8 @@ class Partitioner : public ExprMutator {
     for (const auto& pair : glob_funcs) {
       if (auto* fn = pair.second.as<FunctionNode>()) {
         auto func = GetRef<Function>(fn);
-        func = Function(func->params,
-                                  VisitExpr(func->body),
-                                  func->ret_type,
-                                  func->type_params,
-                                  func->attrs);
+        func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
+                        func->attrs);
         module_->Update(pair.first, func);
       }
     }
@@ -379,27 +213,300 @@ class Partitioner : public ExprMutator {
   }
 
  private:
-  int var_id_{0};
-  int subgraph_id_{0};
-  std::unordered_set<std::shared_ptr<Subgraph>> subgraphs_;
+  /*!
+   * \brief Get the region an expression belongs to
+   * if its in a region.
+   */
+  AnnotatedRegion GetRegion(const Expr& e) {
+    for (auto sg_set_it : regions_sets_) {
+      auto sg_set = sg_set_it.first;
+      AnnotatedRegion sg = sg_set->GetRegion(e);
+      if (sg.defined()) {
+        return sg;
+      }
+    }
+    return AnnotatedRegion(nullptr);
+  }
+
+  /*!
+   * \brief Get the function an expression belongs to
+   * if its in a region.
+   */
+  BaseFunc GetFunc(const Expr& e) {
+    for (auto sg_set_it : regions_sets_) {
+      auto sg_set = sg_set_it.first;
+      auto func = sg_set_it.second;
+
+      AnnotatedRegion sg = sg_set->GetRegion(e);
+      if (sg.defined()) {
+        return func;
+      }
+    }
+    return BaseFunc(nullptr);
+  }
+
+  /*!
+   * \brief Get the index of the argument;
+   * this is to be used as tuplegetitem idx
+   */
+  int GetArgIdx(AnnotatedRegion sg, const Expr& arg) {
+    int idx = 0;
+    for (auto arg_ : sg->GetInputs()) {
+      if (arg == arg_) {
+        return idx;
+      }
+      idx++;
+    }
+    return -1;
+  }
+
+  /*!
+   * \brief Check if an expr is a constant or a tuple that only contain constants.
+   */
+  bool IsConstant(const Expr& expr) const {
+    if (expr->IsInstance<ConstantNode>()) return true;
+    if (!expr->IsInstance<TupleNode>()) return false;
+    const auto* tn = expr.as<TupleNode>();
+    return std::all_of(tn->fields.begin(), tn->fields.end(),
+                       [](const Expr& e) { return e->IsInstance<ConstantNode>(); });
+  }
+
+  /*!
+   * \brief Create a call to the function that represents a region.
+   * \note The customized optimization pipeline will be invoked as well to
+   *       optimize each function that is handled by external codegen.
+   */
+  Call CreateRegionCall(AnnotatedRegion region, const Array<Expr>& fields,
+                        const CallNode* end_node) {
+    Array<Var> params;
+    Array<Expr> param_expr;
+    Map<Var, Expr> params_bind;
+    for (auto pair : region_func_meta_[region].args) {
+      params.push_back(pair.first);
+      if (IsConstant(pair.second)) {
+        params_bind.Set(pair.first, pair.second);
+      } else {
+        param_expr.push_back(pair.second);
+      }
+    }
+
+    Function global_region_func;
+    if (fields.size() == 1) {
+      // If there are only a single output; no need to add a tuple
+      global_region_func =
+          Function(params, fields[0], end_node->args[0]->checked_type_, {}, DictAttrs());
+    } else {
+      auto tuple = Tuple(fields);
+      global_region_func = Function(params, tuple, tuple->checked_type_, {}, DictAttrs());
+    }
+
+    std::string target = end_node->attrs.as<CompilerAttrs>()->compiler;
+    std::string name = target + "_" + std::to_string(region->GetID());
+
+    // Constant propagation
+    if (!params_bind.empty()) {
+      global_region_func = Downcast<Function>(relay::Bind(global_region_func, params_bind));
+    }
+    std::string ext_opt = "relay.ext." + target + ".optimize";
+    auto pf = tvm::runtime::Registry::Get(ext_opt);
+    if (pf != nullptr) {
+      auto mod = IRModule::FromExpr(global_region_func);
+      mod = (*pf)(mod);
+      global_region_func = Downcast<Function>(mod->Lookup("main"));
+    }
+
+    global_region_func =
+        WithAttr(std::move(global_region_func), tvm::attr::kGlobalSymbol, runtime::String(name));
+    global_region_func = WithAttr(std::move(global_region_func), attr::kPrimitive, tvm::Integer(1));
+    global_region_func =
+        WithAttr(std::move(global_region_func), attr::kCompiler, tvm::runtime::String(target));
+    global_region_func = WithAttr(std::move(global_region_func), attr::kInline, tvm::Integer(1));
+
+    std::string fname = name;
+    CHECK(!module_->ContainGlobalVar(fname)) << "Global function " << fname << " already exists";
+    // Create a global function and add it to the IRModule for the region.
+    // This way we lift the functions that should be handled by external
+    // codegen to the module scope and rely on the pass manager to prevent
+    // relay function level passes (i.e. simplify inference and fusion)
+    // optimizing it.
+    GlobalVar glob_func(fname);
+    module_->Add(glob_func, global_region_func);
+
+    // Create a call node for the function.
+    auto call = Call(glob_func, param_expr);
+    region_func_meta_[region].func_call = call;
+
+    return call;
+  }
+
+  /*!
+   * \brief Create a function and its function call for the given region. If the function has
+   * multiple outputs, a Tuple will be formed to aggregate all outputs, and TupleGetItem nodes
+   * will be created to serve output consumers.
+   */
+  void CreateFunction(AnnotatedRegion region, const CallNode* end_node) {
+    // Create fields which is a unique list of outputs.
+    Array<Expr> fields;
+    std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> out_expr_to_idx;
+    int out_idx = 0;
+    for (auto region_end_node : region->GetOutputs()) {
+      auto ret_node = Downcast<Call>(region_end_node)->args[0];
+      // Don't duplicate outputs.
+      if (!out_expr_to_idx.count(ret_node)) {
+        auto ret_expr = MixedModeMutator::VisitExpr(ret_node);
+        fields.push_back(ret_expr);
+        out_expr_to_idx[ret_node] = out_idx++;
+      }
+    }
+
+    Call call = CreateRegionCall(region, fields, end_node);
+
+    // Create output expr(s) for the function call.
+    if (out_expr_to_idx.size() == 1) {
+      // Single output direcly uses the call node as the output expr.
+      region_func_meta_[region].region_func_out[out_expr_to_idx.begin()->first] = call;
+    } else {
+      // Multiple outptus need to create TupleGetItem nodes as output exprs.
+      for (auto pair : out_expr_to_idx) {
+        Expr region_out_expr = pair.first;  // The arg of a compiler end node of this region.
+        int idx = pair.second;              // Corresponding function output tuple index.
+        auto tuple_get_item = TupleGetItem(call, idx);
+        tuple_get_item->checked_type_ = region_out_expr->checked_type_;
+        region_func_meta_[region].region_func_out[region_out_expr] = tuple_get_item;
+      }
+    }
+  }
+
+  /*! \brief Map from each region to its metadata of the generated function. */
+  std::unordered_map<AnnotatedRegion, RegionFuncMetadata, ObjectPtrHash, ObjectPtrEqual>
+      region_func_meta_;
+
+  /*! \brief Each region set is associated with a function in the module.
+   * This map maintains the mapping between regionsets and the function it
+   * belongs to
+   */
+  std::unordered_map<AnnotatedRegionSet, BaseFunc, ObjectPtrHash, ObjectPtrEqual> regions_sets_;
+
+  /*!\brief The IRModule used for partitioning. */
   IRModule module_;
 };
+
+IRModule RemoveDefaultAnnotations(IRModule module) {
+  class DefaultRemover : public ExprRewriter {
+   public:
+    DefaultRemover() = default;
+
+    Expr Rewrite_(const CallNode* call, const Expr& post) final {
+      auto attrs = call->attrs.as<CompilerAttrs>();
+      if (attrs != nullptr && attrs->compiler == "default") {
+        return Downcast<Call>(post)->args[0];
+      }
+      return post;
+    }
+  };
+
+  auto glob_funcs = module->functions;
+  // module is mutable, hence, we make a copy of it.
+  module.CopyOnWrite();
+  for (const auto& pair : glob_funcs) {
+    if (auto* fn = pair.second.as<FunctionNode>()) {
+      auto func = GetRef<Function>(fn);
+      DefaultRemover remover;
+      auto removed = PostOrderRewrite(func->body, &remover);
+      func = Function(func->params, removed, func->ret_type, func->type_params, func->attrs);
+      module->Update(pair.first, func);
+    }
+  }
+  return module;
+}
+
+/*! \brief There can be regions with multiple outputs where each output
+ *  could be a tuple output. Such tuple outputs needs to be flattened
+ *  otherwise the function would create tuples of tuples. Moreover, tuple
+ *  of tuples are valid relay, however they are not currently supported by
+ *  graph runtime or relay VM.
+ */
+
+// New annotations would be required to be added for each flattened output
+const PackedFunc* make_end_op = runtime::Registry::Get("relay.op.annotation._make.compiler_end");
+
+IRModule FlattenTupleOutputs(IRModule module) {
+  class TupleOutFlattener : public ExprRewriter {
+   public:
+    TupleOutFlattener() = default;
+
+    Expr Rewrite_(const CallNode* call, const Expr& post) final {
+      if (call->op == CompilerEndOp()) {
+        std::string target = call->attrs.as<CompilerAttrs>()->compiler;
+        // Arguments of annotation ops should be 1
+        CHECK_EQ(call->args.size(), 1U);
+        auto annotated_op = Downcast<Call>(post)->args[0];
+        if (const auto* tn = annotated_op.as<TupleNode>()) {
+          Array<Expr> new_fields;
+
+          // Here each input of the tuple will be annotated with compiler_ends
+          for (auto& tn_arg : tn->fields) {
+            new_fields.push_back((*make_end_op)(tn_arg, target));
+          }
+
+          // Return a tuple of compiler_ends in the place of the tuple that was
+          // annotated with a compiler_end.
+          auto out = Tuple(new_fields);
+          return std::move(out);
+        }
+      }
+      return post;
+    }
+  };
+
+  auto glob_funcs = module->functions;
+  // module is mutable, hence, we make a copy of it.
+  module.CopyOnWrite();
+  for (const auto& pair : glob_funcs) {
+    if (auto* fn = pair.second.as<FunctionNode>()) {
+      auto func = GetRef<Function>(fn);
+      TupleOutFlattener to_flattener;
+      auto removed = PostOrderRewrite(func->body, &to_flattener);
+      func = Function(func->params, removed, func->ret_type, func->type_params, func->attrs);
+      module->Update(pair.first, func);
+    }
+  }
+  return module;
+}
 
 }  // namespace partitioning
 
 namespace transform {
 
 Pass PartitionGraph() {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> flatten_tuples = [=](IRModule m,
+                                                                                 PassContext pc) {
+    // There could be compiler_end annotations on tuples
+    // If the corresponding region is having multiple compiler_ends,
+    // this would lead to creation of tuples of tuples.
+    // Thus, we flatten the tuples by transfering the compiler_end to
+    // the tuple inputs.
+    return partitioning::FlattenTupleOutputs(m);
+  };
+
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> remove_defaults = [=](IRModule m,
+                                                                                  PassContext pc) {
+    // TODO(@comaniac, @zhiics): We should also handle the annotation with "default" attribute
+    // by treating them as un-annotated, but we don't have it yet. This workaround pass removes
+    // all "default" annotations and should be deleted in the future.
+    return partitioning::RemoveDefaultAnnotations(m);
+  };
+
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func =
-      [=](IRModule m, PassContext pc) {
-        return partitioning::Partitioner(m).Partition();
-      };
-  auto partitioned = CreateModulePass(part_func, 0, "PartitionGraph", {});
-  return Sequential({partitioned, InferType()});
+      [=](IRModule m, PassContext pc) { return partitioning::Partitioner(m).Partition(); };
+
+  auto flatten_tuples_pass = CreateModulePass(flatten_tuples, 0, "FlattenNestedTuples", {});
+  auto remove_default_pass = CreateModulePass(remove_defaults, 0, "RemoveDefaultAnnotations", {});
+  auto partition_pass = CreateModulePass(part_func, 0, "PartitionGraph", {});
+  return Sequential({flatten_tuples_pass, remove_default_pass, partition_pass, InferType()});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.PartitionGraph")
-.set_body_typed(transform::PartitionGraph);
+TVM_REGISTER_GLOBAL("relay._transform.PartitionGraph").set_body_typed(transform::PartitionGraph);
 
 }  // namespace transform
 

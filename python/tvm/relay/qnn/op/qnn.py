@@ -18,7 +18,7 @@
 """QNN dialect operators."""
 
 from __future__ import absolute_import as _abs
-from tvm.relay.expr import Tuple
+from tvm.relay.expr import Tuple, TupleWrapper
 from tvm.relay.op.nn.util import get_pad_tuple2d
 from . import _make
 
@@ -121,7 +121,8 @@ def quantize(data,
 
 def dequantize(data,
                input_scale,
-               input_zero_point):
+               input_zero_point,
+               axis=-1):
     r""" Dequantize op
     This operator takes quantized int8 and unit8 as input and produces
     dequantized float32 as output. The output shape is the same as input shape. The input
@@ -135,6 +136,8 @@ def dequantize(data,
         The input zero_point.
     input_scale : tvm.relay.Expr
         The input scale.
+    axis : int
+        The channel axis for quantization. Default value is -1 which corresponds to the last axis.
     Returns
     -------
     result : tvm.relay.Expr
@@ -143,7 +146,8 @@ def dequantize(data,
 
     return _make.dequantize(data,
                             input_scale,
-                            input_zero_point)
+                            input_zero_point,
+                            axis)
 
 
 def concatenate(data,
@@ -156,7 +160,7 @@ def concatenate(data,
 
     Parameters
     ----------
-    data : Union(List[relay.Expr], Tuple[relay.Expr])
+    data : Union(List[relay.Expr], Tuple[relay.Expr], TupleWrapper[relay.Expr])
         The list of quantized tensors.
 
     input_scales : List[relay.Expr]
@@ -180,15 +184,16 @@ def concatenate(data,
         The concatenated quantized tensor.
     """
 
-    data = list(data)
-    if not data:
-        raise ValueError("relay.concatenate requires data to be non-empty.")
+    if isinstance(data, (list, tuple)):
+        data = Tuple(data)
+    elif isinstance(data, TupleWrapper):
+        data = data.tuple_value
     if not isinstance(axis, int):
         raise ValueError("For now, we only support integer axis")
     input_scales = list(input_scales)
     input_zero_points = list(input_zero_points)
 
-    return _make.concatenate(Tuple(data),
+    return _make.concatenate(data,
                              Tuple(input_scales),
                              Tuple(input_zero_points),
                              output_scale,
@@ -309,9 +314,6 @@ def add(lhs,
 
     rhs : relay.Expr
         The right hand side quantized input data.
-
-    lhs_scale: float
-        The scale of the lhs quantized expr.
 
     lhs_scale: relay.Expr
         The scale of the lhs quantized expr.
@@ -436,3 +438,51 @@ def mul(lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point,
                      lhs_scale, lhs_zero_point,
                      rhs_scale, rhs_zero_point,
                      output_scale, output_zero_point)
+
+
+def subtract(lhs,
+             rhs,
+             lhs_scale,
+             lhs_zero_point,
+             rhs_scale,
+             rhs_zero_point,
+             output_scale,
+             output_zero_point):
+    """Quantized subtraction with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side quantized input data.
+
+    rhs : relay.Expr
+        The right hand side quantized input data.
+
+    lhs_scale: relay.Expr
+        The scale of the lhs quantized expr.
+
+    lhs_zero_point: relay.Expr
+       The zero point of lhs quantized expr.
+
+    rhs_scale: relay.Expr
+        The scale of the rhs quantized expr.
+
+    rhs_zero_point: relay.Expr
+       The zero point of rhs quantized expr.
+
+    output_scale: relay.Expr
+        The scale of the output quantized expr.
+
+    output_zero_point: relay.Expr
+       The zero point of output quantized expr.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    """
+    return _make.subtract(lhs, rhs,
+                          lhs_scale, lhs_zero_point,
+                          rhs_scale, rhs_zero_point,
+                          output_scale, output_zero_point)

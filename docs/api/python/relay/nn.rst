@@ -17,7 +17,7 @@
 
 tvm.relay.nn
 ------------
-.. automodule:: tvm.relay.op.nn.nn
+.. automodule:: tvm.relay.nn
     :members:
     :imported-members:
-    :exclude-members:
+    :autosummary:

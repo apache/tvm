@@ -90,8 +90,8 @@ func = relay.Function(func.params, relay.nn.softmax(func.body), None, func.type_
 ######################################################################
 # now compile the graph
 target = 'cuda'
-with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(func, target, params=params)
+with tvm.transform.PassContext(opt_level=3):
+    lib = relay.build(func, target, params=params)
 
 ######################################################################
 # Execute the portable graph on TVM
@@ -100,10 +100,9 @@ with relay.build_config(opt_level=3):
 from tvm.contrib import graph_runtime
 ctx = tvm.gpu(0)
 dtype = 'float32'
-m = graph_runtime.create(graph, lib, ctx)
+m = graph_runtime.GraphModule(lib['default'](ctx))
 # set inputs
 m.set_input('data', tvm.nd.array(x.astype(dtype)))
-m.set_input(**params)
 # execute
 m.run()
 # get outputs

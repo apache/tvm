@@ -29,11 +29,20 @@ Python API
    tir
    te
    driver
+   relay/index
+   relay/frontend
+   relay/nn
+   relay/vision
+   relay/image
+   relay/transform
+   relay/analysis
+   relay/backend
+   relay/dataflow_pattern
+   relay/testing
    autotvm
    rpc
+   micro
    contrib
    graph_runtime
-   hybrid
-   relay/index
    vta/index
    topi

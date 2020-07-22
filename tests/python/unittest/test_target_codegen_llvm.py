@@ -21,21 +21,63 @@ from tvm.contrib import util, clang
 import numpy as np
 import ctypes
 import math
+import re
+
 
 def test_llvm_intrin():
     ib = tvm.tir.ir_builder.create()
     n = tvm.runtime.convert(4)
     A = ib.pointer("float32", name="A")
     args = [
-        tvm.tir.call_pure_intrin("handle", "tvm_address_of", A[0]),
+        tvm.tir.call_intrin("handle", "tir.address_of", A[0]),
         0, 3, 1
     ]
     ib.emit(tvm.tir.Evaluate(
         tvm.tir.Call(
-            "int32", "prefetch", args, tvm.tir.Call.Intrinsic, None, 0)))
+            "int32", "tir.prefetch", args)))
     body = ib.get()
-    func = tvm.tir.ir_pass.MakeAPI(body, "prefetch", [A], 0, True)
-    fcode = tvm.build(func, None, "llvm")
+
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A], body).with_attr(
+            "global_symbol", "prefetch")
+    )
+    fcode = tvm.build(mod, None, "llvm")
+
+
+def test_llvm_void_intrin():
+    ib = tvm.tir.ir_builder.create()
+    A = ib.pointer("uint8", name="A")
+    # Create an intrinsic that returns void.
+    x = tvm.tir.call_llvm_intrin('', 'llvm.va_start', tvm.tir.const(1, 'uint32'), A)
+    ib.emit(x)
+    body = ib.get()
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
+    fcode = tvm.build(mod, None, "llvm")
+
+
+def test_llvm_overloaded_intrin():
+    # Name lookup for overloaded intrinsics in LLVM 4- requires a name
+    # that includes the overloaded types.
+    if tvm.target.codegen.llvm_version_major() < 5:
+        return
+
+    def use_llvm_intrinsic(A, C):
+        ib = tvm.tir.ir_builder.create()
+        L = A.vload((0,0))
+        I = tvm.tir.call_llvm_pure_intrin('int32', 'llvm.ctlz',
+            tvm.tir.const(2, 'uint32'), L, tvm.tir.const(0, 'int1'))
+        S = C.vstore((0,0), I)
+        ib.emit(S)
+        return ib.get()
+
+    A = tvm.te.placeholder((1,1), dtype = 'int32', name = 'A')
+    C = tvm.te.extern((1,1), [A],
+        lambda ins, outs: use_llvm_intrinsic(ins[0], outs[0]),
+        name = 'C' , dtype = 'int32')
+
+    s = tvm.te.create_schedule(C.op)
+    f = tvm.build(s, [A, C], target = 'llvm')
 
 
 def test_llvm_import():
@@ -80,13 +122,14 @@ def test_llvm_import():
 
 def test_llvm_lookup_intrin():
     ib = tvm.tir.ir_builder.create()
-    m = te.size_var("m")
     A = ib.pointer("uint8x8", name="A")
-    x = tvm.tir.call_llvm_intrin("uint8x8", "llvm.ctpop.i8", tvm.tir.const(1, 'uint32'), A)
+    z = tvm.tir.const(0, 'int32')
+    x = tvm.tir.call_llvm_pure_intrin("uint8x8", "llvm.ctpop.v8i8", tvm.tir.const(1, 'uint32'), A[z])
     ib.emit(x)
     body = ib.get()
-    func = tvm.tir.ir_pass.MakeAPI(body, "ctpop", [A], 1, True)
-    fcode = tvm.build(func, None, "llvm")
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
+    fcode = tvm.build(mod, None, "llvm")
 
 
 def test_llvm_large_uintimm():
@@ -148,8 +191,7 @@ def test_llvm_add_pipeline():
         tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-    with tvm.target.build_config(offset_factor=4):
-        check_llvm()
+    check_llvm()
 
 
 def test_llvm_persist_parallel():
@@ -263,7 +305,8 @@ def test_llvm_madd_pipeline():
             c.asnumpy(), a.asnumpy()[base:] + 1)
     check_llvm(64, 0, 2)
     check_llvm(4, 0, 1)
-    with tvm.target.build_config(restricted_func=False):
+
+    with tvm.transform.PassContext(config={"tir.noalias": False}):
         check_llvm(4, 0, 3)
 
 
@@ -307,8 +350,9 @@ def test_multiple_func():
         f2 = tvm.lower(s, [A, B, C], name="fadd1")
         f1 = tvm.lower(s, [A, B, C], name="fadd2")
         m = tvm.build([f1, f2], "llvm")
-        fadd1 = m['fadd1']
         fadd2 = m['fadd2']
+        fadd1 = m['fadd1']
+
         ctx = tvm.cpu(0)
         # launch the kernel.
         n = nn
@@ -391,7 +435,7 @@ def test_rank_zero_bound_checkers():
     def check_llvm(n):
         if not tvm.runtime.enabled("llvm"):
             return
-        with tvm.target.build_config(instrument_bound_checkers=True):
+        with tvm.transform.PassContext(config={"tir.instrument_bound_checkers": True}):
             A = te.placeholder((n, ), name='A')
             scale = te.placeholder((), name='scale')
             k = te.reduce_axis((0, n), name="k")
@@ -419,11 +463,38 @@ def test_alignment():
     s = te.create_schedule(B.op)
     bx, tx = s[B].split(B.op.axis[0], factor=8)
     s[B].vectorize(tx)
-    f = tvm.build(s, [A, B], "llvm")
+    f = tvm.build(s, [A, B], "llvm", name="test_alignment")
 
-    for l in f.get_source().split("\n"):
+    lines = f.get_source().split("\n")
+
+    # Check alignment on load/store.
+    for l in lines:
         if "align" in l and "4 x float" in l:
             assert "align 32" in l
+
+    # Check parameter alignment. This looks for the definition of the
+    # outlined "compute_" function to see if there is an "align" attribute
+    # listed there.
+    def has_param_alignment():
+        for l in lines:
+            if re.search(r'test_alignment_compute_\([^(]*align [0-9]', l):
+                return True
+        return False
+
+    if tvm.target.codegen.llvm_version_major() >= 5:
+        assert has_param_alignment()
+
+    # Check for assume intrinsics. This isn't 100% accurate, since it just
+    # checks if the llvm.assume is there, but detailed check would require
+    # a much more detailed analysis of the LLVM IR.
+    def has_call_to_assume():
+        for l in lines:
+            if re.search(r'call.*llvm.assume', l):
+                return True
+        return False
+
+    assert has_call_to_assume()
+
 
 def test_llvm_div():
     """Check that the semantics of div and mod is correct"""
@@ -582,7 +653,6 @@ def test_dwarf_debug_information():
         temp = util.tempdir()
         o_path = temp.relpath("temp.o")
         m.save(o_path)
-        import re
         import shutil
         import subprocess
         import sys
@@ -615,7 +685,7 @@ def test_dwarf_debug_information():
         # build two functions
         f2 = tvm.lower(s, [A, B, C], name="fadd1")
         f1 = tvm.lower(s, [A, B, C], name="fadd2")
-        m = tvm.build([f1, f2], target="llvm -target=aarch64-linux-gnu")
+        m = tvm.build([f1, f2], target="llvm -mtriple=aarch64-linux-gnu")
         ll = m.get_source("ll")
 
         # On non-Darwin OS, don't explicitly specify DWARF version.
@@ -625,7 +695,7 @@ def test_dwarf_debug_information():
 
         # Try Darwin, require DWARF-2
         m = tvm.build([f1, f2],
-                      target="llvm -target=x86_64-apple-darwin-macho")
+                      target="llvm -mtriple=x86_64-apple-darwin-macho")
         ll = m.get_source("ll")
         assert re.search(r"""i32 4, !"Dwarf Version", i32 2""", ll)
         assert re.search(r"""llvm.dbg.value""", ll)
@@ -640,8 +710,7 @@ def test_llvm_shuffle():
     c = te.compute((8, ), lambda x: a[x] + b[7-x])
     sch = te.create_schedule(c.op)
 
-    def my_vectorize(stmt):
-
+    def my_vectorize():
         def vectorizer(op):
             store = op.body
             idx = tvm.tir.Ramp(tvm.tir.const(0, 'int32'), tvm.tir.const(1, 'int32'), 8)
@@ -653,9 +722,13 @@ def test_llvm_shuffle():
             value = new_a + new_b
             return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
 
-        return tvm.tir.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
+        def _transform(f, *_):
+            return f.with_body(
+                tvm.tir.stmt_functor.ir_transform(f.body, None, vectorizer, ['tir.For']))
 
-    with tvm.target.build_config(add_lower_pass=[(1, my_vectorize)]):
+        return tvm.tir.transform.prim_func_pass(_transform, opt_level=0, name="my_vectorize")
+
+    with tvm.transform.PassContext(config={"tir.add_lower_pass": [(1, my_vectorize())]}):
         ir = tvm.lower(sch, [a, b, c], simple_mode=True)
         module = tvm.build(sch, [a, b, c])
         a_ = tvm.nd.array(np.arange(1, 9, dtype='int32'))
@@ -664,7 +737,55 @@ def test_llvm_shuffle():
         module(a_, b_, c_)
         tvm.testing.assert_allclose(c_.asnumpy(), (a_.asnumpy() * 2).astype('int32'))
 
+def np_float2np_bf16(arr):
+    ''' Convert a numpy array of float to a numpy array
+    of bf16 in uint16'''
+    orig = arr.view('<u4')
+    bias = np.bitwise_and(np.right_shift(orig, 16), 1) + 0x7FFF
+    return np.right_shift(orig + bias, 16).astype('uint16')
+
+def np_float2tvm_bf16(arr):
+    ''' Convert a numpy array of float to a TVM array
+    of bf16'''
+    nparr = np_float2np_bf16(arr)
+    return tvm.nd.empty(nparr.shape, 'uint16').copyfrom(nparr)
+
+def np_bf162np_float(arr):
+    ''' Convert a numpy array of bf16 (uint16) to a numpy array
+    of float'''
+    u32 = np.left_shift(arr.astype('uint32'), 16)
+    return u32.view('<f4')
+
+def np_bf16_cast_and_cast_back(arr):
+    ''' Convert a numpy array of float to bf16 and cast back'''
+    return np_bf162np_float(np_float2np_bf16(arr))
+
+def test_llvm_bf16():
+    def dotest(do_vectorize):
+        np.random.seed(122)
+        A = te.placeholder((32, ), dtype='bfloat16')
+        B = te.placeholder((32, ), dtype='bfloat16')
+        d = te.compute((32, ), lambda x: A[x] + B[x])
+        sch = te.create_schedule(d.op)
+        print(tvm.lower(sch, [A,B,d]))
+        if do_vectorize:
+            sch[d].vectorize(d.op.axis[0])
+        module = tvm.build(sch, [A, B, d])
+        npa = np.random.rand(32).astype('float32')
+        npb = np.random.rand(32).astype('float32')
+        va = np_bf16_cast_and_cast_back(npa)
+        vb = np_bf16_cast_and_cast_back(npb)
+        res = np_bf16_cast_and_cast_back(va + vb)
+        a_ = np_float2tvm_bf16(npa)
+        b_ = np_float2tvm_bf16(npb)
+        c_ = tvm.nd.empty((32,), 'uint16')
+        module(a_, b_, c_)
+        tvm.testing.assert_allclose(np_bf162np_float(c_.asnumpy()), res)
+    dotest(True)
+    dotest(False)
+
 if __name__ == "__main__":
+    test_multiple_func()
     test_llvm_large_uintimm()
     test_llvm_import()
     test_alignment()
@@ -676,7 +797,7 @@ if __name__ == "__main__":
     test_llvm_vadd_pipeline()
     test_llvm_add_pipeline()
     test_llvm_intrin()
-    test_multiple_func()
+    test_llvm_overloaded_intrin()
     test_llvm_flip_pipeline()
     test_llvm_madd_pipeline()
     test_llvm_temp_space()
@@ -685,3 +806,4 @@ if __name__ == "__main__":
     test_llvm_fp_math()
     test_dwarf_debug_information()
     test_llvm_shuffle()
+    test_llvm_bf16()

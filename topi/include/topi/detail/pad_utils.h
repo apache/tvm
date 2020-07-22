@@ -18,16 +18,17 @@
  */
 
 /*!
-* \file pad_utils.h
-* \brief Padding helpers
-*/
+ * \file pad_utils.h
+ * \brief Padding helpers
+ */
 #ifndef TOPI_DETAIL_PAD_UTILS_H_
 #define TOPI_DETAIL_PAD_UTILS_H_
 
-#include <vector>
+#include <tvm/te/operation.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
-#include "tvm/tir/expr.h"
-#include "tvm/tir/op.h"
+#include <vector>
 
 namespace topi {
 namespace detail {
@@ -50,7 +51,7 @@ inline Array<PrimExpr> GetPadTuple(PrimExpr pad_h, PrimExpr pad_w) {
   auto pad_top = indexdiv(pad_h + 1, 2);
   auto pad_left = indexdiv(pad_w + 1, 2);
 
-  return { pad_top, pad_left, pad_h - pad_top, pad_w - pad_left };
+  return {pad_top, pad_left, pad_h - pad_top, pad_w - pad_left};
 }
 
 }  // namespace detail

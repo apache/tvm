@@ -24,11 +24,12 @@
 #ifndef TVM_IR_FUNCTION_H_
 #define TVM_IR_FUNCTION_H_
 
-#include <tvm/ir/expr.h>
 #include <tvm/ir/attrs.h>
-#include <type_traits>
-#include <string>
+#include <tvm/ir/expr.h>
+#include <tvm/runtime/container.h>
 
+#include <string>
+#include <type_traits>
 
 namespace tvm {
 
@@ -47,19 +48,19 @@ enum class CallingConv : int {
    */
   kDefault = 0,
   /*!
+   * \brief PackedFunc that exposes a CPackedFunc signature.
+   *
+   * - Calling by PackedFunc calling convention.
+   * - Implementation: Expose a function with the CPackedFunc signature.
+   */
+  kCPackedFunc = 1,
+  /*!
    * \brief Device kernel launch
    *
    * - Call by PackedFunc calling convention.
    * - Implementation: defined by device runtime(e.g. runtime/cuda)
    */
   kDeviceKernelLaunch = 2,
-  /*!
-   * \brief PackedFunc that exposes a CPackedFunc signature.
-   *
-   * - Calling by PackedFunc calling convention.
-   * - Implementation: Expose a function with the CPackedFunc signature.
-   */
-  kCPackedFunc = 3,
 };
 
 /*!
@@ -90,25 +91,30 @@ class BaseFuncNode : public RelayExprNode {
    * \code
    *
    *  void GetAttrExample(const BaseFunc& f) {
-   *    Integer value = f->GetAttr<Integer>("AttrKey", 0);
+   *    auto value = f->GetAttr<Integer>("AttrKey", 0);
    *  }
    *
    * \endcode
    */
-  template<typename TObjectRef>
-  TObjectRef GetAttr(const std::string& attr_key,
-                     TObjectRef default_value = NullValue<TObjectRef>()) const {
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetAttr(
+      const std::string& attr_key,
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
     static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
                   "Can only call GetAttr with ObjectRef types.");
     if (!attrs.defined()) return default_value;
     auto it = attrs->dict.find(attr_key);
     if (it != attrs->dict.end()) {
-      return Downcast<TObjectRef>((*it).second);
+      return Downcast<Optional<TObjectRef>>((*it).second);
     } else {
       return default_value;
     }
   }
-
+  // variant that uses TObjectRef to enable implicit conversion to default value.
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
+    return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
+  }
   /*!
    * \brief Check whether the function has an non-zero integer attr.
    *
@@ -129,10 +135,11 @@ class BaseFuncNode : public RelayExprNode {
    * \endcode
    */
   bool HasNonzeroAttr(const std::string& attr_key) const {
-    return GetAttr<Integer>(attr_key, 0)->value != 0;
+    return GetAttr<Integer>(attr_key, 0) != 0;
   }
 
   static constexpr const char* _type_key = "BaseFunc";
+  static constexpr const uint32_t _type_child_slots = 2;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseFuncNode, RelayExprNode);
 };
 
@@ -172,19 +179,16 @@ class BaseFunc : public RelayExpr {
  *
  * \endcode
  */
-template<typename TFunc,
-         typename = typename std::enable_if<
-           std::is_base_of<BaseFunc, TFunc>::value>::type>
-inline TFunc WithAttr(TFunc func,
-                      const std::string& attr_key,
-                      ObjectRef attr_value) {
+template <typename TFunc,
+          typename = typename std::enable_if<std::is_base_of<BaseFunc, TFunc>::value>::type>
+inline TFunc WithAttr(TFunc func, const std::string& attr_key, ObjectRef attr_value) {
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   TNode* node = func.CopyOnWrite();
   if (node->attrs.defined()) {
     node->attrs.CopyOnWrite()->dict.Set(attr_key, attr_value);
   } else {
-    Map<std::string, ObjectRef> dict = {{attr_key, attr_value}};
+    Map<String, ObjectRef> dict = {{attr_key, attr_value}};
     node->attrs = DictAttrs(dict);
   }
   return func;

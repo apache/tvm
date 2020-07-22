@@ -24,15 +24,15 @@
 #ifndef TVM_TE_TENSOR_H_
 #define TVM_TE_TENSOR_H_
 
-#include <tvm/node/container.h>
 #include <tvm/arith/bound.h>
+#include <tvm/node/container.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
 #include <string>
-#include <vector>
-#include <utility>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 namespace tvm {
 namespace te {
@@ -40,25 +40,69 @@ namespace te {
 using arith::IntSet;
 using namespace tvm::tir;
 
-// Internal node container of Tensor
-class TensorNode;
 // internal node container for Operation
 class OperationNode;
+class Tensor;
+
+/*! \brief Operation that produces tensors */
+class Operation : public ObjectRef {
+ public:
+  /*! \brief default constructor  */
+  Operation() {}
+  explicit Operation(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const OperationNode* operator->() const;
+  /*!
+   * \brief get the i-th output of the operation.
+   * \param i the output index.
+   * \return The i-th output.
+   */
+  TVM_DLL Tensor output(size_t i) const;
+  /*! \brief specify container node */
+  using ContainerType = OperationNode;
+};
+
+/*! \brief Node to represent a tensor */
+class TensorNode : public DataProducerNode {
+ public:
+  /*! \brief The shape of the tensor */
+  Array<PrimExpr> shape;
+  /*! \brief data type in the content of the tensor */
+  DataType dtype;
+  /*! \brief the source operation, can be None */
+  Operation op;
+  /*! \brief the output index from source operation */
+  int value_index{0};
+  /*! \brief constructor */
+  TensorNode() {}
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("shape", &shape);
+    v->Visit("dtype", &dtype);
+    v->Visit("op", &op);
+    v->Visit("value_index", &value_index);
+  }
+
+  Array<PrimExpr> GetShape() const final { return shape; }
+
+  DataType GetDataType() const final { return dtype; }
+
+  TVM_DLL String GetNameHint() const final;
+
+  static constexpr const char* _type_key = "Tensor";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, DataProducerNode);
+};
 
 /*!
  * \brief Tensor structure representing a possible input,
  *  or intermediate computation result.
  */
-class Tensor : public ObjectRef {
+class Tensor : public DataProducer {
  public:
-  /*! \brief default constructor, used internally */
-  Tensor() {}
-  explicit Tensor(ObjectPtr<Object> n) : ObjectRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const TensorNode* operator->() const;
+  TVM_DLL Tensor(Array<PrimExpr> shape, DataType dtype, Operation op, int value_index);
   /*!
    * \brief check if two tensors equals each other.
    * \param other tensor to be checked.
@@ -78,8 +122,8 @@ class Tensor : public ObjectRef {
    * \param args The indices
    * \return the result expression representing tensor read.
    */
-  template<typename... Args>
-  inline PrimExpr operator()(Args&& ...args) const {
+  template <typename... Args>
+  inline PrimExpr operator()(Args&&... args) const {
     Array<PrimExpr> indices{std::forward<Args>(args)...};
     return operator()(indices);
   }
@@ -119,9 +163,7 @@ class Tensor : public ObjectRef {
      *  This is only valid when all the coordinates are fully specified.
      * \return the corresponding expression of this slice.
      */
-    inline operator PrimExpr() const {
-      return tensor_(indices_);
-    }
+    inline operator PrimExpr() const { return tensor_(indices_); }
 
    private:
     const Tensor& tensor_;
@@ -132,105 +174,41 @@ class Tensor : public ObjectRef {
    * \param i the index of the coordinate
    * \return the subsequent slice.
    */
-  inline Slice operator[](PrimExpr i) const {
-    return Slice(*this, {i});
-  }
-  /*! \brief specify container node */
-  using ContainerType = TensorNode;
+  inline Slice operator[](PrimExpr i) const { return Slice(*this, {i}); }
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Tensor, DataProducer, TensorNode);
 };
-
-/*! \brief Operation that produces tensors */
-class Operation : public tir::FunctionRef {
- public:
-  /*! \brief default constructor  */
-  Operation() {}
-  explicit Operation(ObjectPtr<Object> n) : FunctionRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const OperationNode* operator->() const;
-  /*!
-   * \brief get the i-th output of the operation.
-   * \param i the output index.
-   * \return The i-th output.
-   */
-  TVM_DLL Tensor output(size_t i) const;
-  /*! \brief specify container node */
-  using ContainerType = OperationNode;
-};
-
-/*! \brief Node to represent a tensor */
-class TensorNode : public Object {
- public:
-  /*! \brief The shape of the tensor */
-  Array<PrimExpr> shape;
-  /*! \brief data type in the content of the tensor */
-  DataType dtype;
-  /*! \brief the source operation, can be None */
-  Operation op;
-  /*! \brief the output index from source operation */
-  int value_index{0};
-  /*! \brief constructor */
-  TensorNode() {}
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("shape", &shape);
-    v->Visit("dtype", &dtype);
-    v->Visit("op", &op);
-    v->Visit("value_index", &value_index);
-  }
-  TVM_DLL static Tensor make(Array<PrimExpr> shape,
-                             DataType dtype,
-                             Operation op,
-                             int value_index);
-
-  static constexpr const char* _type_key = "Tensor";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, Object);
-};
-
 
 // Implementations of inline functions
-inline const TensorNode* Tensor::operator->() const {
-  return static_cast<const TensorNode*>(get());
-}
-
-inline size_t Tensor::ndim() const {
-  return (*this)->shape.size();
-}
+inline size_t Tensor::ndim() const { return (*this)->shape.size(); }
 
 inline bool Tensor::operator==(const Tensor& other) const {
   if (get() == other.get()) return true;
   if (get() == nullptr || other.get() == nullptr) return false;
   if ((*this)->op.defined() || other->op.defined()) {
-    return (*this)->op == other->op &&
-        (*this)->value_index == other->value_index;
+    return (*this)->op == other->op && (*this)->value_index == other->value_index;
   } else {
     return false;
   }
 }
 
-inline bool Tensor::operator!=(const Tensor& other) const {
-  return !(*this == other);
-}
+inline bool Tensor::operator!=(const Tensor& other) const { return !(*this == other); }
 
 // macro to turn every operation of slice to expression
-#define DEFINE_OVERLOAD_SLICE_UNARY_OP(Op)                              \
-  inline PrimExpr operator Op (const Tensor::Slice& a) {                \
-    return Op a.operator PrimExpr() ;                                   \
-  }                                                                     \
+#define DEFINE_OVERLOAD_SLICE_UNARY_OP(Op) \
+  inline PrimExpr operator Op(const Tensor::Slice& a) { return Op a.operator PrimExpr(); }
 
-#define DEFINE_OVERLOAD_SLICE_BINARY_OP(Op)                             \
-  template<typename T>                                                  \
-  inline PrimExpr operator Op (const Tensor::Slice& a, const T& b) {    \
-    return a.operator PrimExpr() Op b;                                  \
-  }                                                                     \
-  template<typename T>                                                  \
-  inline PrimExpr operator Op (const T& a, const Tensor::Slice& b) {    \
-    return a Op b.operator PrimExpr();                                  \
-  }                                                                        \
-  inline PrimExpr operator Op (const Tensor::Slice& a, const Tensor::Slice& b) { \
-    return a.operator PrimExpr() Op b.operator PrimExpr();                  \
+#define DEFINE_OVERLOAD_SLICE_BINARY_OP(Op)                                     \
+  template <typename T>                                                         \
+  inline PrimExpr operator Op(const Tensor::Slice& a, const T& b) {             \
+    return a.operator PrimExpr() Op b;                                          \
+  }                                                                             \
+  template <typename T>                                                         \
+  inline PrimExpr operator Op(const T& a, const Tensor::Slice& b) {             \
+    return a Op b.operator PrimExpr();                                          \
+  }                                                                             \
+  inline PrimExpr operator Op(const Tensor::Slice& a, const Tensor::Slice& b) { \
+    return a.operator PrimExpr() Op b.operator PrimExpr();                      \
   }
 
 DEFINE_OVERLOAD_SLICE_UNARY_OP(!);
@@ -254,16 +232,15 @@ DEFINE_OVERLOAD_SLICE_BINARY_OP(<);  // NOLINT(*)
 
 namespace std {
 template <>
-struct hash<::tvm::te::Operation> : public ::tvm::ObjectHash {
-};
+struct hash<::tvm::te::Operation> : public ::tvm::ObjectPtrHash {};
 
 template <>
 struct hash<::tvm::te::Tensor> {
   std::size_t operator()(const ::tvm::te::Tensor& k) const {
-    ::tvm::ObjectHash hasher;
+    ::tvm::ObjectPtrHash hasher;
     if (k.defined() && k->op.defined()) {
       return hasher(k->op);
-    } else{
+    } else {
       return hasher(k);
     }
   }

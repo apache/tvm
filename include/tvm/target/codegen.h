@@ -24,13 +24,12 @@
 #ifndef TVM_TARGET_CODEGEN_H_
 #define TVM_TARGET_CODEGEN_H_
 
+#include <tvm/ir/module.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/lowered_func.h>
 #include <tvm/target/target.h>
+#include <tvm/tir/expr.h>
 
 #include <string>
-
 
 namespace tvm {
 /*! \brief namespace for target translation and codegen. */
@@ -42,14 +41,12 @@ using runtime::TVMRetValue;
 
 /*!
  * \brief Build a module from array of lowered function.
- * \param funcs The functions to be built.
+ * \param mod The Module to be built
  * \param target The target to be built.
- * \return The builded module.
- *
- * \note Calls global API function  "_codegen_build_" + target
+ * \return The result runtime::Module.
  */
-runtime::Module Build(const Array<tir::LoweredFunc>& funcs,
-                      const std::string& target);
+runtime::Module Build(IRModule mod, const Target& target);
+
 /*!
  * \brief Pack imported device library to a C file.
  *  Compile the C file and link with the host library
@@ -73,8 +70,7 @@ std::string PackImportsToC(const runtime::Module& m, bool system_lib);
  * \param target_triple LLVM target triple
  * \return runtime::Module The generated LLVM module.
  */
-runtime::Module PackImportsToLLVM(const runtime::Module& m,
-                                  bool system_lib,
+runtime::Module PackImportsToLLVM(const runtime::Module& m, bool system_lib,
                                   const std::string& target_triple);
 }  // namespace codegen
 }  // namespace tvm

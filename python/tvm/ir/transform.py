@@ -21,14 +21,12 @@ import inspect
 import functools
 
 import tvm._ffi
-
-from tvm._ffi.runtime_ctypes import TVMContext
-from tvm.runtime import Object, ndarray as _nd
+import tvm.runtime
 
 from . import _ffi_transform_api
 
 @tvm._ffi.register_object("transform.PassInfo")
-class PassInfo(Object):
+class PassInfo(tvm.runtime.Object):
     """The class contains the meta data required by a pass. It is the
     container of information needed by running an optimization or analysis.
     This class can be extended by adding new members when more meta data is
@@ -52,7 +50,7 @@ class PassInfo(Object):
 
 
 @tvm._ffi.register_object("transform.PassContext")
-class PassContext(Object):
+class PassContext(tvm.runtime.Object):
     """The basis where a Relay optimization/analysis runs on.
     Each pass context contains a number of auxiliary information that is used
     to help an optimization pass. Such information includes the error reporter
@@ -61,30 +59,21 @@ class PassContext(Object):
     opt_level : Optional[int]
         The optimization level of this pass.
 
-    fallback_device : Optional[Union[int, str, TVMContext]]
-        The fallback device type. It is also used as the default device for
-        operators that are not annotated during heterogeneous execution.
-
     required_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
         The list of passes that are required by a certain pass.
 
     disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
         The list of passes that are disabled.
+
+    config : Optional[Dict[str, Object]]
+        Additional configurations for specific passes.
     """
     def __init__(self,
                  opt_level=2,
-                 fallback_device=_nd.cpu(),
                  required_pass=None,
                  disabled_pass=None,
-                 trace=None):
-        if isinstance(fallback_device, str):
-            fallback_device = _nd.context(fallback_device).device_type
-        elif isinstance(fallback_device, TVMContext):
-            fallback_device = fallback_device.device_type
-        if not isinstance(fallback_device, int):
-            raise TypeError("fallback_device is expected to be the type of " +
-                            "int/str/TVMContext.")
-
+                 trace=None,
+                 config=None):
         required = list(required_pass) if required_pass else []
         if not isinstance(required, (list, tuple)):
             raise TypeError("required_pass is expected to be the type of " +
@@ -95,9 +84,9 @@ class PassContext(Object):
             raise TypeError("disabled_pass is expected to be the type of " +
                             "list/tuple/set.")
 
+        config = config if config else None
         self.__init_handle_by_constructor__(_ffi_transform_api.PassContext, opt_level,
-                                            fallback_device, required,
-                                            disabled, trace)
+                                            required, disabled, trace, config)
 
     def __enter__(self):
         _ffi_transform_api.EnterPassContext(self)
@@ -113,7 +102,7 @@ class PassContext(Object):
 
 
 @tvm._ffi.register_object("transform.Pass")
-class Pass(Object):
+class Pass(tvm.runtime.Object):
     """The base class of all passes. All methods here are just simple wrappers
     that are implemented in the backend. They are defined for users to
     conveniently interact with the base class.
@@ -157,11 +146,6 @@ class Sequential(Pass):
     """A pass that works on a sequence of pass objects. Multiple passes can be
     executed sequentially using this class.
 
-    Some typical usage of the sequential pass are:
-    1. Users provide a list of passes for optimization.
-    2. Only an optimization level is provided so that the backend system has
-    to glob all passes at this level and below to perform the optimizations.
-
     Note that users can also provide a series of passes that they don't want to
     apply when running a sequential pass. Pass dependency will be resolved in
     the backend as well.
@@ -173,6 +157,9 @@ class Sequential(Pass):
 
     opt_level : Optional[int]
         The optimization level of this sequential pass.
+        The opt_level of a default sequential pass is set to 0.
+        Note that some of the passes within the Sequantial may still not be executed
+        if their opt_level is higher than the provided opt_level.
 
     name : Optional[str]
         The name of the sequential pass.
@@ -327,3 +314,21 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None):
     if pass_func:
         return create_module_pass(pass_func)
     return create_module_pass
+
+
+def PrintIR(header="", show_meta_data=False):
+    """A special trace pass that prints the header and IR.
+
+    Parameters
+    ----------
+    header : str
+        The header to be displayed along with the dump.
+
+    show_meta_data : bool
+        A boolean flag to indicate if meta data should be printed.
+
+    Returns
+    --------
+    The pass
+    """
+    return _ffi_transform_api.PrintIR(header, show_meta_data)

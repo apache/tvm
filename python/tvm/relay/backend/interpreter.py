@@ -210,10 +210,10 @@ class Interpreter(Executor):
         opt_mod : tvm.IRModule
             The optimized module.
         """
-        seq = transform.Sequential([transform.SimplifyInference(),
-                                    transform.FuseOps(0),
-                                    transform.ToANormalForm(),
-                                    transform.InferType()])
+        seq = tvm.transform.Sequential([transform.SimplifyInference(),
+                                        transform.FuseOps(0),
+                                        transform.ToANormalForm(),
+                                        transform.InferType()])
         return seq(self.mod)
 
     def _make_executor(self, expr=None):

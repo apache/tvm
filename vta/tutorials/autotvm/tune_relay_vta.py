@@ -92,7 +92,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 
     # Perform quantization in Relay
     # Note: We set opt_level to 3 in order to fold batch norm
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         with relay.quantize.qconfig(global_scale=8.0, skip_conv_layers=[0]):
             mod = relay.quantize.quantize(mod, params=params)
 
@@ -141,7 +141,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 # Now we can register our devices to the tracker. The first step is to
 # build the TVM runtime for the Pynq devices.
 #
-# Follow `this section <https://docs.tvm.ai/vta/install.html#pynq-side-rpc-server-build-deployment>`_
+# Follow :ref:`vta-index`
 # to build the TVM runtime on the device. Then register the device to the tracker with:
 #
 # .. code-block:: bash
@@ -181,7 +181,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 tracker_host = os.environ.get("TVM_TRACKER_HOST", '0.0.0.0')
 tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 
-# Load VTA parameters from the vta/vta-hw/config/vta_config.json file
+# Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
 env = vta.get_env()
 
 # This target is used for cross compilation. You can query it by :code:`gcc -v` on your device.
@@ -392,19 +392,19 @@ def tune_and_evaluate(tuning_opt):
     with autotvm.tophub.context(target, extra_files=[log_file]):
         # Compile network
         print("Compile...")
-        with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
-            if target.device_name != "vta":
+        if target.device_name != "vta":
+            with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
                 graph, lib, params = relay.build(relay_prog,
-                                                 target=target,
-                                                 params=params,
-                                                 target_host=env.target_host)
-            else:
-                with vta.build_config():
-                    graph, lib, params = relay.build(
-                        relay_prog,
-                        target=target,
-                        params=params,
-                        target_host=env.target_host)
+                                                target=target,
+                                                params=params,
+                                                target_host=env.target_host)
+        else:
+            with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
+                graph, lib, params = relay.build(
+                    relay_prog,
+                    target=target,
+                    params=params,
+                    target_host=env.target_host)
 
         # Export library
         print("Upload...")

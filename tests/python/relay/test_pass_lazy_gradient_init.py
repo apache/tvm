@@ -80,7 +80,7 @@ def test_add_tuple():
 
   mod["main"] = y
   mod = transform.LazyGradientInit()(mod)
-  mod = transform.PrintIR(show_meta_data=True)(mod)
+  mod = tvm.transform.PrintIR(show_meta_data=True)(mod)
   y = mod["main"]
 
   assert mod["main"].checked_type == relay.FuncType([t], tensor_type)
@@ -116,7 +116,7 @@ def test_mult():
 def test_ret_tuple():
   """Test tuple return type. Check types and semantic equivalence."""
   mod = tvm.IRModule()
-  
+
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -141,7 +141,7 @@ def test_ret_tuple():
 def test_add_broadcast():
   """Test adding matrices of different size. Check types and semantic equivalence."""
   mod = tvm.IRModule()
-  
+
   shape1 = (3, 4, 1)
   shape2 = (1, 5)
   dtype = 'float32'
@@ -173,7 +173,7 @@ def test_reverse_ad_identity():
   """Simple test with reverse mode ad."""
   # of f(x) = x
   mod = tvm.IRModule()
-  
+
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -201,7 +201,7 @@ def test_reverse_ad_identity():
 def test_multivar_reverse_ad():
   """Simple test with multivariate reverse mode ad."""
   mod = tvm.IRModule()
-  
+
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -232,7 +232,7 @@ def test_multivar_reverse_ad():
 def test_after_partial_eval():
   """Test transformation following reverse mode ad and PartialEval"""
   mod = tvm.IRModule()
-  
+
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -248,7 +248,7 @@ def test_after_partial_eval():
   mod["main"] = back_func
   back_func = mod["main"]
 
-  seq = transform.Sequential([
+  seq = tvm.transform.Sequential([
     transform.PartialEvaluate(),
     transform.LazyGradientInit(),
     transform.DeadCodeElimination()
@@ -270,7 +270,7 @@ def test_after_partial_eval():
 def test_before_partial_eval():
   """Test transformation before PartialEval"""
   mod = tvm.IRModule()
-  
+
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -284,7 +284,7 @@ def test_before_partial_eval():
   back_func = run_infer_type(back_func)
 
   mod["main"] = back_func
-  seq = transform.Sequential([
+  seq = tvm.transform.Sequential([
     transform.LazyGradientInit(),
     transform.PartialEvaluate(),
     transform.DeadCodeElimination()
@@ -306,7 +306,7 @@ def test_before_partial_eval():
 def test_zeros():
   """Simple test using "zeros" op"""
   mod = tvm.IRModule()
-  
+
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -328,7 +328,7 @@ def test_zeros():
 def test_ones():
   """Simple test using "ones" op"""
   mod = tvm.IRModule()
-  
+
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -350,7 +350,7 @@ def test_ones():
 def test_zeros_like():
   """Simple test using "zeros_like" op"""
   mod = tvm.IRModule()
-  
+
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -372,7 +372,7 @@ def test_zeros_like():
 def test_ones_like():
   """Simple test using "ones_like" op"""
   mod = tvm.IRModule()
-  
+
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)

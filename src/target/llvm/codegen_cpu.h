@@ -24,11 +24,12 @@
 #ifndef TVM_TARGET_LLVM_CODEGEN_CPU_H_
 #define TVM_TARGET_LLVM_CODEGEN_CPU_H_
 
-#include <utility>
-#include <vector>
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
+
 #include "codegen_llvm.h"
 
 namespace tvm {
@@ -37,11 +38,8 @@ namespace codegen {
 // CPU host code generation
 class CodeGenCPU : public CodeGenLLVM {
  public:
-  void Init(const std::string& module_name,
-            llvm::TargetMachine* tm,
-            llvm::LLVMContext* ctx,
-            bool system_lib,
-            bool dynamic_lookup) override;
+  void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
+            bool system_lib, bool dynamic_lookup) override;
   void AddFunction(const PrimFunc& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;
   std::unique_ptr<llvm::Module> Finish() override;
@@ -49,7 +47,8 @@ class CodeGenCPU : public CodeGenLLVM {
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
-  llvm::Value* CreateCallExtern(const CallNode* op) override;
+  llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                                bool skip_first_arg) override;
 
  protected:
   void AddStartupFunction() final;
@@ -95,20 +94,18 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* RuntimeTVMParallelBarrier();
   llvm::Value* CreateStaticHandle();
   llvm::Value* GetPackedFuncHandle(const std::string& str);
-  llvm::Value* PackClosureData(const Array<Var>& fields, uint64_t *num_bytes);
+  llvm::Value* PackClosureData(const Array<Var>& fields, uint64_t* num_bytes);
   llvm::Value* CreateStructRefPtr(DataType t, llvm::Value* buffer, llvm::Value* index, int kind);
-  void UnpackClosureData(llvm::Value*cdata,
-                         const Array<Var>& fields,
+  void UnpackClosureData(llvm::Value* cdata, const Array<Var>& fields,
                          std::unordered_map<const VarNode*, llvm::Value*>* vmap);
   // Make packed call.
-  llvm::BasicBlock *MakeCallPacked(const Array<PrimExpr> &args,
-                                   llvm::Value **rvalue,
-                                   llvm::Value **ret_tcode, const DataType &r_type,
+  llvm::BasicBlock* MakeCallPacked(const Array<PrimExpr>& args, llvm::Value** rvalue,
+                                   llvm::Value** ret_tcode, const DataType& r_type,
                                    const int64_t begin, const int64_t end);
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const CallNode* op);
   // Create trace call into tvm packed function.
-  llvm::Value* CreateCallTracePacked(const CallNode *op);
+  llvm::Value* CreateCallTracePacked(const CallNode* op);
   // Create static initialization
   void CreateStaticInit(const std::string& init_fname, const Stmt& body);
   // Create parallel launch
@@ -126,7 +123,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::GlobalVariable* gv_tvm_api_set_last_error_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_launch_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_barrier_{nullptr};
-  std::unordered_map<std::string, llvm::GlobalVariable*> gv_func_map_;
+  std::unordered_map<String, llvm::GlobalVariable*> gv_func_map_;
   // context for direct dynamic lookup
   llvm::Function* f_tvm_func_call_{nullptr};
   llvm::Function* f_tvm_get_func_from_env_{nullptr};

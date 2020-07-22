@@ -24,7 +24,8 @@ from ..util import get_const_tuple
 from ..nn.util import get_pad_tuple
 
 @autotvm.register_topi_compute("conv2d_nchw_miopen.rocm")
-def conv2d_nchw_miopen(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
+def conv2d_nchw_miopen(cfg, data, kernel, strides, padding, dilation,
+                       layout='NCHW', out_dtype='float32'):
     """Conv2D operator for rocm backend.
 
     Parameters
@@ -58,12 +59,14 @@ def conv2d_nchw_miopen(cfg, data, kernel, strides, padding, dilation, out_dtype=
     CO, CI, KH, KW = get_const_tuple(kernel.shape)
     N, _, H, W = get_const_tuple(data.shape)
 
+    assert layout == 'NCHW'
+
     # handle dilation
     stride_h, stride_w = (strides, strides) if isinstance(strides, int) else strides
     pt, pl, pb, pr = get_pad_tuple(padding, (KH, KW))
     pad_h, pad_w = pt + pb, pl + pr
     dilation_h, dilation_w = (dilation, dilation) if isinstance(dilation, int) else dilation
-
+    assert (pt == pb) and (pl == pr)
     OH = (H + 2 * pad_h - KH) // stride_h + 1
     OW = (W + 2 * pad_w - KW) // stride_w + 1
     cfg.add_flop(2 * N * OH * OW * CO * CI * ((KH - 1) * dilation_h + 1) *\
@@ -73,8 +76,8 @@ def conv2d_nchw_miopen(cfg, data, kernel, strides, padding, dilation, out_dtype=
                                  kernel,
                                  stride_h,
                                  stride_w,
-                                 pad_h,
-                                 pad_w,
+                                 pt,
+                                 pl,
                                  dilation_h,
                                  dilation_w,
                                  conv_mode=0,

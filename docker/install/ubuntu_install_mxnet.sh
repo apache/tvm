@@ -20,4 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-pip3 install mxnet==1.5.0
+pip3 install mxnet==1.6.0

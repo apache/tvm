@@ -24,12 +24,12 @@
 #ifndef TOPI_CUDA_POOLING_H_
 #define TOPI_CUDA_POOLING_H_
 
+#include <topi/detail/array_utils.h>
+#include <topi/detail/fuse.h>
+#include <topi/tags.h>
+#include <tvm/target/generic_func.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule_pass.h>
-#include <tvm/target/generic_func.h>
-#include <topi/tags.h>
-#include <topi/detail/fuse.h>
-#include <topi/detail/array_utils.h>
 
 namespace topi {
 using namespace tvm;
@@ -38,14 +38,14 @@ using namespace tvm::te;
 namespace cuda {
 
 /*!
-* \brief Create a CUDA schedule for pool
-*
-* \param target The target to generate a schedule for.
-* \param outs The output tensors.
-*
-* \return A schedule for the given ops.
-*/
-inline Schedule schedule_pool(const Target &target, const Array<Tensor>& outs) {
+ * \brief Create a CUDA schedule for pool
+ *
+ * \param target The target to generate a schedule for.
+ * \param outs The output tensors.
+ *
+ * \return A schedule for the given ops.
+ */
+inline Schedule schedule_pool(const Target& target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
@@ -56,7 +56,7 @@ inline Schedule schedule_pool(const Target &target, const Array<Tensor>& outs) {
     if (padded_input->op->IsInstance<ComputeOpNode>()) {
       s[padded_input].compute_inline();
     }
-    auto num_thread = target->max_num_threads;
+    int num_thread = target->GetAttr<Integer>("max_num_threads").value();
     Tensor out;
     Tensor OL;
     if (detail::contains(s->outputs, pool->op)) {
@@ -105,14 +105,14 @@ inline Schedule schedule_pool(const Target &target, const Array<Tensor>& outs) {
 }
 
 /*!
-* \brief Create a CUDA schedule for global_pool
-*
-* \param target The target to generate a schedule for.
-* \param outs The output tensors.
-*
-* \return A schedule for the given ops.
-*/
-inline Schedule schedule_global_pool(const Target &target, const Array<Tensor>& outs) {
+ * \brief Create a CUDA schedule for global_pool
+ *
+ * \param target The target to generate a schedule for.
+ * \param outs The output tensors.
+ *
+ * \return A schedule for the given ops.
+ */
+inline Schedule schedule_global_pool(const Target& target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
@@ -142,7 +142,7 @@ inline Schedule schedule_global_pool(const Target &target, const Array<Tensor>& 
     s[out].split(i, num_thread, &by, &ty);
     IterVar bx, tx;
     s[out].split(c, num_thread, &bx, &tx);
-    s[out].reorder({ by, bx, ty, tx });
+    s[out].reorder({by, bx, ty, tx});
     s[out].bind(ty, thread_y);
     s[out].bind(tx, thread_x);
     s[out].bind(by, block_y);

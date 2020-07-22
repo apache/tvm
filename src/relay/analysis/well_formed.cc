@@ -24,26 +24,24 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
+
 #include <unordered_set>
 
 namespace tvm {
 namespace relay {
 
-
 //! brief make sure each Var is bound at most once in a scope.
 class WellFormedChecker : private ExprVisitor, PatternVisitor {
   bool well_formed = true;
 
-  std::vector<std::unordered_set<Var, ObjectHash, ObjectEqual>> scope;
-  std::unordered_set<Var, ObjectHash, ObjectEqual> current_bound;
-  std::unordered_set<Var, ObjectHash, ObjectEqual> total_bound;
-  std::unordered_set<Var, ObjectHash, ObjectEqual> free;
+  std::vector<std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>> scope;
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> current_bound;
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> total_bound;
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> free;
 
   struct Scope {
     WellFormedChecker* wfc;
-    explicit Scope(WellFormedChecker* wfc) : wfc(wfc) {
-      wfc->scope.push_back({{}});
-    }
+    explicit Scope(WellFormedChecker* wfc) : wfc(wfc) { wfc->scope.push_back({{}}); }
     ~Scope() {
       CHECK_GE(wfc->scope.size(), 0);
       for (const Var& v : wfc->scope.back()) {
@@ -76,12 +74,21 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
   }
 
   void VisitExpr_(const LetNode* l) final {
-    Scope s(this);
-    // we do letrec only for FunctionNode,
-    // but shadowing let in let binding is likely programming error, and we should forbidden it.
-    Bound(l->var);
-    CheckWellFormed(l->value);
-    CheckWellFormed(l->body);
+    std::vector<Scope*> scopes;
+    Expr let = GetRef<Let>(l);
+    while (auto let_node = let.as<LetNode>()) {
+      scopes.push_back(new Scope(this));
+      // we do letrec only for FunctionNode,
+      // but shadowing let in let binding is likely programming error, and we should forbidden it.
+      Bound(let_node->var);
+      CheckWellFormed(let_node->value);
+      let = let_node->body;
+    }
+    CheckWellFormed(let);
+    while (!scopes.empty()) {
+      delete scopes.back();
+      scopes.pop_back();
+    }
   }
 
   void VisitExpr_(const FunctionNode* f) final {
@@ -98,13 +105,9 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
     VisitExpr(c->rhs);
   }
 
-  void VisitPattern(const Pattern& p) final {
-    PatternVisitor::VisitPattern(p);
-  }
+  void VisitPattern(const Pattern& p) final { PatternVisitor::VisitPattern(p); }
 
-  void VisitVar(const Var& v) final {
-    Bound(v);
-  }
+  void VisitVar(const Var& v) final { Bound(v); }
 
   void VisitExpr(const Expr& e) final {
     if (auto v = e.as<VarNode>()) {
@@ -121,12 +124,9 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
   }
 };
 
-bool WellFormed(const Expr& e) {
-  return WellFormedChecker().CheckWellFormed(e);
-}
+bool WellFormed(const Expr& e) { return WellFormedChecker().CheckWellFormed(e); }
 
-TVM_REGISTER_GLOBAL("relay.analysis.well_formed")
-.set_body_typed(WellFormed);
+TVM_REGISTER_GLOBAL("relay.analysis.well_formed").set_body_typed(WellFormed);
 
 }  // namespace relay
 }  // namespace tvm

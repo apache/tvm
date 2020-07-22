@@ -43,7 +43,7 @@ from tvm import rpc
 from tvm.contrib import util
 from vta.testing import simulator
 
-# Load VTA parameters from the vta/vta-hw/config/vta_config.json file
+# Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
 env = vta.get_env()
 
 # We read the Pynq RPC host IP address and port number from the OS environment

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import numpy as np
 from tvm import te
 from topi.nn.pooling import pool
 
@@ -117,8 +118,9 @@ def test_tensor_compute1():
             ib.emit(tvm.tir.call_extern(outs[0].dtype, 'vadd', ins[0].access_ptr("r"), ins[1].access_ptr('r'), outs[0].access_ptr('wr')))
             return ib.get()
 
-        with tvm.target.build_config(offset_factor=n):
-            return te.decl_tensor_intrin(z.op, intrin_func)
+        return te.decl_tensor_intrin(z.op, intrin_func, default_buffer_params={
+            "offset_factor": n
+        })
 
     vadd = intrin_vadd(factor)
 
@@ -128,8 +130,8 @@ def test_tensor_compute1():
           lambda i: vadd(A[i, 0:factor], B[i, 0:factor]))
 
     s = te.create_schedule(C.op)
-    stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    assert isinstance(stmt.body.body, tvm.tir.Evaluate)
+    stmt = tvm.lower(s, [A, B, C])["main"].body
+    assert isinstance(stmt.body, tvm.tir.Evaluate)
 
 def test_tensor_compute2():
     M = 2048
@@ -159,8 +161,8 @@ def test_tensor_compute2():
                 "gemv_add", x_ptr, y_ptr, z_ptr, m, n, l)
             return body, reset, update
 
-        with tvm.target.build_config(offset_factor=n):
-            return te.decl_tensor_intrin(z.op, intrin_func)
+        return te.decl_tensor_intrin(z.op, intrin_func,
+                                     default_buffer_params={"offset_factor": n})
 
     vgemm = intrin_gemm(factor1, factor2, factor)
 
@@ -171,9 +173,9 @@ def test_tensor_compute2():
           lambda i, j: vgemm(A[i, k, 0:factor1, 0:factor], B[j, k, 0:factor2, 0:factor], reduce_axis=k))
 
     s = te.create_schedule(C.op)
-    stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    assert isinstance(stmt.body.body.body[0], tvm.tir.Evaluate)
-    assert isinstance(stmt.body.body.body[1].body, tvm.tir.Evaluate)
+    stmt = tvm.lower(s, [A, B, C])["main"].body
+    assert isinstance(stmt.body.body[0], tvm.tir.Evaluate)
+    assert isinstance(stmt.body.body[1].body, tvm.tir.Evaluate)
 
 def test_tensor_scan():
     m = te.size_var("m")
@@ -260,11 +262,11 @@ def test_tuple_with_different_deps():
     stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
 
     def get_B1_realize(x):
-        if isinstance(x, tvm.tir.Realize) and \
-           x.func == B1.op and x.value_index == 1:
+        if isinstance(x, tvm.tir.ProducerRealize) and \
+           x.producer.op == B1.op and x.producer.value_index == 1:
             ret.append(x)
     ret = []
-    tvm.tir.ir_pass.PostOrderVisit(stmt, get_B1_realize)
+    tvm.tir.stmt_functor.post_order_visit(stmt, get_B1_realize)
 
     assert stmt.node == C.op and len(ret) == 1
 
@@ -290,8 +292,8 @@ def test_tensor_pool():
             dout = outs[0]
             return tvm.tir.call_packed("op", dinp, dout)
 
-        with tvm.target.build_config(offset_factor=1):
-            return te.decl_tensor_intrin(P.op, intrin_func)
+        return te.decl_tensor_intrin(P.op, intrin_func,
+                                     default_buffer_params={"offset_factor": 1})
 
     A = te.placeholder((1, 64, 16, 16), name='A')
     P = pool(data=A, kernel=(3, 3), stride=(1, 1), padding=(0, 0, 0, 0),
@@ -302,6 +304,52 @@ def test_tensor_pool():
     s[P].tensorize(oh, intrin)
     tvm.lower(s, [A, P])
 
+def test_tensor_scalar_mixed():
+    # test te with tensor and scalar
+    a = np.array(np.random.uniform(size=(10,)), 'float32')
+    b = np.array(np.random.uniform(size=(1))[0], 'float32')
+    c = np.array(np.random.uniform(size=(10,)), 'float32')
+
+    @tvm.register_func("tvm.test_tensor_scalar_scale")
+    def my_scale(tensor, scalar, out):
+        out_np = tensor.asnumpy() * scalar.asnumpy()
+        tvm.nd.array(out_np).copyto(out)
+
+    A = te.placeholder(a.shape, name='A')
+    B = te.placeholder(b.shape, name='B')
+    C = te.extern(a.shape, [A, B],
+                  lambda ins, outs: tvm.tir.call_packed(
+                  "tvm.test_tensor_scalar_scale", ins[0], ins[1], outs[0]), name="C")
+    s = te.create_schedule(C.op)
+    f = tvm.build(s, [A, B, C], 'llvm')
+
+    ta = tvm.nd.array(a)
+    tb = tvm.nd.array(b)
+    tc = tvm.nd.array(c)
+    f(ta, tb, tc)
+    tvm.testing.assert_allclose(a * b, tc.asnumpy())
+
+
+def test_tensor_scalar():
+    # test te with scalar shape
+    a = np.array(np.random.uniform(size=(1))[0], 'float32')
+    b = np.array(0.0, 'float32')
+
+    @tvm.register_func("tvm.test_tensor_scalar_copy")
+    def mycopy(x, y):
+        x.copyto(y)
+
+    A = te.placeholder(a.shape, name='A')
+    B = te.extern(a.shape, [A],
+                  lambda ins, outs: tvm.tir.call_packed(
+                  "tvm.test_tensor_scalar_copy", ins[0], outs[0]), name="B")
+    s = te.create_schedule(B.op)
+    f = tvm.build(s, [A, B], 'llvm')
+
+    ta = tvm.nd.array(a)
+    tb = tvm.nd.array(b)
+    f(ta, tb)
+    tvm.testing.assert_allclose(ta.asnumpy(), tb.asnumpy())
 
 if __name__ == "__main__":
     test_rank_zero()
@@ -320,3 +368,5 @@ if __name__ == "__main__":
     test_tuple_inputs()
     test_tuple_with_different_deps()
     test_tensor_pool()
+    test_tensor_scalar()
+    test_tensor_scalar_mixed()

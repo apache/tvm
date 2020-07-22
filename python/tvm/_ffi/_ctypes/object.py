@@ -18,7 +18,7 @@
 """Runtime Object api"""
 import ctypes
 from ..base import _LIB, check_call
-from .types import TypeCode, RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
+from .types import ArgTypeCode, RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
 from .ndarray import _register_ndarray, NDArrayBase
 
 
@@ -50,15 +50,49 @@ def _return_object(x):
     tindex = ctypes.c_uint()
     check_call(_LIB.TVMObjectGetTypeIndex(handle, ctypes.byref(tindex)))
     cls = OBJECT_TYPE.get(tindex.value, _CLASS_OBJECT)
+    if issubclass(cls, PyNativeObject):
+        obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
+        obj.handle = handle
+        return cls.__from_tvm_object__(cls, obj)
     # Avoid calling __init__ of cls, instead directly call __new__
     # This allows child class to implement their own __init__
     obj = cls.__new__(cls)
     obj.handle = handle
     return obj
 
-RETURN_SWITCH[TypeCode.OBJECT_HANDLE] = _return_object
-C_TO_PY_ARG_SWITCH[TypeCode.OBJECT_HANDLE] = _wrap_arg_func(
-    _return_object, TypeCode.OBJECT_HANDLE)
+RETURN_SWITCH[ArgTypeCode.OBJECT_HANDLE] = _return_object
+C_TO_PY_ARG_SWITCH[ArgTypeCode.OBJECT_HANDLE] = _wrap_arg_func(
+    _return_object, ArgTypeCode.OBJECT_HANDLE)
+
+C_TO_PY_ARG_SWITCH[ArgTypeCode.OBJECT_RVALUE_REF_ARG] = _wrap_arg_func(
+    _return_object, ArgTypeCode.OBJECT_RVALUE_REF_ARG)
+
+
+class PyNativeObject:
+    """Base class of all TVM objects that also subclass python's builtin types."""
+    __slots__ = []
+
+    def __init_tvm_object_by_constructor__(self, fconstructor, *args):
+        """Initialize the internal tvm_object by calling constructor function.
+
+        Parameters
+        ----------
+        fconstructor : Function
+            Constructor function.
+
+        args: list of objects
+            The arguments to the constructor
+
+        Note
+        ----
+        We have a special calling convention to call constructor functions.
+        So the return object is directly set into the object
+        """
+        # pylint: disable=assigning-non-slot
+        obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
+        obj.__init_handle_by_constructor__(fconstructor, *args)
+        self.__tvm_object__ = obj
+
 
 
 class ObjectBase(object):

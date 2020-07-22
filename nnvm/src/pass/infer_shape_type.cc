@@ -21,33 +21,24 @@
  * \file infer_shape.cc
  * \brief Inference the shapes given existin information.
  */
-#include <nnvm/pass.h>
-#include <nnvm/op_attr_types.h>
 #include <nnvm/graph_attr_types.h>
+#include <nnvm/op_attr_types.h>
+#include <nnvm/pass.h>
 
 namespace nnvm {
 namespace pass {
 namespace {
 
-template<typename AttrType, typename IsNone, typename FDefault>
-Graph InferAttr(Graph &&ret,
-                const AttrType empty_val,
-                const char* infer_name,
-                const char* input_name,
-                const char* attr_key_name,
-                const char* attr_name,
-                const char* unknown_name,
-                IsNone fis_none,
-                FDefault fdefault) {
+template <typename AttrType, typename IsNone, typename FDefault>
+Graph InferAttr(Graph&& ret, const AttrType empty_val, const char* infer_name,
+                const char* input_name, const char* attr_key_name, const char* attr_name,
+                const char* unknown_name, IsNone fis_none, FDefault fdefault) {
   using AttrVector = std::vector<AttrType>;
   const IndexedGraph& idx = ret.indexed_graph();
-  static auto& finfer_shape =
-      Op::GetAttr<FInferNodeEntryAttr<AttrType> >(infer_name);
-  static auto& is_backward =
-      Op::GetAttr<TIsBackward>("TIsBackward");
+  static auto& finfer_shape = Op::GetAttr<FInferNodeEntryAttr<AttrType>>(infer_name);
+  static auto& is_backward = Op::GetAttr<TIsBackward>("TIsBackward");
   // gradient function, used to get node correspondence.
-  static auto& fgrad =
-      Op::GetAttr<FGradient>("FGradient");
+  static auto& fgrad = Op::GetAttr<FGradient>("FGradient");
   // reshape shape vector
   AttrVector rshape;
   if (ret.attrs.count(attr_name) != 0) {
@@ -70,8 +61,7 @@ Graph InferAttr(Graph &&ret,
   // get the shape hints
   std::string shape_hints_key = std::string(attr_name) + "_hints";
   if (ret.attrs.count(shape_hints_key)) {
-    NodeEntryMap<AttrType> shape_hints =
-      ret.GetAttr<NodeEntryMap<AttrType>>(shape_hints_key);
+    NodeEntryMap<AttrType> shape_hints = ret.GetAttr<NodeEntryMap<AttrType>>(shape_hints_key);
     for (const auto& kv : shape_hints) {
       NodeEntry e = kv.first;
       if (idx.exist(e.node.get())) {
@@ -110,7 +100,7 @@ Graph InferAttr(Graph &&ret,
       }
     } else if (is_backward.get(inode.source->op(), false) && inode.control_deps.size()) {
       CHECK_GE(inode.control_deps.size(), 1U)
-        << "BackwardOp need to have control_deps to its forward op";
+          << "BackwardOp need to have control_deps to its forward op";
       const IndexedGraph::Node& fnode = idx[inode.control_deps[0]];
       ObjectPtr fwd_ptr = inode.source->control_deps[0];
       CHECK(fwd_ptr->op() != nullptr) << "Forward op cannot be a variable";
@@ -141,7 +131,7 @@ Graph InferAttr(Graph &&ret,
       }
       // out grad entries
       CHECK(igrad_node != nullptr)
-        << "Cannot find matching backward op for " << inode.source->attrs.name;
+          << "Cannot find matching backward op for " << inode.source->attrs.name;
       for (size_t i = 0; i < igrad_node->inputs.size(); ++i) {
         const NodeEntry& e = igrad_node->inputs[i];
         if (e.node == nullptr) {
@@ -174,10 +164,9 @@ Graph InferAttr(Graph &&ret,
             throw dmlc::Error("Error in operator " + inode.source->attrs.name + ": " + e.what());
           }
         } else {
-          CHECK(!last_iter)
-              << "Attribute " << infer_name
-              << " is not registered by op " << inode.source->op()->name
-              << " we are not able to complete the inference because of this";
+          CHECK(!last_iter) << "Attribute " << infer_name << " is not registered by op "
+                            << inode.source->op()->name
+                            << " we are not able to complete the inference because of this";
         }
       }
       // Save to the result map.
@@ -221,32 +210,30 @@ Graph InferAttr(Graph &&ret,
 }
 
 NNVM_REGISTER_PASS(InferShape)
-.describe("Infer the shape of each node entries.")
-.set_body([](Graph ret) {
-    return InferAttr<TShape>(
-        std::move(ret), TShape(),
-        "FInferShape", "shape_inputs", "shape_attr_key",
-        "shape", "shape_num_unknown_nodes",
-        [](const TShape& s) { return s.ndim() == 0 || s.Size() == 0; },
-        nullptr);
-  })
-.set_change_graph(false)
-.provide_graph_attr("shape");
+    .describe("Infer the shape of each node entries.")
+    .set_body([](Graph ret) {
+      return InferAttr<TShape>(
+          std::move(ret), TShape(), "FInferShape", "shape_inputs", "shape_attr_key", "shape",
+          "shape_num_unknown_nodes", [](const TShape& s) { return s.ndim() == 0 || s.Size() == 0; },
+          nullptr);
+    })
+    .set_change_graph(false)
+    .provide_graph_attr("shape");
 
 // inference function for same type
-inline bool SameType(const NodeAttrs& attrs,
-                     std::vector<int> *iattr,
-                     std::vector<int> *oattr) {
+inline bool SameType(const NodeAttrs& attrs, std::vector<int>* iattr, std::vector<int>* oattr) {
   int def_v = -1;
   for (int v : *oattr) {
     if (v != -1) {
-      def_v = v; break;
+      def_v = v;
+      break;
     }
   }
   if (def_v == -1) {
     for (int v : *iattr) {
       if (v != -1) {
-        def_v = v; break;
+        def_v = v;
+        break;
       }
     }
   }
@@ -261,17 +248,14 @@ inline bool SameType(const NodeAttrs& attrs,
 }
 
 NNVM_REGISTER_PASS(InferType)
-.describe("Infer the dtype of each node entries.")
-.set_body([](Graph ret) {
-    return InferAttr<int>(
-        std::move(ret), -1,
-        "FInferType", "dtype_inputs", "dtype_attr_key",
-        "dtype", "dtype_num_unknown_nodes",
-        [](const int t) { return t == -1; },
-        SameType);
-  })
-.set_change_graph(false)
-.provide_graph_attr("dtype");
+    .describe("Infer the dtype of each node entries.")
+    .set_body([](Graph ret) {
+      return InferAttr<int>(
+          std::move(ret), -1, "FInferType", "dtype_inputs", "dtype_attr_key", "dtype",
+          "dtype_num_unknown_nodes", [](const int t) { return t == -1; }, SameType);
+    })
+    .set_change_graph(false)
+    .provide_graph_attr("dtype");
 
 DMLC_JSON_ENABLE_ANY(ShapeVector, list_shape);
 DMLC_JSON_ENABLE_ANY(DTypeVector, list_int);

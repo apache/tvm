@@ -21,110 +21,48 @@
  * \file codegen.cc
  * \brief Common utilities to generated C style code.
  */
+#include <dmlc/memory_io.h>
+#include <tvm/ir/module.h>
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/container.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
-
-#include <tvm/ir/module.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/transform.h>
 
-#include <tvm/runtime/container.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/module.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <dmlc/memory_io.h>
-#include <sstream>
-#include <vector>
 #include <cstdint>
-#include <unordered_set>
 #include <cstring>
+#include <sstream>
+#include <unordered_set>
+#include <vector>
 
 namespace tvm {
 namespace codegen {
 
-// The new build function.
-// adapt the old function to the new one
-runtime::Module BuildForIRModule(const IRModule& module,
-                                 const Target& target) {
-  std::string build_f_name = "target.build." + target->target_name;
+runtime::Module Build(IRModule mod, const Target& target) {
+  if (transform::PassContext::Current()
+          ->GetConfig<Bool>("tir.disable_assert", Bool(false))
+          .value()) {
+    mod = tir::transform::SkipAssert()(mod);
+  }
+  std::string build_f_name;
+  if (target->id->name == "micro_dev") {
+    build_f_name = "target.build.c";
+  } else {
+    build_f_name = "target.build." + target->id->name;
+  }
   // the build function.
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);
-  CHECK(bf != nullptr)
-      << "target.build." << target << " is not enabled";
-  return (*bf)(module, target->str());
-}
-
-
-
-// convert legacy LoweredFunc to PrimFunc.
-tir::PrimFunc ToPrimFunc(tir::LoweredFunc from) {
-  // remap args to attach type annotations.
-  Array<tir::Var> args;
-  Map<tir::Var, PrimExpr> remap_vars;
-
-  for (auto var : from->args) {
-    if (from->handle_data_type.count(var)) {
-      tir::Var new_var(var->name_hint,
-                       PointerType(PrimType(var->dtype)));
-      args.push_back(new_var);
-      remap_vars.Set(var, new_var);
-    } else {
-      args.push_back(var);
-    }
-  }
-  tir::PrimFunc func(args, Substitute(from->body, remap_vars));
-
-  func = WithAttr(std::move(func), attr::kGlobalSymbol, runtime::String(from->name));
-  func = WithAttr(std::move(func), tir::attr::kDeviceThreadAxis, from->thread_axis);
-  if (from->func_type == tir::LoweredFuncType::kDeviceFunc) {
-    func = WithAttr(std::move(func),
-                    attr::kCallingConv, Integer(CallingConv::kDeviceKernelLaunch));
-  }
-  if (from->is_restricted) {
-    func = WithAttr(std::move(func), tir::attr::kNoAlias, Integer(1));
-  }
-  return func;
-}
-
-IRModule ToIRModule(const Array<tir::LoweredFunc>& funcs) {
-  Map<GlobalVar, BaseFunc> functions;
-  for (size_t i = 0; i < funcs.size(); ++i) {
-    auto f = funcs[i];
-    tir::PrimFunc pf = ToPrimFunc(f);
-    if (i == 0) {
-      pf = WithAttr(std::move(pf), tir::attr::kIsEntryFunc, Integer(1));
-    }
-    functions.Set(GlobalVar(f->name), pf);
-  }
-  return IRModule(functions);
-}
-
-runtime::Module Build(const Array<tir::LoweredFunc>& funcs,
-                      const std::string& target) {
-  std::string mode = target;
-  size_t pos = mode.find(' ');
-  if (pos != std::string::npos) {
-    mode = mode.substr(0, pos);
-  }
-  Array<tir::LoweredFunc> transformed_funcs;
-  if (BuildConfig::Current()->disable_assert) {
-    for (const auto& x : funcs) {
-      auto func = tir::SkipAssert(x);
-      transformed_funcs.push_back(func);
-    }
-  }
-
-  return BuildForIRModule(
-      transformed_funcs.size() != 0 ? ToIRModule(transformed_funcs) : ToIRModule(funcs),
-      Target::Create(target));
+  CHECK(bf != nullptr) << "target.build." << target << " is not enabled";
+  return (*bf)(mod, target->str());
 }
 
 /*! \brief Helper class to serialize module */
 class ModuleSerializer {
  public:
-  explicit ModuleSerializer(runtime::Module mod) : mod_(mod) {
-    Init();
-  }
+  explicit ModuleSerializer(runtime::Module mod) : mod_(mod) { Init(); }
 
   void SerializeModule(dmlc::Stream* stream) {
     // Only have one DSO module and it is in the root, then
@@ -173,8 +111,8 @@ class ModuleSerializer {
   // invariance: root module is always at location 0.
   // The module order is collected via DFS
   void CreateModuleIndex() {
-    std::unordered_set<const runtime::ModuleNode*> visited {mod_.operator->()};
-    std::vector<runtime::ModuleNode*> stack {mod_.operator->()};
+    std::unordered_set<const runtime::ModuleNode*> visited{mod_.operator->()};
+    std::vector<runtime::ModuleNode*> stack{mod_.operator->()};
     uint64_t module_index = 0;
 
     while (!stack.empty()) {
@@ -203,8 +141,7 @@ class ModuleSerializer {
   }
 
   bool DSOExportable(const runtime::ModuleNode* mod) {
-    return !std::strcmp(mod->type_key(), "llvm") ||
-           !std::strcmp(mod->type_key(), "c");
+    return !std::strcmp(mod->type_key(), "llvm") || !std::strcmp(mod->type_key(), "c");
   }
 
   runtime::Module mod_;
@@ -212,21 +149,21 @@ class ModuleSerializer {
   std::unordered_map<runtime::ModuleNode*, size_t> mod2index_;
   // index -> module
   std::vector<runtime::ModuleNode*> mod_vec_;
-  std::vector<uint64_t> import_tree_row_ptr_ {0};
+  std::vector<uint64_t> import_tree_row_ptr_{0};
   std::vector<uint64_t> import_tree_child_indices_;
 };
 
 namespace {
-  std::string SerializeModule(const runtime::Module& mod) {
-    std::string bin;
-    dmlc::MemoryStringStream ms(&bin);
-    dmlc::Stream* stream = &ms;
+std::string SerializeModule(const runtime::Module& mod) {
+  std::string bin;
+  dmlc::MemoryStringStream ms(&bin);
+  dmlc::Stream* stream = &ms;
 
-    ModuleSerializer module_serializer(mod);
-    module_serializer.SerializeModule(stream);
+  ModuleSerializer module_serializer(mod);
+  module_serializer.SerializeModule(stream);
 
-    return bin;
-  }
+  return bin;
+}
 }  // namespace
 
 std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
@@ -244,8 +181,8 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
      << "#endif\n";
   os << "TVM_EXPORT extern const unsigned char " << runtime::symbol::tvm_dev_mblob << "[];\n";
   uint64_t nbytes = bin.length();
-  os << "const unsigned char " << runtime::symbol::tvm_dev_mblob
-     << "[" << bin.length() + sizeof(nbytes) << "] = {\n  ";
+  os << "const unsigned char " << runtime::symbol::tvm_dev_mblob << "["
+     << bin.length() + sizeof(nbytes) << "] = {\n  ";
   os << std::hex;
   size_t nunit = 80 / 4;
   for (size_t i = 0; i < sizeof(nbytes); ++i) {
@@ -278,8 +215,7 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
   return os.str();
 }
 
-runtime::Module PackImportsToLLVM(const runtime::Module& mod,
-                                  bool system_lib,
+runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
                                   const std::string& target_triple) {
   std::string bin = SerializeModule(mod);
 
@@ -297,28 +233,16 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod,
   std::string codegen_f_name = "codegen.codegen_blob";
   // the codegen function.
   const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
-  CHECK(codegen_f != nullptr)  << "codegen.codegen_blob is not presented.";
+  CHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
   return (*codegen_f)(blob_byte_array, system_lib, target_triple);
 }
 
-TVM_REGISTER_GLOBAL("target.Build")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  if (args[0].IsObjectRef<tir::LoweredFunc>()) {
-      *ret = Build({args[0]}, args[1]);
-    } else {
-      *ret = Build(args[0], args[1]);
-    }
-  });
-
-TVM_REGISTER_GLOBAL("testing.LoweredFuncsToIRModule")
-.set_body_typed(ToIRModule);
+TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
 
 // Export two auxiliary function to the runtime namespace.
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC")
-.set_body_typed(PackImportsToC);
+TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);
 
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToLLVM")
-.set_body_typed(PackImportsToLLVM);
+TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToLLVM").set_body_typed(PackImportsToLLVM);
 
 }  // namespace codegen
 }  // namespace tvm

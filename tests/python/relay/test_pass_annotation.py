@@ -28,8 +28,8 @@ from tvm.relay import transform
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
     mod = tvm.IRModule.from_expr(expr)
-    seq = transform.Sequential(passes)
-    with transform.PassContext(opt_level=3):
+    seq = tvm.transform.Sequential(passes)
+    with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
     return mod["main"]
 
@@ -64,7 +64,7 @@ def test_redundant_annotation():
 
     annotated_func = annotated()
     expected_func = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.alpha_equal(annotated_func, expected_func)
+    assert tvm.ir.structural_equal(annotated_func, expected_func)
 
 
 def test_annotate_expr():
@@ -91,7 +91,7 @@ def test_annotate_expr():
 
     annotated_expr = annotated()
     expected_expr = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.graph_equal(annotated_expr, expected_expr)
+    assert tvm.ir.structural_equal(annotated_expr, expected_expr)
 
 
 def test_annotate_all():
@@ -120,7 +120,7 @@ def test_annotate_all():
 
     annotated_func = annotated()
     expected_func = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.graph_equal(annotated_func, expected_func)
+    assert tvm.ir.structural_equal(annotated_func, expected_func)
 
 
 def test_annotate_none():
@@ -146,13 +146,13 @@ def test_annotate_none():
 
     annotated_func = annotated()
     expected_func = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.graph_equal(annotated_func, expected_func)
+    assert tvm.ir.structural_equal(annotated_func, expected_func)
 
 
 def check_annotated_graph(annotated_func, expected_func):
     annotated_func = run_opt_pass(annotated_func, transform.InferType())
     expected_func = run_opt_pass(expected_func, transform.InferType())
-    assert relay.analysis.alpha_equal(annotated_func, expected_func)
+    assert tvm.ir.structural_equal(annotated_func, expected_func)
 
 
 def test_conv_network():
@@ -344,10 +344,10 @@ def run_fusible_network(dev, tgt):
     def test_runtime(target, device, func, fallback_device=None,
                      expected_index=None):
         params = {"x": x_data, "y": y_data}
-        config = {"opt_level": 1}
+        config = {}
         if fallback_device:
-            config["fallback_device"] = fallback_device
-        with relay.build_config(**config):
+            config["relay.fallback_device_type"] = fallback_device.device_type
+        with tvm.transform.PassContext(opt_level=1, config=config):
             graph, lib, params = relay.build(
                 func,
                 target,
@@ -538,9 +538,9 @@ def run_unpropagatable_graph(dev, tgt):
     expected_index = [2, 2, 2, 1, 1, 1, 2, 2]
     check_annotated_graph(annotated_func, expected_func)
     params = {"a": a_data, "b": b_data, "c": c_data, "d": d_data}
-    config = {"opt_level": 0}
-    config["fallback_device"] = fallback_device
-    with relay.build_config(**config):
+    with tvm.transform.PassContext(opt_level=0,
+                                   config={"relay.fallback_device_type":
+                                           fallback_device.device_type}):
         graph, lib, params = relay.build(annotated_func, target, params=params)
         contexts = [tvm.cpu(0), tvm.context(dev)]
         graph_json = json.loads(graph)
@@ -596,7 +596,7 @@ def test_tuple_get_item():
 
     annotated_func = annotated()
     expected_func = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.graph_equal(annotated_func, expected_func)
+    assert tvm.ir.structural_equal(annotated_func, expected_func)
 
 
 if __name__ == "__main__":

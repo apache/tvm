@@ -72,6 +72,13 @@ def test_fp16_conversion():
 
         tvm.testing.assert_allclose(expected, real)
 
+
+def test_dtype():
+    dtype = tvm.DataType("handle")
+    assert dtype.type_code == tvm.DataTypeCode.HANDLE
+
+
 if __name__ == "__main__":
     test_nd_create()
     test_fp16_conversion()
+    test_dtype()

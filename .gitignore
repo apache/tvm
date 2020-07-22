@@ -2,10 +2,11 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
+*.S
 # C extensions
 *.so
-
+*.ll
+.npm
 # Distribution / packaging
 .Python
 env/
@@ -195,6 +196,7 @@ tvm_t.*
 .python_history
 .pytest_cache
 .local
+cmake-build-debug
 
 # Visual Studio Code
 .vscode
@@ -224,7 +226,7 @@ Pipfile.lock
 # conda package artifacts
 conda/Dockerfile.cuda*
 conda/pkg
-
+.node_repl_history
 # nix files
 .envrc
 *.nix

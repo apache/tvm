@@ -26,10 +26,33 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/expr.h>
+
 #include <string>
+#include <vector>
 
 namespace tvm {
 namespace relay {
+
+std::vector<TensorType> FlattenTupleType(const Type& type);
+std::vector<Expr> FromTupleType(const Type& type, const Expr& expr);
+Expr ToTupleType(const Type& t, const Array<Expr>& exprs);
+
+/*!
+ * \brief Options for allocating storage.
+ */
+struct AllocStorageAttrs : public tvm::AttrsNode<AllocStorageAttrs> {
+  DataType dtype;
+  int device_id;
+  int device_type;
+
+  TVM_DECLARE_ATTRS(AllocStorageAttrs, "relay.attrs.AllocStorageAttrs") {
+    TVM_ATTR_FIELD(dtype)
+        .describe("The dtype of the tensor to allocate.")
+        .set_default(DataType::Float(32, 1));
+    TVM_ATTR_FIELD(device_id).describe("The device id on which to allocate memory.");
+    TVM_ATTR_FIELD(device_type).describe("The device type on which to allocate memory.");
+  }
+};
 
 /*!
  * \brief Options for allocating tensors.
@@ -41,30 +64,13 @@ struct AllocTensorAttrs : public tvm::AttrsNode<AllocTensorAttrs> {
 
   TVM_DECLARE_ATTRS(AllocTensorAttrs, "relay.attrs.AllocTensorAttrs") {
     TVM_ATTR_FIELD(dtype)
-      .describe(
-         "The dtype of the tensor to allocate.")
-      .set_default(DataType::Float(32, 1));
-    TVM_ATTR_FIELD(const_shape)
-      .describe(
-         "The shape of constant used to aid in type inference.");
+        .describe("The dtype of the tensor to allocate.")
+        .set_default(DataType::Float(32, 1));
+    TVM_ATTR_FIELD(const_shape).describe("The shape of constant used to aid in type inference.");
     TVM_ATTR_FIELD(assert_shape)
-      .describe(
-         "The shape to cast the return type of the allocation to, "\
-         "used to specify the shape obtained via further analysis.");
-  }
-};
-
-/*!
- * \brief Options for the shape function operator.
- */
-struct ShapeFuncAttrs : public tvm::AttrsNode<ShapeFuncAttrs> {
-  Array<Integer> is_input;
-
-  TVM_DECLARE_ATTRS(ShapeFuncAttrs, "relay.attrs.ShapeFuncAttrs") {
-    TVM_ATTR_FIELD(is_input)
-      .describe(
-         "A bool indicating whether the shape function should"\
-         "expect shape or input in each position.");
+        .describe(
+            "The shape to cast the return type of the allocation to, "
+            "used to specify the shape obtained via further analysis.");
   }
 };
 

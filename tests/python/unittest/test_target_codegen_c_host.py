@@ -74,9 +74,8 @@ def test_add_pipeline():
         binds = {A : Ab}
         # BUILD and invoke the kernel.
         f1 = tvm.lower(s, [A,B,C], name="fadd_pipeline")
-        fsplits = [x for x in tvm.tir.ir_pass.SplitHostDevice(f1)]
-        fsplits[0] = tvm.tir.ir_pass.LowerTVMBuiltin(fsplits[0])
-        mhost = tvm.target.codegen.build_module(fsplits[0], "c")
+        mhost = tvm.build(f1, target="c")
+
         temp = util.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
@@ -92,15 +91,14 @@ def test_add_pipeline():
         tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-    with tvm.target.build_config(offset_factor=4):
-        check_c()
+    check_c()
 
 
 def test_reinterpret():
     nn = 1024
     n = tvm.runtime.convert(nn)
     A = te.placeholder((n,), name='A', dtype="int32")
-    B = te.compute(A.shape, lambda *i: tvm.tir.call_pure_intrin("float32", "reinterpret", A(*i)), name='B')
+    B = te.compute(A.shape, lambda *i: tvm.tir.call_intrin("float32", "tir.reinterpret", 2 + A(*i)), name='B')
     s = te.create_schedule(B.op)
 
     def check_c():
@@ -116,7 +114,7 @@ def test_reinterpret():
         b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
         fadd(a, b)
         tvm.testing.assert_allclose(
-            b.asnumpy(), a.asnumpy().view('float32'))
+            b.asnumpy(), (2 + a.asnumpy()).view('float32'))
     check_c()
 
 

@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
 """Argwhere operator"""
-from tvm import hybrid
+from tvm.te import hybrid
 
 @hybrid.script
 def hybrid_argwhere_1d(output_shape, condition):

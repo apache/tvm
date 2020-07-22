@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, no-else-return, too-many-lines
 """MXNet symbol frontend."""
 import json
+import math
 import numpy as np
 import tvm
 from tvm.ir import IRModule
@@ -87,10 +88,12 @@ def _mx_fully_connected(inputs, attrs):
 
 
 def _get_channel_axis(layout, op_name):
-    if layout == "NCHW":
+    if layout in ["NCHW", "NCDHW"]:
         return 1
     if layout == "NHWC":
         return 3
+    if layout == "NDHWC":
+        return 4
     raise tvm.error.OpAttributeInvalid(
         'Value {} in attribute "layout" of operator {} is not valid.'.format(layout, op_name))
 
@@ -127,6 +130,17 @@ def _mx_unravel_index(inputs, attrs):
     return _op.unravel_index(inputs[0], shape_expr)
 
 
+def _mx_swap_axis(inputs, attrs):
+    assert len(inputs) == 1
+    dim1 = attrs.get_int('dim1')
+    dim2 = attrs.get_int('dim2')
+    shape = _infer_type(inputs[0]).checked_type.shape
+    axes = list(range(len(shape)))
+    axes[dim1] = dim2
+    axes[dim2] = dim1
+    return _op.transpose(inputs[0], axes=axes)
+
+
 def _mx_zeros(inputs, attrs):
     assert len(inputs) == 0
     shape = attrs.get_int_tuple("shape")
@@ -138,13 +152,15 @@ def _mx_zeros(inputs, attrs):
 
 def _mx_conv(inputs, attrs):
     kernel_size = attrs.get_int_tuple("kernel")
-    if len(kernel_size) == 2:
+    if len(kernel_size) == 3:
+        return _mx_conv3d(inputs, attrs)
+    elif len(kernel_size) == 2:
         return _mx_conv2d(inputs, attrs)
     elif len(kernel_size) == 1:
         return _mx_conv1d(inputs, attrs)
     else:
         raise tvm.error.OpAttributeInvalid(
-            '1D or 2D kernels only are supported for operator Convolution')
+            '1D, 2D or 3D kernels only are supported for operator Convolution')
 
 def _mx_conv1d(inputs, attrs):
     kernel_size = attrs.get_int_tuple("kernel")
@@ -215,15 +231,53 @@ def _mx_conv2d(inputs, attrs):
     return res
 
 
+def _get_mx_conv3d_attrs(attrs):
+    kernel_size = attrs.get_int_tuple("kernel")
+    data_layout = attrs.get_str("layout", "NCDHW")
+    if "kernel_layout" in attrs.attrs:
+        kernel_layout = attrs.get_str("kernel_layout")
+    else:
+        kernel_layout = "DHWIO" if data_layout == "NDHWC" else "OIDHW"
+    new_attrs = {}
+    new_attrs["channels"] = attrs.get_int("num_filter")
+    new_attrs["kernel_size"] = kernel_size
+    new_attrs["strides"] = attrs.get_int_tuple("stride", (1, 1, 1))
+    new_attrs["padding"] = attrs.get_int_tuple("pad", (0, 0, 0))
+    new_attrs["dilation"] = attrs.get_int_tuple("dilate", (1, 1, 1))
+    new_attrs["groups"] = attrs.get_int("num_group", 1)
+    new_attrs["data_layout"] = data_layout
+    new_attrs["kernel_layout"] = kernel_layout
+    return new_attrs
+
+
+def _mx_conv3d(inputs, attrs):
+    kernel_size = attrs.get_int_tuple("kernel")
+    data_layout = attrs.get_str("layout", "NCDHW")
+    if len(kernel_size) != 3:
+        raise tvm.error.OpAttributeInvalid(
+            'Only 3D kernels are supported for operator Convolution')
+
+    new_attrs = _get_mx_conv3d_attrs(attrs)
+    channel_axis = _get_channel_axis(data_layout, "conv3d")
+    use_bias = not attrs.get_bool("no_bias", False)
+    res = _op.nn.conv3d(inputs[0], inputs[1], **new_attrs)
+    if use_bias:
+        assert len(inputs) == 3
+        res = _op.nn.bias_add(res, inputs[2], axis=channel_axis)
+    return res
+
+
 def _mx_conv_transpose(inputs, attrs):
     kernel_size = attrs.get_int_tuple("kernel")
-    if len(kernel_size) == 2:
+    if len(kernel_size) == 3:
+        return _mx_conv3d_transpose(inputs, attrs)
+    elif len(kernel_size) == 2:
         return _mx_conv2d_transpose(inputs, attrs)
     elif len(kernel_size) == 1:
         return _mx_conv1d_transpose(inputs, attrs)
     else:
         raise tvm.error.OpAttributeInvalid(
-            '1D or 2D kernels only are supported for operator Convolution')
+            '1D, 2D or 3D kernels only are supported for operator Convolution')
 
 
 def _mx_conv1d_transpose(inputs, attrs):
@@ -289,6 +343,41 @@ def _mx_conv2d_transpose(inputs, attrs):
     return res
 
 
+def _mx_conv3d_transpose(inputs, attrs):
+    if "target_shape" in attrs.attrs:
+        raise tvm.error.OpAttributeUnImplemented(
+            'Attribute "target_shape" is not supported for operator Conv3D-transpose.')
+    kernel_size = attrs.get_int_tuple("kernel")
+    if len(kernel_size) != 3:
+        raise tvm.error.OpAttributeInvalid(
+            'Non-3D kernels are not supported for operator Conv3D-transpose.')
+    data_layout = attrs.get_str("layout", "NCDHW")
+    channel_axis = _get_channel_axis(data_layout, "conv3d_transpose")
+
+    if "kernel_layout" in attrs.attrs:
+        kernel_layout = attrs.get_str("kernel_layout")
+    else:
+        kernel_layout = "DHWIO" if data_layout == "NDHWC" else "OIDHW"
+
+    new_attrs = {}
+    new_attrs["channels"] = attrs.get_int("num_filter")
+    new_attrs["kernel_size"] = kernel_size
+    new_attrs["strides"] = attrs.get_int_tuple("stride", (1, 1, 1))
+    new_attrs["output_padding"] = attrs.get_int_tuple("adj", (0, 0, 0))
+    new_attrs["padding"] = attrs.get_int_tuple("pad", (0, 0, 0))
+    new_attrs["dilation"] = attrs.get_int_tuple("dilate", (1, 1, 1))
+    new_attrs["groups"] = attrs.get_int("num_group", 1)
+    new_attrs["data_layout"] = data_layout
+    new_attrs["kernel_layout"] = kernel_layout
+    use_bias = not attrs.get_bool("no_bias", True)
+    res = _op.nn.conv3d_transpose(inputs[0], inputs[1], **new_attrs)
+
+    if use_bias:
+        assert len(inputs) == 3
+        res = _op.nn.bias_add(res, inputs[2], axis=channel_axis)
+    return res
+
+
 def _mx_pooling(inputs, attrs):
     global_pool = attrs.get_bool("global_pool", False)
     pool_type = attrs.get_str("pool_type")
@@ -307,6 +396,34 @@ def _mx_pooling(inputs, attrs):
             new_attrs["count_include_pad"] = attrs.get_bool("count_include_pad", True)
         return new_op(inputs[0], **new_attrs)
 
+    def _pool3d(new_op, is_avg):
+        kernel_size = attrs.get_int_tuple("kernel")
+        if len(kernel_size) != 3:
+            raise tvm.error.OpAttributeInvalid(
+                'Only 3D kernels are supported for operator Pool3D.')
+        new_attrs = {}
+        new_attrs["pool_size"] = kernel_size
+        new_attrs["strides"] = attrs.get_int_tuple("stride", (1, 1, 1))
+        new_attrs["padding"] = attrs.get_int_tuple("pad", (0, 0, 0))
+        new_attrs["ceil_mode"] = (attrs.get_str("pooling_convention", "valid") == "full")
+        if is_avg:
+            new_attrs["count_include_pad"] = attrs.get_bool("count_include_pad", True)
+        return new_op(inputs[0], **new_attrs)
+
+    #3D pooling
+    if len(_infer_shape(inputs[0])) == 5:
+        if pool_type == "max":
+            if global_pool:
+                return _op.nn.global_max_pool3d(inputs[0])
+            return _pool3d(_op.nn.max_pool3d, False)
+        if pool_type == "avg":
+            if global_pool:
+                return _op.nn.global_avg_pool3d(inputs[0])
+            return _pool3d(_op.nn.avg_pool3d, True)
+        raise tvm.error.OpNotImplemented(
+            'Operator {} Pooling is not supported for frontend MXNet.' \
+                .format(pool_type.capitalize()))
+    #2D Pooling
     if pool_type == "max":
         if global_pool:
             return _op.nn.global_max_pool2d(inputs[0])
@@ -316,7 +433,8 @@ def _mx_pooling(inputs, attrs):
             return _op.nn.global_avg_pool2d(inputs[0])
         return _pool2d(_op.nn.avg_pool2d, True)
     raise tvm.error.OpNotImplemented(
-        'Operator {} Pooling is not supported for frontend MXNet.'.format(pool_type.capitalize()))
+        'Operator {} Pooling is not supported for frontend MXNet.' \
+            .format(pool_type.capitalize()))
 
 
 def _mx_adaptive_avg_pooling(inputs, attrs):
@@ -371,16 +489,22 @@ def _mx_slice(inputs, attrs):
     begin = list(attrs.get_int_tuple('begin', None))
     end = list(attrs.get_int_tuple('end', None))
     stride = attrs.get_int_tuple('step', None)
+    input_shape = _infer_type(inputs[0]).checked_type.shape
     if begin is None:
         raise tvm.error.OpAttributeRequired(
             'Attribute "begin" not found in operator Slice.')
     if end is None:
         raise tvm.error.OpAttributeRequired(
             'Attribute "end" not found in operator Slice.')
-    begin = tuple(x if x is not None else 0 for x in begin)
-    new_attrs = {'begin': begin, 'end': end}
+    begin = (x if x is not None else 0 for x in begin)
+    for i, ed in enumerate(end):
+        if ed is None:
+            end[i] = input_shape[i]
+    new_attrs = {'begin': _expr.const(list(begin), dtype="int32"),
+                 'end': _expr.const(list(end), dtype="int32")}
     if stride is not None:
-        new_attrs['strides'] = stride
+        stride = (x if x is not None else 1 for x in stride)
+        new_attrs['strides'] = _expr.const(list(stride), dtype="int32")
     return _op.strided_slice(inputs[0], **new_attrs)
 
 
@@ -420,7 +544,9 @@ def _mx_slice_axis(inputs, attrs):
         else:
             begin.append(ax_beg)
             end.append(ax_end)
-    return _op.strided_slice(inputs[0], begin, end)
+    return _op.strided_slice(inputs[0],
+                             _expr.const(begin, dtype="int32"),
+                             _expr.const(end, dtype="int32"))
 
 
 def _mx_crop_like(inputs, attrs):
@@ -440,9 +566,9 @@ def _mx_crop_like(inputs, attrs):
         return _op.slice_like(*inputs, **new_attrs)
     expr = _infer_type(inputs[1])
     like_shape = expr.checked_type.shape
-    new_attrs['begin'] = [0, 0, offset[0], offset[1]]
-    new_attrs['end'] = [like_shape[0], like_shape[1], offset[0]+like_shape[2],
-                        offset[1]+like_shape[3]]
+    new_attrs['begin'] = _expr.const([0, 0, offset[0], offset[1]], dtype="int32")
+    new_attrs['end'] = _expr.const([like_shape[0], like_shape[1], offset[0]+like_shape[2],
+                                    offset[1]+like_shape[3]], dtype="int32")
     return _op.strided_slice(inputs[0], **new_attrs)
 
 
@@ -510,7 +636,7 @@ def _mx_pad(inputs, attrs):
                       pad_mode=pad_mode)
 
 def _mx_leaky_relu(inputs, attrs):
-    act_type = attrs.get_str("act_type")
+    act_type = attrs.get_str("act_type", "leaky")
     if act_type == "leaky":
         return _op.nn.leaky_relu(inputs[0], alpha=attrs.get_float("slope", 0.25))
     if act_type == "prelu":
@@ -530,6 +656,15 @@ def _mx_leaky_relu(inputs, attrs):
         upper_bound = attrs.get_float("upper_bound")
         alpha = (lower_bound + upper_bound) / 2.0
         return _op.nn.leaky_relu(inputs[0], alpha=alpha)
+    if act_type == "gelu":
+        # 0.5 * x * (1 + erf(x / sqrt(2)))
+        sqrt2 = _expr.const(math.sqrt(2), dtype="float32")
+        erf = _op.erf(_op.divide(inputs[0], sqrt2))
+        one = _expr.const(1, dtype="float32")
+        erf_plus_one = _op.add(one, erf)
+        half = _expr.const(0.5, dtype="float32")
+        half_x = _op.multiply(inputs[0], half)
+        return _op.multiply(half_x, erf_plus_one)
     raise tvm.error.OpNotImplemented(
         'Operator {} is not supported for frontend MXNet.'.format(act_type))
 
@@ -616,7 +751,7 @@ def _mx_multibox_detection(inputs, attrs):
 
     ret = _op.vision.multibox_transform_loc(inputs[0], inputs[1],
                                             inputs[2], **new_attrs0)
-    return _op.vision.non_max_suppression(ret[0], ret[1], **new_attrs1)
+    return _op.vision.non_max_suppression(ret[0], ret[1], ret[1], **new_attrs1)
 
 
 def _mx_batch_dot(inputs, attrs):
@@ -659,6 +794,42 @@ def _mx_make_loss(inputs, attrs):
     return inputs[0]
 
 
+def _mx_contrib_arange_like(inputs, attrs):
+    assert len(inputs) == 1
+    if attrs.get_int("repeat", 1) != 1:
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "repeat" is not supported in operator arange_like.')
+    ty = _infer_type(inputs[0]).checked_type
+    assert ty
+    shape, dtype = get_const_tuple(ty.shape), ty.dtype
+    axis = attrs.get_int("axis", None)
+    if axis is None:
+        n_elems = 1
+        for dim in shape:
+            if not isinstance(dim, int):
+                raise tvm.error.OpError("Don't support arange_like with symbolic input shape.")
+            n_elems *= dim
+    else:
+        axis = axis + len(shape) if axis < 0 else axis
+        assert 0 <= axis < len(shape)
+        n_elems = shape[axis]
+        if not isinstance(n_elems, int):
+            raise tvm.error.OpError("Don't support arange_like with symbolic input shape.")
+        shape = (n_elems,)
+    start = attrs.get_float("start", 0.)
+    step = attrs.get_float("step", 1.)
+    stop = start + step * n_elems
+    new_attrs = {}
+    new_attrs["start"] = _expr.const(start, dtype=dtype)
+    new_attrs["stop"] = _expr.const(stop, dtype=dtype)
+    new_attrs["step"] = _expr.const(step, dtype=dtype)
+    new_attrs["dtype"] = dtype
+    ret = _op.arange(**new_attrs)
+    if len(shape) > 1:
+        ret = _op.reshape(ret, shape)
+    return ret
+
+
 def _mx_repeat(inputs, attrs):
     assert len(inputs) == 1
     new_attrs = {}
@@ -682,12 +853,31 @@ def _mx_take(inputs, attrs):
     axis = attrs.get_int("axis", 0)
     return _op.take(inputs[0], inputs[1].astype("int32"), axis, mode)
 
+def _mx_gather_nd(inputs, attrs):
+    assert len(inputs) == 2
+    assert len(_infer_shape(inputs[1])) > 1, "index tensor to have at least 2 dimensions"
+    return _op.gather_nd(inputs[0], inputs[1])
 
 def _mx_reverse(inputs, attrs):
     assert len(inputs) == 1
     new_attrs = {}
     new_attrs["axis"] = attrs.get_int("axis")
     return _op.reverse(inputs[0], **new_attrs)
+
+
+def _mx_sequence_reverse(inputs, attrs):
+    new_attrs = {}
+    use_seq_lengths = attrs.get_bool("use_sequence_length")
+    if not use_seq_lengths:
+        assert len(inputs) == 1
+        new_attrs["axis"] = attrs.get_int("axis")
+        return _op.reverse(inputs[0], **new_attrs)
+
+    assert len(inputs) == 2
+    new_attrs["seq_axis"] = attrs.get_int("axis")
+    # MXNet assumes batch_axis as 1.
+    new_attrs["batch_axis"] = 1
+    return _op.reverse_sequence(inputs[0], inputs[1], **new_attrs)
 
 
 def _mx_roi_align(inputs, attrs):
@@ -712,6 +902,41 @@ def _mx_resize(inputs, attrs):
     size = (height, width)
     return _op.image.resize(inputs[0], size,
                             coordinate_transformation_mode="align_corners")
+
+def _mx_amp_multicast(inputs, attrs):
+    cast_narrow = attrs.get_bool("cast_narrow", False)
+    dtypes = [_infer_type(x).checked_type.dtype for x in inputs]
+    supported_dtypes = ['float16', 'float32']
+    assert all([x in supported_dtypes for x in dtypes]), \
+            "amp_multicast support is limited to float16 and float32 inputs only."
+    has_float16 = any(x == "float16" for x in dtypes)
+    has_float32 = any(x == "float32" for x in dtypes)
+    dtype = dtypes[0]
+    if cast_narrow and has_float16:
+        dtype = 'float16'
+    if not cast_narrow and has_float32:
+        dtype = 'float32'
+    return [_op.cast(x, dtype) for x in inputs]
+
+def _mx_grid_generator(inputs, attrs):
+    transform_type = attrs.get_str("transform_type")
+    if transform_type == 'affine':
+        target_shape = attrs.get_int_tuple("target_shape")
+        return _op.image.affine_grid(_op.reshape(inputs[0], (0, 2, 3)), target_shape)
+    if transform_type == 'warp':
+        checked_type = _infer_type(inputs[0]).checked_type
+        batch, _, height, width = get_const_tuple(checked_type.shape)
+        dtype = checked_type.dtype
+        identity_affine = relay.const(np.array([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]], dtype=dtype))
+        identity_affine = _op.broadcast_to(identity_affine, (batch, 2, 3))
+        normalizer = (2.0 / np.array([width - 1, height - 1])).reshape(1, -1, 1, 1).astype(dtype)
+        normalized_flow = inputs[0] * relay.const(normalizer)
+        grid = _op.image.affine_grid(identity_affine, (height, width))
+        return grid + normalized_flow
+    raise ValueError("unknown transform type" + transform_type)
+
+def _mx_bilinear_sampler(inputs, attrs):
+    return _op.image.grid_sample(inputs[0], inputs[1], 'bilinear', 'NCHW')
 
 def _mx_roi_pooling(inputs, attrs):
     new_attrs = {}
@@ -756,6 +981,7 @@ def _mx_box_nms(inputs, attrs):
                                       id_index=id_index, score_index=score_index)
     nms_out = _op.vision.non_max_suppression(ret[1],
                                              ret[0],
+                                             ret[2],
                                              iou_threshold=iou_thresh,
                                              force_suppress=force_suppress,
                                              top_k=top_k,
@@ -767,6 +993,42 @@ def _mx_box_nms(inputs, attrs):
     return nms_out
 
 
+def _mx_box_decode(inputs, attrs):
+    std0 = relay.const(attrs.get_float('std0', 1), "float32")
+    std1 = relay.const(attrs.get_float('std1', 1), "float32")
+    std2 = relay.const(attrs.get_float('std2', 1), "float32")
+    std3 = relay.const(attrs.get_float('std3', 1), "float32")
+    clip = attrs.get_float('clip', -1)
+    in_format = attrs.get_str('format', 'corner')
+
+    anchors = inputs[1] # (1, N, 4) encoded in corner or center
+    a = _op.split(anchors, indices_or_sections=4, axis=-1)
+    # Convert to format "center".
+    if in_format == "corner":
+        a_width = a[2] - a[0]
+        a_height = a[3] - a[1]
+        a_x = a[0] + a_width * relay.const(0.5, "float32")
+        a_y = a[1] + a_height * relay.const(0.5, "float32")
+    else:
+        a_x, a_y, a_width, a_height = a
+    data = inputs[0] # (B, N, 4) predicted bbox offset
+    p = _op.split(data, indices_or_sections=4, axis=-1)
+    ox = p[0] * std0 * a_width + a_x
+    oy = p[1] * std1 * a_height + a_y
+    dw = p[2] * std2
+    dh = p[3] * std3
+    if clip > 0:
+        clip = relay.const(clip, "float32")
+        dw = _op.minimum(dw, clip)
+        dh = _op.minimum(dh, clip)
+    dw = _op.exp(dw)
+    dh = _op.exp(dh)
+    ow = dw * a_width * relay.const(0.5, "float32")
+    oh = dh * a_height * relay.const(0.5, "float32")
+    out = _op.concatenate([ox - ow, oy - oh, ox + ow, oy + oh], axis=-1)
+    return out
+
+
 def _mx_l2_normalize(inputs, attrs):
     new_attrs = {}
     mode = attrs.get_str('mode', 'instance')
@@ -776,6 +1038,24 @@ def _mx_l2_normalize(inputs, attrs):
     new_attrs['eps'] = attrs.get_float('eps', 1e-10)
     new_attrs['axis'] = [1]
     return _op.nn.l2_normalize(inputs[0], **new_attrs)
+
+
+def _mx_softsign(inputs, attrs):
+    return inputs[0] / (_expr.const(1.0) + _op.abs(inputs[0]))
+
+
+def _mx_softmin(inputs, attrs):
+    axis = attrs.get_int("axis", -1)
+    return _op.nn.softmax(_op.negative(inputs[0]), axis)
+
+
+def _mx_hard_sigmoid(inputs, attrs):
+    x = (_expr.const(0.2) * inputs[0]) + _expr.const(0.5)
+    return _op.clip(x, a_min=0.0, a_max=1.0)
+
+
+def _mx_reciprocal(inputs, attrs):
+    return _expr.const(1.0) /inputs[0]
 
 
 def _mx_shape_array(inputs, attrs):
@@ -842,7 +1122,6 @@ def _mx_smooth_l1(inputs, attrs):
 
 def _mx_deformable_convolution(inputs, attrs):
     new_attrs = {}
-    assert attrs.get_bool("no_bias")
     new_attrs["kernel_size"] = attrs.get_int_tuple("kernel")
     new_attrs["strides"] = attrs.get_int_tuple("stride")
     new_attrs["padding"] = attrs.get_int_tuple("pad")
@@ -1063,10 +1342,87 @@ def _mx_one_hot(inputs, attrs):
     return _op.one_hot(indices, on_value, off_value, depth, -1, dtype)
 
 
+def _mx_depth_to_space(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["block_size"] = attrs.get_int("block_size")
+    return _op.nn.depth_to_space(*inputs, **new_attrs)
+
+
+def _mx_space_to_depth(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["block_size"] = attrs.get_int("block_size")
+    return _op.nn.space_to_depth(*inputs, **new_attrs)
+
+
+def _mx_correlation(inputs, attrs):
+    assert len(inputs) == 2
+    new_attrs = {}
+    new_attrs["kernel_size"] = attrs.get_int("kernel_size", 1)
+    new_attrs["max_displacement"] = attrs.get_int("max_displacement", 1)
+    new_attrs["stride1"] = attrs.get_int("stride1", 1)
+    new_attrs["stride2"] = attrs.get_int("stride2", 1)
+    new_attrs["padding"] = attrs.get_int("pad_size", 0)
+    new_attrs["is_multiply"] = attrs.get_bool("is_multiply", True)
+    new_attrs["layout"] = "NCHW"
+    return _op.nn.correlation(*inputs, **new_attrs)
+
+
 def _mx_contrib_fifo_buffer(inputs, attrs):
     new_attrs = {}
     new_attrs['axis'] = attrs.get_int('axis')
     return _op.nn.fifo_buffer(*inputs, **new_attrs)
+
+
+def _mx_contrib_interleaved_matmul_selfatt_qk(inputs, attrs):
+    """
+    tmp = mx.nd.reshape(queries_keys_values, shape=(0, 0, num_heads, 3, -1))
+    q_proj = mx.nd.transpose(tmp[:,:,:,0,:], axes=(1, 2, 0, 3))
+    q_proj = mx.nd.reshape(q_proj, shape=(-1, 0, 0), reverse=True)
+    q_proj = mx.nd.contrib.div_sqrt_dim(q_proj)
+    k_proj = mx.nd.transpose(tmp[:,:,:,1,:], axes=(1, 2, 0, 3))
+    k_proj = mx.nd.reshape(k_proj, shape=(-1, 0, 0), reverse=True)
+    output = mx.nd.batch_dot(q_proj, k_proj, transpose_b=True)
+    """
+    assert len(inputs) == 1
+    qkv = inputs[0]
+    num_heads = attrs.get_int('heads')
+    qkv = _op.reshape(qkv, newshape=(0, 0, num_heads, 3, -1))
+    q_proj = _op.take(qkv, _expr.const(0, "int32"), axis=3)
+    q_proj = _op.transpose(q_proj, axes=[1, 2, 0, 3])
+    q_proj = _op.reverse_reshape(q_proj, newshape=(-1, 0, 0))
+    q_proj = _mx_contrib_div_sqrt_dim([q_proj], None)
+    k_proj = _op.take(qkv, _expr.const(1, "int32"), axis=3)
+    k_proj = _op.transpose(k_proj, axes=[1, 2, 0, 3])
+    k_proj = _op.reverse_reshape(k_proj, newshape=(-1, 0, 0))
+    ret = _op.nn.batch_matmul(q_proj, k_proj)
+    return ret
+
+
+def _mx_contrib_interleaved_matmul_selfatt_valatt(inputs, attrs):
+    """
+    tmp = mx.nd.reshape(queries_keys_values, shape=(0, 0, num_heads, 3, -1))
+    v_proj = mx.nd.transpose(tmp[:,:,:,2,:], axes=(1, 2, 0, 3))
+    v_proj = mx.nd.reshape(v_proj, shape=(-1, 0, 0), reverse=True)
+    output = mx.nd.batch_dot(attention, v_proj)
+    output = mx.nd.reshape(output, shape=(-1, num_heads, 0, 0), reverse=True)
+    output = mx.nd.transpose(output, axes=(2, 0, 1, 3))
+    output = mx.nd.reshape(output, shape=(0, 0, -1))
+    """
+    assert len(inputs) == 2
+    qkv, att = inputs
+    num_heads = attrs.get_int("heads")
+    qkv = _op.reshape(qkv, newshape=(0, 0, num_heads, 3, -1))
+    v_proj = _op.take(qkv, _expr.const(2, "int32"), axis=3)
+    v_proj = _op.transpose(v_proj, axes=(1, 2, 0, 3))
+    v_proj = _op.reverse_reshape(v_proj, newshape=(-1, 0, 0))
+    v_proj = _op.transpose(v_proj, axes=[0, 2, 1])
+    out = _op.nn.batch_matmul(att, v_proj)
+    out = _op.reverse_reshape(out, newshape=(-1, num_heads, 0, 0))
+    out = _op.transpose(out, axes=(2, 0, 1, 3))
+    out = _op.reshape(out, newshape=(0, 0, -1))
+    return out
 
 
 def _mx_cond(inputs, attrs, subgraphs):
@@ -1140,7 +1496,7 @@ def _qnn_contrib_concat(inputs, attrs):
         # Get all dtypes. Find input and output scales, call concatenate.
         dtypes = [_infer_type(x).checked_type.dtype for x in input_exprs]
         assert all([x == 'uint8' for x in dtypes]), \
-                "Current suppor is limited to uint8 inputs only."
+                "Current support is limited to uint8 inputs only."
         new_min = min(mins)
         new_max = max(maxs)
         assert new_min == 0
@@ -1588,18 +1944,27 @@ def _qnn_batch_norm(inputs, attrs):
 
 def _qnn_fully_connected(inputs, attrs, subgraphs, params):
 
-    def _get_input_scale_zp(_data, _inputs, _has_bias):
+    def _get_input_scale_zp(_data_dtype, _inputs, _has_bias):
         data_min_idx, data_max_idx = (3, 4) if _has_bias else (2, 3)
         data_min, data_max = _inputs[data_min_idx], _inputs[data_max_idx]
-        data_dtype = _infer_type(_data).checked_type.dtype
         _data_scale = get_mkldnn_uint8_scale(data_min, data_max) \
-            if data_dtype == 'uint8' \
+            if _data_dtype == 'uint8' \
             else get_mkldnn_int8_scale(data_min, data_max)
         _data_zp = 0
         return _data_scale, _data_zp
 
-    def _get_kernel_scale_zp(_kernel, _inputs, _has_bias):
+    def _get_kernel_scale_zp_tensor_quantized(_kernel, _inputs, _has_bias):
         kernel_dtype = _infer_type(_kernel).checked_type.dtype
+
+        if kernel_dtype != "int8":
+            raise tvm.error.OpNotImplemented(\
+                "Tensor wise quantized expects weights in int8 data type")
+
+        if isinstance(_kernel, tvm.relay.Call) and _kernel.op.name == "qnn.quantize":
+            _kernel_scale = _kernel.args[1].data.asnumpy()
+            _kernel_zp = _kernel.args[2].data.asnumpy()
+            return _kernel_scale, _kernel_zp
+
         kernel_min_idx, kernel_max_idx = (5, 6) if _has_bias else (4, 5)
         kernel_min_name = _get_name(_inputs[kernel_min_idx])
         kernel_min = params[kernel_min_name].asnumpy()[0]
@@ -1611,7 +1976,34 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
         _kernel_zp = 0
         return _kernel_scale, _kernel_zp
 
+    def _get_kernel_scale_zp_channel_quantized(_kernel, _bias, _data_scale):
+        kernel_dtype = _infer_type(_kernel).checked_type.dtype
+        if kernel_dtype != "float32":
+            raise tvm.error.OpNotImplemented(\
+                "Channel wise quantized expects weights in float32 data type")
+
+        # Get the FP32 values, calculate min/max and then channel quantize them
+        np_kernel = _infer_value(_kernel, params).asnumpy()
+        kernel_channel_min = np.amin(np_kernel, axis=(1, ))
+        kernel_channel_max = np.amax(np_kernel, axis=(1, ))
+
+        np_bias = None
+        if _bias is not None:
+            np_bias = _infer_value(_bias, params).asnumpy()
+        return quantize_conv_weights_bias_channel_mkldnn_from_var(_kernel,
+                                                                  np_bias,
+                                                                  kernel_channel_min,
+                                                                  kernel_channel_max,
+                                                                  _data_scale)
+
     def _get_bias_requantize_scale(_inputs, _data_scale, _kernel_scale):
+        _bias = _inputs[2]
+        if isinstance(_bias, tvm.relay.Call) and _bias.op.name == "qnn.quantize":
+            _bias_scale = _bias.args[1].data.asnumpy()
+            _bias_requantize_scale = _bias_scale/(_data_scale * _kernel_scale)
+            _bias_requantize_scale = _expr.const(_bias_requantize_scale, dtype="float32")
+            return _bias_requantize_scale
+
         bias_min_name = _get_name(_inputs[7])
         bias_min = params[bias_min_name].asnumpy()[0]
         bias_max_name = _get_name(_inputs[8])
@@ -1631,16 +2023,48 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
         return res
     else:
         has_bias = not subgraph_dense_attrs.get_bool("no_bias", False)
-        # input
-        data = inputs[0]
-        data_scale, data_zp = _get_input_scale_zp(data, inputs, has_bias)
-        # kernel
-        kernel = inputs[1]
-        kernel_scale, kernel_zp = _get_kernel_scale_zp(kernel, inputs, has_bias)
         units = subgraph_dense_attrs.get_int("num_hidden")
+        is_flatten = subgraph_dense_attrs.get_bool("flatten", True)
+        enable_float_output = attrs.get_bool('enable_float_output', False)
+        is_channel_quantized = attrs.get_bool('channel_wise_quantize', False)
+
+        ########################
+        # Get data, kernel, bias
+        ########################
+        data, kernel = inputs[0], inputs[1]
+        bias = None
+        if has_bias:
+            bias = inputs[2]
+
+        ##############################
+        # Handle for shape of data > 2
+        ##############################
+        if is_flatten:
+            data = _op.nn.batch_flatten(data)
         data_shape = _infer_type(data).checked_type.shape
         if len(data_shape) > 2:
-            data = _op.nn.batch_flatten(data)
+            data = _op.reverse_reshape(data, [-1, 0])
+
+        ###############################
+        # Get data scale and zero point
+        ###############################
+        data_dtype = _infer_type(data).checked_type.dtype
+        data_scale, data_zp = _get_input_scale_zp(data_dtype, inputs, has_bias)
+
+        #################################
+        # Get weight scale and zero point
+        #################################
+        if is_channel_quantized:
+            kernel, kernel_scale, kernel_zp = _get_kernel_scale_zp_channel_quantized(kernel,
+                                                                                     bias,
+                                                                                     data_scale)
+        else:
+            kernel_scale, kernel_zp = _get_kernel_scale_zp_tensor_quantized(kernel, inputs,
+                                                                            has_bias)
+
+        ################
+        # Call QNN dense
+        ################
         res = relay.qnn.op.dense(data,
                                  kernel,
                                  input_zero_point=relay.const(data_zp, 'int32'),
@@ -1648,22 +2072,46 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
                                  input_scale=relay.const(data_scale, 'float32'),
                                  kernel_scale=relay.const(kernel_scale, 'float32'),
                                  units=units)
+
+        #################
+        # Handle bias add
+        #################
         if has_bias:
-            bias_data = inputs[2]
-            bias_requantize_scale = \
-                _get_bias_requantize_scale(inputs, data_scale, kernel_scale)
-            multiplied_bias = \
-                _op.multiply(_op.cast(bias_data, 'float32'), bias_requantize_scale)
-            rounded_bias = _op.round(multiplied_bias)
-            clipped_bias = _op.clip(rounded_bias,
-                                    a_min=tvm.tir.op.min_value('int32').value,
-                                    a_max=tvm.tir.op.max_value('int32').value)
-            requantized_bias = _op.cast(clipped_bias, 'int32')
-            res = _op.nn.bias_add(res, requantized_bias, axis=-1)
-        enable_float_output = attrs.get_bool('enable_float_output', False)
-        out_dtype = 'uint8' if attrs.get_bool('with_relu', False) else 'int8'
-        input_scale = np.float32(data_scale * kernel_scale)
-        if not enable_float_output:
+            if is_channel_quantized:
+                bias_scale = data_scale * kernel_scale
+                int32_bias = quantize_conv_bias_mkldnn_from_var(bias, bias_scale)
+                res = _op.nn.bias_add(res, int32_bias, axis=-1)
+            else:
+                bias_data = inputs[2]
+                bias_requantize_scale = \
+                    _get_bias_requantize_scale(inputs, data_scale, kernel_scale)
+                multiplied_bias = \
+                    _op.multiply(_op.cast(bias_data, 'float32'), bias_requantize_scale)
+                rounded_bias = _op.round(multiplied_bias)
+                clipped_bias = _op.clip(rounded_bias,
+                                        a_min=tvm.tir.op.min_value('int32').value,
+                                        a_max=tvm.tir.op.max_value('int32').value)
+                requantized_bias = _op.cast(clipped_bias, 'int32')
+                res = _op.nn.bias_add(res, requantized_bias, axis=-1)
+
+        ##############################################
+        # Dequantize if float32 output else Requantize
+        ##############################################
+        if enable_float_output:
+            output_scale = np.float32(data_scale * kernel_scale)
+            res = relay.qnn.op.dequantize(res,
+                                          relay.const(output_scale),
+                                          input_zero_point=relay.const(0, 'int32'),
+                                          axis=1)
+            if with_relu:
+                res = _op.nn.relu(res)
+        else:
+
+            if is_channel_quantized:
+                raise tvm.error.OpNotImplemented(\
+                    "Channel wise quantized dense with non float output is not supported yet")
+            out_dtype = 'uint8' if attrs.get_bool('with_relu', False) else 'int8'
+            input_scale = np.float32(data_scale * kernel_scale)
             min_output_range = attrs.get_float('min_calib_range')
             max_output_range = attrs.get_float('max_calib_range')
             output_scale = get_mkldnn_requantize_scale_outDtype(min_output_range,
@@ -1678,55 +2126,109 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
                 out_dtype=out_dtype)
             if with_relu:
                 res = _op.nn.relu(res)
-            return res, min_output_range, max_output_range
-        else:
-            output_scale = np.float32(data_scale * kernel_scale)
-            res = relay.qnn.op.dequantize(res,
-                                          relay.const(output_scale, 'float32'),
-                                          input_zero_point=relay.const(0, 'int32'))
-            if with_relu:
-                res = _op.nn.relu(res)
+
+
+        ##############################
+        # Handle for shape of data > 2
+        ##############################
+        if len(data_shape) > 2:
+            new_shape = data_shape[:-1]
+            new_shape.append(units)
+            res = _op.reshape(res, new_shape)
+
+        if enable_float_output:
             return res
+        return res, min_output_range, max_output_range
+
+def _mx_broadcast_to(inputs, attrs):
+    data = inputs[0]
+    tgt_shape = attrs.get_int_tuple("shape", [])
+
+    return _op.broadcast_to(data, tgt_shape)
+
+
+def _mx_logical_not(inputs, input_types):
+    data = inputs[0]
+    dtype = _infer_type(data).checked_type.dtype
+    data = _op.cast(data, "bool") if dtype != "bool" else data
+
+    return _op.cast(_op.logical_not(data), dtype)
+
+
+def _mx_broadcast_logical(logical_op):
+    def impl(inputs, input_types):
+        lhs_type = _infer_type(inputs[0]).checked_type.dtype
+        rhs_type = _infer_type(inputs[1]).checked_type.dtype
+        lhs = _op.cast(inputs[0], "bool") if lhs_type != "bool" else inputs[0]
+        rhs = _op.cast(inputs[1], "bool") if rhs_type != "bool" else inputs[1]
+
+        return _op.cast(logical_op(lhs, rhs), lhs_type)
+    return impl
+
 
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
+    "abs",
     "log",
     "exp",
     "erf",
     "sqrt",
     "floor",
     "ceil",
+    "round",
+    "trunc",
+    "sign",
     "sigmoid",
-    "tanh",
     "negative",
     "reshape_like",
     "zeros_like",
     "ones_like",
     "where",
-    "gather_nd",
-    "tan",
     "cos",
-    "sin"
+    "cosh",
+    "sin",
+    "sinh",
+    "tan",
+    "tanh",
 ]
 
 _convert_map = {
     "_copy"                  : _rename(_op.copy),
     "relu"                   : _rename(_op.nn.relu),
     "broadcast_add"          : _rename(_op.add),
+    "broadcast_plus"         : _rename(_op.add),
     "broadcast_sub"          : _rename(_op.subtract),
+    "broadcast_minus"        : _rename(_op.subtract),
     "broadcast_mul"          : _rename(_op.multiply),
     "broadcast_div"          : _rename(_op.divide),
     "broadcast_mod"          : _rename(_op.mod),
     "broadcast_maximum"      : _rename(_op.maximum),
     "broadcast_minimum"      : _rename(_op.minimum),
+    "broadcast_power"        : _rename(_op.power),
+    "arccos"                 : _rename(_op.acos),
+    "arcsin"                 : _rename(_op.asin),
     "arctan"                 : _rename(_op.atan),
+    "arccosh"                : _rename(_op.acosh),
+    "arcsinh"                : _rename(_op.asinh),
+    "arctanh"                : _rename(_op.atanh),
     "broadcast_equal"        : _mx_compare(_op.equal, _rename),
     "broadcast_not_equal"    : _mx_compare(_op.not_equal, _rename),
     "broadcast_greater"      : _mx_compare(_op.greater, _rename),
     "broadcast_greater_equal": _mx_compare(_op.greater_equal, _rename),
     "broadcast_lesser"       : _mx_compare(_op.less, _rename),
     "broadcast_lesser_equal" : _mx_compare(_op.less_equal, _rename),
+    "broadcast_logical_or"   : _mx_broadcast_logical(_op.logical_or),
+    "broadcast_logical_and"  : _mx_broadcast_logical(_op.logical_and),
+    "broadcast_logical_xor"  : _mx_broadcast_logical(_op.logical_xor),
+    "broadcast_to"           : _mx_broadcast_to,
+    "logical_not"            : _mx_logical_not,
+    "_equal"                 : _mx_compare(_op.equal, _rename),
+    "_not_equal"             : _mx_compare(_op.not_equal, _rename),
+    "_greater"               : _mx_compare(_op.greater, _rename),
+    "_greater_equal"         : _mx_compare(_op.greater_equal, _rename),
+    "_lesser"                : _mx_compare(_op.less, _rename),
+    "_lesser_equal"          : _mx_compare(_op.less_equal, _rename),
     "elemwise_add"           : _rename(_op.add),
     "elemwise_sub"           : _rename(_op.subtract),
     "elemwise_mul"           : _rename(_op.multiply),
@@ -1784,10 +2286,16 @@ _convert_map = {
     "softmax"       : _softmax_op(_op.nn.softmax),
     "log_softmax"   : _softmax_op(_op.nn.log_softmax),
     "Softmax"       : _softmax_op(_op.nn.softmax),
+    "softsign"      : _mx_softsign,
+    "softmin"       : _mx_softmin,
+    "hard_sigmoid"  : _mx_hard_sigmoid,
+    "reciprocal"    : _mx_reciprocal,
     # per op specialization
     "Reshape"       : _reshape,
     "reshape"       : _reshape,
     "Cast"          : _cast,
+    "amp_cast"      : _cast,
+    "amp_multicast" : _mx_amp_multicast,
     "clip"          : _clip,
     "transpose"     : _transpose,
     "UpSampling"    : _upsampling,
@@ -1813,6 +2321,7 @@ _convert_map = {
     "slice_axis"    : _mx_slice_axis,
     "SliceChannel"  : _mx_split,
     "split"         : _mx_split,
+    "SwapAxis"      : _mx_swap_axis,
     "expand_dims"   : _mx_expand_dims,
     "Concat"        : _mx_concat,
     "concat"        : _mx_concat,
@@ -1826,9 +2335,12 @@ _convert_map = {
     "pad"           : _mx_pad,
     "Pad"           : _mx_pad,
     "take"          : _mx_take,
+    "gather_nd"     : _mx_gather_nd,
     "reverse"       : _mx_reverse,
+    "SequenceReverse"  : _mx_sequence_reverse,
     "squeeze"       : _mx_squeeze,
     "broadcast_axis": _mx_broadcast_axis,
+    "broadcast_axes": _mx_broadcast_axis,
     "BlockGrad"     : _mx_BlockGrad,
     "shape_array"   : _mx_shape_array,
     "Embedding"     : _mx_embedding,
@@ -1842,7 +2354,11 @@ _convert_map = {
     "smooth_l1"     : _mx_smooth_l1,
     "make_loss"     : _mx_make_loss,
     "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
+    "_contrib_arange_like": _mx_contrib_arange_like,
     "one_hot"           : _mx_one_hot,
+    "depth_to_space"    : _mx_depth_to_space,
+    "space_to_depth"    : _mx_space_to_depth,
+    "Correlation"       : _mx_correlation,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
@@ -1852,11 +2368,16 @@ _convert_map = {
     "_contrib_Proposal" : _mx_proposal,
     "_contrib_MultiProposal" : _mx_proposal,
     "_contrib_box_nms" : _mx_box_nms,
+    "_contrib_box_decode" : _mx_box_decode,
     "_contrib_DeformableConvolution" : _mx_deformable_convolution,
     "_contrib_AdaptiveAvgPooling2D" : _mx_adaptive_avg_pooling,
+    "GridGenerator"                 : _mx_grid_generator,
+    "BilinearSampler"               : _mx_bilinear_sampler,
     # NLP
     "RNN"               : _mx_rnn_layer,
     "_rnn_param_concat" : _mx_rnn_param_concat,
+    "_contrib_interleaved_matmul_selfatt_qk" : _mx_contrib_interleaved_matmul_selfatt_qk,
+    "_contrib_interleaved_matmul_selfatt_valatt" : _mx_contrib_interleaved_matmul_selfatt_valatt,
     # control flow
     "_cond"             : _mx_cond,
     # Depricated:
@@ -1864,7 +2385,6 @@ _convert_map = {
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
-    # "broadcast_to",
     # "contrib_fifo_buffer": _mx_contrib_fifo_buffer,
     "ring_buffer": _mx_contrib_fifo_buffer,
     # Qnn ops
@@ -1938,6 +2458,20 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, params=None, mod=None):
     node_map = {}
     shape_idx = 0
 
+    # Check if there have any unsupported ops
+    unsupported = {}
+    for node in jnodes:
+        op_name = node["op"]
+        if op_name != "null" and op_name not in _convert_map:
+            if op_name not in unsupported:
+                unsupported[op_name] = 0
+            unsupported[op_name] += 1
+
+    if unsupported:
+        msg = '\n'.join(['{}: {}'.format(op_name, cnt) for op_name, cnt in unsupported.items()])
+        raise tvm.error.OpNotImplemented(
+            'One or more operators are not supported in frontend MXNet:\n{}'.format(msg))
+
     for nid, node in enumerate(jnodes):
         children = [node_map[e[0]][e[1]] for e in node["inputs"]]
         attrs = StrAttrsDict(node.get("attrs", {}))
@@ -1959,7 +2493,8 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, params=None, mod=None):
             if isinstance(shape_dict, (list, tuple)):
                 shape_idx += 1
             node_map[nid] = [_expr.var(node_name, shape=shape, dtype=dtype)]
-        elif op_name in _convert_map:
+        else:
+            assert op_name in _convert_map
             op_params = _get_op_params(children, attrs, op_name,
                                        node, params)
             res = _convert_map[op_name](*op_params)
@@ -1973,9 +2508,6 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, params=None, mod=None):
             else:
                 raise RuntimeError("unexpected type %s" % type(res))
             node_map[nid] = res
-        else:
-            raise tvm.error.OpNotImplemented(
-                'Operator {} is not supported in frontend MXNet.'.format(op_name))
 
     outputs = [node_map[e[0]][e[1]] for e in jgraph["heads"]]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)

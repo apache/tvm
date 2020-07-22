@@ -30,14 +30,15 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+
 #include "let_list.h"
 
 namespace tvm {
 namespace relay {
 
-template<typename X>
-using VarMap = std::unordered_map<Var, X, ObjectHash, ObjectEqual>;
-using VarSet = std::unordered_set<Var, ObjectHash, ObjectEqual>;
+template <typename X>
+using VarMap = std::unordered_map<Var, X, ObjectPtrHash, ObjectPtrEqual>;
+using VarSet = std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>;
 
 class CalcDep;
 class FindDef : private ExprVisitor {
@@ -59,20 +60,18 @@ class Eliminator : private ExprMutator {
   VarMap<Expr> expr_map_;
   VarMap<size_t> use_map_;
   bool inline_once_;
-  explicit Eliminator(const VarMap<Expr>& expr_map,
-                      const VarMap<size_t>& use_map,
-                      bool inline_once) :
-    expr_map_(expr_map), use_map_(use_map), inline_once_(inline_once) { }
+  explicit Eliminator(const VarMap<Expr>& expr_map, const VarMap<size_t>& use_map, bool inline_once)
+      : expr_map_(expr_map), use_map_(use_map), inline_once_(inline_once) {}
   friend CalcDep;
 
   bool HasLet(const Var& v) {
     switch (use_map_[v]) {
-    case 0:
-      return false;
-    case 1:
-      return !inline_once_;
-    default:
-      return true;
+      case 0:
+        return false;
+      case 1:
+        return !inline_once_;
+      default:
+        return true;
     }
   }
 
@@ -92,7 +91,7 @@ class Eliminator : private ExprMutator {
 };
 
 // calculate the dependency graph from expression
-class CalcDep : private ExprVisitor {
+class CalcDep : protected MixedModeVisitor {
  public:
   static Expr Eliminate(const Expr& e, bool inline_once) {
     FindDef fd;
@@ -104,11 +103,13 @@ class CalcDep : private ExprVisitor {
   }
 
  private:
-  explicit CalcDep(const VarMap<Expr>& expr_map) : expr_map_(expr_map) { }
+  explicit CalcDep(const VarMap<Expr>& expr_map) : MixedModeVisitor(2), expr_map_(expr_map) {}
   VarMap<Expr> expr_map_;
   VarMap<size_t> use_map_;
 
-  void VisitExpr(const Expr& e) final {
+  using MixedModeVisitor::VisitExpr_;
+
+  void VisitLeaf(const Expr& e) final {
     visit_counter_[e.get()]++;
     // The dce code seprate variable into three parts:
     // used 0 times (remove)
@@ -120,9 +121,7 @@ class CalcDep : private ExprVisitor {
     }
   }
 
-  void VisitExpr_(const LetNode* l) final {
-    VisitExpr(l->body);
-  }
+  void VisitExpr_(const LetNode* l) final { VisitExpr(l->body); }
 
   void VisitExpr_(const VarNode* v) final {
     Var var = GetRef<Var>(v);
@@ -141,14 +140,13 @@ namespace transform {
 
 Pass DeadCodeElimination(bool inline_once) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(DeadCodeElimination(f, inline_once));
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(DeadCodeElimination(f, inline_once));
+      };
   return CreateFunctionPass(pass_func, 1, "DeadCodeElimination", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.DeadCodeElimination")
-.set_body_typed(DeadCodeElimination);
+TVM_REGISTER_GLOBAL("relay._transform.DeadCodeElimination").set_body_typed(DeadCodeElimination);
 
 }  // namespace transform
 

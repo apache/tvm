@@ -24,24 +24,25 @@
 #ifndef TVM_RELAY_TYPE_H_
 #define TVM_RELAY_TYPE_H_
 
-#include <tvm/ir/type.h>
-#include <tvm/ir/tensor_type.h>
-#include <tvm/ir/type_relation.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/ir/env_func.h>
+#include <tvm/ir/tensor_type.h>
+#include <tvm/ir/type.h>
+#include <tvm/ir/type_relation.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
+
 #include <string>
 
 #include "base.h"
-
 
 namespace tvm {
 namespace relay {
 
 // namespace update for backward compact
 // will be removed later.
-using Any = tvm::tir::AnyNode;
+using AnyNode = tvm::tir::AnyNode;
+using Any = tvm::tir::Any;
 using Kind = TypeKind;
 using Type = tvm::Type;
 using TypeNode = tvm::TypeNode;

@@ -22,7 +22,7 @@ from cpython cimport pycapsule
 from libc.stdint cimport int32_t, int64_t, uint64_t, uint32_t, uint8_t, uint16_t
 import ctypes
 
-cdef enum TVMTypeCode:
+cdef enum TVMArgTypeCode:
     kInt = 0
     kUInt = 1
     kFloat = 2
@@ -37,6 +37,7 @@ cdef enum TVMTypeCode:
     kTVMStr = 11
     kTVMBytes = 12
     kTVMNDArrayHandle = 13
+    kTVMObjectRefArg = 14
     kTVMExtBegin = 15
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
@@ -113,7 +114,7 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
                                void* resource_handle,
                                TVMPackedCFuncFinalizer fin,
                                TVMPackedFuncHandle *out)
-    int TVMCbArgToReturn(TVMValue* value, int code)
+    int TVMCbArgToReturn(TVMValue* value, int* code)
     int TVMArrayAlloc(tvm_index_t* shape,
                       tvm_index_t ndim,
                       DLDataType dtype,

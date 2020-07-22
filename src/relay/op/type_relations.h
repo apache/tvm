@@ -27,6 +27,7 @@
 
 #include <tvm/ir/error.h>
 #include <tvm/relay/type.h>
+
 #include <string>
 
 namespace tvm {
@@ -40,9 +41,7 @@ namespace relay {
  * \param reporter The reporter.
  * \return true whether relation has been resolved.
  */
-bool IdentityRel(const Array<Type>& types,
-                 int num_inputs,
-                 const Attrs& attrs,
+bool IdentityRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter);
 
 /*!
@@ -55,9 +54,7 @@ bool IdentityRel(const Array<Type>& types,
  * \param reporter The reporter.
  * \return true whether relation has been resolved.
  */
-bool BroadcastRel(const Array<Type>& types,
-                  int num_inputs,
-                  const Attrs& attrs,
+bool BroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter);
 
 /*!
@@ -74,17 +71,25 @@ bool BroadcastRel(const Array<Type>& types,
  * \param reporter The reporter.
  * \return true whether relation has been resolved.
  */
-bool BroadcastCompRel(const Array<Type>& types,
-                      int num_inputs,
-                      const Attrs& attrs,
+bool BroadcastCompRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter);
 
-bool IdentityCompRel(const Array<Type>& types,
-                 int num_inputs,
-                 const Attrs& attrs,
-                 const TypeReporter& reporter);
+bool IdentityCompRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter);
 
 Array<IndexExpr> RankShape(const Array<IndexExpr>& shape);
+
+/*!
+ * \brief The shape of type relation.
+ *
+ * \param types The input and output types to the relation.
+ * \param num_inputs The number of input arguments.
+ * \param attrs The attributes
+ * \param reporter The reporter.
+ * \return true whether relation has been resolved.
+ */
+bool ShapeOfRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                const TypeReporter& reporter);
 
 }  // namespace relay
 }  // namespace tvm

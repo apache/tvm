@@ -55,9 +55,9 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
     if len(pad_after) != n:
         raise ValueError("Input dimension and pad_after dismatch : %d vs %d" % (
             n, len(pad_before)))
+    ana = tvm.arith.Analyzer()
     out_shape = tuple(
-        tvm.tir.ir_pass.Simplify(
-            (data.shape[i] + pad_before[i] + pad_after[i])) for i in range(n))
+        ana.simplify(data.shape[i] + pad_before[i] + pad_after[i]) for i in range(n))
     pad_value = (pad_value if isinstance(pad_value, tvm.tir.PrimExpr)
                  else tvm.tir.const(pad_value, data.dtype))
     def _pad(*indices):
@@ -115,8 +115,9 @@ def mirror_pad(data,
     if len(pad_after) != n:
         raise ValueError("Input dimension and pad_after dismatch : %d vs %d" %
                          (n, len(pad_before)))
+    ana = tvm.arith.Analyzer()
     out_shape = tuple(
-        tvm.tir.ir_pass.Simplify((data.shape[i] + pad_before[i] + pad_after[i]))
+        ana.simplify(data.shape[i] + pad_before[i] + pad_after[i])
         for i in range(n))
     assert mode in ('SYMMETRIC', 'REFLECT')
     mode = int(mode == 'SYMMETRIC')

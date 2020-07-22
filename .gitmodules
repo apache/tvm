@@ -7,3 +7,6 @@
 [submodule "3rdparty/rang"]
 	path = 3rdparty/rang
 	url = https://github.com/agauniyal/rang
+[submodule "3rdparty/vta-hw"]
+	path = 3rdparty/vta-hw
+	url = https://github.com/apache/incubator-tvm-vta

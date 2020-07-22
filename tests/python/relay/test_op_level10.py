@@ -53,10 +53,10 @@ def test_checkpoint_alpha_equal():
     df = transform.gradient(run_infer_type(f))
 
     # run PE and DCE
-    with transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         passes = [transform.PartialEvaluate(),
                   transform.DeadCodeElimination(inline_once=True)]
-        mod = transform.Sequential(passes)(tvm.IRModule.from_expr(df))
+        mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
     df_parsed = relay.parser.fromtext(
@@ -99,7 +99,7 @@ def test_checkpoint_alpha_equal():
         """
     )
 
-    relay.analysis.assert_alpha_equal(df, df_parsed)
+    tvm.ir.assert_structural_equal(df, df_parsed)
 
 def test_checkpoint_alpha_equal_tuple():
     xs = [relay.var("x{}".format(i), relay.TensorType((1,), "float32")) for i in range(4)]
@@ -109,10 +109,10 @@ def test_checkpoint_alpha_equal_tuple():
     df = transform.gradient(run_infer_type(f))
 
     # run PE and DCE
-    with transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         passes = [transform.PartialEvaluate(),
                   transform.DeadCodeElimination(inline_once=True)]
-        mod = transform.Sequential(passes)(tvm.IRModule.from_expr(df))
+        mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
     df_parsed = relay.parser.fromtext(
@@ -146,7 +146,7 @@ def test_checkpoint_alpha_equal_tuple():
         """
     )
 
-    relay.analysis.assert_alpha_equal(df, df_parsed)
+    tvm.ir.assert_structural_equal(df, df_parsed)
 
 def test_collapse_sum_like():
     shape = (3, 4, 5, 6)
@@ -167,6 +167,26 @@ def test_collapse_sum_like():
             intrp = relay.create_executor(kind, ctx=ctx, target=target)
             op_res = intrp.evaluate(func)(x, y)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+
+def test_collapse_sum_to():
+    shape = (3, 4, 5, 6)
+    shape_to = (4, 5, 6)
+    dtype = "float32"
+    x = relay.Var("x", relay.ty.TensorType(shape , dtype))
+    z = relay.collapse_sum_to(x, shape_to)
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.ty.TensorType(shape_to, dtype)
+
+    func = relay.Function([x], z)
+    x = np.random.uniform(size=shape).astype(dtype)
+    ref_res = np.sum(x, 0)
+    for target, ctx in ctx_list():
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(x)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
 
 def test_broadcast_to():
     shape = (4, 1, 6)
@@ -193,6 +213,7 @@ def test_broadcast_to_like():
     x = relay.Var("x", relay.ty.TensorType(shape , dtype))
     y = relay.Var("y", relay.ty.TensorType(shape_like, dtype))
     z = relay.broadcast_to_like(x, y)
+    
     zz = run_infer_type(z)
     assert zz.checked_type == relay.ty.TensorType(shape_like, dtype)
 
@@ -200,6 +221,7 @@ def test_broadcast_to_like():
     x = np.random.uniform(size=shape).astype(dtype)
     y = np.random.uniform(size=shape_like).astype(dtype)
     ref_res = np.broadcast_to(x, shape_like)
+    
     for target, ctx in ctx_list():
         for kind in ["graph", "debug"]:
             intrp = relay.create_executor(kind, ctx=ctx, target=target)
@@ -452,11 +474,12 @@ def test_one_hot():
 if __name__ == "__main__":
     test_adaptive_pool()
     test_collapse_sum_like()
+    test_broadcast_to()
     test_broadcast_to_like()
     test_slice_like()
     test_reverse_reshape()
     test_batch_matmul()
     test_shape_of()
     test_sequence_mask()
-    test_ndarray_size()
     test_one_hot()
+    test_ndarray_size()

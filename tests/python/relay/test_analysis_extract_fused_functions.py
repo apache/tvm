@@ -77,7 +77,7 @@ def test_extract_identity():
 
     mod["main"] = mod["main"].with_attr(
         "Primitive", tvm.tir.IntImm("int32", 1))
-    relay.analysis.assert_graph_equal(list(items.values())[0], mod["main"])
+    tvm.ir.structural_equal(list(items.values())[0], mod["main"])
 
 
 def test_extract_conv_net():

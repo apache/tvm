@@ -24,11 +24,11 @@
 #ifndef TVM_RUNTIME_CONTRIB_CUDNN_CUDNN_UTILS_H_
 #define TVM_RUNTIME_CONTRIB_CUDNN_CUDNN_UTILS_H_
 
-#include <dmlc/logging.h>
 #include <cudnn.h>
+#include <dmlc/logging.h>
 #include <tvm/runtime/device_api.h>
-#include "../../cuda/cuda_common.h"
 
+#include "../../cuda/cuda_common.h"
 
 namespace tvm {
 namespace contrib {
@@ -41,24 +41,22 @@ namespace contrib {
 
 /*! breif Convert DLTensor type to CuDNN type */
 struct CuDNNDataType {
-  static cudnnDataType_t DLTypeToCuDNNType(const DLDataType &dtype);
-  template<int v>
+  static cudnnDataType_t DLTypeToCuDNNType(const DLDataType& dtype);
+  template <int v>
   static const void* GetConst(cudnnDataType_t type);
 };  // struct CuDNNDataType
 
-inline void GetStride(int nbdim, const int *dims, int *strides) {
+inline void GetStride(int nbdim, const int* dims, int* strides) {
   int mul = 1;
-  for (int i = nbdim - 1; i >=0; --i) {
+  for (int i = nbdim - 1; i >= 0; --i) {
     mul *= dims[i];
     strides[i] = mul;
   }
 }
 
-inline void GetCudnnStride(int nbdim,
-                           const int* dims,
-                           int* strides) {
+inline void GetCudnnStride(int nbdim, const int* dims, int* strides) {
   int mul = 1;
-  for (int i = nbdim - 1; i >=0; --i) {
+  for (int i = nbdim - 1; i >= 0; --i) {
     strides[i] = mul;
     mul *= dims[i];
   }
@@ -75,23 +73,30 @@ struct ConvEntry {
   cudnnConvolutionFwdAlgo_t fwd_algo;
   // cudnnMathType_t math_type;
   TVMContext ctx;
-  runtime::DeviceAPI *cuda_api;
-  void *workspace{nullptr};
+  runtime::DeviceAPI* cuda_api;
+  void* workspace{nullptr};
   size_t workspace_size{0};
-  int group_count {0};
   ConvEntry();
   ~ConvEntry();
   void UpdateWorkspace(const size_t wsize);
   void CleanWorkspace();
 };  // ConvThreadEntry
 
+struct SoftmaxEntry {
+  cudnnSoftmaxMode_t mode;
+  cudnnDataType_t data_type;
+  cudnnTensorDescriptor_t shape_desc;
+  SoftmaxEntry();
+  ~SoftmaxEntry();
+};  // SoftmaxEntry
 
 struct CuDNNThreadEntry {
   CuDNNThreadEntry();
   ~CuDNNThreadEntry();
   cudnnHandle_t handle{nullptr};
   ConvEntry conv_entry;
-  runtime::DeviceAPI *cuda_api{nullptr};
+  SoftmaxEntry softmax_entry;
+  runtime::DeviceAPI* cuda_api{nullptr};
   static CuDNNThreadEntry* ThreadLocal();
 };  // CuDNNThreadEntry
 

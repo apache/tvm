@@ -39,7 +39,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
 
         kwargs = {}
-        kwargs["options"] = ["-O2", "-std=c++11", "-I" + contrib_path]
+        kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
         tmp_path = util.tempdir()
         lib_name = 'lib.so'
         lib_path = tmp_path.relpath(lib_name)
@@ -49,7 +49,8 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         return lib
 
     def check_vm_result():
-        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with tvm.transform.PassContext(opt_level=3,
+                                       disabled_pass=["AlterOpLayout"]):
             exe = relay.vm.compile(mod, target=target)
         code, lib = exe.save()
         lib = update_lib(lib)
@@ -60,7 +61,8 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
     def check_graph_runtime_result():
-        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with tvm.transform.PassContext(opt_level=3,
+                                       disabled_pass=["AlterOpLayout"]):
             json, lib, _ = relay.build(mod, target=target)
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
@@ -79,8 +81,8 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
 
 def set_external_func_attr(func, compiler, ext_symbol):
     func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-    func = func.with_attr("Compiler", tvm.tir.StringImm(compiler))
-    func = func.with_attr("ExternalSymbol", tvm.tir.StringImm(ext_symbol))
+    func = func.with_attr("Compiler", compiler)
+    func = func.with_attr("global_symbol", ext_symbol)
     return func
 
 
@@ -257,9 +259,52 @@ def test_extern_dnnl():
                  (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
 
 
+def test_extern_dnnl_const():
+    if not tvm.get_global_func("relay.ext.dnnl", True):
+        print("skip because DNNL codegen is not available")
+        return
+
+    dtype = 'float32'
+    ishape = (1, 32, 14, 14)
+    w1shape = (32, 1, 3, 3)
+    data0 = relay.var('data0', shape=(ishape), dtype=dtype)
+    w_data = np.random.uniform(0, 1, w1shape).astype(dtype)
+
+    data1 = relay.var('data0', shape=(ishape), dtype=dtype)
+    weight1 = relay.const(w_data, dtype=dtype)
+    weight2 = relay.const(w_data, dtype=dtype)
+    depthwise_conv2d_1 = relay.nn.conv2d(data1,
+                                         weight1,
+                                         kernel_size=(3, 3),
+                                         padding=(1, 1),
+                                         groups=32)
+    depthwise_conv2d_2 = relay.nn.conv2d(depthwise_conv2d_1,
+                                         weight2,
+                                         kernel_size=(3, 3),
+                                         padding=(1, 1),
+                                         groups=32)
+    out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
+
+    f = relay.Function([data1], out)
+    ref_mod = tvm.IRModule()
+    ref_mod['main'] = f
+
+    f = set_external_func_attr(f, "dnnl", "dnnl_0")
+    call = relay.Call(f, [data0])
+    mod = tvm.IRModule.from_expr(call)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+
+    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
+    ref_res = ref_ex.evaluate()(i_data)
+    check_result(mod, {"data0": i_data},
+                 (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
+
+
 if __name__ == "__main__":
     test_multi_node_subgraph()
     test_extern_gcc_single_op()
     test_extern_gcc_single_op_int()
     test_extern_gcc()
     test_extern_dnnl()
+    test_extern_dnnl_const()

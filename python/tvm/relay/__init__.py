@@ -33,7 +33,6 @@ from . import parser
 
 from . import transform
 from . import analysis
-from .analysis import alpha_equal
 from .build_module import build, create_executor, optimize
 from .transform import build_config
 from . import debug
@@ -41,12 +40,12 @@ from . import param_dict
 from .backend import vm
 
 # Root operators
-from .op import Op
 from .op import nn
 from .op import image
 from .op import annotation
 from .op import vision
 from .op import contrib
+from .op import dyn
 from .op.reduce import *
 from .op.tensor import *
 from .op.transform import *
@@ -54,9 +53,16 @@ from .op.algorithm import *
 from . import frontend
 from . import backend
 from . import quantize
+from . import data_dep_optimization
 
 # Dialects
 from . import qnn
+
+from .scope_builder import ScopeBuilder
+
+# Load Memory Passes
+from .transform import memory_alloc
+from .transform import memory_plan
 
 # Required to traverse large programs
 setrecursionlimit(10000)
@@ -129,20 +135,9 @@ Prelude = prelude.Prelude
 # Scope builder
 ScopeBuilder = scope_builder.ScopeBuilder
 
-module_pass = transform.module_pass
-function_pass = transform.function_pass
-
 # Parser
 fromtext = parser.fromtext
 
 # Param Serialization
 save_param_dict = param_dict.save_param_dict
 load_param_dict = param_dict.load_param_dict
-
-# Pass manager
-PassInfo = transform.PassInfo
-PassContext = transform.PassContext
-Pass = transform.Pass
-ModulePass = transform.ModulePass
-FunctionPass = transform.FunctionPass
-Sequential = transform.Sequential

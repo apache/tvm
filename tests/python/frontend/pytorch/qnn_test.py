@@ -28,7 +28,6 @@ from torch.quantization import fuse_modules, QuantWrapper
 
 import tvm
 from tvm import relay
-from tvm.relay.frontend.pytorch import get_graph_input_names
 from tvm.contrib.download import download_testdata
 
 
@@ -39,10 +38,10 @@ def torch_version_check():
 
 def get_tvm_runtime(script_module, input_name, ishape):
 
-    input_shapes = {input_name: ishape}
+    input_shapes = [(input_name, ishape)]
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         # test on only cpu for now, torch cannot run quant models on cuda
         # also not to make CI too slow
         json, lib, params = relay.build(mod, target="llvm", params=params)
@@ -64,7 +63,7 @@ def get_qconfig(per_channel):
                                           weight=default_weight_observer)
 
 
-def quantize_model(model, inp, per_channel=False, dummy=True):
+def quantize_model(model, inp, per_channel=False):
     model.fuse_model()
     model.qconfig = get_qconfig(per_channel)
     torch.quantization.prepare(model, inplace=True)
@@ -244,6 +243,18 @@ class AvgPool2d(nn.Module):
         pass
 
 
+class AdaptiveAvgPool2d(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.pool = QuantWrapper(nn.AdaptiveAvgPool2d((1, 1)))
+
+    def forward(self, x):
+        return self.pool(x)
+
+    def fuse_model(self):
+        pass
+
+
 def test_quantized_modules():
     imagenet_ishape = (1, 3, 224, 224)
 
@@ -281,13 +292,13 @@ def test_quantized_modules():
         raw_module.eval()
         inp = torch.rand(ishape)
 
-        quantize_model(raw_module, inp, per_channel=per_channel, dummy=True)
+        quantize_model(raw_module, inp, per_channel=per_channel)
         script_module = torch.jit.trace(raw_module, inp).eval()
 
         with torch.no_grad():
             pt_result = script_module(inp.clone()).numpy()
 
-        input_name = get_graph_input_names(script_module)[0]
+        input_name = "input"
         runtime = get_tvm_runtime(script_module, input_name, ishape)
         runtime.set_input(input_name, inp.numpy().copy())
         runtime.run()
@@ -377,13 +388,13 @@ def test_quantized_imagenet():
         inp = get_imagenet_input()
         pt_inp = torch.from_numpy(inp)
 
-        quantize_model(raw_model, pt_inp, per_channel=per_channel, dummy=False)
+        quantize_model(raw_model, pt_inp, per_channel=per_channel)
         script_module = torch.jit.trace(raw_model, pt_inp).eval()
 
         with torch.no_grad():
             pt_result = script_module(pt_inp).numpy()
 
-        input_name = get_graph_input_names(script_module)[0]
+        input_name = "image"
         runtime = get_tvm_runtime(script_module, input_name, (1, 3, 224, 224))
         runtime.set_input(input_name, inp)
         runtime.run()
@@ -397,7 +408,7 @@ def test_quantized_imagenet():
         mean_abs_diff = np.mean(np.abs(tvm_result - pt_result))
         num_identical = np.sum(tvm_result == pt_result)
         pt_top3_labels = np.argsort(pt_result)[::-1][:3]
-        tvm_top3_labels = np.argsort(pt_result)[::-1][:3]
+        tvm_top3_labels = np.argsort(tvm_result)[::-1][:3]
 
         print("\nModel name: %s" % model_name)
         print("PyTorch top3 label:", pt_top3_labels)
@@ -466,3 +477,34 @@ def test_quantized_imagenet():
         mean abs_diff: 0.054197952
         558 in 1000 raw outputs identical.
         """
+
+
+def test_serialized_modules():
+    ishape = (1, 16, 64, 64)
+    raw_module = AdaptiveAvgPool2d().eval()
+    inp = torch.rand(ishape)
+
+    quantize_model(raw_module, inp)
+    script_module = torch.jit.trace(raw_module, inp).eval()
+
+    fname = "tmp.pt"
+    torch.jit.save(script_module, fname)
+    loaded = torch.jit.load(fname)
+    os.remove(fname)
+
+    with torch.no_grad():
+        pt_result = loaded(inp.clone()).numpy()
+
+    input_name = "input"
+    runtime = get_tvm_runtime(loaded, input_name, ishape)
+    runtime.set_input(input_name, inp.numpy().copy())
+    runtime.run()
+    tvm_result = runtime.get_output(0).asnumpy()
+
+    # with 0.5ish results, 1e-2 is relative accuracy close to 2**-6.
+    # for simple layers like here this should be achievable
+    # with 8 bit quantization
+    # we only require 90% match just to be sure
+    num_identical = np.sum(np.abs(tvm_result - pt_result) < 1e-2)
+    match_ratio = num_identical / float(np.prod(tvm_result.shape))
+    assert match_ratio > 0.90

@@ -21,7 +21,6 @@ from tvm.ir import container as _container
 
 from . import stmt as _stmt
 from . import expr as _expr
-from . import ir_pass as _pass
 
 
 class WithScope(object):
@@ -76,7 +75,8 @@ class BufferVar(ObjectGeneric):
     def __getitem__(self, index):
         t = DataType(self._content_type)
         if t.lanes > 1:
-            index = _expr.Ramp(index * t.lanes, 1, t.lanes)
+            base = index * t.lanes
+            index = _expr.Ramp(base, const(1, base.dtype), t.lanes)
         return _expr.Load(self._content_type, self._buffer_var, index)
 
     def __setitem__(self, index, value):
@@ -87,7 +87,8 @@ class BufferVar(ObjectGeneric):
                     value.dtype, self._content_type))
         t = DataType(self._content_type)
         if t.lanes > 1:
-            index = _expr.Ramp(index * t.lanes, 1, t.lanes)
+            base = index * t.lanes
+            index = _expr.Ramp(base, const(1, base.dtype), t.lanes)
         self._builder.emit(_stmt.Store(self._buffer_var, value, index))
 
 
@@ -210,7 +211,7 @@ class IRBuilder(object):
             self.nidx += 1
         self._seq_stack.append([])
         loop_var = _expr.Var(name, dtype=dtype)
-        extent = end if begin == 0 else _pass.Simplify(end - begin)
+        extent = end if begin == 0 else (end - begin)
         def _exit_cb():
             if for_type == "serial":
                 for_type_id = 0
@@ -378,8 +379,7 @@ class IRBuilder(object):
         expr : Expr
             The expression will likely tag.
         """
-        return _expr.Call(expr.dtype, "likely", [expr],
-                          _expr.Call.PureIntrinsic, None, 0)
+        return _expr.Call(expr.dtype, "tir.likely", [expr])
 
     def get(self):
         """Return the builded IR.

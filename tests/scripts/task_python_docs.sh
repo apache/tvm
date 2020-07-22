@@ -19,9 +19,21 @@
 set -e
 set -u
 
+source tests/scripts/setup-pytest-env.sh
+
+# to avoid CI CPU thread throttling.
+export TVM_BIND_THREADS=0
+export OMP_NUM_THREADS=4
+
+cleanup()
+{
+    rm -rf /tmp/$$.log.txt
+}
+trap cleanup 0
+
 # cleanup old states
+rm -rf docs/_build
 mkdir -p docs/_build/html
-rm -rf docs/_build/html/*
 rm -rf docs/gen_modules
 rm -rf docs/doxygen
 
@@ -31,24 +43,43 @@ rm -rf docs/vta/tutorials
 
 # cleanup stale log files
 find . -type f -path "*.log" | xargs rm -f
+find . -type f -path "*.pyc" | xargs rm -f
+make cython3
+
+cd docs
+PYTHONPATH=`pwd`/../python make html |& tee /tmp/$$.log.txt
+if grep -E "failed to execute" < /tmp/$$.log.txt; then
+    echo "Some of sphinx-gallery item example failed to execute."
+    exit 1
+fi
+cd ..
 
 # C++ doc
 make doc
 rm -f docs/doxygen/html/*.map docs/doxygen/html/*.md5
-mv docs/doxygen docs/_build/html/doxygen
-
-# JS doc
-jsdoc -c web/.jsdoc_conf.json web/tvm_runtime.js web/README.md
-mv out docs/_build/html/jsdoc
 
 # Java doc
 make javadoc
-mv jvm/core/target/site/apidocs docs/_build/html/javadoc
 
-find . -type f -path "*.pyc" | xargs rm -f
+# type doc
+cd web
+npm install
+npm run typedoc
+cd ..
 
-cd docs
-PYTHONPATH=`pwd`/../python make html
-cd _build/html
-tar czf docs.tgz *
-mv docs.tgz ../../../
+# Prepare the doc dir
+rm -rf _docs
+mv docs/_build/html _docs
+rm -f _docs/.buildinfo
+mkdir -p _docs/api
+mv docs/doxygen/html _docs/api/doxygen
+mv jvm/core/target/site/apidocs _docs/api/javadoc
+mv web/dist/docs _docs/api/typedoc
+
+echo "Start creating the docs tarball.."
+# make the tarball
+tar -C _docs -czf docs.tgz .
+echo "Finish creating the docs tarball"
+du -h docs.tgz
+
+echo "Finish everything"

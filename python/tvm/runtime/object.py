@@ -19,6 +19,7 @@
 import ctypes
 
 from tvm._ffi.base import _FFI_MODE, _RUNTIME_ONLY, check_call, _LIB, c_str
+from tvm._ffi.runtime_ctypes import ObjectRValueRef
 from . import _ffi_api, _ffi_node_api
 
 try:
@@ -26,11 +27,11 @@ try:
     if _FFI_MODE == "ctypes":
         raise ImportError()
     from tvm._ffi._cy3.core import _set_class_object, _set_class_object_generic
-    from tvm._ffi._cy3.core import ObjectBase
+    from tvm._ffi._cy3.core import ObjectBase, PyNativeObject
 except (RuntimeError, ImportError):
     # pylint: disable=wrong-import-position,unused-import
     from tvm._ffi._ctypes.packed_func import _set_class_object, _set_class_object_generic
-    from tvm._ffi._ctypes.object import ObjectBase
+    from tvm._ffi._ctypes.object import ObjectBase, PyNativeObject
 
 
 def _new_object(cls):
@@ -40,13 +41,15 @@ def _new_object(cls):
 
 class Object(ObjectBase):
     """Base class for all tvm's runtime objects."""
+    __slots__ = []
     def __repr__(self):
         return _ffi_node_api.AsRepr(self)
 
     def __dir__(self):
+        class_names = dir(self.__class__)
         fnames = _ffi_node_api.NodeListAttrNames(self)
         size = fnames(-1)
-        return [fnames(i) for i in range(size)]
+        return sorted([fnames(i) for i in range(size)] + class_names)
 
     def __getattr__(self, name):
         try:
@@ -56,7 +59,7 @@ class Object(ObjectBase):
                 "%s has no attribute %s" % (str(type(self)), name))
 
     def __hash__(self):
-        return _ffi_api.ObjectHash(self)
+        return _ffi_api.ObjectPtrHash(self)
 
     def __eq__(self, other):
         return self.same_as(other)
@@ -77,13 +80,40 @@ class Object(ObjectBase):
     def __setstate__(self, state):
         # pylint: disable=assigning-non-slot, assignment-from-no-return
         handle = state['handle']
+        self.handle = None
         if handle is not None:
-            json_str = handle
-            other = _ffi_node_api.LoadJSON(json_str)
-            self.handle = other.handle
-            other.handle = None
-        else:
-            self.handle = None
+            self.__init_handle_by_constructor__(
+                _ffi_node_api.LoadJSON, handle)
+
+    def _move(self):
+        """Create an RValue reference to the object and mark the object as moved.
+
+        This is a advanced developer API that can be useful when passing an
+        unique reference to an Object that you no longer needed to a function.
+
+        A unique reference can trigger copy on write optimization that avoids
+        copy when we transform an object.
+
+        Note
+        ----
+        All the reference of the object becomes invalid after it is moved.
+        Be very careful when using this feature.
+
+        Examples
+        --------
+
+        .. code-block:: python
+
+           x = tvm.tir.Var("x", "int32")
+           x0 = x
+           some_packed_func(x._move())
+           # both x0 and x will points to None after the function call.
+
+        Returns
+        -------
+        rvalue : The rvalue reference.
+        """
+        return ObjectRValueRef(self)
 
 
 _set_class_object(Object)

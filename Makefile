@@ -16,6 +16,8 @@
 # under the License.
 
 ROOTDIR = $(CURDIR)
+# Specify an alternate output directory relative to ROOTDIR. Default build
+OUTPUTDIR = $(if $(OUTDIR), $(OUTDIR), build)
 
 .PHONY: clean all test doc pylint cpplint scalalint lint\
 	 cython cython2 cython3 web runtime vta
@@ -28,22 +30,29 @@ ifndef DLPACK_PATH
   DLPACK_PATH = $(ROOTDIR)/3rdparty/dlpack
 endif
 
+ifndef VTA_HW_PATH
+  VTA_HW_PATH = $(ROOTDIR)/3rdparty/vta-hw
+endif
+
 INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include
 PKG_CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
 PKG_LDFLAGS =
 
 
 all:
-	@mkdir -p build && cd build && cmake .. && $(MAKE)
+	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE)
 
 runtime:
-	@mkdir -p build && cd build && cmake .. && $(MAKE) runtime
+	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE) runtime
 
 vta:
-	@mkdir -p build && cd build && cmake .. && $(MAKE) vta
+	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE) vta
 
 cpptest:
-	@mkdir -p build && cd build && cmake .. && $(MAKE) cpptest
+	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE) cpptest
+
+crttest:
+	@mkdir -p build && cd build && cmake .. && $(MAKE) crttest
 
 # EMCC; Web related scripts
 EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\
@@ -53,23 +62,24 @@ EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\
 	-s USE_GLFW=3 -s USE_WEBGL2=1 -lglfw\
 	$(INCLUDE_FLAGS)
 
-web: build/libtvm_web_runtime.js build/libtvm_web_runtime.bc
+web: $(OUTPUTDIR)/libtvm_web_runtime.js $(OUTPUTDIR)/libtvm_web_runtime.bc
 
-build/libtvm_web_runtime.bc: web/web_runtime.cc
-	@mkdir -p build/web
+$(OUTPUTDIR)/libtvm_web_runtime.bc: web/web_runtime.cc
+	@mkdir -p $(OUTPUTDIR)/web
 	@mkdir -p $(@D)
-	emcc $(EMCC_FLAGS) -MM -MT build/libtvm_web_runtime.bc $< >build/web/web_runtime.d
+	emcc $(EMCC_FLAGS) -MM -MT $(OUTPUTDIR)/libtvm_web_runtime.bc $< >$(OUTPUTDIR)/web/web_runtime.d
 	emcc $(EMCC_FLAGS) -o $@ web/web_runtime.cc
 
-build/libtvm_web_runtime.js: build/libtvm_web_runtime.bc
+$(OUTPUTDIR)/libtvm_web_runtime.js: $(OUTPUTDIR)/libtvm_web_runtime.bc
 	@mkdir -p $(@D)
-	emcc $(EMCC_FLAGS) -o $@ build/libtvm_web_runtime.bc
+	emcc $(EMCC_FLAGS) -o $@ $(OUTPUTDIR)/libtvm_web_runtime.bc
 
 # Lint scripts
 cpplint:
 	python3 3rdparty/dmlc-core/scripts/lint.py vta cpp vta/include vta/src
 	python3 3rdparty/dmlc-core/scripts/lint.py topi cpp topi/include;
-	python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp include src \
+	python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp \
+	 include src \
 	 examples/extension/src examples/graph_executor/src
 
 pylint:
@@ -81,9 +91,9 @@ jnilint:
 	python3 3rdparty/dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
 
 scalalint:
-	make -C vta/vta-hw/hardware/chisel lint
+	make -C $(VTA_HW_PATH)/hardware/chisel lint
 
-lint: cpplint pylint jnilint scalalint
+lint: cpplint pylint jnilint
 
 doc:
 	doxygen docs/Doxyfile
@@ -123,13 +133,13 @@ jvmpkg:
 	(cd $(ROOTDIR)/jvm; \
 		mvn clean package -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
 			-Dcflags="$(PKG_CFLAGS)" -Dldflags="$(PKG_LDFLAGS)" \
-			-Dcurrent_libdir="$(ROOTDIR)/build" $(JVM_TEST_ARGS))
+			-Dcurrent_libdir="$(ROOTDIR)/$(OUTPUTDIR)" $(JVM_TEST_ARGS))
 jvminstall:
 	(cd $(ROOTDIR)/jvm; \
 		mvn install -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
 			-Dcflags="$(PKG_CFLAGS)" -Dldflags="$(PKG_LDFLAGS)" \
-			-Dcurrent_libdir="$(ROOTDIR)/build" $(JVM_TEST_ARGS))
+			-Dcurrent_libdir="$(ROOTDIR)/$(OUTPUTDIR)" $(JVM_TEST_ARGS))
 
 # clean rule
 clean:
-	@mkdir -p build && cd build && cmake .. && $(MAKE) clean
+	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE) clean

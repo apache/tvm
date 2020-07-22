@@ -30,4 +30,4 @@ The key features of VTA include:
   - Customized and extensible TVM compiler back-end.
   - Flexible RPC support to ease deployment, and program FPGAs with the convenience of Python.
 
-Learn more about VTA [here](https://docs.tvm.ai/vta/index.html).
+Learn more about VTA [here](https://tvm.apache.org/docs/vta/index.html).

@@ -122,7 +122,7 @@ If everything goes well, you will find compile tools in `/opt/android-toolchain-
 
 ### Place compiled model on Android application assets folder
 
-Follow instruction to get compiled version model for android target [here.](http://docs.tvm.ai/deploy/android.html)
+Follow instruction to get compiled version model for android target [here.](https://tvm.apache.org/docs/deploy/android.html)
 
 Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.params to apps/android_deploy/app/src/main/assets/ and modify TVM flavor changes on [java](https://github.com/apache/incubator-tvm/blob/master/apps/android_deploy/app/src/main/java/org/apache/tvm/android/demo/MainActivity.java#L81)
 

@@ -23,10 +23,10 @@
  * shape, dtype or layout to another op or a sequence of ops.
  */
 
-#include <tvm/te/operation.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
+#include <tvm/te/operation.h>
 
 namespace tvm {
 namespace relay {
@@ -35,23 +35,22 @@ namespace legalize {
 
 // Call registered FTVMLegalize of an op
 // Returns the legalized expression
-class Legalizer : public ExprMutator {
+class Legalizer : public ExprRewriter {
  public:
   explicit Legalizer(const std::string& legalize_map_attr_name)
       : legalize_map_attr_name_{legalize_map_attr_name} {}
 
-  Expr VisitExpr_(const CallNode* call_node) {
+  Expr Rewrite_(const CallNode* call_node, const Expr& post) override {
     // Get the new_call node without any changes to current call node.
-    Expr new_e = ExprMutator::VisitExpr_(call_node);
-    Call new_call = Downcast<Call>(new_e);
+    Call new_call = Downcast<Call>(post);
 
-    // Check if the string is registered in the OpRegistry.
-    if (!Op::HasAttr(legalize_map_attr_name_)) {
-      return new_e;
+    // Check if the string is registered.
+    if (!Op::HasAttrMap(legalize_map_attr_name_)) {
+      return post;
     }
 
     // Collect the registered legalize function.
-    auto fop_legalize = Op::GetAttr<FTVMLegalize>(legalize_map_attr_name_);
+    auto fop_legalize = Op::GetAttrMap<FTVMLegalize>(legalize_map_attr_name_);
     auto call_op = call_node->op;
     if (call_op.as<OpNode>()) {
       Op op = Downcast<Op>(call_node->op);
@@ -70,19 +69,18 @@ class Legalizer : public ExprMutator {
         // Transform the op by calling the registered legalize function.
         Expr legalized_value = fop_legalize[op](call_node->attrs, call_args, types);
 
-        // Reassign new_e if the transformation succeeded.
+        // Return the new expr if the transformation succeeded.
         if (legalized_value.defined()) {
           // Check that the returned Expr from legalize is CallNode.
           const CallNode* legalized_call_node = legalized_value.as<CallNode>();
           CHECK(legalized_call_node)
               << "Can only replace the original operator with another call node";
-
-          new_e = legalized_value;
+          return legalized_value;
         }
       }
     }
 
-    return new_e;
+    return post;
   }
 
  private:
@@ -90,19 +88,20 @@ class Legalizer : public ExprMutator {
 };
 
 Expr Legalize(const Expr& expr, const std::string& legalize_map_attr_name) {
-  return Legalizer(legalize_map_attr_name).Mutate(expr);
+  auto rewriter = Legalizer(legalize_map_attr_name);
+  return PostOrderRewrite(expr, &rewriter);
 }
 
 }  // namespace legalize
 
 namespace transform {
 
-Pass Legalize(const std::string& legalize_map_attr_name) {
+Pass Legalize(const String& legalize_map_attr_name) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(relay::legalize::Legalize(f, legalize_map_attr_name));
       };
-  return CreateFunctionPass(pass_func, 1, "Legalize", {tir::StringImmNode::make("InferType")});
+  return CreateFunctionPass(pass_func, 1, "Legalize", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.Legalize").set_body_typed(Legalize);

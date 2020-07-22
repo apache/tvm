@@ -96,6 +96,27 @@ def conv2d(data, weight=None, **kwargs):
         weight = relay.var(name + "_weight")
     return relay.nn.conv2d(data, weight, **kwargs)
 
+def conv3d(data, weight=None, **kwargs):
+    """Wrapper of conv3d which automatically creates weights if not given.
+    Parameters
+    ----------
+    data : relay.Expr
+        The input expression.
+    weight : relay.Expr
+        The weight to conv3d.
+    kwargs : dict
+        Additional arguments.
+    Returns
+    -------
+    result : relay.Expr
+        The result.
+    """
+    name = kwargs.get("name")
+    kwargs.pop("name")
+    if not weight:
+        weight = relay.var(name + "_weight")
+    return relay.nn.conv3d(data, weight, **kwargs)
+
 def conv2d_transpose(data, weight=None, **kwargs):
     """Wrapper of conv2d_transpose which automatically creates weights if not given.
 

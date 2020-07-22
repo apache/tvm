@@ -23,3 +23,11 @@ tvm.te
    :members:
    :imported-members:
    :autosummary:
+
+
+tvm.te.hybrid
+-------------
+.. automodule:: tvm.te.hybrid
+   :members:
+   :imported-members:
+   :autosummary:

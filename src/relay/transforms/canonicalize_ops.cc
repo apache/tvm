@@ -23,21 +23,22 @@
     This can simplify latter analysis. (e.g. Expand bias_add to expand_dims and broadcast_add.)
  */
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
-#include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/transform.h>
+
 #include "pattern_util.h"
 
 namespace tvm {
 namespace relay {
 
-class BiasAddSimplifier : public ExprMutator {
+class BiasAddSimplifier : public ExprRewriter {
  public:
   BiasAddSimplifier() : bias_add_op_(Op::Get("nn.bias_add")) {}
 
-  Expr VisitExpr_(const CallNode* n) {
-    auto new_n = ExprMutator::VisitExpr_(n);
+  Expr Rewrite_(const CallNode* n, const Expr& post) override {
+    auto new_n = post;
     if (n->op == bias_add_op_) {
       Call call = Downcast<Call>(new_n);
       CHECK_EQ(call->args.size(), 2);
@@ -63,22 +64,21 @@ class BiasAddSimplifier : public ExprMutator {
 };
 
 Expr CanonicalizeOps(const Expr& e) {
-  return BiasAddSimplifier().Mutate(e);
+  auto rewriter = BiasAddSimplifier();
+  return PostOrderRewrite(e, &rewriter);
 }
 
 namespace transform {
 
 Pass CanonicalizeOps() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(CanonicalizeOps(f));
-  };
-  return CreateFunctionPass(pass_func, 3, "CanonicalizeOps",
-                            {tir::StringImmNode::make("InferType")});
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(CanonicalizeOps(f));
+      };
+  return CreateFunctionPass(pass_func, 3, "CanonicalizeOps", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.CanonicalizeOps")
-.set_body_typed(CanonicalizeOps);
+TVM_REGISTER_GLOBAL("relay._transform.CanonicalizeOps").set_body_typed(CanonicalizeOps);
 
 }  // namespace transform
 

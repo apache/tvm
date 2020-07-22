@@ -47,7 +47,6 @@ from tvm import relay
 import numpy as np
 
 from tvm.contrib.download import download_testdata
-from tvm.relay.frontend.pytorch import get_graph_input_names
 
 # PyTorch imports
 import torch
@@ -89,11 +88,11 @@ img = np.expand_dims(img, 0)
 ######################################################################
 # Import the graph to Relay
 # -------------------------
-# Convert PyTorch graph to Relay graph.
-input_name = get_graph_input_names(scripted_model)[0]  # only one input
-shape_dict = {input_name: img.shape}
+# Convert PyTorch graph to Relay graph. The input name can be arbitrary.
+input_name = 'input0'
+shape_list = [(input_name, img.shape)]
 mod, params = relay.frontend.from_pytorch(scripted_model,
-                                          shape_dict)
+                                          shape_list)
 
 ######################################################################
 # Relay Build
@@ -102,11 +101,8 @@ mod, params = relay.frontend.from_pytorch(scripted_model,
 target = 'llvm'
 target_host = 'llvm'
 ctx = tvm.cpu(0)
-with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(mod,
-                                     target=target,
-                                     target_host=target_host,
-                                     params=params)
+with tvm.transform.PassContext(opt_level=3):
+    lib = relay.build(mod, target=target, target_host=target_host, params=params)
 
 ######################################################################
 # Execute the portable graph on TVM
@@ -114,10 +110,9 @@ with relay.build_config(opt_level=3):
 # Now we can try deploying the compiled model on target.
 from tvm.contrib import graph_runtime
 dtype = 'float32'
-m = graph_runtime.create(graph, lib, ctx)
+m = graph_runtime.GraphModule(lib['default'](ctx))
 # Set inputs
 m.set_input(input_name, tvm.nd.array(img.astype(dtype)))
-m.set_input(**params)
 # Execute
 m.run()
 # Get outputs

@@ -169,12 +169,12 @@ subclasses at the level of modules, functions, or sequences of passes..
 
     class PassNode : RelayNode {
       virtual PassInfo Info() const = 0;
-      virtual Module operator()(const Module& mod
+      virtual Module operator()(const IRModule& mod
                                 const PassContext& pass_ctx) const = 0;
     };
 
-The functor shows how a pass must be realized, i.e. it always works on a `Relay
-module`_ under a certain context. All passes are designed in a ``Module`` to ``Module``
+The functor shows how a pass must be realized, i.e. it always works on a
+:py:class:`IRModule` under a certain context. All passes are designed in a ``Module`` to ``Module``
 manner. Therefore, optimizations governed by the pass infra will
 always update the whole module.
 
@@ -344,13 +344,13 @@ registration.
 .. code:: c++
 
     // Create a simple Relay program.
-    auto tensor_type = relay::TensorTypeNode::make({}, tvm::Bool());
-    auto x = relay::VarNode::make("x", relay::Type());
-    auto f = relay::FunctionNode::make(tvm::Array<relay::Var>{ x }, x, relay::Type(), {});
+    auto tensor_type = relay::TensorType({}, tvm::Bool());
+    auto x = relay::Var("x", relay::Type());
+    auto f = relay::Function(tvm::Array<relay::Var>{ x }, x, relay::Type(), {});
 
-    auto y = relay::VarNode::make("y", tensor_type);
-    auto call = relay::CallNode::make(f, tvm::Array<relay::Expr>{ y });
-    auto fx = relay::FunctionNode::make(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
+    auto y = relay::Var("y", tensor_type);
+    auto call = relay::Call(f, tvm::Array<relay::Expr>{ y });
+    auto fx = relay::Function(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
 
     // Create a module for optimization.
     auto mod = IRModule::FromExpr(fx);
@@ -582,7 +582,7 @@ using ``Sequential`` associated with other types of passes.
     func = relay.Function([x], z2)
 
     # Customize the optimization pipeline.
-    seq = _transform.Sequential([
+    seq = tvm.transform.Sequential([
         relay.transform.InferType(),
         relay.transform.FoldConstant(),
         relay.transform.EliminateCommonSubexpr(),
@@ -609,10 +609,10 @@ sequential pass example could be like the following to enable IR dumping for
 
 .. code:: python
 
-    seq = _transform.Sequential([
+    seq = tvm.transform.Sequential([
         relay.transform.InferType(),
         relay.transform.FoldConstant(),
-        relay.transform.PrintIR(),
+        transform.PrintIR(),
         relay.transform.EliminateCommonSubexpr(),
         relay.transform.AlterOpLayout()
     ])
@@ -648,8 +648,6 @@ For more pass infra related examples in Python and C++, please refer to
 .. _Sequential: https://pytorch.org/docs/stable/nn.html?highlight=sequential#torch.nn.Sequential
 
 .. _Block: https://mxnet.incubator.apache.org/api/python/docs/api/gluon/block.html#gluon-block
-
-.. _Relay module: https://docs.tvm.ai/langref/relay_expr.html#module-and-global-functions
 
 .. _include/tvm/ir/transform.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/ir/transform.h
 

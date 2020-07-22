@@ -21,8 +21,8 @@
  * \file src/ir/adt.cc
  * \brief AST nodes for Relay algebraic data types (ADTs).
  */
-#include <tvm/relay/type.h>
 #include <tvm/relay/adt.h>
+#include <tvm/relay/type.h>
 
 namespace tvm {
 namespace relay {
@@ -34,15 +34,12 @@ PatternWildcard::PatternWildcard() {
 
 TVM_REGISTER_NODE_TYPE(PatternWildcardNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.PatternWildcard")
-.set_body_typed([]() {
-  return PatternWildcard();
-});
+TVM_REGISTER_GLOBAL("relay.ir.PatternWildcard").set_body_typed([]() { return PatternWildcard(); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<PatternWildcardNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  p->stream << "PatternWildcardNode()";
-});
+    .set_dispatch<PatternWildcardNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      p->stream << "PatternWildcardNode()";
+    });
 
 PatternVar::PatternVar(tvm::relay::Var var) {
   ObjectPtr<PatternVarNode> n = make_object<PatternVarNode>();
@@ -52,19 +49,17 @@ PatternVar::PatternVar(tvm::relay::Var var) {
 
 TVM_REGISTER_NODE_TYPE(PatternVarNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.PatternVar")
-.set_body_typed([](tvm::relay::Var var) {
+TVM_REGISTER_GLOBAL("relay.ir.PatternVar").set_body_typed([](tvm::relay::Var var) {
   return PatternVar(var);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<PatternVarNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const PatternVarNode*>(ref.get());
-  p->stream << "PatternVarNode(" << node->var << ")";
-});
+    .set_dispatch<PatternVarNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const PatternVarNode*>(ref.get());
+      p->stream << "PatternVarNode(" << node->var << ")";
+    });
 
-PatternConstructor::PatternConstructor(Constructor constructor,
-                                       tvm::Array<Pattern> patterns) {
+PatternConstructor::PatternConstructor(Constructor constructor, tvm::Array<Pattern> patterns) {
   ObjectPtr<PatternConstructorNode> n = make_object<PatternConstructorNode>();
   n->constructor = std::move(constructor);
   n->patterns = std::move(patterns);
@@ -74,16 +69,15 @@ PatternConstructor::PatternConstructor(Constructor constructor,
 TVM_REGISTER_NODE_TYPE(PatternConstructorNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.PatternConstructor")
-.set_body_typed([](Constructor constructor, tvm::Array<Pattern> patterns) {
-  return PatternConstructor(constructor, patterns);
-});
+    .set_body_typed([](Constructor constructor, tvm::Array<Pattern> patterns) {
+      return PatternConstructor(constructor, patterns);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<PatternConstructorNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const PatternConstructorNode*>(ref.get());
-  p->stream << "PatternConstructorNode(" << node->constructor
-            << ", " << node->patterns << ")";
-});
+    .set_dispatch<PatternConstructorNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const PatternConstructorNode*>(ref.get());
+      p->stream << "PatternConstructorNode(" << node->constructor << ", " << node->patterns << ")";
+    });
 
 PatternTuple::PatternTuple(tvm::Array<Pattern> patterns) {
   ObjectPtr<PatternTupleNode> n = make_object<PatternTupleNode>();
@@ -93,16 +87,15 @@ PatternTuple::PatternTuple(tvm::Array<Pattern> patterns) {
 
 TVM_REGISTER_NODE_TYPE(PatternTupleNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.PatternTuple")
-.set_body_typed([](tvm::Array<Pattern> patterns) {
+TVM_REGISTER_GLOBAL("relay.ir.PatternTuple").set_body_typed([](tvm::Array<Pattern> patterns) {
   return PatternTuple(patterns);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<PatternTupleNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const PatternTupleNode*>(ref.get());
-  p->stream << "PatternTupleNode(" << node->patterns << ")";
-});
+    .set_dispatch<PatternTupleNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const PatternTupleNode*>(ref.get());
+      p->stream << "PatternTupleNode(" << node->patterns << ")";
+    });
 
 Clause::Clause(Pattern lhs, Expr rhs) {
   ObjectPtr<ClauseNode> n = make_object<ClauseNode>();
@@ -113,17 +106,15 @@ Clause::Clause(Pattern lhs, Expr rhs) {
 
 TVM_REGISTER_NODE_TYPE(ClauseNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.Clause")
-.set_body_typed([](Pattern lhs, Expr rhs) {
+TVM_REGISTER_GLOBAL("relay.ir.Clause").set_body_typed([](Pattern lhs, Expr rhs) {
   return Clause(lhs, rhs);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<ClauseNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const ClauseNode*>(ref.get());
-  p->stream << "ClauseNode(" << node->lhs << ", "
-            << node->rhs << ")";
-  });
+    .set_dispatch<ClauseNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const ClauseNode*>(ref.get());
+      p->stream << "ClauseNode(" << node->lhs << ", " << node->rhs << ")";
+    });
 
 Match::Match(Expr data, tvm::Array<Clause> clauses, bool complete) {
   ObjectPtr<MatchNode> n = make_object<MatchNode>();
@@ -136,16 +127,16 @@ Match::Match(Expr data, tvm::Array<Clause> clauses, bool complete) {
 TVM_REGISTER_NODE_TYPE(MatchNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Match")
-.set_body_typed([](Expr data, tvm::Array<Clause> clauses, bool complete) {
-  return Match(data, clauses, complete);
-});
+    .set_body_typed([](Expr data, tvm::Array<Clause> clauses, bool complete) {
+      return Match(data, clauses, complete);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<MatchNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const MatchNode*>(ref.get());
-  p->stream << "MatchNode(" << node->data << ", "
-            << node->clauses << ", " << node->complete << ")";
-});
+    .set_dispatch<MatchNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const MatchNode*>(ref.get());
+      p->stream << "MatchNode(" << node->data << ", " << node->clauses << ", " << node->complete
+                << ")";
+    });
 
 }  // namespace relay
 }  // namespace tvm

@@ -22,7 +22,7 @@ from .. import tag
 from ..util import traverse_inline
 
 
-def schedule_adaptive_pool(outs):
+def schedule_adaptive_pool(outs, layout='NCHW'):
     """Schedule for adaptive_pool.
 
     Parameters
@@ -51,8 +51,12 @@ def schedule_adaptive_pool(outs):
         else:
             Out = outs[0].op.output(0)
             s[Pool].set_scope("local")
+
         by, ty = s[Out].split(s[Out].op.axis[0], factor=num_thread)
-        bx, tx = s[Out].split(s[Out].op.axis[1], factor=num_thread)
+        if layout == 'NHWC':
+            bx, tx = s[Out].split(s[Out].op.axis[3], factor=num_thread)
+        else:
+            bx, tx = s[Out].split(s[Out].op.axis[1], factor=num_thread)
         s[Out].reorder(by, bx, ty, tx)
         s[Out].bind(ty, thread_y)
         s[Out].bind(tx, thread_x)

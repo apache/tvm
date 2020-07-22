@@ -68,7 +68,7 @@ assert tvm.runtime.enabled("rpc")
 # -------------------------------------
 # Execute on CPU vs. VTA, and define the model.
 
-# Load VTA parameters from the vta/vta-hw/config/vta_config.json file
+# Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
 env = vta.get_env()
 
 # Set ``device=arm_cpu`` to run inference on the CPU
@@ -171,7 +171,7 @@ with autotvm.tophub.context(target):
     if target.device_name == "vta":
         # Perform quantization in Relay
         # Note: We set opt_level to 3 in order to fold batch norm
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             with relay.quantize.qconfig(global_scale=8.0,
                                         skip_conv_layers=[0]):
                 mod = relay.quantize.quantize(mod, params=params)
@@ -188,16 +188,16 @@ with autotvm.tophub.context(target):
         relay_prog = mod["main"]
 
     # Compile Relay program with AlterOpLayout disabled
-    with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
-        if target.device_name != "vta":
+    if target.device_name != "vta":
+        with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
             graph, lib, params = relay.build(
                 relay_prog, target=target,
                 params=params, target_host=env.target_host)
-        else:
-            with vta.build_config():
-                graph, lib, params = relay.build(
-                    relay_prog, target=target,
-                    params=params, target_host=env.target_host)
+    else:
+        with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
+            graph, lib, params = relay.build(
+                relay_prog, target=target,
+                params=params, target_host=env.target_host)
 
     # Measure Relay build time
     build_time = time.time() - build_start
@@ -245,7 +245,7 @@ m.set_input(**params)
 m.set_input('data', image)
 
 # Perform inference and gather execution statistics
-# More on: https://docs.tvm.ai/api/python/module.html#tvm.runtime.Module.time_evaluator
+# More on: :py:method:`tvm.runtime.Module.time_evaluator`
 num = 4 # number of times we run module for a single measurement
 rep = 3 # number of measurements (we derive std dev from this)
 timer = m.module.time_evaluator("run", ctx, number=num, repeat=rep)

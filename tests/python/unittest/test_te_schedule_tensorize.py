@@ -25,8 +25,8 @@ def intrin_vadd(n):
         xx, yy = ins
         zz = outs[0]
         return tvm.tir.call_packed("vadd", xx, yy, zz)
-    with tvm.target.build_config(offset_factor=16):
-        return te.decl_tensor_intrin(z.op, intrin_func)
+    buffer_params = {"offset_factor": 16}
+    return te.decl_tensor_intrin(z.op, intrin_func, default_buffer_params=buffer_params)
 
 def intrin_gemv(m, n):
     w = te.placeholder((m, n), name='w')
@@ -52,10 +52,9 @@ def intrin_gemv(m, n):
             "gemv_add", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
         return body, reset, update
 
-    with tvm.target.build_config(data_alignment=16,
-                          offset_factor=16):
-        return te.decl_tensor_intrin(z.op, intrin_func,
-                                      binds={w: Wb})
+    buffer_params = {"offset_factor": 16, "data_alignment": 16}
+    return te.decl_tensor_intrin(
+        z.op, intrin_func, binds={w: Wb}, default_buffer_params=buffer_params)
 
 def intrin_gemv_no_reset(m, n):
     w = te.placeholder((m, n), name='w')
@@ -79,10 +78,10 @@ def intrin_gemv_no_reset(m, n):
             "gemv_add", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
         return body, None, update
 
-    with tvm.target.build_config(data_alignment=16,
-                          offset_factor=16):
-        return te.decl_tensor_intrin(z.op, intrin_func,
-                                      binds={w: Wb})
+
+    buffer_params = {"offset_factor": 16, "data_alignment": 16}
+    return te.decl_tensor_intrin(
+        z.op, intrin_func, binds={w: Wb}, default_buffer_params=buffer_params)
 
 
 def test_tensorize_vadd():
@@ -100,13 +99,15 @@ def test_tensorize_vadd():
         dom_map = tvm.te.schedule.InferBound(s)
         finfer = tvm.get_global_func("test.op.InferTensorizeRegion")
         out_dom, in_dom = finfer(s[z], dom_map)
-        assert tvm.tir.ir_pass.Equal(out_dom[z.op.axis[0]].extent, factor)
-        assert tvm.tir.ir_pass.Equal(out_dom[z.op.axis[0]].min, xo * factor)
-        assert tvm.tir.ir_pass.Equal(in_dom.items()[0][1][0].extent, factor)
+        assert tvm.ir.structural_equal(out_dom[z.op.axis[0]].extent, factor)
+        assert tvm.ir.structural_equal(out_dom[z.op.axis[0]].min, xo * factor)
+        assert tvm.ir.structural_equal(in_dom.items()[0][1][0].extent, factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[z], out_dom, in_dom, vadd)
-        assert tvm.tir.ir_pass.Equal(tvm.tir.ir_pass.CanonicalSimplify(body[0]),
-                                 tvm.tir.ir_pass.CanonicalSimplify(vadd.op.body[0]))
+        ana = tvm.arith.Analyzer()
+        assert tvm.ir.structural_equal(
+            ana.simplify(body[0]),
+            ana.simplify(vadd.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [x, y, z])
 
@@ -133,13 +134,16 @@ def test_tensorize_matmul():
         dom_map = tvm.te.schedule.InferBound(s)
         finfer = tvm.get_global_func("test.op.InferTensorizeRegion")
         out_dom, in_dom = finfer(s[C], dom_map)
-        assert tvm.tir.ir_pass.Equal(out_dom[x].extent, 1)
-        assert tvm.tir.ir_pass.Equal(out_dom[y].extent, factor)
-        assert tvm.tir.ir_pass.Equal(out_dom[y].min, yo * factor)
+        assert tvm.ir.structural_equal(out_dom[x].extent, 1)
+        assert tvm.ir.structural_equal(out_dom[y].extent, factor)
+        assert tvm.ir.structural_equal(out_dom[y].min, yo * factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[C], out_dom, in_dom, gemv)
-        assert tvm.tir.ir_pass.Equal(tvm.tir.ir_pass.CanonicalSimplify(body[0]),
-                                 tvm.tir.ir_pass.CanonicalSimplify(gemv.op.body[0]))
+        ana = tvm.arith.Analyzer()
+
+        assert tvm.ir.structural_equal(
+            ana.simplify(body[0]),
+            ana.simplify(gemv.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
 
@@ -157,13 +161,15 @@ def test_tensorize_matmul():
         dom_map = tvm.te.schedule.InferBound(s)
         finfer = tvm.get_global_func("test.op.InferTensorizeRegion")
         out_dom, in_dom = finfer(s[C], dom_map)
-        assert tvm.tir.ir_pass.Equal(out_dom[x].extent, 1)
-        assert tvm.tir.ir_pass.Equal(out_dom[y].extent, factor)
-        assert tvm.tir.ir_pass.Equal(out_dom[y].min, yo * factor)
+        assert tvm.ir.structural_equal(out_dom[x].extent, 1)
+        assert tvm.ir.structural_equal(out_dom[y].extent, factor)
+        assert tvm.ir.structural_equal(out_dom[y].min, yo * factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[C], out_dom, in_dom, gemv)
-        assert tvm.tir.ir_pass.Equal(tvm.tir.ir_pass.CanonicalSimplify(body[0]),
-                                 tvm.tir.ir_pass.CanonicalSimplify(gemv.op.body[0]))
+        ana = tvm.arith.Analyzer()
+        assert tvm.ir.structural_equal(
+            ana.simplify(body[0]),
+            ana.simplify(gemv.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
 
@@ -180,13 +186,15 @@ def test_tensorize_matmul():
         dom_map = tvm.te.schedule.InferBound(s)
         finfer = tvm.get_global_func("test.op.InferTensorizeRegion")
         out_dom, in_dom = finfer(s[C], dom_map)
-        assert tvm.tir.ir_pass.Equal(out_dom[x].extent, 1)
-        assert tvm.tir.ir_pass.Equal(out_dom[y].extent, factor)
-        assert tvm.tir.ir_pass.Equal(out_dom[y].min, yo * factor)
+        assert tvm.ir.structural_equal(out_dom[x].extent, 1)
+        assert tvm.ir.structural_equal(out_dom[y].extent, factor)
+        assert tvm.ir.structural_equal(out_dom[y].min, yo * factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[C], out_dom, in_dom, gemv)
-        assert tvm.tir.ir_pass.Equal(tvm.tir.ir_pass.CanonicalSimplify(body[0]),
-                                 tvm.tir.ir_pass.CanonicalSimplify(gemv.op.body[0]))
+        ana = tvm.arith.Analyzer()
+        assert tvm.ir.structural_equal(
+            ana.simplify(body[0]),
+            ana.simplify(gemv.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
 
@@ -204,13 +212,15 @@ def test_tensorize_matmul():
         dom_map = tvm.te.schedule.InferBound(s)
         finfer = tvm.get_global_func("test.op.InferTensorizeRegion")
         out_dom, in_dom = finfer(s[C], dom_map)
-        assert tvm.tir.ir_pass.Equal(out_dom[x].extent, 1)
-        assert tvm.tir.ir_pass.Equal(out_dom[y].extent, factor)
-        assert tvm.tir.ir_pass.Equal(out_dom[y].min, yo * factor)
+        assert tvm.ir.structural_equal(out_dom[x].extent, 1)
+        assert tvm.ir.structural_equal(out_dom[y].extent, factor)
+        assert tvm.ir.structural_equal(out_dom[y].min, yo * factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[C], out_dom, in_dom, gemv)
-        assert tvm.tir.ir_pass.Equal(tvm.tir.ir_pass.CanonicalSimplify(body[0]),
-                                 tvm.tir.ir_pass.CanonicalSimplify(gemv.op.body[0]))
+        ana = tvm.arith.Analyzer()
+        assert tvm.ir.structural_equal(
+            ana.simplify(body[0]),
+            ana.simplify(gemv.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
 
@@ -237,8 +247,9 @@ def test_tensorize_op():
             zz = outs[0]
             return tvm.tir.call_packed("op", xx, zz)
 
-        with tvm.target.build_config(offset_factor=2):
-            return te.decl_tensor_intrin(y.op, intrin_func)
+        return te.decl_tensor_intrin(y.op, intrin_func, default_buffer_params={
+            "offset_factor": 2
+        })
 
     A = te.placeholder((5, 5), name='A')
     B = te.compute((9,9), lambda i, j: A[idxd(j,3) + idxm(i,3), idxm(j,3) + idxd(i,3)])
@@ -275,8 +286,7 @@ def test_tensorize_tensor_compute_op():
         def intrin_func(ins, outs):
             return tvm.tir.call_packed("multivadd")
 
-        with tvm.target.build_config():
-            return te.decl_tensor_intrin(z.op, intrin_func, name="multivadd")
+        return te.decl_tensor_intrin(z.op, intrin_func, name="multivadd")
 
     def intrin_vadd(n):
         dtype = 'float32'
@@ -286,9 +296,7 @@ def test_tensorize_tensor_compute_op():
         s = te.create_schedule(z.op)
 
         def create_buffer(t):
-            return tvm.tir.decl_buffer(t.shape, t.dtype,
-                                   name='W'+t.name,
-                                   offset_factor=16)
+            return tvm.tir.decl_buffer(t.shape, t.dtype, name='W'+t.name, offset_factor=16)
 
         def intrin_func(ins, outs):
             ib = tvm.tir.ir_builder.create()
@@ -296,11 +304,9 @@ def test_tensorize_tensor_compute_op():
                                     ins[0].access_ptr("r"), ins[1].access_ptr('r'),
                                     outs[0].access_ptr('wr')))
             return ib.get()
-
-        with tvm.target.build_config(offset_factor=16):
-            return te.decl_tensor_intrin(z.op, intrin_func, binds={x: create_buffer(x),
-                                                                    y: create_buffer(y),
-                                                                    z: create_buffer(z)})
+        return te.decl_tensor_intrin(z.op, intrin_func, binds={x: create_buffer(x),
+                                                                y: create_buffer(y),
+                                                                z: create_buffer(z)})
 
     # cache_read, cache_write
     M = 1024
@@ -322,8 +328,8 @@ def test_tensorize_tensor_compute_op():
     stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
     # The loop that we tried to tensorize still exists in the code
     # That means tensorize didn't work as expected
-    assert isinstance(stmt.body.body.body, tvm.tir.For)
-    assert stmt.body.body.body.loop_var.name == C.op.axis[0].var.name
+    assert isinstance(stmt.body.body, tvm.tir.For)
+    assert stmt.body.body.loop_var.name == C.op.axis[0].var.name
 
 
 

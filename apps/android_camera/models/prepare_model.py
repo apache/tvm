@@ -28,7 +28,7 @@ import tvm.relay as relay
 from tvm.contrib import util, ndk, graph_runtime as runtime
 from tvm.contrib.download import download_testdata, download
 
-target = 'llvm -target=arm64-linux-android'
+target = 'llvm -mtriple=arm64-linux-android'
 target_host = None
 
 def del_dir(target: Union[Path, str], only_if_empty: bool = False):
@@ -87,7 +87,7 @@ def main(model_str, output_path):
     except FileExistsError:
         pass
     print("building...")
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(net, target, target_host=target_host, params=params)
     print("dumping lib...")
     lib.export_library(output_path_str + '/' + 'deploy_lib_cpu.so', ndk.create_shared)

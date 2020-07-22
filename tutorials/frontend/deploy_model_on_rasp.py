@@ -177,10 +177,10 @@ if local_demo:
 else:
     target = tvm.target.arm_cpu('rasp3b')
     # The above line is a simple form of
-    # target = tvm.target.create('llvm -device=arm_cpu -model=bcm2837 -target=armv7l-linux-gnueabihf -mattr=+neon')
+    # target = tvm.target.create('llvm -device=arm_cpu -model=bcm2837 -mtriple=armv7l-linux-gnueabihf -mattr=+neon')
 
-with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(func, target, params=params)
+with tvm.transform.PassContext(opt_level=3):
+    lib = relay.build(func, target, params=params)
 
 # After `relay.build`, you will get three return values: graph,
 # library and the new parameter, since we do some optimization that will
@@ -212,9 +212,7 @@ rlib = remote.load_module('net.tar')
 
 # create the remote runtime module
 ctx = remote.cpu(0)
-module = runtime.create(graph, rlib, ctx)
-# set parameter (upload params to the remote device. This may take a while)
-module.set_input(**params)
+module = runtime.GraphModule(rlib['default'](ctx))
 # set input data
 module.set_input('data', tvm.nd.array(x.astype('float32')))
 # run

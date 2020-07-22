@@ -24,9 +24,11 @@
 #ifndef TVM_RUNTIME_OBJECT_INTERNAL_H_
 #define TVM_RUNTIME_OBJECT_INTERNAL_H_
 
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/object.h>
+
 #include <string>
+#include <utility>
 
 namespace tvm {
 namespace runtime {
@@ -38,12 +40,30 @@ namespace runtime {
 class ObjectInternal {
  public:
   /*!
+   * \brief Retain an object handle.
+   */
+  static void ObjectRetain(TVMObjectHandle obj) {
+    if (obj != nullptr) {
+      static_cast<Object*>(obj)->IncRef();
+    }
+  }
+
+  /*!
    * \brief Free an object handle.
    */
   static void ObjectFree(TVMObjectHandle obj) {
     if (obj != nullptr) {
       static_cast<Object*>(obj)->DecRef();
     }
+  }
+  /*!
+   * \brief Check of obj derives from the type indicated by type index.
+   * \param obj The original object.
+   * \param type_index The type index of interest.
+   * \return The derivation checking result.
+   */
+  static bool DerivedFrom(const Object* obj, uint32_t type_index) {
+    return obj->DerivedFrom(type_index);
   }
   /*!
    * \brief Expose TypeKey2Index
@@ -64,8 +84,17 @@ class ObjectInternal {
     // address translation
     return static_cast<ModuleNode*>(static_cast<Object*>(handle));
   }
+  /*!
+   * \brief Move the ObjectPtr inside ObjectRef out
+   * \param obj The ObjectRef
+   * \return The result ObjectPtr
+   */
+  static ObjectPtr<Object> MoveObjectPtr(ObjectRef* obj) {
+    ObjectPtr<Object> data = std::move(obj->data_);
+    return data;
+  }
 };
 
 }  // namespace runtime
 }  // namespace tvm
-#endif   // TVM_RUNTIME_OBJECT_INTERNAL_H_
+#endif  // TVM_RUNTIME_OBJECT_INTERNAL_H_

@@ -32,8 +32,9 @@
 #define TVM_RUNTIME_PACK_ARGS_H_
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <vector>
+
 #include <cstring>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -55,7 +56,7 @@ union ArgUnion {
  *
  * \return The wrapped packed function.
  */
-template<typename F>
+template <typename F>
 inline PackedFunc PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types);
 /*!
  * \brief Create a packed function that from function only packs buffer arguments.
@@ -66,7 +67,7 @@ inline PackedFunc PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types
  *
  * \return The wrapped packed function.
  */
-template<typename F>
+template <typename F>
 inline PackedFunc PackFuncNonBufferArg(F f, const std::vector<DLDataType>& arg_types);
 /*!
  * \brief Create a packed function that from function that takes a packed arguments.
@@ -77,7 +78,7 @@ inline PackedFunc PackFuncNonBufferArg(F f, const std::vector<DLDataType>& arg_t
  *
  * \return The wrapped packed function.
  */
-template<typename F>
+template <typename F>
 inline PackedFunc PackFuncPackedArg(F f, const std::vector<DLDataType>& arg_types);
 /*!
  * \brief Extract number of buffer argument from the argument types.
@@ -88,23 +89,21 @@ inline size_t NumBufferArgs(const std::vector<DLDataType>& arg_types);
 
 // implementations details
 namespace detail {
-template<typename T, int kSize>
+template <typename T, int kSize>
 class TempArray {
  public:
   explicit TempArray(int size) {}
-  T* data() {
-    return data_;
-  }
+  T* data() { return data_; }
+
  private:
   T data_[kSize];
 };
-template<typename T>
+template <typename T>
 class TempArray<T, 0> {
  public:
   explicit TempArray(int size) : data_(size) {}
-  T* data() {
-    return data_.data();
-  }
+  T* data() { return data_.data(); }
+
  private:
   std::vector<T> data_;
 };
@@ -120,8 +119,7 @@ enum ArgConvertCode {
 };
 
 inline ArgConvertCode GetArgConvertCode(DLDataType t) {
-  CHECK_EQ(t.lanes, 1U)
-      << "Cannot pass vector type argument to devic function for now";
+  CHECK_EQ(t.lanes, 1U) << "Cannot pass vector type argument to devic function for now";
   if (t.code == kDLInt) {
     if (t.bits == 64U) return INT64_TO_INT64;
     if (t.bits == 32U) return INT64_TO_INT32;
@@ -137,7 +135,7 @@ inline ArgConvertCode GetArgConvertCode(DLDataType t) {
   return HANDLE_TO_HANDLE;
 }
 
-template<int N, typename F>
+template <int N, typename F>
 inline PackedFunc PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& codes) {
   int num_args = static_cast<int>(codes.size());
   auto ret = [f, codes, num_args](TVMArgs args, TVMRetValue* ret) {
@@ -158,7 +156,7 @@ inline PackedFunc PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& code
           addr[i] = &(holder[i]);
           break;
         }
-        case INT64_TO_UINT32 : {
+        case INT64_TO_UINT32: {
           holder[i].v_uint32 = static_cast<uint32_t>(args.values[i].v_int64);
           addr[i] = &(holder[i]);
           break;
@@ -175,9 +173,8 @@ inline PackedFunc PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& code
   return PackedFunc(ret);
 }
 
-template<int N, typename F>
-inline PackedFunc PackFuncNonBufferArg_(
-    F f, int base, const std::vector<ArgConvertCode>& codes) {
+template <int N, typename F>
+inline PackedFunc PackFuncNonBufferArg_(F f, int base, const std::vector<ArgConvertCode>& codes) {
   int num_args = static_cast<int>(codes.size());
   auto ret = [f, codes, base, num_args](TVMArgs args, TVMRetValue* ret) {
     TempArray<ArgUnion, N> holder_(num_args);
@@ -186,13 +183,14 @@ inline PackedFunc PackFuncNonBufferArg_(
       switch (codes[i]) {
         case INT64_TO_INT64:
         case FLOAT64_TO_FLOAT64: {
-          LOG(FATAL) << "Do not support 64bit argument to device function"; break;
+          LOG(FATAL) << "Do not support 64bit argument to device function";
+          break;
         }
         case INT64_TO_INT32: {
           holder[i].v_int32 = static_cast<int32_t>(args.values[base + i].v_int64);
           break;
         }
-        case INT64_TO_UINT32 : {
+        case INT64_TO_UINT32: {
           holder[i].v_uint32 = static_cast<uint32_t>(args.values[base + i].v_int64);
           break;
         }
@@ -201,7 +199,8 @@ inline PackedFunc PackFuncNonBufferArg_(
           break;
         }
         case HANDLE_TO_HANDLE: {
-          LOG(FATAL) << "not reached"; break;
+          LOG(FATAL) << "not reached";
+          break;
         }
       }
     }
@@ -210,9 +209,8 @@ inline PackedFunc PackFuncNonBufferArg_(
   return PackedFunc(ret);
 }
 
-template<int N, typename F>
-inline PackedFunc PackFuncPackedArg_(
-    F f, const std::vector<ArgConvertCode>& codes) {
+template <int N, typename F>
+inline PackedFunc PackFuncPackedArg_(F f, const std::vector<ArgConvertCode>& codes) {
   int num_args = static_cast<int>(codes.size());
   auto ret = [f, codes, num_args](TVMArgs args, TVMRetValue* ret) {
     TempArray<uint64_t, N> pack_(num_args);
@@ -238,20 +236,19 @@ inline PackedFunc PackFuncPackedArg_(
           ++ptr;
           break;
         }
-        case INT64_TO_UINT32 : {
-          *reinterpret_cast<uint32_t*>(ptr) =
-              static_cast<uint32_t>(args.values[i].v_int64);
+        case INT64_TO_UINT32: {
+          *reinterpret_cast<uint32_t*>(ptr) = static_cast<uint32_t>(args.values[i].v_int64);
           ++ptr;
           break;
         }
         case FLOAT64_TO_FLOAT32: {
-          *reinterpret_cast<float*>(ptr) =
-              static_cast<float>(args.values[i].v_float64);
+          *reinterpret_cast<float*>(ptr) = static_cast<float>(args.values[i].v_float64);
           ++ptr;
           break;
         }
         default: {
-          LOG(FATAL) << "not reached"; break;
+          LOG(FATAL) << "not reached";
+          break;
         }
       }
     }
@@ -261,7 +258,7 @@ inline PackedFunc PackFuncPackedArg_(
 }
 }  // namespace detail
 
-template<typename F>
+template <typename F>
 inline PackedFunc PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types) {
   std::vector<detail::ArgConvertCode> codes(arg_types.size());
   for (size_t i = 0; i < arg_types.size(); ++i) {
@@ -282,17 +279,17 @@ inline size_t NumBufferArgs(const std::vector<DLDataType>& arg_types) {
   size_t base = arg_types.size();
   for (size_t i = 0; i < arg_types.size(); ++i) {
     if (arg_types[i].code != kTVMOpaqueHandle) {
-      base = i; break;
+      base = i;
+      break;
     }
   }
   for (size_t i = base; i < arg_types.size(); ++i) {
-    CHECK(arg_types[i].code != kTVMOpaqueHandle)
-        << "Device function need to be organized";
+    CHECK(arg_types[i].code != kTVMOpaqueHandle) << "Device function need to be organized";
   }
   return base;
 }
 
-template<typename F>
+template <typename F>
 inline PackedFunc PackFuncNonBufferArg(F f, const std::vector<DLDataType>& arg_types) {
   size_t num_buffer = NumBufferArgs(arg_types);
   std::vector<detail::ArgConvertCode> codes;
@@ -309,7 +306,7 @@ inline PackedFunc PackFuncNonBufferArg(F f, const std::vector<DLDataType>& arg_t
   }
 }
 
-template<typename F>
+template <typename F>
 inline PackedFunc PackFuncPackedArg(F f, const std::vector<DLDataType>& arg_types) {
   std::vector<detail::ArgConvertCode> codes;
   for (size_t i = 0; i < arg_types.size(); ++i) {

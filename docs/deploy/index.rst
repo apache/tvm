@@ -23,7 +23,7 @@ Deploy and Integration
 This page contains guidelines on how to deploy TVM to various platforms
 as well as how to integrate it with your project.
 
-.. image::  http://www.tvm.ai/images/release/tvm_flexible.png
+.. image::  https://tvm.apache.org/images/release/tvm_flexible.png
 
 Unlike traditional deep learning frameworks. TVM stack is divided into two major components:
 
@@ -67,5 +67,5 @@ target device without relying on RPC. see the following resources on how to do s
    cpp_deploy
    android
    integrate
-   aocl_fpga
-   aws_fpga
+   hls
+   arm_compute_lib

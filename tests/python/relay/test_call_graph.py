@@ -27,7 +27,7 @@ def test_callgraph_construct():
     mod["g1"] = relay.Function([x, y], x + y)
     call_graph = relay.analysis.CallGraph(mod)
     assert "g1" in str(call_graph)
-    assert relay.alpha_equal(mod, call_graph.module)
+    assert tvm.ir.structural_equal(mod, call_graph.module)
 
 
 def test_print_element():
@@ -134,7 +134,7 @@ def test_recursive_func():
     func = relay.Function([i],
                           sb.get(),
                           ret_type=relay.TensorType([], 'int32'))
-    func = func.with_attr("Compiler", tvm.tir.StringImm("a"))
+    func = func.with_attr("Compiler", "a")
     mod[sum_up] = func
     iarg = relay.var('i', shape=[], dtype='int32')
     mod["main"] = relay.Function([iarg], sum_up(iarg))

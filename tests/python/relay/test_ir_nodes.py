@@ -21,21 +21,20 @@ from tvm import te
 from tvm import relay
 from tvm.tir.expr import *
 from tvm.relay import op
-from tvm.relay.analysis import graph_equal
 import numpy as np
 
 def check_json_roundtrip(node):
     json_str = tvm.ir.save_json(node)
     back = tvm.ir.load_json(json_str)
-    assert graph_equal(back, node)
+    assert tvm.ir.structural_equal(back, node, map_free_vars=True)
 
 
 # Span
 def test_span():
     span = relay.Span(None, 1, 1)
     assert span.source == None
-    assert span.lineno == 1
-    assert span.col_offset == 1
+    assert span.line == 1
+    assert span.column == 1
     assert span.same_as(span)
     assert span == span
     assert isinstance(span, relay.base.Span)
@@ -45,8 +44,8 @@ def test_span():
     # to test the round trip
     back = tvm.ir.load_json(tvm.ir.save_json(span))
     assert back.source == span.source
-    assert back.lineno == span.lineno
-    assert back.col_offset == span.col_offset
+    assert back.line == span.line
+    assert back.column == span.column
 
 
 def test_constant():
@@ -97,17 +96,18 @@ def test_function():
     body = relay.Tuple(tvm.runtime.convert([]))
     type_params = tvm.runtime.convert([])
     fn = relay.Function(params, body, ret_type, type_params)
-    fn = fn.with_attr("test_attribute", tvm.tir.StringImm("value"))
+    fn = fn.with_attr("test_attribute", "value")
+    fn = fn.with_attr("test_attribute1", "value1")
     assert fn.params == params
     assert fn.body == body
     assert fn.type_params == type_params
     assert fn.span == None
     assert fn.attrs["test_attribute"] == "value"
+    assert fn.attrs["test_attribute1"] == "value1"
     str(fn)
     check_json_roundtrip(fn)
 
 
-@pytest.mark.skip(reason="AttrsEqualHandler doesn't handle Map so far.")
 def test_function_attrs():
     param_names = ['a', 'b', 'c', 'd']
     params = tvm.runtime.convert([relay.var(n, shape=(5, 2)) for n in param_names])

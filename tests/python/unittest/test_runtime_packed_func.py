@@ -98,6 +98,33 @@ def test_ctx():
     x = tvm.testing.context_test(x, x.device_type, x.device_id)
     assert x == tvm.opencl(10)
 
+
+def test_rvalue_ref():
+    def callback(x, expected_count):
+        assert expected_count == tvm.testing.object_use_count(x)
+        return x
+
+    f = tvm.runtime.convert(callback)
+
+    def check0():
+        x = tvm.tir.Var("x", "int32")
+        assert tvm.testing.object_use_count(x) == 1
+        f(x, 2)
+        y = f(x._move(), 1)
+        assert x.handle.value == None
+
+    def check1():
+        x = tvm.tir.Var("x", "int32")
+        assert tvm.testing.object_use_count(x) == 1
+        y = f(x, 2)
+        z = f(x._move(), 2)
+        assert x.handle.value == None
+        assert y.handle.value is not None
+
+    check0()
+    check1()
+
+
 def test_trace_default_action():
     n = 2
     x = te.placeholder((n,n,n), name="X", dtype="float32")
@@ -269,7 +296,11 @@ def test_trace_can_change_traced_value_float():
     for t in ["float64", "float32"]:
         check_assign(t)
 
+
+
 if __name__ == "__main__":
+    test_rvalue_ref()
+    exit(0)
     test_empty_array()
     test_get_global()
     test_get_callback_with_node()

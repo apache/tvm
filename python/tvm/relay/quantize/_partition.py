@@ -19,14 +19,11 @@
 import tvm
 from .. import expr as _expr
 from .. import analysis as _analysis
-from ..op import op as _reg
 from . import _quantize
 from .quantize import _forward_op
 
 def register_partition_function(op_name, frewrite=None, level=10):
-    def _register(func):
-        return _reg._Register(op_name, "FQPartitionRewrite", func, level)
-    return _register(frewrite) if frewrite is not None else _register
+    return tvm.ir.register_op_attr(op_name, "FQPartitionRewrite", frewrite, level)
 
 
 @tvm._ffi.register_object("relay.QPartitionExpr")
@@ -124,6 +121,21 @@ def add_partition_generic(ref_call, new_args, ctx):
 
     raise ValueError
 
+def mul_partition_generic(ref_call, new_args, ctx):
+    """Rewrite function for ewise mul for partition for generic devices"""
+    lhs_cond, lhs = partition_expr_check(new_args[0])
+    rhs_cond, rhs = partition_expr_check(new_args[1])
+
+    if lhs_cond:
+        # introduced by bn: multiply(out, scale)
+        return QPartitionExpr(_forward_op(ref_call, [lhs, rhs]))
+
+    if not lhs_cond and not rhs_cond:
+        # trivial case
+        return None
+
+    raise ValueError
+
 
 # TODO(ziheng) enhance `register_partition_function` to dispatch
 # for target automatically
@@ -139,11 +151,5 @@ def add_partition_function(ref_call, new_args, ctx):
 
 @register_partition_function("multiply")
 def multiply_partition_function(ref_call, new_args, ctx):
-    """Rewrite function for ewise add for partition"""
-    lhs_cond, lhs = partition_expr_check(new_args[0])
-    rhs_cond, rhs = partition_expr_check(new_args[1])
-    if lhs_cond:
-        # introduced by bn: multiply(out, scale)
-        return QPartitionExpr(_forward_op(ref_call, [lhs, rhs]))
-    assert (not lhs_cond) and (not rhs_cond)
-    return None
+    """Rewrite function for ewise multiply for partition"""
+    return mul_partition_generic(ref_call, new_args, ctx)

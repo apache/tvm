@@ -35,13 +35,13 @@ In general, the performance should also be good.
 
 It is recommended that you run tuning by yourself if you have your customized network or devices.
 Please follow the tutorial for
-[NVIDIA GPU](https://docs.tvm.ai/tutorials/autotvm/tune_conv2d_cuda.html),
-[ARM CPU](https://docs.tvm.ai/tutorials/autotvm/tune_relay_arm.html),
-[Mobile GPU](https://docs.tvm.ai/tutorials/autotvm/tune_relay_mobile_gpu.html).
+[NVIDIA GPU](https://tvm.apache.org/docs/tutorials/autotvm/tune_conv2d_cuda.html),
+[ARM CPU](https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_arm.html),
+[Mobile GPU](https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_mobile_gpu.html).
 
 ### NVIDIA GPU
 
-Build TVM with LLVM and CUDA enabled. [Help](https://docs.tvm.ai/install/from_source.html)
+Build TVM with LLVM and CUDA enabled. [Help](https://tvm.apache.org/docs/install/from_source.html)
 
 ```bash
 python3 gpu_imagenet_bench.py --model 1080ti
@@ -58,7 +58,7 @@ You need to use it for reproducing benchmark results.
 
 **Note**: We use llvm-4.0 in our tuning environment. Mismatch of the LLVM version during tuning and deployment can influence the performance, so you have to use a same version for reproduction.
 
-0. Build TVM with LLVM enabled. [Help](https://docs.tvm.ai/install/from_source.html)
+0. Build TVM with LLVM enabled. [Help](https://tvm.apache.org/docs/install/from_source.html)
 
 1. Start an RPC Tracker on the host machine
 ```bash
@@ -67,7 +67,7 @@ python3 -m tvm.exec.rpc_tracker
 
 2. Register devices to the tracker
 * For Linux device
-  * Build tvm runtime on your device [Help](https://docs.tvm.ai/tutorials/frontend/deploy_model_on_rasp.html#build-tvm-runtime-on-device)
+  * Build tvm runtime on your device [Help](https://tvm.apache.org/docs/tutorials/frontend/deploy_model_on_rasp.html#build-tvm-runtime-on-device)
   * Register your device to tracker by
   ```bash
   python3 -m tvm.exec.rpc_server --tracker=[HOST_IP]:9190 --key=[DEVICE_KEY]
@@ -123,7 +123,7 @@ python3 -m tvm.exec.rpc_tracker
 
 ### AMD GPU
 
-Build TVM with LLVM and ROCm enabled. [Help](https://docs.tvm.ai/install/from_source.html)
+Build TVM with LLVM and ROCm enabled. [Help](https://tvm.apache.org/docs/install/from_source.html)
 ```bash
 python3 gpu_imagenet_bench.py --model gfx900 --target rocm
 ```

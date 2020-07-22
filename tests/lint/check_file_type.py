@@ -36,6 +36,7 @@ ALLOW_EXTENSION = {
     "scala",
     "java",
     "go",
+    "ts",
     "sh",
     "py",
     "pyi",
@@ -73,12 +74,17 @@ ALLOW_EXTENSION = {
     "sdc",
     # generated parser
     "interp",
-    "tokens"
+    "tokens",
+    # interface definition
+    "idl",
+    # opencl file
+    "cl",
     }
 
 # List of file names allowed
 ALLOW_FILE_NAME = {
     ".gitignore",
+    ".eslintignore",
     ".gitattributes",
     "README",
     "Makefile",
@@ -90,22 +96,23 @@ ALLOW_FILE_NAME = {
     ".gitmodules",
     "CODEOWNERS",
     ".scalafmt.conf",
-    "Cargo.lock"
+    "Cargo.lock",
+    "with_the_same_user",
    }
 
 # List of specific files allowed in relpath to <proj_root>
 ALLOW_SPECIFIC_FILE = {
-    "docker/with_the_same_user",
     "LICENSE",
     "NOTICE",
     "KEYS",
     "DISCLAIMER",
     "Jenkinsfile",
-    # sgx config
+    # cargo config
+    "rust/runtime/tests/test_wasm32/.cargo/config",
+    "rust/tvm-graph-rt/tests/test_wasm32/.cargo/config",
     "apps/sgx/.cargo/config",
     # html for demo purposes
-    "tests/webgl/test_static_webgl_library.html",
-    "web/example_rpc.html",
+    "web/apps/browser/rpc_server.html",
     # images are normally not allowed
     # discuss with committers before add more images
     "apps/android_rpc/app/src/main/res/mipmap-hdpi/ic_launcher.png",
@@ -185,7 +192,7 @@ def main():
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
-    assert proc.returncode == 0
+    assert proc.returncode == 0, f'{" ".join(cmd)} errored: {out}'
     res = out.decode("utf-8")
     flist = res.split()
     error_list = []

@@ -56,11 +56,14 @@
 #ifndef TVM_IR_TRANSFORM_H_
 #define TVM_IR_TRANSFORM_H_
 
-#include <tvm/support/with.h>
-#include <tvm/node/container.h>
 #include <tvm/ir/error.h>
 #include <tvm/ir/module.h>
+#include <tvm/node/container.h>
+#include <tvm/runtime/container.h>
+#include <tvm/support/with.h>
+
 #include <string>
+#include <utility>
 
 namespace tvm {
 namespace transform {
@@ -68,13 +71,11 @@ namespace transform {
 // Forward declare for TraceFunc.
 class PassInfo;
 
-/*! \brief A callback for tracing passes, useful for debugging and logging.
- *
+/*!
+ * \brief A callback for tracing passes, useful for debugging and logging.
  */
 using TraceFunc =
-  runtime::TypedPackedFunc<void(const IRModule& ir_module,
-                                const PassInfo& ctx,
-                                bool is_before)>;
+    runtime::TypedPackedFunc<void(const IRModule& ir_module, const PassInfo& ctx, bool is_before)>;
 
 /*!
  * \brief PassContextNode contains the information that a pass can rely on,
@@ -91,29 +92,59 @@ class PassContextNode : public Object {
   /*! \brief The default optimization level. */
   int opt_level{2};
 
-  /*! \brief CPU is the default fallback device for heterogeneous execution. */
-  int fallback_device{static_cast<int>(kDLCPU)};
-
   /*! \brief The list of required passes. */
-  Array<PrimExpr> required_pass;
+  Array<String> required_pass;
   /*! \brief The list of disabled passes. */
-  Array<PrimExpr> disabled_pass;
-
+  Array<String> disabled_pass;
+  /*! \brief Trace function to be invoked before and after each pass. */
   TraceFunc trace_func;
+
+  /*! \brief Pass specific configurations. */
+  Map<String, ObjectRef> config;
 
   PassContextNode() = default;
 
+  /*!
+   * \brief Get a config value from the pass context.
+   *
+   * \param key The config key.
+   * \param default_value The default value if the key does not exist, defaults to nullptr.
+   *
+   * \return The result
+   *
+   * \tparam TOBjectRef the expected object type.
+   * \throw Error if the key exists but the value does not match TObjectRef.
+   */
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetConfig(const std::string& key, Optional<TObjectRef> default_value =
+                                                             Optional<TObjectRef>(nullptr)) const {
+    static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
+                  "Can only call GetAttr with ObjectRef types.");
+    if (!config.defined()) return default_value;
+    auto it = config.find(key);
+    if (it != config.end()) {
+      return Downcast<Optional<TObjectRef>>((*it).second);
+    } else {
+      return default_value;
+    }
+  }
+  // variant that uses TObjectRef to enable implicit conversion to default value.
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetConfig(const std::string& key, TObjectRef default_value) const {
+    return GetConfig<TObjectRef>(key, Optional<TObjectRef>(default_value));
+  }
+
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("opt_level", &opt_level);
-    v->Visit("fallback_device", &fallback_device);
     v->Visit("required_pass", &required_pass);
     v->Visit("disabled_pass", &disabled_pass);
+    v->Visit("config", &config);
   }
 
   static constexpr const char* _type_key = "transform.PassContext";
+  static constexpr bool _type_has_method_sequal_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(PassContextNode, Object);
 };
-
 
 /*!
  * \brief PassContext that is used to configure the pass behavior.
@@ -122,7 +153,6 @@ class PassContextNode : public Object {
  *
  *  auto new_ctx = PassContext::Create();
  *  ctx->opt_level = 2;
- *  ctx->fallback_device = kDLCPU;
  *  With<PassContext> scope(ctx);
  *  // pass context in effect.
  *
@@ -149,6 +179,7 @@ class PassContext : public ObjectRef {
     CHECK(get() != nullptr);
     return static_cast<PassContextNode*>(get_mutable());
   }
+
   /*!
    * \brief Construct a PassContext containing the default configurations.
    * \return The new PassContext.
@@ -168,6 +199,21 @@ class PassContext : public ObjectRef {
    */
   TVM_DLL void Trace(const IRModule& module, const PassInfo& info, bool is_before) const;
 
+  /*!
+   * \brief Register a valid configuration option and its ValueType for validation.
+   *
+   * \param key The configuration key.
+   * \tparam ValueType The value type to be registered
+   */
+  template <typename ValueType>
+  static uint32_t RegisterConfigOption(const char* key) {
+    using ValueNodeType = typename ValueType::ContainerType;
+    // NOTE: we could further update the function later.
+    uint32_t tindex = ValueNodeType::_GetOrAllocRuntimeTypeIndex();
+    RegisterConfigOption(key, tindex);
+    return tindex;
+  }
+
   // accessor.
   using ContainerType = PassContextNode;
   class Internal;
@@ -177,11 +223,25 @@ class PassContext : public ObjectRef {
   TVM_DLL void EnterWithScope();
   // The exit of a pass context scope.
   TVM_DLL void ExitWithScope();
+  // Register configuration key value type.
+  TVM_DLL static void RegisterConfigOption(const char* key, uint32_t value_type_index);
 
   // Classes to get the Python `with` like syntax.
   friend class Internal;
   friend class With<PassContext>;
 };
+
+#define TVM_PASS_CTX_CONFIG_VAR_DEF static TVM_ATTRIBUTE_UNUSED uint32_t __make_PassContext_tid
+
+/*!
+ * \brief Helper macro to register the object type to runtime.
+ *  Makes sure that the runtime type table is correctly populated.
+ *
+ *  Use this macro in the cc file for each terminal class.
+ */
+#define TVM_REGISTER_PASS_CONFIG_OPTION(Key, ValueType)      \
+  TVM_STR_CONCAT(TVM_PASS_CTX_CONFIG_VAR_DEF, __COUNTER__) = \
+      ::tvm::transform::PassContext::RegisterConfigOption<ValueType>(Key)
 
 /*!
  * \brief Meta data that will be used to help optimization and analysis.
@@ -193,10 +253,10 @@ class PassInfoNode : public Object {
   int opt_level;
 
   /*! \brief The name of an optimization/analysis pass. */
-  std::string name;
+  String name;
 
   /*! \brief The passes that are required to perform the current pass. */
-  Array<PrimExpr> required;
+  Array<String> required;
 
   PassInfoNode() = default;
 
@@ -207,6 +267,7 @@ class PassInfoNode : public Object {
   }
 
   static constexpr const char* _type_key = "transform.PassInfo";
+  static constexpr bool _type_has_method_sequal_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(PassInfoNode, Object);
 };
 
@@ -222,9 +283,7 @@ class PassInfo : public ObjectRef {
    * \param name Name of the pass.
    * \param required  The passes that are required to perform the current pass.
    */
-  TVM_DLL PassInfo(int opt_level,
-                   std::string name,
-                   Array<PrimExpr> required);
+  TVM_DLL PassInfo(int opt_level, String name, Array<runtime::String> required);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
 };
@@ -248,8 +307,8 @@ class PassNode : public Object {
    *
    * \return The transformed module.
    */
-  IRModule operator()(const IRModule& mod) const {
-    return this->operator()(mod, PassContext::Current());
+  IRModule operator()(IRModule mod) const {
+    return this->operator()(std::move(mod), PassContext::Current());
   }
 
   /*!
@@ -260,8 +319,7 @@ class PassNode : public Object {
    *
    * \return The transformed module.
    */
-  virtual IRModule operator()(const IRModule& mod,
-                              const PassContext& pass_ctx) const = 0;
+  virtual IRModule operator()(IRModule mod, const PassContext& pass_ctx) const = 0;
 
   void VisitAttrs(AttrVisitor* v) {}
 
@@ -274,14 +332,22 @@ class Pass : public ObjectRef {
   /*!
    * \brief Transform mod using the default PassContext in the current scope.
    *
+   * \code
+   *
+   * // If you do no longer need the input module
+   * // it is recommended to use std::move to move your input module.
+   * mod = pass(std::move(mod));
+   *
+   * \endcode
+   *
    * \param mod The module that an optimization pass runs on.
    *
    * \return The transformed module.
    */
-  IRModule operator()(const IRModule& mod) const {
+  IRModule operator()(IRModule mod) const {
     const PassNode* node = operator->();
     CHECK(node != nullptr);
-    return node->operator()(mod);
+    return node->operator()(std::move(mod));
   }
   /*!
    * \brief Transform mod using a functor under a given pass context.
@@ -291,11 +357,10 @@ class Pass : public ObjectRef {
    *
    * \return The transformed module.
    */
-  IRModule operator()(const IRModule& mod,
-                      const PassContext& pass_ctx) const {
+  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const {
     const PassNode* node = operator->();
     CHECK(node != nullptr);
-    return node->operator()(mod, pass_ctx);
+    return node->operator()(std::move(mod), pass_ctx);
   }
 
   TVM_DEFINE_OBJECT_REF_METHODS(Pass, ObjectRef, PassNode);
@@ -321,7 +386,7 @@ class Sequential : public Pass {
    *        This allows users to only provide a list of passes and execute them
    *        under a given context.
    */
-  TVM_DLL Sequential(Array<Pass> passes, std::string name = "sequential");
+  TVM_DLL Sequential(Array<Pass> passes, String name = "sequential");
 
   Sequential() = default;
   explicit Sequential(ObjectPtr<Object> n) : Pass(n) {}
@@ -340,11 +405,17 @@ class Sequential : public Pass {
  *
  * \return The created module pass.
  */
-Pass CreateModulePass(
-    const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-    int opt_level,
-    const std::string& name,
-    const Array<PrimExpr>& required);
+TVM_DLL Pass
+CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
+                 int opt_level, String name, Array<runtime::String> required);
+
+/*!
+ * \brief A special trace pass that prints the header and IR to LOG(INFO).
+ * \param header The header to be attached to the output.
+ * \param show_meta_data Whether should we show meta data.
+ * \return The pass.
+ */
+TVM_DLL Pass PrintIR(String header = "", bool show_meta_data = false);
 
 }  // namespace transform
 }  // namespace tvm

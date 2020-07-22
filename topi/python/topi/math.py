@@ -144,6 +144,23 @@ def cos(x):
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
+def cosh(x):
+    """Take cosh of input x.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.cosh(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def sin(x):
     """Take sin of input x.
 
@@ -161,6 +178,91 @@ def sin(x):
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
+def sinh(x):
+    """Take sinh of input x.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.sinh(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def acos(x):
+    """Take arc cos of input x.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.acos(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def acosh(x):
+    """Take arc cosh of input x.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.acosh(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def asin(x):
+    """Take arc sin of input x.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.asin(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def asinh(x):
+    """Take arc sinh of input x.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.asinh(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def atan(x):
     """Take atan of input x.
 
@@ -175,6 +277,22 @@ def atan(x):
         The result.
     """
     return te.compute(x.shape, lambda *i: te.atan(x(*i)))
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def atanh(x):
+    """Take atanh of input x.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.atanh(x(*i)))
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
 def floor(x):
@@ -283,12 +401,12 @@ def isfinite(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
     return te.compute(x.shape, lambda *i: te.isfinite(x(*i)))
@@ -300,12 +418,12 @@ def isinf(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
     return te.compute(x.shape, lambda *i: te.isinf(x(*i)))
@@ -343,6 +461,40 @@ def log(x):
         The result.
     """
     return te.compute(x.shape, lambda *i: te.log(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def log2(x):
+    """Take logarithm to the base 2 of input x.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.log2(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def log10(x):
+    """Take logarithm to the base 10 of input x.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.log10(x(*i)))
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
@@ -460,6 +612,33 @@ def clip(x, a_min, a_max):
         return tvm.te.max(tvm.te.min(value, const_max), const_min)
     return te.compute(x.shape, _compute)
 
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def fixed_point_multiply(x, multiplier, shift):
+    """Fixed point multiplication between data and a fixed point
+    constant expressed as multiplier * 2^(-shift), where multiplier
+    is a Q-number with 31 fractional bits
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor or Expr
+        Input argument.
+    multiplier : int
+        Multiplier of a fixed floating point number described as multiplier*2^(-shift).
+    shift : int
+        Shift of a fixed floating point number described as multiplier*2^(-shift).
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    def _compute(*indices):
+        value = x(*indices)
+        return tvm.tir.q_multiply_shift(value,
+                                        tvm.tir.const(multiplier, 'int32'),
+                                        tvm.tir.const(31, 'int32'),
+                                        tvm.tir.const(shift, 'int32'))
+    return te.compute(x.shape, _compute)
 
 def cast(x, dtype):
     """Cast input to specified data type.
@@ -525,12 +704,28 @@ def fast_tanh(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
     return cpp.fast_tanh(x, x.dtype, tag.ELEMWISE)
+
+
+def fast_erf(x):
+    """Take gauss error function of input x using fast_erf implementation.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    return cpp.fast_erf(x, x.dtype, tag.ELEMWISE)

@@ -87,19 +87,18 @@ block = model_zoo.get_model(model_name, pretrained=True)
 
 def build(target):
     mod, params = relay.frontend.from_mxnet(block, {"data": dshape})
-    with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(mod, target, params=params)
-    return graph, lib, params
+    with tvm.transform.PassContext(opt_level=3):
+        lib = relay.build(mod, target, params=params)
+    return lib
 
 ######################################################################
 # Create TVM runtime and do inference
 
-def run(graph, lib, params, ctx):
+def run(lib, ctx):
     # Build TVM runtime
-    m = graph_runtime.create(graph, lib, ctx)
+    m = graph_runtime.GraphModule(lib['default'](ctx))
     tvm_input = tvm.nd.array(x.asnumpy(), ctx=ctx)
     m.set_input('data', tvm_input)
-    m.set_input(**params)
     # execute
     m.run()
     # get outputs
@@ -107,8 +106,8 @@ def run(graph, lib, params, ctx):
     return class_IDs, scores, bounding_boxs
 
 for target, ctx in target_list:
-    graph, lib, params = build(target)
-    class_IDs, scores, bounding_boxs = run(graph, lib, params, ctx)
+    lib = build(target)
+    class_IDs, scores, bounding_boxs = run(lib, ctx)
 
 ######################################################################
 # Display result

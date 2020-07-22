@@ -32,7 +32,9 @@ it is supported. For example:
 - The other way is to implement the function by themselves to
 check the attributes of the op and decide if it should be offloaded to DNNL.
 """
-from ... import op as reg
+import tvm.ir
+from ...dataflow_pattern import wildcard, is_op
+from .register import register_pattern_table
 
 
 def _register_external_op_helper(op_name, supported=True):
@@ -49,13 +51,14 @@ def _register_external_op_helper(op_name, supported=True):
     f : callable
         A function that returns if the operator is supported by DNNL.
     """
-    @reg.register(op_name, "target.dnnl")
+    @tvm.ir.register_op_attr(op_name, "target.dnnl")
     def _func_wrapper(attrs, args):
         return supported
 
     return _func_wrapper
 
 
+_register_external_op_helper("nn.batch_norm")
 _register_external_op_helper("nn.conv2d")
 _register_external_op_helper("nn.dense")
 _register_external_op_helper("nn.relu")
@@ -64,9 +67,21 @@ _register_external_op_helper("subtract")
 _register_external_op_helper("multiply")
 
 
-@reg.register("nn.batch_norm", "target.dnnl")
-def batch_norm(attrs, args):
-    """Check if the external DNNL codegen should be used.
-    FIXME(@zhiics, @comaniac): Turn off due to not support of multiple outputs.
-    """
-    return False
+def make_pattern(with_bias=True):
+    data = wildcard()
+    weight = wildcard()
+    bias = wildcard()
+    conv = is_op('nn.conv2d')(data, weight)
+    if with_bias:
+        conv_out = is_op('add')(conv, bias)
+    else:
+        conv_out = conv
+    return is_op('nn.relu')(conv_out)
+
+
+@register_pattern_table("dnnl")
+def pattern_table():
+    conv2d_bias_relu_pat = ("dnnl.conv2d_bias_relu", make_pattern(with_bias=True))
+    conv2d_relu_pat = ("dnnl.conv2d_relu", make_pattern(with_bias=False))
+    dnnl_patterns = [conv2d_bias_relu_pat, conv2d_relu_pat]
+    return dnnl_patterns

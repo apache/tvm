@@ -112,14 +112,11 @@ def test_expr_constructor():
     assert x.vectors[0] == a
     assert x.indices[0].value == 0
 
-    x = tvm.tir.Call("float32", "xyz", [a], tvm.tir.Call.Extern, None, 0)
+    x = tvm.tir.Call("float32", "tir.call_extern", [tvm.tir.StringImm("xyz"), a])
     assert isinstance(x, tvm.tir.Call)
     assert x.dtype == "float32"
-    assert x.name == "xyz"
-    assert x.args[0] == a
-    assert x.call_type == tvm.tir.Call.Extern
-    assert x.func == None
-    assert x.value_index == 0
+    assert x.op.name == "tir.call_extern"
+    assert x.args[1] == a
 
     v = te.var("aa")
     x = tvm.tir.Let(v, 1, v)
@@ -148,10 +145,6 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tir.AssertStmt)
     assert x.body == nop
 
-    x = tvm.tir.ProducerConsumer(None, True, nop)
-    assert isinstance(x, tvm.tir.ProducerConsumer)
-    assert x.body == nop
-
     x = tvm.tir.For(te.var("x"), 0, 10, 0, 0, nop)
     assert isinstance(x, tvm.tir.For)
     assert x.min.value == 0
@@ -163,12 +156,6 @@ def test_stmt_constructor():
     assert x.buffer_var == buffer_var
     assert x.index.value == 10
     assert x.value.value == 1
-
-    tensor = te.placeholder((), dtype="float32")
-    x = tvm.tir.Provide(tensor.op, 0, 10, [])
-    assert isinstance(x, tvm.tir.Provide)
-    assert x.value_index == 0
-    assert x.value.value == 10
 
     x = tvm.tir.Allocate(buffer_var, "float32", [10],
                           tvm.tir.const(1, "uint1"), nop)
@@ -183,14 +170,6 @@ def test_stmt_constructor():
     assert x.attr_key == "xyz"
     assert x.body == nop
 
-    x = tvm.tir.Free(buffer_var)
-    assert isinstance(x, tvm.tir.Free)
-    assert x.buffer_var == buffer_var
-
-    x = tvm.tir.Realize(None, 0, "float", [], tvm.tir.const(1, "uint1"), nop)
-    assert isinstance(x, tvm.tir.Realize)
-    assert x.body == nop
-
     x = tvm.tir.IfThenElse(tvm.tir.const(1, "uint1"),
                             tvm.tir.Evaluate(11),
                             nop)
@@ -198,9 +177,9 @@ def test_stmt_constructor():
     assert x.then_case.value.value == 11
     assert x.else_case == nop
 
-    x = tvm.tir.Prefetch(None, 1, "float32", [])
+    b = tvm.tir.decl_buffer((1, 2))
+    x = tvm.tir.Prefetch(b, [])
     assert isinstance(x, tvm.tir.Prefetch)
-    assert x.value_index == 1
 
 
 if __name__ == "__main__":

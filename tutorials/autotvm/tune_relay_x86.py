@@ -114,6 +114,11 @@ os.environ["TVM_NUM_THREADS"] = str(num_threads)
 # We will use local mode for tuning configuration. RPC tracker
 # mode can be setup similarly to the approach in
 # :ref:`tune_relay_arm` tutorial.
+#
+# To perform a precise measurement, we should repeat the measurement several
+# times and use the average of results. In addition, we need to flush the cache
+# for the weight tensors between repeated measurements. This can make the measured
+# latency of one operator closer to its actual latency during end-to-end inference.
 
 tuning_option = {
     'log_filename': log_file,
@@ -122,8 +127,9 @@ tuning_option = {
 
     'measure_option': autotvm.measure_option(
         builder=autotvm.LocalBuilder(),
-        runner=autotvm.LocalRunner(number=10, repeat=1,
-                                   min_repeat_ms=1000),
+        runner=autotvm.LocalRunner(number=1, repeat=10,
+                                   min_repeat_ms=0,
+                                   enable_cpu_cache_flush=True),
     ),
 }
 
@@ -189,7 +195,7 @@ def tune_and_evaluate(tuning_opt):
     # compile kernels with graph-level best records
     with autotvm.apply_graph_best(graph_opt_sch_file):
         print("Compile...")
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build_module.build(
                 mod, target=target, params=params)
 

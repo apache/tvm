@@ -36,7 +36,7 @@ In addition the design adopts decoupled access-execute to hide memory access lat
 
 To a broader extent, VTA can serve as a template deep learning accelerator design for full stack optimization, exposing a generic tensor computation interface to the compiler stack.
 
-.. image:: http://raw.githubusercontent.com/uwsaml/web-data/master/vta/blogpost/vta_overview.png
+.. image:: https://raw.githubusercontent.com/uwsaml/web-data/master/vta/blogpost/vta_overview.png
    :align: center
    :width: 80%
 
@@ -53,17 +53,17 @@ HLS Hardware Source Organization
 
 The VTA design is currently specified in Vivado HLS C++, which is only supported
 by Xilinx toolchains.
-The VTA hardware sources are contained under ``vta/vta-hw/hardware/xilinx/sources``:
+The VTA hardware sources are contained under ``3rdparty/vta-hw/hardware/xilinx/sources``:
 
  - ``vta.cc`` contains the definitions for each VTA module, as well as a top
    level behavioral model for the top-level VTA design.
  - ``vta.h`` contains type definitions using Xilinx ``ap_int`` types, and
    function prototypes declarations.
 
-In addition preprocessor macros are defined under ``vta/vta-hw/include/vta/hw_spec.h``.
+In addition preprocessor macros are defined under ``3rdparty/vta-hw/include/vta/hw_spec.h``.
 Much of these macro definitions are derived from the parameters listed in the
-``vta/vta-hw/config/vta_config.json`` file.
-The json file is processed by ``vta/vta-hw/config/vta_config.py`` to produce a string of
+``3rdparty/vta-hw/config/vta_config.json`` file.
+The json file is processed by ``3rdparty/vta-hw/config/vta_config.py`` to produce a string of
 compile flags that define the preprocessor macros.
 That string is used by the makefile in order to set those high-level
 parameters in both the HLS hardware synthesis compiler, and the C++
@@ -175,7 +175,7 @@ Finally, the ``STORE`` instructions are executed by the store module exclusively
 The fields of each instruction is described in the figure below.
 The meaning of each field will be further explained in the :ref:`vta-uarch` section.
 
-.. image:: http://raw.githubusercontent.com/uwsaml/web-data/master/vta/developer/vta_instructions.png
+.. image:: https://raw.githubusercontent.com/uwsaml/web-data/master/vta/developer/vta_instructions.png
    :align: center
    :width: 100%
 
@@ -191,7 +191,7 @@ VTA relies on dependence FIFO queues between hardware modules to synchronize the
 The figure below shows how a given hardware module can execute concurrently from its producer and consumer modules in a dataflow fashion through the use of dependence FIFO queues, and single-reader/single-writer SRAM buffers.
 Each module is connected to its consumer and producer via read-after-write (RAW) and write-after-read (WAR) dependence queues.
 
-.. image:: http://raw.githubusercontent.com/uwsaml/web-data/master/vta/developer/dataflow.png
+.. image:: https://raw.githubusercontent.com/uwsaml/web-data/master/vta/developer/dataflow.png
    :align: center
    :width: 100%
 
@@ -220,7 +220,7 @@ Microarchitectural Overview
 ---------------------------
 
 We describe the modules that compose the VTA design.
-The module definitions are contained in ``vta/vta-hw/hardware/xilinx/sources/vta.cc``.
+The module definitions are contained in ``3rdparty/vta-hw/hardware/xilinx/sources/vta.cc``.
 
 Fetch Module
 ~~~~~~~~~~~~
@@ -258,7 +258,7 @@ There are two types of compute micro-ops: ALU and GEMM operations.
 To minimize the footprint of micro-op kernels, while avoiding the need for control-flow instructions such as conditional jumps, the compute module executes micro-op sequences inside a two-level nested loop that computes the location of each tensor register location via an affine function.
 This compression approach helps reduce the micro-kernel instruction footprint, and applies to both matrix multiplication and 2D convolution, commonly found in neural network operators.
 
-.. image:: http://raw.githubusercontent.com/uwsaml/web-data/master/vta/developer/gemm_core.png
+.. image:: https://raw.githubusercontent.com/uwsaml/web-data/master/vta/developer/gemm_core.png
    :align: center
    :width: 100%
 
@@ -269,7 +269,7 @@ This tensorization intrinsic is defined by the dimensions of the input, weight a
 Each data type can have a different integer precision: typically both weight and input types are low-precision (8-bits or less), while the accumulator tensor has a wider type to prevent overflows (32-bits).
 In order to keep the GEMM core busy, each of the input buffer, weight buffer, and register file have to expose sufficient read/write bandwidth.
 
-.. image:: http://raw.githubusercontent.com/uwsaml/web-data/master/vta/developer/alu_core.png
+.. image:: https://raw.githubusercontent.com/uwsaml/web-data/master/vta/developer/alu_core.png
    :align: center
    :width: 100%
 
@@ -289,7 +289,7 @@ The micro-code in the context of tensor ALU computation only takes care of speci
 Load and Store Modules
 ~~~~~~~~~~~~~~~~~~~~~~
 
-.. image:: http://raw.githubusercontent.com/uwsaml/web-data/master/vta/developer/2d_dma.png
+.. image:: https://raw.githubusercontent.com/uwsaml/web-data/master/vta/developer/2d_dma.png
    :align: center
    :width: 100%
 

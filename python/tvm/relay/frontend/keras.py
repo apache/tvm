@@ -186,8 +186,11 @@ def _convert_merge(inexpr, keras_layer, _):
     elif merge_type == 'Subtract':
         assert len(inexpr) == 2, "Subtract merge takes 2 inputs."
         ret = _op.subtract(ret, inexpr[1])
-    elif merge_type in ['Add', 'Multiply', 'Maximum']:
-        op_map = {'Add': _op.add, 'Multiply': _op.multiply, 'Maximum': _op.maximum}
+    elif merge_type in ['Add', 'Multiply', 'Minimum', 'Maximum']:
+        op_map = {'Add': _op.add,
+                  'Multiply': _op.multiply,
+                  'Minimum': _op.minimum,
+                  'Maximum': _op.maximum}
         for i in range(1, len(inexpr)):
             ret = op_map[merge_type](ret, inexpr[i])
     elif merge_type == 'Average':
@@ -203,6 +206,14 @@ def _convert_merge(inexpr, keras_layer, _):
 def _convert_permute(inexpr, keras_layer, _):
     return _op.transpose(inexpr, axes=(0,) + keras_layer.dims)
 
+
+def _convert_embedding(inexpr, keras_layer, etab):
+    indices = inexpr
+    weightList = keras_layer.get_weights()
+    weight = etab.new_const(weightList[0])
+    out = _op.take(weight, indices.astype('int32'), axis=0)
+
+    return out
 
 def _convert_dense(inexpr, keras_layer, etab):
     weightList = keras_layer.get_weights()
@@ -287,15 +298,7 @@ def _convert_convolution(inexpr, keras_layer, etab):
         in_w = keras_layer.input_shape[2]
         pad_t, pad_b = _get_pad_pair(in_h, dilated_kernel_h, stride_h)
         pad_l, pad_r = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
-        if pad_t == pad_b and pad_l == pad_r:
-            params['padding'] = (pad_t, pad_l)
-        elif etab.data_layout == 'NCHW':
-            inexpr = _op.nn.pad(data=inexpr, pad_width=(
-                (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
-        else:
-            inexpr = _op.nn.pad(data=inexpr, pad_width=(
-                (0, 0), (pad_t, pad_b), (pad_l, pad_r), (0, 0)))
-
+        params['padding'] = (pad_t, pad_l, pad_b, pad_r)
     else:
         msg = 'Padding with {} is not supported for operator Convolution ' \
               'in frontend Keras.'
@@ -333,25 +336,28 @@ def _convert_convolution3d(inexpr, keras_layer, etab):
               'in frontend Keras.'
         raise tvm.error.OpAttributeUnImplemented(msg.format(etab.data_layout))
 
+    is_deconv = type(keras_layer).__name__ == 'Conv3DTranspose'
+
+    if is_deconv:
+        kernel_d, kernel_h, kernel_w, n_filters, _ = weight.shape
+        if kernel_layout == 'OIDHW':
+            weight = weight.transpose([4, 3, 2, 0, 1])
+    else:
+        kernel_d, kernel_h, kernel_w, _, n_filters = weight.shape
+
     dilation_rate = keras_layer.dilation_rate
     if isinstance(dilation_rate, (list, tuple)):
         dilation = [dilation_rate[0], dilation_rate[1], dilation_rate[2]]
     else:
         dilation = [dilation_rate, dilation_rate, dilation_rate]
 
-    kernel_d1 = weight.shape[0]
-    kernel_d2 = weight.shape[1]
-    kernel_d3 = weight.shape[2]
-    # in_channels = weight.shape[3]
-    n_filters = weight.shape[4]
-
-    dilated_kernel_d1 = (kernel_d1 - 1) * dilation[0] + 1
-    dilated_kernel_d2 = (kernel_d2 - 1) * dilation[1] + 1
-    dilated_kernel_d3 = (kernel_d3 - 1) * dilation[2] + 1
-    stride_d1, stride_d2, stride_d3 = keras_layer.strides
+    dilated_kernel_d = (kernel_d - 1) * dilation[0] + 1
+    dilated_kernel_h = (kernel_h - 1) * dilation[1] + 1
+    dilated_kernel_w = (kernel_w - 1) * dilation[2] + 1
+    stride_d, stride_h, stride_w = keras_layer.strides
     params = {'weight': etab.new_const(weight),
-              'kernel_size': [kernel_d1, kernel_d2, kernel_d3],
-              'strides': [stride_d1, stride_d2, stride_d3],
+              'kernel_size': [kernel_d, kernel_h, kernel_w],
+              'strides': [stride_d, stride_h, stride_w],
               'dilation': dilation,
               'padding': [0, 0, 0],
               'data_layout': etab.data_layout,
@@ -362,18 +368,21 @@ def _convert_convolution3d(inexpr, keras_layer, etab):
         pass
     # calculate the padding values
     elif keras_layer.padding == 'same':
-        in_d1 = keras_layer.input_shape[1]
-        in_d2 = keras_layer.input_shape[2]
-        in_d3 = keras_layer.input_shape[3]
-        pad_d1 = _get_pad_pair(in_d1, dilated_kernel_d1, stride_d1)
-        pad_d2 = _get_pad_pair(in_d2, dilated_kernel_d2, stride_d2)
-        pad_d3 = _get_pad_pair(in_d3, dilated_kernel_d3, stride_d3)
-        params['padding'] = [pad_d1[0], pad_d2[0], pad_d3[0], pad_d1[1], pad_d2[1], pad_d3[1]]
+        in_d = keras_layer.input_shape[1]
+        in_h = keras_layer.input_shape[2]
+        in_w = keras_layer.input_shape[3]
+        pad_d = _get_pad_pair(in_d, dilated_kernel_d, stride_d)
+        pad_h = _get_pad_pair(in_h, dilated_kernel_h, stride_h)
+        pad_w = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
+        params['padding'] = [pad_d[0], pad_h[0], pad_w[0], pad_d[1], pad_h[1], pad_w[1]]
     else:
-        msg = 'Padding with {} is not supported for operator Convolution ' \
+        msg = 'Padding with {} is not supported for operator Convolution3D ' \
               'in frontend Keras.'
         raise tvm.error.OpAttributeUnImplemented(msg.format(keras_layer.padding))
-    out = _op.nn.conv3d(data=inexpr, **params)
+    if is_deconv:
+        out = _op.nn.conv3d_transpose(data=inexpr, **params)
+    else:
+        out = _op.nn.conv3d(data=inexpr, **params)
 
     channel_axis = -1 if etab.data_layout == "NDHWC" else 1
     if keras_layer.use_bias:
@@ -421,15 +430,7 @@ def _convert_separable_convolution(inexpr, keras_layer, etab):
         in_w = keras_layer.input_shape[2]
         pad_t, pad_b = _get_pad_pair(in_h, kernel_h, stride_h)
         pad_l, pad_r = _get_pad_pair(in_w, kernel_w, stride_w)
-        if pad_t == pad_b and pad_l == pad_r:
-            params0['padding'] = (pad_t, pad_l)
-        elif etab.data_layout == 'NCHW':
-            inexpr = _op.nn.pad(data=inexpr, pad_width=(
-                (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
-        else:
-            inexpr = _op.nn.pad(data=inexpr, pad_width=(
-                (0, 0), (pad_t, pad_b), (pad_l, pad_r), (0, 0)))
-
+        params0['padding'] = (pad_t, pad_l, pad_b, pad_r)
     else:
         msg = 'Padding with {} is not supported for operator Separable ' \
               'Convolution in frontend Keras.'
@@ -510,6 +511,60 @@ def _convert_pooling(inexpr, keras_layer, etab):
     raise tvm.error.OpNotImplemented(
         'Operator {} is not supported for frontend Keras.'.format(keras_layer))
 
+def _convert_pooling3d(inexpr, keras_layer, etab):
+    _check_data_format(keras_layer)
+    pool_type = type(keras_layer).__name__
+
+    if pool_type not in ['MaxPooling3D', 'AveragePooling3D']:
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported for frontend Keras.'.format(keras_layer))
+
+    pool_d1, pool_d2, pool_d3 = keras_layer.pool_size
+    stride_d1, stride_d2, stride_d3 = keras_layer.strides
+    params = {'pool_size': [pool_d1, pool_d2, pool_d3],
+              'strides': [stride_d1, stride_d2, stride_d3],
+              'padding': [0, 0, 0],
+              'layout': etab.data_layout}
+
+    if keras_layer.padding == 'valid':
+        pass
+    elif keras_layer.padding == 'same':
+        in_d1 = keras_layer.input_shape[1]
+        in_d2 = keras_layer.input_shape[2]
+        in_d3 = keras_layer.input_shape[3]
+        pad_d1 = _get_pad_pair(in_d1, pool_d1, stride_d1)
+        pad_d2 = _get_pad_pair(in_d2, pool_d2, stride_d2)
+        pad_d3 = _get_pad_pair(in_d3, pool_d3, stride_d3)
+        params['padding'] = [pad_d1[0], pad_d2[0], pad_d3[0], pad_d1[1], pad_d2[1], pad_d3[1]]
+    else:
+        raise tvm.error.OpAttributeUnImplemented(
+            'Padding with {} is not supported in operator Pooling3D.'.format(keras_layer.padding))
+
+    out = _op.transpose(inexpr, axes=(0, 4, 1, 2, 3))
+    params['layout'] = "NCDHW"
+    if pool_type == 'MaxPooling3D':
+        out = _op.nn.max_pool3d(out, **params)
+    elif pool_type == 'AveragePooling3D':
+        out = _op.nn.avg_pool3d(out, **params)
+
+    return _op.transpose(out, axes=(0, 2, 3, 4, 1))
+
+
+def _convert_global_pooling3d(inexpr, keras_layer, etab):
+    _check_data_format(keras_layer)
+    pool_type = type(keras_layer).__name__
+
+    global_pool_params = {'layout': etab.data_layout}
+    if pool_type == 'GlobalMaxPooling3D':
+        out = _op.nn.global_max_pool3d(inexpr, **global_pool_params)
+    elif pool_type == 'GlobalAveragePooling3D':
+        out = _op.nn.global_avg_pool3d(inexpr, **global_pool_params)
+    else:
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported for frontend Keras.'.format(keras_layer))
+
+    return _convert_flatten(out, keras_layer, etab)
+
 
 def _convert_upsample(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
@@ -532,19 +587,23 @@ def _convert_upsample(inexpr, keras_layer, etab):
                 params['method'] = 'nearest_neighbor'
             else:
                 params['method'] = 'bilinear'
-
-    elif upsample_type == 'UpSampling3D':
-        h, w, d = keras_layer.size
-        if h != w or w != d:
-            raise tvm.error.OpAttributeInvalid(
-                'Height, width, and depth must all be equal for operator Upsample.')
-        params['scale_h'] = h
-        params['scale_w'] = h
     else:
         raise tvm.error.OpNotImplemented(
             'Operator {} is not supported for frontend Keras.'.format(upsample_type))
     params['layout'] = etab.data_layout
     out = _op.nn.upsampling(inexpr, **params)
+    return out
+
+
+def _convert_upsample3d(inexpr, keras_layer, etab):
+    _check_data_format(keras_layer)
+    params = {}
+    d, h, w = keras_layer.size
+    params['scale_d'] = d
+    params['scale_h'] = h
+    params['scale_w'] = w
+    params['layout'] = etab.data_layout
+    out = _op.nn.upsampling3d(inexpr, **params)
     return out
 
 
@@ -558,8 +617,8 @@ def _convert_cropping(inexpr, keras_layer, _):
         raise tvm.error.OpNotImplemented(
             'Operator {} is not supported for frontend Keras.'.format(crop_type))
     int32_max = np.iinfo(np.int32).max
-    return _op.strided_slice(inexpr, begin=[0, 0, crop_t, crop_l], \
-        end=[int32_max, int32_max, in_h-crop_b, in_w-crop_r])
+    return _op.strided_slice(inexpr, begin=_expr.const([0, 0, crop_t, crop_l]), \
+        end=_expr.const([int32_max, int32_max, in_h-crop_b, in_w-crop_r]))
 
 
 def _convert_batchnorm(inexpr, keras_layer, etab):
@@ -626,6 +685,36 @@ def _convert_padding(inexpr, keras_layer, etab):
         return _op.nn.pad(data=inexpr, pad_width=((0, 0), (0, 0), (top, bottom), (left, right)))
     return _op.nn.pad(data=inexpr, pad_width=((0, 0), (top, bottom), (left, right), (0, 0)))
 
+def _convert_padding3d(inexpr, keras_layer, etab):
+    _check_data_format(keras_layer)
+    padding = keras_layer.padding
+
+    d_pad = h_pad = w_pad = [0, 0]
+
+    # padding can be 'int' or 'tuple of 3 ints' or 'tuple of 3 tuples of 2 ints' or 'tuple
+    # of 3 tuples of 2 ints different values'. In all these scenarios keras will send 3
+    # tuples of 2 ints.
+    if isinstance(padding, tuple) and isinstance(padding[0], tuple):
+        d_pad = padding[0]
+        h_pad = padding[1]
+        w_pad = padding[2]
+    else:
+        msg = 'Value {} in attribute "padding" of operator ZeroPadding3D is ' \
+              'not valid.'
+        raise tvm.error.OpAttributeInvalid(msg.format(str(padding)))
+
+    if etab.data_layout == 'NCDHW':
+        out = _op.nn.pad(data=inexpr, pad_width=((0, 0), (0, 0),
+                                                 (d_pad[0], d_pad[1]),
+                                                 (h_pad[0], h_pad[1]),
+                                                 (w_pad[0], w_pad[1])))
+    else:
+        out = _op.nn.pad(data=inexpr, pad_width=((0, 0),
+                                                 (d_pad[0], d_pad[1]),
+                                                 (h_pad[0], h_pad[1]),
+                                                 (w_pad[0], w_pad[1]),
+                                                 (0, 0)))
+    return out
 
 def _convert_concat(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
@@ -766,6 +855,16 @@ def _convert_gru(inexpr, keras_layer, etab):
     return [output, output]
 
 
+def _convert_repeat_vector(inexpr, keras_layer, _):
+    input_shape = list(keras_layer.input_shape)
+    repeats = keras_layer.n
+    out_shape = [-1, repeats] + input_shape[1:]
+    out = _op.repeat(inexpr, repeats=repeats, axis=0)
+    out = _op.reshape(out, out_shape)
+
+    return out
+
+
 def _default_skip(inexpr, keras_layer, _): # pylint: disable=unused-argument
     """Layers that can be skipped because they are train time only."""
     return inexpr
@@ -815,13 +914,14 @@ _convert_map = {
     # 'Conv1D'                 : _convert_convolution1d,
 
     'Conv3D'                   : _convert_convolution3d,
-    # 'Conv3DTranspose'        : _convert_convolution3d,
+    'Conv3DTranspose'          : _convert_convolution3d,
     # 'SeparableConv3D'        : _convert_convolution3d,
-    # 'MaxPooling3D'           : _convert_pooling3d,
-    # 'AveragePooling3D'       : _convert_pooling3d,
-    # 'GlobalMaxPooling3D'     : _convert_pooling3d,
-    # 'GlobalAveragePooling3D' : _convert_pooling3d,
-    # 'UpSampling3D'           : _convert_upsample3d,
+    'MaxPooling3D'             : _convert_pooling3d,
+    'AveragePooling3D'         : _convert_pooling3d,
+    'GlobalMaxPooling3D'       : _convert_global_pooling3d,
+    'GlobalAveragePooling3D'   : _convert_global_pooling3d,
+    'UpSampling3D'             : _convert_upsample3d,
+    'ZeroPadding3D'            : _convert_padding3d,
 
     'SimpleRNN'                : _convert_simple_rnn,
     'LSTM'                     : _convert_lstm,
@@ -830,14 +930,16 @@ _convert_map = {
     # 'TimeDistributed'        : _default_skip,
 
     'Average'                  : _convert_merge,
+    'Minimum'                  : _convert_merge,
     'Maximum'                  : _convert_merge,
     'Dot'                      : _convert_merge,
     'Permute'                  : _convert_permute,
-    # 'Embedding'              : _convert_embedding,
-    # 'RepeatVector'           : _convert_repeat_vector,
+    'Embedding'                : _convert_embedding,
+    'RepeatVector'             : _convert_repeat_vector,
 
     'InputLayer'               : _default_skip,
     'Dropout'                  : _default_skip,
+    'AlphaDropout'             : _default_skip,
     'SpatialDropout2D'         : _default_skip,
     'SpatialDropout1D'         : _default_skip,
     'GaussianDropout'          : _default_skip,

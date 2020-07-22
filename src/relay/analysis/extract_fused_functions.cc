@@ -21,6 +21,7 @@
  * \file extract_fused_functions.cc
  * \brief Apply fusion and extract fused primitive functions from an IRModule
  */
+#include <tvm/node/structural_hash.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
@@ -49,13 +50,13 @@ class FusedFunctionExtractorWrapper : private ExprVisitor {
   const IRModule mod_;
   // This is not simply Map<GlobalVar, Function> because GlobalVar doesn't
   // have the desired equals property
-  Map<std::string, Function> functions;
+  Map<String, Function> functions;
 
   void VisitExpr_(const FunctionNode* n) final {
     if (n->HasNonzeroAttr(attr::kPrimitive)) {
       // Add function to functions, keyed by function hash string
       Function func = Function(n->params, n->body, n->ret_type, n->type_params, n->attrs);
-      size_t hash_ = StructuralHash()(func);
+      size_t hash_ = tvm::StructuralHash()(func);
       this->functions.Set(std::to_string(hash_), func);
     }
 

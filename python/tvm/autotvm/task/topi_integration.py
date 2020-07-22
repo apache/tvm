@@ -61,7 +61,7 @@ class TaskExtractEnv:
 
         Parameters
         ----------
-        wanted_relay_ops: List of relay.op.Op
+        wanted_relay_ops: List of tvm.ir.Op
             The relay ops to be extracted
         """
         self.task_collection = []

@@ -18,6 +18,7 @@
 
 import tvm._ffi
 import tvm.runtime
+from tvm.runtime import Object
 from tvm.ir import BaseFunc
 from .buffer import Buffer
 from .expr import Var
@@ -54,6 +55,7 @@ class PrimFunc(BaseFunc):
         param_list = []
         buffer_map = {} if buffer_map is None else buffer_map
         for x in params:
+            x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
             if isinstance(x, Buffer):
                 var = Var(x.name, dtype="handle")
                 param_list.append(var)
@@ -66,21 +68,18 @@ class PrimFunc(BaseFunc):
         self.__init_handle_by_constructor__(
             _ffi_api.PrimFunc, param_list, body, ret_type, buffer_map, attrs)
 
-    def with_attr(self, attr_key, attr_value):
-        """Create a new copy of the function and update the attribute
+    def with_body(self, new_body):
+        """Create a new PrimFunc with the same set signatures but a new body.
 
         Parameters
         ----------
-        attr_key : str
-            The attribute key to use.
-
-        attr_value : Object
-            The new attribute value.
+        new_body : Stmt
+            The new body.
 
         Returns
         -------
-        func : Function
-            A new copy of the function
+        new_func : PrimFunc
+            The created new function.
         """
-        return _ffi_api.PrimFuncWithAttr(
-            self, attr_key, tvm.runtime.convert(attr_value))
+        return PrimFunc(
+            self.params, new_body, self.ret_type, self.buffer_map, self.attrs)

@@ -23,27 +23,45 @@
  */
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/node/container.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/serialization.h>
-#include <tvm/ir/attrs.h>
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 
-#include <string>
+#include <cctype>
 #include <map>
+#include <string>
 
+#include "../runtime/object_internal.h"
 #include "../support/base64.h"
 
 namespace tvm {
 
-inline std::string Type2String(const DataType& t) {
-  return runtime::DLDataType2String(t);
+inline std::string Type2String(const DataType& t) { return runtime::DLDataType2String(t); }
+
+inline DataType String2Type(std::string s) { return DataType(runtime::String2DLDataType(s)); }
+
+inline std::string Base64Decode(std::string s) {
+  dmlc::MemoryStringStream mstrm(&s);
+  support::Base64InStream b64strm(&mstrm);
+  std::string output;
+  b64strm.InitPosition();
+  dmlc::Stream* strm = &b64strm;
+  strm->Read(&output);
+  return output;
 }
 
-inline DataType String2Type(std::string s) {
-  return DataType(runtime::String2DLDataType(s));
+inline std::string Base64Encode(std::string s) {
+  std::string blob;
+  dmlc::MemoryStringStream mstrm(&blob);
+  support::Base64OutStream b64strm(&mstrm);
+  dmlc::Stream* strm = &b64strm;
+  strm->Write(s);
+  b64strm.Finish();
+  return blob;
 }
 
 // indexer to index all the nodes
@@ -88,22 +106,29 @@ class NodeIndexer : public AttrVisitor {
 
     if (node->IsInstance<ArrayNode>()) {
       ArrayNode* n = static_cast<ArrayNode*>(node);
-      for (const auto& sp : n->data) {
+      for (const auto& sp : *n) {
         MakeIndex(const_cast<Object*>(sp.get()));
       }
     } else if (node->IsInstance<MapNode>()) {
       MapNode* n = static_cast<MapNode*>(node);
-      for (const auto& kv : n->data) {
-        MakeIndex(const_cast<Object*>(kv.first.get()));
-        MakeIndex(const_cast<Object*>(kv.second.get()));
-      }
-    } else if (node->IsInstance<StrMapNode>()) {
-      StrMapNode* n = static_cast<StrMapNode*>(node);
-      for (const auto& kv : n->data) {
-        MakeIndex(const_cast<Object*>(kv.second.get()));
+      bool is_str_map = std::all_of(n->begin(), n->end(), [](const auto& v) {
+        return v.first->template IsInstance<StringObj>();
+      });
+      if (is_str_map) {
+        for (const auto& kv : *n) {
+          MakeIndex(const_cast<Object*>(kv.second.get()));
+        }
+      } else {
+        for (const auto& kv : *n) {
+          MakeIndex(const_cast<Object*>(kv.first.get()));
+          MakeIndex(const_cast<Object*>(kv.second.get()));
+        }
       }
     } else {
-      reflection_->VisitAttrs(node, this);
+      // if the node already have repr bytes, no need to visit Attrs.
+      if (!reflection_->GetReprBytes(node, nullptr)) {
+        reflection_->VisitAttrs(node, this);
+      }
     }
   }
 };
@@ -115,20 +140,32 @@ using AttrMap = std::map<std::string, std::string>;
 struct JSONNode {
   /*! \brief The type of key of the object. */
   std::string type_key;
-  /*! \brief The global key for global object. */
-  std::string global_key;
+  /*! \brief The str repr representation. */
+  std::string repr_bytes;
   /*! \brief the attributes */
   AttrMap attrs;
   /*! \brief keys of a map. */
   std::vector<std::string> keys;
   /*! \brief values of a map or array. */
   std::vector<size_t> data;
+  /*!
+   * \brief field member dependency.
+   * NOTE: This is an auxiliary data structure for loading, and it won't be serialized to json.
+   */
+  std::vector<size_t> fields;
 
-  void Save(dmlc::JSONWriter *writer) const {
+  void Save(dmlc::JSONWriter* writer) const {
     writer->BeginObject();
     writer->WriteObjectKeyValue("type_key", type_key);
-    if (global_key.size() != 0) {
-      writer->WriteObjectKeyValue("global_key", global_key);
+    if (repr_bytes.size() != 0) {
+      // choose to use str representation or base64, based on whether
+      // the byte representation is printable.
+      if (std::all_of(repr_bytes.begin(), repr_bytes.end(),
+                      [](char ch) { return std::isprint(ch); })) {
+        writer->WriteObjectKeyValue("repr_str", repr_bytes);
+      } else {
+        writer->WriteObjectKeyValue("repr_b64", Base64Encode(repr_bytes));
+      }
     }
     if (attrs.size() != 0) {
       writer->WriteObjectKeyValue("attrs", attrs);
@@ -142,18 +179,27 @@ struct JSONNode {
     writer->EndObject();
   }
 
-  void Load(dmlc::JSONReader *reader) {
+  void Load(dmlc::JSONReader* reader) {
     attrs.clear();
     data.clear();
-    global_key.clear();
+    repr_bytes.clear();
     type_key.clear();
+    std::string repr_b64, repr_str;
     dmlc::JSONObjectReadHelper helper;
     helper.DeclareOptionalField("type_key", &type_key);
-    helper.DeclareOptionalField("global_key", &global_key);
+    helper.DeclareOptionalField("repr_b64", &repr_b64);
+    helper.DeclareOptionalField("repr_str", &repr_str);
     helper.DeclareOptionalField("attrs", &attrs);
     helper.DeclareOptionalField("keys", &keys);
     helper.DeclareOptionalField("data", &data);
     helper.ReadAllFields(reader);
+
+    if (repr_str.size() != 0) {
+      CHECK_EQ(repr_b64.size(), 0U);
+      repr_bytes = std::move(repr_str);
+    } else if (repr_b64.size() != 0) {
+      repr_bytes = Base64Decode(repr_b64);
+    }
   }
 };
 
@@ -173,36 +219,23 @@ class JSONAttrGetter : public AttrVisitor {
     s << (*value);
     node_->attrs[key] = s.str();
   }
-  void Visit(const char* key, int64_t* value) final {
-    node_->attrs[key] = std::to_string(*value);
-  }
-  void Visit(const char* key, uint64_t* value) final {
-    node_->attrs[key] = std::to_string(*value);
-  }
-  void Visit(const char* key, int* value) final {
-    node_->attrs[key] = std::to_string(*value);
-  }
-  void Visit(const char* key, bool* value) final {
-    node_->attrs[key] = std::to_string(*value);
-  }
-  void Visit(const char* key, std::string* value) final {
-    node_->attrs[key] = *value;
-  }
+  void Visit(const char* key, int64_t* value) final { node_->attrs[key] = std::to_string(*value); }
+  void Visit(const char* key, uint64_t* value) final { node_->attrs[key] = std::to_string(*value); }
+  void Visit(const char* key, int* value) final { node_->attrs[key] = std::to_string(*value); }
+  void Visit(const char* key, bool* value) final { node_->attrs[key] = std::to_string(*value); }
+  void Visit(const char* key, std::string* value) final { node_->attrs[key] = *value; }
   void Visit(const char* key, void** value) final {
     LOG(FATAL) << "not allowed to serialize a pointer";
   }
-  void Visit(const char* key, DataType* value) final {
-    node_->attrs[key] = Type2String(*value);
-  }
+  void Visit(const char* key, DataType* value) final { node_->attrs[key] = Type2String(*value); }
 
   void Visit(const char* key, runtime::NDArray* value) final {
-    node_->attrs[key] = std::to_string(
-        tensor_index_->at(const_cast<DLTensor*>((*value).operator->())));
+    node_->attrs[key] =
+        std::to_string(tensor_index_->at(const_cast<DLTensor*>((*value).operator->())));
   }
 
   void Visit(const char* key, ObjectRef* value) final {
-    node_->attrs[key] = std::to_string(
-        node_index_->at(const_cast<Object*>(value->get())));
+    node_->attrs[key] = std::to_string(node_index_->at(const_cast<Object*>(value->get())));
   }
 
   // Get the node
@@ -212,10 +245,8 @@ class JSONAttrGetter : public AttrVisitor {
       return;
     }
     node_->type_key = node->GetTypeKey();
-    node_->global_key = reflection_->GetGlobalKey(node);
-    // No need to recursively visit fields of global singleton
-    // They are registered via the environment.
-    if (node_->global_key.length() != 0) return;
+    // do not need to print additional things once we have repr bytes.
+    if (reflection_->GetReprBytes(node, &(node_->repr_bytes))) return;
 
     // populates the fields.
     node_->attrs.clear();
@@ -223,24 +254,24 @@ class JSONAttrGetter : public AttrVisitor {
 
     if (node->IsInstance<ArrayNode>()) {
       ArrayNode* n = static_cast<ArrayNode*>(node);
-      for (size_t i = 0; i < n->data.size(); ++i) {
-        node_->data.push_back(
-            node_index_->at(const_cast<Object*>(n->data[i].get())));
+      for (size_t i = 0; i < n->size(); ++i) {
+        node_->data.push_back(node_index_->at(const_cast<Object*>(n->at(i).get())));
       }
     } else if (node->IsInstance<MapNode>()) {
       MapNode* n = static_cast<MapNode*>(node);
-      for (const auto& kv : n->data) {
-        node_->data.push_back(
-            node_index_->at(const_cast<Object*>(kv.first.get())));
-        node_->data.push_back(
-            node_index_->at(const_cast<Object*>(kv.second.get())));
-      }
-    } else if (node->IsInstance<StrMapNode>()) {
-      StrMapNode* n = static_cast<StrMapNode*>(node);
-      for (const auto& kv : n->data) {
-        node_->keys.push_back(kv.first);
-        node_->data.push_back(
-            node_index_->at(const_cast<Object*>(kv.second.get())));
+      bool is_str_map = std::all_of(n->begin(), n->end(), [](const auto& v) {
+        return v.first->template IsInstance<StringObj>();
+      });
+      if (is_str_map) {
+        for (const auto& kv : *n) {
+          node_->keys.push_back(Downcast<String>(kv.first));
+          node_->data.push_back(node_index_->at(const_cast<Object*>(kv.second.get())));
+        }
+      } else {
+        for (const auto& kv : *n) {
+          node_->data.push_back(node_index_->at(const_cast<Object*>(kv.first.get())));
+          node_->data.push_back(node_index_->at(const_cast<Object*>(kv.second.get())));
+        }
       }
     } else {
       // recursively index normal object.
@@ -249,24 +280,19 @@ class JSONAttrGetter : public AttrVisitor {
   }
 };
 
-// Helper class to set the attributes of a node
-// from given json node.
-class JSONAttrSetter : public AttrVisitor {
+class FieldDependencyFinder : public AttrVisitor {
  public:
-  const std::vector<ObjectPtr<Object> >* node_list_;
-  const std::vector<runtime::NDArray>* tensor_list_;
-  JSONNode* node_;
-
+  JSONNode* jnode_;
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
 
   std::string GetValue(const char* key) const {
-    auto it = node_->attrs.find(key);
-    if (it == node_->attrs.end()) {
+    auto it = jnode_->attrs.find(key);
+    if (it == jnode_->attrs.end()) {
       LOG(FATAL) << "JSONReader: cannot find field " << key;
     }
     return it->second;
   }
-  template<typename T>
+  template <typename T>
   void ParseValue(const char* key, T* value) const {
     std::istringstream is(GetValue(key));
     is >> *value;
@@ -274,24 +300,75 @@ class JSONAttrSetter : public AttrVisitor {
       LOG(FATAL) << "Wrong value format for field " << key;
     }
   }
-  void Visit(const char* key, double* value) final {
-    ParseValue(key, value);
+  void Visit(const char* key, double* value) final {}
+  void Visit(const char* key, int64_t* value) final {}
+  void Visit(const char* key, uint64_t* value) final {}
+  void Visit(const char* key, int* value) final {}
+  void Visit(const char* key, bool* value) final {}
+  void Visit(const char* key, std::string* value) final {}
+  void Visit(const char* key, void** value) final {}
+  void Visit(const char* key, DataType* value) final {}
+  void Visit(const char* key, runtime::NDArray* value) final {}
+  void Visit(const char* key, ObjectRef* value) final {
+    size_t index;
+    ParseValue(key, &index);
+    jnode_->fields.push_back(index);
   }
-  void Visit(const char* key, int64_t* value) final {
-    ParseValue(key, value);
+  void Find(Object* node, JSONNode* jnode) {
+    // Skip None
+    if (node == nullptr) {
+      return;
+    }
+    // Skip the objects that have their own string repr
+    if (jnode->repr_bytes.length() > 0 || reflection_->GetReprBytes(node, nullptr)) {
+      return;
+    }
+    // Skip containers
+    if (jnode->type_key == ArrayNode::_type_key || jnode->type_key == MapNode::_type_key) {
+      return;
+    }
+    jnode_ = jnode;
+    reflection_->VisitAttrs(node, this);
   }
-  void Visit(const char* key, uint64_t* value) final {
-    ParseValue(key, value);
+};
+
+// Helper class to set the attributes of a node
+// from given json node.
+class JSONAttrSetter : public AttrVisitor {
+ public:
+  const std::vector<ObjectPtr<Object>>* node_list_;
+  const std::vector<runtime::NDArray>* tensor_list_;
+  JSONNode* jnode_;
+
+  ReflectionVTable* reflection_ = ReflectionVTable::Global();
+
+  std::string GetValue(const char* key) const {
+    auto it = jnode_->attrs.find(key);
+    if (it == jnode_->attrs.end()) {
+      LOG(FATAL) << "JSONReader: cannot find field " << key;
+    }
+    return it->second;
   }
-  void Visit(const char* key, int* value) final {
-    ParseValue(key, value);
+  template <typename T>
+  void ParseValue(const char* key, T* value) const {
+    std::istringstream is(GetValue(key));
+    if (is.str() == "inf") {
+      *value = std::numeric_limits<T>::infinity();
+    } else if (is.str() == "-inf") {
+      *value = -std::numeric_limits<T>::infinity();
+    } else {
+      is >> *value;
+      if (is.fail()) {
+        LOG(FATAL) << "Wrong value format for field " << key;
+      }
+    }
   }
-  void Visit(const char* key, bool* value) final {
-    ParseValue(key, value);
-  }
-  void Visit(const char* key, std::string* value) final {
-    *value = GetValue(key);
-  }
+  void Visit(const char* key, double* value) final { ParseValue(key, value); }
+  void Visit(const char* key, int64_t* value) final { ParseValue(key, value); }
+  void Visit(const char* key, uint64_t* value) final { ParseValue(key, value); }
+  void Visit(const char* key, int* value) final { ParseValue(key, value); }
+  void Visit(const char* key, bool* value) final { ParseValue(key, value); }
+  void Visit(const char* key, std::string* value) final { *value = GetValue(key); }
   void Visit(const char* key, void** value) final {
     LOG(FATAL) << "not allowed to deserialize a pointer";
   }
@@ -312,32 +389,46 @@ class JSONAttrSetter : public AttrVisitor {
     *value = ObjectRef(node_list_->at(index));
   }
   // set node to be current JSONNode
-  void Set(Object* node) {
-    if (node == nullptr) return;
-
-    if (node->IsInstance<ArrayNode>()) {
-      ArrayNode* n = static_cast<ArrayNode*>(node);
-      n->data.clear();
-      for (size_t index : node_->data) {
-        n->data.push_back(ObjectRef(node_list_->at(index)));
-      }
-    } else if (node->IsInstance<MapNode>()) {
-      MapNode* n = static_cast<MapNode*>(node);
-      CHECK_EQ(node_->data.size() % 2, 0U);
-      for (size_t i = 0; i < node_->data.size(); i += 2) {
-        n->data[ObjectRef(node_list_->at(node_->data[i]))]
-            = ObjectRef(node_list_->at(node_->data[i + 1]));
-      }
-    } else if (node->IsInstance<StrMapNode>()) {
-      StrMapNode* n = static_cast<StrMapNode*>(node);
-      CHECK_EQ(node_->data.size(), node_->keys.size());
-      for (size_t i = 0; i < node_->data.size(); ++i) {
-        n->data[node_->keys[i]]
-            = ObjectRef(node_list_->at(node_->data[i]));
-      }
-    } else {
-      reflection_->VisitAttrs(node, this);
+  void Set(ObjectPtr<Object>* node, JSONNode* jnode) {
+    // Skip None
+    if (node->get() == nullptr) {
+      return;
     }
+    // Skip the objects that have their own string repr
+    if (jnode->repr_bytes.length() > 0 || reflection_->GetReprBytes(node->get(), nullptr)) {
+      return;
+    }
+    // handling Array
+    if (jnode->type_key == ArrayNode::_type_key) {
+      std::vector<ObjectRef> container;
+      for (auto index : jnode->data) {
+        container.push_back(ObjectRef(node_list_->at(index)));
+      }
+      Array<ObjectRef> array(container);
+      *node = runtime::ObjectInternal::MoveObjectPtr(&array);
+      return;
+    }
+    // handling Map
+    if (jnode->type_key == MapNode::_type_key) {
+      std::unordered_map<ObjectRef, ObjectRef, ObjectHash, ObjectEqual> container;
+      if (jnode->keys.empty()) {
+        CHECK_EQ(jnode->data.size() % 2, 0U);
+        for (size_t i = 0; i < jnode->data.size(); i += 2) {
+          container[ObjectRef(node_list_->at(jnode->data[i]))] =
+              ObjectRef(node_list_->at(jnode->data[i + 1]));
+        }
+      } else {
+        CHECK_EQ(jnode->data.size(), jnode->keys.size());
+        for (size_t i = 0; i < jnode->data.size(); ++i) {
+          container[String(jnode->keys[i])] = ObjectRef(node_list_->at(jnode->data[i]));
+        }
+      }
+      Map<ObjectRef, ObjectRef> map(container);
+      *node = runtime::ObjectInternal::MoveObjectPtr(&map);
+      return;
+    }
+    jnode_ = jnode;
+    reflection_->VisitAttrs(node->get(), this);
   }
 };
 
@@ -352,7 +443,7 @@ struct JSONGraph {
   // global attributes
   AttrMap attrs;
 
-  void Save(dmlc::JSONWriter *writer) const {
+  void Save(dmlc::JSONWriter* writer) const {
     writer->BeginObject();
     writer->WriteObjectKeyValue("root", root);
     writer->WriteObjectKeyValue("nodes", nodes);
@@ -363,7 +454,7 @@ struct JSONGraph {
     writer->EndObject();
   }
 
-  void Load(dmlc::JSONReader *reader) {
+  void Load(dmlc::JSONReader* reader) {
     attrs.clear();
     dmlc::JSONObjectReadHelper helper;
     helper.DeclareField("root", &root);
@@ -399,6 +490,41 @@ struct JSONGraph {
     }
     return g;
   }
+
+  std::vector<size_t> TopoSort() const {
+    size_t n_nodes = nodes.size();
+    std::vector<size_t> topo_order;
+    std::vector<size_t> in_degree(n_nodes, 0);
+    for (const JSONNode& jnode : nodes) {
+      for (size_t i : jnode.data) {
+        ++in_degree[i];
+      }
+      for (size_t i : jnode.fields) {
+        ++in_degree[i];
+      }
+    }
+    for (size_t i = 0; i < n_nodes; ++i) {
+      if (in_degree[i] == 0) {
+        topo_order.push_back(i);
+      }
+    }
+    for (size_t p = 0; p < topo_order.size(); ++p) {
+      const JSONNode& jnode = nodes[topo_order[p]];
+      for (size_t i : jnode.data) {
+        if (--in_degree[i] == 0) {
+          topo_order.push_back(i);
+        }
+      }
+      for (size_t i : jnode.fields) {
+        if (--in_degree[i] == 0) {
+          topo_order.push_back(i);
+        }
+      }
+    }
+    CHECK_EQ(topo_order.size(), n_nodes) << "Cyclic reference detected in JSON file";
+    std::reverse(std::begin(topo_order), std::end(topo_order));
+    return topo_order;
+  }
 };
 
 std::string SaveJSON(const ObjectRef& n) {
@@ -410,55 +536,57 @@ std::string SaveJSON(const ObjectRef& n) {
 }
 
 ObjectRef LoadJSON(std::string json_str) {
-  std::istringstream is(json_str);
-  dmlc::JSONReader reader(&is);
-  JSONGraph jgraph;
-  // load in json graph.
-  jgraph.Load(&reader);
-  std::vector<ObjectPtr<Object> > nodes;
-  std::vector<runtime::NDArray> tensors;
-  // load in tensors
-  for (const std::string& blob : jgraph.b64ndarrays) {
-    dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
-    support::Base64InStream b64strm(&mstrm);
-    b64strm.InitPosition();
-    runtime::NDArray temp;
-    CHECK(temp.Load(&b64strm));
-    tensors.emplace_back(temp);
-  }
   ReflectionVTable* reflection = ReflectionVTable::Global();
-
-  // node 0 is always null
-  nodes.reserve(jgraph.nodes.size());
-
-  for (const JSONNode& jnode : jgraph.nodes) {
-    if (jnode.type_key.length() != 0) {
-      ObjectPtr<Object> node =
-          reflection->CreateInitObject(jnode.type_key, jnode.global_key);
-      nodes.emplace_back(node);
-    } else {
-      nodes.emplace_back(ObjectPtr<Object>());
+  JSONGraph jgraph;
+  {
+    // load in json graph.
+    std::istringstream is(json_str);
+    dmlc::JSONReader reader(&is);
+    jgraph.Load(&reader);
+  }
+  size_t n_nodes = jgraph.nodes.size();
+  std::vector<runtime::NDArray> tensors;
+  {
+    // load in tensors
+    for (const std::string& blob : jgraph.b64ndarrays) {
+      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
+      support::Base64InStream b64strm(&mstrm);
+      b64strm.InitPosition();
+      runtime::NDArray temp;
+      CHECK(temp.Load(&b64strm));
+      tensors.emplace_back(std::move(temp));
     }
   }
-  CHECK_EQ(nodes.size(), jgraph.nodes.size());
-  JSONAttrSetter setter;
-  setter.node_list_ = &nodes;
-  setter.tensor_list_ = &tensors;
-
-  for (size_t i = 0; i < nodes.size(); ++i) {
-    setter.node_ = &jgraph.nodes[i];
-    // do not need to recover content of global singleton object
-    // they are registered via the environment
-    if (setter.node_->global_key.length() == 0) {
-      setter.Set(nodes[i].get());
+  // Pass 1: create all non-container objects
+  std::vector<ObjectPtr<Object>> nodes(n_nodes, nullptr);
+  for (size_t i = 0; i < n_nodes; ++i) {
+    const JSONNode& jnode = jgraph.nodes[i];
+    if (jnode.type_key.length() != 0) {
+      nodes[i] = reflection->CreateInitObject(jnode.type_key, jnode.repr_bytes);
+    }
+  }
+  // Pass 2: figure out all field dependency
+  {
+    FieldDependencyFinder dep_finder;
+    for (size_t i = 0; i < n_nodes; ++i) {
+      dep_finder.Find(nodes[i].get(), &jgraph.nodes[i]);
+    }
+  }
+  // Pass 3: topo sort
+  std::vector<size_t> topo_order = jgraph.TopoSort();
+  // Pass 4: set all values
+  {
+    JSONAttrSetter setter;
+    setter.node_list_ = &nodes;
+    setter.tensor_list_ = &tensors;
+    for (size_t i : topo_order) {
+      setter.Set(&nodes[i], &jgraph.nodes[i]);
     }
   }
   return ObjectRef(nodes.at(jgraph.root));
 }
 
-TVM_REGISTER_GLOBAL("node.SaveJSON")
-.set_body_typed(SaveJSON);
+TVM_REGISTER_GLOBAL("node.SaveJSON").set_body_typed(SaveJSON);
 
-TVM_REGISTER_GLOBAL("node.LoadJSON")
-.set_body_typed(LoadJSON);
+TVM_REGISTER_GLOBAL("node.LoadJSON").set_body_typed(LoadJSON);
 }  // namespace tvm

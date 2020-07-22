@@ -101,20 +101,19 @@ def get_weight_quant_params(script_module):
     return quant_params
 
 
-def add_quant_params_to_outputs(outputs, output_index_map,
-                                packed_param_map, quant_params):
+def add_quant_params_to_outputs(outputs, packed_param_map,
+                                quant_params):
     """
     Add quant params to outputs so that they can be referenced by other
     ops later. Weights are quantized here.
     """
     for node_name, packed_param_name in packed_param_map.items():
         qparam = quant_params[packed_param_name]
-        output_index_map[node_name] = len(outputs)
         qweight = relay.qnn.op.quantize(qparam.weight_var, qparam.scale,
                                         qparam.zero_point, out_dtype="int8",
                                         axis=0)
         param_tup = (qweight, qparam.scale, qparam.zero_point, qparam.bias_var)
-        outputs.append(param_tup)
+        outputs[node_name] = param_tup
 
 
 def _get_quant_param_for_input(input_value):

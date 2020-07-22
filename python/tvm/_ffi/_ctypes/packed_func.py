@@ -23,13 +23,13 @@ from numbers import Number, Integral
 
 from ..base import _LIB, get_last_ffi_error, py2cerror, check_call
 from ..base import c_str, string_types
-from ..runtime_ctypes import DataType, TVMByteArray, TVMContext
+from ..runtime_ctypes import DataType, TVMByteArray, TVMContext, ObjectRValueRef
 from . import ndarray as _nd
 from .ndarray import NDArrayBase, _make_array
-from .types import TVMValue, TypeCode
+from .types import TVMValue, ArgTypeCode
 from .types import TVMPackedCFunc, TVMCFuncFinalizer
 from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _ctx_to_int64
-from .object import ObjectBase, _set_class_object
+from .object import ObjectBase, PyNativeObject, _set_class_object
 from . import object as _object
 
 PackedFuncHandle = ctypes.c_void_p
@@ -115,30 +115,39 @@ def _make_tvm_args(args, temp_args):
     for i, arg in enumerate(args):
         if isinstance(arg, ObjectBase):
             values[i].v_handle = arg.handle
-            type_codes[i] = TypeCode.OBJECT_HANDLE
+            type_codes[i] = ArgTypeCode.OBJECT_HANDLE
         elif arg is None:
             values[i].v_handle = None
-            type_codes[i] = TypeCode.NULL
+            type_codes[i] = ArgTypeCode.NULL
         elif isinstance(arg, NDArrayBase):
             values[i].v_handle = ctypes.cast(arg.handle, ctypes.c_void_p)
-            type_codes[i] = (TypeCode.NDARRAY_HANDLE
-                             if not arg.is_view else TypeCode.DLTENSOR_HANDLE)
+            type_codes[i] = (ArgTypeCode.NDARRAY_HANDLE
+                             if not arg.is_view else ArgTypeCode.DLTENSOR_HANDLE)
+        elif isinstance(arg, PyNativeObject):
+            values[i].v_handle = arg.__tvm_object__.handle
+            type_codes[i] = ArgTypeCode.OBJECT_HANDLE
         elif isinstance(arg, _nd._TVM_COMPATS):
             values[i].v_handle = ctypes.c_void_p(arg._tvm_handle)
             type_codes[i] = arg.__class__._tvm_tcode
         elif isinstance(arg, Integral):
             values[i].v_int64 = arg
-            type_codes[i] = TypeCode.INT
+            type_codes[i] = ArgTypeCode.INT
         elif isinstance(arg, Number):
             values[i].v_float64 = arg
-            type_codes[i] = TypeCode.FLOAT
+            type_codes[i] = ArgTypeCode.FLOAT
         elif isinstance(arg, DataType):
             values[i].v_str = c_str(str(arg))
-            type_codes[i] = TypeCode.STR
+            type_codes[i] = ArgTypeCode.STR
         elif isinstance(arg, TVMContext):
             values[i].v_int64 = _ctx_to_int64(arg)
-            type_codes[i] = TypeCode.TVM_CONTEXT
-        elif isinstance(arg, bytearray):
+            type_codes[i] = ArgTypeCode.TVM_CONTEXT
+        elif isinstance(arg, (bytearray, bytes)):
+            # from_buffer only taeks in bytearray.
+            if isinstance(arg, bytes):
+                byte_arr = bytearray(arg)
+                temp_args.append(byte_arr)
+                arg = byte_arr
+
             arr = TVMByteArray()
             arr.data = ctypes.cast(
                 (ctypes.c_byte * len(arg)).from_buffer(arg),
@@ -146,28 +155,31 @@ def _make_tvm_args(args, temp_args):
             arr.size = len(arg)
             values[i].v_handle = ctypes.c_void_p(ctypes.addressof(arr))
             temp_args.append(arr)
-            type_codes[i] = TypeCode.BYTES
+            type_codes[i] = ArgTypeCode.BYTES
         elif isinstance(arg, string_types):
             values[i].v_str = c_str(arg)
-            type_codes[i] = TypeCode.STR
+            type_codes[i] = ArgTypeCode.STR
         elif isinstance(arg, (list, tuple, dict, _CLASS_OBJECT_GENERIC)):
             arg = _FUNC_CONVERT_TO_OBJECT(arg)
             values[i].v_handle = arg.handle
-            type_codes[i] = TypeCode.OBJECT_HANDLE
+            type_codes[i] = ArgTypeCode.OBJECT_HANDLE
             temp_args.append(arg)
         elif isinstance(arg, _CLASS_MODULE):
             values[i].v_handle = arg.handle
-            type_codes[i] = TypeCode.MODULE_HANDLE
+            type_codes[i] = ArgTypeCode.MODULE_HANDLE
         elif isinstance(arg, PackedFuncBase):
             values[i].v_handle = arg.handle
-            type_codes[i] = TypeCode.PACKED_FUNC_HANDLE
+            type_codes[i] = ArgTypeCode.PACKED_FUNC_HANDLE
         elif isinstance(arg, ctypes.c_void_p):
             values[i].v_handle = arg
-            type_codes[i] = TypeCode.HANDLE
+            type_codes[i] = ArgTypeCode.HANDLE
+        elif isinstance(arg, ObjectRValueRef):
+            values[i].v_handle = ctypes.cast(ctypes.byref(arg.obj.handle), ctypes.c_void_p)
+            type_codes[i] = ArgTypeCode.OBJECT_RVALUE_REF_ARG
         elif callable(arg):
             arg = convert_to_tvm_func(arg)
             values[i].v_handle = arg.handle
-            type_codes[i] = TypeCode.PACKED_FUNC_HANDLE
+            type_codes[i] = ArgTypeCode.PACKED_FUNC_HANDLE
             temp_args.append(arg)
         else:
             raise TypeError("Don't know how to handle type %s" % type(arg))
@@ -228,7 +240,7 @@ def __init_handle_by_constructor__(fconstructor, args):
         raise get_last_ffi_error()
     _ = temp_args
     _ = args
-    assert ret_tcode.value == TypeCode.OBJECT_HANDLE
+    assert ret_tcode.value == ArgTypeCode.OBJECT_HANDLE
     handle = ret_val.v_handle
     return handle
 
@@ -263,15 +275,15 @@ def _get_global_func(name, allow_missing=False):
 
 # setup return handle for function type
 _object.__init_by_constructor__ = __init_handle_by_constructor__
-RETURN_SWITCH[TypeCode.PACKED_FUNC_HANDLE] = _handle_return_func
-RETURN_SWITCH[TypeCode.MODULE_HANDLE] = _return_module
-RETURN_SWITCH[TypeCode.NDARRAY_HANDLE] = lambda x: _make_array(x.v_handle, False, True)
-C_TO_PY_ARG_SWITCH[TypeCode.PACKED_FUNC_HANDLE] = _wrap_arg_func(
-    _handle_return_func, TypeCode.PACKED_FUNC_HANDLE)
-C_TO_PY_ARG_SWITCH[TypeCode.MODULE_HANDLE] = _wrap_arg_func(
-    _return_module, TypeCode.MODULE_HANDLE)
-C_TO_PY_ARG_SWITCH[TypeCode.DLTENSOR_HANDLE] = lambda x: _make_array(x.v_handle, True, False)
-C_TO_PY_ARG_SWITCH[TypeCode.NDARRAY_HANDLE] = lambda x: _make_array(x.v_handle, False, True)
+RETURN_SWITCH[ArgTypeCode.PACKED_FUNC_HANDLE] = _handle_return_func
+RETURN_SWITCH[ArgTypeCode.MODULE_HANDLE] = _return_module
+RETURN_SWITCH[ArgTypeCode.NDARRAY_HANDLE] = lambda x: _make_array(x.v_handle, False, True)
+C_TO_PY_ARG_SWITCH[ArgTypeCode.PACKED_FUNC_HANDLE] = _wrap_arg_func(
+    _handle_return_func, ArgTypeCode.PACKED_FUNC_HANDLE)
+C_TO_PY_ARG_SWITCH[ArgTypeCode.MODULE_HANDLE] = _wrap_arg_func(
+    _return_module, ArgTypeCode.MODULE_HANDLE)
+C_TO_PY_ARG_SWITCH[ArgTypeCode.DLTENSOR_HANDLE] = lambda x: _make_array(x.v_handle, True, False)
+C_TO_PY_ARG_SWITCH[ArgTypeCode.NDARRAY_HANDLE] = lambda x: _make_array(x.v_handle, False, True)
 
 _CLASS_MODULE = None
 _CLASS_PACKED_FUNC = None

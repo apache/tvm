@@ -128,11 +128,7 @@ tuning_option = {
 
     'measure_option': autotvm.measure_option(
         builder=autotvm.LocalBuilder(timeout=10),
-        #runner=autotvm.LocalRunner(number=20, repeat=3, timeout=4, min_repeat_ms=150),
-        runner=autotvm.RPCRunner(
-            '1080ti',  # change the device key to your key
-            '0.0.0.0', 9190,
-            number=20, repeat=3, timeout=4, min_repeat_ms=150)
+        runner=autotvm.LocalRunner(number=20, repeat=3, timeout=4, min_repeat_ms=150),
     ),
 }
 
@@ -222,7 +218,7 @@ def tune_and_evaluate(tuning_opt):
     # compile kernels with history best records
     with autotvm.apply_history_best(log_file):
         print("Compile...")
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build_module.build(
                 mod, target=target, params=params)
 

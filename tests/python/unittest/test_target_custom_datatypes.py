@@ -19,7 +19,6 @@ import tvm
 from tvm import te
 from ctypes import *
 import topi
-import tvm.tir.ir_pass as ir_pass
 import numpy as np
 
 tgt = "llvm"
@@ -51,10 +50,12 @@ def lower_datatypes_and_build(schedule, args):
     Once datatype lowering is integrated directly into TVM's lower/build
     process, we won't need to do this manually.
     TODO(gus) integrate datatype lowering into build process; change this test"""
-    flist = tvm.lower(schedule, args)
-    flist = [flist]
-    flist = [ir_pass.LowerCustomDatatypes(func, tgt) for func in flist]
-    return tvm.build(flist[0], target=tgt)
+    mod = tvm.lower(schedule, args)
+    target = tvm.target.create(tgt)
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod)
+    mod = tvm.tir.transform.LowerCustomDatatypes()(mod)
+    return tvm.build(mod, target=tgt)
+
 
 def test_bfloat_add_and_cast_1():
     X = te.placeholder((3, ), name="X")

@@ -26,16 +26,16 @@
 
 #include <stdio.h>
 #ifndef _WIN32
-#include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #endif
-#include <vector>
-#include <string>
-#include <sstream>
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <memory>
+#include <sstream>
+#include <string>
+#include <vector>
 
 namespace tvm {
 namespace support {
@@ -92,15 +92,14 @@ inline int TVMWexitstatus(int status) {
 #endif
 }
 
-
 /*!
  * \brief IsNumber check whether string is a number.
  * \param str input string
  * \return result of operation.
  */
 inline bool IsNumber(const std::string& str) {
-  return !str.empty() && std::find_if(str.begin(),
-      str.end(), [](char c) { return !std::isdigit(c); }) == str.end();
+  return !str.empty() &&
+         std::find_if(str.begin(), str.end(), [](char c) { return !std::isdigit(c); }) == str.end();
 }
 
 /*!

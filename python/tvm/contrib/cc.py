@@ -45,11 +45,38 @@ def create_shared(output,
         The compiler command.
     """
     if sys.platform == "darwin" or sys.platform.startswith("linux"):
-        _linux_compile(output, objects, options, cc)
+        _linux_compile(output, objects, options, cc, compile_shared=True)
     elif sys.platform == "win32":
         _windows_shared(output, objects, options)
     else:
         raise ValueError("Unsupported platform")
+
+
+def create_executable(output,
+                      objects,
+                      options=None,
+                      cc="g++"):
+    """Create executable binary.
+
+    Parameters
+    ----------
+    output : str
+        The target executable.
+
+    objects : List[str]
+        List of object files.
+
+    options : List[str]
+        The list of additional options string.
+
+    cc : Optional[str]
+        The compiler command.
+    """
+    if sys.platform == "darwin" or sys.platform.startswith("linux"):
+        _linux_compile(output, objects, options, cc)
+    else:
+        raise ValueError("Unsupported platform")
+
 
 def get_target_by_dump_machine(compiler):
     """ Functor of get_target_triple that can get the target triple using compiler.
@@ -90,7 +117,8 @@ create_shared.get_target_triple = get_target_by_dump_machine(
 def cross_compiler(compile_func,
                    options=None,
                    output_format=None,
-                   get_target_triple=None):
+                   get_target_triple=None,
+                   add_files=None):
     """Create a cross compiler function by specializing compile_func with options.
 
     This function can be used to construct compile functions that
@@ -110,6 +138,10 @@ def cross_compiler(compile_func,
 
     get_target_triple: Optional[Callable]
         Function that can target triple according to dumpmachine option of compiler.
+
+    add_files: Optional[List[str]]
+        List of paths to additional object, source, library files
+        to pass as part of the compilation.
 
     Returns
     -------
@@ -133,6 +165,7 @@ def cross_compiler(compile_func,
     """
     base_options = [] if options is None else options
     kwargs = {}
+    add_files = [] if add_files is None else add_files
 
     # handle case where compile_func is the name of the cc
     if isinstance(compile_func, str):
@@ -144,7 +177,7 @@ def cross_compiler(compile_func,
         all_options = base_options
         if options is not None:
             all_options += options
-        compile_func(outputs, objects, options=all_options, **kwargs)
+        compile_func(outputs, objects + add_files, options=all_options, **kwargs)
 
     if not output_format and hasattr(compile_func, "output_format"):
         output_format = compile_func.output_format
@@ -158,9 +191,10 @@ def cross_compiler(compile_func,
     return _fcompile
 
 
-def _linux_compile(output, objects, options, compile_cmd="g++"):
+def _linux_compile(output, objects, options,
+                   compile_cmd="g++", compile_shared=False):
     cmd = [compile_cmd]
-    if output.endswith(".so") or output.endswith(".dylib"):
+    if compile_shared or output.endswith(".so") or output.endswith(".dylib"):
         cmd += ["-shared", "-fPIC"]
         if sys.platform == "darwin":
             cmd += ["-undefined", "dynamic_lookup"]
@@ -179,6 +213,7 @@ def _linux_compile(output, objects, options, compile_cmd="g++"):
     if proc.returncode != 0:
         msg = "Compilation error:\n"
         msg += py_str(out)
+        msg += "\nCommand line: " + " ".join(cmd)
         raise RuntimeError(msg)
 
 

@@ -131,7 +131,38 @@ def flip(a, axis=0):
     """
     return cpp.flip(a, axis)
 
-def strided_slice(a, begin, end, strides=None):
+
+def reverse_sequence(a, seq_lengths, seq_axis=1, batch_axis=0):
+    """Reverse the tensor for variable length slices.
+    Input is first sliced along batch axis and then elements are reversed along seq axis.
+
+    Parameters
+    ----------
+    a : tvm.te.Tensor
+       The tensor to be reversed.
+
+    seq_lengths : tvm.te.Tensor
+       A 1D Tensor with length a.dims[batch_axis]
+       Must be one of the following types: int32, int64
+       if seq_lengths[i] > a.dims[seq_axis], it is rounded to a.dims[seq_axis]
+       if seq_lengths[i] < 1, it is rounded to 1
+
+    seq_axis : int, optional
+       The axis along which the elements will be reversed. Default is 1.
+
+    batch_axis : int, optional
+       The axis along which the tensor will be sliced. Default is 0.
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+       The computed result of same shape and type as of input.
+
+    """
+    return cpp.reverse_sequence(a, seq_lengths, seq_axis, batch_axis)
+
+
+def strided_slice(a, begin, end, strides=None, slice_mode="end"):
     """Slice of an array.
 
     Parameters
@@ -139,16 +170,23 @@ def strided_slice(a, begin, end, strides=None):
     a : tvm.te.Tensor
         The tensor to be sliced.
 
-    begin: list of int
+    begin : list of int
         The indices to begin with in the slicing.
 
-    end: list of int
+    end : list of int
         Indicies indicating end of the slice.
 
-    strides: list of int, optional
+    strides : list of int, optional
         Specifies the stride values, it can be negative
         in that case, the input tensor will be reversed
         in that particular axis.
+
+    slice_mode : str, optional
+        The slice mode [end, size].
+        end - The ending indices for the slice [default].
+        size - The input strides will be ignored, input end in this mode indicates
+        the sizeof a slice starting at the location specified by begin. If end[i]
+        is -1, all remaining elements in that dimension are included in the slice.
 
     Returns
     -------
@@ -156,7 +194,7 @@ def strided_slice(a, begin, end, strides=None):
     """
     if strides is None:
         strides = []
-    return cpp.strided_slice(a, begin, end, strides)
+    return cpp.strided_slice(a, begin, end, strides, slice_mode)
 
 @tvm.te.tag_scope(tag=tag.INJECTIVE+",strided_set")
 def strided_set(a, v, begin, end, strides=None):
@@ -367,6 +405,38 @@ def take(a, indices, axis=None, mode="clip"):
     return cpp.take(a, indices, int(axis), mode)
 
 
+def gather(data, axis, indices):
+    """Gather values along given axis from given indices.
+
+    E.g. for a 3D tensor, output is computed as:
+
+    .. code-block:: python
+
+        out[i][j][k] = data[indices[i][j][k]][j][k]  # if axis == 0
+        out[i][j][k] = data[i][indices[i][j][k]][k]  # if axis == 1
+        out[i][j][k] = data[i][j][indices[i][j][k]]  # if axis == 2
+
+    ``indices`` must have same shape as ``data``, except at dimension ``axis``
+    which must just be not null. Output will have same shape as ``indices``.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The input data to the operator.
+
+    axis: int
+        The axis along which to index.
+
+    indices : tvm.te.Tensor
+        The indices of the values to extract.
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+    """
+    return cpp.gather(data, axis, indices)
+
+
 def gather_nd(a, indices):
     """Gather elements from a n-dimension array..
 
@@ -452,6 +522,25 @@ def arange(start, stop=None, step=1, dtype="float32"):
         stop = start
         start = 0
     return cpp.arange(start, stop, step, dtype)
+
+
+def meshgrid(a_tuple, indexing):
+    """Create coordinate matrices from coordinate vectors.
+
+    Parameters
+    ----------
+    a_tuple : tuple of tvm.te.Tensor
+        The coordinate vectors or scalars.
+
+    indexing : str
+        Indexing mode, either "ij" or "xy".
+
+    Returns
+    -------
+    result : tuple of tvm.te.Tensor
+        The resulting grids for each axis.
+    """
+    return cpp.meshgrid(a_tuple, indexing)
 
 
 def repeat(a, repeats, axis):
@@ -676,3 +765,32 @@ def unravel_index(indices, shape):
     """
 
     return cpp.unravel_index(indices, shape)
+
+def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0):
+    """Converts a sparse representation into a dense tensor.
+
+    Example::
+    -   sparse_to_dense([[0, 0], [1, 1]], [2, 2], [3, 3], 0) = [[3, 0], [0, 3]]
+
+    Parameters
+    ----------
+    sparse_indices : tvm.te.Tensor
+        A 0-D, 1-D, or 2-D tensor of integers containing location of sparse values.
+
+    output_shape : A list of integers
+        Shape of the dense output tensor.
+
+    sparse_values : tvm.te.Tensor
+        A 0-D or 1-D tensor containing the sparse values for the sparse indices.
+
+    default_value : tvm.te.Tensor
+        A 0-D tensor containing the default value for the remaining locations.
+        Defaults to 0.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        Dense tensor of shape output_shape. Has the same type as sparse_values.
+    """
+
+    return cpp.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)

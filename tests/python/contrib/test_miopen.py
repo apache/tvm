@@ -56,8 +56,7 @@ def test_conv2d():
 
     yshape = [x.value for x in Y.shape]
     import topi
-    with tvm.target.create("rocm -libs=miopen"):
-        s = topi.generic.schedule_extern(Y)
+    s = te.create_schedule(Y.op)
 
     def verify():
         ctx = tvm.rocm(0)
@@ -67,10 +66,10 @@ def test_conv2d():
         y = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), ctx)
         f(x, w, y)
 
-        Y_ref = topi.nn.conv2d_nchw(X, W, (stride_h, stride_w), (pad_h, pad_w), (dilation_h, dilation_w))
-        with tvm.target.rocm():
-            s_ref = topi.generic.schedule_conv2d_nchw([Y_ref])
-        f_ref = tvm.build(s_ref, [X, W, Y_ref], "rocm")
+        Y_ref = topi.nn.conv2d_nchw(X, W, (stride_h, stride_w), (pad_h, pad_w),
+                                    (dilation_h, dilation_w))
+        s_ref = te.create_schedule(Y_ref.op)
+        f_ref = tvm.build(s_ref, [X, W, Y_ref], "rocm", target_host="llvm")
         y_ref = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), ctx)
         f_ref(x, w, y_ref)
         print("Max abs diff:", np.max(np.abs(y.asnumpy() - y_ref.asnumpy())))

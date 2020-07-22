@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
+.. _tutorial-tensor-expr-get-started:
+
 Get Started with Tensor Expression
 ==================================
 **Author**: `Tianqi Chen <https://tqchen.github.io>`_

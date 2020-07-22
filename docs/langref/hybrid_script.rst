@@ -33,11 +33,11 @@ Software Emulation
 ~~~~~~~~~~~~~~~~~~
 
 Both software emulation and compilation are supported. To define a function,
-you need to use ``tvm.hybrid.script`` decorator to indicate this is a hybrid function:
+you need to use ``tvm.te.hybrid.script`` decorator to indicate this is a hybrid function:
 
 .. code-block:: python
 
-    @tvm.hybrid.script
+    @tvm.te.hybrid.script
     def outer_product(a, b, c):
         c = output_tensor((100, 99), 'float32')
         for i in range(a.shape[0]):
@@ -85,7 +85,7 @@ to LLVM module.
 Tuning
 ~~~~~~
 
-Follow up the example above, you can use some tvm like interfaces to tune the code: 
+Follow up the example above, you can use some tvm like interfaces to tune the code:
 
 .. code-block:: python
 
@@ -101,7 +101,7 @@ loop manipulation (``split`` and ``fuse``), and ``reorder``.
 
         This is a preliminary function, so users should be in charge of the correctness
         of the functionality after tuning. Specifically, users should be careful when
-        fusing and reorderding imperfect loops. 
+        fusing and reorderding imperfect loops.
 
 Loops
 ~~~~~
@@ -119,7 +119,7 @@ Users can access containers by either constants or constants loops annotated.
 
 .. code-block:: python
 
-   @tvm.hybrid.script
+   @tvm.te.hybrid.script
    def foo(a, b): # b is a tvm.container.Array
        c = output_tensor(a.shape, a.dtype)
        for i in const_range(len(a)): # because you have b access, i should be explicitly annotated as const_range

@@ -14,26 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Expression AST Node in TVM.
+# pylint: disable=redefined-builtin
+"""TIR expression nodes.
 
-User do not need to deal with expression AST node directly.
-But they can be helpful for developer to do quick proptyping.
-While not displayed in the document and python file.
 Each expression node have subfields that can be visited from python side.
-
 For example, you can use addexp.a to get the left operand of an Add node.
 
 .. code-block:: python
 
-  x = te.var("n")
+  x = tvm.tir.Var("n", "int32")
   y = x + 2
   assert(isinstance(y, tvm.tir.Add))
   assert(y.a == x)
 """
 import tvm._ffi
 
-from tvm.runtime import Object, ObjectGeneric, DataType, TypeCode, const
-from tvm.ir import PrimExpr
+from tvm.runtime import Object, ObjectGeneric, DataType, DataTypeCode, const
+from tvm.ir import PrimExpr, Op
 import tvm.ir._ffi_api
 from . import generic as _generic
 from . import _ffi_api
@@ -50,13 +47,13 @@ def _dtype_is_int(value):
     if isinstance(value, int):
         return True
     return (isinstance(value, ExprOp) and
-            DataType(value.dtype).type_code == TypeCode.INT)
+            DataType(value.dtype).type_code == DataTypeCode.INT)
 
 def _dtype_is_float(value):
     if isinstance(value, float):
         return True
     return (isinstance(value, ExprOp) and
-            DataType(value.dtype).type_code == TypeCode.FLOAT)
+            DataType(value.dtype).type_code == DataTypeCode.FLOAT)
 
 class ExprOp(object):
     """Operator overloading for Expr like expressions."""
@@ -64,7 +61,7 @@ class ExprOp(object):
         return _generic.add(self, other)
 
     def __radd__(self, other):
-        return self.__add__(other)
+        return _generic.add(other, self)
 
     def __sub__(self, other):
         return _generic.subtract(self, other)
@@ -147,7 +144,7 @@ class ExprOp(object):
     def __invert__(self):
         if _dtype_is_float(self):
             raise RuntimeError("Cannot use ~ operator on float type Expr.")
-        return _ffi_api.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic, None, 0)
+        return _ffi_api.bitwise_not(self)
 
     def __lt__(self, other):
         return _ffi_api._OpLT(self, other)
@@ -269,6 +266,23 @@ class NotEqualOp(ObjectGeneric, ExprOp):
         return _ffi_api._OpNE(self.a, self.b)
 
 
+class IntImmEnum(ObjectGeneric):
+    """Lazily evaluate an IntImm in case
+    the constructor is not available in runtime.
+
+    Parameters
+    ----------
+    value : int
+        The enum value
+    """
+    def __init__(self, value):
+        self.value = value
+
+    def asobject(self):
+        """Convert object."""
+        return IntImm("int32", self.value)
+
+
 class PrimExprWithOp(ExprOp, PrimExpr):
     """Helper base class to inherit from PrimExpr."""
     # In Python3, We have to explicitly tell interpreter to retain __hash__ if we overide __eq__
@@ -324,7 +338,7 @@ class SizeVar(Var):
             _ffi_api.SizeVar, name, dtype)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.IterVar")
 class IterVar(Object, ExprOp):
     """Represent iteration variable.
 
@@ -370,12 +384,13 @@ class IterVar(Object, ExprOp):
                 raise TypeError("dom need to be Range")
 
         name = var if var is not None else "iter"
-        var = Var(name, dtype="int32") if not isinstance(var, Var) else var
+        dtype = "int32" if dom is None else dom.extent.dtype
+        var = Var(name, dtype=dtype) if not isinstance(var, Var) else var
         self.__init_handle_by_constructor__(
             _ffi_api.IterVar, dom, var, iter_type, thread_tag)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.CommReducer")
 class CommReducer(Object):
     """Communicative reduce operator
 
@@ -398,7 +413,7 @@ class CommReducer(Object):
             _ffi_api.CommReducer, lhs, rhs, result, identity_element)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Reduce")
 class Reduce(PrimExprWithOp):
     """Reduce node.
 
@@ -441,6 +456,7 @@ class FloatImm(ConstExpr):
         self.__init_handle_by_constructor__(
             tvm.ir._ffi_api.FloatImm, dtype, value)
 
+
 @tvm._ffi.register_object
 class IntImm(ConstExpr):
     """Int constant.
@@ -457,11 +473,26 @@ class IntImm(ConstExpr):
         self.__init_handle_by_constructor__(
             tvm.ir._ffi_api.IntImm, dtype, value)
 
+    def __hash__(self):
+        return self.value
+
     def __int__(self):
         return self.value
 
+    def __nonzero__(self):
+        return self.value != 0
 
-@tvm._ffi.register_object
+    def __eq__(self, other):
+        return _ffi_api._OpEQ(self, other)
+
+    def __ne__(self, other):
+        return _ffi_api._OpNE(self, other)
+
+    def __bool__(self):
+        return self.__nonzero__()
+
+
+@tvm._ffi.register_object("tir.StringImm")
 class StringImm(ConstExpr):
     """String constant.
 
@@ -485,7 +516,7 @@ class StringImm(ConstExpr):
         return self.value != other
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Cast")
 class Cast(PrimExprWithOp):
     """Cast expression.
 
@@ -502,7 +533,7 @@ class Cast(PrimExprWithOp):
             _ffi_api.Cast, dtype, value)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Add")
 class Add(BinaryOpExpr):
     """Add node.
 
@@ -519,7 +550,7 @@ class Add(BinaryOpExpr):
             _ffi_api.Add, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Sub")
 class Sub(BinaryOpExpr):
     """Sub node.
 
@@ -536,7 +567,7 @@ class Sub(BinaryOpExpr):
             _ffi_api.Sub, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Mul")
 class Mul(BinaryOpExpr):
     """Mul node.
 
@@ -553,7 +584,7 @@ class Mul(BinaryOpExpr):
             _ffi_api.Mul, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Div")
 class Div(BinaryOpExpr):
     """Div node.
 
@@ -570,7 +601,7 @@ class Div(BinaryOpExpr):
             _ffi_api.Div, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Mod")
 class Mod(BinaryOpExpr):
     """Mod node.
 
@@ -587,7 +618,7 @@ class Mod(BinaryOpExpr):
             _ffi_api.Mod, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.FloorDiv")
 class FloorDiv(BinaryOpExpr):
     """FloorDiv node.
 
@@ -604,7 +635,7 @@ class FloorDiv(BinaryOpExpr):
             _ffi_api.FloorDiv, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.FloorMod")
 class FloorMod(BinaryOpExpr):
     """FloorMod node.
 
@@ -621,7 +652,7 @@ class FloorMod(BinaryOpExpr):
             _ffi_api.FloorMod, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Min")
 class Min(BinaryOpExpr):
     """Min node.
 
@@ -638,7 +669,7 @@ class Min(BinaryOpExpr):
             _ffi_api.Min, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Max")
 class Max(BinaryOpExpr):
     """Max node.
 
@@ -655,7 +686,7 @@ class Max(BinaryOpExpr):
             _ffi_api.Max, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.EQ")
 class EQ(CmpExpr):
     """EQ node.
 
@@ -672,7 +703,7 @@ class EQ(CmpExpr):
             _ffi_api.EQ, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.NE")
 class NE(CmpExpr):
     """NE node.
 
@@ -689,7 +720,7 @@ class NE(CmpExpr):
             _ffi_api.NE, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.LT")
 class LT(CmpExpr):
     """LT node.
 
@@ -706,7 +737,7 @@ class LT(CmpExpr):
             _ffi_api.LT, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.LE")
 class LE(CmpExpr):
     """LE node.
 
@@ -723,7 +754,7 @@ class LE(CmpExpr):
             _ffi_api.LE, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.GT")
 class GT(CmpExpr):
     """GT node.
 
@@ -740,7 +771,7 @@ class GT(CmpExpr):
             _ffi_api.GT, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.GE")
 class GE(CmpExpr):
     """GE node.
 
@@ -757,7 +788,7 @@ class GE(CmpExpr):
             _ffi_api.GE, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.And")
 class And(LogicalExpr):
     """And node.
 
@@ -774,7 +805,7 @@ class And(LogicalExpr):
             _ffi_api.And, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Or")
 class Or(LogicalExpr):
     """Or node.
 
@@ -791,7 +822,7 @@ class Or(LogicalExpr):
             _ffi_api.Or, a, b)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Not")
 class Not(LogicalExpr):
     """Not node.
 
@@ -805,7 +836,7 @@ class Not(LogicalExpr):
             _ffi_api.Not, a)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Select")
 class Select(PrimExprWithOp):
     """Select node.
 
@@ -833,7 +864,7 @@ class Select(PrimExprWithOp):
             _ffi_api.Select, condition, true_value, false_value)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Load")
 class Load(PrimExprWithOp):
     """Load node.
 
@@ -857,7 +888,41 @@ class Load(PrimExprWithOp):
             _ffi_api.Load, dtype, buffer_var, index, *args)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.BufferLoad")
+class BufferLoad(PrimExprWithOp):
+    """Buffer load node.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer to be loaded.
+
+    indices : List[PrimExpr]
+        The buffer indices.
+    """
+    def __init__(self, buffer, indices):
+        self.__init_handle_by_constructor__(
+            _ffi_api.BufferLoad, buffer, indices)
+
+
+@tvm._ffi.register_object("tir.ProducerLoad")
+class ProducerLoad(PrimExprWithOp):
+    """Producer load node.
+
+    Parameters
+    ----------
+    producer : DataProducer
+        The buffer to be loaded.
+
+    indices : List[PrimExpr]
+        The buffer indices.
+    """
+    def __init__(self, producer, indices):
+        self.__init_handle_by_constructor__(
+            _ffi_api.ProducerLoad, producer, indices)
+
+
+@tvm._ffi.register_object("tir.Ramp")
 class Ramp(PrimExprWithOp):
     """Ramp node.
 
@@ -877,7 +942,7 @@ class Ramp(PrimExprWithOp):
             _ffi_api.Ramp, base, stride, lanes)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Broadcast")
 class Broadcast(PrimExprWithOp):
     """Broadcast node.
 
@@ -894,7 +959,7 @@ class Broadcast(PrimExprWithOp):
             _ffi_api.Broadcast, value, lanes)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Shuffle")
 class Shuffle(PrimExprWithOp):
     """Shuffle node.
 
@@ -911,7 +976,17 @@ class Shuffle(PrimExprWithOp):
             _ffi_api.Shuffle, vectors, indices)
 
 
-@tvm._ffi.register_object
+class CallEffectKind:
+    """Possible kinds of Call effects."""
+    # only expose up to opaque
+    ExprAnnotation = IntImmEnum(0)
+    Pure = IntImmEnum(1)
+    ReadState = IntImmEnum(2)
+    UpdateState = IntImmEnum(3)
+    Opaque = UpdateState
+
+
+@tvm._ffi.register_object("tir.Call")
 class Call(PrimExprWithOp):
     """Call node.
 
@@ -920,33 +995,26 @@ class Call(PrimExprWithOp):
     dtype : str
         The return data type
 
-    name : str
-        The name of the function
+    op : Union[RelayExpr, str]
+        The function to be called, or the name
+        to the global tvm.Op
 
     args : list of Expr
         The input arguments to the call
-
-    call_type : int
-        The type of the call
-
-    func : Operation, optional
-        Operation if call_type is Halide
-
-    value_index : int
-        The output value index
     """
-    Extern = 0
-    ExternCPlusPlus = 1
-    PureExtern = 2
-    Halide = 3
-    Intrinsic = 4
-    PureIntrinsic = 5
-    def __init__(self, dtype, name, args, call_type, func, value_index):
+    def __init__(self, dtype, op, args):
+        if isinstance(op, str):
+            if not op.startswith("tir."):
+                raise ValueError(
+                    ("Cannot handle str op argument %s. This function only handles str " +
+                     "argument with the tir namespace. If you are " +
+                     "certain about the intrinsic name, pass in Op.get(name) instead") % op)
+            op = Op.get(op)
         self.__init_handle_by_constructor__(
-            _ffi_api.Call, dtype, name, args, call_type, func, value_index)
+            _ffi_api.Call, dtype, op, args)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Let")
 class Let(PrimExprWithOp):
     """Let node.
 
@@ -966,7 +1034,7 @@ class Let(PrimExprWithOp):
             _ffi_api.Let, var, value, body)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Any")
 class Any(PrimExpr):
     """Any node.
     """

@@ -82,14 +82,14 @@ shape_dict = {input_name: data.shape}
 dtype_dict = {input_name: data.dtype}
 
 # parse Caffe2 model and convert into Relay computation graph
-from tvm import relay
+from tvm import relay, transform
 mod, params = relay.frontend.from_caffe2(resnet50.init_net, resnet50.predict_net, shape_dict, dtype_dict)
 
 # compile the model
 # target x86 CPU
 target = 'llvm'
-with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(mod, target, params=params)
+with transform.PassContext(opt_level=3):
+    lib = relay.build(mod, target, params=params)
 
 ######################################################################
 # Execute on TVM
@@ -101,11 +101,9 @@ from tvm.contrib import graph_runtime
 # context x86 CPU, use tvm.gpu(0) if you run on GPU
 ctx = tvm.cpu(0)
 # create a runtime executor module
-m = graph_runtime.create(graph, lib, ctx)
+m = graph_runtime.GraphModule(lib['default'](ctx))
 # set inputs
 m.set_input(input_name, tvm.nd.array(data.astype('float32')))
-# set related params
-m.set_input(**params)
 # execute
 m.run()
 # get outputs

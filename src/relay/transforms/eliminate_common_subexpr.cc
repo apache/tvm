@@ -29,7 +29,9 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+
 #include <unordered_map>
+
 #include "pattern_util.h"
 
 namespace tvm {
@@ -37,15 +39,15 @@ namespace relay {
 
 class CommonSubexprEliminator : public ExprMutator {
  public:
-  explicit CommonSubexprEliminator(runtime::TypedPackedFunc<bool(Expr)> fskip): fskip_(fskip) {}
+  explicit CommonSubexprEliminator(runtime::TypedPackedFunc<bool(Expr)> fskip) : fskip_(fskip) {}
 
   Expr VisitExpr_(const CallNode* call) final {
-    static auto op_stateful = Op::GetAttr<TOpIsStateful>("TOpIsStateful");
+    static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
     Expr new_expr = ExprMutator::VisitExpr_(call);
     const CallNode* new_call = new_expr.as<CallNode>();
     CHECK(new_call);
     const OpNode* op = new_call->op.as<OpNode>();
-    AttrsEqual attrs_equal;
+    StructuralEqual attrs_equal;
 
     if (new_call->args.size() == 0 || op == nullptr || op_stateful.get(GetRef<Op>(op), false)) {
       return new_expr;
@@ -56,27 +58,52 @@ class CommonSubexprEliminator : public ExprMutator {
 
     auto it = expr_map_.find(new_call->op);
     if (it != expr_map_.end()) {
-      for (const CallNode* candidate : it->second) {
-        bool is_equivalent = true;
-        if (!attrs_equal(new_call->attrs, candidate->attrs)) {
-          continue;
-        }
-        for (size_t i = 0; i < new_call->args.size(); i++) {
-          if (!new_call->args[i].same_as(candidate->args[i]) &&
-              !IsEqualScalar(new_call->args[i], candidate->args[i])) {
-            is_equivalent = false;
-            break;
+      for (const Expr& candidate_expr : it->second) {
+        if (const CallNode* candidate = candidate_expr.as<CallNode>()) {
+          bool is_equivalent = true;
+          if (!attrs_equal(new_call->attrs, candidate->attrs)) {
+            continue;
           }
+          for (size_t i = 0; i < new_call->args.size(); i++) {
+            if (!new_call->args[i].same_as(candidate->args[i]) &&
+                !IsEqualScalar(new_call->args[i], candidate->args[i])) {
+              is_equivalent = false;
+              break;
+            }
+          }
+          if (!is_equivalent) continue;
+          return GetRef<Call>(candidate);
         }
-        if (!is_equivalent) continue;
-        return GetRef<Call>(candidate);
       }
     }
-    expr_map_[new_call->op].push_back(new_call);
+    expr_map_[new_call->op].push_back(new_expr);
     return new_expr;
   }
 
-  std::unordered_map<Expr, std::vector<const CallNode*>, ObjectHash, ObjectEqual> expr_map_;
+  Expr VisitExpr_(const TupleGetItemNode* op) final {
+    Expr new_expr = ExprMutator::VisitExpr_(op);
+    const TupleGetItemNode* new_tuple_item = new_expr.as<TupleGetItemNode>();
+    CHECK(new_tuple_item);
+
+    if (fskip_ != nullptr && fskip_(new_expr)) {
+      return new_expr;
+    }
+
+    auto it = expr_map_.find(new_tuple_item->tuple);
+    if (it != expr_map_.end()) {
+      for (const Expr& candidate_expr : it->second) {
+        if (const TupleGetItemNode* candidate = candidate_expr.as<TupleGetItemNode>()) {
+          if (new_tuple_item->index == candidate->index) {
+            return GetRef<Expr>(candidate);
+          }
+        }
+      }
+    }
+    expr_map_[new_tuple_item->tuple].push_back(new_expr);
+    return new_expr;
+  }
+
+  std::unordered_map<Expr, std::vector<Expr>, ObjectPtrHash, ObjectPtrEqual> expr_map_;
   runtime::TypedPackedFunc<bool(Expr)> fskip_;
 };
 
@@ -88,15 +115,14 @@ namespace transform {
 
 Pass EliminateCommonSubexpr(PackedFunc fskip) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-      return Downcast<Function>(EliminateCommonSubexpr(f, fskip));
-  };
-  return CreateFunctionPass(pass_func, 3, "EliminateCommonSubexpr",
-                            {tir::StringImmNode::make("InferType")});
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(EliminateCommonSubexpr(f, fskip));
+      };
+  return CreateFunctionPass(pass_func, 3, "EliminateCommonSubexpr", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.EliminateCommonSubexpr")
-.set_body_typed(EliminateCommonSubexpr);
+    .set_body_typed(EliminateCommonSubexpr);
 
 }  // namespace transform
 

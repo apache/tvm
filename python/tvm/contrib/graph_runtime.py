@@ -18,9 +18,10 @@
 import numpy as np
 import tvm._ffi
 
-from .._ffi.base import string_types
-from .._ffi.runtime_ctypes import TVMContext
-from ..rpc import base as rpc_base
+from tvm.rpc import _ffi_api as _rpc_ffi_api
+from tvm.rpc import base as rpc_base
+from tvm._ffi.base import string_types
+from tvm._ffi.runtime_ctypes import TVMContext
 
 
 def create(graph_json_str, libmod, ctx):
@@ -28,10 +29,10 @@ def create(graph_json_str, libmod, ctx):
 
     Parameters
     ----------
-    graph_json_str : str or graph class
+    graph_json_str : str
         The graph to be deployed in json format output by json graph.
-        The graph can only contain one operator(tvm_op) that
-        points to the name of PackedFunc in the libmod.
+        The graph can contain operator(tvm_op) that points to the name
+        of PackedFunc in the libmod.
 
     libmod : tvm.runtime.Module
         The module of the corresponding function
@@ -47,11 +48,7 @@ def create(graph_json_str, libmod, ctx):
     graph_module : GraphModule
         Runtime graph module that can be used to execute the graph.
     """
-    if not isinstance(graph_json_str, string_types):
-        try:
-            graph_json_str = graph_json_str._tvm_graph_json()
-        except AttributeError:
-            raise ValueError("Type %s is not supported" % type(graph_json_str))
+    assert isinstance(graph_json_str, string_types)
 
     ctx, num_rpc_ctx, device_type_id = get_device_ctx(libmod, ctx)
 
@@ -99,7 +96,7 @@ def get_device_ctx(libmod, ctx):
         device_type = cur_ctx.device_type
         if device_type >= rpc_base.RPC_SESS_MASK:
             assert libmod.type_key == "rpc"
-            assert rpc_base._SessTableIndex(
+            assert _rpc_ffi_api.SessTableIndex(
                 libmod) == cur_ctx._rpc_sess._tbl_index
             num_rpc_ctx += 1
             device_type = cur_ctx.device_type % rpc_base.RPC_SESS_MASK
@@ -161,7 +158,12 @@ class GraphModule(object):
             keys = list(params.keys())
             keys.sort(key=lambda x: -np.prod(params[x].shape))
             for k in keys:
-                self._get_input(k).copyfrom(params[k])
+                # TODO(zhiics) Skip the weights for submodule in a better way.
+                # We should use MetadataModule for initialization and remove
+                # params from set_input
+                val = self._get_input(k)
+                if val:
+                    self._get_input(k).copyfrom(params[k])
 
     def run(self, **input_dict):
         """Run forward execution of the graph

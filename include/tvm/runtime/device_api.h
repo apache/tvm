@@ -26,6 +26,7 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
+
 #include <string>
 
 namespace tvm {
@@ -43,14 +44,16 @@ enum DeviceAttrKind : int {
   kMaxClockRate = 6,
   kMultiProcessorCount = 7,
   kMaxThreadDimensions = 8,
-  kGcnArch = 9
+  kMaxRegistersPerBlock = 9,
+  kGcnArch = 10,
+  kApiVersion = 11
 };
 
 /*! \brief Number of bytes each allocation must align to */
-constexpr int kAllocAlignment = 64;
+constexpr int kAllocAlignment = 128;
 
 /*! \brief Number of bytes each allocation must align to in temporary allocation */
-constexpr int kTempAllocaAlignment = 64;
+constexpr int kTempAllocaAlignment = 128;
 
 /*! \brief Maximum size that can be allocated on stack */
 constexpr int kMaxStackAlloca = 1024;
@@ -85,9 +88,7 @@ class TVM_DLL DeviceAPI {
    * as OpenGL, as nbytes & alignment are sufficient for most backends.
    * \return The allocated device pointer.
    */
-  virtual void* AllocDataSpace(TVMContext ctx,
-                               size_t nbytes,
-                               size_t alignment,
+  virtual void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
                                DLDataType type_hint) = 0;
   /*!
    * \brief Free a data space on device.
@@ -108,16 +109,10 @@ class TVM_DLL DeviceAPI {
    *                  can be useful for cross device endian converison.
    * \param stream Optional stream object.
    */
-  virtual void CopyDataFromTo(const void* from,
-                              size_t from_offset,
-                              void* to,
-                              size_t to_offset,
-                              size_t num_bytes,
-                              TVMContext ctx_from,
-                              TVMContext ctx_to,
-                              DLDataType type_hint,
-                              TVMStreamHandle stream) = 0;
-    /*!
+  virtual void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
+                              size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
+                              DLDataType type_hint, TVMStreamHandle stream) = 0;
+  /*!
    * \brief Create a new stream of execution.
    *
    * \param ctx The context of allocation.
@@ -156,9 +151,8 @@ class TVM_DLL DeviceAPI {
    * \param event_src The source stream to synchronize.
    * \param event_dst The destination stream to synchronize.
    */
-  virtual void SyncStreamFromTo(TVMContext ctx,
-                                        TVMStreamHandle event_src,
-                                        TVMStreamHandle event_dst);
+  virtual void SyncStreamFromTo(TVMContext ctx, TVMStreamHandle event_src,
+                                TVMStreamHandle event_dst);
   /*!
    * \brief Allocate temporal workspace for backend execution.
    *
@@ -175,9 +169,7 @@ class TVM_DLL DeviceAPI {
    * \param type_hint The type of elements. Only needed by certain backends such
    * as OpenGL, as nbytes is sufficient for most backends.
    */
-  virtual void* AllocWorkspace(TVMContext ctx,
-                                       size_t nbytes,
-                                       DLDataType type_hint = {});
+  virtual void* AllocWorkspace(TVMContext ctx, size_t nbytes, DLDataType type_hint = {});
   /*!
    * \brief Free temporal workspace in backend execution.
    *
@@ -187,12 +179,21 @@ class TVM_DLL DeviceAPI {
   virtual void FreeWorkspace(TVMContext ctx, void* ptr);
 
   /*!
-   * \brief Get device API base don context.
+   * \brief Get device API based on context.
    * \param ctx The context
    * \param allow_missing Whether allow missing
    * \return The corresponding device API.
    */
   static DeviceAPI* Get(TVMContext ctx, bool allow_missing = false);
+
+  /*!
+   * \brief Whether a certian device type requires set device context
+   *        before launching the kernel function.
+   * \param device_type The device type.
+   */
+  static bool NeedSetDeviceContext(int device_type) {
+    return device_type != kDLCPU && device_type != kDLMicroDev;
+  }
 };
 
 /*! \brief The device type bigger than this is RPC device */
@@ -205,20 +206,37 @@ constexpr int kRPCSessMask = 128;
  */
 inline const char* DeviceName(int type) {
   switch (type) {
-    case kDLCPU: return "cpu";
-    case kDLGPU: return "gpu";
-    case kDLCPUPinned: return "cpu_pinned";
-    case kDLOpenCL: return "opencl";
-    case kDLSDAccel: return "sdaccel";
-    case kDLAOCL: return "aocl";
-    case kDLVulkan: return "vulkan";
-    case kDLMetal: return "metal";
-    case kDLVPI: return "vpi";
-    case kDLROCM: return "rocm";
-    case kOpenGL: return "opengl";
-    case kDLExtDev: return "ext_dev";
-    case kDLMicroDev: return "micro_dev";
-    default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
+    case kDLCPU:
+      return "cpu";
+    case kDLGPU:
+      return "gpu";
+    case kDLCPUPinned:
+      return "cpu_pinned";
+    case kDLOpenCL:
+      return "opencl";
+    case kDLSDAccel:
+      return "sdaccel";
+    case kDLAOCL:
+      return "aocl";
+    case kDLVulkan:
+      return "vulkan";
+    case kDLMetal:
+      return "metal";
+    case kDLVPI:
+      return "vpi";
+    case kDLROCM:
+      return "rocm";
+    case kDLExtDev:
+      return "ext_dev";
+    case kDLWebGPU:
+      return "webgpu";
+    case kDLMicroDev:
+      return "micro_dev";
+    case kDLHexagon:
+      return "hexagon";
+    default:
+      LOG(FATAL) << "unknown type =" << type;
+      return "Unknown";
   }
 }
 

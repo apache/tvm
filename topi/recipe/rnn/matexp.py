@@ -127,10 +127,12 @@ def rnn_matexp():
     s[SS].bind(tx, thread_x)
 
     def check_device(target):
-        with tvm.target.build_config(
-                detect_global_barrier=detect_global_barrier,
-                auto_unroll_max_step=128,
-                unroll_explicit=False):
+        with tvm.transform.PassContext(config={
+            "tir.UnrollLoop": {
+                "auto_max_step": 128,
+            },
+            "tir.detect_global_barrier": detect_global_barrier
+        }):
             f = tvm.build(s, [s_scan, Whh], target)
         ctx = tvm.gpu(0) if target == "cuda" else tvm.cl(0)
         # launch the kernel.

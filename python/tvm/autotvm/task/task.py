@@ -24,6 +24,7 @@ registers the standard task.
 import numpy as np
 
 from tvm import target as _target
+from tvm import runtime
 from tvm.ir import container
 from tvm.tir import expr
 from tvm.te import tensor, placeholder
@@ -55,6 +56,8 @@ def serialize_args(args):
             return x
         if isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
             return x.value
+        if isinstance(x, runtime.container.String):
+            return str(x)
         if x is None:
             return None
         raise RuntimeError('Do not support type "%s" in argument. Consider to use'
@@ -492,11 +495,11 @@ def compute_flop(sch):
         if isinstance(exp, expr.Select):
             return _count_flop(exp.condition) + max(_count_flop(exp.true_value),
                                                     _count_flop(exp.false_value))
-        if isinstance(exp, expr.Call):
-            if exp.call_type == expr.Call.Halide:
-                # Ignore flops from indexing expressions.
-                return 0
+        if isinstance(exp, expr.ProducerLoad):
+            # Ignore flops from indexing expressions.
+            return 0
 
+        if isinstance(exp, expr.Call):
             return sum([_count_flop(x) for x in exp.args])
 
         raise FlopCalculationError("Found unsupported operator in the compute expr")

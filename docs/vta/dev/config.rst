@@ -21,7 +21,7 @@ VTA Configuration
 The VTA stack incorporates both a hardware accelerator stack and
 a TVM based software stack.
 VTA incorporates flexibility out of the box: by modifying the
-``vta/vta-hw/config/vta_config.json`` high-level configuration file,
+``3rdparty/vta-hw/config/vta_config.json`` high-level configuration file,
 the user can change the shape of the tensor intrinsic,
 clock frequency, pipelining, data type width, and on-chip buffer sizes.
 

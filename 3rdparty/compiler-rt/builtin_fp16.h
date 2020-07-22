@@ -18,9 +18,11 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- * \file builtin_fp16.cc
+ * \file builtin_fp16.h
  * \brief Functions for conversion between fp32 and fp16, adopted from compiler-rt.
  */
+#ifndef COMPILER_RT_BUILTIN_FP16_H_
+#define COMPILER_RT_BUILTIN_FP16_H_
 
 #include <cstdint>
 
@@ -29,16 +31,33 @@ static inline uint32_t __clz(uint32_t x) {
   int n = 32;
   uint32_t y;
 
-  y = x >>16; if (y) { n = n -16; x = y; }
-  y = x >> 8; if (y) { n = n - 8; x = y; }
-  y = x >> 4; if (y) { n = n - 4; x = y; }
-  y = x >> 2; if (y) { n = n - 2; x = y; }
-  y = x >> 1; if (y) return n - 2;
+  y = x >> 16;
+  if (y) {
+    n = n - 16;
+    x = y;
+  }
+  y = x >> 8;
+  if (y) {
+    n = n - 8;
+    x = y;
+  }
+  y = x >> 4;
+  if (y) {
+    n = n - 4;
+    x = y;
+  }
+  y = x >> 2;
+  if (y) {
+    n = n - 2;
+    x = y;
+  }
+  y = x >> 1;
+  if (y) return n - 2;
   return n - x;
 }
 
-template <typename SRC_T, typename SRC_REP_T, int SRC_SIG_BITS,
-          typename DST_T, typename DST_REP_T, int DST_SIG_BITS>
+template <typename SRC_T, typename SRC_REP_T, int SRC_SIG_BITS, typename DST_T, typename DST_REP_T,
+          int DST_SIG_BITS>
 static inline DST_T __truncXfYf2__(SRC_T a) {
   // Various constants whose values follow from the type parameters.
   // Any reasonable optimizer will fold and propagate all of these.
@@ -71,7 +90,10 @@ static inline DST_T __truncXfYf2__(SRC_T a) {
   const DST_REP_T dstNaNCode = dstQNaN - 1;
 
   // Break a into a sign and representation of the absolute value
-  union SrcExchangeType { SRC_T f; SRC_REP_T i; };
+  union SrcExchangeType {
+    SRC_T f;
+    SRC_REP_T i;
+  };
   SrcExchangeType src_rep;
   src_rep.f = a;
   const SRC_REP_T aRep = src_rep.i;
@@ -88,25 +110,21 @@ static inline DST_T __truncXfYf2__(SRC_T a) {
 
     const SRC_REP_T roundBits = aAbs & roundMask;
     // Round to nearest
-    if (roundBits > halfway)
-      absResult++;
-      // Ties to even
+    if (roundBits > halfway) absResult++;
+    // Ties to even
     else if (roundBits == halfway)
       absResult += absResult & 1;
-  }
-  else if (aAbs > srcInfinity) {
+  } else if (aAbs > srcInfinity) {
     // a is NaN.
     // Conjure the result by beginning with infinity, setting the qNaN
     // bit and inserting the (truncated) trailing NaN field.
     absResult = (DST_REP_T)dstInfExp << DST_SIG_BITS;
     absResult |= dstQNaN;
     absResult |= ((aAbs & srcNaNCode) >> (SRC_SIG_BITS - DST_SIG_BITS)) & dstNaNCode;
-  }
-  else if (aAbs >= overflow) {
+  } else if (aAbs >= overflow) {
     // a overflows to infinity.
     absResult = (DST_REP_T)dstInfExp << DST_SIG_BITS;
-  }
-  else {
+  } else {
     // a underflows on conversion to the destination type or is an exact
     // zero.  The result may be a denormal or zero.  Extract the exponent
     // to get the shift amount for the denormalization.
@@ -124,9 +142,8 @@ static inline DST_T __truncXfYf2__(SRC_T a) {
       absResult = denormalizedSignificand >> (SRC_SIG_BITS - DST_SIG_BITS);
       const SRC_REP_T roundBits = denormalizedSignificand & roundMask;
       // Round to nearest
-      if (roundBits > halfway)
-        absResult++;
-        // Ties to even
+      if (roundBits > halfway) absResult++;
+      // Ties to even
       else if (roundBits == halfway)
         absResult += absResult & 1;
     }
@@ -134,14 +151,17 @@ static inline DST_T __truncXfYf2__(SRC_T a) {
 
   // Apply the signbit to (DST_T)abs(a).
   const DST_REP_T result = absResult | sign >> (srcBits - dstBits);
-  union DstExchangeType { DST_T f; DST_REP_T i; };
+  union DstExchangeType {
+    DST_T f;
+    DST_REP_T i;
+  };
   DstExchangeType dst_rep;
   dst_rep.i = result;
   return dst_rep.f;
 }
 
-template<typename SRC_T, typename SRC_REP_T, int SRC_SIG_BITS,
-         typename DST_T, typename DST_REP_T, int DST_SIG_BITS>
+template <typename SRC_T, typename SRC_REP_T, int SRC_SIG_BITS, typename DST_T, typename DST_REP_T,
+          int DST_SIG_BITS>
 static inline DST_T __extendXfYf2__(SRC_T a) {
   // Various constants whose values follow from the type parameters.
   // Any reasonable optimizer will fold and propagate all of these.
@@ -157,7 +177,7 @@ static inline DST_T __extendXfYf2__(SRC_T a) {
   const SRC_REP_T srcQNaN = SRC_REP_T(1) << (SRC_SIG_BITS - 1);
   const SRC_REP_T srcNaNCode = srcQNaN - 1;
 
-  const int dstBits = sizeof(DST_T)*8;
+  const int dstBits = sizeof(DST_T) * 8;
   const int dstExpBits = dstBits - DST_SIG_BITS - 1;
   const int dstInfExp = (1 << dstExpBits) - 1;
   const int dstExpBias = dstInfExp >> 1;
@@ -165,7 +185,10 @@ static inline DST_T __extendXfYf2__(SRC_T a) {
   const DST_REP_T dstMinNormal = DST_REP_T(1) << DST_SIG_BITS;
 
   // Break a into a sign and representation of the absolute value
-  union SrcExchangeType { SRC_T f; SRC_REP_T i; };
+  union SrcExchangeType {
+    SRC_T f;
+    SRC_REP_T i;
+  };
   SrcExchangeType src_rep;
   src_rep.f = a;
   const SRC_REP_T aRep = src_rep.i;
@@ -191,8 +214,7 @@ static inline DST_T __extendXfYf2__(SRC_T a) {
     absResult = (DST_REP_T)dstInfExp << DST_SIG_BITS;
     absResult |= (DST_REP_T)(aAbs & srcQNaN) << (DST_SIG_BITS - SRC_SIG_BITS);
     absResult |= (DST_REP_T)(aAbs & srcNaNCode) << (DST_SIG_BITS - SRC_SIG_BITS);
-  }
-  else if (aAbs) {
+  } else if (aAbs) {
     // a is denormal.
     // renormalize the significand and clear the leading bit, then insert
     // the correct adjusted exponent in the destination type.
@@ -201,16 +223,20 @@ static inline DST_T __extendXfYf2__(SRC_T a) {
     absResult ^= dstMinNormal;
     const int resultExponent = dstExpBias - srcExpBias - scale + 1;
     absResult |= (DST_REP_T)resultExponent << DST_SIG_BITS;
-  }
-  else {
+  } else {
     // a is zero.
     absResult = 0;
   }
 
   // Apply the signbit to (DST_T)abs(a).
   const DST_REP_T result = absResult | (DST_REP_T)sign << (dstBits - srcBits);
-  union DstExchangeType { DST_T f; DST_REP_T i; };
+  union DstExchangeType {
+    DST_T f;
+    DST_REP_T i;
+  };
   DstExchangeType dst_rep;
   dst_rep.i = result;
   return dst_rep.f;
 }
+
+#endif  // COMPILER_RT_BUILTIN_FP16_H_

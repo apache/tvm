@@ -20,7 +20,7 @@ import traceback
 from cpython cimport Py_INCREF, Py_DECREF
 from numbers import Number, Integral
 from ..base import string_types, py2cerror
-from ..runtime_ctypes import DataType, TVMContext, TVMByteArray
+from ..runtime_ctypes import DataType, TVMContext, TVMByteArray, ObjectRValueRef
 
 
 cdef void tvm_callback_finalize(void* fhandle):
@@ -43,8 +43,9 @@ cdef int tvm_callback(TVMValue* args,
         if (tcode == kTVMObjectHandle or
             tcode == kTVMPackedFuncHandle or
             tcode == kTVMModuleHandle or
+            tcode == kTVMObjectRefArg or
             tcode > kTVMExtBegin):
-            CALL(TVMCbArgToReturn(&value, tcode))
+            CALL(TVMCbArgToReturn(&value, &tcode))
 
         if tcode != kTVMDLTensorHandle:
             pyargs.append(make_ret(value, tcode))
@@ -108,6 +109,9 @@ cdef inline int make_arg(object arg,
         value[0].v_handle = (<NDArrayBase>arg).chandle
         tcode[0] = (kTVMNDArrayHandle if
                     not (<NDArrayBase>arg).c_is_view else kTVMDLTensorHandle)
+    elif isinstance(arg, PyNativeObject):
+        value[0].v_handle = (<ObjectBase>(arg.__tvm_object__)).chandle
+        tcode[0] = kTVMObjectHandle
     elif isinstance(arg, _TVM_COMPATS):
         ptr = arg._tvm_handle
         value[0].v_handle = (<void*>ptr)
@@ -138,7 +142,13 @@ cdef inline int make_arg(object arg,
         value[0].v_ctx = (<DLContext*>(
             <unsigned long long>ctypes.addressof(arg)))[0]
         tcode[0] = kTVMContext
-    elif isinstance(arg, bytearray):
+    elif isinstance(arg, (bytes, bytearray)):
+        # from_buffer only taeks in bytearray.
+        if isinstance(arg, bytes):
+            byte_arr = bytearray(arg)
+            temp_args.append(byte_arr)
+            arg = byte_arr
+
         arr = TVMByteArray()
         arr.data = ctypes.cast(
             (ctypes.c_byte * len(arg)).from_buffer(arg),
@@ -167,6 +177,9 @@ cdef inline int make_arg(object arg,
     elif isinstance(arg, ctypes.c_void_p):
         value[0].v_handle = c_handle(arg)
         tcode[0] = kTVMOpaqueHandle
+    elif isinstance(arg, ObjectRValueRef):
+        value[0].v_handle = &((<ObjectBase>(arg.obj)).chandle)
+        tcode[0] = kTVMObjectRefArg
     elif callable(arg):
         arg = convert_to_tvm_func(arg)
         value[0].v_handle = (<PackedFuncBase>arg).chandle

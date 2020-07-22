@@ -26,6 +26,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
+
 #include "../../transforms/pattern_util.h"
 #include "../util.h"
 
@@ -35,24 +36,21 @@ namespace qnn {
 
 TVM_REGISTER_NODE_TYPE(QuantizeAttrs);
 
-bool QuantizeRel(const Array<Type>& types,
-                 int num_inputs,
-                 const Attrs& attrs,
+bool QuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
   CHECK(data != nullptr);
   const auto input_dtype = data->dtype;
   CHECK(input_dtype == DataType::Float(32))
-    << "Input type should be one of float32 but was " <<  input_dtype;
+      << "Input type should be one of float32 but was " << input_dtype;
 
   const auto* quantize_attrs = attrs.as<QuantizeAttrs>();
   int axis = quantize_attrs->axis;
-  axis = (axis == -1) ? data->shape.size() - 1: axis;
+  axis = (axis == -1) ? data->shape.size() - 1 : axis;
   CHECK_LT(axis, static_cast<int>(data->shape.size()))
       << "axis " << quantize_attrs->axis << " is out of range";
-  CHECK_GE(axis, 0)
-      << "axis " << quantize_attrs->axis << " is out of range";
+  CHECK_GE(axis, 0) << "axis " << quantize_attrs->axis << " is out of range";
 
   // Check and assign types for scale and zero points.
   AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
@@ -130,7 +128,7 @@ Expr QuantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 }
 
 RELAY_REGISTER_OP("qnn.quantize")
-.describe(R"code(Quantizes the input and produces quantized output.
+    .describe(R"code(Quantizes the input and produces quantized output.
 The input can be either float or quantized(int8, unit8). If the input is float,
 this op takes scale and zero point and quantize the float value to
 quantized output, in int8 or uint8 format. If the input is quantized value,
@@ -140,17 +138,17 @@ scale and zero point.
 - **data**: Tensor of any shape to quantize. The input data can be of floating point
           or quantized.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<QuantizeAttrs>()
-.set_num_inputs(3)
-.add_argument("data", "Tensor", "The tensor to quantize.")
-.add_argument("output_scale", "Tensor", "The quantization scale of the output tensor.")
-.add_argument("output_zero_point", "Tensor", "The quantization zero_point of the output tensor.")
-.set_support_level(11)
-.add_type_rel("Quantize", QuantizeRel)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QuantizeQnnCanonicalize);
+    .set_attrs_type<QuantizeAttrs>()
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The tensor to quantize.")
+    .add_argument("output_scale", "Tensor", "The quantization scale of the output tensor.")
+    .add_argument("output_zero_point", "Tensor",
+                  "The quantization zero_point of the output tensor.")
+    .set_support_level(11)
+    .add_type_rel("Quantize", QuantizeRel)
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QuantizeQnnCanonicalize);
 
-TVM_REGISTER_GLOBAL("relay.qnn.op._make.quantize")
-.set_body_typed(MakeQuantize);
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.quantize").set_body_typed(MakeQuantize);
 
 }  // namespace qnn
 }  // namespace relay

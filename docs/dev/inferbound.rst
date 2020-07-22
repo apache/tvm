@@ -15,9 +15,12 @@
     specific language governing permissions and limitations
     under the License.
 
+.. _dev-InferBound-Pass:
+
 *******************************************
 InferBound Pass
 *******************************************
+
 
 The InferBound pass is run after normalize, and before ScheduleOps `build_module.py <https://github.com/apache/incubator-tvm/blob/master/python/tvm/build_module.py>`_. The main job of InferBound is to create the bounds map, which specifies a Range for each IterVar in the program. These bounds are then passed to ScheduleOps, where they are used to set the extents of For loops, see `MakeLoopNest <https://github.com/apache/incubator-tvm/blob/master/src/op/op_util.cc>`_, and to set the sizes of allocated buffers (`BuildRealize <https://github.com/apache/incubator-tvm/blob/master/src/op/compute_op.cc>`_), among other uses.
 
@@ -83,14 +86,14 @@ A TVM schedule is composed of Stages. Each stage has exactly one Operation, e.g.
    		Array<IterVarRelation> relations;
    		// remainder omitted
    	};
-   	
+
    	class OperationNode : public Node {
    	public:
    		virtual Array<IterVar> root_iter_vars();
    		virtual Array<Tensor> InputTensors();
    		// remainder omitted
    	};
-   	
+
    	class ComputeOpNode : public OperationNode {
    	public:
    		Array<IterVar> axis;
@@ -178,8 +181,8 @@ The Ranges of the inner and outer IterVars of the split are set based on the par
 
 .. code:: cpp
 
-   rmap[split->inner] = Range::make_by_min_extent(0, split->factor)
-   rmap[split->outer] = Range::make_by_min_extent(0, DivCeil(rmap[split->parent]->extent, split->factor))
+   rmap[split->inner] = Range::FromMinExtent(0, split->factor)
+   rmap[split->outer] = Range::FromMinExtent(0, DivCeil(rmap[split->parent]->extent, split->factor))
 
 There is an opportunity here to tighten the bounds produced by InferBound, when ``split->factor`` does not evenly divide the parent's extent. Suppose the parent's extent is 20, and the split factor is 16. Then on the second iteration of the outer loop, the inner loop only needs to perform 4 iterations, not 16. If PassDownDomain could set the extent of ``split->inner`` to ``min(split->factor, rmap[split->parent]->extent - (split->outer * split->factor))``, then the extent of the inner variable would properly adapt, based on which iteration of the outer loop is being executed.
 
@@ -187,7 +190,7 @@ For Fuse relations, the Range of the fused IterVar is set based on the known Ran
 
 .. code:: cpp
 
-   rmap[fuse->fused] = Range::make_by_min_extent(0, rmap[fuse->outer]->extent * rmap[fuse->inner]->extent)
+   rmap[fuse->fused] = Range::FromMinExtent(0, rmap[fuse->outer]->extent * rmap[fuse->inner]->extent)
 
 
 InferRootBound

@@ -25,8 +25,9 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
-#include "../../transforms/pattern_util.h"
+
 #include "../../transforms/infer_layout_util.h"
+#include "../../transforms/pattern_util.h"
 #include "../util.h"
 
 namespace tvm {
@@ -68,7 +69,7 @@ Array<Array<Layout>> RequantizeInferCorrectLayout(const Attrs& attrs,
     for (auto iter_var : new_in_layouts[0]->axes) {
       const auto& layout_axis = LayoutAxis::Get(iter_var);
       const std::string& layout_dim = layout_axis.name();
-      if (old_dim  == layout_dim) {
+      if (old_dim == layout_dim) {
         new_axis = tvm::Integer(axis_index);
       }
       // Collect only the primal axis.
@@ -132,37 +133,39 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& input_zero_point, const Expr& output_scale,
                      const Expr& output_zero_point, const RequantizeAttrs* param,
                      const Array<IndexExpr>& input_shape, const DataType& out_dtype) {
-  DataType hp_dtype = DataType::Int(64);
-
-  auto tensor = Cast(input_tensor, hp_dtype);
+  auto tensor = Cast(input_tensor, DataType::Int(32));
   // 1) Subtract the input_zero_point
   auto zero_scalar = MakeConstantScalar(DataType::Int(32), 0);
   if (!IsEqualScalar(input_zero_point, zero_scalar)) {
-    tensor = Subtract(tensor, Cast(input_zero_point, hp_dtype));
+    tensor = Subtract(tensor, Cast(input_zero_point, DataType::Int(32)));
   }
-
-  // Check if multiplier is greater than 1.
-  bool is_multiplier_gt_one = false;
 
   // 2) If the input and output scales are same, we can skip the fixed point multiplication. Check
   // if the input scale is per-tensor or per-channel. If it is per-tensor, there is single scale for
   // the whole tensor. For per-channel (aka per-axis), there is a vector of scales for the input
   // tensor. Depending on the quantization type, the fixed point multiplication routing is called.
-  auto scaled_int64_t = tensor;
+  auto scaled_int32_t = tensor;
   float output_scale_float = GetScalarFromConstant<float>(output_scale);
   if (IsConstScalar(input_scale)) {
     // This is per-tensor quantization. Single scale.
     float input_scale_float = GetScalarFromConstant<float>(input_scale);
     double double_multiplier =
         static_cast<double>(input_scale_float) / static_cast<double>(output_scale_float);
-    if (double_multiplier > 1) {
-      is_multiplier_gt_one = true;
-    }
     // Skip if input and output scales are same.
     if (!IsEqualScalar(input_scale, output_scale)) {
-      scaled_int64_t =
-          FixedPointMultiply(scaled_int64_t, double_multiplier, input_shape, param->rounding);
+      int32_t fixed_point_multiplier, shift;
+      std::tie(fixed_point_multiplier, shift) = GetFixedPointMultiplierShift(double_multiplier);
+
+      const bool is_upward_rounding = (param->rounding == "UPWARD");
+
+      // When using upward rounding (i.e., x.5 rounded to x+1), leverage
+      // the FixedPointMultiply operator
+      scaled_int32_t =
+          (is_upward_rounding
+               ? FixedPointMultiply(scaled_int32_t, fixed_point_multiplier, shift)
+               : FixedPointMultiplyToNearest(scaled_int32_t, double_multiplier, input_shape));
     }
+
   } else {
     // This is per-channel (per=axis) quantization.
     std::vector<double> double_multipliers;
@@ -171,30 +174,28 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
       double multiplier =
           static_cast<double>(input_axis_scale) / static_cast<double>(output_scale_float);
       double_multipliers.push_back(multiplier);
-      if (multiplier > 1) {
-        is_multiplier_gt_one = true;
-      }
     }
     int axis = param->axis;
     axis = (axis == -1) ? input_shape.size() - 1 : axis;
-    scaled_int64_t = FixedPointMultiplyPerChannel(scaled_int64_t, double_multipliers, input_shape,
+    scaled_int32_t = FixedPointMultiplyPerChannel(scaled_int32_t, double_multipliers, input_shape,
                                                   axis, param->rounding);
   }
 
   // 3) Add the output zero point.
-  auto shifted_int64_t = scaled_int64_t;
+  auto shifted_int32_t = scaled_int32_t;
   if (!IsEqualScalar(output_zero_point, zero_scalar)) {
-    shifted_int64_t = Add(Cast(output_zero_point, hp_dtype), scaled_int64_t);
+    shifted_int32_t = Add(Cast(output_zero_point, DataType::Int(32)), scaled_int32_t);
   }
 
   // 4) Clip to the out_dtype min/max. Skip clipping if out_dtype is Int32. The fixed point
-  // multiplication keeps the value in int32 range if the requantize scale is less than 1.
-  if (out_dtype == DataType::Int(32) && !is_multiplier_gt_one) {
-    return Cast(shifted_int64_t, out_dtype);
+  // multiplication keeps the value in int32 range.
+  if (out_dtype == DataType::Int(32)) {
+    return shifted_int32_t;
   }
+
   auto q_min = GetQmin(out_dtype);
   auto q_max = GetQmax(out_dtype);
-  auto clipped_t = Clip(shifted_int64_t, q_min, q_max);
+  auto clipped_t = Clip(shifted_int32_t, q_min, q_max);
   return Cast(clipped_t, out_dtype);
 }
 
@@ -259,18 +260,16 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* data = types[0].as<TensorTypeNode>();
   CHECK(data != nullptr);
   const auto in_dtype = data->dtype;
-  CHECK(in_dtype == DataType::Int(8) ||
-        in_dtype == DataType::UInt(8) ||
+  CHECK(in_dtype == DataType::Int(8) || in_dtype == DataType::UInt(8) ||
         in_dtype == DataType::Int(32))
       << "Input type should be one of [int8, uint8, int32] but was " << in_dtype;
 
   const RequantizeAttrs* requantize_attrs = attrs.as<RequantizeAttrs>();
   int axis = requantize_attrs->axis;
-  axis = (axis == -1) ? data->shape.size() - 1: axis;
+  axis = (axis == -1) ? data->shape.size() - 1 : axis;
   CHECK_LT(axis, static_cast<int>(data->shape.size()))
       << "axis " << requantize_attrs->axis << " is out of range";
-  CHECK_GE(axis, 0)
-      << "axis " << requantize_attrs->axis << " is out of range";
+  CHECK_GE(axis, 0) << "axis " << requantize_attrs->axis << " is out of range";
 
   // Check and assign types for scale and zero points.
   AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // input_scale
@@ -282,8 +281,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type
   auto out_dtype = requantize_attrs->out_dtype;
-  CHECK(out_dtype == DataType::Int(8) ||
-        out_dtype == DataType::UInt(8) ||
+  CHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
         out_dtype == DataType::Int(32))
       << "Output type should be one of [int8, uint8, int32] but was " << out_dtype;
   reporter->Assign(types[5], TensorType(oshape, out_dtype));
@@ -293,18 +291,18 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 // Positional relay function to create qnn requantize operator
 // used by frontend FFI.
 Expr MakeRequantize(Expr data, Expr input_scale, Expr input_zero_point, Expr output_scale,
-                    Expr output_zero_point, int axis, std::string rounding, DataType out_dtype) {
+                    Expr output_zero_point, int axis, String rounding, DataType out_dtype) {
   auto attrs = make_object<RequantizeAttrs>();
   attrs->axis = axis;
   attrs->rounding = std::move(rounding);
   attrs->out_dtype = std::move(out_dtype);
   static const Op& op = Op::Get("qnn.requantize");
   return Call(op, {data, input_scale, input_zero_point, output_scale, output_zero_point},
-                        Attrs(attrs), {});
+              Attrs(attrs), {});
 }
 
 RELAY_REGISTER_OP("qnn.requantize")
-.describe(R"code(Requantize operator.
+    .describe(R"code(Requantize operator.
 The requantize operator converts one quantized tensor to another quantized
 tensor. For the output tensor, we are provided with output scale and zero
 point. The computation looks like this
@@ -312,20 +310,20 @@ point. The computation looks like this
 Q_output = zp_output +  (scale_input)/(scale_output) * (Q_input - zp_input)
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<RequantizeAttrs>()
-.set_num_inputs(5)
-.add_argument("data", "Tensor", "The quantized input tensor.")
-.add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
-.add_argument("input_zero_point", "Tensor", "The quantization zero_point of the input tensor.")
-.add_argument("output_scale", "Tensor", "The quantization scale of the output tensor.")
-.add_argument("output_zero_point", "Tensor", "The quantization zero_point of the output tensor.")
-.set_support_level(11)
-.add_type_rel("Requantize", RequantizeRel)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", RequantizeQnnCanonicalize)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", RequantizeInferCorrectLayout);
+    .set_attrs_type<RequantizeAttrs>()
+    .set_num_inputs(5)
+    .add_argument("data", "Tensor", "The quantized input tensor.")
+    .add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
+    .add_argument("input_zero_point", "Tensor", "The quantization zero_point of the input tensor.")
+    .add_argument("output_scale", "Tensor", "The quantization scale of the output tensor.")
+    .add_argument("output_zero_point", "Tensor",
+                  "The quantization zero_point of the output tensor.")
+    .set_support_level(11)
+    .add_type_rel("Requantize", RequantizeRel)
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", RequantizeQnnCanonicalize)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", RequantizeInferCorrectLayout);
 
-TVM_REGISTER_GLOBAL("relay.qnn.op._make.requantize")
-.set_body_typed(MakeRequantize);
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.requantize").set_body_typed(MakeRequantize);
 
 }  // namespace qnn
 }  // namespace relay

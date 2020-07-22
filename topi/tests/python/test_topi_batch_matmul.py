@@ -28,7 +28,7 @@ from common import get_all_backend
 _batch_matmul_implement = {
     "generic": (topi.nn.batch_matmul, topi.generic.schedule_batch_matmul),
     "cpu": (topi.x86.batch_matmul, topi.x86.schedule_batch_matmul),
-    "gpu": (topi.nn.batch_matmul, topi.cuda.schedule_batch_matmul),
+    "gpu": (topi.cuda.batch_matmul, topi.cuda.schedule_batch_matmul),
 }
 
 def verify_batch_matmul(batch, M, N, K):

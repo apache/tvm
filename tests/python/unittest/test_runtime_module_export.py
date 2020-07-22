@@ -54,7 +54,8 @@ def generate_engine_module():
         '''
     import tvm.runtime._ffi_api
     gen_engine_header()
-    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc")
+    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc", "",
+                                                              None)
     return csource_module
 
 
@@ -67,7 +68,7 @@ def test_mod_export():
 
         resnet18_mod, resnet18_params = relay.testing.resnet.get_workload(num_layers=18)
         resnet50_mod, resnet50_params = relay.testing.resnet.get_workload(num_layers=50)
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             _, resnet18_gpu_lib, _ = relay.build_module.build(resnet18_mod, "cuda", params=resnet18_params)
             _, resnet50_cpu_lib, _ = relay.build_module.build(resnet50_mod, "llvm", params=resnet50_params)
 
@@ -93,7 +94,7 @@ def test_mod_export():
                 return
 
         resnet18_mod, resnet18_params = relay.testing.resnet.get_workload(num_layers=18)
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             _, resnet18_cpu_lib, _ = relay.build_module.build(resnet18_mod, "llvm", params=resnet18_params)
 
         A = te.placeholder((1024,), name='A')
@@ -177,7 +178,7 @@ def test_mod_export():
                 return
 
         resnet18_mod, resnet18_params = relay.testing.resnet.get_workload(num_layers=18)
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             _, resnet18_cpu_lib, _ = relay.build_module.build(resnet18_mod, "llvm", params=resnet18_params)
 
         A = te.placeholder((1024,), name='A')
@@ -191,7 +192,7 @@ def test_mod_export():
         path_lib = temp.relpath(file_name)
         resnet18_cpu_lib.import_module(f)
         resnet18_cpu_lib.import_module(engine_module)
-        kwargs = {"options": ["-O2", "-std=c++11", "-I" + header_file_dir_path.relpath("")]}
+        kwargs = {"options": ["-O2", "-std=c++14", "-I" + header_file_dir_path.relpath("")]}
         resnet18_cpu_lib.export_library(path_lib, fcompile=False, **kwargs)
         loaded_lib = tvm.runtime.load_module(path_lib)
         assert loaded_lib.type_key == "library"

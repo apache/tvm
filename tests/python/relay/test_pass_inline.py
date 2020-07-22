@@ -115,7 +115,7 @@ def test_call_chain_inline_leaf():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, expected())
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_call_chain_inline_multiple_levels():
@@ -188,7 +188,7 @@ def test_call_chain_inline_multiple_levels():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, expected())
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_call_chain_inline_multiple_levels_extern_compiler():
@@ -209,7 +209,7 @@ def test_call_chain_inline_multiple_levels_extern_compiler():
         g11 = relay.GlobalVar("g11")
         fn11 = relay.Function([x11], x11)
         fn11 = fn11.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn11 = fn11.with_attr("Compiler", tvm.tir.StringImm("a"))
+        fn11 = fn11.with_attr("Compiler", "a")
         mod[g11] = fn11
 
         x1 = relay.var("x1", shape=(3, 5))
@@ -244,7 +244,7 @@ def test_call_chain_inline_multiple_levels_extern_compiler():
         x11 = relay.var("x11", shape=(3, 5))
         fn11 = relay.Function([x11], x11)
         fn11 = fn11.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn11 = fn11.with_attr("Compiler", tvm.tir.StringImm("a"))
+        fn11 = fn11.with_attr("Compiler", "a")
 
         x2 = relay.var("x2", shape=(3, 5))
         y2 = relay.var("y2", shape=(3, 5))
@@ -266,7 +266,7 @@ def test_call_chain_inline_multiple_levels_extern_compiler():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, expected())
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_recursive_call_with_global():
@@ -321,7 +321,7 @@ def test_recursive_call_with_global():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, expected())
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_recursive_called():
@@ -330,7 +330,7 @@ def test_recursive_called():
     mod["main"] = relay.Function([iarg], sum_up(iarg))
     ref_mod = mod
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, ref_mod)
+    assert tvm.ir.structural_equal(mod, ref_mod, map_free_vars=True)
 
 
 def test_recursive_not_called():
@@ -356,7 +356,7 @@ def test_recursive_not_called():
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
     ref_mod = expected()
-    assert relay.analysis.alpha_equal(mod, ref_mod)
+    assert tvm.ir.structural_equal(mod, ref_mod, map_free_vars=True)
 
 
 def test_recursive_not_called_extern_compiler():
@@ -367,7 +367,7 @@ def test_recursive_not_called_extern_compiler():
         x1 = relay.var("x1", shape=(2, 2))
         fn1 = relay.Function([x1], x1)
         fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn1 = fn1.with_attr("Compiler", tvm.tir.StringImm("a"))
+        fn1 = fn1.with_attr("Compiler", "a")
         g1 = relay.GlobalVar("g1")
         mod[g1] = fn1
         mod["main"] = relay.Function([x, y], x + y + g1(x))
@@ -380,14 +380,14 @@ def test_recursive_not_called_extern_compiler():
         x1 = relay.var("x1", shape=(2, 2))
         fn1 = relay.Function([x1], x1)
         fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn1 = fn1.with_attr("Compiler", tvm.tir.StringImm("a"))
+        fn1 = fn1.with_attr("Compiler", "a")
         mod["main"] = relay.Function([x, y], x + y + fn1(x))
         return mod
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
     ref_mod = expected()
-    assert relay.analysis.alpha_equal(mod, ref_mod)
+    assert tvm.ir.structural_equal(mod, ref_mod, map_free_vars=True)
 
 
 def test_globalvar_as_call_arg():
@@ -434,7 +434,7 @@ def test_globalvar_as_call_arg():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, expected())
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_globalvar_as_call_arg_extern_compiler():
@@ -446,7 +446,7 @@ def test_globalvar_as_call_arg_extern_compiler():
         sb.ret(x1 + y1)
         fn1 = relay.Function([x1, y1], sb.get())
         fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn1 = fn1.with_attr("Compiler", tvm.tir.StringImm("a"))
+        fn1 = fn1.with_attr("Compiler", "a")
         g1 = relay.GlobalVar("g1")
         mod[g1] = fn1
 
@@ -456,7 +456,7 @@ def test_globalvar_as_call_arg_extern_compiler():
         sb1.ret(x2 - y2)
         fn2 = relay.Function([x2, y2], sb1.get())
         fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn2 = fn2.with_attr("Compiler", tvm.tir.StringImm("b"))
+        fn2 = fn2.with_attr("Compiler", "b")
         g2 = relay.GlobalVar("g2")
         mod[g2] = fn2
 
@@ -478,7 +478,7 @@ def test_globalvar_as_call_arg_extern_compiler():
         sb.ret(x1 + y1)
         fn1 = relay.Function([x1, y1], sb.get())
         fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn1 = fn1.with_attr("Compiler", tvm.tir.StringImm("a"))
+        fn1 = fn1.with_attr("Compiler", "a")
 
         x2 = relay.var("x2", shape=(3, 5))
         y2 = relay.var("y2", shape=(3, 5))
@@ -486,7 +486,7 @@ def test_globalvar_as_call_arg_extern_compiler():
         sb1.ret(x2 - y2)
         fn2 = relay.Function([x2, y2], sb1.get())
         fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn2 = fn2.with_attr("Compiler", tvm.tir.StringImm("b"))
+        fn2 = fn2.with_attr("Compiler", "b")
 
         p0 = relay.var("p0", shape=(3, 5))
         p1 = relay.var("p1", shape=(3, 5))
@@ -500,7 +500,7 @@ def test_globalvar_as_call_arg_extern_compiler():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, expected())
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_inline_globalvar_without_args():
@@ -531,7 +531,7 @@ def test_inline_globalvar_without_args():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, expected())
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_inline_globalvar_without_args_extern_compiler():
@@ -539,10 +539,10 @@ def test_inline_globalvar_without_args_extern_compiler():
         mod = tvm.IRModule({})
         fn1 = relay.Function([], relay.const(1))
         fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn1 = fn1.with_attr("Compiler", tvm.tir.StringImm("a"))
+        fn1 = fn1.with_attr("Compiler", "a")
         fn2 = relay.Function([], relay.const(2))
         fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn2 = fn2.with_attr("Compiler", tvm.tir.StringImm("b"))
+        fn2 = fn2.with_attr("Compiler", "b")
         g1 = relay.GlobalVar('g1')
         g2 = relay.GlobalVar('g2')
         mod[g1] = fn1
@@ -555,10 +555,10 @@ def test_inline_globalvar_without_args_extern_compiler():
         mod = tvm.IRModule({})
         fn1 = relay.Function([], relay.const(1))
         fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn1 = fn1.with_attr("Compiler", tvm.tir.StringImm("a"))
+        fn1 = fn1.with_attr("Compiler", "a")
         fn2 = relay.Function([], relay.const(2))
         fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn2 = fn2.with_attr("Compiler", tvm.tir.StringImm("b"))
+        fn2 = fn2.with_attr("Compiler", "b")
         p = relay.var('p', 'bool')
         mod['main'] = relay.Function([p], relay.Call(
             relay.If(p, fn1, fn2), []))
@@ -566,7 +566,7 @@ def test_inline_globalvar_without_args_extern_compiler():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, expected())
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_globalvar_called_by_multiple_functions():
@@ -644,7 +644,7 @@ def test_globalvar_called_by_multiple_functions():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, expected())
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_entry_with_inline():
@@ -674,7 +674,7 @@ def test_entry_with_inline():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, get_mod())
+    assert tvm.ir.structural_equal(mod, get_mod(), map_free_vars=True)
 
 
 def test_callee_not_inline():
@@ -707,7 +707,7 @@ def test_callee_not_inline():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, get_mod())
+    assert tvm.ir.structural_equal(mod, get_mod(), map_free_vars=True)
 
 
 def test_callee_not_inline_leaf_inline():
@@ -765,7 +765,7 @@ def test_callee_not_inline_leaf_inline():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, expected())
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_callee_not_inline_leaf_inline_extern_compiler():
@@ -787,7 +787,7 @@ def test_callee_not_inline_leaf_inline_extern_compiler():
         y0 = relay.var("y0", shape=(3, 5))
         fn0 = relay.Function([x0, y0], x0 * y0)
         fn0 = fn0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn0 = fn0.with_attr("Compiler", tvm.tir.StringImm("aa"))
+        fn0 = fn0.with_attr("Compiler", "aa")
         g0 = relay.GlobalVar("g0")
         mod[g0] = fn0
 
@@ -811,7 +811,7 @@ def test_callee_not_inline_leaf_inline_extern_compiler():
         y0 = relay.var("y0", shape=(3, 5))
         fn0 = relay.Function([x0, y0], x0 * y0)
         fn0 = fn0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        fn0 = fn0.with_attr("Compiler", tvm.tir.StringImm("aa"))
+        fn0 = fn0.with_attr("Compiler", "aa")
 
         x1 = relay.var("x1", shape=(3, 5))
         y1 = relay.var("y1", shape=(3, 5))
@@ -830,7 +830,7 @@ def test_callee_not_inline_leaf_inline_extern_compiler():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert relay.analysis.alpha_equal(mod, expected())
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
 
 if __name__ == '__main__':

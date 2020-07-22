@@ -25,11 +25,11 @@
 #define TVM_TIR_FUNCTION_H_
 
 #include <tvm/ir/function.h>
-#include <tvm/tir/expr.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
-#include <string>
 
+#include <string>
 
 namespace tvm {
 namespace tir {
@@ -87,8 +87,6 @@ class PrimFuncNode : public BaseFuncNode {
    *  While we could have express parameter unpacking and constraint using
    *  normal statements, making buffer_map as first class citizen of PrimFunc
    *  will make program analysis much easier.
-   *
-   * \note This field can be nullptr
    */
   Map<tir::Var, Buffer> buffer_map;
 
@@ -102,6 +100,20 @@ class PrimFuncNode : public BaseFuncNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
+  bool SEqualReduce(const PrimFuncNode* other, SEqualReducer equal) const {
+    // visit params and buffer_map first as they contains defs.
+    return equal.DefEqual(params, other->params) && equal(buffer_map, other->buffer_map) &&
+           equal(ret_type, other->ret_type) && equal(body, other->body) &&
+           equal(attrs, other->attrs);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(params);
+    hash_reduce(buffer_map);
+    hash_reduce(ret_type);
+    hash_reduce(body);
+    hash_reduce(attrs);
+  }
   /*!
    * \brief Return the derived function annotation of this function.
    *
@@ -129,10 +141,8 @@ class PrimFunc : public BaseFunc {
    * \param buffer_map The buffer map for parameter buffer unpacking.
    * \param attrs Additional function attributes.
    */
-  TVM_DLL PrimFunc(Array<tir::Var> params,
-                   Stmt body,
-                   Type ret_type = VoidType(),
-                   Map<tir::Var, Buffer> buffer_map = NullValue<Map<tir::Var, Buffer>>(),
+  TVM_DLL PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type = VoidType(),
+                   Map<tir::Var, Buffer> buffer_map = Map<tir::Var, Buffer>(),
                    DictAttrs attrs = NullValue<DictAttrs>());
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimFunc, BaseFunc, PrimFuncNode);

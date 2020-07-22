@@ -20,6 +20,7 @@ import tvm
 from tvm import te
 import topi
 import topi.testing
+from tvm.contrib.pickle_memoize import memoize
 
 from common import get_all_backend
 
@@ -204,7 +205,89 @@ def test_crop_and_resize():
                            size_1, method='nearest_neighbor')
     verify_crop_and_resize((1, 3, 224, 224), boxes_1, indices_1, size_1, layout="NCHW")
 
+
+def test_affine_grid():
+    def verify_affine_grid(num_batch, target_shape):
+        dtype = "float32"
+        data_shape = (num_batch, 2, 3)
+        data = te.placeholder(data_shape, dtype=dtype)
+        out = topi.image.affine_grid(data, target_shape)
+
+        @memoize("topi.tests.test_affine_grid.verify_affine_grid")
+        def get_ref_data():
+            data_np = np.random.uniform(size=data_shape).astype(dtype)
+            out_np = topi.testing.affine_grid_python(data_np, target_shape)
+            return data_np, out_np
+
+        data_np, out_np = get_ref_data()
+
+        def check_device(device):
+            ctx = tvm.context(device, 0)
+            if not ctx.exist:
+                print("Skip because %s is not enabled" % device)
+                return
+            print("Running on target: %s" % device)
+            with tvm.target.create(device):
+                s = topi.testing.get_injective_schedule(device)(out)
+            tvm_data = tvm.nd.array(data_np, ctx)
+            tvm_out = tvm.nd.empty(out_np.shape, dtype, ctx)
+            f = tvm.build(s, [data, out], device)
+            f(tvm_data, tvm_out)
+
+            tvm.testing.assert_allclose(
+                tvm_out.asnumpy(), out_np, rtol=1e-5, atol=1e-5)
+
+        for device in get_all_backend():
+            check_device(device)
+
+    verify_affine_grid(1, (16, 32))
+    verify_affine_grid(4, (16, 32))
+
+
+def test_grid_sample():
+    def verify_grid_sample(data_shape, grid_shape):
+        dtype = "float32"
+        data = te.placeholder(data_shape, dtype=dtype)
+        grid = te.placeholder(grid_shape, dtype=dtype)
+        out = topi.image.grid_sample(data, grid, 'bilinear')
+
+        @memoize("topi.tests.test_grid_sample.verify_grid_sample")
+        def get_ref_data():
+            data_np = np.random.uniform(size=data_shape).astype(dtype)
+            # allow grid values to be out-of-bound
+            grid_np = np.random.uniform(size=grid_shape, low=-1.5, high=1.5).astype(dtype)
+            out_np = topi.testing.grid_sample_nchw_python(data_np, grid_np, 'bilinear')
+            return data_np, grid_np, out_np
+
+        data_np, grid_np, out_np = get_ref_data()
+
+        def check_device(device):
+            ctx = tvm.context(device, 0)
+            if not ctx.exist:
+                print("Skip because %s is not enabled" % device)
+                return
+            print("Running on target: %s" % device)
+            with tvm.target.create(device):
+                s = topi.testing.get_injective_schedule(device)(out)
+            tvm_data = tvm.nd.array(data_np, ctx)
+            tvm_grid = tvm.nd.array(grid_np, ctx)
+            tvm_out = tvm.nd.empty(out_np.shape, dtype, ctx)
+            f = tvm.build(s, [data, grid, out], device)
+            f(tvm_data, tvm_grid, tvm_out)
+
+            tvm.testing.assert_allclose(
+                tvm_out.asnumpy(), out_np, rtol=1e-5, atol=1e-5)
+
+        for device in get_all_backend():
+            check_device(device)
+
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))
+
+
 if __name__ == "__main__":
     test_resize()
     test_resize3d()
     test_crop_and_resize()
+    test_affine_grid()
+    test_grid_sample()

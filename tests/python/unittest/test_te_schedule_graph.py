@@ -41,7 +41,7 @@ def test_scan():
 
     def test_fix_pt():
         body = tvm.te.schedule.ScanGetBody(s_scan.op)
-        fxpt = tvm.te.schedule.ScanFixPointAnalysis(s_scan.op, body)
+        fxpt = tvm.te.schedule.ScanFixPointAnalysis(s_scan.op)
         assert(fxpt[s_scan.spatial_axis_[0]].value != 0)
 
 def test_scan_fix_point():
@@ -57,7 +57,7 @@ def test_scan_fix_point():
                                lambda t, i, j: x[t, j, i]  + s_state[t-1, i, j], name="update")
         s_scan = tvm.te.scan(s_init, s_update, s_state)
         body = tvm.te.schedule.ScanGetBody(s_scan.op)
-        fxpt = tvm.te.schedule.ScanFixPointAnalysis(s_scan.op, body)
+        fxpt = tvm.te.schedule.ScanFixPointAnalysis(s_scan.op)
         assert(fxpt[s_scan.op.spatial_axis_[0]].value == 1)
         assert(fxpt[s_scan.op.spatial_axis_[1]].value == 1)
 
@@ -66,7 +66,7 @@ def test_scan_fix_point():
                                lambda t, i, j: x[t, j, i]  + s_state[t-1, j, i], name="update")
         s_scan = tvm.te.scan(s_init, s_update, s_state)
         body = tvm.te.schedule.ScanGetBody(s_scan.op)
-        fxpt = tvm.te.schedule.ScanFixPointAnalysis(s_scan.op, body)
+        fxpt = tvm.te.schedule.ScanFixPointAnalysis(s_scan.op)
         assert(fxpt[s_scan.op.spatial_axis_[0]].value == 0)
         assert(fxpt[s_scan.op.spatial_axis_[1]].value == 0)
 

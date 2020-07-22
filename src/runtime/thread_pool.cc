@@ -21,26 +21,26 @@
  * \file thread_pool.cc
  * \brief Threadpool for multi-threading runtime.
  */
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/threading_backend.h>
-#include <dmlc/thread_local.h>
 #include <dmlc/logging.h>
+#include <dmlc/thread_local.h>
+#include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/runtime/threading_backend.h>
 #if TVM_THREADPOOL_USE_OPENMP
 #include <omp.h>
 #endif
-#include <thread>
-#include <condition_variable>
-#include <mutex>
-#include <atomic>
 #include <algorithm>
-#include <vector>
-#include <string>
+#include <atomic>
+#include <condition_variable>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <sstream>
+#include <string>
+#include <thread>
+#include <vector>
 
 const constexpr int kL1CacheBytes = 64;
 
@@ -69,10 +69,7 @@ constexpr int kSyncStride = 64 / sizeof(std::atomic<int>);
 class ParallelLauncher {
  public:
   // Reset the the task request.
-  void Init(FTVMParallelLambda flambda,
-            void* cdata,
-            int num_task,
-            bool need_sync) {
+  void Init(FTVMParallelLambda flambda, void* cdata, int num_task, bool need_sync) {
     num_pending_.store(num_task);
     this->cdata = cdata;
     this->flambda = flambda;
@@ -88,17 +85,14 @@ class ParallelLauncher {
     }
     if (need_sync) {
       for (int i = 0; i < num_task; ++i) {
-        sync_counter_[i * kSyncStride].store(
-            0, std::memory_order_relaxed);
+        sync_counter_[i * kSyncStride].store(0, std::memory_order_relaxed);
       }
       this->env.sync_handle = sync_counter_;
     } else {
       this->env.sync_handle = nullptr;
     }
   }
-  ~ParallelLauncher() {
-    delete[] sync_counter_;
-  }
+  ~ParallelLauncher() { delete[] sync_counter_; }
   // Wait n jobs to finish
   int WaitForJobs() {
     while (num_pending_.load() != 0) {
@@ -122,13 +116,9 @@ class ParallelLauncher {
     has_error_.store(true);
   }
   // Signal that one job has finished.
-  void SignalJobFinish() {
-    num_pending_.fetch_sub(1);
-  }
+  void SignalJobFinish() { num_pending_.fetch_sub(1); }
   // Get thread local version of the store.
-  static ParallelLauncher* ThreadLocal() {
-    return dmlc::ThreadLocalStore<ParallelLauncher>::Get();
-  }
+  static ParallelLauncher* ThreadLocal() { return dmlc::ThreadLocalStore<ParallelLauncher>::Get(); }
   // The parallel lambda
   FTVMParallelLambda flambda;
   // The closure data
@@ -159,15 +149,9 @@ class SpscTaskQueue {
     int32_t task_id;
   };
 
-  SpscTaskQueue() :
-    buffer_(new Task[kRingSize]),
-    head_(0),
-    tail_(0) {
-  }
+  SpscTaskQueue() : buffer_(new Task[kRingSize]), head_(0), tail_(0) {}
 
-  ~SpscTaskQueue() {
-    delete[] buffer_;
-  }
+  ~SpscTaskQueue() { delete[] buffer_; }
 
   /*!
    * \brief Push a task into the queue and notify the comsumer if it is on wait.
@@ -198,9 +182,7 @@ class SpscTaskQueue {
     }
     if (pending_.fetch_sub(1) == 0) {
       std::unique_lock<std::mutex> lock(mutex_);
-      cv_.wait(lock, [this] {
-          return pending_.load() >= 0 || exit_now_.load();
-        });
+      cv_.wait(lock, [this] { return pending_.load() >= 0 || exit_now_.load(); });
     }
     if (exit_now_.load(std::memory_order_relaxed)) {
       return false;
@@ -275,7 +257,7 @@ class SpscTaskQueue {
 // The thread pool
 class ThreadPool {
  public:
-  ThreadPool(): num_workers_(tvm::runtime::threading::MaxConcurrency()) {
+  ThreadPool() : num_workers_(tvm::runtime::threading::MaxConcurrency()) {
     for (int i = 0; i < num_workers_; ++i) {
       // The SpscTaskQueue only hosts ONE item at a time
       queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
@@ -286,8 +268,8 @@ class ThreadPool {
     }
     threads_ = std::unique_ptr<tvm::runtime::threading::ThreadGroup>(
         new tvm::runtime::threading::ThreadGroup(
-          num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
-          exclude_worker0_ /* include_main_thread */));
+            num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
+            exclude_worker0_ /* include_main_thread */));
     num_workers_used_ = threads_->Configure(threading::ThreadGroup::kBig, 0, exclude_worker0_);
   }
   ~ThreadPool() {
@@ -296,10 +278,7 @@ class ThreadPool {
     }
     threads_.reset();
   }
-  int Launch(FTVMParallelLambda flambda,
-             void* cdata,
-             int num_task,
-             int need_sync) {
+  int Launch(FTVMParallelLambda flambda, void* cdata, int num_task, int need_sync) {
     ParallelLauncher* launcher = ParallelLauncher::ThreadLocal();
     CHECK(!launcher->is_worker)
         << "Cannot launch parallel job inside worker, consider fuse then parallel";
@@ -332,15 +311,12 @@ class ThreadPool {
     return res;
   }
 
-  static ThreadPool* ThreadLocal() {
-    return dmlc::ThreadLocalStore<ThreadPool>::Get();
-  }
+  static ThreadPool* ThreadLocal() { return dmlc::ThreadLocalStore<ThreadPool>::Get(); }
 
   void UpdateWorkerConfiguration(threading::ThreadGroup::AffinityMode mode, int nthreads) {
     // this will also reset the affinity of the ThreadGroup
     // may use less than the MaxConcurrency number of workers
-    num_workers_used_ = threads_->Configure(mode, nthreads,
-                                            exclude_worker0_);
+    num_workers_used_ = threads_->Configure(mode, nthreads, exclude_worker0_);
     // if MaxConcurrency restricted the number of workers (e.g., due to
     // hyperthreading), respect the restriction
     num_workers_used_ = std::min(num_workers_, num_workers_used_);
@@ -376,33 +352,25 @@ class ThreadPool {
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
 
-TVM_REGISTER_GLOBAL("runtime.config_threadpool")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    threading::ThreadGroup::AffinityMode mode =\
-    static_cast<threading::ThreadGroup::AffinityMode>(\
-    static_cast<int>(args[0]));
-    int nthreads = args[1];
-    ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads);
+TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRetValue* rv) {
+  threading::ThreadGroup::AffinityMode mode =
+      static_cast<threading::ThreadGroup::AffinityMode>(static_cast<int>(args[0]));
+  int nthreads = args[1];
+  ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads);
 });
-
 
 }  // namespace runtime
 }  // namespace tvm
 
-
-int TVMBackendParallelLaunch(
-    FTVMParallelLambda flambda,
-    void* cdata,
-    int num_task) {
+int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_task) {
 #if !TVM_THREADPOOL_USE_OPENMP
-  int res = tvm::runtime::ThreadPool::ThreadLocal()->Launch(
-      flambda, cdata, num_task, 1);
+  int res = tvm::runtime::ThreadPool::ThreadLocal()->Launch(flambda, cdata, num_task, 1);
   return res;
 #else
   int num_workers = tvm::runtime::threading::MaxConcurrency();
   if (num_task == 0) num_task = num_workers;
   omp_set_num_threads(num_workers);
-  #pragma omp parallel num_threads(num_workers)
+#pragma omp parallel num_threads(num_workers)
   {
     TVMParallelGroupEnv env;
     env.num_task = num_task;
@@ -414,18 +382,15 @@ int TVMBackendParallelLaunch(
 
 int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
 #if TVM_THREADPOOL_USE_OPENMP
-  #pragma omp barrier
+#pragma omp barrier
 #else
   using tvm::runtime::kSyncStride;
   int num_task = penv->num_task;
-  std::atomic<int>* sync_counter =
-      reinterpret_cast<std::atomic<int>*>(penv->sync_handle);
-  int old_counter = sync_counter[task_id * kSyncStride].fetch_add(
-      1, std::memory_order_release);
+  std::atomic<int>* sync_counter = reinterpret_cast<std::atomic<int>*>(penv->sync_handle);
+  int old_counter = sync_counter[task_id * kSyncStride].fetch_add(1, std::memory_order_release);
   for (int i = 0; i < num_task; ++i) {
     if (i != task_id) {
-      while (sync_counter[i * kSyncStride].load(
-                 std::memory_order_relaxed) <= old_counter) {
+      while (sync_counter[i * kSyncStride].load(std::memory_order_relaxed) <= old_counter) {
         tvm::runtime::threading::Yield();
       }
     }

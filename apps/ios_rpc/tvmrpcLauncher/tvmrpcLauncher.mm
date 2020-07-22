@@ -32,16 +32,15 @@
 @implementation tvmrpcLauncher
 
 - (void)setUp {
-    [super setUp];
+  [super setUp];
 }
 
 - (void)tearDown {
-    [super tearDown];
+  [super tearDown];
 }
 
 - (void)testRPC {
   [TVMRuntime launchSyncServer];
 }
-
 
 @end

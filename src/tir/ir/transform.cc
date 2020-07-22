@@ -21,15 +21,13 @@
  * \file tir/ir/transform.cc
  * \brief TIR specific transformation passes.
  */
-#include <tvm/runtime/registry.h>
 #include <tvm/node/repr_printer.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/transform.h>
-
 
 namespace tvm {
 namespace tir {
 namespace transform {
-
 
 /*!
  * \brief Function level pass that applies transformations to all
@@ -43,9 +41,7 @@ class PrimFuncPassNode : public PassNode {
   /*! \brief The pass function called on each. */
   runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pass_info", &pass_info);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("pass_info", &pass_info); }
 
   /*!
    * \brief Run a function pass on given pass context.
@@ -55,7 +51,7 @@ class PrimFuncPassNode : public PassNode {
    *
    * \return Return the updated module.
    */
-  IRModule operator()(const IRModule& mod, const PassContext& pass_ctx) const final;
+  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 
   /*!
    * \brief Get the pass information/meta data.
@@ -90,36 +86,39 @@ PrimFuncPass::PrimFuncPass(
 }
 
 // Perform Module -> Module optimizations at the PrimFunc level.
-IRModule PrimFuncPassNode::operator()(const IRModule& mod,
-                                      const PassContext& pass_ctx) const {
+IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
   CHECK(mod.defined());
   pass_ctx.Trace(mod, pass_info, true);
-  // Execute the pass function and return a new module.
-  IRModule updated_mod = IRModule(
-      mod->functions, mod->type_definitions, mod->Imports());
-  std::vector<std::pair<GlobalVar, PrimFunc> > updates;
-  for (const auto& it : updated_mod->functions) {
-    // only picks up relay::PrimFunc
-    if (auto* n = it.second.as<PrimFuncNode>()) {
-      PrimFunc func = GetRef<PrimFunc>(n);
-      auto updated_func =
-          pass_func(func, updated_mod, pass_ctx);
-      updates.push_back({it.first, updated_func});
+  std::vector<ObjectRef> deleted_list;
+  IRModuleNode* mod_ptr = mod.CopyOnWrite();
+  auto* func_dict = mod_ptr->functions.CopyOnWrite();
+  // directly loop over the underlying dict
+  for (auto& kv : *func_dict) {
+    // only picks up tir::PrimFunc
+    if (kv.second->IsInstance<PrimFuncNode>()) {
+      // move out the function so that it is the only copy.
+      PrimFunc func = Downcast<PrimFunc>(std::move(kv.second));
+      func = pass_func(std::move(func), mod, pass_ctx);
+      kv.second = std::move(func);
+
+      if (!kv.second.defined()) {
+        deleted_list.push_back(kv.first);
+      }
     }
   }
-  for (const auto& pair : updates) {
-    updated_mod->Add(pair.first, pair.second, true);
+
+  // automatic removal of None
+  for (const auto& gv : deleted_list) {
+    func_dict->erase(gv);
   }
-  pass_ctx.Trace(updated_mod, pass_info, false);
-  return updated_mod;
+  pass_ctx.Trace(mod, pass_info, false);
+  return mod;
 }
 
 Pass CreatePrimFuncPass(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level,
-    const std::string& name,
-    const tvm::Array<tvm::PrimExpr>& required) {
+    int opt_level, String name, tvm::Array<String> required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return PrimFuncPass(pass_func, pass_info);
 }
@@ -127,18 +126,16 @@ Pass CreatePrimFuncPass(
 TVM_REGISTER_NODE_TYPE(PrimFuncPassNode);
 
 TVM_REGISTER_GLOBAL("tir.transform.CreatePrimFuncPass")
-.set_body_typed([](runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-    PassInfo pass_info) {
-  return PrimFuncPass(pass_func, pass_info);
-});
+    .set_body_typed(
+        [](runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
+           PassInfo pass_info) { return PrimFuncPass(pass_func, pass_info); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<PrimFuncPassNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const PrimFuncPassNode*>(ref.get());
-  const PassInfo info = node->Info();
-  p->stream << "PrimFuncPass(" << info->name
-            << ", opt_level=" << info->opt_level << ")";
-});
+    .set_dispatch<PrimFuncPassNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const PrimFuncPassNode*>(ref.get());
+      const PassInfo info = node->Info();
+      p->stream << "PrimFuncPass(" << info->name << ", opt_level=" << info->opt_level << ")";
+    });
 
 }  // namespace transform
 }  // namespace tir
