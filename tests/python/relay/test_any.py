@@ -845,6 +845,7 @@ def test_any_crop_and_resize():
         static_boxes=(128, 4),
         static_box_indices_shape=(128,),
         ref_out_shape=(128, 14, 14, 256))
+    '''
     verify_any_crop_and_resize(
         data_shape=(1, 256, 234, 234), 
         boxes_shape=(relay.Any(), 4), 
@@ -855,6 +856,7 @@ def test_any_crop_and_resize():
         static_box_indices_shape=(128,),
         ref_out_shape=(128, 256, 14, 14)
         )
+    '''
 
 def verify_any_mirror_pad(data_shape, pad_width, static_data_shape, ref_out_shape):
     mod = tvm.IRModule()
