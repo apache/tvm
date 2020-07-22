@@ -116,7 +116,7 @@ class State:
         stages : List[Stage]
         """
         return self.state_object.stages
-    
+
     @property
     def transform_steps(self):
         """
@@ -302,7 +302,7 @@ class State:
                                                      self._resolve_stage_id(stage),
                                                      iterator, lengths, inner_to_outer)
         return res
-    
+
     def follow_split(self, stage, iterator, src_step_id, n_split):
         """
         Parameters
@@ -320,12 +320,12 @@ class State:
             The splitted new Iterators
         """
 
-        self.state_object, res = _ffi_api.StateFollowSplit(self.state_object, 
-                                                           self._resolve_stage_id(stage), 
+        self.state_object, res = _ffi_api.StateFollowSplit(self.state_object,
+                                                           self._resolve_stage_id(stage),
                                                            iterator,
                                                            src_step_id, n_split)
         return res
-    
+
     def follow_fused_split(self, stage, iterator, src_step_ids, level,
                            factor_or_nparts):
         """
@@ -347,9 +347,9 @@ class State:
             The splitted new Iterators
         """
 
-        self.state_object, res = _ffi_api.StateFollowFusedSplit(self.state_object, 
+        self.state_object, res = _ffi_api.StateFollowFusedSplit(self.state_object,
                                                                 self._resolve_stage_id(stage),
-                                                                iterator, 
+                                                                iterator,
                                                                 src_step_ids, level,
                                                                 factor_or_nparts)
         return res
