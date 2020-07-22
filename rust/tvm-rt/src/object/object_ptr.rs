@@ -301,9 +301,9 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
 impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
     fn from(object_ptr: ObjectPtr<T>) -> ArgValue<'a> {
         debug_assert!(object_ptr.count() >= 1);
-        let raw_object_ptr = ObjectPtr::leak(object_ptr);
-        assert!(!raw_object_ptr.is_null());
-        ArgValue::ObjectHandle(raw_object_ptr as *mut T as *mut std::ffi::c_void)
+        let raw_ptr = ObjectPtr::leak(object_ptr) as *mut T as *mut std::ffi::c_void;
+        assert!(!raw_ptr.is_null());
+        ArgValue::ObjectHandle(raw_ptr)
     }
 }
 
