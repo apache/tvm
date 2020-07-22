@@ -1888,7 +1888,7 @@ def _test_quantize_dequantize(data):
     # First TFLite quantize op converts float32 tensor to int8 tensor - Qnn quantize.
     # Second TFLite quantize op converts int8 tensor to int8 tensor - Qnn requantize.
     data_in = tf.keras.layers.Input(shape=data.shape[1:])
-    relu = tf.keras.layers.ReLU()(data_in)
+    relu = tf.keras.layers.ReLU()(data)
     add = tf.keras.layers.Add()([data_in, relu])
     concat = tf.keras.layers.Concatenate(axis=0)([relu, add])
     keras_model = tf.keras.models.Model(inputs=data_in, outputs=concat)

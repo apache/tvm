@@ -2763,7 +2763,12 @@ class OperatorConverter(object):
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
         input_tensor_type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
-        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        if self.has_expr(input_tensor.tensor_idx):
+            in_expr = self.get_expr(input_tensor.tensor_idx)
+        else:
+            in_value = self.get_tensor_value(input_tensor)
+            in_expr = self.exp_tab.new_const(in_value, dtype=self.get_tensor_type_str(input_tensor.tensor.Type()))
 
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
