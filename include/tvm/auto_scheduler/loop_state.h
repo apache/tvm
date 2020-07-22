@@ -297,14 +297,14 @@ class State : public ObjectRef {
    * this input.
    * \return The iterator result after binded.
    */
-  Iterator bind(int stage_id, const Iterator& it, IteratorAnnotation thread_type);
+  TVM_DLL Iterator bind(int stage_id, const Iterator& it, IteratorAnnotation thread_type);
   /*!
    * \brief Schedule primitive corresponds to te.parallel.
    * \param stage_id The index of the stage to be paralleled.
    * \param it The iterator to be paralleled.
    * \return The iterator result after parallel.
    */
-  Iterator parallel(int stage_id, const Iterator& it);
+  TVM_DLL Iterator parallel(int stage_id, const Iterator& it);
   /*!
    * \brief Schedule primitive corresponds to te.unroll.
    * \param stage_id The index of the stage to be unrolled.
@@ -313,14 +313,14 @@ class State : public ObjectRef {
    * skipped.
    * \return The iterator result after unrolled.
    */
-  Iterator unroll(int stage_id, const Iterator& it, int max_unroll = -1);
+  TVM_DLL Iterator unroll(int stage_id, const Iterator& it, int max_unroll = -1);
   /*!
    * \brief Schedule primitive corresponds to te.vectorize.
    * \param stage_id The index of the stage to be vectorized.
    * \param it The iterator to be vectorized.
    * \return The iterator result after vectorize.
    */
-  Iterator vectorize(int stage_id, const Iterator& it);
+  TVM_DLL Iterator vectorize(int stage_id, const Iterator& it);
   /*!
    * \brief Schedule primitive corresponds to te.fuse.
    * \param stage_id The index of the stage to be fused.
@@ -329,13 +329,13 @@ class State : public ObjectRef {
    * \note If the iterators to be fused have stages attached at them(by compute_at), the fused
    * result will become the new attach point.
    */
-  Iterator fuse(int stage_id, const Array<Iterator>& iters);
+  TVM_DLL Iterator fuse(int stage_id, const Array<Iterator>& iters);
   /*!
    * \brief Schedule primitive corresponds to te.reorder.
    * \param stage_id The index of the stage to be reordered.
    * \param order The expected iterator order.
    */
-  void reorder(int stage_id, const Array<Iterator>& order);
+  TVM_DLL void reorder(int stage_id, const Array<Iterator>& order);
   /*!
    * \brief Schedule primitive corresponds to te.split.
    * \param stage_id The index of the stage to be split.
@@ -346,8 +346,9 @@ class State : public ObjectRef {
    * \note If we do split on an iterator which has stages attached at it(by compute_at), the inner
    * most iterator of split results will become the new attach point.
    */
-  Array<Iterator> split(int stage_id, const Iterator& it, const Array<Optional<Integer>>& lengths,
-                        bool inner_to_outer = true);
+  TVM_DLL Array<Iterator> split(
+      int stage_id, const Iterator& it, const Array<Optional<Integer>>& lengths,
+      bool inner_to_outer = true);
 
   /********** Step APIs working on multiple stages **********/
 
@@ -361,12 +362,12 @@ class State : public ObjectRef {
    * bound for the newly created iterators.
    * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
    */
-  void compute_at(int stage_id, int target_stage_id, const Iterator& target_iter);
+  TVM_DLL void compute_at(int stage_id, int target_stage_id, const Iterator& target_iter);
   /*!
    * \brief Schedule primitive corresponds to te.compute_inline.
    * \param stage_id The index of the stage to be reordered.
    */
-  void compute_inline(int stage_id);
+  TVM_DLL void compute_inline(int stage_id);
   /*!
    * \brief Schedule primitive corresponds to te.compute_root.
    * \param stage_id The index of the stage to be reordered.
@@ -375,7 +376,7 @@ class State : public ObjectRef {
    * bound for the newly created iterators.
    * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
    */
-  void compute_root(int stage_id);
+  TVM_DLL void compute_root(int stage_id);
 
   TVM_DEFINE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StateNode);
