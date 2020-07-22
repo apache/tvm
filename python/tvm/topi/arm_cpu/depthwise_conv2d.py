@@ -20,7 +20,7 @@
 import tvm
 from tvm import te
 from tvm import autotvm
-from tvm.autotvm.task.space import SplitEntity, AnnotateEntity
+from tvm.autotvm.task.space import SplitEntity, AnnotateEntity, OtherOptionEntity
 
 from .. import nn
 from ..util import traverse_inline, get_const_tuple, get_const_int
@@ -235,7 +235,7 @@ def compute_depthwise_conv2d_nhwc(_, data, kernel, strides, padding, dilation, o
     OH = (IH + pad_top + pad_down - dilated_kernel_h) // HSTR + 1
     OW = (IW + pad_left + pad_right - dilated_kernel_w) // WSTR + 1
 
-    if pad_top or pad_left:
+    if pad_top or pad_left or pad_down or pad_right:
         data_pad = nn.pad(data, [0, pad_top, pad_left, 0], [0, pad_down, pad_right, 0],
                           name="data_pad")
     else:
@@ -286,8 +286,6 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
 
     def schedule_conv(conv):
         conv_data = conv.op.input_tensors[0]
-        if conv_data.name == "data_pad":
-            s[conv_data].compute_inline()
 
         n, w, h, c = conv.op.axis
         r_h, r_w = conv.op.reduce_axis
@@ -295,37 +293,50 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
         wo, wi = cfg['tile_w'].apply(s, conv, w)
         co, ci = cfg['tile_c'].apply(s, conv, c)
 
+        if conv_data.name == "data_pad":
+            # Define a policy for padding computation
+            cfg.define_knob('data_pad_inline', [1, 2, 3])
+            if cfg.is_fallback:
+                cfg['data_pad_inline'] = OtherOptionEntity(3)
+            if cfg['data_pad_inline'].val == 1:
+                s[conv_data].compute_at(s[conv], ho)
+            if cfg['data_pad_inline'].val == 2:
+                s[conv_data].compute_at(s[conv], wo)
+            if cfg['data_pad_inline'].val == 3:
+                s[conv_data].compute_inline()
+
         s[conv].reorder(n, ho, wo, co, hi, wi, r_h, r_w, ci)
         fused_n_ho = s[conv].fuse(n, ho)
-        s[conv].parallel(fused_n_ho)
         s[conv].vectorize(ci)
+        return fused_n_ho
 
     def schedule_conv_out(out):
         n, h, w, c = out.op.axis
         co, ci = cfg['tile_c'].apply(s, out, c)
         wo, wi = cfg['tile_w'].apply(s, out, w)
         ho, hi = cfg['tile_h'].apply(s, out, h)
+        s[out].reorder(n, ho, wo, co, hi, wi)
 
         if out.dtype in ['int8', 'uint8']:
             # In case of quantized convolution further split the channel in batches of 4 elements
             # so that we can use arm intrinsics to run fixed_point_multiplication
             ci_outer, ci_inner = s[out].split(ci, 4)
-            s[out].reorder(n, ho, wo, co, hi, wi)
             s[out].vectorize(ci_inner)
 
         fused_n_ho = s[out].fuse(n, ho)
-        s[out].parallel(fused_n_ho)
-        return hi, wi
+        return hi, wi, fused_n_ho
 
     def _callback(op):
         if op.name == 'depthwise_conv2d_nhwc_output':
             conv = op.output(0)
             if conv != out:
-                hi, wi = schedule_conv_out(out)
+                hi, wi, p_axis = schedule_conv_out(out)
                 schedule_conv(conv)
                 cfg['locate_output'].apply(s, out, [hi, wi], source=[[conv]])
             else:
-                schedule_conv(out)
+                p_axis = schedule_conv(out)
+
+            s[out].parallel(p_axis)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
