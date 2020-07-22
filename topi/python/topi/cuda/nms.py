@@ -110,20 +110,24 @@ def get_valid_counts_ir(data, valid_count, out, out_indices,
 
     # each thread process one batch
     valid_count[tid] = 0
+    data_base_ind = tid * num_anchors * elem_length
+    ind_base_ind = tid * num_anchors
     with ib.for_range(0, num_anchors) as anchor_ind:
         with ib.for_range(0, elem_length) as k:
-            out[anchor_ind * elem_length + k] = -one
-        out_indices[anchor_ind + tid*num_anchors] = -one_count
+            out[data_base_ind + anchor_ind * elem_length + k] = -one
+        out_indices[ind_base_ind + anchor_ind] = -one_count
 
     with ib.for_range(0, num_anchors) as anchor_ind:
         with ib.if_scope(
-                tvm.tir.all(data[anchor_ind * elem_length + score_index] > score_threshold,
-                            tvm.tir.any(id_index < 0,
-                                        data[anchor_ind * elem_length + id_index] >= 0))):
+                tvm.tir.all(
+                    data[data_base_ind + anchor_ind * elem_length + score_index] > score_threshold,
+                    tvm.tir.any(id_index < 0,
+                                data[data_base_ind + anchor_ind * elem_length + id_index] >= 0))):
             valid_count[tid] = valid_count[tid] + 1
             with ib.for_range(0, elem_length) as k:
-                out[(valid_count[tid]-1) * elem_length + k] = data[anchor_ind * elem_length + k]
-            out_indices[(valid_count[tid]-1) + tid*num_anchors] = anchor_ind
+                out[data_base_ind + (valid_count[tid]-1) * elem_length + k] = \
+                    data[data_base_ind + anchor_ind * elem_length + k]
+            out_indices[ind_base_ind + (valid_count[tid]-1)] = anchor_ind
     return ib.get()
 
 
