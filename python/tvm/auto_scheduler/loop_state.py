@@ -252,6 +252,23 @@ class State:
                                                     self._resolve_stage_id(stage), iters)
         return res
 
+    def pragma(self, stage, iterator, pragma_type):
+        """ Schedule primitive corresponds to `te.Stage.pragma`, see also the `te.Stage` for more
+        details.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to add pragma, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        iterator : Iterator
+            The iterator to add pragma.
+        pragma_type : str
+            The pragma string.
+        """
+        self.state_object = _ffi_api.StatePragma(self.state_object, self._resolve_stage_id(stage),
+                                                 iterator, pragma_type)
+
     def reorder(self, stage, order):
         """ Schedule primitive corresponds to `te.Stage.reorder`, see also the `te.Stage` for more
         details.
@@ -300,6 +317,26 @@ class State:
                                                      self._resolve_stage_id(stage),
                                                      iterator, lengths, inner_to_outer)
         return res
+
+    def storage_align(self, stage, iterator, factor, offset):
+        """ Schedule primitive corresponds to `te.Stage.storage_align`, see also the `te.Stage` for
+        more details.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be storage aligned, which can be specified by the integer index,
+            Operation, or output tensor of the stage.
+        iterator : Iterator
+            The iterator to be aligned.
+        factor : int
+            The factor in alignment specification.
+        offset : int
+            The offset in the alignment specification.
+        """
+        self.state_object = _ffi_api.StateStorageAlign(self.state_object,
+                                                       self._resolve_stage_id(stage), iterator,
+                                                       factor, offset)
 
     def compute_at(self, stage, target_stage, target_iter):
         """ Schedule primitive corresponds to `te.Stage.compute_at`, see also the `te.Stage` for
@@ -423,6 +460,40 @@ class State:
         self.state_object, new_stage_id = _ffi_api.StateCacheWrite(self.state_object,
                                                                    self._resolve_stage_id(stage),
                                                                    scope_name, self.compute_dag)
+        # Add a new stage will change all ops behind the added stage. But we still want to keep the
+        # original ops map, apply stage id offset to stage_id_map to make them work.
+        self._apply_stage_id_offset(int(new_stage_id))
+        self._update_stage_id_map()
+        return self.stages[int(new_stage_id)].op
+
+    def rfactor(self, stage, iterator, factor_iter_id):
+        """ Schedule primitive corresponds to `te.Schedule.rfactor`, see also the `te.Schedule` for
+        more details.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be factored, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        iterator : Iterator
+            The reduction iterator to be factored.
+        factor_iter_id : int
+            The position where the new iterator is placed.
+
+        Returns
+        -------
+        new_stage_op : Operator
+            The Operator of the new added stage.
+
+        Notes
+        -----
+        Rfactor step will insert an extra stage to the original ComputeDAG (see
+        `te.Schedule.rfactor` for more details).
+        """
+        self.state_object, new_stage_id = _ffi_api.StateRfactor(self.state_object,
+                                                                self._resolve_stage_id(stage),
+                                                                iterator, factor_iter_id,
+                                                                self.compute_dag)
         # Add a new stage will change all ops behind the added stage. But we still want to keep the
         # original ops map, apply stage id offset to stage_id_map to make them work.
         self._apply_stage_id_offset(int(new_stage_id))
