@@ -118,7 +118,7 @@ def get_valid_counts_ir(data, valid_count, out, out_indices,
     with ib.for_range(0, num_anchors) as anchor_ind:
         with ib.if_scope(
                 tvm.tir.all(data[anchor_ind * elem_length + score_index] > score_threshold,
-                            tvm.tir.any(id_index < 0, 
+                            tvm.tir.any(id_index < 0,
                                         data[anchor_ind * elem_length + id_index] >= 0))):
             valid_count[tid] = valid_count[tid] + 1
             with ib.for_range(0, elem_length) as k:
@@ -210,7 +210,7 @@ def rearrange_indices_out_ir(data, output, valid_box_count):
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = tx
-    
+
     valid_box_count[tid] = 0
     with ib.for_range(0, num_anchors) as anchor_ind:
         output[tid * num_anchors + anchor_ind] = data[tid * num_anchors + anchor_ind]
@@ -242,8 +242,8 @@ def rearrange_indices_out(data):
         data.shape, data.dtype, "out_indices_buf", data_alignment=8)
     valid_count_buf = tvm.tir.decl_buffer(
         (batch_size, 1), "int32", "valid_count_buf", data_alignment=8)
-    
-    output, valid_box_count = te.extern([out_indices_buf.shape, valid_count_buf.shape], 
+
+    output, valid_box_count = te.extern([out_indices_buf.shape, valid_count_buf.shape],
                                         [data],
                                         lambda ins, outs: rearrange_indices_out_ir(
                                             ins[0], outs[0], outs[1]),
