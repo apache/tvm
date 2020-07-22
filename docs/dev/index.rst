@@ -23,14 +23,14 @@ architecture of TVM and/or actively develop on the project.
 This page is organized as follows:
 
 - The `Example Compilation Flow`_ gives an overview of the steps that TVM takes to turn a high level description of a model into a deployable module.
-  To get started, please read the this section first.
+  To get started, please read this section first.
 - The `Logical Architecture Components`_ section describes the logical components.
   The sections after are specific guides focused on each logical component, organized
   by the component's name.
 - The `How Tos`_ section contains useful tutorials to solve specific development problems.
 
 This guide provides a few complementary views of the architecture.
-First, we review a single end to end compilation flow and discuss the key data structures and the transformations.
+First, we review a single end-to-end compilation flow and discuss the key data structures and the transformations.
 This runtime-based view focuses on the interactions of each components when running the compiler.
 Then we will review the logical modules of the codebase and their relationship. This part provides a static overarching view of the design.
 
@@ -64,7 +64,7 @@ components that either define a collection of key data structures or transformat
 **IRModule** is the primary data structure used across the entire stack. An IRModule (intermediate representation module)
 contains a collection of functions. Currently, we support two primary variants of functions.
 
-- **relay::Function** is a high-level functional program representation. A relay.Function usually corresponds to an end to end model.
+- **relay::Function** is a high-level functional program representation. A relay.Function usually corresponds to an end-to-end model.
   You can view a relay.Function as a computational graph with additional support for control-flow, recursion, and complex data structures.
 - **tir::PrimFunc** is a low-level program representation that contains elements including loop-nest choices, multi-dimensional load/store,
   threading, and vector/tensor instructions. It is usually used to represent an operator program that executes a (possibly-fused) layer in a model.
@@ -84,7 +84,7 @@ Now that we have covered the key data structures, let us talk about the transfor
 optimizations such as constant folding and dead-code elimination, and tensor-computation specific passes such as layout
 transformation and scaling factor folding.
 
-Near the end of the relay optimization pipeline, we will run a pass(FuseOps) to break the end to end function(e.g. mobilenet)
+Near the end of the relay optimization pipeline, we will run a pass(FuseOps) to break the end-to-end function(e.g. MobileNet)
 into sub-function(e.g. conv2d-relu) segments. We call these segments of functions.
 This process helps us to divide the original problem into two sub-problems:
 
@@ -108,12 +108,12 @@ The transformation passes we described so far are deterministic and rule-based. 
 It is hard to define a heuristic to make all of the choices. Instead, we will take a search and learning-based approach.
 We first define a collection of actions we can take to transform a program. Example actions include loop transformations, inlining,
 vectorization. We call these actions **scheduling primitives**. The collection of scheduling primitives defines a search space of possible
-optimizations we can make to a program. The system will use then searches over different possible scheduling
+optimizations we can make to a program. The system then searches over different possible scheduling
 sequence to pick the best scheduling combination.
 The search procedure is usually guided by a machine learning algorithm.
 
 We can record the best schedule sequence for an (possibly-fused) operator once the search is completed. The compiler can then just lookup the best
-schedule sequence and apply it to the program. Notably, this schedule application phase **exactly like** the rule-based transformations,
+schedule sequence and apply it to the program. Notably, this schedule application phase is **exactly like** the rule-based transformations,
 enabling us to share the same interface convention with tradition passes.
 
 We use search based optimizations to handle the initial tir function generation problem. This part of the module is called AutoTVM(auto_scheduler).
@@ -123,14 +123,16 @@ Target Translation
 ~~~~~~~~~~~~~~~~~~
 
 The target translation phase transforms an IRModule to the corresponding target executable format.
-For backends such as x86 and ARM, we will use the LLVM IRBuilder to build in-memory LLVM IR.
+For backends such as x86 and ARM, we use the LLVM IRBuilder to build in-memory LLVM IR.
 We can also generate source-level languages such as CUDA C and OpenCL.
 Finally, we support direct translations of a Relay function (sub-graph) to specific targets via external code generators.
-Importantly, the final code generation phase should be lightweight as possible with the vast majority of transformations
-and lowering performed before target translation.
+It is important that the final code generation phase is as lightweight as possible. Vast majority of transformations
+and lowering should be performed before the target translation phase.
+
 We also provide a Target structure to specify the compilation target.
 The transformations before the target translation phase can also be affected by the target — for example,
 a target's vector length would change the vectorization behavior.
+
 
 Runtime Execution
 ~~~~~~~~~~~~~~~~~
@@ -150,16 +152,17 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
 
 :py:class:`tvm.runtime.Module` encapsulates the result of compilation. A runtime.Module contains a GetFunction method to obtain PackedFuncs by name.
 
-:py:class:`tvm.runtime.PackedFunc` is a type-erased function interface for both the generated functions. A runtime.PackedFunc can take arguments and return values with the following types: POD types(int, float), string, runtime.PackedFunc, runtime.Module, runtime.NDArray, sub-classes of runtime.Object.
+:py:class:`tvm.runtime.PackedFunc` is a type-erased function interface for both the generated functions. A runtime.PackedFunc can take arguments and return values with the
+following types: POD types(int, float), string, runtime.PackedFunc, runtime.Module, runtime.NDArray, and other sub-classes of runtime.Object.
 
 :py:class:`tvm.runtime.Module` and :py:class:`tvm.runtime.PackedFunc` are powerful mechanisms to modularize the runtime. For example, to get the above `addone` function on CUDA, we can use LLVM to generate the host-side code to compute the launching parameters(e.g. size of the thread groups) and then call into another PackedFunc from a CUDAModule that is backed by the CUDA driver API. The same mechanism can be used for OpenCL kernels.
 
-The above example only deals with a simple `addone` function. The code snippet below gives an example of an end to end model execution using the same interface:
+The above example only deals with a simple `addone` function. The code snippet below gives an example of an end-to-end model execution using the same interface:
 
 .. code-block:: python
 
    import tvm
-   # Example runtime execution program in python, with type annotated
+   # Example runtime execution program in python, with types annotated
    factory: tvm.runtime.Module = tvm.runtime.load_module("resnet18.so")
    # Create a stateful graph execution module for resnet18 on gpu(0)
    gmod: tvm.runtime.Module = factory["resnet18"](tvm.gpu(0))
@@ -171,7 +174,7 @@ The above example only deals with a simple `addone` function. The code snippet b
    # get the output
    result = gmod["get_output"](0).asnumpy()
 
-The main take away is that the runtime.Module and runtime.PackedFunc are sufficient to encapsulate both operator level programs(such as addone), as well as the end to end models.
+The main take away is that runtime.Module and runtime.PackedFunc are sufficient to encapsulate both operator level programs (such as addone), as well as the end-to-end models.
 
 Summary and Discussions
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -204,6 +207,10 @@ Logical Architecture Components
 
    TVM Architecture Diagram
 
+The above figure shows the major logical components in the project. Please read the following sections
+for information about the components and their relations.
+
+
 tvm/support
 -----------
 The support module contains the most common utilities for the infrastructure, such as generic arena allocator, socket, and logging.
@@ -213,13 +220,13 @@ tvm/runtime
 -----------
 
 The runtime serves as the foundation of the TVM stack. It provides the mechanism to load and execute compiled artifacts.
-The runtime defines a stable standard set of C API to interface with frontend languages such as Python and Rust.
+The runtime defines a stable standard set of C APIs to interface with frontend languages such as Python and Rust.
 
 `runtime::Object` is one of the primary data structures in TVM runtime besides the `runtime::PackedFunc`.
-It is a reference-counted base class with type index to support runtime type checking and downcasting.
+It is a reference-counted base class with a type index to support runtime type checking and downcasting.
 The object system allows the developer to introduce new data structures to the runtime, such as Array, Map, and new IR data structures.
 
-Besides the deployment use-cases, the compiler itself also makes heavy use of the TVM's runtime mechanism.
+Besides deployment use-cases, the compiler itself also makes heavy use of TVM's runtime mechanism.
 All of the IR data structures are subclasses of `runtime::Object`, as a result, they can be directly accessed and manipulated from the Python frontend.
 We use the PackedFunc mechanism to expose various APIs to the frontend.
 
@@ -244,17 +251,18 @@ tvm/node
 The node module adds additional features on top of the `runtime::Object` for IR data structures.
 The main features include reflection, serialization, structural equivalence, and hashing.
 
-Thanks to the node module, we can directly access any field of the tvm's IRNode by their name in python.
+Thanks to the node module, we can directly access any field of the TVM's IRNode by their name in Python.
 
 .. code-block:: python
 
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Add(x, x)
+    # a and b are fields of a tir.Add node
     # we can directly use the field name to access the IR structures
     assert y.a == x
 
 
-We can also directly serialize arbitrary IR node into a JSON format, and load them back.
+We can also serialize arbitrary IR node into a JSON format, and load them back.
 The ability to save/store, and inspect an IR node provides a foundation for making the compiler more accessible.
 
 
@@ -269,11 +277,20 @@ The components in `tvm/ir` are shared by `tvm/relay` and `tvm/tir`, notable ones
 - Op
 
 Different variants of functions(e.g. relay.Function and tir.PrimFunc) can co-exist in an IRModule.
-While these variants may not have the same content representation, they use the same data structure to represent types,
-and as a consequence, their function signatures. The unified type system allows one function variant to call into another
-once we clearly define the calling convention and opens doors for future cross-function-variant optimizations.
+While these variants may not have the same content representation, they use the same data structure to represent types.
+As a consequence, we use the same data structure to represent function (type) signatures of these variants.
+The unified type system allows one function variant to call another function
+once we clearly define the calling convention. This opens doors for future cross-function-variant optimizations.
 
 We also provide a unified PassContext for configuring the pass behavior, and common composite passes to execute a pass pipeline.
+The following code snippet gives an example of PassContext configuration.
+
+.. code-block:: python
+
+    # configure the behavior of the tir.UnrollLoop pass
+    with tvm.transform.PassContext(config={"tir.UnrollLoop": { "auto_max_step": 10 }}):
+        # code affected by the pass context
+
 
 Op is the common class to represent all system-defined primitive operator/intrinsics.
 Developers can register new Ops as well as their additional attributes(e.g. whether the Op is elementwise) to the system.
@@ -284,13 +301,16 @@ tvm/target
 The target module contains all the code generators that translate an IRModule to a target runtime.Module.
 It also provides a common `Target` class that describes the target.
 
+.. TODO(tvm-team) add a target json description example once the new target API stablizes.
+
+
 The compilation pipeline can be customized according to the target by querying the attribute information
 in the target and builtin information registered to each target id(cuda, opencl).
 
 tvm/tir
 -------
 
-TIR contains the definition for the low-level program representations. We use `tir::PrimFunc` to represent functions that can be transformed by TIR passes.
+TIR contains the definition of the low-level program representations. We use `tir::PrimFunc` to represent functions that can be transformed by TIR passes.
 Besides the IR data structures, the tir module also defines a set of builtin intrinsics and their attributes via the common Op registry, as well as transformation passes in `tir/transform`.
 
 tvm/arith
@@ -318,13 +338,15 @@ these scheduling components to the a `tir::PrimFunc` itself.
 topi
 ----
 While possible to construct operators directly via TIR or tensor expressions (TE) for each use case it is tedious to do so.
-`topi` provides a set of pre-defined operators (in TE or TIR) defined by
+`topi` (Tensor operator inventory) provides a set of pre-defined operators (in TE or TIR) defined by
 numpy and found in common deep learning workloads. We also provide a collection of common schedule templates to obtain performant implementations across different target platforms.
 
 
 tvm/relay
 ---------
-Relay is the high-level functional IR used to represent full models. Various optimizations are defined in `relay.transform`. The Relay compiler defines multiple dialects, each dialect is designed to support specific styles of optimization. Notable ones include QNN(for importing pre-quantized models), VM(for lowering to dynamic vm), memory(for memory optimization).
+Relay is the high-level functional IR used to represent full models. Various optimizations are defined in `relay.transform`. The Relay compiler defines multiple dialects,
+and each dialect is designed to support specific styles of optimization. Notable ones include QNN(for importing pre-quantized models), VM(for lowering to dynamic virtual machine),
+memory(for memory optimization).
 
 .. toctree::
    :maxdepth: 1
@@ -344,8 +366,9 @@ AutoTVM and AutoScheduler are both components which automate search based progra
 - A record format for storing program benchmark results for cost model construction.
 - A set of search policies over program transformations.
 
-Automated program optimization is still an active research field. As a result, we have attempted to modularize the design so that researchers may quickly modify a component or apply their own algorithms via the Python bindings.
-customize the search and plugin their algorithms from the python binding.
+Automated program optimization is still an active research field. As a result, we have attempted to modularize the design so that researchers may quickly modify a
+component or apply their own algorithms via the Python bindings, and
+customize the search and plugin their algorithms from the Python binding.
 
 .. toctree::
    :maxdepth: 1
@@ -356,7 +379,7 @@ customize the search and plugin their algorithms from the python binding.
 How Tos
 -------
 This section contains a collection of tips about how to work on
-various areas of the tvm stack.
+various areas of the TVM stack.
 
 .. toctree::
    :maxdepth: 1
