@@ -402,4 +402,3 @@ def schedule_conv2d_hwnc_tensorcore(cfg, outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
-
