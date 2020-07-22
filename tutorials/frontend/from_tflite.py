@@ -136,7 +136,7 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 # Build the module against to x86 CPU
 target = "llvm"
 with transform.PassContext(opt_level=3):
-    graph, lib, params = relay.build(mod, target, params=params)
+    lib = relay.build(mod, target, params=params)
 
 ######################################################################
 # Execute on TVM
@@ -146,13 +146,10 @@ from tvm import te
 from tvm.contrib import graph_runtime as runtime
 
 # Create a runtime executor module
-module = runtime.create(graph, lib, tvm.cpu())
+module = runtime.GraphModule(lib['default'](tvm.cpu()))
 
 # Feed input data
 module.set_input(input_tensor, tvm.nd.array(image_data))
-
-# Feed related params
-module.set_input(**params)
 
 # Run
 module.run()

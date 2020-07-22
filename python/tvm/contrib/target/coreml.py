@@ -245,4 +245,4 @@ def coreml_compiler(func):
     builder.compile(model_dir)
 
     ctx = tvm.cpu(0)
-    return coreml_runtime.create(model_dir, ctx).module
+    return coreml_runtime.create(name, mlmodelc_path, ctx).module

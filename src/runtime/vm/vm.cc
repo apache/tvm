@@ -148,6 +148,10 @@ Instruction::Instruction(const Instruction& instr) {
     case Opcode::ShapeOf:
       this->shape_of.tensor = instr.shape_of.tensor;
       return;
+    case Opcode::ReshapeTensor:
+      this->reshape_tensor.tensor = instr.reshape_tensor.tensor;
+      this->reshape_tensor.newshape = instr.reshape_tensor.newshape;
+      return;
     default:
       std::ostringstream out;
       out << "Invalid instruction " << static_cast<int>(instr.op);
@@ -265,6 +269,7 @@ Instruction::~Instruction() {
     case Opcode::LoadConsti:
     case Opcode::AllocStorage:
     case Opcode::ShapeOf:
+    case Opcode::ReshapeTensor:
     case Opcode::Fatal:
       return;
     case Opcode::AllocTensor:
@@ -320,7 +325,7 @@ Instruction Instruction::InvokePacked(Index packed_index, Index arity, Index out
 
 Instruction Instruction::AllocTensor(RegName storage, RegName offset,
                                      const std::vector<int64_t>& shape, DLDataType dtype,
-                                     Index dst) {
+                                     RegName dst) {
   Instruction instr;
   instr.op = Opcode::AllocTensor;
   instr.dst = dst;
@@ -336,7 +341,7 @@ Instruction Instruction::AllocTensor(RegName storage, RegName offset,
 }
 
 Instruction Instruction::AllocTensorReg(RegName storage, RegName offset, RegName shape_register,
-                                        DLDataType dtype, Index dst) {
+                                        DLDataType dtype, RegName dst) {
   Instruction instr;
   instr.op = Opcode::AllocTensorReg;
   instr.dst = dst;
@@ -348,7 +353,7 @@ Instruction Instruction::AllocTensorReg(RegName storage, RegName offset, RegName
 }
 
 Instruction Instruction::AllocStorage(RegName size, Index alignment, DLDataType dtype_hint,
-                                      Index dst) {
+                                      RegName dst) {
   Instruction instr;
   instr.op = Opcode::AllocStorage;
   instr.dst = dst;
@@ -358,7 +363,7 @@ Instruction Instruction::AllocStorage(RegName size, Index alignment, DLDataType 
   return instr;
 }
 
-Instruction Instruction::ShapeOf(RegName tensor, Index dst) {
+Instruction Instruction::ShapeOf(RegName tensor, RegName dst) {
   Instruction instr;
   instr.op = Opcode::ShapeOf;
   instr.dst = dst;
@@ -366,8 +371,17 @@ Instruction Instruction::ShapeOf(RegName tensor, Index dst) {
   return instr;
 }
 
+Instruction Instruction::ReshapeTensor(RegName tensor, RegName newshape, RegName dst) {
+  Instruction instr;
+  instr.op = Opcode::ReshapeTensor;
+  instr.dst = dst;
+  instr.reshape_tensor.tensor = tensor;
+  instr.reshape_tensor.newshape = newshape;
+  return instr;
+}
+
 Instruction Instruction::AllocADT(Index tag, Index num_fields,
-                                  const std::vector<RegName>& datatype_fields, Index dst) {
+                                  const std::vector<RegName>& datatype_fields, RegName dst) {
   Instruction instr;
   instr.op = Opcode::AllocADT;
   instr.dst = dst;
@@ -381,7 +395,7 @@ Instruction Instruction::AllocADT(Index tag, Index num_fields,
 }
 
 Instruction Instruction::AllocClosure(Index func_index, Index free_vars,
-                                      const std::vector<RegName>& free_var_register, Index dst) {
+                                      const std::vector<RegName>& free_var_register, RegName dst) {
   Instruction instr;
   instr.op = Opcode::AllocClosure;
   instr.dst = dst;
@@ -602,6 +616,11 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     }
     case Opcode::ShapeOf: {
       os << "shape_of $" << instr.dst << " $" << instr.shape_of.tensor;
+      break;
+    }
+    case Opcode::ReshapeTensor: {
+      os << "reshape_tensor $" << instr.dst << " $" << instr.reshape_tensor.tensor << " $"
+         << instr.reshape_tensor.newshape;
       break;
     }
     default:
@@ -1103,6 +1122,29 @@ void VirtualMachine::RunLoop() {
           goto main_loop;
         }
       }
+      case Opcode::ReshapeTensor: {
+        DLContext cpu_ctx;
+        cpu_ctx.device_type = kDLCPU;
+        cpu_ctx.device_id = 0;
+        auto tensor_obj = ReadRegister(instr.reshape_tensor.tensor);
+        NDArray tensor_arr = Downcast<NDArray>(tensor_obj);
+        // Read the shape from shape tensor
+        auto shape_obj = ReadRegister(instr.reshape_tensor.newshape);
+        NDArray shape_tensor = Downcast<NDArray>(CopyTo(shape_obj, cpu_ctx));
+        const DLTensor* dl_tensor = shape_tensor.operator->();
+        CHECK_EQ(dl_tensor->dtype.code, 0u);
+        CHECK_EQ(dl_tensor->dtype.bits, 64);
+        int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
+        int64_t ndim = shape_tensor->shape[0];
+        std::vector<int64_t> shape(dims, dims + ndim);
+        // Reshape the input tensor
+        auto out_tensor = tensor_arr.CreateView(shape, tensor_arr->dtype);
+        WriteRegister(instr.dst, out_tensor);
+        pc_++;
+        goto main_loop;
+      }
+      default:
+        LOG(FATAL) << "Unknown instruction opcode: " << int(instr.op);
     }
   }
 }

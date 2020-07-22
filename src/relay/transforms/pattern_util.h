@@ -315,6 +315,7 @@ static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> s
 
 /*!
  * \brief Check whether a shape is static and create corresponding Constant.
+ Eventually this will be removed and replaced with CheckConstantShapeArrayInteger
  *
  * \param shape The Array of the shape values.
  * \return A Constant.
@@ -330,6 +331,26 @@ static inline Constant CheckConstantShape(const Array<IndexExpr>& shape) {
     shape_data[i] = dim_val->value;
   }
   return Constant(shape_array);
+}
+
+/*!
+ * \brief Check whether a shape is static and create corresponding Array<Integer>. Will replace
+ * CheckConstantShape after dynamic refactorization is complete
+ *
+ * \param shape The Array of the shape values.
+ * \return A Constant.
+ */
+static inline Array<Integer> CheckConstantShapeArrayInteger(const Array<IndexExpr>& shape) {
+  Array<Integer> constShape;
+
+  for (size_t i = 0; i < shape.size(); ++i) {
+    const auto& dim_val = shape[i].as<IntImmNode>();
+    CHECK(dim_val) << "Do not support symbolic shape for "
+                      "Array format. Pass shape as Expr instead.";
+
+    constShape.push_back(dim_val->value);
+  }
+  return constShape;
 }
 
 /*!
@@ -474,6 +495,14 @@ inline Expr Round(Expr x) {
 
 inline Expr Clip(Expr x, double a_min, double a_max) { return MakeClip(x, a_min, a_max); }
 
+inline Expr FixedPointMultiply(Expr x, int32_t multiplier, int32_t shift) {
+  static const Op& op = Op::Get("fixed_point_multiply");
+  auto attrs = make_object<FixedPointMultiplyAttrs>();
+  attrs->multiplier = multiplier;
+  attrs->shift = shift;
+  return Call(op, {x}, Attrs(attrs), {});
+}
+
 inline Expr Add(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("add");
   return Call(op, {lhs, rhs}, Attrs(), {});
@@ -505,7 +534,7 @@ inline Expr ZerosLike(Expr e) {
 }
 
 inline Expr Zeros(Array<IndexExpr> shape, DataType dtype) {
-  return MakeZeros(CheckConstantShape(shape), dtype);
+  return MakeZeros(CheckConstantShapeArrayInteger(shape), dtype);
 }
 
 inline Expr OnesLike(Expr e) {
@@ -514,7 +543,7 @@ inline Expr OnesLike(Expr e) {
 }
 
 inline Expr Ones(Array<IndexExpr> shape, DataType dtype) {
-  return MakeOnes(CheckConstantShape(shape), dtype);
+  return MakeOnes(CheckConstantShapeArrayInteger(shape), dtype);
 }
 
 inline Expr CollapseSumLike(Expr e) {
@@ -605,7 +634,7 @@ static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_
 static inline Expr Tile(Expr data, Array<Integer> reps) { return MakeTile(data, reps); }
 
 static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
-  return MakeBroadCastTo(data, CheckConstantShape(shape));
+  return MakeBroadCastTo(data, CheckConstantShapeArrayInteger(shape));
 }
 
 Expr StopFusion(Expr data);

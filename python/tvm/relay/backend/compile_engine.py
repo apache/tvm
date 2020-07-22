@@ -246,9 +246,9 @@ def lower_call(call, inputs, target):
                 new_fields.append(field)
         ret_type = _ty.TupleType(new_fields)
 
-    is_dyn = _ty.type_has_any(call.checked_type)
+    is_dyn = _ty.is_dynamic(call.checked_type)
     for arg in call.args:
-        is_dyn = is_dyn or _ty.type_has_any(arg.checked_type)
+        is_dyn = is_dyn or _ty.is_dynamic(arg.checked_type)
 
     # check if in the AutoTVM tracing mode, and disable if op is not in wanted list
     env = autotvm.task.TaskExtractEnv.current

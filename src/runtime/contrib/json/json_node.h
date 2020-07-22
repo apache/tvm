@@ -272,6 +272,15 @@ class JSONGraphNode {
     attrs_[key] = value;
   }
 
+  /*!
+   * \brief Check if node has attribute.
+   *
+   * \param key The key of the attribute.
+   *
+   * \return True if attribute exists, false otherwise.
+   */
+  bool HasAttr(const std::string& key) const { return attrs_.find(key) != attrs_.end(); }
+
   virtual ~JSONGraphNode() {}
 
  private:

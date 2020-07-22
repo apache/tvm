@@ -115,7 +115,8 @@ impl Function {
     pub fn invoke<'a>(&self, arg_buf: Vec<ArgValue<'a>>) -> Result<RetValue> {
         let num_args = arg_buf.len();
         let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMArgTypeCode>) =
-            arg_buf.iter().map(|arg| arg.to_tvm_value()).unzip();
+            arg_buf.into_iter().map(|arg| arg.to_tvm_value()).unzip();
+
         let mut ret_val = ffi::TVMValue { v_int64: 0 };
         let mut ret_type_code = 0i32;
 
@@ -128,7 +129,17 @@ impl Function {
             &mut ret_type_code as *mut _
         ));
 
-        Ok(RetValue::from_tvm_value(ret_val, ret_type_code as u32))
+        let rv = RetValue::from_tvm_value(ret_val, ret_type_code as u32);
+        match rv {
+            RetValue::ObjectHandle(object) => {
+                let optr = crate::object::ObjectPtr::from_raw(object as _).unwrap();
+                println!("after wrapped call: {}", optr.count());
+                crate::object::ObjectPtr::leak(optr);
+            }
+            _ => {}
+        };
+
+        Ok(rv)
     }
 
     pub fn to_boxed_fn<F: ?Sized>(self) -> Box<F>
@@ -268,6 +279,25 @@ where
         override_ as c_int
     ));
 
+    Ok(())
+}
+
+pub fn register_untyped<S: Into<String>>(
+    f: fn(Vec<ArgValue<'static>>) -> Result<RetValue>,
+    name: S,
+    override_: bool,
+) -> Result<()> {
+    // TODO(@jroesch): can we unify all the code.
+    let func = f.to_function();
+    let name = name.into();
+    // Not sure about this code
+    let handle = func.handle();
+    let name = CString::new(name)?;
+    check_call!(ffi::TVMFuncRegisterGlobal(
+        name.into_raw(),
+        handle,
+        override_ as c_int
+    ));
     Ok(())
 }
 

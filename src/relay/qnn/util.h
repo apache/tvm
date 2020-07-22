@@ -70,6 +70,27 @@ static inline int32_t GetQmax(const DataType& dtype) {
   }
 }
 
+/*
+ * \brief Convert FP32 representation into fixed point representation.
+ * \param double_multplier The input FP32 number.
+ * \return The pair of multiplier and shift for fixed point representation.
+ * \note Converts a floating point number so that it can be represented by
+ *       integers. The representation is
+ *             float_number = (significand) * 2^(exponent)
+ *
+ *       The significand is a number between 0.5 and 1. This is represented by
+ *       an integer number. For example, if it is int32, then the decimal point
+ *       exists between bit 31 and 30 from LSB (or between first and second bit
+ *       from the left).
+ *
+ *       Some examples are
+ *           0.25 = (0.5) * 2^(-1)
+ *           0.125 = (0.5) * 2^(-2)
+ *
+ *       Credit to TFLite reference implementation.
+ */
+std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(double double_multiplier);
+
 Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& input_zero_point, const Expr& output_scale,
                      const Expr& output_zero_point, const RequantizeAttrs* param,
@@ -94,13 +115,12 @@ static inline int64_t get_const_int(const tvm::PrimExpr& x) {
 
 /*
  * \brief Fixed point multiplication between integer tensor with floating point
- scalar.
+ * scalar. This implementation rounds  to the nearest value when it is midway
+ * between two representable values.
  * \param tensor The quantized input tensor of dtype int64.
  * \param multiplier The scalar multiplier.
  * \param input_shape Shape of the input tensor.
- * \param rounding "UPWARD" or "TONEAREST". The rounding direction when the value
- is midway between" "two representable values.
- * \return The sequence of Relay ops for fixed point multiplication.
+ * \return The sequence of Relay ops for fixed point multiplication with TONEARES rounding.
 
  * \note Original compuation is scale_fp32 * quantized_tensor.  To convert into
  *       integer computation, the multiplication with fp32 scalar can be
@@ -114,8 +134,8 @@ static inline int64_t get_const_int(const tvm::PrimExpr& x) {
  *       2) Round the result.
  *       3) Right shift the result
  */
-Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& input_shape,
-                        const std::string& rounding);
+Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
+                                 const Array<IndexExpr>& input_shape);
 
 /*
  * \brief Fixed point multiplication between integer tensor with floating point

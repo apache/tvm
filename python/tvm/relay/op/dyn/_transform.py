@@ -22,6 +22,7 @@ from tvm.runtime import convert
 from tvm.te.hybrid import script
 from .. import op as _reg
 
+_reg.register_broadcast_schedule("dyn.broadcast_to")
 _reg.register_injective_schedule("dyn.reshape")
 _reg.register_broadcast_schedule("dyn.tile")
 

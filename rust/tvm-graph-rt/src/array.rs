@@ -134,7 +134,7 @@ impl<'d, 's, T> From<&'d [T]> for Storage<'s> {
 /// ```
 /// extern crate ndarray;
 /// use std::convert::TryInto;
-/// use tvm_runtime::{call_packed, DLTensor, ArgValue, RetValue, Tensor};
+/// use tvm_graph_rt::{call_packed, DLTensor, ArgValue, RetValue, Tensor};
 ///
 /// let mut a_nd: ndarray::Array1<f32> = ndarray::Array::from_vec(vec![1f32, 2., 3., 4.]);
 /// let mut a: Tensor = a_nd.into();

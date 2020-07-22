@@ -77,6 +77,8 @@ ALLOW_EXTENSION = {
     "tokens",
     # interface definition
     "idl",
+    # opencl file
+    "cl",
     }
 
 # List of file names allowed
