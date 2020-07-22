@@ -142,6 +142,44 @@ def test_compute_at_root_inline():
     assert s0[conv].iters[5].range.extent == 7
     assert s0[conv].iters[6].range.extent == 7
 
+def test_follow_split_follow_fused_split():
+    A, B, C = matmul_auto_scheduler_test(512, 512, 512)
+    dag = auto_scheduler.ComputeDAG([A, B, C])
+    s0 = dag.get_init_state()
+
+    C_global = s0.cache_write(C, "global")
+    its0 = s0.split(C, s0[C].iters[0], [4, 2, 8, 4], True)
+    split_step0 = len(s0.transform_steps) - 1
+    for level in range(1, 6):
+        tmp = s0.copy()
+        tmp.follow_split(C_global, tmp[C_global].iters[0], split_step0, level)
+        for i in range(0, level):
+            assert tmp[C].iters[i].range.extent == \
+                   tmp[C_global].iters[i].range.extent
+
+    its1 = s0.split(C, s0[C].iters[5], [2, 2, 4, 8])
+    split_step1 = len(s0.transform_steps) - 1
+    its = []
+    for i0, i1 in zip(its0, its1):
+        its.append(i0)
+        its.append(i1)
+    s0.reorder(C, its)
+    for i in range(0, 5):
+        s0.fuse(C, [s0[C].iters[i], s0[C].iters[i + 1]])
+
+    for level in range(0, 4):
+        tmp = s0.copy()
+        tmp.follow_fused_split(C_global, tmp[C_global].iters[0],
+                               [split_step0, split_step1], level, False)
+        assert tmp[C].iters[level + 1].range.extent == \
+               tmp[C_global].iters[0].range.extent
+
+    for level in range(0, 4):
+        tmp = s0.copy()
+        tmp.follow_fused_split(C_global, tmp[C_global].iters[0],
+                               [split_step0, split_step1], level, True)
+        assert tmp[C].iters[level + 1].range.extent == \
+               tmp[C_global].iters[1].range.extent
 
 def test_cache_read_write():
     N, H, W, CO, CI, KH, KW, strides, padding = 4, 7, 7, 512, 512, 3, 3, (
@@ -422,3 +460,4 @@ if __name__ == "__main__":
     test_split_fuse_reorder_annotation()
     test_compute_at_root_inline()
     test_cache_read_write()
+    test_follow_split_follow_fused_split()

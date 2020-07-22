@@ -353,8 +353,10 @@ class State : public ObjectRef {
    */
   Array<Iterator> split(int stage_id, const Iterator& it, const Array<Optional<Integer>>& lengths,
                         bool inner_to_outer = true);
+  
+  Array<Iterator> follow_split(int stage_id, const Iterator& it, int src_step_id, int n_split);
 
-  /********** Step APIs working on multiple stages **********/
+  Array<Iterator> follow_fused_split(int stage_id, const Iterator& it, const Array<Integer>& src_step_ids, int level, bool factor_or_nparts);
 
   /*!
    * \brief Schedule primitive corresponds to te.compute_at.

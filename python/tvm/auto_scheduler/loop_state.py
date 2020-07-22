@@ -116,6 +116,15 @@ class State:
         stages : List[Stage]
         """
         return self.state_object.stages
+    
+    @property
+    def transform_steps(self):
+        """
+        Returns
+        -------
+        transform_steps : List[transform_steps]
+        """
+        return self.state_object.transform_steps
 
     @property
     def stage_ops(self):
@@ -292,6 +301,57 @@ class State:
         self.state_object, res = _ffi_api.StateSplit(self.state_object,
                                                      self._resolve_stage_id(stage),
                                                      iterator, lengths, inner_to_outer)
+        return res
+    
+    def follow_split(self, stage, iterator, src_step_id, n_split):
+        """
+        Parameters
+        ----------
+        iterator : Iterator
+            The iterator to split
+        src_step_id : int
+            The index of the split step to follow in the history
+        n_split : int
+            The number of split level
+
+        Returns
+        -------
+        res_its : List[Iterator]
+            The splitted new Iterators
+        """
+
+        self.state_object, res = _ffi_api.StateFollowSplit(self.state_object, 
+                                                           self._resolve_stage_id(stage), 
+                                                           iterator,
+                                                           src_step_id, n_split)
+        return res
+    
+    def follow_fused_split(self, stage, iterator, src_step_ids, level,
+                           factor_or_nparts):
+        """
+        Parameters
+        ----------
+        iterator : Iterator
+            The iterator to split
+        src_step_ids : List[int]
+            The indices of the split steps to follow in the history
+        level : int
+            Use the length in this split level
+        factor_or_nparts : bool
+            True to use `factor` for split from inner to outer,
+            False to use `nparts` for split from outer to inner
+
+        Returns
+        -------
+        res_its : List[Iterator]
+            The splitted new Iterators
+        """
+
+        self.state_object, res = _ffi_api.StateFollowFusedSplit(self.state_object, 
+                                                                self._resolve_stage_id(stage),
+                                                                iterator, 
+                                                                src_step_ids, level,
+                                                                factor_or_nparts)
         return res
 
     def compute_at(self, stage, target_stage, target_iter):

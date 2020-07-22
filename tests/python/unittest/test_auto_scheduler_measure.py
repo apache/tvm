@@ -37,10 +37,17 @@ def test_record():
     k = te.reduce_axis((0, 512), name='k')
     E = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * D[k][j], axis=[k]), name='E')
     F = topi.nn.relu(E)
-
     dag = auto_scheduler.ComputeDAG([A, B, F])
     s = dag.get_init_state()
-
+    
+    # Follow split
+    C_global = s0.cache_write(C, "global")
+    split_step0 = len(s0.transform_steps) - 1
+    split_step1 = len(s0.transform_steps) - 1
+    s.follow_split(C_global, tmp[C_global].iters[0], split_step0, 0) 
+    # Follow fused split
+    s.follow_fused_split(C_global, tmp[C_global].iters[0],
+                            [split_step0, split_step1], 0, False)
     # Split
     its0 = s.split(C, s[C].iters[0], [4, 8, 8])
     its1 = s.split(C, s[C].iters[4], [8, 4, 4])

@@ -207,7 +207,7 @@ void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag);
  * CacheRead/CacheWrite step)
  */
 void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                         te::Schedule* schedule);
+                         te::Schedule* schedule, const Array<Step>& transform_steps);
 
 /*!
  * \brief Print the step as equivalent python schedule API.
@@ -219,8 +219,8 @@ void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxes
  * \return Python schedule code.
  */
 String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
-                            StageToAxesMap* stage_to_axes, te::Schedule* schedule);
-
+                            StageToAxesMap* stage_to_axes, te::Schedule* schedule,
+                            const Array<Step>& transform_steps);
 /********** Primitives working on single stage **********/
 
 /*!
@@ -409,6 +409,90 @@ class ReorderStep : public Step {
   explicit ReorderStep(dmlc::JSONReader* reader);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ReorderStep, Step, ReorderStepNode);
+};
+
+/*! \brief Similar to SplitStepNode, but use split factor from another stepf
+ * (i.e. Follow another split step) */
+class FollowSplitStepNode: public StepNode {
+ public:
+  int iter_id;      // The id of the iter to split
+  int src_step_id;  // The index of the split step to follow in the history
+  int n_split;      // The number of split level
+  
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
+
+  void ExtractSplitLengths( const Array<Step>& transform_steps, 
+                            Array<Optional<Integer>>* lengths) const;
+
+  Array<Iterator> ApplyToState(State* state) const;
+
+  Array<tir::IterVar> ApplyToSchedule(Array<te::Stage> *stages,
+                                       StageToAxesMap *stage_to_axes,
+                                       const Array<Step>& transform_steps) const;
+
+  String PrintAsPythonAPI(Array<te::Stage> *stages, 
+                          StageToAxesMap *stage_to_axes, 
+                          const Array<Step>& transform_steps) const;
+  static constexpr const char* record_prefix_str = "FSP";
+  static constexpr const char* _type_key = "auto_scheduler.FollowSplitStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FollowSplitStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to FollowSplitStepNode.
+ * \sa FollowSplitStepNode
+ */
+class FollowSplitStep : public Step {
+ public:
+  FollowSplitStep(int stage_id, int iter_id, int src_step_id, int n_split);
+  
+  explicit FollowSplitStep(dmlc::JSONReader* reader);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(FollowSplitStep, Step, FollowSplitStepNode);
+};
+
+/*! \brief Similar to FollowSplitStep, but use split factors from multiple steps.
+ *  \Note This can be used for the split in cooperative fetching
+ */
+class FollowFusedSplitStepNode: public StepNode {
+ public:
+  int iter_id;                    // The id of the iter to split
+  Array<Integer> src_step_ids;  // The indices of the split steps to follow in the history
+  int level;                      // Use the length in this split level
+  bool factor_or_nparts;          // If this is true, use factor. Otherwise, use nparts
+  
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
+
+  Optional<Integer> ExtractSplitLength( const Array<Step>& transform_steps) const;
+
+  Array<Iterator> ApplyToState(State* state) const;
+
+  Array<tir::IterVar> ApplyToSchedule(Array<te::Stage> *stages,
+                                       StageToAxesMap *stage_to_axes,
+                                       const Array<Step>& transform_steps) const;
+
+  String PrintAsPythonAPI(Array<te::Stage> *stages,
+                               StageToAxesMap *stage_to_axes, 
+                               const Array<Step>& transform_steps) const;
+
+  static constexpr const char* record_prefix_str = "FFSP";
+  static constexpr const char* _type_key = "auto_scheduler.FollowFusedSplitStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FollowFusedSplitStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to FollowFusedSplitStepNode.
+ * \sa FollowFusedSplitStepNode
+ */
+class FollowFusedSplitStep : public Step {
+ public:
+  FollowFusedSplitStep(int stage_id, int iter_id,
+                       const Array<Integer>& src_step_ids,
+                       int level, bool factor_or_nparts);
+  
+  explicit FollowFusedSplitStep(dmlc::JSONReader* reader);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(FollowFusedSplitStep, Step, FollowFusedSplitStepNode);
 };
 
 /*!
