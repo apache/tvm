@@ -118,7 +118,8 @@ def get_valid_counts_ir(data, valid_count, out, out_indices,
     with ib.for_range(0, num_anchors) as anchor_ind:
         with ib.if_scope(
                 tvm.tir.all(data[anchor_ind * elem_length + score_index] > score_threshold,
-                            tvm.tir.any(id_index < 0, data[anchor_ind * elem_length + id_index] >= 0))):
+                            tvm.tir.any(id_index < 0, 
+                                        data[anchor_ind * elem_length + id_index] >= 0))):
             valid_count[tid] = valid_count[tid] + 1
             with ib.for_range(0, elem_length) as k:
                 out[(valid_count[tid]-1) * elem_length + k] = data[anchor_ind * elem_length + k]
@@ -202,9 +203,6 @@ def rearrange_indices_out_ir(data, output, valid_box_count):
     output = ib.buffer_ptr(output)
     valid_box_count = ib.buffer_ptr(valid_box_count)
 
-    one = tvm.tir.const(1, dtype=output.dtype)
-    zero = tvm.tir.const(0, dtype=output.dtype)
-
     nthread_tx = batch_size
     nthread_bx = 1
     tx = te.thread_axis("threadIdx.x")
@@ -213,22 +211,9 @@ def rearrange_indices_out_ir(data, output, valid_box_count):
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = tx
     
-    valid_box_count[tid] = 0   
+    valid_box_count[tid] = 0
     with ib.for_range(0, num_anchors) as anchor_ind:
         output[tid * num_anchors + anchor_ind] = data[tid * num_anchors + anchor_ind]
-    '''
-    valid_box_count[tid] = 0    
-    with ib.for_range(0, num_anchors) as anchor_ind:
-        with ib.if_scope(data[tid * num_anchors + anchor_ind] >= zero):
-            output[tid * num_anchors + valid_box_count[tid]] = data[tid * num_anchors + anchor_ind]
-            valid_box_count[tid] = valid_box_count[tid] + 1
-        with ib.if_scope(tvm.tir.any(data[tid * num_anchors + anchor_ind] > num_anchors, 
-                                     data[tid * num_anchors + anchor_ind] < -num_anchors)):
-            output[tid * num_anchors + valid_box_count[tid]] = zero
-            valid_box_count[tid] = valid_box_count[tid] + 1
-        with ib.if_scope(anchor_ind >= valid_box_count[tid]):
-            output[tid * num_anchors + anchor_ind] = -one
-    '''
     return ib.get()
 
 
@@ -251,7 +236,6 @@ def rearrange_indices_out(data):
         the valid number of boxes.
     """
     batch_size = data.shape[0]
-    num_anchors = data.shape[1]
     data_buf = tvm.tir.decl_buffer(
         data.shape, data.dtype, "data_buf", data_alignment=8)
     out_indices_buf = tvm.tir.decl_buffer(
