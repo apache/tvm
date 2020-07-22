@@ -346,9 +346,9 @@ class State : public ObjectRef {
    * \note If we do split on an iterator which has stages attached at it(by compute_at), the inner
    * most iterator of split results will become the new attach point.
    */
-  TVM_DLL Array<Iterator> split(
-      int stage_id, const Iterator& it, const Array<Optional<Integer>>& lengths,
-      bool inner_to_outer = true);
+  TVM_DLL Array<Iterator> split(int stage_id, const Iterator& it,
+                                const Array<Optional<Integer>>& lengths,
+                                bool inner_to_outer = true);
 
   /********** Step APIs working on multiple stages **********/
 
