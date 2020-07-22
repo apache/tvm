@@ -53,7 +53,7 @@ fn sum(x: i64, y: i64, z: i64) -> i64 {
 fn main() {
     register(sum, "mysum".to_owned()).unwrap();
     let func = Function::get("mysum").unwrap();
-    let boxed_fn = func.to_boxed_fn::<dyn Fn(i64, i64, i64) -> Result<i64>>();
+    let boxed_fn: Box<dyn Fn(i64, i64, i64) -> Result<i64>> = func.into();
     let ret = boxed_fn(10, 20, 30).unwrap();
     assert_eq!(ret, 60);
 }
