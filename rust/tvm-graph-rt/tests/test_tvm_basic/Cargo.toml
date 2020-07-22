@@ -17,13 +17,15 @@
 
 [package]
 name = "test-rt-tvm-basic"
-version = "0.0.0"
+version = "0.0.1"
 license = "Apache-2.0"
 authors = ["TVM Contributors"]
+edition = "2018"
 
 [dependencies]
-ndarray="0.12"
+ndarray = "0.12"
 tvm-graph-rt = { path = "../../" }
+tvm-rt = { path = "../../../tvm-rt" }
 
 [build-dependencies]
 ar = "0.6"

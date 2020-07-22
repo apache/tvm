@@ -16,17 +16,15 @@
 # under the License.
 
 [package]
-name = "test-rt-nn"
+name = "resnet"
 version = "0.0.0"
-license = "Apache-2.0"
 authors = ["TVM Contributors"]
+license = "Apache-2.0"
+build = "build.rs"
 edition = "2018"
 
 [dependencies]
-ndarray="0.12"
-serde = "1.0"
-serde_json = "1.0"
-tvm-graph-rt = { path = "../../" }
-
-[build-dependencies]
-ar = "0.6"
+ndarray = "0.12"
+tvm = { path = "../../" }
+image = "0.20"
+csv = "1.1"

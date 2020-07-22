@@ -68,6 +68,8 @@ pub enum Error {
     CallFailed(String),
     #[error("this case will never occur")]
     Infallible(#[from] std::convert::Infallible),
+    #[error("a panic occurred while executing a Rust packed function")]
+    Panic,
 }
 
 impl Error {

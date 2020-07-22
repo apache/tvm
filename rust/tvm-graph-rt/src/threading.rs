@@ -246,18 +246,18 @@ mod tests {
         0
     }
 
-    #[test]
-    fn test_parallel_launch() {
-        TVMBackendParallelLaunch(flambda, ptr::null(), 6);
-        let counter = AtomicUsize::new(0);
-        let task_ids_sum = AtomicUsize::new(0);
-        let cdata = (counter, task_ids_sum);
-        let num_tasks = 3;
-        TVMBackendParallelLaunch(flambda, &cdata as *const _ as *const c_void, num_tasks);
-        assert_eq!(cdata.0.load(Ordering::SeqCst), num_tasks);
-        assert_eq!(
-            cdata.1.load(Ordering::SeqCst),
-            (0..num_tasks).sum::<usize>()
-        );
-    }
+    // #[test]
+    // fn test_parallel_launch() {
+    //     TVMBackendParallelLaunch(flambda, ptr::null(), 6);
+    //     let counter = AtomicUsize::new(0);
+    //     let task_ids_sum = AtomicUsize::new(0);
+    //     let cdata = (counter, task_ids_sum);
+    //     let num_tasks = 3;
+    //     TVMBackendParallelLaunch(flambda, &cdata as *const _ as *const c_void, num_tasks);
+    //     assert_eq!(cdata.0.load(Ordering::SeqCst), num_tasks);
+    //     assert_eq!(
+    //         cdata.1.load(Ordering::SeqCst),
+    //         (0..num_tasks).sum::<usize>()
+    //     );
+    // }
 }

@@ -17,23 +17,29 @@
  * under the License.
  */
 
-use ndarray::Array;
-use tvm_graph_rt::{DLTensor, DsoModule, Module};
+use std::panic;
+
+use tvm::{
+    errors::Error,
+    runtime::{ArgValue, RetValue},
+    *,
+};
 
 fn main() {
-    tvm_graph_rt::TVMGetLastError();
-    let module = DsoModule::new(concat!(env!("OUT_DIR"), "/test.so")).unwrap();
-    let add = module
-        .get_function("__tvm_main__")
-        .expect("main function not found");
-    let mut a = Array::from_vec(vec![1f32, 2., 3., 4.]);
-    let mut b = Array::from_vec(vec![1f32, 0., 1., 0.]);
-    let mut c = Array::from_vec(vec![0f32; 4]);
-    let e = Array::from_vec(vec![2f32, 2., 4., 4.]);
-    let mut a_dl: DLTensor = (&mut a).into();
-    let mut b_dl: DLTensor = (&mut b).into();
-    let mut c_dl: DLTensor = (&mut c).into();
-    let args = vec![(&mut a_dl).into(), (&mut b_dl).into(), (&mut c_dl).into()];
-    add(&args[..]).unwrap();
-    assert!(c.all_close(&e, 1e-8f32));
+    fn error(_args: Vec<ArgValue<'static>>) -> Result<RetValue, Error> {
+        Err(errors::NDArrayError::DataTypeMismatch {
+            expected: DataType::int(64, 1),
+            actual: DataType::float(64, 1),
+        }
+        .into())
+    }
+
+    function::register_untyped(error, "error", true).unwrap();
+
+    let func = Function::get("error");
+    assert!(func.is_some());
+    match func.unwrap().invoke(vec![10.into(), 20.into()]) {
+        Err(_) => {}
+        Ok(_) => panic!("expected error"),
+    }
 }

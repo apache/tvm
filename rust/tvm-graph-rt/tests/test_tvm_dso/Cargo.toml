@@ -20,6 +20,7 @@ name = "test-rt-tvm-dso"
 version = "0.0.0"
 license = "Apache-2.0"
 authors = ["TVM Contributors"]
+edition = "2018"
 
 [dependencies]
 ndarray="0.12"

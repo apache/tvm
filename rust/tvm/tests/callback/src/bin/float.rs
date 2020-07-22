@@ -17,23 +17,34 @@
  * under the License.
  */
 
-use ndarray::Array;
-use tvm_graph_rt::{DLTensor, DsoModule, Module};
+#![allow(unused_imports)]
+
+use std::convert::TryInto;
+use tvm::{
+    errors::Error,
+    runtime::{ArgValue, RetValue},
+    *,
+};
 
 fn main() {
-    tvm_graph_rt::TVMGetLastError();
-    let module = DsoModule::new(concat!(env!("OUT_DIR"), "/test.so")).unwrap();
-    let add = module
-        .get_function("__tvm_main__")
-        .expect("main function not found");
-    let mut a = Array::from_vec(vec![1f32, 2., 3., 4.]);
-    let mut b = Array::from_vec(vec![1f32, 0., 1., 0.]);
-    let mut c = Array::from_vec(vec![0f32; 4]);
-    let e = Array::from_vec(vec![2f32, 2., 4., 4.]);
-    let mut a_dl: DLTensor = (&mut a).into();
-    let mut b_dl: DLTensor = (&mut b).into();
-    let mut c_dl: DLTensor = (&mut c).into();
-    let args = vec![(&mut a_dl).into(), (&mut b_dl).into(), (&mut c_dl).into()];
-    add(&args[..]).unwrap();
-    assert!(c.all_close(&e, 1e-8f32));
+    fn sum(args: Vec<ArgValue<'static>>) -> Result<RetValue, Error> {
+        let mut ret = 0.0;
+        for arg in args.into_iter() {
+            let val: f64 = arg.try_into()?;
+            ret += val;
+        }
+        Ok(RetValue::from(ret))
+    }
+
+    function::register_untyped(sum, "sum", true).expect("registration should succeed");
+
+    let func = Function::get("sum").expect("sum was just registered.");
+
+    let ret: f64 = func
+        .invoke(vec![10.0f64.into(), 20.0.into(), 30.0.into()])
+        .unwrap()
+        .try_into()
+        .unwrap();
+
+    assert_eq!(ret, 60f64);
 }
