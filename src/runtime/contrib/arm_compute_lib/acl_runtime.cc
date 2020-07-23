@@ -113,7 +113,7 @@ class ACLRuntime : public JSONRuntimeBase {
    * per engine.
    */
   void BuildEngine() {
-    std::shared_ptr<arm_compute::MemoryManagerOnDemand> mm = MakeMemoryManager();
+    std::shared_ptr<arm_compute::MemoryManagerOnDemand> mm = MakeACLMemoryManager();
     int num_pools = 0;
     bool found_kernel_node = false;
     for (size_t nid = 0; nid < nodes_.size(); ++nid) {
@@ -153,26 +153,28 @@ class ACLRuntime : public JSONRuntimeBase {
   };
 
   /*!
-   * \brief Create an ACL tensor given the JSON representation.
+   * \brief Create an ACL tensor given the JSON representation. If scale
+   * and offset are given, then create a quantized ACL tensor.
    *
    * \param tensor The tensor to represent.
    * \param scale (optional) The scale of the tensor as an input.
    * \param offset (optional) The offset of the tensor as an input.
    * \return ACL Tensor.
    */
-  arm_compute::Tensor GetACLTensor(const JSONGraphNodeEntry& tensor,
-                                   JSONGraphNodeEntry* scale = nullptr,
-                                   JSONGraphNodeEntry* offset = nullptr) {
+  arm_compute::Tensor MakeACLTensorFromJSONEntry(const JSONGraphNodeEntry& tensor,
+                                                 JSONGraphNodeEntry* scale = nullptr,
+                                                 JSONGraphNodeEntry* offset = nullptr) {
     JSONGraphNode node = nodes_[tensor.id_];
     void* node_data = nullptr;
     if (node.GetOpType() == "const") {
       node_data = data_entry_[EntryID(tensor)]->data;
     }
-    return GetACLTensor(node, scale, offset, node_data);
+    return MakeACLTensorFromJSONNode(node, scale, offset, node_data);
   }
 
   /*!
-   * \brief Create an ACL tensor given the JSON representation.
+   * \brief Create an ACL tensor given the JSON representation. If scale
+   * and offset are given, then create a quantized ACL tensor.
    *
    * \param node The tensor to represent.
    * \param scale (optional) The scale of the tensor as an input.
@@ -180,15 +182,17 @@ class ACLRuntime : public JSONRuntimeBase {
    * \param data (optional) Constant data of input node.
    * \return ACL Tensor.
    */
-  arm_compute::Tensor GetACLTensor(const JSONGraphNode& node, JSONGraphNodeEntry* scale = nullptr,
-                                   JSONGraphNodeEntry* offset = nullptr, void* data = nullptr) {
+  arm_compute::Tensor MakeACLTensorFromJSONNode(const JSONGraphNode& node,
+                                                JSONGraphNodeEntry* scale = nullptr,
+                                                JSONGraphNodeEntry* offset = nullptr,
+                                                void* data = nullptr) {
     const DLTensor* scale_data = nullptr;
     const DLTensor* offset_data = nullptr;
     if (scale && offset) {
       scale_data = data_entry_[EntryID(*scale)];
       offset_data = data_entry_[EntryID(*offset)];
     }
-    return MakeTensor(node, data, scale_data, offset_data);
+    return MakeACLTensor(node, data, scale_data, offset_data);
   }
 
   /*!
@@ -203,7 +207,7 @@ class ACLRuntime : public JSONRuntimeBase {
     std::vector<std::string> padding = node.GetAttr<std::vector<std::string>>("padding");
     std::vector<std::string> strides = node.GetAttr<std::vector<std::string>>("strides");
     std::vector<std::string> dilation = node.GetAttr<std::vector<std::string>>("dilation");
-    arm_compute::PadStrideInfo pad_stride_info = MakePadStride(padding, strides);
+    arm_compute::PadStrideInfo pad_stride_info = MakeACLPadStride(padding, strides);
 
     int groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
     CHECK(groups == 1) << "Arm Compute Library NEON convolution only supports group size of 1.";
@@ -227,18 +231,19 @@ class ACLRuntime : public JSONRuntimeBase {
     bool has_bias;
     if (node.GetOpName() == "qnn.conv2d") {
       has_bias = num_inputs == 9;
-      layer->inputs.push_back(GetACLTensor(inputs[0], &inputs[4], &inputs[2]));
-      layer->inputs.push_back(GetACLTensor(inputs[1], &inputs[5], &inputs[3]));
+      layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[0], &inputs[4], &inputs[2]));
+      layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[1], &inputs[5], &inputs[3]));
       if (has_bias) {
-        layer->inputs.push_back(GetACLTensor(inputs[6]));
+        layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[6]));
       }
-      layer->outputs.push_back(GetACLTensor(node, &inputs[6 + has_bias], &inputs[7 + has_bias]));
+      layer->outputs.push_back(
+          MakeACLTensorFromJSONNode(node, &inputs[6 + has_bias], &inputs[7 + has_bias]));
     } else {
       has_bias = num_inputs == 3;
       for (const auto& i : inputs) {
-        layer->inputs.push_back(GetACLTensor(i));
+        layer->inputs.push_back(MakeACLTensorFromJSONEntry(i));
       }
-      layer->outputs.push_back(GetACLTensor(node));
+      layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
     }
 
     auto function = std::make_shared<arm_compute::NEConvolutionLayer>(mm);
@@ -259,7 +264,7 @@ class ACLRuntime : public JSONRuntimeBase {
   void CreatePoolingLayer(CachedLayer* layer, const JSONGraphNode& node) {
     std::vector<std::string> padding = node.GetAttr<std::vector<std::string>>("padding");
     std::vector<std::string> strides = node.GetAttr<std::vector<std::string>>("strides");
-    arm_compute::PadStrideInfo pad_stride_info = MakePadStride(padding, strides);
+    arm_compute::PadStrideInfo pad_stride_info = MakeACLPadStride(padding, strides);
 
     auto attr_pool_size = node.GetAttr<std::vector<std::string>>("pool_size");
     int pool_size_h = std::stoi(attr_pool_size[0]);
@@ -276,8 +281,8 @@ class ACLRuntime : public JSONRuntimeBase {
         arm_compute::PoolingLayerInfo(pool_type, arm_compute::Size2D(pool_size_h, pool_size_w),
                                       arm_compute::DataLayout::NHWC, pad_stride_info);
 
-    layer->inputs.push_back(GetACLTensor(node.GetInputs()[0]));
-    layer->outputs.push_back(GetACLTensor(node));
+    layer->inputs.push_back(MakeACLTensorFromJSONEntry(node.GetInputs()[0]));
+    layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
 
     auto function = std::make_shared<arm_compute::NEPoolingLayer>();
     function->configure(&layer->inputs[0], &layer->outputs[0], pool_info);
@@ -291,8 +296,8 @@ class ACLRuntime : public JSONRuntimeBase {
    * \param node The JSON representation of the operator.
    */
   void CreateReshapeLayer(CachedLayer* layer, const JSONGraphNode& node) {
-    layer->inputs.push_back(GetACLTensor(node.GetInputs()[0]));
-    layer->outputs.push_back(GetACLTensor(node));
+    layer->inputs.push_back(MakeACLTensorFromJSONEntry(node.GetInputs()[0]));
+    layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
     auto function = std::make_shared<arm_compute::NEReshapeLayer>();
     function->configure(&layer->inputs[0], &layer->outputs[0]);
     layer->function = function;

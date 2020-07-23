@@ -62,8 +62,9 @@ void CheckACLError(const arm_compute::Status& status);
  * \param offset (optional) The quantization offset.
  * \return arm_compute::Tensor.
  */
-arm_compute::Tensor MakeTensor(const JSONGraphNode& tensor_rep, void* data = nullptr,
-                               const DLTensor* scale = nullptr, const DLTensor* offset = nullptr);
+arm_compute::Tensor MakeACLTensor(const JSONGraphNode& tensor_rep, void* data = nullptr,
+                                  const DLTensor* scale = nullptr,
+                                  const DLTensor* offset = nullptr);
 
 /*!
  * \brief Make an acl tensor info object from JSON tensor
@@ -75,9 +76,9 @@ arm_compute::Tensor MakeTensor(const JSONGraphNode& tensor_rep, void* data = nul
  * \param offset (optional) The quantization offset.
  * \return arm_compute::TensorInfo.
  */
-arm_compute::TensorInfo MakeTensorInfo(const std::vector<int64_t>& shape, const DLDataType& dtype,
-                                       const DLTensor* scale = nullptr,
-                                       const DLTensor* offset = nullptr);
+arm_compute::TensorInfo MakeACLTensorInfo(const std::vector<int64_t>& shape,
+                                          const DLDataType& dtype, const DLTensor* scale = nullptr,
+                                          const DLTensor* offset = nullptr);
 
 /*!
  * \brief Create a memory manager for use with a layer that
@@ -85,7 +86,7 @@ arm_compute::TensorInfo MakeTensorInfo(const std::vector<int64_t>& shape, const 
  *
  * \return reference counted memory manager.
  */
-std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeMemoryManager();
+std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeACLMemoryManager();
 
 /*!
  * \brief Convert TVM padding and stride format to acl PadStrideInfo.
@@ -94,8 +95,8 @@ std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeMemoryManager();
  * \param stride The stride vector.
  * \return arm_compute::PadStrideInfo
  */
-arm_compute::PadStrideInfo MakePadStride(const std::vector<std::string>& pad,
-                                         const std::vector<std::string>& stride);
+arm_compute::PadStrideInfo MakeACLPadStride(const std::vector<std::string>& pad,
+                                            const std::vector<std::string>& stride);
 
 /*!
  * \brief Convert DLDataType to arm_compute::DataType.
@@ -103,7 +104,7 @@ arm_compute::PadStrideInfo MakePadStride(const std::vector<std::string>& pad,
  * \param data_type The data type to convert.
  * \return arm_compute::DataType.
  */
-arm_compute::DataType MakeDataType(const DLDataType& data_type);
+arm_compute::DataType MakeACLDataType(const DLDataType& data_type);
 
 /*!
  * \brief Get a vector from DLTensor data.

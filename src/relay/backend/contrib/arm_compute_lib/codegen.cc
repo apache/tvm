@@ -53,7 +53,7 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
    * \brief A series of operators that form a composite
    * convolution. Supports both nn.conv2d and qnn.conv2d.
    */
-  struct CompositeConvNodes {
+  struct CompositeConvNode {
     const CallNode* pad = nullptr;
     const CallNode* conv = nullptr;
     const CallNode* bias = nullptr;
@@ -95,8 +95,8 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
    * \param cn The call node of the composite function.
    * \return Extracted composite convolution nodes.
    */
-  static CompositeConvNodes UnpackCompositeConvolution(const CallNode* cn) {
-    CompositeConvNodes nodes{};
+  static CompositeConvNode UnpackCompositeConvolution(const CallNode* cn) {
+    CompositeConvNode nodes{};
     const auto* fn = cn->op.as<FunctionNode>();
     CHECK(fn);
     const auto* current_call = fn->body.as<CallNode>();
@@ -130,11 +130,11 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
   /*!
    * \brief Create a JSON representation of a composite convolution.
    *
-   * \param call The call to be represented.
+   * \param cn The call to be represented.
    * \return A JSON representation of a specific operator.
    */
   std::shared_ptr<JSONGraphNode> CreateCompositeConvJSONNode(const CallNode* cn) {
-    CompositeConvNodes nodes = UnpackCompositeConvolution(cn);
+    CompositeConvNode nodes = UnpackCompositeConvolution(cn);
     std::string name = "nn.conv2d";
 
     const auto* conv_attr = nodes.conv->attrs.as<Conv2DAttrs>();

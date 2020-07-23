@@ -38,12 +38,12 @@ void CheckACLError(const arm_compute::Status& status) {
   CHECK(status.error_code() == arm_compute::ErrorCode::OK) << "ACL: " << status.error_description();
 }
 
-arm_compute::Tensor MakeTensor(const JSONGraphNode& tensor_rep, void* data, const DLTensor* scale,
-                               const DLTensor* offset) {
+arm_compute::Tensor MakeACLTensor(const JSONGraphNode& tensor_rep, void* data,
+                                  const DLTensor* scale, const DLTensor* offset) {
   arm_compute::Tensor tensor;
   std::vector<int64_t> shape = tensor_rep.GetOpShape()[0];
   DLDataType dtype = tensor_rep.GetOpDataType()[0];
-  arm_compute::TensorInfo info = MakeTensorInfo(shape, dtype, scale, offset);
+  arm_compute::TensorInfo info = MakeACLTensorInfo(shape, dtype, scale, offset);
   tensor.allocator()->init(info);
   if (data != nullptr) {
     CheckACLError(tensor.allocator()->import_memory(data));
@@ -51,15 +51,17 @@ arm_compute::Tensor MakeTensor(const JSONGraphNode& tensor_rep, void* data, cons
   return tensor;
 }
 
-arm_compute::TensorInfo MakeTensorInfo(const std::vector<int64_t>& shape, const DLDataType& dtype,
-                                       const DLTensor* scale, const DLTensor* offset) {
+arm_compute::TensorInfo MakeACLTensorInfo(const std::vector<int64_t>& shape,
+                                          const DLDataType& dtype, const DLTensor* scale,
+                                          const DLTensor* offset) {
   arm_compute::TensorShape acl_shape;
   for (unsigned int i = shape.size(); i > 0; --i) {
     acl_shape.set(shape.size() - i, shape[i - 1]);
   }
-  arm_compute::DataType acl_dtype = MakeDataType(dtype);
+  arm_compute::DataType acl_dtype = MakeACLDataType(dtype);
   arm_compute::TensorInfo info(acl_shape, 1, acl_dtype, arm_compute::DataLayout::NHWC);
 
+  // If scale and offset provided create quantized ACL tensor.
   if (scale != nullptr && offset != nullptr) {
     std::vector<float> scale_data = GetVectorFromDLTensor<float>(scale);
     std::vector<int> offset_data = GetVectorFromDLTensor<int>(offset);
@@ -72,14 +74,14 @@ arm_compute::TensorInfo MakeTensorInfo(const std::vector<int64_t>& shape, const 
   return info;
 }
 
-std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeMemoryManager() {
+std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeACLMemoryManager() {
   auto lifetime_mgr = std::make_shared<arm_compute::OffsetLifetimeManager>();
   auto pool_mgr = std::make_shared<arm_compute::PoolManager>();
   return std::make_shared<arm_compute::MemoryManagerOnDemand>(lifetime_mgr, pool_mgr);
 }
 
-arm_compute::PadStrideInfo MakePadStride(const std::vector<std::string>& pad,
-                                         const std::vector<std::string>& stride) {
+arm_compute::PadStrideInfo MakeACLPadStride(const std::vector<std::string>& pad,
+                                            const std::vector<std::string>& stride) {
   int pad_0 = 0, pad_1 = 0, pad_2 = 0, pad_3 = 0;
   int stride_0 = std::stoi(stride[0]), stride_1 = std::stoi(stride[1]);
   size_t size = pad.size();
@@ -111,7 +113,7 @@ arm_compute::PadStrideInfo MakePadStride(const std::vector<std::string>& pad,
                                     arm_compute::DimensionRoundingType::FLOOR);
 }
 
-arm_compute::DataType MakeDataType(const DLDataType& data_type) {
+arm_compute::DataType MakeACLDataType(const DLDataType& data_type) {
   if (data_type.code == DLDataTypeCode::kDLFloat && data_type.bits == 32) {
     return arm_compute::DataType::F32;
   } else if (data_type.code == DLDataTypeCode::kDLUInt && data_type.bits == 8) {
