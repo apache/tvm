@@ -32,4 +32,4 @@ ndarray = "0.12"
 enumn = "^0.1"
 
 [build-dependencies]
-bindgen = "0.51"
+bindgen = { version="0.51", default-features=false }

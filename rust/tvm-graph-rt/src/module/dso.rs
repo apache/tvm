@@ -59,7 +59,7 @@ macro_rules! init_context_func {
 }
 
 impl<'a> DsoModule<'a> {
-    pub fn new<P: AsRef<std::ffi::OsStr>>(filename: P) -> Result<Pin<Box<Self>>, failure::Error> {
+    pub fn new<P: AsRef<std::ffi::OsStr>>(filename: P) -> Result<Pin<Box<Self>>, std::io::Error> {
         let lib = libloading::Library::new(filename)?;
 
         init_context_func!(

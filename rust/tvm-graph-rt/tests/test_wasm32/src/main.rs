@@ -30,10 +30,10 @@ unsafe fn __get_tvm_module_ctx() -> i32 {
 
 extern crate ndarray;
 #[macro_use]
-extern crate tvm_runtime;
+extern crate tvm_graph_rt;
 
 use ndarray::Array;
-use tvm_runtime::{DLTensor, Module as _, SystemLibModule};
+use tvm_graph_rt::{DLTensor, Module as _, SystemLibModule};
 
 fn main() {
     // try static
