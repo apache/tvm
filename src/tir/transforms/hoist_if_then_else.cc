@@ -37,7 +37,7 @@
 namespace tvm {
 namespace tir {
 
-using VarForMap = std::unordered_map<const Object*, const Object*>;
+using VarForMap = std::unordered_map<const VarNode*, const ForNode*>;
 using HoistForIfTuple = std::tuple<bool, const ForNode*, const IfThenElseNode*>;
 
 /*
