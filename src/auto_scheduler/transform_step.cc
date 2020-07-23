@@ -86,6 +86,10 @@ Step StepReadFromRecord(dmlc::JSONReader* reader) {
     return ReorderStep(reader);
   } else if (name == SplitStepNode::record_prefix_str) {
     return SplitStep(reader);
+  } else if (name == FollowSplitStepNode::record_prefix_str) {
+    return FollowSplitStep(reader);
+  } else if (name == FollowFusedSplitStepNode::record_prefix_str) {
+    return FollowFusedSplitStep(reader);
   } else if (name == ComputeAtStepNode::record_prefix_str) {
     return ComputeAtStep(reader);
   } else if (name == ComputeInlineStepNode::record_prefix_str) {
@@ -96,12 +100,7 @@ Step StepReadFromRecord(dmlc::JSONReader* reader) {
     return CacheReadStep(reader);
   } else if (name == CacheWriteStepNode::record_prefix_str) {
     return CacheWriteStep(reader);
-  } else if (name == FollowSplitStepNode::record_prefix_str) {
-    return FollowSplitStep(reader);
-  } else if (name == FollowFusedSplitStepNode::record_prefix_str) {
-    return FollowFusedSplitStep(reader);
-  }
-  else {
+  } else {
     LOG(FATAL) << "Invalid step format: " << name;
   }
   return Step();
@@ -116,6 +115,10 @@ void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag) {
     ps->ApplyToState(state);
   } else if (auto ps = step.as<SplitStepNode>()) {
     ps->ApplyToState(state);
+  } else if(auto ps = step.as<FollowSplitStepNode>()){
+    ps->ApplyToState(state);
+  } else if(auto ps = step.as<FollowFusedSplitStepNode>()){
+    ps->ApplyToState(state);
   } else if (auto ps = step.as<ComputeAtStepNode>()) {
     ps->ApplyToState(state);
   } else if (auto ps = step.as<ComputeInlineStepNode>()) {
@@ -126,10 +129,6 @@ void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag) {
     ps->ApplyToState(state, dag);
   } else if (auto ps = step.as<CacheWriteStepNode>()) {
     ps->ApplyToState(state, dag);
-  } else if(auto ps = step.as<FollowSplitStepNode>()){
-    ps->ApplyToState(state);
-  } else if(auto ps = step.as<FollowFusedSplitStepNode>()){
-    ps->ApplyToState(state);
   } else {
     LOG(FATAL) << "Invalid step: " << step;
   }
@@ -145,6 +144,10 @@ void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxes
     ps->ApplyToSchedule(stages, stage_to_axes);
   } else if (auto ps = step.as<SplitStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes);
+  } else if(auto ps = step.as<FollowSplitStepNode>()) {
+    ps->ApplyToSchedule(stages, stage_to_axes, transform_steps);
+  } else if(auto ps = step.as<FollowFusedSplitStepNode>()){
+    ps->ApplyToSchedule(stages, stage_to_axes, transform_steps);
   } else if (auto ps = step.as<ComputeAtStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes);
   } else if (auto ps = step.as<ComputeInlineStepNode>()) {
@@ -155,10 +158,6 @@ void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxes
     ps->ApplyToSchedule(stages, stage_to_axes, schedule);
   } else if (auto ps = step.as<CacheWriteStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes, schedule);
-  } else if(auto ps = step.as<FollowSplitStepNode>()) {
-    ps->ApplyToSchedule(stages, stage_to_axes, transform_steps);
-  } else if(auto ps = step.as<FollowFusedSplitStepNode>()){
-    ps->ApplyToSchedule(stages, stage_to_axes, transform_steps);
   } else {
     LOG(FATAL) << "Invalid Step: " << step;
   }
@@ -174,6 +173,10 @@ String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<SplitStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
+  } else if(auto ps = step.as<FollowSplitStepNode>()){
+    return ps->PrintAsPythonAPI(stages, stage_to_axes, transform_steps);
+  } else if(auto ps = step.as<FollowFusedSplitStepNode>()){
+    return ps->PrintAsPythonAPI(stages, stage_to_axes, transform_steps);
   } else if (auto ps = step.as<ComputeAtStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<ComputeInlineStepNode>()) {
@@ -184,11 +187,7 @@ String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
     return ps->PrintAsPythonAPI(stages, stage_to_axes, schedule);
   } else if (auto ps = step.as<CacheWriteStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes, schedule);
-  } else if(auto ps = step.as<FollowSplitStepNode>()){
-    return ps->PrintAsPythonAPI(stages, stage_to_axes, transform_steps);
-  } else if(auto ps = step.as<FollowFusedSplitStepNode>()){
-    return ps->PrintAsPythonAPI(stages, stage_to_axes, transform_steps);
-  } else {
+  }  else {
     LOG(FATAL) << "Invalid Step: " << step;
   }
   return "";

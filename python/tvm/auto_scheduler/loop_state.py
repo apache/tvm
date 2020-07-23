@@ -305,19 +305,23 @@ class State:
 
     def follow_split(self, stage, iterator, src_step_id, n_split):
         """
+        Schedule primitive corresponds to te.follow_split.
         Parameters
         ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be split, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
         iterator : Iterator
-            The iterator to split
-        src_step_id : int
-            The index of the split step to follow in the history
-        n_split : int
-            The number of split level
+            The iterator to split.
+        src_step_id : Int
+            The index of the split step to follow in the history.
+        n_split : Int
+            The number of split level.
 
         Returns
         -------
         res_its : List[Iterator]
-            The splitted new Iterators
+            The splitted new Iterators.
         """
 
         self.state_object, res = _ffi_api.StateFollowSplit(self.state_object,
@@ -329,22 +333,23 @@ class State:
     def follow_fused_split(self, stage, iterator, src_step_ids, level,
                            factor_or_nparts):
         """
+        Schedule primitive corresponds to te.follow_fused_split.
         Parameters
         ----------
         iterator : Iterator
-            The iterator to split
+            The iterator to split.
         src_step_ids : List[int]
-            The indices of the split steps to follow in the history
-        level : int
-            Use the length in this split level
-        factor_or_nparts : bool
+            The indices of the split steps to follow in the history.
+        level : Int
+            Use the length in this split level.
+        factor_or_nparts : Bool
             True to use `factor` for split from inner to outer,
-            False to use `nparts` for split from outer to inner
+            False to use `nparts` for split from outer to inner.
 
         Returns
         -------
         res_its : List[Iterator]
-            The splitted new Iterators
+            The splitted new Iterators.
         """
 
         self.state_object, res = _ffi_api.StateFollowFusedSplit(self.state_object,
