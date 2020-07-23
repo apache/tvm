@@ -38,7 +38,7 @@ type Deleter = unsafe extern "C" fn(object: *mut Object) -> ();
 #[derive(Debug)]
 #[repr(C)]
 pub struct Object {
-    /// The index into into TVM's runtime type information table.
+    /// The index into TVM's runtime type information table.
     pub(self) type_index: u32,
     // TODO(@jroesch): pretty sure Rust and C++ atomics are the same, but not sure.
     // NB: in general we should not touch this in Rust.
@@ -57,10 +57,10 @@ pub struct Object {
 /// trait magic here to get a monomorphized deleter for each object
 /// "subtype".
 ///
-/// This function just transmutes the pointer to the correct type
+/// This function just converts the pointer to the correct type
 /// and invokes the underlying typed delete function.
 unsafe extern "C" fn delete<T: IsObject>(object: *mut Object) {
-    let typed_object: *mut T = std::mem::transmute(object);
+    let typed_object: *mut T = object as *mut T;
     T::typed_delete(typed_object);
 }
 
@@ -104,8 +104,7 @@ impl Object {
         } else {
             let mut index = 0;
             unsafe {
-                let index_ptr = std::mem::transmute(&mut index);
-                if TVMObjectTypeKey2Index(cstring.as_ptr(), index_ptr) != 0 {
+                if TVMObjectTypeKey2Index(cstring.as_ptr(), &mut index) != 0 {
                     panic!(crate::get_last_error())
                 }
             }
@@ -130,16 +129,16 @@ impl Object {
 
     /// Increases the object's reference count by one.
     pub(self) fn inc_ref(&self) {
+        let raw_ptr = self as *const Object as *mut Object as *mut std::ffi::c_void;
         unsafe {
-            let raw_ptr = std::mem::transmute(self);
             assert_eq!(TVMObjectRetain(raw_ptr), 0);
         }
     }
 
     /// Decreases the object's reference count by one.
     pub(self) fn dec_ref(&self) {
+        let raw_ptr = self as *const Object as *mut Object as *mut std::ffi::c_void;
         unsafe {
-            let raw_ptr = std::mem::transmute(self);
             assert_eq!(TVMObjectFree(raw_ptr), 0);
         }
     }
@@ -277,10 +276,9 @@ impl<T: IsObject> std::ops::Deref for ObjectPtr<T> {
 
 impl<'a, T: IsObject> From<ObjectPtr<T>> for RetValue {
     fn from(object_ptr: ObjectPtr<T>) -> RetValue {
-        let raw_object_ptr = ObjectPtr::leak(object_ptr);
-        let void_ptr: *mut std::ffi::c_void = unsafe { std::mem::transmute(raw_object_ptr) };
-        assert!(!void_ptr.is_null());
-        RetValue::ObjectHandle(void_ptr)
+        let raw_object_ptr = ObjectPtr::leak(object_ptr) as *mut T as *mut std::ffi::c_void;
+        assert!(!raw_object_ptr.is_null());
+        RetValue::ObjectHandle(raw_object_ptr)
     }
 }
 
@@ -290,8 +288,7 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
     fn try_from(ret_value: RetValue) -> Result<ObjectPtr<T>, Self::Error> {
         match ret_value {
             RetValue::ObjectHandle(handle) => {
-                let handle: *mut Object = unsafe { std::mem::transmute(handle) };
-                let optr = ObjectPtr::from_raw(handle).ok_or(Error::Null)?;
+                let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
                 println!("back to type {}", optr.count());
                 optr.downcast()
@@ -304,10 +301,9 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
 impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
     fn from(object_ptr: ObjectPtr<T>) -> ArgValue<'a> {
         debug_assert!(object_ptr.count() >= 1);
-        let raw_object_ptr = ObjectPtr::leak(object_ptr);
-        let void_ptr: *mut std::ffi::c_void = unsafe { std::mem::transmute(raw_object_ptr) };
-        assert!(!void_ptr.is_null());
-        ArgValue::ObjectHandle(void_ptr)
+        let raw_ptr = ObjectPtr::leak(object_ptr) as *mut T as *mut std::ffi::c_void;
+        assert!(!raw_ptr.is_null());
+        ArgValue::ObjectHandle(raw_ptr)
     }
 }
 
@@ -317,8 +313,7 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
     fn try_from(arg_value: ArgValue<'a>) -> Result<ObjectPtr<T>, Self::Error> {
         match arg_value {
             ArgValue::ObjectHandle(handle) => {
-                let handle = unsafe { std::mem::transmute(handle) };
-                let optr = ObjectPtr::from_raw(handle).ok_or(Error::Null)?;
+                let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
                 println!("count: {}", optr.count());
                 optr.downcast()
