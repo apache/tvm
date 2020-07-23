@@ -230,6 +230,10 @@ def test_vars():
     assert isinstance(op, tvm.ir.Op)
     assert op.name == "nn.global_avg_pool2d"
 
+def test_meta_ref():
+    # var = parse_text("meta[type_key][index]")
+    var = parse_text("meta[type_key][0]")
+    import pdb; pdb.set_trace()
 
 def test_let():
     assert_parses_as(
@@ -905,8 +909,32 @@ def test_resnet():
     parsed_mod = parse_module(text)
     tvm.ir.assert_structural_equal(mod, parsed_mod)
 
+def inline_params(mod, params):
+    main_fn = mod["main"]
+    str_to_var = {}
+    for param in main_fn.params:
+        str_to_var[param.name_hint] = param
+
+    bind_map = {}
+    for param in params:
+        bind_map[str_to_var[param]] = relay.const(params[param])
+
+    body = relay.bind(main_fn.body, bind_map)
+    main_fn = relay.Function(relay.analysis.free_vars(body), body)
+    mod["main_fn"] = main_fn
+    return mod
+
+def test_resnet_inlined_params():
+    mod, params = relay.testing.resnet.get_workload()
+    mod = inline_params(mod, params)
+    text = str(mod.astext())
+    parsed_mod = parse_module(text)
+    import pdb; pdb.set_trace()
+    tvm.ir.assert_structural_equal(mod, parsed_mod)
+
 if __name__ == "__main__":
     # import sys
     # pytest.main(sys.argv)
     # test_hierarchical_identifiers()
-    test_resnet()
+    # test_resnet_inlined_params()
+    test_meta_ref()

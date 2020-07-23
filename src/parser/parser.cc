@@ -31,6 +31,7 @@
 
 #include <fstream>
 
+#include "./meta_ref.h"
 #include "./diagnostic.h"
 #include "./op_table.h"
 #include "./tokenizer.h"
@@ -86,60 +87,6 @@ class SemVer {
         minor_version(other.minor_version),
         patch_version(other.patch_version) {}
 };
-
-/*! \brief A reference to a "meta-expression".
- *
- * In the text format we allow referencing metadata which
- * uses a compact serialization that proceeds the main
- * program body.
- *
- * We can reference this table using an expression of
- * the form `meta[Type][index]`.
- *
- * We must later resolve these references to actual in-memory
- * AST nodes but this requires first parsing the full program
- * then expanding these temporary AST nodes into their corresponding
- * nodes.
- *
- * For example the nth large constant will be pretty-printed as meta[relay.Constant][n]
- * with its compact binary serialization residing in the metadata section at the end
- * of the program.
- */
-class MetaRefExprNode : public TempExprNode {
- public:
-  /*! \brief The type key of the meta expression. */
-  std::string type_key;
-  /*! \brief The index into the type key's table. */
-  uint64_t node_index;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {}
-
-  // TODO(@jroesch): we probably will need to manually
-  // expand these with a pass.
-  Expr Realize() const final { return Expr(); }
-
-  static constexpr const char* _type_key = "relay.MetaRefExpr";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MetaRefExprNode, TempExprNode);
-};
-
-class MetaRefExpr : public TempExpr {
- public:
-  /*!
-   * \brief The constructor for MetaRefExpr
-   * \param type_key The type key of the object in the meta section.
-   * \param kind The index into that subfield.
-   */
-  TVM_DLL MetaRefExpr(std::string type_key, uint64_t node_index);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(MetaRefExpr, TempExpr, MetaRefExprNode);
-};
-
-MetaRefExpr::MetaRefExpr(std::string type_key, uint64_t node_index) {
-  auto rnode = make_object<MetaRefExprNode>();
-  rnode->type_key = type_key;
-  rnode->node_index = node_index;
-  data_ = std::move(rnode);
-}
 
 /*! \brief A simple wrapper around a mapping from raw string names
  * to a TVM variable, type variable or other binder type.
@@ -1253,37 +1200,32 @@ class Parser {
         // Parse a local of the form `x`.
         // Right now we fail to parse `x.y`.
         case TokenType::Identifier: {
-          auto string = next.ToString();
-          Consume(TokenType::Identifier);
-          auto ctor = ctors.Get(string);
+          auto ctor = ctors.Get(next.ToString());
           if (ctor) {
+            Consume(TokenType::Identifier);
             return Expr(ctor.value());
           } else {
-            // id(x) ^ ';' this is works
-            // id(x) ^ '.' id(y) this is works
-
-            // ^ id(x) '.' id(y) this is works
-            // id(x) ^ '.' id(y) this is works
-            // id(x) '.' ^ id(y) this is works
-            // id(x) '.' id(y) ^ this is works
-            // DisplayNextN(10);
-
-            if (Peek()->token_type == TokenType::Period) {
-              std::stringstream hier_id;
-              Consume(TokenType::Period);
-              auto second_id = Match(TokenType::Identifier);
-              hier_id << string << "."
-                      << second_id.ToString();
-              return GetOp(hier_id.str(), next);
-            } else {
-              auto op = GetOp(string, next);
-              return op;
+            auto idents = ParseHierName();
+            std::stringstream op_name;
+            int i = 0;
+            int periods = idents.size() - 1;
+            for (auto ident : idents) {
+              op_name << ident;
+              if (i < periods) {
+                op_name << ".";
+                i++;
+              }
             }
+            return GetOp(op_name.str(), next);
           }
         }
         case TokenType::Graph: {
           Consume(TokenType::Graph);
           return LookupGraphBinding(next);
+        }
+        case TokenType::MetaRef: {
+          Consume(TokenType::MetaRef);
+          return Downcast<Expr>(next->data);
         }
         case TokenType::Fn: {
           Consume(TokenType::Fn);
@@ -1331,6 +1273,24 @@ class Parser {
     }
 
     return expr;
+  }
+
+  /*! \brief Parse a hierarchical name. */
+  Array<String> ParseHierName() {
+    Array<String> idents;
+    while (Peek()->token_type == TokenType::Identifier) {
+      idents.push_back(Peek().ToString());
+      Consume(TokenType::Identifier);
+
+      if (Peek()->token_type == TokenType::Period) {
+        Consume(TokenType::Period);
+        continue;
+      } else {
+        break;
+      }
+    }
+
+    return idents;
   }
 
   /*! \brief Parse a shape. */

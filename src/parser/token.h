@@ -85,6 +85,8 @@ enum TokenType {
   Extern,
   Match,
   PartialMatch,
+  Metadata,
+  MetaRef,
   Unknown,
   EndOfFile,
   Null,
@@ -186,6 +188,10 @@ std::string ToString(const TokenType& token_type) {
       return "Question";
     case TokenType::Boolean:
       return "Boolean";
+    case TokenType::Metadata:
+      return "Metadata";
+    case TokenType::MetaRef:
+      return "MetaRef";
     case TokenType::Unknown:
       return "Unknown";
     case TokenType::EndOfFile:
@@ -289,6 +295,10 @@ std::string Pretty(const TokenType& token_type) {
       return "`extern`";
     case TokenType::Boolean:
       return "boolean";
+    case TokenType::Metadata:
+      return "metadata section";
+    case TokenType::MetaRef:
+      return "`meta`";
     case TokenType::Match:
       return "`match`";
     case TokenType::PartialMatch:
@@ -339,6 +349,7 @@ class Token : public ObjectRef {
   static Token Null();
   int64_t ToNumber() const;
   std::string ToString() const;
+  Map<String, Array<ObjectRef>> ToMetadata() const;
   TVM_DEFINE_OBJECT_REF_METHODS(Token, ObjectRef, TokenNode);
 };
 
@@ -356,6 +367,10 @@ Token Token::Null() { return Token(0, 0, TokenType::Null); }
 int64_t Token::ToNumber() const { return Downcast<tvm::Integer>(this->operator->()->data); }
 
 std::string Token::ToString() const { return Downcast<tvm::String>(this->operator->()->data); }
+
+ Map<String, Array<ObjectRef>> Token::ToMetadata() const {
+   return Downcast<Map<String, Array<ObjectRef>>>(this->operator->()->data);
+ }
 
 }  // namespace parser
 }  // namespace tvm

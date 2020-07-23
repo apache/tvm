@@ -385,10 +385,12 @@ class TextPrinter {
     if (!meta_.empty()) {
       doc << Doc::NewLine();
       if (show_meta_data_) {
-        // append meta data in the end.
-        doc << "METADATA:" << Doc::NewLine() << meta_.GetMetaSection();
+        doc << "#[metadata]" << Doc::NewLine() << meta_.GetMetaSection();
       } else {
-        doc << "// meta data omitted. you can use show_meta_data=True to include meta data";
+        doc << "/* For debugging purposes the metadata section has been omitted." << Doc::NewLine()
+            << " * If you would like to see the full metadata section you can set the `show_meta_data`" << Doc::NewLine()
+            << " * option to `True` when invoking `astext`. " << Doc::NewLine()
+            << " */";
       }
     }
     return doc;

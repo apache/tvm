@@ -33,16 +33,6 @@ namespace tvm {
 
 static const char* kSemVer = "v0.0.4";
 
-// TODO(tvm-team): split into files, related: arith/analyzer.h
-//
-// - text_printer.h (common header)
-// - text_printer.cc (prints modules dispatch into relay and tir files)
-//    - type_text_printer.cc(specific printing logics for types,
-//      can also consider put under type_text_printer)
-//    - Implements AsText
-// - relay_text_printer.cc (specific printing logics for relay)
-// - tir_text_printer.cc (specific printing logics for TIR)
-
 Doc TextPrinter::PrintMod(const IRModule& mod) {
   Doc doc;
   int counter = 0;

@@ -26,6 +26,7 @@
 
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
+#include <tvm/node/serialization.h>
 
 #include <fstream>
 #include <string>
@@ -171,6 +172,48 @@ struct Tokenizer {
     }
   }
 
+  bool MatchString(const std::string& string) {
+    int start = this->pos;
+
+    for (auto c : string) {
+      if (Peek() != c) {
+        this->pos = start;
+        return false;
+      } else {
+        Next();
+      }
+    }
+
+    return true;
+  }
+
+  Token TokenizeMetaRef() {
+    int line = this->line;
+    int column = this->col;
+
+    CHECK_EQ(Peek(), '[');
+    Next();
+    std::stringstream type_key;
+    while (More() && Peek() != ']') {
+      type_key << Next();
+    }
+    CHECK_EQ(Peek(), ']');
+    Next();
+
+    CHECK_EQ(Peek(), '[');
+    Next();
+    std::stringstream str_index;
+    while (More() && Peek() != ']') {
+      str_index << Next();
+    }
+    CHECK_EQ(Peek(), ']');
+    Next();
+    std::cout << "NUmber: " << str_index.str() << std::endl;
+    // todo: add error handling around bad indices
+    auto index = ParseNumber(true, false, str_index.str()).ToNumber();
+    return Token(line, column, TokenType::MetaRef, MetaRefExpr(type_key.str(), index));
+  }
+
   inline Token TokenizeOnce() {
     auto next = Peek();
     if (next == '\n') {
@@ -298,6 +341,35 @@ struct Tokenizer {
       auto token = NewToken(TokenType::Question);
       Next();
       return token;
+    } else if (MatchString("meta")) {
+      return TokenizeMetaRef();
+    } else if (next == '#') {
+      Next();
+      int line = this->line;
+      int column = this->col;
+      if (Peek() == '[') {
+        Next();
+        std::stringstream attribute;
+        while (More() && Peek() != ']') {
+          attribute << Next();
+        }
+        CHECK_EQ(Next(), ']');
+        // Metadata can only appear at the bottom of a file and goes to EOF.
+        if (attribute.str() == "metadata") {
+          std::stringstream metadata;
+          while (More()) {
+            metadata << Next();
+          }
+          ObjectRef metadata_map = tvm::LoadJSON(metadata.str());
+          return Token(line, column, TokenType::Metadata, metadata_map);
+        } else {
+          LOG(FATAL) << "unsupported " << attribute.str();
+          return Token();
+        }
+      } else {
+        LOG(FATAL) << "lex error";
+        return Token();
+      }
     } else if (next == '%') {
       auto token = NewToken(TokenType::Percent);
       Next();
@@ -461,6 +533,7 @@ std::vector<Token> Tokenize(std::string source) {
   auto tokens = Condense(tokenizer.tokens);
   for (auto token : tokens) {
     CHECK(token.defined());
+    std::cout << token << std::endl;
   }
   return tokens;
 }
