@@ -294,6 +294,7 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
         co, ci = cfg['tile_c'].apply(s, conv, c)
 
         if conv_data.name == "data_pad":
+            assert isinstance(conv_data.op, tvm.te.ComputeOp)
             # Define a policy for padding computation
             cfg.define_knob('data_pad_inline', [1, 2, 3])
             if cfg.is_fallback:
