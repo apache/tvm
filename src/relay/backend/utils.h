@@ -154,8 +154,7 @@ inline std::string DType2String(const tvm::DataType dtype) {
        << (*GetPackedFunc("runtime._datatype_get_type_name"))(dtype.code()).operator std::string()
        << "]";
   } else {
-    LOG(FATAL) << "Unknown type with code "
-               << static_cast<unsigned>(dtype.code());
+    LOG(FATAL) << "Unknown type with code " << static_cast<unsigned>(dtype.code());
   }
   os << dtype.bits();
   return os.str();

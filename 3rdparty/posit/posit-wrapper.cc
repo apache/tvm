@@ -1,9 +1,11 @@
 
 #include <tvm/runtime/c_runtime_api.h>
-#include "posit/posit.hpp"
-#include "posit/math/sqrt.hpp"
-#include "posit/math/exponent.hpp"
+
 #include <cstdint>
+
+#include "posit/math/exponent.hpp"
+#include "posit/math/sqrt.hpp"
+#include "posit/posit.hpp"
 
 TVM_DLL sw::unum::posit<8, 0> Uint8ToPosit8es0(uint8_t in) {
   sw::unum::bitblock<8> bb;

@@ -121,7 +121,7 @@ float BFloat16ToFloat_wrapper(uint16_t in) {
   return out;
 }
 
-  // TODO How do we know what size it is?
+// TODO How do we know what size it is?
 TVM_DLL uint16_t IntToBFloat16_wrapper(int in) {
   uint16_t out;
   float in_f = (float)in;
