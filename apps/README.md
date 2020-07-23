@@ -26,3 +26,4 @@ If you are interested in writing optimized kernels with TVM, checkout [TOPI: TVM
 - [android_rpc](android_rpc) Android RPC server.
 - [benchmark](benchmark) Example end to end compilation benchmarks
 - [howto_deploy](howto_deploy) Tutorial on how to deploy TVM with minimum code dependency.
+- [wasm_standalone](tvm-standalone) WebAssembly standalone for deep learning framework with TVM runtime.
