@@ -274,14 +274,14 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
     cfg.define_split('tile_c', c, num_outputs=2)
     _, hi = cfg.define_split('tile_h', h, num_outputs=2)
     _, wi = cfg.define_split('tile_w', w, num_outputs=2)
-    cfg.define_annotate('locate_output', [hi, wi], 'locate_cache', num_anchor=1)
+    cfg.define_knob('locate_output', [0, 1])
 
     # fallback support
     if cfg.is_fallback:
         cfg['tile_c'] = SplitEntity([-1, 8])
         cfg['tile_h'] = SplitEntity([-1, 2])
         cfg['tile_w'] = SplitEntity([-1, 2])
-        cfg['locate_output'] = AnnotateEntity([1])
+        cfg['locate_output'] = OtherOptionEntity(1)
     ##### space definition end #####
 
     def schedule_conv(conv):
@@ -334,7 +334,10 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
             if conv != out:
                 hi, wi, p_axis = schedule_conv_out(out)
                 schedule_conv(conv)
-                cfg['locate_output'].apply(s, out, [hi, wi], source=[[conv]])
+                if cfg['locate_output'].val == 0:
+                    s[conv].compute_at(s[out], hi)
+                if cfg['locate_output'].val == 1:
+                    s[conv].compute_at(s[out], wi)
             else:
                 p_axis = schedule_conv(out)
 
