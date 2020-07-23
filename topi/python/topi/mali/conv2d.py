@@ -276,8 +276,7 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
             [(b*bnb+bb) % nW * m + nu], tvm.tir.const(0, data_pad.dtype)), name='d')
 
     if autotvm.GLOBAL_SCOPE.in_tuning:
-        VC = cfg['tile_k'].size[-1]
-        kvshape = (KH + tile_size - 1, KW + tile_size - 1, tvm.tir.indexdiv(CO, VC), CI, VC)
+        kvshape = (alpha, alpha, CO // bna, CI, bna)
         U = tvm.te.placeholder(kvshape, kernel.dtype, name="U")
     else:
         # transform kernel

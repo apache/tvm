@@ -223,12 +223,15 @@ class TaskTemplate(object):
     def get_inputs(self, out):
         inputs = []
         queue = [out]
+        hash_set = set()
         while queue:
             t = queue.pop(0)
             if isinstance(t.op, tensor.PlaceholderOp):
                 inputs.append(t)
             else:
-                queue.extend(t.op.input_tensors)
+                input_tensors = [t for t in t.op.input_tensors if t not in hash_set]
+                queue.extend(input_tensors)
+                hash_set.update(input_tensors)
         return inputs
 
 def _register_task_compute(name, func=None):
