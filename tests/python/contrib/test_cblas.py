@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 from tvm import te
 import numpy as np
@@ -66,6 +67,7 @@ def test_matmul_add():
     verify_matmul_add(1, 16, 3, True, True)
 
 def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):
+    pytest.skip("Quantized dense is supported only for MKL. TVM GPU CI uses openblas")
     data_dtype = "uint8"
     kernel_dtype = "int8"
     out_dtype = "int32"
