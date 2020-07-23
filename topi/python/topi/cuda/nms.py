@@ -25,32 +25,6 @@ from .sort import argsort, argsort_thrust
 from .. import tag
 
 
-def cuda_atomic_add_rule(op):
-    if op.dtype == "float32":
-        return tvm.tir.call_pure_extern("float32", "atomicAdd", op.args[0], op.args[1])
-    if op.dtype == "float64":
-        return tvm.tir.call_pure_extern("float64", "atomicAdd", op.args[0], op.args[1])
-    if op.dtype == "int32":
-        return tvm.tir.call_pure_extern("int32", "atomicAdd", op.args[0], op.args[1])
-    raise RuntimeError("only support int32, float32 and float64")
-
-def opencl_atomic_add_rule(op):
-    if op.dtype == "int32":
-        return tvm.tir.call_pure_extern("int32", "atomic_add", op.args[0], op.args[1])
-    raise RuntimeError("only support int32")
-
-tvm.target.intrin.register_intrin_rule(
-    "cuda", "atomic_add", cuda_atomic_add_rule, override=True)
-
-tvm.target.intrin.register_intrin_rule(
-    "opencl", "atomic_add", opencl_atomic_add_rule, override=True)
-
-tvm.ir.register_op_attr("tir.atomic_add", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
-
-def atomic_add(x, y):
-    return tvm.tir.call_intrin(y.dtype, "tir.atomic_add", x, y)
-
-
 def get_valid_counts_ir(data, valid_count, out, out_indices,
                         score_threshold, id_index, score_index):
     """Low level IR to get valid count of bounding boxes
