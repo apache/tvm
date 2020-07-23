@@ -57,7 +57,7 @@ def test_float32_to_int8():
     data = np.array([-63.5, -63, -62.5, -62, -61.5, 62, 62.5, 63, 63.5, 64]) \
         .astype('float32') \
         .reshape((2,5))
-    output = np.array([-128, -127, -126, -125, -124, 123, 124, 125, 126, 127]) \
+    output = np.array([-127, -127, -126, -125, -124, 123, 124, 125, 126, 127]) \
         .astype('int8') \
         .reshape((2,5))
     quant_args = {"out_zero_point":np.int32(-1), "out_scale":np.float32(0.5)}

@@ -196,7 +196,7 @@ def test_saturation():
         golden_data = np.arange(0, -16, -1).astype('int32')
         golden_data = np.add(-120, golden_data)
         output = np.array([-120, -121, -122, -123, -124, -125, -126, -127,
-                           -128, -128, -128, -128, -128, -128, -128, -128])
+                           -127, -127, -127, -127, -127, -127, -127, -127])
         golden_output = output
         verify(mod, (golden_data, golden_output))
 

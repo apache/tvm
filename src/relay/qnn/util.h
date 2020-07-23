@@ -51,6 +51,12 @@ static inline int32_t GetQmin(const DataType& dtype) {
   if (dtype.is_int() || dtype.is_uint()) {
     auto* min_value = tir::as_const_int(tvm::min_value(dtype));
     CHECK(min_value != nullptr);
+    // For int datatypes, it is a common practice to ignore the most negative value.  This is useful
+    // in symmetric quantization, where by ignoring most negative value puts 0 exactly at the mid
+    // point of representation.
+    if (dtype.is_int()) {
+      return static_cast<int32_t>(min_value[0] + 1);
+    }
     return static_cast<int32_t>(min_value[0]);
   } else {
     LOG(FATAL) << "Type not supported " << dtype;
