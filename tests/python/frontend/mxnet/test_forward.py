@@ -1437,8 +1437,8 @@ def test_forward_npi_pad(data_shape, pad_width, mode, dtype, constant_value):
 
 
 @pytest.mark.parametrize("data_shape", [(2,2,2),(2,7,2)])
-@pytest.mark.parametrize("axes", [(1,0,2),None])
 @pytest.mark.parametrize("dtype", ['float64', 'float32', 'int64', 'int32', 'bool'])
+@pytest.mark.parametrize("axes", [(1,0,2),None])
 def test_forward_npi_transpose(data_shape, axes, dtype):
     def verify(data_shape, axes=None):
         data_np = np.random.uniform(size=data_shape).astype(dtype)
