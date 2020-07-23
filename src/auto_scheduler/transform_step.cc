@@ -1128,8 +1128,8 @@ void CacheWriteStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
 
 int CacheWriteStepNode::ApplyToState(State* state, const ComputeDAG& dag) const {
   StateNode* pstate = state->CopyOnWrite();
-  int last_dag_op_size = pstate->current_compute_dag.defined()
-                             ? pstate->current_compute_dag.as<ComputeDAGNode>()->ops.size()
+  int last_dag_op_size = pstate->current_compute_dag
+                             ? pstate->current_compute_dag.value().as<ComputeDAGNode>()->ops.size()
                              : dag->ops.size();
   const ComputeDAG& current_compute_dag =
       dag.ReplayAndGetDAG(GetStageModifiableSteps(GetRef<Step>(this), (*state)->transform_steps));

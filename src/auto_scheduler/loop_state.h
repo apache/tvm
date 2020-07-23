@@ -242,9 +242,9 @@ class StateNode : public Object {
    * \brief The up-to-date ComputeDAG of this state, used for some steps that may change the
    * stage structure of the ComputeDAG (e.g. CacheReadStep/CacheWriteStep which Will be added
    * later).
-   * The default value is an empty ObjectRef. (means no modification to the original DAG)
+   * The default value is an empty NullOpt. (means no modification to the original DAG)
    */
-  ObjectRef current_compute_dag;
+  Optional<ObjectRef> current_compute_dag;
   /*!
    * \brief Indicate whether this state has unfilled tile sizes. A concrete state means that all
    * tile sizes of the state is filled. Only concrete state can be apply to TVM schedule.
