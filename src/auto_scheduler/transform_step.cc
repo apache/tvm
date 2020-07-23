@@ -115,9 +115,9 @@ void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag) {
     ps->ApplyToState(state);
   } else if (auto ps = step.as<SplitStepNode>()) {
     ps->ApplyToState(state);
-  } else if(auto ps = step.as<FollowSplitStepNode>()){
+  } else if (auto ps = step.as<FollowSplitStepNode>()) {
     ps->ApplyToState(state);
-  } else if(auto ps = step.as<FollowFusedSplitStepNode>()){
+  } else if (auto ps = step.as<FollowFusedSplitStepNode>()) {
     ps->ApplyToState(state);
   } else if (auto ps = step.as<ComputeAtStepNode>()) {
     ps->ApplyToState(state);
@@ -144,9 +144,9 @@ void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxes
     ps->ApplyToSchedule(stages, stage_to_axes);
   } else if (auto ps = step.as<SplitStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes);
-  } else if(auto ps = step.as<FollowSplitStepNode>()) {
+  } else if (auto ps = step.as<FollowSplitStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes, transform_steps);
-  } else if(auto ps = step.as<FollowFusedSplitStepNode>()){
+  } else if (auto ps = step.as<FollowFusedSplitStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes, transform_steps);
   } else if (auto ps = step.as<ComputeAtStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes);
@@ -164,7 +164,8 @@ void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxes
 }
 
 String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
-                            StageToAxesMap* stage_to_axes, te::Schedule* schedule, const Array<Step>& transform_steps) {
+                            StageToAxesMap* stage_to_axes, te::Schedule* schedule,
+                            const Array<Step>& transform_steps) {
   if (auto ps = step.as<AnnotationStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<FuseStepNode>()) {
@@ -173,9 +174,9 @@ String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<SplitStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
-  } else if(auto ps = step.as<FollowSplitStepNode>()){
+  } else if (auto ps = step.as<FollowSplitStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes, transform_steps);
-  } else if(auto ps = step.as<FollowFusedSplitStepNode>()){
+  } else if (auto ps = step.as<FollowFusedSplitStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes, transform_steps);
   } else if (auto ps = step.as<ComputeAtStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
@@ -187,7 +188,7 @@ String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
     return ps->PrintAsPythonAPI(stages, stage_to_axes, schedule);
   } else if (auto ps = step.as<CacheWriteStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes, schedule);
-  }  else {
+  } else {
     LOG(FATAL) << "Invalid Step: " << step;
   }
   return "";
@@ -793,8 +794,7 @@ String SplitStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
 }
 
 /********** Follow Split **********/
-FollowSplitStep::FollowSplitStep(int stage_id, int iter_id,
-                                 int src_step_id, int n_split) {
+FollowSplitStep::FollowSplitStep(int stage_id, int iter_id, int src_step_id, int n_split) {
   auto node = make_object<FollowSplitStepNode>();
   node->stage_id = stage_id;
   node->iter_id = iter_id;
@@ -812,9 +812,8 @@ void FollowSplitStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
   writer->WriteArrayItem(n_split);
 }
 
-void FollowSplitStepNode::ExtractSplitLengths(
-    const Array<Step>& transform_steps, 
-    Array<Optional<Integer>>* lengths) const {
+void FollowSplitStepNode::ExtractSplitLengths(const Array<Step>& transform_steps,
+                                              Array<Optional<Integer>>* lengths) const {
   CHECK_LT(src_step_id, transform_steps.size());
   auto ps = transform_steps[src_step_id].as<SplitStepNode>();
   CHECK(ps != nullptr);
@@ -866,30 +865,30 @@ Array<Iterator> FollowSplitStepNode::ApplyToState(State* state) const {
   return ApplySplitToState(state, stage_id, iter_id, lengths, true);
 }
 
-Array<IterVar> FollowSplitStepNode::ApplyToSchedule(
-    Array<te::Stage> *stages, StageToAxesMap *stage_to_axes,
-    const Array<Step>& transform_steps) const {
+Array<IterVar> FollowSplitStepNode::ApplyToSchedule(Array<te::Stage>* stages,
+                                                    StageToAxesMap* stage_to_axes,
+                                                    const Array<Step>& transform_steps) const {
   Array<Optional<Integer>> lengths;
   ExtractSplitLengths(transform_steps, &lengths);
-  return ApplySplitToSchedule(stages, stage_to_axes, stage_id, iter_id,
-                              lengths, true);
+  return ApplySplitToSchedule(stages, stage_to_axes, stage_id, iter_id, lengths, true);
 }
 
-String FollowSplitStepNode::PrintAsPythonAPI(
-    Array<te::Stage> *stages, StageToAxesMap *stage_to_axes, const Array<Step>& transform_steps) const {
+String FollowSplitStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
+                                             StageToAxesMap* stage_to_axes,
+                                             const Array<Step>& transform_steps) const {
   Array<Optional<Integer>> lengths;
   ExtractSplitLengths(transform_steps, &lengths);
-  return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id,
-                               lengths, true);
+  return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id, lengths, true);
 }
 
 /********** Follow Fused Split **********/
 FollowFusedSplitStep::FollowFusedSplitStep(int stage_id, int iter_id,
-    const Array<Integer>& src_step_ids, int level, bool factor_or_nparts) {
+                                           const Array<Integer>& src_step_ids, int level,
+                                           bool factor_or_nparts) {
   auto node = make_object<FollowFusedSplitStepNode>();
   node->stage_id = stage_id;
   node->iter_id = iter_id;
-  node->src_step_ids = src_step_ids;;
+  node->src_step_ids = src_step_ids;
   node->level = level;
   node->factor_or_nparts = factor_or_nparts;
   data_ = std::move(node);
@@ -955,21 +954,20 @@ Array<Iterator> FollowFusedSplitStepNode::ApplyToState(State* state) const {
   return ApplySplitToState(state, stage_id, iter_id, {length}, factor_or_nparts);
 }
 
-Array<IterVar> FollowFusedSplitStepNode::ApplyToSchedule(
-    Array<te::Stage> *stages, StageToAxesMap *stage_to_axes,
-    const Array<Step>& transform_steps) const {
+Array<IterVar> FollowFusedSplitStepNode::ApplyToSchedule(Array<te::Stage>* stages,
+                                                         StageToAxesMap* stage_to_axes,
+                                                         const Array<Step>& transform_steps) const {
   const Optional<Integer>& length = ExtractSplitLength(transform_steps);
-  return ApplySplitToSchedule(stages, stage_to_axes, stage_id, iter_id,
-                              {length}, factor_or_nparts);
+  return ApplySplitToSchedule(stages, stage_to_axes, stage_id, iter_id, {length}, factor_or_nparts);
 }
 
-String FollowFusedSplitStepNode::PrintAsPythonAPI(
-    Array<te::Stage> *stages, StageToAxesMap *stage_to_axes, const Array<Step>& transform_steps) const {
+String FollowFusedSplitStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
+                                                  StageToAxesMap* stage_to_axes,
+                                                  const Array<Step>& transform_steps) const {
   const Optional<Integer>& length = ExtractSplitLength(transform_steps);
-  return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id,
-                               {length}, factor_or_nparts);
+  return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id, {length},
+                               factor_or_nparts);
 }
-
 
 /********** Primitives working on multiple stages **********/
 

@@ -374,7 +374,9 @@ class State : public ObjectRef {
       False to use `nparts` for split from outer to inner.
    * \return The splitted new Iterators.
    */
-  Array<Iterator> follow_fused_split(int stage_id, const Iterator& it, const Array<Integer>& src_step_ids, int level, bool factor_or_nparts);
+  Array<Iterator> follow_fused_split(int stage_id, const Iterator& it,
+                                     const Array<Integer>& src_step_ids, int level,
+                                     bool factor_or_nparts);
 
   /*!
    * \brief Schedule primitive corresponds to te.compute_at.
