@@ -353,8 +353,6 @@ class State : public ObjectRef {
    */
   Array<Iterator> split(int stage_id, const Iterator& it, const Array<Optional<Integer>>& lengths,
                         bool inner_to_outer = true);
-  /********** Step APIs working on multiple stages **********/
-
   /*!
    * \brief Schedule primitive corresponds to te.follow_split.
    * \param stage_id The index of the stage to be split.
@@ -377,6 +375,9 @@ class State : public ObjectRef {
   Array<Iterator> follow_fused_split(int stage_id, const Iterator& it,
                                      const Array<Integer>& src_step_ids, int level,
                                      bool factor_or_nparts);
+
+  /********** Step APIs working on multiple stages **********/
+
   /*!
    * \brief Schedule primitive corresponds to te.compute_at.
    * \param stage_id The index of the stage to be compute at.
