@@ -41,7 +41,6 @@ def verify_conv2d_hwnc(batch, in_channel, in_size, num_filter, kernel, stride,
         batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
     # choose dtype from int4, int8 
     assert dtype in ['int4', 'int8']
-    out_dtype = 'int32'
 
     in_height = in_width = in_size
 
@@ -59,7 +58,7 @@ def verify_conv2d_hwnc(batch, in_channel, in_size, num_filter, kernel, stride,
         elif dtype == 'int8':
             a_np = np.random.randint(low=-128, high=127, size=a_shape).transpose((2, 0, 1, 3)).astype(dtype)
             w_np = np.random.randint(low=-128, high=127, size=w_shape).astype(dtype)
-            dw_np = topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
+            dw_np = topi.testing.dilate_python(w_np.transpose((0, 1, 3, 2)), (1, 1, dilation, dilation))
 
         c_np = topi.testing.conv2d_nhwc_python(a_np, dw_np, stride, padding)
         return a_np, w_np, c_np
@@ -119,9 +118,8 @@ def verify_conv2d_hwnc(batch, in_channel, in_size, num_filter, kernel, stride,
 
 def test_conv2d_hwnc_tensorcore():
     """Test the conv2d with tensorcore for hwnc layout"""
-    verify_conv2d_hwnc(8, 64, 56, 64, 3, 1, 1)
-    verify_conv2d_hwnc(8, 32, 7, 8, 3, 1, 1)
-    verify_conv2d_hwnc(8, 64, 56, 64, 1, 1, 0)
+    verify_conv2d_hwnc(8, 64, 56, 64, 3, 1, 1, dtype='int8')
+    verify_conv2d_hwnc(8, 64, 56, 64, 1, 1, 0, dtype='int4')
     verify_conv2d_hwnc(8, 64, 56, 128, 3, 2, 1)
     verify_conv2d_hwnc(8, 64, 56, 64, 1, 2, 0)
     verify_conv2d_hwnc(8, 128, 28, 128, 3, 1, 1)

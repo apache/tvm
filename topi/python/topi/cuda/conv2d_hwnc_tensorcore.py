@@ -142,8 +142,7 @@ def hwnc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dtyp
     pad_after = [pad_down, pad_right, 0, 0, 0, 0]
     pad_data = pad(packed_data, pad_before, pad_after, name="pad_data")
 
-
-    Conv = te.compute((out_height, out_width,  batch // wmma_m, out_channels // wmma_n,wmma_m, wmma_n),
+    Conv = te.compute((out_height, out_width, batch // wmma_m, out_channels // wmma_n, wmma_m, wmma_n),
                     lambda h, w, n, o, nn, oo: te.sum(
                         (pad_data[h * stride_h + kh, w * stride_w + kw, n, ic, nn, ii].astype('int32') *
                         packed_kernel[kh, kw, o, ic, oo, ii].astype('int32')),
@@ -306,7 +305,6 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
         s[AS].compute_at(s[ConvF], ko)
     else:
         s[AS].compute_at(s[ConvF], kh)
-    # s[AS].compute_at(s[ConvF], kh)
     h, w, n, i, nn, ii = AS.op.axis
     tx, xo = s[AS].split(n, nparts=block_row_warps)
     ty, yo = s[AS].split(xo, nparts=block_col_warps)
