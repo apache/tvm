@@ -238,7 +238,7 @@ class CompileEngine : public ObjectRef {
   CompileEngineNode* operator->() { return static_cast<CompileEngineNode*>(get_mutable()); }
   using ContainerType = CompileEngineNode;
   /*! \brief The global compile engine. */
-  TVM_DLL static const CompileEngine& Global();
+  TVM_DLL static CompileEngine& Global();
 };
 
 /*!
