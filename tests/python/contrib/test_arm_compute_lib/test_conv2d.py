@@ -241,23 +241,24 @@ def test_conv2d():
 
     device = Device()
     np.random.seed(0)
-    r = random.Random(0)
 
     kernel_hs = [1, 2, 3, 5]
     kernel_ws = [1, 2, 3, 5]
     pad = [(1, 1), (2, 2), (2, 1)]
     strides = [(1, 1), (2, 2)]
     dilation = [(1, 1)]
+    out_channels = [4, 7, 16]
+    input_shapes = [(10, 10, 14), (12, 15, 16), (20, 20, 20)]
     # composite operator (pad, bias, activation)
     composite = [(False, False, False), (False, True, False), (False, False, True),
                  (False, True, True), (True, False, False)]
     dtype = "float32"
-    trials = generate_trials([kernel_hs, kernel_ws, pad, strides, dilation, composite], 3)
+    trials = generate_trials([kernel_hs, kernel_ws, pad, strides, dilation, out_channels,
+                              input_shapes, composite], 3)
 
-    for kernel_h, kernel_w, pad, stride, dilation, composite in trials:
-        out_channels = r.randint(4, 16)
+    for kernel_h, kernel_w, pad, stride, dilation, out_channels, input_shapes, composite in trials:
         groups = 1
-        shape = (1,) + tuple(np.random.randint(low=max(kernel_hs + kernel_ws), high=32, size=(3,)))
+        shape = (1, *input_shapes)
         outputs = []
         inputs = {
             "a": tvm.nd.array(np.random.uniform(-128, 127, shape).astype(dtype)),
@@ -281,23 +282,24 @@ def test_codegen_conv2d():
         return
 
     np.random.seed(0)
-    r = random.Random(0)
 
     kernel_hs = [1, 2, 3, 5]
     kernel_ws = [1, 2, 3, 5]
     pad = [(1, 1), (2, 2), (2, 1)]
     strides = [(1, 1), (2, 2)]
     dilation = [(1, 1)]
+    out_channels = [4, 7, 16]
+    input_shapes = [(10, 10, 14), (12, 15, 16), (20, 20, 20)]
     # composite operator (pad, bias, activation)
     composite = [(False, False, False), (False, True, False), (False, False, True),
                  (False, True, True), (True, False, False)]
     dtype = "float32"
-    trials = generate_trials([kernel_hs, kernel_ws, pad, strides, dilation, composite], 3)
+    trials = generate_trials([kernel_hs, kernel_ws, pad, strides, dilation, out_channels,
+                              input_shapes, composite], 3)
 
-    for kernel_h, kernel_w, pad, stride, dilation, composite in trials:
-        out_channels = r.randint(4, 16)
+    for kernel_h, kernel_w, pad, stride, dilation, out_channels, input_shapes, composite in trials:
         groups = 1
-        shape = (1,) + tuple(r.randint(a=max(kernel_hs + kernel_ws), b=32) for _ in range(3))
+        shape = (1, *input_shapes)
         inputs = {"a"}
 
         args = (shape, kernel_h, kernel_w, pad, stride, dilation, groups, dtype, out_channels)
@@ -318,32 +320,33 @@ def test_qnn_conv2d():
 
     device = Device()
     np.random.seed(0)
-    r = random.Random(0)
 
     kernel_hs = [1, 2, 3, 5]
     kernel_ws = [1, 2, 3, 5]
     pad = [(1, 1), (2, 2)]
     strides = [(1, 1), (2, 2)]
     dilation = [(1, 1)]
+    out_channels = [4, 7, 16]
+    input_shapes = [(10, 10, 14), (12, 15, 16), (20, 20, 20)]
     # composite operator (pad, bias, activation)
     composite = [(False, False, False), (False, True, False), (False, False, True),
                  (False, True, True), (True, False, False)]
     dtype = "uint8"
-    trials = generate_trials([kernel_hs, kernel_ws, pad, strides, dilation, composite], 3)
+    trials = generate_trials([kernel_hs, kernel_ws, pad, strides, dilation, out_channels,
+                              input_shapes, composite], 3)
 
-    for kernel_h, kernel_w, pad, stride, dilation, composite in trials:
-        out_channels = r.randint(4, 16)
+    for kernel_h, kernel_w, pad, stride, dilation, out_channels, input_shapes, composite in trials:
         groups = 1
-        shape = (1,) + tuple(np.random.randint(low=max(kernel_hs + kernel_ws), high=32, size=(3,)))
+        shape = (1, *input_shapes)
         outputs = []
         inputs = {
             "a": tvm.nd.array(np.random.uniform(0, 255, shape).astype(dtype))
         }
 
-        input_zp = r.randint(0, 255)
-        input_sc = r.random() * 2
-        kernel_zp = r.randint(0, 255)
-        kernel_sc = r.random() * 2
+        input_zp = 100
+        input_sc = 0.5
+        kernel_zp = 25
+        kernel_sc = 0.03
         output_zp, output_sc = _get_qnn_params(input_zp, input_sc,
                                                kernel_zp, kernel_sc,
                                                kernel_h, kernel_w, shape[3])
@@ -370,29 +373,30 @@ def test_codegen_qnn_conv2d():
         return
 
     np.random.seed(0)
-    r = random.Random(0)
 
     kernel_hs = [1, 2, 3, 5]
     kernel_ws = [1, 2, 3, 5]
     pad = [(1, 1), (2, 2), (2, 1)]
     strides = [(1, 1), (2, 2)]
     dilation = [(1, 1)]
+    out_channels = [4, 7, 16]
+    input_shapes = [(10, 10, 14), (12, 15, 16), (20, 20, 20)]
     # composite operator (pad, bias, activation)
     composite = [(False, False, False), (False, True, False), (False, False, True),
                  (False, True, True), (True, False, False)]
     dtype = "uint8"
-    trials = generate_trials([kernel_hs, kernel_ws, pad, strides, dilation, composite], 3)
+    trials = generate_trials([kernel_hs, kernel_ws, pad, strides, dilation, out_channels,
+                              input_shapes, composite], 3)
 
-    for kernel_h, kernel_w, pad, stride, dilation, composite in trials:
-        out_channels = r.randint(4, 16)
+    for kernel_h, kernel_w, pad, stride, dilation, out_channels, input_shapes, composite in trials:
         groups = 1
-        shape = (1,) + tuple(r.randint(a=max(kernel_hs + kernel_ws), b=32) for _ in range(3))
+        shape = (1, *input_shapes)
         inputs = {"a"}
 
-        input_zp = r.randint(0, 255)
-        input_sc = r.random() * 2
-        kernel_zp = r.randint(0, 255)
-        kernel_sc = r.random() * 2
+        input_zp = 100
+        input_sc = 0.5
+        kernel_zp = 25
+        kernel_sc = 0.03
         output_zp, output_sc = _get_qnn_params(input_zp, input_sc,
                                                kernel_zp, kernel_sc,
                                                kernel_h, kernel_w, shape[3])

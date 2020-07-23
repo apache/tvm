@@ -99,6 +99,8 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
     CompositeConvNode nodes{};
     const auto* fn = cn->op.as<FunctionNode>();
     CHECK(fn);
+
+    // Traverse composite convolution function from child to parent
     const auto* current_call = fn->body.as<CallNode>();
     if (backend::IsOp(current_call, "qnn.requantize")) {
       nodes.requantize = current_call;
@@ -112,6 +114,7 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
       nodes.bias = current_call;
       current_call = current_call->args[0].as<CallNode>();
     }
+    // Enforce a convolution node exists at this point during traversal
     if (nodes.requantize) {
       CHECK(backend::IsOp(current_call, "qnn.conv2d"));
     } else {

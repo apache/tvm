@@ -129,10 +129,12 @@ Operator support
 | nn.conv2d    | fp32:                                                                   |
 |              |   Simple: nn.conv2d                                                     |
 |              |   Composite: nn.pad?, nn.conv2d, nn.bias_add?, nn.relu?                 |
+|              |                                                                         |
 |              | (only groups = 1 supported)                                             |
 +--------------+-------------------------------------------------------------------------+
 | qnn.conv2d   | uint8:                                                                  |
 |              |   Composite: nn.pad?, nn.conv2d, nn.bias_add?, nn.relu?, qnn.requantize |
+|              |                                                                         |
 |              | (only groups = 1 supported)                                             |
 +--------------+-------------------------------------------------------------------------+
 | nn.maxpool2d | fp32, uint8                                                             |
