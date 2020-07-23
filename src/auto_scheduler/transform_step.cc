@@ -960,15 +960,22 @@ String ComputeRootStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
 
 /********** Primitives adding new stages **********/
 
-// Common part for steps that add new stages
-// (e.g. CacheReadStep, CacheWriteStep, RfactorStep)
-void AddStageModificationSteps(int step_id, const Array<Step>& transform_steps,
-                               Array<Step>* replay_steps) {
-  const Step& step = transform_steps[step_id];
-  if (step->IsInstance<CacheWriteStepNode>() || step->IsInstance<CacheReadStepNode>()) {
-    replay_steps->push_back(step);
+/*!
+ * \brief Common part for steps that add new stages(e.g. CacheReadStep, CacheWriteStep,
+ * RfactorStep). This will filter out all steps that can change the stages of ComputeDAG.
+ */
+Array<Step> GetStageModifiableSteps(Step current_step, const Array<Step>& transform_steps) {
+  Array<Step> ret_steps;
+  for (const Step& step : transform_steps) {
+    if (step->IsInstance<CacheWriteStepNode>() || step->IsInstance<CacheReadStepNode>()) {
+      ret_steps.push_back(step);
+    }
+    // TODO(jcf94): add rfactor support
+    if (step.same_as(current_step)) {
+      break;
+    }
   }
-  // TODO(jcf94): add rfactor support
+  return ret_steps;
 }
 
 /********** Cache Read **********/
@@ -1015,14 +1022,8 @@ void CacheReadStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
 
 int CacheReadStepNode::ApplyToState(State* state, const ComputeDAG& dag) const {
   StateNode* pstate = state->CopyOnWrite();
-  Array<Step> replay_steps;
-  for (size_t i = 0; i < pstate->transform_steps.size(); ++i) {
-    AddStageModificationSteps(i, pstate->transform_steps, &replay_steps);
-    if (pstate->transform_steps[i].same_as(GetRef<Step>(this))) {
-      break;
-    }
-  }
-  const ComputeDAG& current_compute_dag = dag.ReplayAndGetDAG(replay_steps);
+  const ComputeDAG& current_compute_dag =
+      dag.ReplayAndGetDAG(GetStageModifiableSteps(GetRef<Step>(this), (*state)->transform_steps));
 
   // target_stage -> target_stage + target_store
   // Update the op of the target stage, insert a new cache read stage behind, update the op of
@@ -1048,7 +1049,6 @@ te::Tensor CacheReadStepNode::ApplyToSchedule(Array<te::Stage>* stages,
                                               StageToAxesMap* stage_to_axes,
                                               te::Schedule* schedule) const {
   const te::Stage& stage = (*stages)[stage_id];
-
   Array<te::Operation> readers;
   for (const auto& i : reader_stage_ids) {
     readers.push_back((*stages)[i]->origin_op);
@@ -1072,7 +1072,6 @@ String CacheReadStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxes
   for (size_t i = 0; i < reader_stage_ids.size(); ++i) {
     reader_stages.push_back((*stages)[reader_stage_ids[i]]);
   }
-
   auto out = ApplyToSchedule(stages, stage_to_axes, schedule);
 
   ss << CleanName(out->op->name) << " = "
@@ -1129,17 +1128,11 @@ void CacheWriteStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
 
 int CacheWriteStepNode::ApplyToState(State* state, const ComputeDAG& dag) const {
   StateNode* pstate = state->CopyOnWrite();
-  Array<Step> replay_steps;
-  for (size_t i = 0; i < pstate->transform_steps.size(); ++i) {
-    AddStageModificationSteps(i, pstate->transform_steps, &replay_steps);
-    if (pstate->transform_steps[i].same_as(GetRef<Step>(this))) {
-      break;
-    }
-  }
   int last_dag_op_size = pstate->current_compute_dag.defined()
                              ? pstate->current_compute_dag.as<ComputeDAGNode>()->ops.size()
                              : dag->ops.size();
-  const ComputeDAG& current_compute_dag = dag.ReplayAndGetDAG(replay_steps);
+  const ComputeDAG& current_compute_dag =
+      dag.ReplayAndGetDAG(GetStageModifiableSteps(GetRef<Step>(this), (*state)->transform_steps));
   int added_ops = current_compute_dag->ops.size() - last_dag_op_size;
   // TODO(jcf94): Update this check to equal after fixing the cache write bug in TVM
   CHECK_GE(added_ops, 1);
@@ -1178,7 +1171,6 @@ Array<te::Tensor> CacheWriteStepNode::ApplyToSchedule(Array<te::Stage>* stages,
                                                       StageToAxesMap* stage_to_axes,
                                                       te::Schedule* schedule) const {
   const te::Stage& stage = (*stages)[stage_id];
-
   Array<te::Tensor> tensor_array;
   // If the target stage has multi outputs, TVM requires to cache_write
   // all of them or schedule.cache_write will raise an error
@@ -1203,7 +1195,6 @@ String CacheWriteStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxe
   // Since the original stage will be changed after schedule apply, keep a copy here
   // These information will be used to print Python API string later
   te::Stage stage = (*stages)[stage_id];
-
   auto outs = ApplyToSchedule(stages, stage_to_axes, schedule);
 
   for (size_t i = 0; i < outs.size(); ++i) {
