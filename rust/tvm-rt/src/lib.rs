@@ -97,7 +97,6 @@ pub mod errors;
 pub mod function;
 pub mod module;
 pub mod ndarray;
-pub mod to_boxed_fn;
 mod to_function;
 pub mod value;
 
