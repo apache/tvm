@@ -20,7 +20,7 @@
 import tvm
 from tvm import te
 from tvm import autotvm
-from tvm.autotvm.task.space import SplitEntity, AnnotateEntity, OtherOptionEntity
+from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from .. import nn
 from ..util import traverse_inline, get_const_tuple, get_const_int
