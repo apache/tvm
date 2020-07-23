@@ -22,8 +22,7 @@ import topi
 from tvm import te, auto_scheduler
 import tempfile
 
-from test_auto_scheduler_common import get_tiled_matmul
-
+from test_auto_scheduler_common import matmul_auto_scheduler_test, get_tiled_matmul
 
 def test_record():
     if not tvm.runtime.enabled("llvm"):
@@ -37,20 +36,28 @@ def test_record():
     k = te.reduce_axis((0, 512), name='k')
     E = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * D[k][j], axis=[k]), name='E')
     F = topi.nn.relu(E)
+    I, H, G = matmul_auto_scheduler_test(512, 512, 512)
     dag = auto_scheduler.ComputeDAG([A, B, F])
     s = dag.get_init_state()
-    
-    # Follow split
-    C_global = s0.cache_write(C, "global")
-    split_step0 = len(s0.transform_steps) - 1
-    split_step1 = len(s0.transform_steps) - 1
-    s.follow_split(C_global, tmp[C_global].iters[0], split_step0, 0) 
-    # Follow fused split
-    s.follow_fused_split(C_global, tmp[C_global].iters[0],
-                            [split_step0, split_step1], 0, False)
+    dag_follow = auto_scheduler.ComputeDAG([G, H, I])
+    s_follow = dag_follow.get_init_state()
+
     # Split
     its0 = s.split(C, s[C].iters[0], [4, 8, 8])
     its1 = s.split(C, s[C].iters[4], [8, 4, 4])
+    # Follow split
+    G_global = s_follow.cache_write(G, "global")
+    its2 = s_follow.split(G, s_follow[G].iters[0], [4, 2, 8, 4], True)
+    split_step0 = len(s_follow.transform_steps) - 1
+    tmp = s_follow.copy()
+    tmp.follow_split(G_global, tmp[G_global].iters[0], split_step0, 1)
+    its3 = s_follow.split(G, s_follow[G].iters[5], [2, 2, 4, 8])
+    split_step1 = len(s_follow.transform_steps) - 1
+    
+    # Follow fused split
+    tmp = s_follow.copy()
+    tmp.follow_fused_split(G_global, tmp[G_global].iters[0],
+                            [split_step0, split_step1], 0, False)
     # Reorder
     s.reorder(C, [its0[0], its1[0], its0[1], its1[1], its0[2], its1[2], its0[3], s[C].iters[8],
                   its1[3]])
