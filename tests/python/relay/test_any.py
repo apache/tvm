@@ -832,8 +832,7 @@ def verify_any_crop_and_resize(data_shape, boxes_shape, box_indices_shape, crop_
     for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(data_np, boxes_np, box_indices_np)
-        assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+        tvm.testing.assert_allclose(result.asnumpy().shape, ref_out_shape)
 
 def test_any_crop_and_resize():
     verify_any_crop_and_resize(
@@ -866,8 +865,7 @@ def verify_any_mirror_pad(data_shape, pad_width, static_data_shape, ref_out_shap
     for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(data_np)
-        assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+        tvm.testing.assert_allclose(result.asnumpy().shape, ref_out_shape)
 
 def test_any_mirror_pad():
     verify_any_mirror_pad(
