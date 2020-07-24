@@ -234,14 +234,12 @@ class HoistCandidateSelector final : public StmtExprVisitor {
 
   void InitRecorder() { hoist_for_if_recorder = std::make_tuple(false, nullptr, nullptr); }
 
-  void StopRecording() {
-    if (is_recorder_on) is_recorder_on = false;
-  }
+  void StopRecording() { is_recorder_on = false; }
 
   bool IsRecordingOn() { return is_recorder_on; }
 
   void StartOrAddRecord(const ForNode* op) {
-    if (!is_recorder_on) is_recorder_on = true;
+    is_recorder_on = true;
     if (!var_for_map_.count(op->loop_var.get())) {
       var_for_map_.insert({op->loop_var.get(), op});
     }
