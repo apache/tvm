@@ -21,7 +21,7 @@
  * \file tvm/runtime/vm/memory_manager.cc
  * \brief Allocate and manage memory for the runtime.
  */
-#include "memory_manager.h"
+#include <tvm/runtime/vm/memory_manager.h>
 
 #include <memory>
 #include <utility>
@@ -37,7 +37,7 @@ static void BufferDeleter(Object* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
   CHECK(ptr->manager_ctx != nullptr);
   Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
-  MemoryManager::Global()->GetAllocator(buffer->ctx)->Free(*(buffer));
+  MemoryManager::GetAllocator(buffer->ctx)->Free(*(buffer));
   delete buffer;
   delete ptr;
 }
@@ -114,15 +114,49 @@ MemoryManager* MemoryManager::Global() {
   return &memory_manager;
 }
 
-Allocator* MemoryManager::GetAllocator(TVMContext ctx) {
-  std::lock_guard<std::mutex> lock(mu_);
-  if (allocators_.find(ctx) == allocators_.end()) {
-    DLOG(INFO) << "New allocator for " << DeviceName(ctx.device_type) << "(" << ctx.device_id
-               << ")";
-    std::unique_ptr<Allocator> alloc(new NaiveAllocator(ctx));
-    allocators_.emplace(ctx, std::move(alloc));
+Allocator* MemoryManager::GetOrCreateAllocator(TVMContext ctx, AllocatorType type) {
+  MemoryManager* m = MemoryManager::Global();
+  std::lock_guard<std::mutex> lock(m->mu_);
+  if (m->allocators_.find(ctx) == m->allocators_.end()) {
+    std::unique_ptr<Allocator> alloc;
+    switch (type) {
+      case kNaive: {
+        DLOG(INFO) << "New naive allocator for " << DeviceName(ctx.device_type) << "("
+                   << ctx.device_id << ")";
+        alloc.reset(new NaiveAllocator(ctx));
+        break;
+      }
+      case kPooled: {
+        DLOG(INFO) << "New pooled allocator for " << DeviceName(ctx.device_type) << "("
+                   << ctx.device_id << ")";
+        alloc.reset(new PooledAllocator(ctx));
+        break;
+      }
+      default:
+        LOG(FATAL) << "Unknown allocator type: " << type;
+    }
+    auto ret = alloc.get();
+    m->allocators_.emplace(ctx, std::move(alloc));
+    return ret;
   }
-  return allocators_.at(ctx).get();
+  auto alloc = m->allocators_.at(ctx).get();
+  if (alloc->type() != type) {
+    LOG(WARNING) << "The type of existing allocator for " << DeviceName(ctx.device_type) << "("
+                 << ctx.device_id << ") is different from the request type (" << alloc->type()
+                 << " vs " << type << ")";
+  }
+  return alloc;
+}
+
+Allocator* MemoryManager::GetAllocator(TVMContext ctx) {
+  MemoryManager* m = MemoryManager::Global();
+  std::lock_guard<std::mutex> lock(m->mu_);
+  auto it = m->allocators_.find(ctx);
+  if (it == m->allocators_.end()) {
+    LOG(FATAL) << "Allocator for " << DeviceName(ctx.device_type) << "(" << ctx.device_id
+               << ") has not been created yet.";
+  }
+  return it->second.get();
 }
 
 NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {

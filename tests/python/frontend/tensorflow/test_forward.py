@@ -135,8 +135,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
     elif mode == 'vm':
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
             vm_exec = relay.vm.compile(mod, target="llvm", params=params)
-        vm = VirtualMachine(vm_exec)
-        vm.init(tvm.cpu())
+        vm = VirtualMachine(vm_exec, tvm.cpu())
         inputs = {}
         for e, i in zip(input_node, input_data):
             inputs[e] = tvm.nd.array(i)
