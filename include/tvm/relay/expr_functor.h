@@ -107,6 +107,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const RefWriteNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const ConstructorNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const MatchNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const TempExprNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     throw;
@@ -132,6 +133,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAY_EXPR_FUNCTOR_DISPATCH(RefWriteNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(ConstructorNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(MatchNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(TempExprNode);
     return vtable;
   }
 };

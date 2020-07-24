@@ -40,6 +40,7 @@
 
 #include "../ir/attr_functor.h"
 #include "../relay/analysis/dependency_graph.h"
+#include "../parser/meta_ref.h"
 #include "doc.h"
 #include "meta_data.h"
 #include "text_printer.h"
@@ -246,6 +247,7 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
 
   // determine whether to inline
   bool inline_expr = AlwaysInline(expr);
+
   if (try_inline) {
     inline_expr |= IsUnique(expr);
   }
@@ -254,7 +256,10 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
   if (it != memo_.end()) return it->second;
 
   Doc printed_expr;
-  if (meta) {
+
+  if (auto meta_ref = expr.as<parser::MetaRefExprNode>()) {
+    printed_expr << "meta[" << meta_ref->type_key << "]" << "[" << meta_ref->node_index << "]";
+  } else if (meta) {
     printed_expr = meta_->GetMetaNode(GetRef<ObjectRef>(expr.get()));
   } else if (!inline_expr && expr.as<LetNode>()) {
     // wrap GNFed let in brackets

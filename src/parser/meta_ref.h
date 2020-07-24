@@ -26,7 +26,6 @@
 #define TVM_PARSER_META_REF_H_
 
 #include <tvm/relay/expr.h>
-
 #include <string>
 
 namespace tvm {
@@ -80,13 +79,6 @@ class MetaRefExpr : public TempExpr {
 
   TVM_DEFINE_OBJECT_REF_METHODS(MetaRefExpr, TempExpr, MetaRefExprNode);
 };
-
-MetaRefExpr::MetaRefExpr(std::string type_key, uint64_t node_index) {
-  auto rnode = make_object<MetaRefExprNode>();
-  rnode->type_key = type_key;
-  rnode->node_index = node_index;
-  data_ = std::move(rnode);
-}
 
 }  // namespace parser
 }  // namespace tvm

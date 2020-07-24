@@ -75,7 +75,9 @@ def graph_equal(lhs, rhs):
     return tvm.ir.structural_equal(lhs, rhs, map_free_vars=True)
 
 def roundtrip_expr(expr):
-    x = tvm.parser.parse_expr(str(str(expr)))
+    text = tvm.relay.Expr.astext(expr, show_meta_data=False)
+    import pdb; pdb.set_trace()
+    x = tvm.parser.parse_expr(str(text))
     assert_graph_equal(x, expr)
 
 def roundtrip(expr):

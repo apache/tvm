@@ -42,6 +42,13 @@ namespace parser {
 using namespace relay;
 using Expr = relay::Expr;
 
+MetaRefExpr::MetaRefExpr(std::string type_key, uint64_t node_index) {
+  auto rnode = make_object<MetaRefExprNode>();
+  rnode->type_key = type_key;
+  rnode->node_index = node_index;
+  data_ = std::move(rnode);
+}
+
 /*! \brief A wrapper structure for capturing the result of parsing
  * a global definition *before* we add it to the IRModule.
  *
@@ -526,7 +533,11 @@ class Parser {
         }
         return elements;
       } else {
-        LOG(FATAL) << "issue";
+        auto next = Peek();
+        std::stringstream msg;
+        msg << "expected a " << Pretty(stop) << " found  " << Pretty(next->token_type);
+        diag_ctx.Emit({next->line, next->column, msg.str()});
+        diag_ctx.Render(std::cout);
         return Array<T>(nullptr);
       }
     }
