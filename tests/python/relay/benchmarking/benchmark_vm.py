@@ -61,8 +61,7 @@ def benchmark_execution(mod,
                       number=2, repeat=20):
         with tvm.transform.PassContext(opt_level=3):
             exe = vm.compile(mod, target, params=params)
-            rly_vm = vm_rt.VirtualMachine(exe)
-            rly_vm.init(ctx)
+            rly_vm = vm_rt.VirtualMachine(exe, ctx)
             result = rly_vm.run(data)
 
         if measure:

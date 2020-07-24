@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/runtime/memory_manager.h
+ * \file tvm/runtime/vm/memory_manager.h
  * \brief Abstract device memory management API
  */
 #ifndef TVM_RUNTIME_VM_MEMORY_MANAGER_H_
@@ -64,17 +64,24 @@ struct Buffer {
   TVMContext ctx;
 };
 
+enum AllocatorType {
+  kNaive = 1,
+  kPooled,
+};
+
 class Allocator {
  public:
-  Allocator() {}
-
+  explicit Allocator(AllocatorType type) : type_(type) {}
+  virtual ~Allocator() = default;
   /*! \brief Allocate an empty NDArray using from the allocator.
    *  \param shape The shape of the NDArray.
-   *  \param alignment The datatype of the NDArray.
+   *  \param dtype The datatype of the NDArray.
    *  \param ctx The context where the array is allocated.
    *  \return The empty NDArray.
    */
   NDArray Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx);
+  /*! \brief Return the allocator type. */
+  inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.
    *  \param nbytes The size of the buffer.
    *  \param alignment The alignment of the buffer.
@@ -90,21 +97,34 @@ class Allocator {
    *  \return The amount of memory currently allocated.
    */
   virtual size_t UsedMemory() const = 0;
-  virtual ~Allocator() = default;
+
+ private:
+  AllocatorType type_;
 };
 
 class MemoryManager {
  public:
   static MemoryManager* Global();
-
-  Allocator* GetAllocator(TVMContext ctx);
+  /*!
+   * \brief Get or create an allocator given the context and allocator type.
+   * \param ctx The TVM context
+   * \param type The allocator type
+   * \return The memory allocator.
+   */
+  static Allocator* GetOrCreateAllocator(TVMContext ctx, AllocatorType type);
+  /*!
+   * \brief Get an allocator given the context.
+   * \param ctx The TVM context
+   * \return The memory allocator.
+   */
+  static Allocator* GetAllocator(TVMContext ctx);
 
  private:
   MemoryManager() {}
 
  private:
   std::mutex mu_;
-  std::unordered_map<TVMContext, std::unique_ptr<Allocator> > allocators_;
+  std::unordered_map<TVMContext, std::unique_ptr<Allocator>> allocators_;
 };
 
 /*! \brief An object representing a storage allocation. */

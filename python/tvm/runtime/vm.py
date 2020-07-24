@@ -131,8 +131,7 @@ class Executable(object):
             des_exec = tvm.runtime.vm.Executable.load_exec(loaded_code, loaded_code)
             # execute the deserialized executable.
             x_data = np.random.rand(10, 10).astype('float32')
-            des_vm = tvm.runtime.vm.VirtualMachine(des_exec)
-            des_vm.init(ctx)
+            des_vm = tvm.runtime.vm.VirtualMachine(des_exec, ctx)
             res = des_vm.run(x_data)
             print(res.asnumpy())
         """
@@ -273,29 +272,61 @@ class Executable(object):
 
 
 class VirtualMachine(object):
-    """Relay VM runtime."""
+    """Relay VM runtime.
 
-    def __init__(self, mod):
-        if not isinstance(mod, (Executable, tvm.runtime.Module)):
-            raise TypeError("mod is expected to be the type of Executable or " +
-                            "tvm.runtime.Module, but received {}".format(type(mod)))
-        m = mod.module if isinstance(mod, Executable) else mod
-        self.mod = _ffi_api._VirtualMachine(m)
-        self._exec = mod
-        self._init = self.mod["init"]
-        self._invoke = self.mod["invoke"]
-        self._set_input = self.mod["set_input"]
+    Parameters
+    ----------
+    exe : Executable
+        The VM executable.
 
-    def init(self, ctx):
-        """Initialize the context in the VM.
+    ctx : tvm.runtime.TVMContext or List[tvm.runtime.TVMContext]
+        The context to deploy the module
 
-        Parameters
-        ----------
-        ctx : :py:class:`TVMContext`
-            The runtime context to run the code on.
-        """
-        args = [ctx.device_type, ctx.device_id]
-        self._init(*args)
+    memory_cfg : str or Dict[tvm.runtime.TVMContext, str], optional
+        Config the type of memory allocator. The allocator type can be ["naive",
+        "pooled"]. If memory_cfg is None, all contexts will use pooled allocator
+        by default. If memory_cfg is string, all contexts will use the specified
+        allocator type. If memory_cfg is a dict, each context uses the allocator
+        type specified in the dict, or pooled allocator if not specified in the
+        dict.
+    """
+
+    NAIVE_ALLOCATOR = 1
+    POOLED_ALLOCATOR = 2
+
+    def __init__(self, exe, ctx, memory_cfg=None):
+        if not isinstance(exe, Executable):
+            raise TypeError("exe is expected to be the type of Executable, " +
+                            "but received {}".format(type(exe)))
+        self.module = _ffi_api._VirtualMachine(exe.module)
+        self._exec = exe
+        self._init = self.module["init"]
+        self._invoke = self.module["invoke"]
+        self._set_input = self.module["set_input"]
+        self._setup_ctx(ctx, memory_cfg)
+
+    def _setup_ctx(self, ctx, memory_cfg):
+        """Init context and allocators."""
+        if isinstance(ctx, tvm.runtime.TVMContext):
+            ctx = [ctx]
+        default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
+        if memory_cfg is None:
+            memory_cfg = {}
+        elif isinstance(memory_cfg, str):
+            assert memory_cfg in ["naive", "pooled"]
+            if memory_cfg == "naive":
+                default_alloc_type = VirtualMachine.NAIVE_ALLOCATOR
+            memory_cfg = {}
+        elif not isinstance(memory_cfg, dict):
+            raise TypeError("memory_cfg is expected be string or dictionary, " +
+                            "but received {}".format(type(memory_cfg)))
+        init_args = []
+        for context in ctx:
+            init_args.append(context.device_type)
+            init_args.append(context.device_id)
+            alloc_type = memory_cfg[context] if context in memory_cfg else default_alloc_type
+            init_args.append(alloc_type)
+        self._init(*init_args)
 
     def set_input(self, func_name, *args, **kwargs):
         """Set the input to a function.
