@@ -131,7 +131,8 @@ class ComputeDAG(Object):
         """
         state_obj = state if isinstance(state, StateObject) else state.state_object
         updated_state = State(_ffi_api.ComputeDAGInferBoundFromState(self, state_obj), self)
-        # Copy the stage_id_map from the original state
+        # Copy the stage_id_map from the original state to make sure the old indices are still
+        # valid
         if isinstance(state, State):
             for k, v in state.stage_id_map.items():
                 updated_state.stage_id_map[k] = v

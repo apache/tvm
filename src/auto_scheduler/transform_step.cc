@@ -962,8 +962,8 @@ String ComputeRootStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
 
 /*!
  * \brief Common part for steps that add new stages(e.g. CacheReadStep, CacheWriteStep,
- * RfactorStep). This will filter out all steps that can change the number of stages in a
- * ComputeDAG, and stop by the current step.
+ * RfactorStep). This will return all steps that can change the number of stages in a ComputeDAG,
+ * and stop by the current step.
  */
 Array<Step> GetFormerStageModifiableSteps(Step current_step, const Array<Step>& transform_steps) {
   Array<Step> ret_steps;

@@ -238,14 +238,10 @@ class StateNode : public Object {
    * operation.
    */
   AttachMap attach_map;
-  /*!
-   * \brief The up-to-date ComputeDAG of this state, used for some steps that may change the
-   * stage structure of the ComputeDAG (e.g. CacheReadStep/CacheWriteStep). This will alway be kept
-   * up-to-date, while the original ComputeDAG may not be up-to-date.
-   * The default value is an empty NullOpt, means no modification to the original DAG.
-   * Typical usage for this is when acquiring information from ComputeDAG (e.g. check for its
-   * AccessAnalyzer), use the `current_compute_dag` first, if it's Null, use the original
-   * ComputeDAG.
+  /*! \brief The up-to-date ComputeDAG of this state. The default value is an empty NullOpt, means
+   * no modification to the original ComputeDAG.
+   * Otherwise, it means some steps (e.g., CacheReadStep/CacheWriteStep) have modified the
+   * ComputeDAG, the stored value is the up-to-date ComputeDAG for this state.
    */
   Optional<ObjectRef> current_compute_dag;
   /*!
