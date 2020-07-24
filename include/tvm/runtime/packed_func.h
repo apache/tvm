@@ -371,6 +371,20 @@ class TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kDLFloat);
     return value_.v_float64;
   }
+  operator float() const {
+    double tmp_v = 0;
+    if (type_code_ == kDLInt) {
+      tmp_v = static_cast<double>(value_.v_int64);
+      CHECK_LE(tmp_v, std::numeric_limits<float>::max());
+      CHECK_GE(tmp_v, std::numeric_limits<float>::min());
+      return static_cast<float>(tmp_v);
+    }
+    TVM_CHECK_TYPE_CODE(type_code_, kDLFloat);
+    tmp_v = static_cast<double>(value_.v_float64);
+    CHECK_LE(tmp_v, std::numeric_limits<float>::max());
+    CHECK_GE(tmp_v, std::numeric_limits<float>::min());
+    return static_cast<float>(tmp_v);
+  }
   operator int64_t() const {
     TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
     return value_.v_int64;
