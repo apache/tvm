@@ -111,7 +111,7 @@ def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, groups=1,
                               [dilation_h, dilation_w],
                               conv_mode=1,
                               tensor_format=tensor_format,
-                              algo=cfg['algo'],
+                              algo=cfg['algo'].val,
                               conv_dtype=dtype,
                               groups=groups)
 

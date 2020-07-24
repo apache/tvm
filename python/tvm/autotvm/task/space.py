@@ -33,6 +33,7 @@ from collections import namedtuple, OrderedDict
 import numpy as np
 
 from tvm.te import schedule, thread_axis
+from tvm.tir import expr
 from tvm.autotvm.util import get_const_int
 
 Axis = namedtuple('Axis', ['space', 'index'])
@@ -736,9 +737,9 @@ class ConfigSpace(object):
         flop: int or float or IntImm or FloatImm
             number of float operations
         """
-        if not isinstance(flop, (int, float)):
+        if isinstance(flop, (expr.IntImm, expr.FloatImm)):
             flop = flop.value
-        self.flop += flop
+        self.flop += float(flop)
 
     def raise_error(self, msg):
         """register error in config
