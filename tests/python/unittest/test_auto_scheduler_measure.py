@@ -40,7 +40,6 @@ def test_record():
     G = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * F[k][j], axis=[k]), name='G')
     H = topi.nn.relu(G)
 
-    #dag = auto_scheduler.ComputeDAG([A, B, F])
     dag = auto_scheduler.ComputeDAG([A, B, G])
     s = dag.get_init_state()
 
@@ -79,8 +78,14 @@ def test_record():
     split_step0 = len(s.transform_steps) - 1
     s.follow_split(G, s[G].iters[0], split_step0, 1)
     #follow_fused_split
-    its1 = s.split(G, s[G].iters[5], [2, 2, 4, 8])
+    its3 = s.split(G, s[G].iters[5], [2, 2, 4, 8])
     split_step1 = len(s.transform_steps) - 1
+    its = []
+    for i0, i1 in zip(its2, its3):
+        its.append(i0)
+        its.append(i1)
+    for i in range(0, 5):
+        s.fuse(G, [s[G].iters[i], s[G].iters[i + 1]])
     s.follow_fused_split(G, s[G].iters[0], [split_step0, split_step1], 0, False)
 
     target = tvm.target.create("llvm")
