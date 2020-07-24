@@ -104,14 +104,6 @@ void GraphRuntime::SetInput(int index, DLTensor* data_in) {
   data_entry_[eid].CopyFrom(data_in);
 }
 /*!
- * \brief Get the number of inputs
- *
- * \return The number of inputs from graph.
- */
-int GraphRuntime::NumInputs() const {
-  return input_nodes_.size();
-}
-/*!
  * \brief Get the name of the index-th input.
  * \param index The input index.
  *
@@ -173,6 +165,12 @@ void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
  * \return The number of outputs from graph.
  */
 int GraphRuntime::NumOutputs() const { return outputs_.size(); }
+/*!
+ * \brief Get the number of inputs
+ *
+ * \return The number of inputs to the graph.
+ */
+int GraphRuntime::NumInputs() const { return input_nodes_.size(); }
 /*!
  * \brief Get the type of the index-th output.
  * \param index The output index.
@@ -482,6 +480,9 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
   } else if (name == "get_num_outputs") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->NumOutputs(); });
+  } else if (name == "get_num_inputs") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->NumInputs(); });
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(); });
   } else if (name == "load_params") {

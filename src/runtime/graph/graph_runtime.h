@@ -118,12 +118,6 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    */
   void SetInput(int index, DLTensor* data_in);
   /*!
-   * \brief Get the number of inputs
-   *
-   * \return The number of inputs from graph.
-   */
-  int NumInputs() const;
-  /*!
    * \brief Get the name of the index-th input.
    * \param index The input index.
    *
@@ -149,6 +143,12 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    * \return The number of outputs from graph.
    */
   int NumOutputs() const;
+  /*!
+   * \brief Get the number of inputs
+   *
+   * \return The number of inputs to the graph.
+   */
+  int NumInputs() const;
   /*!
    * \brief Get the type of the index-th output.
    * \param index The output index.
