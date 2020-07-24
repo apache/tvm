@@ -30,7 +30,7 @@ edition = "2018"
 proc-macro = true
 
 [dependencies]
-goblin = "0.0.24"
+goblin = "^0.2"
 proc-macro2 = "^1.0"
 quote = "^1.0"
 syn = { version = "1.0.17", features = ["full", "extra-traits"] }

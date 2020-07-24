@@ -26,6 +26,12 @@ from .. import op as _op
 
 logger = logging.getLogger('strategy')
 
+@schedule_reduce.register("arm_cpu")
+def schedule_reduce_cpu(attrs, outs, target):
+    """schedule reduction ops for arm_cpu"""
+    with target:
+        return topi.x86.schedule_reduce(outs)
+
 @schedule_injective.register(["arm_cpu", "micro_dev"])
 def schedule_injective_arm_cpu(_, outs, target):
     """schedule injective ops for arm cpu"""

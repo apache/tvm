@@ -19,13 +19,14 @@
 
 use std::{
     cell::RefCell,
+    error::Error,
     os::raw::{c_int, c_void},
     ptr,
 };
 
-use failure::{format_err, Error};
-
 use crate::allocator::Allocation;
+use crate::errors::InvalidPointer;
+use std::alloc::LayoutErr;
 
 const WS_ALIGN: usize = 64; // taken from `kTempAllocaAlignment` in `device_api.h`
 
@@ -49,13 +50,13 @@ impl WorkspacePool {
         }
     }
 
-    fn alloc_new(&mut self, size: usize) -> Result<*mut u8, Error> {
+    fn alloc_new(&mut self, size: usize) -> Result<*mut u8, LayoutErr> {
         self.workspaces.push(Allocation::new(size, Some(WS_ALIGN))?);
         self.in_use.push(self.workspaces.len() - 1);
         Ok(self.workspaces[self.workspaces.len() - 1].as_mut_ptr())
     }
 
-    fn alloc(&mut self, size: usize) -> Result<*mut u8, Error> {
+    fn alloc(&mut self, size: usize) -> Result<*mut u8, LayoutErr> {
         if self.free.is_empty() {
             return self.alloc_new(size);
         }
@@ -82,7 +83,7 @@ impl WorkspacePool {
         }
     }
 
-    fn free(&mut self, ptr: *mut u8) -> Result<(), Error> {
+    fn free(&mut self, ptr: *mut u8) -> Result<(), Box<dyn Error>> {
         let mut ws_idx = None;
         for i in 0..self.in_use.len() {
             let idx = self.in_use[i];
@@ -92,7 +93,7 @@ impl WorkspacePool {
                 break;
             }
         }
-        let ws_idx = ws_idx.ok_or_else(|| format_err!("Invalid pointer"))?;
+        let ws_idx = ws_idx.ok_or_else(|| InvalidPointer(ptr))?;
         self.free.push(ws_idx);
         Ok(())
     }
