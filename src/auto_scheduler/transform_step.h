@@ -511,11 +511,28 @@ class FollowSplitStepNode : public StepNode {
   void ExtractSplitLengths(const Array<Step>& transform_steps,
                            Array<Optional<Integer>>* lengths) const;
 
+  /*!
+   * \brief Apply the current step to State.
+   * \param state A mutable pointer to State.
+   */
   Array<Iterator> ApplyToState(State* state) const;
 
+  /*!
+   * \brief Apply the current step to tvm.schedule.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \param transform_steps An array record all transform steps.
+   */
   Array<tir::IterVar> ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
                                       const Array<Step>& transform_steps) const;
 
+  /*!
+   * \brief Print the current step as equivalent python schedule API.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \param transform_steps An array record all transform steps.
+   * \return Python schedule code.
+   */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
                           const Array<Step>& transform_steps) const;
 
@@ -531,8 +548,20 @@ class FollowSplitStepNode : public StepNode {
  */
 class FollowSplitStep : public Step {
  public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to be split.
+   * \param iter_id The index of the iterator to be split.
+   * \param src_step_id The index of the split step to follow in the history.
+   * \param n_split The number of split level.
+   */
   FollowSplitStep(int stage_id, int iter_id, int src_step_id, int n_split);
-
+  
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
   explicit FollowSplitStep(dmlc::JSONReader* reader);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FollowSplitStep, Step, FollowSplitStepNode);
@@ -543,10 +572,14 @@ class FollowSplitStep : public Step {
  */
 class FollowFusedSplitStepNode : public StepNode {
  public:
-  int iter_id;                  // The id of the iter to split
-  Array<Integer> src_step_ids;  // The indices of the split steps to follow in the history
-  int level;                    // Use the length in this split level
-  bool factor_or_nparts;        // If this is true, use factor. Otherwise, use nparts
+  /*! \brief The id of the iter to split. */
+  int iter_id; 
+  /*! \brief The indices of the split steps to follow in the history. */
+  Array<Integer> src_step_ids;
+  /*! \brief  Use the length in this split level. */
+  int level;
+  /*! \brief If this is true, use factor. Otherwise, use nparts. */
+  bool factor_or_nparts;
 
   void WriteToRecord(dmlc::JSONWriter* writer) const final;
 
@@ -557,11 +590,28 @@ class FollowFusedSplitStepNode : public StepNode {
    */
   Optional<Integer> ExtractSplitLength(const Array<Step>& transform_steps) const;
 
+  /*!
+   * \brief Apply the current step to State.
+   * \param state A mutable pointer to State.
+   */
   Array<Iterator> ApplyToState(State* state) const;
 
+  /*!
+   * \brief Apply the current step to tvm.schedule.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \param transform_steps An array record all transform steps.
+   */
   Array<tir::IterVar> ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
                                       const Array<Step>& transform_steps) const;
 
+  /*!
+   * \brief Print the current step as equivalent python schedule API.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \param transform_steps An array record all transform steps.
+   * \return Python schedule code.
+   */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
                           const Array<Step>& transform_steps) const;
 
@@ -577,9 +627,22 @@ class FollowFusedSplitStepNode : public StepNode {
  */
 class FollowFusedSplitStep : public Step {
  public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to be split.
+   * \param iter_id The index of the iterator to be split.
+   * \param src_step_ids An array of index for split step to follow in the history.
+   * \param level Use the length in this split level.
+   * \param factor_or_nparts If this is true, use factor. Otherwise, use nparts.
+   */
   FollowFusedSplitStep(int stage_id, int iter_id, const Array<Integer>& src_step_ids, int level,
                        bool factor_or_nparts);
 
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
   explicit FollowFusedSplitStep(dmlc::JSONReader* reader);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FollowFusedSplitStep, Step, FollowFusedSplitStepNode);
