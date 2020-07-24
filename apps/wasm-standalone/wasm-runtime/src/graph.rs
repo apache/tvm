@@ -66,7 +66,7 @@ impl GraphExecutor {
             .as_ref()
             .unwrap()
             .get_memory("memory")
-            .ok_or(anyhow::format_err!("failed to find `memory` export"))?;
+            .ok_or_else(|| anyhow::format_err!("failed to find `memory` export"))?;
 
         // Specify the wasm address to access the wasm memory.
         let wasm_addr = memory.data_size();
@@ -95,7 +95,7 @@ impl GraphExecutor {
             .as_ref()
             .unwrap()
             .get_func("run")
-            .ok_or(anyhow::format_err!("failed to find `run` function export!"))?
+            .ok_or_else(|| anyhow::format_err!("failed to find `run` function export!"))?
             .get2::<i32, i32, i32>()?;
 
         let out_size = run(self.wasm_addr, self.input_size)?;
@@ -113,12 +113,18 @@ impl GraphExecutor {
             .as_ref()
             .unwrap()
             .get_memory("memory")
-            .ok_or(anyhow::format_err!("failed to find `memory` export"))?;
+            .ok_or_else(|| anyhow::format_err!("failed to find `memory` export"))?;
 
         let out_data = unsafe {
             &memory.data_unchecked()[self.wasm_addr as usize..][..self.output_size as usize]
         };
         let out_vec: Tensor = serde_json::from_slice(out_data).unwrap();
         Ok(out_vec)
+    }
+}
+
+impl Default for GraphExecutor {
+    fn default() -> Self {
+        Self::new()
     }
 }

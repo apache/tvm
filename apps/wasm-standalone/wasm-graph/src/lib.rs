@@ -65,7 +65,7 @@ lazy_static! {
 
 #[no_mangle]
 pub extern "C" fn run(wasm_addr: i32, in_size: i32) -> i32 {
-    let in_tensor = utils::load_input(wasm_addr, in_size as usize);
+    let in_tensor = unsafe { utils::load_input(wasm_addr, in_size as usize) };
     let input: TVMTensor = in_tensor.as_dltensor().into();
 
     GRAPH_EXECUTOR.lock().unwrap().set_input("data", input);
@@ -78,6 +78,6 @@ pub extern "C" fn run(wasm_addr: i32, in_size: i32) -> i32 {
         .as_dltensor(false);
 
     let out_tensor: Tensor = output.into();
-    let out_size = utils::store_output(wasm_addr, out_tensor);
+    let out_size = unsafe { utils::store_output(wasm_addr, out_tensor) };
     out_size as i32
 }

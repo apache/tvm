@@ -112,9 +112,9 @@ fn data_preprocess(img: image::DynamicImage) -> Tensor {
     // (H,W,C) -> (C,H,W)
     let arr = Array::from_shape_vec((IMG_HEIGHT, IMG_WIDTH, 3), pixels).unwrap();
     let arr = arr.permuted_axes([2, 0, 1]);
-    let arr = Array::from_iter(arr.into_iter().map(|&v| v));
+    let arr = Array::from_iter(arr.into_iter().copied().map(|v| v));
 
-    return Tensor::from(arr);
+    Tensor::from(arr)
 }
 
 fn output_assert(out_tensor: Tensor, label_class_file: String) {
