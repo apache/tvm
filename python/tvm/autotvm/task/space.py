@@ -733,9 +733,11 @@ class ConfigSpace(object):
 
         Parameters
         ---------
-        flop: int or float
+        flop: int or float or IntImm or FloatImm
             number of float operations
         """
+        if not isinstance(flop, (int, float)):
+            flop = flop.value
         self.flop += flop
 
     def raise_error(self, msg):
