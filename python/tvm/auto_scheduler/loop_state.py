@@ -127,7 +127,8 @@ class State:
         return [stage.op for stage in self.stages]
 
     def bind(self, stage, iterator, thread_name):
-        """ Schedule primitive corresponds to te.bind.
+        """ Schedule primitive corresponds to `te.Stage.bind`, see also the `te.Stage` for more
+        details.
 
         Parameters
         ----------
@@ -160,7 +161,8 @@ class State:
         return res
 
     def parallel(self, stage, iterator):
-        """ Schedule primitive corresponds to te.parallel.
+        """ Schedule primitive corresponds to `te.Stage.parallel`, see also the `te.Stage` for more
+        details.
 
         Parameters
         ----------
@@ -180,7 +182,8 @@ class State:
         return res
 
     def unroll(self, stage, iterator, max_unroll=None):
-        """ Schedule primitive corresponds to te.unroll.
+        """ Schedule primitive corresponds to `te.Stage.unroll`, see also the `te.Stage` for more
+        details.
 
         Parameters
         ----------
@@ -203,7 +206,8 @@ class State:
         return res
 
     def vectorize(self, stage, iterator):
-        """ Schedule primitive corresponds to te.vectorize.
+        """ Schedule primitive corresponds to `te.Stage.vectorize`, see also the `te.Stage` for
+        more details.
 
         Parameters
         ----------
@@ -223,7 +227,8 @@ class State:
         return res
 
     def fuse(self, stage, iters):
-        """ Schedule primitive corresponds to te.fuse.
+        """ Schedule primitive corresponds to `te.Stage.fuse`, see also the `te.Stage` for more
+        details.
 
         Parameters
         ----------
@@ -248,7 +253,8 @@ class State:
         return res
 
     def reorder(self, stage, order):
-        """ Schedule primitive corresponds to te.reorder.
+        """ Schedule primitive corresponds to `te.Stage.reorder`, see also the `te.Stage` for more
+        details.
 
         Parameters
         ----------
@@ -262,7 +268,8 @@ class State:
                                                   order)
 
     def split(self, stage, iterator, lengths, inner_to_outer=True):
-        """ Schedule primitive corresponds to te.split.
+        """ Schedule primitive corresponds to `te.Stage.split`, see also the `te.Stage` for more
+        details.
 
         This API supports multiple split factors. (e.g. with 2 split factors, the original iterator
         will be split to 3 parts, use `inner_to_outer` to control the split order)
@@ -295,7 +302,8 @@ class State:
         return res
 
     def compute_at(self, stage, target_stage, target_iter):
-        """ Schedule primitive corresponds to te.compute_at.
+        """ Schedule primitive corresponds to `te.Stage.compute_at`, see also the `te.Stage` for
+        more details.
 
         Parameters
         ----------
@@ -321,7 +329,8 @@ class State:
                                                     target_iter)
 
     def compute_inline(self, stage):
-        """ Schedule primitive corresponds to te.compute_inline.
+        """ Schedule primitive corresponds to `te.Stage.compute_inline`, see also the `te.Stage`
+        for more details.
 
         Parameters
         ----------
@@ -333,7 +342,8 @@ class State:
                                                         self._resolve_stage_id(stage))
 
     def compute_root(self, stage):
-        """ Schedule primitive corresponds to te.compute_root.
+        """ Schedule primitive corresponds to `te.Stage.compute_root`, see also the `te.Stage` for
+        more details.
 
         Parameters
         ----------
@@ -352,10 +362,10 @@ class State:
                                                       self._resolve_stage_id(stage))
 
     def cache_read(self, stage, scope_name, reader_stages):
-        """ Schedule primitive corresponds to `te.schedule.cache_read`.
+        """ Schedule primitive corresponds to `te.Schedule.cache_read`, see also the `te.Schedule`
+        for more details.
 
         See also `te.schedule.cache_read` for more details.
-
 
         Parameters
         ----------
@@ -390,9 +400,8 @@ class State:
         return self.stages[int(new_stage_id)].op
 
     def cache_write(self, stage, scope_name):
-        """ Schedule primitive corresponds to `te.schedule.cache_write`.
-
-        See also `te.schedule.cache_write` for more details.
+        """ Schedule primitive corresponds to `te.Schedule.cache_write`, see also the `te.Schedule`
+        for more details.
 
         Parameters
         ----------

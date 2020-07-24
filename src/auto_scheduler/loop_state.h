@@ -298,7 +298,7 @@ class State : public ObjectRef {
   /********** Step APIs working on single stage **********/
 
   /*!
-   * \brief Schedule primitive corresponds to te.bind.
+   * \brief Schedule primitive corresponds to `te::Stage::bind`.
    * \param stage_id The index of the stage to be binded.
    * \param it The iterator to be binded.
    * \param thread_type The thread type to be binded. We dirctly use the IteratorAnnotation as
@@ -307,14 +307,14 @@ class State : public ObjectRef {
    */
   Iterator bind(int stage_id, const Iterator& it, IteratorAnnotation thread_type);
   /*!
-   * \brief Schedule primitive corresponds to te.parallel.
+   * \brief Schedule primitive corresponds to `te::Stage::parallel`.
    * \param stage_id The index of the stage to be paralleled.
    * \param it The iterator to be paralleled.
    * \return The iterator result after parallel.
    */
   Iterator parallel(int stage_id, const Iterator& it);
   /*!
-   * \brief Schedule primitive corresponds to te.unroll.
+   * \brief Schedule primitive corresponds to `te::Stage::unroll`.
    * \param stage_id The index of the stage to be unrolled.
    * \param it The iterator to be unrolled.
    * \param max_unroll The max unroll limit. Iterator with extent larger than this limit will be
@@ -323,14 +323,14 @@ class State : public ObjectRef {
    */
   Iterator unroll(int stage_id, const Iterator& it, int max_unroll = -1);
   /*!
-   * \brief Schedule primitive corresponds to te.vectorize.
+   * \brief Schedule primitive corresponds to `te::Stage::vectorize`.
    * \param stage_id The index of the stage to be vectorized.
    * \param it The iterator to be vectorized.
    * \return The iterator result after vectorize.
    */
   Iterator vectorize(int stage_id, const Iterator& it);
   /*!
-   * \brief Schedule primitive corresponds to te.fuse.
+   * \brief Schedule primitive corresponds to `te::Stage::fuse`.
    * \param stage_id The index of the stage to be fused.
    * \param iters The iterators to be fused.
    * \return The iterator result after fuse.
@@ -339,13 +339,13 @@ class State : public ObjectRef {
    */
   Iterator fuse(int stage_id, const Array<Iterator>& iters);
   /*!
-   * \brief Schedule primitive corresponds to te.reorder.
+   * \brief Schedule primitive corresponds to `te::Stage::reorder`.
    * \param stage_id The index of the stage to be reordered.
    * \param order The expected iterator order.
    */
   void reorder(int stage_id, const Array<Iterator>& order);
   /*!
-   * \brief Schedule primitive corresponds to te.split.
+   * \brief Schedule primitive corresponds to `te::Stage::split`.
    * \param stage_id The index of the stage to be split.
    * \param it The iterator to be split.
    * \param lengths The multiple split factors. Can be None to be filled by search policy.
@@ -360,7 +360,7 @@ class State : public ObjectRef {
   /********** Step APIs working on multiple stages **********/
 
   /*!
-   * \brief Schedule primitive corresponds to te.compute_at.
+   * \brief Schedule primitive corresponds to `te::Stage::compute_at`.
    * \param stage_id The index of the stage to be computed at.
    * \param target_stage_id The index of stage that this step will compute at to.
    * \param target_iter The iterator in target stage that this step will compute at to.
@@ -371,12 +371,12 @@ class State : public ObjectRef {
    */
   void compute_at(int stage_id, int target_stage_id, const Iterator& target_iter);
   /*!
-   * \brief Schedule primitive corresponds to te.compute_inline.
+   * \brief Schedule primitive corresponds to `te::Stage::compute_inline`.
    * \param stage_id The index of the stage to be marked compute inlined.
    */
   void compute_inline(int stage_id);
   /*!
-   * \brief Schedule primitive corresponds to te.compute_root.
+   * \brief Schedule primitive corresponds to `te::Stage::compute_root`.
    * \param stage_id The index of the stage to be the compute root.
    * \note After compute_root, we need careful dependency analysis to compute the accurate bound
    * information. However, it is relatively expensive and complicated, so we just fill "None" as
@@ -388,7 +388,7 @@ class State : public ObjectRef {
   /********** Step APIs adding new stages **********/
 
   /*!
-   * \brief Schedule primitive corresponds to te.schedule.cache_read.
+   * \brief Schedule primitive corresponds to `te::Schedule::cache_read`.
    * \param stage_id The index of the stage to be cache read.
    * \param scope_name The scope name of the newly added read stage.
    * \param reader_stage_ids The indices of read stages.
@@ -399,7 +399,7 @@ class State : public ObjectRef {
   int cache_read(int stage_id, const String& scope_name, const Array<Integer>& reader_stage_ids,
                  const ComputeDAG& dag);
   /*!
-   * \brief Schedule primitive corresponds to te.schedule.cache_write.
+   * \brief Schedule primitive corresponds to `te::Schedule::cache_write`.
    * \param stage_id The index of the stage to be cache write.
    * \param scope_name The scope name of the newly added compute stage.
    * \param dag The original ComputeDAG of this state.
