@@ -680,9 +680,9 @@ class ComputeRootStep : public Step {
  */
 class CacheReadStepNode : public StepNode {
  public:
-  /*! \brief The scope name to be set for the new added read stage. (e.g. local, shared, global) */
+  /*! \brief The scope name of the newly added read stage. (e.g. local, shared, global) */
   String scope_name;
-  /*! \brief The indexes of reader stages. */
+  /*! \brief The indices of read stages. */
   Array<Integer> reader_stage_ids;
 
   void WriteToRecord(dmlc::JSONWriter* writer) const final;
@@ -730,8 +730,8 @@ class CacheReadStep : public Step {
   /*!
    * \brief The constructor.
    * \param stage_id The index of the stage to be cache read.
-   * \param scope_name The scope name to be set for the new added read stage.
-   * \param reader_stage_ids The indexes of reader stages.
+   * \param scope_name The scope name of the newly added read stage.
+   * \param reader_stage_ids The indices of read stages.
    */
   CacheReadStep(int stage_id, String scope_name, const Array<Integer>& reader_stage_ids);
 
@@ -753,10 +753,7 @@ class CacheReadStep : public Step {
  */
 class CacheWriteStepNode : public StepNode {
  public:
-  /*!
-   * \brief The scope name to be set for the new added write stage. (e.g. local, shared,
-   * global)
-   */
+  /*! \brief The scope name of the newly added compute stage. (e.g. local, shared, global) */
   String scope_name;
 
   void WriteToRecord(dmlc::JSONWriter* writer) const final;
@@ -804,7 +801,7 @@ class CacheWriteStep : public Step {
   /*!
    * \brief The constructor.
    * \param stage_id The index of the stage to be cache write.
-   * \param scope_name The scope name to be set for the new added write stage.
+   * \param scope_name The scope name of the newly added compute stage.
    */
   CacheWriteStep(int stage_id, String scope_name);
 

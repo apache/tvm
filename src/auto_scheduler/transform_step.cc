@@ -962,15 +962,18 @@ String ComputeRootStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
 
 /*!
  * \brief Common part for steps that add new stages(e.g. CacheReadStep, CacheWriteStep,
- * RfactorStep). This will filter out all steps that can change the stages of ComputeDAG.
+ * RfactorStep). This will filter out all steps that can change the number of stages in a
+ * ComputeDAG, and stop by the current step.
  */
-Array<Step> GetStageModifiableSteps(Step current_step, const Array<Step>& transform_steps) {
+Array<Step> GetFormerStageModifiableSteps(Step current_step, const Array<Step>& transform_steps) {
   Array<Step> ret_steps;
   for (const Step& step : transform_steps) {
     if (step->IsInstance<CacheWriteStepNode>() || step->IsInstance<CacheReadStepNode>()) {
       ret_steps.push_back(step);
     }
     // TODO(jcf94): add rfactor support
+    // A state may have multiple stage modifiable steps, stop by the current step to avoid
+    // replaying excess steps
     if (step.same_as(current_step)) {
       break;
     }
@@ -1022,8 +1025,8 @@ void CacheReadStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
 
 int CacheReadStepNode::ApplyToState(State* state, const ComputeDAG& dag) const {
   StateNode* pstate = state->CopyOnWrite();
-  const ComputeDAG& current_compute_dag =
-      dag.ReplayAndGetDAG(GetStageModifiableSteps(GetRef<Step>(this), (*state)->transform_steps));
+  const ComputeDAG& current_compute_dag = dag.ReplayAndGetDAG(
+      GetFormerStageModifiableSteps(GetRef<Step>(this), (*state)->transform_steps));
 
   // target_stage -> target_stage + target_store
   // Update the op of the target stage, insert a new cache read stage behind, update the op of
@@ -1131,8 +1134,8 @@ int CacheWriteStepNode::ApplyToState(State* state, const ComputeDAG& dag) const 
   int last_dag_op_size = pstate->current_compute_dag
                              ? pstate->current_compute_dag.value().as<ComputeDAGNode>()->ops.size()
                              : dag->ops.size();
-  const ComputeDAG& current_compute_dag =
-      dag.ReplayAndGetDAG(GetStageModifiableSteps(GetRef<Step>(this), (*state)->transform_steps));
+  const ComputeDAG& current_compute_dag = dag.ReplayAndGetDAG(
+      GetFormerStageModifiableSteps(GetRef<Step>(this), (*state)->transform_steps));
   int added_ops = current_compute_dag->ops.size() - last_dag_op_size;
   // TODO(jcf94): Update this check to equal after fixing the cache write bug in TVM
   CHECK_GE(added_ops, 1);

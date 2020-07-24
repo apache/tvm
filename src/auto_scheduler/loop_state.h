@@ -199,7 +199,7 @@ class AttachMap : public ObjectRef {
 
   /*!
    * \brief Traverse through `stage_to_attach_iter` and `iter_to_attached_stages` map, add offset
-   * to stage indexes that are larger than the start_id. Used for steps that inserts net stages to
+   * to stage indexes that are larger than the start_id. Used for steps that inserts new stages to
    * ComputeDAG(e.g. CacheRead/CacheWrite step).
    * \param start_id The index threshold, stage indexes in AttachMap which are larger than this
    * will be applied the extra offset.
@@ -240,9 +240,12 @@ class StateNode : public Object {
   AttachMap attach_map;
   /*!
    * \brief The up-to-date ComputeDAG of this state, used for some steps that may change the
-   * stage structure of the ComputeDAG (e.g. CacheReadStep/CacheWriteStep which Will be added
-   * later).
-   * The default value is an empty NullOpt. (means no modification to the original DAG)
+   * stage structure of the ComputeDAG (e.g. CacheReadStep/CacheWriteStep). This will alway be kept
+   * up-to-date, while the original ComputeDAG may not be up-to-date.
+   * The default value is an empty NullOpt, means no modification to the original DAG.
+   * Typical usage for this is when acquiring information from ComputeDAG (e.g. check for its
+   * AccessAnalyzer), use the `current_compute_dag` first, if it's Null, use the original
+   * ComputeDAG.
    */
   Optional<ObjectRef> current_compute_dag;
   /*!
@@ -358,7 +361,7 @@ class State : public ObjectRef {
 
   /*!
    * \brief Schedule primitive corresponds to te.compute_at.
-   * \param stage_id The index of the stage to be compute at.
+   * \param stage_id The index of the stage to be computed at.
    * \param target_stage_id The index of stage that this step will compute at to.
    * \param target_iter The iterator in target stage that this step will compute at to.
    * \note After compute_at, we need careful dependency analysis to compute the accurate bound
@@ -369,12 +372,12 @@ class State : public ObjectRef {
   void compute_at(int stage_id, int target_stage_id, const Iterator& target_iter);
   /*!
    * \brief Schedule primitive corresponds to te.compute_inline.
-   * \param stage_id The index of the stage to be compute inlined.
+   * \param stage_id The index of the stage to be marked compute inlined.
    */
   void compute_inline(int stage_id);
   /*!
    * \brief Schedule primitive corresponds to te.compute_root.
-   * \param stage_id The index of the stage to be compute root.
+   * \param stage_id The index of the stage to be the compute root.
    * \note After compute_root, we need careful dependency analysis to compute the accurate bound
    * information. However, it is relatively expensive and complicated, so we just fill "None" as
    * bound for the newly created iterators.
@@ -387,8 +390,8 @@ class State : public ObjectRef {
   /*!
    * \brief Schedule primitive corresponds to te.schedule.cache_read.
    * \param stage_id The index of the stage to be cache read.
-   * \param scope_name The scope name to be set for the new added read stage.
-   * \param reader_stage_ids The indexes of reader stages.
+   * \param scope_name The scope name of the newly added read stage.
+   * \param reader_stage_ids The indices of read stages.
    * \param dag The original ComputeDAG of this state.
    * \note Cache read step will add an extra stage to the original ComputeDAG (at the back of the
    * target stage), a up-to-date ComputeDAG is stored in State's `current_compute_dag`.
@@ -398,7 +401,7 @@ class State : public ObjectRef {
   /*!
    * \brief Schedule primitive corresponds to te.schedule.cache_write.
    * \param stage_id The index of the stage to be cache write.
-   * \param scope_name The scope name to be set for the new added write stage.
+   * \param scope_name The scope name of the newly added compute stage.
    * \param dag The original ComputeDAG of this state.
    * \note Cache write step will add an extra stage to the original ComputeDAG (in the front of the
    * target stage), a up-to-date ComputeDAG is stored in State's `current_compute_dag`.

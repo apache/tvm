@@ -352,7 +352,10 @@ class State:
                                                       self._resolve_stage_id(stage))
 
     def cache_read(self, stage, scope_name, reader_stages):
-        """ Schedule primitive corresponds to te.schedule.cache_read.
+        """ Schedule primitive corresponds to `te.schedule.cache_read`.
+
+        See also `te.schedule.cache_read` for more details.
+
 
         Parameters
         ----------
@@ -360,7 +363,7 @@ class State:
             The Stage to be cache read, which can be specified by the integer index, Operation,
             or output tensor of the stage.
         scope_name : str
-            The scope name to be set for the new added read stage.
+            The scope name of the newly added read stage.
         reader_stages : List[Union[int, Operation, Tensor]]
             The reader stages. Each of the list can be specified by the integer index, Operation,
             or output tensor of the stage.
@@ -387,7 +390,9 @@ class State:
         return self.stages[int(new_stage_id)].op
 
     def cache_write(self, stage, scope_name):
-        """ Schedule primitive corresponds to te.schedule.cache_write.
+        """ Schedule primitive corresponds to `te.schedule.cache_write`.
+
+        See also `te.schedule.cache_write` for more details.
 
         Parameters
         ----------
@@ -395,7 +400,7 @@ class State:
             The Stage to be cache write, which can be specified by the integer index, Operation,
             or output tensor of the stage.
         scope_name : str
-            The scope name to be set for the new added write stage.
+            The scope name of the newly added compute stage.
 
         Returns
         -------

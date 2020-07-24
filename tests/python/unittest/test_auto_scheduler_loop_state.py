@@ -341,9 +341,8 @@ def test_cache_read_write():
     #         \                                                /
     #          ----------------> kernel_split ---------------->
     #
-    # Seems there's bug with the input/output tensor. Such multi outputs case
-    # should be unusual, so we make some hack on DoCacheWrite
-    # To be fixed in the future
+    # TODO(jcf94): Seems there's bug with the input/output tensor. Such multi outputs case
+    # should be unusual, so we make some hack on DoCacheWrite. This should be fixed later.
     kernel_split_global = s0.cache_write(kernel_split, "global")
     """
         Placeholder: Data, Kernel_data
