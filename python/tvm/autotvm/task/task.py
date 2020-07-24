@@ -216,11 +216,12 @@ class TaskTemplate(object):
     def _default_func(self, *args, **kwargs):
         assert callable(self.fcompute) and callable(self.fschedule)
         out = self.fcompute(*args, **kwargs)
-        arg_bufs = [out] + self.get_inputs(out)
+        arg_bufs = [out] + self._get_inputs(out)
         s = self.fschedule([out])
         return s, arg_bufs
 
-    def get_inputs(self, out):
+    @staticmethod
+    def _get_inputs(out):
         inputs = []
         queue = [out]
         hash_set = set()
