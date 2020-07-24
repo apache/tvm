@@ -27,7 +27,7 @@ from test_auto_scheduler_common import matmul_auto_scheduler_test, get_tiled_mat
 def test_record():
     if not tvm.runtime.enabled("llvm"):
         return
-
+    #pdb.set_trace()
     A = te.placeholder((512, 512), name='A')
     B = te.placeholder((512, 512), name='B')
     k = te.reduce_axis((0, 512), name='k')
@@ -39,8 +39,9 @@ def test_record():
     k = te.reduce_axis((0, 512), name='k')
     G = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * F[k][j], axis=[k]), name='G')
     H = topi.nn.relu(G)
+    I = topi.nn.relu(H)
 
-    dag = auto_scheduler.ComputeDAG([A, B, G])
+    dag = auto_scheduler.ComputeDAG([A, B, I])
     s = dag.get_init_state()
 
     # Split
@@ -76,17 +77,19 @@ def test_record():
     #follow_split
     its2 = s.split(G, s[G].iters[0], [4, 2, 8, 4], True)
     split_step0 = len(s.transform_steps) - 1
-    s.follow_split(G, s[G].iters[0], split_step0, 1)
+    s.follow_split(G, s[G].iters[5], split_step0, 4)
     #follow_fused_split
-    its3 = s.split(G, s[G].iters[5], [2, 2, 4, 8])
+    its2 = s.split(H, s[H].iters[0], [4, 2, 8, 4], True)
     split_step1 = len(s.transform_steps) - 1
+    its3 = s.split(H, s[H].iters[5], [2, 4, 2, 4], True)
+    split_step2 = len(s.transform_steps) - 1
     its = []
     for i0, i1 in zip(its2, its3):
         its.append(i0)
         its.append(i1)
     for i in range(0, 5):
-        s.fuse(G, [s[G].iters[i], s[G].iters[i + 1]])
-    s.follow_fused_split(G, s[G].iters[0], [split_step0, split_step1], 0, False)
+        s.fuse(H, [s[H].iters[i], s[H].iters[i + 1]])
+    s.follow_fused_split(I, s[I].iters[0], [split_step1, split_step2], 0, False)
 
     target = tvm.target.create("llvm")
     task = auto_scheduler.SearchTask(dag, "test", target)
