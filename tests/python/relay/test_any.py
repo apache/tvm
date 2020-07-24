@@ -721,9 +721,7 @@ def test_recursive_concat():
     mod["main"] = func
     data = np.array(0.0, dtype='int32')
     ref = np.array([0] + list(range(10))).reshape((11, 1)).astype("int32")
-    # TODO(@jroesch): After LambdaLift pass, TypeInfer pass will fail
-    # so currently we cannot run this test case on VM
-    for kind in ["debug"]:
+    for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(data)
         np.testing.assert_allclose(result.asnumpy(), ref)
