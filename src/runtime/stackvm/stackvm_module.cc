@@ -101,9 +101,24 @@ class StackVMModuleNode : public runtime::ModuleNode {
     for (uint64_t i = 0; i < num_imports; ++i) {
       std::string tkey;
       CHECK(strm->Read(&tkey));
-      std::string fkey = "runtime.module.loadbinary_" + tkey;
+      std::string loadkey = "runtime.module.loadbinary_";
+      std::string fkey = loadkey + tkey;
       const PackedFunc* f = Registry::Get(fkey);
-      CHECK(f != nullptr) << "Loader of " << tkey << "(" << fkey << ") is not presented.";
+      if (f == nullptr) {
+        std::string loaders = "";
+        for (auto name : Registry::ListNames()) {
+          if (name.rfind(loadkey, 0) == 0) {
+            if (loaders.size() > 0) {
+              loaders += ", ";
+            }
+            loaders += name.substr(loadkey.size());
+          }
+        }
+        CHECK(f != nullptr)
+            << "Binary was created using " << tkey
+            << " but a loader of that name is not registered. Available loaders are " << loaders
+            << ". Perhaps you need to recompile with this runtime enabled.";
+      }
       Module m = (*f)(static_cast<void*>(strm));
       n->imports_.emplace_back(std::move(m));
     }
