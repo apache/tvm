@@ -184,10 +184,13 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     return "";
   }
 
-  void Init(const IRModule& mod, std::string target) {
+  void Init(const IRModule& mod, std::string target_str) {
     InitializeLLVM();
-    tm_ = GetLLVMTargetMachine(target);
-    bool system_lib = (target.find("-system-lib") != std::string::npos);
+    tm_ = GetLLVMTargetMachine(target_str);
+    auto target = Target::Create(target_str);
+    bool system_lib = target->GetAttr<Bool>("system-lib").value_or(Bool(false));
+    bool target_c_runtime = (target->GetAttr<String>("runtime").value() == kTvmRuntimeCrt);
+    LOG(INFO) << "target runtime" << target->GetAttr<String>("runtime").value();
     ctx_ = std::make_shared<llvm::LLVMContext>();
     std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(tm_.get());
 
@@ -206,7 +209,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     CHECK_NE(funcs.size(), 0U);
     // TODO(tqchen): remove the entry function behavior as it does not
     // makes sense when we start to use multiple modules.
-    cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib);
+    cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib, target_c_runtime);
 
     for (const auto& f : funcs) {
       cg->AddFunction(f);
@@ -217,7 +220,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     }
 
     module_ = cg->Finish();
-    module_->addModuleFlag(llvm::Module::Warning, "tvm_target", llvm::MDString::get(*ctx_, target));
+    module_->addModuleFlag(llvm::Module::Warning, "tvm_target", llvm::MDString::get(*ctx_, target_str));
     module_->addModuleFlag(llvm::Module::Override, "Debug Info Version",
                            llvm::DEBUG_METADATA_VERSION);
 
@@ -230,7 +233,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     LOG_IF(FATAL, llvm::verifyModule(*module_, &verify_errors))
         << "LLVM module verification failed with the following errors: \n"
         << verify_errors.str();
-    target_ = target;
+    target_ = target_str;
     mptr_ = module_.get();
   }
 
