@@ -365,8 +365,6 @@ class State:
         """ Schedule primitive corresponds to `te.Schedule.cache_read`, see also the `te.Schedule`
         for more details.
 
-        See also `te.schedule.cache_read` for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
