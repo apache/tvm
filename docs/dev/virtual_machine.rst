@@ -326,6 +326,8 @@ The functions contain metadata about the function as well as its compiled byteco
 object then can be loaded and run by a ``tvm::relay::vm::VirtualMachine`` object. For full definitions of the
 data structures, please see `include/tvm/runtime/vm/executable.h`_ and `include/tvm/runtime/vm/vm.h`_.
 
+.. _include/tvm/runtime/vm/executable.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/vm/executable.h
+
 Optimizations
 ~~~~~~~~~~~~~
 
