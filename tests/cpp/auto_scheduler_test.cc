@@ -82,13 +82,13 @@ TEST(ComputeDAG, AccessAnalyzer) {
     }
   }
 
-  std::set<int> is_injective = {data,     padding, kernel,    bias,   bias_add,
-                                bn_scale, bn_mul,  bn_offset, bn_add, relu};
+  std::set<int> is_simple_access = {data,     padding, kernel,    bias,   bias_add,
+                                    bn_scale, bn_mul,  bn_offset, bn_add, relu};
   for (size_t stage_id = 0; stage_id < dag->ops.size(); stage_id++) {
-    if (is_injective.count(stage_id)) {
-      CHECK(dag->access_analyzer.IsInjective(dag->ops[stage_id]));
+    if (is_simple_access.count(stage_id)) {
+      CHECK(dag->access_analyzer.IsSimpleAccess(dag->ops[stage_id]));
     } else {
-      CHECK(!dag->access_analyzer.IsInjective(dag->ops[stage_id]));
+      CHECK(!dag->access_analyzer.IsSimpleAccess(dag->ops[stage_id]));
     }
   }
 
@@ -125,7 +125,7 @@ TEST(ComputeDAG, AccessAnalyzer) {
         {bias, bias_add},    {bias_add, bn_mul}, {bn_scale, bn_mul}, {bn_mul, bn_add},
         {bn_offset, bn_add}, {bn_add, relu}};
     for (const auto& pair : consumer_list) {
-      dag->access_analyzer.GetConsumers(s0, s0->stages[pair.first]->op, &op_set);
+      op_set = dag->access_analyzer.GetConsumers(s0, s0->stages[pair.first]->op);
       CHECK_EQ(op_set.size(), 1);
       CHECK_EQ((*op_set.begin()), s0->stages[pair.second]->op);
     }
@@ -136,7 +136,7 @@ TEST(ComputeDAG, AccessAnalyzer) {
                                                                    {bn_add, {bn_mul, bn_offset}},
                                                                    {relu, {bn_add}}};
     for (const auto& pair : producer_list) {
-      dag->access_analyzer.GetProducers(s0, s0->stages[pair.first]->op, &op_set);
+      op_set = dag->access_analyzer.GetProducers(s0, s0->stages[pair.first]->op);
       CHECK_EQ(op_set.size(), pair.second.size());
       for (const auto& target : pair.second) {
         CHECK(op_set.count(s0->stages[target]->op));
@@ -151,7 +151,7 @@ TEST(ComputeDAG, AccessAnalyzer) {
   {
     std::vector<std::pair<int, int>> consumer_list = {{data, conv}, {kernel, conv}, {conv, relu}};
     for (const auto& pair : consumer_list) {
-      dag->access_analyzer.GetConsumers(s0, s0->stages[pair.first]->op, &op_set);
+      op_set = dag->access_analyzer.GetConsumers(s0, s0->stages[pair.first]->op);
       CHECK_EQ(op_set.size(), 1);
       CHECK_EQ((*op_set.begin()), s0->stages[pair.second]->op);
     }
@@ -162,7 +162,7 @@ TEST(ComputeDAG, AccessAnalyzer) {
                                                                    {bn_add, {bn_mul, bn_offset}},
                                                                    {relu, {bn_add}}};
     for (const auto& pair : producer_list) {
-      dag->access_analyzer.GetDirectProducers(s0->stages[pair.first]->op, &op_set);
+      op_set = dag->access_analyzer.GetDirectProducers(s0->stages[pair.first]->op);
       CHECK_EQ(op_set.size(), pair.second.size());
       for (const auto& target : pair.second) {
         CHECK(op_set.count(s0->stages[target]->op));

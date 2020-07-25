@@ -51,22 +51,27 @@ namespace auto_scheduler {
 class AccessAnalyzerNode : public Object {
  public:
   template <class T>
-  using OperationMap = std::unordered_map<te::Operation, T, ObjectHash, ObjectEqual>;
+  using OperationMap = std::unordered_map<te::Operation, T, ObjectPtrHash, ObjectPtrEqual>;
 
   /*! \brief Map an operation to all operations it reads from.
-   * For each operation pair, use a two-dimentional array to multiple multi-dimentional accesses*/
+   * For each operation pair, use a two-dimentional array to multiple multi-dimentional accesses
+   * The inner vector represents the indices of multi-dimensional access.*/
   OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_from;
   /*! \brief Map an operation to all operations it is read by.
-   * For each operation pair, use a two-dimentional array to multiple multi-dimentional accesses*/
+   * For each operation pair, use a two-dimentional array to multiple multi-dimentional accesses
+   * The inner vector represents the indices of multi-dimensional access.*/
   OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_by;
   /*! \brief Store the number of common outer iterators for operation pairs that have
    * read-write relations. */
   OperationMap<OperationMap<int>> num_common_outer_iterators;
-  /*! \brief Store whether the operation is injective */
-  OperationMap<bool> is_injective;
-  /*! \brief Store whether the operation is strictly-inlineable */
+  /*! \brief Store whether the operation is an op with only simple access.
+   *  (e.g., injective, broadcast and elementwise ops without reduction) */
+  OperationMap<bool> is_simple_access;
+  /*! \brief Store whether the operation is strictly-inlineable
+   * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations) */
   OperationMap<bool> is_strict_inlineable;
-  /*! \brief Store whether the operation needs multi-level tiling */
+  /*! \brief Store whether the operation needs multi-level tiling
+   * (e.g., computation-intensive ops with data reuse opportunity like matmul, conv2d) */
   OperationMap<bool> needs_multi_level_tiling;
   /*! \brief Store whether the operation is an output operation */
   OperationMap<bool> is_output;
@@ -86,22 +91,25 @@ class AccessAnalyzer : public ObjectRef {
   explicit AccessAnalyzer(const Array<te::Tensor>& tensors);
 
   /*!
-   * \brief Return whether this operation needs multi-level tiling
-   * \param op The operation
-   */
-  TVM_DLL bool NeedsMultiLevelTiling(const te::Operation& op) const;
-
-  /*!
    * \brief Return whether this operation is an injective operation
+   * (e.g., injective, broadcast and elementwise ops without reduction)
    * \param op The operation
    */
-  TVM_DLL bool IsInjective(const te::Operation& op) const;
+  TVM_DLL bool IsSimpleAccess(const te::Operation& op) const;
 
   /*!
    * \brief Return whether this operation is strictly inlinable
+   * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations)
    * \param op The operation
    */
   TVM_DLL bool IsStrictInlineable(const te::Operation& op) const;
+
+  /*!
+   * \brief Return whether this operation needs multi-level tiling
+   * (e.g., computation-intensive ops with data reuse opportunity like matmul, conv2d)
+   * \param op The operation
+   */
+  TVM_DLL bool NeedsMultiLevelTiling(const te::Operation& op) const;
 
   /*!
    * \brief Return whether this operation is an output op
@@ -113,33 +121,30 @@ class AccessAnalyzer : public ObjectRef {
    * \brief Get all consumers of on operation
    * \param state The current loop state
    * \param op The operation
-   * \param consumers The return consumer set
+   * \return The set of consumers
    * \note This function propagates the relation for inlined ops
    */
-  TVM_DLL void GetConsumers(
-      const State& state, const te::Operation& op,
-      std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* consumers) const;
+  TVM_DLL std::unordered_set<te::Operation, ObjectHash, ObjectEqual> GetConsumers(
+      const State& state, const te::Operation& op) const;
 
   /*!
    * \brief Get all producers of on operation
    * \param state The current loop state
    * \param op The operation
-   * \param producers The return producer set
+   * \return The set of producers
    * \note This function propagates the relation for inlined ops
    */
-  TVM_DLL void GetProducers(
-      const State& state, const te::Operation& op,
-      std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* producers) const;
+  TVM_DLL std::unordered_set<te::Operation, ObjectHash, ObjectEqual> GetProducers(
+      const State& state, const te::Operation& op) const;
 
   /*!
    * \brief Get all direct producers of on operation
    * \param op The operation
-   * \param producers The return producer set
+   * \return The set of direct producers
    * \note This function DOES NOT propagate the relation for inlined ops
    */
-  TVM_DLL void GetDirectProducers(
-      const te::Operation& op,
-      std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* producers) const;
+  TVM_DLL std::unordered_set<te::Operation, ObjectHash, ObjectEqual> GetDirectProducers(
+      const te::Operation& op) const;
 
   /*!
    * \brief Get the number of common outer iterators.

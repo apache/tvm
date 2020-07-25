@@ -159,7 +159,7 @@ using IterKey = std::pair<int, int>;
  */
 class AttachMapNode : public Object {
  public:
-  struct key_hash : public std::function<std::size_t(IterKey)> {
+  struct IterKeyHash {
     std::size_t operator()(const IterKey& k) const {
       return ::dmlc::HashCombine(std::hash<int>()(k.first), std::hash<int>()(k.second));
     }
@@ -168,7 +168,7 @@ class AttachMapNode : public Object {
   /*! \brief A Map to store the mapping of stage to its attached iterator. */
   std::unordered_map<StageKey, IterKey> stage_to_attach_iter;
   /*! \brief A Map to store the mapping of iterator to the stage attached to it. */
-  std::unordered_map<IterKey, std::vector<StageKey>, key_hash> iter_to_attached_stages;
+  std::unordered_map<IterKey, std::vector<StageKey>, IterKeyHash> iter_to_attached_stages;
 
   static constexpr const char* _type_key = "auto_scheduler.AttachMap";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttachMapNode, Object);
