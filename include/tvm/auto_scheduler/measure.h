@@ -23,25 +23,27 @@
  * These functions are responsible for building the tvm module, uploading it to remote devices,
  * recording the running time costs, and checking the correctness of the output.
  *
- * We separate the measurement into two steps: build and run.
+ * The measurement is separated into two steps: build and run.
  * A builder builds the executable binary files and a runner runs the binary files to get the
  * measurement results. The flow of data structures is
  *
  *                 `ProgramBuilder`                 `ProgramRunner`
  * `MeasureInput` -----------------> `BuildResult` ----------------> `MeasureResult`
  *
- * We implement these in python to utilize python's multiprocessing and error handling.
+ * The core functions is implemented in python to utilize python's multiprocessing
+ * and error handling (see also `python/tvm/auto_scheduler/measure.py`).
+ * This c++ file is just a wrapper for the python functions.
  */
 
 #ifndef TVM_AUTO_SCHEDULER_MEASURE_H_
 #define TVM_AUTO_SCHEDULER_MEASURE_H_
 
+#include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/search_task.h>
+
 #include <string>
 #include <unordered_map>
 #include <utility>
-
-#include "loop_state.h"
-#include "search_task.h"
 
 namespace tvm {
 namespace auto_scheduler {
@@ -209,7 +211,7 @@ class MeasureCallbackNode : public Object {
  public:
   /*!
    * \brief Callback function that will be called on measurement input/result pairs
-   * after measurement.
+   * after each measurement batch.
    * \param policy The current search policy.
    * \param inputs An Array of MeasureInput.
    * \param results An Array of MeasureResult.
@@ -234,7 +236,7 @@ class MeasureCallback : public ObjectRef {
 /*! \brief ProgramBuilder that builds the programs */
 class ProgramBuilderNode : public Object {
  public:
-  /*! \brief The number of tasks to run in parallel */
+  /*! \brief The number of build processes to run in parallel */
   int n_parallel;
   /*! \brief Timeout of a build */
   int timeout;
@@ -323,15 +325,15 @@ class LocalBuilder : public ProgramBuilder {
    * \brief The constructor.
    * \param timeout The timeout limit (in second) for each build thread.
    * This will be used in a wrapper of the multiprocessing.Process.join().
-   * \param n_parallel Number of threads used to build in parallel.
-   * \param build_func The name of registered build function.
+   * \param n_parallel The number of threads used to build in parallel.
+   * \param build_func The name of the registered build function.
    */
   LocalBuilder(int timeout, int n_parallel, const String& build_func);
 
   TVM_DEFINE_OBJECT_REF_METHODS(LocalBuilder, ProgramBuilder, LocalBuilderNode);
 };
 
-/*! \brief LocalRunner that uses local CPU/GPU to measures the time cost of programs */
+/*! \brief LocalRunner that uses local CPU/GPU to measure the time cost of programs */
 class LocalRunnerNode : public ProgramRunnerNode {
  public:
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
@@ -373,13 +375,12 @@ class RPCRunnerNode : public ProgramRunnerNode {
   String key;
   /*! \brief The host address of the RPC Tracker. */
   String host;
-  /*! \brief The port of RPC Tracker. */
+  /*! \brief The port of the RPC Tracker. */
   int port;
   /*! \brief The priority of this run request, larger is more prior. */
   int priority;
   /*! \brief The number of tasks run in parallel. */
   int n_parallel;
-  /*! \brief The number of times to run the generated code for taking average. */
 
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
                            const Array<BuildResult>& build_results, int verbose) final;
@@ -395,10 +396,11 @@ class RPCRunnerNode : public ProgramRunnerNode {
 class RPCRunner : public ProgramRunner {
  public:
   /*!
-   * \brief The constructor.
+   * \brief The constructor. See the corresponding class in python/tvm/auto_scheduler/measure.py
+   * for more detailed parameter explaination.
    * \param key The key of the device registered in the RPC tracker.
    * \param host The host address of the RPC Tracker.
-   * \param prot The port of RPC Tracker.
+   * \param port The port of RPC Tracker.
    * \param priority The priority of this run request, larger is more prior.
    * \param n_parallel The number of tasks run in parallel.
    * \param timeout Timeout of a run.
@@ -415,7 +417,7 @@ class RPCRunner : public ProgramRunner {
 
 /*!
  * \brief Measurer that measures the time costs of tvm programs
- * This class combines ProgramBuilder and ProgramRunner, and provides a simpler API */
+ * This class combines ProgramBuilder and ProgramRunner and provides a simpler API */
 class ProgramMeasurerNode : public Object {
  public:
   /*! \brief Measured programs counter. */
@@ -483,7 +485,7 @@ class ProgramMeasurer : public ObjectRef {
    * \param callbacks MeasureCallback to be called after each measure batch.
    * \param verbose Verbosity level. 0 for silent, 1 to output information during program
    * measuring.
-   * \param max_continous_error The number of max continuous error.
+   * \param max_continous_error The number of allowed maximum continuous error.
    */
   ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
                   Optional<Array<MeasureCallback>> callbacks, int verbose,

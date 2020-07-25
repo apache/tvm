@@ -18,18 +18,18 @@
  */
 
 /*!
- * \file auto_scheduler/measure_record.h
- * \brief Json serialization format for dumping and loading tuning records.
+ * \file tvm/auto_scheduler/measure_record.h
+ * \brief Json serialization format for dumping and loading measurement records.
  */
 
 #ifndef TVM_AUTO_SCHEDULER_MEASURE_RECORD_H_
 #define TVM_AUTO_SCHEDULER_MEASURE_RECORD_H_
 
+#include <tvm/auto_scheduler/measure.h>
+
 #include <fstream>
 #include <string>
 #include <utility>
-
-#include "measure.h"
 
 namespace tvm {
 namespace auto_scheduler {
@@ -37,7 +37,7 @@ namespace auto_scheduler {
 /*! \brief Callback for logging the input and results of measurements to file */
 class RecordToFileNode : public MeasureCallbackNode {
  public:
-  /*! \brief File name for this callback to write log to. */
+  /*! \brief The name of output file. */
   String filename;
 
   void Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
@@ -55,7 +55,7 @@ class RecordToFile : public MeasureCallback {
  public:
   /*!
    * \brief The constructor.
-   * \param filename File name for this callback to write log.
+   * \param filename The name of output file
    */
   explicit RecordToFile(String filename);
 
@@ -65,7 +65,7 @@ class RecordToFile : public MeasureCallback {
 /*! \brief Log reader to load step logs from a file.*/
 class RecordReaderNode : public Object {
  public:
-  /*! \brief File name for this reader to load log from. */
+  /*! \brief The name of input file. */
   String filename;
   /*! \brief The reading file stream. */
   std::ifstream infile;
@@ -92,7 +92,7 @@ class RecordReaderNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(RecordReaderNode, Object);
 
  private:
-  /*! \brief A string object to store the next line. */
+  /*! \brief A string storing the current line. */
   std::string cur_line_;
 };
 
@@ -104,7 +104,7 @@ class RecordReader : public ObjectRef {
  public:
   /*!
    * \brief The constructor.
-   * \param filename File name for this callback to write log.
+   * \param filename The name of input file
    */
   explicit RecordReader(String filename);
 
@@ -112,7 +112,7 @@ class RecordReader : public ObjectRef {
 };
 
 /*!
- * \brief Write measure records to an output stream.
+ * \brief Append measure records to an output stream.
  * \param os A pointer to a output stream.
  * \param inputs The MeasureInputs to be written.
  * \param results The MeasureResults to be written.
@@ -122,10 +122,10 @@ void WriteMeasureRecords(std::ostream* os, const Array<MeasureInput>& inputs,
 
 /*!
  * \brief Read one measure record from a string.
- * \param str The record string to be extract.
- * \param inp A pointer to a MeasureInputNode, this is used as output.
- * \param res A pointer to a MeasureResultNode, this is used as output.
- * \param log_version A pointer to a log version string.
+ * \param str The record string to be parsed.
+ * \param inp A pointer to a MeasureInputNode used to store the return value.
+ * \param res A pointer to a MeasureResultNode used to store the return value.
+ * \param log_version A pointer to a string used to store the log version.
  */
 void ReadMeasureRecord(const std::string& str, MeasureInputNode* inp, MeasureResultNode* res,
                        std::string* log_version);
