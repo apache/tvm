@@ -37,8 +37,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include "utils.h"
 #include "../arith/pattern_match.h"
+#include "utils.h"
 
 namespace tvm {
 namespace auto_scheduler {
@@ -517,7 +517,7 @@ bool AccessAnalyzer::ElementWiseMatch(const te::Operation& op,
     bool is_simple_access, axis_missing, axis_duplicated, same_order;
     for (const auto& read : reads) {
       is_simple_access = auto_scheduler::IsSimpleAccess(next_op, read, &axis_missing,
-                                                    &axis_duplicated, &same_order);
+                                                        &axis_duplicated, &same_order);
       if (!is_simple_access || axis_missing || axis_duplicated || !same_order) {
         return false;
       }

@@ -26,7 +26,6 @@ import logging
 import tvm
 from .task import create
 from .topi_integration import TaskExtractEnv
-from .dispatcher import FallbackContext
 
 logger = logging.getLogger('autotvm')
 

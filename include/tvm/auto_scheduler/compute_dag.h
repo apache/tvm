@@ -68,7 +68,8 @@ class AccessAnalyzerNode : public Object {
    *  (e.g., injective, broadcast and elementwise ops without reduction) */
   OperationMap<bool> is_simple_access;
   /*! \brief Store whether the operation is strictly-inlineable
-   * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations) */
+   * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations)
+   */
   OperationMap<bool> is_strict_inlineable;
   /*! \brief Store whether the operation needs multi-level tiling
    * (e.g., computation-intensive ops with data reuse opportunity like matmul, conv2d) */
