@@ -146,34 +146,35 @@ class HoistCandidateSelector final : public StmtExprVisitor {
     is_if_cond_ = false;
 
     if (CheckValidIf()) {
-	      // Check corresponding for loop
-	      bool match_found = false;
-	      size_t match_for_loop_pos = 0;
-	      for (auto var : if_var_list_) {
-	        for (size_t i = 0; i < ordered_for_list_.size() - 1; ++i) {
-	          if (ordered_for_list_[i] == var_for_map_[var]) {
-	            if (match_for_loop_pos < i) {
-	              match_for_loop_pos = i;
-	            }
-	            match_found = true;
-	            break;
-	          }
-	        }
-	      }
-	      // If none of the for loop has the matching loop variable as if condition,
-	      // then the if node need to be hoisted on top of all, provided no parent loop exists.
-	      int target_for_pos = match_found ? match_for_loop_pos + 1 : 0;
-
-	      // Check if target for loop is not the parent of current if node
-	      if (!IsParentForLoop(target_for_pos)) {
-	        StopAndAddRecord(ordered_for_list_[target_for_pos], op);
-	        if_var_list_.clear();
-	        return;
-	      }
+      // Check corresponding for loop
+      bool match_found = false;
+      size_t match_for_loop_pos = 0;
+      for (auto var : if_var_list_) {
+        for (size_t i = 0; i < ordered_for_list_.size() - 1; ++i) {
+          if (ordered_for_list_[i] == var_for_map_[var]) {
+            if (match_for_loop_pos < i) {
+              match_for_loop_pos = i;
+            }
+            match_found = true;
+            break;
+          }
+        }
       }
-      if_var_list_.clear();
-      StmtExprVisitor::VisitStmt_(op);
-      StopRecording();
+      // If none of the for loop has the matching loop variable as if condition,
+      // then the if node need to be hoisted on top of all, provided no parent loop exists.
+      int target_for_pos = match_found ? match_for_loop_pos + 1 : 0;
+
+      // Check if target for loop is not the parent of current if node
+      if (!IsParentForLoop(target_for_pos)) {
+        StopAndAddRecord(ordered_for_list_[target_for_pos], op);
+        if_var_list_.clear();
+        return;
+      }
+    }
+
+    if_var_list_.clear();
+    StmtExprVisitor::VisitStmt_(op);
+    StopRecording();
   }
 
   void VisitExpr_(const VarNode* op) final {
