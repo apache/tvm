@@ -25,16 +25,15 @@
 #ifndef TVM_AUTO_SCHEDULER_SEARCH_TASK_H_
 #define TVM_AUTO_SCHEDULER_SEARCH_TASK_H_
 
+#include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/target/target.h>
-
-#include "compute_dag.h"
 
 namespace tvm {
 namespace auto_scheduler {
 
 class HardwareParams;
 
-/*! \brief The parameters of target hardware used to guide the search process of SearchPolicy. */
+/*! \brief The parameters of target hardware used to guide the SearchPolicy. */
 class HardwareParamsNode : public Object {
  public:
   /*! \brief The number of cores. */

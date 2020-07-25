@@ -26,8 +26,8 @@
 #ifndef TVM_AUTO_SCHEDULER_SEARCH_POLICY_EMPTY_POLICY_H_
 #define TVM_AUTO_SCHEDULER_SEARCH_POLICY_EMPTY_POLICY_H_
 
-#include "../loop_state.h"
-#include "search_policy.h"
+#include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/search_policy.h>
 
 namespace tvm {
 namespace auto_scheduler {

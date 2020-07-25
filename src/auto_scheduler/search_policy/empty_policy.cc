@@ -24,9 +24,8 @@
 
 #include "empty_policy.h"
 
+#include <tvm/auto_scheduler/measure.h>
 #include <tvm/runtime/registry.h>
-
-#include "../measure.h"
 
 namespace tvm {
 namespace auto_scheduler {

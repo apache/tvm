@@ -22,8 +22,7 @@
  * \brief The base class of search policies.
  */
 
-#include "search_policy.h"
-
+#include <tvm/auto_scheduler/search_policy.h>
 #include <tvm/runtime/registry.h>
 
 namespace tvm {

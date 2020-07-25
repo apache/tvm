@@ -18,19 +18,17 @@
  */
 
 /*!
- * \file auto_scheduler/auto_schedule.h
- * \brief The user interface of the TVM Auto-scheduler. This is the entry structure to get
- * schedule search requirements from upper level (Python API), and returns a high performance
- * schedule after search process.
+ * \file tvm/auto_scheduler/auto_schedule.h
+ * \brief The user interface of the auto scheduler.
  */
 
 #ifndef TVM_AUTO_SCHEDULER_AUTO_SCHEDULE_H_
 #define TVM_AUTO_SCHEDULER_AUTO_SCHEDULE_H_
 
-#include <utility>
+#include <tvm/auto_scheduler/measure.h>
+#include <tvm/auto_scheduler/search_policy.h>
 
-#include "measure.h"
-#include "search_policy/search_policy.h"
+#include <utility>
 
 namespace tvm {
 namespace auto_scheduler {
@@ -38,9 +36,9 @@ namespace auto_scheduler {
 /*! \brief Tuning and measurement options. */
 class TuningOptionsNode : public Object {
  public:
-  /*! \brief Number of total measurement trials. */
+  /*! \brief The number of total measurement trials. */
   int num_measure_trials;
-  /*! \brief Stops early the tuning if no improvement after n measurements. */
+  /*! \brief Stops the tuning early if no improvement after n measurements. */
   int early_stopping;
   /*! \brief The number of programs to be measured at each search round. */
   int num_measures_per_round;
@@ -51,7 +49,7 @@ class TuningOptionsNode : public Object {
   int verbose;
   /*! \brief ProgramBuilder which builds the program */
   ProgramBuilder builder;
-  /*! \brief ProgramRunner which runs the program and measure time costs */
+  /*! \brief ProgramRunner which runs the program and measures time costs */
   ProgramRunner runner;
   /*! \brief MeasureCallback functions to be called after each measure batch */
   Optional<Array<MeasureCallback>> measure_callbacks;
@@ -81,8 +79,8 @@ class TuningOptions : public ObjectRef {
  public:
   /*!
    * \brief The constructor
-   * \param num_measure_trials Number of total measurement trials.
-   * \param early_stopping Stops early the tuning if no improvement after n measurements.
+   * \param num_measure_trials The number of total measurement trials.
+   * \param early_stopping Stops the tuning early if no improvement after n measurements.
    * \param num_measures_per_round The number of programs to be measured at each search round.
    * \param verbose Verbosity level. 0 for silent, 1 to output information during schedule
    * search.
@@ -100,11 +98,11 @@ class TuningOptions : public ObjectRef {
 };
 
 /*!
- * \brief Auto schedule search for a given compute declaration.
+ * \brief Run schedule search for a given compute declaration.
  * \param task The search task of the compute declaration.
- * \param search_policy The search policy to be used for schedule search.
+ * \param search_policy The search policy to be used.
  * \param tuning_options Tuning and measurement options.
- * \return A `te::schedule` and the a Array of `te::Tensor` to be used in `tvm.lower` or
+ * \return A `te::schedule` and the an Array of `te::Tensor` to be used in `tvm.lower` or
  * `tvm.build`.
  */
 TVM_DLL std::pair<te::Schedule, Array<te::Tensor>> AutoSchedule(SearchTask task,

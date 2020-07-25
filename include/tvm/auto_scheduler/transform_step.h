@@ -19,10 +19,10 @@
 
 /*!
  * \file auto_scheduler/transform_step.h
- * \brief Transformation steps. For each schedule primitive, there is a corresponding transform
- * step.
+ * \brief Transformation steps. These steps are used to manipulate the LoopState.
+ *        They are similar to the schedule primitives in te::Stage.
  *
- * \note To add a new transform step:
+ * \note How to add a new transform step:
  * Take fuse step for example:
  * 1. Define class `FuseStepNode`, `FuseStep` in `transform_steps.h`, and implement its first
  *    construction function `FuseStep::FuseStep()` in `transform_steps.cc`.
@@ -50,8 +50,6 @@
 #include <dmlc/json.h>
 #include <tvm/node/node.h>
 #include <tvm/te/schedule.h>
-
-#include "utils.h"
 
 namespace tvm {
 namespace auto_scheduler {
@@ -187,7 +185,6 @@ Step StepReadFromRecord(dmlc::JSONReader* reader);
  * \param step The step to be applied to State.
  * \param state A mutable pointer to State.
  * \param dag The original ComputeDAG of this state.
- * \return The iterator result after annotate.
  */
 void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag);
 
@@ -209,7 +206,7 @@ void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxes
 String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
                             StageToAxesMap* stage_to_axes);
 
-/********** Primitives working on single stage **********/
+/********** Steps working on single stage **********/
 
 /*!
  * \brief Annotation step that corresponds to vectorize, parallel, unroll and thread binding.
@@ -478,7 +475,7 @@ class SplitStep : public Step {
   TVM_DEFINE_OBJECT_REF_METHODS(SplitStep, Step, SplitStepNode);
 };
 
-/********** Primitives working on multiple stages **********/
+/********** Steps working on multiple stages **********/
 
 /*! \brief Compute at step that corresponds to te::Stage::compute_at */
 class ComputeAtStepNode : public StepNode {
