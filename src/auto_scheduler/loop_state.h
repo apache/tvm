@@ -176,7 +176,7 @@ class AttachMap : public ObjectRef {
  public:
   /*!
    * \brief Process the stage/iterator mapping after compute at.
-   * \param stage_id The index of the stage to be compute at.
+   * \param stage_id The index of the stage to be computed at.
    * \param target_stage_id The index of stage that this step will compute at to.
    * \param target_iter_id The index of iterator in target stage that this step will compute at to.
    */
@@ -184,7 +184,7 @@ class AttachMap : public ObjectRef {
 
   /*!
    * \brief This is a public wrapper of `DeleteStageEntry`. To delete the entry of a specific stage.
-   * \param stage_id The index of the stage to be compute at.
+   * \param stage_id The index of the stage to be computed at.
    */
   void DeleteStage(int stage_id);
 
@@ -199,7 +199,7 @@ class AttachMap : public ObjectRef {
 
   /*!
    * \brief Traverse through `stage_to_attach_iter` and `iter_to_attached_stages` map, add offset
-   * to stage indexes that are larger than the start_id. Used for steps that inserts new stages to
+   * to stage indexes that are larger than the start_id. Used for steps that insert new stages to
    * ComputeDAG(e.g. CacheRead/CacheWrite step).
    * \param start_id The index threshold, stage indexes in AttachMap which are larger than this
    * will be applied the extra offset.
@@ -373,7 +373,7 @@ class State : public ObjectRef {
   void compute_inline(int stage_id);
   /*!
    * \brief Schedule primitive corresponds to `te::Stage::compute_root`.
-   * \param stage_id The index of the stage to be the compute root.
+   * \param stage_id The index of the stage to be marked compute at root.
    * \note After compute_root, we need careful dependency analysis to compute the accurate bound
    * information. However, it is relatively expensive and complicated, so we just fill "None" as
    * bound for the newly created iterators.

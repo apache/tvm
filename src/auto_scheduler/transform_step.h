@@ -541,7 +541,7 @@ class ComputeAtStep : public Step {
  public:
   /*!
    * \brief The constructor.
-   * \param stage_id The index of the stage to be compute at.
+   * \param stage_id The index of the stage to be computed at.
    * \param target_stage_id The index of stage that this step will compute at to.
    * \param target_iter_id The index of iterator in target stage that this step will compute at to.
    */
@@ -598,7 +598,7 @@ class ComputeInlineStep : public Step {
  public:
   /*!
    * \brief The constructor.
-   * \param stage_id The index of the stage to be compute inline.
+   * \param stage_id The index of the stage to be marked compute inlined.
    */
   explicit ComputeInlineStep(int stage_id);
 
@@ -620,7 +620,7 @@ class ComputeRootStepNode : public StepNode {
   /*!
    * \brief Apply the current step to State.
    * \param state A mutable pointer to state, which will be updated.
-   * \note After compute_at, we need careful dependency analysis to compute the accurate bound
+   * \note After compute_root, we need careful dependency analysis to compute the accurate bound
    * information. However, it is relatively expensive and complicated, so we just fill "None" as
    * bound for the newly created iterators.
    * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
@@ -657,7 +657,7 @@ class ComputeRootStep : public Step {
  public:
   /*!
    * \brief The constructor.
-   * \param stage_id The index of the stage to be compute root
+   * \param stage_id The index of the stage to be marked compute at root.
    */
   explicit ComputeRootStep(int stage_id);
 
