@@ -814,7 +814,7 @@ def test_mixed_input_type():
         assert result.asnumpy().shape == ref_out_shape, \
             "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
 
-def verify_any_crop_and_resize(data_shape, boxes_shape, box_indices_shape, crop_size, 
+def verify_any_crop_and_resize(data_shape, boxes_shape, box_indices_shape, crop_size,
                                layout, static_boxes, static_box_indices_shape, ref_out_shape):
     mod = tvm.IRModule()
     dtype = "float32"
@@ -872,6 +872,24 @@ def test_any_mirror_pad():
         static_data_shape=(1, 256, 232, 232),
         ref_out_shape=(1, 256, 234, 234))
 
+def verify_any_ndarray_size(data_np_shape):
+    v = relay.var("v", shape=any_dims(len(data_np_shape)), dtype='float32')
+    n = relay.ndarray_size(v, dtype='int32')
+    mod = tvm.IRModule()
+    mod['main'] = relay.Function([v], n)
+    np_data = np.zeros(data_np_shape, dtype='float32')
+    ref_res = np.size(np_data)
+
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(np_data)
+        tvm.testing.assert_allclose(result.asnumpy(), ref_res)
+
+def test_any_ndarray_size():
+    verify_any_ndarray_size((2,))
+    verify_any_ndarray_size((2, 2))
+    verify_any_ndarray_size((1, 2, 3, 4))
+
 if __name__ == "__main__":
     test_any_full()
     test_any_full_like()
@@ -908,4 +926,4 @@ if __name__ == "__main__":
     test_mixed_input_type()
     test_any_crop_and_resize()
     test_any_mirror_pad()
-
+    test_any_ndarray_size()
