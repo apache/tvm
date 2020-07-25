@@ -22,3 +22,9 @@ TVM_DLL extern "C" uint32_t Nop32Max(uint32_t a, uint32_t b) { return a; }
 TVM_DLL extern "C" uint32_t Nop32Sqrt(uint32_t a) { return a; }
 
 TVM_DLL extern "C" uint32_t Nop32Exp(uint32_t a) { return a; }
+
+TVM_DLL extern "C" uint32_t Nop32Log(uint32_t a) { return a; }
+
+TVM_DLL extern "C" uint32_t Nop32Sigmoid(uint32_t a) { return a; }
+
+TVM_DLL extern "C" uint32_t Nop32Tanh(uint32_t a) { return a; }

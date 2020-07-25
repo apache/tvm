@@ -3,9 +3,11 @@
 
 #include <cstdint>
 
+#include "posit/posit.hpp"
 #include "posit/math/exponent.hpp"
 #include "posit/math/sqrt.hpp"
-#include "posit/posit.hpp"
+#include "posit/math/logarithm.hpp"
+#include "posit/math/hyperbolic.hpp"
 
 TVM_DLL sw::unum::posit<8, 0> Uint8ToPosit8es0(uint8_t in) {
   sw::unum::bitblock<8> bb;
@@ -59,6 +61,19 @@ TVM_DLL extern "C" uint8_t Posit8es0Sqrt(uint8_t a) {
 
 TVM_DLL extern "C" uint8_t Posit8es0Exp(uint8_t a) {
   return Posit8es0toUint8(sw::unum::exp(Uint8ToPosit8es0(a)));
+}
+
+TVM_DLL extern "C" uint8_t Posit8es0Log(uint8_t a) {
+  return Posit8es0toUint8(sw::unum::log(Uint8ToPosit8es0(a)));
+}
+
+TVM_DLL extern "C" uint8_t Posit8es0Sigmoid(uint8_t a) {
+  auto posit_one = sw::unum::posit<8, 0>(1);
+  return Posit8es0toUint8(posit_one / (sw::unum::exp(-Uint8ToPosit8es0(a)) + posit_one));
+}
+
+TVM_DLL extern "C" uint8_t Posit8es0Tanh(uint8_t a) {
+  return Posit8es0toUint8(sw::unum::tanh(Uint8ToPosit8es0(a)));
 }
 
 TVM_DLL sw::unum::posit<16, 1> Uint16ToPosit16es1(uint16_t in) {
@@ -115,6 +130,19 @@ TVM_DLL extern "C" uint16_t Posit16es1Exp(uint16_t a) {
   return Posit16es1toUint16(sw::unum::exp(Uint16ToPosit16es1(a)));
 }
 
+TVM_DLL extern "C" uint16_t Posit16es1Log(uint16_t a) {
+  return Posit16es1toUint16(sw::unum::log(Uint16ToPosit16es1(a)));
+}
+
+TVM_DLL extern "C" uint16_t Posit16es1Sigmoid(uint16_t a) {
+  auto posit_one = sw::unum::posit<16, 1>(1);
+  return Posit16es1toUint16(posit_one / (sw::unum::exp(-Uint16ToPosit16es1(a)) + posit_one));
+}
+
+TVM_DLL extern "C" uint16_t Posit16es1Tanh(uint16_t a) {
+  return Posit16es1toUint16(sw::unum::tanh(Uint16ToPosit16es1(a)));
+}
+
 TVM_DLL sw::unum::posit<32, 2> Uint32ToPosit32es2(uint32_t in) {
   sw::unum::bitblock<32> bb;
   bb = static_cast<unsigned long long>(in);
@@ -167,4 +195,17 @@ TVM_DLL extern "C" uint32_t Posit32es2Sqrt(uint32_t a) {
 
 TVM_DLL extern "C" uint32_t Posit32es2Exp(uint32_t a) {
   return Posit32es2ToUint32(sw::unum::exp(Uint32ToPosit32es2(a)));
+}
+
+TVM_DLL extern "C" uint32_t Posit32es2Log(uint32_t a) {
+  return Posit32es2ToUint32(sw::unum::log(Uint32ToPosit32es2(a)));
+}
+
+TVM_DLL extern "C" uint32_t Posit32es2Sigmoid(uint32_t a) {
+  auto posit_one = sw::unum::posit<32, 2>(1);
+  return Posit32es2ToUint32(posit_one / (posit_one + sw::unum::exp(-Uint32ToPosit32es2(a))));
+}
+
+TVM_DLL extern "C" uint32_t Posit32es2Tanh(uint32_t a) {
+  return Posit32es2ToUint32(sw::unum::tanh(Uint32ToPosit32es2(a)));
 }

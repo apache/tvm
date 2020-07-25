@@ -108,6 +108,27 @@ void BFloat16Exp(const uint16_t* a, uint16_t* dst, size_t size) {
   FloatToBFloat16(&out_f, dst, 1);
 }
 
+void BFloat16Log(const uint16_t* a, uint16_t* dst, size_t size) {
+  float a_f;
+  BFloat16ToFloat(a, &a_f, 1);
+  float out_f = log(a_f);
+  FloatToBFloat16(&out_f, dst, 1);
+}
+
+void BFloat16Sigmoid(const uint16_t* a, uint16_t* dst, size_t size) {
+  float a_f;
+  BFloat16ToFloat(a, &a_f, 1);
+  float out_f = 1 / (1 + exp(-a_f));
+  FloatToBFloat16(&out_f, dst, 1);
+}
+
+void BFloat16Tanh(const uint16_t* a, uint16_t* dst, size_t size) {
+  float a_f;
+  BFloat16ToFloat(a, &a_f, 1);
+  float out_f = tanh(a_f);
+  FloatToBFloat16(&out_f, dst, 1);
+}
+
 extern "C" {
 TVM_DLL uint16_t FloatToBFloat16_wrapper(float in) {
   uint16_t out;
@@ -168,6 +189,24 @@ TVM_DLL uint16_t BFloat16Sqrt_wrapper(uint16_t a) {
 TVM_DLL uint16_t BFloat16Exp_wrapper(uint16_t a) {
   uint16_t out;
   BFloat16Exp(&a, &out, 1);
+  return out;
+}
+
+TVM_DLL uint16_t BFloat16Log_wrapper(uint16_t a) {
+  uint16_t out;
+  BFloat16Log(&a, &out, 1);
+  return out;
+}
+
+TVM_DLL uint16_t BFloat16Sigmoid_wrapper(uint16_t a) {
+  uint16_t out;
+  BFloat16Sigmoid(&a, &out, 1);
+  return out;
+}
+
+TVM_DLL uint16_t BFloat16Tanh_wrapper(uint16_t a) {
+  uint16_t out;
+  BFloat16Tanh(&a, &out, 1);
   return out;
 }
 }
@@ -246,6 +285,27 @@ void NotBFloat16Exp(const uint32_t* a, uint32_t* dst, size_t size) {
   FloatToNotBFloat16(&out_f, dst, 1);
 }
 
+void NotBFloat16Log(const uint32_t* a, uint32_t* dst, size_t size) {
+  float a_f;
+  NotBFloat16ToFloat(a, &a_f, 1);
+  float out_f = log(a_f);
+  FloatToNotBFloat16(&out_f, dst, 1);
+}
+
+void NotBFloat16Sigmoid(const uint32_t* a, uint32_t* dst, size_t size) {
+  float a_f;
+  NotBFloat16ToFloat(a, &a_f, 1);
+  float out_f = 1 / (1 + exp(-a_f));
+  FloatToNotBFloat16(&out_f, dst, 1);
+}
+
+void NotBFloat16Tanh(const uint32_t* a, uint32_t* dst, size_t size) {
+  float a_f;
+  NotBFloat16ToFloat(a, &a_f, 1);
+  float out_f = tanh(a_f);
+  FloatToNotBFloat16(&out_f, dst, 1);
+}
+
 extern "C" {
 TVM_DLL uint32_t FloatToNotBFloat16_wrapper(float in) {
   uint32_t out;
@@ -305,6 +365,24 @@ TVM_DLL uint32_t NotBFloat16Sqrt_wrapper(uint32_t a) {
 TVM_DLL uint32_t NotBFloat16Exp_wrapper(uint32_t a) {
   uint32_t out;
   NotBFloat16Exp(&a, &out, 1);
+  return out;
+}
+
+TVM_DLL uint32_t NotBFloat16Log_wrapper(uint32_t a) {
+  uint32_t out;
+  NotBFloat16Log(&a, &out, 1);
+  return out;
+}
+
+TVM_DLL uint32_t NotBFloat16Sigmoid_wrapper(uint32_t a) {
+  uint32_t out;
+  NotBFloat16Sigmoid(&a, &out, 1);
+  return out;
+}
+
+TVM_DLL uint32_t NotBFloat16Tanh_wrapper(uint32_t a) {
+  uint32_t out;
+  NotBFloat16Tanh(&a, &out, 1);
   return out;
 }
 }

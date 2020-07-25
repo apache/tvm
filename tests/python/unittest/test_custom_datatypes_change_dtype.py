@@ -95,6 +95,21 @@ def setup():
                 "llvm",
                 "notbfloat",
                 intrinsic_name="exp")
+    register_op(create_lower_func("NotBFloat16Log_wrapper"),
+                "Call",
+                "llvm",
+                "notbfloat",
+                intrinsic_name="log")
+    register_op(create_lower_func("NotBFloat16Sigmoid_wrapper"),
+                "Call",
+                "llvm",
+                "notbfloat",
+                intrinsic_name="sigmoid")
+    register_op(create_lower_func("NotBFloat16Tanh_wrapper"),
+                "Call",
+                "llvm",
+                "notbfloat",
+                intrinsic_name="tanh")
 
     register("posit32", 131)
 
@@ -127,6 +142,21 @@ def setup():
                 "llvm",
                 "posit32",
                 intrinsic_name="exp")
+    register_op(create_lower_func("Posit32es2Log"),
+                "Call",
+                "llvm",
+                "posit32",
+                intrinsic_name="log")
+    register_op(create_lower_func("Posit32es2Sigmoid"),
+                "Call",
+                "llvm",
+                "posit32",
+                intrinsic_name="sigmoid")
+    register_op(create_lower_func("Posit32es2Tanh"),
+                "Call",
+                "llvm",
+                "posit32",
+                intrinsic_name="tanh")
     # TODO(gus) these aren't actually right. these are double min(actually lowest)/max.
     register_min_func(lambda num_bits: -1.79769e+308, "posit32")
 
@@ -160,6 +190,21 @@ def setup():
                 "llvm",
                 "posit8",
                 intrinsic_name="exp")
+    register_op(create_lower_func("Posit8es0Log"),
+                "Call",
+                "llvm",
+                "posit8",
+                intrinsic_name="log")
+    register_op(create_lower_func("Posit8es0Sigmoid"),
+                "Call",
+                "llvm",
+                "posit8",
+                intrinsic_name="sigmoid")
+    register_op(create_lower_func("Posit8es0Tanh"),
+                "Call",
+                "llvm",
+                "posit8",
+                intrinsic_name="tanh")
     # TODO(gus) I think this is right
     register_min_func(lambda num_bits: -64, "posit8")
 
@@ -193,6 +238,21 @@ def setup():
                 "llvm",
                 "posit16",
                 intrinsic_name="exp")
+    register_op(create_lower_func("Posit16es1Log"),
+                "Call",
+                "llvm",
+                "posit16",
+                intrinsic_name="log")
+    register_op(create_lower_func("Posit16es1Sigmoid"),
+                "Call",
+                "llvm",
+                "posit16",
+                intrinsic_name="sigmoid")
+    register_op(create_lower_func("Posit16es1Tanh"),
+                "Call",
+                "llvm",
+                "posit16",
+                intrinsic_name="tanh")
     # TODO(gus) I think this is right
     register_min_func(lambda num_bits: -64, "posit16")
 
@@ -226,6 +286,21 @@ def setup():
                 "llvm",
                 "noptype",
                 intrinsic_name="exp")
+    register_op(create_lower_func("Nop32Log"),
+                "Call",
+                "llvm",
+                "noptype",
+                intrinsic_name="log")
+    register_op(create_lower_func("Nop32Sigmoid"),
+                "Call",
+                "llvm",
+                "noptype",
+                intrinsic_name="sigmoid")
+    register_op(create_lower_func("Nop32Tanh"),
+                "Call",
+                "llvm",
+                "noptype",
+                intrinsic_name="tanh")
     # This can be anything, considering the type isn't functionally correct.
     register_min_func(lambda num_bits: 0, "noptype")
 
@@ -260,15 +335,12 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
 
     for op in [
             relay.nn.softmax,
-            # TODO(gus) implement these
-            #tvm.relay.log,
+            tvm.relay.log,
             tvm.relay.exp,
             tvm.relay.sqrt,
             tvm.relay.rsqrt,
-            # TODO(gus) implement these
-            #tvm.relay.sigmoid,
-            # TODO(gus) implement these
-            #tvm.relay.tanh,
+            tvm.relay.sigmoid,
+            tvm.relay.tanh,
             relay.nn.relu,
     ]:
         check_unary_op(op, src_dtype, dst_dtype)
