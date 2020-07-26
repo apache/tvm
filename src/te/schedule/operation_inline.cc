@@ -63,7 +63,8 @@ class OperationInliner final : public StmtExprMutator {
       } else {
         Map<Var, PrimExpr> vmap;
         for (size_t i = 0; i < args_.size(); ++i) {
-          vmap.Set(args_[i], op->indices[i]);
+          // cast indices to the type of the original indexing variable
+          vmap.Set(args_[i], cast(args_[i].dtype(), op->indices[i]));
         }
         expr = Substitute(Evaluate(expr), vmap).as<EvaluateNode>()->value;
       }

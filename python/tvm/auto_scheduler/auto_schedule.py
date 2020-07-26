@@ -57,7 +57,7 @@ class HardwareParams(Object):
 
 @tvm._ffi.register_object("auto_scheduler.SearchTask")
 class SearchTask(Object):
-    """ The computation information and hardware parameters for a specific schedule search task.
+    """ The computation information and hardware parameters for a schedule search task.
 
     Parameters
     ----------
@@ -157,9 +157,6 @@ class TuningOptions(Object):
 
 def auto_schedule(task, search_policy='default', tuning_options=None):
     """ Do auto scheduling for a computation declaration.
-
-    The task parameter can be a `string` as workload_key, or directly
-    passing a `SearchTask` as input.
 
     Parameters
     ----------

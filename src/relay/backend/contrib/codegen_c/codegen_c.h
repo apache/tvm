@@ -61,19 +61,6 @@ class CSourceModuleCodegenBase {
    * \return A runtime module.
    */
   virtual runtime::Module CreateCSourceModule(const ObjectRef& ref) = 0;
-
-  /*!
-   * \brief Get the external symbol of the Relay function name.
-   *
-   * \param func The provided function.
-   *
-   * \return An external symbol.
-   */
-  std::string GetExtSymbol(const Function& func) const {
-    const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    CHECK(name_node.defined()) << "Fail to retrieve external symbol.";
-    return std::string(name_node.value());
-  }
 };
 
 // The base class to generate the declaration functions in C.

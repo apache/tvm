@@ -25,7 +25,7 @@
 #ifndef TVM_RUNTIME_VM_PROFILER_VM_H_
 #define TVM_RUNTIME_VM_PROFILER_VM_H_
 
-#include <tvm/runtime/vm.h>
+#include <tvm/runtime/vm/vm.h>
 
 #include <memory>
 #include <string>

@@ -19,7 +19,7 @@
 A pass for manifesting explicit memory allocations.
 """
 import numpy as np
-from ..expr_functor import ExprMutator
+from ..expr_functor import ExprVisitor, ExprMutator
 from ..scope_builder import ScopeBuilder
 from . import transform
 from .. import op
@@ -38,6 +38,31 @@ def is_primitive(call):
     return hasattr(call, 'op') and hasattr(call.op, 'attrs') and \
            hasattr(call.op.attrs, 'Primitive') and int(call.op.attrs.Primitive) == 1
 
+
+class CheckReshapeOnly(ExprVisitor):
+    """A pass to check if the fused op contains only reshape ops."""
+    def __init__(self):
+        super().__init__()
+        self._reshape_ops = [op.get("reshape"), op.get("contrib_reverse_reshape"),
+                             op.get("dyn.reshape")]
+        self.reshape_only = True
+
+    def visit_call(self, call):
+        if not self.reshape_only:
+            return
+        if call.op not in self._reshape_ops:
+            self.reshape_only = False
+        for arg in call.args:
+            self.visit(arg)
+
+
+def is_reshape_only(func):
+    """Check if the primitive function contains only reshape ops."""
+    check = CheckReshapeOnly()
+    check.visit(func)
+    return check.reshape_only
+
+
 class ManifestAllocPass(ExprMutator):
     """A pass for explicitly manifesting all memory allocations in Relay."""
 
@@ -45,6 +70,7 @@ class ManifestAllocPass(ExprMutator):
         self.invoke_tvm = op.vm.invoke_tvm_op
         self.shape_func = op.vm.shape_func
         self.shape_of = op.vm.shape_of
+        self.reshape_tensor = op.vm.reshape_tensor
         self.scopes = [ScopeBuilder()]
         self.target_host = target_host
         self.default_context = cpu(0)
@@ -121,8 +147,8 @@ class ManifestAllocPass(ExprMutator):
 
         return scope.get()
 
-    def dynamic_invoke(self, scope, func, ins, new_args, out_types, ret_type):
-        """Generate the code for invoking a TVM op with a dynamic shape."""
+    def emit_shape_func(self, scope, func, new_args):
+        """Insert the shape function given a primitive function."""
         shape_func_ins = []
         engine = compile_engine.get()
         cfunc = engine.lower_shape_func(func, self.target_host)
@@ -165,9 +191,14 @@ class ManifestAllocPass(ExprMutator):
             expr.Tuple(out_shapes), is_inputs)
 
         scope.let("shape_func", shape_call)
+        return out_shapes
+
+    def dynamic_invoke(self, scope, func, ins, new_args, out_types, ret_type):
+        """Generate the code for invoking a TVM op with a dynamic shape."""
+        out_shapes = self.emit_shape_func(scope, func, new_args)
 
         storages = []
-        for out_shape, out_type in zip(out_shapes, out_types):
+        for i, (out_shape, out_type) in enumerate(zip(out_shapes, out_types)):
             size = self.compute_storage_in_relay(
                 out_shape, out_type.dtype)
             alignment = self.compute_alignment(out_type.dtype)
@@ -191,8 +222,18 @@ class ManifestAllocPass(ExprMutator):
         scope.let("", invoke)
         return to_tuple_type(ret_type, tuple_outs.fields)
 
+    def emit_reshape_tensor(self, scope, func, new_args, ret_type):
+        if self.is_dynamic(ret_type):
+            out_shapes = self.emit_shape_func(scope, func, new_args)
+            shape_expr = out_shapes[0]
+        else:
+            # constant output shape
+            shape = [int(dim) for dim in ret_type.shape]
+            shape_expr = expr.const(shape, dtype=self.compute_dtype)
+        return self.reshape_tensor(new_args[0], shape_expr, ret_type.shape)
+
     def is_dynamic(self, ret_type):
-        is_dynamic = ty.type_has_any(ret_type)
+        is_dynamic = ty.is_dynamic(ret_type)
         # TODO(@jroesch): restore this code, more complex then it seems
         # for arg in call.args:
         #     is_dynamic = is_dynamic or arg.checked_type.is_dynamic()
@@ -208,22 +249,25 @@ class ManifestAllocPass(ExprMutator):
             ret_type = call.checked_type
             out_types = flatten_tuple_type(ret_type)
 
+            if is_reshape_only(call.op):
+                # Handle fused op that only contains reshape op
+                return self.emit_reshape_tensor(scope, call.op, new_args, ret_type)
+
             if self.is_dynamic(ret_type):
                 # Handle dynamic case.
                 return self.dynamic_invoke(scope, call.op, ins, new_args, out_types, ret_type)
-            else:
-                # Handle static case.
-                outs = []
-                for i, out_ty in enumerate(out_types):
-                    out = self.make_static_allocation(scope, out_ty, i)
-                    outs.append(out)
 
-                output = expr.Tuple(outs)
-                invoke = self.invoke_tvm(call.op, ins, output)
-                scope.let("", invoke)
-                return to_tuple_type(ret_type, output.fields)
-        else:
-            return super().visit_call(call)
+            # Handle static case.
+            outs = []
+            for i, out_ty in enumerate(out_types):
+                out = self.make_static_allocation(scope, out_ty, i)
+                outs.append(out)
+
+            output = expr.Tuple(outs)
+            invoke = self.invoke_tvm(call.op, ins, output)
+            scope.let("", invoke)
+            return to_tuple_type(ret_type, output.fields)
+        return super().visit_call(call)
 
 
 @transform.function_pass(opt_level=0)

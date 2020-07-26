@@ -18,17 +18,55 @@
 """ Test measurement and log serialization. """
 
 import tvm
-from tvm import auto_scheduler
+import topi
+from tvm import te, auto_scheduler
 import tempfile
 
 from test_auto_scheduler_common import get_tiled_matmul
 
 
 def test_record():
-    dag, s = get_tiled_matmul()
-
     if not tvm.runtime.enabled("llvm"):
         return
+
+    A = te.placeholder((512, 512), name='A')
+    B = te.placeholder((512, 512), name='B')
+    k = te.reduce_axis((0, 512), name='k')
+    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+    D = topi.nn.relu(C)
+    k = te.reduce_axis((0, 512), name='k')
+    E = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * D[k][j], axis=[k]), name='C')
+    F = topi.nn.relu(E)
+
+    dag = auto_scheduler.ComputeDAG([A, B, F])
+    s = dag.get_init_state()
+
+    # Split
+    its0 = s.split(C, s[C].iters[0], [4, 8, 8])
+    its1 = s.split(C, s[C].iters[4], [8, 4, 4])
+    # Reorder
+    s.reorder(C, [its0[0], its1[0], its0[1], its1[1], its0[2], its1[2], its0[3], s[C].iters[8],
+                  its1[3]])
+    # Fuse
+    s.fuse(C, [s[C].iters[0], s[C].iters[1], s[C].iters[2]])
+    # Compute at
+    s.split(F, s[F].iters[0], [2])
+    s.compute_at(E, F, s[F].iters[0])
+    # Compute inline
+    s.compute_inline(D)
+    # Compute root
+    s.compute_root(D)
+    # Parallel
+    s.parallel(C, s[C].iters[0])
+    # Thread bind(The blockIdx & threadIdx are used in GPU, just for record testing here)
+    s.bind(C, s[C].iters[1], "blockIdx.x")
+    s.bind(C, s[C].iters[2], "threadIdx.z")
+    s.bind(C, s[C].iters[3], "vthread")
+    # Unroll
+    s.unroll(C, s[C].iters[4])
+    # Vectorize
+    s.vectorize(C, s[C].iters[6])
+
     target = tvm.target.create("llvm")
     task = auto_scheduler.SearchTask(dag, "test", target)
 
@@ -50,16 +88,16 @@ def test_record():
 
 
 def test_measure_local_builder_runner():
-    dag, s0 = get_tiled_matmul()
-
     if not tvm.runtime.enabled("llvm"):
         return
+
+    dag, s0 = get_tiled_matmul()
     tgt = tvm.target.create("llvm")
     task = auto_scheduler.SearchTask(dag, "test", tgt)
 
     minp = auto_scheduler.MeasureInput(task, s0)
     local_builder = auto_scheduler.LocalBuilder()
-    local_runner = auto_scheduler.LocalRunner()
+    local_runner = auto_scheduler.LocalRunner(timeout=60)
 
     bress = local_builder.build([minp])
     assert bress[0].error_no == 0
@@ -67,6 +105,26 @@ def test_measure_local_builder_runner():
     assert mress[0].error_no == 0
 
 
+def test_measure_local_builder_rpc_runner():
+    if not tvm.runtime.enabled("llvm"):
+        return
+
+    dag, s0 = get_tiled_matmul()
+    tgt = tvm.target.create("llvm")
+    task = auto_scheduler.SearchTask(dag, "test", tgt)
+
+    minp = auto_scheduler.MeasureInput(task, s0)
+    local_builder = auto_scheduler.LocalBuilder()
+    measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=60)
+    rpc_runner = measure_ctx.runner
+
+    bress = local_builder.build([minp])
+    assert bress[0].error_no == 0
+    mress = rpc_runner.run([minp], bress)
+    assert mress[0].error_no == 0
+
+
 if __name__ == "__main__":
     test_record()
     test_measure_local_builder_runner()
+    test_measure_local_builder_rpc_runner()
