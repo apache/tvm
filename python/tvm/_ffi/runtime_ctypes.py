@@ -274,6 +274,9 @@ class TVMContext(ctypes.Structure):
     def __ne__(self, other):
         return not self.__eq__(other)
 
+    def __hash__(self):
+        return hash(str(self))
+
     def __repr__(self):
         if self.device_type >= RPC_SESS_MASK:
             tbl_id = self.device_type / RPC_SESS_MASK - 1

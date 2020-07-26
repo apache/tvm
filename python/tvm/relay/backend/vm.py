@@ -248,8 +248,7 @@ class VMExecutor(Executor):
         self.ctx = ctx
         self.target = target
         self.executable = compile(mod, target)
-        self.vm = vm_rt.VirtualMachine(self.executable)
-        self.vm.init(ctx)
+        self.vm = vm_rt.VirtualMachine(self.executable, ctx)
 
     def _make_executor(self, expr=None):
         main = self.mod["main"]

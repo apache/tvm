@@ -23,14 +23,13 @@
  * see auto_scheduler/loop_state.h for more explanation.
  */
 
-#include "loop_state.h"
-
+#include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 
 #include <utility>
 
-#include "transform_step.h"
 #include "utils.h"
 
 namespace tvm {

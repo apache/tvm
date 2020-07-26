@@ -48,14 +48,14 @@
 #ifndef TVM_AUTO_SCHEDULER_LOOP_STATE_H_
 #define TVM_AUTO_SCHEDULER_LOOP_STATE_H_
 
+#include <dmlc/common.h>
+#include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/container.h>
 
 #include <functional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-#include "transform_step.h"
 
 namespace tvm {
 namespace auto_scheduler {
@@ -159,10 +159,16 @@ using IterKey = std::pair<int, int>;
  */
 class AttachMapNode : public Object {
  public:
+  struct IterKeyHash {
+    std::size_t operator()(const IterKey& k) const {
+      return ::dmlc::HashCombine(std::hash<int>()(k.first), std::hash<int>()(k.second));
+    }
+  };
+
   /*! \brief A Map to store the mapping of stage to its attached iterator. */
   std::unordered_map<StageKey, IterKey> stage_to_attach_iter;
   /*! \brief A Map to store the mapping of iterator to the stage attached to it. */
-  std::unordered_map<IterKey, std::vector<StageKey>> iter_to_attached_stages;
+  std::unordered_map<IterKey, std::vector<StageKey>, IterKeyHash> iter_to_attached_stages;
 
   static constexpr const char* _type_key = "auto_scheduler.AttachMap";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttachMapNode, Object);
@@ -291,14 +297,14 @@ class State : public ObjectRef {
    * this input.
    * \return The iterator result after binded.
    */
-  Iterator bind(int stage_id, const Iterator& it, IteratorAnnotation thread_type);
+  TVM_DLL Iterator bind(int stage_id, const Iterator& it, IteratorAnnotation thread_type);
   /*!
    * \brief Schedule primitive corresponds to te.parallel.
    * \param stage_id The index of the stage to be paralleled.
    * \param it The iterator to be paralleled.
    * \return The iterator result after parallel.
    */
-  Iterator parallel(int stage_id, const Iterator& it);
+  TVM_DLL Iterator parallel(int stage_id, const Iterator& it);
   /*!
    * \brief Schedule primitive corresponds to te.unroll.
    * \param stage_id The index of the stage to be unrolled.
@@ -307,14 +313,14 @@ class State : public ObjectRef {
    * skipped.
    * \return The iterator result after unrolled.
    */
-  Iterator unroll(int stage_id, const Iterator& it, int max_unroll = -1);
+  TVM_DLL Iterator unroll(int stage_id, const Iterator& it, int max_unroll = -1);
   /*!
    * \brief Schedule primitive corresponds to te.vectorize.
    * \param stage_id The index of the stage to be vectorized.
    * \param it The iterator to be vectorized.
    * \return The iterator result after vectorize.
    */
-  Iterator vectorize(int stage_id, const Iterator& it);
+  TVM_DLL Iterator vectorize(int stage_id, const Iterator& it);
   /*!
    * \brief Schedule primitive corresponds to te.fuse.
    * \param stage_id The index of the stage to be fused.
@@ -323,13 +329,13 @@ class State : public ObjectRef {
    * \note If the iterators to be fused have stages attached at them(by compute_at), the fused
    * result will become the new attach point.
    */
-  Iterator fuse(int stage_id, const Array<Iterator>& iters);
+  TVM_DLL Iterator fuse(int stage_id, const Array<Iterator>& iters);
   /*!
    * \brief Schedule primitive corresponds to te.reorder.
    * \param stage_id The index of the stage to be reordered.
    * \param order The expected iterator order.
    */
-  void reorder(int stage_id, const Array<Iterator>& order);
+  TVM_DLL void reorder(int stage_id, const Array<Iterator>& order);
   /*!
    * \brief Schedule primitive corresponds to te.split.
    * \param stage_id The index of the stage to be split.
@@ -340,8 +346,9 @@ class State : public ObjectRef {
    * \note If we do split on an iterator which has stages attached at it(by compute_at), the inner
    * most iterator of split results will become the new attach point.
    */
-  Array<Iterator> split(int stage_id, const Iterator& it, const Array<Optional<Integer>>& lengths,
-                        bool inner_to_outer = true);
+  TVM_DLL Array<Iterator> split(int stage_id, const Iterator& it,
+                                const Array<Optional<Integer>>& lengths,
+                                bool inner_to_outer = true);
 
   /********** Step APIs working on multiple stages **********/
 
@@ -355,12 +362,12 @@ class State : public ObjectRef {
    * bound for the newly created iterators.
    * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
    */
-  void compute_at(int stage_id, int target_stage_id, const Iterator& target_iter);
+  TVM_DLL void compute_at(int stage_id, int target_stage_id, const Iterator& target_iter);
   /*!
    * \brief Schedule primitive corresponds to te.compute_inline.
    * \param stage_id The index of the stage to be reordered.
    */
-  void compute_inline(int stage_id);
+  TVM_DLL void compute_inline(int stage_id);
   /*!
    * \brief Schedule primitive corresponds to te.compute_root.
    * \param stage_id The index of the stage to be reordered.
@@ -369,7 +376,7 @@ class State : public ObjectRef {
    * bound for the newly created iterators.
    * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
    */
-  void compute_root(int stage_id);
+  TVM_DLL void compute_root(int stage_id);
 
   TVM_DEFINE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StateNode);
@@ -381,27 +388,25 @@ class State : public ObjectRef {
 // Hash and equal function for State
 namespace std {
 
-/*! \brief The hash function for auto_scheduler::State. */
-template <>
-struct hash<::tvm::auto_scheduler::State> {
-  std::size_t operator()(const ::tvm::auto_scheduler::State& state) const {
-    return tvm::runtime::ObjectHash()(state.ToStr());
-  }
-};
-
 /*!
  * \brief The equal_to function for auto_scheduler::State.
- * We use the schedule result(its string format) of a state to check if two states are `euqal`.
- * Equal States: 1. the transform steps are totally the same; 2. even with different steps, two
- * states may still result in a same schedule. e.g. To split a axis with extent 512 to 3 parts
- * [8, 16, 4]. We can split from inner to outter by factors [16, 4], while we can get a same result
- * to split from outter to inner by factors [8, 16])
+ * This function checkes the equality by looking at the lowered string format of states.
+ * If two states with different transform history have the same lowered string format,
+ * they will be considered being equal.
  */
 template <>
 struct equal_to<::tvm::auto_scheduler::State> {
   bool operator()(const ::tvm::auto_scheduler::State& lhs,
                   const ::tvm::auto_scheduler::State& rhs) const {
     return lhs.ToStr() == rhs.ToStr();
+  }
+};
+
+/*! \brief The hash function for auto_scheduler::State. */
+template <>
+struct hash<::tvm::auto_scheduler::State> {
+  std::size_t operator()(const ::tvm::auto_scheduler::State& state) const {
+    return tvm::runtime::ObjectHash()(state.ToStr());
   }
 };
 

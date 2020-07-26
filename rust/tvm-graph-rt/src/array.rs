@@ -19,11 +19,12 @@
 
 use std::{convert::TryFrom, mem, os::raw::c_void, ptr, slice};
 
-use failure::{ensure, Error};
 use ndarray;
 use tvm_sys::{ffi::DLTensor, Context, DataType};
 
 use crate::allocator::Allocation;
+use crate::errors::ArrayError;
+use std::alloc::LayoutErr;
 
 /// A `Storage` is a container which holds `Tensor` data.
 #[derive(PartialEq)]
@@ -36,7 +37,7 @@ pub enum Storage<'a> {
 }
 
 impl<'a> Storage<'a> {
-    pub fn new(size: usize, align: Option<usize>) -> Result<Storage<'static>, Error> {
+    pub fn new(size: usize, align: Option<usize>) -> Result<Storage<'static>, LayoutErr> {
         Ok(Storage::Owned(Allocation::new(size, align)?))
     }
 
@@ -297,13 +298,11 @@ impl<'a> Tensor<'a> {
 macro_rules! impl_ndarray_try_from_tensor {
     ($type:ty, $dtype:expr) => {
         impl<'t> TryFrom<Tensor<'t>> for ndarray::ArrayD<$type> {
-            type Error = Error;
-            fn try_from(tensor: Tensor) -> Result<ndarray::ArrayD<$type>, Error> {
-                ensure!(
-                    tensor.dtype == $dtype,
-                    "Cannot convert Tensor with dtype {:?} to ndarray",
-                    tensor.dtype
-                );
+            type Error = ArrayError;
+            fn try_from(tensor: Tensor) -> Result<ndarray::ArrayD<$type>, Self::Error> {
+                if tensor.dtype != $dtype {
+                    return Err(ArrayError::IncompatibleDataType(tensor.dtype));
+                }
                 Ok(ndarray::Array::from_shape_vec(
                     tensor
                         .shape
@@ -311,7 +310,8 @@ macro_rules! impl_ndarray_try_from_tensor {
                         .map(|s| *s as usize)
                         .collect::<Vec<usize>>(),
                     tensor.to_vec::<$type>(),
-                )?)
+                )
+                .map_err(|_| ArrayError::ShapeError(tensor.shape.clone()))?)
             }
         }
     };

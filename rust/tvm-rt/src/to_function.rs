@@ -49,85 +49,6 @@ pub trait Typed<I, O> {
     fn ret(o: O) -> Result<RetValue>;
 }
 
-impl<F, O, E> Typed<(), O> for F
-where
-    F: Fn() -> O,
-    Error: From<E>,
-    O: TryInto<RetValue, Error = E>,
-{
-    fn args(_args: Vec<ArgValue<'static>>) -> Result<()> {
-        debug_assert!(_args.len() == 0);
-        Ok(())
-    }
-
-    fn ret(o: O) -> Result<RetValue> {
-        o.try_into().map_err(|e| e.into())
-    }
-}
-
-impl<F, A, O, E1, E2> Typed<(A,), O> for F
-where
-    F: Fn(A) -> O,
-    Error: From<E1>,
-    Error: From<E2>,
-    A: TryFrom<ArgValue<'static>, Error = E1>,
-    O: TryInto<RetValue, Error = E2>,
-{
-    fn args(args: Vec<ArgValue<'static>>) -> Result<(A,)> {
-        debug_assert!(args.len() == 1);
-        let a: A = args[0].clone().try_into()?;
-        Ok((a,))
-    }
-
-    fn ret(o: O) -> Result<RetValue> {
-        o.try_into().map_err(|e| e.into())
-    }
-}
-
-impl<F, A, B, O, E1, E2> Typed<(A, B), O> for F
-where
-    F: Fn(A, B) -> O,
-    Error: From<E1>,
-    Error: From<E2>,
-    A: TryFrom<ArgValue<'static>, Error = E1>,
-    B: TryFrom<ArgValue<'static>, Error = E1>,
-    O: TryInto<RetValue, Error = E2>,
-{
-    fn args(args: Vec<ArgValue<'static>>) -> Result<(A, B)> {
-        debug_assert!(args.len() == 2);
-        let a: A = args[0].clone().try_into()?;
-        let b: B = args[1].clone().try_into()?;
-        Ok((a, b))
-    }
-
-    fn ret(o: O) -> Result<RetValue> {
-        o.try_into().map_err(|e| e.into())
-    }
-}
-
-impl<F, A, B, C, O, E1, E2> Typed<(A, B, C), O> for F
-where
-    F: Fn(A, B, C) -> O,
-    Error: From<E1>,
-    Error: From<E2>,
-    A: TryFrom<ArgValue<'static>, Error = E1>,
-    B: TryFrom<ArgValue<'static>, Error = E1>,
-    C: TryFrom<ArgValue<'static>, Error = E1>,
-    O: TryInto<RetValue, Error = E2>,
-{
-    fn args(args: Vec<ArgValue<'static>>) -> Result<(A, B, C)> {
-        debug_assert!(args.len() == 3);
-        let a: A = args[0].clone().try_into()?;
-        let b: B = args[1].clone().try_into()?;
-        let c: C = args[2].clone().try_into()?;
-        Ok((a, b, c))
-    }
-
-    fn ret(o: O) -> Result<RetValue> {
-        o.try_into().map_err(|e| e.into())
-    }
-}
-
 pub trait ToFunction<I, O>: Sized {
     type Handle;
 
@@ -269,95 +190,100 @@ impl ToFunction<Vec<ArgValue<'static>>, RetValue>
     fn drop(_: *mut Self::Handle) {}
 }
 
-impl<O, F> ToFunction<(), O> for F
-where
-    F: Fn() -> O + 'static,
-{
-    type Handle = Box<dyn Fn() -> O + 'static>;
+macro_rules! impl_typed_and_to_function {
+    ($len:literal; $($t:ident),*) => {
+        impl<F, Out, $($t),*> Typed<($($t,)*), Out> for F
+        where
+            F: Fn($($t),*) -> Out,
+            Out: TryInto<RetValue>,
+            Error: From<Out::Error>,
+            $( $t: TryFrom<ArgValue<'static>>,
+               Error: From<$t::Error>, )*
+        {
+            #[allow(non_snake_case, unused_variables, unused_mut)]
+            fn args(args: Vec<ArgValue<'static>>) -> Result<($($t,)*)> {
+                if args.len() != $len {
+                    return Err(Error::CallFailed(format!("{} expected {} arguments, got {}.\n",
+                                                         std::any::type_name::<Self>(),
+                                                         $len, args.len())))
+                }
+                let mut args = args.into_iter();
+                $(let $t = args.next().unwrap().try_into()?;)*
+                Ok(($($t,)*))
+            }
 
-    fn into_raw(self) -> *mut Self::Handle {
-        let ptr: Box<Self::Handle> = Box::new(Box::new(self));
-        Box::into_raw(ptr)
-    }
+            fn ret(out: Out) -> Result<RetValue> {
+                out.try_into().map_err(|e| e.into())
+            }
+        }
 
-    fn call(handle: *mut Self::Handle, _: Vec<ArgValue<'static>>) -> Result<RetValue>
-    where
-        F: Typed<(), O>,
-    {
-        // Ideally we shouldn't need to clone, probably doesn't really matter.
-        let out = unsafe { (*handle)() };
-        F::ret(out)
-    }
 
-    fn drop(_: *mut Self::Handle) {}
-}
-
-macro_rules! to_function_instance {
-    ($(($param:ident,$index:tt),)+) => {
-        impl<F, $($param,)+ O> ToFunction<($($param,)+), O> for
-        F where F: Fn($($param,)+) -> O + 'static {
-            type Handle = Box<dyn Fn($($param,)+) -> O + 'static>;
+        impl<F, $($t,)* Out> ToFunction<($($t,)*), Out> for F
+        where
+            F: Fn($($t,)*) -> Out + 'static
+        {
+            type Handle = Box<dyn Fn($($t,)*) -> Out + 'static>;
 
             fn into_raw(self) -> *mut Self::Handle {
                 let ptr: Box<Self::Handle> = Box::new(Box::new(self));
                 Box::into_raw(ptr)
             }
 
-            fn call(handle: *mut Self::Handle, args: Vec<ArgValue<'static>>) -> Result<RetValue> where F: Typed<($($param,)+), O> {
-                // Ideally we shouldn't need to clone, probably doesn't really matter.
-                let args = F::args(args)?;
-                let out = unsafe {
-                    (*handle)($(args.$index),+)
-                };
+            #[allow(non_snake_case)]
+            fn call(handle: *mut Self::Handle, args: Vec<ArgValue<'static>>) -> Result<RetValue>
+            where
+                F: Typed<($($t,)*), Out>
+            {
+                let ($($t,)*) = F::args(args)?;
+                let out = unsafe { (*handle)($($t),*) };
                 F::ret(out)
             }
 
-            fn drop(_: *mut Self::Handle) {}
+            fn drop(ptr: *mut Self::Handle) {
+                let bx = unsafe { Box::from_raw(ptr) };
+                std::mem::drop(bx)
+            }
         }
     }
 }
 
-to_function_instance!((A, 0),);
-to_function_instance!((A, 0), (B, 1),);
-to_function_instance!((A, 0), (B, 1), (C, 2),);
-to_function_instance!((A, 0), (B, 1), (C, 2), (D, 3),);
+impl_typed_and_to_function!(0;);
+impl_typed_and_to_function!(1; A);
+impl_typed_and_to_function!(2; A, B);
+impl_typed_and_to_function!(3; A, B, C);
+impl_typed_and_to_function!(4; A, B, C, D);
+impl_typed_and_to_function!(5; A, B, C, D, E);
 
 #[cfg(test)]
 mod tests {
-    use super::{Function, ToFunction, Typed};
+    use super::*;
 
-    fn zero() -> i32 {
-        10
-    }
-
-    fn helper<F, I, O>(f: F) -> Function
+    fn call<F, I, O>(f: F, args: Vec<ArgValue<'static>>) -> Result<RetValue>
     where
         F: ToFunction<I, O>,
         F: Typed<I, O>,
     {
-        f.to_function()
+        F::call(f.into_raw(), args)
     }
 
     #[test]
     fn test_to_function0() {
-        helper(zero);
-    }
-
-    fn one_arg(i: i32) -> i32 {
-        i
-    }
-
-    #[test]
-    fn test_to_function1() {
-        helper(one_arg);
-    }
-
-    fn two_arg(i: i32, j: i32) -> i32 {
-        i + j
+        fn zero() -> i32 {
+            10
+        }
+        let _ = zero.to_function();
+        let good = call(zero, vec![]).unwrap();
+        assert_eq!(i32::try_from(good).unwrap(), 10);
+        let bad = call(zero, vec![1.into()]).unwrap_err();
+        assert!(matches!(bad, Error::CallFailed(..)));
     }
 
     #[test]
     fn test_to_function2() {
-        helper(two_arg);
+        fn two_arg(i: i32, j: i32) -> i32 {
+            i + j
+        }
+        let good = call(two_arg, vec![3.into(), 4.into()]).unwrap();
+        assert_eq!(i32::try_from(good).unwrap(), 7);
     }
 }

@@ -128,6 +128,24 @@ inline std::vector<int> IntArrayToVector(
   return out;
 }
 
+/*! \brief Return whether two int arrays are elementwise-equal */
+inline bool IntArrayEqual(const Array<PrimExpr>& arr1, const Array<PrimExpr>& arr2) {
+  if (arr1.size() != arr2.size()) {
+    return false;
+  }
+
+  for (size_t i = 0; i < arr1.size(); ++i) {
+    auto int1 = arr1[i].as<IntImmNode>();
+    auto int2 = arr2[i].as<IntImmNode>();
+    CHECK(int1 != nullptr);
+    CHECK(int2 != nullptr);
+    if (int1->value != int2->value) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /********** Utilities for TVM Containers / ByteArray **********/
 /*! \brief Compute mean of a FloatImm array */
 inline double FloatArrayMean(const Array<PrimExpr>& float_array) {

@@ -55,8 +55,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         code, lib = exe.save()
         lib = update_lib(lib)
         exe = runtime.vm.Executable.load_exec(code, lib)
-        vm = runtime.vm.VirtualMachine(exe)
-        vm.init(ctx)
+        vm = runtime.vm.VirtualMachine(exe, ctx)
         out = vm.run(**map_inputs)
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 

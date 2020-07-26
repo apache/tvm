@@ -22,9 +22,10 @@
  * \brief Json serialization format for dumping and loading tuning records.
  */
 
-#include "measure_record.h"
-
 #include <dmlc/json.h>
+#include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/measure_record.h>
+#include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/registry.h>
 
 #include <fstream>
@@ -33,8 +34,6 @@
 #include <utility>
 #include <vector>
 
-#include "loop_state.h"
-#include "transform_step.h"
 #include "utils.h"
 
 // Json serialization handler for MeasureInput, MeasureResult

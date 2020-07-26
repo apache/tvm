@@ -22,8 +22,7 @@
  * \brief Distributed measurement infrastructure to measure the runtime costs of tensor programs.
  */
 
-#include "measure.h"
-
+#include <tvm/auto_scheduler/measure.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>

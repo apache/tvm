@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file auto_scheduler/search_policy/search_policy.h
+ * \file tvm/auto_scheduler/search_policy.h
  * \brief The base class of search policies, including the abstract definition of search policy and
  * other supporting data structures.
  *
- * The basic schedule search process for TVM Auto-scheduler is design to be:
+ * The basic schedule search process for the auto-scheduler is design to be:
  * `Program sampling` -> `Performance Tuning`.
  *
  * In `Program sampling`, we use some predefined precise or heuristic rules to generate several
@@ -31,7 +31,7 @@
  *
  * Candidate schedules are measured against the specific hardware target.
  *
- * \note Adding a new search policy.
+ * \note How to add a new search policy.
  * In design, there's no need for users to implement their own search policy, our formal search
  * policy(will be brought later) should be enough to cover most use cases. Meanwhile, a custom rule
  * mechanism will be provided to enable user-defined template search to serve the same functionality
@@ -48,15 +48,14 @@
  * during the search process.
  */
 
-#ifndef TVM_AUTO_SCHEDULER_SEARCH_POLICY_SEARCH_POLICY_H_
-#define TVM_AUTO_SCHEDULER_SEARCH_POLICY_SEARCH_POLICY_H_
+#ifndef TVM_AUTO_SCHEDULER_SEARCH_POLICY_H_
+#define TVM_AUTO_SCHEDULER_SEARCH_POLICY_H_
 
+#include <tvm/auto_scheduler/search_task.h>
 #include <tvm/node/node.h>
 
 #include <unordered_set>
 #include <vector>
-
-#include "../search_task.h"
 
 namespace tvm {
 namespace auto_scheduler {
@@ -110,16 +109,16 @@ class SearchPolicyNode : public Object {
 
   /*!
    * \brief Do schedule search for a task. Takes the SearchTask as input and returns the best state
-   * get during the search process.
-   * \param task  The SearchTask or workload key for the computation declaration
-   * \param num_measure_trials Total schedules to be tried during this search.
-   * \param early_stopping Early stop if no better schedule is found.
-   * \param num_measures_per_round Max measure batch in one search round.
+   * found during the search.
+   * \param task  The SearchTask for the computation declaration
+   * \param num_measure_trials The number of total measurement trials.
+   * \param early_stopping Stops the tuning early if no improvement after n measurements.
+   * \param num_measures_per_round  The number of programs to be measured at each search round.
    * \param verbose Verbose level. 0 for silent, 1 to output information during schedule
    * search.
-   * \param measurer A ProgramMeasurer which packs ProgramBuilder & ProgramRunner inside.
+   * \param measurer A ProgramMeasurer to build and measure programs
    * \param pre_search_callbacks SearchCallback to be called before schedule search.
-   * \return The best state get.
+   * \return The best state found.
    */
   virtual State Search(SearchTask task, int num_measure_trials, int early_stopping,
                        int num_measures_per_round, int verbose, ProgramMeasurer measurer,
@@ -137,16 +136,12 @@ class SearchPolicyNode : public Object {
  protected:
   /*!
    * \brief The set of already measured states.
-   * During the schedule search process, we may generate `equal states` through different search
-   * branches. (Equal States: 1. the transform steps are totally the same; 2. even with different
-   * steps, two states may still result in a same schedule. e.g. To split a axis with extent 512
-   * to 3 parts [8, 16, 4]. We can split from inner to outter by factors [16, 4], while we can
-   * get a same result to split from outter to inner by factors [8, 16])
    * We store the string format of a state for redundancy check. This is used to make sure a
    * measured state will never be measured again.
    */
   std::unordered_set<String> measured_states_set_;
-  /*! \brief The array of already measured states. This can be used in evolutionary search. */
+  /*! \brief The array of already measured states.
+   *  The good states can be used as the initial population in evolutionary search. */
   std::vector<State> measured_states_vector_;
   /*! \brief The throughputs of already measured states */
   std::vector<float> measured_states_throughputs_;
@@ -164,4 +159,4 @@ class SearchPolicy : public ObjectRef {
 }  // namespace auto_scheduler
 }  // namespace tvm
 
-#endif  // TVM_AUTO_SCHEDULER_SEARCH_POLICY_SEARCH_POLICY_H_
+#endif  // TVM_AUTO_SCHEDULER_SEARCH_POLICY_H_
