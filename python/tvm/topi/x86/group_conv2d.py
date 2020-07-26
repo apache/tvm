@@ -1,35 +1,16 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
-# pylint: disable=invalid-name,unused-variable,unused-argument,no-member
-# pylint: disable=no-value-for-parameter,import-outside-toplevel
-"""Grouped Spatial Pack Convolution (Group Conv2D) schedule on x86"""
-
 import tvm
 from tvm import autotvm
 from tvm import te
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
-
-from .utils import get_fp32_len
-from ..utils import get_const_tuple
+from .util import get_fp32_len
+from ..util import get_const_tuple
 from ..nn.pad import pad
 from .. import tag
 
-from ..nn.utils import infer_pad
+from ..nn.conv2d import group_conv2d_nchw
+from ..nn.util import infer_pad
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
+
+from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 
 def group_conv2d_nchw(data, kernel, strides, padding, dilation, groups,
@@ -44,8 +25,8 @@ def schedule_group_conv2d_nchw(outs):
     return schedule_group_conv2d_nchwc(outs)
 
 
-def _get_default_config(cfg, data, kernel, strides, padding, groups,
-                        out_dtype, layout='NCHW'):
+def _get_default_config(cfg, data, kernel, strides, padding, groups, out_dtype,
+                        layout='NCHW'):
     """
     Get default schedule config for the workload
     """
@@ -64,28 +45,24 @@ def _get_default_config(cfg, data, kernel, strides, padding, groups,
 
 def _fallback_schedule(cfg, wkl):
     simd_width = get_fp32_len()
-    hpad = wkl.hpad
-    stride_w = wkl.wstride
-    out_width = (wkl.width + 2*hpad - wkl.wkernel) // stride_w + 1
-    groups = wkl.groups
-    kernels_per_group = wkl.out_filter // groups
-    kernel_depth = wkl.in_filter // groups
-
+    HPAD, WPAD = wkl.hpad, wkl.wpad
+    HSTR, WSTR = wkl.hstride, wkl.wstride
+    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
+    G = wkl.groups
+    KPG = wkl.out_filter // G
+    CPG = wkl.in_filter // G
     oc_bn = 1
+
     for bn in range(simd_width, 0, -1):
-        if kernels_per_group % bn == 0:
+        if KPG % bn == 0:
             oc_bn = bn
             break
-    if oc_bn > kernels_per_group:
-        oc_bn = kernels_per_group
 
     ic_bn = 1
     for bn in range(oc_bn, 0, -1):
-        if kernel_depth % bn == 0:
+        if CPG % bn == 0:
             ic_bn = bn
             break
-    if ic_bn > kernel_depth:
-        ic_bn = kernel_depth
 
     reg_n = 1
     for n in range(31, 0, -1):
@@ -102,10 +79,6 @@ def _fallback_schedule(cfg, wkl):
 @autotvm.register_topi_compute("group_conv2d_nchw.x86")
 def group_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding,
                                    dilation, groups, out_dtype='float32'):
-    """
-    Compute group conv2d with NCHW layout, using GSPC algorithm.
-    https://arxiv.org/abs/2006.09791
-    """
     assert isinstance(dilation, int) or len(dilation) == 2
     if isinstance(dilation, int):
         dilation_h, dilation_w = dilation, dilation
@@ -114,94 +87,87 @@ def group_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding,
 
     assert isinstance(padding, int) or len(padding) == 2 or len(padding) == 4
     if isinstance(padding, int):
-        pad_top, pad_left, pad_bottom, pad_right = padding, padding, padding, padding
+        HPAD, WPAD = padding, padding
     elif len(padding) == 2:
-        hpad, wpad = padding
-        pad_top, pad_bottom = hpad, hpad
-        pad_left, pad_right = wpad, wpad
+        HPAD, WPAD = padding
     else:
-        pad_top, pad_left, pad_bottom, pad_right = padding
-
-    hpad = pad_top + pad_bottom
-    wpad = pad_left + pad_right
+        HPAD, _, WPAD, _ = padding
 
     assert isinstance(strides, int) or len(strides) == 2
     if isinstance(strides, int):
-        stride_h, stride_w = strides, strides
+        HSTR, WSTR = strides, strides
     else:
-        stride_h, stride_w = strides
+        HSTR, WSTR = strides
 
-    batch_size, in_channel, in_height, in_width = get_const_tuple(data.shape)
-    out_channel, kernel_depth, k_height, k_width = get_const_tuple(kernel.shape)
+    N, CI, IH, IW = get_const_tuple(data.shape)
+    CO, CIG, KH, KW = get_const_tuple(kernel.shape)
 
-    pad_height = in_height + pad_top + pad_bottom
-    pad_width = in_width + pad_left + pad_right
+    pad_height = IH + 2 * HPAD
+    pad_width = IW + 2 * WPAD
 
-    dilated_kernel_h = (k_height - 1) * dilation_h + 1
-    dilated_kernel_w = (k_width - 1) * dilation_w + 1
-    out_height = (in_height + pad_top + pad_bottom - dilated_kernel_h) // stride_h + 1
-    out_width = (in_width + pad_left + pad_right - dilated_kernel_w) // stride_w + 1
+    dilated_kernel_h = (KH - 1) * dilation_h + 1
+    dilated_kernel_w = (KW - 1) * dilation_w + 1
+    OH = (IH + 2 * HPAD - dilated_kernel_h) // HSTR + 1
+    OW = (IW + 2 * WPAD - dilated_kernel_w) // WSTR + 1
 
-    kernels_per_group = out_channel // groups
+    G = groups
+    KPG = CO // G
+    CPG = CI // G
 
-    cfg.define_split("tile_ic", in_channel, num_outputs=2)
-    cfg.define_split("tile_oc", out_channel, num_outputs=2)
-    cfg.define_split("tile_ow", out_width, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
+    cfg.define_split("tile_ic", CI, num_outputs=2)
+    cfg.define_split("tile_oc", CO, num_outputs=2)
+    cfg.define_split("tile_ow", OW, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
     cfg.define_knob("unroll_kw", [True, False])
 
     # If no config was set, we can fallback to default config.
     if cfg.is_fallback:
-        _get_default_config(cfg, te.placeholder((batch_size, in_channel, in_height, in_width),
-                                                dtype=data.dtype),
-                            te.placeholder((out_channel, in_channel // groups, k_height, k_width),
+        _get_default_config(cfg, te.placeholder((N, CI, IH, IW), dtype=data.dtype),
+                            te.placeholder((N, CI // G, KH, KW),
                                            dtype=kernel.dtype),
                             strides, padding, groups, out_dtype)
 
     oc_bn = cfg['tile_oc'].size[-1]
     ic_bn = cfg['tile_ic'].size[-1]
     # pack data
-    DOPAD = (hpad != 0 or wpad != 0)
+    DOPAD = (HPAD != 0 or WPAD != 0)
     if DOPAD:
-        data_pad = pad(data,
-                       (0, 0, pad_top, pad_left),
-                       (0, 0, pad_bottom, pad_right),
-                       name="data_pad")
+        data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
     else:
         data_pad = data
 
-    shape = (groups, batch_size, kernel_depth // ic_bn,
+    shape = (G, N, CPG // ic_bn,
              pad_height, ic_bn, pad_width)
 
     data_vec = te.compute(shape,
                           lambda g, n, C, h, c, w:
-                          data_pad[n, C * ic_bn + c + kernel_depth * g, h, w],
+                          data_pad[n, C * ic_bn + c + CPG * g, h, w],
                           name='data_vec')
 
     # pack kernel
-    shape = (groups, kernels_per_group//oc_bn, kernel_depth//ic_bn,
-             k_height, k_width, ic_bn, oc_bn)
+    shape = (G, KPG//oc_bn, CPG//ic_bn,
+             KH, KW, ic_bn, oc_bn)
     kernel_vec = te.compute(shape,
-                            lambda g, out_channel, in_channel, h, w, ci, co:
-                            kernel[(out_channel * oc_bn + co + g * kernels_per_group),
-                                   in_channel * ic_bn + ci, h, w],
+                            lambda g, CO, CI, h, w, ci, co:
+                            kernel[(CO * oc_bn + co + g * KPG),
+                                   CI * ic_bn + ci, h, w],
                             name='kernel_vec')
 
     # convolution
-    oshape = (groups, batch_size, kernels_per_group//oc_bn,
-              out_height, out_width, oc_bn)
-    unpack_shape = (batch_size, out_channel, out_height, out_width)
+    oshape = (G, N, KPG//oc_bn,
+              OH, OW, oc_bn)
+    unpack_shape = (N, CO, OH, OW)
 
-    ic = te.reduce_axis((0, (kernel_depth)), name='ic')
-    kh = te.reduce_axis((0, k_height), name='kh')
-    kw = te.reduce_axis((0, k_width), name='kw')
+    ic = te.reduce_axis((0, (CPG)), name='ic')
+    kh = te.reduce_axis((0, KH), name='kh')
+    kw = te.reduce_axis((0, KW), name='kw')
     idxmod = tvm.tir.indexmod
     idxdiv = tvm.tir.indexdiv
 
     conv = te.compute(oshape, lambda g, n, oc_chunk, oh, ow, oc_block:
                       te.sum(data_vec[g, n, idxdiv(ic, ic_bn),
-                                      oh * stride_h + kh * dilation_h,
+                                      oh*HSTR+kh*dilation_h,
                                       idxmod(ic, ic_bn),
-                                      ow * stride_w + kw * dilation_w].astype(out_dtype) *
+                                      ow*WSTR+kw*dilation_w].astype(out_dtype) *
                              kernel_vec[g, oc_chunk, idxdiv(ic, ic_bn),
                                         kh, kw, idxmod(ic, ic_bn),
                                         oc_block].astype(out_dtype),
@@ -209,10 +175,10 @@ def group_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding,
 
     unpack = te.compute(unpack_shape,
                         lambda n, c, h, w:
-                        conv[idxdiv(c, kernels_per_group), n,
-                             idxmod(idxdiv(c, oc_bn), (kernels_per_group // oc_bn)),
+                        conv[idxdiv(c, KPG), n,
+                             idxmod(idxdiv(c, oc_bn), (KPG // oc_bn)),
                              h, w,
-                             idxmod(idxmod(c, oc_bn), kernels_per_group)]
+                             idxmod(idxmod(c, oc_bn), KPG)]
                         .astype(out_dtype),
                         name='output_unpack',
                         tag='group_conv2d_nchw')
@@ -252,9 +218,12 @@ def schedule_group_conv2d_nchwc(cfg, outs):
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 
+            _, c, h, w = get_const_tuple(data.shape)
+            _, x, kh, kw = get_const_tuple(kernel.shape)
+
             args = [s, cfg, data, data_pad, data_vec, kernel_vec, conv_out,
                     output, outs[0]]
-            _schedule_gspc_nchw(*args)
+            schedule_conv_sp_grouped(*args)
 
         scheduled_ops.append(op)
 
@@ -262,25 +231,25 @@ def schedule_group_conv2d_nchwc(cfg, outs):
     return s
 
 
-def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec,
-                        conv_out, output, last):
-    """Schedule GSPC"""
+def schedule_conv_sp_grouped(s, cfg, data, data_pad, data_vec, kernel_vec,
+                             conv_out, output, last,
+                             **kwargs):
+    # fetch schedule
     ic_bn, oc_bn, reg_n, unroll_kw = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
                                       cfg["tile_ow"].size[-1], cfg["unroll_kw"].val)
 
     # no stride and padding info here
     padding = infer_pad(data, data_pad)
-    hpad, wpad = padding
-    DOPAD = (hpad != 0 or wpad != 0)
+    HPAD, WPAD = padding
+    DOPAD = (HPAD != 0 or WPAD != 0)
 
-    _, W = data, kernel_vec
+    A, W = data, kernel_vec
     A0, A1 = data_pad, data_vec
 
     # schedule data
     if DOPAD:
         s[A0].compute_inline()
-
-    groups, batch, ic_chunk, ih, ic_block, _ = s[A1].op.axis
+    groups, batch, ic_chunk, ih, ic_block, iw = s[A1].op.axis
 
     parallel_axis = s[A1].fuse(batch, ic_chunk, ih)
     s[A1].parallel(parallel_axis)
@@ -322,7 +291,6 @@ def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec,
                       ow_block, oc_block)
 
     parallel_axis = s[CC].fuse(groups, batch, oc_chunk, oh)
-
     s[CC].parallel(parallel_axis)
 
     s[CC].vectorize(oc_block)
