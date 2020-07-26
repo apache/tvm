@@ -488,6 +488,19 @@ def ToANormalForm():
     """
     return _ffi_api.ToANormalForm()
 
+def ToBasicBlockNormalForm():
+    """Turn Graph Normal Form expression into A Normal Form Expression.
+    The scope of the root expression is the global scope.
+    The scope of any non root expression is the least common ancestor of all it's scope.
+    Values are ordered by post-DFS order in each scope.
+
+    Returns
+    -------
+    ret: Union[tvm.transform.Pass, tvm.relay.Expr]
+        The registered pass that transforms an expression into A Normal Form.
+    """
+    return _ffi_api.ToBasicBlockNormalForm()
+
 
 def ToCPS(expr, mod=None):
     """
