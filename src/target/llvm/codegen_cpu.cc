@@ -31,7 +31,6 @@
 #include <memory>
 #include <unordered_map>
 
-#include "../../support/hexdump.h"
 #include "../func_registry_generator.h"
 
 namespace tvm {
