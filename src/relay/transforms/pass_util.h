@@ -31,6 +31,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include "let_list.h"
 #include "../analysis/dependency_graph.h"
 

@@ -43,7 +43,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
   static Expr ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
                             std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-			    std::unordered_set<DependencyGraph::Node*>* lifted) {
+                            std::unordered_set<DependencyGraph::Node*>* lifted) {
     FillBasicBlock fi(dg, node_scope, lifted);
     auto var = fi.VisitExpr(e);
     auto scope = fi.GetScope(e);
@@ -57,7 +57,8 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
   std::unordered_set<DependencyGraph::Node*>* lifted_;
   std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> memo;
 
-  FillBasicBlock(const DependencyGraph& dg, std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
+  FillBasicBlock(const DependencyGraph& dg,
+                 std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
 		 std::unordered_set<DependencyGraph::Node*>* lifted)
       : dg_(dg), node_scope_(node_scope), lifted_(lifted) {}
 
@@ -79,7 +80,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
     DLOG(INFO) << "Begin VisitExpr " << e << " ( var = " << v << ")";
     if (memo.count(e) == 0) {
       memo.insert({e, ExprFunctor<Expr(const Expr&, const Var&)>::VisitExpr(e, v)});
-      DLOG(INFO) << "Inserted a new entry to memo: " << e << " (var = " << v << ") -> " << memo.at(e);
+      DLOG(INFO) << "Inserted an entry to memo: " << e << " (var = " << v << ") -> " << memo.at(e);
     } else if (v.defined()) {
       GetScope(e)->ll->Push(v, memo.at(e));
     }
@@ -207,7 +208,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 };
 
 Expr ToBasicBlockNormalFormAux(const Expr& e) {
-   // calculate all the dependency between nodes.
+  // calculate all the dependency between nodes.
   support::Arena arena;
   DependencyGraph dg = DependencyGraph::Create(&arena, e);
   /* In order to model new subscopes created by lambda, if else and pattern matching,
@@ -217,8 +218,7 @@ Expr ToBasicBlockNormalFormAux(const Expr& e) {
    * So, the scope of the whole expr is global.
    * The scope of any subexpr, is the lowest common ancestor of all incoming edge.
    *
-   * Every scope additionally contain a LetList which collect all value of that scope.
-   * We do an additional pass to fill all the LetList and we are done.
+   * TODO: update doc
    */
   std::unordered_set<DependencyGraph::Node*> lifted;
   std::unordered_map<DependencyGraph::Node*, Scope> node_scope = CalcScope(dg, &lifted);
