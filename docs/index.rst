@@ -18,43 +18,75 @@
 TVM Documentation
 =================
 
+TVM is an open deep learning compiler stack for CPUs, GPUs, and specialized accelerators. It aims to close the gap between the productivity-focused deep learning frameworks, and the performance- or efficiency-oriented hardware backends.
+
+
 Get Started
 -----------
+
+- Follow the :doc:`instructions <install/index>` to install TVM.
+- Checkout the :doc:`Tutorials <tutorials/index>`.
+
+For Developers
+--------------
+
+- :doc:`dev/index` is useful for developers who want to understand the
+  architecture of TVM and/or actively develop on the project.
+- :doc:`dev/how_to` gives quick development tips on various topics.
+
+
 .. toctree::
    :maxdepth: 1
+   :caption: Get Started
+   :hidden:
 
    install/index
-   tutorials/index
-   vta/index
-   deploy/index
    contribute/index
-   faq
 
-API Reference
--------------
+.. toctree::
+   :maxdepth: 1
+   :caption: Tutorials
+   :hidden:
+
+   tutorials/index
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: How-to Guide
+   :hidden:
+
+   deploy/index
+
 .. toctree::
    :maxdepth: 2
+   :caption: References
+   :hidden:
 
    langref/index
    api/python/index
    api/links
 
-Developer Guide
----------------
 .. toctree::
    :maxdepth: 2
+   :hidden:
+   :caption: For Developers
 
    dev/index
+   dev/how_to
 
-Frontends
----------
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
+   :hidden:
+   :caption: MISC
 
-   frontend/tensorflow
+   vta/index
+   faq
+
 
 Index
 -----
+
 .. toctree::
    :maxdepth: 1
 
