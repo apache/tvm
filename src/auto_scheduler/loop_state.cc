@@ -271,7 +271,6 @@ Array<Iterator> State::split(int stage_id, const Iterator& it,
 Array<Iterator> State::follow_split(int stage_id, const Iterator& it, int src_step_id,
                                     int n_split) {
   const Stage& stage = operator->()->stages[stage_id];
-
   FollowSplitStep step =
       FollowSplitStep(stage_id, GetIndex(stage->iters, it), src_step_id, n_split);
   CopyOnWrite()->transform_steps.push_back(step);
@@ -282,7 +281,6 @@ Array<Iterator> State::follow_fused_split(int stage_id, const Iterator& it,
                                           const Array<Integer>& src_step_ids, int level,
                                           bool factor_or_nparts) {
   const Stage& stage = operator->()->stages[stage_id];
-
   FollowFusedSplitStep step = FollowFusedSplitStep(stage_id, GetIndex(stage->iters, it),
                                                    src_step_ids, level, factor_or_nparts);
   CopyOnWrite()->transform_steps.push_back(step);
@@ -485,12 +483,8 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateFollowSplit")
 TVM_REGISTER_GLOBAL("auto_scheduler.StateFollowFusedSplit")
     .set_body_typed([](State state, int stage_id, const Iterator& it,
                        const Array<IntImm>& src_step_ids, int level, bool factor_or_nparts) {
-      Array<Integer> array_src_step_ids;
-      for (const auto& i : src_step_ids) {
-        array_src_step_ids.push_back(i->value);
-      }
       const auto& res =
-          state.follow_fused_split(stage_id, it, array_src_step_ids, level, factor_or_nparts);
+          state.follow_fused_split(stage_id, it, src_step_ids, level, factor_or_nparts);
       return Array<ObjectRef>{state, Array<Iterator>(res)};
     });
 

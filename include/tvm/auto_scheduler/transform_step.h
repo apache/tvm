@@ -648,7 +648,7 @@ class FollowFusedSplitStep : public Step {
   TVM_DEFINE_OBJECT_REF_METHODS(FollowFusedSplitStep, Step, FollowFusedSplitStepNode);
 };
 
-/********** Primitives working on multiple stages **********/
+/********** Steps working on multiple stages **********/
 
 /*! \brief Compute at step that corresponds to te::Stage::compute_at */
 class ComputeAtStepNode : public StepNode {

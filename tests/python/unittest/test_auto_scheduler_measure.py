@@ -27,7 +27,7 @@ from test_auto_scheduler_common import matmul_auto_scheduler_test, get_tiled_mat
 def test_record():
     if not tvm.runtime.enabled("llvm"):
         return
-    #pdb.set_trace()
+
     A = te.placeholder((512, 512), name='A')
     B = te.placeholder((512, 512), name='B')
     k = te.reduce_axis((0, 512), name='k')

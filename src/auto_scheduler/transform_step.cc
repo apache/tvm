@@ -971,7 +971,7 @@ String FollowFusedSplitStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                factor_or_nparts);
 }
 
-/********** Primitives working on multiple stages **********/
+/********** Steps working on multiple stages **********/
 
 /********** Compute At **********/
 ComputeAtStep::ComputeAtStep(int stage_id, int target_stage_id, int target_iter_id) {
