@@ -86,7 +86,7 @@ enum TokenType {
   Match,
   PartialMatch,
   Metadata,
-  MetaRef,
+  MetaReference,
   Unknown,
   EndOfFile,
   Null,
@@ -190,8 +190,8 @@ std::string ToString(const TokenType& token_type) {
       return "Boolean";
     case TokenType::Metadata:
       return "Metadata";
-    case TokenType::MetaRef:
-      return "MetaRef";
+    case TokenType::MetaReference:
+      return "MetaReference";
     case TokenType::Unknown:
       return "Unknown";
     case TokenType::EndOfFile:
@@ -297,7 +297,7 @@ std::string Pretty(const TokenType& token_type) {
       return "boolean";
     case TokenType::Metadata:
       return "metadata section";
-    case TokenType::MetaRef:
+    case TokenType::MetaReference:
       return "`meta`";
     case TokenType::Match:
       return "`match`";

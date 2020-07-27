@@ -42,13 +42,6 @@ namespace parser {
 using namespace relay;
 using Expr = relay::Expr;
 
-MetaRefExpr::MetaRefExpr(std::string type_key, uint64_t node_index) {
-  auto rnode = make_object<MetaRefExprNode>();
-  rnode->type_key = type_key;
-  rnode->node_index = node_index;
-  data_ = std::move(rnode);
-}
-
 /*! \brief A wrapper structure for capturing the result of parsing
  * a global definition *before* we add it to the IRModule.
  *
@@ -1234,8 +1227,8 @@ class Parser {
           Consume(TokenType::Graph);
           return LookupGraphBinding(next);
         }
-        case TokenType::MetaRef: {
-          Consume(TokenType::MetaRef);
+        case TokenType::MetaReference: {
+          Consume(TokenType::MetaReference);
           return Downcast<Expr>(next->data);
         }
         case TokenType::Fn: {

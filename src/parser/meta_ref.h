@@ -25,13 +25,30 @@
 #ifndef TVM_PARSER_META_REF_H_
 #define TVM_PARSER_META_REF_H_
 
+
+#include <tvm/ir/attrs.h>
 #include <tvm/relay/expr.h>
+
 #include <string>
 
 namespace tvm {
 namespace parser {
 
 using namespace relay;
+
+/*!
+ * \brief Options for allocating storage.
+ */
+struct MetaRefAttrs : public tvm::AttrsNode<MetaRefAttrs> {
+  std::string type_key;
+  uint64_t node_index;
+
+  TVM_DECLARE_ATTRS(MetaRefAttrs, "relay.attrs.MetaRefAttrs") {
+    TVM_ATTR_FIELD(type_key)
+        .describe("The type_key representing the type of the node referenced.");
+    TVM_ATTR_FIELD(node_index).describe("The index into the type specific node array.");
+  }
+};
 
 /*! \brief A reference to a "meta-expression".
  *
@@ -50,35 +67,12 @@ using namespace relay;
  * For example the nth large constant will be pretty-printed as meta[relay.Constant][n]
  * with its compact binary serialization residing in the metadata section at the end
  * of the program.
+ *
+ * \param type_key The type key of the object in the meta section.
+ * \param kind The index into that subfield.
+ * \returns The meta table reference.
  */
-class MetaRefExprNode : public TempExprNode {
- public:
-  /*! \brief The type key of the meta expression. */
-  std::string type_key;
-  /*! \brief The index into the type key's table. */
-  uint64_t node_index;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {}
-
-  // TODO(@jroesch): we probably will need to manually
-  // expand these with a pass.
-  Expr Realize() const final { return Expr(); }
-
-  static constexpr const char* _type_key = "relay.MetaRefExpr";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MetaRefExprNode, TempExprNode);
-};
-
-class MetaRefExpr : public TempExpr {
- public:
-  /*!
-   * \brief The constructor for MetaRefExpr
-   * \param type_key The type key of the object in the meta section.
-   * \param kind The index into that subfield.
-   */
-  TVM_DLL MetaRefExpr(std::string type_key, uint64_t node_index);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(MetaRefExpr, TempExpr, MetaRefExprNode);
-};
+Expr MetaRef(std::string type_key, uint64_t node_index);
 
 }  // namespace parser
 }  // namespace tvm

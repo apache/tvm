@@ -257,9 +257,7 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
 
   Doc printed_expr;
 
-  if (auto meta_ref = expr.as<parser::MetaRefExprNode>()) {
-    printed_expr << "meta[" << meta_ref->type_key << "]" << "[" << meta_ref->node_index << "]";
-  } else if (meta) {
+  if (meta) {
     printed_expr = meta_->GetMetaNode(GetRef<ObjectRef>(expr.get()));
   } else if (!inline_expr && expr.as<LetNode>()) {
     // wrap GNFed let in brackets

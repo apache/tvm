@@ -34,6 +34,7 @@
 #include <vector>
 
 #include "./token.h"
+#include "./meta_ref.h"
 
 namespace tvm {
 namespace parser {
@@ -211,7 +212,7 @@ struct Tokenizer {
     std::cout << "NUmber: " << str_index.str() << std::endl;
     // todo: add error handling around bad indices
     auto index = ParseNumber(true, false, str_index.str()).ToNumber();
-    return Token(line, column, TokenType::MetaRef, MetaRefExpr(type_key.str(), index));
+    return Token(line, column, TokenType::MetaReference, MetaRef(type_key.str(), index));
   }
 
   inline Token TokenizeOnce() {
