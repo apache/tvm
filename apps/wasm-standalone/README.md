@@ -34,7 +34,6 @@
         - [Native TVM Rust runtime support](#native-tvm-rust-runtime-support)
     - [Appendix](#appendix)
         - [System packages install](#system-packages-install)
-    - [Contribution](#contribution)
 
 ## Motivation
 
@@ -201,7 +200,3 @@ TODO
     ```shell
     curl https://sh.rustup.rs -sSf | sh
     ```
-
-## Contribution
-
-Lastly very thanks [@kazum](https://github.com/kazum) for having offered a lot of help when implementing this project.
