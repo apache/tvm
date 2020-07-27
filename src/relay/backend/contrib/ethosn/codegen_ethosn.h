@@ -197,6 +197,7 @@ class ConstructNetworkVisitor : public MixedModeVisitor, private ErrorReportingP
   void VisitLeaf(const Expr& expr) final;
 
   // Make a support library operand from a Call
+  EthosnError MakeConvolutionLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeConcatenateLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeSplitLayer(const Call& call, sl::TensorsAndId* outs);
 

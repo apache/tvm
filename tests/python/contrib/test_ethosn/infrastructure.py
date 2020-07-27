@@ -94,6 +94,8 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
                 f = relay.build_module.bind_params_by_name(mod["main"], params)
                 mod = tvm.IRModule()
                 mod["main"] = f
+                pattern = get_pattern_table("ethos-n")
+                mod = relay.transform.MergeComposite(pattern)(mod)
                 mod = relay.transform.AnnotateTarget("ethos-n")(mod)
                 mod = relay.transform.MergeCompilerRegions()(mod)
                 mod = relay.transform.PartitionGraph()(mod)
@@ -158,6 +160,26 @@ def inference_result(checksum, outputs):
             "relay.ethos-n.test.infra.inference_result", True):
         return _infrastructure.inference_result(checksum, *outputs)
     return False
+
+
+def generate_trials(space, r_factor=3):
+    np.random.seed(0)
+    max_len = 1
+    for option in space:
+        max_len = max(max_len, len(option))
+
+    num_trials = r_factor * max_len
+    trials = []
+    for i in range(num_trials):
+        trial = []
+        for option in space:
+            if i % len(option) == 0:
+                np.random.shuffle(option)
+            trial.append(option[i % len(option)])
+
+        trials.append(trial)
+
+    return trials
 
 
 def test_error(mod, params, err_msg):

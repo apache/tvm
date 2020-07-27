@@ -50,6 +50,16 @@ bool IsEthosnOp(const Call& call, const std::string& op_name) {
   }
 }
 
+bool IsEthosnFunc(const Call& call, const std::string& op_name) {
+  if (call->op->IsInstance<FunctionNode>()) {
+    Function func = Downcast<Function>(call->op);
+    CHECK(func.defined());
+    auto name_node = func->GetAttr<String>(attr::kComposite);
+    return name_node.value() == op_name;
+  }
+  return false;
+}
+
 std::map<Expr, std::vector<sl::TensorInfo>> InferTensorsVisitor::Infer(const Expr& expr) {
   tensor_table_.clear();
   CHECK(expr->checked_type().defined());
@@ -69,7 +79,11 @@ void InferTensorsVisitor::InferCall(const CallNode* cn) {
   EthosnError err;
   Call call = GetRef<Call>(cn);
   // Determine call -> NPU mapping
-  if (IsEthosnOp(call, "qnn.concatenate")) {
+  if (IsEthosnFunc(call, "ethos-n.qnn_conv2d")) {
+    ConvolutionParams params;
+    err += EthosnAPI::QnnConv2d(cn->op.as<FunctionNode>()->body, &params);
+    tensor_table_[cn->args[0]] = {params.activation_info};
+  } else if (IsEthosnOp(call, "qnn.concatenate")) {
     ConcatenateParams params;
     err = EthosnAPI::Concatenate(call, &params);
     tensor_table_[cn->args[0]] = params.input_infos;
@@ -181,7 +195,10 @@ sl::TensorsAndId ConstructNetworkVisitor::HandleCall(const CallNode* cn) {
   sl::TensorAndId<sl::Operand> tensor;
   sl::TensorsAndId tensors;
   // Determine call -> NPU mapping
-  if (IsEthosnOp(call, "qnn.concatenate")) {
+  if (IsEthosnFunc(call, "ethos-n.qnn_conv2d")) {
+    if ((err = MakeConvolutionLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
+  } else if (IsEthosnOp(call, "qnn.concatenate")) {
     if ((err = MakeConcatenateLayer(call, &tensor))) ReportFatalError(call, err);
     return MakeOps(tensor);
   } else if (IsEthosnOp(call, "split")) {
@@ -225,6 +242,28 @@ void ConstructNetworkVisitor::VisitExpr_(const TupleGetItemNode* tg) {
 void ConstructNetworkVisitor::VisitLeaf(const Expr& expr) {
   // Don't traverse into functions, they're not supported
   if (!expr->IsInstance<FunctionNode>()) MixedModeVisitor::VisitLeaf(expr);
+}
+
+EthosnError ConstructNetworkVisitor::MakeConvolutionLayer(const Call& call,
+                                                          sl::TensorAndId<sl::Operand>* out) {
+  ConvolutionParams params;
+  if (auto err = EthosnAPI::QnnConv2d(call->op.as<FunctionNode>()->body, &params)) {
+    return err;
+  }
+
+  auto activation = operand_table_[call->args[0]][0];
+  auto weights = AddConstant(network_, params.weights_info, params.raw_weights).tensor;
+  auto bias = AddConstant(network_, params.bias_info, params.raw_bias).tensor;
+  try {
+    if (params.is_depthwise) {
+      *out = AddDepthwiseConvolution(network_, *activation, *bias, *weights, params.conv_info);
+    } else {
+      *out = AddConvolution(network_, *activation, *bias, *weights, params.conv_info);
+    }
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
 }
 
 EthosnError ConstructNetworkVisitor::MakeConcatenateLayer(const Call& call,
