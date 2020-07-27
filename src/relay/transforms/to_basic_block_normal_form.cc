@@ -42,8 +42,8 @@ namespace relay {
 class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
   static Expr ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
-                            std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-                            std::unordered_set<DependencyGraph::Node*>* lifted) {
+                                     std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
+                                     std::unordered_set<DependencyGraph::Node*>* lifted) {
     FillBasicBlock fi(dg, node_scope, lifted);
     auto var = fi.VisitExpr(e);
     auto scope = fi.GetScope(e);
@@ -89,9 +89,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
     return ret;
   }
 
-  Expr VisitExpr(const Expr& e) {
-    return this->VisitExpr(e, Var());
-  }
+  Expr VisitExpr(const Expr& e) { return this->VisitExpr(e, Var()); }
 
   Expr Atomic(const Expr& e, const Var& v) { return v.defined() ? GetScope(e)->ll->Push(v, e) : e; }
 
@@ -177,7 +175,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   Expr VisitExpr_(const VarNode* vn, const Var& v) final {
     Expr e = GetRef<Expr>(vn);
-    return  Atomic(e, v);
+    return Atomic(e, v);
   }
 
   Expr VisitExpr_(const GlobalVarNode* gvn, const Var& v) final {
@@ -257,7 +255,7 @@ Pass ToBasicBlockNormalForm() {
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.ToBasicBlockNormalForm")
-.set_body_typed(ToBasicBlockNormalForm);
+    .set_body_typed(ToBasicBlockNormalForm);
 
 }  // namespace transform
 

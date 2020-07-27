@@ -111,9 +111,7 @@ class LetList {
    *
    *  \return the let list size.
    */
-  size_t size() const {
-    return lets_.size();
-  }
+  size_t size() const { return lets_.size(); }
 
   /*! \brief generate an LetList and wrap the result automatically.
    *

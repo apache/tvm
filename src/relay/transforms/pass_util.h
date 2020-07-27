@@ -32,8 +32,8 @@
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
-#include "let_list.h"
 #include "../analysis/dependency_graph.h"
+#include "let_list.h"
 
 namespace tvm {
 namespace relay {
@@ -212,8 +212,8 @@ struct ScopeNode {
  *
  *  \return the node -> scope mapping for all nodes.
  */
-std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGraph& dg,
-       std::unordered_set<DependencyGraph::Node*>* lifted_nodes);
+std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(
+    const DependencyGraph& dg, std::unordered_set<DependencyGraph::Node*>* lifted_nodes);
 
 }  // namespace relay
 }  // namespace tvm
