@@ -94,21 +94,14 @@ class LetList {
    * \brief wrap an expr around the LetList.
    *
    *  \param body the Expression to be wrapped around.
-   *  \param fold whether to fold when the body is simply a variable.
-   *  For instance, `let %x = %y; %x` will be folded as `%y`.
    *
    *  \return the wrapped expr.
    */
-  Expr Get(const Expr& body, bool fold = false) {
+  Expr Get(const Expr& body) {
     CHECK(!used_);
     Expr ret = body;
-
     for (auto rit = lets_.rbegin(); rit != lets_.rend(); ++rit) {
-      if (fold && ret == std::get<0>(*rit)) {
-        ret = std::get<1>(*rit);
-      } else {
-        ret = Let(std::get<0>(*rit), std::get<1>(*rit), ret);
-      }
+      ret = Let(std::get<0>(*rit), std::get<1>(*rit), ret);
     }
     used_ = true;
     return ret;

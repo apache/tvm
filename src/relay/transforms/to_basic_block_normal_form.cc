@@ -79,10 +79,9 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
     DLOG(INFO) << "Begin VisitExpr " << e << " ( var = " << v << ")";
     if (memo.count(e) == 0) {
       memo.insert({e, ExprFunctor<Expr(const Expr&, const Var&)>::VisitExpr(e, v)});
-      DLOG(INFO) << "inserted a new entry to memo: " << e << " (var = " << v << ") ---> " << memo.at(e);
+      DLOG(INFO) << "Inserted a new entry to memo: " << e << " (var = " << v << ") -> " << memo.at(e);
     } else if (v.defined()) {
       GetScope(e)->ll->Push(v, memo.at(e));
-      DLOG(INFO) << "pushed a new entry to ll";
     }
     auto ret = memo.at(e);
     DLOG(INFO) << "End VisitExpr " << e << " \n -> \n " << ret;
@@ -97,10 +96,9 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   // Bind expression `now` to var `v` if the original expression's scope should be lifted, or
   // if v is defined (e.g. coming from a Let expression). Otherwise return `now` directly.
-  Expr Compound(const Expr& orig, const Expr& now, const Var& v, bool force = false) {
-    if (v.defined()) force = true;
-    if (force || lifted_->find(dg_.expr_node.at(orig)) != lifted_->end()) {
-      Var var = v.defined() ? v : Var(String("x"), Type());
+  Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
+    Var var = v.defined() ? v : Var(String("x"), Type());
+    if (v.defined() || lifted_->find(dg_.expr_node.at(orig)) != lifted_->end()) {
       return GetScope(orig)->ll->Push(var, now);
     } else {
       return now;
@@ -227,11 +225,11 @@ Expr ToBasicBlockNormalFormAux(const Expr& e) {
   return FillBasicBlock::ToBasicBlockNormalForm(e, dg, &node_scope, &lifted);
 }
 
-IRModule ToBasicBlockNormalForm(const IRModule& m) {
-  DLOG(INFO) << "ToBBlock:" << std::endl << m;
+IRModule ToBasicBlockNormalForm(const IRModule& mod) {
+  DLOG(INFO) << "ToBBlock:" << std::endl << mod;
 
   tvm::Map<GlobalVar, Function> updates;
-  auto funcs = m->functions;
+  auto funcs = mod->functions;
   for (const auto& it : funcs) {
     CHECK_EQ(FreeVars(it.second).size(), 0);
     if (const auto* n = it.second.as<FunctionNode>()) {
@@ -242,12 +240,12 @@ IRModule ToBasicBlockNormalForm(const IRModule& m) {
   }
 
   for (auto pair : updates) {
-    m->Add(pair.first, pair.second, true);
+    mod->Add(pair.first, pair.second, true);
   }
 
-  DLOG(INFO) << "ToBBlock: transformed" << std::endl << m;
+  DLOG(INFO) << "ToBBlock: transformed" << std::endl << mod;
 
-  return m;
+  return mod;
 }
 
 namespace transform {
