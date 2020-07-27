@@ -42,15 +42,15 @@ demo_dynamic: $(build_dir)/demo_dynamic $(build_dir)/bundle.so $(build_dir)/bund
 	TVM_NUM_THREADS=1 $(build_dir)/demo_dynamic $(build_dir)/bundle.so $(build_dir)/cat.bin
 	TVM_NUM_THREADS=1 $(build_dir)/demo_dynamic $(build_dir)/bundle_c.so $(build_dir)/cat.bin
 
-test_dynamic: $(build_dir)/test_dynamic $(build_dir)/test_bundle.so $(build_dir)/test_bundle_c.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin
-	TVM_NUM_THREADS=1 $(build_dir)/test_dynamic $(build_dir)/test_bundle.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
-	TVM_NUM_THREADS=1 $(build_dir)/test_dynamic $(build_dir)/test_bundle_c.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
+test_dynamic: $(build_dir)/test_dynamic $(build_dir)/test_bundle.so $(build_dir)/test_bundle_c.so $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_data_cpp.bin $(build_dir)/test_output_cpp.bin
+	TVM_NUM_THREADS=1 $(build_dir)/test_dynamic $(build_dir)/test_bundle.so $(build_dir)/test_data_cpp.bin $(build_dir)/test_output_cpp.bin $(build_dir)/test_graph_cpp.json $(build_dir)/test_params_cpp.bin
+	TVM_NUM_THREADS=1 $(build_dir)/test_dynamic $(build_dir)/test_bundle_c.so $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin
 
 demo_static: $(build_dir)/demo_static $(build_dir)/cat.bin
 	TVM_NUM_THREADS=1 $(build_dir)/demo_static $(build_dir)/cat.bin
 
-test_static: $(build_dir)/test_static $(build_dir)/test_data.bin $(build_dir)/test_output.bin
-	TVM_NUM_THREADS=1 $(build_dir)/test_static $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
+test_static: $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin
+	TVM_NUM_THREADS=1 $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin
 
 $(build_dir)/crt/graph_runtime/libgraph_runtime.a:
 	cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) graph_runtime
@@ -58,19 +58,19 @@ $(build_dir)/crt/graph_runtime/libgraph_runtime.a:
 $(build_dir)/crt/common/libcommon.a:
 	cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) common
 
-$(build_dir)/demo_dynamic: demo.cc ${build_dir}/graph.json.c ${build_dir}/params.bin.c
+$(build_dir)/demo_dynamic: demo.cc ${build_dir}/graph_c.json.c ${build_dir}/params_c.bin.c
 	@mkdir -p $(@D)
 	g++ $(PKG_CXXFLAGS) -o $@  demo.cc -ldl
 
-$(build_dir)/test_dynamic: test.cc ${build_dir}/test_graph.json ${build_dir}/test_params.bin
+$(build_dir)/test_dynamic: test.cc ${build_dir}/test_graph_c.json ${build_dir}/test_params_c.bin
 	@mkdir -p $(@D)
 	g++ $(PKG_CXXFLAGS) -o $@  test.cc -ldl
 
-$(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o ${build_dir}/model.o ${build_dir}/graph.json.c ${build_dir}/params.bin.c ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
+$(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o ${build_dir}/model_c.o ${build_dir}/graph_c.json.c ${build_dir}/params_c.bin.c ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
 	@mkdir -p $(@D)
 	gcc $(PKG_CFLAGS) -o $@ demo_static.c ${build_dir}/bundle_static.o ${build_dir}/model.o -lm ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
 
-$(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o ${build_dir}/test_model.o ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
+$(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o ${build_dir}/test_model_c.o ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
 	@mkdir -p $(@D)
 	gcc $(PKG_CFLAGS) -o $@ $^
 
@@ -79,33 +79,33 @@ $(build_dir)/graph.json.c: $(build_dir)/graph.json
 	xxd -i $^  > $@
 
 # Serialize our params.bin file.
-$(build_dir)/params.bin.c: $(build_dir)/params.bin
+$(build_dir)/params_c.bin.c: $(build_dir)/params_c.bin
 	xxd -i $^  > $@
 
-$(build_dir)/model.o $(build_dir)/graph.json $(build_dir)/params.bin $(build_dir)/cat.bin: build_model.py
+$(build_dir)/params_cpp.bin.c: $(build_dir)/params_cpp.bin
+	xxd -i $^  > $@
+
+$(build_dir)/model_c.o $(build_dir)/graph_c.json $(build_dir)/model_cpp.o $(build_dir)/graph_cpp.json $(build_dir)/params.bin $(build_dir)/cat.bin: build_model.py
 	python3 $< -o $(build_dir)
 
-$(build_dir)/test_model.c $(build_dir)/test_graph.json $(build_dir)/test_params.bin $(build_dir)/test_data.bin $(build_dir)/test_output.bin: build_model.py
+$(build_dir)/test_model_c.o $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_model_cpp.o $(build_dir)/test_graph_cpp.json $(build_dir)/test_params_cpp.bin $(build_dir)/test_data_cpp.bin $(build_dir)/test_output_cpp.bin: build_model.py
 	python3 $< -o $(build_dir) --test
-
-$(build_dir)/test_model.o: $(build_dir)/test_model.c
-	gcc $(PKG_CFLAGS) -c -o $@ $^
 
 # Build our bundle against the serialized bundle.c API, the runtime.cc API, and
 # the serialized graph.json and params.bin
-$(build_dir)/bundle.so: bundle.cc $(build_dir)/model.o $(build_dir)/func_registry.o ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
+$(build_dir)/bundle.so: bundle.cc runtime.cc $(build_dir)/model_cpp.o
 	@mkdir -p $(@D)
 	g++ -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
-$(build_dir)/bundle_c.so: bundle.c runtime.c $(build_dir)/model.o $(build_dir)/func_registry.c
+$(build_dir)/bundle_c.so: bundle.c $(build_dir)/model_c.o $(build_dir)/func_registry.c
 	@mkdir -p $(@D)
 	gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
-$(build_dir)/test_bundle.so: bundle.cc runtime.cc $(build_dir)/test_model.o $(build_dir)/test_func_registry.c
+$(build_dir)/test_bundle.so: bundle.cc runtime.cc $(build_dir)/test_model_cpp.o
 	@mkdir -p $(@D)
 	g++ -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
-$(build_dir)/test_bundle_c.so: bundle.c runtime.c $(build_dir)/test_model.o $(build_dir)/test_func_registry.c
+$(build_dir)/test_bundle_c.so: bundle.c $(build_dir)/test_model_c.o ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
 	@mkdir -p $(@D)
 	gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
