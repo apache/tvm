@@ -200,8 +200,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         code, lib = exe.save()
         lib = update_lib(lib)
         exe = runtime.vm.Executable.load_exec(code, lib)
-        vm = runtime.vm.VirtualMachine(exe)
-        vm.init(ctx)
+        vm = runtime.vm.VirtualMachine(exe, ctx)
         outs = vm.run(**map_inputs)
         outs = outs if isinstance(outs, runtime.container.ADT) else [outs]
         results = result if isinstance(result, list) else [result]

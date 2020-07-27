@@ -213,11 +213,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
                     PatternFunctor<bool(const Pattern& p, const ObjectRef& v)> {
  public:
   Interpreter(IRModule mod, DLContext context, Target target)
-      : mod_(mod),
-        context_(context),
-        target_(target),
-        debug_op_(Op::Get("debug")),
-        shape_of_op_(Op::Get("shape_of")) {
+      : mod_(mod), context_(context), target_(target), debug_op_(Op::Get("debug")) {
     engine_ = CompileEngine::Global();
   }
 
@@ -481,12 +477,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
 
     Array<Shape> out_shapes;
     auto ret_type = func->body->checked_type();
-    bool is_dyn = IsDynamic(func->checked_type());
-    if (call_node->op == shape_of_op_) {
-      // The output shape of shape_of must be static since Relay doesn't support
-      // dynamic rank tensors.
-      is_dyn = false;
-    }
+    bool is_dyn = IsDynamic(ret_type);
 
     if (is_dyn) {
       CHECK(func->HasNonzeroAttr(attr::kPrimitive));
@@ -722,7 +713,6 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   CompileEngine engine_;
   // Cache ops that need to be frequently used later to reduce lookup overhead.
   const Op& debug_op_;
-  const Op& shape_of_op_;
 };
 
 TypedPackedFunc<ObjectRef(Expr)> CreateInterpreter(IRModule mod, DLContext context, Target target) {

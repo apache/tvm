@@ -19,12 +19,12 @@
 
 /*!
  * \file auto_scheduler/transform_step.cc
- * \brief Transformation steps. For each schedule primitive, there is a corresponding transform
- * step.
+ * \brief Transformation steps. These steps are used to manipulate the LoopState.
+ *        They are similar to the schedule primitives in te::Stage.
  */
 
-#include "transform_step.h"
-
+#include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 
@@ -103,6 +103,7 @@ Step StepReadFromRecord(dmlc::JSONReader* reader) {
 }
 
 void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag) {
+  // We need this runtime dispatcher because different steps have different function signatures
   if (auto ps = step.as<AnnotationStepNode>()) {
     ps->ApplyToState(state);
   } else if (auto ps = step.as<FuseStepNode>()) {
@@ -177,7 +178,7 @@ String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
   return "";
 }
 
-/********** Primitives working on single stage **********/
+/********** Steps working on single stage **********/
 
 /********** Annotation **********/
 AnnotationStep::AnnotationStep(int stage_id, int iter_id, IteratorAnnotation ann) {
@@ -776,7 +777,7 @@ String SplitStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
   return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id, lengths, inner_to_outer);
 }
 
-/********** Primitives working on multiple stages **********/
+/********** Steps working on multiple stages **********/
 
 /********** Compute At **********/
 ComputeAtStep::ComputeAtStep(int stage_id, int target_stage_id, int target_iter_id) {

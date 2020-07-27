@@ -17,15 +17,11 @@
  * under the License.
  */
 
-extern crate ndarray;
-#[macro_use]
-extern crate tvm_runtime;
-
 use ndarray::Array;
-use tvm_runtime::{DLTensor, DsoModule, Module};
+use tvm_graph_rt::{DLTensor, DsoModule, Module};
 
 fn main() {
-    tvm_runtime::TVMGetLastError();
+    tvm_graph_rt::TVMGetLastError();
     let module = DsoModule::new(concat!(env!("OUT_DIR"), "/test.so")).unwrap();
     let add = module
         .get_function("__tvm_main__")
@@ -37,6 +33,7 @@ fn main() {
     let mut a_dl: DLTensor = (&mut a).into();
     let mut b_dl: DLTensor = (&mut b).into();
     let mut c_dl: DLTensor = (&mut c).into();
-    call_packed!(add, &mut a_dl, &mut b_dl, &mut c_dl).unwrap();
+    let args = vec![(&mut a_dl).into(), (&mut b_dl).into(), (&mut c_dl).into()];
+    add(&args[..]).unwrap();
     assert!(c.all_close(&e, 1e-8f32));
 }
