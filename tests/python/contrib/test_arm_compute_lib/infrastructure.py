@@ -16,6 +16,7 @@
 # under the License.
 from itertools import zip_longest, combinations
 import json
+import os
 
 import numpy as np
 
@@ -25,15 +26,22 @@ from tvm import rpc
 from tvm.contrib import graph_runtime
 from tvm.relay.op.contrib import arm_compute_lib
 from tvm.contrib import util
+from tvm.autotvm.measure import request_remote
 
 
 class Device:
-    """Adjust the following settings to connect to and use a remote device for tests."""
-    use_remote = False
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+neon"
-    # Enable cross compilation when connecting a remote device from a non-arm platform.
-    cross_compile = None
-    # cross_compile = "aarch64-linux-gnu-g++"
+    """
+    Use the following environment variables to connect to and use a remote device.
+    The RPC mechanism can be used in the case of compiling an ACL module on an x86 machine
+    but running on an AArch64 machine.
+    """
+    rpc_host = os.environ.get("TVM_ARM_COMPUTE_LIB_RPC_HOST", "localhost")
+    rpc_port = int(os.environ.get("TVM_ARM_COMPUTE_LIB_RPC_PORT", 9090))
+    rpc_device_key = os.environ.get("TVM_ARM_COMPUTE_LIB_RPC_DEVICE_KEY", "")
+    target = os.environ.get("TVM_ARM_COMPUTE_LIB_TARGET", "llvm -mtriple=aarch64-linux-gnu -mattr=+neon")
+
+    # Specify path to cross compiler to use when connecting a remote device from a non-arm platform.
+    cross_compile = os.environ.get("TVM_ARM_COMPUTE_LIB_CROSS_COMPILE", None)
 
     def __init__(self):
         """Keep remote device for lifetime of object."""
@@ -42,27 +50,15 @@ class Device:
     @classmethod
     def _get_remote(cls):
         """Get a remote (or local) device to use for testing."""
-        if cls.use_remote:
-            # Here you may adjust settings to run the ACL unit tests via a remote
-            # device using the RPC mechanism. Use this in the case you want to compile
-            # an ACL module on a different machine to what you run the module on i.e.
-            # x86 -> AArch64.
-            #
-            # Use the following to connect directly to a remote device:
-            # device = rpc.connect(
-            #     hostname="0.0.0.0",
-            #     port=9090)
-            #
-            # Or connect via a tracker:
-            # device = tvm.autotvm.measure.request_remote(
-            #     host="0.0.0.0",
-            #     port=9090,
-            #     device_key="device_key",
-            #     timeout=1000)
-            #
-            # return device
-            raise NotImplementedError(
-                "Please adjust these settings to connect to your remote device.")
+        if cls.rpc_host != "localhost":
+            if cls.rpc_device_key:
+                device = request_remote(cls.rpc_device_key,
+                                        cls.rpc_host,
+                                        cls.rpc_port,
+                                        timeout=1000)
+            else:
+                device = rpc.connect(cls.rpc_host, cls.rpc_port)
+            return device
         else:
             device = rpc.LocalSession()
             return device
@@ -94,7 +90,7 @@ def skip_runtime_test():
         return True
 
     # Remote device is in use or ACL runtime not present
-    if not Device.use_remote and not arm_compute_lib.is_arm_compute_runtime_enabled():
+    if Device.rpc_host == "localhost" and not arm_compute_lib.is_arm_compute_runtime_enabled():
         print("Skip because runtime isn't present or a remote device isn't being used.")
         return True
 
