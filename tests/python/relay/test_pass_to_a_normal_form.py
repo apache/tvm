@@ -198,108 +198,14 @@ def test_gradient_if():
     mod["main"] = relay.transform.gradient(mod["main"], mode='higher_order')
     mod = relay.transform.ToANormalForm()(mod)
 
-def test_basic_block_if():
-    x = relay.var('x', shape=(), dtype='float32')
-    one = relay.const(1, dtype='float32')
-    two = relay.const(2, dtype='float32')
-    v1 = relay.add(x, one)
-    v2 = relay.equal(x, two)
-    true_branch = relay.multiply(v1, two)
-    false_branch = relay.multiply(v1, one)
-    body = relay.If(v2, true_branch, false_branch)
-    func = relay.Function([x], body)
-    print(func)
-    """
-    fn (%x: float32) {
-      %0 = equal(%x, 2f);
-      if (%0) {
-        %1 = add(%x, 1f);
-        multiply(%1, 2f)
-      } else {
-        multiply(%1, 1f)
-      }
-    }
-    """
-    anf = run_opt_pass(func, transform.ToANormalForm())
-    print(anf)
-    """
-    fn (%x: float32) -> float32 {                                // scope 0
-      let %x1: float32 = 1f /* ty=float32 */;                    // scope 0
-      let %x2: float32 = add(%x, %x1) /* ty=float32 */;          // scope 0
-      let %x3: float32 = 2f /* ty=float32 */;                    // scope 0
-      let %x4: bool = equal(%x, %x3) /* ty=bool */;              // scope 0
-      let %x5: float32 = if (%x4) {                              // scope 0
-        let %x6: float32 = multiply(%x2, %x3) /* ty=float32 */;  // scope 1
-        %x6                                                      // scope 1
-      } else {
-        let %x7: float32 = multiply(%x2, %x1) /* ty=float32 */;
-        %x7                                                      // scope 2
-      };
-      %x5
-    }
-    """
-    bblockf = run_opt_pass(func, transform.ToBasicBlockNormalForm())
-    print('')
-    print('transformed bblockf = ', type(bblockf), bblockf)
-    """
-    fn (%x: float32) {
-      let %1: = add(%x, 1f);
-      %0 = equal(%x, 2f);
-      if (%0) {
-        multiply(%1, 2f)
-      } else {
-        multiply(%1, 1f)
-      }
-    }
-    """
-
-    def expected():
-        x = relay.var('x', shape=(), dtype='float32')
-        one = relay.const(1, dtype='float32')
-        two = relay.const(2, dtype='float32')
-        v1 = relay.var('v1')
-        v2 = relay.equal(x, two)
-        true_branch = relay.multiply(v1, two)
-        false_branch = relay.multiply(v1, one)
-        body = relay.If(v2, true_branch, false_branch)
-        body = relay.Let(v1, relay.add(x, one), body)
-        func = relay.Function([x], body)
-        return func
-    expected_bblock = expected()
-    print('')
-    print('expected bblock = ', type(expected_bblock), expected_bblock)
-    expected_bblock = tvm.IRModule.from_expr(expected_bblock)['main']
-    print('expected bblock = ', type(expected_bblock), expected_bblock)
-    """
-    bblock = fn (%x: float32) {
-      let %v1 = add(%x, 1f);
-      %0 = equal(%x, 2f);
-      if (%0) {
-        multiply(%v1, 2f)
-      } else {
-        multiply(%v1, 1f)
-      }
-    }
-    """
-    # print(bblockf.params)
-    # print(expected_bblock.params)
-    #assert tvm.ir.structural_equal(bblockf.params, expected_bblock.params)
-    #assert tvm.ir.structural_equal(bblockf.body, expected_bblock.body)
-    assert tvm.ir.structural_equal(bblockf, expected_bblock)
 
 if __name__ == '__main__':
-    # test_explicit_bound()
-    # test_order()
-    # test_if()
-    # test_recursion()
-    # test_ref()
-    # test_let()
-    # test_nat_add()
-    # test_function()
-    # test_gradient_if()
-    test_basic_block_if()
-
-    # x = relay.var('x')#, shape=(1,), dtype='float32')
-    # y = relay.var('x')#, shape=(1,), dtype='float32')
-    # print(help(tvm.ir.structural_equal))
-    # assert tvm.ir.structural_equal(x, y, map_free_vars=True)
+    test_explicit_bound()
+    test_order()
+    test_if()
+    test_recursion()
+    test_ref()
+    test_let()
+    test_nat_add()
+    test_function()
+    test_gradient_if()
