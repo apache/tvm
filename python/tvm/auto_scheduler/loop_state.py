@@ -400,7 +400,7 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be compute at, which can be specified by the integer index, Operation,
+            The Stage to be computed at, which can be specified by the integer index, Operation,
             or output tensor of the stage.
         target_stage : Union[int, Operation, Tensor]
             The target stage of compute_at, which can be specified by the integer index, Operation,
@@ -427,8 +427,8 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be compute inlined, which can be specified by the integer index, Operation,
-            or output tensor of the stage.
+            The Stage to be marked compute inlined, which can be specified by the integer index,
+            Operation, or output tensor of the stage.
         """
         self.state_object = _ffi_api.StateComputeInline(self.state_object,
                                                         self._resolve_stage_id(stage))
@@ -440,8 +440,8 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be compute root, which can be specified by the integer index, Operation,
-            or output tensor of the stage.
+            The Stage to be marked compute at root, which can be specified by the integer index,
+            Operation, or output tensor of the stage.
 
         Notes
         -----
