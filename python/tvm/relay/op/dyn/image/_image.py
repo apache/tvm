@@ -35,7 +35,7 @@ def compute_resize(attrs, inputs, out_type):
     method = attrs.method
     coord_trans = attrs.coordinate_transformation_mode
     out_dtype = attrs.out_dtype
-    return [topi.image.resize(inputs[0], inputs[1], layout, method, coord_trans, out_dtype)]
+    return [topi.image.resize(inputs[0], inputs[1], layout, method, coord_trans, out_dtype, out_type.shape)]
 
 reg.register_injective_schedule("dyn.image.resize")
 
