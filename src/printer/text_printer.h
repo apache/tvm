@@ -320,6 +320,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintIterVar(const IterVarNode* op);
   Doc PrintRange(const RangeNode* op);
   Doc PrintBuffer(const BufferNode* op);
+  Doc BufferNode2Doc(const BufferNode* op, Doc doc);
   Doc PrintString(const StringObj* op) { return Doc::StrLiteral(op->data); }
 
   /*!
