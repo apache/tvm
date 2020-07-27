@@ -347,9 +347,17 @@ else()
   set(CMAKE_CUDA_STANDARD 14)
 endif()
 
-add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
-add_library(tvm_topi SHARED ${TOPI_SRCS})
-add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
+add_library(tvm_static STATIC ${COMPILER_SRCS} ${RUNTIME_SRCS})
+add_library(tvm_topi_static STATIC ${TOPI_SRCS})
+add_library(tvm_runtime_static STATIC ${RUNTIME_SRCS})
+
+add_library(tvm SHARED)
+target_link_libraries(tvm tvm_static)
+add_library(tvm_topi SHARED)
+target_link_libraries(tvm_topi tvm_topi_static)
+add_library(tvm_runtime SHARED)
+target_link_libraries(tvm_runtime tvm_runtime_static)
+
 
 if(USE_CPP_RPC)
   add_subdirectory("apps/cpp_rpc")
@@ -357,28 +365,28 @@ endif()
 
 if(USE_RELAY_DEBUG)
   message(STATUS "Building Relay in debug mode...")
-  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "USE_RELAY_DEBUG")
-  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "DMLC_LOG_DEBUG")
+  set_target_properties(tvm_static PROPERTIES COMPILE_DEFINITIONS "USE_RELAY_DEBUG")
+  set_target_properties(tvm_static PROPERTIES COMPILE_DEFINITIONS "DMLC_LOG_DEBUG")
 else()
-  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
+  set_target_properties(tvm_static PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
 endif(USE_RELAY_DEBUG)
 
 if(USE_FALLBACK_STL_MAP)
   message(STATUS "Building with STL Map...")
-  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
-  set_target_properties(tvm_topi PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
+  set_target_properties(tvm_static PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
+  set_target_properties(tvm_topi_static PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
 else()
   message(STATUS "Building with TVM Map...")
-  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
-  set_target_properties(tvm_topi PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
+  set_target_properties(tvm_static PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
+  set_target_properties(tvm_topi_static PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
 endif(USE_FALLBACK_STL_MAP)
 
 if(BUILD_FOR_HEXAGON)
   # Wrap pthread_create to allow setting custom stack size.
-  set_target_properties(tvm_runtime PROPERTIES LINK_FLAGS
+  set_target_properties(tvm_runtime_static PROPERTIES LINK_FLAGS
                         "-Wl,--wrap=pthread_create")
 
-  target_include_directories(tvm_runtime
+  target_include_directories(tvm_runtime_static
     PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/posix"
     PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/qurt"
     PUBLIC "${USE_HEXAGON_SDK}/incs"
@@ -390,14 +398,14 @@ if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
   set(THREADS_PREFER_PTHREAD_FLAG TRUE)
   find_package(Threads REQUIRED)
-  target_link_libraries(tvm Threads::Threads)
-  target_link_libraries(tvm_topi Threads::Threads)
-  target_link_libraries(tvm_runtime Threads::Threads)
+  target_link_libraries(tvm_static Threads::Threads)
+  target_link_libraries(tvm_topi_static Threads::Threads)
+  target_link_libraries(tvm_runtime_static Threads::Threads)
 endif()
 
-target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
-target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
-target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_static ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_topi_static tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_runtime_static ${TVM_RUNTIME_LINKER_LIBS})
 
 if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
@@ -411,10 +419,10 @@ endif()
 
 # Related headers
 target_include_directories(
-  tvm
+  tvm_static
   PUBLIC "topi/include")
 target_include_directories(
-  tvm_topi
+  tvm_topi_static
   PUBLIC "topi/include")
 
 
@@ -433,7 +441,7 @@ if(GTEST_INCLUDE_DIR AND GTEST_LIB)
     add_executable(${__execname} ${__srcpath})
     list(APPEND TEST_EXECS ${__execname})
     target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR})
-    target_link_libraries(${__execname} tvm ${GTEST_LIB} pthread dl)
+    target_link_libraries(${__execname} tvm_static ${GTEST_LIB} pthread dl)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
   endforeach()
@@ -487,6 +495,6 @@ endif(INSTALL_DEV)
 
 # More target definitions
 if(MSVC)
-  target_compile_definitions(tvm PRIVATE -DTVM_EXPORTS)
-  target_compile_definitions(tvm_runtime PRIVATE -DTVM_EXPORTS)
+  target_compile_definitions(tvm_static PRIVATE -DTVM_EXPORTS)
+  target_compile_definitions(tvm_runtime_static PRIVATE -DTVM_EXPORTS)
 endif()
