@@ -97,11 +97,15 @@ class LetList {
    *
    *  \return the wrapped expr.
    */
-  Expr Get(const Expr& body) {
+  Expr Get(const Expr& body, bool simplify = false) {
     CHECK(!used_);
     Expr ret = body;
     for (auto rit = lets_.rbegin(); rit != lets_.rend(); ++rit) {
-      ret = Let(std::get<0>(*rit), std::get<1>(*rit), ret);
+      if (simplify && lets_.size() > 1 && rit == lets_.rbegin() && ret == std::get<0>(*rit)) {
+        ret = std::get<1>(*rit);
+      } else {
+        ret = Let(std::get<0>(*rit), std::get<1>(*rit), ret);
+      }
     }
     used_ = true;
     return ret;

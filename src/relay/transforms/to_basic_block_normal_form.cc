@@ -51,8 +51,9 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
     LOG(INFO) << "======================== START FILLING ======================= \n";
     FillBasicBlock fi(dg, node_scope, lifted);
     auto var = fi.VisitExpr(e);
-    auto scope = fi.GetScope(var);
-    if (!scope || !scope->ll->size()) {
+    auto scope = fi.GetScope(e);
+    if (!scope->ll->size()) {
+      LOG(INFO) << "nothing in scope: " << scope;
       return e;
     }
     auto ret = scope->ll->Get(var);
@@ -70,14 +71,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 		 std::unordered_set<DependencyGraph::Node*>* lifted)
       : dg_(dg), node_scope_(node_scope), lifted_(lifted) {}
 
-  Scope GetScope(const Expr& e) {
-    try {
-      return node_scope_->at(dg_.expr_node.at(e));
-    } catch (std::out_of_range& err) {
-      return nullptr;
-    }
-    throw;
-  }
+  Scope GetScope(const Expr& e) { return node_scope_->at(dg_.expr_node.at(e)); }
 
   bool IsLifted(const Expr& e) { return lifted_->find(dg_.expr_node.at(e)) != lifted_->end(); }
 

@@ -78,24 +78,6 @@ def test_nested_if():
     false_branch = relay.If(cond_f, z2, one)
     body = relay.If(x, true_branch, false_branch)
     """
-    free_var %x: bool
-    if (%x) {
-      if (True) {
-        free_var %z: float32
-        %0 = add(%z, %z);
-        free_var %y: float32
-        %1 = add(%y, %y);
-        add(%0, %1)
-      } else {
-        add(3f, %1)
-      }
-    } else {
-      if (False) {
-        %0
-      } else {
-        1f
-      }
-    }
     """
     def expected():
         x = relay.var('x', shape=(), dtype='bool')
@@ -114,7 +96,7 @@ def test_nested_if():
         body = relay.Let(z2, relay.add(z, z), body)
         return body
 
-    bblock = run_opt_pass(body, [transform.ToBasicBlockNormalForm(), transform.InferType()])
+    bblock = run_opt_pass(body, [transform.ToBasicBlockNormalForm()])
     """
     free_var %z: float32
     let %x: float32 = add(%z, %z) /* ty=float32 */;
@@ -136,8 +118,11 @@ def test_nested_if():
     }
     """
     expected_output = run_opt_pass(expected(), transform.InferType())
+    print('body=')
     print(body)
+    print('bblock=')
     print(bblock)
+    print('expected_output=')
     print(expected_output)
     assert tvm.ir.structural_equal(bblock, expected_output, map_free_vars=True)
 
@@ -171,6 +156,10 @@ def test_recursion():
     old_f = mod[f]
     mod = transform.ToBasicBlockNormalForm()(mod)
     f = mod[f]
+    print('old_f=')
+    print(old_f)
+    print('f=')
+    print(f)
     check_eval(f(relay.const(5, 'int64')), 30.0, mod=mod)
 
 def test_ref():
@@ -185,10 +174,11 @@ def test_ref():
     body = relay.Let(i, relay.RefCreate(relay.const(1)), body)
     check_eval(body, 3)
     opt_body = run_opt_pass(body, transform.ToBasicBlockNormalForm())
+    print('body=')
     print(body)
-    print('')
+    print('opt_body=')
     print(opt_body)
-    # check_eval(opt_body, 3)
+    check_eval(opt_body, 3)
 
 
 def test_nat_add():
@@ -206,30 +196,41 @@ def test_nat_add():
     expr = add(s(z()), s(z()))
     f = relay.GlobalVar("f")
     mod[f] = relay.Function([], expr)
-    mod = transform.ToANormalForm()(mod)
-    expr = mod["f"]
-    assert count(p, intrp.evaluate(expr.body)) == 2
-    assert Feature.fLet in detect_feature(mod[add])
+    mod = transform.ToBasicBlockNormalForm()(mod)
+    opt_expr = mod["f"]
+    print('expr=', expr)
+    print('opt_expr=', opt_expr)
+    assert count(p, intrp.evaluate(opt_expr.body)) == 2
+    assert not Feature.fLet in detect_feature(mod[add])
 
 def test_let():
     def test_let1():
         x = relay.Var("x")
-        d = relay.const(4.0, 'float32')
-        body = relay.Let(x, d, x)
+        c = relay.const(4.0, 'float32')
+        body = relay.Let(x, c, x)
+        body = run_opt_pass(body, transform.InferType())
+        """
+        let %x: float32 = 4f /* ty=float32 */;
+        %x
+        """
         opt_body = run_opt_pass(body, transform.ToBasicBlockNormalForm())
+        print('body=')
         print(body)
-        print('opt-body=')
+        print('opt_body=')
         print(opt_body)
-    
-    def test_let11():
+        assert tvm.ir.structural_equal(body, opt_body)
+        
+    def test_let1_1():
         x = relay.Var("y")
         d = relay.const(4.0, 'float32')
         body = relay.Let(x, d, relay.add(x,x))
-        print(body)
+        body = run_opt_pass(body, transform.InferType())
         opt_body = run_opt_pass(body, transform.ToBasicBlockNormalForm())
-        #opt_body = run_opt_pass(body, transform.ToANormalForm())
-        print('opt-body=')
+        print('body=')
+        print(body)
+        print('opt_body=')
         print(opt_body)
+        assert tvm.ir.structural_equal(body, opt_body)
     
     def test_let2():
         x = relay.Var("x")
@@ -237,29 +238,15 @@ def test_let():
         d = relay.const(4.0, 'float32')
         body = relay.Let(y, x, x)
         body = relay.Let(x, d, body)
-        """
-        let %x = 4f;
-        let %y = %x;
-        add(%x, %y)
-    
-        let %x = 4f;
-        let %y = %x;
-        %x
-        
-        let %x: float32 = let %x1: float32 = 4f /* ty=float32 */;
-        let %x2: float32 = let %y: float32 = %x1;
-        %y;
-        %x2;
-        %x
-    
-        """
-        #check_eval(body, 8)
+        body = run_opt_pass(body, transform.InferType())
+        check_eval(body, 4)
         opt_body = run_opt_pass(body, transform.ToBasicBlockNormalForm())
-        #opt_body = run_opt_pass(body, transform.ToANormalForm())
+        print('body=')
         print(body)
-        print('')
+        print('opt_body=')
         print(opt_body)
-        # check_eval(opt_body, 8)
+        assert tvm.ir.structural_equal(body, opt_body)
+
     def test_let3():
         x = relay.Var("x")
         y = relay.Var("y")
@@ -269,34 +256,32 @@ def test_let():
         body = relay.Let(z, x + y, x + z)
         body = relay.Let(x, d, body)
         body = relay.Let(y, c, body)
-        """
-        let %x = 4f;
-        let %y = %x;
-        add(%x, %y)
-        """
-        # check_eval(body, 8)
-        print(body)
+        body = run_opt_pass(body, transform.InferType())
         opt_body = run_opt_pass(body, transform.ToBasicBlockNormalForm())
-        #opt_body = run_opt_pass(body, transform.ToANormalForm())
-        print('')
+        print('body=')
+        print(body)
+        print('opt_body=')
         print(opt_body)
-        # check_eval(opt_body, 8)
+        assert tvm.ir.structural_equal(body, opt_body)
 
-    #test_let1() # TODO: fix
+    test_let1()
+    test_let1_1()
     test_let2()
-    # test_let11()
-    # test_let3()
+    test_let3()
 
 def test_function():
     t = relay.TensorType((), 'float32')
     x = relay.Var("x", t)
     f = relay.Function([x], x + x)
     d = relay.const(4.0, 'float32')
-    anf_f = run_opt_pass(f, transform.ToANormalForm())
-    assert isinstance(anf_f, relay.Function)
+    bblock = run_opt_pass(f, transform.ToBasicBlockNormalForm())
+    assert isinstance(bblock, relay.Function)
     check_eval(f(d), 8)
-    check_eval(anf_f(d), 8)
-
+    check_eval(bblock(d), 8)
+    print('f=')
+    print(f)
+    print('bblock=')
+    print(bblock)
 
 def test_gradient_if():
     x = relay.var("a", shape=(1, 16))
@@ -306,63 +291,20 @@ def test_gradient_if():
     net = relay.add(x, net)
     net = relay.Function([cond,x,y], net)
     mod = tvm.IRModule.from_expr(net)
-    mod = relay.transform.ToANormalForm()(mod)
-    mod["main"] = relay.transform.gradient(mod["main"], mode='higher_order')
-    mod = relay.transform.ToANormalForm()(mod)
+    mod = relay.transform.ToBasicBlockNormalForm()(mod)
+    print('net=')
+    print(net)
+    print('mod=')
+    print(mod)
+    net_grad = relay.transform.gradient(mod["main"], mode='higher_order')
+    mod["main"] = net_grad
+    mod_grad = relay.transform.ToBasicBlockNormalForm()(mod)
+    print('net_grad=')
+    print(net_grad)
+    print('mod_grad=')
+    print(mod_grad)
 
-def test_basic_block_if2():
-    x = relay.var('x', shape=(), dtype='float32')
-    one = relay.const(1, dtype='float32')
-    v1 = relay.add(x, one)
-    v2 = relay.equal(x, one)
-    true_branch = relay.multiply(v1, v1)
-    false_branch = relay.multiply(v1, one)
-    body = relay.If(v2, true_branch, false_branch)
-    #func = relay.Function([x], body)
-    """
-    free_var %x: float32
-    %0 = equal(%x, 1f);
-    if (%0) {
-      %1 = add(%x, 1f);
-      multiply(%1, %1)
-    } else {
-      multiply(%1, 1f)
-    }
-    """
-    #bblockf = run_opt_pass(func, transform.ToBasicBlockNormalForm())
-    bblockf = run_opt_pass(body, transform.ToBasicBlockNormalForm())
-    print('')
-    print(body)
-    print('')
-    print(bblockf)
-    """
-    bblock = fn (%x: float32) {
-      let %v1 = add(%x, 1f);
-      %0 = equal(%x, 2f);
-      if (%0) {
-        multiply(%v1, 2f)
-      } else {
-        multiply(%v1, 1f)
-      }
-    }
-    """
-
-    def expected():
-        x = relay.var('x', shape=(), dtype='float32')
-        one = relay.const(1, dtype='float32')
-        two = relay.const(2, dtype='float32')
-        v1 = relay.var('v1')
-        v2 = relay.equal(x, two)
-        true_branch = relay.multiply(v1, two)
-        false_branch = relay.multiply(v1, one)
-        body = relay.If(v2, true_branch, false_branch)
-        body = relay.Let(v1, relay.add(x, one), body)
-        func = relay.Function([x], body)
-        return func
-    # expected_bblock = run_opt_pass(expected(), transform.InferType())
-    # assert tvm.ir.structural_equal(bblockf, expected_bblock)
-
-def test_basic_block_if():
+def test_if():
     x = relay.var('x', shape=(), dtype='float32')
     one = relay.const(1, dtype='float32')
     two = relay.const(2, dtype='float32')
@@ -383,7 +325,7 @@ def test_basic_block_if():
       }
     }
     """
-    bblockf = run_opt_pass(func, transform.ToBasicBlockNormalForm())
+    bblock = run_opt_pass(func, transform.ToBasicBlockNormalForm())
     """
     bblock = fn (%x: float32) {
       let %v1 = add(%x, 1f);
@@ -395,7 +337,6 @@ def test_basic_block_if():
       }
     }
     """
-
     def expected():
         x = relay.var('x', shape=(), dtype='float32')
         one = relay.const(1, dtype='float32')
@@ -409,17 +350,21 @@ def test_basic_block_if():
         func = relay.Function([x], body)
         return func
     expected_bblock = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(bblockf, expected_bblock)
+    print('func=')
+    print(func)
+    print('bblock=')
+    print(bblock)
+    print('expected_bblock=')
+    print(expected_bblock)
+    assert tvm.ir.structural_equal(bblock, expected_bblock)
 
 if __name__ == '__main__':
-    # test_no_explicit_bind() # passed
-    # test_nested_if() # passed
-    # test_recursion() # passed
-
-    # test_ref() # TODO: need to fix
     test_let()
-    # test_nat_add()
-    # test_function()
-    # test_gradient_if()
-    # test_basic_block_if2() # passed
-    # test_basic_block_if() # passed
+    test_no_explicit_bind()
+    test_nested_if()
+    test_if()
+    test_recursion()
+    test_ref()
+    test_nat_add()
+    test_function()
+    test_gradient_if()
