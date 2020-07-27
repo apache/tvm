@@ -126,7 +126,6 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
       candidate_name = truncated_name.str();
     }
     cache_node->func_name = candidate_name;
-    std::cout << "pf " << candidate_name << ": " << std::endl << PrettyPrint(prim_func) << std::endl;
     CHECK(master_op_.defined());
     // Fusion over tupled results may leave identity relationships
     // between inputs and outputs, and those should not be scheduled.

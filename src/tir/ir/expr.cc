@@ -102,8 +102,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       auto* op = static_cast<const VarNode*>(node.get());
       // omit the type
       // stream << op->name << "." << op->type;
-      // p->stream << op->name_hint;
-      p->stream << op->name_hint << "." << op->dtype;
+      p->stream << op->name_hint;
     });
 
 // SizeVar
@@ -145,10 +144,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IterVarNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const IterVarNode*>(node.get());
       p->stream << "iter_var(";
-      p->stream << op->var << ", ";
-      // if (op->var->name_hint.length() != 0) {
-      //   p->stream << op->var->name_hint << ", ";
-      // }
+      if (op->var->name_hint.length() != 0) {
+        p->stream << op->var->name_hint << ", ";
+      }
       if (op->dom.defined()) {
         p->stream << op->dom;
       }
