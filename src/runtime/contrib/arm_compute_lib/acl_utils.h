@@ -109,6 +109,15 @@ arm_compute::PadStrideInfo MakeACLPadStride(const std::vector<std::string>& pad,
 arm_compute::DataType MakeACLDataType(const DLDataType& data_type);
 
 /*!
+ * \brief Convert string to arm_compute::ActivationLayerInfo
+ *
+ * \param activation_type A string representing activation function.
+ * Currently supports the following options: "relu".
+ * \return arm_compute::ActivationLayerInfo.
+ */
+arm_compute::ActivationLayerInfo MakeACLActivationInfo(const std::string& activation_type);
+
+/*!
  * \brief Get a vector from DLTensor data.
  * \note Performs a copy of data.
  *

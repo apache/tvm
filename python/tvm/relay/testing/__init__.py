@@ -22,9 +22,9 @@ import numpy as np
 
 import tvm
 from tvm import te
-import tvm.relay as relay
-import tvm.relay.op as op
-from tvm.relay import Prelude
+from tvm import relay
+from tvm.relay import op
+from tvm.relay.prelude import Prelude
 from tvm.testing import enabled_targets
 
 from . import mlp
