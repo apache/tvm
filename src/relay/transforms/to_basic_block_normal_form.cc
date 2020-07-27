@@ -45,10 +45,6 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
   static Expr ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
                             std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
 			    std::unordered_set<DependencyGraph::Node*>* lifted) {
-    // if (lifted->size() == 0) {
-    //   return e;
-    // }
-    LOG(INFO) << "======================== START FILLING ======================= \n";
     FillBasicBlock fi(dg, node_scope, lifted);
     auto var = fi.VisitExpr(e);
     auto scope = fi.GetScope(e);
@@ -57,7 +53,6 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
       return e;
     }
     auto ret = scope->ll->Get(var);
-    LOG(INFO) << "======================== END FILLING ======================= \n ret = " << ret;
     return ret;
   }
 
@@ -75,44 +70,29 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   bool IsLifted(const Expr& e) { return lifted_->find(dg_.expr_node.at(e)) != lifted_->end(); }
 
-  Scope GetSubScope(const Expr& e, size_t i) {
-    DependencyGraph::Node* n = dg_.expr_node.at(e);
-    auto h = n->children.head;
-    while (i != 0) {
-      CHECK(h);
-      --i;
-      h = h->next;
-    }
-    CHECK(h);
-    return node_scope_->at(h->value);
-  }
-
   Expr VisitExpr(const Expr& e, const Var& v) final {
-    LOG(INFO) << "Begin VisitExpr " << e << " ( var = " << v << ")";
+    DLOG(INFO) << "Begin VisitExpr " << e << " ( var = " << v << ")";
     if (memo.count(e) == 0) {
       memo.insert({e, ExprFunctor<Expr(const Expr&, const Var&)>::VisitExpr(e, v)});
-      LOG(INFO) << "inserted a new entry to memo: " << e << " (var = " << v << ") ---> " << memo.at(e);
+      DLOG(INFO) << "inserted a new entry to memo: " << e << " (var = " << v << ") ---> " << memo.at(e);
     } else if (v.defined()) {
       GetScope(e)->ll->Push(v, memo.at(e));
-      LOG(INFO) << "pushed a new entry to ll";
+      DLOG(INFO) << "pushed a new entry to ll";
     }
     auto ret = memo.at(e);
-    LOG(INFO) << "End VisitExpr " << e << " \n -> \n " << ret;
+    DLOG(INFO) << "End VisitExpr " << e << " \n -> \n " << ret;
     return ret;
   }
 
   Expr VisitExpr(const Expr& e) {
-    auto ff = this->VisitExpr(e, Var());
-    return ff;
+    return this->VisitExpr(e, Var());
   }
 
   Expr Atomic(const Expr& e, const Var& v) { return v.defined() ? GetScope(e)->ll->Push(v, e) : e; }
 
-  Expr Compound(const Expr& orig, const Expr& now, const Var& v, bool force = false) {
-    // TODO: cannot assume var is allocated
-    Var var = v.defined() ? v : Var(String("new_var"), Type());
-    // return GetScope(orig)->ll->Push(var, now);
-    if (IsLifted(orig) || force) {
+  Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
+    Var var = v.defined() ? v : Var(String("x"), Type());
+    if (IsLifted(orig)) {
       return GetScope(orig)->ll->Push(var, now);
     } else {
       return now;
@@ -125,9 +105,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
     for (const auto& a : c->args) {
       args.push_back(VisitExpr(a));
     }
-    auto ff = Compound(e, Call(VisitExpr(c->op), args, c->attrs, c->type_args), v);
-    //LOG(INFO) << "visit if " << e << "\n->\n" << ff << "\n";
-    return ff;
+    return Compound(e, Call(VisitExpr(c->op), args, c->attrs, c->type_args), v);
   }
 
   Expr VisitExpr_(const TupleNode* t, const Var& v) final {
@@ -177,9 +155,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
       ret = Function(f->params, GetSubScope(e, 0)->ll->Get(VisitExpr(f->body)), f->ret_type,
                      f->type_params, f->attrs);
     }
-    auto ff = Compound(e, ret, v);
-    //LOG(INFO) << "visit func " << e << "\n->\n" << ff;
-    return ff;
+    return Compound(e, ret, v);
   }
 
   Expr VisitExpr_(const LetNode* l, const Var& v) final {
@@ -203,25 +179,17 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   Expr VisitExpr_(const ConstantNode* c, const Var& v) final {
     Expr e = GetRef<Expr>(c);
-    LOG(INFO) << "start to visit const " << e;
-    auto ret = Compound(e, e, v);
-    //LOG(INFO) << "visit const " << e << "\n->\n" << ff;
-    return ret;
+    return Compound(e, e, v);
   }
 
   Expr VisitExpr_(const VarNode* vn, const Var& v) final {
     Expr e = GetRef<Expr>(vn);
-    LOG(INFO) << "start to visit var " << e;
-    auto ret = Atomic(e, v);
-    //LOG(INFO) << "visit var " << e << "\n->\n" << ff;
-    return ret;
+    return  Atomic(e, v);
   }
 
   Expr VisitExpr_(const GlobalVarNode* gvn, const Var& v) final {
     GlobalVar gv = GetRef<GlobalVar>(gvn);
-    auto ret = Atomic(gv, v);
-    //LOG(INFO) << "visit globalvar " << e << "\n->\n" << ff;
-    return ret;
+    return Atomic(gv, v);
   }
 
   Expr VisitExpr_(const OpNode* op, const Var& v) final {
