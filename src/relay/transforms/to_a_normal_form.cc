@@ -89,7 +89,8 @@ std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGrap
     //   if (expr_kv.second == n) {
     //     Expr e = expr_kv.first;
     //     found_expr = true;
-    //     DLOG(INFO) << "@scope " << scopes[scope_key] << " = " << scope_key << "\n node = " << n << ": " << e;
+    //     DLOG(INFO) << "@scope " << scopes[scope_key] << " = " << scope_key
+    //     << "\n node = " << n << ": " << e;
     //     break;
     //   }
     // }

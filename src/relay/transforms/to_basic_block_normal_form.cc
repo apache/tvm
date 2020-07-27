@@ -59,7 +59,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   FillBasicBlock(const DependencyGraph& dg,
                  std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-		 std::unordered_set<DependencyGraph::Node*>* lifted)
+                 std::unordered_set<DependencyGraph::Node*>* lifted)
       : dg_(dg), node_scope_(node_scope), lifted_(lifted) {}
 
   Scope GetScope(const Expr& e) { return node_scope_->at(dg_.expr_node.at(e)); }
@@ -256,7 +256,8 @@ Pass ToBasicBlockNormalForm() {
   return CreateModulePass(pass_func, 1, "ToBasicBlockNormalForm", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.ToBasicBlockNormalForm").set_body_typed(ToBasicBlockNormalForm);
+TVM_REGISTER_GLOBAL("relay._transform.ToBasicBlockNormalForm")
+.set_body_typed(ToBasicBlockNormalForm);
 
 }  // namespace transform
 
