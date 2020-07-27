@@ -31,8 +31,9 @@ namespace target {
 
 std::string GenerateFuncRegistryNames(const std::vector<std::string>& function_names) {
   std::stringstream ss;
+  ss << (unsigned char)(function_names.size());
   for (auto f : function_names) {
-    ss << f << "\0";
+    ss << f << '\0';
   }
 
   return ss.str();

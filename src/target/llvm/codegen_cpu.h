@@ -62,8 +62,11 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::StructType* t_tvm_array_{nullptr};
   llvm::StructType* t_tvm_value_{nullptr};
   llvm::StructType* t_tvm_parallel_group_env_{nullptr};
+
+  llvm::FunctionType* ftype_tvm_backend_packed_c_func_{nullptr};
   llvm::StructType* t_tvm_crt_func_registry_{nullptr};
   llvm::StructType* t_tvm_crt_module_{nullptr};
+
   llvm::FunctionType* ftype_tvm_parallel_lambda_{nullptr};
   llvm::FunctionType* ftype_tvm_func_call_{nullptr};
   llvm::FunctionType* ftype_tvm_get_func_from_env_{nullptr};
@@ -139,6 +142,8 @@ class CodeGenCPU : public CodeGenLLVM {
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
   // List of symbols to be exported to TVM system lib.
   std::vector<std::pair<std::string, llvm::Constant*> > export_system_symbols_;
+  // List of functions to be registered in the FuncRegistry, if generated.
+  std::vector<std::pair<std::string, llvm::Function*>> registry_functions_;
   // internal debug information, to be populated by
   std::unique_ptr<DebugInfo> dbg_info_;
   bool target_c_runtime_;
