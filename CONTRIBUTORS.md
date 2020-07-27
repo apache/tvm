@@ -114,6 +114,7 @@ We do encourage everyone to work anything they are interested in.
 - [Jon Soifer](https://github.com/soiferj): @soiferj
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose
+- [Thomas Viehmann](https://github.com/t-vi): @t-vi
 - [Alex Weaver](https://github.com/alex-weaver): @alex-weaver
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly
