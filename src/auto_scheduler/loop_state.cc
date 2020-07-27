@@ -482,7 +482,7 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateFollowSplit")
 
 TVM_REGISTER_GLOBAL("auto_scheduler.StateFollowFusedSplit")
     .set_body_typed([](State state, int stage_id, const Iterator& it,
-                       const Array<IntImm>& src_step_ids, int level, bool factor_or_nparts) {
+                       const Array<Integer>& src_step_ids, int level, bool factor_or_nparts) {
       const auto& res =
           state.follow_fused_split(stage_id, it, src_step_ids, level, factor_or_nparts);
       return Array<ObjectRef>{state, Array<Iterator>(res)};
