@@ -46,13 +46,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 			    std::unordered_set<DependencyGraph::Node*>* lifted) {
     FillBasicBlock fi(dg, node_scope, lifted);
     auto var = fi.VisitExpr(e);
-    // check if the top-level scope contains any expression lifted. If not, directly
-    // return the expression itself.
     auto scope = fi.GetScope(e);
-    if (!scope->ll->size()) {
-      DLOG(INFO) << "No let bindings in scope for: " << scope;
-      return e;
-    }
     auto ret = scope->ll->Get(var);
     return ret;
   }
@@ -101,10 +95,11 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   Expr Atomic(const Expr& e, const Var& v) { return v.defined() ? GetScope(e)->ll->Push(v, e) : e; }
 
-  // Bind expression `now` to var `v` if the original expression's scope should be lifted.
-  // Otherwise return `now` directly.
-  Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
-    if (lifted_->find(dg_.expr_node.at(orig)) != lifted_->end()) {
+  // Bind expression `now` to var `v` if the original expression's scope should be lifted, or
+  // if v is defined (e.g. coming from a Let expression). Otherwise return `now` directly.
+  Expr Compound(const Expr& orig, const Expr& now, const Var& v, bool force = false) {
+    if (v.defined()) force = true;
+    if (force || lifted_->find(dg_.expr_node.at(orig)) != lifted_->end()) {
       Var var = v.defined() ? v : Var(String("x"), Type());
       return GetScope(orig)->ll->Push(var, now);
     } else {
@@ -172,7 +167,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
   Expr VisitExpr_(const LetNode* l, const Var& v) final {
     Expr e = GetRef<Expr>(l);
     VisitExpr(l->value, l->var);
-    Expr ret = GetSubScope(e, 0)->ll->Get(VisitExpr(l->body), true);
+    Expr ret = GetSubScope(e, 0)->ll->Get(VisitExpr(l->body));
     return Compound(e, ret, v);
   }
 
