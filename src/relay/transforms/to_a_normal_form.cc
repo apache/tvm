@@ -32,7 +32,6 @@
 #include "../analysis/dependency_graph.h"
 #include "let_list.h"
 #include "pass_util.h"
-// #include "scope_util.h"
 
 namespace tvm {
 namespace relay {

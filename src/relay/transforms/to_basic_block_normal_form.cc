@@ -32,7 +32,6 @@
 #include "../analysis/dependency_graph.h"
 #include "let_list.h"
 #include "pass_util.h"
-#include "scope_util.h"
 
 namespace tvm {
 namespace relay {
@@ -44,16 +43,19 @@ namespace relay {
 class Fill2 : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
   static Expr ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
-                            std::unordered_map<DependencyGraph::Node*, Scope2>* node_scope,
-			    std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>* lifted) {
-    if (lifted->size() == 0) {
-      return e;
-    }
+                            std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
+			    std::unordered_set<DependencyGraph::Node*>* lifted) {
+    // if (lifted->size() == 0) {
+    //   return e;
+    // }
     LOG(INFO) << "======================== START FILLING ======================= \n";
     Fill2 fi(dg, node_scope, lifted);
-    auto ff = fi.GetScope2(e)->ll->Get(fi.VisitExpr(e));
+    auto x = fi.VisitExpr(e);
+    // if (!fi.IsLifted(e)) return e;
+    auto ret = fi.GetScope(e)->ll->Get(x);
     LOG(INFO) << "======================== END FILLING ======================= \n";
-    LOG(INFO) << "ff = " << ff;
+    // LOG(INFO) << "ff = " << tvm::PrettyPrint(ff);
+    LOG(INFO) << "ff = " << ret;
     return ff;
   }
 
@@ -84,14 +86,16 @@ class Fill2 : ExprFunctor<Expr(const Expr&, const Var&)> {
   }
 
   Expr VisitExpr(const Expr& e, const Var& v) final {
+    LOG(INFO) << "Begin VisitExpr " << e << " ( var = " << v << ")";
     if (memo.count(e) == 0) {
       memo.insert({e, ExprFunctor<Expr(const Expr&, const Var&)>::VisitExpr(e, v)});
+      LOG(INFO) << "inserted a new entry to memo: " << e << " (var = " << v << ") ---> " << memo.at(e);
     } else if (v.defined()) {
-      GetScope2(e)->ll->Push(v, memo.at(e));
+      GetScope(e)->ll->Push(v, memo.at(e));
+      LOG(INFO) << "pushed a new entry to ll";
     }
     auto ret = memo.at(e);
-    // CHECK(IsAtomic(ret));
-    LOG(INFO) << "VisitExpr " << e << " \n -> \n " << ret;
+    LOG(INFO) << "End VisitExpr " << e << " \n -> \n " << ret;
     return ret;
   }
 
@@ -100,13 +104,14 @@ class Fill2 : ExprFunctor<Expr(const Expr&, const Var&)> {
     return ff;
   }
 
-  Expr Atomic(const Expr& e, const Var& v) { return v.defined() ? GetScope2(e)->ll->Push(v, e) : e; }
+  Expr Atomic(const Expr& e, const Var& v) { return v.defined() ? GetScope(e)->ll->Push(v, e) : e; }
 
   Expr Compound(const Expr& orig, const Expr& now, const Var& v, bool force = false) {
     // TODO: cannot assume var is allocated
-    Var var = v.defined() ? v : Var(String("x"), Type());
-    if (lifted_->find(orig) != lifted_->end() || force) {
-      return GetScope2(orig)->ll->Push(var, now);
+    Var var = v.defined() ? v : Var(String("new_var"), Type());
+    // return GetScope(orig)->ll->Push(var, now);
+    if (IsLifted(orig) || force) {
+      return GetScope(orig)->ll->Push(var, now);
     } else {
       return now;
     }
