@@ -23,6 +23,7 @@
  * see auto_scheduler/loop_state.h for more explanation.
  */
 
+#include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/auto_scheduler/loop_state.h>
 #include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/registry.h>
@@ -150,6 +151,36 @@ void AttachMap::DeleteStageEntry(AttachMapNode* pnode, int stage_id) {
   }
 }
 
+AttachMap AttachMap::ApplyStageIdOffset(int start_id, int offset) const {
+  AttachMap map = AttachMap(make_object<AttachMapNode>());
+  auto pmap = map.CopyOnWrite();
+  for (const auto& x : operator->()->stage_to_attach_iter) {
+    auto key = x.first;
+    if (key >= start_id) {
+      key += offset;
+    }
+    auto value = x.second;
+    if (value.first >= start_id) {
+      value.first += offset;
+    }
+    pmap->stage_to_attach_iter.insert(std::make_pair(key, value));
+  }
+  for (const auto& x : operator->()->iter_to_attached_stages) {
+    auto key = x.first;
+    if (key.first >= start_id) {
+      key.first += offset;
+    }
+    auto value = x.second;
+    for (auto& i : value) {
+      if (i >= start_id) {
+        i += offset;
+      }
+    }
+    pmap->iter_to_attached_stages.insert(std::make_pair(key, value));
+  }
+  return map;
+}
+
 /********** State **********/
 State::State(const Array<te::Operation>& ops) {
   auto node = make_object<StateNode>();
@@ -255,6 +286,19 @@ void State::compute_root(int stage_id) {
   ComputeRootStep step = ComputeRootStep(stage_id);
   CopyOnWrite()->transform_steps.push_back(step);
   step->ApplyToState(this);
+}
+
+int State::cache_read(int stage_id, const String& scope_name,
+                      const Array<Integer>& reader_stage_ids, const ComputeDAG& dag) {
+  CacheReadStep step = CacheReadStep(stage_id, scope_name, reader_stage_ids);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this, dag);
+}
+
+int State::cache_write(int stage_id, const String& scope_name, const ComputeDAG& dag) {
+  CacheWriteStep step = CacheWriteStep(stage_id, scope_name);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this, dag);
 }
 
 void State::ApplySteps(const ComputeDAG& dag) {
@@ -427,6 +471,20 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateComputeRoot")
     .set_body_typed([](State state, int stage_id) {
       state.compute_root(stage_id);
       return state;
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateCacheRead")
+    .set_body_typed([](State state, int stage_id, const String& scope_name,
+                       const Array<Integer>& reader_stage_ids, const ComputeDAG& dag) {
+      int res = state.cache_read(stage_id, scope_name, reader_stage_ids, dag);
+      return Array<ObjectRef>{state, Integer(res)};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateCacheWrite")
+    .set_body_typed([](State state, int stage_id, const String& scope_name,
+                       const ComputeDAG& task_dag) {
+      int res = state.cache_write(stage_id, scope_name, task_dag);
+      return Array<ObjectRef>{state, Integer(res)};
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.StateEqual").set_body_typed([](State state1, State state2) {

@@ -126,11 +126,17 @@ class ComputeDAG(Object):
 
         Returns
         -------
-        state : State
+        updated_state : State
             The State with complete bound information.
         """
         state_obj = state if isinstance(state, StateObject) else state.state_object
-        return State(_ffi_api.ComputeDAGInferBoundFromState(self, state_obj), self)
+        updated_state = State(_ffi_api.ComputeDAGInferBoundFromState(self, state_obj), self)
+        # Copy the stage_id_map from the original state to make sure the old indices are still
+        # valid
+        if isinstance(state, State):
+            for k, v in state.stage_id_map.items():
+                updated_state.stage_id_map[k] = v
+        return updated_state
 
     def __hash__(self):
         # TODO(merrymercy): Implement this more carefully and move this to c++ as a member function

@@ -127,7 +127,8 @@ class State:
         return [stage.op for stage in self.stages]
 
     def bind(self, stage, iterator, thread_name):
-        """ Schedule primitive corresponds to te.bind.
+        """ Schedule primitive corresponds to `te.Stage.bind`, see also the `te.Stage` for more
+        details.
 
         Parameters
         ----------
@@ -160,7 +161,8 @@ class State:
         return res
 
     def parallel(self, stage, iterator):
-        """ Schedule primitive corresponds to te.parallel.
+        """ Schedule primitive corresponds to `te.Stage.parallel`, see also the `te.Stage` for more
+        details.
 
         Parameters
         ----------
@@ -180,7 +182,8 @@ class State:
         return res
 
     def unroll(self, stage, iterator, max_unroll=None):
-        """ Schedule primitive corresponds to te.unroll.
+        """ Schedule primitive corresponds to `te.Stage.unroll`, see also the `te.Stage` for more
+        details.
 
         Parameters
         ----------
@@ -203,7 +206,8 @@ class State:
         return res
 
     def vectorize(self, stage, iterator):
-        """ Schedule primitive corresponds to te.vectorize.
+        """ Schedule primitive corresponds to `te.Stage.vectorize`, see also the `te.Stage` for
+        more details.
 
         Parameters
         ----------
@@ -223,7 +227,8 @@ class State:
         return res
 
     def fuse(self, stage, iters):
-        """ Schedule primitive corresponds to te.fuse.
+        """ Schedule primitive corresponds to `te.Stage.fuse`, see also the `te.Stage` for more
+        details.
 
         Parameters
         ----------
@@ -248,7 +253,8 @@ class State:
         return res
 
     def reorder(self, stage, order):
-        """ Schedule primitive corresponds to te.reorder.
+        """ Schedule primitive corresponds to `te.Stage.reorder`, see also the `te.Stage` for more
+        details.
 
         Parameters
         ----------
@@ -262,7 +268,8 @@ class State:
                                                   order)
 
     def split(self, stage, iterator, lengths, inner_to_outer=True):
-        """ Schedule primitive corresponds to te.split.
+        """ Schedule primitive corresponds to `te.Stage.split`, see also the `te.Stage` for more
+        details.
 
         This API supports multiple split factors. (e.g. with 2 split factors, the original iterator
         will be split to 3 parts, use `inner_to_outer` to control the split order)
@@ -295,12 +302,13 @@ class State:
         return res
 
     def compute_at(self, stage, target_stage, target_iter):
-        """ Schedule primitive corresponds to te.compute_at.
+        """ Schedule primitive corresponds to `te.Stage.compute_at`, see also the `te.Stage` for
+        more details.
 
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be compute at, which can be specified by the integer index, Operation,
+            The Stage to be computed at, which can be specified by the integer index, Operation,
             or output tensor of the stage.
         target_stage : Union[int, Operation, Tensor]
             The target stage of compute_at, which can be specified by the integer index, Operation,
@@ -321,25 +329,27 @@ class State:
                                                     target_iter)
 
     def compute_inline(self, stage):
-        """ Schedule primitive corresponds to te.compute_inline.
+        """ Schedule primitive corresponds to `te.Stage.compute_inline`, see also the `te.Stage`
+        for more details.
 
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be compute inlined, which can be specified by the integer index, Operation,
-            or output tensor of the stage.
+            The Stage to be marked compute inlined, which can be specified by the integer index,
+            Operation, or output tensor of the stage.
         """
         self.state_object = _ffi_api.StateComputeInline(self.state_object,
                                                         self._resolve_stage_id(stage))
 
     def compute_root(self, stage):
-        """ Schedule primitive corresponds to te.compute_root.
+        """ Schedule primitive corresponds to `te.Stage.compute_root`, see also the `te.Stage` for
+        more details.
 
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be compute root, which can be specified by the integer index, Operation,
-            or output tensor of the stage.
+            The Stage to be marked compute at root, which can be specified by the integer index,
+            Operation, or output tensor of the stage.
 
         Notes
         -----
@@ -350,6 +360,74 @@ class State:
         """
         self.state_object = _ffi_api.StateComputeRoot(self.state_object,
                                                       self._resolve_stage_id(stage))
+
+    def cache_read(self, stage, scope_name, reader_stages):
+        """ Schedule primitive corresponds to `te.Schedule.cache_read`, see also the `te.Schedule`
+        for more details.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be cache read, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        scope_name : str
+            The scope name of the newly added read stage.
+        reader_stages : List[Union[int, Operation, Tensor]]
+            The reader stages. Each of the list can be specified by the integer index, Operation,
+            or output tensor of the stage.
+
+        Returns
+        -------
+        new_stage_op : Operator
+            The Operator of the new added stage.
+
+        Notes
+        -----
+        Cache read step will insert an extra stage to the original ComputeDAG (at the back of the
+        target stage).
+        """
+        reader_stage_ids = [self._resolve_stage_id(i) for i in reader_stages]
+        self.state_object, new_stage_id = _ffi_api.StateCacheRead(self.state_object,
+                                                                  self._resolve_stage_id(stage),
+                                                                  scope_name, reader_stage_ids,
+                                                                  self.compute_dag)
+        # Add a new stage will change all ops behind the added stage. But we still want to keep the
+        # original ops map, apply stage id offset to stage_id_map to make them work.
+        self._apply_stage_id_offset(int(new_stage_id))
+        self._update_stage_id_map()
+        return self.stages[int(new_stage_id)].op
+
+    def cache_write(self, stage, scope_name):
+        """ Schedule primitive corresponds to `te.Schedule.cache_write`, see also the `te.Schedule`
+        for more details.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be cache write, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        scope_name : str
+            The scope name of the newly added compute stage.
+
+        Returns
+        -------
+        new_stage_op : Operator
+            The Operator of the new added stage.
+
+        Notes
+        -----
+        Cache write step will insert an extra stage to the original ComputeDAG (in the front of the
+        target stage).
+        This step will cache write all output tensors of the target stage.
+        """
+        self.state_object, new_stage_id = _ffi_api.StateCacheWrite(self.state_object,
+                                                                   self._resolve_stage_id(stage),
+                                                                   scope_name, self.compute_dag)
+        # Add a new stage will change all ops behind the added stage. But we still want to keep the
+        # original ops map, apply stage id offset to stage_id_map to make them work.
+        self._apply_stage_id_offset(int(new_stage_id))
+        self._update_stage_id_map()
+        return self.stages[int(new_stage_id)].op
 
     def copy(self):
         """ Do deep copy of this State. """
@@ -370,6 +448,11 @@ class State:
     def _update_stage_id_map(self):
         for index, stage in enumerate(self.stages):
             self.stage_id_map[stage.op] = index
+
+    def _apply_stage_id_offset(self, start_id, offset=1):
+        for key, value in self.stage_id_map.items():
+            if value >= start_id:
+                self.stage_id_map[key] = value + offset
 
     def __getitem__(self, key):
         if isinstance(key, Tensor):
