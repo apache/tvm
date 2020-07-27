@@ -68,6 +68,18 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   Scope GetScope(const Expr& e) { return node_scope_->at(dg_.expr_node.at(e)); }
 
+  Scope GetSubScope(const Expr& e, size_t i) {
+    DependencyGraph::Node* n = dg_.expr_node.at(e);
+    auto h = n->children.head;
+    while (i != 0) {
+      CHECK(h);
+      --i;
+      h = h->next;
+    }
+    CHECK(h);
+    return node_scope_->at(h->value);
+  }
+
   bool IsLifted(const Expr& e) { return lifted_->find(dg_.expr_node.at(e)) != lifted_->end(); }
 
   Expr VisitExpr(const Expr& e, const Var& v) final {
@@ -141,9 +153,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
     Expr e = GetRef<Expr>(i);
     Expr ret = If(VisitExpr(i->cond), GetSubScope(e, 1)->ll->Get(VisitExpr(i->true_branch)),
                   GetSubScope(e, 2)->ll->Get(VisitExpr(i->false_branch)));
-    auto ff = Compound(e, ret, v);
-    //LOG(INFO) << "visit if " << e << "\n->\n" << ff;
-    return ff;
+    return Compound(e, ret, v);
   }
 
   Expr VisitExpr_(const FunctionNode* f, const Var& v) final {
@@ -160,21 +170,9 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   Expr VisitExpr_(const LetNode* l, const Var& v) final {
     Expr e = GetRef<Expr>(l);
-    DLOG(INFO) << "start to visit let " << e;
-    // Expr val = VisitExpr(l->value);
-    Expr var = VisitExpr(l->value, l->var);
-    // Expr body = VisitExpr(l->body);
+    VisitExpr(l->value, l->var);
     Expr ret = GetSubScope(e, 0)->ll->Get(VisitExpr(l->body), true);
-    LOG(INFO) << "visit let body = " << ret;
-    // return Let(l->var, l->value, ret);
-    // TODO: the LetNode itself was not added to the scope of the original expression
-    // LOG(INFO) << "visit let " << e << "\n->\n" << ff;
-    // if (lifted_->find(e) == lifted_->end()) {
-    //   return Let(l->var, val, ret); // l->value could be in another scope
-    // } else {
-      auto ff = Compound(e, ret, v);
-      return ff;
-    //}
+    return Compound(e, ret, v);
   }
 
   Expr VisitExpr_(const ConstantNode* c, const Var& v) final {

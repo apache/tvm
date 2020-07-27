@@ -117,16 +117,15 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
 TVM_DLL Pass RewriteAnnotatedOps(int fallback_device);
 
 /*!
- * \brief turn a dataflow graph into Administrative Normal Form, or A-Normal Form (ANF).
+ * \brief Turn an expression to Basic Block Normal Form.
  *
- * It will turn an expression that is in a graph form (with sharing implicit),
- * to an expression with explicit sharing (A-Normal Form).
+ * We define a block as a group of expressions implied by the scope structure.
  *
- * The scope of the root expression is the global scope.
+ * Each graph node can only belong to a single block.
  *
- * The scope of any non root expression is the least common ancestor of all it's scope.
- *
- * Values are ordered by post-DFS order in each scope.
+ * For any value that is being used in multiple blocks, it has to be referred
+ * by a Var which is defined in a block, whose scope is the least common ancestor
+ * of blocks this value is used.
  *
  * \return The pass.
  */

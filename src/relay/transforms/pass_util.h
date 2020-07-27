@@ -193,17 +193,24 @@ using Scope = std::shared_ptr<ScopeNode>;
  * Invariant: when parent is not null level is 1 + parent->level
  */
 struct ScopeNode {
+  // the level of the scope
   size_t level;
+  // the parent scope
   Scope parent;
+  // the corresponding let list which holds all let bindings in the scope
   std::shared_ptr<LetList> ll = std::make_shared<LetList>();
   explicit ScopeNode(const Scope& parent) : level(1 + parent->level), parent(parent) {}
   ScopeNode() : level(0) {}
 };
 
-inline Scope ChildScope(const Scope& s) { return std::make_shared<ScopeNode>(s); }
-
-Scope LCA(Scope lhs, Scope rhs);
-
+/*! \brief Calculate the scope of nodes in the dependency graph by least common ancestor.
+ *
+ *  \param dg the input dependency graph
+ *  \param node_scope the set of "lifted" nodes, where the node's scope is lifted by
+ *  LCA when multiple nodes depend on it.
+ *
+ *  \return the node -> scope mapping for all nodes.
+ */
 std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGraph& dg,
        std::unordered_set<DependencyGraph::Node*>* lifted_nodes);
 

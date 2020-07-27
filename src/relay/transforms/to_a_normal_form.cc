@@ -50,6 +50,8 @@ Scope LCA(Scope lhs, Scope rhs) {
   return lhs;
 }
 
+Scope ChildScope(const Scope& s) { return std::make_shared<ScopeNode>(s); }
+
 std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGraph& dg,
        std::unordered_set<DependencyGraph::Node*>* lifted_nodes) {
   std::unordered_map<DependencyGraph::Node*, Scope> expr_scope;
