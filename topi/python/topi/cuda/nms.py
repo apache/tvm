@@ -56,20 +56,27 @@ def get_valid_counts_ir(data, valid_count, out, out_indices,
     """Low level IR to get valid count of bounding boxes
     given a score threshold. Also prepares to move valid boxes to the
     top of input data.
+
     Parameters
     ----------
     data : Buffer
         Input data. 3-D Buffer with shape [batch_size, num_anchors, elem_length].
+
     valid_count : Buffer
         1D buffer for valid number of boxes with shape [batch_size, ].
+
     flag : Buffer
         2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
+
     score_threshold : float32
         Lower limit of score for valid bounding boxes.
+
     id_index : optional, int
         index of the class categories, -1 to disable.
+
     score_index: optional, int
         Index of the scores/confidence of boxes.
+
     Returns
     -------
     stmt : Stmt
@@ -130,20 +137,26 @@ def get_valid_counts_ir(data, valid_count, out, out_indices,
 def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
+
     Parameters
     ----------
     data : tvm.te.Tensor
         Input data. 3-D tensor with shape [batch_size, num_anchors, elem_length].
+
     score_threshold : optional, float
         Lower limit of score for valid bounding boxes.
+
     id_index : optional, int
         index of the class categories, -1 to disable.
+
     score_index: optional, int
         Index of the scores/confidence of boxes.
+
     Returns
     -------
     valid_count : tvm.te.Tensor
         1-D tensor for valid number of boxes.
+
     out_tensor : tvm.te.Tensor
         Rearranged data tensor.
     """
@@ -252,33 +265,46 @@ def nms_ir(data, sorted_index, valid_count, indices, out, box_indices,
            max_output_size, iou_threshold, force_suppress,
            top_k, coord_start, id_index, score_index):
     """Low level IR routing for transform location in multibox_detection operator.
+
     Parameters
     ----------
     data : Buffer
         Buffer of output boxes with class and score.
+
     sort_index : Buffer
         Buffer of output box indexes sorted by score.
+
     valid_count : Buffer
         Buffer of number of valid output boxes.
+
     indices : Buffer
         Buffer represents the index of box in original data.
+
     out : Buffer
         Output buffer.
+
     max_output_size : int
         Max number of output valid boxes for each instance.
         By default all valid boxes are returned.
+
     iou_threshold : float
         Overlapping(IoU) threshold to suppress object with smaller score.
+
     force_suppress : boolean
         Whether to suppress all detections regardless of class_id.
+
     top_k : int
         Keep maximum top k detections before nms, -1 for no limit.
+
     coord_start : int
         Start index of the consecutive 4 coordinates.
+
     id_index : int
         index of the class categories, -1 to disable.
+
     score_index : optional, int
         Index of the scores/confidence of boxes.
+
     Returns
     -------
     stmt : Stmt
@@ -308,6 +334,7 @@ def nms_ir(data, sorted_index, valid_count, indices, out, box_indices,
     sorted_index = ib.buffer_ptr(sorted_index)
     valid_count = ib.buffer_ptr(valid_count)
     out = ib.buffer_ptr(out)
+    indices = ib.buffer_ptr(indices)
     box_indices = ib.buffer_ptr(box_indices)
     num_valid_boxes = ib.allocate(
         "int32", (1,), name="num_valid_boxes", scope="local")
@@ -413,6 +440,7 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
                         coord_start=2, score_index=1, id_index=0,
                         return_indices=True, invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
+
     Parameters
     ----------
     data : tvm.te.Tensor
@@ -420,41 +448,55 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
         The last dimension should be in format of
         [class_id, score, box_left, box_top, box_right, box_bottom].
         It could be the second output out_tensor of get_valid_counts.
+
     valid_count : tvm.te.Tensor
         1-D tensor for valid number of boxes. It could be the output
         valid_count of get_valid_counts.
+
     indices : tvm.te.Tensor
         2-D tensor with shape [batch_size, num_anchors], represents
         the index of box in original data. It could be the third
         output out_indices of get_valid_counts. The values in the
         second dimension are like the output of arange(num_anchors)
         if get_valid_counts is not used before non_max_suppression.
+
     max_output_size : optional, int
         Max number of output valid boxes for each instance.
         By default all valid boxes are returned.
+
     iou_threshold : optional, float
         Non-maximum suppression threshold.
+
     force_suppress : optional, boolean
         Whether to suppress all detections regardless of class_id.
+
     top_k : optional, int
         Keep maximum top k detections before nms, -1 for no limit.
+
     coord_start : required, int
         Start index of the consecutive 4 coordinates.
+
     score_index : optional, int
         Index of the scores/confidence of boxes.
+
     id_index : optional, int
         index of the class categories, -1 to disable.
+
     return_indices : boolean
         Whether to return box indices in input data.
+
     invalid_to_bottom : optional, boolean
         Whether to move all valid bounding boxes to the top.
+
     Returns
     -------
     out : tvm.te.Tensor
         3-D tensor with shape [batch_size, num_anchors, elem_length].
+
     Example
     --------
     .. code-block:: python
+
         # An example to use nms
         dshape = (1, 5, 6)
         data = te.placeholder(dshape, name="data")
@@ -511,7 +553,6 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
             in_buffers=[data_buf, sort_tensor_buf, valid_count_buf, indices_buf],
             name="nms",
             tag="nms")
-    # TODO(yongwww): Update cuda nms to be consistent with cpu version
     if return_indices:
         return rearrange_indices_out(box_indices)
 
