@@ -25,32 +25,51 @@ from .sort import argsort, argsort_thrust
 from .. import tag
 
 
+def cuda_atomic_add_rule(op):
+    if op.dtype == "float32":
+        return tvm.tir.call_pure_extern("float32", "atomicAdd", op.args[0], op.args[1])
+    if op.dtype == "float64":
+        return tvm.tir.call_pure_extern("float64", "atomicAdd", op.args[0], op.args[1])
+    if op.dtype == "int32":
+        return tvm.tir.call_pure_extern("int32", "atomicAdd", op.args[0], op.args[1])
+    raise RuntimeError("only support int32, float32 and float64")
+
+def opencl_atomic_add_rule(op):
+    if op.dtype == "int32":
+        return tvm.tir.call_pure_extern("int32", "atomic_add", op.args[0], op.args[1])
+    raise RuntimeError("only support int32")
+
+tvm.target.intrin.register_intrin_rule(
+    "cuda", "atomic_add", cuda_atomic_add_rule, override=True)
+
+tvm.target.intrin.register_intrin_rule(
+    "opencl", "atomic_add", opencl_atomic_add_rule, override=True)
+
+tvm.ir.register_op_attr("tir.atomic_add", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
+
+def atomic_add(x, y):
+    return tvm.tir.call_intrin(y.dtype, "tir.atomic_add", x, y)
+
+
 def get_valid_counts_ir(data, valid_count, out, out_indices,
                         score_threshold, id_index, score_index):
     """Low level IR to get valid count of bounding boxes
     given a score threshold. Also prepares to move valid boxes to the
     top of input data.
-
     Parameters
     ----------
     data : Buffer
         Input data. 3-D Buffer with shape [batch_size, num_anchors, elem_length].
-
     valid_count : Buffer
         1D buffer for valid number of boxes with shape [batch_size, ].
-
     flag : Buffer
         2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
-
     score_threshold : float32
         Lower limit of score for valid bounding boxes.
-
     id_index : optional, int
         index of the class categories, -1 to disable.
-
     score_index: optional, int
         Index of the scores/confidence of boxes.
-
     Returns
     -------
     stmt : Stmt
@@ -67,6 +86,8 @@ def get_valid_counts_ir(data, valid_count, out, out_indices,
     valid_count = ib.buffer_ptr(valid_count)
     out = ib.buffer_ptr(out)
     out_indices = ib.buffer_ptr(out_indices)
+    atomic_add_return = ib.allocate(
+        valid_count.dtype, (1,), name='atomic_add_return', scope='local')
     one_count = tvm.tir.const(1, dtype=valid_count.dtype)
     one = tvm.tir.const(1, dtype=out.dtype)
     score_threshold = tvm.ir.make_node(
@@ -74,60 +95,55 @@ def get_valid_counts_ir(data, valid_count, out, out_indices,
     id_index = tvm.ir.make_node("IntImm", dtype="int32", value=id_index)
     score_index = tvm.ir.make_node("IntImm", dtype="int32", value=score_index)
 
-    nthread_tx = batch_size
-    nthread_bx = 1
+    max_threads = int(tvm.target.Target.current(
+        allow_none=False).max_num_threads)
+    nthread_tx = max_threads
+    nthread_bx = batch_size * num_anchors // max_threads + 1
     tx = te.thread_axis("threadIdx.x")
     bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
-    tid = tx
+    tid = bx * max_threads + tx
+    idxd = tvm.tir.indexdiv
 
-    # each thread process one batch
-    valid_count[tid] = 0
-    data_base_ind = tid * num_anchors * elem_length
-    ind_base_ind = tid * num_anchors
-    with ib.for_range(0, num_anchors) as anchor_ind:
-        with ib.for_range(0, elem_length) as k:
-            out[data_base_ind + anchor_ind * elem_length + k] = -one
-        out_indices[ind_base_ind + anchor_ind] = -one_count
-
-    with ib.for_range(0, num_anchors) as anchor_ind:
+    # initialize valid_count
+    with ib.if_scope(tid < batch_size):
+        valid_count[tid] = 0
+    with ib.if_scope(tid < batch_size * num_anchors):
+        i = idxd(tid, num_anchors)
         with ib.if_scope(
-                tvm.tir.all(
-                    data[data_base_ind + anchor_ind * elem_length + score_index] > score_threshold,
-                    tvm.tir.any(id_index < 0,
-                                data[data_base_ind + anchor_ind * elem_length + id_index] >= 0))):
-            valid_count[tid] = valid_count[tid] + 1
+                tvm.tir.all(data[tid * elem_length + score_index] > score_threshold,
+                            tvm.tir.any(id_index < 0, data[tid * elem_length + id_index] >= 0))):
+            atomic_add_return[0] = atomic_add(tvm.tir.call_intrin("handle", "tir.address_of",
+                                                                       valid_count[i]), one_count)
             with ib.for_range(0, elem_length) as k:
-                out[data_base_ind + (valid_count[tid]-1) * elem_length + k] = \
-                    data[data_base_ind + anchor_ind * elem_length + k]
-            out_indices[ind_base_ind + (valid_count[tid]-1)] = anchor_ind
+                out[tid * elem_length + k] = data[tid * elem_length + k]
+                out_indices[tid + k] = tid + k
+        with ib.else_scope():
+            with ib.for_range(0, elem_length) as k:
+                out[tid * elem_length + k] = -one
+                out_indices[tid + k] = -one_count
+
     return ib.get()
 
 
 def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
-
     Parameters
     ----------
     data : tvm.te.Tensor
         Input data. 3-D tensor with shape [batch_size, num_anchors, elem_length].
-
     score_threshold : optional, float
         Lower limit of score for valid bounding boxes.
-
     id_index : optional, int
         index of the class categories, -1 to disable.
-
     score_index: optional, int
         Index of the scores/confidence of boxes.
-
     Returns
     -------
     valid_count : tvm.te.Tensor
         1-D tensor for valid number of boxes.
-
     out_tensor : tvm.te.Tensor
         Rearranged data tensor.
     """
@@ -236,46 +252,33 @@ def nms_ir(data, sorted_index, valid_count, indices, out, box_indices,
            max_output_size, iou_threshold, force_suppress,
            top_k, coord_start, id_index, score_index):
     """Low level IR routing for transform location in multibox_detection operator.
-
     Parameters
     ----------
     data : Buffer
         Buffer of output boxes with class and score.
-
     sort_index : Buffer
         Buffer of output box indexes sorted by score.
-
     valid_count : Buffer
         Buffer of number of valid output boxes.
-
     indices : Buffer
         Buffer represents the index of box in original data.
-
     out : Buffer
         Output buffer.
-
     max_output_size : int
         Max number of output valid boxes for each instance.
         By default all valid boxes are returned.
-
     iou_threshold : float
         Overlapping(IoU) threshold to suppress object with smaller score.
-
     force_suppress : boolean
         Whether to suppress all detections regardless of class_id.
-
     top_k : int
         Keep maximum top k detections before nms, -1 for no limit.
-
     coord_start : int
         Start index of the consecutive 4 coordinates.
-
     id_index : int
         index of the class categories, -1 to disable.
-
     score_index : optional, int
         Index of the scores/confidence of boxes.
-
     Returns
     -------
     stmt : Stmt
@@ -304,7 +307,6 @@ def nms_ir(data, sorted_index, valid_count, indices, out, box_indices,
     data = ib.buffer_ptr(data)
     sorted_index = ib.buffer_ptr(sorted_index)
     valid_count = ib.buffer_ptr(valid_count)
-    indices = ib.buffer_ptr(indices)
     out = ib.buffer_ptr(out)
     box_indices = ib.buffer_ptr(box_indices)
     num_valid_boxes = ib.allocate(
@@ -411,7 +413,6 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
                         coord_start=2, score_index=1, id_index=0,
                         return_indices=True, invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
-
     Parameters
     ----------
     data : tvm.te.Tensor
@@ -419,55 +420,41 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
         The last dimension should be in format of
         [class_id, score, box_left, box_top, box_right, box_bottom].
         It could be the second output out_tensor of get_valid_counts.
-
     valid_count : tvm.te.Tensor
         1-D tensor for valid number of boxes. It could be the output
         valid_count of get_valid_counts.
-
     indices : tvm.te.Tensor
         2-D tensor with shape [batch_size, num_anchors], represents
         the index of box in original data. It could be the third
         output out_indices of get_valid_counts. The values in the
         second dimension are like the output of arange(num_anchors)
         if get_valid_counts is not used before non_max_suppression.
-
     max_output_size : optional, int
         Max number of output valid boxes for each instance.
         By default all valid boxes are returned.
-
     iou_threshold : optional, float
         Non-maximum suppression threshold.
-
     force_suppress : optional, boolean
         Whether to suppress all detections regardless of class_id.
-
     top_k : optional, int
         Keep maximum top k detections before nms, -1 for no limit.
-
     coord_start : required, int
         Start index of the consecutive 4 coordinates.
-
     score_index : optional, int
         Index of the scores/confidence of boxes.
-
     id_index : optional, int
         index of the class categories, -1 to disable.
-
     return_indices : boolean
         Whether to return box indices in input data.
-
     invalid_to_bottom : optional, boolean
         Whether to move all valid bounding boxes to the top.
-
     Returns
     -------
     out : tvm.te.Tensor
         3-D tensor with shape [batch_size, num_anchors, elem_length].
-
     Example
     --------
     .. code-block:: python
-
         # An example to use nms
         dshape = (1, 5, 6)
         data = te.placeholder(dshape, name="data")
