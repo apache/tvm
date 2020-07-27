@@ -15,11 +15,17 @@
     specific language governing permissions and limitations
     under the License.
 
-Links to Other API References
-=============================
+.. _dev-how-to:
 
-This page contains links to API references that are build with different doc build system.
+Developer How-To Guide
+======================
+This section contains a collection of tips about how to work on
+various areas of the TVM stack.
 
-* `C++ doyxgen API <doxygen/index.html>`_
-* `Typescript typedoc API <typedoc/index.html>`_
-* `Java Javadoc API <javadoc/index.html>`_
+.. toctree::
+   :maxdepth: 1
+
+   relay_add_op
+   relay_add_pass
+   relay_bring_your_own_codegen
+   codebase_walkthrough
