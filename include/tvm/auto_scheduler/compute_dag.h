@@ -238,6 +238,17 @@ class ComputeDAG : public ObjectRef {
    */
   State InferBound(const State& state) const;
 
+  /*!
+   * \brief Since some steps may change the ComputeDAG (e.g. CacheRead/CacheWrite), the initial
+   * ComputeDAG may not be up-to-date. This function replays the given transform steps from the
+   * initial state and returns an up-to-date ComputeDAG.
+   * \param steps The steps to be replaied. Usually we'll filter out the unused steps to speed up
+   * the replay process, since we only intend to get a ComputeDAG with the up-to-date op stage
+   * structure.
+   * \return The up-to-date ComputeDAG.
+   */
+  ComputeDAG ReplayAndGetDAG(const Array<Step>& steps) const;
+
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeDAG, ObjectRef, ComputeDAGNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeDAGNode);
 };

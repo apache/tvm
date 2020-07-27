@@ -23,6 +23,7 @@
  *        They are similar to the schedule primitives in te::Stage.
  */
 
+#include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/auto_scheduler/loop_state.h>
 #include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/registry.h>
@@ -32,8 +33,6 @@
 #include <utility>
 #include <vector>
 
-#include "compute_dag.h"
-#include "loop_state.h"
 #include "utils.h"
 
 namespace tvm {

@@ -23,6 +23,7 @@
  * see auto_scheduler/loop_state.h for more explanation.
  */
 
+#include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/auto_scheduler/loop_state.h>
 #include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/registry.h>
@@ -30,8 +31,6 @@
 
 #include <utility>
 
-#include "compute_dag.h"
-#include "transform_step.h"
 #include "utils.h"
 
 namespace tvm {
