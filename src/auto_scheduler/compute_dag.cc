@@ -645,24 +645,6 @@ ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   data_ = std::move(node);
 }
 
-// Update the te::stage to tir::IterVar axis mapping
-void UpdateStageToAxesMap(const te::Stage& stage, StageToAxesMap* stage_to_axes) {
-  if (auto pop = stage->op.as<te::ComputeOpNode>()) {
-    Array<IterVar> axes;
-    for (const auto& axis : pop->axis) {
-      axes.push_back(axis);
-    }
-    for (const auto& axis : pop->reduce_axis) {
-      axes.push_back(axis);
-    }
-    stage_to_axes->Set(stage, std::move(axes));
-  } else if (stage->op->IsInstance<te::PlaceholderOpNode>()) {
-    {}  // do nothing on Placeholder
-  } else {
-    LOG(FATAL) << "Invalid op " << stage->op;
-  }
-}
-
 std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
     const Array<Step>& transform_steps, Array<te::Stage>* stages,
     StageToAxesMap* stage_to_axes) const {
@@ -696,7 +678,7 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
   // Apply the history steps to TVM schedule
   // Call each step's ApplyToSchedule method
   for (const auto& step : transform_steps) {
-    StepApplyToSchedule(step, stages, stage_to_axes);
+    StepApplyToSchedule(step, stages, stage_to_axes, &schedule);
   }
 
   return std::make_pair(schedule, operator->()->tensors);
@@ -740,7 +722,7 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
   }
   // Call each step's PrintAsPythonAPI method
   for (const auto& step : transform_steps) {
-    ss << StepPrintAsPythonAPI(step, &stages, &stage_to_axes);
+    ss << StepPrintAsPythonAPI(step, &stages, &stage_to_axes, &schedule);
   }
 
   return ss.str();
@@ -804,6 +786,23 @@ State ComputeDAG::InferBound(const State& state) const {
   }
 
   return ret_state;
+}
+
+ComputeDAG ComputeDAG::ReplayAndGetDAG(const Array<Step>& transform_steps) const {
+  te::Schedule sch;
+  Array<te::Tensor> old_tensors;
+  std::tie(sch, old_tensors) = ApplySteps(transform_steps);
+
+  Array<te::Tensor> new_tensors;
+  for (auto stage : sch->stages) {
+    if (stage->op->IsInstance<te::PlaceholderOpNode>() || stage->is_output) {
+      for (auto i = 0; i < stage->op->num_outputs(); ++i) {
+        new_tensors.push_back(stage->op.output(i));
+      }
+    }
+  }
+
+  return ComputeDAG(new_tensors);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

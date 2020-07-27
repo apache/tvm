@@ -35,7 +35,7 @@ def test_record():
     C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
     D = topi.nn.relu(C)
     k = te.reduce_axis((0, 512), name='k')
-    E = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * D[k][j], axis=[k]), name='C')
+    E = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * D[k][j], axis=[k]), name='E')
     F = topi.nn.relu(E)
 
     dag = auto_scheduler.ComputeDAG([A, B, F])
@@ -66,6 +66,11 @@ def test_record():
     s.unroll(C, s[C].iters[4])
     # Vectorize
     s.vectorize(C, s[C].iters[6])
+    # Cache Read
+    D_global = s.cache_read(D, "global", [E])
+    s.compute_at(D_global, E, s[E].iters[2])
+    # Cache Write
+    s.cache_write(D, "shared")
 
     target = tvm.target.create("llvm")
     task = auto_scheduler.SearchTask(dag, "test", target)
