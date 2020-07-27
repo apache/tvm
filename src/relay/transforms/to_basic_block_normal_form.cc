@@ -55,8 +55,8 @@ class Fill2 : ExprFunctor<Expr(const Expr&, const Var&)> {
     auto ret = fi.GetScope(e)->ll->Get(x);
     LOG(INFO) << "======================== END FILLING ======================= \n";
     // LOG(INFO) << "ff = " << tvm::PrettyPrint(ff);
-    LOG(INFO) << "ff = " << ret;
-    return ff;
+    LOG(INFO) << "ret = " << ret;
+    return ret;
   }
 
  private:
@@ -219,7 +219,7 @@ class Fill2 : ExprFunctor<Expr(const Expr&, const Var&)> {
     GlobalVar gv = GetRef<GlobalVar>(gvn);
     auto ret = Atomic(gv, v);
     //LOG(INFO) << "visit globalvar " << e << "\n->\n" << ff;
-    return ff;
+    return ret;
   }
 
   Expr VisitExpr_(const OpNode* op, const Var& v) final {

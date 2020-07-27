@@ -54,6 +54,7 @@ std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGrap
        std::unordered_set<DependencyGraph::Node*>* lifted_nodes) {
   std::unordered_map<DependencyGraph::Node*, Scope> expr_scope;
   bool global_scope_used = false;
+  std::unordered_map<long long, int> scopes;
   Scope global_scope = std::make_shared<ScopeNode>();
   for (auto it = dg.post_dfs_order.rbegin(); it != dg.post_dfs_order.rend(); ++it) {
     DependencyGraph::Node* n = *it;
@@ -74,26 +75,23 @@ std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGrap
         lifted_nodes->insert(n);
       }
     }
-    expr_scope.insert({n, n->new_scope ? ChildScope(s) : s});
+    auto result_scope = n->new_scope ? ChildScope(s) : s;
+    expr_scope.insert({n, result_scope});
+    int scope_key = (long long)(result_scope.get());
+    if (scopes.find(scope_key) == scopes.end()) {
+      scopes[scope_key] = scopes.size();
+    }
+    bool found_expr = false;
+    for (auto expr_kv : dg.expr_node) {
+      if (expr_kv.second == n) {
+        Expr e = expr_kv.first;
+        found_expr = true;
+        LOG(INFO) << "@scope " << scopes[scope_key] << " = " << scope_key << "\n node = " << n << ": " << e;
+        break;
+      }
+    }
+    if (!found_expr) LOG(INFO) << "node " << n << " @scope " << scopes[scope_key];
   }
-  CHECK(global_scope_used);
-   // std::unordered_map<long long, int> scopes;
-   // std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> lifted;
-   // for (auto kv : lifted_expr_scope) {
-   //   long long scope = (long long)(kv.second.get());
-   //   bool found = false;
-   //   Expr e;
-   //   for (auto expr_kv : dg.expr_node) { // TODO: is expr_node complete?
-   //     if (expr_kv.second == kv.first) {
-   //       e = expr_kv.first;
-   //       found = true;
-   //       lifted.insert(e);
-   //       LOG(INFO) << "@scope " << scopes[scope] << " = " << scope << "\n node = " << (long long)(kv.first) << ": " << e;
-   //       break;
-   //     }
-   //   }
-   //   if (!found) LOG(INFO) << "node " << (long long)(kv.first) << " @scope " << scopes[scope];
-   // }
   return expr_scope;
 }
 
