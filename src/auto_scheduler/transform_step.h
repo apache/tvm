@@ -221,6 +221,7 @@ void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxes
 String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
                             StageToAxesMap* stage_to_axes, te::Schedule* schedule,
                             const Array<Step>& transform_steps);
+
 /********** Primitives working on single stage **********/
 
 /*!
@@ -490,11 +491,11 @@ class SplitStep : public Step {
   TVM_DEFINE_OBJECT_REF_METHODS(SplitStep, Step, SplitStepNode);
 };
 
-/*! \brief Similar to SplitStepNode, but use split factor from another stepf
+/*! \brief Similar to SplitStepNode, but uses split factors from another step
  * (i.e. Follow another split step) */
 class FollowSplitStepNode : public StepNode {
  public:
-  /*! \brief The id of the iter to split. */
+  /*! \brief The id of the iter to be split. */
   int iter_id;
   /*! \brief The index of the split step to follow in the history. */
   int src_step_id;

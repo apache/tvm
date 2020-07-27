@@ -353,7 +353,7 @@ class State : public ObjectRef {
   Array<Iterator> split(int stage_id, const Iterator& it, const Array<Optional<Integer>>& lengths,
                         bool inner_to_outer = true);
   /*!
-   * \brief Schedule primitive corresponds to te.follow_split.
+   * \brief Schedule primitive extends to split step.
    * \param stage_id The index of the stage to be split.
    * \param it The iterator to be split.
    * \param src_step_id The index of the split step to follow in the history.
@@ -362,7 +362,7 @@ class State : public ObjectRef {
    */
   Array<Iterator> follow_split(int stage_id, const Iterator& it, int src_step_id, int n_split);
   /*!
-   * \brief Schedule primitive corresponds to te.follow_split.
+   * \brief Schedule primitive extends to split step.
    * \param stage_id The index of the stage to be split.
    * \param it The iterator to be split.
    * \param src_step_ids The indices of the split steps to follow in the history.
