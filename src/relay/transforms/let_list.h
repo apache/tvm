@@ -107,6 +107,10 @@ class LetList {
     return ret;
   }
 
+  size_t size() const {
+    return lets_.size();
+  }
+
   /*! \brief generate an LetList and wrap the result automatically.
    *
    *  \param f a function that generate the unwrapped Expr.

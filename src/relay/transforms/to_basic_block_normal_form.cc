@@ -37,10 +37,10 @@ namespace tvm {
 namespace relay {
 
 /* Special care is needed to handle local recursion.
- * Fill2 additionally take a (possibly null) Var argument,
- * If it is not null, Fill2 is required to bind the transformed result to that var.
+ * FillBasicBlock additionally take a (possibly null) Var argument,
+ * If it is not null, FillBasicBlock is required to bind the transformed result to that var.
  */
-class Fill2 : ExprFunctor<Expr(const Expr&, const Var&)> {
+class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
   static Expr ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
                             std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
@@ -49,13 +49,14 @@ class Fill2 : ExprFunctor<Expr(const Expr&, const Var&)> {
     //   return e;
     // }
     LOG(INFO) << "======================== START FILLING ======================= \n";
-    Fill2 fi(dg, node_scope, lifted);
-    auto x = fi.VisitExpr(e);
-    // if (!fi.IsLifted(e)) return e;
-    auto ret = fi.GetScope(e)->ll->Get(x);
-    LOG(INFO) << "======================== END FILLING ======================= \n";
-    // LOG(INFO) << "ff = " << tvm::PrettyPrint(ff);
-    LOG(INFO) << "ret = " << ret;
+    FillBasicBlock fi(dg, node_scope, lifted);
+    auto var = fi.VisitExpr(e);
+    auto scope = fi.GetScope(var);
+    if (!scope || !scope->ll->size()) {
+      return e;
+    }
+    auto ret = scope->ll->Get(var);
+    LOG(INFO) << "======================== END FILLING ======================= \n ret = " << ret;
     return ret;
   }
 
@@ -65,11 +66,18 @@ class Fill2 : ExprFunctor<Expr(const Expr&, const Var&)> {
   std::unordered_set<DependencyGraph::Node*>* lifted_;
   std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> memo;
 
-  Fill2(const DependencyGraph& dg, std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
+  FillBasicBlock(const DependencyGraph& dg, std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
 		 std::unordered_set<DependencyGraph::Node*>* lifted)
       : dg_(dg), node_scope_(node_scope), lifted_(lifted) {}
 
-  Scope GetScope(const Expr& e) { return node_scope_->at(dg_.expr_node.at(e)); }
+  Scope GetScope(const Expr& e) {
+    try {
+      return node_scope_->at(dg_.expr_node.at(e));
+    } catch (std::out_of_range& err) {
+      return nullptr;
+    }
+    throw;
+  }
 
   bool IsLifted(const Expr& e) { return lifted_->find(dg_.expr_node.at(e)) != lifted_->end(); }
 
@@ -260,7 +268,7 @@ Expr ToBasicBlockNormalFormAux(const Expr& e) {
    */
   std::unordered_set<DependencyGraph::Node*> lifted;
   std::unordered_map<DependencyGraph::Node*, Scope> node_scope = CalcScope(dg, &lifted);
-  return Fill2::ToBasicBlockNormalForm(e, dg, &node_scope, &lifted);
+  return FillBasicBlock::ToBasicBlockNormalForm(e, dg, &node_scope, &lifted);
 }
 
 IRModule ToBasicBlockNormalForm(const IRModule& m) {
