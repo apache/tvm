@@ -26,6 +26,7 @@
 
 #include <set>
 #include <string>
+#include <vector>
 
 #include "codegen_c.h"
 #include "tvm/target/codegen.h"

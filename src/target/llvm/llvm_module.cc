@@ -220,7 +220,8 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     }
 
     module_ = cg->Finish();
-    module_->addModuleFlag(llvm::Module::Warning, "tvm_target", llvm::MDString::get(*ctx_, target_str));
+    module_->addModuleFlag(llvm::Module::Warning, "tvm_target",
+                           llvm::MDString::get(*ctx_, target_str));
     module_->addModuleFlag(llvm::Module::Override, "Debug Info Version",
                            llvm::DEBUG_METADATA_VERSION);
 

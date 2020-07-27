@@ -35,4 +35,4 @@ std::string GenerateFuncRegistryNames(const std::vector<std::string>& function_n
 }  // namespace target
 }  // namespace tvm
 
-#endif
+#endif  // TVM_TARGET_FUNC_REGISTRY_GENERATOR_H_

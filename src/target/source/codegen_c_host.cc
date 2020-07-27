@@ -22,15 +22,15 @@
  */
 #include "codegen_c_host.h"
 
-#include <tvm/target/codegen.h>
 #include <tvm/runtime/container.h>
+#include <tvm/target/codegen.h>
 
 #include <string>
 #include <vector>
 
+#include "../../support/str_escape.h"
 #include "../build_common.h"
 #include "../func_registry_generator.h"
-#include "../../support/str_escape.h"
 
 namespace tvm {
 namespace codegen {
@@ -281,21 +281,19 @@ void CodeGenCHost::GenerateFuncRegistry() {
     stream << "    " << f << ",\n";
   }
   auto registry = target::GenerateFuncRegistryNames(function_names_);
-  stream
-    << "static const TVMFuncRegistry _tvm_func_registry = {\n"
-    << "    \"" << ::tvm::support::StrEscape(registry.data(), registry.size(), true) << "\","
-    << "    _tvm_func_array,\n"
-    << "};\n";
+  stream << "static const TVMFuncRegistry _tvm_func_registry = {\n"
+         << "    \"" << ::tvm::support::StrEscape(registry.data(), registry.size(), true) << "\","
+         << "    _tvm_func_array,\n"
+         << "};\n";
 }
 
 void CodeGenCHost::GenerateCrtSystemLib() {
-  stream
-    << "static const TVMModule _tvm_system_lib = {\n"
-    << "    &system_lib_registry,\n"
-    << "};\n"
-    << "const TVMModule* TVMSystemLibEntryPoint(void) {\n"
-    << "    return &system_lib;\n"
-    << "}\n";
+  stream << "static const TVMModule _tvm_system_lib = {\n"
+         << "    &system_lib_registry,\n"
+         << "};\n"
+         << "const TVMModule* TVMSystemLibEntryPoint(void) {\n"
+         << "    return &system_lib;\n"
+         << "}\n";
 }
 
 runtime::Module BuildCHost(IRModule mod, const std::string& target_str) {
@@ -314,7 +312,7 @@ runtime::Module BuildCHost(IRModule mod, const std::string& target_str) {
 
   if (target->GetAttr<Bool>("system-lib").value()) {
     CHECK_EQ(target->GetAttr<String>("runtime"), "crt")
-      << "c target only supports generating C runtime SystemLibs";
+        << "c target only supports generating C runtime SystemLibs";
     cg.GenerateFuncRegistry();
     cg.GenerateCrtSystemLib();
   }

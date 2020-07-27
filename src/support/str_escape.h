@@ -39,8 +39,7 @@ namespace support {
  *      strings, use octal escapes to avoid ambiguously-long hex escapes.
  * \return the Result string.
  */
-inline std::string StrEscape(const char* data, size_t size,
-                             bool use_octal_escape = false) {
+inline std::string StrEscape(const char* data, size_t size, bool use_octal_escape = false) {
   std::ostringstream stream;
   for (size_t i = 0; i < size; ++i) {
     unsigned char c = data[i];
@@ -66,9 +65,7 @@ inline std::string StrEscape(const char* data, size_t size,
           break;
         default:
           if (use_octal_escape) {
-            stream << '0' + ((c >> 6) & 0x03)
-                   << '0' + ((c >> 3) & 0x07)
-                   << '0' + (c & 0x03);
+            stream << '0' + ((c >> 6) & 0x03) << '0' + ((c >> 3) & 0x07) << '0' + (c & 0x03);
           } else {
             const char* hex_digits = "0123456789ABCDEF";
             stream << 'x' << hex_digits[c >> 4] << hex_digits[c & 0xf];

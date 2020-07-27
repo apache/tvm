@@ -141,14 +141,13 @@ class CodeGenCPU : public CodeGenLLVM {
   // global to packed function handle
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
   // List of symbols to be exported to TVM system lib.
-  std::vector<std::pair<std::string, llvm::Constant*> > export_system_symbols_;
+  std::vector<std::pair<std::string, llvm::Constant*>> export_system_symbols_;
   // List of functions to be registered in the FuncRegistry, if generated.
   std::vector<std::pair<std::string, llvm::Function*>> registry_functions_;
   // internal debug information, to be populated by
   std::unique_ptr<DebugInfo> dbg_info_;
   bool target_c_runtime_;
   bool is_system_lib_;
-
 
   // Get the DWARF type corresponding to the LLVM type |ty|. The current API in practice only
   // generates |int32|, and |int8*|.

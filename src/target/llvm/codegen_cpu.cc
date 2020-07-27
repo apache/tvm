@@ -31,8 +31,8 @@
 #include <memory>
 #include <unordered_map>
 
-#include "../func_registry_generator.h"
 #include "../../support/hexdump.h"
+#include "../func_registry_generator.h"
 
 namespace tvm {
 namespace codegen {
@@ -56,12 +56,12 @@ void CodeGenCPU::Init(const std::string& module_name, llvm::TargetMachine* tm,
   t_tvm_value_ = llvm::StructType::create({t_float64_});
   t_tvm_parallel_group_env_ = llvm::StructType::create({t_int32_->getPointerTo(), t_int32_});
   ftype_tvm_backend_packed_c_func_ = llvm::FunctionType::get(
-    t_int_,
-    {t_tvm_func_handle_, t_tvm_value_->getPointerTo(), t_int_->getPointerTo(), t_int_,
-     t_tvm_value_->getPointerTo(), t_int_->getPointerTo(), t_void_p_},
-    false);
-  t_tvm_crt_func_registry_ = llvm::StructType::create({t_char_->getPointerTo(),
-                                                       ftype_tvm_backend_packed_c_func_->getPointerTo()});
+      t_int_,
+      {t_tvm_func_handle_, t_tvm_value_->getPointerTo(), t_int_->getPointerTo(), t_int_,
+       t_tvm_value_->getPointerTo(), t_int_->getPointerTo(), t_void_p_},
+      false);
+  t_tvm_crt_func_registry_ = llvm::StructType::create(
+      {t_char_->getPointerTo(), ftype_tvm_backend_packed_c_func_->getPointerTo()});
   t_tvm_crt_module_ = llvm::StructType::create({t_tvm_crt_func_registry_->getPointerTo()});
   ftype_tvm_parallel_lambda_ = llvm::FunctionType::get(
       t_int_, {t_int_, t_tvm_parallel_group_env_->getPointerTo(), t_void_p_}, false);
@@ -123,14 +123,13 @@ void CodeGenCPU::AddFunction(const PrimFunc& f) {
     CHECK(global_symbol.defined())
         << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
     export_system_symbols_.emplace_back(
-      std::make_pair(global_symbol.value().operator std::string(), function_));
+        std::make_pair(global_symbol.value().operator std::string(), function_));
   } else if (target_c_runtime_) {
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
     CHECK(global_symbol.defined())
         << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
     registry_functions_.emplace_back(
-      std::make_pair(global_symbol.value().operator std::string(),
-                     function_));
+        std::make_pair(global_symbol.value().operator std::string(), function_));
   }
   AddDebugInformation(function_);
 }
@@ -783,15 +782,14 @@ void CodeGenCPU::AddStartupFunction() {
     for (auto sym : registry_functions_) {
       symbols.emplace_back(sym.first);
       funcs.emplace_back(llvm::ConstantExpr::getBitCast(
-                           sym.second, ftype_tvm_backend_packed_c_func_->getPointerTo()));
+          sym.second, ftype_tvm_backend_packed_c_func_->getPointerTo()));
     }
     llvm::DataLayout layout(module_.get());
-    llvm::ArrayType* t_tvm_crt_func_ptrs = llvm::ArrayType::get(
-      ftype_tvm_backend_packed_c_func_->getPointerTo(), funcs.size());
+    llvm::ArrayType* t_tvm_crt_func_ptrs =
+        llvm::ArrayType::get(ftype_tvm_backend_packed_c_func_->getPointerTo(), funcs.size());
     llvm::GlobalVariable* func_registry_ptrs = new llvm::GlobalVariable(
-      *module_, t_tvm_crt_func_ptrs, true,
-      llvm::GlobalValue::InternalLinkage, llvm::ConstantArray::get(t_tvm_crt_func_ptrs, funcs),
-      "_tvm_func_registry_ptrs");
+        *module_, t_tvm_crt_func_ptrs, true, llvm::GlobalValue::InternalLinkage,
+        llvm::ConstantArray::get(t_tvm_crt_func_ptrs, funcs), "_tvm_func_registry_ptrs");
     uint64_t align = layout.getTypeAllocSize(ftype_tvm_backend_packed_c_func_->getPointerTo());
 #if TVM_LLVM_VERSION >= 100
     func_registry_ptrs->setAlignment(llvm::Align(align));
@@ -799,18 +797,15 @@ void CodeGenCPU::AddStartupFunction() {
     func_registry_ptrs->setAlignment(align);
 #endif
     llvm::GlobalVariable* func_registry = new llvm::GlobalVariable(
-      *module_, t_tvm_crt_func_registry_, true, llvm::GlobalVariable::InternalLinkage,
-      llvm::ConstantStruct::get(
-        t_tvm_crt_func_registry_,
-        {GetConstString(::tvm::target::GenerateFuncRegistryNames(symbols)),
-         func_registry_ptrs}),
-      "_tvm_crt_func_registry");
+        *module_, t_tvm_crt_func_registry_, true, llvm::GlobalVariable::InternalLinkage,
+        llvm::ConstantStruct::get(
+            t_tvm_crt_func_registry_,
+            {GetConstString(::tvm::target::GenerateFuncRegistryNames(symbols)),
+             func_registry_ptrs}),
+        "_tvm_crt_func_registry");
     llvm::GlobalVariable* module = new llvm::GlobalVariable(
-      *module_, t_tvm_crt_module_, true, llvm::GlobalValue::InternalLinkage,
-      llvm::ConstantStruct::get(
-        t_tvm_crt_module_,
-        {func_registry}),
-      "_tvm_crt_module");
+        *module_, t_tvm_crt_module_, true, llvm::GlobalValue::InternalLinkage,
+        llvm::ConstantStruct::get(t_tvm_crt_module_, {func_registry}), "_tvm_crt_module");
 
     // Now build TVMSystemLibEntryPoint.
     llvm::FunctionType* ftype = llvm::FunctionType::get(t_void_p_, {}, false);

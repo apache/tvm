@@ -39,7 +39,5 @@ std::string GenerateFuncRegistryNames(const std::vector<std::string>& function_n
   return ss.str();
 }
 
-
-
 }  // namespace target
 }  // namespace tvm
