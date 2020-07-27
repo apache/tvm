@@ -39,9 +39,12 @@ def check_result(args, expected_result, mod=None):
     expected_result:
         The expected result of running the expression.
     """
+    # TODO(@zhiics, @icemelon9): Disable the gpu test for now until the heterogeneous support
+    #   is ready
     for target, ctx in ctx_list():
+        if "cuda" in target:
+            continue
         vm = relay.create_executor('vm', ctx=ctx, target=target, mod=mod)
-
         rts_result = vm.evaluate()(*args)
         tvm.testing.assert_allclose(expected_result, rts_result.asnumpy())
 
@@ -53,8 +56,7 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         assert isinstance(f, tvm.IRModule), "expected expression or module"
         mod = f
     exe = relay.vm.compile(mod, target)
-    vm = runtime.vm.VirtualMachine(exe)
-    vm.init(ctx)
+    vm = runtime.vm.VirtualMachine(exe, ctx)
     return vm.invoke("main", *args)
 
 def vmobj_to_list(o):
@@ -621,6 +623,53 @@ def test_loop_free_var():
         mod = tvm.IRModule()
         mod["main"] = relay.Function(relay.analysis.free_vars(ret), ret)
         check_result(args, expected, mod=mod)
+
+def test_vm_reshape_tensor():
+    x_np = np.random.uniform(size=(8, 16)).astype("float32")
+    x = relay.var("x", shape=(8, 16), dtype="float32")
+    y = relay.reshape(x, [-1, 4, 8])
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], y)
+    with tvm.transform.PassContext(opt_level=3):
+        exec = relay.vm.compile(mod, "llvm")
+    assert "reshape_tensor" in exec.bytecode
+    check_result([x_np], x_np.reshape([4, 4, 8]), mod)
+
+    x = relay.var("x", shape=(8, 16), dtype="float32")
+    y = relay.reshape(x, [16, -1])
+    y = relay.reverse_reshape(y, [-1, 4, 0])
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], y)
+    with tvm.transform.PassContext(opt_level=3):
+        exec = relay.vm.compile(mod, "llvm")
+    assert exec.bytecode.count("reshape_tensor") == 1
+    check_result([x_np], x_np.reshape([4, 4, 8]), mod)
+
+    # reshape with symbolic/any shape
+    for n in [tvm.tir.Any(), tvm.te.size_var('n')]:
+        x = relay.var("x", shape=(n, 16), dtype="float32")
+        y = relay.reshape(x, [-1, 4])
+        y = relay.reshape(y, [0, 2, -1])
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([x], y)
+        with tvm.transform.PassContext(opt_level=3):
+            exec = relay.vm.compile(mod, "llvm")
+        assert exec.bytecode.count("reshape_tensor") == 1
+        check_result([x_np], x_np.reshape([32, 2, 2]), mod)
+
+    # dyn.reshape
+    x = relay.var("x", shape=(8, 16), dtype="float32")
+    y = relay.var("y", shape=(3,), dtype="int32")
+    z = relay.reshape(x, [-1, 4, 8])
+    z = relay.reshape(z, y)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x, y], z)
+    with tvm.transform.PassContext(opt_level=3):
+        exec = relay.vm.compile(mod, "llvm")
+    assert exec.bytecode.count("reshape_tensor") == 2
+    assert "reshape_tensor" in exec.bytecode
+    y_np = np.array([8, 2, 8]).astype("int32")
+    check_result([x_np, y_np], x_np.reshape([8, 2, 8]), mod)
 
 if __name__ == "__main__":
     pytest.main([__file__])

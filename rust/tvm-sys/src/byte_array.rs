@@ -72,6 +72,13 @@ impl<T: AsRef<[u8]>> From<T> for ByteArray {
     }
 }
 
+impl From<ByteArray> for ArgValue<'static> {
+    fn from(val: ByteArray) -> ArgValue<'static> {
+        // TODO(@jroesch): brorowed ArgValue are not sound
+        ArgValue::Bytes(unsafe { std::mem::transmute(&val.array) })
+    }
+}
+
 impl TryFrom<ArgValue<'static>> for ByteArray {
     type Error = ValueDowncastError;
 

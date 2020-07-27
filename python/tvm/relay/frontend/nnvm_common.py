@@ -17,10 +17,13 @@
 # pylint: disable=invalid-name, import-self, len-as-condition
 """Utility functions common to NNVM and MxNet conversion."""
 import warnings
+from ... import error
+from ...tir.op import min_value
 from .. import expr as _expr
 from .. import op as _op
 from .common import get_relay_op
 from .common import infer_type as _infer_type
+from .common import infer_shape as _infer_shape
 
 def _warn_not_used(attr, op='nnvm'):
     err = "{} is ignored in {}.".format(attr, op)
@@ -57,9 +60,54 @@ def _init_op(new_op):
 def _softmax_op(new_op):
     """softmax/log_softmax"""
     def _impl(inputs, attrs, _dtype='float32'):
-        # TODO(@icemelon9): currently ignore the 2nd input to softmax for mxnet 1.6
-        # assert len(inputs) == 1
         axis = attrs.get_int("axis", -1)
+        use_length = attrs.get_bool("use_length", False)
+        if use_length:
+            # The second arg is valid_length. We can use sequence mask to mask the input before
+            # computing softmax
+            assert len(inputs) == 2
+
+            data = inputs[0]
+            length = inputs[1]
+            data_shape = _infer_shape(data)
+            data_dtype = _infer_type(data).checked_type.dtype
+            length_shape = _infer_shape(length)
+
+            if axis < 0:
+                axis = len(data_shape) + axis
+
+            data_ndims = len(data_shape)
+            length_ndims = len(length_shape)
+
+            # Sequence_mask supports axis = 0 and 1 and requires data to be in specific format.
+            if axis == data_ndims - 1 and data_ndims > 2 and length_ndims == 2:
+                new_batch_size = 1
+                for dim in range(length_ndims):
+                    assert data_shape[dim] == length_shape[dim]
+                    new_batch_size *= data_shape[dim]
+
+                # Reshape the data and length to satisfy sequence mask
+                data = _op.reshape(data, newshape=(new_batch_size, -1))
+                length = _op.reshape(length, newshape=(new_batch_size))
+
+                # Input data is now 2D, we can set the axis = 1
+                axis = 1
+            elif data_ndims > 2:
+                raise error.OpNotImplemented(\
+                        "Operator softmax with use_length=True is supported only for axis -1")
+
+            res = _op.sequence_mask(data=data,
+                                    valid_length=length,
+                                    mask_value=float(min_value(data_dtype).value),
+                                    axis=axis)
+
+            # Apply softmax
+            res = new_op(res, axis=axis)
+
+            # Reshape back to input data shape
+            if len(data_shape) > 2:
+                return _op.reshape(res, newshape=data_shape)
+            return res
         return new_op(inputs[0], axis=axis)
     return _impl
 

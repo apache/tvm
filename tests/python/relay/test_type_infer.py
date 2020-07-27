@@ -21,6 +21,7 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm.relay import op, transform, analysis
+from tvm.relay import Any
 
 
 def run_infer_type(expr, mod=None):
@@ -362,6 +363,15 @@ def test_let_polymorphism():
     tvm.ir.assert_structural_equal(body.checked_type, relay.TupleType([int32, relay.TupleType([])]))
 
 
+def test_if():
+    choice_t = relay.FuncType([], relay.scalar_type('bool'))
+    f = relay.Var('f', choice_t)
+    true_branch = relay.Var('True', relay.TensorType([Any(), 1], dtype='float32'))
+    false_branch = relay.Var('False', relay.TensorType([Any(), Any()], dtype='float32'))
+    top = relay.Function([true_branch, false_branch], relay.If(f(), true_branch, false_branch))
+    ft = run_infer_type(top)
+    tvm.ir.assert_structural_equal(ft.ret_type, relay.TensorType([Any(), 1], dtype='float32'))
+
 if __name__ == "__main__":
     test_free_expr()
     test_dual_op()
@@ -380,3 +390,4 @@ if __name__ == "__main__":
     test_constructor_call()
     test_adt_match()
     test_let_polymorphism()
+    test_if()

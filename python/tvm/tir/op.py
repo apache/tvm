@@ -28,7 +28,6 @@ from . import _ffi_api
 def _pack_buffer(buf):
     """Build intrinsics that packs the buffer.
     """
-    assert buf.shape
     shape = Call("handle", "tir.tvm_stack_make_shape", buf.shape)
     strides = Call("handle", "tir.tvm_stack_make_shape", buf.strides) if buf.strides else 0
     pack_args = [buf.data,
@@ -964,6 +963,34 @@ def popcount(x):
         The result.
     """
     return call_intrin(x.dtype, "tir.popcount", x)
+
+def q_multiply_shift(x, y, q, s):
+    """Execute a multiplication between two Q-numbers x and y
+    followed by a right shift s. The mathematical expression is:
+
+       out = round(x*y*2^-s)
+
+    More about Q-numbers here: https://en.wikipedia.org/wiki/Q_(number_format)
+    The rounding rule is to the nearest value, rounding half up
+    (i.e., round(x.1) = x and round (x.5) = x+1)
+
+    Parameters
+    ----------
+    x : PrimExpr
+        First Q-number
+    y : PrimExpr
+        Second Q-number
+    q : PrimExpr
+        Number of fractional bits in x and y. Needs to be > 0
+    s : PrimExpr
+        Integer shift
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
+    return call_intrin('int32', "tir.q_multiply_shift", x, y, q, s)
 
 def fmod(x, y):
     """Return the remainder of x divided by y with the same sign as x.

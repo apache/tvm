@@ -45,8 +45,7 @@ def get_serialized_output(mod, *data, params=None, target="llvm",
     exe = create_exec(mod, target, params=params)
     code, lib = exe.save()
     des_exec = _vm.Executable.load_exec(code, lib)
-    des_vm = _vm.VirtualMachine(des_exec)
-    des_vm.init(ctx)
+    des_vm = _vm.VirtualMachine(des_exec, ctx)
     result = des_vm.run(*data)
     return result
 
@@ -135,8 +134,7 @@ def test_save_load():
 
     # deserialize.
     des_exec = _vm.Executable.load_exec(loaded_code, loaded_lib)
-    des_vm = _vm.VirtualMachine(des_exec)
-    des_vm.init(tvm.cpu())
+    des_vm = _vm.VirtualMachine(des_exec, tvm.cpu())
 
     res = des_vm.run(x_data)
     tvm.testing.assert_allclose(res.asnumpy(), x_data + x_data)

@@ -1373,6 +1373,43 @@ def test_forward_box_decode():
     verify((1, 10, 4), (1, 10, 4), in_format="center")
 
 
+def test_forward_softmax():
+    def verify(data_shape, axis, use_length, length):
+        dtype = "float32"
+        x = np.random.uniform(low=-100, high=100, size=data_shape).astype(dtype)
+        if use_length:
+            ref_res = mx.nd.softmax(data=mx.nd.array(x),
+                                    length=mx.nd.array(length, dtype="int32"),
+                                    axis=axis, use_length=use_length)
+            mx_sym = mx.symbol.softmax(data=mx.sym.var("data"),
+                                       length=mx.sym.var("length"),
+                                       axis=axis, use_length=use_length)
+            shape_dict = {"data": data_shape, "length": (length.shape)}
+            dtype_dict = {"data": dtype, "length": "int32"}
+            mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict, dtype_dict)
+        else:
+            ref_res = mx.nd.softmax(data=mx.nd.array(x), axis=axis)
+            mx_sym = mx.symbol.softmax(data=mx.sym.var("data"), axis=axis)
+            shape_dict = {"data": data_shape}
+            mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                if use_length:
+                    op_res = intrp.evaluate()(x, length)
+                else:
+                    op_res = intrp.evaluate()(x)
+
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
+
+    verify((2, 3, 5), -1, False, None)
+    verify((2, 3, 5), 2, False, None)
+    verify((2, 3), -1, True, np.array([2, 1]).astype('int32'))
+    verify((2, 3, 4), -1, True, np.array([[3, 4, 2], [2, 1, 1]]).astype('int32'))
+    verify((2, 3, 4), 2, True, np.array([[3, 4, 2], [1, 2, 1]]).astype('int32'))
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -1449,3 +1486,4 @@ if __name__ == '__main__':
     test_forward_box_decode()
     test_forward_amp_multicast()
     test_forward_amp_cast()
+    test_forward_softmax()

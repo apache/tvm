@@ -24,8 +24,7 @@
  * schedule after search process.
  */
 
-#include "auto_schedule.h"
-
+#include <tvm/auto_scheduler/auto_schedule.h>
 #include <tvm/runtime/registry.h>
 
 namespace tvm {

@@ -22,8 +22,7 @@
  * \brief Meta information and hardware parameters for a search task.
  */
 
-#include "search_task.h"
-
+#include <tvm/auto_scheduler/search_task.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 

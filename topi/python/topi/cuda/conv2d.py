@@ -18,6 +18,7 @@
 """Compute definition for conv2d with cuda backend"""
 from tvm import te
 from tvm import autotvm
+from tvm.autotvm.task.space import OtherOptionEntity
 from tvm.contrib import cudnn
 
 from .. import nn, generic
@@ -99,6 +100,10 @@ def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, groups=1,
     else:
         dtype = data.dtype
 
+    cfg.define_knob('algo', range(8))
+    if cfg.is_fallback: # Let CUDNN choose the best algo
+        cfg['algo'] = OtherOptionEntity(-1)
+
     return cudnn.conv_forward(data,
                               kernel,
                               [pt, pl], # cudnn padding pt, pl on both sides of input
@@ -106,7 +111,7 @@ def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, groups=1,
                               [dilation_h, dilation_w],
                               conv_mode=1,
                               tensor_format=tensor_format,
-                              algo=-1,         # let CUDNN choose the best algo
+                              algo=cfg['algo'].val,
                               conv_dtype=dtype,
                               groups=groups)
 

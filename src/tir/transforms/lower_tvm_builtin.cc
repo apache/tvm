@@ -54,7 +54,8 @@ class BuiltinLower : public StmtExprMutator {
     stack_value_ = Var("stack_value", DataType::Handle());
     stack_tcode_ = Var("stack_tcode", DataType::Handle());
     stmt = this->VisitStmt(stmt);
-    if (max_shape_stack_ != 0) {
+    // create a shape var if any shape is made (including scalar shapes)
+    if (max_shape_stack_ != -1) {
       stmt = LetStmt(stack_shape_, StackAlloca("shape", max_shape_stack_), stmt);
     }
     if (max_array_stack_ != 0) {
@@ -69,7 +70,7 @@ class BuiltinLower : public StmtExprMutator {
 
   Stmt VisitStmt(const Stmt& s) final {
     auto stmt = StmtExprMutator::VisitStmt(s);
-    CHECK_EQ(run_shape_stack_, 0);
+    CHECK_EQ(run_shape_stack_, -1);
     CHECK_EQ(run_array_stack_, 0);
 
     if (prep_seq_.size() != 0) {
@@ -156,10 +157,15 @@ class BuiltinLower : public StmtExprMutator {
   }
   // call shape
   PrimExpr MakeShape(const CallNode* op) {
-    size_t stack_begin = run_shape_stack_;
+    // if args.size() == 0, it represents a scalar shape ()
+    if (run_shape_stack_ == -1) {
+      run_shape_stack_ = 0;
+    }
+    int64_t stack_begin = run_shape_stack_;
     run_shape_stack_ += op->args.size();
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
+    // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
       prep_seq_.emplace_back(Store(stack_shape_, cast(DataType::Int(64), op->args[i]),
                                    ConstInt32(stack_begin + i), const_true(1)));
@@ -206,7 +212,7 @@ class BuiltinLower : public StmtExprMutator {
   }
   // call packed.
   PrimExpr MakeCallPacked(const CallNode* op) {
-    size_t restore_shape_stack = run_shape_stack_;
+    int64_t restore_shape_stack = run_shape_stack_;
     size_t restore_array_stack = run_array_stack_;
     size_t arg_stack_begin = run_arg_stack_;
     run_arg_stack_ += op->args.size();
@@ -245,7 +251,7 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   PrimExpr MakeCallTracePacked(const CallNode* op) {
-    size_t restore_shape_stack = run_shape_stack_;
+    int64_t restore_shape_stack = run_shape_stack_;
     size_t restore_array_stack = run_array_stack_;
     size_t arg_stack_begin = run_arg_stack_;
     run_arg_stack_ += op->args.size();
@@ -307,11 +313,11 @@ class BuiltinLower : public StmtExprMutator {
   Var stack_tcode_;
   Var stack_value_;
   // The running statistics
-  uint64_t run_shape_stack_{0};
+  int64_t run_shape_stack_{-1};
   uint64_t run_array_stack_{0};
   uint64_t run_arg_stack_{0};
   // statistics of stacks
-  uint64_t max_shape_stack_{0};
+  int64_t max_shape_stack_{-1};
   uint64_t max_array_stack_{0};
   uint64_t max_arg_stack_{0};
 };
