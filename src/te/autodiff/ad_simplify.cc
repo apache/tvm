@@ -152,11 +152,14 @@ bool IsSumCombiner(const CommReducer& combiner, const Map<Var, Range>& vranges) 
     return false;
   }
 
-  if (!is_const_value(analyzer.Simplify(combiner->identity_element[0], ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE), 0)) {
+  if (!is_const_value(analyzer.Simplify(combiner->identity_element[0],
+                                        ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE),
+                      0)) {
     return false;
   }
 
-  PrimExpr combiner_result = analyzer.Simplify(combiner->result[0], ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+  PrimExpr combiner_result =
+      analyzer.Simplify(combiner->result[0], ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
 
   return tir::ExprDeepEqual()(combiner_result, combiner->lhs[0] + combiner->rhs[0]) ||
          tir::ExprDeepEqual()(combiner_result, combiner->rhs[0] + combiner->lhs[0]);
@@ -166,7 +169,9 @@ bool CanFactorZeroFromCombiner(const CommReducer& combiner, int value_index,
                                const Map<Var, Range>& vranges) {
   arith::Analyzer analyzer;
   analyzer.Bind(vranges);
-  if (!is_const_value(analyzer.Simplify(combiner->identity_element[value_index], ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE), 0)) {
+  if (!is_const_value(analyzer.Simplify(combiner->identity_element[value_index],
+                                        ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE),
+                      0)) {
     return false;
   }
 
@@ -238,18 +243,21 @@ class NonzeroConditionFunctor : public ExprFunctor<NonzeroConditionResult(const 
 
     // If the false part is zero, we can get rid of the select
     if (is_const_value(nz_b.value, 0)) {
-      PrimExpr new_cond = analyzer_.Simplify(nz_a.cond && cond, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+      PrimExpr new_cond =
+          analyzer_.Simplify(nz_a.cond && cond, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
       return {new_cond, nz_a.value};
     }
 
     // If the true part is zero, we can also get rid of the select
     if (is_const_value(nz_a.value, 0)) {
-      PrimExpr new_cond = analyzer_.Simplify(nz_b.cond && !cond, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+      PrimExpr new_cond =
+          analyzer_.Simplify(nz_b.cond && !cond, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
       return {new_cond, nz_b.value};
     }
 
     // Otherwise we retain the select and combine the conditions into this
-    PrimExpr new_cond = analyzer_.Simplify((cond && nz_a.cond) || (!cond && nz_b.cond), ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+    PrimExpr new_cond = analyzer_.Simplify((cond && nz_a.cond) || (!cond && nz_b.cond),
+                                           ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
     if (nz_a.value.same_as(true_val) && nz_b.value.same_as(false_val)) {
       return {new_cond, GetRef<PrimExpr>(op)};
     } else {
@@ -265,7 +273,8 @@ class NonzeroConditionFunctor : public ExprFunctor<NonzeroConditionResult(const 
 
       // We don't have as much freedom here as in the select case
       // since the `if` must be preserved in any case
-      PrimExpr new_cond = analyzer_.Simplify((cond && nz_a.cond) || (!cond && nz_b.cond), ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+      PrimExpr new_cond = analyzer_.Simplify((cond && nz_a.cond) || (!cond && nz_b.cond),
+                                             ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
       if (nz_a.value.same_as(true_val) && nz_b.value.same_as(false_val)) {
         return {new_cond, GetRef<PrimExpr>(op)};
       } else {
@@ -310,7 +319,8 @@ class NonzeroConditionFunctor : public ExprFunctor<NonzeroConditionResult(const 
       }
     } else {
       // Otherwise use Or
-      PrimExpr new_cond = analyzer_.Simplify(nz_a.cond || nz_b.cond, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+      PrimExpr new_cond =
+          analyzer_.Simplify(nz_a.cond || nz_b.cond, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
       // A little optimization: if the combined condition is the same as one of the inner
       // conditions, we don't need to guard the inner value with a select, otherwise
       // we create a select in the `to_expr` call.
@@ -328,7 +338,8 @@ class NonzeroConditionFunctor : public ExprFunctor<NonzeroConditionResult(const 
 
     // For multiplication and similar ops the result may be nonzero if
     // both the arguments are nonzero, so we combine with And.
-    PrimExpr new_cond = analyzer_.Simplify(nz_a.cond && nz_b.cond, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+    PrimExpr new_cond =
+        analyzer_.Simplify(nz_a.cond && nz_b.cond, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
 
     if (nz_a.value.same_as(op->a) && nz_b.value.same_as(op->b)) {
       return {new_cond, op};
@@ -823,7 +834,8 @@ PrimExpr SimplifyReductionDomain(const PrimExpr& expr, const Map<Var, Range>& ou
     // Perform simplification mainly to remove a possibly empty reduction.
     arith::Analyzer analyzer;
     return analyzer.Simplify(
-        Reduce(red->combiner, new_source, new_axis, All(res->dst->relations), red->value_index), ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+        Reduce(red->combiner, new_source, new_axis, All(res->dst->relations), red->value_index),
+        ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
   } else {
     return expr;
   }
@@ -909,7 +921,8 @@ class RemoveRedundantInequalitiesMutator : public ExprMutator {
 
   virtual PrimExpr VisitExpr_(const SelectNode* op) {
     bool has_side_effect = (SideEffect(GetRef<PrimExpr>(op)) > CallEffectKind::kReadState);
-    PrimExpr new_cond = analyzer_.Simplify(VisitExpr(op->condition), ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+    PrimExpr new_cond =
+        analyzer_.Simplify(VisitExpr(op->condition), ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
     if (is_one(new_cond) && !has_side_effect) {
       return VisitExpr(op->true_value);
     } else if (is_zero(new_cond) && !has_side_effect) {
@@ -928,7 +941,8 @@ class RemoveRedundantInequalitiesMutator : public ExprMutator {
 
   virtual PrimExpr VisitExpr_(const CallNode* op) {
     if (op->op.same_as(Op::Get("tir.if_then_else"))) {
-      PrimExpr new_cond = analyzer_.Simplify(VisitExpr(op->args[0]), ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+      PrimExpr new_cond =
+          analyzer_.Simplify(VisitExpr(op->args[0]), ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
       if (is_one(new_cond)) {
         return VisitExpr(op->args[1]);
       } else if (is_zero(new_cond)) {
@@ -1011,7 +1025,8 @@ PrimExpr TrySimplifyCompute(const PrimExpr& expr, const PrimExpr& cond,
 
   arith::Analyzer analyzer;
   analyzer.Bind(res->dst->ranges);
-  PrimExpr new_expr = analyzer.Simplify(Substitute(expr, res->src_to_dst), ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+  PrimExpr new_expr = analyzer.Simplify(Substitute(expr, res->src_to_dst),
+                                        ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
   // TODO(yzhliu): This is mostly done to simplify if_then_else
   // which is not realized by the canonical simplifier
   new_expr = RemoveRedundantInequalities(new_expr, res->dst->relations);
@@ -1153,7 +1168,8 @@ class ReductionAsTensorAccessMutator : public ExprMutator {
     Array<IterVar> new_axis = new_axis_vmap_pair.first;
     arith::Analyzer analyzer;
     analyzer.Bind(IterVarsToMap(new_axis));
-    new_reduce = analyzer.Simplify(Substitute(new_reduce, new_axis_vmap_pair.second), ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+    new_reduce = analyzer.Simplify(Substitute(new_reduce, new_axis_vmap_pair.second),
+                                   ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
 
     Tensor tensor = TensorFromExpr(new_reduce, new_axis, name_, tag_, attrs_);
 

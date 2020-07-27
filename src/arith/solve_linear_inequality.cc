@@ -261,8 +261,10 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
   // Simplify each inequality into the form `expr <= 0` and add to current formulas
   for (const PrimExpr& ineq : system_to_solve->relations) {
-    AddInequality(&current_ineq_set_to_solve,NormalizeComparisons()(analyzer.Simplify(ineq, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE)),
-                  &analyzer);
+    AddInequality(
+        &current_ineq_set_to_solve,
+        NormalizeComparisons()(analyzer.Simplify(ineq, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE)),
+        &analyzer);
   }
 
   Map<Var, IntGroupBounds> res_bounds;
@@ -278,8 +280,10 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     // Add bounds from vranges
     if (system_to_solve->ranges.count(v)) {
       const Range& range = system_to_solve->ranges[v];
-      PrimExpr range_lbound = analyzer.Simplify(range->min, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
-      PrimExpr range_ubound = analyzer.Simplify(range->min + range->extent - 1, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+      PrimExpr range_lbound =
+          analyzer.Simplify(range->min, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
+      PrimExpr range_ubound = analyzer.Simplify(range->min + range->extent - 1,
+                                                ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
       coef_neg.push_back({-1, range_lbound});
       coef_pos.push_back({1, -range_ubound});
     }
@@ -300,7 +304,8 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         // we need rewrite_simplify -> canonical_simplify -> rewrite_simplify
         // to help simplify things like (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // with steps = 2 it's (y*2) - 10 <= 0
-        new_ineq = NormalizeComparisons()(analyzer.Simplify(new_ineq, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE));
+        new_ineq = NormalizeComparisons()(
+            analyzer.Simplify(new_ineq, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE));
         AddInequality(&next_ineq_set_to_solve, new_ineq, &analyzer);
       }
     }
@@ -436,7 +441,8 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
       // There is an equation of the form `v == expr`, so this variable can be completely removed.
       // Note that we use the 0-th expression because they are ordered by complexity,
       // so it must be the simplest one.
-      Range best_range(bnd->equal[0], analyzer.Simplify(bnd->equal[0] + 1, ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE));
+      Range best_range(bnd->equal[0], analyzer.Simplify(bnd->equal[0] + 1,
+                                                        ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE));
       res_ranges.Set(var, best_range);
       vranges.Set(var, best_range);
     } else {
