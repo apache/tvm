@@ -441,6 +441,15 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     return Union(analyzer_, false_set, true_set);
   }
 
+  IntervalSet VisitExpr_(const CastNode* op) final {
+    IntervalSet value_set = this->Eval(op->value);
+    PrimExpr min_value = value_set->HasLowerBound() ?
+                         cast(op->dtype, value_set->min_value) : neg_inf();
+    PrimExpr max_value = value_set->HasUpperBound() ?
+                         cast(op->dtype, value_set->max_value) : pos_inf();
+    return IntervalSet(min_value, max_value);
+  }
+
   IntervalSet VisitExprDefault_(const Object* op) final {
     DLOG(WARNING) << "cannot evaluate set type " << op->GetTypeKey();
     return IntervalSet::Everything();
