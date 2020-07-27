@@ -443,10 +443,10 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
 
   IntervalSet VisitExpr_(const CastNode* op) final {
     IntervalSet value_set = this->Eval(op->value);
-    PrimExpr min_value = value_set->HasLowerBound() ?
-                         cast(op->dtype, value_set->min_value) : neg_inf();
-    PrimExpr max_value = value_set->HasUpperBound() ?
-                         cast(op->dtype, value_set->max_value) : pos_inf();
+    PrimExpr min_value =
+      value_set->HasLowerBound() ? cast(op->dtype, value_set->min_value) : neg_inf();
+    PrimExpr max_value =
+      value_set->HasUpperBound() ? cast(op->dtype, value_set->max_value) : pos_inf();
     return IntervalSet(min_value, max_value);
   }
 
