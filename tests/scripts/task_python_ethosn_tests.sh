@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,11 +15,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Contrib modules."""
-from .register import get_pattern_table, register_pattern_table
 
-from .arm_compute_lib import *
-from .dnnl import *
-from .coreml import *
-from .ethosn import *
+set -e
+set -u
+source tests/scripts/setup-pytest-env.sh
+
+
+# Rebuild cython
+
+find . -type f -path "*.pyc" | xargs rm -f
+make cython3
+
+TVM_FFI=ctypes python3 -m pytest tests/python/contrib/test_ethosn
+
