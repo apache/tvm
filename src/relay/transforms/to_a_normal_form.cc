@@ -52,8 +52,8 @@ Scope LCA(Scope lhs, Scope rhs) {
   return lhs;
 }
 
-std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGraph& dg,
-    std::unordered_set<DependencyGraph::Node*>* lifted_nodes) {
+std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(
+    const DependencyGraph& dg, std::unordered_set<DependencyGraph::Node*>* lifted_nodes) {
   std::unordered_map<DependencyGraph::Node*, Scope> expr_scope;
   bool global_scope_used = false;
   // std::unordered_map<long long, int> scopes;
