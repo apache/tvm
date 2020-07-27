@@ -31,6 +31,8 @@
 
 #include <memory>
 #include <unordered_map>
+#include "let_list.h"
+#include "../analysis/dependency_graph.h"
 
 namespace tvm {
 namespace relay {
@@ -183,6 +185,27 @@ struct TreeBranchNode : TreeNode<ConditionObjectPtr> {
 
   ~TreeBranchNode() {}
 };
+
+struct ScopeNode;
+using Scope = std::shared_ptr<ScopeNode>;
+
+/* Invariant: when parent is null level is 0
+ * Invariant: when parent is not null level is 1 + parent->level
+ */
+struct ScopeNode {
+  size_t level;
+  Scope parent;
+  std::shared_ptr<LetList> ll = std::make_shared<LetList>();
+  explicit ScopeNode(const Scope& parent) : level(1 + parent->level), parent(parent) {}
+  ScopeNode() : level(0) {}
+};
+
+inline Scope ChildScope(const Scope& s) { return std::make_shared<ScopeNode>(s); }
+
+Scope LCA(Scope lhs, Scope rhs);
+
+std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGraph& dg,
+       std::unordered_set<DependencyGraph::Node*>* lifted_nodes);
 
 }  // namespace relay
 }  // namespace tvm

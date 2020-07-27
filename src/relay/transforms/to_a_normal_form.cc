@@ -32,26 +32,10 @@
 #include "../analysis/dependency_graph.h"
 #include "let_list.h"
 #include "pass_util.h"
+// #include "scope_util.h"
 
 namespace tvm {
 namespace relay {
-
-struct ScopeNode;
-using Scope = std::shared_ptr<ScopeNode>;
-
-/* Invariant: when parent is null level is 0
- *
- * Invariant: when parent is not null level is 1 + parent->level
- */
-struct ScopeNode {
-  size_t level;
-  Scope parent;
-  std::shared_ptr<LetList> ll = std::make_shared<LetList>();
-  explicit ScopeNode(const Scope& parent) : level(1 + parent->level), parent(parent) {}
-  ScopeNode() : level(0) {}
-};
-
-Scope ChildScope(const Scope& s) { return std::make_shared<ScopeNode>(s); }
 
 Scope LCA(Scope lhs, Scope rhs) {
   while (lhs != rhs) {
@@ -67,7 +51,8 @@ Scope LCA(Scope lhs, Scope rhs) {
   return lhs;
 }
 
-std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGraph& dg) {
+std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGraph& dg,
+       std::unordered_set<DependencyGraph::Node*>* lifted_nodes) {
   std::unordered_map<DependencyGraph::Node*, Scope> expr_scope;
   bool global_scope_used = false;
   Scope global_scope = std::make_shared<ScopeNode>();
@@ -81,14 +66,35 @@ std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGrap
       global_scope_used = true;
     } else {
       s = expr_scope.at(iit->value);
+      const auto original_s = s;
       iit = iit->next;
       for (; iit != nullptr; iit = iit->next) {
         s = LCA(s, expr_scope.at(iit->value));
+      }
+      if (s != original_s) {
+        lifted_nodes->insert(n);
       }
     }
     expr_scope.insert({n, n->new_scope ? ChildScope(s) : s});
   }
   CHECK(global_scope_used);
+   // std::unordered_map<long long, int> scopes;
+   // std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> lifted;
+   // for (auto kv : lifted_expr_scope) {
+   //   long long scope = (long long)(kv.second.get());
+   //   bool found = false;
+   //   Expr e;
+   //   for (auto expr_kv : dg.expr_node) { // TODO: is expr_node complete?
+   //     if (expr_kv.second == kv.first) {
+   //       e = expr_kv.first;
+   //       found = true;
+   //       lifted.insert(e);
+   //       LOG(INFO) << "@scope " << scopes[scope] << " = " << scope << "\n node = " << (long long)(kv.first) << ": " << e;
+   //       break;
+   //     }
+   //   }
+   //   if (!found) LOG(INFO) << "node " << (long long)(kv.first) << " @scope " << scopes[scope];
+   // }
   return expr_scope;
 }
 
@@ -269,7 +275,8 @@ Expr ToANormalFormAux(const Expr& e) {
    * Every scope additionally contain a LetList which collect all value of that scope.
    * We do an additional pass to fill all the LetList and we are done.
    */
-  std::unordered_map<DependencyGraph::Node*, Scope> node_scope = CalcScope(dg);
+  std::unordered_set<DependencyGraph::Node*> lifted;
+  std::unordered_map<DependencyGraph::Node*, Scope> node_scope = CalcScope(dg, &lifted);
   return Fill::ToANormalForm(e, dg, &node_scope);
 }
 
