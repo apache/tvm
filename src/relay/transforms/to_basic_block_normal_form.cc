@@ -19,9 +19,9 @@
 
 /*!
  *
- * \file to_a_normal_form.cc
+ * \file to_basic_block_normal_form.cc
  *
- * \brief Turn implicit sharing into observable sharing.
+ * \brief Turn an expression to the basic normal form.
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
@@ -36,9 +36,8 @@
 namespace tvm {
 namespace relay {
 
-/* Special care is needed to handle local recursion.
- * FillBasicBlock additionally take a (possibly null) Var argument,
- * If it is not null, FillBasicBlock is required to bind the transformed result to that var.
+/* Fill expressions based on each scope's let list. Different from FillANF,
+ * only expressions with lifted scope will be pushed to the let list.
  */
 class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
@@ -47,9 +46,11 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 			    std::unordered_set<DependencyGraph::Node*>* lifted) {
     FillBasicBlock fi(dg, node_scope, lifted);
     auto var = fi.VisitExpr(e);
+    // check if the top-level scope contains any expression lifted. If not, directly
+    // return the expression itself.
     auto scope = fi.GetScope(e);
     if (!scope->ll->size()) {
-      LOG(INFO) << "nothing in scope: " << scope;
+      DLOG(INFO) << "No let bindings in scope for: " << scope;
       return e;
     }
     auto ret = scope->ll->Get(var);
@@ -80,8 +81,6 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
     return node_scope_->at(h->value);
   }
 
-  bool IsLifted(const Expr& e) { return lifted_->find(dg_.expr_node.at(e)) != lifted_->end(); }
-
   Expr VisitExpr(const Expr& e, const Var& v) final {
     DLOG(INFO) << "Begin VisitExpr " << e << " ( var = " << v << ")";
     if (memo.count(e) == 0) {
@@ -102,9 +101,11 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   Expr Atomic(const Expr& e, const Var& v) { return v.defined() ? GetScope(e)->ll->Push(v, e) : e; }
 
+  // Bind expression `now` to var `v` if the original expression's scope should be lifted.
+  // Otherwise return `now` directly.
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
-    Var var = v.defined() ? v : Var(String("x"), Type());
-    if (IsLifted(orig)) {
+    if (lifted_->find(dg_.expr_node.at(orig)) != lifted_->end()) {
+      Var var = v.defined() ? v : Var(String("x"), Type());
       return GetScope(orig)->ll->Push(var, now);
     } else {
       return now;
@@ -242,8 +243,6 @@ IRModule ToBasicBlockNormalForm(const IRModule& m) {
       if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
     }
     Expr ret = TransformF([&](const Expr& e) { return ToBasicBlockNormalFormAux(e); }, it.second);
-    // CHECK_EQ(FreeVars(ret).size(), 0)
-    //     << AsText(ret) << "should not has free vars: " << FreeVars(ret);
     updates.Set(it.first, Downcast<Function>(ret));
   }
 

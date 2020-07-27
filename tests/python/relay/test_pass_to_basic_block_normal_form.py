@@ -63,8 +63,7 @@ def test_no_explicit_bind():
     check_eval(f(), 8.0)
     check_eval(anf(), 8.0)
 
-
-def test_nested_if():
+def test_top_level_nested_if():
     x = relay.var('x', shape=(), dtype='bool')
     y = relay.var('y', shape=(), dtype='float32')
     z = relay.var('z', shape=(), dtype='float32')
@@ -78,6 +77,24 @@ def test_nested_if():
     false_branch = relay.If(cond_f, z2, one)
     body = relay.If(x, true_branch, false_branch)
     """
+    free_var %x: bool
+    if (%x) {
+      if (True) {
+        free_var %z: float32
+        %0 = add(%z, %z);
+        free_var %y: float32
+        %1 = add(%y, %y);
+        add(%0, %1)
+      } else {
+        add(3f, %1)
+      }
+    } else {
+      if (False) {
+        %0
+      } else {
+        1f
+      }
+    }
     """
     def expected():
         x = relay.var('x', shape=(), dtype='bool')
@@ -97,6 +114,85 @@ def test_nested_if():
         return body
 
     bblock = run_opt_pass(body, [transform.ToBasicBlockNormalForm()])
+    """
+    free_var %z: float32
+    let %x: float32 = add(%z, %z) /* ty=float32 */;
+    free_var %x1: bool
+    if (%x1) {
+      free_var %y: float32
+      let %x2: float32 = add(%y, %y) /* ty=float32 */;
+      if (True /* ty=bool */) {
+        add(%x, %x2) /* ty=float32 */
+      } else {
+        add(3f /* ty=float32 */, %x2) /* ty=float32 */
+      }
+    } else {
+      if (False /* ty=bool */) {
+        %x
+      } else {
+        1f /* ty=float32 */
+      }
+    }
+    """
+    expected_output = run_opt_pass(expected(), transform.InferType())
+    print('body=')
+    print(body)
+    print('bblock=')
+    print(bblock)
+    print('expected_output=')
+    print(expected_output)
+    assert tvm.ir.structural_equal(bblock, expected_output, map_free_vars=True)
+
+def test_nested_if():
+    x = relay.var('x', shape=(), dtype='bool')
+    y = relay.var('y', shape=(), dtype='float32')
+    cond_t = relay.const(True)
+    cond_f = relay.const(False)
+    one = relay.const(1, dtype='float32')
+    two = relay.const(2, dtype='float32')
+    three = relay.const(3, dtype='float32')
+    y2 = relay.add(y, y)
+    true_branch = relay.If(cond_t, y2, relay.add(three, y2))
+    false_branch = relay.If(cond_f, two, one)
+    body = relay.If(x, true_branch, false_branch)
+    print(body)
+    """
+    free_var %x: bool
+    if (%x) {
+      if (True) {
+        free_var %y: float32
+        %0 = add(%y, %y);
+        %0
+      } else {
+        add(3f, %0)
+      }
+    } else {
+      if (False) {
+        2f
+      } else {
+        1f
+      }
+    }
+    """
+    #def expected():
+    #    x = relay.var('x', shape=(), dtype='bool')
+    #    y = relay.var('y', shape=(), dtype='float32')
+    #    z = relay.var('z', shape=(), dtype='float32')
+    #    cond_t = relay.const(True)
+    #    cond_f = relay.const(False)
+    #    one = relay.const(1, dtype='float32')
+    #    three = relay.const(3, dtype='float32')
+    #    y2 = relay.var('y2')
+    #    z2 = relay.var('z2')
+    #    true_branch = relay.If(cond_t, relay.add(z2, y2), relay.add(three, y2))
+    #    true_branch = relay.Let(y2, relay.add(y, y), true_branch)
+    #    false_branch = relay.If(cond_f, z2, one)
+    #    body = relay.If(x, true_branch, false_branch)
+    #    body = relay.Let(z2, relay.add(z, z), body)
+    #    return body
+
+    bblock = run_opt_pass(body, [transform.ToBasicBlockNormalForm()])
+    print(bblock)
     """
     free_var %z: float32
     let %x: float32 = add(%z, %z) /* ty=float32 */;
@@ -359,12 +455,13 @@ def test_if():
     assert tvm.ir.structural_equal(bblock, expected_bblock)
 
 if __name__ == '__main__':
-    test_let()
-    test_no_explicit_bind()
+    #test_let()
+    #test_no_explicit_bind()
     test_nested_if()
-    test_if()
-    test_recursion()
-    test_ref()
-    test_nat_add()
-    test_function()
-    test_gradient_if()
+    #test_top_level_nested_if()
+    #test_if()
+    #test_recursion()
+    #test_ref()
+    #test_nat_add()
+    #test_function()
+    #test_gradient_if()
