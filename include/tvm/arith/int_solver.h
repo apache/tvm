@@ -41,6 +41,11 @@ using tir::IterVar;
 using tir::Var;
 using tir::VarNode;
 
+// According to experiments two best simplifications orders were can->rw and rw->can->rw,
+// but rw->can->rw is better for a couple of cases.
+// Also we should end with rw because it factors multipliers out.
+#define ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE 3
+
 /*!
  * \brief Represent integer grouped bounds which are classified into
  *        lower bounds (inclusive), upper bounds (inclusive) and equalities.
