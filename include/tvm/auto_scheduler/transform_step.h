@@ -958,7 +958,7 @@ class RfactorStepNode : public StepNode {
   /*!
    * \brief Apply the current step to tvm.schedule.
    * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map..
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
    * \param schedule A mutable pointer to a te::Schedule.
    * \return The output Tensors of the new added stage.
    */
