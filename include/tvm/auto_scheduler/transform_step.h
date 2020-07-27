@@ -202,6 +202,7 @@ void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag);
  * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
  * \param schedule A mutable pointer to a `te::Schedule`. This is required by some steps which need
  * `te::Schedule` API. (e.g. CacheRead/CacheWrite step)
+ * \param transform_steps An array record all transform steps.
  */
 void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
                          te::Schedule* schedule, const Array<Step>& transform_steps);
@@ -213,6 +214,7 @@ void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxes
  * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
  * \param schedule A mutable pointer to a te::Schedule. This is required by some steps. (e.g.
  * CacheRead/CacheWrite step)
+ * \param transform_steps An array record all transform steps.
  * \return Python schedule code.
  */
 String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
@@ -568,7 +570,7 @@ class FollowSplitStep : public Step {
 };
 
 /*! \brief Similar to FollowSplitStep, but use split factors from multiple steps.
- *  \Note This can be used for the split in cooperative fetching
+ *  \note This can be used for the split in cooperative fetching
  */
 class FollowFusedSplitStepNode : public StepNode {
  public:
