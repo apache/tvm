@@ -429,12 +429,11 @@ class State : public ObjectRef {
   /*!
    * \brief Schedule primitive corresponds to `te::Schedule::rfactor`.
    * \param stage_id The index of the iterator to be factored.
-   * \param iter_id The iterator to be factored.
+   * \param it The iterator to be factored.
    * \param factor_iter_id The position where the new iterator is placed.
    * \param dag The original ComputeDAG of this state.
-   * \note Rfactor step will add an extra stage to the original ComputeDAG (see
-   * `te::Schedule::rfactor` for more details), a up-to-date ComputeDAG is stored in State's
-   * `current_compute_dag`.
+   * \note Rfactor step will add an extra stage to the original ComputeDAG (in the front of the
+   * target stage), a up-to-date ComputeDAG is stored in State's `current_compute_dag`.
    */
   TVM_DLL int rfactor(int stage_id, const Iterator& it, int factor_iter_id, const ComputeDAG& dag);
 

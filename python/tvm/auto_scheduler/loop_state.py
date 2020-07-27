@@ -487,8 +487,8 @@ class State:
 
         Notes
         -----
-        Rfactor step will insert an extra stage to the original ComputeDAG (see
-        `te.Schedule.rfactor` for more details).
+        Rfactor step will insert an extra stage to the original ComputeDAG (in the front of the
+        target stage).
         """
         self.state_object, new_stage_id = _ffi_api.StateRfactor(self.state_object,
                                                                 self._resolve_stage_id(stage),
