@@ -356,9 +356,30 @@ class State : public ObjectRef {
    * \note If we do split on an iterator which has stages attached at it(by compute_at), the inner
    * most iterator of split results will become the new attach point.
    */
-  TVM_DLL Array<Iterator> split(int stage_id, const Iterator& it,
-                                const Array<Optional<Integer>>& lengths,
-                                bool inner_to_outer = true);
+  Array<Iterator> split(int stage_id, const Iterator& it, const Array<Optional<Integer>>& lengths,
+                        bool inner_to_outer = true);
+  /*!
+   * \brief Schedule primitive extends to split step.
+   * \param stage_id The index of the stage to be split.
+   * \param it The iterator to be split.
+   * \param src_step_id The index of the split step to follow in the history.
+   * \param n_split The number of split level.
+   * \return The splitted new Iterators.
+   */
+  Array<Iterator> follow_split(int stage_id, const Iterator& it, int src_step_id, int n_split);
+  /*!
+   * \brief Schedule primitive extends to split step.
+   * \param stage_id The index of the stage to be split.
+   * \param it The iterator to be split.
+   * \param src_step_ids The indices of the split steps to follow in the history.
+   * \param level Use the length in this split level.
+   * \param factor_or_nparts True to use `factor` for split from inner to outer,
+      False to use `nparts` for split from outer to inner.
+   * \return The splitted new Iterators.
+   */
+  Array<Iterator> follow_fused_split(int stage_id, const Iterator& it,
+                                     const Array<Integer>& src_step_ids, int level,
+                                     bool factor_or_nparts);
 
   /********** Step APIs working on multiple stages **********/
 
