@@ -213,6 +213,8 @@ class Parser {
   /*! \brief The diagnostic context used for error reporting. */
   DiagnosticContext* diag_ctx;
 
+  const SourceName& source_name;
+
   /*! \brief The current position in the token stream. */
   int pos;
 
@@ -243,8 +245,8 @@ class Parser {
   /*! \brief The set of expression scopes used for lexical scope. */
   ScopeStack<Var> expr_scopes;
 
-  Parser(DiagnosticContext* ctx, std::vector<Token> tokens, OperatorTable op_table, Source source)
-      : diag_ctx(ctx), pos(0), tokens(tokens), op_table(op_table), ignore_whitespace(true) {}
+  Parser(DiagnosticContext* ctx, const SourceName& source_name, std::vector<Token> tokens, OperatorTable op_table, Source source)
+      : diag_ctx(ctx), source_name(source_name), pos(0), tokens(tokens), op_table(op_table), ignore_whitespace(true) {}
 
   /*! \brief Examine the next token in the stream, the current parser is configured to be
    * whitespace insensitive so we will skip all whitespace or comment tokens. */
@@ -292,10 +294,9 @@ class Parser {
    */
   void Consume(const TokenType& token_type) {
     if (tokens[pos]->token_type != token_type) {
-      std::string message =
-          "expected a " + Pretty(token_type) + " found " + Pretty(Peek()->token_type);
-      this->diag_ctx->Emit({tokens[pos]->line, tokens[pos]->column, message});
-      this->diag_ctx->Render(std::cout);
+      this->diag_ctx->EmitFatal(
+          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), tokens[pos]->line, tokens[pos]->column)
+            << "expected a " << Pretty(token_type) << " found " << Pretty(Peek()->token_type));
     }
     pos++;
   }
@@ -540,10 +541,9 @@ class Parser {
         return elements;
       } else {
         auto next = Peek();
-        std::stringstream msg;
-        msg << "expected a " << Pretty(stop) << " found  " << Pretty(next->token_type);
-        diag_ctx.Emit({next->line, next->column, msg.str()});
-        diag_ctx.Render(std::cout);
+        this->diag_ctx->EmitFatal(
+          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), next->line, next->column)
+            << "expected a " << Pretty(stop) << " found  " << Pretty(next->token_type));
         return Array<T>(nullptr);
       }
     }
@@ -582,16 +582,15 @@ class Parser {
       auto version = Match(TokenType::Version);
       // TODO(@jroesch): we currently only support 0.0.5.
       if (version.ToString() != "\"0.0.5\"") {
-        std::stringstream msg;
-        msg << "invalid semantic version `";
-        msg << version.ToString() << "`";
-        this->diag_ctx->Emit({version->line, version->column, msg.str() });
+        this->diag_ctx->Emit(
+          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), version->line, version->column)
+            << "invalid semantic version `" << version.ToString() << "`");
       }
     } else if (required) {
-      std::stringstream msg;
-      msg << "expected text format semantic version ";
-      msg << "you can annotate it as #[version = \"0.0.5\"]";
-      this->diag_ctx->Emit({Peek()->line, Peek()->column, msg.str() });
+      this->diag_ctx->Emit(
+          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), Peek()->line, Peek()->column)
+            << "expected text format semantic version "
+            << "you can annotate it as #[version = \"0.0.5\"]");
     }
     return SemVer(0, 0, 5);
   }
@@ -1186,9 +1185,9 @@ class Parser {
     try {
       return Op::Get(op_name);
     } catch (dmlc::Error e) {
-      std::stringstream msg;
-      msg << "operator `" << op_name << "` not found, perhaps you forgot to register it?";
-      this->diag_ctx.Emit({ tok->line, tok->column, msg.str() });
+      this->diag_ctx->Emit(
+          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), tok->line, tok->column)
+            << "operator `" << op_name << "` not found, perhaps you forgot to register it?");
       return Expr();
     }
   }
@@ -1291,10 +1290,9 @@ class Parser {
           }
         }
         default: {
-          std::stringstream msg;
-          msg << "expected an expression found  " << Pretty(next->token_type);
-          diag_ctx.Emit({next->line, next->column, msg.str()});
-          diag_ctx.Render(std::cout);
+          this->diag_ctx->EmitFatal(
+          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), next->line, next->column)
+            << "expected an expression found  " << Pretty(next->token_type));
           return Expr();
         }
       }
@@ -1414,11 +1412,9 @@ class Parser {
     if (WhenMatch(TokenType::Underscore)) {
       return IncompleteType();
     } else {
-      std::stringstream msg;
-      msg << "failed to parse type found ";
-      msg << tok;
-      diag_ctx.Emit({tok->line, tok->column, msg.str()});
-      diag_ctx.Render(std::cout);
+      this->diag_ctx->EmitFatal(
+          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), tok->line, tok->column)
+            << "failed to parse type found " << tok);
       return Type();
     }
   }
@@ -1471,15 +1467,22 @@ class Parser {
 };
 
 IRModule ParseModule(std::string file_name, std::string file_content) {
-  auto tokens = Tokenize(file_content);
-  Parser parser(tokens, DefaultOpTable(), Source(file_content));
+  DLOG(INFO) << "ParseModule";
+  SourceName src_name = SourceName::Get(file_name);
+  Source src(file_content);
+  DiagnosticContext ctx(src);
+  auto tokens = Tokenize(&ctx, src_name, file_content);
+  Parser parser(&ctx, src_name, tokens, DefaultOpTable(), Source(file_content));
   return parser.ParseModule();
 }
 
 Expr ParseExpr(std::string file_name, std::string file_content) {
   DLOG(INFO) << "ParseExpr";
-  auto tokens = Tokenize(file_content);
-  Parser parser(tokens, DefaultOpTable(), Source(file_content));
+  SourceName src_name = SourceName::Get(file_name);
+  Source src(file_content);
+  DiagnosticContext ctx(src);
+  auto tokens = Tokenize(&ctx, src_name, file_content);
+  Parser parser(&ctx, src_name, tokens, DefaultOpTable(), Source(file_content));
   parser.ParseSemVer(false);
   parser.PushScope();
   auto expr = parser.ParseExpr();

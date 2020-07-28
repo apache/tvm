@@ -74,6 +74,9 @@ static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
     {"match", TokenType::Match}, {"extern", TokenType::Extern}};
 
 struct Tokenizer {
+  DiagnosticContext *diag_ctx;
+  const SourceName& source_name;
+
   size_t pos;
   int col;
   int line;
@@ -261,11 +264,17 @@ struct Tokenizer {
         rtrim(version);
         return Token(line, column, TokenType::Version, tvm::String(version));
       } else {
-        LOG(FATAL) << "unsupported " << attribute;
+        // TOOD(@jroesch): maybe make this a warning an continue parsing?
+        this->diag_ctx->EmitFatal(
+          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), line, column)
+            << "unsupported attribute " << attribute);
         return Token();
       }
     } else {
-      LOG(FATAL) << "lex error";
+      this->diag_ctx->EmitFatal(
+          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), line, column)
+            << "`#` denotes the start of an attribute can only be followed by `[`"
+            << " found `" << Peek() << "`");
       return Token();
     }
   }
@@ -283,9 +292,9 @@ struct Tokenizer {
         auto token = NewToken(TokenType::Newline);
         return token;
       } else {
-        // TODO(@jroesch): have lexer use diagnostic context too.
-        // see https://github.com/apache/incubator-tvm/issues/6153.
-        LOG(FATAL) << "lexer error";
+        this->diag_ctx->EmitFatal(
+          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), this->line, this->col)
+            << "\\r carriage returns must be followed by a \\n in the TVM text format");
         return Token();
       }
     } else if (next == '"') {
@@ -499,7 +508,7 @@ struct Tokenizer {
     this->tokens.push_back(NewToken(TokenType::EndOfFile));
   }
 
-  explicit Tokenizer(std::string& source) : pos(0), col(1), line(1), source(source), tokens() {}
+  explicit Tokenizer(DiagnosticContext *ctx, const SourceName& source_name, const std::string& source) : diag_ctx(ctx), source_name(source_name), pos(0), col(1), line(1), source(source), tokens() {}
 };
 
 std::vector<Token> Condense(const std::vector<Token>& tokens) {
@@ -568,8 +577,8 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
   return out;
 }
 
-std::vector<Token> Tokenize(std::string source) {
-  auto tokenizer = Tokenizer(source);
+std::vector<Token> Tokenize(DiagnosticContext *ctx, const SourceName& source_name, const std::string& source) {
+  auto tokenizer = Tokenizer(ctx, source_name, source);
   tokenizer.Tokenize();
   auto tokens = Condense(tokenizer.tokens);
   for (auto token : tokens) {

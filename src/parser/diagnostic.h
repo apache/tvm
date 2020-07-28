@@ -31,8 +31,10 @@
 #define TVM_PARSER_DIAGNOSTIC_H_
 
 #include <tvm/ir/span.h>
+#include <tvm/parser/source_map.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
+
 
 #include <fstream>
 #include <string>
@@ -41,84 +43,6 @@
 
 namespace tvm {
 namespace parser {
-
-/*! \brief A program source in any language.
- *
- * Could represent the source from an ML framework or the internal
- * source of a TVM program.
- */
-struct Source {
-  /*! \brief The raw source. */
-  std::string source;
-  /*! \brief A mapping of line breaks into the raw source. */
-  std::vector<std::pair<int, int>> line_map;
-
-  /*! \brief An empty source. */
-  Source() : source(), line_map() {}
-
-  /*! \brief Construct a source from a string. */
-  explicit Source(const std::string& source) : source(source) {
-    int index = 0;
-    int length = 0;
-    line_map.push_back({index, length});
-    for (auto c : source) {
-      if (c == '\n') {
-        // Record the length of the line.
-        line_map.back().second = length;
-        // Bump past the newline.
-        index += 1;
-        // Record the start of the next line, and put placeholder for length.
-        line_map.push_back({index, 0});
-        // Reset length to zero.
-        length = 0;
-      } else {
-        length += 1;
-        index += 1;
-      }
-    }
-    line_map.back().second = length;
-  }
-
-  Source(const Source& source) : source(source.source), line_map(source.line_map) {}
-
-  /*! \brief Generate an error message at a specific line and column with the
-   * annotated message.
-   *
-   * The error is written directly to the `out` std::ostream.
-   *
-   * \param out The output ostream.
-   * \param line The line at which to report a diagnostic.
-   * \param line The column at which to report a diagnostic.
-   * \param msg The message to attach.
-   */
-  void ReportAt(std::ostream& out, int line, int column, const std::string& msg) const {
-    CHECK(line - 1 <= static_cast<int64_t>(line_map.size()))
-        << "requested line: " << (line - 1) << "line_map size: " << line_map.size()
-        << "source: " << source;
-
-    // Adjust for zero indexing, now have (line_start, line_length);
-    auto range = line_map.at(line - 1);
-    int line_start = range.first;
-    int line_length = range.second;
-    out << "file:" << line << ":" << column << ": parse error: " << msg << std::endl;
-    out << "    " << source.substr(line_start, line_length) << std::endl;
-    out << "    ";
-    std::stringstream marker;
-    for (int i = 1; i <= line_length; i++) {
-      if (i == column) {
-        marker << "^";
-      } else if ((column - i) < 3) {
-        marker << "~";
-      } else if ((i - column) < 3) {
-        marker << "~";
-      } else {
-        marker << " ";
-      }
-    }
-    out << marker.str();
-    out << std::endl;
-  }
-};
 
 /*! \brief The diagnostic level, controls the printing of the message. */
 enum DiagnosticLevel {
@@ -140,6 +64,58 @@ struct Diagnostic {
 
   Diagnostic(int line, int column, const std::string& message)
       : level(DiagnosticLevel::Error), span(SourceName(), line, column), message(message) {}
+
+  Diagnostic(DiagnosticLevel level, Span span, const std::string& message)
+    : level(level), span(span), message(message) {}
+};
+
+/*!
+ * \brief A wrapper around std::stringstream to build a diagnostic.
+ *
+ * \code
+ *
+ * void ReportError(const Error& err);
+ *
+ * void Test(int number) {
+ *   // Use error reporter to construct an error.
+ *   ReportError(ErrorBuilder() << "This is an error number=" << number);
+ * }
+ *
+ * \endcode
+ */
+struct DiagnosticBuilder {
+ public:
+  /*! \brief The level. */
+  DiagnosticLevel level;
+
+  /*! \brief The source name. */
+  SourceName source_name;
+
+  /*! \brief The line number. */
+  int line;
+
+  /*! \brief The column number. */
+  int column;
+
+  template <typename T>
+  DiagnosticBuilder& operator<<(const T& val) {  // NOLINT(*)
+    stream_ << val;
+    return *this;
+  }
+
+  DiagnosticBuilder() : level(DiagnosticLevel::Error), source_name(), line(0), column(0) {}
+  DiagnosticBuilder(const DiagnosticBuilder& builder)
+    : level(builder.level), source_name(builder.source_name), line(builder.line), column(builder.column) {}
+  DiagnosticBuilder(DiagnosticLevel level, SourceName source_name, int line, int column)
+    : level(level), source_name(source_name), line(line), column(column) {}
+
+  operator Diagnostic() {
+    return Diagnostic(this->level, Span(this->source_name, this->line, this->column), this->stream_.str());
+  }
+
+ private:
+  std::stringstream stream_;
+  friend struct Diagnostic;
 };
 
 /*! \brief A diagnostic context for recording errors against a source file.
@@ -158,6 +134,14 @@ struct DiagnosticContext {
   /*! \brief Emit a diagnostic. */
   void Emit(const Diagnostic& diagnostic) { diagnostics.push_back(diagnostic); }
 
+  /*! \brief Emit a diagnostic. */
+  void EmitFatal(const Diagnostic& diagnostic) {
+    diagnostics.push_back(diagnostic);
+    Render(std::cout);
+    // TODO(@jroesch): throw exception which is caught at the pass boundary and then rendered.
+    LOG(FATAL) << "error occurred";
+  }
+
   // TODO(@jroesch): eventually modularize the rendering interface to provide control of how to
   // format errors.
   void Render(std::ostream& ostream) {
@@ -166,7 +150,7 @@ struct DiagnosticContext {
     }
 
     if (diagnostics.size()) {
-      LOG(FATAL) << "parse error occured";
+      LOG(FATAL) << "parse error occurred";
     }
   }
 };

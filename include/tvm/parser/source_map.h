@@ -33,6 +33,39 @@
 namespace tvm {
 namespace parser {
 
+
+/*! \brief A program source in any language.
+ *
+ * Could represent the source from an ML framework or the internal
+ * source of a TVM program.
+ */
+struct Source {
+  /*! \brief The raw source. */
+  std::string source;
+  /*! \brief A mapping of line breaks into the raw source. */
+  std::vector<std::pair<int, int>> line_map;
+
+  /*! \brief An empty source. */
+  Source() : source(), line_map() {}
+
+  /*! \brief Construct a source from a string. */
+  TVM_DLL explicit Source(const std::string& source);
+
+  TVM_DLL Source(const Source& source) : source(source.source), line_map(source.line_map) {}
+
+  /*! \brief Generate an error message at a specific line and column with the
+   * annotated message.
+   *
+   * The error is written directly to the `out` std::ostream.
+   *
+   * \param out The output ostream.
+   * \param line The line at which to report a diagnostic.
+   * \param line The column at which to report a diagnostic.
+   * \param msg The message to attach.
+   */
+  TVM_DLL void ReportAt(std::ostream& out, int line, int column, const std::string& msg) const;
+};
+
 /*!
  * \brief A mapping from a unique source name to source fragment.
  */

@@ -20,64 +20,89 @@
  * \file source_map.cc
  * \brief The implementation of the source map data structure.
  */
-#include <tvm/ir/span.h>
+#include <tvm/parser/source_map.h>
 #include <tvm/runtime/registry.h>
 
 namespace tvm {
+namespace parser {
 
-ObjectPtr<Object> GetSourceNameNode(const String& name) {
-  // always return pointer as the reference can change as map re-allocate.
-  // or use another level of indirection by creating a unique_ptr
-  static std::unordered_map<String, ObjectPtr<SourceNameNode> > source_map;
-
-  auto sn = source_map.find(name);
-  if (sn == source_map.end()) {
-    ObjectPtr<SourceNameNode> n = make_object<SourceNameNode>();
-    source_map[name] = n;
-    n->name = std::move(name);
-    return n;
-  } else {
-    return sn->second;
+/*! \brief Construct a source from a string. */
+Source::Source(const std::string& source) : source(source) {
+  int index = 0;
+  int length = 0;
+  line_map.push_back({index, length});
+  for (auto c : source) {
+    if (c == '\n') {
+      // Record the length of the line.
+      line_map.back().second = length;
+      // Bump past the newline.
+      index += 1;
+      // Record the start of the next line, and put placeholder for length.
+      line_map.push_back({index, 0});
+      // Reset length to zero.
+      length = 0;
+    } else {
+      length += 1;
+      index += 1;
+    }
   }
+  line_map.back().second = length;
 }
 
-ObjectPtr<Object> GetSourceNameNodeByStr(const std::string& name) {
-  return GetSourceNameNode(name);
+
+/*! \brief Generate an error message at a specific line and column with the
+  * annotated message.
+  *
+  * The error is written directly to the `out` std::ostream.
+  *
+  * \param out The output ostream.
+  * \param line The line at which to report a diagnostic.
+  * \param line The column at which to report a diagnostic.
+  * \param msg The message to attach.
+  */
+void Source::ReportAt(std::ostream& out, int line, int column, const std::string& msg) const {
+  CHECK(line - 1 <= static_cast<int64_t>(line_map.size()))
+      << "requested line: " << (line - 1) << "line_map size: " << line_map.size()
+      << "source: " << source;
+
+  // Adjust for zero indexing, now have (line_start, line_length);
+  auto range = line_map.at(line - 1);
+  int line_start = range.first;
+  int line_length = range.second;
+  out << "file:" << line << ":" << column << ": parse error: " << msg << std::endl;
+  out << "    " << source.substr(line_start, line_length) << std::endl;
+  out << "    ";
+  std::stringstream marker;
+  for (int i = 1; i <= line_length; i++) {
+    if (i == column) {
+      marker << "^";
+    } else if ((column - i) < 3) {
+      marker << "~";
+    } else if ((i - column) < 3) {
+      marker << "~";
+    } else {
+      marker << " ";
+    }
+  }
+  out << marker.str();
+  out << std::endl;
 }
 
-SourceName SourceName::Get(const String& name) { return SourceName(GetSourceNameNode(name)); }
+// TVM_REGISTER_GLOBAL("ir.SourceName").set_body_typed(SourceName::Get);
 
-TVM_REGISTER_GLOBAL("ir.SourceName").set_body_typed(SourceName::Get);
+// TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+//     .set_dispatch<SourceNameNode>([](const ObjectRef& ref, ReprPrinter* p) {
+//       auto* node = static_cast<const SourceNameNode*>(ref.get());
+//       p->stream << "SourceName(" << node->name << ", " << node << ")";
+//     });
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<SourceNameNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const SourceNameNode*>(ref.get());
-      p->stream << "SourceName(" << node->name << ", " << node << ")";
-    });
+TVM_REGISTER_NODE_TYPE(SourceMapNode);
 
-TVM_REGISTER_NODE_TYPE(SourceNameNode)
-    .set_creator(GetSourceNameNodeByStr)
-    .set_repr_bytes([](const Object* n) -> std::string {
-      return static_cast<const SourceNameNode*>(n)->name;
-    });
-
-Span::Span(SourceName source, int lineno, int col_offset) {
-  auto n = make_object<SpanNode>();
-  n->source = std::move(source);
-  n->line = lineno;
-  n->column = col_offset;
+SourceMap::SourceMap(Map<SourceName, tvm::String> source_map) {
+  auto n = make_object<SourceMapNode>();
+  n->source_map = std::move(source_map);
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(SpanNode);
-
-TVM_REGISTER_GLOBAL("ir.Span").set_body_typed([](SourceName source, int lineno, int col_offset) {
-  return Span(source, lineno, col_offset);
-});
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<SpanNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const SpanNode*>(ref.get());
-      p->stream << "Span(" << node->source << ", " << node->line << ", " << node->column << ")";
-    });
-}  // namespace tvm
+} // namespace parser
+} // namespace tvm
