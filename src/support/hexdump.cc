@@ -36,7 +36,6 @@ void hexdump(const std::string& s, std::ostream& os) {
     addr_width++;
   }
 
-
   for (size_t cursor = 0; cursor < s.size(); cursor += 0x10) {
     os << std::setw(addr_width) << cursor;
     size_t row_end = cursor + 0x10;
