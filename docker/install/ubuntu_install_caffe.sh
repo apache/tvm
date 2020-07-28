@@ -29,6 +29,6 @@ apt-get update --fix-missing
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y tzdata
 
-apt install caffe-cpu -y
+apt-get install caffe-cpu -y
 
-pip install --upgrade scikit-image
+pip3 install --upgrade scikit-image
