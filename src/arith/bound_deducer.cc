@@ -93,19 +93,19 @@ class BoundDeducer : public ExprVisitor {
   }
 
   void VisitExpr_(const LTNode* op) final {
-    LOG(FATAL) << "unable to deduce due to multiple comparison operator";
+    success_ = false;
   }
 
   void VisitExpr_(const LENode* op) final {
-    LOG(FATAL) << "unable to deduce due to multiple comparison operator";
+    success_ = false;
   }
 
   void VisitExpr_(const GTNode* op) final {
-    LOG(FATAL) << "unable to deduce due to multiple comparison operator";
+    success_ = false;
   }
 
   void VisitExpr_(const GENode* op) final {
-    LOG(FATAL) << "unable to deduce due to multiple comparison operator";
+    success_ = false;
   }
 
   void VisitExpr_(const AddNode* op) final {
