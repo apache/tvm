@@ -406,7 +406,7 @@ if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
 endif()
 
 target_link_libraries(tvm_static ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
-target_link_libraries(tvm_topi_static tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_topi_static tvm_static ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime_static ${TVM_RUNTIME_LINKER_LIBS})
 
 if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -414,9 +414,9 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   # Note: 'target_link_options' with 'PRIVATE' keyword would be cleaner
   # but it's not available until CMake 3.13. Switch to 'target_link_options'
   # once minimum CMake version is bumped up to 3.13 or above.
-  target_link_libraries(tvm ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_link_libraries(tvm_topi ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_link_libraries(tvm_runtime ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm_static ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm_topi_static ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm_runtime_static ${HIDE_SYMBOLS_LINKER_FLAGS})
 endif()
 
 # Related headers
