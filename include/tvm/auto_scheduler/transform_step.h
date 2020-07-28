@@ -490,8 +490,6 @@ class SplitStep : public Step {
   TVM_DEFINE_OBJECT_REF_METHODS(SplitStep, Step, SplitStepNode);
 };
 
-/********** Steps working on multiple stages **********/
-
 /*! \brief Similar to SplitStepNode, but uses split factors from another step
  * (i.e. Follow another split step) */
 class FollowSplitStepNode : public StepNode {
@@ -569,8 +567,8 @@ class FollowSplitStep : public Step {
   TVM_DEFINE_OBJECT_REF_METHODS(FollowSplitStep, Step, FollowSplitStepNode);
 };
 
-/*! \brief Similar to FollowSplitStep, but use split factors from multiple steps.
- *  \note This can be used for the split in cooperative fetching
+/*! \brief Similar to FollowSplitStep, but uses split factors from multiple steps.
+ *  \note This can be used for the split in cooperative fetching.
  */
 class FollowFusedSplitStepNode : public StepNode {
  public:

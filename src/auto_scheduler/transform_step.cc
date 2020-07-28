@@ -816,16 +816,25 @@ void FollowSplitStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
 
 void FollowSplitStepNode::ExtractSplitLengths(const Array<Step>& transform_steps,
                                               Array<Optional<Integer>>* lengths) const {
+  // Make sure src_step_id is within the range of transform_steps.
   CHECK_LT(src_step_id, transform_steps.size());
   auto ps = transform_steps[src_step_id].as<SplitStepNode>();
   CHECK(ps != nullptr);
 
-  // get lengths from src step
+  // Make sure the size of ps->lengths is not smaller than n_split.
+  // Note that the number of actual spliting factors of src_step is ps->lengths.size()+1.
+  CHECK_LE(n_split, ps->lengths.size() + 1);
+  CHECK(ps != nullptr);
+
   lengths->reserve(n_split);
   int j = 0;
+  // Get the first (n_split-1) split factors of followed src_step.
   for (; j < n_split - 1; ++j) {
     lengths->push_back(ps->lengths[j]);
   }
+
+  // Get the last split factor of src_step for spliting level if n_split is smaller than
+  // ps->lengths.size()+1.
   PrimExpr last_factor = 1;
   for (; j < static_cast<int>(ps->lengths.size()); ++j) {
     if (ps->lengths[j]) {
@@ -939,9 +948,11 @@ Optional<Integer> FollowFusedSplitStepNode::ExtractSplitLength(
   PrimExpr ret(1);
 
   for (int src_step_id : src_step_ids) {
+    // Make sure the src_step_id is within the range of transform_steps.
     CHECK_LT(src_step_id, transform_steps.size());
     auto ps = transform_steps[src_step_id].as<SplitStepNode>();
     CHECK(ps != nullptr);
+    // Multiple the spliting factor on corresponding spliting level of src_steps.
     if (ps->lengths[level] && ret.defined()) {
       ret *= ps->lengths[level].value();
     } else {

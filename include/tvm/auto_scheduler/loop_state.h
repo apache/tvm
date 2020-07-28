@@ -363,7 +363,7 @@ class State : public ObjectRef {
    * \brief Schedule primitive extends to split step.
    * \param stage_id The index of the stage to be split.
    * \param it The iterator to be split.
-   * \param src_step_id The index of the split step to follow in the history.
+   * \param src_step_id The index of the split step to be followed in the history.
    * \param n_split The number of split level.
    * \return The splitted new Iterators.
    */
@@ -373,7 +373,7 @@ class State : public ObjectRef {
    * \brief Schedule primitive extends to split step.
    * \param stage_id The index of the stage to be split.
    * \param it The iterator to be split.
-   * \param src_step_ids The indices of the split steps to follow in the history.
+   * \param src_step_ids The indices of the split steps to be followed in the history.
    * \param level Use the length in this split level.
    * \param factor_or_nparts True to use `factor` for split from inner to outer,
       False to use `nparts` for split from outer to inner.
