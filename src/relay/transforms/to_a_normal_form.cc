@@ -78,8 +78,8 @@ std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(
         DLOG(INFO) << "lifted node: " << n;
       }
     }
-    // auto result_scope = n->new_scope ? ChildScope(s) : s;
-    // expr_scope.insert({n, result_scope});
+    auto result_scope = n->new_scope ? ChildScope(s) : s;
+    expr_scope.insert({n, result_scope});
     // int scope_key = (long long)(result_scope.get());
     // if (scopes.find(scope_key) == scopes.end()) {
     //   scopes[scope_key] = scopes.size();
