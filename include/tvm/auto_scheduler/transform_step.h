@@ -513,23 +513,24 @@ class FollowSplitStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to State.
-   * \param state A mutable pointer to State.
+   * \param state A mutable pointer to state, which will be updated.
    */
   Array<Iterator> ApplyToState(State* state) const;
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages A pointer to a `te::Stage` Array.
-   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
    * \param transform_steps An array record all transform steps.
+   * \return The iterator results after split.
    */
   Array<tir::IterVar> ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
                                       const Array<Step>& transform_steps) const;
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages A pointer to a `te::Stage` Array.
-   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
    * \param transform_steps An array record all transform steps.
    * \return Python schedule code.
    */
@@ -592,23 +593,25 @@ class FollowFusedSplitStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to State.
-   * \param state A mutable pointer to State.
+   * \param state A mutable pointer to state, which will be updated.
+   * \return The iterator results after split.
    */
   Array<Iterator> ApplyToState(State* state) const;
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages A pointer to a `te::Stage` Array.
-   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
    * \param transform_steps An array record all transform steps.
+   * \return The iterator results after split.
    */
   Array<tir::IterVar> ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
                                       const Array<Step>& transform_steps) const;
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages A pointer to a `te::Stage` Array.
-   * \param stage_to_axes A pointer to a StageToAxesMap.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
    * \param transform_steps An array record all transform steps.
    * \return Python schedule code.
    */
