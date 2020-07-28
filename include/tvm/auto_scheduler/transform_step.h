@@ -202,9 +202,10 @@ void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag);
  * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
  * \param schedule A mutable pointer to a `te::Schedule`. This is required by some steps which need
  * `te::Schedule` API. (e.g. CacheRead/CacheWrite step)
+ * \param transform_steps An array record all transform steps.
  */
 void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                         te::Schedule* schedule);
+                         te::Schedule* schedule, const Array<Step>& transform_steps);
 
 /*!
  * \brief Print the step as equivalent python schedule API.
@@ -213,10 +214,12 @@ void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxes
  * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
  * \param schedule A mutable pointer to a te::Schedule. This is required by some steps. (e.g.
  * CacheRead/CacheWrite step)
+ * \param transform_steps An array record all transform steps.
  * \return Python schedule code.
  */
 String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
-                            StageToAxesMap* stage_to_axes, te::Schedule* schedule);
+                            StageToAxesMap* stage_to_axes, te::Schedule* schedule,
+                            const Array<Step>& transform_steps);
 
 /********** Steps working on single stage **********/
 
@@ -485,6 +488,167 @@ class SplitStep : public Step {
   explicit SplitStep(dmlc::JSONReader* reader);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SplitStep, Step, SplitStepNode);
+};
+
+/*! \brief Similar to SplitStepNode, but uses split factors from another step
+ * (i.e. Follow another split step) */
+class FollowSplitStepNode : public StepNode {
+ public:
+  /*! \brief The id of the iter to be split. */
+  int iter_id;
+  /*! \brief The index of the split step to follow in the history. */
+  int src_step_id;
+  /*! \brief The number of split level. */
+  int n_split;
+
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
+
+  /*!
+   * \brief Extract split lengths.
+   * \param transform_steps An array record all transform steps.
+   * \param lengths The multiple split factors. Can be None to be filled by search policy.
+   */
+  void ExtractSplitLengths(const Array<Step>& transform_steps,
+                           Array<Optional<Integer>>* lengths) const;
+
+  /*!
+   * \brief Apply the current step to State.
+   * \param state A mutable pointer to state, which will be updated.
+   */
+  Array<Iterator> ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param transform_steps An array record all transform steps.
+   * \return The iterator results after split.
+   */
+  Array<tir::IterVar> ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                                      const Array<Step>& transform_steps) const;
+
+  /*!
+   * \brief Print the current step as equivalent python schedule API.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param transform_steps An array record all transform steps.
+   * \return Python schedule code.
+   */
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                          const Array<Step>& transform_steps) const;
+
+  static constexpr const char* record_prefix_str = "FSP";
+
+  static constexpr const char* _type_key = "auto_scheduler.FollowSplitStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FollowSplitStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to FollowSplitStepNode.
+ * \sa FollowSplitStepNode
+ */
+class FollowSplitStep : public Step {
+ public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to be split.
+   * \param iter_id The index of the iterator to be split.
+   * \param src_step_id The index of the split step to follow in the history.
+   * \param n_split The number of split level.
+   */
+  FollowSplitStep(int stage_id, int iter_id, int src_step_id, int n_split);
+
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit FollowSplitStep(dmlc::JSONReader* reader);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(FollowSplitStep, Step, FollowSplitStepNode);
+};
+
+/*! \brief Similar to FollowSplitStep, but uses split factors from multiple steps.
+ *  \note This can be used for the split in cooperative fetching.
+ */
+class FollowFusedSplitStepNode : public StepNode {
+ public:
+  /*! \brief The id of the iter to split. */
+  int iter_id;
+  /*! \brief The indices of the split steps to follow in the history. */
+  Array<Integer> src_step_ids;
+  /*! \brief  Use the length in this split level. */
+  int level;
+  /*! \brief If this is true, use factor. Otherwise, use nparts. */
+  bool factor_or_nparts;
+
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
+
+  /*!
+   * \brief Extract split length.
+   * \param transform_steps An array record all transform steps.
+   * \return Split factor.
+   */
+  Optional<Integer> ExtractSplitLength(const Array<Step>& transform_steps) const;
+
+  /*!
+   * \brief Apply the current step to State.
+   * \param state A mutable pointer to state, which will be updated.
+   * \return The iterator results after split.
+   */
+  Array<Iterator> ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param transform_steps An array record all transform steps.
+   * \return The iterator results after split.
+   */
+  Array<tir::IterVar> ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                                      const Array<Step>& transform_steps) const;
+
+  /*!
+   * \brief Print the current step as equivalent python schedule API.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param transform_steps An array record all transform steps.
+   * \return Python schedule code.
+   */
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                          const Array<Step>& transform_steps) const;
+
+  static constexpr const char* record_prefix_str = "FFSP";
+
+  static constexpr const char* _type_key = "auto_scheduler.FollowFusedSplitStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FollowFusedSplitStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to FollowFusedSplitStepNode.
+ * \sa FollowFusedSplitStepNode
+ */
+class FollowFusedSplitStep : public Step {
+ public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to be split.
+   * \param iter_id The index of the iterator to be split.
+   * \param src_step_ids An array of index for split step to follow in the history.
+   * \param level Use the length in this split level.
+   * \param factor_or_nparts If this is true, use factor. Otherwise, use nparts.
+   */
+  FollowFusedSplitStep(int stage_id, int iter_id, const Array<Integer>& src_step_ids, int level,
+                       bool factor_or_nparts);
+
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit FollowFusedSplitStep(dmlc::JSONReader* reader);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(FollowFusedSplitStep, Step, FollowFusedSplitStepNode);
 };
 
 /********** Steps working on multiple stages **********/
