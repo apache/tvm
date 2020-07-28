@@ -229,7 +229,9 @@ class ConstantFolder : public ExprMutator {
     CHECK(param != nullptr);
 
     tvm::Array<IndexExpr> ishape;
-    if (!GetConstantShape(input, &ishape)) {
+    if (auto opt = GetConstantShape(input)) {
+      ishape = opt.value();
+    } else {
       return expr;
     }
 
@@ -274,7 +276,9 @@ class ConstantFolder : public ExprMutator {
     CHECK(param != nullptr);
 
     tvm::Array<IndexExpr> ishape;
-    if (!GetConstantShape(input, &ishape)) {
+    if (auto opt = GetConstantShape(input)) {
+      ishape = opt.value();
+    } else {
       return expr;
     }
 
@@ -312,16 +316,17 @@ class ConstantFolder : public ExprMutator {
     return ConstEvaluate(ret);
   }
 
-  bool GetConstantShape(const Expr& input, tvm::Array<IndexExpr>* ishape) {
+  Optional<tvm::Array<IndexExpr>> GetConstantShape(const Expr& input) {
+    tvm::Array<IndexExpr> ishape;
     if (const ConstantNode* op = input.as<ConstantNode>()) {
-      *ishape = op->tensor_type()->shape;
+      ishape = op->tensor_type()->shape;
     } else if (input->checked_type_.defined()) {
-      *ishape = input->checked_type().as<TensorTypeNode>()->shape;
+      ishape = input->checked_type().as<TensorTypeNode>()->shape;
     } else {
-      return false;
+      return Optional<tvm::Array<IndexExpr>>(nullptr);
     }
 
-    return true;
+    return Optional<tvm::Array<IndexExpr>>(ishape);
   }
 };
 
