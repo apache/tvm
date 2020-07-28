@@ -351,6 +351,7 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       fields.push_back(dtype.code);
       fields.push_back(dtype.bits);
       fields.push_back(dtype.lanes);
+      fields.push_back(instr.alloc_storage.device_type);
       fields.push_back(instr.dst);
       break;
     }
@@ -426,6 +427,11 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
     case Opcode::ReshapeTensor: {
       // Number of fields = 3
       fields.assign({instr.reshape_tensor.tensor, instr.reshape_tensor.newshape, instr.dst});
+      break;
+    }
+    case Opcode::DeviceCopy: {
+      // Number of fields = 4
+      fields.assign({instr.src, instr.src_device_type, instr.dst_device_type, instr.dst});
       break;
     }
     default:
@@ -631,9 +637,10 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       dtype.bits = instr.fields[3];
       dtype.lanes = instr.fields[4];
 
-      RegName dst = instr.fields[5];
+      Index device_type = instr.fields[5];
+      RegName dst = instr.fields[6];
 
-      return Instruction::AllocStorage(allocation_size, alignment, dtype, dst);
+      return Instruction::AllocStorage(allocation_size, alignment, dtype, device_type, dst);
     }
     case Opcode::If: {
       // Number of fields = 4
@@ -703,6 +710,12 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       // Number of fields = 3
       DCHECK_EQ(instr.fields.size(), 3U);
       return Instruction::ReshapeTensor(instr.fields[0], instr.fields[1], instr.fields[2]);
+    }
+    case Opcode::DeviceCopy: {
+      // Number of fields = 4
+      DCHECK_EQ(instr.fields.size(), 4U);
+      return Instruction::DeviceCopy(instr.fields[0], instr.fields[1], instr.fields[2],
+                                     instr.fields[3]);
     }
     default:
       LOG(FATAL) << "Invalid opcode" << instr.opcode;

@@ -217,7 +217,7 @@ def concatenate_shape_func(attrs, inputs, _):
     return [_concatenate_shape_func(inputs, convert(axis))]
 
 @script
-def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
+def _reshape_shape_func_input_shape(data_shape, newshape, ndim, reverse=True):
     out = output_tensor((ndim,), "int64")
     src_idx = 0
     dst_idx = 0
@@ -677,3 +677,15 @@ def split_shape_func(attrs, inputs, _):
                               convert(i),
                               convert(indices_or_sections),
                               convert(axis)) for i in range(num_out)]
+
+@_reg.register_shape_func("contrib_reverse_reshape", False)
+def contrib_reverse_reshape_shape_func(attrs, inputs, out_ndims):
+    newshape = get_const_tuple(attrs.newshape)
+    print(inputs[0])
+    data_shape = reversed(inputs[0])
+    newshape = reversed(newshape)
+    return [_reshape_shape_func_input_shape(data_shape,
+                                            convert(newshape),
+                                            out_ndims[0])]
+
+

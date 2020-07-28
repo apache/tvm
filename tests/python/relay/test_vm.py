@@ -661,7 +661,7 @@ def test_vm_reshape_tensor():
     assert "reshape_tensor" in exec.bytecode
     check_result([x_np], x_np.reshape([4, 4, 8]), mod)
 
-    x = relay.var("x", shape=(8, 16), dtype="float32")
+    x = relay.var("x", shape=(tvm.tir.Any(), 16), dtype="float32")
     y = relay.reshape(x, [16, -1])
     y = relay.reverse_reshape(y, [-1, 4, 0])
     mod = tvm.IRModule()

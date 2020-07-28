@@ -84,6 +84,10 @@ class Region:
             self.alignment = alignment
 
         if self.ctx:
+            print(self.ctx.device_type)
+            print(ctx.device_type)
+            print(self.ctx.device_id)
+            print(ctx.device_id)
             assert (self.ctx.device_type == ctx.device_type and
                     self.ctx.device_id == ctx.device_id), "must have matching context"
         else:
@@ -282,6 +286,10 @@ class StorageCoalesce(ExprMutator):
             dynamic_regions.append(lhs)
 
         region = self.current_region(dtype)
+        if region.ctx and (region.ctx.device_type != ctx.device_type or \
+           region.ctx.device_id != ctx.device_id):
+            return lhs, call
+
         region.grow(lhs, size, alignment, ctx, dtype)
         return lhs, region.var
 

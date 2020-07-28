@@ -83,13 +83,17 @@ struct VMFunction {
   std::vector<Instruction> instructions;
   /*! \brief The size of the frame for this function */
   Index register_file_size;
+  /*! \brief The device type of each parameter for this function. */
+  std::vector<Index> params_device_type;
 
   VMFunction(const std::string& name, std::vector<std::string> params,
-             const std::vector<Instruction>& instructions, Index register_file_size)
+             const std::vector<Instruction>& instructions, Index register_file_size,
+             const std::vector<Index> params_device_type = {})
       : name(name),
         params(params),
         instructions(instructions),
-        register_file_size(register_file_size) {}
+        register_file_size(register_file_size),
+        params_device_type(params_device_type) {}
 
   VMFunction() {}
 
@@ -246,6 +250,9 @@ class VirtualMachine : public runtime::ModuleNode {
 
   /*! \brief Get device context for params. */
   TVMContext GetParamsContext() const;
+
+  /*! \brief Get context from the context list based on a given device type. */
+  TVMContext GetContext(Index device_type) const;
 
   /*!
    * \brief Invoke a global setting up the VM state to execute.
