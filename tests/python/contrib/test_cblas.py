@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 from tvm import te
 import numpy as np
@@ -64,6 +65,57 @@ def test_matmul_add():
     verify_matmul_add(1, 16, 3, True, False)
     verify_matmul_add(1, 16, 3, False, False)
     verify_matmul_add(1, 16, 3, True, True)
+
+def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):
+    pytest.skip("Quantized dense is supported only for MKL. TVM GPU CI uses openblas")
+    data_dtype = "uint8"
+    kernel_dtype = "int8"
+    out_dtype = "int32"
+    bias = te.var('bias', dtype=out_dtype)
+    ashape = (l, n) if transa else (n, l)
+    bshape = (m, l) if transb else (l, m)
+    A = te.placeholder(ashape, name='A', dtype=data_dtype)
+    B = te.placeholder(bshape, name='B', dtype=kernel_dtype)
+    C = cblas.matmul_u8s8s32(A, B, transa, transb, dtype=out_dtype)
+    D = te.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
+    s = te.create_schedule(D.op)
+
+    def get_numpy(a, b, bb, transa, transb):
+        if transa:
+            a = a.transpose()
+        if transb:
+            b = b.transpose()
+        return np.dot(a, b) + bb
+
+    def verify(target="llvm"):
+        if not tvm.runtime.enabled(target):
+            print("skip because %s is not enabled..." % target)
+            return
+        if not tvm.get_global_func("tvm.contrib.cblas.matmul_u8s8s32", True):
+            print("skip because extern function is not available")
+            return
+        ctx = tvm.cpu(0)
+        f = tvm.build(s, [A, B, D, bias], target)
+        a = tvm.nd.array(np.random.randint(low=0, high=50, size=ashape).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.randint(low=0, high=50, size=bshape).astype(B.dtype), ctx)
+        d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
+        bb = 10
+        f(a, b, d, bb)
+        tvm.testing.assert_allclose(
+                d.asnumpy(),
+                get_numpy(a.asnumpy().astype('int32'), b.asnumpy().astype('int32'), bb, transa, transb),
+                rtol=1e-5)
+    verify()
+
+def test_quantized_matmul_add():
+    verify_quantized_matmul_add(235, 128, 1024)
+    verify_quantized_matmul_add(235, 128, 1024, True, False)
+    verify_quantized_matmul_add(235, 128, 1024, False, True)
+    verify_quantized_matmul_add(235, 128, 1024, True, True)
+    verify_quantized_matmul_add(1, 16, 4)
+    verify_quantized_matmul_add(1, 16, 3, True, False)
+    verify_quantized_matmul_add(1, 16, 3, False, True)
+    verify_quantized_matmul_add(1, 16, 3, True, True)
 
 def verify_batch_matmul(batch, m, l, n, transa=False, transb=False, iterative=False, dtype="float32"):
     ashape = (batch, l, n) if transa else (batch, n, l)

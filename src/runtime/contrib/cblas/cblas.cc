@@ -44,7 +44,36 @@ using namespace runtime;
 
 inline CBLAS_TRANSPOSE BooleanToTranspose(bool trans) { return trans ? CblasTrans : CblasNoTrans; }
 
+#if USE_MKL_BLAS == 1
+inline CBLAS_OFFSET StringToOffset(const std::string offset_type) {
+  if (offset_type != "CblasFixOffset" && offset_type != "CblasColOffset" &&
+      offset_type != "CblasRowOffset") {
+    LOG(FATAL) << "Unrecognized offset_type " << offset_type;
+  }
+  if (offset_type == "CblasFixOffset") {
+    return CblasFixOffset;
+  } else if (offset_type == "CblasColOffset") {
+    return CblasColOffset;
+  }
+  return CblasRowOffset;
+}
+#endif
+
 inline char BooleanToTransposeChar(bool trans) { return trans ? 'T' : 'N'; }
+
+struct CblasGemmU8S8S32Op {
+  void operator()(bool ta, bool tb, int M, int N, int K, float alpha, const void* A, int lda,
+                  int offset_a, const void* B, int ldb, int offset_b, float beta, int* C, int ldc,
+                  const std::string offset_ctype, int* offset_c) {
+#if USE_MKL_BLAS == 1
+    cblas_gemm_s8u8s32(CblasColMajor, BooleanToTranspose(ta), BooleanToTranspose(tb),
+                       StringToOffset(offset_ctype), M, N, K, alpha, A, lda, offset_a, B, ldb,
+                       offset_b, beta, C, ldc, offset_c);
+#else
+    LOG(FATAL) << "Quantized Gemm is supported with MKL Blas only";
+#endif
+  }
+};
 
 struct CblasSgemmOp {
   typedef float TDatatype;
@@ -169,6 +198,18 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul").set_body([](TVMArgs args, TVMRet
   else
     CallGemm(args, ret, CblasDgemmOp());
 });
+
+// integer matrix multiplication for row major
+TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul_u8s8s32")
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      DLTensor* A = args[0];
+      DLTensor* B = args[1];
+      DLTensor* C = args[2];
+      CHECK(TypeMatch(A->dtype, kDLUInt, 8) && TypeMatch(B->dtype, kDLInt, 8) &&
+            TypeMatch(C->dtype, kDLInt, 32));
+
+      CallU8S8S32Gemm(args, ret, CblasGemmU8S8S32Op());
+    });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* A = args[0];
