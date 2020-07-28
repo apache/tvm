@@ -637,10 +637,11 @@ def _nms():
         iou_threshold = np.atleast_1d(inputs[3].data.asnumpy())[0]
         # score_threshold was introduced from V3
         score_threshold = np.atleast_1d(inputs[4].data.asnumpy())[0] if len(inputs) > 4 else 0.0
+        pad_output = 'pad_to_max_output_size'
 
         # Generate data with shape (1, num_anchors, 5)
         scores = AttrCvt(op_name="expand_dims",
-                         ignores=['T_threshold'],
+                         ignores=['T_threshold', pad_output],
                          extras={'axis': -1, 'num_newaxis': 1})([inputs[1]], attr)
         data = get_relay_op('concatenate')([scores, inputs[0]], -1)
         data = get_relay_op('expand_dims')(data, 0, 1)
@@ -667,6 +668,8 @@ def _nms():
                                                       return_indices=True,
                                                       invalid_to_bottom=False)
 
+        if pad_output in attr and attr[pad_output]:
+            return nms_ret
         # squeeze it, TF NMS is not batched
         size = get_relay_op("squeeze")(nms_ret[1], axis=[1])
         data_slice = get_relay_op("squeeze")(nms_ret[0], axis=[0])
@@ -2152,6 +2155,7 @@ _convert_map = {
     'Neg'                               : AttrCvt('negative'),
     'NonMaxSuppressionV2'               : _nms(),
     'NonMaxSuppressionV3'               : _nms(),
+    'NonMaxSuppressionV4'               : _nms(),
     'NoOp'                              : _no_op(),
     'NotEqual'                          : _broadcast('not_equal'),
     'OneHot'                            : _one_hot(),
