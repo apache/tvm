@@ -22,10 +22,10 @@
 #include <execinfo.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/graph_runtime.h>
 #include <tvm/runtime/crt/packed_func.h>
+#include <unistd.h>
 
 #include "bundle.h"
 
@@ -105,8 +105,10 @@ void __attribute__((noreturn)) TVMPlatformAbort(int error_code) {
     for (int i = 0; i < nptrs; i++) {
       Dl_info info;
       if (dladdr(trace[i], &info)) {
-        fprintf(stderr, "symbol %d: %s %s %p (%p)\n", i, info.dli_sname, info.dli_fname, info.dli_fbase, trace[i] - info.dli_fbase);
-        snprintf(cmd_buf, sizeof(cmd_buf), "addr2line --exe=%s -p -i -a -f %p", g_argv0, trace[i] - info.dli_fbase);
+        fprintf(stderr, "symbol %d: %s %s %p (%p)\n", i, info.dli_sname, info.dli_fname,
+                info.dli_fbase, trace[i] - info.dli_fbase);
+        snprintf(cmd_buf, sizeof(cmd_buf), "addr2line --exe=%s -p -i -a -f %p", g_argv0,
+                 trace[i] - info.dli_fbase);
         int result = system(cmd_buf);
         if (result < 0) {
           perror("invoking backtrace command");
