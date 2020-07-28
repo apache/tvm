@@ -41,6 +41,20 @@ namespace parser {
 
 using namespace runtime;
 
+// trim from start (in place)
+static inline void ltrim(std::string &s) {
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) {
+        return !std::isspace(ch);
+    }));
+}
+
+// trim from end (in place)
+static inline void rtrim(std::string &s) {
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) {
+        return !std::isspace(ch);
+    }).base(), s.end());
+}
+
 bool IsDigit(char c) { return '0' <= c && c <= '9'; }
 
 bool IsWhitespace(char c) { return ' ' == c || c == '\t' || c == '\n'; }
@@ -106,7 +120,10 @@ struct Tokenizer {
     CommentParserState state = CommentParserState::Proceed;
     int nesting = 1;
 
-    while (true) {
+    while (More()) {
+      std::cout << "In comment state machine" << std::endl;
+      std::cout << "Buffer: " << *buffer << std::endl;
+      std::cout << "State: " << state << std::endl;
       switch (state) {
         case CommentParserState::Proceed: {
           if (Peek() == '/') {
@@ -132,11 +149,11 @@ struct Tokenizer {
               Next();
               buffer->pop_back();
               return;
-            } else {
-              buffer->operator+=(Next());
-              state = CommentParserState::Proceed;
             }
           }
+
+          buffer->operator+=(Next());
+          state = CommentParserState::Proceed;
           continue;
         }
       }
@@ -215,8 +232,51 @@ struct Tokenizer {
     return Token(line, column, TokenType::MetaReference, MetaRef(type_key.str(), index));
   }
 
+  Token TokenizeAttr() {
+    int line = this->line;
+    int column = this->col;
+    Next();
+    if (Peek() == '[') {
+      Next();
+      std::stringstream raw_attribute;
+
+      while (More() && Peek() != ']') {
+        raw_attribute << Next();
+      }
+
+      CHECK_EQ(Next(), ']');
+
+      auto attribute = raw_attribute.str();
+      // Clean up the white-space on both sides.
+      ltrim(attribute);
+      rtrim(attribute);
+
+      // Metadata can only appear at the bottom of a file and goes to EOF.
+      if (attribute == "metadata") {
+        std::stringstream metadata;
+        while (More()) {
+          metadata << Next();
+        }
+        ObjectRef metadata_map = tvm::LoadJSON(metadata.str());
+        return Token(line, column, TokenType::Metadata, metadata_map);
+      } if (attribute.rfind("version", 0) == 0) {
+        std::string version = attribute.substr(attribute.find("=") + 1);
+        ltrim(version);
+        rtrim(version);
+        return Token(line, column, TokenType::Version, tvm::String(version));
+      } else {
+        LOG(FATAL) << "unsupported " << attribute;
+        return Token();
+      }
+    } else {
+      LOG(FATAL) << "lex error";
+      return Token();
+    }
+  }
+
   inline Token TokenizeOnce() {
     auto next = Peek();
+    DLOG(INFO) << "tvm::parser::TokenizeOnce: next=" << next;
     if (next == '\n') {
       auto token = NewToken(TokenType::Newline);
       Next();
@@ -228,12 +288,20 @@ struct Tokenizer {
         return token;
       } else {
         // TODO(@jroesch): have lexer use diagnostic context too.
+        // see https://github.com/apache/incubator-tvm/issues/6153.
         LOG(FATAL) << "lexer error";
         return Token();
       }
     } else if (next == '"') {
-      LOG(FATAL) << "string not working yet";
-      return NewToken(TokenType::Unknown);
+      // TODO(@jroesch): Properly tokenize escape sequences in strings.
+      // see https://github.com/apache/incubator-tvm/issues/6153.
+      Next();
+      std::stringstream string_content;
+      while (More() && Peek() != '"') {
+        string_content << Next();
+      }
+      Next();
+      return NewToken(TokenType::StringLiteral, tvm::String(string_content.str()));
     } else if (IsWhitespace(next)) {
       auto token = NewToken(TokenType::Whitespace);
       Next();
@@ -345,32 +413,7 @@ struct Tokenizer {
     } else if (MatchString("meta")) {
       return TokenizeMetaRef();
     } else if (next == '#') {
-      Next();
-      int line = this->line;
-      int column = this->col;
-      if (Peek() == '[') {
-        Next();
-        std::stringstream attribute;
-        while (More() && Peek() != ']') {
-          attribute << Next();
-        }
-        CHECK_EQ(Next(), ']');
-        // Metadata can only appear at the bottom of a file and goes to EOF.
-        if (attribute.str() == "metadata") {
-          std::stringstream metadata;
-          while (More()) {
-            metadata << Next();
-          }
-          ObjectRef metadata_map = tvm::LoadJSON(metadata.str());
-          return Token(line, column, TokenType::Metadata, metadata_map);
-        } else {
-          LOG(FATAL) << "unsupported " << attribute.str();
-          return Token();
-        }
-      } else {
-        LOG(FATAL) << "lex error";
-        return Token();
-      }
+      return TokenizeAttr();
     } else if (next == '%') {
       auto token = NewToken(TokenType::Percent);
       Next();
@@ -451,6 +494,7 @@ struct Tokenizer {
   }
 
   void Tokenize() {
+    DLOG(INFO) << "tvm::parser::Tokenize";
     while (this->More()) {
       auto token = TokenizeOnce();
       CHECK(token.defined());
@@ -531,6 +575,7 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
 std::vector<Token> Tokenize(std::string source) {
   auto tokenizer = Tokenizer(source);
   tokenizer.Tokenize();
+  std::cout << "Done tokenization" << std::endl;
   auto tokens = Condense(tokenizer.tokens);
   for (auto token : tokens) {
     CHECK(token.defined());

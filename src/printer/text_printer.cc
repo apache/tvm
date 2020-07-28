@@ -31,7 +31,7 @@
 
 namespace tvm {
 
-static const char* kSemVer = "v0.0.4";
+static const char* kSemVer = "0.0.5";
 
 Doc TextPrinter::PrintMod(const IRModule& mod) {
   Doc doc;
@@ -74,7 +74,7 @@ String PrettyPrint(const ObjectRef& node) {
 String AsText(const ObjectRef& node, bool show_meta_data,
               runtime::TypedPackedFunc<String(ObjectRef)> annotate) {
   Doc doc;
-  doc << kSemVer << Doc::NewLine();
+  doc << "#[version = \"" << kSemVer << "\"]" << Doc::NewLine();
   runtime::TypedPackedFunc<std::string(ObjectRef)> ftyped = nullptr;
   if (annotate != nullptr) {
     ftyped = runtime::TypedPackedFunc<std::string(ObjectRef)>(

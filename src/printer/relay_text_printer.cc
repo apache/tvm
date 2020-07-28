@@ -724,6 +724,8 @@ Doc RelayTextPrinter::PrintAttr(const ObjectRef& value, bool meta) {
     Doc printed_attr;
     if (value.as<tvm::tir::AnyNode>()) {
       printed_attr << "?";
+    } else if (auto str_obj = value.as<tvm::StringObj>()) {
+      printed_attr << Doc::StrLiteral(GetRef<String>(str_obj));
     } else if (meta) {
       printed_attr = meta_->GetMetaNode(Downcast<ObjectRef>(value));
     } else {

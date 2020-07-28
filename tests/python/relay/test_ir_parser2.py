@@ -76,7 +76,6 @@ def graph_equal(lhs, rhs):
 
 def roundtrip_expr(expr):
     text = tvm.relay.Expr.astext(expr, show_meta_data=False)
-    import pdb; pdb.set_trace()
     x = tvm.parser.parse_expr(str(text))
     assert_graph_equal(x, expr)
 
@@ -233,9 +232,10 @@ def test_vars():
     assert op.name == "nn.global_avg_pool2d"
 
 def test_meta_ref():
-    # var = parse_text("meta[type_key][index]")
-    var = parse_text("meta[type_key][0]")
-    import pdb; pdb.set_trace()
+    meta_op = parse_text("meta[type_key][1337]")
+    assert meta_op.attrs.node_type_key == "type_key"
+    assert meta_op.attrs.node_index == "1337"
+
 
 def test_let():
     assert_parses_as(
@@ -935,8 +935,4 @@ def test_resnet_inlined_params():
     tvm.ir.assert_structural_equal(mod, parsed_mod)
 
 if __name__ == "__main__":
-    # import sys
-    # pytest.main(sys.argv)
-    # test_hierarchical_identifiers()
-    # test_resnet_inlined_params()
     test_meta_ref()

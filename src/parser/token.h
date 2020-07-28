@@ -87,6 +87,7 @@ enum TokenType {
   PartialMatch,
   Metadata,
   MetaReference,
+  Version,
   Unknown,
   EndOfFile,
   Null,
@@ -192,6 +193,8 @@ std::string ToString(const TokenType& token_type) {
       return "Metadata";
     case TokenType::MetaReference:
       return "MetaReference";
+    case TokenType::Version:
+      return "Version";
     case TokenType::Unknown:
       return "Unknown";
     case TokenType::EndOfFile:
@@ -311,6 +314,8 @@ std::string Pretty(const TokenType& token_type) {
       return "end of file";
     case TokenType::Null:
       return "null";
+    case TokenType::Version:
+      return "version attribute";
     // Older compilers warn even though the above code is exhaustive.
     default:
       LOG(FATAL) << "unreachable code";

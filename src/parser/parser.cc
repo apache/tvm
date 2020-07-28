@@ -490,7 +490,20 @@ class Parser {
   template <typename T>
   Array<T> ParseSequence(TokenType start, TokenType sep, TokenType stop, std::function<T()> parse,
                          std::function<bool()> before_stop = nullptr) {
+    DLOG(INFO) << "Parser::ParseSequence: start=" << start << "sep=" << sep << "stop=" << stop;
     Match(start);
+
+    // This is for the empty arguments list case, if we have <start> <leftovers> <stop> token stream
+    // we must parse leftovers, then match a stop token.
+    if (before_stop) {
+      auto did_parse = before_stop();
+      if (did_parse) {
+        Match(stop);
+        return {};
+      }
+    }
+
+    // This is the case in which we find an empty arguments lists and no leftovers.
     if (WhenMatch(stop)) {
       return Array<T>();
     } else {
@@ -562,24 +575,23 @@ class Parser {
   }
 
   /*! \brief Parse the semantic versioning header. */
-  SemVer ParseSemVer() {
-    // TODO(@jroesch): convert semver to module level attribute.
-    auto id = Peek();
-    if (id->token_type == TokenType::Identifier && id.ToString() == "v0") {
-      auto id = Match(TokenType::Identifier);
-      Consume(TokenType::Period);
-      Consume(TokenType::Float);
+  SemVer ParseSemVer(bool required=true) {
+    if (Peek()->token_type == TokenType::Version) {
+      auto version = Match(TokenType::Version);
+      // TODO(@jroesch): we currently only support 0.0.5.
+      if (version.ToString() != "\"0.0.5\"") {
+        std::stringstream msg;
+        msg << "invalid semantic version `";
+        msg << version.ToString() << "`";
+        this->diag_ctx.Emit({version->line, version->column, msg.str() });
+      }
+    } else if (required) {
+      std::stringstream msg;
+      msg << "expected text format semantic version ";
+      msg << "you can annotate it as #[version = \"0.0.5\"]";
+      this->diag_ctx.Emit({Peek()->line, Peek()->column, msg.str() });
     }
-    // TODO(@jroesch): the current lexing makes it hard to parse this
-    // in a way that doesnt feel like a hack.
-    //
-    // We should move to module level attributes instead
-    // so we can tag modules with top-level data.
-    //
-    // #[text_version = "0.0.4"]
-    //
-    // For now we only support current version.
-    return SemVer(0, 0, 4);
+    return SemVer(0, 0, 5);
   }
 
   /*! \brief Parse zero or more Relay definitions. */
@@ -701,10 +713,12 @@ class Parser {
 
   /*! \brief Parse a single Relay expression. */
   Expr ParseExpr() {
+    DLOG(INFO) << "Parser::ParseExpr";
     return ConsumeWhitespace<Expr>([this] {
       std::vector<Expr> exprs;
 
       while (true) {
+        DLOG(INFO) << "Parser::ParseExpr: parsing a single expression";
         auto next = Peek();
         switch (next->token_type) {
           // For graph or let, match first rhs, then invoke ParseBindingExpr
@@ -799,6 +813,7 @@ class Parser {
     // This ensures for n sequential bindings
     // the call depth will be the same before
     // and after parsing the n bindings.
+    DLOG(INFO) << "Parser::ParseBindingExpr";
     std::vector<std::pair<Var, Expr>> bindings;
     int scopes = 0;
 
@@ -869,6 +884,7 @@ class Parser {
    * Handles things of the form [T1, ..., TN](arg1: U1, ..., argN, UN) -> Ret { body }.
    */
   Function ParseFunctionDef() {
+    DLOG(INFO) << "Parser::ParseFunctionDef";
     PushScope();
     PushTypeScope();
 
@@ -910,6 +926,7 @@ class Parser {
 
   /*! \brief Parse an if-expression. */
   Expr ParseIf() {
+    DLOG(INFO) << "Parser::ParseIf";
     Consume(TokenType::If);
     auto guard = Parens<Expr>([&] { return ParseExpr(); });
 
@@ -936,6 +953,7 @@ class Parser {
    * This function recursively parses a pattern.
    */
   Pattern ParsePattern() {
+    DLOG(INFO) << "Parser::ParsePattern";
     auto next = Peek();
     switch (next->token_type) {
       case TokenType::Underscore: {
@@ -987,6 +1005,7 @@ class Parser {
   }
 
   Expr ParseExprBinOp() {
+    DLOG(INFO) << "Parser::ParseExprBinOp";
     return ConsumeWhitespace<Expr>([this] {
       // We must parse at least one expression, the default
       // case is that there is no operator and we will fall
@@ -1060,11 +1079,13 @@ class Parser {
   }
 
   ObjectRef ParseAttributeValue() {
+    DLOG(INFO) << "Parser::ParseAttributeValue";
     auto next = Peek();
     switch (next->token_type) {
       case TokenType::Float:
       case TokenType::Integer:
       case TokenType::Boolean:
+      case TokenType::StringLiteral:
         return Match(next->token_type)->data;
       case TokenType::LSquare: {
         return ParseSequence<ObjectRef>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
@@ -1077,6 +1098,7 @@ class Parser {
   }
 
   Map<String, ObjectRef> ParseAttrs() {
+    DLOG(INFO) << "Parser::ParseAttrs";
     Map<String, ObjectRef> kwargs;
     while (Peek()->token_type == TokenType::Identifier) {
       auto key = Match(TokenType::Identifier).ToString();
@@ -1086,10 +1108,12 @@ class Parser {
       kwargs.Set(key, value);
       WhenMatch(TokenType::Comma);
     }
+    DLOG(INFO) << "Parser::ParseAttrs: kwargs=" << kwargs;
     return kwargs;
   }
 
   Expr ParseCallArgs(Expr op) {
+    DLOG(INFO) << "Parser::ParseCallArgs";
     Map<String, ObjectRef> raw_attrs;
     std::string op_key;
     bool is_op = false;
@@ -1118,6 +1142,7 @@ class Parser {
       Attrs attrs;
 
       if (is_op && op_key.size()) {
+        // raw_attrs.Set("type_key", tvm::String("hello"));
         auto attr_obj = tvm::ReflectionVTable::Global()->CreateObject(op_key, raw_attrs);
         CHECK(attr_obj.defined());
         attrs = Downcast<Attrs>(attr_obj);
@@ -1130,13 +1155,14 @@ class Parser {
   }
 
   Expr ParseCallExpr() {
+    DLOG(INFO) << "Parser::ParseCallExpr";
     return ConsumeWhitespace<Expr>([this] {
       Expr expr = ParseAtomicExpr();
       // Parse as many call args as possible, building up expression
       //
       // NB(@jroesch): this seems like a hack but in order to parse curried functions
       // and avoid complex grammar we will parse multiple call lists in a row.
-      while (true) {
+      while (Peek()->token_type == TokenType::OpenParen) {
         auto new_expr = ParseCallArgs(expr);
         if (new_expr.defined()) {
           expr = new_expr;
@@ -1166,6 +1192,7 @@ class Parser {
   }
 
   Expr ParseAtomicExpr() {
+    DLOG(INFO) << "Parser::ParseAtomicExpr";
     auto expr = ConsumeWhitespace<Expr>([this] {
       auto next = Peek();
       switch (next->token_type) {
@@ -1442,8 +1469,10 @@ IRModule ParseModule(std::string file_name, std::string file_content) {
 }
 
 Expr ParseExpr(std::string file_name, std::string file_content) {
+  DLOG(INFO) << "ParseExpr";
   auto tokens = Tokenize(file_content);
   Parser parser(tokens, DefaultOpTable(), Source(file_content));
+  parser.ParseSemVer(false);
   parser.PushScope();
   auto expr = parser.ParseExpr();
   parser.Match(TokenType::EndOfFile);

@@ -40,11 +40,11 @@ using namespace relay;
  * \brief Options for allocating storage.
  */
 struct MetaRefAttrs : public tvm::AttrsNode<MetaRefAttrs> {
-  std::string type_key;
+  tvm::String node_type_key;
   uint64_t node_index;
 
   TVM_DECLARE_ATTRS(MetaRefAttrs, "relay.attrs.MetaRefAttrs") {
-    TVM_ATTR_FIELD(type_key)
+    TVM_ATTR_FIELD(node_type_key)
         .describe("The type_key representing the type of the node referenced.");
     TVM_ATTR_FIELD(node_index).describe("The index into the type specific node array.");
   }
