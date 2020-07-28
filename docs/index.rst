@@ -37,11 +37,13 @@ For Developers
 
 .. toctree::
    :maxdepth: 1
-   :caption: Get Started
+   :caption: How to
    :hidden:
 
    install/index
    contribute/index
+   deploy/index
+   dev/how_to
 
 .. toctree::
    :maxdepth: 1
@@ -50,13 +52,6 @@ For Developers
 
    tutorials/index
 
-
-.. toctree::
-   :maxdepth: 1
-   :caption: How-to Guide
-   :hidden:
-
-   deploy/index
 
 .. toctree::
    :maxdepth: 2
@@ -70,10 +65,9 @@ For Developers
 .. toctree::
    :maxdepth: 2
    :hidden:
-   :caption: For Developers
+   :caption: Deep Dive
 
    dev/index
-   dev/how_to
 
 .. toctree::
    :maxdepth: 2
