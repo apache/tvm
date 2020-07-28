@@ -27,6 +27,7 @@
 
 #include <iomanip>
 #include <sstream>
+#include <string>
 
 namespace tvm {
 namespace support {
@@ -41,4 +42,4 @@ inline std::string hexdump(const std::string& s) {
 
 }  // namespace support
 }  // namespace tvm
-#endif  // TVM_SUPPORT_STR_ESCAPE_H_
+#endif  // TVM_SUPPORT_HEXDUMP_H_
