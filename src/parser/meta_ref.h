@@ -36,6 +36,8 @@ namespace parser {
 
 using namespace relay;
 
+using MetaTable =  Map<String, Array<ObjectRef>>;
+
 /*!
  * \brief Options for allocating storage.
  */
@@ -73,6 +75,9 @@ struct MetaRefAttrs : public tvm::AttrsNode<MetaRefAttrs> {
  * \returns The meta table reference.
  */
 Expr MetaRef(std::string type_key, uint64_t node_index);
+
+Function ExpandMetaRefs(const MetaTable& meta_table, const Function& mod);
+IRModule ExpandMetaRefs(const MetaTable& meta_table, const IRModule& mod);
 
 }  // namespace parser
 }  // namespace tvm

@@ -121,9 +121,6 @@ struct Tokenizer {
     int nesting = 1;
 
     while (More()) {
-      std::cout << "In comment state machine" << std::endl;
-      std::cout << "Buffer: " << *buffer << std::endl;
-      std::cout << "State: " << state << std::endl;
       switch (state) {
         case CommentParserState::Proceed: {
           if (Peek() == '/') {
@@ -226,7 +223,6 @@ struct Tokenizer {
     }
     CHECK_EQ(Peek(), ']');
     Next();
-    std::cout << "NUmber: " << str_index.str() << std::endl;
     // todo: add error handling around bad indices
     auto index = ParseNumber(true, false, str_index.str()).ToNumber();
     return Token(line, column, TokenType::MetaReference, MetaRef(type_key.str(), index));
@@ -575,11 +571,9 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
 std::vector<Token> Tokenize(std::string source) {
   auto tokenizer = Tokenizer(source);
   tokenizer.Tokenize();
-  std::cout << "Done tokenization" << std::endl;
   auto tokens = Condense(tokenizer.tokens);
   for (auto token : tokens) {
     CHECK(token.defined());
-    std::cout << token << std::endl;
   }
   return tokens;
 }

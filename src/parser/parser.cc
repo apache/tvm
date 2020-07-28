@@ -557,6 +557,7 @@ class Parser {
     auto defs = ParseDefinitions();
     // Parse the metadata section at the end.
     auto metadata = ParseMetadata();
+
     Match(TokenType::EndOfFile);
     Map<tvm::GlobalVar, BaseFunc> funcs;
     Map<tvm::GlobalTypeVar, TypeData> types;
@@ -568,7 +569,8 @@ class Parser {
     auto mod = IRModule({}, types);
 
     for (auto func : defs.funcs) {
-      mod->Add(func.global, func.function);
+      auto function = ExpandMetaRefs(metadata.value(), func.function);
+      mod->Add(func.global, function);
     }
 
     return mod;
@@ -1434,7 +1436,13 @@ class Parser {
   }
 
   // TODO(@jroesch): this is the final remaining feature.
-  ObjectRef ParseMetadata() { return ObjectRef(); }
+  Optional<Map<String, Array<ObjectRef>>> ParseMetadata() {
+    if (Peek()->token_type == TokenType::Metadata) {
+      return Match(TokenType::Metadata).ToMetadata();
+    } else {
+      return Optional<Map<String, Array<ObjectRef>>>();
+    }
+  }
 
   /*! \brief A helper for debugging the parser, displays the next N tokens in the token stream. */
   void DisplayNextN(int n) {

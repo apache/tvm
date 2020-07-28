@@ -23,6 +23,8 @@
  */
 
 #include <tvm/relay/op.h>
+#include <tvm/relay/expr_functor.h>
+#include <tvm/relay/transform.h>
 #include <tvm/relay/op_attr_types.h>
 #include <topi/elemwise.h>
 
@@ -30,6 +32,9 @@
 
 namespace tvm {
 namespace parser {
+
+using tvm::transform::PassContext;
+using tvm::relay::transform::CreateFunctionPass;
 
 TVM_REGISTER_NODE_TYPE(MetaRefAttrs);
 
@@ -54,6 +59,46 @@ Expr MetaRef(std::string type_key, uint64_t node_index) {
     attrs->node_type_key = tvm::String(type_key);
     attrs->node_index = node_index;
     return Call(op, {}, Attrs(attrs), {});
+}
+
+
+// class MetaRefAttrExpander : AttrFunctor<ObjectRef(const ObjectRef& n)> {
+//     ObjectRef VisitAttrDefault_(const Object* node) final {
+
+//     }
+// }
+
+struct MetaRefExpander : public ExprMutator {
+    MetaTable table;
+
+    MetaRefExpander(const MetaTable& table) : table(table) {}
+
+    Expr VisitExpr_(const CallNode* call) final {
+        if (auto op_node = call->op.as<OpNode>()) {
+            if (op_node->name == "parser.MetaRef") {
+                auto meta_attrs = call->attrs.as<MetaRefAttrs>();
+                CHECK(meta_attrs) << "an internal error has occurred";
+                auto nodes = table.at(meta_attrs->node_type_key);
+                CHECK_LT(meta_attrs->node_index, nodes.size());
+                return Downcast<Expr>(nodes[meta_attrs->node_index]);
+            }
+        }
+
+        return ExprMutator::VisitExpr_(call);
+    }
+};
+
+Function ExpandMetaRefs(const MetaTable& meta_table, const relay::Function& func) {
+    MetaRefExpander expander(meta_table);
+    return Downcast<Function>(expander.VisitExpr(func));
+}
+
+IRModule ExpandMetaRefs(const MetaTable& meta_table, const IRModule& mod) {
+    auto pass = CreateFunctionPass([&](Function func, IRModule module, PassContext ctx) {
+        return ExpandMetaRefs(meta_table, func);
+    }, 1337, "ExpandMetaRefs", {});
+
+    return pass(mod, PassContext::Create());
 }
 
 }  // namespace parser
