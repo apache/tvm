@@ -821,7 +821,7 @@ void FollowSplitStepNode::ExtractSplitLengths(const Array<Step>& transform_steps
   auto ps = transform_steps[src_step_id].as<SplitStepNode>();
   CHECK(ps != nullptr);
 
-  // Make sure the size of ps->lengths is not smaller than n_split.
+  // Make sure the size of ps->lengths is not smaller than n_split-1.
   // Note that the number of actual splitting factors of src_step is ps->lengths.size()+1.
   CHECK_LE(n_split, ps->lengths.size() + 1);
   CHECK(ps != nullptr);
