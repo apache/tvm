@@ -22,12 +22,13 @@ TVM_ROOT=$(shell cd ../..; pwd)
 CRT_ROOT ?= ../../src/runtime/crt
 
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
-PKG_CXXFLAGS = -g -Wall -std=c++14 -O2 -fPIC \
+PKG_COMPILE_OPTS = -g -Wall -O2 -fPIC
+PKG_CXXFLAGS = ${PKG_COMPILE_OPTS} -std=c++14 \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
 	-Icrt_config
-PKG_CFLAGS = -g -Wall -std=c99 -O2 -fPIC \
+PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
@@ -53,10 +54,10 @@ test_static: $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/
 	TVM_NUM_THREADS=1 $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin
 
 $(build_dir)/crt/graph_runtime/libgraph_runtime.a:
-	cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) graph_runtime
+	cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" graph_runtime
 
 $(build_dir)/crt/common/libcommon.a:
-	cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) common
+	cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" common
 
 $(build_dir)/demo_dynamic: demo.cc ${build_dir}/graph_c.json.c ${build_dir}/params_c.bin.c
 	@mkdir -p $(@D)
