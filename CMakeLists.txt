@@ -351,11 +351,13 @@ add_library(tvm_static STATIC ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi_static STATIC ${TOPI_SRCS})
 add_library(tvm_runtime_static STATIC ${RUNTIME_SRCS})
 
-add_library(tvm SHARED)
+file(WRITE empty.cc "")
+
+add_library(tvm SHARED empty.cc)
 target_link_libraries(tvm tvm_static)
-add_library(tvm_topi SHARED)
+add_library(tvm_topi SHARED empty.cc)
 target_link_libraries(tvm_topi tvm_topi_static)
-add_library(tvm_runtime SHARED)
+add_library(tvm_runtime SHARED empty.cc)
 target_link_libraries(tvm_runtime tvm_runtime_static)
 
 
