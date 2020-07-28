@@ -822,7 +822,7 @@ void FollowSplitStepNode::ExtractSplitLengths(const Array<Step>& transform_steps
   CHECK(ps != nullptr);
 
   // Make sure the size of ps->lengths is not smaller than n_split.
-  // Note that the number of actual spliting factors of src_step is ps->lengths.size()+1.
+  // Note that the number of actual splitting factors of src_step is ps->lengths.size()+1.
   CHECK_LE(n_split, ps->lengths.size() + 1);
   CHECK(ps != nullptr);
 
@@ -833,7 +833,7 @@ void FollowSplitStepNode::ExtractSplitLengths(const Array<Step>& transform_steps
     lengths->push_back(ps->lengths[j]);
   }
 
-  // Get the last split factor of src_step for spliting level if n_split is smaller than
+  // Get the last split factor of src_step for splitting level if n_split is smaller than
   // ps->lengths.size()+1.
   PrimExpr last_factor = 1;
   for (; j < static_cast<int>(ps->lengths.size()); ++j) {
@@ -952,7 +952,7 @@ Optional<Integer> FollowFusedSplitStepNode::ExtractSplitLength(
     CHECK_LT(src_step_id, transform_steps.size());
     auto ps = transform_steps[src_step_id].as<SplitStepNode>();
     CHECK(ps != nullptr);
-    // Multiple the spliting factor on corresponding spliting level of src_steps.
+    // Multiple the splitting factor on corresponding splitting level of src_steps.
     if (ps->lengths[level] && ret.defined()) {
       ret *= ps->lengths[level].value();
     } else {
