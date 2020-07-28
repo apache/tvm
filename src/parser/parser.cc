@@ -211,7 +211,7 @@ class Parser {
   SemVer version;
 
   /*! \brief The diagnostic context used for error reporting. */
-  DiagnosticContext diag_ctx;
+  DiagnosticContext* diag_ctx;
 
   /*! \brief The current position in the token stream. */
   int pos;
@@ -243,8 +243,8 @@ class Parser {
   /*! \brief The set of expression scopes used for lexical scope. */
   ScopeStack<Var> expr_scopes;
 
-  Parser(std::vector<Token> tokens, OperatorTable op_table, Source source)
-      : diag_ctx(source), pos(0), tokens(tokens), op_table(op_table), ignore_whitespace(true) {}
+  Parser(DiagnosticContext* ctx, std::vector<Token> tokens, OperatorTable op_table, Source source)
+      : diag_ctx(ctx), pos(0), tokens(tokens), op_table(op_table), ignore_whitespace(true) {}
 
   /*! \brief Examine the next token in the stream, the current parser is configured to be
    * whitespace insensitive so we will skip all whitespace or comment tokens. */
@@ -294,8 +294,8 @@ class Parser {
     if (tokens[pos]->token_type != token_type) {
       std::string message =
           "expected a " + Pretty(token_type) + " found " + Pretty(Peek()->token_type);
-      this->diag_ctx.Emit({tokens[pos]->line, tokens[pos]->column, message});
-      this->diag_ctx.Render(std::cout);
+      this->diag_ctx->Emit({tokens[pos]->line, tokens[pos]->column, message});
+      this->diag_ctx->Render(std::cout);
     }
     pos++;
   }
@@ -374,7 +374,7 @@ class Parser {
   Var LookupLocal(const Token& local) {
     auto var = this->expr_scopes.Lookup(local.ToString());
     if (!var.defined()) {
-      diag_ctx.Emit(
+      diag_ctx->Emit(
           {local->line, local->column, "this local variable has not been previously declared"});
     }
     return var;
@@ -387,7 +387,7 @@ class Parser {
   TypeVar LookupTypeVar(const Token& ident) {
     auto var = this->type_scopes.Lookup(ident.ToString());
     if (!var.defined()) {
-      diag_ctx.Emit(
+      diag_ctx->Emit(
           {ident->line, ident->column,
            "this type variable has not been previously declared anywhere, perhaps a typo?"});
     }
@@ -585,13 +585,13 @@ class Parser {
         std::stringstream msg;
         msg << "invalid semantic version `";
         msg << version.ToString() << "`";
-        this->diag_ctx.Emit({version->line, version->column, msg.str() });
+        this->diag_ctx->Emit({version->line, version->column, msg.str() });
       }
     } else if (required) {
       std::stringstream msg;
       msg << "expected text format semantic version ";
       msg << "you can annotate it as #[version = \"0.0.5\"]";
-      this->diag_ctx.Emit({Peek()->line, Peek()->column, msg.str() });
+      this->diag_ctx->Emit({Peek()->line, Peek()->column, msg.str() });
     }
     return SemVer(0, 0, 5);
   }
@@ -620,7 +620,7 @@ class Parser {
           Consume(TokenType::Extern);
           auto type_def = ParseTypeDef();
           if (type_def->constructors.size()) {
-            diag_ctx.Emit(
+            diag_ctx->Emit(
                 {next->line, next->column, "an external type may not have any constructors"});
           }
           defs.types.push_back(type_def);

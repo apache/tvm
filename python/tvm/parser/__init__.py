@@ -24,4 +24,5 @@ def parse_expr(source):
     return _ffi_api.ParseExpr("string", source)
 
 def fromtext(source, source_name="from_string"):
+    # TODO(@tqchen): currently we have to invoke `str` which dramatically reduces performance.
     return parse(str(source), str(source_name))
