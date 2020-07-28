@@ -226,7 +226,13 @@ def dense_cblas(cfg, data, weight, bias=None, out_dtype=None):
     M, K = get_const_tuple(data.shape)
     N, _ = get_const_tuple(weight.shape)
     cfg.add_flop(M * K * N * 2)
-    C = cblas.matmul(data, weight, False, True)
+    if data.dtype == 'uint8' and weight.dtype == 'int8' and out_dtype == 'int32':
+        C = cblas.matmul_u8s8s32(data, weight, False, True, dtype=out_dtype)
+    elif data.dtype == 'float32':
+        C = cblas.matmul(data, weight, False, True)
+    else:
+        raise NotImplementedError(f"Dense with cblas for {data.dtype} is not supported")
+
     if bias is not None:
         C = te.compute(C.shape, lambda i, j: C[i, j] + bias[j].astype(out_dtype),
                        tag=tag.BROADCAST)
