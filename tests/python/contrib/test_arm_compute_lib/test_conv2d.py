@@ -16,7 +16,6 @@
 # under the License.
 """Arm Compute Library integration conv2d tests."""
 
-import random
 import numpy as np
 
 import tvm
@@ -69,7 +68,7 @@ def _get_model(shape, kernel_h, kernel_w, padding, strides,
 
 
 def _get_qnn_params(input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, channels):
-    """Get output qnn parameters given input and kernel paramters."""
+    """Get output qnn parameters given input and kernel parameters."""
     input_max = input_sc * (255 - input_zp)
     input_min = - input_sc * input_zp
     kernel_max = kernel_sc * (255 - kernel_zp)
@@ -274,7 +273,18 @@ def test_conv2d():
             outputs.append(build_and_run(func, inputs, 1,
                                          params, device,
                                          enable_acl=acl)[0])
-        verify(outputs, atol=0.002, rtol=0.01)
+
+        params = {
+            "shape": shape,
+            "groups": groups,
+            "kernel size": (kernel_h, kernel_w),
+            "padding": pad,
+            "stride": stride,
+            "dilation": dilation,
+            "out channels": out_channels,
+            "composite operators (pad, bias, activation)": composite
+        }
+        verify(outputs, atol=0.002, rtol=0.01, params=params)
 
 
 def test_codegen_conv2d():
@@ -365,7 +375,24 @@ def test_qnn_conv2d():
             outputs.append(build_and_run(func, inputs, 1,
                                          params, device,
                                          enable_acl=acl)[0])
-        verify(outputs, atol=1, rtol=0)
+
+        params = {
+            "shape": shape,
+            "groups": groups,
+            "kernel size": (kernel_h, kernel_w),
+            "padding": pad,
+            "stride": stride,
+            "dilation": dilation,
+            "out channels": out_channels,
+            "composite operators (pad, bias, activation)": composite,
+            "input scale": input_sc,
+            "input zero point": input_zp,
+            "kernel scale": kernel_sc,
+            "kernel zero point": kernel_zp,
+            "output scale": output_sc,
+            "output zero point": output_zp
+        }
+        verify(outputs, atol=1, rtol=0, params=params)
 
 
 def test_codegen_qnn_conv2d():

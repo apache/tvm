@@ -69,13 +69,19 @@ def test_reshape():
                 np.random.uniform(low, high, (1, 1, 1, 1000)).astype(dtype))
         }
 
-        for shape in [(1, 1000), (10, 10, 10)]:
+        for new_shape in [(1, 1000), (10, 10, 10)]:
             outputs = []
-            func = _get_model(inputs["a"].shape, shape, dtype, iter(inputs))
+            func = _get_model(inputs["a"].shape, new_shape, dtype, iter(inputs))
             for acl in [False, True]:
                 outputs.append(build_and_run(func, inputs, 1, None, device,
                                              enable_acl=acl)[0])
-            verify(outputs, atol=1e-7, rtol=1e-7)
+
+            params = {
+                "new shape": inputs["a"].shape,
+                "shape": new_shape,
+                "dtype": dtype,
+            }
+            verify(outputs, atol=1e-7, rtol=1e-7, params=params)
 
 
 def test_codegen_reshape():

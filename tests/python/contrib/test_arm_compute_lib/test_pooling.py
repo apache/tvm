@@ -79,6 +79,7 @@ def test_pooling():
             for stride in [(2, 2)]:
                 shape = (1, size[0] + stride[0] * 5,
                          size[1] + stride[1] * 5, 16)
+                pad = (0, 0)
 
                 inputs = {
                     "a": tvm.nd.array(np.random.uniform(low, high, shape).astype(dtype)),
@@ -86,11 +87,20 @@ def test_pooling():
 
                 outputs = []
                 func = _get_model(shape, dtype, relay.nn.max_pool2d, size,
-                                  stride, (0, 0), True, iter(inputs))
+                                  stride, pad, True, iter(inputs))
                 for acl in [False, True]:
                     outputs.append(build_and_run(func, inputs, 1, None, device,
                                                  enable_acl=acl)[0])
-                verify(outputs, atol=atol, rtol=rtol)
+
+                params = {
+                    "size": size,
+                    "stride": stride,
+                    "shape": shape,
+                    "pooling type": "max",
+                    "dtype": dtype,
+                    "padding": pad
+                }
+                verify(outputs, atol=atol, rtol=rtol, params=params)
 
 
 def test_codegen_pooling():
