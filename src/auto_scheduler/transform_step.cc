@@ -793,8 +793,6 @@ String SplitStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
   return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id, lengths, inner_to_outer);
 }
 
-/********** Steps working on multiple stages **********/
-
 /********** Follow Split **********/
 FollowSplitStep::FollowSplitStep(int stage_id, int iter_id, int src_step_id, int n_split) {
   auto node = make_object<FollowSplitStepNode>();
