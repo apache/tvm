@@ -73,7 +73,7 @@ $(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o ${build_dir
 
 $(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o ${build_dir}/test_model_c.o ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
 	@mkdir -p $(@D)
-	gcc $(PKG_CFLAGS) -o $@ $^
+	gcc $(PKG_CFLAGS) -o $@ $^ -ldl
 
 # Serialize our graph.json file.
 $(build_dir)/graph.json.c: $(build_dir)/graph.json
