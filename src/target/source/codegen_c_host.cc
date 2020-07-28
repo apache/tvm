@@ -310,8 +310,8 @@ runtime::Module BuildCHost(IRModule mod, const std::string& target_str) {
     cg.AddFunction(f);
   }
 
-  if (target->GetAttr<Bool>("system-lib").value()) {
-    CHECK_EQ(target->GetAttr<String>("runtime"), "crt")
+  if (target->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
+    CHECK_EQ(target->GetAttr<String>("runtime"), "c")
         << "c target only supports generating C runtime SystemLibs";
     cg.GenerateFuncRegistry();
     cg.GenerateCrtSystemLib();
