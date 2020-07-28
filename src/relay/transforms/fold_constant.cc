@@ -86,7 +86,8 @@ class ConstantFolder : public ExprMutator {
         shape_func_op_(Op::Get("vm.shape_func")),
         alloc_tensor_op_(Op::Get("memory.alloc_tensor")),
         alloc_storage_op_(Op::Get("memory.alloc_storage")),
-        cast_op_(Op::Get("cast")) {}
+        cast_op_(Op::Get("cast")),
+        ndarray_size_op_(Op::Get("ndarray_size")) {}
 
   Expr VisitExpr_(const LetNode* op) final {
     Expr value = this->Mutate(op->value);
@@ -126,6 +127,10 @@ class ConstantFolder : public ExprMutator {
     // Try to evaluate shape_of op
     if (call->op == shape_of_op_ || call->op == vm_shape_of_op_) {
       return EvaluateShapeOf(res, origin_args, call->attrs);
+    }
+
+    if (call->op == ndarray_size_op_) {
+      return EvaluateNdarraySize(res, origin_args, call->attrs);
     }
 
     // We should think about potentially constant evaluation over these ops too.
@@ -173,6 +178,7 @@ class ConstantFolder : public ExprMutator {
   const Op& alloc_tensor_op_;
   const Op& alloc_storage_op_;
   const Op& cast_op_;
+  const Op& ndarray_size_op_;
 
   // Convert value to expression.
   Expr ObjectToExpr(const ObjectRef& value) {
@@ -223,10 +229,8 @@ class ConstantFolder : public ExprMutator {
     CHECK(param != nullptr);
 
     tvm::Array<IndexExpr> ishape;
-    if (const ConstantNode* op = input.as<ConstantNode>()) {
-      ishape = op->tensor_type()->shape;
-    } else if (input->checked_type_.defined()) {
-      ishape = input->checked_type().as<TensorTypeNode>()->shape;
+    if (auto opt = GetConstantShape(input)) {
+      ishape = opt.value();
     } else {
       return expr;
     }
@@ -261,11 +265,68 @@ class ConstantFolder : public ExprMutator {
       shape = Constant(ndarray);
     }
 
+    return CastValue(shape, param->dtype);
+  }
+
+  // Evaluate a call to the ndarray_size operator for tensors with constant
+  // shapes.
+  Expr EvaluateNdarraySize(Expr expr, Array<Expr> args, Attrs attrs) {
+    Expr input = args[0];
+    const auto* param = attrs.as<NdarraySizeAttrs>();
+    CHECK(param != nullptr);
+
+    tvm::Array<IndexExpr> ishape;
+    if (auto opt = GetConstantShape(input)) {
+      ishape = opt.value();
+    } else {
+      return expr;
+    }
+
+    // Get the constant size
+    DLContext ctx;
+    ctx.device_type = kDLCPU;
+    ctx.device_id = 0;
+    runtime::NDArray value;
+    DLDataType cdtype = DataType::Int(32);
+    value = runtime::NDArray::Empty({1}, cdtype, ctx);
+    int32_t* data = static_cast<int32_t*>(value->data);
+    if (ishape.size() == 0) {
+      *data = 0;
+    } else {
+      *data = 1;
+      using ::tvm::tir::IntImmNode;
+      for (size_t i = 0; i < ishape.size(); ++i) {
+        if (const IntImmNode* dim = ishape[i].as<IntImmNode>()) {
+          *data *= dim->value;
+        } else {
+          return expr;
+        }
+      }
+    }
+
+    Constant size = Downcast<Constant>(ObjectToExpr(value));
+    return CastValue(size, param->dtype);
+  }
+
+  Expr CastValue(const Expr& value, DataType dtype) {
     // Cast the constant into correct dtype
     auto cast_attrs = make_object<CastAttrs>();
-    cast_attrs->dtype = param->dtype;
-    Expr ret = Call(cast_op_, {shape}, Attrs(cast_attrs), {});
+    cast_attrs->dtype = dtype;
+    Expr ret = Call(cast_op_, {value}, Attrs(cast_attrs), {});
     return ConstEvaluate(ret);
+  }
+
+  Optional<tvm::Array<IndexExpr>> GetConstantShape(const Expr& input) {
+    tvm::Array<IndexExpr> ishape;
+    if (const ConstantNode* op = input.as<ConstantNode>()) {
+      ishape = op->tensor_type()->shape;
+    } else if (input->checked_type_.defined()) {
+      ishape = input->checked_type().as<TensorTypeNode>()->shape;
+    } else {
+      return Optional<tvm::Array<IndexExpr>>(nullptr);
+    }
+
+    return Optional<tvm::Array<IndexExpr>>(ishape);
   }
 };
 
