@@ -63,7 +63,8 @@ char* read_all_or_die(const char* name, const char* file_path, size_t* out_size)
         snprintf(err, sizeof(err), "%s: error during read", name);
         perror(err);
       } else if (feof(fp)) {
-        std::cerr << name << ": file is shorter than its stat size (" << bytes_read << " v " << st.st_size << ")" << std::endl;
+        std::cerr << name << ": file is shorter than its stat size (" << bytes_read << " v "
+                  << st.st_size << ")" << std::endl;
       } else {
         std::cerr << name << ": fread stopped returning data" << std::endl;
       }
@@ -96,9 +97,11 @@ int main(int argc, char** argv) {
   gettimeofday(&t1, 0);
 
   size_t input_storage_size;
-  float* input_storage = reinterpret_cast<float*>(read_all_or_die("input_storage", argv[2], &input_storage_size));
+  float* input_storage =
+      reinterpret_cast<float*>(read_all_or_die("input_storage", argv[2], &input_storage_size));
   size_t result_storage_size;
-  float* result_storage = reinterpret_cast<float*>(read_all_or_die("result_storage", argv[3], &result_storage_size));
+  float* result_storage =
+      reinterpret_cast<float*>(read_all_or_die("result_storage", argv[3], &result_storage_size));
 
   size_t expected_size = 10 * 5 * sizeof(float);
   if (input_storage_size != expected_size || result_storage_size != expected_size) {
