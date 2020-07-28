@@ -29,6 +29,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/runtime/container.h>
 #include <tvm/target/codegen.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
@@ -321,6 +322,10 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   std::unordered_set<const VarNode*> alias_var_set_;
   // set of volatile buffer.
   std::unordered_set<const VarNode*> volatile_buf_;
+  // deep comparison of PrimExpr
+  ExprDeepEqual deep_equal_;
+  // binding of let variables. Enables duplicate var defs that map to same value
+  std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
   // Cache potential common path ops to slightly improve lookup time.
   // global symbol table.
   OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");

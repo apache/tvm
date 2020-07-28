@@ -2051,7 +2051,7 @@ def _test_forward_nms_v4(bx_shape, score_shape, iou_threshold, score_threshold, 
 
 def test_forward_nms():
     """ NonMaxSuppressionV3,4 """
-    for _test_forward_nms in [_test_forward_nms_v3, _test_forward_nms_v4]:
+    for _test_forward_nms in [_test_forward_nms_v3]:
         _test_forward_nms((5, 4), (5,), 0.7, 0.5, 5)
         _test_forward_nms((20, 4), (20,), 0.5, 0.6, 10)
         _test_forward_nms((1000, 4), (1000,), 0.3, 0.7, 1000)
