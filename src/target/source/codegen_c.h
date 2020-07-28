@@ -27,6 +27,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/runtime/container.h>
 #include <tvm/target/codegen.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
@@ -269,6 +270,10 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   bool print_ssa_form_{false};
   /*! \brief set of volatile buf access */
   std::unordered_set<const VarNode*> volatile_buf_;
+  // deep comparison of PrimExpr
+  ExprDeepEqual deep_equal_;
+  // binding of let variables. Enables duplicate var defs that map to same value
+  std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
 };
 
 }  // namespace codegen
