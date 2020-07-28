@@ -1,7 +1,0 @@
-target
-**/*.rs.bk
-Cargo.lock
-/tests/basics/add_*
-/examples/resnet/deploy_*
-/examples/resnet/*.png
-/examples/resnet/synset.*

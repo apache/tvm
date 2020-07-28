@@ -234,12 +234,12 @@ def is_fast_int8_on_intel():
 def is_fast_int8_on_arm():
     """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
     target = tvm.target.Target.current(allow_none=False)
-    return '+v8.2a,+dotprod' in target.mattr
+    return "+v8.2a" in target.mattr and "+dotprod" in target.mattr
 
 def is_aarch64_arm():
     """ Checks whether we are compiling for an AArch64 target. """
     target = tvm.target.Target.current(allow_none=False)
-    return 'aarch64' in target.attrs.get("target", "")
+    return 'aarch64' in target.attrs.get("mtriple", "")
 
 ########################
 # ARM CPU legalizations.

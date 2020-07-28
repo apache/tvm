@@ -1131,6 +1131,51 @@ def test_forward_cond():
     verify(np.asarray([1.0], 'float32'), np.asarray([2.0],'float32'))
     verify(np.asarray([4.0], 'float32'), np.asarray([3.0],'float32'))
 
+def test_forward_amp_cast():
+    def verify(from_dtype, to_dtype):
+        from_np = np.random.uniform(size=(1,3,18)).astype(from_dtype)
+        x_var = mx.sym.var('x', dtype=from_dtype)
+        mx_sym = mx.sym.amp_cast(x_var, dtype=to_dtype)
+        shape_dict = {'x': (1,3,18)}
+        dtype_dict = {'x': from_dtype}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict, dtype_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "vm", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(from_np)
+                assert op_res.dtype == to_dtype, op_res.dtype
+                tvm.testing.assert_allclose(op_res.asnumpy(), from_np.astype(to_dtype))
+
+    verify('float32', 'float16')
+    verify('float16', 'float32')
+
+def test_forward_amp_multicast():
+    def verify(dtypes, cast_narrow, expected_dtype):
+        x_nps = [np.random.uniform(size=(1,3,18)).astype(dtype) for dtype in dtypes]
+        x_vars = [mx.sym.var(str(i), dtype=dtype) for i, dtype in enumerate(dtypes)]
+        mx_sym = mx.sym.amp_multicast(*x_vars, cast_narrow=cast_narrow,
+                                      num_outputs=len(dtypes))
+        shape_dict = {}
+        dtype_dict = {}
+        for i, dtype in enumerate(dtypes):
+            shape_dict[str(i)] = (1,3,18)
+            dtype_dict[str(i)] = dtype
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict, dtype_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "vm", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(*x_nps)
+                for i, res in enumerate(op_res):
+                    assert res.dtype == expected_dtype, res.dtype
+                    tvm.testing.assert_allclose(res.asnumpy(), x_nps[i].astype(expected_dtype))
+
+    verify(['float32', 'float16'], False, 'float32')
+    verify(['float32', 'float16'], True,  'float16')
+    verify(['float32', 'float32'], False, 'float32')
+    verify(['float32', 'float32'], True,  'float32')
+    verify(['float16', 'float16'], False, 'float16')
+    verify(['float16', 'float16'], True, 'float16')
+
 
 def test_forward_unravel_index():
     def verify(x, shape, dtype):
@@ -1328,6 +1373,43 @@ def test_forward_box_decode():
     verify((1, 10, 4), (1, 10, 4), in_format="center")
 
 
+def test_forward_softmax():
+    def verify(data_shape, axis, use_length, length):
+        dtype = "float32"
+        x = np.random.uniform(low=-100, high=100, size=data_shape).astype(dtype)
+        if use_length:
+            ref_res = mx.nd.softmax(data=mx.nd.array(x),
+                                    length=mx.nd.array(length, dtype="int32"),
+                                    axis=axis, use_length=use_length)
+            mx_sym = mx.symbol.softmax(data=mx.sym.var("data"),
+                                       length=mx.sym.var("length"),
+                                       axis=axis, use_length=use_length)
+            shape_dict = {"data": data_shape, "length": (length.shape)}
+            dtype_dict = {"data": dtype, "length": "int32"}
+            mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict, dtype_dict)
+        else:
+            ref_res = mx.nd.softmax(data=mx.nd.array(x), axis=axis)
+            mx_sym = mx.symbol.softmax(data=mx.sym.var("data"), axis=axis)
+            shape_dict = {"data": data_shape}
+            mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                if use_length:
+                    op_res = intrp.evaluate()(x, length)
+                else:
+                    op_res = intrp.evaluate()(x)
+
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
+
+    verify((2, 3, 5), -1, False, None)
+    verify((2, 3, 5), 2, False, None)
+    verify((2, 3), -1, True, np.array([2, 1]).astype('int32'))
+    verify((2, 3, 4), -1, True, np.array([[3, 4, 2], [2, 1, 1]]).astype('int32'))
+    verify((2, 3, 4), 2, True, np.array([[3, 4, 2], [1, 2, 1]]).astype('int32'))
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -1402,3 +1484,6 @@ if __name__ == '__main__':
     test_forward_interleaved_matmul_selfatt_qk()
     test_forward_interleaved_matmul_selfatt_valatt()
     test_forward_box_decode()
+    test_forward_amp_multicast()
+    test_forward_amp_cast()
+    test_forward_softmax()

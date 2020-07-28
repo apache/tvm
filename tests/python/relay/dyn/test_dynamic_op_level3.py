@@ -44,7 +44,11 @@ def test_dyn_reshape():
 
         func = relay.Function([x, y], z)
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
+        x_data = np.ones(shape).astype("float32")
         ref_res = np.reshape(x_data, oshape)
+        check_grad(run_infer_type(func),
+                   inputs=[x_data, np.array(newshape).astype("int64")],
+                   test_inputs=[x_data], eps=1e-3)
         verify_func(func, [x_data, np.array(newshape).astype("int64")], ref_res)
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
@@ -66,10 +70,52 @@ def test_dyn_shape_reshape():
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
         y_data = np.random.uniform(low=-1, high=1, size=newshape).astype("float32")
         ref_res = np.reshape(x_data, oshape)
+        check_grad(run_infer_type(func),
+                   inputs=[x_data, y_data], eps=1e-3)
         verify_func(func, [x_data, y_data], ref_res)
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
 
+def test_dyn_tile():
+    def verify_tile(dshape, reps):
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        r = relay.var("reps", relay.TensorType((len(reps), ), "float32"))
+        z = relay.tile(x, r)
+
+        func = relay.Function([x, r], z)
+        x_data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
+        ref_res = np.tile(x_data, reps=reps)
+        reps_data = np.array(reps).astype("float32")
+        verify_func(func, [x_data, np.array(reps).astype("float32")], ref_res)
+    verify_tile((2, 3, 4), (3, 2, 1))
+    verify_tile((2, 3, 4), (1, 2))
+    verify_tile((2, 3), (3, 2, 1))
+
+
+def test_dyn_zeros_ones():
+    def verify_zeros_ones(shape, dtype):
+        for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
+            rank = len(shape)
+            dyn_shape = relay.Var("shape", relay.ty.TensorType((rank,), 'int64'))
+            y = op(dyn_shape, dtype)
+            yy = run_infer_type(y)
+            assert yy.checked_type == relay.ty.TensorType((relay.Any(),) * rank, dtype)
+
+            func = relay.Function([dyn_shape], y)
+            ref_res = ref(shape, dtype)
+            for target, ctx in ctx_list():
+                if (target != 'cuda'): #skip cuda because no dynamic support for GPU 
+                    for kind in ["vm", "debug"]:
+                        mod = tvm.ir.IRModule.from_expr(func)
+                        intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                        op_res = intrp.evaluate(func)(np.array(shape).astype('int64'))
+                        tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+
+    verify_zeros_ones((124, 50), 'float64')
+
 if __name__ == "__main__":
     test_dyn_reshape()
     test_dyn_shape_reshape()
+    test_dyn_tile()
+    test_dyn_zeros_ones()

@@ -31,7 +31,7 @@
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/qnn/transform.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/vm.h>
+#include <tvm/runtime/vm/vm.h>
 #include <tvm/support/logging.h>
 #include <tvm/te/operation.h>
 
@@ -284,6 +284,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       case Opcode::AllocClosure:
       case Opcode::AllocStorage:
       case Opcode::ShapeOf:
+      case Opcode::ReshapeTensor:
       case Opcode::Move:
       case Opcode::InvokeClosure:
         last_register_ = instr.dst;
@@ -519,7 +520,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     if (op.as<OpNode>()) {
       OpMatch<void> matcher;
       matcher
-          .Match("memory.invoke_tvm_op",
+          .Match("vm.invoke_tvm_op",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
                    CHECK_EQ(args.size(), 3);
                    EmitInvokeTVMOp(Downcast<Function>(args[0]), args[1], args[2]);
@@ -581,7 +582,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
                    Emit(Instruction::AllocStorage(size_register, alignment, dtype, NewRegister()));
                  })
-          .Match("memory.shape_func",
+          .Match("vm.shape_func",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
                    CHECK_EQ(args.size(), 3);
                    auto shape_func = Downcast<Function>(args[0]);
@@ -600,6 +601,15 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                        << DLDataType2String(shape_of_attrs->dtype);
                    this->VisitExpr(args[0]);
                    Emit(Instruction::ShapeOf(last_register_, NewRegister()));
+                 })
+          .Match("vm.reshape_tensor",
+                 [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+                   CHECK_EQ(args.size(), 2u);
+                   this->VisitExpr(args[0]);
+                   auto tensor_reg = last_register_;
+                   this->VisitExpr(args[1]);
+                   auto shape_reg = last_register_;
+                   Emit(Instruction::ReshapeTensor(tensor_reg, shape_reg, NewRegister()));
                  })
           .Match("memory.kill",
                  [](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
@@ -946,10 +956,12 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
     *rv = false;
   });
   pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
+  pass_seqs.push_back(transform::SimplifyExpr());
   pass_seqs.push_back(transform::InlinePrimitives());
 
   pass_seqs.push_back(transform::CombineParallelConv2D(3));
   pass_seqs.push_back(transform::CombineParallelDense(3));
+  pass_seqs.push_back(transform::CombineParallelBatchMatmul(3));
   pass_seqs.push_back(transform::FoldConstant());
   pass_seqs.push_back(transform::FoldScaleAxis());
   pass_seqs.push_back(transform::CanonicalizeCast());
@@ -960,6 +972,8 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
     pass_seqs.push_back(transform::AlterOpLayout());
   }
 
+  // Fast math optimizations.
+  pass_seqs.push_back(transform::FastMath());
   pass_seqs.push_back(transform::FoldConstant());
 
   pass_seqs.push_back(transform::FuseOps());

@@ -67,6 +67,8 @@ class OperatorConverter(object):
             'ABS': self.convert_abs,
             'ADD': self.convert_add,
             'ADD_N': self.convert_add_n,
+            'ARG_MAX': self.convert_arg_max,
+            'ARG_MIN': self.convert_arg_min,
             'AVERAGE_POOL_2D': self.convert_average_pool2d,
             'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
             'CAST': self.convert_cast,
@@ -1634,6 +1636,54 @@ class OperatorConverter(object):
     def convert_reduce_any(self, op):
         return self._convert_reduce(_op.reduce.any, op)
 
+    def _convert_arg_min_max(self, relay_op, op):
+        """Generic method converting TFLite arg_min_max"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ArgMinOptions import ArgMinOptions
+            from tflite.ArgMaxOptions import ArgMaxOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "two input tensor arguments expected"
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "one output tensor expected"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        axis_tensor = input_tensors[1]
+        # In Tensorflow, `axis` argument is a Tensor, not attribute. We
+        # support the case where it inputs from a scalar constant.
+        axis_value = self.get_tensor_value(axis_tensor)
+        assert axis_value.size == 1
+        axis_value = axis_value.item()
+
+        if op.BuiltinOptionsType() == BuiltinOptions.ArgMinOptions:
+            arg_min_max_options = ArgMinOptions()
+        elif op.BuiltinOptionsType() == BuiltinOptions.ArgMaxOptions:
+            arg_min_max_options = ArgMaxOptions()
+        op_options = op.BuiltinOptions()
+        arg_min_max_options.Init(op_options.Bytes, op_options.Pos)
+
+        # set keepdims to True since tflite 1.13 removes all dims of size 1
+        # WARNING: all other versions of tflite > 1.13 need keepdims=False
+        out = relay_op(in_expr, axis=axis_value, keepdims=False, exclude=False)
+
+        return out
+
+    def convert_arg_min(self, op):
+        """Convert TFLite ARG_MIN"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized ARG_MIN operator is not supported yet.')
+        return self._convert_arg_min_max(_op.argmin, op)
+
+    def convert_arg_max(self, op):
+        """Convert TFLite ARG_MAX"""
+        return self._convert_arg_min_max(_op.argmax, op)
+
     def convert_fully_connected(self, op):
         """Convert TFLite fully connected"""
         try:
@@ -1656,7 +1706,6 @@ class OperatorConverter(object):
         output_tensor_type = output_tensor.tensor.Type()
         output_tensor_type_str = self.get_tensor_type_str(output_tensor_type)
 
-        input_tensor_shape = input_tensor.tensor.ShapeAsNumpy()
         weight_tensor_shape = weight_tensor.tensor.ShapeAsNumpy()
 
         # Weight should have only 2 dimensions(TFLite convention)
@@ -1669,14 +1718,7 @@ class OperatorConverter(object):
         # Dense expected Input shape: [batch_size, n_units]
         # Dense expected Weight shape: [out_dim, n_units]
         # Dense output shape: [batch_size, out_dim]
-        # So it is evident that input shape: [batch_size = input_size / n_units, n_units]
-        input_size = 1
-        for _, shape in enumerate(input_tensor_shape):
-            input_size *= shape
-
-        # First get the batch size
-        batch_size = int(input_size / weight_tensor_shape[1])
-        target_shape = tuple((batch_size, weight_tensor_shape[1]))
+        target_shape = tuple((-1, weight_tensor_shape[1]))
         in_expr = self.get_expr(input_tensor_idx)
         in_expr = _op.reshape(in_expr, target_shape)
 

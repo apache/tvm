@@ -108,8 +108,7 @@ def conv1d(data,
         strides = (strides, )
     if isinstance(dilation, int):
         dilation = (dilation, )
-    if isinstance(padding, int):
-        padding = (padding, padding)
+    padding = get_pad_tuple1d(padding)
     return _make.conv1d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)

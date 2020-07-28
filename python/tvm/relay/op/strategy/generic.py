@@ -656,9 +656,10 @@ def argsort_strategy(attrs, inputs, out_type, target):
 def wrap_compute_topk(topi_compute):
     """Wrap topk compute"""
     def _compute_topk(attrs, inputs, out_type):
-        k = inputs[1]
         if attrs.k is not None:
             k = attrs.k
+        else:
+            k = inputs[1]
         axis = get_const_int(attrs.axis)
         ret_type = attrs.ret_type
         is_ascend = bool(get_const_int(attrs.is_ascend))
@@ -840,6 +841,13 @@ def schedule_scatter(attrs, outs, target):
     """schedule scatter"""
     with target:
         return topi.generic.schedule_scatter(outs)
+
+# scatter_add
+@generic_func
+def schedule_scatter_add(attrs, outs, target):
+    """schedule scatter_add"""
+    with target:
+        return topi.generic.schedule_scatter_add(outs)
 
 # bitserial_conv2d
 def wrap_compute_bitserial_conv2d(topi_compute):

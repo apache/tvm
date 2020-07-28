@@ -26,6 +26,12 @@ from .. import op as _op
 
 logger = logging.getLogger('strategy')
 
+@schedule_reduce.register("arm_cpu")
+def schedule_reduce_cpu(attrs, outs, target):
+    """schedule reduction ops for arm_cpu"""
+    with target:
+        return topi.x86.schedule_reduce(outs)
+
 @schedule_injective.register(["arm_cpu", "micro_dev"])
 def schedule_injective_arm_cpu(_, outs, target):
     """schedule injective ops for arm cpu"""
@@ -284,7 +290,7 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
             name="conv2d_NHWC_quantized_without_transform.arm_cpu")
     else:
         raise RuntimeError(
-            "Unsupported conv2d_gemm_without_weight_transform layout {0} with datatype {1}".
+            "Unsupported conv2d_NHWC_quantized_without_transform layout {0} with datatype {1}".
             format(layout, data.dtype))
     return strategy
 

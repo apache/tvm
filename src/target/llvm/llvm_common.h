@@ -89,7 +89,7 @@ void InitializeLLVM();
 
 /*!
  * \brief Parse target options
- * \param target_str Target string, in format "llvm -target=xxx -mcpu=xxx"
+ * \param target_str Target string, in format "llvm -mtriple=xxx -mcpu=xxx"
  * \param triple Target triple
  * \param mcpu cpu info
  * \param options the options
@@ -100,7 +100,7 @@ void ParseLLVMTargetOptions(const std::string& target_str, std::string* triple, 
 
 /*!
  * \brief Get target machine from target_str string.
- * \param target_str Target string, in format "llvm -target=xxx -mcpu=xxx"
+ * \param target_str Target string, in format "llvm -mtriple=xxx -mcpu=xxx"
  * \param allow_null Whether allow null to be returned.
  * \return target machine
  */

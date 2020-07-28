@@ -135,6 +135,12 @@ void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
  */
 int GraphRuntime::NumOutputs() const { return outputs_.size(); }
 /*!
+ * \brief Get the number of inputs
+ *
+ * \return The number of inputs to the graph.
+ */
+int GraphRuntime::NumInputs() const { return input_nodes_.size(); }
+/*!
  * \brief Return NDArray for given input index.
  * \param index The input index.
  *
@@ -198,7 +204,11 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   CHECK(size == names.size()) << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
     int in_idx = GetInputIndex(names[i]);
-    if (in_idx < 0) continue;
+    if (in_idx < 0) {
+      NDArray temp;
+      temp.Load(strm);
+      continue;
+    }
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     CHECK_LT(eid, data_entry_.size());
 
@@ -429,6 +439,9 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
   } else if (name == "get_num_outputs") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->NumOutputs(); });
+  } else if (name == "get_num_inputs") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->NumInputs(); });
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(); });
   } else if (name == "load_params") {

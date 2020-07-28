@@ -208,7 +208,7 @@ def extern(shape,
            out_buffers=None,
            tag="",
            attrs=None):
-    """Compute several tensor via extern function.
+    """Compute several tensors via an extern function.
 
     Parameters
     ----------

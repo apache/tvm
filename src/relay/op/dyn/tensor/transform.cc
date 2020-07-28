@@ -23,17 +23,22 @@
  */
 #include "transform.h"
 
+#include <topi/broadcast.h>
 #include <topi/transform.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/runtime/registry.h>
 
+#include <utility>
+#include <vector>
+
 namespace tvm {
 namespace relay {
 namespace dyn {
 
 /* relay.dyn.reshape */
+
 bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                 const TypeReporter& reporter) {
   // types: [data, newshape, result]
@@ -127,6 +132,177 @@ RELAY_REGISTER_OP("dyn.reshape")
     .add_type_rel("DynamicReshape", ReshapeRel)
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
+
+// tile operator
+// TVM_REGISTER_NODE_TYPE(TileAttrs);
+
+bool TileRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+             const TypeReporter& reporter) {
+  // `types` contains: [data, reps, result]
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* reps = types[1].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "tile: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+  if (reps == nullptr) {
+    CHECK(types[1].as<IncompleteTypeNode>())
+        << "tile: expect input type to be TensorType but get " << types[1];
+    return false;
+  }
+  const IntImmNode* reps_shape = reps->shape[0].as<IntImmNode>();
+  CHECK(reps_shape) << "Parameter reps must have static shape";
+  const size_t ndim = data->shape.size();
+  const size_t rndim = reps_shape->value;
+  size_t tndim = (ndim > rndim) ? ndim : rndim;
+  std::vector<IndexExpr> oshape;
+  oshape.reserve(tndim);
+  for (size_t i = 0; i < tndim; ++i) {
+    oshape.emplace_back(Any());
+  }
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Array<te::Tensor> TileCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_type) {
+  CHECK_EQ(inputs.size(), 2);
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  size_t rndim = inputs[1]->shape[0].as<IntImmNode>()->value;
+  return {topi::dyn_tile(inputs[0], out_ttype->shape, rndim)};
+}
+
+Expr MakeTile(Expr data, Expr reps) {
+  auto attrs = make_object<TileAttrs>();
+  static const Op& op = Op::Get("dyn.tile");
+  return Call(op, {data, reps}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.tile").set_body_typed(MakeTile);
+
+RELAY_REGISTER_OP("dyn.tile")
+    .describe(R"code(Repeat the whole array multiple times.
+
+- **data**: The input data to the operator.
+- **reps**: The number of times to repeat the operator.
+
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .set_attrs_type<TileAttrs>()
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("reps", "Tensor", "The number of times to repeat the input on each axis.")
+    .set_support_level(3)
+    .add_type_rel("DynamicTile", TileRel)
+    .set_attr<FTVMCompute>("FTVMCompute", TileCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
+// broadcast_to operator
+bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  // types = [data_type, broadcast_shape_type, ret_type]
+  CHECK_EQ(types.size(), 3);
+
+  const auto* target_shape = types[1].as<TensorTypeNode>();
+  DataType out_dtype = types[0].as<TensorTypeNode>()->dtype;
+  // rank must be static
+  const IntImmNode* rank = target_shape->shape[0].as<IntImmNode>();
+  CHECK(rank) << "Target shape must have static rank";  // rank must be static even in dyn pass
+                                                        // could add support for dyn rank in futures
+
+  std::vector<IndexExpr> oshape;
+  for (int i = 0; i < rank->value; ++i) {
+    oshape.push_back(Any());
+  }
+
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return true;
+}
+
+Expr MakeBroadCastTo(Expr data, Expr shape) {
+  static const Op& op = Op::Get("dyn.broadcast_to");
+  auto attrs = make_object<InitOpAttrs>();
+  return Call(op, {data, shape}, Attrs(attrs), {});
+}
+
+Array<te::Tensor> BroadCastToCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                     const Type& out_type) {
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  return {topi::broadcast_to(inputs[0], out_ttype->shape)};
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.broadcast_to").set_body_typed(MakeBroadCastTo);
+
+RELAY_REGISTER_OP("dyn.broadcast_to")
+    .describe(R"code(Broadcast the first input to match the shape argument.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("shape", "Tensor", "Target shape.")
+    .set_support_level(4)
+    .add_type_rel("DynamicBroadCastTo", BroadCastToRel)
+    .set_attr<FTVMCompute>("FTVMCompute", BroadCastToCompute)
+    .set_attr<TOpPattern>("TOpPattern", kBroadcast);
+
+// zeros and ones operator
+bool InitOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // types = [zeros_shape, ret_type]
+  CHECK_EQ(types.size(), 2);
+  const InitOpAttrs* param = attrs.as<InitOpAttrs>();
+  const auto* fill_shape = types[0].as<TensorTypeNode>();
+  DataType out_dtype = param->dtype;
+
+  const IntImmNode* shape_shape = fill_shape->shape[0].as<IntImmNode>();
+  CHECK(shape_shape) << "Parameter shape must have static rank";
+
+  std::vector<IndexExpr> oshape;
+  for (int i = 0; i < shape_shape->value; ++i) {
+    oshape.push_back(Any());
+  }
+
+  reporter->Assign(types[1], TensorType(oshape, out_dtype));
+  return true;
+}
+
+Expr MakeZeros(Expr shape, DataType dtype) {
+  auto attrs = make_object<InitOpAttrs>();
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("dyn.zeros");
+  return Call(op, {shape}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.zeros").set_body_typed(MakeZeros);
+
+RELAY_REGISTER_OP("dyn.zeros")
+    .describe(R"code(Fill array with zeros.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<InitOpAttrs>()
+    .set_num_inputs(1)
+    .add_argument("shape", "Tensor", "Target shape.")
+    .set_support_level(3)
+    .add_type_rel("DynamicInitOp", InitOpRel);
+
+Expr MakeOnes(Expr shape, DataType dtype) {
+  auto attrs = make_object<InitOpAttrs>();
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("dyn.ones");
+  return Call(op, {shape}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.ones").set_body_typed(MakeOnes);
+
+RELAY_REGISTER_OP("dyn.ones")
+    .describe(R"code(Fill array with ones.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<InitOpAttrs>()
+    .set_num_inputs(1)
+    .add_argument("shape", "Tensor", "Target shape.")
+    .set_support_level(3)
+    .add_type_rel("DynamicInitOp", InitOpRel);
 
 }  // namespace dyn
 }  // namespace relay

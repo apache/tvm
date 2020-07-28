@@ -1666,6 +1666,16 @@ def _type_as():
     return _impl
 
 
+def _gather():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        axis = inputs[1]
+        indices = inputs[2]
+
+        return _op.gather(data, axis, indices)
+    return _impl
+
+
 def _add(prelude):
     # add_ is overloaded for tensor add and list concat
     def _impl(inputs, input_types):
@@ -2030,6 +2040,7 @@ def _get_convert_map(prelude):
         "aten::__getitem__"                     : _list_getitem(prelude),
         "aten::len"                             : _list_len(prelude),
         "aten::type_as"                         : _type_as(),
+        "aten::gather"                          : _gather(),
     }
     return convert_map
 
@@ -2161,6 +2172,8 @@ def _get_constant(node):
             return node.f(attr_name)
         elif ty in ["TensorType", "CompleteTensorType"]:
             tensor = node.t(attr_name)
+            if tensor.is_cuda:
+                tensor = tensor.cpu()
             if len(tensor.shape) == 0:  # tensor(0.1)
                 # TODO(t-vi): When is this needed?
                 return tensor.item()

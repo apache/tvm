@@ -17,14 +17,9 @@
  * under the License.
  */
 
-extern crate serde;
-extern crate serde_json;
-
-extern crate tvm_runtime;
-
 use std::{convert::TryFrom, fs, io::Read};
 
-use tvm_runtime::Graph;
+use tvm_graph_rt::Graph;
 
 macro_rules! mf_dir {
     ($p:literal) => {
@@ -60,7 +55,7 @@ fn test_load_graph() {
         .unwrap()
         .read_to_end(&mut params_bytes)
         .unwrap();
-    let _params = tvm_runtime::load_param_dict(&params_bytes);
+    let _params = tvm_graph_rt::load_param_dict(&params_bytes);
 
     let graph = Graph::try_from(
         &fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/graph.json")).unwrap(),

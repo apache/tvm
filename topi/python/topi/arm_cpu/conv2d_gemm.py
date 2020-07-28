@@ -27,7 +27,7 @@ from .tensor_intrin import gemv_quantized, gemv_quantized_impl
 def is_aarch64_arm():
     """ Checks whether we are compiling for an AArch64 target. """
     target = tvm.target.Target.current(allow_none=False)
-    return 'aarch64' in target.attrs.get("target", "")
+    return 'aarch64' in target.attrs.get("mtriple", "")
 
 
 # Compute function
@@ -119,7 +119,7 @@ def compute_conv2d_gemm_without_weight_transform(cfg,
     C = te.compute((batches, M, N),
                    lambda b, x, y:
                    C_interleaved[b, x // 4, y // 4, idxm(x, 4), idxm(y, 4)],
-                   name="C", tag='injective')
+                   name="C")
 
     # --- Produce the conv output
     out_shape = (batches, OH, OW, OC)
@@ -129,7 +129,7 @@ def compute_conv2d_gemm_without_weight_transform(cfg,
     return out
 
 # Schedules
-def schedule_conv2d_gemm(cfg, s, out):
+def schedule_conv2d_gemm(cfg, s, out, final_out):
     """Create schedule for tensors"""
     C = out.op.input_tensors[0]
     C_interleaved = C.op.input_tensors[0]
@@ -172,8 +172,11 @@ def schedule_conv2d_gemm(cfg, s, out):
         s[C_interleaved].tensorize(yi, gem_v_dotprod)
 
     # Output transform
-    N, OH, OW, OC = out.shape
-    s[C].split(C.op.axis[1], OW)
-    s[C].compute_at(s[out], out.op.axis[3])
+    if out != final_out:
+        n, h, w, c = out.op.axis
+        _, inner = s[out].split(c, 4)
+        s[C].compute_at(s[out], inner)
+        s[out].vectorize(inner)
+
 
     return s

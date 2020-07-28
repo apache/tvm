@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 from tvm import te
+from tvm.target import cuda, rocm, mali, intel_graphics, arm_cpu, vta, bifrost, hexagon
 
 @tvm.target.generic_func
 def mygeneric(data):
@@ -59,14 +60,22 @@ def test_target_string_parse():
 
     assert target.id.name == "cuda"
     assert target.model == "unknown"
-    assert target.keys == ['cuda', 'gpu']
-    assert target.libs == ['cublas', 'cudnn']
+    assert set(target.keys) == set(['cuda', 'gpu'])
+    assert set(target.libs) == set(['cublas', 'cudnn'])
     assert str(target) == str(tvm.target.cuda(options="-libs=cublas,cudnn"))
 
     assert tvm.target.intel_graphics().device_name == "intel_graphics"
     assert tvm.target.mali().device_name == "mali"
     assert tvm.target.arm_cpu().device_name == "arm_cpu"
 
+
+def test_target_create():
+    targets = [cuda(), rocm(), mali(), intel_graphics(), arm_cpu('rk3399'), vta(), bifrost()]
+    for tgt in targets:
+        assert tgt is not None
+
+
 if __name__ == "__main__":
     test_target_dispatch()
     test_target_string_parse()
+    test_target_create()

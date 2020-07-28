@@ -70,6 +70,7 @@ impl Module {
     pub fn get_function(&self, name: &str, query_import: bool) -> Result<Function, Error> {
         let name = CString::new(name)?;
         let mut fhandle = ptr::null_mut() as ffi::TVMFunctionHandle;
+
         check_call!(ffi::TVMModGetFunction(
             self.handle,
             name.as_ptr() as *const c_char,
@@ -77,7 +78,7 @@ impl Module {
             &mut fhandle as *mut _
         ));
 
-        if !fhandle.is_null() {
+        if fhandle.is_null() {
             return Err(errors::Error::NullHandle(name.into_string()?.to_string()));
         }
 

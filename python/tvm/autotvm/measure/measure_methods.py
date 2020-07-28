@@ -89,7 +89,7 @@ class LocalBuilder(Builder):
                 build_func = ndk.create_shared
             else:
                 raise ValueError("Invalid build_func" + build_func)
-        self.build_func = _wrap_build_func(build_func)
+        self.build_func = _WrappedBuildFunc(build_func)
         self.executor = LocalExecutor(timeout=timeout)
         self.tmp_dir = tempfile.mkdtemp()
 
@@ -180,12 +180,18 @@ class RPCRunner(Runner):
         Whether check correctness after measurement. This will use llvm cpu target to
         call your template and get the reference output.
         This can work for TOPI templates, but may not work for your custom template.
+    enable_cpu_cache_flush: bool
+        Whether to flush cache on CPU between repeated measurements.
+        Flushing cache can make the measured latency of one operator closer to
+        its actual latency during end-to-end inference.
+        To make this option effective, the argument `number` should also be set to 1.
+        This is only has effect on CPU task.
     """
     def __init__(self,
                  key, host, port, priority=1,
                  timeout=10, n_parallel=None,
                  number=4, repeat=3, min_repeat_ms=0, cooldown_interval=0.1,
-                 check_correctness=False):
+                 check_correctness=False, enable_cpu_cache_flush=False):
         super(RPCRunner, self).__init__(timeout, n_parallel)
 
         self.key = key
@@ -200,6 +206,7 @@ class RPCRunner(Runner):
 
         self.ref_input = None
         self.ref_output = None
+        self.enable_cpu_cache_flush = enable_cpu_cache_flush
         self.check_correctness = check_correctness
         self.cooldown_interval = cooldown_interval
 
@@ -267,7 +274,8 @@ class RPCRunner(Runner):
                                            self.cooldown_interval,
                                            remote_args,
                                            self.ref_input,
-                                           self.ref_output)
+                                           self.ref_output,
+                                           self.enable_cpu_cache_flush)
                 futures.append(ret)
 
             for future in futures:
@@ -309,7 +317,12 @@ class LocalRunner(RPCRunner):
         Whether check correctness after measurement. This will use llvm cpu target to
         call your template and get the reference output.
         This can work for TOPI templates, but may not work for your custom template.
-
+    enable_cpu_cache_flush: bool
+        Whether to flush cache on CPU between repeated measurements.
+        Flushing cache can make the measured latency of one operator closer to
+        its actual latency during end-to-end inference.
+        To make this option effective, the argument `number` should also be set to 1.
+        This is only has effect on CPU task.
     Note
     ----
     This is a "fake" local mode. We start a silent rpc tracker and rpc server
@@ -318,13 +331,14 @@ class LocalRunner(RPCRunner):
     def __init__(self,
                  timeout=10,
                  number=4, repeat=3, min_repeat_ms=0, cooldown_interval=0.1,
-                 check_correctness=False):
+                 check_correctness=False, enable_cpu_cache_flush=False):
         super(LocalRunner, self).__init__('', None, None, 0,
                                           timeout=timeout, n_parallel=1,
                                           number=number, repeat=repeat,
                                           min_repeat_ms=min_repeat_ms,
                                           cooldown_interval=cooldown_interval,
-                                          check_correctness=check_correctness)
+                                          check_correctness=check_correctness,
+                                          enable_cpu_cache_flush=enable_cpu_cache_flush)
         self.tracker = None
         self.server = None
 
@@ -376,9 +390,12 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
-def _wrap_build_func(build_func):
+class _WrappedBuildFunc():
     """
     Wrap build_func to a function that can be used in measure.
+
+    Note: this is a class instead of a closure so that it can be pickled when
+    using multiprocessing.
 
     Parameters
     ----------
@@ -387,14 +404,15 @@ def _wrap_build_func(build_func):
 
     Returns
     -------
-    wrapped_build_func : function
+    wrapped_build_func : callable
         The wrapped build function
     """
-    if not hasattr(build_func, "output_format"):
-        raise AttributeError("Expect build_func to have the attribute output_format.")
-    output_format = build_func.output_format
+    def __init__(self, build_func):
+        if not hasattr(build_func, "output_format"):
+            raise AttributeError("Expect build_func to have the attribute output_format.")
+        self.build_func = build_func
 
-    def _wrapped(measure_input, tmp_dir, **kwargs):
+    def __call__(self, measure_input, tmp_dir, **kwargs):
         """
         Wrapped build func.
 
@@ -409,19 +427,18 @@ def _wrap_build_func(build_func):
         tic = time.time()
         try:
             filename = os.path.join(tmp_dir, "tmp_func_%0x.%s" % (
-                getrandbits(64), output_format))
+                getrandbits(64), self.build_func.output_format))
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, **kwargs)
-            func.export_library(filename, build_func)
+            func.export_library(filename, self.build_func)
         except Exception as e:  # pylint: disable=broad-except
             return BuildResult(None, None, e, time.time() - tic)
         return BuildResult(filename, arg_info, None, time.time() - tic)
-    return _wrapped
-
 
 def run_through_rpc(measure_input, build_result,
                     number, repeat, min_repeat_ms, cooldown_interval,
-                    remote_args, ref_input=None, ref_output=None):
+                    remote_args, ref_input=None, ref_output=None,
+                    enable_cpu_cache_flush=False):
     """Run a generated library through rpc
 
     Parameters
@@ -454,6 +471,12 @@ def run_through_rpc(measure_input, build_result,
         The reference input used for checking correctness
     ref_output: List of np.ndarray
         The reference output used for checking correctness
+    enable_cpu_cache_flush: bool
+        Whether to flush cache on CPU between repeated measurements.
+        Flushing cache can make the measured latency of one operator closer to
+        its actual latency during end-to-end inference.
+        To make this option effective, the argument `number` should also be set to 1.
+        This is only has effect on CPU task.
     """
     if isinstance(build_result, MeasureResult):
         return build_result
@@ -473,8 +496,16 @@ def run_through_rpc(measure_input, build_result,
         remote.upload(build_result.filename)
         func = remote.load_module(os.path.split(build_result.filename)[1])
         ctx = remote.context(str(measure_input.target), 0)
+
+        # Limitation:
+        # We can not get PackFunction directly in the remote mode as it is wrapped
+        # under the std::function. We could lift the restriction later once we fold
+        # the PackedFunc as an object. Currently, we pass function name to work
+        # around it.
+        f_prepare = 'cache_flush_cpu_non_first_arg' if enable_cpu_cache_flush else ''
         time_f = func.time_evaluator(
-            func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
+            func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms,
+            f_preproc=f_prepare)
 
         # set input
         if ref_input:

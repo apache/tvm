@@ -599,6 +599,7 @@ def test_rewrite():
 
     class TestRewrite(DFPatternCallback):
         def __init__(self):
+            super(TestRewrite, self).__init__()
             self.pattern = add_pattern
 
         def callback(self, pre, post, node_map):
@@ -617,6 +618,7 @@ def test_rewrite_func():
 
     class TestRewrite(DFPatternCallback):
         def __init__(self):
+            super(TestRewrite, self).__init__()
             self.pattern = add_pattern
 
         def callback(self, pre, post, node_map):
@@ -634,6 +636,7 @@ def test_rewrite_func():
 def test_nested_rewrite():
     class PatternCallback(DFPatternCallback):
         def __init__(self, pattern):
+            super(PatternCallback, self).__init__()
             self.pattern = pattern
 
         def callback(self, pre, post, node_map):
@@ -682,6 +685,7 @@ def test_not_fuse_multi_diamond():
 
 class BatchnormCallback(DFPatternCallback):
     def __init__(self):
+        super(BatchnormCallback, self).__init__()
         self.x = wildcard()
         self.var = wildcard()
         self.mean = wildcard()
@@ -798,6 +802,7 @@ def test_fuse_batchnorm_commutation():
 def test_quadruple_rewrite_dominator():
     class DominatorRemovalCallback(DFPatternCallback):
         def __init__(self):
+            super(DominatorRemovalCallback, self).__init__()
             self.inp = wildcard()
             self.weight = wildcard()
             is_conv2d = is_op('nn.conv2d')(self.inp, self.weight)
@@ -860,31 +865,37 @@ def algebraic_simplify(expr):
 
     class AddCallback(ElwiseNullCallback):
         def __init__(self):
+            super(AddCallback, self).__init__()
             self.x = wildcard()
             self.pattern = self.x + zero
 
     class SubCallback(ElwiseNullCallback):
         def __init__(self):
+            super(SubCallback, self).__init__()
             self.x = wildcard()
             self.pattern = self.x - zero
 
     class MulCallback(ElwiseNullCallback):
         def __init__(self):
+            super(MulCallback, self).__init__()
             self.x = wildcard()
             self.pattern = self.x * one
 
     class DivCallback(ElwiseNullCallback):
         def __init__(self):
+            super(DivCallback, self).__init__()
             self.x = wildcard()
             self.pattern = self.x / one
 
     class MulZeroCallback(ElwiseNullCallback):
         def __init__(self):
+            super(MulZeroCallback, self).__init__()
             self.x = zero
             self.pattern = self.x * wildcard()
 
     class ZeroDivCallback(ElwiseNullCallback):
         def __init__(self):
+            super(ZeroDivCallback, self).__init__()
             self.x = zero
             self.pattern = self.x / wildcard()
 
@@ -1265,6 +1276,7 @@ def test_match_match():
     add_pattern = is_op('add')(wildcard(), wildcard())
     class TestRewrite(DFPatternCallback):
         def __init__(self):
+            super(TestRewrite, self).__init__()
             self.pattern = add_pattern
         def callback(self, pre, post, node_map):
             return post.args[0] - post.args[1]

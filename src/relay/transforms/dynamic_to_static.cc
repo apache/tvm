@@ -22,6 +22,7 @@
  * \file dynamic_to_static.cc
  * \brief Rewrite Dynamic Operations to Static operations where possible
  */
+#include <tvm/relay/attrs/algorithm.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
@@ -32,23 +33,49 @@ namespace relay {
 
 class DynamicToStaticMutator : public MixedModeMutator {
  public:
-  DynamicToStaticMutator() : dyn_reshape_op_(Op::Get("dyn.reshape")) {}
+  DynamicToStaticMutator() {}
 
  private:
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     const CallNode* call_node = post.as<CallNode>();
-    if (call_node->op == dyn_reshape_op_) {
+    if (call_node->op == Op::Get("dyn.reshape")) {
       if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
-        auto attrs = make_object<ReshapeAttrs>();
         CHECK_EQ(shape->data->ndim, 1);
-        attrs->newshape = ToVector(shape->data);
-        attrs->reverse = false;
-        static const Op& reshape = Op::Get("reshape");
-        return Call(reshape, {call_node->args[0]}, Attrs(attrs), {});
+        return MakeReshape(call_node->args[0], ToVector(shape->data));
+      }
+    } else if (call_node->op == Op::Get("dyn.tile")) {
+      if (const ConstantNode* reps = call_node->args[1].as<ConstantNode>()) {
+        CHECK_EQ(reps->data->ndim, 1);
+        return MakeTile(call_node->args[0], ToVector(reps->data));
+      }
+    } else if (call_node->op == Op::Get("dyn.topk")) {
+      if (const ConstantNode* k = call_node->args[1].as<ConstantNode>()) {
+        const TopKAttrs* param = call_node->attrs.as<TopKAttrs>();
+        CHECK(param);
+        return MakeTopK(call_node->args[0], static_cast<int>(ToScalar(k->data, 0)), param->axis,
+                        param->ret_type, param->is_ascend, param->dtype);
+      }
+    } else if (call_node->op == Op::Get("dyn.broadcast_to")) {
+      if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
+        CHECK_EQ(shape->data->ndim, 1);
+        return MakeBroadCastTo(call_node->args[0], ToVector(shape->data));
+      }
+    } else if (call_node->op == Op::Get("dyn.zeros")) {
+      if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
+        const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
+        CHECK(param);
+        return MakeZeros(ToVector(shape->data), param->dtype);
+      }
+    } else if (call_node->op == Op::Get("dyn.ones")) {
+      if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
+        const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
+        CHECK(param);
+        return MakeOnes(ToVector(shape->data), param->dtype);
       }
     }
     return post;
   }
+
   Expr DispatchVisitExpr(const Expr& expr) override {
     auto post = MixedModeMutator::DispatchVisitExpr(expr);
     if (auto op = post.as<FunctionNode>()) {
@@ -56,8 +83,6 @@ class DynamicToStaticMutator : public MixedModeMutator {
     }
     return post;
   }
-
-  const Op& dyn_reshape_op_;
 };
 
 Expr DynamicToStatic(Function f, IRModule m) {
@@ -98,6 +123,5 @@ TVM_REGISTER_GLOBAL("relay._transform.DynamicToStatic").set_body_typed([]() {
 });
 
 }  // namespace transform
-
 }  // namespace relay
 }  // namespace tvm

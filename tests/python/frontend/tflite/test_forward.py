@@ -210,10 +210,12 @@ def run_tflite_graph(tflite_model_buf, input_data):
     input_data = convert_to_list(input_data)
 
     interpreter = interpreter_wrapper.Interpreter(model_content=tflite_model_buf)
-    interpreter.allocate_tensors()
-
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
+
+    for i in range(len(input_details)):
+        interpreter.resize_tensor_input(input_details[i]['index'], input_data[i].shape)
+    interpreter.allocate_tensors()
 
     # set input
     assert len(input_data) == len(input_details)
@@ -783,6 +785,7 @@ def _test_tflite2_quantized_convolution(input_shape, kernel_shape,
 def _test_tflite2_quantized_depthwise_convolution(input_shape, kernel_shape,
         dilations, strides, padding, data_format, depth_multiplier):
     """One iteration of TFLite2 quantized depthwise convolution with given shapes and attributes"""
+
     data_format = "channels_last" if "NHWC" else "channels_first"
     data = np.random.uniform(0, 1, input_shape).astype('float32')
     kernel = np.random.uniform(0, 1, kernel_shape).astype('float32')
@@ -912,13 +915,14 @@ def test_forward_convolution():
         _test_tflite2_quantized_convolution([1, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
         _test_tflite2_quantized_convolution([1, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NHWC')
 
+        # Disable as tests are flaky - https://github.com/apache/incubator-tvm/issues/6064
         # depthwise convolution
-        _test_tflite2_quantized_depthwise_convolution([1, 8, 8, 128], [1, 1, 128, 1], [1, 1], [1, 1],
-                                                      'SAME', 'NHWC', 1)
-        _test_tflite2_quantized_depthwise_convolution([1, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2],
-                                                      'VALID', 'NHWC', 1)
-        _test_tflite2_quantized_depthwise_convolution([1, 24, 24, 3], [7, 7, 3, 8], [1, 1], [2, 2],
-                                                      'SAME', 'NHWC', 8)
+        # _test_tflite2_quantized_depthwise_convolution([1, 8, 8, 128], [1, 1, 128, 1], [1, 1], [1, 1],
+        #                                               'SAME', 'NHWC', 1)
+        # _test_tflite2_quantized_depthwise_convolution([1, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2],
+        #                                               'VALID', 'NHWC', 1)
+        # _test_tflite2_quantized_depthwise_convolution([1, 24, 24, 3], [7, 7, 3, 8], [1, 1], [2, 2],
+        #                                               'SAME', 'NHWC', 8)
 
 
 
@@ -1755,6 +1759,39 @@ def test_all_reduce():
     if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
         _test_forward_reduce(_test_reduce_any, dtype="bool")
 
+#######################################################################
+# Arg_min_max
+# -----------
+
+def _test_arg_min_max(math_op, data, axis, quantized=False):
+    """ One iteration of arg_min_max"""
+
+    with tf.Graph().as_default():
+        t_name="in"
+        in_data = array_ops.placeholder(shape=data.shape, dtype=np.float32, name=t_name )
+        input_range=None
+        qmin, qmax = -100, 102
+        if quantized:
+            inq_data = tf.quantization.fake_quant_with_min_max_args(in_data, min=qmin, max=qmax, name= 'q' + t_name )
+            input_range = { inq_data.name.split(':')[0]: (qmin, qmax)}
+            out = math_op(input=inq_data, axis=axis)
+            compare_tflite_with_tvm([data], [inq_data.name], [inq_data], [out], quantized=True, input_range=input_range)
+        else:
+            out = math_op(input=in_data, axis=axis)
+            compare_tflite_with_tvm([data], [in_data.name], [in_data], [out])
+
+def test_forward_arg_min_max():
+    # test quantized
+    for data in [np.array(np.random.uniform(-100, 100, (3, 4)), dtype=np.uint8)]:
+        # There is no quantized version of ArgMin
+        for axis in [None, 0, 1, -1]:
+            _test_arg_min_max(math_ops.argmax, data, axis, True)
+
+    for data in [np.array(np.random.uniform(-100, 100, (3, 4)), dtype=np.float32)]:
+        for axis in [None, 0, 1, -1]:
+            _test_arg_min_max(math_ops.argmax, data, axis)
+            _test_arg_min_max(math_ops.argmin, data, axis)
+
 
 #######################################################################
 # Select, Where
@@ -2515,6 +2552,20 @@ def test_forward_inception_v4_net():
     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
                                 rtol=1e-5, atol=1e-5)
 
+def test_forward_inception_v4_net_batched():
+    """Test the Inception V4 TF Lite model."""
+    # InceptionV4
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/download.tensorflow.org/models/tflite/model_zoo/upload_20180427/inception_v4_2018_04_27.tgz",
+        "inception_v4.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    data = np.random.uniform(size=(4, 299, 299, 3)).astype('float32')
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-5, atol=1e-5)
+
 def test_forward_qnn_inception_v1_net():
     """Test the Quantized TFLite Inception model."""
     # InceptionV1
@@ -2834,6 +2885,7 @@ if __name__ == '__main__':
     test_forward_sparse_to_dense()
     test_forward_select()
     test_forward_quantize_dequantize()
+    test_forward_arg_min_max()
 
     # NN
     test_forward_convolution()
@@ -2880,6 +2932,7 @@ if __name__ == '__main__':
     test_forward_mobilenet_v3()
     test_forward_inception_v3_net()
     test_forward_inception_v4_net()
+    test_forward_inception_v4_net_batched()
     test_forward_coco_ssd_mobilenet_v1()
     test_forward_mediapipe_hand_landmark()
 
