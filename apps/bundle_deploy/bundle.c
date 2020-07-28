@@ -64,7 +64,7 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
 }
 
 TVM_DLL void tvm_runtime_destroy(void* runtime) {
-  TVMGraphRuntime_Release((TVMGraphRuntime**) &runtime);
+  TVMGraphRuntime_Release((TVMGraphRuntime**)&runtime);
 }
 
 TVM_DLL void tvm_runtime_set_input(void* runtime, const char* name, DLTensor* tensor) {
