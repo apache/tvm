@@ -64,9 +64,20 @@ TVM_REGISTER_NODE_TYPE(SourceNameNode)
 Span::Span(SourceName source, int line, int column, int end_line, int end_column) {
   auto n = make_object<SpanNode>();
   n->source = std::move(source);
-  n->line = end_line;
-  n->column = end_column;
+  n->line = line;
+  n->column = column;
+  n->end_line = end_line;
+  n->end_column = end_column;
   data_ = std::move(n);
+}
+
+Span Span::Merge(const Span& other) {
+  CHECK((*this)->source == other->source);
+  return Span((*this)->source,
+    std::min((*this)->line, other->line),
+    std::min((*this)->column, other->column),
+    std::max((*this)->end_line, other->end_line),
+    std::max((*this)->end_column, other->end_column));
 }
 
 TVM_REGISTER_NODE_TYPE(SpanNode);
