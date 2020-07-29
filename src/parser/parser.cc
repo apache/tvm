@@ -1201,14 +1201,14 @@ class Parser {
         case TokenType::Float: {
           Consume(next->token_type);
           auto number = NumberToNDArray(next);
-          Expr e = Constant(number);
+          Expr e = Constant(number, next->span);
           return e;
         }
         case TokenType::Boolean: {
           Consume(TokenType::Boolean);
           int value = Downcast<tvm::Integer>(next->data);
           auto boolean = BooleanToNDarray(value);
-          Expr e = Constant(boolean);
+          Expr e = Constant(boolean, next->span);
           return e;
         }
         // Parse a local of the form `%x`.
@@ -1222,6 +1222,7 @@ class Parser {
           Consume(TokenType::Global);
           auto global = global_names.Get(string);
           if (!global) {
+            // TODO(@jroesch): fix global's needing span information
             auto global_var = GlobalVar(string);
             global_names.Add(string, global_var);
             return Expr(global_var);
