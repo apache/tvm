@@ -103,8 +103,15 @@ struct Tokenizer {
     return this->source.at(this->pos);
   }
 
-  Token NewToken(TokenType token_type, ObjectRef data = ObjectRef()) {
-    return Token(this->line, this->col, token_type, data);
+  Token NewToken(TokenType token_type, ObjectRef data = ObjectRef(), int lines = 0, int cols = 1) {
+    auto span = Span(this->source_name, this->line, this->col, this->line + lines, this->col + cols);
+    return Token(span, token_type, data);
+  }
+
+  Span SpanFrom(int line, int column) {
+    int end_line = this->line;
+    int end_column = this->col;
+    return Span(this->source_name, line, column, end_line, end_column);
   }
 
   enum CommentParserState {
@@ -228,7 +235,10 @@ struct Tokenizer {
     Next();
     // todo: add error handling around bad indices
     auto index = ParseNumber(true, false, str_index.str()).ToNumber();
-    return Token(line, column, TokenType::MetaReference, MetaRef(type_key.str(), index));
+    int end_line = this->line;
+    int end_column = this->col;
+    auto span = Span(this->source_name, line, column, end_line, end_column);
+    return Token(span, TokenType::MetaReference, MetaRef(type_key.str(), index));
   }
 
   Token TokenizeAttr() {
@@ -257,12 +267,14 @@ struct Tokenizer {
           metadata << Next();
         }
         ObjectRef metadata_map = tvm::LoadJSON(metadata.str());
-        return Token(line, column, TokenType::Metadata, metadata_map);
+        auto span = SpanFrom(line, column);
+        return Token(span, TokenType::Metadata, metadata_map);
       } if (attribute.rfind("version", 0) == 0) {
         std::string version = attribute.substr(attribute.find("=") + 1);
         ltrim(version);
         rtrim(version);
-        return Token(line, column, TokenType::Version, tvm::String(version));
+        auto span = SpanFrom(line, column);
+        return Token(span, TokenType::Version, tvm::String(version));
       } else {
         // TOOD(@jroesch): maybe make this a warning an continue parsing?
         this->diag_ctx->EmitFatal(
@@ -431,7 +443,8 @@ struct Tokenizer {
       auto number_str = number.str();
       if (number_str.size()) {
         auto num_tok = ParseNumber(true, false, number_str);
-        token = Token(token->line, token->column, TokenType::Graph, num_tok->data);
+        auto span = SpanFrom(token->span->line, token->span->column);
+        token = Token(span, TokenType::Graph, num_tok->data);
       }
 
       return token;
@@ -486,7 +499,8 @@ struct Tokenizer {
         token_type = TokenType::Identifier;
       }
 
-      return Token(line, col, token_type, tvm::String(ss.str()));
+      auto span = SpanFrom(line, col);
+      return Token(span, token_type, tvm::String(ss.str()));
     } else {
       std::stringstream ss;
       while (More() && !IsWhitespace(Peek())) {
@@ -522,12 +536,13 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
         if (next->token_type == TokenType::Identifier) {
           // Match this token.
           i += 1;
-          auto tok = Token(current->line, current->column, TokenType::Local, next->data);
+          // TODO(@jroesch): merge spans
+          auto tok = Token(current->span, TokenType::Local, next->data);
           CHECK(tok.defined());
           out.push_back(tok);
         } else if (next->token_type == TokenType::Integer) {
           i += 1;
-          auto tok = Token(current->line, current->column, TokenType::Graph, next->data);
+          auto tok = Token(current->span, TokenType::Graph, next->data);
           CHECK(tok.defined());
           out.push_back(tok);
         } else {
@@ -541,7 +556,8 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
         if (next->token_type == TokenType::Identifier) {
           // Match this token.
           i += 1;
-          auto tok = Token(current->line, current->column, TokenType::Global, next->data);
+          // TODO(@jroesch): merge spans
+          auto tok = Token(current->span, TokenType::Global, next->data);
           CHECK(tok.defined());
           out.push_back(tok);
         } else {
@@ -553,14 +569,15 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
       case TokenType::Identifier: {
         std::string str = Downcast<tvm::String>(current->data);
         Token tok;
+        // TODO(@jroesch): merge spans
         if (str == "True") {
           auto data = tvm::Integer(1);
-          tok = Token(current->line, current->column, TokenType::Boolean, data);
+          tok = Token(current->span, TokenType::Boolean, data);
         } else if (str == "False") {
           auto data = tvm::Integer(0);
-          tok = Token(current->line, current->column, TokenType::Boolean, data);
+          tok = Token(current->span, TokenType::Boolean, data);
         } else if (str == "_") {
-          tok = Token(current->line, current->column, TokenType::Underscore);
+          tok = Token(current->span, TokenType::Underscore);
         } else {
           tok = current;
         }

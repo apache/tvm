@@ -92,6 +92,9 @@ struct DiagnosticBuilder {
   /*! \brief The source name. */
   SourceName source_name;
 
+  /*! \brief The span of the diagnostic. */
+  Span span;
+
   /*! \brief The line number. */
   int line;
 
@@ -115,6 +118,8 @@ struct DiagnosticBuilder {
     : level(builder.level), source_name(builder.source_name), line(builder.line), column(builder.column) {}
   DiagnosticBuilder(DiagnosticLevel level, SourceName source_name, int line, int column)
     : level(level), source_name(source_name), line(line), column(column) {}
+  DiagnosticBuilder(DiagnosticLevel level, Span span)
+    : level(level), span(span) {}
 
   operator Diagnostic() {
     auto span = Span(this->source_name, this->line, this->column, this->end_line, this->end_column);

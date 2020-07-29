@@ -25,6 +25,7 @@
 #ifndef TVM_PARSER_TOKEN_H_
 #define TVM_PARSER_TOKEN_H_
 
+#include <tvm/ir/span.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
@@ -327,8 +328,7 @@ class Token;
 
 class TokenNode : public Object {
  public:
-  int line;
-  int column;
+  Span span;
   TokenType token_type;
   mutable runtime::ObjectRef data;
 
@@ -341,7 +341,7 @@ class TokenNode : public Object {
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TokenNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const TokenNode*>(ref.get());
-      p->stream << "Token(line=" << node->line << ", column=" << node->column
+      p->stream << "Token(span=" << node->span
                 << ", token_type=" << ToString(node->token_type) << ", data=" << node->data << ")";
     });
 
@@ -349,7 +349,7 @@ TVM_REGISTER_NODE_TYPE(TokenNode);
 
 class Token : public ObjectRef {
  public:
-  TVM_DLL explicit Token(int line, int column, TokenType token_type, ObjectRef data = ObjectRef());
+  TVM_DLL explicit Token(Span span, TokenType token_type, ObjectRef data = ObjectRef());
 
   static Token Null();
   int64_t ToNumber() const;
@@ -358,16 +358,15 @@ class Token : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(Token, ObjectRef, TokenNode);
 };
 
-Token::Token(int line, int column, TokenType token_type, ObjectRef data) {
+Token::Token(Span span, TokenType token_type, ObjectRef data) {
   ObjectPtr<TokenNode> n = make_object<TokenNode>();
-  n->line = line;
-  n->column = column;
+  n->span = span;
   n->token_type = token_type;
   n->data = data;
   data_ = std::move(n);
 }
 
-Token Token::Null() { return Token(0, 0, TokenType::Null); }
+Token Token::Null() { return Token(Span(SourceName(), 0, 0, 0, 0), TokenType::Null); }
 
 int64_t Token::ToNumber() const { return Downcast<tvm::Integer>(this->operator->()->data); }
 

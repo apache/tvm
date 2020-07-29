@@ -295,7 +295,7 @@ class Parser {
   void Consume(const TokenType& token_type) {
     if (tokens[pos]->token_type != token_type) {
       this->diag_ctx->EmitFatal(
-          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), tokens[pos]->line, tokens[pos]->column)
+          DiagnosticBuilder(DiagnosticLevel::Error, tokens[pos]->span)
             << "expected a " << Pretty(token_type) << " found " << Pretty(Peek()->token_type));
     }
     pos++;
@@ -376,7 +376,7 @@ class Parser {
     auto var = this->expr_scopes.Lookup(local.ToString());
     if (!var.defined()) {
       diag_ctx->Emit(
-          {local->line, local->column, "this local variable has not been previously declared"});
+          {DiagnosticLevel::Error, local->span, "this local variable has not been previously declared"});
     }
     return var;
   }
@@ -389,7 +389,7 @@ class Parser {
     auto var = this->type_scopes.Lookup(ident.ToString());
     if (!var.defined()) {
       diag_ctx->Emit(
-          {ident->line, ident->column,
+          {DiagnosticLevel::Error, ident->span,
            "this type variable has not been previously declared anywhere, perhaps a typo?"});
     }
     return var;
@@ -542,7 +542,7 @@ class Parser {
       } else {
         auto next = Peek();
         this->diag_ctx->EmitFatal(
-          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), next->line, next->column)
+          DiagnosticBuilder(DiagnosticLevel::Error, next->span)
             << "expected a " << Pretty(stop) << " found  " << Pretty(next->token_type));
         return Array<T>(nullptr);
       }
@@ -583,12 +583,12 @@ class Parser {
       // TODO(@jroesch): we currently only support 0.0.5.
       if (version.ToString() != "\"0.0.5\"") {
         this->diag_ctx->Emit(
-          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), version->line, version->column)
+          DiagnosticBuilder(DiagnosticLevel::Error, version->span)
             << "invalid semantic version `" << version.ToString() << "`");
       }
     } else if (required) {
       this->diag_ctx->Emit(
-          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), Peek()->line, Peek()->column)
+          DiagnosticBuilder(DiagnosticLevel::Error, Peek()->span)
             << "expected text format semantic version "
             << "you can annotate it as #[version = \"0.0.5\"]");
     }
@@ -620,7 +620,7 @@ class Parser {
           auto type_def = ParseTypeDef();
           if (type_def->constructors.size()) {
             diag_ctx->Emit(
-                {next->line, next->column, "an external type may not have any constructors"});
+                {DiagnosticLevel::Error, next->span, "an external type may not have any constructors"});
           }
           defs.types.push_back(type_def);
         }
@@ -1186,7 +1186,7 @@ class Parser {
       return Op::Get(op_name);
     } catch (dmlc::Error e) {
       this->diag_ctx->Emit(
-          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), tok->line, tok->column)
+          DiagnosticBuilder(DiagnosticLevel::Error, tok->span)
             << "operator `" << op_name << "` not found, perhaps you forgot to register it?");
       return Expr();
     }
@@ -1291,7 +1291,7 @@ class Parser {
         }
         default: {
           this->diag_ctx->EmitFatal(
-          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), next->line, next->column)
+          DiagnosticBuilder(DiagnosticLevel::Error, next->span)
             << "expected an expression found  " << Pretty(next->token_type));
           return Expr();
         }
@@ -1413,7 +1413,7 @@ class Parser {
       return IncompleteType();
     } else {
       this->diag_ctx->EmitFatal(
-          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), tok->line, tok->column)
+          DiagnosticBuilder(DiagnosticLevel::Error, tok->span)
             << "failed to parse type found " << tok);
       return Type();
     }
