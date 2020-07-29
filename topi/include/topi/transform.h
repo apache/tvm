@@ -1126,9 +1126,6 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, std::string n
   for (size_t i = indices_dim0; i < ndim_d; ++i) {
     out_shape.push_back(data->shape[i]);
   }
-  if (out_shape.size() == 0) {
-    out_shape.push_back(make_const(DataType::Int(32), 1));
-  }
   return compute(
       out_shape,
       [&](const Array<Var>& out_index) {
@@ -1401,7 +1398,7 @@ inline Tensor ndarray_size(const Tensor& src, const DataType& dtype,
                            const std::string& name = "ndarray_size",
                            const std::string& tag = kInjective) {
   int ndim = static_cast<int>(src->shape.size());
-  Array<PrimExpr> out_ndarray_size = {1};
+  Array<PrimExpr> out_ndarray_size = {};
   return compute(
       out_ndarray_size,
       [&](const Array<Var>& indices) {

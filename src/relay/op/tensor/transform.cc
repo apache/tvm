@@ -2740,9 +2740,6 @@ bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   Array<IndexExpr> oshape;
   for (size_t i = 1; i < kdim + 1; ++i) oshape.push_back(indices->shape[i]);
   for (size_t i = mdim->value; i < ndim; ++i) oshape.push_back(data->shape[i]);
-  if (oshape.size() == 0) {
-    oshape.push_back(tir::make_const(DataType::Int(32), 1));
-  }
   reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
