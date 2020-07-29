@@ -420,40 +420,37 @@ def test_gradient_if():
     assert check_basic_block_normal_form(mod['main'])
 
 def test_if():
-    x = relay.var('x', shape=(), dtype='float32')
-    one = relay.const(1, dtype='float32')
-    two = relay.const(2, dtype='float32')
-    v1 = relay.add(x, one)
-    v2 = relay.equal(x, two)
-    true_branch = relay.multiply(v1, two)
-    false_branch = relay.multiply(v1, one)
-    body = relay.If(v2, true_branch, false_branch)
-    func = relay.Function([x], body)
-    """
-    fn (%x: float32) {
-      %0 = equal(%x, 2f);
-      if (%0) {
-        %1 = add(%x, 1f);
-        multiply(%1, 2f)
-      } else {
-        multiply(%1, 1f)
-      }
-    }
-    """
-    bblock = run_opt_pass(func, transform.ToBasicBlockNormalForm())
-    """
-    bblock = fn (%x: float32) {
-      let %v1 = add(%x, 1f);
-      %0 = equal(%x, 2f);
-      if (%0) {
-        multiply(%v1, 2f)
-      } else {
-        multiply(%v1, 1f)
-      }
-    }
-    """
-    def expected():
-        x = relay.var('x', shape=(), dtype='float32')
+    def if_expr(x):
+        """
+        free_var %x: float32
+        %0 = equal(%x, 2f);
+        if (%0) {
+          %1 = add(%x, 1f);
+          multiply(%1, 2f)
+        } else {
+          multiply(%1, 1f)
+        }
+        """
+        one = relay.const(1, dtype='float32')
+        two = relay.const(2, dtype='float32')
+        v1 = relay.add(x, one)
+        v2 = relay.equal(x, two)
+        true_branch = relay.multiply(v1, two)
+        false_branch = relay.multiply(v1, one)
+        body = relay.If(v2, true_branch, false_branch)
+        return body
+
+    def expected_if_expr(x):
+        """
+        free_var %x: float32
+        let %v1: float32 = add(%x, 1f /* ty=float32 */) /* ty=float32 */;
+        %0 = equal(%x, 2f /* ty=float32 */) /* ty=bool */;
+        if (%0) {
+          multiply(%v1, 2f /* ty=float32 */) /* ty=float32 */
+        } else {
+          multiply(%v1, 1f /* ty=float32 */) /* ty=float32 */
+        }
+        """
         one = relay.const(1, dtype='float32')
         two = relay.const(2, dtype='float32')
         v1 = relay.var('v1')
@@ -462,16 +459,20 @@ def test_if():
         false_branch = relay.multiply(v1, one)
         body = relay.If(v2, true_branch, false_branch)
         body = relay.Let(v1, relay.add(x, one), body)
-        func = relay.Function([x], body)
-        return func
+        return body
 
-    expected_bblock = run_opt_pass(expected(), transform.InferType())
-    print('func=')
-    print(func)
-    print('bblock=')
-    print(bblock)
-    print('expected_bblock=')
-    print(expected_bblock)
+    x = relay.var('x', shape=(), dtype='float32')
+    body = if_expr(x)
+    expected_body = expected_if_expr(x)
+    bblock = run_opt_pass(body, transform.ToBasicBlockNormalForm())
+    expected_bblock = run_opt_pass(expected_body, transform.InferType())
+    assert tvm.ir.structural_equal(bblock, expected_bblock, map_free_vars=True)
+    assert check_basic_block_normal_form(bblock)
+
+    func = relay.Function([x], body)
+    expected_func = relay.Function([x], expected_body)
+    bblock = run_opt_pass(func, transform.ToBasicBlockNormalForm())
+    expected_bblock = run_opt_pass(expected_func, transform.InferType())
     assert tvm.ir.structural_equal(bblock, expected_bblock)
     assert check_basic_block_normal_form(bblock)
 

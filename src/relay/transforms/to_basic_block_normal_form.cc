@@ -45,7 +45,6 @@ std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> CalcLiftedScope(const De
     node_to_expr[expr_node.second] = expr_node.first;
   }
   bool global_scope_used = false;
-  std::unordered_map<long long, int> scopes;
   Scope global_scope = std::make_shared<ScopeNode>();
   DLOG(INFO) << "global_scope = " << global_scope;
 
@@ -62,9 +61,7 @@ std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> CalcLiftedScope(const De
       s = expr_scope.at(iit->value);
       const auto original_s = s;
       iit = iit->next;
-      DLOG(INFO) << "candidate s = " << s;
       for (; iit != nullptr; iit = iit->next) {
-        DLOG(INFO) << "candidate s = " << expr_scope.at(iit->value);
         s = LCA(s, expr_scope.at(iit->value));
       }
       if (s != original_s && node_to_expr.find(n) != node_to_expr.end()) {
@@ -72,7 +69,7 @@ std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> CalcLiftedScope(const De
         Expr expr = node_to_expr[n];
         if (!expr.as<OpNode>()) {
           lifted_exprs.insert(expr);
-          DLOG(INFO) << "lifted node: " << n;
+          DLOG(INFO) << "lifted node: " << n << " = " << expr;
         }
       }
     }
@@ -82,18 +79,6 @@ std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> CalcLiftedScope(const De
     } else {
       expr_scope.insert({n, s});
     }
-    // auto result_scope = n->new_scope ? ChildScope(s) : s;
-    // expr_scope.insert({n, result_scope});
-    // int scope_key = (long long)(result_scope.get());
-    // if (scopes.find(scope_key) == scopes.end()) {
-    //   scopes[scope_key] = scopes.size();
-    // }
-    // if (node_to_expr.find(n) != node_to_expr.end()) {
-    //   DLOG(INFO) << "@scope " << scopes[scope_key] << " = " << scope_key
-    //   << "\n node = " << n << ": " << node_to_expr[n] << " scope = " << result_scope;
-    // } else {
-    //   DLOG(INFO) << "node " << n << " @scope " << scopes[scope_key] << " = " << result_scope;
-    // }
   }
   return lifted_exprs;
 }
@@ -102,10 +87,13 @@ std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> CalcLiftedScope(const De
  * only expressions with lifted scope will be pushed to the let list.
  */
 class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
+
+ using ExprSet = std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>;
+
  public:
   static Expr ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
                                      std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-                                     std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>* lifted) {
+                                     ExprSet* lifted) {
     FillBasicBlock fi(dg, node_scope, lifted);
     auto var = fi.VisitExpr(e);
     auto scope = fi.GetScope(e);
@@ -116,8 +104,8 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
  private:
   const DependencyGraph& dg_;
   std::unordered_map<DependencyGraph::Node*, Scope>* node_scope_;
-  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>* lifted_;
   std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> memo;
+  ExprSet* lifted_;
 
   FillBasicBlock(const DependencyGraph& dg,
                  std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
