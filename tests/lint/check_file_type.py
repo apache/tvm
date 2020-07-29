@@ -79,7 +79,7 @@ ALLOW_EXTENSION = {
     "idl",
     # opencl file
     "cl",
-    }
+}
 
 # List of file names allowed
 ALLOW_FILE_NAME = {
@@ -98,7 +98,7 @@ ALLOW_FILE_NAME = {
     ".scalafmt.conf",
     "Cargo.lock",
     "with_the_same_user",
-   }
+}
 
 # List of specific files allowed in relpath to <proj_root>
 ALLOW_SPECIFIC_FILE = {
@@ -111,6 +111,7 @@ ALLOW_SPECIFIC_FILE = {
     "rust/runtime/tests/test_wasm32/.cargo/config",
     "rust/tvm-graph-rt/tests/test_wasm32/.cargo/config",
     "apps/sgx/.cargo/config",
+    "apps/wasm-standalone/wasm-graph/.cargo/config",
     # html for demo purposes
     "web/apps/browser/rpc_server.html",
     # images are normally not allowed
@@ -121,7 +122,7 @@ ALLOW_SPECIFIC_FILE = {
     "docs/_static/css/tvm_theme.css",
     "docs/_static/img/tvm-logo-small.png",
     "docs/_static/img/tvm-logo-square.png",
-   }
+}
 
 
 def filename_allowed(name):
@@ -162,7 +163,7 @@ def copyright_line(line):
     if line.find("Copyright " + "(c)") != -1:
         return True
     if (line.find("Copyright") != -1 and
-        line.find(" by") != -1):
+            line.find(" by") != -1):
         return True
     return False
 
@@ -235,6 +236,7 @@ def main():
         sys.exit(-1)
 
     print("check_file_type.py: all checks passed..")
+
 
 if __name__ == "__main__":
     main()

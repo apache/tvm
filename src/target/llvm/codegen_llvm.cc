@@ -1018,7 +1018,13 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const SelectNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const LetNode* op) {
-  CHECK(!var_map_.count(op->var.get()));
+  auto it = let_binding_.find(op->var);
+  if (it != let_binding_.end()) {
+    CHECK(deep_equal_(it->second->value, op->value))
+        << "Let cannot bind the same var to two different values";
+  } else {
+    let_binding_[op->var] = op;
+  }
   var_map_[op->var.get()] = MakeValue(op->value);
   analyzer_->Bind(op->var, op->value);
   return MakeValue(op->body);

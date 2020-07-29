@@ -90,19 +90,6 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
         rhs_npy, rhs_nd = gen_operand(rhs_shape, rhs_min, rhs_max, ctx)
         out_npy = fnumpy(lhs_npy, rhs_npy)
 
-        if fnumpy == np.floor_divide:
-            # avoid check too close to X.5 and X.0
-            # FIXME: floor_divide(94.90735, 0.6731018) behaves as floor(div(94.90735, 0.6731018))
-            # However the result is somehow incorrect - need to further investigate.
-            # And looks like numpy's floor_div(a,b) is implemented different from floor(div(a,b))
-            mask = np.logical_or(np.abs(np.abs(np.fmod(lhs_npy / rhs_npy, 1)) - 0.5) < 1e-6,
-                                 np.abs(np.fmod(lhs_npy / rhs_npy, 1)) < 1e-6)
-            if mask.any():
-                lhs_npy = lhs_npy + mask * 1e-3  * rhs_npy
-                lhs_npy = lhs_npy.astype(dtype)
-                lhs_nd = tvm.nd.array(lhs_npy, ctx) if lhs_shape is not None else lhs_npy.item()
-                out_npy = fnumpy(lhs_npy, rhs_npy)
-
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), ctx)
         foo(lhs_nd, rhs_nd, out_nd)
         tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
@@ -151,12 +138,14 @@ def test_divide():
         (2, 3, 1, 32), (64, 32), topi.divide, np.divide, rhs_min=0.0001)
 
 def test_floor_divide():
+    def _canonical_floor_div(a,b):
+        return np.floor(a / b)
     verify_broadcast_binary_ele(
-        None, (10,), topi.floor_divide, np.floor_divide, rhs_min=0.0001)
+        None, (10,), topi.floor_divide, _canonical_floor_div, rhs_min=0.0001)
     verify_broadcast_binary_ele(
-        (), None, topi.floor_divide, np.floor_divide, rhs_min=0.0001)
+        (), None, topi.floor_divide, _canonical_floor_div, rhs_min=0.0001)
     verify_broadcast_binary_ele(
-        (2, 3, 64, 32), (64, 32), topi.floor_divide, np.floor_divide, rhs_min=0.0001)
+        (2, 3, 64, 32), (64, 32), topi.floor_divide, _canonical_floor_div, rhs_min=0.0001)
 
 def test_maximum_minmum():
     verify_broadcast_binary_ele(
@@ -175,10 +164,12 @@ def test_mod():
         (1, 2, 2), (2,), topi.mod, np.mod, lhs_min=0.001, rhs_min=1, dtype="int32")
 
 def test_floor_mod():
+    def _canonical_floor_mod(a,b):
+        return a - np.floor(a / b) * b
     verify_broadcast_binary_ele(
-        (1, 2, 2), (2,), topi.floor_mod, np.fmod, lhs_min=0.001, rhs_min=1, dtype="int32")
+        (1, 2, 2), (2,), topi.floor_mod, _canonical_floor_mod, lhs_min=0.001, rhs_min=1, dtype="int32")
     verify_broadcast_binary_ele(
-        (3, 4, 5), (3, 4, 5), topi.floor_mod, np.fmod, lhs_min=0.001, rhs_min=1, dtype="float32")
+        (3, 4, 5), (3, 4, 5), topi.floor_mod, _canonical_floor_mod, lhs_min=0.001, rhs_min=1, dtype="float32")
 
 def test_cmp():
     # explicit specify the output type

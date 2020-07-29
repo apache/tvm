@@ -162,6 +162,12 @@ inline double FloatArrayMean(const Array<PrimExpr>& float_array) {
   return sum / float_array.size();
 }
 
+/*! \brief Return whether a string starts with another substring */
+inline bool StrStartsWith(const String& a, const String& b) {
+  if (b.size() > a.size()) return false;
+  return std::equal(a.c_str(), a.c_str() + b.size(), b.c_str());
+}
+
 /********** Other Utilities **********/
 /*! \brief Get an int value from an Expr */
 inline int64_t GetIntImm(const PrimExpr& expr) {
