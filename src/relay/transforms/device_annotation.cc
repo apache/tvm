@@ -385,9 +385,7 @@ class DeviceInfo {
       // TODO(zhiics) Skip annotation of function node for now.
     }
 
-    void VisitExpr_(const ConstantNode* cn) final {
-      device_tag_[cn] = dev_type_;
-    }
+    void VisitExpr_(const ConstantNode* cn) final { device_tag_[cn] = dev_type_; }
 
     void VisitExpr_(const CallNode* call) final {
       // Skip annotation nodes.
@@ -426,9 +424,7 @@ class DeviceInfo {
 
     void VisitExpr_(const TupleGetItemNode* op) final { ExprVisitor::VisitExpr_(op); }
 
-    void VisitExpr_(const VarNode* vn) final {
-      device_tag_[vn] = dev_type_;
-    }
+    void VisitExpr_(const VarNode* vn) final { device_tag_[vn] = dev_type_; }
 
     void VisitExpr_(const LetNode* ln) final {
       ExprVisitor::VisitExpr_(ln);
