@@ -1,0 +1,129 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+import tvm
+from tvm import relay
+from tvm.relay.analysis import check_basic_block_normal_form
+
+def test_one_block():
+    x = relay.var('x')
+    y = relay.add(x, x)
+    z = relay.add(x, y)
+    assert check_basic_block_normal_form(z)
+
+def test_let():
+    x = relay.var('x')
+    y = relay.var('y')
+    body = relay.Let(y, x, y)
+    assert check_basic_block_normal_form(body)
+
+def test_if():
+    cond = relay.var('cond', dtype='bool', shape=())
+    shared = relay.var('shared')
+    true_branch = shared
+    false_branch = relay.add(shared, shared)
+    body = relay.If(cond, true_branch, false_branch)
+    """
+    The program below violates basic block normal form, as the scope of %shared
+    is ambiguous and should not be in that of true branch.
+
+    free_var %cond: bool
+    if (%cond) {
+      free_var %shared
+      %shared
+    } else {
+      add(%shared, %shared)
+    }
+    """
+    print(body)
+    assert not check_basic_block_normal_form(body)
+
+    shared_bound = relay.var('shared_bound', shape=(1,), dtype='float32')
+    body = relay.Let(shared, shared_bound, body)
+    """
+    The program below uses let binding to control the scope of %shared, which
+    follows the basic block normal form.
+
+    free_var %shared_bound: Tensor[(1), float32]
+    let %shared = %shared_bound;
+    free_var %cond: bool
+    if (%cond) {
+      %shared
+    } else {
+      add(%shared, %shared)
+    }
+    """
+    print(body)
+    assert check_basic_block_normal_form(body)
+
+def test_if2():
+    def invalid():
+        """
+        fn (%x: float32) {
+          %0 = equal(%x, 2f);
+          if (%0) {
+            %1 = add(%x, 1f);
+            multiply(%1, 2f)
+          } else {
+            multiply(%1, 1f)
+          }
+        }
+        """
+        x = relay.var('x', shape=(), dtype='float32')
+        one = relay.const(1, dtype='float32')
+        two = relay.const(2, dtype='float32')
+        v1 = relay.add(x, one)
+        v2 = relay.equal(x, two)
+        true_branch = relay.multiply(v1, two)
+        false_branch = relay.multiply(v1, one)
+        body = relay.If(v2, true_branch, false_branch)
+        func = relay.Function([x], body)
+        return func
+    assert not check_basic_block_normal_form(invalid())
+
+    def valid():
+        """
+        fn (%x: float32) {
+          let %v1 = add(%x, 1f);
+          %0 = equal(%x, 2f);
+          if (%0) {
+            multiply(%v1, 2f)
+          } else {
+            multiply(%v1, 1f)
+          }
+        }
+        """
+        x = relay.var('x', shape=(), dtype='float32')
+        one = relay.const(1, dtype='float32')
+        two = relay.const(2, dtype='float32')
+        v1 = relay.var('v1')
+        v2 = relay.equal(x, two)
+        true_branch = relay.multiply(v1, two)
+        false_branch = relay.multiply(v1, one)
+        body = relay.If(v2, true_branch, false_branch)
+        body = relay.Let(v1, relay.add(x, one), body)
+        func = relay.Function([x], body)
+        print(func)
+        return func
+    assert check_basic_block_normal_form(valid())
+
+
+if __name__ == '__main__':
+    test_one_block()
+    test_let()
+    test_if()
+    test_if2()

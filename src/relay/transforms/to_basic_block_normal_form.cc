@@ -36,6 +36,68 @@
 namespace tvm {
 namespace relay {
 
+// return a set of Exprs whose scope should be lifted to due dependencies.
+std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> CalcLiftedScope(const DependencyGraph& dg) {
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> lifted_exprs;
+  std::unordered_map<DependencyGraph::Node*, Scope> expr_scope;
+  std::unordered_map<DependencyGraph::Node*, Expr> node_to_expr;
+  for (auto expr_node : dg.expr_node) {
+    node_to_expr[expr_node.second] = expr_node.first;
+  }
+  bool global_scope_used = false;
+  std::unordered_map<long long, int> scopes;
+  Scope global_scope = std::make_shared<ScopeNode>();
+  DLOG(INFO) << "global_scope = " << global_scope;
+
+  for (auto it = dg.post_dfs_order.rbegin(); it != dg.post_dfs_order.rend(); ++it) {
+    DependencyGraph::Node* n = *it;
+    DLOG(INFO) << "visit dependency node n = " << n;
+    auto iit = n->parents.head;
+    Scope s;
+    if (iit == nullptr) {
+      CHECK(!global_scope_used);
+      s = global_scope;
+      global_scope_used = true;
+    } else {
+      s = expr_scope.at(iit->value);
+      const auto original_s = s;
+      iit = iit->next;
+      DLOG(INFO) << "candidate s = " << s;
+      for (; iit != nullptr; iit = iit->next) {
+        DLOG(INFO) << "candidate s = " << expr_scope.at(iit->value);
+        s = LCA(s, expr_scope.at(iit->value));
+      }
+      if (s != original_s && node_to_expr.find(n) != node_to_expr.end()) {
+        // filter out exprs whose scope do not matter
+        Expr expr = node_to_expr[n];
+        if (!expr.as<OpNode>()) {
+          lifted_exprs.insert(expr);
+          DLOG(INFO) << "lifted node: " << n;
+        }
+      }
+    }
+    if (n->new_scope) {
+      auto child_scope = std::make_shared<ScopeNode>(s);
+      expr_scope.insert({n, child_scope});
+    } else {
+      expr_scope.insert({n, s});
+    }
+    // auto result_scope = n->new_scope ? ChildScope(s) : s;
+    // expr_scope.insert({n, result_scope});
+    // int scope_key = (long long)(result_scope.get());
+    // if (scopes.find(scope_key) == scopes.end()) {
+    //   scopes[scope_key] = scopes.size();
+    // }
+    // if (node_to_expr.find(n) != node_to_expr.end()) {
+    //   DLOG(INFO) << "@scope " << scopes[scope_key] << " = " << scope_key
+    //   << "\n node = " << n << ": " << node_to_expr[n] << " scope = " << result_scope;
+    // } else {
+    //   DLOG(INFO) << "node " << n << " @scope " << scopes[scope_key] << " = " << result_scope;
+    // }
+  }
+  return lifted_exprs;
+}
+
 /* Fill expressions based on each scope's let list. Different from FillANF,
  * only expressions with lifted scope will be pushed to the let list.
  */
@@ -43,7 +105,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
   static Expr ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
                                      std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-                                     std::unordered_set<DependencyGraph::Node*>* lifted) {
+                                     std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>* lifted) {
     FillBasicBlock fi(dg, node_scope, lifted);
     auto var = fi.VisitExpr(e);
     auto scope = fi.GetScope(e);
@@ -54,12 +116,12 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
  private:
   const DependencyGraph& dg_;
   std::unordered_map<DependencyGraph::Node*, Scope>* node_scope_;
-  std::unordered_set<DependencyGraph::Node*>* lifted_;
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>* lifted_;
   std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> memo;
 
   FillBasicBlock(const DependencyGraph& dg,
                  std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-                 std::unordered_set<DependencyGraph::Node*>* lifted)
+                 std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>* lifted)
       : dg_(dg), node_scope_(node_scope), lifted_(lifted) {}
 
   Scope GetScope(const Expr& e) { return node_scope_->at(dg_.expr_node.at(e)); }
@@ -97,7 +159,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
   // if v is defined (e.g. coming from a Let expression). Otherwise return `now` directly.
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
     Var var = v.defined() ? v : Var(String("x"), Type());
-    if (v.defined() || lifted_->find(dg_.expr_node.at(orig)) != lifted_->end()) {
+    if (v.defined() || lifted_->find(orig) != lifted_->end()) {
       return GetScope(orig)->ll->Push(var, now);
     } else {
       return now;
@@ -218,8 +280,8 @@ Expr ToBasicBlockNormalFormAux(const Expr& e) {
    *
    * TODO: update doc
    */
-  std::unordered_set<DependencyGraph::Node*> lifted;
-  std::unordered_map<DependencyGraph::Node*, Scope> node_scope = CalcScope(dg, &lifted);
+  std::unordered_map<DependencyGraph::Node*, Scope> node_scope = CalcScope(dg);
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> lifted = CalcLiftedScope(dg);
   return FillBasicBlock::ToBasicBlockNormalForm(e, dg, &node_scope, &lifted);
 }
 
@@ -245,6 +307,18 @@ IRModule ToBasicBlockNormalForm(const IRModule& mod) {
 
   return mod;
 }
+
+bool BasicBlockNormalFormCheck(const Expr& e) {
+  // calculate all the dependency between nodes.
+  support::Arena arena;
+  DependencyGraph dg = DependencyGraph::Create(&arena, e);
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> lifted = CalcLiftedScope(dg);
+  std::unordered_map<DependencyGraph::Node*, Scope> node_scope = CalcScope(dg);
+  return lifted.size() == 0;
+}
+
+TVM_REGISTER_GLOBAL("relay.analysis.check_basic_block_normal_form")
+    .set_body_typed(BasicBlockNormalFormCheck);
 
 namespace transform {
 

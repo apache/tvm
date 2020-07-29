@@ -36,8 +36,6 @@
 namespace tvm {
 namespace relay {
 
-Scope ChildScope(const Scope& s) { return std::make_shared<ScopeNode>(s); }
-
 Scope LCA(Scope lhs, Scope rhs) {
   while (lhs != rhs) {
     if (lhs->level > rhs->level) {
@@ -52,11 +50,9 @@ Scope LCA(Scope lhs, Scope rhs) {
   return lhs;
 }
 
-std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(
-    const DependencyGraph& dg, std::unordered_set<DependencyGraph::Node*>* lifted_nodes) {
+std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGraph& dg) {
   std::unordered_map<DependencyGraph::Node*, Scope> expr_scope;
   bool global_scope_used = false;
-  // std::unordered_map<long long, int> scopes;
   Scope global_scope = std::make_shared<ScopeNode>();
   for (auto it = dg.post_dfs_order.rbegin(); it != dg.post_dfs_order.rend(); ++it) {
     DependencyGraph::Node* n = *it;
@@ -68,34 +64,19 @@ std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(
       global_scope_used = true;
     } else {
       s = expr_scope.at(iit->value);
-      const auto original_s = s;
       iit = iit->next;
       for (; iit != nullptr; iit = iit->next) {
         s = LCA(s, expr_scope.at(iit->value));
       }
-      if (s != original_s) {
-        lifted_nodes->insert(n);
-        DLOG(INFO) << "lifted node: " << n;
-      }
     }
-    auto result_scope = n->new_scope ? ChildScope(s) : s;
-    expr_scope.insert({n, result_scope});
-    // int scope_key = (long long)(result_scope.get());
-    // if (scopes.find(scope_key) == scopes.end()) {
-    //   scopes[scope_key] = scopes.size();
-    // }
-    // bool found_expr = false;
-    // for (auto expr_kv : dg.expr_node) {
-    //   if (expr_kv.second == n) {
-    //     Expr e = expr_kv.first;
-    //     found_expr = true;
-    //     DLOG(INFO) << "@scope " << scopes[scope_key] << " = " << scope_key
-    //     << "\n node = " << n << ": " << e;
-    //     break;
-    //   }
-    // }
-    // if (!found_expr) DLOG(INFO) << "node " << n << " @scope " << scopes[scope_key];
+    if (n->new_scope) {
+      auto child_scope = std::make_shared<ScopeNode>(s);
+      expr_scope.insert({n, child_scope});
+    } else {
+      expr_scope.insert({n, s});
+    }
   }
+  CHECK(global_scope_used);
   return expr_scope;
 }
 
@@ -276,8 +257,7 @@ Expr ToANormalFormAux(const Expr& e) {
    * Every scope additionally contain a LetList which collect all value of that scope.
    * We do an additional pass to fill all the LetList and we are done.
    */
-  std::unordered_set<DependencyGraph::Node*> lifted;
-  std::unordered_map<DependencyGraph::Node*, Scope> node_scope = CalcScope(dg, &lifted);
+  std::unordered_map<DependencyGraph::Node*, Scope> node_scope = CalcScope(dg);
   return Fill::ToANormalForm(e, dg, &node_scope);
 }
 

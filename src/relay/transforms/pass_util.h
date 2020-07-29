@@ -208,13 +208,15 @@ struct ScopeNode {
 /*! \brief Calculate the scope of nodes in the dependency graph by least common ancestor.
  *
  *  \param dg the input dependency graph
- *  \param node_scope the set of "lifted" nodes, where the node's scope is lifted by
- *  LCA when multiple nodes depend on it.
  *
  *  \return the node -> scope mapping for all nodes.
  */
-std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(
-    const DependencyGraph& dg, std::unordered_set<DependencyGraph::Node*>* lifted_nodes);
+std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGraph& dg);
+
+/*! \brief find the least common ancestor of lhs scope and rhs scope.
+ */
+Scope LCA(Scope lhs, Scope rhs);
+
 
 }  // namespace relay
 }  // namespace tvm

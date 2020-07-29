@@ -23,6 +23,7 @@ from tvm.relay import op, create_executor, transform
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, count
 from tvm.relay.analysis import Feature
+from tvm.relay.analysis import check_basic_block_normal_form
 
 
 def run_opt_pass(expr, passes):
@@ -57,11 +58,12 @@ def test_no_explicit_bind():
     }
     """
     assert not Feature.fLet in detect_feature(f)
-    anf = run_opt_pass(f, transform.ToBasicBlockNormalForm())
-    print(anf)
-    assert Feature.fLet not in detect_feature(anf)
+    bblock = run_opt_pass(f, transform.ToBasicBlockNormalForm())
+    print(bblock)
+    assert Feature.fLet not in detect_feature(bblock)
     check_eval(f(), 8.0)
-    check_eval(anf(), 8.0)
+    check_eval(bblock(), 8.0)
+    assert check_basic_block_normal_form(bblock)
 
 def test_top_level_nested_if():
     x = relay.var('x', shape=(), dtype='bool')
@@ -217,6 +219,7 @@ def test_nested_if():
     print('expected_output=')
     print(expected_output)
     assert tvm.ir.structural_equal(bblock, expected_output, map_free_vars=True)
+    assert check_basic_block_normal_form(bblock)
 
 
 # make sure we do not infinite loop.
@@ -253,6 +256,7 @@ def test_recursion():
     print('f=')
     print(f)
     check_eval(f(relay.const(5, 'int64')), 30.0, mod=mod)
+    assert check_basic_block_normal_form(f)
 
 def test_ref():
     i = relay.Var('i')
@@ -271,6 +275,7 @@ def test_ref():
     print('opt_body=')
     print(opt_body)
     check_eval(opt_body, 3)
+    assert check_basic_block_normal_form(opt_body)
 
 
 def test_nat_add():
@@ -294,6 +299,7 @@ def test_nat_add():
     print('opt_expr=', opt_expr)
     assert count(p, intrp.evaluate(opt_expr.body)) == 2
     assert not Feature.fLet in detect_feature(mod[add])
+    assert check_basic_block_normal_form(opt_expr)
 
 def test_let():
     def test_let1():
@@ -311,6 +317,7 @@ def test_let():
         print('opt_body=')
         print(opt_body)
         assert tvm.ir.structural_equal(body, opt_body)
+        assert check_basic_block_normal_form(opt_body)
         
     def test_let1_1():
         x = relay.Var("y")
@@ -323,6 +330,7 @@ def test_let():
         print('opt_body=')
         print(opt_body)
         assert tvm.ir.structural_equal(body, opt_body)
+        assert check_basic_block_normal_form(opt_body)
     
     def test_let2():
         x = relay.Var("x")
@@ -348,6 +356,7 @@ def test_let():
         print('opt_body=')
         print(opt_body)
         assert tvm.ir.structural_equal(opt_body, expected_body)
+        assert check_basic_block_normal_form(opt_body)
 
     def test_let3():
         x = relay.Var("x")
@@ -365,6 +374,7 @@ def test_let():
         print('opt_body=')
         print(opt_body)
         assert tvm.ir.structural_equal(body, opt_body)
+        assert check_basic_block_normal_form(opt_body)
 
     test_let1()
     test_let1_1()
@@ -384,6 +394,7 @@ def test_function():
     print(f)
     print('bblock=')
     print(bblock)
+    assert check_basic_block_normal_form(bblock)
 
 def test_gradient_if():
     x = relay.var("a", shape=(1, 16))
@@ -405,6 +416,8 @@ def test_gradient_if():
     print(net_grad)
     print('mod_grad=')
     print(mod_grad)
+    assert check_basic_block_normal_form(mod_grad['main'])
+    assert check_basic_block_normal_form(mod['main'])
 
 def test_if():
     x = relay.var('x', shape=(), dtype='float32')
@@ -460,6 +473,7 @@ def test_if():
     print('expected_bblock=')
     print(expected_bblock)
     assert tvm.ir.structural_equal(bblock, expected_bblock)
+    assert check_basic_block_normal_form(bblock)
 
 if __name__ == '__main__':
     test_let()
