@@ -418,6 +418,7 @@ class State:
     def storage_align(self, stage, iterator, factor, offset):
         """ Schedule primitive corresponds to `te.Stage.storage_align`, see also the `te.Stage` for
         more details.
+
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]

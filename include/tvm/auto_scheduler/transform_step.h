@@ -551,7 +551,6 @@ class SplitStep : public Step {
   TVM_DEFINE_OBJECT_REF_METHODS(SplitStep, Step, SplitStepNode);
 };
 
-
 /*! \brief Similar to SplitStepNode, but uses split factors from another step
  * (i.e. Follow another split step) */
 class FollowSplitStepNode : public StepNode {
@@ -568,14 +567,14 @@ class FollowSplitStepNode : public StepNode {
   /*!
    * \brief Extract split lengths.
    * \param transform_steps An array record all transform steps.
-   * \param lengths The multiple split factors. Can be None to be filled by search policy.
+   * \return The multiple split factors.
    */
-  void ExtractSplitLengths(const Array<Step>& transform_steps,
-                           Array<Optional<Integer>>* lengths) const;
+  Array<Optional<Integer>> ExtractSplitLengths(const Array<Step>& transform_steps) const;
 
   /*!
    * \brief Apply the current step to State.
    * \param state A mutable pointer to state, which will be updated.
+   * \return The iterator results after split.
    */
   Array<Iterator> ApplyToState(State* state) const;
 
