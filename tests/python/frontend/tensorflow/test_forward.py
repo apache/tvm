@@ -73,7 +73,7 @@ tf_dtypes = {
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
-        return [o.asnumpy().tolist()]
+        return [o.asnumpy()]
     elif isinstance(o, tvm.runtime.container.ADT):
         result = []
         for f in o:
@@ -211,6 +211,8 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
+                if not isinstance(tf_output[i], np.ndarray):
+                    assert len(tvm_output[i].shape) == 0
                 tvm.testing.assert_allclose(
                     tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
 
