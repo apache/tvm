@@ -24,12 +24,17 @@ from .infrastructure import skip_runtime_test, build_and_run, verify
 from .infrastructure import Device
 
 
-def _build_and_run_keras_network(mod, params, inputs, device, tvm_ops, acl_partitions):
-    """Helper function to build and run a network from the Keras frontend."""
+def _build_and_run_network(mod, params, inputs, device, tvm_ops, acl_partitions, atol, rtol):
+    """Helper function to build and run a network."""
     data = {}
     np.random.seed(0)
-    for name, shape in inputs.items():
-        data[name] = np.random.uniform(-128, 127, shape).astype("float32")
+
+    for name, (shape, dtype) in inputs.items():
+        if dtype == "uint8":
+            low, high = 0, 255
+        else:
+            low, high = -127, 128
+        data[name] = np.random.uniform(low, high, shape).astype(dtype)
 
     outputs = []
     for acl in [False, True]:
@@ -37,7 +42,40 @@ def _build_and_run_keras_network(mod, params, inputs, device, tvm_ops, acl_parti
                                      device, enable_acl=acl,
                                      tvm_ops=tvm_ops,
                                      acl_partitions=acl_partitions)[0])
-    verify(outputs, atol=0.002, rtol=0.01)
+    verify(outputs, atol=atol, rtol=rtol, verify_saturation=False)
+
+
+def _get_tflite_model(tflite_model_path, inputs_dict):
+    """Convert TFlite graph to relay."""
+    import tflite.Model
+
+    with open(tflite_model_path, 'rb') as f:
+        tflite_model_buffer = f.read()
+
+    try:
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buffer, 0)
+    except AttributeError:
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buffer, 0)
+    shape_dict = {}
+    dtype_dict = {}
+    for input in inputs_dict:
+        input_shape, input_dtype = inputs_dict[input]
+        shape_dict[input] = input_shape
+        dtype_dict[input] = input_dtype
+
+    return relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict=shape_dict,
+        dtype_dict=dtype_dict
+    )
+
+
+def _get_keras_model(keras_model, inputs_dict):
+    """Convert Keras graph to relay."""
+    inputs = {}
+    for name, (shape, _) in inputs_dict.items():
+        inputs[keras_model.input_names[0]] = shape
+    return relay.frontend.from_keras(keras_model, inputs, layout="NHWC")
 
 
 def test_vgg16():
@@ -50,12 +88,13 @@ def test_vgg16():
         from keras.applications import VGG16
         vgg16 = VGG16(include_top=True, weights='imagenet',
                       input_shape=(224, 224, 3), classes=1000)
-        inputs = {vgg16.input_names[0]: (1, 224, 224, 3)}
-        mod, params = relay.frontend.from_keras(vgg16, inputs, layout="NHWC")
+        inputs = {vgg16.input_names[0]: ((1, 224, 224, 3), "float32")}
+        mod, params = _get_keras_model(vgg16, inputs)
         return mod, params, inputs
 
-    _build_and_run_keras_network(*get_model(), device=device,
-                                 tvm_ops=10, acl_partitions=18)
+    _build_and_run_network(*get_model(), device=device,
+                           tvm_ops=10, acl_partitions=18,
+                           atol=0.002, rtol=0.01)
 
 
 def test_mobilenet():
@@ -68,14 +107,42 @@ def test_mobilenet():
         from keras.applications import MobileNet
         mobilenet = MobileNet(include_top=True, weights='imagenet',
                               input_shape=(224, 224, 3), classes=1000)
-        inputs = {mobilenet.input_names[0]: (1, 224, 224, 3)}
-        mod, params = relay.frontend.from_keras(mobilenet, inputs, layout="NHWC")
+        inputs = {mobilenet.input_names[0]: ((1, 224, 224, 3), "float32")}
+        mod, params = _get_keras_model(mobilenet, inputs)
         return mod, params, inputs
 
-    _build_and_run_keras_network(*get_model(), device=device,
-                                 tvm_ops=74, acl_partitions=17)
+    _build_and_run_network(*get_model(), device=device,
+                           tvm_ops=74, acl_partitions=17,
+                           atol=0.002, rtol=0.01)
+
+
+def test_quantized_mobilenet():
+    if skip_runtime_test():
+        return
+
+    import tvm.relay.testing.tf as tf_testing
+
+    device = Device()
+
+    def get_model():
+        model_path = tf_testing.get_workload_official(
+            "https://storage.googleapis.com/download.tensorflow.org/" \
+            "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
+            "mobilenet_v1_1.0_224_quant.tflite",
+        )
+        inputs = {"input": ((1, 224, 224, 3), "uint8")}
+        mod, params = _get_tflite_model(
+            model_path,
+            inputs_dict=inputs
+        )
+        return mod, params, inputs
+
+    _build_and_run_network(*get_model(), device=device,
+                           tvm_ops=45, acl_partitions=16,
+                           atol=8, rtol=0)
 
 
 if __name__ == "__main__":
     test_vgg16()
     test_mobilenet()
+    test_quantized_mobilenet()
