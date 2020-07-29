@@ -905,7 +905,7 @@ We also need to register this function to enable the corresponding Python API:
   TVM_REGISTER_GLOBAL("module.loadbinary_examplejson")
   .set_body_typed(ExampleJsonModule::LoadFromBinary);
 
-The above registration means when users call ``tvm.runtime.load(lib_path)`` API and the exported library has an ExampleJSON stream, our ``LoadFromBinary`` will be invoked to create the same customized runtime module.
+The above registration means when users call ``tvm.runtime.load_module(lib_path)`` API and the exported library has an ExampleJSON stream, our ``LoadFromBinary`` will be invoked to create the same customized runtime module.
 
 In addition, if you want to support module creation directly from an ExampleJSON file, you can also implement a simple function and register a Python API as follows:
 
@@ -930,7 +930,7 @@ In addition, if you want to support module creation directly from an ExampleJSON
       *rv = ExampleJsonModule::Create(args[0]);
   });
 
-It means users can manually write/modify an ExampleJSON file, and use Python API ``tvm.runtime.load("mysubgraph.examplejson", "examplejson")`` to construct a customized module.
+It means users can manually write/modify an ExampleJSON file, and use Python API ``tvm.runtime.load_module("mysubgraph.examplejson", "examplejson")`` to construct a customized module.
 
 *******
 Summary
@@ -954,7 +954,7 @@ In summary, here is a checklist for you to refer:
   * ``Run`` to execute a subgraph.
   * Register a runtime creation API.
   * ``SaveToBinary`` and ``LoadFromBinary`` to serialize/deserialize customized runtime module.
-  * Register ``LoadFromBinary`` API to support ``tvm.runtime.load(your_module_lib_path)``.
+  * Register ``LoadFromBinary`` API to support ``tvm.runtime.load_module(your_module_lib_path)``.
   * (optional) ``Create`` to support customized runtime module construction from subgraph file in your representation.
 
 * An annotator to annotate a user Relay program to make use of your compiler and runtime (TBA).
