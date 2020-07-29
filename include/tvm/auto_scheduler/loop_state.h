@@ -341,6 +341,13 @@ class State : public ObjectRef {
    */
   TVM_DLL Iterator fuse(int stage_id, const Array<Iterator>& iters);
   /*!
+   * \brief Schedule primitive corresponds to `te.Stage.pragma`.
+   * \param stage_id The index of the stage to add pragma.
+   * \param it The iterator to add pragma.
+   * \param pragma_type The pragma string.
+   */
+  TVM_DLL void pragma(int stage_id, const Iterator& it, const String& pragma_type);
+  /*!
    * \brief Schedule primitive corresponds to `te::Stage::reorder`.
    * \param stage_id The index of the stage to be reordered.
    * \param order The expected iterator order.
@@ -382,6 +389,14 @@ class State : public ObjectRef {
   TVM_DLL Array<Iterator> follow_fused_split(int stage_id, const Iterator& it,
                                              const Array<Integer>& src_step_ids, int level,
                                              bool factor_or_nparts);
+  /*!
+   * \brief Schedule primitive corresponds to `te.Stage.storage_align`.
+   * \param stage_id The index of the stage to be aligned.
+   * \param it The iterator to be aligned.
+   * \param factor The factor in alignment specification.
+   * \param offset The offset in the alignment specification.
+   */
+  TVM_DLL void storage_align(int stage_id, const Iterator& it, int factor, int offset);
 
   /********** Step APIs working on multiple stages **********/
 
@@ -422,8 +437,8 @@ class State : public ObjectRef {
    * \note Cache read step will add an extra stage to the original ComputeDAG (at the back of the
    * target stage), a up-to-date ComputeDAG is stored in State's `current_compute_dag`.
    */
-  int cache_read(int stage_id, const String& scope_name, const Array<Integer>& reader_stage_ids,
-                 const ComputeDAG& dag);
+  TVM_DLL int cache_read(int stage_id, const String& scope_name,
+                         const Array<Integer>& reader_stage_ids, const ComputeDAG& dag);
   /*!
    * \brief Schedule primitive corresponds to `te::Schedule::cache_write`.
    * \param stage_id The index of the stage to be cache write.
@@ -433,7 +448,17 @@ class State : public ObjectRef {
    * target stage), a up-to-date ComputeDAG is stored in State's `current_compute_dag`.
    * This step will cache write all output tensors of the target stage.
    */
-  int cache_write(int stage_id, const String& scope_name, const ComputeDAG& dag);
+  TVM_DLL int cache_write(int stage_id, const String& scope_name, const ComputeDAG& dag);
+  /*!
+   * \brief Schedule primitive corresponds to `te::Schedule::rfactor`.
+   * \param stage_id The index of the iterator to be factored.
+   * \param it The iterator to be factored.
+   * \param factor_iter_id The position where the new iterator is placed.
+   * \param dag The original ComputeDAG of this state.
+   * \note Rfactor step will add an extra stage to the original ComputeDAG (in the front of the
+   * target stage), a up-to-date ComputeDAG is stored in State's `current_compute_dag`.
+   */
+  TVM_DLL int rfactor(int stage_id, const Iterator& it, int factor_iter_id, const ComputeDAG& dag);
 
   TVM_DEFINE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StateNode);

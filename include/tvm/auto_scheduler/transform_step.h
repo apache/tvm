@@ -350,6 +350,67 @@ class FuseStep : public Step {
   TVM_DEFINE_OBJECT_REF_METHODS(FuseStep, Step, FuseStepNode);
 };
 
+/*! \brief Pragma step that corresponds to te::Stage::pragma */
+class PragmaStepNode : public StepNode {
+ public:
+  /*! \brief The index of the iterator to add pragma. */
+  int iter_id;
+  /*! \brief The pragma string. */
+  String pragma_type;
+
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
+
+  /*!
+   * \brief Apply the current step to State.
+   * \param state A mutable pointer to state, which will be updated.
+   */
+  void ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   */
+  void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+
+  /*!
+   * \brief Print the current step as equivalent python schedule API.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \return Python schedule code.
+   */
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+
+  static constexpr const char* record_prefix_str = "PR";
+
+  static constexpr const char* _type_key = "auto_scheduler.PragmaStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PragmaStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to PragmaStepNode.
+ * \sa PragmaStepNode
+ */
+class PragmaStep : public Step {
+ public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to be fused.
+   * \param iter_id The index of the iterator to add pragma.
+   * \param pragma_type The pragma string.
+   */
+  PragmaStep(int stage_id, int iter_id, String pragma_type);
+
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit PragmaStep(dmlc::JSONReader* reader);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(PragmaStep, Step, PragmaStepNode);
+};
+
 /*! \brief Reorder step that corresponds to te::Stage::reorder */
 class ReorderStepNode : public StepNode {
  public:
@@ -506,14 +567,14 @@ class FollowSplitStepNode : public StepNode {
   /*!
    * \brief Extract split lengths.
    * \param transform_steps An array record all transform steps.
-   * \param lengths The multiple split factors. Can be None to be filled by search policy.
+   * \return The multiple split factors.
    */
-  void ExtractSplitLengths(const Array<Step>& transform_steps,
-                           Array<Optional<Integer>>* lengths) const;
+  Array<Optional<Integer>> ExtractSplitLengths(const Array<Step>& transform_steps) const;
 
   /*!
    * \brief Apply the current step to State.
    * \param state A mutable pointer to state, which will be updated.
+   * \return The iterator results after split.
    */
   Array<Iterator> ApplyToState(State* state) const;
 
@@ -649,6 +710,70 @@ class FollowFusedSplitStep : public Step {
   explicit FollowFusedSplitStep(dmlc::JSONReader* reader);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FollowFusedSplitStep, Step, FollowFusedSplitStepNode);
+};
+
+/*! \brief Storage align step that corresponds to te::Stage::storage_align */
+class StorageAlignStepNode : public StepNode {
+ public:
+  /*! \brief The iterator to be aligned. */
+  int iter_id;
+  /*! \brief The factor in alignment specification. */
+  int factor;
+  /*! \brief The offset in the alignment specification. */
+  int offset;
+
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
+
+  /*!
+   * \brief Apply the current step to State.
+   * \param state A mutable pointer to State, which will be updated.
+   */
+  void ApplyToState(State* state) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   */
+  void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+
+  /*!
+   * \brief Print the current step as equivalent python schedule API.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \return Python schedule code.
+   */
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+
+  static constexpr const char* record_prefix_str = "SA";
+
+  static constexpr const char* _type_key = "auto_scheduler.StorageAlignStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(StorageAlignStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to StorageAlignStepNode.
+ * \sa StorageAlignStepNode
+ */
+class StorageAlignStep : public Step {
+ public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to be aligned.
+   * \param iter_id The index of the iterator to be aligned.
+   * \param factor The factor in alignment specification.
+   * \param offset The offset in the alignment specification.
+   */
+  StorageAlignStep(int stage_id, int iter_id, int factor, int offset);
+
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit StorageAlignStep(dmlc::JSONReader* reader);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(StorageAlignStep, Step, StorageAlignStepNode);
 };
 
 /********** Steps working on multiple stages **********/
@@ -832,7 +957,7 @@ class ComputeRootStep : public Step {
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeRootStep, Step, ComputeRootStepNode);
 };
 
-/********** Primitives adding new stages **********/
+/********** Steps adding new stages **********/
 
 /*!
  * \brief Cache read step that corresponds to te::Schedule::cache_read.
@@ -974,6 +1099,74 @@ class CacheWriteStep : public Step {
   explicit CacheWriteStep(dmlc::JSONReader* reader);
 
   TVM_DEFINE_OBJECT_REF_METHODS(CacheWriteStep, Step, CacheWriteStepNode);
+};
+
+/*! \brief Reduction factor step that corresponds to te::Schedule::rfactor */
+class RfactorStepNode : public StepNode {
+ public:
+  /*! \brief The index of the iterator to be factored. */
+  int iter_id;
+  /*! \brief The position where the new iterator is placed. */
+  int factor_iter_id;
+
+  void WriteToRecord(dmlc::JSONWriter* writer) const final;
+
+  /*!
+   * \brief Apply the current step to State.
+   * \param state A mutable pointer to State, which will be updated.
+   * \param dag The original ComputeDAG of this state.
+   * \return The index of the new added stage.
+   */
+  int ApplyToState(State* state, const ComputeDAG& dag) const;
+
+  /*!
+   * \brief Apply the current step to tvm.schedule.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param schedule A mutable pointer to a te::Schedule.
+   * \return The output Tensors of the new added stage.
+   */
+  Array<te::Tensor> ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                                    te::Schedule* schedule) const;
+
+  /*!
+   * \brief Print the current step as equivalent python schedule API.
+   * \param stages The `te::Stage`s used in TVM scheduler applying.
+   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param schedule A mutable pointer to a te::Schedule.
+   * \return Python schedule code.
+   */
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                          te::Schedule* schedule) const;
+
+  static constexpr const char* record_prefix_str = "RF";
+
+  static constexpr const char* _type_key = "auto_scheduler.RfactorStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(RfactorStepNode, Object);
+};
+
+/*!
+ * \brief Managed reference to RfactorStepNode.
+ * \sa RfactorStepNode
+ */
+class RfactorStep : public Step {
+ public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the stage to be factored.
+   * \param iter_id The index of the iterator to be factored.
+   * \param factor_iter_id The position where the new iterator is placed.
+   */
+  RfactorStep(int stage_id, int iter_id, int factor_iter_id);
+
+  /*!
+   * \brief The constructor used to read a step record from JSONReader and create the
+   * corresponding step.
+   * \param reader The input JSONReader.
+   */
+  explicit RfactorStep(dmlc::JSONReader* reader);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(RfactorStep, Step, RfactorStepNode);
 };
 
 }  // namespace auto_scheduler

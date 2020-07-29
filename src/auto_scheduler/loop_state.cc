@@ -247,6 +247,13 @@ Iterator State::fuse(int stage_id, const Array<Iterator>& iters) {
   return step->ApplyToState(this);
 }
 
+void State::pragma(int stage_id, const Iterator& it, const String& pragma_type) {
+  const Stage& stage = operator->()->stages[stage_id];
+  PragmaStep step = PragmaStep(stage_id, GetIndex(stage->iters, it), pragma_type);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this);
+}
+
 void State::reorder(int stage_id, const Array<Iterator>& order) {
   const Stage& stage = operator->()->stages[stage_id];
   CHECK_EQ(order.size(), stage->iters.size()) << "The order of all iterators "
@@ -287,6 +294,13 @@ Array<Iterator> State::follow_fused_split(int stage_id, const Iterator& it,
   return step->ApplyToState(this);
 }
 
+void State::storage_align(int stage_id, const Iterator& it, int factor, int offset) {
+  const Stage& stage = operator->()->stages[stage_id];
+  StorageAlignStep step = StorageAlignStep(stage_id, GetIndex(stage->iters, it), factor, offset);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this);
+}
+
 void State::compute_at(int stage_id, int target_stage_id, const Iterator& target_iter) {
   const Stage& target_stage = operator->()->stages[target_stage_id];
   ComputeAtStep step =
@@ -316,6 +330,13 @@ int State::cache_read(int stage_id, const String& scope_name,
 
 int State::cache_write(int stage_id, const String& scope_name, const ComputeDAG& dag) {
   CacheWriteStep step = CacheWriteStep(stage_id, scope_name);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this, dag);
+}
+
+int State::rfactor(int stage_id, const Iterator& it, int factor_iter_id, const ComputeDAG& dag) {
+  const Stage& stage = operator->()->stages[stage_id];
+  RfactorStep step = RfactorStep(stage_id, GetIndex(stage->iters, it), factor_iter_id);
   CopyOnWrite()->transform_steps.push_back(step);
   return step->ApplyToState(this, dag);
 }
@@ -460,6 +481,12 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateFuse")
       return Array<ObjectRef>{state, res};
     });
 
+TVM_REGISTER_GLOBAL("auto_scheduler.StatePragma")
+    .set_body_typed([](State state, int stage_id, const Iterator& it, const String& pragma_type) {
+      state.pragma(stage_id, it, pragma_type);
+      return state;
+    });
+
 TVM_REGISTER_GLOBAL("auto_scheduler.StateReorder")
     .set_body_typed([](State state, int stage_id, const Array<Iterator>& order) {
       state.reorder(stage_id, order);
@@ -486,6 +513,12 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateFollowFusedSplit")
       const auto& res =
           state.follow_fused_split(stage_id, it, src_step_ids, level, factor_or_nparts);
       return Array<ObjectRef>{state, Array<Iterator>(res)};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateStorageAlign")
+    .set_body_typed([](State state, int stage_id, const Iterator& it, int factor, int offset) {
+      state.storage_align(stage_id, it, factor, offset);
+      return state;
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.StateComputeAt")
@@ -518,6 +551,13 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateCacheWrite")
     .set_body_typed([](State state, int stage_id, const String& scope_name,
                        const ComputeDAG& task_dag) {
       int res = state.cache_write(stage_id, scope_name, task_dag);
+      return Array<ObjectRef>{state, Integer(res)};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateRfactor")
+    .set_body_typed([](State state, int stage_id, const Iterator& it, int factor_iter_id,
+                       const ComputeDAG& dag) {
+      int res = state.rfactor(stage_id, it, factor_iter_id, dag);
       return Array<ObjectRef>{state, Integer(res)};
     });
 
