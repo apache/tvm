@@ -62,8 +62,9 @@ struct Diagnostic {
   /*! \brief The diagnostic message. */
   std::string message;
 
+  /*! \brief A diagnostic for a single character token. */
   Diagnostic(int line, int column, const std::string& message)
-      : level(DiagnosticLevel::Error), span(SourceName(), line, column), message(message) {}
+      : level(DiagnosticLevel::Error), span(SourceName(), line, column, line, column + 1), message(message) {}
 
   Diagnostic(DiagnosticLevel level, Span span, const std::string& message)
     : level(level), span(span), message(message) {}
@@ -97,6 +98,12 @@ struct DiagnosticBuilder {
   /*! \brief The column number. */
   int column;
 
+   /*! \brief The line number. */
+  int end_line;
+
+  /*! \brief The column number. */
+  int end_column;
+
   template <typename T>
   DiagnosticBuilder& operator<<(const T& val) {  // NOLINT(*)
     stream_ << val;
@@ -110,7 +117,8 @@ struct DiagnosticBuilder {
     : level(level), source_name(source_name), line(line), column(column) {}
 
   operator Diagnostic() {
-    return Diagnostic(this->level, Span(this->source_name, this->line, this->column), this->stream_.str());
+    auto span = Span(this->source_name, this->line, this->column, this->end_line, this->end_column);
+    return Diagnostic(this->level, span, this->stream_.str());
   }
 
  private:

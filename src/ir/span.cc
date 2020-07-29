@@ -61,18 +61,19 @@ TVM_REGISTER_NODE_TYPE(SourceNameNode)
       return static_cast<const SourceNameNode*>(n)->name;
     });
 
-Span::Span(SourceName source, int lineno, int col_offset) {
+Span::Span(SourceName source, int line, int column, int end_line, int end_column) {
   auto n = make_object<SpanNode>();
   n->source = std::move(source);
-  n->line = lineno;
-  n->column = col_offset;
+  n->line = end_line;
+  n->column = end_column;
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(SpanNode);
 
-TVM_REGISTER_GLOBAL("ir.Span").set_body_typed([](SourceName source, int lineno, int col_offset) {
-  return Span(source, lineno, col_offset);
+TVM_REGISTER_GLOBAL("ir.Span")
+.set_body_typed([](SourceName source, int line, int column, int end_line, int end_column) {
+  return Span(source, line, column, end_line, end_column);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
