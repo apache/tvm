@@ -120,10 +120,10 @@ else(MSVC)
     set(CMAKE_C_FLAGS "-O2 -Wall -fPIC ${CMAKE_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC ${CMAKE_CXX_FLAGS}")
     set(CMAKE_CUDA_FLAGS "-O2 -Xcompiler=-Wall -Xcompiler=-fPIC ${CMAKE_CUDA_FLAGS}")
+    set(TVM_VISIBILITY_FLAG "")
     if (HIDE_PRIVATE_SYMBOLS)
       message(STATUS "Hide private symbols...")
-      set(CMAKE_C_FLAGS "-fvisibility=hidden ${CMAKE_C_FLAGS}")
-      set(CMAKE_CXX_FLAGS "-fvisibility=hidden ${CMAKE_CXX_FLAGS}")
+      set(TVM_VISIBILITY_FLAG "-fvisibility=hidden")
     endif(HIDE_PRIVATE_SYMBOLS)
   endif ()
   if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND
@@ -347,18 +347,16 @@ else()
   set(CMAKE_CUDA_STANDARD 14)
 endif()
 
-add_library(tvm_static STATIC ${COMPILER_SRCS} ${RUNTIME_SRCS})
-add_library(tvm_topi_static STATIC ${TOPI_SRCS})
-add_library(tvm_runtime_static STATIC ${RUNTIME_SRCS})
+add_library(tvm_objs OBJECT ${COMPILER_SRCS} ${RUNTIME_SRCS})
+add_library(tvm_topi_objs OBJECT ${TOPI_SRCS})
+add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 
-file(WRITE empty.cc "")
-
-add_library(tvm SHARED empty.cc)
-target_link_libraries(tvm tvm_static)
-add_library(tvm_topi SHARED empty.cc)
-target_link_libraries(tvm_topi tvm_topi_static)
-add_library(tvm_runtime SHARED empty.cc)
-target_link_libraries(tvm_runtime tvm_runtime_static)
+add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs>)
+set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
+add_library(tvm_topi SHARED $<TARGET_OBJECTS:tvm_topi_objs>)
+set_property(TARGET tvm_topi APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
+add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs>)
+set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
 
 
 if(USE_CPP_RPC)
@@ -367,28 +365,28 @@ endif()
 
 if(USE_RELAY_DEBUG)
   message(STATUS "Building Relay in debug mode...")
-  set_target_properties(tvm_static PROPERTIES COMPILE_DEFINITIONS "USE_RELAY_DEBUG")
-  set_target_properties(tvm_static PROPERTIES COMPILE_DEFINITIONS "DMLC_LOG_DEBUG")
+  set_target_properties(tvm_objs PROPERTIES COMPILE_DEFINITIONS "USE_RELAY_DEBUG")
+  set_target_properties(tvm_objs PROPERTIES COMPILE_DEFINITIONS "DMLC_LOG_DEBUG")
 else()
-  set_target_properties(tvm_static PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
+  set_target_properties(tvm_objs PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
 endif(USE_RELAY_DEBUG)
 
 if(USE_FALLBACK_STL_MAP)
   message(STATUS "Building with STL Map...")
-  set_target_properties(tvm_static PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
-  set_target_properties(tvm_topi_static PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
+  set_target_properties(tvm_objs PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
+  set_target_properties(tvm_topi_objs PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
 else()
   message(STATUS "Building with TVM Map...")
-  set_target_properties(tvm_static PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
-  set_target_properties(tvm_topi_static PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
+  set_target_properties(tvm_objs PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
+  set_target_properties(tvm_topi_objs PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
 endif(USE_FALLBACK_STL_MAP)
 
 if(BUILD_FOR_HEXAGON)
   # Wrap pthread_create to allow setting custom stack size.
-  set_target_properties(tvm_runtime_static PROPERTIES LINK_FLAGS
+  set_target_properties(tvm_runtime PROPERTIES LINK_FLAGS
                         "-Wl,--wrap=pthread_create")
 
-  target_include_directories(tvm_runtime_static
+  target_include_directories(tvm_runtime
     PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/posix"
     PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/qurt"
     PUBLIC "${USE_HEXAGON_SDK}/incs"
@@ -400,32 +398,41 @@ if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
   set(THREADS_PREFER_PTHREAD_FLAG TRUE)
   find_package(Threads REQUIRED)
-  target_link_libraries(tvm_static Threads::Threads)
-  target_link_libraries(tvm_topi_static Threads::Threads)
-  target_link_libraries(tvm_runtime_static Threads::Threads)
+  target_link_libraries(tvm Threads::Threads)
+  target_link_libraries(tvm_topi Threads::Threads)
+  target_link_libraries(tvm_runtime Threads::Threads)
 endif()
 
-target_link_libraries(tvm_static ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
-target_link_libraries(tvm_topi_static tvm_static ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
-target_link_libraries(tvm_runtime_static ${TVM_RUNTIME_LINKER_LIBS})
-
-if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
-  # Note: 'target_link_options' with 'PRIVATE' keyword would be cleaner
-  # but it's not available until CMake 3.13. Switch to 'target_link_options'
-  # once minimum CMake version is bumped up to 3.13 or above.
-  target_link_libraries(tvm_static ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_link_libraries(tvm_topi_static ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_link_libraries(tvm_runtime_static ${HIDE_SYMBOLS_LINKER_FLAGS})
-endif()
+target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
 
 # Related headers
 target_include_directories(
-  tvm_static
+  tvm
   PUBLIC "topi/include")
 target_include_directories(
-  tvm_topi_static
+  tvm_objs
   PUBLIC "topi/include")
+target_include_directories(
+  tvm_topi_objs
+  PUBLIC "topi/include")
+
+set(TVM_TEST_LIBRARY_NAME tvm)
+if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  add_library(tvm_allvisible SHARED $<TARGET_OBJECTS:tvm_objs>)
+  target_include_directories(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm,INCLUDE_DIRECTORIES>")
+  target_link_libraries(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm,LINK_LIBRARIES>")
+  set(TVM_TEST_LIBRARY_NAME tvm_allvisible)
+
+set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
+  # Note: 'target_link_options' with 'PRIVATE' keyword would be cleaner
+  # but it's not available until CMake 3.13. Switch to 'target_link_options'
+  # once minimum CMake version is bumped up to 3.13 or above.
+  target_link_libraries(tvm ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm_topi ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm_runtime ${HIDE_SYMBOLS_LINKER_FLAGS})
+endif()
 
 
 # Tests
@@ -443,7 +450,7 @@ if(GTEST_INCLUDE_DIR AND GTEST_LIB)
     add_executable(${__execname} ${__srcpath})
     list(APPEND TEST_EXECS ${__execname})
     target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR})
-    target_link_libraries(${__execname} tvm_static ${GTEST_LIB} pthread dl)
+    target_link_libraries(${__execname} ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} pthread dl)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
   endforeach()
@@ -497,6 +504,6 @@ endif(INSTALL_DEV)
 
 # More target definitions
 if(MSVC)
-  target_compile_definitions(tvm_static PRIVATE -DTVM_EXPORTS)
-  target_compile_definitions(tvm_runtime_static PRIVATE -DTVM_EXPORTS)
+  target_compile_definitions(tvm_objs PRIVATE -DTVM_EXPORTS)
+  target_compile_definitions(tvm_runtime_objs PRIVATE -DTVM_EXPORTS)
 endif()
