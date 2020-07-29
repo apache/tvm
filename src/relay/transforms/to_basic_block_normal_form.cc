@@ -87,8 +87,7 @@ std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> CalcLiftedScope(const De
  * only expressions with lifted scope will be pushed to the let list.
  */
 class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
-
- using ExprSet = std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>;
+  using ExprSet = std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>;
 
  public:
   static Expr ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
@@ -259,11 +258,7 @@ Expr ToBasicBlockNormalFormAux(const Expr& e) {
   // calculate all the dependency between nodes.
   support::Arena arena;
   DependencyGraph dg = DependencyGraph::Create(&arena, e);
-  /* In order to model new subscopes created by lambda, if else and pattern matching,
-   * we also assign scope to edge as well.
-   * The scope of an edge is either the parent's scope, or a new subscope of the parent's scope.
-   *
-   * So, the scope of the whole expr is global.
+  /* The scope of the whole expr is global.
    * The scope of any subexpr, is the lowest common ancestor of all incoming edge.
    *
    * TODO: update doc
