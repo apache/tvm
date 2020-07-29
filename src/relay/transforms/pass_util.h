@@ -208,10 +208,12 @@ struct ScopeNode {
 /*! \brief Calculate the scope of nodes in the dependency graph by least common ancestor.
  *
  *  \param dg the input dependency graph
- *
- *  \return the node -> scope mapping for all nodes.
+ *  \param expr_scope the output node -> scope mapping for all nodes.
+ *  \param lifted_exprs the output set of expressions whose scope is lifted due to dependency
  */
-std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGraph& dg);
+void CalcScope(const DependencyGraph& dg,
+               std::unordered_map<DependencyGraph::Node*, Scope>* expr_scope,
+               std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>* lifted_exprs);
 
 /*! \brief find the least common ancestor of lhs scope and rhs scope.
  */

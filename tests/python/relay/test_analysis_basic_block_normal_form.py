@@ -121,9 +121,33 @@ def test_if2():
         return func
     assert check_basic_block_normal_form(valid())
 
+def test_func():
+    x = relay.var('x', shape=(1,), dtype='float32')#, a)
+    y = relay.var('y', shape=(1,), dtype='float32')#, a)
+    z = relay.var('z', shape=(1,), dtype='float32')#, a)
+    x2 = relay.add(x, x)
+    func_a = relay.Function([y], relay.add(x2, y)) #, a, [a])
+    func_b = relay.Function([z], relay.add(x2, z)) #, a, [a])
+    body = relay.Tuple([func_a, func_b])
+    body = relay.Function([x], body)
+    """
+    fn (%x: Tensor[(1), float32]) {
+      %1 = fn (%y: Tensor[(1), float32]) {
+        %0 = add(%x, %x);
+        add(%0, %y)
+      };
+      %2 = fn (%z: Tensor[(1), float32]) {
+        add(%0, %z)
+      };
+      (%1, %2)
+    }
+    """
+    assert not check_basic_block_normal_form(body)
+
 
 if __name__ == '__main__':
     test_one_block()
     test_let()
     test_if()
     test_if2()
+    test_func()

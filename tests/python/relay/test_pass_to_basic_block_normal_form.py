@@ -476,7 +476,74 @@ def test_if():
     assert tvm.ir.structural_equal(bblock, expected_bblock)
     assert check_basic_block_normal_form(bblock)
 
+def test_higher_order_return():
+    x = relay.var('x', shape=(1,), dtype='float32')#, a)
+    y = relay.var('y', shape=(1,), dtype='float32')#, a)
+    z = relay.var('z', shape=(1,), dtype='float32')#, a)
+    x2 = relay.add(x, x)
+    func_a = relay.Function([y], relay.add(x2, y)) #, a, [a])
+    func_b = relay.Function([z], relay.add(x2, z)) #, a, [a])
+    body = relay.Tuple([func_a, func_b])
+    body = relay.Function([x], body)
+    """
+    fn (%x: Tensor[(1), float32]) {
+      %1 = fn (%y: Tensor[(1), float32]) {
+        %0 = add(%x, %x);
+        add(%0, %y)
+      };
+      %2 = fn (%z: Tensor[(1), float32]) {
+        add(%0, %z)
+      };
+      (%1, %2)
+    }
+    """
+    assert not check_basic_block_normal_form(body)
+
+    bblock = run_opt_pass(body, transform.ToBasicBlockNormalForm())
+    print('body=')
+    print(body)
+    print('bblock=')
+    print(bblock)
+    assert check_basic_block_normal_form(bblock)
+
+
+def test_higher_order_nested():
+    x = relay.var('x', dtype='float32', shape=(1,))
+    s = relay.var('s', dtype='float32', shape=(1,))
+    shared = relay.add(s, s)
+    func_true = relay.Function([x], relay.add(x, shared))
+    choice_t = relay.FuncType([], relay.scalar_type('bool'))
+    f = relay.Var('f', choice_t)
+    z = relay.Var('z')
+    body = relay.If(f(), func_true, relay.Function([z], relay.add(z, shared)))
+    top = relay.Function([f, s], body)
+    assert not check_basic_block_normal_form(top)
+    """
+    fn (%f: fn () -> bool, %s: Tensor[(1), float32]) {
+      %0 = %f();
+      if (%0) {
+        fn (%x: Tensor[(1), float32]) {
+          %1 = add(%s, %s);
+          add(%x, %1)
+        }
+      } else {
+        fn (%z) {
+          add(%z, %1)
+        }
+      }
+    }
+    """
+
+    bblock = run_opt_pass(top, transform.ToBasicBlockNormalForm())
+    print('top=')
+    print(top)
+    print('bblock=')
+    print(bblock)
+    assert check_basic_block_normal_form(bblock)
+
 if __name__ == '__main__':
+    test_higher_order_return()
+    test_higher_order_nested()
     test_let()
     test_no_explicit_bind()
     test_nested_if()
