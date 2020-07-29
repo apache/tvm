@@ -217,7 +217,6 @@ std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGrap
  */
 Scope LCA(Scope lhs, Scope rhs);
 
-
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_TRANSFORMS_PASS_UTIL_H_
