@@ -327,7 +327,6 @@ class State:
                                                      iterator, lengths, inner_to_outer)
         return res
 
-
     def follow_split(self, stage, iterator, src_step_id, n_split):
         """ Schedule primitive extends to split step.
 

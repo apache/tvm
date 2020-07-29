@@ -1153,7 +1153,7 @@ class RfactorStep : public Step {
  public:
   /*!
    * \brief The constructor.
-   * \param stage_id The index of the iterator to be factored.
+   * \param stage_id The index of the stage to be factored.
    * \param iter_id The index of the iterator to be factored.
    * \param factor_iter_id The position where the new iterator is placed.
    */
