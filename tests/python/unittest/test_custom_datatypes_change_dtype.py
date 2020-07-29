@@ -153,7 +153,7 @@ def setup():
                 "llvm",
                 "posit8",
                 intrinsic_name="tanh")
-    # TODO(gus) I think this is right
+    # TODO(gus) Not sure if correct
     register_min_func(lambda num_bits: -64, "posit8")
 
     register("posit16", 133)
@@ -201,7 +201,7 @@ def setup():
                 "llvm",
                 "posit16",
                 intrinsic_name="tanh")
-    # TODO(gus) I think this is right
+    # TODO(gus) Not sure if correct
     register_min_func(lambda num_bits: -64, "posit16")
 
     register("noptype", 134)
