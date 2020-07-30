@@ -221,9 +221,6 @@ set(USE_VTA_TSIM OFF)
 # Whether to build VTA FPGA driver (device side only)
 set(USE_VTA_FPGA OFF)
 
-# Whether to build the example external runtime module
-set(USE_EXAMPLE_EXT_RUNTIME OFF)
-
 # Whether to build TVM with TensorFlow's compile flags.
 # This is most commonly used to ensure ABI compatibility between TVM and TF.
 set(USE_TF_COMPILE_FLAGS OFF)
