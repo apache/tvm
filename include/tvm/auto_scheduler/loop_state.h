@@ -198,7 +198,7 @@ class AttachMap : public ObjectRef {
    * \brief Find the relations of original iterators in AttachMap, and update them with the new
    * iterators. Both `stage_to_attach_iter` and `iter_to_attached_stages` will be updated.
    * \param original_iters The original IterKey.
-   * \param new_iters The new IterKey to replace the old ones.
+   * \param new_iters The new IterKey for replacing the old ones.
    */
   void UpdateIters(const std::vector<IterKey>& original_iters,
                    const std::vector<IterKey>& new_iters);
