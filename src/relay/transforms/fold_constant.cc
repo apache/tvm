@@ -288,7 +288,7 @@ class ConstantFolder : public ExprMutator {
     ctx.device_id = 0;
     runtime::NDArray value;
     DLDataType cdtype = DataType::Int(32);
-    value = runtime::NDArray::Empty({1}, cdtype, ctx);
+    value = runtime::NDArray::Empty({}, cdtype, ctx);
     int32_t* data = static_cast<int32_t*>(value->data);
     if (ishape.size() == 0) {
       *data = 0;

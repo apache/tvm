@@ -1029,7 +1029,7 @@ def test_ndarray_size():
             print("Skip because %s is not enabled" % device)
             return
         tvm_input = tvm.nd.array(input, ctx=ctx)
-        tvm_output = tvm.nd.empty((1,), ctx=ctx, dtype=B.dtype)
+        tvm_output = tvm.nd.empty((), ctx=ctx, dtype=B.dtype)
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.testing.get_injective_schedule(device)(B)

@@ -175,7 +175,7 @@ def test_fold_ndarray_size():
     def expected(dtype):
         x = relay.var("x", shape=c_shape, dtype="float32")
         y = relay.var("y", shape=c_shape, dtype="float32")
-        z = relay.const([np.size(np.zeros(c_shape))], dtype=dtype)
+        z = relay.const(np.size(np.zeros(c_shape)), dtype=dtype)
         func = relay.Function([x, y], z)
         return func
 
