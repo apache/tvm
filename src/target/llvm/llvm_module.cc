@@ -190,7 +190,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     auto target = Target::Create(target_str);
     bool system_lib = target->GetAttr<Bool>("system-lib").value_or(Bool(false));
     bool target_c_runtime = (target->GetAttr<String>("runtime").value() == kTvmRuntimeCrt);
-    LOG(INFO) << "target runtime" << target->GetAttr<String>("runtime").value();
     ctx_ = std::make_shared<llvm::LLVMContext>();
     std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(tm_.get());
 

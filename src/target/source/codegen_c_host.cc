@@ -48,7 +48,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts) {
 
 void CodeGenCHost::AddFunction(const PrimFunc& f) {
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  CHECK(global_symbol.defined()) << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+  CHECK(global_symbol.defined()) << "CodeGenCHost: Expect PrimFunc to have the global_symbol attribute";
   function_names_.emplace_back(global_symbol.value());
 
   CodeGenC::AddFunction(f);
