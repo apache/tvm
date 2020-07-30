@@ -1534,8 +1534,8 @@ def test_forward_npi_binary(data_shape,dtype,target, ctx, kind):
 
 @pytest.mark.parametrize("data_shape", [(2,2,2),(2,7,2),(2,2,2,1,2,3,1),(1,8),(2,2),(1,3)])
 @pytest.mark.parametrize("dtype", ['float64', 'float32', 'int64', 'int32'])
-@pytest.mark.parametrize("scalar", [1.0,2.0,3.0,4.0])
 @pytest.mark.parametrize("target, ctx", ctx_list())
+@pytest.mark.parametrize("scalar", [1.0,2.0,3.0,4.0])
 @pytest.mark.parametrize("kind", ["graph", "vm", "debug"])
 def test_forward_npi_binary_scalar(data_shape,dtype,scalar,target, ctx, kind):
     ref_ops = [mx.np.power, mx.np.multiply, mx.np.add, mx.np.true_divide]
