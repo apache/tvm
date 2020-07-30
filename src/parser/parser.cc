@@ -593,7 +593,7 @@ class Parser {
       }
     } else if (required) {
       this->diag_ctx->Emit(DiagnosticBuilder(DiagnosticLevel::Error, Peek()->span)
-                           << "expected text format semantic version "
+                           << "expected text format semantic version, found a  " << PrettyPrint(Peek())
                            << "you can annotate it as #[version = \"0.0.5\"]");
     }
     return SemVer(0, 0, 5);
