@@ -79,11 +79,7 @@ def get_shape(shape):
     """Convert the shape to correct dtype and vars."""
     ret = []
     for dim in shape:
-        if isinstance(dim, tvm.tir.IntImm):
-            val = int(dim)
-            assert val <= np.iinfo(np.int32).max
-            ret.append(tvm.tir.IntImm("int32", val))
-        elif isinstance(dim, tvm.tir.Any):
+        if isinstance(dim, tvm.tir.Any):
             ret.append(te.var("any_dim", "int32"))
         else:
             ret.append(dim)
