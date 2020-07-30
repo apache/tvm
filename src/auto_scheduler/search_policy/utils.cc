@@ -160,6 +160,546 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   return tmp_s;
 }
 
+
+State FollowTiling(const State& state, int stage_id,
+                   const std::vector<int>& split_step_ids, int n_split) {
+  if (n_split < 1 || n_split > 3) {
+    LOG(FATAL) << "Invalid split parts, currently only support 1, 2 and 3";
+  }
+  // Apply up to three-level tiling structure:  space_L0, space_L1, space_L2
+  std::vector<Iterator> space_0, space_1, space_2, space_3, tmp_order;
+  Array<Iterator> split_res;
+
+  auto pop = state->stages[stage_id]->op.as<te::ComputeOpNode>();
+  CHECK(pop != nullptr);
+  const Stage& stage = state->stages[stage_id];
+  const auto& no_split_name_pair = GetNoSplitAxisAttr(stage);  // handle special split strategy
+  const std::set<std::string>& no_split_at_inner_name_set = no_split_name_pair.first;
+  const std::set<std::string>& no_split_at_outer_name_set = no_split_name_pair.second;
+  int no_split_at_inner_name_in_stage_cnt = 0;
+  int no_split_at_outer_name_in_stage_cnt = 0;
+  for (const auto& iter : state->stages[stage_id]->iters) {
+    no_split_at_inner_name_in_stage_cnt += no_split_at_inner_name_set.count(iter->name);
+    no_split_at_outer_name_in_stage_cnt += no_split_at_outer_name_set.count(iter->name);
+  }
+
+  CHECK_EQ(state->stages[stage_id]->iters.size()
+               - no_split_at_inner_name_in_stage_cnt
+               - no_split_at_outer_name_in_stage_cnt,
+           split_step_ids.size());
+
+  State tmp_s = state;
+  int ct = 0;
+  for (const auto& iter : state->stages[stage_id]->iters) {
+    if (iter->iter_kind == IteratorKind::kSpatial) {
+      // For spatial iterator, split it into multi iterators
+      if (!no_split_at_inner_name_set.count(iter->name) &&
+          !no_split_at_outer_name_set.count(iter->name)) {
+        IteratorAnnotation ann_type = iter->annotation;
+        split_res = tmp_s.follow_split(stage_id, iter, split_step_ids[ct],
+                                       n_split);
+        // Restore annotation. Move unroll and vectorize to inner, move parallel
+        // to outer
+        switch (ann_type) {
+          case IteratorAnnotation::kUnroll:
+            split_res.Set(n_split, tmp_s.unroll(stage_id, split_res[n_split]));
+            break;
+          case IteratorAnnotation::kVectorize:
+            split_res.Set(n_split, tmp_s.vectorize(stage_id, split_res[n_split]));
+            break;
+          case IteratorAnnotation::kParallel:
+            split_res.Set(0, tmp_s.parallel(stage_id, split_res[0])); break;
+          default:
+            break;
+        }
+
+        space_0.push_back(std::move(split_res[0]));
+        space_1.push_back(std::move(split_res[1]));
+        if (n_split >= 2) {
+          space_2.push_back(std::move(split_res[2]));
+          if (n_split == 3) {
+            space_3.push_back(std::move(split_res[3]));
+          }
+        }
+        ct++;
+      } else {
+        if (no_split_at_outer_name_set.count(iter->name)) {
+          space_0.push_back(iter);
+        }
+        if (no_split_at_inner_name_set.count(iter->name)) {
+          if (n_split == 1) {
+            space_1.push_back(iter);
+          } else if (n_split == 2) {
+            space_2.push_back(iter);
+          } else {
+            CHECK_EQ(n_split, 3);
+            space_3.push_back(iter);
+          }
+        }
+      }
+    } else {
+      LOG(FATAL) << "Invalid iter type: " << int(iter->iter_kind);
+    }
+  }
+
+  if (n_split == 3) {
+    ConcatenateMove(&tmp_order, &space_0, &space_1, &space_2, &space_3);
+  } else if (n_split == 2) {
+    ConcatenateMove(&tmp_order, &space_0, &space_1, &space_2);
+  } else {
+    ConcatenateMove(&tmp_order, &space_0, &space_1);
+  }
+  tmp_s.reorder(stage_id, tmp_order);
+  return tmp_s;
+}
+
+State RandomMutateTileSize(const State& old_state, SplitFactorizationMemo* split_memo,
+                           std::mt19937* random_gen, int max_innermost_split_factor) {
+  State tmp_s = old_state;
+
+  // Extract all SplitStep
+  std::vector<size_t> split_step_ids;
+  for (size_t i = 0; i < tmp_s->transform_steps.size(); ++i) {
+    if (auto ps = tmp_s->transform_steps[i].as<SplitStepNode>()) {
+      if (ps->extent.defined() && ps->extent->IsInstance<IntImmNode>() &&
+          GetIntImm(ps->lengths.back().value()) <= max_innermost_split_factor) {
+        split_step_ids.push_back(i);
+      }
+    }
+  }
+  if (split_step_ids.empty()) {
+    return State();
+  }
+
+  // Find a SplitStep with extent != 1
+  int retry_ct = 0;
+  int64_t extent = 1;
+  int step_id;
+  const SplitStepNode* ps;
+
+  do {
+    step_id = split_step_ids[(*random_gen)() % split_step_ids.size()];
+    ps = tmp_s->transform_steps[step_id].as<SplitStepNode>();
+    CHECK(ps != nullptr);
+    extent = GetIntImm(ps->extent.value());
+    retry_ct += 1;
+  } while (retry_ct < static_cast<int>(split_step_ids.size()) << 2 &&
+           (extent == 1 || extent == 0));
+
+  if (extent == 0 || extent == 1) {
+    return State();
+  }
+
+  // Mutate tile size
+  std::vector<int> lengths(ps->lengths.size() + 1, 1);
+  for (int i = 0; i < static_cast<int>(ps->lengths.size()); ++i) {
+    lengths[i + 1] = GetIntImm(ps->lengths[i].value());
+  }
+  lengths[0] = extent / ElementProduct(lengths);
+
+  std::vector<int> random_perm;
+  RandomPermutation(lengths.size(), &random_perm, random_gen);
+
+  for (size_t i = 0; i < random_perm.size(); ++i) {
+    size_t src_idx = random_perm[i];
+    int length = lengths[src_idx];
+
+    if (length == 1) {
+      continue;
+    }
+
+    // Divide one factor from lengths[src_idx] and multiply it to lengths[dst_idx]
+    size_t dst_idx = random_perm[(i + 1) % random_perm.size()];
+
+    const std::vector<int>& factors = split_memo->GetFactors(length);
+    CHECK_GE(factors.size(), 1);
+
+    int divide_factor;
+    if (dst_idx == lengths.size() - 1) {
+      // Maintain the restriction of hardware_params.max_innermost_split_factor
+      int max_factor_index = static_cast<int>(factors.size()) - 1;
+      for (; max_factor_index >= 1; max_factor_index--) {
+        if (factors[max_factor_index] * lengths[dst_idx] <= max_innermost_split_factor) {
+          break;
+        }
+      }
+      if (max_factor_index == 0) {
+        // failed on this dst_idx, try next one
+        continue;
+      }
+      divide_factor = factors[1 + (*random_gen)() % (max_factor_index)];
+    } else {
+      divide_factor = factors[1 + (*random_gen)() % (factors.size() - 1)];
+    }
+
+    Array<Optional<Integer>> new_lengths;
+    for (size_t j = 1; j < lengths.size(); ++j) {
+      if (j == src_idx) {
+        new_lengths.push_back(Integer(lengths[j] / divide_factor));
+      } else if (j == dst_idx) {
+        new_lengths.push_back(Integer(lengths[j] * divide_factor));
+      } else {
+        new_lengths.push_back(Integer(lengths[j]));
+      }
+    }
+
+    CHECK_LE(GetIntImm(new_lengths.back().value()), max_innermost_split_factor);
+
+    auto pstate = tmp_s.CopyOnWrite();
+    pstate->transform_steps.Set(step_id,
+        SplitStep(ps->stage_id, ps->iter_id, ps->extent, new_lengths, ps->inner_to_outer));
+    return tmp_s;
+  }
+
+  return State();
+}
+
+State RandomMutateMaxUnrollStep(const State& old_state, std::mt19937* random_gen,
+    const std::vector<int>& auto_unroll_configs) {
+  State tmp_s = old_state;
+
+  // Extract all auto_unroll_max_step pragma steps.
+  std::vector<int> annotate_steps;
+  for (size_t i = 0; i < old_state->transform_steps.size(); ++i) {
+    if (auto ps = tmp_s->transform_steps[i].as<PragmaStepNode>()) {
+      if (std::string(ps->pragma_type).find("auto_unroll_max_step") != std::string::npos) {
+        annotate_steps.push_back(i);
+      }
+    }
+  }
+  if (annotate_steps.empty()) {
+    return State();
+  }
+
+  // Randomly pick one step.
+  auto step_id = annotate_steps[(*random_gen)() % annotate_steps.size()];
+  auto ps = tmp_s->transform_steps[step_id].as<PragmaStepNode>();
+  auto val = std::to_string(auto_unroll_configs[(*random_gen)() % auto_unroll_configs.size()]);
+
+  auto pstate = tmp_s.CopyOnWrite();
+  pstate->transform_steps.Set(step_id, PragmaStep(
+      ps->stage_id, ps->iter_id, std::string("auto_unroll_max_step") + "$" + val));
+  return tmp_s;
+}
+
+State RandomMutateParallel(const State& old_state, std::mt19937* random_gen,
+                           const SearchTask& task, int verbose) {
+  // To make this mutation simple but promising, we only focus on a specific case that
+  // parallel was added to the outermost loop and the loop is generated by fusing other loops.
+  // In short, we mutate the step pattern of (fuse -> parallel).
+
+  // Extract all parallel steps.
+  std::vector<int> parallel_steps;
+  for (size_t s = 0; s < old_state->transform_steps.size(); ++s) {
+    auto ps = old_state->transform_steps[s].as<AnnotationStepNode>();
+    if (!ps || ps->annotation != IteratorAnnotation::kParallel) {
+      continue;
+    }
+    parallel_steps.push_back(s);
+  }
+  if (parallel_steps.empty()) {
+    StdCout(verbose) << "Parallel mutation failed: No parallel annotations" << std::endl;
+    return State();
+  }
+
+  // Randomly pick one step.
+  int retry_ct = 0;
+  size_t step_id = 0;
+  size_t stage_id = 0;
+  do {
+    step_id = parallel_steps[(*random_gen)() % parallel_steps.size()];
+    auto step = old_state->transform_steps[step_id].as<AnnotationStepNode>();
+    stage_id = step->stage_id;
+
+    // Check assumptions.
+    auto iter_id = step->iter_id;
+    if (iter_id == 0 && step_id > 0 && old_state->transform_steps[step_id - 1].as<FuseStepNode>()) {
+      break;
+    }
+    retry_ct++;
+  } while (retry_ct <= 3);
+
+  if (retry_ct > 3) {
+    StdCout(verbose) << "Parallel mutation failed: No valid parallel annotations" << std::endl;
+    return State();
+  }
+
+  // Replay a new state until the picked fuse step.
+  State tmp_s = task->compute_dag->init_state;
+  for (size_t s = 0; s < step_id - 1; ++s) {
+    auto step = old_state->transform_steps[s];
+    tmp_s.CopyOnWrite()->transform_steps.push_back(step);
+    StepApplyToState(step, &tmp_s, task->compute_dag);
+  }
+
+  // Determine the fuse direction.
+  // 0: fuse less; 1: fuse more.
+  auto fuse_step = old_state->transform_steps[step_id - 1].as<FuseStepNode>();
+  Array<Integer> fused_ids = fuse_step->fused_ids;
+  std::vector<double> fuse_dir = {0.5, 1.0};
+
+  // The case we can only fuse more.
+  if (fused_ids.size() == 1) {
+    fuse_dir[0] = 0.0;
+  }
+
+  // The cases that we cannot fuse the next iters.
+  if (old_state->attach_map->iter_to_attached_stages.count(std::make_pair(stage_id, 0)) > 0 ||
+      tmp_s->stages[stage_id]->iters.size() == fused_ids.size() ||
+      tmp_s->stages[stage_id]->iters[1]->iter_kind == IteratorKind::kReduction) {
+    // In case we cannot fuse less neither, give up.
+    if (fuse_dir[0] == 0.0) {
+      StdCout(verbose) << "Parallel mutation failed: Cannot fuse more or less iters" << std::endl;
+      return State();
+    }
+    fuse_dir[0] = 1.0;
+  }
+
+  int iter_offset = 0;
+  if (RandomChoose(fuse_dir, random_gen) == 0) {
+    StdCout(verbose) << "Parallel mutation: release iter " << fused_ids.back() << std::endl;
+    fused_ids.pop_back();
+    iter_offset = 1;
+  } else {
+    StdCout(verbose) << "Parallel mutation: include iter " << fused_ids.back() + 1 << std::endl;
+    fused_ids.push_back(Integer(fused_ids.back()->value + 1));
+    iter_offset = -1;
+  }
+
+  // Replay the mutated fused and annotation step.
+  auto new_fuse_step = FuseStep(stage_id, fused_ids);
+  tmp_s.CopyOnWrite()->transform_steps.push_back(new_fuse_step);
+  StepApplyToState(new_fuse_step, &tmp_s, task->compute_dag);
+  tmp_s.CopyOnWrite()->transform_steps.push_back(old_state->transform_steps[step_id]);
+  StepApplyToState(old_state->transform_steps[step_id], &tmp_s, task->compute_dag);
+
+  // Replay the rest steps.
+  for (size_t s = step_id + 1; s < old_state->transform_steps.size(); ++s) {
+    auto step = old_state->transform_steps[s];
+    if (step->stage_id == static_cast<int>(stage_id)) {
+      // Since we change the loop structure, iter ID in later steps to the same stage
+      // has to be adjusted.
+      auto ps = step.as<AnnotationStepNode>();
+      if (ps) {
+        if (ps->iter_id == 0) {
+          step = AnnotationStep(ps->stage_id, 0, ps->annotation);
+        } else {
+          CHECK_LE(ps->iter_id + iter_offset, tmp_s->stages[stage_id]->iters.size());
+          step = AnnotationStep(ps->stage_id, ps->iter_id + iter_offset, ps->annotation);
+        }
+      } else {
+        StdCout(verbose) << "Parallel mutation: Cannot apply " << step << " after fuse"
+                         << std::endl;
+        return State();
+      }
+    }
+    tmp_s.CopyOnWrite()->transform_steps.push_back(step);
+    StepApplyToState(step, &tmp_s, task->compute_dag);
+  }
+  return tmp_s;
+}
+
+State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_gen,
+                                  const SearchTask& task) {
+  // Extract all compute_at steps.
+  std::vector<int> compute_at_steps;
+  for (size_t s = 0; s < old_state->transform_steps.size(); ++s) {
+    if (auto ps = old_state->transform_steps[s].as<ComputeAtStepNode>()) {
+      if (IsTiled(old_state->stages[ps->stage_id])) {
+        continue;
+      }
+
+      if (NeedsMultilevelTiling(task, old_state, ps->stage_id)) {
+        continue;
+      }
+      compute_at_steps.push_back(s);
+    }
+  }
+  if (compute_at_steps.empty()) {
+    return State();
+  }
+
+  // Randomly pick one step
+  size_t step_id = compute_at_steps[(*random_gen)() % compute_at_steps.size()];
+  auto ps = old_state->transform_steps[step_id].as<ComputeAtStepNode>();
+  CHECK(ps != nullptr);
+
+  // Randomly pick one tile level
+  int new_compute_at_stage_id;
+  int new_compute_at_iter_id;
+
+  // Copied from InitPopulationChangeComputeLocation
+  {
+    const std::set<int>& consumers = GetConsumers(task, old_state, ps->stage_id);
+    if (consumers.empty()) {
+      return State();
+    }
+
+    int target_stage_id;
+    if (consumers.size() == 1) {
+      target_stage_id = *consumers.begin();
+    } else {
+      // check all consumers share a common root
+      int common_root_id = -1;
+      bool mismatch = false;
+      for (const auto& consumer_stage_id : consumers) {
+        int root_id = -1;
+        if ((old_state)->stages[consumer_stage_id]->compute_at == ComputeAtKind::kRoot) {
+          root_id = consumer_stage_id;
+        } else if ((old_state)->stages[consumer_stage_id]->compute_at == ComputeAtKind::kIter) {
+          root_id = (old_state)->attach_map->stage_to_attach_iter.at(consumer_stage_id).first;
+        } else {
+          LOG(FATAL) << "Invalid case";
+        }
+
+        if (common_root_id == -1) {
+          common_root_id = root_id;
+        } else {
+          if (common_root_id != root_id) {
+            mismatch = true;
+            break;
+          }
+        }
+      }
+
+      if (mismatch) {
+        return State();
+      }
+      target_stage_id = common_root_id;
+    }
+
+    const Stage& target_stage = (old_state)->stages[target_stage_id];
+    std::set<std::string> to_unroll_name_set;
+    if (target_stage->op->attrs.count(SearchPolicyNode::always_unroll_key)) {
+      to_unroll_name_set = GetIterNameSetParam(target_stage->op->attrs,
+                                               SearchPolicyNode::always_unroll_key);
+    }
+
+    std::vector<std::pair<int, int> > candidates;
+    bool target_compute_at_other = target_stage->compute_at == ComputeAtKind::kIter;
+    bool target_is_tiled = IsTiled(target_stage);
+
+    bool visited_reduce = false;
+    // enumerate compute_at location at target_stage
+    for (size_t i = 0; i < target_stage->iters.size(); ++i) {
+      const Iterator& target_iter = target_stage->iters[i];
+      if (target_iter->iter_kind == IteratorKind::kReduction) {
+        visited_reduce = true;
+        if (!target_is_tiled) {  // do not go into reduce iter
+          break;
+        }
+      } else if (target_iter->iter_kind == IteratorKind::kSpatial) {
+        if (visited_reduce) {  // do not go into inner tile
+          break;
+        }
+      }
+
+      if (to_unroll_name_set.count(target_iter->name)) {
+        // Do not go into always unroll region
+        break;
+      }
+
+      if (GetExtent(target_iter) == 1) {  // skip iterators with length of 1
+        continue;
+      }
+      if (target_compute_at_other && target_iter->iter_kind == IteratorKind::kSpatial &&
+          StrEndsWith(target_iter->name, ".0")) {
+        // skip the first level iterators if target stage compute_at another stage
+        // In this case, the lengths of first level iterators are always one
+        continue;
+      }
+      candidates.emplace_back(target_stage_id, i);
+
+      if ((old_state)->attach_map->iter_to_attached_stages.count(
+          std::make_pair(target_stage_id, i))) {
+        break;
+      }
+    }
+
+    // if the target_stage is already compute_at another stage X, try also compute_at X
+    // We call stage X as `target_target_stage`
+    if (target_compute_at_other) {
+      int target_target_stage_id;
+      target_target_stage_id = (old_state)->attach_map->stage_to_attach_iter.at(
+          target_stage_id).first;
+      const Stage& target_target_stage = (old_state)->stages[target_target_stage_id];
+      if (target_target_stage->op->attrs.count(SearchPolicyNode::always_unroll_key)) {
+        to_unroll_name_set = GetIterNameSetParam(target_target_stage->op->attrs,
+                                                 SearchPolicyNode::always_unroll_key);
+      } else {
+        to_unroll_name_set.clear();
+      }
+
+      for (size_t i = 0; i < target_target_stage->iters.size(); ++i) {
+        const Iterator& target_target_iter = target_target_stage->iters[i];
+        if (target_target_iter->iter_kind == IteratorKind::kReduction ||
+            (old_state)->attach_map->iter_to_attached_stages.count(
+                std::make_pair(target_target_stage_id, i))) {
+          break;
+        }
+
+        if (to_unroll_name_set.count(target_target_iter->name)) {
+          // Do not go into always unroll region
+          break;
+        }
+
+        if (GetExtent(target_target_iter) == 1) {  // skip iterators with length of 1
+          continue;
+        }
+
+        candidates.emplace_back(target_target_stage_id, i);
+      }
+    }
+
+    if (candidates.empty()) {
+      return State();
+    }
+
+    int choice = (*random_gen)() % (candidates.size());
+    new_compute_at_stage_id = candidates[choice].first;
+    new_compute_at_iter_id = candidates[choice].second;
+  }
+
+  // Replay a new state.
+  State tmp_s = task->compute_dag->init_state;
+  for (size_t s = 0; s < old_state->transform_steps.size(); ++s) {
+    if (s == step_id) {
+      tmp_s.CopyOnWrite()->transform_steps.push_back(
+          ComputeAtStep(ps->stage_id, new_compute_at_stage_id, new_compute_at_iter_id));
+    } else {
+      tmp_s.CopyOnWrite()->transform_steps.push_back(old_state->transform_steps[s]);
+    }
+    try {
+      StepApplyToState(tmp_s->transform_steps.back(), &tmp_s, task->compute_dag);
+    } catch (dmlc::Error &e) {
+      return State();
+    }
+  }
+
+  return tmp_s;
+}
+
+void PruneUndefined(Array<State>* states) {
+  size_t pt = 0;
+  for (size_t i = 0; i < states->size(); ++i) {
+    if (!(*states)[i].defined()) {
+      continue;
+    }
+    if (i != pt) {
+      states->Set(pt, std::move((*states)[i]));
+    }
+    pt++;
+  }
+
+  if (pt == 0) {
+    LOG(FATAL) << "All states are undefined.";
+  } else {
+    states->resize(pt);
+  }
+}
+
+State CrossOverState(const State& p1, const State& p2) { return State(); }
+
 const Array<Array<Integer> >& SplitFactorizationMemo::GetFactorizationSchemes(int extent,
     int n_lengths, int max_innermost_factor) {
   QueryKey key = std::make_tuple(extent, n_lengths, max_innermost_factor);
@@ -168,8 +708,7 @@ const Array<Array<Integer> >& SplitFactorizationMemo::GetFactorizationSchemes(in
     return it->second;
   }
 
-  tmp_stack_.clear();
-  tmp_stack_.reserve(n_lengths);
+  tmp_stack_ = Array<Integer>(n_lengths, Integer());
   results_ = &memory_[key];
   n_lengths_ = n_lengths;
 

@@ -34,3 +34,4 @@ from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, \
 from .measure_record import RecordToFile, RecordReader, load_best, \
     load_records, save_records
 from .workload_registry import register_workload, make_workload_key
+from .cost_model import RandomModel

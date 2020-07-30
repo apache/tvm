@@ -98,6 +98,39 @@ inline void FindAndDeleteItem(std::vector<T>* array, const T& to_delete) {
   }
 }
 
+/*! \brief Compute the product of all elements in a vector */
+inline int64_t ElementProduct(const std::vector<int>& array) {
+  int64_t ret = 1;
+  for (auto x : array) {
+    ret *= x;
+  }
+  return ret;
+}
+
+/*! \brief Move elements from multiple vectors to one vector */
+template<typename T>
+std::vector<T>& ConcatenateMove(std::vector<T>* out, std::vector<T>* in) {
+  out->insert(out->end(), std::make_move_iterator(in->begin()),
+              std::make_move_iterator(in->end()));
+  return *out;
+}
+
+/*! \brief Move elements from multiple vectors to one vector */
+template<typename T, typename... Args>
+std::vector<T>& ConcatenateMove(std::vector<T>* out, std::vector<T>* first, Args... args) {
+  ConcatenateMove(out, first);
+  ConcatenateMove(out, args...);
+  return *out;
+}
+
+/*! \brief Get a random permutation of integers [0, n-1] */
+template <typename G>
+void RandomPermutation(int n, std::vector<int>* out, G* gen) {
+  out->assign(n, 0);
+  std::iota(out->begin(), out->end(), 0);
+  std::shuffle(out->begin(), out->end(), *gen);
+}
+
 /*! \brief Replace a sub-string to another sub-string in a string */
 inline void StrReplace(std::string* base, const std::string& from, const std::string& to) {
   auto pos = base->find(from);

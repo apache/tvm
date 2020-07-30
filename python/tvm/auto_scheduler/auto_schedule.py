@@ -28,9 +28,12 @@ uses cost model based evolutionary search to select schedules with the best perf
 Candidate schedules are measured against the specific hardware target.
 """
 
+import random
+
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import LocalBuilder, LocalRunner
+from .cost_model import RandomModel
 from . import _ffi_api
 
 
@@ -91,6 +94,58 @@ class EmptyPolicy(SearchPolicy):
     """
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.EmptyPolicy)
+
+
+@tvm._ffi.register_object("auto_scheduler.SketchSearchPolicy")
+class SketchSearchPolicy(SearchPolicy):
+    """  The search policy that searches in a hierarchical search space defined by sketches.
+    The policy randomly samples programs from the space defined by sketches
+    and use evolutionary search to fine-tune them.
+
+    Parameters
+    ----------
+    program_cost_model: CostModel
+        Cost model for programs
+    params: int
+        Parameters of the search policy. See `src/ansor/search_policy/sketch_search_policy.h`
+        to find the definitions. See code below to find the default values
+    seed: int
+        Random seed
+    """
+    def __init__(self,
+                 program_cost_model=None,
+                 params=None,
+                 seed=None):
+        # set default parameters
+        default_params = {
+            "eps_greedy": 0.05,
+
+            'evolutionary_search_population': 2048,
+            'evolutionary_search_num_iters': 10,
+            "evolutionary_search_mutation_prob": 0.85,
+            "evolutionary_search_use_measured_ratio": 0.2,
+
+            'cpu_multi_level_tiling_structure': 'SSRSRS',
+            'gpu_multi_level_tiling_structure': 'SSSRRSRS',
+
+            'disable_change_compute_location': 0,
+        }
+
+        program_cost_model = program_cost_model if program_cost_model else RandomModel()
+
+        if params is None:
+            params = default_params
+        else:
+            for key, value in default_params.items():
+                if key not in params:
+                    params[key] = value
+
+        self.__init_handle_by_constructor__(
+            _ffi_api.SketchSearchPolicy, program_cost_model, params,
+            seed or random.randint(1, 1 << 30))
+
+    def generate_sketches(self, task):
+        return _ffi_api.SketchSearchPolicyGenerateSketches(self, task)
 
 
 @tvm._ffi.register_object("auto_scheduler.TuningOptions")

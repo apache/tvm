@@ -196,7 +196,7 @@ void SketchSearchPolicyNode::SearchOneRound(Array<State>* best_states,
   // Generate sketches
   Array<State> sketches = GenerateSketches();
 
-  if (GetBoolEnv("auto_scheduler_DEBUG_SKETCH_GENERATION")) {
+  if (GetBoolEnv("AUTO_SCHEDULER_DEBUG_SKETCH_GENERATION")) {
     PrintAllStates(sketches);
     exit(0);
   }
@@ -664,6 +664,7 @@ int InitPopulationFillTileSize(const SketchSearchPolicyNode& policy,
           ps->inner_to_outer));
     }
   }
+  state->CopyOnWrite()->concrete = true;
 
   return 0;
 }
@@ -1308,7 +1309,7 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SketchSearchPolicy")
 });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchSearchPolicyGenerateSketches")
-.set_body_typed([](SketchSearchPolicy policy, SearchTask task){
+.set_body_typed([](SketchSearchPolicy policy, SearchTask task) {
   policy->cur_task = std::move(task);
   return Array<State>(policy->GenerateSketches());
 });

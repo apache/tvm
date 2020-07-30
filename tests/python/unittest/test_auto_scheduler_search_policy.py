@@ -43,7 +43,7 @@ def search_common(workload=matmul_auto_scheduler_test, target="llvm",
         log_file = fp.name
 
         tuning_options = auto_scheduler.TuningOptions(num_measure_trials=num_measure_trials, runner=runner,
-                                             verbose=0,
+                                             verbose=1,
                                              measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
                                              pre_search_callbacks=pre_search_callbacks)
         sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options)
@@ -88,5 +88,18 @@ def test_workload_registry_search_basic():
     t.start()
     t.join()
 
+
+def test_sketch_search_policy_basic():
+    if not tvm.runtime.enabled("llvm"):
+        return
+    # wrap the search in a new thread to avoid the conflict
+    # between python's multiprocessing and tvm's thread pool
+    t = PropagatingThread(target=search_common,
+                          kwargs={'seed': 944563397, 'search_policy': auto_scheduler.SketchSearchPolicy()})
+    t.start()
+    t.join()
+
+
 if __name__ == "__main__":
-    test_workload_registry_search_basic()
+    # test_workload_registry_search_basic()
+    test_sketch_search_policy_basic()
