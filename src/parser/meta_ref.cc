@@ -70,7 +70,7 @@ Expr MetaRef(std::string type_key, uint64_t node_index) {
 struct MetaRefExpander : public ExprMutator {
   MetaTable table;
 
-  MetaRefExpander(const MetaTable& table) : table(table) {}
+  explicit MetaRefExpander(const MetaTable& table) : table(table) {}
 
   Expr VisitExpr_(const CallNode* call) final {
     if (auto op_node = call->op.as<OpNode>()) {

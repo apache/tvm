@@ -29,6 +29,8 @@
 
 #include <fstream>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace tvm {
 namespace parser {

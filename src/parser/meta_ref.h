@@ -26,6 +26,7 @@
 #define TVM_PARSER_META_REF_H_
 
 #include <tvm/ir/attrs.h>
+#include <tvm/relay/function.h>
 #include <tvm/relay/expr.h>
 
 #include <string>
@@ -75,7 +76,7 @@ struct MetaRefAttrs : public tvm::AttrsNode<MetaRefAttrs> {
  */
 Expr MetaRef(std::string type_key, uint64_t node_index);
 
-Function ExpandMetaRefs(const MetaTable& meta_table, const Function& mod);
+relay::Function ExpandMetaRefs(const MetaTable& meta_table, const relay::Function& mod);
 IRModule ExpandMetaRefs(const MetaTable& meta_table, const IRModule& mod);
 
 }  // namespace parser
