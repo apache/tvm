@@ -162,7 +162,7 @@ struct DiagnosticContext {
   // format errors.
   void Render(std::ostream& ostream) {
     for (auto diagnostic : diagnostics) {
-      source.ReportAt(ostream, diagnostic.span->line, diagnostic.span->column, diagnostic.message);
+      source.ReportAt(ostream, diagnostic.span, diagnostic.message);
     }
 
     if (diagnostics.size()) {

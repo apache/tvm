@@ -60,11 +60,12 @@ struct Source {
    * The error is written directly to the `out` std::ostream.
    *
    * \param out The output ostream.
-   * \param line The line at which to report a diagnostic.
-   * \param line The column at which to report a diagnostic.
+   * \param span The span to report the error at.
    * \param msg The message to attach.
+   *
+   * TODO(@jroesch): replace the ostream with an interface for rendering errors.
    */
-  TVM_DLL void ReportAt(std::ostream& out, int line, int column, const std::string& msg) const;
+  TVM_DLL void ReportAt(std::ostream& out, const Span& span, const std::string& msg) const;
 };
 
 /*!
