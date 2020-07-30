@@ -168,6 +168,12 @@ inline bool StrStartsWith(const String& a, const String& b) {
   return std::equal(a.c_str(), a.c_str() + b.size(), b.c_str());
 }
 
+/*! \brief Return whether a string ends with another substring */
+inline bool StrEndsWith(const String& a, const String& b) {
+  if (b.size() > a.size()) return false;
+  return std::equal(a.c_str() + a.size() - b.size(), a.c_str() + a.size(), b.c_str());
+}
+
 /********** Other Utilities **********/
 /*! \brief Get an int value from an Expr */
 inline int64_t GetIntImm(const PrimExpr& expr) {
@@ -201,6 +207,14 @@ inline std::string CleanName(const std::string& str) {
   StrReplace(&ret, "outer", "o");
   StrReplace(&ret, "inner", "i");
   return ret;
+}
+
+inline bool GetBoolEnv(const char* name) {
+  const char* env_value = getenv(name);
+  if (env_value == nullptr) {
+    return false;
+  }
+  return strncmp(env_value, "True", 5) == 0 || strncmp(env_value, "true", 5) == 0;
 }
 
 /*! \brief An empty output stream */

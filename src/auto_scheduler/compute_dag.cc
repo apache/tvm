@@ -791,6 +791,22 @@ State ComputeDAG::InferBound(const State& state) const {
   return ret_state;
 }
 
+void ComputeDAG::InferBound(Array<State>* states) const {
+  Array<State> out_states;
+  // TODO(jcf94): Use parallel_for for this
+  for (const auto& state : (*states)) {
+    State out_state;
+    try {
+      out_state = this->InferBound(state);
+    } catch (dmlc::Error &e) {
+      LOG(WARNING) << "InferBound fails on the state:\n" << state
+                   << "\n" << e.what() << std::endl;
+    }
+    out_states.push_back(std::move(out_state));
+  }
+  *states = std::move(out_states);
+}
+
 ComputeDAG ComputeDAG::ReplayAndGetDAG(const Array<Step>& transform_steps) const {
   te::Schedule sch;
   Array<te::Tensor> old_tensors;

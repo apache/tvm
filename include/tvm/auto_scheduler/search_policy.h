@@ -130,6 +130,17 @@ class SearchPolicyNode : public Object {
    */
   void RunCallbacks(const Optional<Array<SearchCallback>>& callbacks);
 
+  // Dict keys to give hints to the policy
+  static constexpr const char* always_unroll_inner_key = "auto_scheduler_always_unroll_inner";
+  static constexpr const char* always_unroll_key = "auto_scheduler_always_unroll";
+  static constexpr const char* no_split_at_inner_key = "auto_scheduler_no_split_at_inner";
+  static constexpr const char* no_split_at_outer_key = "auto_scheduler_no_split_at_outer";
+  static constexpr const char* last_split_is_one_key = "auto_scheduler_last_split_is_one";
+  // Flag keys to give hints to the policy
+  static constexpr const char* always_compute_inline_key = "auto_scheduler_always_compute_inline";
+  static constexpr const char* no_cache_write_key = "auto_scheduler_no_cache_write";
+  static constexpr const char* no_cache_read_key = "auto_scheduler_no_cache_read";
+
   static constexpr const char* _type_key = "auto_scheduler.SearchPolicy";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchPolicyNode, Object);
 

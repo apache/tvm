@@ -237,6 +237,8 @@ class ComputeDAG : public ObjectRef {
    */
   State InferBound(const State& state) const;
 
+  void InferBound(Array<State>* states) const;
+
   /*!
    * \brief Since some steps may change the ComputeDAG (e.g. CacheRead/CacheWrite), the initial
    * ComputeDAG may not be up-to-date. This function replays the given transform steps from the
