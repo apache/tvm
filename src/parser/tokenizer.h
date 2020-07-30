@@ -42,12 +42,12 @@ namespace parser {
 using namespace runtime;
 
 // trim from start (in place)
-static inline void ltrim(std::string& s) {
+static inline void ltrim(std::string& s) { // NOLINT(*)
   s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) { return !std::isspace(ch); }));
 }
 
 // trim from end (in place)
-static inline void rtrim(std::string& s) {
+static inline void rtrim(std::string& s) { // NOLINT(*)
   s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) { return !std::isspace(ch); }).base(),
           s.end());
 }
