@@ -421,6 +421,7 @@ def take(a, indices, axis=None, mode="clip"):
     -------
     ret : tvm.te.Tensor
     """
+    print("type is ", type(mode))
     if axis is None:
         return cpp.take(a, indices, mode)
     return cpp.take(a, indices, int(axis), mode)
@@ -536,6 +537,12 @@ def tensordot(a, b, axes):
     if isinstance(axes[0], int):
         return cpp.tensordot(a, b, (axes[0],), (axes[1],))
     return cpp.tensordot(a, b, axes[0], axes[1])
+
+
+def einsum(subscripts, a_tuple):
+    # Grab non-einsum kwargs; do not optimize by default.
+    # Temporally not implement the optimized einsum
+    return cpp.einsum(subscripts, a_tuple)
 
 
 def arange(start, stop=None, step=1, dtype="float32"):
