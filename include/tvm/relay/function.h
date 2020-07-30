@@ -110,6 +110,7 @@ class Function : public BaseFunc {
    * \param ret_type The return type of the function.
    * \param ty_params The type parameters.
    * \param attrs Additional function attributes.
+   * \param span The span of the function.
    */
   TVM_DLL Function(tvm::Array<Var> params, Expr body, Type ret_type, tvm::Array<TypeVar> ty_params,
                    tvm::DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());

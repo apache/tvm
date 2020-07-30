@@ -63,8 +63,8 @@ struct Source {
    * \param span The span to report the error at.
    * \param msg The message to attach.
    *
-   * TODO(@jroesch): replace the ostream with an interface for rendering errors.
    */
+   // TODO(@jroesch): replace the ostream with an interface for rendering errors.
   TVM_DLL void ReportAt(std::ostream& out, const Span& span, const std::string& msg) const;
 };
 
