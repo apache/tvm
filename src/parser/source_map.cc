@@ -49,17 +49,16 @@ Source::Source(const std::string& source) : source(source) {
   line_map.back().second = length;
 }
 
-
 /*! \brief Generate an error message at a specific line and column with the
-  * annotated message.
-  *
-  * The error is written directly to the `out` std::ostream.
-  *
-  * \param out The output ostream.
-  * \param line The line at which to report a diagnostic.
-  * \param line The column at which to report a diagnostic.
-  * \param msg The message to attach.
-  */
+ * annotated message.
+ *
+ * The error is written directly to the `out` std::ostream.
+ *
+ * \param out The output ostream.
+ * \param line The line at which to report a diagnostic.
+ * \param line The column at which to report a diagnostic.
+ * \param msg The message to attach.
+ */
 void Source::ReportAt(std::ostream& out, int line, int column, const std::string& msg) const {
   CHECK(line - 1 <= static_cast<int64_t>(line_map.size()))
       << "requested line: " << (line - 1) << "line_map size: " << line_map.size()
@@ -104,5 +103,5 @@ SourceMap::SourceMap(Map<SourceName, tvm::String> source_map) {
   data_ = std::move(n);
 }
 
-} // namespace parser
-} // namespace tvm
+}  // namespace parser
+}  // namespace tvm

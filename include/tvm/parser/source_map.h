@@ -23,16 +23,15 @@
  * \file source_map.h
  * \brief A map from source names to source code.
  */
+#include <tvm/ir/span.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/ir/span.h>
 
 #include <fstream>
 #include <string>
 
 namespace tvm {
 namespace parser {
-
 
 /*! \brief A program source in any language.
  *
@@ -79,9 +78,7 @@ class SourceMapNode : public Object {
   Map<SourceName, tvm::String> source_map;
 
   // override attr visitor
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("source_map", &source_map);
-  }
+  void VisitAttrs(AttrVisitor* v) { v->Visit("source_map", &source_map); }
 
   bool SEqualReduce(const SourceMapNode* other, SEqualReducer equal) const {
     return equal(source_map, other->source_map);

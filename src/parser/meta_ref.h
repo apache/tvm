@@ -25,7 +25,6 @@
 #ifndef TVM_PARSER_META_REF_H_
 #define TVM_PARSER_META_REF_H_
 
-
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/expr.h>
 
@@ -36,7 +35,7 @@ namespace parser {
 
 using namespace relay;
 
-using MetaTable =  Map<String, Array<ObjectRef>>;
+using MetaTable = Map<String, Array<ObjectRef>>;
 
 /*!
  * \brief Options for allocating storage.

@@ -341,8 +341,8 @@ class TokenNode : public Object {
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TokenNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const TokenNode*>(ref.get());
-      p->stream << "Token(span=" << node->span
-                << ", token_type=" << ToString(node->token_type) << ", data=" << node->data << ")";
+      p->stream << "Token(span=" << node->span << ", token_type=" << ToString(node->token_type)
+                << ", data=" << node->data << ")";
     });
 
 TVM_REGISTER_NODE_TYPE(TokenNode);
@@ -372,9 +372,9 @@ int64_t Token::ToNumber() const { return Downcast<tvm::Integer>(this->operator->
 
 std::string Token::ToString() const { return Downcast<tvm::String>(this->operator->()->data); }
 
- Map<String, Array<ObjectRef>> Token::ToMetadata() const {
-   return Downcast<Map<String, Array<ObjectRef>>>(this->operator->()->data);
- }
+Map<String, Array<ObjectRef>> Token::ToMetadata() const {
+  return Downcast<Map<String, Array<ObjectRef>>>(this->operator->()->data);
+}
 
 }  // namespace parser
 }  // namespace tvm

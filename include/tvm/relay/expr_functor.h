@@ -165,6 +165,7 @@ class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
   virtual void VisitClause(const Clause& c);
   virtual void VisitPattern(const Pattern& c);
   virtual void VisitSpan(const Span& span);
+
  protected:
   // Internal visiting counter
   std::unordered_map<const Object*, size_t> visit_counter_;

@@ -73,17 +73,16 @@ Span::Span(SourceName source, int line, int column, int end_line, int end_column
 
 Span Span::Merge(const Span& other) {
   CHECK((*this)->source == other->source);
-  return Span((*this)->source,
-    std::min((*this)->line, other->line),
-    std::min((*this)->column, other->column),
-    std::max((*this)->end_line, other->end_line),
-    std::max((*this)->end_column, other->end_column));
+  return Span((*this)->source, std::min((*this)->line, other->line),
+              std::min((*this)->column, other->column),
+              std::max((*this)->end_line, other->end_line),
+              std::max((*this)->end_column, other->end_column));
 }
 
 TVM_REGISTER_NODE_TYPE(SpanNode);
 
-TVM_REGISTER_GLOBAL("ir.Span")
-.set_body_typed([](SourceName source, int line, int column, int end_line, int end_column) {
+TVM_REGISTER_GLOBAL("ir.Span").set_body_typed([](SourceName source, int line, int column,
+                                                 int end_line, int end_column) {
   return Span(source, line, column, end_line, end_column);
 });
 

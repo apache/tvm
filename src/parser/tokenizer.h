@@ -24,17 +24,17 @@
 #ifndef TVM_PARSER_TOKENIZER_H_
 #define TVM_PARSER_TOKENIZER_H_
 
+#include <tvm/node/serialization.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
-#include <tvm/node/serialization.h>
 
 #include <fstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "./token.h"
 #include "./meta_ref.h"
+#include "./token.h"
 
 namespace tvm {
 namespace parser {
@@ -42,17 +42,14 @@ namespace parser {
 using namespace runtime;
 
 // trim from start (in place)
-static inline void ltrim(std::string &s) {
-    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) {
-        return !std::isspace(ch);
-    }));
+static inline void ltrim(std::string& s) {
+  s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) { return !std::isspace(ch); }));
 }
 
 // trim from end (in place)
-static inline void rtrim(std::string &s) {
-    s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) {
-        return !std::isspace(ch);
-    }).base(), s.end());
+static inline void rtrim(std::string& s) {
+  s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) { return !std::isspace(ch); }).base(),
+          s.end());
 }
 
 bool IsDigit(char c) { return '0' <= c && c <= '9'; }
@@ -74,7 +71,7 @@ static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
     {"match", TokenType::Match}, {"extern", TokenType::Extern}};
 
 struct Tokenizer {
-  DiagnosticContext *diag_ctx;
+  DiagnosticContext* diag_ctx;
   const SourceName& source_name;
 
   size_t pos;
@@ -104,7 +101,8 @@ struct Tokenizer {
   }
 
   Token NewToken(TokenType token_type, ObjectRef data = ObjectRef(), int lines = 0, int cols = 1) {
-    auto span = Span(this->source_name, this->line, this->col, this->line + lines, this->col + cols);
+    auto span =
+        Span(this->source_name, this->line, this->col, this->line + lines, this->col + cols);
     return Token(span, token_type, data);
   }
 
@@ -269,7 +267,8 @@ struct Tokenizer {
         ObjectRef metadata_map = tvm::LoadJSON(metadata.str());
         auto span = SpanFrom(line, column);
         return Token(span, TokenType::Metadata, metadata_map);
-      } if (attribute.rfind("version", 0) == 0) {
+      }
+      if (attribute.rfind("version", 0) == 0) {
         std::string version = attribute.substr(attribute.find("=") + 1);
         ltrim(version);
         rtrim(version);
@@ -278,15 +277,15 @@ struct Tokenizer {
       } else {
         // TOOD(@jroesch): maybe make this a warning an continue parsing?
         this->diag_ctx->EmitFatal(
-          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), line, column)
+            DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), line, column)
             << "unsupported attribute " << attribute);
         return Token();
       }
     } else {
       this->diag_ctx->EmitFatal(
           DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), line, column)
-            << "`#` denotes the start of an attribute can only be followed by `[`"
-            << " found `" << Peek() << "`");
+          << "`#` denotes the start of an attribute can only be followed by `[`"
+          << " found `" << Peek() << "`");
       return Token();
     }
   }
@@ -305,7 +304,7 @@ struct Tokenizer {
         return token;
       } else {
         this->diag_ctx->EmitFatal(
-          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), this->line, this->col)
+            DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), this->line, this->col)
             << "\\r carriage returns must be followed by a \\n in the TVM text format");
         return Token();
       }
@@ -522,7 +521,15 @@ struct Tokenizer {
     this->tokens.push_back(NewToken(TokenType::EndOfFile));
   }
 
-  explicit Tokenizer(DiagnosticContext *ctx, const SourceName& source_name, const std::string& source) : diag_ctx(ctx), source_name(source_name), pos(0), col(1), line(1), source(source), tokens() {}
+  explicit Tokenizer(DiagnosticContext* ctx, const SourceName& source_name,
+                     const std::string& source)
+      : diag_ctx(ctx),
+        source_name(source_name),
+        pos(0),
+        col(1),
+        line(1),
+        source(source),
+        tokens() {}
 };
 
 std::vector<Token> Condense(const std::vector<Token>& tokens) {
@@ -594,7 +601,8 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
   return out;
 }
 
-std::vector<Token> Tokenize(DiagnosticContext *ctx, const SourceName& source_name, const std::string& source) {
+std::vector<Token> Tokenize(DiagnosticContext* ctx, const SourceName& source_name,
+                            const std::string& source) {
   auto tokenizer = Tokenizer(ctx, source_name, source);
   tokenizer.Tokenize();
   auto tokens = Condense(tokenizer.tokens);

@@ -204,7 +204,7 @@ class Var : public Expr {
    * \param type_annotation The type annotation of a variable.
    */
   TVM_DLL Var(String name_hint, Type type_annotation, Span span = Span())
-    : Var(Id(name_hint), type_annotation, span) {}
+      : Var(Id(name_hint), type_annotation, span) {}
 
   /*!
    * \brief The constructor

@@ -100,10 +100,8 @@ class SpanNode : public Object {
   }
 
   bool SEqualReduce(const SpanNode* other, SEqualReducer equal) const {
-    return equal(source, other->source) &&
-           equal(line, other->line) &&
-           equal(column, other->column) &&
-           equal(end_line, other->end_line) &&
+    return equal(source, other->source) && equal(line, other->line) &&
+           equal(column, other->column) && equal(end_line, other->end_line) &&
            equal(end_column, other->end_column);
   }
 

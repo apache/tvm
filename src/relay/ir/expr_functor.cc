@@ -393,13 +393,9 @@ void ExprVisitor::VisitExpr_(const VarNode* op) {
   }
 }
 
-void ExprVisitor::VisitExpr_(const GlobalVarNode* op) {
-  this->VisitSpan(op->span);
-}
+void ExprVisitor::VisitExpr_(const GlobalVarNode* op) { this->VisitSpan(op->span); }
 
-void ExprVisitor::VisitExpr_(const ConstantNode* op) {
-  this->VisitSpan(op->span);
-}
+void ExprVisitor::VisitExpr_(const ConstantNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const TupleNode* op) {
   this->VisitSpan(op->span);
@@ -444,9 +440,7 @@ void ExprVisitor::VisitExpr_(const IfNode* op) {
   this->VisitExpr(op->false_branch);
 }
 
-void ExprVisitor::VisitExpr_(const OpNode* op) {
-  return;
-}
+void ExprVisitor::VisitExpr_(const OpNode* op) { return; }
 
 void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
   this->VisitSpan(op->span);
@@ -455,7 +449,8 @@ void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
 
 void ExprVisitor::VisitExpr_(const RefCreateNode* op) {
   this->VisitSpan(op->span);
-  this->VisitExpr(op->value); }
+  this->VisitExpr(op->value);
+}
 
 void ExprVisitor::VisitExpr_(const RefReadNode* op) {
   this->VisitSpan(op->span);

@@ -35,7 +35,6 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
-
 #include <fstream>
 #include <string>
 #include <utility>
@@ -64,10 +63,12 @@ struct Diagnostic {
 
   /*! \brief A diagnostic for a single character token. */
   Diagnostic(int line, int column, const std::string& message)
-      : level(DiagnosticLevel::Error), span(SourceName(), line, column, line, column + 1), message(message) {}
+      : level(DiagnosticLevel::Error),
+        span(SourceName(), line, column, line, column + 1),
+        message(message) {}
 
   Diagnostic(DiagnosticLevel level, Span span, const std::string& message)
-    : level(level), span(span), message(message) {}
+      : level(level), span(span), message(message) {}
 };
 
 /*!
@@ -101,7 +102,7 @@ struct DiagnosticBuilder {
   /*! \brief The column number. */
   int column;
 
-   /*! \brief The line number. */
+  /*! \brief The line number. */
   int end_line;
 
   /*! \brief The column number. */
@@ -115,11 +116,13 @@ struct DiagnosticBuilder {
 
   DiagnosticBuilder() : level(DiagnosticLevel::Error), source_name(), line(0), column(0) {}
   DiagnosticBuilder(const DiagnosticBuilder& builder)
-    : level(builder.level), source_name(builder.source_name), line(builder.line), column(builder.column) {}
+      : level(builder.level),
+        source_name(builder.source_name),
+        line(builder.line),
+        column(builder.column) {}
   DiagnosticBuilder(DiagnosticLevel level, SourceName source_name, int line, int column)
-    : level(level), source_name(source_name), line(line), column(column) {}
-  DiagnosticBuilder(DiagnosticLevel level, Span span)
-    : level(level), span(span) {}
+      : level(level), source_name(source_name), line(line), column(column) {}
+  DiagnosticBuilder(DiagnosticLevel level, Span span) : level(level), span(span) {}
 
   operator Diagnostic() {
     auto span = Span(this->source_name, this->line, this->column, this->end_line, this->end_column);

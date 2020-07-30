@@ -31,8 +31,8 @@
 
 #include <fstream>
 
-#include "./meta_ref.h"
 #include "./diagnostic.h"
+#include "./meta_ref.h"
 #include "./op_table.h"
 #include "./tokenizer.h"
 
@@ -245,8 +245,14 @@ class Parser {
   /*! \brief The set of expression scopes used for lexical scope. */
   ScopeStack<Var> expr_scopes;
 
-  Parser(DiagnosticContext* ctx, const SourceName& source_name, std::vector<Token> tokens, OperatorTable op_table, Source source)
-      : diag_ctx(ctx), source_name(source_name), pos(0), tokens(tokens), op_table(op_table), ignore_whitespace(true) {}
+  Parser(DiagnosticContext* ctx, const SourceName& source_name, std::vector<Token> tokens,
+         OperatorTable op_table, Source source)
+      : diag_ctx(ctx),
+        source_name(source_name),
+        pos(0),
+        tokens(tokens),
+        op_table(op_table),
+        ignore_whitespace(true) {}
 
   /*! \brief Examine the next token in the stream, the current parser is configured to be
    * whitespace insensitive so we will skip all whitespace or comment tokens. */
@@ -294,9 +300,9 @@ class Parser {
    */
   void Consume(const TokenType& token_type) {
     if (tokens[pos]->token_type != token_type) {
-      this->diag_ctx->EmitFatal(
-          DiagnosticBuilder(DiagnosticLevel::Error, tokens[pos]->span)
-            << "expected a " << Pretty(token_type) << " found " << Pretty(Peek()->token_type));
+      this->diag_ctx->EmitFatal(DiagnosticBuilder(DiagnosticLevel::Error, tokens[pos]->span)
+                                << "expected a " << Pretty(token_type) << " found "
+                                << Pretty(Peek()->token_type));
     }
     pos++;
   }
@@ -375,8 +381,8 @@ class Parser {
   Var LookupLocal(const Token& local) {
     auto var = this->expr_scopes.Lookup(local.ToString());
     if (!var.defined()) {
-      diag_ctx->Emit(
-          {DiagnosticLevel::Error, local->span, "this local variable has not been previously declared"});
+      diag_ctx->Emit({DiagnosticLevel::Error, local->span,
+                      "this local variable has not been previously declared"});
     }
     return var;
   }
@@ -541,9 +547,9 @@ class Parser {
         return elements;
       } else {
         auto next = Peek();
-        this->diag_ctx->EmitFatal(
-          DiagnosticBuilder(DiagnosticLevel::Error, next->span)
-            << "expected a " << Pretty(stop) << " found  " << Pretty(next->token_type));
+        this->diag_ctx->EmitFatal(DiagnosticBuilder(DiagnosticLevel::Error, next->span)
+                                  << "expected a " << Pretty(stop) << " found  "
+                                  << Pretty(next->token_type));
         return Array<T>(nullptr);
       }
     }
@@ -577,20 +583,18 @@ class Parser {
   }
 
   /*! \brief Parse the semantic versioning header. */
-  SemVer ParseSemVer(bool required=true) {
+  SemVer ParseSemVer(bool required = true) {
     if (Peek()->token_type == TokenType::Version) {
       auto version = Match(TokenType::Version);
       // TODO(@jroesch): we currently only support 0.0.5.
       if (version.ToString() != "\"0.0.5\"") {
-        this->diag_ctx->Emit(
-          DiagnosticBuilder(DiagnosticLevel::Error, version->span)
-            << "invalid semantic version `" << version.ToString() << "`");
+        this->diag_ctx->Emit(DiagnosticBuilder(DiagnosticLevel::Error, version->span)
+                             << "invalid semantic version `" << version.ToString() << "`");
       }
     } else if (required) {
-      this->diag_ctx->Emit(
-          DiagnosticBuilder(DiagnosticLevel::Error, Peek()->span)
-            << "expected text format semantic version "
-            << "you can annotate it as #[version = \"0.0.5\"]");
+      this->diag_ctx->Emit(DiagnosticBuilder(DiagnosticLevel::Error, Peek()->span)
+                           << "expected text format semantic version "
+                           << "you can annotate it as #[version = \"0.0.5\"]");
     }
     return SemVer(0, 0, 5);
   }
@@ -619,8 +623,8 @@ class Parser {
           Consume(TokenType::Extern);
           auto type_def = ParseTypeDef();
           if (type_def->constructors.size()) {
-            diag_ctx->Emit(
-                {DiagnosticLevel::Error, next->span, "an external type may not have any constructors"});
+            diag_ctx->Emit({DiagnosticLevel::Error, next->span,
+                            "an external type may not have any constructors"});
           }
           defs.types.push_back(type_def);
         }
@@ -1089,9 +1093,8 @@ class Parser {
       case TokenType::StringLiteral:
         return Match(next->token_type)->data;
       case TokenType::LSquare: {
-        return ParseSequence<ObjectRef>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
-          return ParseAttributeValue();
-        });
+        return ParseSequence<ObjectRef>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare,
+                                        [&]() { return ParseAttributeValue(); });
       }
       default:
         return ParseAtomicExpr();
@@ -1185,9 +1188,9 @@ class Parser {
     try {
       return Op::Get(op_name);
     } catch (dmlc::Error e) {
-      this->diag_ctx->Emit(
-          DiagnosticBuilder(DiagnosticLevel::Error, tok->span)
-            << "operator `" << op_name << "` not found, perhaps you forgot to register it?");
+      this->diag_ctx->Emit(DiagnosticBuilder(DiagnosticLevel::Error, tok->span)
+                           << "operator `" << op_name
+                           << "` not found, perhaps you forgot to register it?");
       return Expr();
     }
   }
@@ -1291,9 +1294,9 @@ class Parser {
           }
         }
         default: {
-          this->diag_ctx->EmitFatal(
-          DiagnosticBuilder(DiagnosticLevel::Error, next->span)
-            << "expected an expression found  " << Pretty(next->token_type));
+          this->diag_ctx->EmitFatal(DiagnosticBuilder(DiagnosticLevel::Error, next->span)
+                                    << "expected an expression found  "
+                                    << Pretty(next->token_type));
           return Expr();
         }
       }
@@ -1413,9 +1416,8 @@ class Parser {
     if (WhenMatch(TokenType::Underscore)) {
       return IncompleteType();
     } else {
-      this->diag_ctx->EmitFatal(
-          DiagnosticBuilder(DiagnosticLevel::Error, tok->span)
-            << "failed to parse type found " << tok);
+      this->diag_ctx->EmitFatal(DiagnosticBuilder(DiagnosticLevel::Error, tok->span)
+                                << "failed to parse type found " << tok);
       return Type();
     }
   }

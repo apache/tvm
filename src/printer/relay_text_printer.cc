@@ -39,8 +39,8 @@
 #include <tvm/tir/function.h>
 
 #include "../ir/attr_functor.h"
-#include "../relay/analysis/dependency_graph.h"
 #include "../parser/meta_ref.h"
+#include "../relay/analysis/dependency_graph.h"
 #include "doc.h"
 #include "meta_data.h"
 #include "text_printer.h"
