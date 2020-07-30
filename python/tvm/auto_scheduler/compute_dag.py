@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" The TVM Auto-scheduler computational graph and related program analyses. """
+""" The auto-scheduler's computational graph and related program analyses. """
 
 import hashlib
 
@@ -33,16 +33,16 @@ from . import _ffi_api
 @tvm._ffi.register_object("auto_scheduler.ComputeDAG")
 class ComputeDAG(Object):
     """
-    The TVM Auto-scheduler computational graph and related program analyses.
+    The auto-scheduler's computational graph and related program analyses.
 
     We convert a compute declaration described by `tvm.compute` (could be a single operator or a
-    subgraph) to a ComputeDAG. It keeps the input/output tensors of the compute declaration,
-    a list of all operations in the DAG as well as static analysis results for the DAG (e.g. the
-    total float operation count, consumer/producer relations of each operation stage, whether an
-    operation stage should be tiled/compute inlined ...). These analyses can help the search policy
-    to make decisions during search process.
-    ComputeDAG is also responsible for the interaction between TVM Auto-scheduler `LoopState` and
-    TVM schedule (e.g. applying the `LoopState` transform steps to TVM schedule, providing
+    subgraph) to a ComputeDAG. It keeps the input/output tensors, all operations in the DAG, and
+    some static analysis results for the DAG (e.g. the total float operation count,
+    consumer/producer relations of operations, whether an operation stage should
+    be tiled/compute inlined ...).
+    These analyses can help the search policy to make decisions during the search.
+    ComputeDAG is also responsible for the interaction between auto-scheduler's `LoopState` and
+    TVM schedule (e.g. applying the `LoopState` transform steps to a TVM schedule, providing
     `LoopState` with extra information got from TVM schedule ...).
 
     Parameters
@@ -90,7 +90,7 @@ class ComputeDAG(Object):
 
     def print_python_code_from_state(self, state):
         """
-        Print transform steps in the history of a State as TVM's python schedule primitive.
+        Print transform steps in the history of a State as TVM's python schedule code.
 
         This is used to print transformation steps for debugging.
         Use `apply_steps_from_state` if you want to get a schedule for code generation.
