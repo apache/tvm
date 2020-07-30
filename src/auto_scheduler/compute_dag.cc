@@ -24,6 +24,7 @@
 
 #include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
@@ -740,7 +741,9 @@ State ComputeDAG::InferBound(const State& state) const {
     ret_state = operator->()->init_state;
     pstate = ret_state.CopyOnWrite();
     pstate->transform_steps = state->transform_steps;
-    ret_state.ApplySteps(*this);
+    for (const auto& step : pstate->transform_steps) {
+      StepApplyToState(step, &ret_state, *this);
+    }
   } else {
     ret_state = state;
     pstate = ret_state.CopyOnWrite();

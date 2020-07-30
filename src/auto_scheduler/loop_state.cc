@@ -341,15 +341,6 @@ int State::rfactor(int stage_id, const Iterator& it, int factor_iter_id, const C
   return step->ApplyToState(this, dag);
 }
 
-void State::ApplySteps(const ComputeDAG& dag) {
-  CHECK(operator->()->stages.size()) << "Invalid State with empty operation stages.";
-
-  // Call each step's ApplyToState method
-  for (const auto& step : operator->()->transform_steps) {
-    StepApplyToState(step, this, dag);
-  }
-}
-
 // Print stage to ostream
 void PrintStage(std::ostream* os, int stage_id, const State& state, size_t base_indent,
                 bool delete_trivial_loop) {
