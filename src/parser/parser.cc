@@ -575,7 +575,7 @@ class Parser {
     auto mod = IRModule({}, types);
 
     for (auto func : defs.funcs) {
-      auto function = ExpandMetaRefs(metadata.value(), func.function);
+      auto function = ExpandMetaRefs(metadata, func.function);
       mod->Add(func.global, function);
     }
 
@@ -1434,12 +1434,11 @@ class Parser {
     return res;
   }
 
-  // TODO(@jroesch): this is the final remaining feature.
-  Optional<Map<String, Array<ObjectRef>>> ParseMetadata() {
+  Map<String, Array<ObjectRef>> ParseMetadata() {
     if (Peek()->token_type == TokenType::Metadata) {
       return Match(TokenType::Metadata).ToMetadata();
     } else {
-      return Optional<Map<String, Array<ObjectRef>>>();
+      return Map<String, Array<ObjectRef>>();
     }
   }
 
