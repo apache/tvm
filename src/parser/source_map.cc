@@ -61,7 +61,7 @@ Source::Source(const std::string& source) : source(source) {
  */
 void Source::ReportAt(std::ostream& out, const Span& span, const std::string& msg) const {
   int line = span->line;
-  int column= span->column;
+  int column = span->column;
 
   CHECK(line - 1 <= static_cast<int64_t>(line_map.size()))
       << "requested line: " << (line - 1) << "line_map size: " << line_map.size()

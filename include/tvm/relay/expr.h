@@ -190,10 +190,6 @@ class VarNode : public ExprNode {
     hash_reduce.FreeVarHashImpl(this);
   }
 
-  TVM_DLL static Var make(String name_hint, Type type_annotation);
-
-  TVM_DLL static Var make(Id vid, Type type_annotation);
-
   static constexpr const char* _type_key = "relay.Var";
   TVM_DECLARE_FINAL_OBJECT_INFO(VarNode, ExprNode);
 };
