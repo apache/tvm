@@ -76,7 +76,7 @@ def graph_equal(lhs, rhs):
 
 def roundtrip_expr(expr):
     text = tvm.relay.Expr.astext(expr, show_meta_data=False)
-    x = tvm.parser.parse_expr(str(text))
+    x = tvm.parser.parse_expr(text)
     assert_graph_equal(x, expr)
 
 def roundtrip(expr):
@@ -931,7 +931,7 @@ def test_resnet_inlined_params():
     print("here")
     mod = inline_params(mod, params)
     print("here")
-    text = str(mod.astext())
+    text = mod.astext()
     print("here")
     parsed_mod = parse_module(text)
     print("here")

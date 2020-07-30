@@ -1492,12 +1492,12 @@ Expr ParseExpr(std::string file_name, std::string file_content) {
 }
 
 TVM_REGISTER_GLOBAL("parser.ParseModule")
-    .set_body_typed([](std::string file_name, std::string file_content) {
+    .set_body_typed([](tvm::String file_name, tvm::String file_content) {
       return ParseModule(file_name, file_content);
     });
 
 TVM_REGISTER_GLOBAL("parser.ParseExpr")
-    .set_body_typed([](std::string file_name, std::string file_content) {
+    .set_body_typed([](tvm::String file_name, tvm::String file_content) {
       return ParseExpr(file_name, file_content);
     });
 

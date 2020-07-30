@@ -112,7 +112,7 @@ class Function : public BaseFunc {
    * \param attrs Additional function attributes.
    */
   TVM_DLL Function(tvm::Array<Var> params, Expr body, Type ret_type, tvm::Array<TypeVar> ty_params,
-                   tvm::DictAttrs attrs = NullValue<DictAttrs>());
+                   tvm::DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
