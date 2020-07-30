@@ -207,8 +207,8 @@ class AttachMap : public ObjectRef {
    * \brief Traverse through `stage_to_attach_iter` and `iter_to_attached_stages` map, add offset
    * to stage indexes that are larger than the start_id. Used for steps that insert new stages to
    * ComputeDAG (e.g., CacheRead/CacheWrite step).
-   * \param start_id The index threshold. This function only adds offset for stages with indices larger
-   * then this threshold.
+   * \param start_id The index threshold. This function only adds offset for stages
+   * with indices larger then this threshold.
    * \param offset The index offset to be added to the stage index.
    * \return The updated AttachMap after applying stage index offset.
    */

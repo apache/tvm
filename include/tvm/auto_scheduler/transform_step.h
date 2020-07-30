@@ -187,7 +187,7 @@ class ComputeDAG;
 Step StepReadFromRecord(dmlc::JSONReader* reader);
 
 /*!
- * \brief Apply a general step to a State with runtime dynamic dispatching. 
+ * \brief Apply a general step to a State with runtime dynamic dispatching.
  * \param step The step to be applied to State.
  * \param state A mutable pointer to state, which will be updated.
  * \param dag The original ComputeDAG of this state.
