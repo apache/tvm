@@ -41,7 +41,7 @@ def test_resize():
             size = (dshape[1] * scale, dshape[2] * scale)
         else:
             size = (dshape[2] * scale, dshape[3] * scale)
-
+        size = np.array(size)
         x_data = np.random.uniform(size=dshape).astype("float32")
         if method == "bilinear":
             ref_res = topi.testing.bilinear_resize_python(x_data, size, layout)
@@ -61,7 +61,7 @@ def test_resize():
                 op_res = intrp.evaluate()(x_data, size)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
     for method in ["bilinear", "nearest_neighbor"]:
-        for layout in ["NCHW"]:#, "NHWC"]:
+        for layout in ["NCHW", "NHWC"]:
             verify_resize((1, 4, 4, 4), 2, method, layout)
 
 if __name__ == "__main__":

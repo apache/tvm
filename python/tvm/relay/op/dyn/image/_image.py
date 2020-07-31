@@ -19,7 +19,7 @@
 from __future__ import absolute_import
 
 import topi
-from topi.util import get_const_tuple
+from topi.util import get_const_tuple, nchw_pack_layout, nchw_xc_layout
 from tvm.runtime import convert
 from tvm.te.hybrid import script
 from tvm.tir import BijectiveLayout
@@ -40,7 +40,7 @@ def compute_resize(attrs, inputs, out_type):
 reg.register_injective_schedule("dyn.image.resize")
 
 @script
-def _resize_shape_func(dshape, size, ndim):
+def _NCHW_resize_shape_func(dshape, size, ndim):
     out = output_tensor((ndim, ), "int64")
     for i in const_range(ndim):
         out[i] = int64(dshape[i])
@@ -48,10 +48,23 @@ def _resize_shape_func(dshape, size, ndim):
     out[3] = int64(size[1])
     return out
 
+@script
+def _NHWC_resize_shape_func(dshape, size, ndim):
+    out = output_tensor((ndim, ), "int64")
+    for i in const_range(ndim):
+        out[i] = int64(dshape[i])
+    out[1] = int64(size[0])
+    out[2] = int64(size[1])
+    return out
 
 @reg.register_shape_func("dyn.image.resize", True)
 def resize_shape_func(attrs, inputs, _):
     """
     Shape function for dyn.image.resize op.
     """
-    return [_resize_shape_func(inputs[0].shape, inputs[1], convert(len(inputs[0].shape)))]
+    layout = attrs.layout
+    if layout == 'NHWC':
+        return [_NHWC_resize_shape_func(inputs[0].shape, inputs[1], convert(len(inputs[0].shape)))]
+    elif (layout == 'NCHW') or nchw_pack_layout(layout) or nchw_xc_layout(layout):
+        return [_NCHW_resize_shape_func(inputs[0].shape, inputs[1], convert(len(inputs[0].shape)))]
+    raise ValueError("Resize Unsupported Layout", layout)
