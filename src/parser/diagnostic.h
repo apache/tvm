@@ -178,7 +178,8 @@ struct DiagnosticContext {
     }
 
     if (diagnostics.size()) {
-      LOG(FATAL) << "DiagnosticError: one or more error diagnostics were emitted, please check diagnostic render for output.";
+      LOG(FATAL) << "DiagnosticError: one or more error diagnostics were "
+                 << "emitted, please check diagnostic render for output.";
     }
   }
 };
