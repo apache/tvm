@@ -540,9 +540,10 @@ def transpose_shape_func(attrs, inputs, _):
     if axes is None:
         axes = list(range(inputs[0].shape[0].value))
         axes.reverse()
+    axes = list(axes)
     for i, axis in enumerate(axes):
         if axis < 0:
-            axes[i] = inputs[0].shape[0] - axis
+            axes[i] = inputs[0].shape[0] + axis
     return [_transpose_shape_func(inputs[0], convert(axes))]
 
 @script
