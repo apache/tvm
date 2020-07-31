@@ -19,7 +19,7 @@
 
 /*!
  * \file auto_scheduler/transform_step.h
- * \brief Transformation steps. These steps are used to manipulate the LoopState.
+ * \brief Transformation steps. These steps are used to manipulate `LoopState`.
  *        They are similar to the schedule primitives in te::Stage.
  *
  * \note How to add a new transform step:
@@ -31,16 +31,15 @@
  * 3. Implement `FuseStepNode::ApplyToState` and the state API `State::fuse`.
  *    - In these two functions you need to incrementally update all data structures in State with
  *      CopyOnWrite style.
- * 4. Add your step implementation to `StepApplyToState`, `StepApplyToSchedule` and
- *    `StepPrintAsPythonAPI`, make sure it works.
+ * 4. Add your step to `StepApplyToState`, `StepApplyToSchedule`, and `StepPrintAsPythonAPI`.
  * 5. Log record serialization support:
  *    - Add `FuseStepNode::WriteToRecord` which takes a mutable JSONWriter pointer as input and
  *      output the record to it.
  *    - Add another construction function that takes a mutable JSONReader as input, this will get a
  *      step record from the reader and create the step.
  *    - Add the step implementation to `StepReadFromRecord`.
- * 6. Add its corresponding Python API to `loop_state.py` and necessary unit test, the test should
- *    at lease consists of two parts: the functional test and the record serialization test.
+ * 6. Add its corresponding Python API to `loop_state.py` with necessary unit tests. The test should
+ *    at lease cover two parts: the functional test and the record serialization test.
  */
 
 #ifndef TVM_AUTO_SCHEDULER_TRANSFORM_STEP_H_
@@ -58,8 +57,8 @@ typedef Map<tvm::te::Stage, Array<tir::IterVar>, ObjectHash, ObjectEqual> StageT
 
 /*!
  * \brief Update the current stage IterVar information to StageToAxesMap.
- * \param stage A te::Stage Object.
- * \param stage_to_axes A mutable pointer to StageToAxesMap, this map will be updated.
+ * \param stage The stage to be updated.
+ * \param stage_to_axes The map to be updated.
  */
 void UpdateStageToAxesMap(const te::Stage& stage, StageToAxesMap* stage_to_axes);
 
@@ -106,7 +105,7 @@ enum class IteratorAnnotation : int {
 extern const char* IteratorAnnotationString[];
 
 /*!
- * \brief A for loop iterator
+ * \brief An iterator of a for-loop
  * Similar to tvm::IterVar in `include/tvm/tir/expr.h`
  */
 class IteratorNode : public Object {
@@ -188,7 +187,7 @@ class ComputeDAG;
 Step StepReadFromRecord(dmlc::JSONReader* reader);
 
 /*!
- * \brief Apply the step to State.
+ * \brief Apply a general step to a State with runtime dynamic dispatching.
  * \param step The step to be applied to State.
  * \param state A mutable pointer to state, which will be updated.
  * \param dag The original ComputeDAG of this state.
@@ -196,25 +195,23 @@ Step StepReadFromRecord(dmlc::JSONReader* reader);
 void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag);
 
 /*!
- * \brief Apply the step to tvm.schedule.
+ * \brief Apply a general step to tvm.schedule with runtime dynamic dispatching.
  * \param step The step to be applied to tvm.schedule.
- * \param stages The `te::Stage`s used in TVM scheduler applying.
- * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
- * \param schedule A mutable pointer to a `te::Schedule`. This is required by some steps which need
- * `te::Schedule` API. (e.g. CacheRead/CacheWrite step)
- * \param transform_steps An array record all transform steps.
+ * \param stages The list of current stages
+ * \param stage_to_axes A map that maps stage ot all its iterators.
+ * \param schedule A mutable point to the current schedule
+ * \param transform_steps An array of all history transform steps.
  */
 void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
                          te::Schedule* schedule, const Array<Step>& transform_steps);
 
 /*!
- * \brief Print the step as equivalent python schedule API.
- * \param step The step to be applied to python API.
- * \param stages The `te::Stage`s used in TVM scheduler applying.
- * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
- * \param schedule A mutable pointer to a te::Schedule. This is required by some steps. (e.g.
- * CacheRead/CacheWrite step)
- * \param transform_steps An array record all transform steps.
+ * \brief Print a general step as equivalent python schedule API with runtime dynamic dispatching.
+ * \param step The step to be printed as python API.
+ * \param stages The list of current stages
+ * \param stage_to_axes A map that maps stage ot all its iterators.
+ * \param schedule A mutable point to the current schedule
+ * \param transform_steps An array of all history transform steps.
  * \return Python schedule code.
  */
 String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
@@ -245,15 +242,15 @@ class AnnotationStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    */
   void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
@@ -307,16 +304,16 @@ class FuseStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \return The iterator result after fuse.
    */
   tir::IterVar ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
@@ -368,15 +365,15 @@ class PragmaStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    */
   void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
@@ -430,15 +427,15 @@ class ReorderStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    */
   void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
@@ -503,8 +500,8 @@ class SplitStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \return The iterator results after split.
    */
   Array<tir::IterVar> ApplyToSchedule(Array<te::Stage>* stages,
@@ -512,8 +509,8 @@ class SplitStepNode : public StepNode {
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
@@ -557,7 +554,7 @@ class FollowSplitStepNode : public StepNode {
  public:
   /*! \brief The id of the iter to be split. */
   int iter_id;
-  /*! \brief The index of the split step to follow in the history. */
+  /*! \brief The index of the split step to be followed in the history. */
   int src_step_id;
   /*! \brief The number of split level. */
   int n_split;
@@ -566,7 +563,7 @@ class FollowSplitStepNode : public StepNode {
 
   /*!
    * \brief Extract split lengths.
-   * \param transform_steps An array record all transform steps.
+   * \param transform_steps An array of history transform steps.
    * \return The multiple split factors.
    */
   Array<Optional<Integer>> ExtractSplitLengths(const Array<Step>& transform_steps) const;
@@ -580,9 +577,9 @@ class FollowSplitStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
-   * \param transform_steps An array record all transform steps.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
+   * \param transform_steps An array of history transform steps.
    * \return The iterator results after split.
    */
   Array<tir::IterVar> ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
@@ -590,9 +587,9 @@ class FollowSplitStepNode : public StepNode {
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
-   * \param transform_steps An array record all transform steps.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
+   * \param transform_steps An array of history transform steps.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
@@ -614,7 +611,7 @@ class FollowSplitStep : public Step {
    * \brief The constructor.
    * \param stage_id The index of the stage to be split.
    * \param iter_id The index of the iterator to be split.
-   * \param src_step_id The index of the split step to follow in the history.
+   * \param src_step_id The index of the split step to be followed in the history.
    * \param n_split The number of split level.
    */
   FollowSplitStep(int stage_id, int iter_id, int src_step_id, int n_split);
@@ -636,7 +633,7 @@ class FollowFusedSplitStepNode : public StepNode {
  public:
   /*! \brief The id of the iter to split. */
   int iter_id;
-  /*! \brief The indices of the split steps to follow in the history. */
+  /*! \brief The indices of the split steps to be followed in the history. */
   Array<Integer> src_step_ids;
   /*! \brief  Use the length in this split level. */
   int level;
@@ -647,7 +644,7 @@ class FollowFusedSplitStepNode : public StepNode {
 
   /*!
    * \brief Extract split length.
-   * \param transform_steps An array record all transform steps.
+   * \param transform_steps An array of history transform steps.
    * \return Split factor.
    */
   Optional<Integer> ExtractSplitLength(const Array<Step>& transform_steps) const;
@@ -661,9 +658,9 @@ class FollowFusedSplitStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
-   * \param transform_steps An array record all transform steps.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
+   * \param transform_steps An array of history transform steps.
    * \return The iterator results after split.
    */
   Array<tir::IterVar> ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
@@ -671,9 +668,9 @@ class FollowFusedSplitStepNode : public StepNode {
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
-   * \param transform_steps An array record all transform steps.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
+   * \param transform_steps An array of history transform steps.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
@@ -695,7 +692,7 @@ class FollowFusedSplitStep : public Step {
    * \brief The constructor.
    * \param stage_id The index of the stage to be split.
    * \param iter_id The index of the iterator to be split.
-   * \param src_step_ids An array of index for split step to follow in the history.
+   * \param src_step_ids An array of index for split step to be followed in the history.
    * \param level Use the length in this split level.
    * \param factor_or_nparts If this is true, use factor. Otherwise, use nparts.
    */
@@ -732,15 +729,15 @@ class StorageAlignStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    */
   void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
@@ -794,21 +791,21 @@ class ComputeAtStepNode : public StepNode {
    * \note After compute_at, we need careful dependency analysis to compute the accurate bound
    * information. However, it is relatively expensive and complicated, so we just fill "None" as
    * bound for the newly created iterators.
-   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
+   * Call ComputeDAG::InferBound on the updated state if you need the complete bound information.
    */
   void ApplyToState(State* state) const;
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    */
   void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
@@ -827,7 +824,7 @@ class ComputeAtStep : public Step {
  public:
   /*!
    * \brief The constructor.
-   * \param stage_id The index of the stage to be computed at.
+   * \param stage_id The index of the source stage.
    * \param target_stage_id The index of stage that this step will compute at to.
    * \param target_iter_id The index of iterator in target stage that this step will compute at to.
    */
@@ -856,16 +853,16 @@ class ComputeInlineStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \return The iterator result after fuse.
    */
   void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
@@ -909,22 +906,22 @@ class ComputeRootStepNode : public StepNode {
    * \note After compute_root, we need careful dependency analysis to compute the accurate bound
    * information. However, it is relatively expensive and complicated, so we just fill "None" as
    * bound for the newly created iterators.
-   * Call ComputeDAG::InferBound on the updated state to get the complete bound information.
+   * Call ComputeDAG::InferBound on the updated state if you need the complete bound information.
    */
   void ApplyToState(State* state) const;
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \return The iterator result after fuse.
    */
   void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
@@ -961,12 +958,12 @@ class ComputeRootStep : public Step {
 
 /*!
  * \brief Cache read step that corresponds to te::Schedule::cache_read.
- * \note Cache read step will add an extra stage to the original ComputeDAG, a up-to-date ComputeDAG
- * is stored in State's `current_compute_dag`.
+ * \note Cache read step adds an extra stage to the original ComputeDAG,
+ * an up-to-date ComputeDAG will be stored in State's `current_compute_dag`.
  */
 class CacheReadStepNode : public StepNode {
  public:
-  /*! \brief The scope name of the newly added read stage. (e.g. local, shared, global) */
+  /*! \brief The scope name of the newly added read stage. (e.g., local, shared, global) */
   String scope_name;
   /*! \brief The indices of read stages. */
   Array<Integer> reader_stage_ids;
@@ -983,8 +980,8 @@ class CacheReadStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \param schedule A mutable pointer to a te::Schedule.
    * \return The output Tensor of the new added stage.
    */
@@ -993,8 +990,8 @@ class CacheReadStepNode : public StepNode {
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \param schedule A mutable pointer to a te::Schedule.
    * \return Python schedule code.
    */
@@ -1015,9 +1012,9 @@ class CacheReadStep : public Step {
  public:
   /*!
    * \brief The constructor.
-   * \param stage_id The index of the stage to be cache read.
-   * \param scope_name The scope name of the newly added read stage.
-   * \param reader_stage_ids The indices of read stages.
+   * \param stage_id The index of the stage to be cache_read.
+   * \param scope_name The scope name of the newly added stage.
+   * \param reader_stage_ids The indices of reader stages.
    */
   CacheReadStep(int stage_id, String scope_name, const Array<Integer>& reader_stage_ids);
 
@@ -1054,8 +1051,8 @@ class CacheWriteStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \param schedule A mutable pointer to a te::Schedule.
    * \return The output Tensors of the new added stage.
    */
@@ -1064,8 +1061,8 @@ class CacheWriteStepNode : public StepNode {
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \param schedule A mutable pointer to a te::Schedule.
    * \return Python schedule code.
    */
@@ -1086,8 +1083,8 @@ class CacheWriteStep : public Step {
  public:
   /*!
    * \brief The constructor.
-   * \param stage_id The index of the stage to be cache write.
-   * \param scope_name The scope name of the newly added compute stage.
+   * \param stage_id The index of the stage to be cache_write.
+   * \param scope_name The scope name of the newly added stage.
    */
   CacheWriteStep(int stage_id, String scope_name);
 
@@ -1121,8 +1118,8 @@ class RfactorStepNode : public StepNode {
 
   /*!
    * \brief Apply the current step to tvm.schedule.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \param schedule A mutable pointer to a te::Schedule.
    * \return The output Tensors of the new added stage.
    */
@@ -1131,8 +1128,8 @@ class RfactorStepNode : public StepNode {
 
   /*!
    * \brief Print the current step as equivalent python schedule API.
-   * \param stages The `te::Stage`s used in TVM scheduler applying.
-   * \param stage_to_axes The `te::Stage` and `tir::IterVar` map.
+   * \param stages The list of current stages
+   * \param stage_to_axes A map that maps stage ot all its iterators.
    * \param schedule A mutable pointer to a te::Schedule.
    * \return Python schedule code.
    */
