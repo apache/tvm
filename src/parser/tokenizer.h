@@ -277,16 +277,15 @@ struct Tokenizer {
       } else {
         // TOOD(@jroesch): maybe make this a warning an continue parsing?
         auto span = SpanFrom(line, column);
-        this->diag_ctx->EmitFatal(Diagnostic::Error(span)
-              << "unsupported attribute " << attribute);
+        this->diag_ctx->EmitFatal(Diagnostic::Error(span) << "unsupported attribute " << attribute);
         return Token();
       }
     } else {
       auto span = SpanFrom(line, column);
-      this->diag_ctx->EmitFatal(
-          Diagnostic::Error(span)
-          << "`#` denotes the start of an attribute can only be followed by `[`"
-          << " found `" << Peek() << "`");
+      this->diag_ctx
+          ->EmitFatal(Diagnostic::Error(span)
+                      << "`#` denotes the start of an attribute can only be followed by `[`"
+                      << " found `" << Peek() << "`");
       return Token();
     }
   }

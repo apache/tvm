@@ -149,7 +149,7 @@ template <typename T>
 struct InternTable {
   /*! \brief The internal table mapping strings to a unique allocation. */
   std::unordered_map<std::string, T> table;
-  DiagnosticContext *ctx;
+  DiagnosticContext* ctx;
 
   /*! \brief Add the unique allocation. */
   void Add(const std::string& name, const T& t) {
@@ -597,10 +597,10 @@ class Parser {
                              << "invalid semantic version `" << version.ToString() << "`");
       }
     } else if (required) {
-      this->diag_ctx->Emit(
-        Diagnostic::Error(Peek()->span)
-          << "expected text format semantic version, found a  " << PrettyPrint(Peek())
-          << "you can annotate it as #[version = \"0.0.5\"]");
+      this->diag_ctx->Emit(Diagnostic::Error(Peek()->span)
+                           << "expected text format semantic version, found a  "
+                           << PrettyPrint(Peek())
+                           << "you can annotate it as #[version = \"0.0.5\"]");
     }
     return SemVer(0, 0, 5);
   }
@@ -620,11 +620,9 @@ class Parser {
           try {
             global_names.Add(global_name, global);
           } catch (DuplicateKeyError e) {
-            this->diag_ctx->Emit(
-              Diagnostic::Error(global_tok->span)
-                << "a function with the name "
-                << "`@" << global_name << "` "
-                << "was previously defined");
+            this->diag_ctx->Emit(Diagnostic::Error(global_tok->span) << "a function with the name "
+                                                                     << "`@" << global_name << "` "
+                                                                     << "was previously defined");
           }
           auto func = ParseFunctionDef();
           defs.funcs.push_back(GlobalFunc(global, func));
@@ -661,11 +659,9 @@ class Parser {
     try {
       type_names.Add(type_id, type_global);
     } catch (DuplicateKeyError e) {
-      this->diag_ctx->Emit(
-        Diagnostic::Error(type_tok->span)
-          << "a type definition with the name "
-          << "`" << type_id << "` "
-          << "was previously defined");
+      this->diag_ctx->Emit(Diagnostic::Error(type_tok->span) << "a type definition with the name "
+                                                             << "`" << type_id << "` "
+                                                             << "was previously defined");
     }
 
     Array<TypeVar> generics;
@@ -707,11 +703,10 @@ class Parser {
             try {
               this->ctors.Add(ctor_name, ctor);
             } catch (DuplicateKeyError e) {
-              this->diag_ctx->EmitFatal(
-                Diagnostic::Error(ctor_tok->span)
-                  << "a constructor with the name "
-                  << "`" << ctor_name << "` "
-                  << "was previously defined");
+              this->diag_ctx->EmitFatal(Diagnostic::Error(ctor_tok->span)
+                                        << "a constructor with the name "
+                                        << "`" << ctor_name << "` "
+                                        << "was previously defined");
             }
 
             return ctor;

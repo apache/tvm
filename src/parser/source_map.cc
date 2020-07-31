@@ -60,7 +60,8 @@ Source::Source(const std::string& source) : source(source) {
  * \param msg The message to attach.
  */
 void Source::ReportAt(std::ostream& out, const Span& span, const std::string& msg) const {
-  DLOG(INFO) << "Source::ReportAt" << "span = " << span << "msg = " << msg;
+  DLOG(INFO) << "Source::ReportAt"
+             << "span = " << span << "msg = " << msg;
   int line = span->line;
   int column = span->column;
 

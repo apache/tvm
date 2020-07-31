@@ -29,9 +29,9 @@
 // and are only used in minimum cases where they are clearly marked.
 //
 // Rationale: We calls into relay's analysis module to verify correctness.
+#include <tvm/parser/parser.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
-#include <tvm/parser/parser.h>
 
 #include <fstream>
 #include <sstream>

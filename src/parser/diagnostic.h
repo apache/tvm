@@ -113,40 +113,36 @@ struct DiagnosticBuilder {
   DiagnosticBuilder() : level(DiagnosticLevel::Error), source_name(), span(Span()) {}
 
   DiagnosticBuilder(const DiagnosticBuilder& builder)
-      : level(builder.level),
-        source_name(builder.source_name),
-        span(builder.span) {}
+      : level(builder.level), source_name(builder.source_name), span(builder.span) {}
 
   DiagnosticBuilder(DiagnosticLevel level, Span span) : level(level), span(span) {}
 
-  operator Diagnostic() {
-    return Diagnostic(this->level, this->span, this->stream_.str());
-  }
+  operator Diagnostic() { return Diagnostic(this->level, this->span, this->stream_.str()); }
 
  private:
   std::stringstream stream_;
   friend struct Diagnostic;
 };
 
-  DiagnosticBuilder Diagnostic::Bug(Span span) {
-    return DiagnosticBuilder(DiagnosticLevel::Bug, span);
-  }
+DiagnosticBuilder Diagnostic::Bug(Span span) {
+  return DiagnosticBuilder(DiagnosticLevel::Bug, span);
+}
 
-  DiagnosticBuilder Diagnostic::Error(Span span) {
-    return DiagnosticBuilder(DiagnosticLevel::Error, span);
-  }
+DiagnosticBuilder Diagnostic::Error(Span span) {
+  return DiagnosticBuilder(DiagnosticLevel::Error, span);
+}
 
-  DiagnosticBuilder Diagnostic::Warning(Span span) {
-    return DiagnosticBuilder(DiagnosticLevel::Warning, span);
-  }
+DiagnosticBuilder Diagnostic::Warning(Span span) {
+  return DiagnosticBuilder(DiagnosticLevel::Warning, span);
+}
 
-  DiagnosticBuilder Diagnostic::Note(Span span) {
-    return DiagnosticBuilder(DiagnosticLevel::Note, span);
-  }
+DiagnosticBuilder Diagnostic::Note(Span span) {
+  return DiagnosticBuilder(DiagnosticLevel::Note, span);
+}
 
-  DiagnosticBuilder Diagnostic::Help(Span span) {
-    return DiagnosticBuilder(DiagnosticLevel::Note, span);
-  }
+DiagnosticBuilder Diagnostic::Help(Span span) {
+  return DiagnosticBuilder(DiagnosticLevel::Note, span);
+}
 
 /*! \brief A diagnostic context for recording errors against a source file.
  * TODO(@jroesch): convert source map and improve in follow up PR, the parser
