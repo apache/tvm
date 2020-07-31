@@ -52,6 +52,8 @@ enum DiagnosticLevel {
   Help,
 };
 
+struct DiagnosticBuilder;
+
 /*! \brief A diagnostic message. */
 struct Diagnostic {
   /*! \brief The level. */
@@ -69,6 +71,12 @@ struct Diagnostic {
 
   Diagnostic(DiagnosticLevel level, Span span, const std::string& message)
       : level(level), span(span), message(message) {}
+
+  static DiagnosticBuilder Bug(Span span);
+  static DiagnosticBuilder Error(Span span);
+  static DiagnosticBuilder Warning(Span span);
+  static DiagnosticBuilder Note(Span span);
+  static DiagnosticBuilder Help(Span span);
 };
 
 /*!
@@ -96,43 +104,49 @@ struct DiagnosticBuilder {
   /*! \brief The span of the diagnostic. */
   Span span;
 
-  /*! \brief The line number. */
-  int line;
-
-  /*! \brief The column number. */
-  int column;
-
-  /*! \brief The line number. */
-  int end_line;
-
-  /*! \brief The column number. */
-  int end_column;
-
   template <typename T>
   DiagnosticBuilder& operator<<(const T& val) {  // NOLINT(*)
     stream_ << val;
     return *this;
   }
 
-  DiagnosticBuilder() : level(DiagnosticLevel::Error), source_name(), line(0), column(0) {}
+  DiagnosticBuilder() : level(DiagnosticLevel::Error), source_name(), span(Span()) {}
+
   DiagnosticBuilder(const DiagnosticBuilder& builder)
       : level(builder.level),
         source_name(builder.source_name),
-        line(builder.line),
-        column(builder.column) {}
-  DiagnosticBuilder(DiagnosticLevel level, SourceName source_name, int line, int column)
-      : level(level), source_name(source_name), line(line), column(column) {}
+        span(builder.span) {}
+
   DiagnosticBuilder(DiagnosticLevel level, Span span) : level(level), span(span) {}
 
   operator Diagnostic() {
-    auto span = Span(this->source_name, this->line, this->column, this->end_line, this->end_column);
-    return Diagnostic(this->level, span, this->stream_.str());
+    return Diagnostic(this->level, this->span, this->stream_.str());
   }
 
  private:
   std::stringstream stream_;
   friend struct Diagnostic;
 };
+
+  DiagnosticBuilder Diagnostic::Bug(Span span) {
+    return DiagnosticBuilder(DiagnosticLevel::Bug, span);
+  }
+
+  DiagnosticBuilder Diagnostic::Error(Span span) {
+    return DiagnosticBuilder(DiagnosticLevel::Error, span);
+  }
+
+  DiagnosticBuilder Diagnostic::Warning(Span span) {
+    return DiagnosticBuilder(DiagnosticLevel::Warning, span);
+  }
+
+  DiagnosticBuilder Diagnostic::Note(Span span) {
+    return DiagnosticBuilder(DiagnosticLevel::Note, span);
+  }
+
+  DiagnosticBuilder Diagnostic::Help(Span span) {
+    return DiagnosticBuilder(DiagnosticLevel::Note, span);
+  }
 
 /*! \brief A diagnostic context for recording errors against a source file.
  * TODO(@jroesch): convert source map and improve in follow up PR, the parser

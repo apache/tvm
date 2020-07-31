@@ -928,15 +928,11 @@ def inline_params(mod, params):
 
 def test_resnet_inlined_params():
     mod, params = relay.testing.resnet.get_workload()
-    print("here")
     mod = inline_params(mod, params)
-    print("here")
     text = mod.astext()
-    print("here")
     parsed_mod = parse_module(text)
-    print("here")
     tvm.ir.assert_structural_equal(mod, parsed_mod)
-    print("here")
 
 if __name__ == "__main__":
-    test_resnet_inlined_params()
+    import sys
+    pytest.main(sys.argv)

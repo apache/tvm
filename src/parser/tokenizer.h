@@ -276,14 +276,15 @@ struct Tokenizer {
         return Token(span, TokenType::Version, tvm::String(version));
       } else {
         // TOOD(@jroesch): maybe make this a warning an continue parsing?
-        this->diag_ctx->EmitFatal(
-            DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), line, column)
-            << "unsupported attribute " << attribute);
+        auto span = SpanFrom(line, column);
+        this->diag_ctx->EmitFatal(Diagnostic::Error(span)
+              << "unsupported attribute " << attribute);
         return Token();
       }
     } else {
+      auto span = SpanFrom(line, column);
       this->diag_ctx->EmitFatal(
-          DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), line, column)
+          Diagnostic::Error(span)
           << "`#` denotes the start of an attribute can only be followed by `[`"
           << " found `" << Peek() << "`");
       return Token();
@@ -291,6 +292,8 @@ struct Tokenizer {
   }
 
   inline Token TokenizeOnce() {
+    int line = this->line;
+    int col = this->col;
     auto next = Peek();
     DLOG(INFO) << "tvm::parser::TokenizeOnce: next=" << next;
     if (next == '\n') {
@@ -303,8 +306,9 @@ struct Tokenizer {
         auto token = NewToken(TokenType::Newline);
         return token;
       } else {
+        auto span = SpanFrom(line, col);
         this->diag_ctx->EmitFatal(
-            DiagnosticBuilder(DiagnosticLevel::Error, SourceName(), this->line, this->col)
+            Diagnostic::Error(span)
             << "\\r carriage returns must be followed by a \\n in the TVM text format");
         return Token();
       }
