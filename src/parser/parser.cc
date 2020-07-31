@@ -1215,11 +1215,13 @@ class Parser {
       }
 
       // We need a zero-arity case for constructors.
-      if (expr.as<ConstructorNode>()) {
-        return Expr(Call(expr, {}));
-      } else {
-        return expr;
+      if (auto ctor_node = expr.as<ConstructorNode>()) {
+        if (ctor_node->inputs.size() == 0) {
+          return Expr(Call(expr, {}));
+        }
       }
+
+      return expr;
     });
   }
 
