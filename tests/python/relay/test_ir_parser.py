@@ -22,9 +22,10 @@ import pytest
 from numpy import isclose
 from typing import Union
 from functools import wraps
-raises_parse_error = pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 
-SEMVER = "v0.0.4"
+
+
+SEMVER = "#[version = \"0.0.5\"]\n"
 
 BINARY_OPS = {
     "*": relay.multiply,
@@ -79,6 +80,7 @@ def roundtrip_expr(expr):
     x = tvm.parser.parse_expr(text)
     assert_graph_equal(x, expr)
 
+# Testing Utilities for expressions.
 def roundtrip(expr):
     x = tvm.parser.fromtext(expr.astext())
     assert_graph_equal(x, expr)
@@ -88,15 +90,15 @@ def parse_text(code):
     roundtrip_expr(expr)
     return expr
 
-
 def parses_as(code, expr):
     # type: (str, relay.Expr) -> bool
     parsed = parse_text(code)
     result = graph_equal(parsed, expr)
     return result
 
+# Testing Utilities for full modules.
 def parse_module(code):
-    mod = tvm.parser.parse(code)
+    mod = tvm.parser.parse(SEMVER + code)
     roundtrip(mod)
     return mod
 
@@ -234,7 +236,7 @@ def test_vars():
 def test_meta_ref():
     meta_op = parse_text("meta[type_key][1337]")
     assert meta_op.attrs.node_type_key == "type_key"
-    assert meta_op.attrs.node_index == "1337"
+    assert meta_op.attrs.node_index == 1337
 
 
 def test_let():
@@ -292,19 +294,17 @@ def test_graph():
     )
 
 
-@raises_parse_error
-def test_graph_wrong_order():
-    parse_text("%1 = (); %1")
+def test_graph_single():
+    assert_parses_as("%1 = (); %1", relay.Tuple([]))
 
-
-@raises_parse_error
 def test_let_global_var():
-    parse_text("let @x = 1; ()")
+    with pytest.raises(tvm.error.DiagnosticError):
+        parse_text("let @x = 1; ()")
 
 
-@raises_parse_error
 def test_let_op():
-    parse_text("let x = 1; ()")
+    with pytest.raises(tvm.error.DiagnosticError):
+        parse_text("let x = 1; ()")
 
 
 def test_tuple():
@@ -409,18 +409,18 @@ def test_ifelse():
     )
 
 
-@raises_parse_error
 def test_ifelse_scope():
-    parse_text(
-        """
-        if (True) {
-            let %x = ();
-            ()
-        } else {
-            %x
-        }
-        """
-    )
+    with pytest.raises(tvm.error.DiagnosticError):
+        parse_text(
+            """
+            if (True) {
+                let %x = ();
+                ()
+            } else {
+                %x
+            }
+            """
+        )
 
 
 def test_call():
@@ -830,52 +830,51 @@ def test_adt_cons_expr():
     )
 
 
-@raises_parse_error
 def test_duplicate_adt_defn():
-    parse_module(
-        """
-        %s
+    with pytest.raises(tvm.error.DiagnosticError):
+        parse_module(
+            """
+            %s
 
-        type List[A] {
-          Cons(A, List[A]),
-          Nil,
-        }
-        """ % LIST_DEFN
-    )
+            type List[A] {
+            Cons(A, List[A]),
+            Nil,
+            }
+            """ % LIST_DEFN
+        )
 
 
-@raises_parse_error
 def test_duplicate_adt_cons():
-    parse_text(
-        """
-        type Ayy { Lmao }
-        type Haha { Lmao }
-        """
-    )
+    with pytest.raises(tvm.error.DiagnosticError):
+        parse_text(
+            """
+            type Ayy { Lmao }
+            type Haha { Lmao }
+            """
+        )
 
 
-@raises_parse_error
 def test_duplicate_adt_cons_defn():
-    parse_text(
-        """
-        type Ayy { Lmao }
-        type Lmao { Ayy }
-        """
-    )
+    with pytest.raises(tvm.error.DiagnosticError):
+        parse_text(
+            """
+            type Ayy { Lmao }
+            type Lmao { Ayy }
+            """
+        )
 
 
-@raises_parse_error
 def test_duplicate_global_var():
-    parse_text(
-        """
-        def @id[A](%x: A) -> A { x }
-        def @id[A](%x: A) -> A { x }
-        """
-    )
+    with pytest.raises(tvm.error.DiagnosticError):
+        parse_text(
+            """
+            def @id[A](%x: A) -> A { x }
+            def @id[A](%x: A) -> A { x }
+            """
+        )
 
 
 def test_extern_adt_defn():
-    # TODO(weberlo): update this test once extern is implemented
     mod = tvm.IRModule()
 
     extern_var = relay.GlobalTypeVar("T")
@@ -890,20 +889,9 @@ def test_extern_adt_defn():
         mod
     )
 
-@pytest.mark.skip("not yet tested on parser 2.0")
 def test_import_grad():
     mod = tvm.IRModule()
     mod.import_from_std("gradient.rly")
-
-# hiearchy id, i.e parse nn.conv2d
-# do with multiple levels
-#
-# call attributes not correctly parsing
-# convert error from attribute construction to real error message
-# lexing issue with projection of graph variables
-
-# def test_hierarchical_identifiers():
-#     assert False
 
 def test_resnet():
     mod, params = relay.testing.resnet.get_workload()

@@ -145,6 +145,7 @@ template <typename T>
 struct InternTable {
   /*! \brief The internal table mapping strings to a unique allocation. */
   std::unordered_map<std::string, T> table;
+  DiagnosticContext *ctx;
 
   /*! \brief Add the unique allocation. */
   void Add(const std::string& name, const T& t) {
@@ -935,11 +936,21 @@ class Parser {
     Consume(TokenType::If);
     auto guard = Parens<Expr>([&] { return ParseExpr(); });
 
-    auto true_branch = Block<Expr>([&] { return ParseExpr(); });
+    auto true_branch = Block<Expr>([&] {
+      this->PushScope();
+      auto expr = ParseExpr();
+      this->PopScopes(1);
+      return expr;
+    });
 
     Match(TokenType::Else);
 
-    auto false_branch = Block<Expr>([&] { return ParseExpr(); });
+    auto false_branch = Block<Expr>([&] {
+      this->PushScope();
+      auto expr = ParseExpr();
+      this->PopScopes(1);
+      return expr;
+    });
 
     return relay::If(guard, true_branch, false_branch);
   }
@@ -1475,7 +1486,12 @@ IRModule ParseModule(std::string file_name, std::string file_content) {
   DiagnosticContext ctx(src);
   auto tokens = Tokenize(&ctx, src_name, file_content);
   Parser parser(&ctx, src_name, tokens, DefaultOpTable(), Source(file_content));
-  return parser.ParseModule();
+  auto mod = parser.ParseModule();
+  // NB(@jroesch): it is very important that we render any errors before we procede
+  // if there were any errors which allow the parser to procede we must render them
+  // here.
+  parser.diag_ctx->Render(std::cout);
+  return mod;
 }
 
 Expr ParseExpr(std::string file_name, std::string file_content) {
@@ -1489,6 +1505,10 @@ Expr ParseExpr(std::string file_name, std::string file_content) {
   parser.PushScope();
   auto expr = parser.ParseExpr();
   parser.Match(TokenType::EndOfFile);
+  // NB(@jroesch): it is very important that we render any errors before we procede
+  // if there were any errors which allow the parser to procede we must render them
+  // here.
+  parser.diag_ctx->Render(std::cout);
   return expr;
 }
 

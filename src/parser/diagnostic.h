@@ -168,8 +168,6 @@ struct DiagnosticContext {
   void EmitFatal(const Diagnostic& diagnostic) {
     diagnostics.push_back(diagnostic);
     Render(std::cout);
-    // TODO(@jroesch): throw exception which is caught at the pass boundary and then rendered.
-    LOG(FATAL) << "error occurred";
   }
 
   // TODO(@jroesch): eventually modularize the rendering interface to provide control of how to
@@ -180,7 +178,7 @@ struct DiagnosticContext {
     }
 
     if (diagnostics.size()) {
-      LOG(FATAL) << "parse error occurred";
+      LOG(FATAL) << "DiagnosticError: one or more error diagnostics were emitted, please check diagnostic render for output.";
     }
   }
 };

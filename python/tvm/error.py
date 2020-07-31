@@ -121,3 +121,7 @@ class OpAttributeUnImplemented(OpError, NotImplementedError):
             "Attribute {} is not supported in operator {}".format(
                 attr_name, op_name))
     """
+
+@register_error
+class DiagnosticError(TVMError):
+    pass
