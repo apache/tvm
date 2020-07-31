@@ -23,7 +23,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import ctx_list, run_infer_type
-import topi.testing
+import tvm.topi.testing
 
 
 def test_resize_infer_type():
@@ -49,9 +49,9 @@ def test_resize():
 
         x_data = np.random.uniform(size=dshape).astype("float32")
         if method == "bilinear":
-            ref_res = topi.testing.bilinear_resize_python(x_data, size, layout)
+            ref_res = tvm.topi.testing.bilinear_resize_python(x_data, size, layout)
         else:
-            ref_res = topi.testing.upsampling_python(x_data, (scale, scale), layout)
+            ref_res = tvm.topi.testing.upsampling_python(x_data, (scale, scale), layout)
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.image.resize(x, size, layout, method, "align_corners")
         assert "size=" in z.astext()
@@ -91,9 +91,9 @@ def test_resize3d():
 
         x_data = np.random.uniform(size=dshape).astype("float32")
         if method == "trilinear":
-            ref_res = topi.testing.trilinear_resize3d_python(x_data, size, layout)
+            ref_res = tvm.topi.testing.trilinear_resize3d_python(x_data, size, layout)
         else:
-            ref_res = topi.testing.upsampling3d_python(x_data, (scale, scale, scale), layout)
+            ref_res = tvm.topi.testing.upsampling3d_python(x_data, (scale, scale, scale), layout)
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.image.resize3d(x, size, layout, method, "align_corners")
         assert "size=" in z.astext()
@@ -116,7 +116,7 @@ def test_crop_and_resize():
 
         image_data = np.random.uniform(size=img_shape).astype("float32")
 
-        ref_res = topi.testing.crop_and_resize_python(image_data,
+        ref_res = tvm.topi.testing.crop_and_resize_python(image_data,
                                                       boxes,
                                                       box_indices,
                                                       crop_size,
@@ -463,7 +463,7 @@ def test_roi_align():
         np_data = np.random.uniform(size=data_shape).astype("float32")
         np_rois = np.random.uniform(size=rois_shape).astype('float32') * in_size
         np_rois[:, 0] = np.random.randint(low = 0, high = batch, size = num_roi)
-        ref_res = topi.testing.roi_align_nchw_python(np_data, np_rois, pooled_size=pooled_size,
+        ref_res = tvm.topi.testing.roi_align_nchw_python(np_data, np_rois, pooled_size=pooled_size,
                                                      spatial_scale=spatial_scale,
                                                      sample_ratio=sample_ratio)
         for target, ctx in ctx_list():
@@ -495,7 +495,7 @@ def test_roi_pool():
         np_data = np.random.uniform(size=data_shape).astype("float32")
         np_rois = np.random.uniform(size=rois_shape).astype('float32') * in_size
         np_rois[:, 0] = np.random.randint(low = 0, high = batch, size = num_roi).astype('float32')
-        ref_res = topi.testing.roi_pool_nchw_python(np_data, np_rois, pooled_size=pooled_size,
+        ref_res = tvm.topi.testing.roi_pool_nchw_python(np_data, np_rois, pooled_size=pooled_size,
                                                      spatial_scale=spatial_scale)
         for target, ctx in ctx_list():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
@@ -590,7 +590,7 @@ def test_yolo_reorg_infer_shape():
 def test_yolo_reorg():
     def verify_yolo_reorg(shape, stride):
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
-        ref_res = topi.testing.reorg_python(x_data, stride)
+        ref_res = tvm.topi.testing.reorg_python(x_data, stride)
 
         x = relay.var("x", relay.TensorType(shape, "float32"))
         z = relay.vision.yolo_reorg(x, stride=stride)
@@ -658,7 +658,7 @@ def test_deformable_conv2d():
         data = np.random.uniform(size=data_shape).astype(dtype)
         offset = np.random.uniform(size=offset_shape).astype(dtype)
         kernel = np.random.uniform(size=kernel_shape).astype(dtype)
-        ref_res = topi.testing.deformable_conv2d_nchw_python(data, offset, kernel, stride=(1, 1), padding=(1, 1), dilation=(1, 1), deformable_groups=deformable_groups, groups=groups)
+        ref_res = tvm.topi.testing.deformable_conv2d_nchw_python(data, offset, kernel, stride=(1, 1), padding=(1, 1), dilation=(1, 1), deformable_groups=deformable_groups, groups=groups)
 
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
@@ -679,7 +679,7 @@ def test_depth_to_space():
         x_data = np.random.uniform(size=dshape).astype("float32")
         if layout == "NHWC":
             x_data = np.transpose(x_data, axes=[0, 3, 1, 2])
-        ref_res = topi.testing.depth_to_space_python(x_data, block_size, mode=mode)
+        ref_res = tvm.topi.testing.depth_to_space_python(x_data, block_size, mode=mode)
         if layout == "NHWC":
             x_data = np.transpose(x_data, axes=[0, 2, 3, 1])
             ref_res = np.transpose(ref_res, axes=[0, 2, 3, 1])
@@ -711,7 +711,7 @@ def test_space_to_depth():
         x_data = np.random.uniform(size=dshape).astype("float32")
         if layout == "NHWC":
             x_data = np.transpose(x_data, axes=[0, 3, 1, 2])
-        ref_res = topi.testing.space_to_depth_python(x_data, block_size)
+        ref_res = tvm.topi.testing.space_to_depth_python(x_data, block_size)
         if layout == "NHWC":
             x_data = np.transpose(x_data, axes=[0, 2, 3, 1])
             ref_res = np.transpose(ref_res, axes=[0, 2, 3, 1])
@@ -850,7 +850,7 @@ def test_affine_grid():
 
         func = relay.Function([data], y)
         data_np = np.random.uniform(size=data_shape).astype(dtype)
-        ref_res = topi.testing.affine_grid_python(data_np, target_shape)
+        ref_res = tvm.topi.testing.affine_grid_python(data_np, target_shape)
 
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
@@ -876,7 +876,7 @@ def test_grid_sample():
 
         data_np = np.random.uniform(size=data_shape).astype(dtype)
         grid_np = np.random.uniform(size=grid_shape, low=-1.5, high=1.5).astype(dtype)
-        ref_res = topi.testing.grid_sample_nchw_python(data_np, grid_np, method='bilinear')
+        ref_res = tvm.topi.testing.grid_sample_nchw_python(data_np, grid_np, method='bilinear')
 
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:

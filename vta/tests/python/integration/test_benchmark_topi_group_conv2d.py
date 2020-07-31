@@ -29,8 +29,8 @@ from tvm import te
 from tvm import relay
 from tvm import autotvm
 from tvm.contrib import util
-import topi
-import topi.testing
+from tvm import topi
+import tvm.topi.testing
 import vta
 from vta import program_fpga, reconfig_runtime
 import vta.testing
@@ -135,7 +135,7 @@ def run_group_conv2d(env, remote, wl, target,
         a_np = np.random.randint(a_min, a_max, size=a_shape).astype(data.dtype)
         w_np = np.random.randint(w_min, w_max, size=w_shape).astype(kernel.dtype)
         b_np = np.random.randint(b_min, b_max, size=b_shape).astype(env.acc_dtype)
-        r_np = topi.testing.conv2d_nchw_python(
+        r_np = tvm.topi.testing.conv2d_nchw_python(
             a_np.astype(env.acc_dtype), w_np.astype(env.acc_dtype),
             (wl.hstride, wl.wstride), wl.hpad, wl.groups).astype(env.acc_dtype)
         return a_np, w_np, b_np, r_np

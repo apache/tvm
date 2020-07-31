@@ -19,7 +19,7 @@ from __future__ import absolute_import
 
 from tvm.runtime import convert
 from tvm.te.hybrid import script
-from topi.util import get_const_int, get_const_tuple
+from tvm.topi.util import get_const_int, get_const_tuple
 from . import op as _reg
 
 _reg.register_reduce_schedule("argmax")

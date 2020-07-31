@@ -18,7 +18,7 @@
 """Backend compiler related feature registration"""
 
 from tvm.te.hybrid import script
-import topi
+from tvm import topi
 
 from .op import register_compute, register_shape_func
 from .op import register_broadcast_schedule, register_injective_schedule

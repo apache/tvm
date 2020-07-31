@@ -21,7 +21,7 @@ from __future__ import absolute_import as _abs
 
 import tvm
 from tvm import te
-from topi import util
+from tvm.topi import util
 
 from tvm.relay.op.op import register_compute, register_injective_schedule
 from tvm.relay.op.op import register_pattern, OpPattern

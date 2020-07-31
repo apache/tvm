@@ -18,7 +18,7 @@ import pytest
 import tvm
 from tvm import te
 import numpy as np
-import topi.testing
+import tvm.topi.testing
 from tvm.contrib import cblas
 
 def verify_matmul_add(m, l, n, transa=False, transb=False, dtype="float32"):
@@ -131,7 +131,7 @@ def verify_batch_matmul(batch, m, l, n, transa=False, transb=False, iterative=Fa
             a = a.transpose(0, 2, 1)
         if not transb:
             b = b.transpose(0, 2, 1)
-        return topi.testing.batch_matmul(a, b)
+        return tvm.topi.testing.batch_matmul(a, b)
 
     def verify(target="llvm"):
         if not tvm.runtime.enabled(target):

@@ -30,4 +30,4 @@ COPY install/install_tvm_cpu.sh /install/install_tvm_cpu.sh
 RUN bash /install/install_tvm_cpu.sh
 
 # Environment variables
-ENV PYTHONPATH=/usr/tvm/python:/usr/tvm/topi/python:/usr/tvm/vta/python:${PYTHONPATH}
+ENV PYTHONPATH=/usr/tvm/python:/usr/tvm/vta/python:${PYTHONPATH}

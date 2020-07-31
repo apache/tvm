@@ -38,8 +38,7 @@ LOCAL_LDFLAGS := -L$(SYSROOT)/usr/lib/ -llog
 
 LOCAL_C_INCLUDES := $(ROOT_PATH)/include \
                     $(ROOT_PATH)/3rdparty/dlpack/include \
-                    $(ROOT_PATH)/3rdparty/dmlc-core/include \
-                    $(ROOT_PATH)/topi/include
+                    $(ROOT_PATH)/3rdparty/dmlc-core/include
 
 LOCAL_MODULE = tvm4j_runtime_packed
 
