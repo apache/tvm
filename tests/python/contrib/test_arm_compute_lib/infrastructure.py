@@ -181,9 +181,20 @@ def build_module(mod, target, params=None, enable_acl=True, tvm_ops=0, acl_parti
 
 
 def build_and_run(mod, inputs, outputs, params, device, enable_acl=True, no_runs=1,
-                  tvm_ops=0, acl_partitions=1):
+                  tvm_ops=0, acl_partitions=1, config=None):
     """Build and run the relay module."""
-    lib = build_module(mod, device.target, params, enable_acl, tvm_ops, acl_partitions)
+    if not config:
+        config = {}
+
+    try:
+        lib = build_module(mod, device.target, params, enable_acl, tvm_ops, acl_partitions)
+    except Exception as e:
+        err_msg = "The module could not be built.\n"
+        if config:
+            err_msg += f"The test failed with the following parameters: {config}\n"
+        err_msg += str(e)
+        raise Exception(err_msg)
+
     lib = update_lib(lib, device.device, device.cross_compile)
     gen_module = graph_runtime.GraphModule(lib['default'](device.device.cpu(0)))
     gen_module.set_input(**inputs)
@@ -208,10 +219,10 @@ def update_lib(lib, device, cross_compile):
     return lib
 
 
-def verify(answers, atol, rtol, verify_saturation=False, params=None):
+def verify(answers, atol, rtol, verify_saturation=False, config=None):
     """Compare the array of answers. Each entry is a list of outputs."""
-    if params is None:
-        params = {}
+    if config is None:
+        config = {}
 
     if len(answers) < 2:
         raise RuntimeError(
@@ -228,8 +239,8 @@ def verify(answers, atol, rtol, verify_saturation=False, params=None):
                    outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol)
             except AssertionError as e:
                 err_msg = "Results not within the acceptable tolerance.\n"
-                if params:
-                    err_msg += f"The test failed with the following parameters: {params}\n"
+                if config:
+                    err_msg += f"The test failed with the following parameters: {config}\n"
                 err_msg += str(e)
                 raise AssertionError(err_msg)
 
