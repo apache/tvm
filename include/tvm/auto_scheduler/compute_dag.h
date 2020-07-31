@@ -237,7 +237,16 @@ class ComputeDAG : public ObjectRef {
    */
   State InferBound(const State& state) const;
 
-  void InferBound(Array<State>* states) const;
+  /*!
+   * \brief Fill the correct bound information for the given states by calling ir_pass::InferBound.
+   * The states can lose complete bound information after some transform steps (e.g., compute_at).
+   * We can call this function to infer and fill all the bound information.
+   * This function calls TVM InferBound pass internally to get the bound.
+   * The returned state of this function is guaranteed to have complete bound information.
+   * \param states The input states.
+   * \return The States with complete bound information
+   */
+  Array<State> InferBound(const Array<State>& states) const;
 
   /*!
    * \brief Since some steps may change the ComputeDAG (e.g. CacheRead/CacheWrite), the initial

@@ -36,6 +36,7 @@ class RandomModel(CostModel):
 
     def update(self, inputs, results):
         """Update the cost model according to new measurement results (training data).
+
         Parameters
         ----------
         inputs : List[MeasureInput]
@@ -47,12 +48,14 @@ class RandomModel(CostModel):
 
     def predict(self, search_task, states):
         """Predict the scores of states
+
         Parameters
         ----------
         search_task : SearchTask
             The search task of states
         statse : List[State]
             The input states
+
         Returns
         -------
         scores: List[float]
@@ -64,6 +67,7 @@ class RandomModel(CostModel):
 @tvm._ffi.register_func("auto_scheduler.cost_model.random_fill_float")
 def random_fill_float(size, return_ptr):
     """Fills a c++ float array with random numbers in [0, 1]
+
     Parameters
     ----------
     size: int
@@ -101,6 +105,7 @@ class PythonBasedModel(CostModel):
 
     def update(self, inputs, results):
         """Update the cost model according to new measurement results (training data).
+
         Parameters
         ----------
         inputs : List[MeasureInput]
@@ -112,12 +117,14 @@ class PythonBasedModel(CostModel):
 
     def predict(self, task, states):
         """Predict the scores of states
+
         Parameters
         ----------
         search_task : SearchTask
             The search task of states
         statse : List[State]
             The input states
+
         Returns
         -------
         scores: List[float]
@@ -127,12 +134,14 @@ class PythonBasedModel(CostModel):
 
     def predict_stages(self, task, states):
         """Predict the scores of all stages in states. This is the breakdown version of `predict`.
+
         Parameters
         ----------
         search_task : SearchTask
             The search task of states
         statse : List[State]
             The input states
+
         Returns
         -------
         scores: List[float]

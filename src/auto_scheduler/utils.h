@@ -32,6 +32,8 @@
 #include <deque>
 #include <exception>
 #include <future>
+#include <numeric>
+#include <random>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -108,15 +110,14 @@ inline int64_t ElementProduct(const std::vector<int>& array) {
 }
 
 /*! \brief Move elements from multiple vectors to one vector */
-template<typename T>
+template <typename T>
 std::vector<T>& ConcatenateMove(std::vector<T>* out, std::vector<T>* in) {
-  out->insert(out->end(), std::make_move_iterator(in->begin()),
-              std::make_move_iterator(in->end()));
+  out->insert(out->end(), std::make_move_iterator(in->begin()), std::make_move_iterator(in->end()));
   return *out;
 }
 
 /*! \brief Move elements from multiple vectors to one vector */
-template<typename T, typename... Args>
+template <typename T, typename... Args>
 std::vector<T>& ConcatenateMove(std::vector<T>* out, std::vector<T>* first, Args... args) {
   ConcatenateMove(out, first);
   ConcatenateMove(out, args...);
@@ -242,14 +243,6 @@ inline std::string CleanName(const std::string& str) {
   return ret;
 }
 
-inline bool GetBoolEnv(const char* name) {
-  const char* env_value = getenv(name);
-  if (env_value == nullptr) {
-    return false;
-  }
-  return strncmp(env_value, "True", 5) == 0 || strncmp(env_value, "true", 5) == 0;
-}
-
 /*! \brief An empty output stream */
 class NullStream : public std::ostream {
  public:
@@ -275,13 +268,6 @@ inline std::string Chars(const char& str, int times) {
     ret << str;
   }
   return ret.str();
-}
-
-/*! \brief Print a title */
-inline void PrintTitle(const std::string& title, int verbose) {
-  StdCout(verbose) << Chars('-', 60) << "\n"
-                   << Chars('-', 25) << "  [ " << title << " ]\n"
-                   << Chars('-', 60) << std::endl;
 }
 
 }  // namespace auto_scheduler

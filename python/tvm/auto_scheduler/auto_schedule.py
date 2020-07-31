@@ -91,9 +91,16 @@ class SearchPolicy(Object):
 class EmptyPolicy(SearchPolicy):
     """ This is an example empty search policy which will always generate
     the init state of ComputeDAG.
+
+    Parameters
+    ----------
+    task : SearchTask
+        The SearchTask for the computation declaration.
+    init_search_callbacks : Optional[List[SearchCallback]]
+        Callback functions called before the search process.
     """
-    def __init__(self):
-        self.__init_handle_by_constructor__(_ffi_api.EmptyPolicy)
+    def __init__(self, task, init_search_callbacks=None):
+        self.__init_handle_by_constructor__(_ffi_api.EmptyPolicy, task, init_search_callbacks)
 
 
 @tvm._ffi.register_object("auto_scheduler.SketchSearchPolicy")
@@ -104,48 +111,53 @@ class SketchSearchPolicy(SearchPolicy):
 
     Parameters
     ----------
-    program_cost_model: CostModel
-        Cost model for programs
-    params: int
-        Parameters of the search policy. See `src/ansor/search_policy/sketch_search_policy.h`
-        to find the definitions. See code below to find the default values
-    seed: int
-        Random seed
+    task : SearchTask
+        The SearchTask for the computation declaration.
+    schedule_cost_model : CostModel = RandomModel()
+        The cost model to estimate the complete schedules.
+    params : Optional[Dict[str, value]]
+        Parameters of the search policy.
+        See `src/auto_scheduler/search_policy/sketch_search_policy.h` for the definitions.
+        See `DEFAULT_PARAMS` below to find the default values.
+    seed : Optional[int]
+        Random seed.
+    verbose : int = 1
+        Verbosity level. 0 for silent, 1 to output information during schedule search.
+    init_search_callbacks : Optional[List[SearchCallback]]
+        Callback functions called before the search process.
+        Candidates:
+            - auto_scheduler.PreloadMeasuredStates
+            - auto_scheduler.PreloadCustomSketchRule
+            TODO(jcf94): Add these implementation in later PRs.
     """
-    def __init__(self,
-                 program_cost_model=None,
-                 params=None,
-                 seed=None):
-        # set default parameters
-        default_params = {
-            "eps_greedy": 0.05,
 
-            'evolutionary_search_population': 2048,
-            'evolutionary_search_num_iters': 10,
-            "evolutionary_search_mutation_prob": 0.85,
-            "evolutionary_search_use_measured_ratio": 0.2,
+    DEFAULT_PARAMS = {
+        "eps_greedy": 0.05,
 
-            'cpu_multi_level_tiling_structure': 'SSRSRS',
-            'gpu_multi_level_tiling_structure': 'SSSRRSRS',
+        'evolutionary_search_population': 2048,
+        "evolutionary_search_use_measured_ratio": 0.2,
 
-            'disable_change_compute_location': 0,
-        }
+        'cpu_multi_level_tiling_structure': 'SSRSRS',
+        'gpu_multi_level_tiling_structure': 'SSSRRSRS',
 
-        program_cost_model = program_cost_model if program_cost_model else RandomModel()
+        'max_innermost_split_factor': 16,
+        'max_vectorize_size': 16,
 
+        'disable_change_compute_location': 0,
+    }
+
+    def __init__(self, task, schedule_cost_model=RandomModel(), params=None, seed=None, verbose=1,
+                 init_search_callbacks=None):
         if params is None:
-            params = default_params
+            params = SketchSearchPolicy.DEFAULT_PARAMS
         else:
-            for key, value in default_params.items():
+            for key, value in SketchSearchPolicy.DEFAULT_PARAMS.items():
                 if key not in params:
                     params[key] = value
 
         self.__init_handle_by_constructor__(
-            _ffi_api.SketchSearchPolicy, program_cost_model, params,
-            seed or random.randint(1, 1 << 30))
-
-    def generate_sketches(self, task):
-        return _ffi_api.SketchSearchPolicyGenerateSketches(self, task)
+            _ffi_api.SketchSearchPolicy, task, schedule_cost_model, params,
+            seed or random.randint(1, 1 << 30), verbose, init_search_callbacks)
 
 
 @tvm._ffi.register_object("auto_scheduler.TuningOptions")
@@ -176,16 +188,9 @@ class TuningOptions(Object):
       Callback functions called after each measurement.
       Candidates:
         - auto_scheduler.RecordToFile
-    pre_search_callbacks: Optional[List[SearchCallback]]
-      Callback functions called before the search process.
-      Candidates:
-        - auto_scheduler.PreloadMeasuredStates
-        - auto_scheduler.PreloadCustomSketchRule
-        TODO(jcf94): Add these implementation in later PRs.
     """
     def __init__(self, num_measure_trials=0, early_stopping=None, num_measures_per_round=64,
-                 verbose=1, builder='local', runner='local', measure_callbacks=None,
-                 pre_search_callbacks=None):
+                 verbose=1, builder='local', runner='local', measure_callbacks=None):
         if isinstance(builder, str):
             if builder == 'local':
                 builder = LocalBuilder()
@@ -205,19 +210,18 @@ class TuningOptions(Object):
                              " . TuningOptions expects a ProgramRunner or string.")
 
         self.__init_handle_by_constructor__(
-            _ffi_api.TuningOptions, num_measure_trials, early_stopping if early_stopping else -1,
-            num_measures_per_round, verbose, builder, runner, measure_callbacks,
-            pre_search_callbacks)
+            _ffi_api.TuningOptions, num_measure_trials, early_stopping or -1,
+            num_measures_per_round, verbose, builder, runner, measure_callbacks)
 
 
-def auto_schedule(task, search_policy='default', tuning_options=None):
+def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
     """ Do auto scheduling for a computation declaration.
 
     Parameters
     ----------
     task : SearchTask
         The SearchTask for the computation declaration.
-    search_policy : Union[SearchPolicy, str] = 'default'
+    search_policy : Optional[SearchPolicy]
         The search policy to be used for schedule search.
     tuning_options : Optional[TuningOptions]
         Tuning and measurement options.
@@ -230,17 +234,6 @@ def auto_schedule(task, search_policy='default', tuning_options=None):
         raise ValueError("Invalid task: " + task +
                          " . `auto_scheduler.auto_schedule` expects a SearchTask.")
 
-    if isinstance(search_policy, str):
-        if search_policy == 'default':
-            # TODO(jcf94): This is an example policy for minimum system, will be upgrated to
-            # formal search policy later.
-            search_policy = EmptyPolicy()
-        else:
-            raise ValueError("Invalid search policy: " + search_policy)
-    elif not isinstance(search_policy, SearchPolicy):
-        raise ValueError("Invalid search policy: " + search_policy +
-                         " . `auto_scheduler.auto_schedule` expects a SearchPolicy or a string.")
-
-    sch, tensors = _ffi_api.AutoSchedule(task, search_policy,
-                                         tuning_options if tuning_options else TuningOptions())
+    # TODO(jcf94): Remove EmptyPolicy after finish the porting of SketchSearchPolicy
+    sch, tensors = _ffi_api.AutoSchedule(search_policy or EmptyPolicy(task), tuning_options)
     return sch, tensors

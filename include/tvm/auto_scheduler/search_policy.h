@@ -89,13 +89,37 @@ class SearchCallback : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SearchCallback, ObjectRef, SearchCallbackNode);
 };
 
+/*! \brief Op attr keys for SearchPolicy. */
+struct SearchPolicyKey {
+  /*! \brief Dict keys to give hints to the policy. */
+  struct Dict {
+    /*! \brief Always apply unroll to the inner most iterator of the specificed iterators. */
+    static constexpr const char* always_unroll_inner = "auto_scheduler_always_unroll_inner";
+    /*! \brief Always apply unroll to the specified iterators. */
+    static constexpr const char* always_unroll = "auto_scheduler_always_unroll";
+    /*! \brief The specified iterators will not be placed as the inner most iterator. */
+    static constexpr const char* no_split_at_inner = "auto_scheduler_no_split_at_inner";
+    /*! \brief The specified iterators will not be placed as the outter most iterator. */
+    static constexpr const char* no_split_at_outer = "auto_scheduler_no_split_at_outer";
+    /*! \brief The specified iterators will be split with the last factor as one. */
+    static constexpr const char* last_split_is_one = "auto_scheduler_last_split_is_one";
+  };
+  /*! \brief Flag keys to give hints to the policy. */
+  struct Flag {
+    /*! \brief Always apply compute inline to the specified op stage. */
+    static constexpr const char* always_compute_inline = "auto_scheduler_always_compute_inline";
+    /*! \brief Never apply cache write to the specified op stages. */
+    static constexpr const char* no_cache_write = "auto_scheduler_no_cache_write";
+  };
+};
+
 /*!
  * \brief The base class of search policies.
  */
 class SearchPolicyNode : public Object {
  public:
   /*! \brief The current search task. */
-  SearchTask cur_task;
+  SearchTask search_task;
   /*!
    * \brief Verbose level to control the screen output during schedule search.
    * 0 for silent, 1 to output state & measure information during search process.
@@ -103,43 +127,27 @@ class SearchPolicyNode : public Object {
   int verbose;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("cur_task", &cur_task);
+    v->Visit("search_task", &search_task);
     v->Visit("verbose", &verbose);
   }
 
   /*!
    * \brief Do schedule search for a task. Takes the SearchTask as input and returns the best state
    * found during the search.
-   * \param task  The SearchTask for the computation declaration
    * \param num_measure_trials The number of total measurement trials.
    * \param early_stopping Stops the tuning early if no improvement after n measurements.
    * \param num_measures_per_round  The number of programs to be measured at each search round.
-   * \param verbose Verbose level. 0 for silent, 1 to output information during schedule
-   * search.
    * \param measurer A ProgramMeasurer to build and measure programs
-   * \param pre_search_callbacks SearchCallback to be called before schedule search.
    * \return The best state found.
    */
-  virtual State Search(SearchTask task, int num_measure_trials, int early_stopping,
-                       int num_measures_per_round, int verbose, ProgramMeasurer measurer,
-                       Optional<Array<SearchCallback>> pre_search_callbacks) = 0;
+  virtual State Search(int num_measure_trials, int early_stopping, int num_measures_per_round,
+                       ProgramMeasurer measurer) = 0;
 
   /*!
    * \brief Call SearchCallback with the current SearchPolicyNode
    * \param callbacks SearchCallback to be called.
    */
-  void RunCallbacks(const Optional<Array<SearchCallback>>& callbacks);
-
-  // Dict keys to give hints to the policy
-  static constexpr const char* always_unroll_inner_key = "auto_scheduler_always_unroll_inner";
-  static constexpr const char* always_unroll_key = "auto_scheduler_always_unroll";
-  static constexpr const char* no_split_at_inner_key = "auto_scheduler_no_split_at_inner";
-  static constexpr const char* no_split_at_outer_key = "auto_scheduler_no_split_at_outer";
-  static constexpr const char* last_split_is_one_key = "auto_scheduler_last_split_is_one";
-  // Flag keys to give hints to the policy
-  static constexpr const char* always_compute_inline_key = "auto_scheduler_always_compute_inline";
-  static constexpr const char* no_cache_write_key = "auto_scheduler_no_cache_write";
-  static constexpr const char* no_cache_read_key = "auto_scheduler_no_cache_read";
+  void RunCallbacks(const Array<SearchCallback>& callbacks);
 
   static constexpr const char* _type_key = "auto_scheduler.SearchPolicy";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchPolicyNode, Object);
