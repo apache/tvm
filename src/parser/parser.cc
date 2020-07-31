@@ -141,7 +141,7 @@ class ScopeStack {
 };
 
 struct DuplicateKeyError : public dmlc::Error {
-  DuplicateKeyError(const std::string& msg) : dmlc::Error(msg) {}
+  explicit DuplicateKeyError(const std::string& msg) : dmlc::Error(msg) {}
 };
 
 /*! \brief A table of interning strings as global function and type names. */
@@ -597,9 +597,10 @@ class Parser {
                              << "invalid semantic version `" << version.ToString() << "`");
       }
     } else if (required) {
-      this->diag_ctx->Emit(DiagnosticBuilder(DiagnosticLevel::Error, Peek()->span)
-                           << "expected text format semantic version, found a  " << PrettyPrint(Peek())
-                           << "you can annotate it as #[version = \"0.0.5\"]");
+      this->diag_ctx->Emit(
+        Diagnostic::Error(Peek()->span)
+          << "expected text format semantic version, found a  " << PrettyPrint(Peek())
+          << "you can annotate it as #[version = \"0.0.5\"]");
     }
     return SemVer(0, 0, 5);
   }
