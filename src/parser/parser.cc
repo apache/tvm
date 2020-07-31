@@ -140,6 +140,10 @@ class ScopeStack {
   void PopStack() { this->scope_stack.pop_back(); }
 };
 
+struct DuplicateKeyError : public dmlc::Error {
+  DuplicateKeyError(const std::string& msg) : dmlc::Error(msg) {}
+};
+
 /*! \brief A table of interning strings as global function and type names. */
 template <typename T>
 struct InternTable {
@@ -151,7 +155,7 @@ struct InternTable {
   void Add(const std::string& name, const T& t) {
     auto it = table.find(name);
     if (it != table.end()) {
-      LOG(FATAL) << "duplicate name";
+      throw DuplicateKeyError("duplicate key name in intern table");
     } else {
       table.insert({name, t});
     }
@@ -609,9 +613,18 @@ class Parser {
       switch (next->token_type) {
         case TokenType::Defn: {
           Consume(TokenType::Defn);
-          auto global_name = Match(TokenType::Global).ToString();
+          auto global_tok = Match(TokenType::Global);
+          auto global_name = global_tok.ToString();
           auto global = GlobalVar(global_name);
-          global_names.Add(global_name, global);
+          try {
+            global_names.Add(global_name, global);
+          } catch (DuplicateKeyError e) {
+            this->diag_ctx->Emit(
+              Diagnostic::Error(global_tok->span)
+                << "a function with the name "
+                << "`@" << global_name << "` "
+                << "was previously defined");
+          }
           auto func = ParseFunctionDef();
           defs.funcs.push_back(GlobalFunc(global, func));
           continue;
@@ -640,9 +653,19 @@ class Parser {
     // Match the `type` keyword.
     Match(TokenType::TypeDef);
     // Parse the type's identifier.
-    auto type_id = Match(TokenType::Identifier).ToString();
+    auto type_tok = Match(TokenType::Identifier);
+    auto type_id = type_tok.ToString();
     auto type_global = tvm::GlobalTypeVar(type_id, TypeKind::kAdtHandle);
-    type_names.Add(type_id, type_global);
+
+    try {
+      type_names.Add(type_id, type_global);
+    } catch (DuplicateKeyError e) {
+      this->diag_ctx->Emit(
+        Diagnostic::Error(type_tok->span)
+          << "a type definition with the name "
+          << "`" << type_id << "` "
+          << "was previously defined");
+    }
 
     Array<TypeVar> generics;
 
@@ -664,7 +687,8 @@ class Parser {
       ctors = ParseSequence<tvm::Constructor>(
           TokenType::LCurly, TokenType::Comma, TokenType::RCurly, [&]() {
             // First match the name of the constructor.
-            auto ctor_name = Match(TokenType::Identifier).ToString();
+            auto ctor_tok = Match(TokenType::Identifier);
+            auto ctor_name = ctor_tok.ToString();
 
             Constructor ctor;
             // Match the optional field list.
@@ -679,7 +703,15 @@ class Parser {
 
             CHECK(ctor.defined());
 
-            this->ctors.Add(ctor_name, ctor);
+            try {
+              this->ctors.Add(ctor_name, ctor);
+            } catch (DuplicateKeyError e) {
+              this->diag_ctx->EmitFatal(
+                Diagnostic::Error(ctor_tok->span)
+                  << "a constructor with the name "
+                  << "`" << ctor_name << "` "
+                  << "was previously defined");
+            }
 
             return ctor;
           });
