@@ -54,7 +54,7 @@ tvm_option(PICOJSON_PATH "Path to PicoJSON" "3rdparty/picojson")
 
 # Contrib library options
 tvm_option(USE_BLAS "The blas library to be linked" none)
-tvm_option(USE_MKL_PATH "MKL root path when use MKL blas" none)
+tvm_option(USE_MKL "MKL root path when use MKL blas" OFF)
 tvm_option(USE_MKLDNN "Build with MKLDNN" OFF)
 tvm_option(USE_DNNL_CODEGEN "Enable MKLDNN (DNNL) codegen" OFF)
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
