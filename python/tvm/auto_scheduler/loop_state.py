@@ -17,17 +17,18 @@
 # pylint: disable=unused-import
 
 """
-The definition of the "state" in search.
+The definition of the "state" in the search.
 
 Each LoopState corresponds to a schedule for its ComputeDAG.
 A LoopState consists of: 1. a current loop structure; 2. a list of transformation steps used to
 construct the loop structure.
 The loop structure keeps a preview of how the schedule will finally look like after lowering the
-current state (e.g. number of iterators, the extent of each iterator, the compute_at locations ...).
+current state (e.g. number of iterators, the extent of each iterator, the compute_at locations
+...).
 During the schedule search process, the loop structure can provide search policy with necessary
 information on how to manipulate the current state.
-The transform history is a sequence of `TransformStep` which will finally be mapped to TVM schedule
-primitives. The steps can also be used for the serialization of a state.
+The transform history is a sequence of `TransformStep` which will finally be mapped to TVM
+schedule primitives. The steps are also used for the serialization of a state.
 
 The LoopState can be seen as a lightweight loop structure IR specifically for schedule search.
 We don't use the existing TVM IR but to extend a new structure on it is because:
@@ -37,7 +38,7 @@ immediate loop structures update rather than after TVM lowering;
 3. We may create some macro schedule primitives that represent the combination of several
 TVM schedule primitives.
 
-When the search is complete, we will lower the state to TVM IR with TVM's schedule primitives.
+When the search is finished, we will lower the state to TVM IR with TVM's schedule primitives.
 Since we share a lot of common objects during search, the transformation is implemented in
 copy on write style. All objects are immutable, which is similar to TVM IR.
 """
@@ -118,6 +119,15 @@ class State:
         return self.state_object.stages
 
     @property
+    def transform_steps(self):
+        """
+        Returns
+        -------
+        transform_steps : List[transform_steps]
+        """
+        return self.state_object.transform_steps
+
+    @property
     def stage_ops(self):
         """
         Returns
@@ -127,8 +137,8 @@ class State:
         return [stage.op for stage in self.stages]
 
     def bind(self, stage, iterator, thread_name):
-        """ Schedule primitive corresponds to `te.Stage.bind`, see also the `te.Stage` for more
-        details.
+        """Schedule primitive corresponding to `te.Stage.bind`.
+        See also the `te.Stage` for more details.
 
         Parameters
         ----------
@@ -161,8 +171,8 @@ class State:
         return res
 
     def parallel(self, stage, iterator):
-        """ Schedule primitive corresponds to `te.Stage.parallel`, see also the `te.Stage` for more
-        details.
+        """Schedule primitive corresponding to `te.Stage.parallel`.
+        See also the `te.Stage` for more details.
 
         Parameters
         ----------
@@ -182,8 +192,8 @@ class State:
         return res
 
     def unroll(self, stage, iterator, max_unroll=None):
-        """ Schedule primitive corresponds to `te.Stage.unroll`, see also the `te.Stage` for more
-        details.
+        """Schedule primitive corresponding to `te.Stage.unroll`.
+        See also the `te.Stage` for more details.
 
         Parameters
         ----------
@@ -206,8 +216,8 @@ class State:
         return res
 
     def vectorize(self, stage, iterator):
-        """ Schedule primitive corresponds to `te.Stage.vectorize`, see also the `te.Stage` for
-        more details.
+        """Schedule primitive corresponding to `te.Stage.vectorize`.
+        See also the `te.Stage` for more details.
 
         Parameters
         ----------
@@ -227,8 +237,8 @@ class State:
         return res
 
     def fuse(self, stage, iters):
-        """ Schedule primitive corresponds to `te.Stage.fuse`, see also the `te.Stage` for more
-        details.
+        """Schedule primitive corresponding to `te.Stage.fuse`.
+        See also the `te.Stage` for more details.
 
         Parameters
         ----------
@@ -252,9 +262,26 @@ class State:
                                                     self._resolve_stage_id(stage), iters)
         return res
 
+    def pragma(self, stage, iterator, pragma_type):
+        """Schedule primitive corresponding to `te.Stage.pragma`.
+        See also the `te.Stage` for more details.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to add pragma, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        iterator : Iterator
+            The iterator to add pragma.
+        pragma_type : str
+            The pragma string.
+        """
+        self.state_object = _ffi_api.StatePragma(self.state_object, self._resolve_stage_id(stage),
+                                                 iterator, pragma_type)
+
     def reorder(self, stage, order):
-        """ Schedule primitive corresponds to `te.Stage.reorder`, see also the `te.Stage` for more
-        details.
+        """Schedule primitive corresponding to `te.Stage.reorder`.
+        See also the `te.Stage` for more details.
 
         Parameters
         ----------
@@ -268,8 +295,8 @@ class State:
                                                   order)
 
     def split(self, stage, iterator, lengths, inner_to_outer=True):
-        """ Schedule primitive corresponds to `te.Stage.split`, see also the `te.Stage` for more
-        details.
+        """Schedule primitive corresponding to `te.Stage.split`.
+        See also the `te.Stage` for more details.
 
         This API supports multiple split factors. (e.g. with 2 split factors, the original iterator
         will be split to 3 parts, use `inner_to_outer` to control the split order)
@@ -301,15 +328,122 @@ class State:
                                                      iterator, lengths, inner_to_outer)
         return res
 
-    def compute_at(self, stage, target_stage, target_iter):
-        """ Schedule primitive corresponds to `te.Stage.compute_at`, see also the `te.Stage` for
-        more details.
+    def follow_split(self, stage, iterator, src_step_id, n_split):
+        """The schedule primitive similar to split, but uses split factors from previous steps.
+
+        This step splits the iterator by the same factors as the given SplitStep.
+
+        Notes
+        ------
+            This step is useful in a scenario that we have subgraph Dense -> Relu,
+            and we want to compute the Dense stage at ReLU. In this case, we need them to have
+            the same tiling structure of common outer loops.
+            The follow_split step could be used here to split the Dense stage and makes sure its
+            splitting factors are the same as the given split step for the ReLU stage.
 
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be computed at, which can be specified by the integer index, Operation,
+            The Stage to be split, which can be specified by the integer index, Operation,
             or output tensor of the stage.
+        iterator : Iterator
+            The iterator to split.
+        src_step_id : int
+            The index of the split step to be followed in the history.
+        n_split : int
+            The number of split level.
+
+        Returns
+        -------
+        res_its : List[Iterator]
+            The splitted new Iterators.
+        """
+
+        self.state_object, res = _ffi_api.StateFollowSplit(self.state_object,
+                                                           self._resolve_stage_id(stage),
+                                                           iterator,
+                                                           src_step_id, n_split)
+        return res
+
+    def follow_fused_split(self, stage, iterator, src_step_ids, level,
+                           factor_or_nparts):
+        """ Schedule primitive extends to split step.
+
+        This step is used to split an iterator by the same factors
+        as the given list of SplitSteps and FuseSteps.
+
+        Notes
+        ------
+            This step is useful in a scenario that we have a subgraph
+            in GPU schedule: Input -> Dense
+            for i.0@j.0 = ... : Bind to blockIdx.x
+                for i.1@j.1 = ... : Bind to threadIdx.x
+                    for i.2@j.2 = ...
+                        Input_shared = Input ...
+                        for k = ...
+                            Dense = ...
+            We intend to apply cooperative fetching with the input stage, while the threadIdx.x
+            axis is bound to an iterator generated by split & fuse step.
+            The follow_fused_step is used split the iterator to 2 parts, while the split factor
+            matches the final extent of the threadIdx.x bound iterator.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be split, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        iterator : Iterator
+            The iterator to split.
+        src_step_ids : List[int]
+            The indices of the split steps to be followed in the history.
+        level : int
+            Use the length in this split level.
+        factor_or_nparts : bool
+            True to use `factor` for split from inner to outer,
+            False to use `nparts` for split from outer to inner.
+
+        Returns
+        -------
+        res_its : List[Iterator]
+            The splitted new Iterators.
+        """
+
+        self.state_object, res = _ffi_api.StateFollowFusedSplit(self.state_object,
+                                                                self._resolve_stage_id(stage),
+                                                                iterator,
+                                                                src_step_ids, level,
+                                                                factor_or_nparts)
+        return res
+
+    def storage_align(self, stage, iterator, factor, offset):
+        """Schedule primitive corresponding to `te.Stage.storage_align`.
+        See also the `te.Stage` for  more details.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be storage aligned, which can be specified by the integer index,
+            Operation, or output tensor of the stage.
+        iterator : Iterator
+            The iterator to be aligned.
+        factor : int
+            The factor in alignment specification.
+        offset : int
+            The offset in the alignment specification.
+        """
+        self.state_object = _ffi_api.StateStorageAlign(self.state_object,
+                                                       self._resolve_stage_id(stage), iterator,
+                                                       factor, offset)
+
+    def compute_at(self, stage, target_stage, target_iter):
+        """Schedule primitive corresponding to `te.Stage.compute_at`.
+        See also the `te.Stage` for more details.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The source Stage of computed at, which can be specified by the integer index,
+            Operation, or output tensor of the stage.
         target_stage : Union[int, Operation, Tensor]
             The target stage of compute_at, which can be specified by the integer index, Operation,
             or output tensor of the stage.
@@ -329,7 +463,7 @@ class State:
                                                     target_iter)
 
     def compute_inline(self, stage):
-        """ Schedule primitive corresponds to `te.Stage.compute_inline`, see also the `te.Stage`
+        """Schedule primitive corresponding to `te.Stage.compute_inline`, see also the `te.Stage`
         for more details.
 
         Parameters
@@ -342,8 +476,8 @@ class State:
                                                         self._resolve_stage_id(stage))
 
     def compute_root(self, stage):
-        """ Schedule primitive corresponds to `te.Stage.compute_root`, see also the `te.Stage` for
-        more details.
+        """Schedule primitive corresponding to `te.Stage.compute_root`.
+        Ssee also the `te.Stage` for more details.
 
         Parameters
         ----------
@@ -362,13 +496,13 @@ class State:
                                                       self._resolve_stage_id(stage))
 
     def cache_read(self, stage, scope_name, reader_stages):
-        """ Schedule primitive corresponds to `te.Schedule.cache_read`, see also the `te.Schedule`
-        for more details.
+        """Schedule primitive corresponding to `te.Schedule.cache_read`.
+        See also the `te.Schedule` for more details.
 
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be cache read, which can be specified by the integer index, Operation,
+            The Stage to be cache_read, which can be specified by the integer index, Operation,
             or output tensor of the stage.
         scope_name : str
             The scope name of the newly added read stage.
@@ -398,13 +532,13 @@ class State:
         return self.stages[int(new_stage_id)].op
 
     def cache_write(self, stage, scope_name):
-        """ Schedule primitive corresponds to `te.Schedule.cache_write`, see also the `te.Schedule`
-        for more details.
+        """Schedule primitive corresponding to `te.Schedule.cache_write`.
+        See also the `te.Schedule` for more details.
 
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The Stage to be cache write, which can be specified by the integer index, Operation,
+            The Stage to be cache_write, which can be specified by the integer index, Operation,
             or output tensor of the stage.
         scope_name : str
             The scope name of the newly added compute stage.
@@ -423,6 +557,40 @@ class State:
         self.state_object, new_stage_id = _ffi_api.StateCacheWrite(self.state_object,
                                                                    self._resolve_stage_id(stage),
                                                                    scope_name, self.compute_dag)
+        # Add a new stage will change all ops behind the added stage. But we still want to keep the
+        # original ops map, apply stage id offset to stage_id_map to make them work.
+        self._apply_stage_id_offset(int(new_stage_id))
+        self._update_stage_id_map()
+        return self.stages[int(new_stage_id)].op
+
+    def rfactor(self, stage, iterator, factor_iter_id):
+        """Schedule primitive corresponding to `te.Schedule.rfactor`.
+        See also the `te.Schedule` for more details.
+
+        Parameters
+        ----------
+        stage : Union[int, Operation, Tensor]
+            The Stage to be factored, which can be specified by the integer index, Operation,
+            or output tensor of the stage.
+        iterator : Iterator
+            The reduction iterator to be factored.
+        factor_iter_id : int
+            The position where the new iterator is placed.
+
+        Returns
+        -------
+        new_stage_op : Operator
+            The Operator of the new added stage.
+
+        Notes
+        -----
+        Rfactor step will insert an extra stage to the original ComputeDAG (in the front of the
+        target stage).
+        """
+        self.state_object, new_stage_id = _ffi_api.StateRfactor(self.state_object,
+                                                                self._resolve_stage_id(stage),
+                                                                iterator, factor_iter_id,
+                                                                self.compute_dag)
         # Add a new stage will change all ops behind the added stage. But we still want to keep the
         # original ops map, apply stage id offset to stage_id_map to make them work.
         self._apply_stage_id_offset(int(new_stage_id))

@@ -462,7 +462,7 @@ bool NdarraySizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   CHECK(tt != nullptr);
   const auto* param = attrs.as<NdarraySizeAttrs>();
   CHECK(param != nullptr);
-  reporter->Assign(types[1], TensorType({1}, param->dtype));
+  reporter->Assign(types[1], TensorType({}, param->dtype));
   return true;
 }
 

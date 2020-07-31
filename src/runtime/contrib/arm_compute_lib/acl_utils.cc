@@ -38,10 +38,12 @@ void CheckACLError(const arm_compute::Status& status) {
   CHECK(status.error_code() == arm_compute::ErrorCode::OK) << "ACL: " << status.error_description();
 }
 
-arm_compute::Tensor MakeTensor(const JSONGraphNode& tensor_rep, void* data) {
-  CHECK(tensor_rep.GetOpType() == "input" || tensor_rep.GetOpType() == "const");
+arm_compute::Tensor MakeACLTensor(const JSONGraphNode& tensor_rep, void* data,
+                                  const DLTensor* scale, const DLTensor* offset) {
   arm_compute::Tensor tensor;
-  arm_compute::TensorInfo info = MakeTensorInfo(tensor_rep.GetOpShape()[0]);
+  std::vector<int64_t> shape = tensor_rep.GetOpShape()[0];
+  DLDataType dtype = tensor_rep.GetOpDataType()[0];
+  arm_compute::TensorInfo info = MakeACLTensorInfo(shape, dtype, scale, offset);
   tensor.allocator()->init(info);
   if (data != nullptr) {
     CheckACLError(tensor.allocator()->import_memory(data));
@@ -49,34 +51,37 @@ arm_compute::Tensor MakeTensor(const JSONGraphNode& tensor_rep, void* data) {
   return tensor;
 }
 
-arm_compute::Tensor MakeOutputTensor(const std::vector<int64_t>& shape) {
-  arm_compute::Tensor tensor;
-  tensor.allocator()->init(MakeTensorInfo(shape));
-  return tensor;
-}
-
-arm_compute::TensorInfo MakeTensorInfo(const std::vector<int64_t>& shape) {
-  arm_compute::TensorShape acl_shape = MakeTensorShape(shape);
-  return arm_compute::TensorInfo(acl_shape, 1, arm_compute::DataType::F32,
-                                 arm_compute::DataLayout::NHWC);
-}
-
-arm_compute::TensorShape MakeTensorShape(const std::vector<int64_t>& shape) {
+arm_compute::TensorInfo MakeACLTensorInfo(const std::vector<int64_t>& shape,
+                                          const DLDataType& dtype, const DLTensor* scale,
+                                          const DLTensor* offset) {
   arm_compute::TensorShape acl_shape;
   for (unsigned int i = shape.size(); i > 0; --i) {
     acl_shape.set(shape.size() - i, shape[i - 1]);
   }
-  return acl_shape;
+  arm_compute::DataType acl_dtype = MakeACLDataType(dtype);
+  arm_compute::TensorInfo info(acl_shape, 1, acl_dtype, arm_compute::DataLayout::NHWC);
+
+  // If scale and offset provided create quantized ACL tensor.
+  if (scale != nullptr && offset != nullptr) {
+    std::vector<float> scale_data = GetVectorFromDLTensor<float>(scale);
+    std::vector<int> offset_data = GetVectorFromDLTensor<int>(offset);
+    CHECK(scale_data.size() == 1 && offset_data.size() == 1)
+        << "Currently only per-layer quantization is supported in the Arm Compute Library runtime.";
+    arm_compute::QuantizationInfo qinfo(scale_data[0], offset_data[0]);
+    info.set_quantization_info(qinfo);
+  }
+
+  return info;
 }
 
-std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeMemoryManager() {
+std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeACLMemoryManager() {
   auto lifetime_mgr = std::make_shared<arm_compute::OffsetLifetimeManager>();
   auto pool_mgr = std::make_shared<arm_compute::PoolManager>();
   return std::make_shared<arm_compute::MemoryManagerOnDemand>(lifetime_mgr, pool_mgr);
 }
 
-arm_compute::PadStrideInfo ToACLPadStride(const std::vector<std::string>& pad,
-                                          const std::vector<std::string>& stride) {
+arm_compute::PadStrideInfo MakeACLPadStride(const std::vector<std::string>& pad,
+                                            const std::vector<std::string>& stride) {
   int pad_0 = 0, pad_1 = 0, pad_2 = 0, pad_3 = 0;
   int stride_0 = std::stoi(stride[0]), stride_1 = std::stoi(stride[1]);
   size_t size = pad.size();
@@ -106,6 +111,30 @@ arm_compute::PadStrideInfo ToACLPadStride(const std::vector<std::string>& pad,
 
   return arm_compute::PadStrideInfo(stride_0, stride_1, pad_0, pad_1, pad_2, pad_3,
                                     arm_compute::DimensionRoundingType::FLOOR);
+}
+
+arm_compute::DataType MakeACLDataType(const DLDataType& data_type) {
+  if (data_type.code == DLDataTypeCode::kDLFloat && data_type.bits == 32) {
+    return arm_compute::DataType::F32;
+  } else if (data_type.code == DLDataTypeCode::kDLUInt && data_type.bits == 8) {
+    return arm_compute::DataType::QASYMM8;
+  } else if (data_type.code == DLDataTypeCode::kDLInt && data_type.bits == 32) {
+    return arm_compute::DataType::S32;
+  } else {
+    LOG(FATAL) << "Datatype " << data_type << " unsupported by ACL runtime";
+    return arm_compute::DataType::UNKNOWN;
+  }
+}
+
+template <typename T>
+std::vector<T> GetVectorFromDLTensor(const DLTensor* tensor) {
+  CHECK(tensor) << "Cannot convert a nullptr";
+  int len = 1;
+  for (int i = 0; i < tensor->ndim; i++) {
+    len *= tensor->shape[i];
+  }
+  T* data = static_cast<T*>(tensor->data);
+  return std::vector<T>(data, data + len);
 }
 
 }  // namespace contrib

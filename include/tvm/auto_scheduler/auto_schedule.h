@@ -100,9 +100,9 @@ class TuningOptions : public ObjectRef {
 /*!
  * \brief Run schedule search for a given compute declaration.
  * \param task The search task of the compute declaration.
- * \param search_policy The search policy to be used.
+ * \param search_policy The search policy.
  * \param tuning_options Tuning and measurement options.
- * \return A `te::schedule` and the an Array of `te::Tensor` to be used in `tvm.lower` or
+ * \return A `te::schedule` and an Array of `te::Tensor` to be used in `tvm.lower` or
  * `tvm.build`.
  */
 TVM_DLL std::pair<te::Schedule, Array<te::Tensor>> AutoSchedule(SearchTask task,

@@ -30,6 +30,5 @@ echo set\(USE_MICRO ON\) >> config.cmake
 echo set\(USE_STANDALONE_CRT ON\) >> config.cmake
 echo set\(USE_GRAPH_RUNTIME_DEBUG ON\) >> config.cmake
 echo set\(USE_VM_PROFILER ON\) >> config.cmake
-echo set\(USE_EXAMPLE_EXT_RUNTIME ON\) >> config.cmake
 echo set\(CMAKE_CXX_COMPILER clang-7\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake

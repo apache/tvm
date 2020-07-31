@@ -24,6 +24,7 @@
 
 #include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
@@ -678,7 +679,7 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
   // Apply the history steps to TVM schedule
   // Call each step's ApplyToSchedule method
   for (const auto& step : transform_steps) {
-    StepApplyToSchedule(step, stages, stage_to_axes, &schedule);
+    StepApplyToSchedule(step, stages, stage_to_axes, &schedule, transform_steps);
   }
 
   return std::make_pair(schedule, operator->()->tensors);
@@ -722,7 +723,7 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
   }
   // Call each step's PrintAsPythonAPI method
   for (const auto& step : transform_steps) {
-    ss << StepPrintAsPythonAPI(step, &stages, &stage_to_axes, &schedule);
+    ss << StepPrintAsPythonAPI(step, &stages, &stage_to_axes, &schedule, transform_steps);
   }
 
   return ss.str();
@@ -740,7 +741,9 @@ State ComputeDAG::InferBound(const State& state) const {
     ret_state = operator->()->init_state;
     pstate = ret_state.CopyOnWrite();
     pstate->transform_steps = state->transform_steps;
-    ret_state.ApplySteps(*this);
+    for (const auto& step : pstate->transform_steps) {
+      StepApplyToState(step, &ret_state, *this);
+    }
   } else {
     ret_state = state;
     pstate = ret_state.CopyOnWrite();

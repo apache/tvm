@@ -121,6 +121,33 @@ networks refer to the tests: `tests/python/contrib/test_arm_compute_lib`. Here y
 `infrastructure.py` to use the remote device you have setup.
 
 
+Operator support
+----------------
++--------------+-------------------------------------------------------------------------+
+| Relay Node   | Remarks                                                                 |
++==============+=========================================================================+
+| nn.conv2d    | fp32:                                                                   |
+|              |   Simple: nn.conv2d                                                     |
+|              |   Composite: nn.pad?, nn.conv2d, nn.bias_add?, nn.relu?                 |
+|              |                                                                         |
+|              | (only groups = 1 supported)                                             |
++--------------+-------------------------------------------------------------------------+
+| qnn.conv2d   | uint8:                                                                  |
+|              |   Composite: nn.pad?, nn.conv2d, nn.bias_add?, nn.relu?, qnn.requantize |
+|              |                                                                         |
+|              | (only groups = 1 supported)                                             |
++--------------+-------------------------------------------------------------------------+
+| nn.maxpool2d | fp32, uint8                                                             |
++--------------+-------------------------------------------------------------------------+
+| reshape      | fp32, uint8                                                             |
++--------------+-------------------------------------------------------------------------+
+
+.. note::
+    A composite operator is a series of operators that map to a single Arm Compute Library operator. You can view this
+    as being a single fused operator from the view point of Arm Compute Library. '?' denotes an optional operator in
+    the series of operators that make up a composite operator.
+
+
 Adding a new operator
 ---------------------
 Adding a new operator requires changes to a series of places. This section will give a hint on

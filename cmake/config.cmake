@@ -217,9 +217,6 @@ set(USE_VTA_TSIM OFF)
 # Whether to build VTA FPGA driver (device side only)
 set(USE_VTA_FPGA OFF)
 
-# Whether to build the example external runtime module
-set(USE_EXAMPLE_EXT_RUNTIME OFF)
-
 # Whether use Thrust
 set(USE_THRUST OFF)
 

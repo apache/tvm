@@ -247,6 +247,13 @@ Iterator State::fuse(int stage_id, const Array<Iterator>& iters) {
   return step->ApplyToState(this);
 }
 
+void State::pragma(int stage_id, const Iterator& it, const String& pragma_type) {
+  const Stage& stage = operator->()->stages[stage_id];
+  PragmaStep step = PragmaStep(stage_id, GetIndex(stage->iters, it), pragma_type);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this);
+}
+
 void State::reorder(int stage_id, const Array<Iterator>& order) {
   const Stage& stage = operator->()->stages[stage_id];
   CHECK_EQ(order.size(), stage->iters.size()) << "The order of all iterators "
@@ -264,6 +271,32 @@ Array<Iterator> State::split(int stage_id, const Iterator& it,
   SplitStep step =
       SplitStep(stage_id, GetIndex(stage->iters, it),
                 it->range.defined() ? it->range->extent : PrimExpr(), lengths, inner_to_outer);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this);
+}
+
+Array<Iterator> State::follow_split(int stage_id, const Iterator& it, int src_step_id,
+                                    int n_split) {
+  const Stage& stage = operator->()->stages[stage_id];
+  FollowSplitStep step =
+      FollowSplitStep(stage_id, GetIndex(stage->iters, it), src_step_id, n_split);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this);
+}
+
+Array<Iterator> State::follow_fused_split(int stage_id, const Iterator& it,
+                                          const Array<Integer>& src_step_ids, int level,
+                                          bool factor_or_nparts) {
+  const Stage& stage = operator->()->stages[stage_id];
+  FollowFusedSplitStep step = FollowFusedSplitStep(stage_id, GetIndex(stage->iters, it),
+                                                   src_step_ids, level, factor_or_nparts);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this);
+}
+
+void State::storage_align(int stage_id, const Iterator& it, int factor, int offset) {
+  const Stage& stage = operator->()->stages[stage_id];
+  StorageAlignStep step = StorageAlignStep(stage_id, GetIndex(stage->iters, it), factor, offset);
   CopyOnWrite()->transform_steps.push_back(step);
   return step->ApplyToState(this);
 }
@@ -301,13 +334,11 @@ int State::cache_write(int stage_id, const String& scope_name, const ComputeDAG&
   return step->ApplyToState(this, dag);
 }
 
-void State::ApplySteps(const ComputeDAG& dag) {
-  CHECK(operator->()->stages.size()) << "Invalid State with empty operation stages.";
-
-  // Call each step's ApplyToState method
-  for (const auto& step : operator->()->transform_steps) {
-    StepApplyToState(step, this, dag);
-  }
+int State::rfactor(int stage_id, const Iterator& it, int factor_iter_id, const ComputeDAG& dag) {
+  const Stage& stage = operator->()->stages[stage_id];
+  RfactorStep step = RfactorStep(stage_id, GetIndex(stage->iters, it), factor_iter_id);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this, dag);
 }
 
 // Print stage to ostream
@@ -441,6 +472,12 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateFuse")
       return Array<ObjectRef>{state, res};
     });
 
+TVM_REGISTER_GLOBAL("auto_scheduler.StatePragma")
+    .set_body_typed([](State state, int stage_id, const Iterator& it, const String& pragma_type) {
+      state.pragma(stage_id, it, pragma_type);
+      return state;
+    });
+
 TVM_REGISTER_GLOBAL("auto_scheduler.StateReorder")
     .set_body_typed([](State state, int stage_id, const Array<Iterator>& order) {
       state.reorder(stage_id, order);
@@ -452,6 +489,27 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateSplit")
                        const Array<Optional<Integer>>& lengths, bool inner_to_outer) {
       const auto& res = state.split(stage_id, it, lengths, inner_to_outer);
       return Array<ObjectRef>{state, res};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateFollowSplit")
+    .set_body_typed([](State state, int stage_id, const Iterator& it, int src_step_id,
+                       int n_split) {
+      const auto& res = state.follow_split(stage_id, it, src_step_id, n_split);
+      return Array<ObjectRef>{state, Array<Iterator>(res)};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateFollowFusedSplit")
+    .set_body_typed([](State state, int stage_id, const Iterator& it,
+                       const Array<Integer>& src_step_ids, int level, bool factor_or_nparts) {
+      const auto& res =
+          state.follow_fused_split(stage_id, it, src_step_ids, level, factor_or_nparts);
+      return Array<ObjectRef>{state, Array<Iterator>(res)};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateStorageAlign")
+    .set_body_typed([](State state, int stage_id, const Iterator& it, int factor, int offset) {
+      state.storage_align(stage_id, it, factor, offset);
+      return state;
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.StateComputeAt")
@@ -484,6 +542,13 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateCacheWrite")
     .set_body_typed([](State state, int stage_id, const String& scope_name,
                        const ComputeDAG& task_dag) {
       int res = state.cache_write(stage_id, scope_name, task_dag);
+      return Array<ObjectRef>{state, Integer(res)};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateRfactor")
+    .set_body_typed([](State state, int stage_id, const Iterator& it, int factor_iter_id,
+                       const ComputeDAG& dag) {
+      int res = state.rfactor(stage_id, it, factor_iter_id, dag);
       return Array<ObjectRef>{state, Integer(res)};
     });
 

@@ -152,7 +152,10 @@ class GraphModule(object):
            Additional arguments
         """
         if key is not None:
-            self._get_input(key).copyfrom(value)
+            v = self._get_input(key)
+            if v is None:
+                raise RuntimeError("Could not find '%s' in graph's inputs" % key)
+            v.copyfrom(value)
 
         if params:
             # upload big arrays first to avoid memory issue in rpc mode

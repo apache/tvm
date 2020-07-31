@@ -58,35 +58,27 @@ void CheckACLError(const arm_compute::Status& status);
  *
  * \param tensor_rep A JSON tensor representation.
  * \param data (optional) Initialize the tensor with memory.
+ * \param scale (optional) The quantization scale.
+ * \param offset (optional) The quantization offset.
  * \return arm_compute::Tensor.
  */
-arm_compute::Tensor MakeTensor(const JSONGraphNode& tensor_rep, void* data = nullptr);
-
-/*!
- * \brief Make an acl tensor from type and shape, without having a JSON representation.
- *
- * \param shape The shape of the tensor to create.
- * \return arm_compute::Tensor.
- */
-arm_compute::Tensor MakeOutputTensor(const std::vector<int64_t>& shape);
+arm_compute::Tensor MakeACLTensor(const JSONGraphNode& tensor_rep, void* data = nullptr,
+                                  const DLTensor* scale = nullptr,
+                                  const DLTensor* offset = nullptr);
 
 /*!
  * \brief Make an acl tensor info object from JSON tensor
  * representation.
  *
  * \param shape The shape of the tensor to create.
+ * \param dtype The data type of the tensor to create.
+ * \param scale (optional) The quantization scale.
+ * \param offset (optional) The quantization offset.
  * \return arm_compute::TensorInfo.
  */
-arm_compute::TensorInfo MakeTensorInfo(const std::vector<int64_t>& shape);
-
-/*!
- * \brief Convert vector object to acl TensorShape.
- * \note This requires reversing the given vector.
- *
- * \param shape The shape of the tensor as a vector.
- * \return arm_compute::TensorShape.
- */
-arm_compute::TensorShape MakeTensorShape(const std::vector<int64_t>& shape);
+arm_compute::TensorInfo MakeACLTensorInfo(const std::vector<int64_t>& shape,
+                                          const DLDataType& dtype, const DLTensor* scale = nullptr,
+                                          const DLTensor* offset = nullptr);
 
 /*!
  * \brief Create a memory manager for use with a layer that
@@ -94,7 +86,7 @@ arm_compute::TensorShape MakeTensorShape(const std::vector<int64_t>& shape);
  *
  * \return reference counted memory manager.
  */
-std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeMemoryManager();
+std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeACLMemoryManager();
 
 /*!
  * \brief Convert TVM padding and stride format to acl PadStrideInfo.
@@ -103,8 +95,27 @@ std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeMemoryManager();
  * \param stride The stride vector.
  * \return arm_compute::PadStrideInfo
  */
-arm_compute::PadStrideInfo ToACLPadStride(const std::vector<std::string>& pad,
-                                          const std::vector<std::string>& stride);
+arm_compute::PadStrideInfo MakeACLPadStride(const std::vector<std::string>& pad,
+                                            const std::vector<std::string>& stride);
+
+/*!
+ * \brief Convert DLDataType to arm_compute::DataType.
+ *
+ * \param data_type The data type to convert.
+ * \return arm_compute::DataType.
+ */
+arm_compute::DataType MakeACLDataType(const DLDataType& data_type);
+
+/*!
+ * \brief Get a vector from DLTensor data.
+ * \note Performs a copy of data.
+ *
+ * \tparam T The type of the vector.
+ * \param tensor The tensor to convert.
+ * \return Vector of type T.
+ */
+template <typename T>
+std::vector<T> GetVectorFromDLTensor(const DLTensor* tensor);
 
 }  // namespace contrib
 }  // namespace runtime
