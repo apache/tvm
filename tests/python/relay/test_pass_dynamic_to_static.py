@@ -21,8 +21,7 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.testing import run_infer_type, create_workload, ctx_list
-
-import tvm.topi.testing
+import topi.testing
 
 
 def run_opt_pass(expr, opt_pass):
@@ -33,14 +32,14 @@ def run_opt_pass(expr, opt_pass):
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
-def verify_func(func, data, ref_res):
+def verify_func(func, data, ref_res, rtol=1e-5, atol=1e-7):
     assert isinstance(data, list)
     for target, ctx in ctx_list():
         for kind in ["graph", "vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
             op_res = intrp.evaluate()(*data)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=rtol, atol=atol)
 
 def test_dynamic_to_static_reshape():
     def verify_reshape(shape, newshape, oshape):
@@ -183,6 +182,7 @@ def test_dynamic_to_static_topk():
             for ret_type in ["both", "values", "indices"]:
                 verify_topk(k, axis, ret_type, True, "int64")
                 verify_topk(k, axis, ret_type, False, "float32")
+
 def test_dynamic_to_static_broadcast_to():
     def verify_broadcast_to(shape, broadcast_shape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -224,6 +224,36 @@ def test_dynamic_to_static_zeros_ones():
     verify_ones_zeros((1, 2, 3), 'int64')
     verify_ones_zeros((9, 8, 3, 4), 'float32')
 
+def test_dynamic_to_static_resize():
+    def verify_resize(shape, scale, method, layout):
+        if layout == "NHWC":
+            size = (shape[1] * scale, shape[2] * scale)
+        else:
+            size = (shape[2] * scale, shape[3] * scale)
+
+        x = relay.var("x", relay.TensorType(shape, "float32"))
+        size_var = relay.const(np.array(size).astype("float32"))
+        z = relay.image.resize(x, size_var, layout, method, "align_corners")
+
+        func = run_infer_type(relay.Function([x], z))
+        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+
+        zz = func2.body
+        assert isinstance(zz, relay.Call)
+        assert zz.op == relay.op.get("image.resize")
+        
+        x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
+        
+        if method == "bilinear":
+            ref_res = topi.testing.bilinear_resize_python(x_data, size, layout)
+        else:
+            ref_res = topi.testing.upsampling_python(x_data, (scale, scale), layout)
+        verify_func(func2, [x_data], ref_res, rtol=1e-4, atol=1e-6)
+
+    for method in ["bilinear", "nearest_neighbor"]:
+        for layout in ["NCHW", "NHWC"]:
+            verify_resize((1, 4, 4, 4), 2, method, layout)
+
 def test_dynamic_to_static_one_hot():
     def _verify(indices_shape, depth, on_value, off_value, axis, dtype):
         indices = relay.var("indices", relay.TensorType(indices_shape, "int32"))
@@ -249,7 +279,7 @@ def test_dynamic_to_static_one_hot():
     _verify((2, 2), 5, 0.5, -0.5, 1, "float32")
     _verify((3, 2, 4, 5), 6, 1, 0, 1, "int32")
     _verify((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
-
+    
 if __name__=="__main__":
     test_dynamic_to_static_reshape()
     test_dynamic_to_static_double_reshape()
@@ -258,3 +288,5 @@ if __name__=="__main__":
     test_dynamic_to_static_topk()
     test_dynamic_to_static_broadcast_to()
     test_dynamic_to_static_zeros_ones()
+    test_dynamic_to_static_resize()
+    test_dynamic_to_static_one_hot()

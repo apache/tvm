@@ -19,13 +19,10 @@
 from __future__ import absolute_import
 
 import topi
-from topi.util import get_const_tuple, nchw_pack_layout, nchw_xc_layout
+from topi.util import nchw_pack_layout, nchw_xc_layout
 from tvm.runtime import convert
 from tvm.te.hybrid import script
-from tvm.tir import BijectiveLayout
 from ... import op as reg
-from ... import strategy
-from ...op import OpPattern
 
 
 # resize
@@ -35,9 +32,14 @@ def compute_resize(attrs, inputs, out_type):
     method = attrs.method
     coord_trans = attrs.coordinate_transformation_mode
     out_dtype = attrs.out_dtype
-    return [topi.image.resize(inputs[0], inputs[1], layout, method, coord_trans, out_dtype, out_type.shape)]
+    return [
+        topi.image.resize(inputs[0], inputs[1], layout, method, coord_trans, out_dtype,
+                          out_type.shape)
+    ]
+
 
 reg.register_injective_schedule("dyn.image.resize")
+
 
 @script
 def _NCHW_resize_shape_func(dshape, size, ndim):
@@ -48,6 +50,7 @@ def _NCHW_resize_shape_func(dshape, size, ndim):
     out[3] = int64(size[1])
     return out
 
+
 @script
 def _NHWC_resize_shape_func(dshape, size, ndim):
     out = output_tensor((ndim, ), "int64")
@@ -57,6 +60,7 @@ def _NHWC_resize_shape_func(dshape, size, ndim):
     out[2] = int64(size[1])
     return out
 
+
 @reg.register_shape_func("dyn.image.resize", True)
 def resize_shape_func(attrs, inputs, _):
     """
@@ -64,7 +68,9 @@ def resize_shape_func(attrs, inputs, _):
     """
     layout = attrs.layout
     if layout == 'NHWC':
-        return [_NHWC_resize_shape_func(inputs[0].shape, inputs[1], convert(len(inputs[0].shape)))]
+        out = [_NHWC_resize_shape_func(inputs[0].shape, inputs[1], convert(len(inputs[0].shape)))]
     elif (layout == 'NCHW') or nchw_pack_layout(layout) or nchw_xc_layout(layout):
-        return [_NCHW_resize_shape_func(inputs[0].shape, inputs[1], convert(len(inputs[0].shape)))]
-    raise ValueError("Resize Unsupported Layout", layout)
+        out = [_NCHW_resize_shape_func(inputs[0].shape, inputs[1], convert(len(inputs[0].shape)))]
+    else:
+        raise ValueError("Resize Unsupported Layout", layout)
+    return out

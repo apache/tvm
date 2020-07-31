@@ -19,6 +19,7 @@ from . import _make
 from ..dyn.image import _make as _dyn_make
 from ...expr import Expr
 
+
 def resize(data,
            size,
            layout="NCHW",
@@ -64,7 +65,8 @@ def resize(data,
         The resized result.
     """
     if isinstance(size, Expr):
-        return _dyn_make.resize(data, size, layout, method, coordinate_transformation_mode, out_dtype)
+        return _dyn_make.resize(data, size, layout, method, coordinate_transformation_mode,
+                                out_dtype)
     return _make.resize(data, size, layout, method, coordinate_transformation_mode, out_dtype)
 
 
@@ -160,8 +162,8 @@ def crop_and_resize(data,
     result: relay.Expr
         The computed result.
     """
-    return _make.crop_and_resize(data, boxes, box_indices, crop_size,
-                                 layout, method, extrapolation_value, out_dtype)
+    return _make.crop_and_resize(data, boxes, box_indices, crop_size, layout, method,
+                                 extrapolation_value, out_dtype)
 
 
 def dilation2d(data,
@@ -217,8 +219,8 @@ def dilation2d(data,
         The computed result.
     """
 
-    return _make.dilation2d(data, weight, strides, padding, dilations, data_layout,
-                            kernel_layout, out_dtype)
+    return _make.dilation2d(data, weight, strides, padding, dilations, data_layout, kernel_layout,
+                            out_dtype)
 
 
 def affine_grid(data, target_shape=None):
@@ -242,6 +244,7 @@ def affine_grid(data, target_shape=None):
         4-D with shape [batch, 2, target_height, target_width]
     """
     return _make.affine_grid(data, target_shape)
+
 
 def grid_sample(data, grid, method='bilinear', layout='NCHW'):
     """Applies bilinear sampling to input feature map.
