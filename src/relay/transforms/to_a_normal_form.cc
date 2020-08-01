@@ -50,7 +50,6 @@ Scope LCA(Scope lhs, Scope rhs) {
   return lhs;
 }
 
-// return a set of Exprs whose scope should be lifted to due dependencies.
 void CalcScope(const DependencyGraph& dg,
                std::unordered_map<DependencyGraph::Node*, Scope>* expr_scope,
                std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>* lifted_exprs) {

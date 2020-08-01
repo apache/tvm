@@ -48,9 +48,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
                                      ExprSet* lifted) {
     FillBasicBlock fi(dg, node_scope, lifted);
     auto var = fi.VisitExpr(e);
-    auto scope = fi.GetScope(e);
-    auto ret = scope->ll->Get(var);
-    return ret;
+    return fi.GetScope(e)->scope->ll->Get(var);
   }
 
  private:
@@ -70,7 +68,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
     DependencyGraph::Node* n = dg_.expr_node.at(e);
     auto h = n->children.head;
     while (i != 0) {
-      CHECK(h);
+      CHECK(h) << i << "-th dependency is not defined";
       --i;
       h = h->next;
     }
@@ -84,8 +82,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
     } else if (v.defined()) {
       GetScope(e)->ll->Push(v, memo.at(e));
     }
-    auto ret = memo.at(e);
-    return ret;
+    return memo.at(e);
   }
 
   Expr VisitExpr(const Expr& e) { return this->VisitExpr(e, Var()); }
@@ -224,7 +221,7 @@ IRModule ToBasicBlockNormalForm(const IRModule& mod) {
   tvm::Map<GlobalVar, Function> updates;
   auto funcs = mod->functions;
   for (const auto& it : funcs) {
-    CHECK_EQ(FreeVars(it.second).size(), 0);
+    CHECK_EQ(FreeVars(it.second).size(), 0) << "Expected no free variables";
     if (const auto* n = it.second.as<FunctionNode>()) {
       if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
     }
