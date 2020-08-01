@@ -105,8 +105,7 @@ def setup():
                 "llvm",
                 "posit32",
                 intrinsic_name="tanh")
-    # TODO(gus) these aren't actually right. these are double min(actually lowest)/max.
-    register_min_func(lambda num_bits: -1.79769e+308, "posit32")
+    register_min_func(lambda num_bits: -1.329227995784915872903807060280344576e36, "posit32")
 
     register("posit8", 132)
     register_op(create_lower_func("FloatToPosit8es0"), "Cast", "llvm",
@@ -153,7 +152,6 @@ def setup():
                 "llvm",
                 "posit8",
                 intrinsic_name="tanh")
-    # TODO(gus) Not sure if correct
     register_min_func(lambda num_bits: -64, "posit8")
 
     register("posit16", 133)
@@ -201,8 +199,7 @@ def setup():
                 "llvm",
                 "posit16",
                 intrinsic_name="tanh")
-    # TODO(gus) Not sure if correct
-    register_min_func(lambda num_bits: -64, "posit16")
+    register_min_func(lambda num_bits: -2.68435456e8, "posit16")
 
     register("noptype", 134)
     register_op(create_lower_func("FloatToNop32"), "Cast", "llvm", "noptype",
