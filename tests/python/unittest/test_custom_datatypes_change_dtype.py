@@ -28,12 +28,15 @@ from nose.tools import nottest
 tgt = "llvm"
 
 
-def convert_ndarray(dst_dtype, array):
-    """Converts an NDArray into the specified datatype"""
-    x = relay.var('x', shape=array.shape, dtype=str(array.dtype))
-    cast = relay.Function([x], x.astype(dst_dtype))
-    with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        return relay.create_executor('graph').evaluate(cast)(array)
+def convert_ndarray(dst_dtype, *arrays):
+    """Converts NDArray(s) into the specified datatype"""
+    def convert(array):
+        x = relay.var('x', shape=array.shape, dtype=str(array.dtype))
+        cast = relay.Function([x], x.astype(dst_dtype))
+        with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
+            return relay.create_executor('graph').evaluate(cast)(array)
+
+    return tuple([convert(x) for x in arrays])
 
 
 def change_dtype(src, dst, module, params):
@@ -42,6 +45,23 @@ def change_dtype(src, dst, module, params):
     params = dict((p, convert_ndarray(dst, params[p])) for p in params)
     return module, params
 
+def compare(module, input, src_dtype, dst_dtype, rtol, atol, params = {}):
+    ex = relay.create_executor("graph", mod=module)
+
+    correct = ex.evaluate()(*input, **params)
+
+    module, _ = change_dtype(src_dtype, dst_dtype, module, [])
+    ex = relay.create_executor("graph", mod=module)
+    x_converted = convert_ndarray(dst_dtype, *input)
+
+    # Vectorization is not implemented with custom datatypes
+    with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
+        maybe_correct = ex.evaluate()(*x_converted, **params)
+        maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)[0]
+    np.testing.assert_allclose(maybe_correct_converted.asnumpy(),
+                                correct.asnumpy(),
+                                rtol=rtol,
+                                atol=atol)
 
 def setup():
     """Set up tests
@@ -260,21 +280,7 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
 
         module = tvm.IRModule.from_expr(relay.Function([x], z))
 
-        ex = relay.create_executor("graph", mod=module)
-
-        correct = ex.evaluate()(x_data)
-
-        module, _ = change_dtype(src_dtype, dst_dtype, module, [])
-        ex = relay.create_executor("graph", mod=module)
-
-        x_converted = convert_ndarray(dst_dtype, x_data)
-        with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-            maybe_correct = ex.evaluate()(x_converted)
-            maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)
-        np.testing.assert_allclose(maybe_correct_converted.asnumpy(),
-                                   correct.asnumpy(),
-                                   rtol=rtol,
-                                   atol=atol)
+        compare(module, (x_data, ), src_dtype, dst_dtype, rtol, atol)
         # print(maybe_correct_converted)
         # print(correct)
 
@@ -300,23 +306,7 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
         y_data = np.random.rand(5).astype(t2.dtype)
         module = tvm.IRModule.from_expr(relay.Function([x, y], z))
 
-        ex = relay.create_executor("graph", mod=module)
-
-        correct = ex.evaluate()(x_data, y_data)
-
-        module, _ = change_dtype(src_dtype, dst_dtype, module, [])
-        ex = relay.create_executor("graph", mod=module)
-
-        x_converted = convert_ndarray(dst_dtype, x_data)
-        y_converted = convert_ndarray(dst_dtype, y_data)
-
-        with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-            maybe_correct = ex.evaluate()(x_converted, y_converted)
-            maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)
-        np.testing.assert_allclose(correct.asnumpy(),
-                                   maybe_correct_converted.asnumpy(),
-                                   rtol=rtol,
-                                   atol=atol)
+        compare(module, (x_data, y_data), src_dtype, dst_dtype, rtol, atol)
 
     for op in [
             relay.add,
@@ -340,26 +330,11 @@ def run_model(get_workload,
     # Convert the input into the correct format.
     input = tvm.nd.array(np.random.rand(*input_shape).astype(src_dtype))
 
-    ex = relay.create_executor('graph', mod=module)
-    correct = ex.evaluate()(input, **params)
+    compare(module, (input, ), src_dtype, dst_dtype, rtol, atol, params)
 
-    # Simplifying inference is essential right now, as batch norms (which get
-    # removed) are broken with custom datatypes.
-    #expr = relay.ir_pass.simplify_inference(expr)
-    module, params = change_dtype(src_dtype, dst_dtype, module, params)
-    ex = relay.create_executor('graph', mod=module)
-
-    input = convert_ndarray(dst_dtype, input)
-
-    # Vectorization is not implemented with custom datatypes.
-    with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        result = ex.evaluate()(input, **params)
-        tvm.testing.assert_allclose(convert_ndarray(src_dtype,
-                                                    result).asnumpy(),
-                                    correct.asnumpy(),
-                                    rtol=rtol,
-                                    atol=atol)
-
+    # # Simplifying inference is essential right now, as batch norms (which get
+    # # removed) are broken with custom datatypes.
+    # #expr = relay.ir_pass.simplify_inference(expr)
 
 def run_conv2d(src_dtype, dst_dtype):
     def run_test_conv2d(src_dtype,
