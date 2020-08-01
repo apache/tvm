@@ -48,7 +48,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
                                      ExprSet* lifted) {
     FillBasicBlock fi(dg, node_scope, lifted);
     auto var = fi.VisitExpr(e);
-    return fi.GetScope(e)->scope->ll->Get(var);
+    return fi.GetScope(e)->ll->Get(var);
   }
 
  private:
