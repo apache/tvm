@@ -770,7 +770,7 @@ class CompileEngineImpl : public CompileEngineNode {
 };
 
 /*! \brief The global compile engine */
-const CompileEngine& CompileEngine::Global() {
+CompileEngine& CompileEngine::Global() {
   // intentionally allocate raw pointer to avoid
   // free during destructuion.
   static CompileEngine* inst = new CompileEngine(make_object<CompileEngineImpl>());

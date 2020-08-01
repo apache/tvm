@@ -454,8 +454,62 @@ def test_follow_split_follow_fused_split():
         assert tmp[C].iters[level + 1].range.extent == \
                tmp[C_global].iters[1].range.extent
 
+
+def test_rfactor():
+    A, B, C = matmul_auto_scheduler_test(8, 8, 512)
+    dag = auto_scheduler.ComputeDAG([A, B, C])
+    s0 = dag.get_init_state()
+
+    ko, ki = s0.split(C, s0[C].iters[2], [16])
+
+    s1 = s0.copy()
+    C_r = s1.rfactor(C, ko, 2)
+    """
+        Placeholder: A, B
+        for i (0,8)
+          for j (0,8)
+            for k_o (0,32)
+              for k_i (0,16)
+                C.rf = ...
+        for ax0 (0,8)
+          for ax1 (0,8)
+            for k_o_v (0,32)
+              C.repl = ...
+    """
+    assert s1[C_r].iters[0].range.extent == 8
+    assert s1[C_r].iters[1].range.extent == 8
+    assert s1[C_r].iters[2].range.extent == 32
+    assert s1[C_r].iters[3].range.extent == 16
+    assert s1[C].iters[0].range.extent == 8
+    assert s1[C].iters[1].range.extent == 8
+    assert s1[C].iters[2].range.extent == 32
+
+    s2 = s0.copy()
+    C_r = s2.rfactor(C, ki, 2)
+    """
+        Placeholder: A, B
+        for i (0,8)
+          for j (0,8)
+            for k_i (0,16)
+              for k_o (0,32)
+                C.rf = ...
+        for ax0 (0,8)
+          for ax1 (0,8)
+            for k_i_v (0,16)
+              C.repl = ...
+    """
+    assert s2[C_r].iters[0].range.extent == 8
+    assert s2[C_r].iters[1].range.extent == 8
+    assert s2[C_r].iters[2].range.extent == 16
+    assert s2[C_r].iters[3].range.extent == 32
+    assert s2[C].iters[0].range.extent == 8
+    assert s2[C].iters[1].range.extent == 8
+    assert s2[C].iters[2].range.extent == 16
+
+
 if __name__ == "__main__":
     test_split_fuse_reorder_annotation()
     test_compute_at_root_inline()
     test_cache_read_write()
     test_follow_split_follow_fused_split()
+    test_rfactor()
