@@ -954,6 +954,19 @@ class Array : public ObjectRef {
     return static_cast<ArrayNode*>(data_.get());
   }
 
+  /*!
+   * \brief Concat with another Array. It does not mutate the current one.
+   * \param other Array to be concatenated.
+   * @return The concatenated Array. Original Arrays are kept unchanged.
+   */
+  Array<T> Concat(const Array<T>& other) const {
+    Array<T> ret = *this;
+    for (const auto& x : other) {
+      ret.push_back(x);
+    }
+    return std::move(ret);
+  }
+
   /*! \brief specify container node */
   using ContainerType = ArrayNode;
 

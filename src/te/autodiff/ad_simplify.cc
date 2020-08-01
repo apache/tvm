@@ -63,6 +63,7 @@ namespace te {
 using arith::DivMode;
 using arith::kFloorDiv;
 using arith::kTruncDiv;
+using arith::ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE;
 
 template <class K, class V>
 Map<K, V> Merge(Map<K, V> original, const Map<K, V>& update) {
@@ -70,15 +71,6 @@ Map<K, V> Merge(Map<K, V> original, const Map<K, V>& update) {
     original.Set(p.first, p.second);
   }
   return std::move(original);
-}
-
-// Concatenate two arrays
-template <class T>
-Array<T> Concat(Array<T> a, const Array<T>& b) {
-  for (const auto& x : b) {
-    a.push_back(x);
-  }
-  return std::move(a);
 }
 
 // Combine all expressions from the container using &&.
@@ -128,7 +120,7 @@ Array<Var> IterVarsToVars(const Array<IterVar>& itervars) {
 }
 
 template <typename ValueType>
-inline bool is_const_value(const PrimExpr& e, ValueType value) {
+bool is_const_value(const PrimExpr& e, ValueType value) {
   static_assert(std::is_integral<ValueType>::value,
                 "Comparison to non-integer values is forbidden.");
   if (const tir::IntImmNode* i = e.as<tir::IntImmNode>()) {
@@ -228,12 +220,7 @@ class NonzeroConditionFunctor : public ExprFunctor<NonzeroConditionResult(const 
 
   result_type VisitExpr_(const CastNode* op) final {
     auto nz_a = NonzeroCondition(op->value);
-
-    if (nz_a.value.same_as(op->value)) {
-      return {nz_a.cond, GetRef<PrimExpr>(op)};
-    } else {
-      return {nz_a.cond, Cast(op->dtype, nz_a.value)};
-    }
+    return {nz_a.cond, Cast(op->dtype, nz_a.value)};
   }
 
   result_type VisitExpr_(const SelectNode* op) final {
@@ -266,7 +253,7 @@ class NonzeroConditionFunctor : public ExprFunctor<NonzeroConditionResult(const 
   }
 
   result_type VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(Op::Get("tir.if_then_else"))) {
+    if (op->op.same_as(op_if_then_else_)) {
       PrimExpr cond = op->args[0], true_val = op->args[1], false_val = op->args[2];
       auto nz_a = NonzeroCondition(true_val);
       auto nz_b = NonzeroCondition(false_val);
@@ -363,6 +350,7 @@ class NonzeroConditionFunctor : public ExprFunctor<NonzeroConditionResult(const 
 
  private:
   arith::Analyzer analyzer_;
+  const Op& op_if_then_else_ = Op::Get("tir.if_then_else");
 };
 
 inline NonzeroConditionResult NonzeronessCondition(const PrimExpr& expr) {
@@ -765,7 +753,7 @@ arith::IntConstraintsTransform EliminateDivModFromDomainConditions(
   auto elim_res = EliminateDivMod(All(domain->relations), domain->ranges);
 
   Map<Var, Range> new_vranges = elim_res.ranges;
-  Array<Var> new_axis = Concat(domain->variables, elim_res.new_variables);
+  Array<Var> new_axis = domain->variables.Concat(elim_res.new_variables);
   PrimExpr new_cond = elim_res.expr && All(elim_res.conditions);
 
   arith::IntConstraints new_domain(new_axis, new_vranges,
@@ -869,9 +857,9 @@ std::pair<PrimExpr, PrimExpr> LiftConditionsThroughReduction(const PrimExpr& con
                                                              const Array<IterVar>& red_axis,
                                                              const Array<IterVar>& outer_axis) {
   // Factor out atomics so that we can consider this as a system of inequalities
-  auto factoratomic_res = FactorOutAtomicFormulas(cond);
-  Array<PrimExpr> atomics = factoratomic_res.atomic_formulas;
-  const PrimExpr& rest = factoratomic_res.rest;
+  auto factor_atomic_res = FactorOutAtomicFormulas(cond);
+  Array<PrimExpr> atomics = factor_atomic_res.atomic_formulas;
+  const PrimExpr& rest = factor_atomic_res.rest;
 
   Array<Var> allvars;
   for (const IterVar& v : red_axis) {
@@ -940,7 +928,7 @@ class RemoveRedundantInequalitiesMutator : public ExprMutator {
   }
 
   virtual PrimExpr VisitExpr_(const CallNode* op) {
-    if (op->op.same_as(Op::Get("tir.if_then_else"))) {
+    if (op->op.same_as(op_if_then_else_)) {
       PrimExpr new_cond =
           analyzer_.Simplify(VisitExpr(op->args[0]), ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE);
       if (is_one(new_cond)) {
@@ -1007,6 +995,7 @@ class RemoveRedundantInequalitiesMutator : public ExprMutator {
 
   Array<PrimExpr> known_;
   arith::Analyzer analyzer_;
+  const Op& op_if_then_else_ = Op::Get("tir.if_then_else");
 };
 
 // Propagate information from conditions and remove redundant inequalities
@@ -1141,7 +1130,7 @@ class ReductionAsTensorAccessMutator : public ExprMutator {
       : outer_axis_(outer_axis), vranges_(std::move(vranges)), name_(std::move(name)) {}
 
   PrimExpr VisitExpr_(const ReduceNode* op) final {
-    ReductionAsTensorAccessMutator new_mutator(Concat(IterVarsToVars(op->axis), outer_axis_),
+    ReductionAsTensorAccessMutator new_mutator(IterVarsToVars(op->axis).Concat(outer_axis_),
                                                Merge(vranges_, IterVarsToMap(op->axis)), name_);
 
     Array<PrimExpr> new_source;
@@ -1198,7 +1187,7 @@ inline PrimExpr ReductionAsTensorAccess(const PrimExpr& expr, const Array<Var>& 
 PrimExpr LiftReductions(const PrimExpr& expr, const Array<Var>& outer_axis,
                         const Map<Var, Range>& vranges) {
   if (const ReduceNode* red = expr.as<ReduceNode>()) {
-    Array<Var> new_outer_axis = Concat(IterVarsToVars(red->axis), outer_axis);
+    Array<Var> new_outer_axis = IterVarsToVars(red->axis).Concat(outer_axis);
     Map<Var, Range> new_vranges = Merge(vranges, IterVarsToMap(red->axis));
     Array<PrimExpr> new_source;
     for (const PrimExpr& src : red->source) {
