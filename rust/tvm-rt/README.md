@@ -40,7 +40,7 @@ Please follow TVM [installation](https://tvm.apache.org/docs/install/index.html)
 One can use `register!` macro to expose a Rust closure with arguments which implement `TryFrom<ArgValue>`
 and return types which implement `Into<RetValue>`. Once registered with TVM these functions can be
 accessed via Python or C++, or any other language which implements the TVM packed function convention
-see `docs.tvm.ai` for more information.
+see the offcial documentation for more information.
 
 ```rust
 use tvm_rt::{ArgValue, RetValue};
