@@ -40,8 +40,6 @@ namespace relay {
  * only expressions with lifted scope will be pushed to the let list.
  */
 class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
-  using ExprSet = std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>;
-
  public:
   static Expr ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
                                      std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
@@ -59,7 +57,7 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   FillBasicBlock(const DependencyGraph& dg,
                  std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-                 std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>* lifted)
+                 ExprSet* lifted)
       : dg_(dg), node_scope_(node_scope), lifted_(lifted) {}
 
   Scope GetScope(const Expr& e) { return node_scope_->at(dg_.expr_node.at(e)); }
@@ -209,10 +207,8 @@ Expr ToBasicBlockNormalFormAux(const Expr& e) {
    * The scope of any subexpr, is the lowest common ancestor of all incoming edge.
    * We also record the set of expressions whose scope is lifted.
    */
-  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> lifted;
-  std::unordered_map<DependencyGraph::Node*, Scope> node_scope;
-  CalcScope(dg, &node_scope, &lifted);
-  return FillBasicBlock::ToBasicBlockNormalForm(e, dg, &node_scope, &lifted);
+  std::pair<NodeScopeMap, ExprSet> scopes = CalcScope(dg);
+  return FillBasicBlock::ToBasicBlockNormalForm(e, dg, &scopes.first, &scopes.second);
 }
 
 IRModule ToBasicBlockNormalForm(const IRModule& mod) {
@@ -242,10 +238,8 @@ bool BasicBlockNormalFormCheck(const Expr& e) {
   // calculate all the dependency between nodes.
   support::Arena arena;
   DependencyGraph dg = DependencyGraph::Create(&arena, e);
-  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> lifted;
-  std::unordered_map<DependencyGraph::Node*, Scope> node_scope;
-  CalcScope(dg, &node_scope, &lifted);
-  return lifted.size() == 0;
+  std::pair<NodeScopeMap, ExprSet> scopes = CalcScope(dg);
+  return scopes.second.size() == 0;
 }
 
 TVM_REGISTER_GLOBAL("relay.analysis.check_basic_block_normal_form")

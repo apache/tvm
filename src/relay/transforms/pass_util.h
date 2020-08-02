@@ -30,6 +30,7 @@
 #include <tvm/relay/op.h>
 
 #include <memory>
+#include <utility>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -190,6 +191,8 @@ struct TreeBranchNode : TreeNode<ConditionObjectPtr> {
 
 struct ScopeNode;
 using Scope = std::shared_ptr<ScopeNode>;
+using NodeScopeMap = std::unordered_map<DependencyGraph::Node*, Scope>;
+using ExprSet = std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>;
 
 /* Invariant: when parent is null level is 0
  * Invariant: when parent is not null level is 1 + parent->level
@@ -211,9 +214,7 @@ struct ScopeNode {
  *  \param expr_scope the output node -> scope mapping for all nodes.
  *  \param lifted_exprs the output set of expressions whose scope is lifted due to dependency
  */
-void CalcScope(const DependencyGraph& dg,
-               std::unordered_map<DependencyGraph::Node*, Scope>* expr_scope,
-               std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>* lifted_exprs);
+std::pair<NodeScopeMap, ExprSet> CalcScope(const DependencyGraph& dg);
 
 /*! \brief find the least common ancestor of lhs scope and rhs scope.
  */
