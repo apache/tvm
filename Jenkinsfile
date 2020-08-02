@@ -56,7 +56,6 @@ tvm_lib = "build/libtvm.so, " + tvm_runtime
 tvm_multilib = "build/libtvm.so, " +
                "build/libvta_tsim.so, " +
                "build/libvta_fsim.so, " +
-               "build/libtvm_topi.so, " +
                tvm_runtime
 
 // command to start a docker container
