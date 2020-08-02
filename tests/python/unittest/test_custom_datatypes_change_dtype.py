@@ -52,11 +52,13 @@ def compare(module, input, src_dtype, dst_dtype, rtol, atol, params = {}):
 
     module, _ = change_dtype(src_dtype, dst_dtype, module, [])
     ex = relay.create_executor("graph", mod=module)
+    # converts all inputs to dst_dtype
     x_converted = convert_ndarray(dst_dtype, *input)
 
     # Vectorization is not implemented with custom datatypes
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
         maybe_correct = ex.evaluate()(*x_converted, **params)
+        # TODO(andrew) this only works on single output
         maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)[0]
     np.testing.assert_allclose(maybe_correct_converted.asnumpy(),
                                 correct.asnumpy(),
