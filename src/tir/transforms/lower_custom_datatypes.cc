@@ -50,7 +50,6 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code) ||
                        datatype::Registry::Global()->GetTypeRegistered(src_type_code);
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<CastNode>();
     if (toBeLowered) {
       auto lower = datatype::GetCastLowerFunc(target_, type_code, src_type_code);
       CHECK(lower) << "Cast lowering function for target " << target_ << " destination type "
@@ -110,12 +109,6 @@ class CustomDatatypesLowerer : public StmtExprMutator {
                    << call->name << ", type " << static_cast<unsigned>(call->dtype.code())
                    << " not found";
       return (*lower)(expr);
-      // TODO(gus) Not sure what to do in any other case.
-      // } else {
-      // auto new_call_type = DataType::UInt(call->dtype.bits(), call->dtype.lanes());
-      // return Call::make(new_call_type, call->name, call->args, call->call_type, call->func,
-      //                   call->value_index);
-      // }
     }
     return expr;
   }

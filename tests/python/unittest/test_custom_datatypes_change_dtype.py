@@ -172,7 +172,7 @@ def setup():
                 "llvm",
                 "posit8",
                 intrinsic_name="tanh")
-    register_min_func(lambda num_bits: -64, "posit8")
+    register_min_func(lambda num_bits: -16777216, "posit8")
 
     register("posit16", 133)
     register_op(create_lower_func("FloatToPosit16es2"), "Cast", "llvm",
@@ -219,7 +219,7 @@ def setup():
                 "llvm",
                 "posit16",
                 intrinsic_name="tanh")
-    register_min_func(lambda num_bits: -2.68435456e8, "posit16")
+    register_min_func(lambda num_bits: -7.2057594037927936e16, "posit16")
 
     register("noptype", 134)
     register_op(create_lower_func("FloatToNop32"), "Cast", "llvm", "noptype",
@@ -273,7 +273,7 @@ def setup():
 def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
     """Run the same op, but with two different datatypes"""
     def check_unary_op(op, src_dtype, dst_dtype):
-        t1 = relay.TensorType((5, 10, 5))
+        t1 = relay.TensorType((5, 10, 5), src_dtype)
         x = relay.var("x", t1)
         z = op(x)
         x_data = np.random.rand(5, 10, 5).astype(t1.dtype)
