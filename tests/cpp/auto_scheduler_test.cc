@@ -19,10 +19,10 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <topi/nn.h>
 #include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/runtime/container.h>
 #include <tvm/te/operation.h>
+#include <tvm/topi/nn.h>
 
 #include <unordered_set>
 

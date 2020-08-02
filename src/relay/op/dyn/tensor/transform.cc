@@ -23,12 +23,12 @@
  */
 #include "transform.h"
 
-#include <topi/broadcast.h>
-#include <topi/transform.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/topi/broadcast.h>
+#include <tvm/topi/transform.h>
 
 #include <utility>
 #include <vector>
@@ -89,7 +89,7 @@ TVM_REGISTER_GLOBAL("relay.op.dyn._make.reshape").set_body_typed(MakeReshape);
 
 RELAY_REGISTER_OP("dyn.reshape")
     .describe(R"code(Reshapes the input array based on the values in the newshape array.
-    
+
     To give user more convenience in without doing manual shape inference,
     some dimensions of the shape can take special values from the set {0, -1, -3}.
     The significance of each is explained below:
@@ -120,7 +120,7 @@ RELAY_REGISTER_OP("dyn.reshape")
             data.shape = (2,3,4,5), newshape = (-3,-3), result.shape = (6,20)
             data.shape = (2,3,4), newshape = (0,-3), result.shape = (2,12)
 
-    Special values -2 and -4 from the standard reshape op would introduce dynamic rank 
+    Special values -2 and -4 from the standard reshape op would introduce dynamic rank
     in this op. Thus, they are not permitted.
 
     )code" TVM_ADD_FILELINE)

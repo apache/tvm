@@ -22,11 +22,11 @@ from coremltools.models import datatypes
 import tvm
 from tvm import te
 from tvm.contrib import graph_runtime
-import topi
-import topi.testing
+from tvm import topi
+import tvm.topi.testing
 from tvm import relay
 from tvm.relay.testing.config import ctx_list
-from topi.testing import conv2d_nchw_python
+from tvm.topi.testing import conv2d_nchw_python
 
 import coremltools as cm
 import model_zoo
@@ -186,11 +186,11 @@ def verify_UpsampleLayerParams(input_dim, scale, mode):
 
     a_np = np.full(input_dim, 1, dtype=dtype)
     if mode == 'NN':
-        b_np = topi.testing.upsampling_python(a_np, (scale, scale))
+        b_np = tvm.topi.testing.upsampling_python(a_np, (scale, scale))
     else:
         new_h = input_dim[2] * scale
         new_w = input_dim[3] * scale
-        b_np = topi.testing.bilinear_resize_python(a_np, (new_h, new_w), 'NCHW')
+        b_np = tvm.topi.testing.bilinear_resize_python(a_np, (new_h, new_w), 'NCHW')
 
     input = [('input', datatypes.Array(*input_dim))]
     output = [('output', datatypes.Array(*b_np.shape))]
@@ -215,7 +215,7 @@ def verify_l2_normalize(input_dim, eps):
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
-    b_np = topi.testing.l2_normalize_python(a_np, eps, 1)
+    b_np = tvm.topi.testing.l2_normalize_python(a_np, eps, 1)
 
     input = [('input', datatypes.Array(*input_dim))]
     output = [('output', datatypes.Array(*b_np.shape))]
@@ -234,7 +234,7 @@ def verify_lrn(input_dim, size, bias, alpha, beta):
     dtype = "float32"
     axis=1
     a_np = np.random.uniform(size=input_dim).astype(dtype)
-    b_np = topi.testing.lrn_python(a_np, size, axis, bias, alpha, beta)
+    b_np = tvm.topi.testing.lrn_python(a_np, size, axis, bias, alpha, beta)
 
     input = [('input', datatypes.Array(*input_dim))]
     output = [('output', datatypes.Array(*b_np.shape))]

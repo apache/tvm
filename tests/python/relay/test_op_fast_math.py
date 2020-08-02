@@ -19,7 +19,7 @@ import scipy
 from scipy import special
 import tvm
 import tvm.relay as relay
-import topi
+from tvm import topi
 from tvm import te
 from tvm.contrib import graph_runtime
 

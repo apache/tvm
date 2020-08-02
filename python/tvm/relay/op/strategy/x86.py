@@ -19,7 +19,7 @@
 import logging
 
 import re
-import topi
+from tvm import topi
 from tvm.te import SpecializedCondition
 from .generic import *
 from .. import op as _op

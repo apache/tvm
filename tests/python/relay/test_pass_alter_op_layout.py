@@ -681,7 +681,7 @@ def test_alter_layout_depthwise_conv2d():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    import topi
+    from tvm import topi
     def alter_conv2d(attrs, inputs, tinfos, out_type):
         with tvm.target.create("llvm"):
             return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
@@ -1016,7 +1016,7 @@ def test_alter_layout_sum():
 def test_alter_layout_nhwc_arm():
     """ Check that AlterOplayout does not alter NHWC data layout. """
     def alter_conv2d(attrs, inputs, tinfos, out_type):
-        import topi
+        from tvm import topi
         with tvm.target.create("llvm -device=arm_cpu"):
             return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
 
@@ -1077,7 +1077,7 @@ def test_alter_layout_nhwc_int8_aarch64():
             self.memory[key] = cfg
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
-        import topi
+        from tvm import topi
         with tvm.target.create("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu"):
             with Int8Fallback():
                 tmp =  topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)

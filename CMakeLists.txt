@@ -245,7 +245,7 @@ list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 
 
 file(GLOB TOPI_SRCS
-    topi/src/*.cc
+    src/topi/*.cc
 )
 
 file(GLOB RUNTIME_SRCS
@@ -341,7 +341,7 @@ else()
   set(CMAKE_CUDA_STANDARD 14)
 endif()
 
-add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
+add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS} ${TOPI_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
 
@@ -403,15 +403,6 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   target_link_libraries(tvm_runtime ${HIDE_SYMBOLS_LINKER_FLAGS})
 endif()
 
-# Related headers
-target_include_directories(
-  tvm
-  PUBLIC "topi/include")
-target_include_directories(
-  tvm_topi
-  PUBLIC "topi/include")
-
-
 # Tests
 set(TEST_EXECS "")
 file(GLOB TEST_SRCS tests/cpp/*.cc)
@@ -453,11 +444,6 @@ install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
 if (INSTALL_DEV)
   install(
     DIRECTORY "include/." DESTINATION "include"
-    FILES_MATCHING
-    PATTERN "*.h"
-  )
-  install(
-    DIRECTORY "topi/include/." DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
   )

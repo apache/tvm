@@ -23,7 +23,6 @@
  */
 #include "compile_engine.h"
 
-#include <topi/tags.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
@@ -37,6 +36,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
+#include <tvm/topi/tags.h>
 
 #include <functional>
 #include <limits>

@@ -18,7 +18,7 @@
 """ Test measurement and log serialization. """
 
 import tvm
-import topi
+from tvm import topi
 from tvm import te, auto_scheduler
 import tempfile
 

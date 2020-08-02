@@ -32,7 +32,6 @@
 #include <gtest/gtest.h>
 #include <spawn.h>
 #include <sys/wait.h>
-#include <topi/generic/injective.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
@@ -43,6 +42,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
+#include <tvm/topi/generic/injective.h>
 
 TVM_REGISTER_GLOBAL("test.sch").set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
   *rv = topi::generic::schedule_injective(args[0], args[1]);

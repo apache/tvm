@@ -22,7 +22,7 @@ import scipy
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import ctx_list, run_infer_type
-import topi.testing
+import tvm.topi.testing
 from tvm.contrib.nvcc import have_fp16
 
 
@@ -196,7 +196,7 @@ def test_softmax():
         assert yy.checked_type == relay.TensorType(shape, dtype)
         func = relay.Function([x], y)
         x_data = np.random.uniform(size=shape).astype(dtype)
-        ref_res = topi.testing.softmax_python(x_data)
+        ref_res = tvm.topi.testing.softmax_python(x_data)
         for target, ctx in ctx_list():
             intrp = relay.create_executor("graph", ctx=ctx, target=target)
             op_res = intrp.evaluate(func)(x_data)
@@ -216,7 +216,7 @@ def test_log_softmax():
         assert yy.checked_type == relay.TensorType(shape, dtype)
         func = relay.Function([x], y)
         x_data = np.random.uniform(size=shape).astype(dtype)
-        ref_res = topi.testing.log_softmax_python(x_data)
+        ref_res = tvm.topi.testing.log_softmax_python(x_data)
         for target, ctx in ctx_list():
             intrp = relay.create_executor("graph", ctx=ctx, target=target)
             op_res = intrp.evaluate(func)(x_data)

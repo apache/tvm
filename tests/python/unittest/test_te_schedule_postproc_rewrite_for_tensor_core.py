@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import te
-import topi
+from tvm import topi
 import numpy as np
 from tvm.contrib import nvcc
 

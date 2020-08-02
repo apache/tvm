@@ -17,7 +17,7 @@
 from tvm import te
 import numpy as np
 import re
-import topi
+from tvm import topi
 
 
 def findany(pattern, str):
