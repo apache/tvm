@@ -42,8 +42,7 @@ namespace relay {
 class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
   static Expr ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
-                                     std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-                                     ExprSet* lifted) {
+                                     NodeScopeMap* node_scope, ExprSet* lifted) {
     FillBasicBlock fi(dg, node_scope, lifted);
     auto var = fi.VisitExpr(e);
     return fi.GetScope(e)->ll->Get(var);
@@ -51,13 +50,11 @@ class FillBasicBlock : ExprFunctor<Expr(const Expr&, const Var&)> {
 
  private:
   const DependencyGraph& dg_;
-  std::unordered_map<DependencyGraph::Node*, Scope>* node_scope_;
+  NodeScopeMap* node_scope_;
   std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> memo;
   ExprSet* lifted_;
 
-  FillBasicBlock(const DependencyGraph& dg,
-                 std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-                 ExprSet* lifted)
+  FillBasicBlock(const DependencyGraph& dg, NodeScopeMap* node_scope, ExprSet* lifted)
       : dg_(dg), node_scope_(node_scope), lifted_(lifted) {}
 
   Scope GetScope(const Expr& e) { return node_scope_->at(dg_.expr_node.at(e)); }

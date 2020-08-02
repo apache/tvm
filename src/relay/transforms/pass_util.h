@@ -30,9 +30,9 @@
 #include <tvm/relay/op.h>
 
 #include <memory>
-#include <utility>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #include "../analysis/dependency_graph.h"
 #include "let_list.h"
