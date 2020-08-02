@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-import topi
+from tvm import topi
 from tvm import te
 
 

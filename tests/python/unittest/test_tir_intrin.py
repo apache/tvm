@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import te
-import topi
+from tvm import topi
 from tvm.contrib import util, clang
 import numpy as np
 import ctypes
@@ -84,7 +84,7 @@ def test_unary_intrin():
         f(a, b)
         tvm.testing.assert_allclose(
             b.asnumpy(), np_func(a.asnumpy()), atol=1e-5, rtol=1e-5)
-    
+
     for func in test_funcs:
         run_test(*func)
 
