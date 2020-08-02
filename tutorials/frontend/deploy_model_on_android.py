@@ -79,7 +79,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   echo 'export PYTHONPATH=/workspace/python:/workspace/topi/python:/workspace/vta/python:${PYTHONPATH}' >> ~/.bashrc
+#   echo 'export PYTHONPATH=/workspace/python:/workspace/vta/python:${PYTHONPATH}' >> ~/.bashrc
 #   source ~/.bashrc
 
 #################################################################

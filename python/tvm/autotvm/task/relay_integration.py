@@ -118,7 +118,7 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
     """
     # pylint: disable=import-outside-toplevel
     from tvm import relay
-    import topi
+    from tvm import topi
 
     env = TaskExtractEnv.get()
 

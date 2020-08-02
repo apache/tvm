@@ -17,9 +17,9 @@
 import numpy as np
 import tvm
 from tvm import te
-import topi
-import topi.testing
-from topi.util import get_const_tuple
+from tvm import topi
+import tvm.topi.testing
+from tvm.topi.util import get_const_tuple
 
 
 def test_operator_type_and_tags():
@@ -109,7 +109,7 @@ def verify_tensor_scalar_bop(shape, typ="add"):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.testing.get_elemwise_schedule(device)(B)
+            s = tvm.topi.testing.get_elemwise_schedule(device)(B)
 
         k_ = 2
         foo = tvm.build(s, [A, B, k] + sh, device, name="tensor_scalar_" + typ)
@@ -155,7 +155,7 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.testing.get_broadcast_schedule(device)(C)
+            s = tvm.topi.testing.get_broadcast_schedule(device)(C)
 
         foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + typ)
         lhs_npy = np.random.uniform(size=lhs_shape).astype(A.dtype)
@@ -191,7 +191,7 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
             return
         print("Running on target: %s" % device)
 
-        conv2d_nchw, schedule_conv2d_nchw = topi.testing.get_conv2d_nchw_implement(device)
+        conv2d_nchw, schedule_conv2d_nchw = tvm.topi.testing.get_conv2d_nchw_implement(device)
 
         k = 10.0
         dilation = (1, 1)
@@ -215,7 +215,7 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
 
         a_npy = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
         w_npy = np.random.uniform(size=get_const_tuple(W.shape)).astype(W.dtype)
-        b_npy = topi.testing.conv2d_nchw_python(a_npy, w_npy, stride, padding)
+        b_npy = tvm.topi.testing.conv2d_nchw_python(a_npy, w_npy, stride, padding)
         c_npy = np.random.uniform(size=get_const_tuple(B.shape)).astype(B.dtype)
         if typ == "add":
             c_npy = b_npy + k

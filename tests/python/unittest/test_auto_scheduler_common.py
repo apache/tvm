@@ -20,7 +20,7 @@
 import threading
 
 from tvm import te, auto_scheduler
-import topi
+from tvm import topi
 
 
 @auto_scheduler.register_workload

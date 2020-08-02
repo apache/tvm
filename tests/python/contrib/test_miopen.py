@@ -55,7 +55,7 @@ def test_conv2d():
                               data_type=1)
 
     yshape = [x.value for x in Y.shape]
-    import topi
+    from tvm import topi
     s = te.create_schedule(Y.op)
 
     def verify():

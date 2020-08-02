@@ -27,4 +27,4 @@ fi
 set -u
 
 export TVM_PATH=`pwd`
-export PYTHONPATH=${TVM_PATH}/python:${TVM_PATH}/topi/python
+export PYTHONPATH=${TVM_PATH}/python

@@ -30,7 +30,7 @@ from .rpc_client import reconfig_runtime, program_fpga
 
 __version__ = "0.1.0"
 
-# do not import topi when running vta.exec.rpc_server
+# do not from tvm import topi when running vta.exec.rpc_server
 # to maintain minimum dependency on the board
 if sys.argv[0] not in ("-c", "-m"):
     from . import top

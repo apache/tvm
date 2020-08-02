@@ -74,8 +74,8 @@ def resize3d(data,
 
     This operator takes data as input and does 3D scaling to the given scale factor.
     In the default case, where the data_layout is `NCDHW`
-    with data of shape (n, c, d, h, w)
-    out will have a shape (n, c, size[0], size[1], size[2])
+    with data of shape `(n, c, d, h, w)`
+    out will have a shape `(n, c, size[0], size[1], size[2])`
 
     method indicates the algorithm to be used while calculating the out value
     and method can be one of ("trilinear", "nearest_neighbor")

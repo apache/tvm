@@ -16,7 +16,7 @@
 # under the License.
 """Definition of ROCm operator strategy."""
 # pylint: disable=invalid-name,unused-argument,unused-wildcard-import,wildcard-import
-import topi
+from tvm import topi
 from .generic import *
 from .. import op as _op
 

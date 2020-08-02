@@ -17,7 +17,8 @@
 
 """Test ComputeDAG (replay, infer bound)"""
 
-import tvm, topi
+import tvm
+from tvm import topi
 from tvm import auto_scheduler, te
 
 from test_auto_scheduler_common import get_tiled_matmul, matmul_auto_scheduler_test

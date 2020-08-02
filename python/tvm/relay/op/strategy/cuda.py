@@ -16,7 +16,7 @@
 # under the License.
 """Definition of CUDA/GPU operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
-import topi
+from tvm import topi
 import tvm
 from tvm.te import SpecializedCondition
 from tvm.contrib import nvcc

@@ -31,4 +31,4 @@ make cython3
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-python3 -m pytest topi/tests/python
+python3 -m pytest tests/python/topi/

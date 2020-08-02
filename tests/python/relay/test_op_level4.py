@@ -20,7 +20,7 @@ import numpy as np
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import ctx_list, run_infer_type
-import topi.testing
+import tvm.topi.testing
 
 
 def test_binary_op():
@@ -305,7 +305,7 @@ def test_strided_slice():
 
         # target numpy result
         x_data = np.random.uniform(size=dshape).astype("float32")
-        ref_res = topi.testing.strided_slice_python(
+        ref_res = tvm.topi.testing.strided_slice_python(
             x_data, begin, end, strides, slice_mode)
 
         if attr_const:
@@ -380,7 +380,7 @@ def test_strided_set():
             return
         x_data = np.random.uniform(size=dshape).astype("float32")
         v_data = np.random.uniform(size=vshape).astype("float32")
-        ref_res = topi.testing.strided_set_python(
+        ref_res = tvm.topi.testing.strided_set_python(
             x_data, v_data, begin, end, strides)
         for target, ctx in ctx_list():
             intrp = relay.create_executor("graph", ctx=ctx, target=target)
