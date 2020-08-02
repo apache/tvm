@@ -211,6 +211,7 @@ file(GLOB_RECURSE COMPILER_SRCS
     src/te/*.cc
     src/autotvm/*.cc
     src/tir/*.cc
+    src/topi/*.cc
     src/driver/*.cc
     src/parser/*.cc
     src/printer/*.cc
@@ -257,10 +258,6 @@ endif(USE_VM_PROFILER)
 
 file(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
-
-file(GLOB TOPI_SRCS
-    src/topi/*.cc
-)
 
 file(GLOB RUNTIME_SRCS
   src/runtime/*.cc
@@ -356,8 +353,7 @@ else()
   set(CMAKE_CUDA_STANDARD 14)
 endif()
 
-add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS} ${TOPI_SRCS})
-add_library(tvm_topi SHARED ${TOPI_SRCS})
+add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
 add_library(tvm_runtime_static STATIC ${RUNTIME_SRCS})
 
@@ -376,11 +372,9 @@ endif(USE_RELAY_DEBUG)
 if(USE_FALLBACK_STL_MAP)
   message(STATUS "Building with STL Map...")
   set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
-  set_target_properties(tvm_topi PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
 else()
   message(STATUS "Building with TVM Map...")
   set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
-  set_target_properties(tvm_topi PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
 endif(USE_FALLBACK_STL_MAP)
 
 if(BUILD_FOR_HEXAGON)
@@ -401,12 +395,10 @@ if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   set(THREADS_PREFER_PTHREAD_FLAG TRUE)
   find_package(Threads REQUIRED)
   target_link_libraries(tvm Threads::Threads)
-  target_link_libraries(tvm_topi Threads::Threads)
   target_link_libraries(tvm_runtime Threads::Threads)
 endif()
 
 target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
-target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
 
 if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -415,7 +407,6 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   # but it's not available until CMake 3.13. Switch to 'target_link_options'
   # once minimum CMake version is bumped up to 3.13 or above.
   target_link_libraries(tvm ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_link_libraries(tvm_topi ${HIDE_SYMBOLS_LINKER_FLAGS})
   target_link_libraries(tvm_runtime ${HIDE_SYMBOLS_LINKER_FLAGS})
 endif()
 
@@ -454,7 +445,6 @@ add_custom_target(runtime DEPENDS tvm_runtime)
 
 # Installation rules
 install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
-install(TARGETS tvm_topi DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
 
 if (INSTALL_DEV)
