@@ -522,7 +522,9 @@ instance, an example function-level pass could be written as the following:
 
 
 Alternatively, users can also directly register a pass without using the
-decorators and then invoke it. We illustrate it in a separate tutorial :ref:`use-pass-infra`.
+decorators and then invoke it. For more examples about how to customize your own
+optimization pipeline and debug Relay and tir passes, please refer to the
+`use pass infra`_ tutorial.
 
 .. _Sequential: https://pytorch.org/docs/stable/nn.html?highlight=sequential#torch.nn.Sequential
 
@@ -543,3 +545,5 @@ decorators and then invoke it. We illustrate it in a separate tutorial :ref:`use
 .. _python/tvm/ir/transform.py: https://github.com/apache/incubator-tvm/blob/master/python/tvm/ir/transform.py
 
 .. _src/tir/transforms/unroll_loop.cc: https://github.com/apache/incubator-tvm/blob/master/src/tir/transforms/unroll_loop.cc
+
+.. _use pass infra: https://github.com/apache/incubator-tvm/blob/master/tutorials/dev/use_pass_infra.py

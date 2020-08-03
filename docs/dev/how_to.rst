@@ -29,4 +29,3 @@ various areas of the TVM stack.
    relay_add_pass
    relay_bring_your_own_codegen
    codebase_walkthrough
-   use_pass_infra
