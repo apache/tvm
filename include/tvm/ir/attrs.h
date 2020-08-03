@@ -391,7 +391,7 @@ struct AttrInitEntry {
   }
   TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) { return *this; }
 };
-  
+
 // Template function to allow smart conversion
 // from Expr types into the constants.
 template <typename T>
