@@ -233,6 +233,35 @@ def test_vectorize():
             tvm.lower(s, [A, B])
         assert not valid[0]
 
+def test_vthread():
+    N = 1024
+
+    A = te.placeholder((N, 16), name='A')
+    B = te.compute((N, 16), lambda i, j: A[i, j])
+
+    s = te.create_schedule([B.op])
+
+    s[B].bind(s[B].op.axis[0], te.thread_axis("blockIdx.x"))
+    s[B].bind(s[B].op.axis[1], te.thread_axis("vthread"))
+
+    for target in ['opencl', 'cuda']:
+        if not tvm.context(target).exist:
+            continue
+
+        valid = [None]
+
+        for phase in [1, 2]:
+            with tvm.transform.PassContext(config={"tir.add_lower_pass": [
+                (phase, get_verify_pass(valid, max_vthread=16))]}):
+                tvm.build(s, [A, B], target)
+            assert valid[0]
+
+            with tvm.transform.PassContext(config={"tir.add_lower_pass": [
+                (phase, get_verify_pass(valid, max_vthread=15))]}):
+                tvm.build(s, [A, B], target)
+            assert not valid[0]
+
+
 if __name__ == "__main__":
     test_local_memory()
     test_shared_memory()
@@ -240,3 +269,4 @@ if __name__ == "__main__":
     test_multiple_kernels()
     test_wrong_bind()
     test_vectorize()
+    test_vthread()
