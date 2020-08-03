@@ -86,6 +86,9 @@ RELAY_REGISTER_OP("dyn.image.resize")
             (batch_size, channels, in_height, in_width) for NCHW
             (batch_size, in_height, in_width, channels) for NHWC
 
+- **size**: data is 2D array of shape (2,) with values
+            (new_height, new_width)
+
 - **out**: Output is 4D array of shape
            for layout NCHW
            (batch_size, channels, size[0], size[1])
