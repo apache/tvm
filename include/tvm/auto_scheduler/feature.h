@@ -25,7 +25,7 @@
  * The cost model also does prediction for each BufferStoreNode statement and aggregates
  * the predictions as the whole score for a TVM IR (Stmt).
  *
- * The feature specification is defined by `src/auto_scheduler/feature.cc::FeatureSet`
+ * The feature specification is defined by `src/auto_scheduler/feature.cc:: FeatureSet`
  */
 
 #ifndef TVM_AUTO_SCHEDULER_FEATURE_H_
