@@ -501,7 +501,7 @@ PrimExpr operator<<(PrimExpr a, PrimExpr b) {
     if (pb)
       CHECK(pb->value >= 0 && pb->value < rtype.bits())
           << "Shift amount must be non-negative and less than " << rtype.bits() << " for type "
-          << rtype;
+          << rtype << " but found to be " << pb->value;
     if (pa && pb) return IntImm(rtype, (pa->value << pb->value));
     if (pb) {
       if (pb->value == 0) return a;

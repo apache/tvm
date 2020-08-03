@@ -303,8 +303,12 @@ def prerequisite_optimize(mod, params=None):
     """ Prerequisite optimization passes for quantization. Perform
     "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
     "CanonicalizeOps" optimization before quantization. """
+
+    # TODO - Relay AutoQ support only NCHW data layout for now. Adding ConvertLayout for now.
     optimize = tvm.transform.Sequential(
-        [_transform.SimplifyInference(),
+        [_transform.RemoveUnusedFunctions(),
+         _transform.ConvertLayout({'nn.conv2d': ['NCHW', 'OIHW']}),
+         _transform.SimplifyInference(),
          _transform.FoldConstant(),
          _transform.FoldScaleAxis(),
          _transform.CanonicalizeOps(),
@@ -313,7 +317,9 @@ def prerequisite_optimize(mod, params=None):
     if params:
         mod['main'] = _bind_params(mod['main'], params)
 
-    mod = optimize(mod)
+    with tvm.transform.PassContext(opt_level=3):
+        mod = optimize(mod)
+
     return mod
 
 
