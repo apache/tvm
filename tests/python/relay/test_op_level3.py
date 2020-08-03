@@ -446,13 +446,16 @@ def test_full():
         z = relay.full(x, src_shape, dtype)
         func = relay.Function([x], z)
         ref_res = np.full(src_shape, fill_value)
+        mod = tvm.IRModule()
+        mod['main'] = func
         for target, ctx in ctx_list():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(np.array(fill_value, dtype))
+            for kind in ["graph", "debug", "vm"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(np.array(fill_value, dtype))
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
     verify_full(4, (1, 3, 4, 4), "int32")
     verify_full(4.0, (1, 4), "float32")
+    verify_full(4.0, (), "float32")
 
 
 def test_full_like_infer_type():

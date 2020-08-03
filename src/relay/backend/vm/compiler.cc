@@ -302,13 +302,6 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   void VisitExpr_(const ConstantNode* const_node) {
     // Check the shape is valid
     NDArray data = const_node->data;
-    const DLTensor* tensor = data.operator->();
-    if (tensor->ndim > 0) {
-      int64_t* shapes = reinterpret_cast<int64_t*>(tensor->shape);
-      for (auto i = 0; i < tensor->ndim; i++) {
-        CHECK_GT(shapes[i], 0U);
-      }
-    }
     size_t konst_idx = context_->constants.size();
     context_->constants.push_back(const_node->data);
     Emit(Instruction::LoadConst(konst_idx, NewRegister()));
