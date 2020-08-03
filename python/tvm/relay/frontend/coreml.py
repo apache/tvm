@@ -352,24 +352,24 @@ def _MinLayerParams(op, inexpr, etab):
 
 def _UnaryFunctionLayerParams(op, inexpr, etab):
     op_type = op.type
-    if op_type == 0:
+    if op_type == op.SQRT:
         return _op.sqrt(inexpr)
-    elif op_type == 1:
+    elif op_type == op.RSQRT:
         epsilon = _expr.const(op.epsilon)
         return _op.rsqrt(inexpr + epsilon)
-    elif op_type == 2:
+    elif op_type == op.INVERSE:
         epsilon = _expr.const(op.epsilon)
         return _expr.const(1.0) / (inexpr + epsilon)
-    elif op_type == 3:
+    elif op_type == op.POWER:
         alpha = _expr.const(op.alpha)
         return _op.power(inexpr, alpha)
-    elif op_type == 4:
+    elif op_type == op.EXP:
         return _op.exp(inexpr)
-    elif op_type == 5:
+    elif op_type == op.LOG:
         return _op.log(inexpr)
-    elif op_type == 6:
+    elif op_type == op.ABS:
         return _op.abs(inexpr)
-    elif op_type == 7:
+    elif op_type == op.THRESHOLD:
         alpha = _expr.const(op.alpha)
         return _op.maximum(inexpr, alpha)
     else:
