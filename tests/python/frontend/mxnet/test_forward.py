@@ -1573,8 +1573,8 @@ def test_forward_npi_tanh(data_shape,dtype,target, ctx, kind):
 
 @pytest.mark.skipif(not hasattr(mx.np, 'where'), reason="mx.np.where hasn't been publish yet")
 @pytest.mark.parametrize("data_shape", [(2,2,2),(2,7,2),(1,8),(2,2),(1,3)])
-@pytest.mark.parametrize("cond_dtype", ['float64', 'float32', 'int64', 'int32', 'bool'])
 @pytest.mark.parametrize("data_dtype", ['float64', 'float32', 'int64', 'int32', 'bool'])
+@pytest.mark.parametrize("cond_dtype", ['float64', 'float32', 'int64', 'int32', 'bool'])
 @pytest.mark.parametrize("scalar", [1.0,2.0])
 @pytest.mark.parametrize("target, ctx", ctx_list())
 @pytest.mark.parametrize("kind", ["graph", "vm", "debug"])
