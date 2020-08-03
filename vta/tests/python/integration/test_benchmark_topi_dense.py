@@ -28,8 +28,8 @@ from tvm import te
 from tvm import autotvm
 from tvm.contrib import util
 from tvm.contrib.pickle_memoize import memoize
-import topi
-import topi.testing
+from tvm import topi
+import tvm.topi.testing
 import vta
 from vta import program_fpga, reconfig_runtime
 import vta.testing

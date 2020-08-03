@@ -34,13 +34,7 @@ fn test_load_graph() {
     let output = std::process::Command::new(mf_dir!("/tests/build_model.py"))
         .env(
             "PYTHONPATH",
-            concat!(
-                mf_dir!("/../../python"),
-                ":",
-                mf_dir!("/../../nnvm/python"),
-                ":",
-                mf_dir!("/../../topi/python")
-            ),
+            concat!(mf_dir!("/../../python"), ":", mf_dir!("/../../nnvm/python")),
         )
         .output()
         .expect("Failed to build test model");

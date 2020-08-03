@@ -17,7 +17,7 @@
 import tvm
 from tvm import te
 import numpy as np
-from topi.testing import conv2d_nhwc_python
+from tvm.topi.testing import conv2d_nhwc_python
 from tvm.contrib import nvcc
 
 VERIFY = True

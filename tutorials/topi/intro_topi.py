@@ -27,7 +27,7 @@ from __future__ import absolute_import, print_function
 
 import tvm
 from tvm import te
-import topi
+from tvm import topi
 import numpy as np
 
 ######################################################################

@@ -121,7 +121,7 @@ If you want to run a single test:
   make
 
   # let python know where to find tvm related libraries
-  export PYTHONPATH=python:topi/python
+  export PYTHONPATH=python
   rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
   TVM_FFI=ctypes python -m pytest -v tests/python/unittest/test_pass_storage_rewrite.py

@@ -19,8 +19,8 @@
 import logging
 
 import re
-import topi
-from topi.util import get_const_int, get_const_float, get_const_tuple, get_float_tuple
+from tvm import topi
+from tvm.topi.util import get_const_int, get_const_float, get_const_tuple, get_float_tuple
 from .. import op as _op
 from ....target import generic_func, override_native_generic_func
 

@@ -21,11 +21,11 @@
  * \file reduce.cc
  * \brief Reduction operators.
  */
-#include <topi/elemwise.h>
-#include <topi/reduction.h>
 #include <tvm/relay/attrs/reduce.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <tvm/topi/elemwise.h>
+#include <tvm/topi/reduction.h>
 
 #include <limits>
 #include <numeric>

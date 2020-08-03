@@ -18,7 +18,7 @@
 # pylint: disable=len-as-condition, no-else-return, unused-argument, invalid-name
 import tvm
 from tvm import te
-from topi import util
+from tvm.topi import util
 
 from .environment import get_env
 

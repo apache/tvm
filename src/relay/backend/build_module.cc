@@ -31,6 +31,7 @@
 #include <memory>
 
 #include "../../target/source/codegen_source_base.h"
+#include "compile_engine.h"
 #include "utils.h"
 
 namespace tvm {
@@ -224,6 +225,8 @@ class RelayBuildModule : public runtime::ModuleNode {
     targets_ = targets;
     target_host_ = target_host;
     BuildRelay(mod, params_);
+    // Clear compile engine so that tuning schedules can be changed between runs. See issue #6096.
+    CompileEngine::Global()->Clear();
   }
 
  protected:

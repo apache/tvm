@@ -27,7 +27,7 @@ import tvm
 
 from tvm.ir import IRModule
 from tvm.relay.prelude import Prelude, StaticTensorArrayOps, get_tensor_array_shape
-from topi.util import get_const_tuple
+from tvm.topi.util import get_const_tuple
 
 from .. import analysis
 from .. import expr as _expr

@@ -39,7 +39,7 @@ how to use TEDD and how to interpret the rendered graphs.
 """
 import tvm
 from tvm import te
-import topi
+from tvm import topi
 from tvm.contrib import tedd
 
 ######################################################################

@@ -19,7 +19,7 @@
 import re
 import logging
 
-import topi
+from tvm import topi
 from ....target import arm_isa
 from .generic import *
 from .. import op as _op

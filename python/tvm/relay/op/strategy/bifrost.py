@@ -17,7 +17,7 @@
 """Definition of bifrost operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 import re
-import topi
+from tvm import topi
 from .generic import *
 from .. import op as _op
 

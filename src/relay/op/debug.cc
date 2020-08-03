@@ -22,10 +22,10 @@
  * \brief Property def of nn operators.
  */
 
-#include <topi/elemwise.h>
 #include <tvm/relay/attrs/debug.h>
 #include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
+#include <tvm/topi/elemwise.h>
 
 #include <vector>
 

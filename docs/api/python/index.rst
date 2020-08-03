@@ -44,5 +44,5 @@ Python API
    micro
    contrib
    graph_runtime
-   vta/index
    topi
+   vta/index

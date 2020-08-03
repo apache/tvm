@@ -21,7 +21,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import autotvm
-import topi
+from tvm import topi
 
 from .util import is_packed_layout
 from ..environment import get_env
