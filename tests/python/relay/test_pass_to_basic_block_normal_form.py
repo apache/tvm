@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import numpy as np
 import tvm
 from tvm import te
@@ -497,7 +498,6 @@ def test_higher_order_return():
       (%1, %2)
     }
     """
-    assert not check_basic_block_normal_form(body)
 
     bblock = run_opt_pass(body, transform.ToBasicBlockNormalForm())
     print('body=')
@@ -517,7 +517,6 @@ def test_higher_order_nested():
     z = relay.Var('z')
     body = relay.If(f(), func_true, relay.Function([z], relay.add(z, shared)))
     top = relay.Function([f, s], body)
-    assert not check_basic_block_normal_form(top)
     """
     fn (%f: fn () -> bool, %s: Tensor[(1), float32]) {
       %0 = %f();
@@ -542,15 +541,4 @@ def test_higher_order_nested():
     assert check_basic_block_normal_form(bblock)
 
 if __name__ == '__main__':
-    test_higher_order_return()
-    test_higher_order_nested()
-    test_let()
-    test_no_explicit_bind()
-    test_nested_if()
-    test_top_level_nested_if()
-    test_if()
-    test_recursion()
-    test_ref()
-    test_nat_add() 
-    test_function()
-    test_gradient_if()
+    pytest.main([__file__])
