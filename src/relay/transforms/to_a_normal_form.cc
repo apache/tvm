@@ -96,7 +96,7 @@ std::pair<NodeScopeMap, ExprSet> CalcScope(const DependencyGraph& dg) {
 
 Expr Fill::ToANormalForm(const Expr& e, const DependencyGraph& dg, NodeScopeMap* node_scope) {
   Fill fi(dg, node_scope, nullptr);
-  return fi.GetScope(e)->ll->Get(fi.VisitExpr(e));
+  return fi.GetScope(e)->let_list->Get(fi.VisitExpr(e));
 }
 
 // For basic block normal form, bind expressions only if the original expression's scope
@@ -105,7 +105,7 @@ Expr Fill::ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
                                   NodeScopeMap* node_scope, ExprSet* lifted) {
   Fill fi(dg, node_scope, lifted);
   auto var = fi.VisitExpr(e);
-  return fi.GetScope(e)->ll->Get(var);
+  return fi.GetScope(e)->let_list->Get(var);
 }
 
 Scope Fill::GetScope(const Expr& e) { return node_scope_->at(dg_.expr_node.at(e)); }
@@ -126,7 +126,7 @@ Expr Fill::VisitExpr(const Expr& e, const Var& v) {
   if (memo.count(e) == 0) {
     memo.insert({e, ExprFunctor<Expr(const Expr&, const Var&)>::VisitExpr(e, v)});
   } else if (v.defined()) {
-    GetScope(e)->ll->Push(v, memo.at(e));
+    GetScope(e)->let_list->Push(v, memo.at(e));
   }
   auto ret = memo.at(e);
   // if no include_set is specified, every expression should be atomic.
@@ -137,7 +137,7 @@ Expr Fill::VisitExpr(const Expr& e, const Var& v) {
 Expr Fill::VisitExpr(const Expr& e) { return this->VisitExpr(e, Var()); }
 
 Expr Fill::Atomic(const Expr& e, const Var& v) {
-  return v.defined() ? GetScope(e)->ll->Push(v, e) : e;
+  return v.defined() ? GetScope(e)->let_list->Push(v, e) : e;
 }
 
 // Bind expression `now` to var `v` if the original expression is in the include set, or if
@@ -148,7 +148,7 @@ Expr Fill::Compound(const Expr& orig, const Expr& now, const Var& v) {
   if (!v.defined() && not_included) {
     return now;
   } else {
-    return GetScope(orig)->ll->Push(var, now);
+    return GetScope(orig)->let_list->Push(var, now);
   }
 }
 
@@ -192,8 +192,8 @@ Expr Fill::VisitExpr_(const RefWriteNode* r, const Var& v) {
 
 Expr Fill::VisitExpr_(const IfNode* i, const Var& v) {
   Expr e = GetRef<Expr>(i);
-  Expr ret = If(VisitExpr(i->cond), GetSubScope(e, 1)->ll->Get(VisitExpr(i->true_branch)),
-                GetSubScope(e, 2)->ll->Get(VisitExpr(i->false_branch)));
+  Expr ret = If(VisitExpr(i->cond), GetSubScope(e, 1)->let_list->Get(VisitExpr(i->true_branch)),
+                GetSubScope(e, 2)->let_list->Get(VisitExpr(i->false_branch)));
   return Compound(e, ret, v);
 }
 
@@ -203,7 +203,7 @@ Expr Fill::VisitExpr_(const FunctionNode* f, const Var& v) {
   if (f->HasNonzeroAttr(attr::kPrimitive)) {
     ret = e;
   } else {
-    ret = Function(f->params, GetSubScope(e, 0)->ll->Get(VisitExpr(f->body)), f->ret_type,
+    ret = Function(f->params, GetSubScope(e, 0)->let_list->Get(VisitExpr(f->body)), f->ret_type,
                    f->type_params, f->attrs);
   }
   return Compound(e, ret, v);
@@ -212,7 +212,7 @@ Expr Fill::VisitExpr_(const FunctionNode* f, const Var& v) {
 Expr Fill::VisitExpr_(const LetNode* l, const Var& v) {
   Expr e = GetRef<Expr>(l);
   VisitExpr(l->value, l->var);
-  Expr ret = GetSubScope(e, 0)->ll->Get(VisitExpr(l->body));
+  Expr ret = GetSubScope(e, 0)->let_list->Get(VisitExpr(l->body));
   return Compound(e, ret, v);
 }
 
@@ -247,7 +247,7 @@ Expr Fill::VisitExpr_(const MatchNode* m, const Var& v) {
   std::vector<Clause> clauses;
   for (const Clause& c : m->clauses) {
     clauses.push_back(
-        Clause(c->lhs, GetSubScope(e, 1 + clauses.size())->ll->Get(VisitExpr(c->rhs))));
+        Clause(c->lhs, GetSubScope(e, 1 + clauses.size())->let_list->Get(VisitExpr(c->rhs))));
   }
   return Compound(e, Match(data, clauses, m->complete), v);
 }

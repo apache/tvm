@@ -51,7 +51,7 @@ def test_invalid_if():
       add(%shared, %shared)
     }
     """
-    assert not check_basic_block_normal_form(body)
+    check_basic_block_normal_form(body)
 
 def test_valid_if():
     cond = relay.var('cond', dtype='bool', shape=())
@@ -98,7 +98,7 @@ def test_invalid_if2():
     false_branch = relay.multiply(v1, one)
     body = relay.If(v2, true_branch, false_branch)
     func = relay.Function([x], body)
-    assert not check_basic_block_normal_form(func)
+    check_basic_block_normal_form(func)
 
 def test_valid_if2():
     """
@@ -146,7 +146,7 @@ def test_func():
       (%1, %2)
     }
     """
-    assert not check_basic_block_normal_form(body)
+    check_basic_block_normal_form(body)
 
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_higher_order_return():
@@ -170,7 +170,7 @@ def test_higher_order_return():
       (%1, %2)
     }
     """
-    assert not check_basic_block_normal_form(body)
+    check_basic_block_normal_form(body)
 
 
 @pytest.mark.xfail(raises=tvm.error.TVMError)
@@ -199,7 +199,7 @@ def test_higher_order_nested():
       }
     }
     """
-    assert not check_basic_block_normal_form(top)
+    check_basic_block_normal_form(top)
 
 
 if __name__ == '__main__':

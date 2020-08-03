@@ -203,7 +203,7 @@ struct ScopeNode {
   // the parent scope
   Scope parent;
   // the corresponding let list which holds all let bindings in the scope
-  std::shared_ptr<LetList> ll = std::make_shared<LetList>();
+  std::shared_ptr<LetList> let_list = std::make_shared<LetList>();
   explicit ScopeNode(const Scope& parent) : level(1 + parent->level), parent(parent) {}
   ScopeNode() : level(0) {}
 };
