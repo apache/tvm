@@ -24,13 +24,13 @@ def test_one_block():
     x = relay.var('x')
     y = relay.add(x, x)
     z = relay.add(x, y)
-    assert check_basic_block_normal_form(z)
+    check_basic_block_normal_form(z)
 
 def test_let():
     x = relay.var('x')
     y = relay.var('y')
     body = relay.Let(y, x, y)
-    assert check_basic_block_normal_form(body)
+    check_basic_block_normal_form(body)
 
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_invalid_if():
@@ -51,7 +51,6 @@ def test_invalid_if():
       add(%shared, %shared)
     }
     """
-    print(body)
     assert not check_basic_block_normal_form(body)
 
 def test_valid_if():
@@ -75,8 +74,7 @@ def test_valid_if():
       add(%shared, %shared)
     }
     """
-    print(body)
-    assert check_basic_block_normal_form(body)
+    check_basic_block_normal_form(body)
 
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_invalid_if2():
@@ -124,8 +122,7 @@ def test_valid_if2():
     body = relay.If(v2, true_branch, false_branch)
     body = relay.Let(v1, relay.add(x, one), body)
     func = relay.Function([x], body)
-    print(func)
-    assert check_basic_block_normal_form(func)
+    check_basic_block_normal_form(func)
 
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_func():
