@@ -24,7 +24,6 @@
 
 #include "./meta_ref.h"
 
-#include <topi/elemwise.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
