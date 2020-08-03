@@ -32,7 +32,7 @@ and :py:class:`tvm.relay.transform.ModulePass`
 respectively. Or users can rely on py:class:`tvm.transform.Sequential` to apply a sequence of passes
 on a Relay program where the dependencies between passes can be resolved by the
 pass infra. For more details about each type of these passes, please refer to
-the :ref:`relay-pass-infra`
+the :ref:`pass-infra`
 
 This tutorial demostrates how developers can use the Relay pass infra to perform
 a certain optimization and create an optimization pipeline.

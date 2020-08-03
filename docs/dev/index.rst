@@ -295,6 +295,11 @@ The following code snippet gives an example of PassContext configuration.
 Op is the common class to represent all system-defined primitive operator/intrinsics.
 Developers can register new Ops as well as their additional attributes(e.g. whether the Op is elementwise) to the system.
 
+.. toctree::
+   :maxdepth: 1
+
+   pass_infra
+
 
 tvm/target
 ----------
@@ -353,7 +358,6 @@ memory(for memory optimization).
 
    relay_intro
    relay_op_strategy
-   relay_pass_infra
    convert_layout
 
 
