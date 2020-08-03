@@ -23,6 +23,7 @@ from . import measure_record
 from . import loop_state
 from . import utils
 from . import workload_registry
+from . import feature
 
 # Shortcut
 from .auto_schedule import SearchTask, TuningOptions, HardwareParams, \

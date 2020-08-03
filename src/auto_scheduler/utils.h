@@ -98,6 +98,15 @@ inline void FindAndDeleteItem(std::vector<T>* array, const T& to_delete) {
   }
 }
 
+/*! \brief Compute the product of all elements in a vector */
+inline int64_t ElementProduct(const std::vector<int>& array) {
+  int64_t ret = 1;
+  for (auto x : array) {
+    ret *= x;
+  }
+  return ret;
+}
+
 /*! \brief Replace a sub-string to another sub-string in a string */
 inline void StrReplace(std::string* base, const std::string& from, const std::string& to) {
   auto pos = base->find(from);
