@@ -23,6 +23,7 @@
  * \brief Rewrite Dynamic Operations to Static operations where possible
  */
 #include <tvm/relay/attrs/algorithm.h>
+#include <tvm/relay/attrs/image.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 

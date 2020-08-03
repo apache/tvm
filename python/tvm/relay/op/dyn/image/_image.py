@@ -18,10 +18,10 @@
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
-import topi
-from topi.util import nchw_pack_layout, nchw_xc_layout
+import tvm.topi
 from tvm.runtime import convert
 from tvm.te.hybrid import script
+from tvm.topi.util import nchw_pack_layout, nchw_xc_layout
 from ... import op as reg
 
 
@@ -33,8 +33,8 @@ def compute_resize(attrs, inputs, out_type):
     coord_trans = attrs.coordinate_transformation_mode
     out_dtype = attrs.out_dtype
     return [
-        topi.image.resize(inputs[0], inputs[1], layout, method, coord_trans, out_dtype,
-                          out_type.shape)
+        tvm.topi.image.resize(inputs[0], inputs[1], layout, method, coord_trans, out_dtype,
+                              out_type.shape)
     ]
 
 

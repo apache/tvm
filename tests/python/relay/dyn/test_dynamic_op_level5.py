@@ -23,7 +23,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import ctx_list, run_infer_type
-import topi.testing
+import tvm.topi.testing
 
 
 def test_resize_infer_type():
@@ -44,9 +44,9 @@ def test_resize():
         size = np.array(size)
         x_data = np.random.uniform(size=dshape).astype("float32")
         if method == "bilinear":
-            ref_res = topi.testing.bilinear_resize_python(x_data, size, layout)
+            ref_res = tvm.topi.testing.bilinear_resize_python(x_data, size, layout)
         else:
-            ref_res = topi.testing.upsampling_python(x_data, (scale, scale), layout)
+            ref_res = tvm.topi.testing.upsampling_python(x_data, (scale, scale), layout)
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         size_var = relay.var("size", relay.TensorType((2,), "int64"))
         z = relay.image.resize(x, size_var, layout, method, "align_corners")

@@ -21,7 +21,7 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.testing import run_infer_type, create_workload, ctx_list
-import topi.testing
+import tvm.topi.testing
 
 
 def run_opt_pass(expr, opt_pass):
@@ -245,9 +245,9 @@ def test_dynamic_to_static_resize():
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
         
         if method == "bilinear":
-            ref_res = topi.testing.bilinear_resize_python(x_data, size, layout)
+            ref_res = tvm.topi.testing.bilinear_resize_python(x_data, size, layout)
         else:
-            ref_res = topi.testing.upsampling_python(x_data, (scale, scale), layout)
+            ref_res = tvm.topi.testing.upsampling_python(x_data, (scale, scale), layout)
         verify_func(func2, [x_data], ref_res, rtol=1e-4, atol=1e-6)
 
     for method in ["bilinear", "nearest_neighbor"]:
