@@ -39,7 +39,7 @@ def _get_profile_runtime(mod):
 
     if tvm.target.Target.current():
         target = tvm.target.Target.current()
-        ctx = tvm.context(target.id.name)
+        ctx = tvm.context(target.kind.name)
     else:
         target = 'llvm'
         ctx = tvm.context(target)

@@ -43,7 +43,7 @@ def schedule_direct_conv3d_cuda(cfg, s, conv, layout, workload_name):
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
 
     target = tvm.target.Target.current()
-    if target.id.name in ['nvptx', 'rocm']:
+    if target.kind.name in ['nvptx', 'rocm']:
         cfg.define_knob("unroll_explicit", [1])
     else:
         cfg.define_knob("unroll_explicit", [0, 1])
@@ -51,7 +51,7 @@ def schedule_direct_conv3d_cuda(cfg, s, conv, layout, workload_name):
     # fallback support
     if cfg.is_fallback:
         ref_log = autotvm.tophub.load_reference_log(
-            target.id.name, target.model, workload_name)
+            target.kind.name, target.model, workload_name)
         cfg.fallback_with_reference_log(ref_log)
     ##### space definition end #####
 
