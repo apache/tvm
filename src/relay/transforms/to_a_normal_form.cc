@@ -94,8 +94,7 @@ std::pair<NodeScopeMap, ExprSet> CalcScope(const DependencyGraph& dg) {
   return std::make_pair(expr_scope, lifted_exprs);
 }
 
-Expr Fill::ToANormalForm(const Expr& e, const DependencyGraph& dg,
-                          NodeScopeMap* node_scope) {
+Expr Fill::ToANormalForm(const Expr& e, const DependencyGraph& dg, NodeScopeMap* node_scope) {
   Fill fi(dg, node_scope, nullptr);
   return fi.GetScope(e)->ll->Get(fi.VisitExpr(e));
 }
@@ -103,7 +102,7 @@ Expr Fill::ToANormalForm(const Expr& e, const DependencyGraph& dg,
 // For basic block normal form, bind expressions only if the original expression's scope
 // should be lifted
 Expr Fill::ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
-                                   NodeScopeMap* node_scope, ExprSet* lifted) {
+                                  NodeScopeMap* node_scope, ExprSet* lifted) {
   Fill fi(dg, node_scope, lifted);
   auto var = fi.VisitExpr(e);
   return fi.GetScope(e)->ll->Get(var);
@@ -123,7 +122,7 @@ Scope Fill::GetSubScope(const Expr& e, size_t i) {
   return node_scope_->at(h->value);
 }
 
-Expr Fill::VisitExpr(const Expr& e, const Var& v)  {
+Expr Fill::VisitExpr(const Expr& e, const Var& v) {
   if (memo.count(e) == 0) {
     memo.insert({e, ExprFunctor<Expr(const Expr&, const Var&)>::VisitExpr(e, v)});
   } else if (v.defined()) {
@@ -153,7 +152,7 @@ Expr Fill::Compound(const Expr& orig, const Expr& now, const Var& v) {
   }
 }
 
-Expr Fill::VisitExpr_(const CallNode* c, const Var& v)  {
+Expr Fill::VisitExpr_(const CallNode* c, const Var& v) {
   Expr e = GetRef<Expr>(c);
   std::vector<Expr> args;
   for (const auto& a : c->args) {
@@ -162,7 +161,7 @@ Expr Fill::VisitExpr_(const CallNode* c, const Var& v)  {
   return Compound(e, Call(VisitExpr(c->op), args, c->attrs, c->type_args), v);
 }
 
-Expr Fill::VisitExpr_(const TupleNode* t, const Var& v)  {
+Expr Fill::VisitExpr_(const TupleNode* t, const Var& v) {
   Expr e = GetRef<Expr>(t);
   std::vector<Expr> fields;
   for (const auto& a : t->fields) {
@@ -171,34 +170,34 @@ Expr Fill::VisitExpr_(const TupleNode* t, const Var& v)  {
   return Compound(e, Tuple(fields), v);
 }
 
-Expr Fill::VisitExpr_(const TupleGetItemNode* t, const Var& v)  {
+Expr Fill::VisitExpr_(const TupleGetItemNode* t, const Var& v) {
   Expr e = GetRef<Expr>(t);
   return Compound(e, TupleGetItem(VisitExpr(t->tuple), t->index), v);
 }
 
-Expr Fill::VisitExpr_(const RefCreateNode* r, const Var& v)  {
+Expr Fill::VisitExpr_(const RefCreateNode* r, const Var& v) {
   Expr e = GetRef<Expr>(r);
   return Compound(e, RefCreate(VisitExpr(r->value)), v);
 }
 
-Expr Fill::VisitExpr_(const RefReadNode* r, const Var& v)  {
+Expr Fill::VisitExpr_(const RefReadNode* r, const Var& v) {
   Expr e = GetRef<Expr>(r);
   return Compound(e, RefRead(VisitExpr(r->ref)), v);
 }
 
-Expr Fill::VisitExpr_(const RefWriteNode* r, const Var& v)  {
+Expr Fill::VisitExpr_(const RefWriteNode* r, const Var& v) {
   Expr e = GetRef<Expr>(r);
   return Compound(e, RefWrite(VisitExpr(r->ref), VisitExpr(r->value)), v);
 }
 
-Expr Fill::VisitExpr_(const IfNode* i, const Var& v)  {
+Expr Fill::VisitExpr_(const IfNode* i, const Var& v) {
   Expr e = GetRef<Expr>(i);
   Expr ret = If(VisitExpr(i->cond), GetSubScope(e, 1)->ll->Get(VisitExpr(i->true_branch)),
                 GetSubScope(e, 2)->ll->Get(VisitExpr(i->false_branch)));
   return Compound(e, ret, v);
 }
 
-Expr Fill::VisitExpr_(const FunctionNode* f, const Var& v)  {
+Expr Fill::VisitExpr_(const FunctionNode* f, const Var& v) {
   Expr e = GetRef<Expr>(f);
   Expr ret;
   if (f->HasNonzeroAttr(attr::kPrimitive)) {
@@ -210,39 +209,39 @@ Expr Fill::VisitExpr_(const FunctionNode* f, const Var& v)  {
   return Compound(e, ret, v);
 }
 
-Expr Fill::VisitExpr_(const LetNode* l, const Var& v)  {
+Expr Fill::VisitExpr_(const LetNode* l, const Var& v) {
   Expr e = GetRef<Expr>(l);
   VisitExpr(l->value, l->var);
   Expr ret = GetSubScope(e, 0)->ll->Get(VisitExpr(l->body));
   return Compound(e, ret, v);
 }
 
-Expr Fill::VisitExpr_(const ConstantNode* c, const Var& v)  {
+Expr Fill::VisitExpr_(const ConstantNode* c, const Var& v) {
   Expr e = GetRef<Expr>(c);
   return Compound(e, e, v);
 }
 
-Expr Fill::VisitExpr_(const VarNode* vn, const Var& v)  {
+Expr Fill::VisitExpr_(const VarNode* vn, const Var& v) {
   Expr e = GetRef<Expr>(vn);
   return Atomic(e, v);
 }
 
-Expr Fill::VisitExpr_(const GlobalVarNode* gvn, const Var& v)  {
+Expr Fill::VisitExpr_(const GlobalVarNode* gvn, const Var& v) {
   GlobalVar gv = GetRef<GlobalVar>(gvn);
   return Atomic(gv, v);
 }
 
-Expr Fill::VisitExpr_(const OpNode* op, const Var& v)  {
+Expr Fill::VisitExpr_(const OpNode* op, const Var& v) {
   Expr e = GetRef<Expr>(op);
   return Atomic(e, v);
 }
 
-Expr Fill::VisitExpr_(const ConstructorNode* c, const Var& v)  {
+Expr Fill::VisitExpr_(const ConstructorNode* c, const Var& v) {
   Expr e = GetRef<Expr>(c);
   return Atomic(e, v);
 }
 
-Expr Fill::VisitExpr_(const MatchNode* m, const Var& v)  {
+Expr Fill::VisitExpr_(const MatchNode* m, const Var& v) {
   Expr e = GetRef<Expr>(m);
   Expr data = VisitExpr(m->data);
   std::vector<Clause> clauses;

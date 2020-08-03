@@ -78,7 +78,8 @@ bool BasicBlockNormalFormCheck(const Expr& e) {
   std::pair<NodeScopeMap, ExprSet> scopes = CalcScope(dg);
   for (auto expr : scopes.second) {
     LOG(FATAL) << "The expression below violates the basic block normal form in that "
-      << "its scope should be lifted:\n" << expr;
+               << "its scope should be lifted:\n"
+               << expr;
   }
   return scopes.second.size() == 0;
 }

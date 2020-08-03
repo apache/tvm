@@ -226,13 +226,13 @@ Scope LCA(Scope lhs, Scope rhs);
  */
 class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
-  static Expr ToANormalForm(const Expr& e, const DependencyGraph& dg,
-                            NodeScopeMap* node_scope);
+  static Expr ToANormalForm(const Expr& e, const DependencyGraph& dg, NodeScopeMap* node_scope);
 
   // For basic block normal form, bind expressions only if the original expression's
   // scope should be lifted
   static Expr ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
                                      NodeScopeMap* node_scope, ExprSet* lifted);
+
  private:
   const DependencyGraph& dg_;
   NodeScopeMap* node_scope_ = nullptr;
