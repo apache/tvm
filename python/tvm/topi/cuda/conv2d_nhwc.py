@@ -56,7 +56,7 @@ def schedule_conv2d_nhwc_direct(cfg, s, Conv):
     target = tvm.target.Target.current()
     if cfg.is_fallback:
         ref_log = autotvm.tophub.load_reference_log(
-            target.id.name, target.model, 'conv2d_nhwc.cuda')
+            target.kind.name, target.model, 'conv2d_nhwc.cuda')
         cfg.fallback_with_reference_log(ref_log)
 
     tile_n = cfg["tile_n"].val

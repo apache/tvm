@@ -86,7 +86,7 @@ inline tvm::te::Tensor dense_rocm(const Target& target, const tvm::te::Tensor& d
  * \return A schedule for the given ops.
  */
 inline Schedule schedule_dense(const Target& target, const Array<Tensor>& outs) {
-  if (target->id->name == "rocm" && target->GetLibs().count("rocblas")) {
+  if (target->kind->name == "rocm" && target->GetLibs().count("rocblas")) {
     return topi::generic::schedule_extern(target, outs);
   }
 

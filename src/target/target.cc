@@ -24,7 +24,7 @@
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
-#include <tvm/target/target_id.h>
+#include <tvm/target/target_kind.h>
 #include <tvm/tir/expr.h>
 
 #include <algorithm>
@@ -37,13 +37,13 @@ using runtime::TVMArgs;
 using runtime::TVMRetValue;
 
 Target Target::CreateTarget(const std::string& name, const std::vector<std::string>& options) {
-  TargetId id = TargetId::Get(name);
+  TargetKind kind = TargetKind::Get(name);
   ObjectPtr<TargetNode> target = make_object<TargetNode>();
-  target->id = id;
+  target->kind = kind;
   // tag is always empty
   target->tag = "";
   // parse attrs
-  target->attrs = id->ParseAttrsFromRaw(options);
+  target->attrs = kind->ParseAttrsFromRaw(options);
   String device_name = target->GetAttr<String>("device", "").value();
   // set up keys
   {
@@ -58,7 +58,7 @@ Target Target::CreateTarget(const std::string& name, const std::vector<std::stri
       keys.push_back(device_name);
     }
     // add default keys
-    for (const auto& key : target->id->default_keys) {
+    for (const auto& key : target->kind->default_keys) {
       keys.push_back(key);
     }
     // de-duplicate keys
@@ -127,7 +127,7 @@ std::unordered_set<std::string> TargetNode::GetLibs() const {
 const std::string& TargetNode::str() const {
   if (str_repr_.empty()) {
     std::ostringstream os;
-    os << id->name;
+    os << kind->name;
     if (!this->keys.empty()) {
       os << " -keys=";
       bool is_first = true;
@@ -140,7 +140,7 @@ const std::string& TargetNode::str() const {
         os << s;
       }
     }
-    if (Optional<String> attrs_str = id->StringifyAttrsToRaw(attrs)) {
+    if (Optional<String> attrs_str = kind->StringifyAttrsToRaw(attrs)) {
       os << ' ' << attrs_str.value();
     }
     str_repr_ = os.str();

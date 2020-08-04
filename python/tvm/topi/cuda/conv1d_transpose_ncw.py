@@ -124,7 +124,7 @@ def schedule_conv1d_transpose_ncw(cfg, outs):
             cfg.define_knob("auto_unroll_max_step", [64, 512, 1500])
 
             target = tvm.target.Target.current()
-            if target.id.name in ['nvptx', 'rocm']:
+            if target.kind.name in ['nvptx', 'rocm']:
                 cfg.define_knob("unroll_explicit", [1])
             else:
                 cfg.define_knob("unroll_explicit", [0, 1])
