@@ -55,7 +55,7 @@ def conv3d_transpose_ncdhw(cfg, data, kernel, stride, padding, out_dtype,
     batch, inp_channels, inp_depth, inp_height, inp_width = get_const_tuple(data.shape)
     _, out_channels, kernel_depth, kernel_height, kernel_width = get_const_tuple(kernel.shape)
     stride_depth, stride_height, stride_width = stride
-    outpad_height, outpad_width, outpad_depth = output_padding
+    outpad_depth, outpad_height, outpad_width = output_padding
     assert (outpad_height < stride_height and outpad_width < stride_width and
             outpad_depth < stride_depth)
     cfg.stride = stride
