@@ -48,10 +48,10 @@ runtime::Module Build(IRModule mod, const Target& target) {
     mod = tir::transform::SkipAssert()(mod);
   }
   std::string build_f_name;
-  if (target->id->name == "micro_dev") {
+  if (target->kind->name == "micro_dev") {
     build_f_name = "target.build.c";
   } else {
-    build_f_name = "target.build." + target->id->name;
+    build_f_name = "target.build." + target->kind->name;
   }
   // the build function.
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);
