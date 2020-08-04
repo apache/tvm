@@ -16,7 +16,7 @@
 # under the License.
 """Target description and codgen module.
 
-TVM's target string is in fomat ``<target_id> [-option=value]...``.
+TVM's target string is in fomat ``<target_kind> [-option=value]...``.
 
 Note
 ----

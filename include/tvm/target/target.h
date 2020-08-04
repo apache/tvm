@@ -28,7 +28,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/node/container.h>
 #include <tvm/support/with.h>
-#include <tvm/target/target_id.h>
+#include <tvm/target/target_kind.h>
 
 #include <string>
 #include <unordered_set>
@@ -43,8 +43,8 @@ namespace tvm {
  */
 class TargetNode : public Object {
  public:
-  /*! \brief The id of the target device */
-  TargetId id;
+  /*! \brief The kind of the target device */
+  TargetKind kind;
   /*! \brief Tag of the the target, can be empty */
   String tag;
   /*! \brief Keys for this target */
@@ -56,7 +56,7 @@ class TargetNode : public Object {
   TVM_DLL const std::string& str() const;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("id", &id);
+    v->Visit("kind", &kind);
     v->Visit("tag", &tag);
     v->Visit("keys", &keys);
     v->Visit("attrs", &attrs);

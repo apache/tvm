@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/target/target_id.h
- * \brief Target id registry
+ * \file tvm/target/target_kind.h
+ * \brief Target kind registry
  */
-#ifndef TVM_TARGET_TARGET_ID_H_
-#define TVM_TARGET_TARGET_ID_H_
+#ifndef TVM_TARGET_TARGET_KIND_H_
+#define TVM_TARGET_TARGET_KIND_H_
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/transform.h>
@@ -49,14 +49,14 @@ class Target;
 TVM_DLL void TargetValidateSchema(const Map<String, ObjectRef>& config);
 
 template <typename>
-class TargetIdAttrMap;
+class TargetKindAttrMap;
 
-/*! \brief Target Id, specifies the kind of the target */
-class TargetIdNode : public Object {
+/*! \brief Target kind, specifies the kind of the target */
+class TargetKindNode : public Object {
  public:
-  /*! \brief Name of the target id */
+  /*! \brief Name of the target kind */
   String name;
-  /*! \brief Device type of target id */
+  /*! \brief Device type of target kind */
   int device_type;
   /*! \brief Default keys of the target */
   Array<String> default_keys;
@@ -71,8 +71,8 @@ class TargetIdNode : public Object {
 
   Optional<String> StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) const;
 
-  static constexpr const char* _type_key = "TargetId";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TargetIdNode, Object);
+  static constexpr const char* _type_key = "TargetKind";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TargetKindNode, Object);
 
  private:
   /*! \brief Stores the required type_key and type_index of a specific attr of a target */
@@ -88,7 +88,7 @@ class TargetIdNode : public Object {
   /*! \brief Perform schema validation */
   void ValidateSchema(const Map<String, ObjectRef>& config) const;
   /*! \brief Verify if the obj is consistent with the type info */
-  void VerifyTypeInfo(const ObjectRef& obj, const TargetIdNode::ValueTypeInfo& info) const;
+  void VerifyTypeInfo(const ObjectRef& obj, const TargetKindNode::ValueTypeInfo& info) const;
   /*! \brief A hash table that stores the type information of each attr of the target key */
   std::unordered_map<String, ValueTypeInfo> key2vtype_;
   /*! \brief A hash table that stores the default value of each attr of the target key */
@@ -97,67 +97,67 @@ class TargetIdNode : public Object {
   uint32_t index_;
   friend void TargetValidateSchema(const Map<String, ObjectRef>&);
   friend class Target;
-  friend class TargetId;
+  friend class TargetKind;
   template <typename, typename>
   friend class AttrRegistry;
   template <typename>
   friend class AttrRegistryMapContainerMap;
-  friend class TargetIdRegEntry;
+  friend class TargetKindRegEntry;
   template <typename, typename, typename>
   friend struct detail::ValueTypeInfoMaker;
 };
 
 /*!
- * \brief Managed reference class to TargetIdNode
- * \sa TargetIdNode
+ * \brief Managed reference class to TargetKindNode
+ * \sa TargetKindNode
  */
-class TargetId : public ObjectRef {
+class TargetKind : public ObjectRef {
  public:
-  TargetId() = default;
+  TargetKind() = default;
   /*! \brief Get the attribute map given the attribute name */
   template <typename ValueType>
-  static inline TargetIdAttrMap<ValueType> GetAttrMap(const String& attr_name);
+  static inline TargetKindAttrMap<ValueType> GetAttrMap(const String& attr_name);
   /*!
-   * \brief Retrieve the TargetId given its name
-   * \param target_id_name Name of the target id
-   * \return The TargetId requested
+   * \brief Retrieve the TargetKind given its name
+   * \param target_kind_name Name of the target kind
+   * \return The TargetKind requested
    */
-  TVM_DLL static const TargetId& Get(const String& target_id_name);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TargetId, ObjectRef, TargetIdNode);
+  TVM_DLL static const TargetKind& Get(const String& target_kind_name);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TargetKind, ObjectRef, TargetKindNode);
 
  private:
   /*! \brief Mutable access to the container class  */
-  TargetIdNode* operator->() { return static_cast<TargetIdNode*>(data_.get()); }
-  TVM_DLL static const AttrRegistryMapContainerMap<TargetId>& GetAttrMapContainer(
+  TargetKindNode* operator->() { return static_cast<TargetKindNode*>(data_.get()); }
+  TVM_DLL static const AttrRegistryMapContainerMap<TargetKind>& GetAttrMapContainer(
       const String& attr_name);
   template <typename, typename>
   friend class AttrRegistry;
-  friend class TargetIdRegEntry;
+  friend class TargetKindRegEntry;
   friend class Target;
 };
 
 /*!
- * \brief Map<TargetId, ValueType> used to store meta-information about TargetId
+ * \brief Map<TargetKind, ValueType> used to store meta-information about TargetKind
  * \tparam ValueType The type of the value stored in map
  */
 template <typename ValueType>
-class TargetIdAttrMap : public AttrRegistryMap<TargetId, ValueType> {
+class TargetKindAttrMap : public AttrRegistryMap<TargetKind, ValueType> {
  public:
-  using TParent = AttrRegistryMap<TargetId, ValueType>;
+  using TParent = AttrRegistryMap<TargetKind, ValueType>;
   using TParent::count;
   using TParent::get;
   using TParent::operator[];
-  explicit TargetIdAttrMap(const AttrRegistryMapContainerMap<TargetId>& map) : TParent(map) {}
+  explicit TargetKindAttrMap(const AttrRegistryMapContainerMap<TargetKind>& map) : TParent(map) {}
 };
 
 /*!
- * \brief Helper structure to register TargetId
- * \sa TVM_REGISTER_TARGET_ID
+ * \brief Helper structure to register TargetKind
+ * \sa TVM_REGISTER_TARGET_KIND
  */
-class TargetIdRegEntry {
+class TargetKindRegEntry {
  public:
   /*!
-   * \brief Register additional attributes to target_id.
+   * \brief Register additional attributes to target_kind.
    * \param attr_name The name of the attribute.
    * \param value The value to be set.
    * \param plevel The priority level of this attribute,
@@ -170,25 +170,25 @@ class TargetIdRegEntry {
    * \tparam ValueType The type of the value to be set.
    */
   template <typename ValueType>
-  inline TargetIdRegEntry& set_attr(const String& attr_name, const ValueType& value,
-                                    int plevel = 10);
+  inline TargetKindRegEntry& set_attr(const String& attr_name, const ValueType& value,
+                                      int plevel = 10);
   /*!
    * \brief Set DLPack's device_type the target
    * \param device_type Device type
    */
-  inline TargetIdRegEntry& set_device_type(int device_type);
+  inline TargetKindRegEntry& set_device_type(int device_type);
   /*!
    * \brief Set DLPack's device_type the target
    * \param keys The default keys
    */
-  inline TargetIdRegEntry& set_default_keys(std::vector<String> keys);
+  inline TargetKindRegEntry& set_default_keys(std::vector<String> keys);
   /*!
    * \brief Register a valid configuration option and its ValueType for validation
    * \param key The configuration key
    * \tparam ValueType The value type to be registered
    */
   template <typename ValueType>
-  inline TargetIdRegEntry& add_attr_option(const String& key);
+  inline TargetKindRegEntry& add_attr_option(const String& key);
   /*!
    * \brief Register a valid configuration option and its ValueType for validation
    * \param key The configuration key
@@ -196,26 +196,26 @@ class TargetIdRegEntry {
    * \tparam ValueType The value type to be registered
    */
   template <typename ValueType>
-  inline TargetIdRegEntry& add_attr_option(const String& key, ObjectRef default_value);
-  /*! \brief Set name of the TargetId to be the same as registry if it is empty */
-  inline TargetIdRegEntry& set_name();
+  inline TargetKindRegEntry& add_attr_option(const String& key, ObjectRef default_value);
+  /*! \brief Set name of the TargetKind to be the same as registry if it is empty */
+  inline TargetKindRegEntry& set_name();
   /*!
    * \brief Register or get a new entry.
-   * \param target_id_name The name of the TargetId.
+   * \param target_kind_name The name of the TargetKind.
    * \return the corresponding entry.
    */
-  TVM_DLL static TargetIdRegEntry& RegisterOrGet(const String& target_id_name);
+  TVM_DLL static TargetKindRegEntry& RegisterOrGet(const String& target_kind_name);
 
  private:
-  TargetId id_;
+  TargetKind kind_;
   String name;
 
   /*! \brief private constructor */
-  explicit TargetIdRegEntry(uint32_t reg_index) : id_(make_object<TargetIdNode>()) {
-    id_->index_ = reg_index;
+  explicit TargetKindRegEntry(uint32_t reg_index) : kind_(make_object<TargetKindNode>()) {
+    kind_->index_ = reg_index;
   }
   /*!
-   * \brief update the attribute TargetIdAttrMap
+   * \brief update the attribute TargetKindAttrMap
    * \param key The name of the attribute
    * \param value The value to be set
    * \param plevel The priority level
@@ -223,21 +223,21 @@ class TargetIdRegEntry {
   TVM_DLL void UpdateAttr(const String& key, TVMRetValue value, int plevel);
   template <typename, typename>
   friend class AttrRegistry;
-  friend class TargetId;
+  friend class TargetKind;
 };
 
-#define TVM_TARGET_ID_REGISTER_VAR_DEF \
-  static DMLC_ATTRIBUTE_UNUSED ::tvm::TargetIdRegEntry& __make_##TargetId
+#define TVM_TARGET_KIND_REGISTER_VAR_DEF \
+  static DMLC_ATTRIBUTE_UNUSED ::tvm::TargetKindRegEntry& __make_##TargetKind
 
 /*!
- * \def TVM_REGISTER_TARGET_ID
- * \brief Register a new target id, or set attribute of the corresponding target id.
+ * \def TVM_REGISTER_TARGET_KIND
+ * \brief Register a new target kind, or set attribute of the corresponding target kind.
  *
- * \param TargetIdName The name of target id
+ * \param TargetKindName The name of target kind
  *
  * \code
  *
- *  TVM_REGISTER_TARGET_ID("llvm")
+ *  TVM_REGISTER_TARGET_KIND("llvm")
  *  .set_attr<TPreCodegenPass>("TPreCodegenPass", a-pre-codegen-pass)
  *  .add_attr_option<Bool>("system_lib")
  *  .add_attr_option<String>("mtriple")
@@ -245,9 +245,9 @@ class TargetIdRegEntry {
  *
  * \endcode
  */
-#define TVM_REGISTER_TARGET_ID(TargetIdName)                    \
-  TVM_STR_CONCAT(TVM_TARGET_ID_REGISTER_VAR_DEF, __COUNTER__) = \
-      ::tvm::TargetIdRegEntry::RegisterOrGet(TargetIdName).set_name()
+#define TVM_REGISTER_TARGET_KIND(TargetKindName)                  \
+  TVM_STR_CONCAT(TVM_TARGET_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
+      ::tvm::TargetKindRegEntry::RegisterOrGet(TargetKindName).set_name()
 
 namespace detail {
 template <typename Type, template <typename...> class Container>
@@ -266,7 +266,7 @@ struct ValueTypeInfoMaker {};
 
 template <typename ValueType>
 struct ValueTypeInfoMaker<ValueType, std::false_type, std::false_type> {
-  using ValueTypeInfo = TargetIdNode::ValueTypeInfo;
+  using ValueTypeInfo = TargetKindNode::ValueTypeInfo;
 
   ValueTypeInfo operator()() const {
     uint32_t tindex = ValueType::ContainerType::_GetOrAllocRuntimeTypeIndex();
@@ -281,7 +281,7 @@ struct ValueTypeInfoMaker<ValueType, std::false_type, std::false_type> {
 
 template <typename ValueType>
 struct ValueTypeInfoMaker<ValueType, std::true_type, std::false_type> {
-  using ValueTypeInfo = TargetIdNode::ValueTypeInfo;
+  using ValueTypeInfo = TargetKindNode::ValueTypeInfo;
 
   ValueTypeInfo operator()() const {
     using key_type = ValueTypeInfoMaker<typename ValueType::value_type>;
@@ -297,7 +297,7 @@ struct ValueTypeInfoMaker<ValueType, std::true_type, std::false_type> {
 
 template <typename ValueType>
 struct ValueTypeInfoMaker<ValueType, std::false_type, std::true_type> {
-  using ValueTypeInfo = TargetIdNode::ValueTypeInfo;
+  using ValueTypeInfo = TargetKindNode::ValueTypeInfo;
   ValueTypeInfo operator()() const {
     using key_type = ValueTypeInfoMaker<typename ValueType::key_type>;
     using val_type = ValueTypeInfoMaker<typename ValueType::mapped_type>;
@@ -314,13 +314,13 @@ struct ValueTypeInfoMaker<ValueType, std::false_type, std::true_type> {
 }  // namespace detail
 
 template <typename ValueType>
-inline TargetIdAttrMap<ValueType> TargetId::GetAttrMap(const String& attr_name) {
-  return TargetIdAttrMap<ValueType>(GetAttrMapContainer(attr_name));
+inline TargetKindAttrMap<ValueType> TargetKind::GetAttrMap(const String& attr_name) {
+  return TargetKindAttrMap<ValueType>(GetAttrMapContainer(attr_name));
 }
 
 template <typename ValueType>
-inline TargetIdRegEntry& TargetIdRegEntry::set_attr(const String& attr_name, const ValueType& value,
-                                                    int plevel) {
+inline TargetKindRegEntry& TargetKindRegEntry::set_attr(const String& attr_name,
+                                                        const ValueType& value, int plevel) {
   CHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
   runtime::TVMRetValue rv;
   rv = value;
@@ -328,39 +328,39 @@ inline TargetIdRegEntry& TargetIdRegEntry::set_attr(const String& attr_name, con
   return *this;
 }
 
-inline TargetIdRegEntry& TargetIdRegEntry::set_device_type(int device_type) {
-  id_->device_type = device_type;
+inline TargetKindRegEntry& TargetKindRegEntry::set_device_type(int device_type) {
+  kind_->device_type = device_type;
   return *this;
 }
 
-inline TargetIdRegEntry& TargetIdRegEntry::set_default_keys(std::vector<String> keys) {
-  id_->default_keys = keys;
+inline TargetKindRegEntry& TargetKindRegEntry::set_default_keys(std::vector<String> keys) {
+  kind_->default_keys = keys;
   return *this;
 }
 
 template <typename ValueType>
-inline TargetIdRegEntry& TargetIdRegEntry::add_attr_option(const String& key) {
-  CHECK(!id_->key2vtype_.count(key))
+inline TargetKindRegEntry& TargetKindRegEntry::add_attr_option(const String& key) {
+  CHECK(!kind_->key2vtype_.count(key))
       << "AttributeError: add_attr_option failed because '" << key << "' has been set once";
-  id_->key2vtype_[key] = detail::ValueTypeInfoMaker<ValueType>()();
+  kind_->key2vtype_[key] = detail::ValueTypeInfoMaker<ValueType>()();
   return *this;
 }
 
 template <typename ValueType>
-inline TargetIdRegEntry& TargetIdRegEntry::add_attr_option(const String& key,
-                                                           ObjectRef default_value) {
+inline TargetKindRegEntry& TargetKindRegEntry::add_attr_option(const String& key,
+                                                               ObjectRef default_value) {
   add_attr_option<ValueType>(key);
-  id_->key2default_[key] = default_value;
+  kind_->key2default_[key] = default_value;
   return *this;
 }
 
-inline TargetIdRegEntry& TargetIdRegEntry::set_name() {
-  if (id_->name.empty()) {
-    id_->name = name;
+inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
+  if (kind_->name.empty()) {
+    kind_->name = name;
   }
   return *this;
 }
 
 }  // namespace tvm
 
-#endif  // TVM_TARGET_TARGET_ID_H_
+#endif  // TVM_TARGET_TARGET_KIND_H_

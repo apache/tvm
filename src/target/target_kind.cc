@@ -18,10 +18,10 @@
  */
 
 /*!
- * \file src/target/target_id.cc
- * \brief Target id registry
+ * \file src/target/target_kind.cc
+ * \brief Target kind registry
  */
-#include <tvm/target/target_id.h>
+#include <tvm/target/target_kind.h>
 
 #include <algorithm>
 
@@ -30,37 +30,38 @@
 
 namespace tvm {
 
-TVM_REGISTER_NODE_TYPE(TargetIdNode);
+TVM_REGISTER_NODE_TYPE(TargetKindNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<TargetIdNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const TargetIdNode*>(node.get());
+    .set_dispatch<TargetKindNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const TargetKindNode*>(node.get());
       p->stream << op->name;
     });
 
-using TargetIdRegistry = AttrRegistry<TargetIdRegEntry, TargetId>;
+using TargetKindRegistry = AttrRegistry<TargetKindRegEntry, TargetKind>;
 
-TargetIdRegEntry& TargetIdRegEntry::RegisterOrGet(const String& target_id_name) {
-  return TargetIdRegistry::Global()->RegisterOrGet(target_id_name);
+TargetKindRegEntry& TargetKindRegEntry::RegisterOrGet(const String& target_kind_name) {
+  return TargetKindRegistry::Global()->RegisterOrGet(target_kind_name);
 }
 
-void TargetIdRegEntry::UpdateAttr(const String& key, TVMRetValue value, int plevel) {
-  TargetIdRegistry::Global()->UpdateAttr(key, id_, value, plevel);
+void TargetKindRegEntry::UpdateAttr(const String& key, TVMRetValue value, int plevel) {
+  TargetKindRegistry::Global()->UpdateAttr(key, kind_, value, plevel);
 }
 
-const AttrRegistryMapContainerMap<TargetId>& TargetId::GetAttrMapContainer(
+const AttrRegistryMapContainerMap<TargetKind>& TargetKind::GetAttrMapContainer(
     const String& attr_name) {
-  return TargetIdRegistry::Global()->GetAttrMap(attr_name);
+  return TargetKindRegistry::Global()->GetAttrMap(attr_name);
 }
 
-const TargetId& TargetId::Get(const String& target_id_name) {
-  const TargetIdRegEntry* reg = TargetIdRegistry::Global()->Get(target_id_name);
-  CHECK(reg != nullptr) << "ValueError: TargetId \"" << target_id_name << "\" is not registered";
-  return reg->id_;
+const TargetKind& TargetKind::Get(const String& target_kind_name) {
+  const TargetKindRegEntry* reg = TargetKindRegistry::Global()->Get(target_kind_name);
+  CHECK(reg != nullptr) << "ValueError: TargetKind \"" << target_kind_name
+                        << "\" is not registered";
+  return reg->kind_;
 }
 
-void TargetIdNode::VerifyTypeInfo(const ObjectRef& obj,
-                                  const TargetIdNode::ValueTypeInfo& info) const {
+void TargetKindNode::VerifyTypeInfo(const ObjectRef& obj,
+                                    const TargetKindNode::ValueTypeInfo& info) const {
   CHECK(obj.defined()) << "Object is None";
   if (!runtime::ObjectInternal::DerivedFrom(obj.get(), info.type_index)) {
     LOG(FATAL) << "AttributeError: expect type \"" << info.type_key << "\" but get "
@@ -102,17 +103,17 @@ void TargetIdNode::VerifyTypeInfo(const ObjectRef& obj,
   }
 }
 
-void TargetIdNode::ValidateSchema(const Map<String, ObjectRef>& config) const {
-  const String kTargetId = "id";
+void TargetKindNode::ValidateSchema(const Map<String, ObjectRef>& config) const {
+  const String kTargetKind = "kind";
   for (const auto& kv : config) {
     const String& name = kv.first;
     const ObjectRef& obj = kv.second;
-    if (name == kTargetId) {
+    if (name == kTargetKind) {
       CHECK(obj->IsInstance<StringObj>())
-          << "AttributeError: \"id\" is not a string, but its type is \"" << obj->GetTypeKey()
+          << "AttributeError: \"kind\" is not a string, but its type is \"" << obj->GetTypeKey()
           << "\"";
       CHECK(Downcast<String>(obj) == this->name)
-          << "AttributeError: \"id\" = \"" << obj << "\" is inconsistent with TargetId \""
+          << "AttributeError: \"kind\" = \"" << obj << "\" is inconsistent with TargetKind \""
           << this->name << "\"";
       continue;
     }
@@ -131,7 +132,7 @@ void TargetIdNode::ValidateSchema(const Map<String, ObjectRef>& config) const {
     try {
       VerifyTypeInfo(obj, info);
     } catch (const tvm::Error& e) {
-      LOG(FATAL) << "AttributeError: Schema validation failed for TargetId \"" << this->name
+      LOG(FATAL) << "AttributeError: Schema validation failed for TargetKind \"" << this->name
                  << "\", details:\n"
                  << e.what() << "\n"
                  << "The config is:\n"
@@ -141,12 +142,13 @@ void TargetIdNode::ValidateSchema(const Map<String, ObjectRef>& config) const {
   }
 }
 
-inline String GetId(const Map<String, ObjectRef>& target, const char* name) {
-  const String kTargetId = "id";
-  CHECK(target.count(kTargetId)) << "AttributeError: \"id\" does not exist in \"" << name << "\"\n"
-                                 << name << " = " << target;
-  const ObjectRef& obj = target[kTargetId];
-  CHECK(obj->IsInstance<StringObj>()) << "AttributeError: \"id\" is not a string in \"" << name
+inline String GetKind(const Map<String, ObjectRef>& target, const char* name) {
+  const String kTargetKind = "kind";
+  CHECK(target.count(kTargetKind))
+      << "AttributeError: \"kind\" does not exist in \"" << name << "\"\n"
+      << name << " = " << target;
+  const ObjectRef& obj = target[kTargetKind];
+  CHECK(obj->IsInstance<StringObj>()) << "AttributeError: \"kind\" is not a string in \"" << name
                                       << "\", but its type is \"" << obj->GetTypeKey() << "\"\n"
                                       << name << " = \"" << target << '"';
   return Downcast<String>(obj);
@@ -157,16 +159,16 @@ void TargetValidateSchema(const Map<String, ObjectRef>& config) {
     const String kTargetHost = "target_host";
     Map<String, ObjectRef> target = config;
     Map<String, ObjectRef> target_host;
-    String target_id = GetId(target, "target");
-    String target_host_id;
+    String target_kind = GetKind(target, "target");
+    String target_host_kind;
     if (config.count(kTargetHost)) {
       target.erase(kTargetHost);
       target_host = Downcast<Map<String, ObjectRef>>(config[kTargetHost]);
-      target_host_id = GetId(target_host, "target_host");
+      target_host_kind = GetKind(target_host, "target_host");
     }
-    TargetId::Get(target_id)->ValidateSchema(target);
+    TargetKind::Get(target_kind)->ValidateSchema(target);
     if (!target_host.empty()) {
-      TargetId::Get(target_host_id)->ValidateSchema(target_host);
+      TargetKind::Get(target_host_kind)->ValidateSchema(target_host);
     }
   } catch (const tvm::Error& e) {
     LOG(FATAL) << "AttributeError: schedule validation fails:\n"
@@ -230,7 +232,7 @@ static inline Optional<String> Join(const std::vector<String>& array, char separ
   return String(os.str());
 }
 
-Map<String, ObjectRef> TargetIdNode::ParseAttrsFromRaw(
+Map<String, ObjectRef> TargetKindNode::ParseAttrsFromRaw(
     const std::vector<std::string>& options) const {
   std::unordered_map<String, ObjectRef> attrs;
   for (size_t iter = 0, end = options.size(); iter < end;) {
@@ -313,7 +315,7 @@ Map<String, ObjectRef> TargetIdNode::ParseAttrsFromRaw(
   return attrs;
 }
 
-Optional<String> TargetIdNode::StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) const {
+Optional<String> TargetKindNode::StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) const {
   std::ostringstream os;
   std::vector<String> keys;
   for (const auto& kv : attrs) {
@@ -348,7 +350,7 @@ Optional<String> TargetIdNode::StringifyAttrsToRaw(const Map<String, ObjectRef>&
 
 // TODO(@junrushao1994): remove some redundant attributes
 
-TVM_REGISTER_TARGET_ID("llvm")
+TVM_REGISTER_TARGET_KIND("llvm")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -361,7 +363,7 @@ TVM_REGISTER_TARGET_ID("llvm")
     .set_default_keys({"cpu"})
     .set_device_type(kDLCPU);
 
-TVM_REGISTER_TARGET_ID("c")
+TVM_REGISTER_TARGET_KIND("c")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -370,7 +372,7 @@ TVM_REGISTER_TARGET_ID("c")
     .set_default_keys({"cpu"})
     .set_device_type(kDLCPU);
 
-TVM_REGISTER_TARGET_ID("micro_dev")
+TVM_REGISTER_TARGET_KIND("micro_dev")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -379,7 +381,7 @@ TVM_REGISTER_TARGET_ID("micro_dev")
     .set_default_keys({"micro_dev"})
     .set_device_type(kDLMicroDev);
 
-TVM_REGISTER_TARGET_ID("cuda")
+TVM_REGISTER_TARGET_KIND("cuda")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -391,7 +393,7 @@ TVM_REGISTER_TARGET_ID("cuda")
     .set_default_keys({"cuda", "gpu"})
     .set_device_type(kDLGPU);
 
-TVM_REGISTER_TARGET_ID("nvptx")
+TVM_REGISTER_TARGET_KIND("nvptx")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -403,7 +405,7 @@ TVM_REGISTER_TARGET_ID("nvptx")
     .set_default_keys({"cuda", "gpu"})
     .set_device_type(kDLGPU);
 
-TVM_REGISTER_TARGET_ID("rocm")
+TVM_REGISTER_TARGET_KIND("rocm")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -414,7 +416,7 @@ TVM_REGISTER_TARGET_ID("rocm")
     .set_default_keys({"rocm", "gpu"})
     .set_device_type(kDLROCM);
 
-TVM_REGISTER_TARGET_ID("opencl")
+TVM_REGISTER_TARGET_KIND("opencl")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -425,7 +427,7 @@ TVM_REGISTER_TARGET_ID("opencl")
     .set_default_keys({"opencl", "gpu"})
     .set_device_type(kDLOpenCL);
 
-TVM_REGISTER_TARGET_ID("metal")
+TVM_REGISTER_TARGET_KIND("metal")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -435,7 +437,7 @@ TVM_REGISTER_TARGET_ID("metal")
     .set_default_keys({"metal", "gpu"})
     .set_device_type(kDLMetal);
 
-TVM_REGISTER_TARGET_ID("vulkan")
+TVM_REGISTER_TARGET_KIND("vulkan")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -445,7 +447,7 @@ TVM_REGISTER_TARGET_ID("vulkan")
     .set_default_keys({"vulkan", "gpu"})
     .set_device_type(kDLVulkan);
 
-TVM_REGISTER_TARGET_ID("webgpu")
+TVM_REGISTER_TARGET_KIND("webgpu")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -455,7 +457,7 @@ TVM_REGISTER_TARGET_ID("webgpu")
     .set_default_keys({"webgpu", "gpu"})
     .set_device_type(kDLWebGPU);
 
-TVM_REGISTER_TARGET_ID("sdaccel")
+TVM_REGISTER_TARGET_KIND("sdaccel")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -464,7 +466,7 @@ TVM_REGISTER_TARGET_ID("sdaccel")
     .set_default_keys({"sdaccel", "hls"})
     .set_device_type(kDLOpenCL);
 
-TVM_REGISTER_TARGET_ID("aocl")
+TVM_REGISTER_TARGET_KIND("aocl")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -473,7 +475,7 @@ TVM_REGISTER_TARGET_ID("aocl")
     .set_default_keys({"aocl", "hls"})
     .set_device_type(kDLAOCL);
 
-TVM_REGISTER_TARGET_ID("aocl_sw_emu")
+TVM_REGISTER_TARGET_KIND("aocl_sw_emu")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -482,7 +484,7 @@ TVM_REGISTER_TARGET_ID("aocl_sw_emu")
     .set_default_keys({"aocl", "hls"})
     .set_device_type(kDLAOCL);
 
-TVM_REGISTER_TARGET_ID("hexagon")
+TVM_REGISTER_TARGET_KIND("hexagon")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -491,7 +493,7 @@ TVM_REGISTER_TARGET_ID("hexagon")
     .set_default_keys({"hexagon"})
     .set_device_type(kDLHexagon);
 
-TVM_REGISTER_TARGET_ID("stackvm")
+TVM_REGISTER_TARGET_KIND("stackvm")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -499,7 +501,7 @@ TVM_REGISTER_TARGET_ID("stackvm")
     .add_attr_option<Bool>("system-lib")
     .set_device_type(kDLCPU);
 
-TVM_REGISTER_TARGET_ID("ext_dev")
+TVM_REGISTER_TARGET_KIND("ext_dev")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
@@ -507,7 +509,7 @@ TVM_REGISTER_TARGET_ID("ext_dev")
     .add_attr_option<Bool>("system-lib")
     .set_device_type(kDLExtDev);
 
-TVM_REGISTER_TARGET_ID("hybrid")
+TVM_REGISTER_TARGET_KIND("hybrid")
     .add_attr_option<Array<String>>("keys")
     .add_attr_option<Array<String>>("libs")
     .add_attr_option<String>("device")
