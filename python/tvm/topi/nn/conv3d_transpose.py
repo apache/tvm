@@ -45,6 +45,9 @@ def conv3d_transpose_ncdhw(Input, Filter, strides, padding, out_dtype, output_pa
     out_dtype : str
         The output data type. This is used for mixed precision.
 
+    output_padding : tuple of ints
+        Used to get the right output shape for gradients
+
     Returns
     -------
     Output : tvm.te.Tensor
