@@ -91,3 +91,10 @@ Math Intrinsics
 So far, these math intrinsics, ``log``, ``exp``, ``sigmoid``, ``tanh``, ``power``, and ``popcount``, are supported.
 Math intrinsics will be imported by the decorator. Most of the intrinsics are borrowed by library implementation
 except ``popcount`` and ``sigmoid``. I implemented them manually.
+
+
+Casting
+~~~~~~~
+
+You can cast values by using the keywords ``uint8``, ``uint16`` ``uint32``, ``uint64``, ``int8``, ``int16``, ``int32``, ``int64``, 
+``float16``, ``float32``, ``float64``.
