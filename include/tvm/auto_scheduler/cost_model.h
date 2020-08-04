@@ -58,7 +58,7 @@ class CostModelNode : public Object {
                        std::vector<float>* scores) = 0;
 
   /*!
-   * \brief Predict the scores of all stages in states
+   * \brief Predict the scores of all stages in states. This is the breakdown version of `Predict`
    * \param task The search task
    * \param states The input states
    * \param state_scores The predicted scores for all states

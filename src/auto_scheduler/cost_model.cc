@@ -33,7 +33,7 @@ TVM_REGISTER_OBJECT_TYPE(PythonBasedModelNode);
 
 RandomModel::RandomModel() {
   ObjectPtr<RandomModelNode> node = make_object<RandomModelNode>();
-  const auto* f = runtime::Registry::Get("auto_scheduler.cost_model.random_number");
+  const auto* f = runtime::Registry::Get("auto_scheduler.cost_model.random_fill_float");
   CHECK(f != nullptr);
   node->random_number_func = reinterpret_cast<const TypedPackedFunc<void(size_t, void*)>*>(f);
   data_ = std::move(node);

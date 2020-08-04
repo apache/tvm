@@ -64,14 +64,22 @@ class RandomModel(CostModel):
         return [x.value for x in _ffi_api.CostModelPredict(self, search_task, states)]
 
 
-@tvm._ffi.register_func("auto_scheduler.cost_model.random_number")
-def random_number(n, return_ptr):
-    """ A random number generator func for c++'s RandomModel """
-    if n == 0:
+@tvm._ffi.register_func("auto_scheduler.cost_model.random_fill_float")
+def random_fill_float(size, return_ptr):
+    """Fills a c++ float array with random numbers in [0, 1]
+
+    Parameters
+    ----------
+    size: int
+        The size of the array
+    return_ptr:
+        A pointer to a c++ float array
+    """
+    if size == 0:
         return
     return_ptr = ctypes.cast(return_ptr, ctypes.POINTER(ctypes.c_float))
-    array_wrapper = np.ctypeslib.as_array(return_ptr, shape=(n,))
-    array_wrapper[:] = np.random.uniform(0, 1, (n,))
+    array_wrapper = np.ctypeslib.as_array(return_ptr, shape=(size,))
+    array_wrapper[:] = np.random.uniform(0, 1, (size,))
 
 
 @tvm._ffi.register_object("auto_scheduler.PythonBasedModel")
@@ -125,7 +133,7 @@ class PythonBasedModel(CostModel):
         raise NotImplementedError
 
     def predict_stages(self, task, states):
-        """Predict the scores of states
+        """Predict the scores of all stages in states. This is the breakdown version of `predict`.
 
         Parameters
         ----------
