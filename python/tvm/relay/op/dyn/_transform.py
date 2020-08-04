@@ -77,7 +77,6 @@ def _reshape_shape_func_input_data(data, newshape, ndim):
         if infer_idx >= 0:
             old_size = int64(1)
             for i in const_range(data_shape.shape[0]):
-
                 old_size *= data_shape[i]
             new_size = int64(1)
             for i in const_range(out.shape[0]):

@@ -33,61 +33,72 @@ namespace relay {
 
 class DynamicToStaticMutator : public MixedModeMutator {
  public:
-  DynamicToStaticMutator(){
-        op_map_ = {
-            {Op::Get("dyn.reshape"),
-             [](const CallNode* call_node) {
-               if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
-                 CHECK_EQ(shape->data->ndim, 1);
-                 return MakeReshape(call_node->args[0], ToVector(shape->data));
-               }
-               return Expr(nullptr);
-             }},
-            {Op::Get("dyn.tile"),
-             [](const CallNode* call_node) {
-               if (const ConstantNode* reps = call_node->args[1].as<ConstantNode>()) {
-                 CHECK_EQ(reps->data->ndim, 1);
-                 return MakeTile(call_node->args[0], ToVector(reps->data));
-               }
-               return Expr(nullptr);
-             }},
-            {Op::Get("dyn.topk"),
-             [](const CallNode* call_node) {
-               if (const ConstantNode* k = call_node->args[1].as<ConstantNode>()) {
-                 const TopKAttrs* param = call_node->attrs.as<TopKAttrs>();
-                 CHECK(param);
-                 return MakeTopK(call_node->args[0], static_cast<int>(ToScalar(k->data, 0)),
-                                 param->axis, param->ret_type, param->is_ascend, param->dtype);
-               }
-               return Expr(nullptr);
-             }},
-            {Op::Get("dyn.broadcast_to"),
-             [](const CallNode* call_node) {
-               if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
-                 CHECK_EQ(shape->data->ndim, 1);
-                 return MakeBroadCastTo(call_node->args[0], ToVector(shape->data));
-               }
-               return Expr(nullptr);
-             }},
-            {Op::Get("dyn.zeros"),
-             [](const CallNode* call_node) {
-               if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
-                 const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
-                 CHECK(param);
-                 return MakeZeros(ToVector(shape->data), param->dtype);
-               }
-               return Expr(nullptr);
-             }},
-            {Op::Get("dyn.ones"),
-             [](const CallNode* call_node) {
-               if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
-                 const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
-                 CHECK(param);
-                 return MakeOnes(ToVector(shape->data), param->dtype);
-               }
-               return Expr(nullptr);
-             }},
-        };
+  DynamicToStaticMutator() {
+    op_map_ = {
+        {Op::Get("dyn.reshape"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
+             CHECK_EQ(shape->data->ndim, 1);
+             return MakeReshape(call_node->args[0], ToVector(shape->data));
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.tile"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* reps = call_node->args[1].as<ConstantNode>()) {
+             CHECK_EQ(reps->data->ndim, 1);
+             return MakeTile(call_node->args[0], ToVector(reps->data));
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.topk"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* k = call_node->args[1].as<ConstantNode>()) {
+             const TopKAttrs* param = call_node->attrs.as<TopKAttrs>();
+             CHECK(param);
+             return MakeTopK(call_node->args[0], static_cast<int>(ToScalar(k->data, 0)),
+                             param->axis, param->ret_type, param->is_ascend, param->dtype);
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.broadcast_to"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
+             CHECK_EQ(shape->data->ndim, 1);
+             return MakeBroadCastTo(call_node->args[0], ToVector(shape->data));
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.zeros"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
+             const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
+             CHECK(param);
+             return MakeZeros(ToVector(shape->data), param->dtype);
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.ones"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
+             const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
+             CHECK(param);
+             return MakeOnes(ToVector(shape->data), param->dtype);
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.one_hot"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* depth = call_node->args[3].as<ConstantNode>()) {
+             const OneHotAttrs* param = call_node->attrs.as<OneHotAttrs>();
+             CHECK(param);
+             return MakeOneHot(call_node->args[0], call_node->args[1], call_node->args[2],
+                               static_cast<int>(ToScalar(depth->data, 0)), param->axis,
+                               param->dtype);
+           }
+           return Expr(nullptr);
+         }},
+    };
   }
 
  private:

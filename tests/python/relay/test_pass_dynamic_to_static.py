@@ -22,6 +22,8 @@ from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.testing import run_infer_type, create_workload, ctx_list
 
+import tvm.topi.testing
+
 
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, tvm.transform.Pass)
@@ -221,6 +223,32 @@ def test_dynamic_to_static_zeros_ones():
 
     verify_ones_zeros((1, 2, 3), 'int64')
     verify_ones_zeros((9, 8, 3, 4), 'float32')
+
+def test_dynamic_to_static_one_hot():
+    def _verify(indices_shape, depth, on_value, off_value, axis, dtype):
+        indices = relay.var("indices", relay.TensorType(indices_shape, "int32"))
+        depth_var = relay.const(depth)
+        on_value_const = relay.const(on_value)
+        off_value_const = relay.const(off_value)
+        out = relay.one_hot(indices, on_value_const, off_value_const, depth_var, axis, dtype)
+        func = relay.Function([indices], out)
+
+        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+
+        zz = func2.body
+        assert isinstance(zz, relay.Call)
+        assert zz.op == relay.op.get("one_hot")
+
+        indices_np = np.random.randint(0, depth, size=indices_shape).astype("int32")
+        out_np = tvm.topi.testing.one_hot(indices_np, on_value, off_value, depth, axis, dtype)
+        verify_func(func2, [indices_np], out_np)
+
+    _verify((3, ), 3, 1, 0, -1, "int32")
+    _verify((3, ), 3, 1.0, 0.0, -1, "float32")
+    _verify((2, 2), 5, 2, -2, 0, "int32")
+    _verify((2, 2), 5, 0.5, -0.5, 1, "float32")
+    _verify((3, 2, 4, 5), 6, 1, 0, 1, "int32")
+    _verify((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
 
 if __name__=="__main__":
     test_dynamic_to_static_reshape()
