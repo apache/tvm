@@ -41,7 +41,7 @@ def test_resize():
             size = (dshape[1] * scale, dshape[2] * scale)
         else:
             size = (dshape[2] * scale, dshape[3] * scale)
-        size = np.array(size)
+        size = np.array(size).astype("int64")
         x_data = np.random.uniform(size=dshape).astype("float32")
         if method == "bilinear":
             ref_res = tvm.topi.testing.bilinear_resize_python(x_data, size, layout)
