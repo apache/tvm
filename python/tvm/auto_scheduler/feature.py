@@ -21,12 +21,12 @@ Python API for Feature extraction. The extracted features vector are used by cos
 We extract one feature vector per BufferStoreNode statement in a TIR Stmt,
 so we call this feature as "Per Store" feature.
 The cost model also does prediction for each BufferStoreNode statement and aggregates
-the predictions as the whole score for a TVM IR (Stmt).
+the predicted score of each BufferStoreNode as the score of a TIR Stmt.
 
 The feature specification is defined by `src/auto_scheduler/feature.cc::FeatureSet`
 """
 
-from typing import List, Tuple
+from typing import List, Tuple, Union, Optional
 import struct
 
 import numpy as np
@@ -41,6 +41,9 @@ DEFAULT_MAX_N_BUFS = 5
 # The length of the feature vector
 DEFAULT_FEATURE_VEC_LEN = 164
 
+# The size of int and float in bytes
+SIZE_OF_INT = 4
+SIZE_OF_FLOAT = 4
 
 def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Unpack the flatten feature (in byte array format) from c++
@@ -59,8 +62,6 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
     task_ids: np.ndarray
         Task ids
     """
-    size_of_int = 4
-    size_of_float = 4
 
     # The format for n records is:
     # {
@@ -81,10 +82,10 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
     # unpack sizes
     offset = 0
     n = struct.unpack_from("1i", byte_arr, offset=offset)[0]
-    offset += size_of_int
+    offset += SIZE_OF_INT
 
     sizes = struct.unpack_from("%di" % (n+2), byte_arr, offset=offset)
-    offset += size_of_int * (n+2)
+    offset += SIZE_OF_INT * (n+2)
 
     # unpack features
     features = []
@@ -104,7 +105,7 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
             features.append(np.zeros((1, vec_len)))
         else:
             n_stmts = struct.unpack_from("f", byte_arr, offset=offset)
-            offset += size_of_float
+            offset += SIZE_OF_FLOAT
 
             n_stmts = int(n_stmts[0] + 0.5)
             tmp_vec_len = (size - 1) // n_stmts
@@ -113,7 +114,7 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
             assert (size - 1) % n_stmts == 0
             for _ in range(n_stmts):
                 x = struct.unpack_from("%df" % vec_len, byte_arr, offset=offset)
-                offset += vec_len * size_of_float
+                offset += vec_len * SIZE_OF_FLOAT
                 row.append(x)
 
             features.append(np.array(row))
@@ -121,20 +122,20 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
     # unpack normalized_throughputs
     m = sizes[-2]
     normalized_throughputs = struct.unpack_from("%df" % m, byte_arr, offset=offset)
-    offset += m * size_of_int
+    offset += m * SIZE_OF_INT
 
     # unpack task_ids
     m = sizes[-1]
     task_ids = struct.unpack_from("%di" % m, byte_arr, offset=offset)
-    offset += m * size_of_int
+    offset += m * SIZE_OF_INT
 
     assert offset == len(byte_arr), "%d vs %d" % (offset, len(byte_arr))
     return np.array(features, dtype=object), np.array(normalized_throughputs), np.array(task_ids)
 
 
 def get_per_store_features_from_file(filename: str,
-                                     n_lines: int,
-                                     max_n_bufs: int = None) \
+                                     max_lines: int,
+                                     max_n_bufs: Optional[int] = None) \
         -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Get per_store features from a log file
 
@@ -142,8 +143,8 @@ def get_per_store_features_from_file(filename: str,
     ----------
     filename: str
         The input filename
-    n_lines: int
-        Only extract the first n lines in the file
+    max_lines: int
+        Only extract the first n lines of the file
     max_n_bufs: int
         The maximum number of extracted buffers for one statement
 
@@ -157,14 +158,14 @@ def get_per_store_features_from_file(filename: str,
         Task ids
     """
     byte_arr = _ffi_api.GetPerStoreFeaturesFromFile(
-        filename, n_lines, max_n_bufs or DEFAULT_MAX_N_BUFS)
+        filename, max_lines, max_n_bufs or DEFAULT_MAX_N_BUFS)
     return unpack_feature(byte_arr)
 
 
 def get_per_store_features_from_measure_pairs(inputs: List[MeasureInput],
                                               results: List[MeasureResult],
                                               skip_first_n_feature_extraction: int = 0,
-                                              max_n_bufs: int = None) \
+                                              max_n_bufs: Optional[int] = None) \
         -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Get per_store features from measurement input/result pairs
 
@@ -193,9 +194,9 @@ def get_per_store_features_from_measure_pairs(inputs: List[MeasureInput],
     return unpack_feature(byte_arr)
 
 
-def get_per_store_features_from_states(states,
+def get_per_store_features_from_states(states: List[Union[State, StateObject]],
                                        task: "SearchTask",
-                                       max_n_bufs: int = None) -> List[np.ndarray]:
+                                       max_n_bufs: Optional[int] = None) -> List[np.ndarray]:
     """Get per_store features from measurement input/result pairs
 
     Parameters
@@ -225,7 +226,7 @@ def get_per_store_features_from_states(states,
     return unpack_feature(byte_arr)[0]
 
 
-def get_per_store_feature_names(max_n_bufs: int = None) -> List[str]:
+def get_per_store_feature_names(max_n_bufs: Optional[int] = None) -> List[str]:
     """Get the name of every element in the feature vector. Use this for debug and inspection.
 
     Parameters

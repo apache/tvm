@@ -58,7 +58,7 @@ void GetPerStoreFeature(const Stmt& stmt, int cache_line_size, int max_n_bufs,
 void GetPerStoreFeatureName(int max_n_bufs, std::vector<std::string>* ret);
 
 /*!
- * \brief Get PerStore feature from states and the same task
+ * \brief Get PerStore feature from states of the same task
  * \param states The input states
  * \param task The same search task for all states
  * \param skip_first_n_feature_extraction Skip feature extraction for the first n states
@@ -71,9 +71,9 @@ void GetPerStoreFeaturesFromStates(const Array<State>& states, const SearchTask&
                                    std::vector<std::vector<float> >* features);
 
 /*!
- * \brief Get PerStore feature from states and different tasks
+ * \brief Get PerStore feature from states of different tasks
  * \param states The input states
- * \param tasks The search tasks for different states
+ * \param tasks The search tasks corresponding to the input states
  * \param skip_first_n_feature_extraction Skip feature extraction for the first n states
  * \param max_n_bufs The maximum number of extracted buffers for one statement
  * \param features The returned feature vector. The innermost vector contains the
@@ -86,14 +86,14 @@ void GetPerStoreFeaturesFromStates(const Array<State>& states, const std::vector
 /*!
  * \brief Get PerStore features from a log file
  * \param filename The name of log file
- * \param n_lines Only read the first n lines
+ * \param max_lines Only read the first n lines of the file
  * \param max_n_bufs The maximum number of extracted buffers for one statement
  * \param features The returned feature vector. The innermost vector contains the
  * feature vectors for all BufferStoreNode statements
  * \param normalized_throughputs The normalized throughputs for all states
  * \param task_ids The task ids for all states
  */
-void GetPerStoreFeaturesFromFile(const std::string& filename, int n_lines, int max_n_bufs,
+void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int max_n_bufs,
                                  std::vector<std::vector<float> >* features,
                                  std::vector<float>* normalized_throughputs,
                                  std::vector<int>* task_ids);

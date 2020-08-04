@@ -63,28 +63,37 @@ using BufferMap = std::unordered_map<Buffer, T, ObjectHash, ObjectEqual>;
 static const int ARITH_INTENSITY_CURVE_SAMPLE_N = 10;
 
 // Annotation position encoding
-enum AnnotationPosType {
-  kPosNone,
-  kPosInnerSpatial,
-  kPosMiddleSpatial,
-  kPosOuterSpatial,
-  kPosInnerReduce,
-  kPosMiddleReduce,
-  kPosOuterReduce,
-  kPosMixed
+enum class AnnotationPosType : int {
+  kPosNone = 0,
+  kPosInnerSpatial = 1,
+  kPosMiddleSpatial = 2,
+  kPosOuterSpatial = 3,
+  kPosInnerReduce = 4,
+  kPosMiddleReduce = 5,
+  kPosOuterReduce = 6,
+  kPosMixed = 7
 };
 
 // Buffer access type
-enum BufferAccessType { kRead, kWrite, kReadWrite, kUnknownRW };
+enum class BufferAccessType : int {
+  kRead = 0,
+  kWrite = 1,
+  kReadWrite = 2,
+  kUnknownRW = 3
+};
 
 // Accesses to a buffer
 struct BufferAccess {
-  BufferAccessType acc_type{kUnknownRW};
+  BufferAccessType acc_type{BufferAccessType::kUnknownRW};
   std::vector<std::vector<PrimExpr>> indices;
 };
 
 // Data reuse type
-enum ReuseType { kLoopMultipleRead, kSerialMultipleReadWrite, kNoReuse };
+enum class ReuseType : int {
+  kLoopMultipleRead = 0,
+  kSerialMultipleReadWrite = 1,
+  kNoReuse = 2
+};
 
 // Feature for an access of a buffer
 struct BufferAccessFeature {
@@ -208,28 +217,38 @@ AnnotationPosType GetAnnotationPosEncoding(const Var& var, const Array<PrimExpr>
     }
     if (find_ct >= 1) {
       if (find_i == 0) {
-        return kPosInnerReduce;
+        return AnnotationPosType::kPosInnerReduce;
       } else if (find_i == reduce_axis.size() - 1) {
-        return kPosOuterReduce;
+        return AnnotationPosType::kPosOuterReduce;
       } else {
-        return kPosMiddleReduce;
+        return AnnotationPosType::kPosMiddleReduce;
       }
     } else {
       // If the axis is not found in both spatial args and reduce axis,
       // then this stage must compute_at somewhere under this aixs and this axis is simplified out
       // We assume it is an outer spatial
-      return kPosOuterSpatial;
+      return AnnotationPosType::kPosOuterSpatial;
     }
   } else if (find_ct == 1) {
     if (find_i == spatial_args.size() - 1) {
-      return kPosInnerSpatial;
+      return AnnotationPosType::kPosInnerSpatial;
     } else if (find_i == 0) {
-      return kPosOuterSpatial;
+      return AnnotationPosType::kPosOuterSpatial;
     } else {
-      return kPosMiddleSpatial;
+      return AnnotationPosType::kPosMiddleSpatial;
     }
   } else {
-    return kPosMixed;
+    return AnnotationPosType::kPosMixed;
+  }
+}
+
+// Return the extent of a for loop
+int64_t GetLoopExtent(const ForNode* node) {
+  auto pint = node->extent.as<IntImmNode>();
+  if (pint != nullptr) {
+    return pint->value;
+  } else {
+    return 1;
   }
 }
 
@@ -326,20 +345,20 @@ class BufferAccessExtractor : public StmtExprVisitor {
   void VisitExpr_(const BufferLoadNode* op) final {
     BufferAccess& acc = buf_accesses[op->buffer];
     switch (acc.acc_type) {
-      case kRead:
+      case BufferAccessType::kRead:
         break;
-      case kWrite:
-        acc.acc_type = kReadWrite;
+      case BufferAccessType::kWrite:
+        acc.acc_type = BufferAccessType::kReadWrite;
         break;
-      case kReadWrite:
+      case BufferAccessType::kReadWrite:
         break;
-      case kUnknownRW:
+      case BufferAccessType::kUnknownRW:
       default:
-        acc.acc_type = kRead;
+        acc.acc_type = BufferAccessType::kRead;
         break;
     }
 
-    if (acc.acc_type != kReadWrite) {
+    if (acc.acc_type != BufferAccessType::kReadWrite) {
       // If a buffer is both read and written, in the tvm DSL, it must be a update,
       // so the indices should be the same. Then we can skip appending indices for it.
       // Otherwise we do the following.
@@ -493,7 +512,7 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
       }
     }
 
-    int64_t extent = GetIntImm(for_loop_stack[i]->extent);
+    int64_t extent = GetLoopExtent(for_loop_stack[i]);
     if (find) {
       // accumulate/update reuse distance
       reuse_dis_iter *= extent;
@@ -515,7 +534,7 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
           }
         }
       }
-      return std::make_tuple(kLoopMultipleRead, reuse_dis_iter, reuse_dis_bytes, extent);
+      return std::make_tuple(ReuseType::kLoopMultipleRead, reuse_dis_iter, reuse_dis_bytes, extent);
     }
 
     const BufferMap<std::vector<std::tuple<BufferAccessType, int64_t, int>>>& buffer_map =
@@ -523,7 +542,7 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
 
     int serial_reuse = static_cast<int>(buffer_map.at(buf).size()) - 1;
     if (serial_reuse > 0) {
-      int64_t extent = GetIntImm(cur_for->extent);
+      int64_t extent = GetLoopExtent(cur_for);
 
       // Have SerialMultipleReadWrite reuse
       reuse_dis_iter = std::numeric_limits<float>::max();
@@ -538,12 +557,12 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
         }
       }
 
-      return std::make_tuple(kSerialMultipleReadWrite, reuse_dis_iter / extent,
+      return std::make_tuple(ReuseType::kSerialMultipleReadWrite, reuse_dis_iter / extent,
                              reuse_dis_bytes / extent, serial_reuse);
     }
   }
 
-  return std::make_tuple(kNoReuse, 0, 0, 0);
+  return std::make_tuple(ReuseType::kNoReuse, 0, 0, 0);
 }
 
 // Extract features for every BufferStore statement
@@ -611,7 +630,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   }
 
   void VisitStmt_(const ForNode* node) final {
-    int64_t loop_extent = GetIntImm(node->extent);
+    int64_t loop_extent = GetLoopExtent(node);
 
     if (node->for_type == ForType::Vectorized) {
       vec_for_stack.push_back(node);
@@ -663,16 +682,16 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     fea.num_loops = for_loop_stack.size();
     fea.auto_unroll_max_step = cur_auto_unroll_max_step;
     fea.vec_len = fea.unroll_len = fea.parallel_len = 0.0f;
-    fea.vec_type = fea.unroll_type = fea.parallel_type = kPosNone;
+    fea.vec_type = fea.unroll_type = fea.parallel_type = AnnotationPosType::kPosNone;
 
     fea.vec_num = vec_for_stack.size();
     if (!vec_for_stack.empty()) {
-      fea.vec_len = GetIntImm(vec_for_stack.back()->extent);
+      fea.vec_len = GetLoopExtent(vec_for_stack.back());
       fea.vec_prod = 1.0;
       for (const ForNode* pfor : vec_for_stack) {
-        fea.vec_prod *= GetIntImm(pfor->extent);
+        fea.vec_prod *= GetLoopExtent(pfor);
       }
-      fea.vec_type = kPosMixed;
+      fea.vec_type = AnnotationPosType::kPosMixed;
       // todo(merrymercy): this feature requires operation (tvm.compute) information
       // GetAnnotationPosEncoding(vec_for_stack.back()->loop_var,
       // node->args, pcompute->axis, pcompute->reduce_axis);
@@ -680,24 +699,24 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
     fea.unroll_num = unroll_for_stack.size();
     if (!unroll_for_stack.empty()) {
-      fea.unroll_len = GetIntImm(unroll_for_stack.back()->extent);
+      fea.unroll_len = GetLoopExtent(unroll_for_stack.back());
       fea.unroll_prod = 1.0;
       for (const ForNode* pfor : unroll_for_stack) {
-        fea.unroll_prod *= GetIntImm(pfor->extent);
+        fea.unroll_prod *= GetLoopExtent(pfor);
       }
-      fea.unroll_type = kPosMixed;
+      fea.unroll_type = AnnotationPosType::kPosMixed;
       // GetAnnotationPosEncoding(unroll_for_stack.back()->loop_var,
       // node->args, pcompute->axis, pcompute->reduce_axis);
     }
 
     fea.parallel_num = parallel_for_stack.size();
     if (!parallel_for_stack.empty()) {
-      fea.parallel_len = GetIntImm(parallel_for_stack.back()->extent);
+      fea.parallel_len = GetLoopExtent(parallel_for_stack.back());
       fea.parallel_prod = 1.0;
       for (const ForNode* pfor : parallel_for_stack) {
-        fea.parallel_prod *= GetIntImm(pfor->extent);
+        fea.parallel_prod *= GetLoopExtent(pfor);
       }
-      fea.parallel_type = kPosMixed;
+      fea.parallel_type = AnnotationPosType::kPosMixed;
       // GetAnnotationPosEncoding(parallel_for_stack.back()->loop_var,
       // node->args, pcompute->axis, pcompute->reduce_axis);
     }
@@ -715,7 +734,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     // Extract all buffer access
     std::vector<BufferAccessFeature> acc_feas;
     BufferAccessExtractor buf_extractor;
-    buf_extractor.InsertAccess(node->buffer, kWrite, node->indices);
+    buf_extractor.InsertAccess(node->buffer, BufferAccessType::kWrite, node->indices);
     buf_extractor.ExtractReads(node->value);
 
     // Compute touched region for all outer loops
@@ -760,7 +779,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
       }
 
       mem_bytes_list.push_back(std::log2(mem_bytes));
-      cur_compute_ops *= GetIntImm(for_loop_stack[i]->extent);
+      cur_compute_ops *= GetLoopExtent(for_loop_stack[i]);
       compute_ops_list.push_back(std::log2(cur_compute_ops));
     }
 
@@ -831,7 +850,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
           if (stride != 0) {
             break;
           }
-          reduce_ratio *= GetIntImm(for_loop_stack.back()->extent);
+          reduce_ratio *= GetLoopExtent(for_loop_stack.back());
         }
 
         lines = outer_loop_prod / reduce_ratio *
@@ -969,22 +988,22 @@ void GetPerStoreFeature(const Stmt& stmt, int cache_line_size, int max_n_bufs,
     ret->push_back(slog(fea_set.vec_num));
     ret->push_back(slog(fea_set.vec_prod));
     ret->push_back(slog(fea_set.vec_len));
-    for (int i = 0; i <= kPosMixed; i++) {
-      ret->push_back(i == fea_set.vec_type);
+    for (int i = 0; i <= static_cast<int>(AnnotationPosType::kPosMixed); i++) {
+      ret->push_back(i == static_cast<int>(fea_set.vec_type));
     }
 
     ret->push_back(slog(fea_set.unroll_num));
     ret->push_back(slog(fea_set.unroll_prod));
     ret->push_back(slog(fea_set.unroll_len));
-    for (int i = 0; i <= kPosMixed; i++) {
-      ret->push_back(i == fea_set.unroll_type);
+    for (int i = 0; i <= static_cast<int>(AnnotationPosType::kPosMixed); i++) {
+      ret->push_back(i == static_cast<int>(fea_set.unroll_type));
     }
 
     ret->push_back(slog(fea_set.parallel_num));
     ret->push_back(slog(fea_set.parallel_prod));
     ret->push_back(slog(fea_set.parallel_len));
-    for (int i = 0; i <= kPosMixed; i++) {
-      ret->push_back(i == fea_set.parallel_type);
+    for (int i = 0; i <= static_cast<int>(AnnotationPosType::kPosMixed); i++) {
+      ret->push_back(i == static_cast<int>(fea_set.parallel_type));
     }
 
     ret->push_back(fea_set.is_gpu);
@@ -1020,15 +1039,15 @@ void GetPerStoreFeature(const Stmt& stmt, int cache_line_size, int max_n_bufs,
 
     for (int idx : buf_order) {
       const auto& acc_fea = fea_set.access_feas[idx];
-      for (int j = 0; j <= kReadWrite; ++j) {
-        ret->push_back(j == acc_fea.acc_type);
+      for (int j = 0; j <= static_cast<int>(BufferAccessType::kReadWrite); ++j) {
+        ret->push_back(j == static_cast<int>(acc_fea.acc_type));
       }
       ret->push_back(slog(acc_fea.bytes));
       ret->push_back(slog(acc_fea.unique_bytes));
       ret->push_back(slog(acc_fea.lines));
       ret->push_back(slog(acc_fea.unique_lines));
-      for (int j = 0; j <= kNoReuse; ++j) {
-        ret->push_back(acc_fea.reuse_type == j);
+      for (int j = 0; j <= static_cast<int>(ReuseType::kNoReuse); ++j) {
+        ret->push_back(j == static_cast<int>(acc_fea.reuse_type));
       }
       ret->push_back(slog(acc_fea.reuse_dis_iter));
       ret->push_back(slog(acc_fea.reuse_dis_bytes));
@@ -1041,14 +1060,14 @@ void GetPerStoreFeature(const Stmt& stmt, int cache_line_size, int max_n_bufs,
     }
     // - fill padding
     for (int i = 0; i < max_n_bufs - n_bufs; ++i) {
-      for (int j = 0; j <= kReadWrite; ++j) {  // 3
+      for (int j = 0; j <= static_cast<int>(BufferAccessType::kReadWrite); ++j) {  // 3
         ret->push_back(0.0f);
       }
       ret->push_back(0.0f);
       ret->push_back(0.0f);
       ret->push_back(0.0f);
       ret->push_back(0.0f);
-      for (int j = 0; j <= kNoReuse; ++j) {  // 3
+      for (int j = 0; j <= static_cast<int>(ReuseType::kNoReuse); ++j) {  // 3
         ret->push_back(0.0f);
       }
       ret->push_back(0.0f);
@@ -1284,7 +1303,7 @@ void GetPerStoreFeaturesFromStates(const Array<State>& states, const std::vector
   }
 }
 
-void GetPerStoreFeaturesFromFile(const std::string& filename, int n_lines, int max_n_bufs,
+void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int max_n_bufs,
                                  std::vector<std::vector<float>>* features,
                                  std::vector<float>* normalized_throughputs,
                                  std::vector<int>* task_ids) {
@@ -1335,7 +1354,7 @@ void GetPerStoreFeaturesFromFile(const std::string& filename, int n_lines, int m
     states.push_back(cur_inp->state);
     normalized_throughputs->push_back(cost);
 
-    if (n_lines > 0 && static_cast<int>(states.size()) >= n_lines) {
+    if (max_lines > 0 && static_cast<int>(states.size()) >= max_lines) {
       break;
     }
   }
@@ -1488,14 +1507,14 @@ TVMByteArray SerializeFeatures(std::vector<std::vector<float>>&& features,
 TVM_REGISTER_GLOBAL("auto_scheduler.GetPerStoreFeaturesFromFile")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       std::string filename = args[0];
-      int n_lines = args[1];
+      int max_lines = args[1];
       int max_n_bufs = args[2];
 
       std::vector<std::vector<float>> features;
       std::vector<float> normalized_throughputs;
       std::vector<int> task_ids;
 
-      GetPerStoreFeaturesFromFile(filename, n_lines, max_n_bufs, &features, &normalized_throughputs,
+      GetPerStoreFeaturesFromFile(filename, max_lines, max_n_bufs, &features, &normalized_throughputs,
                                   &task_ids);
 
       std::vector<char> byte_data;
