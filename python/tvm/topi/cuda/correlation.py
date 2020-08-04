@@ -81,7 +81,7 @@ def _schedule_correlation_nchw(cfg, s, correlation):
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
 
     target = tvm.target.Target.current()
-    if target.id.name in ['nvptx', 'rocm']:
+    if target.kind.name in ['nvptx', 'rocm']:
         cfg.define_knob("unroll_explicit", [1])
     else:
         cfg.define_knob("unroll_explicit", [0, 1])
@@ -143,8 +143,10 @@ def _schedule_correlation_nchw(cfg, s, correlation):
         s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
     # unroll
-    s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
-    s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
+    s[output].pragma(kernel_scope, 'auto_unroll_max_step',
+                     cfg['auto_unroll_max_step'].val)
+    s[output].pragma(kernel_scope, 'unroll_explicit',
+                     cfg['unroll_explicit'].val)
 
 
 @autotvm.register_topi_schedule("correlation_nchw.cuda")

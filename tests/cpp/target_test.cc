@@ -19,27 +19,27 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/target/target_id.h>
+#include <tvm/target/target_kind.h>
 
 #include <cmath>
 #include <string>
 
 using namespace tvm;
 
-TVM_REGISTER_TARGET_ID("TestTargetId")
+TVM_REGISTER_TARGET_KIND("TestTargetKind")
     .set_attr<std::string>("Attr1", "Value1")
     .add_attr_option<Bool>("my_bool")
     .add_attr_option<Array<String>>("your_names")
     .add_attr_option<Map<String, Integer>>("her_maps");
 
-TEST(TargetId, GetAttrMap) {
-  auto map = tvm::TargetId::GetAttrMap<std::string>("Attr1");
-  auto target_id = tvm::TargetId::Get("TestTargetId");
-  std::string result = map[target_id];
+TEST(TargetKind, GetAttrMap) {
+  auto map = tvm::TargetKind::GetAttrMap<std::string>("Attr1");
+  auto target_kind = tvm::TargetKind::Get("TestTargetKind");
+  std::string result = map[target_kind];
   CHECK_EQ(result, "Value1");
 }
 
-TEST(TargetId, SchemaValidation) {
+TEST(TargetKind, SchemaValidation) {
   tvm::Map<String, ObjectRef> target;
   {
     tvm::Array<String> your_names{"junru", "jian"};
@@ -50,7 +50,7 @@ TEST(TargetId, SchemaValidation) {
     target.Set("my_bool", Bool(true));
     target.Set("your_names", your_names);
     target.Set("her_maps", her_maps);
-    target.Set("id", String("TestTargetId"));
+    target.Set("kind", String("TestTargetKind"));
   }
   TargetValidateSchema(target);
   tvm::Map<String, ObjectRef> target_host(target.begin(), target.end());
@@ -58,7 +58,7 @@ TEST(TargetId, SchemaValidation) {
   TargetValidateSchema(target);
 }
 
-TEST(TargetId, SchemaValidationFail) {
+TEST(TargetKind, SchemaValidationFail) {
   tvm::Map<String, ObjectRef> target;
   {
     tvm::Array<String> your_names{"junru", "jian"};
@@ -70,7 +70,7 @@ TEST(TargetId, SchemaValidationFail) {
     target.Set("your_names", your_names);
     target.Set("her_maps", her_maps);
     target.Set("ok", ObjectRef(nullptr));
-    target.Set("id", String("TestTargetId"));
+    target.Set("kind", String("TestTargetKind"));
   }
   bool failed = false;
   try {
