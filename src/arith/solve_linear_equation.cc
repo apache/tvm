@@ -225,14 +225,14 @@ Map<Var, Range> InferRange(const Map<Var, PrimExpr>& vars_to_infer, const Array<
       new_ranges.Set(p.first, p.second);
     }
     // Convert original ranges to IntSets
-    var_intsets[p.first.get()] = IntSet::range(p.second);
+    var_intsets[p.first.get()] = IntSet::FromRange(p.second);
   }
 
   // Infer ranges for the new variables and add them to the resulting ranges
   for (const auto& p : vars_to_infer) {
     const auto& var = p.first;
     const auto& expr = p.second;
-    Range range = EvalSet(expr, var_intsets).cover_range(Range());
+    Range range = EvalSet(expr, var_intsets).CoverRange(Range());
     if (range.defined()) {
       new_ranges.Set(var, range);
     }

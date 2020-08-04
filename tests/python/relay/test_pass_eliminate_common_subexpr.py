@@ -84,6 +84,35 @@ def test_callback():
     z = run_opt_pass(z, transform.EliminateCommonSubexpr(fskip))
     assert tvm.ir.structural_equal(z, expected())
 
+def test_tuple_get_time():
+    def before():
+        x = relay.var('x', shape=(1, 16, 1, 1))
+        var = relay.var('var', shape=(16,))
+        mean = relay.var('mean', shape=(16,))
+        beta = relay.var('beta', shape=(16,))
+        gamma = relay.var('gamma', shape=(16,))
+        BN = relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=1e-5)
+        T1 = BN[0]
+        T2 = BN[0]
+        add = T1 + T2
+        f = relay.Function([x, var, mean, beta, gamma], add)
+        return f
+
+    def expected():
+        x = relay.var('x', shape=(1, 16, 1, 1))
+        var = relay.var('var', shape=(16,))
+        mean = relay.var('mean', shape=(16,))
+        beta = relay.var('beta', shape=(16,))
+        gamma = relay.var('gamma', shape=(16,))
+        BN = relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=1e-5)
+        T1 = BN[0]
+        add = T1 + T1
+        f = relay.Function([x, var, mean, beta, gamma], add)
+        return run_opt_pass(f, transform.InferType())
+
+    z = before()
+    z = run_opt_pass(z, transform.EliminateCommonSubexpr())
+    assert tvm.ir.structural_equal(z, expected())
 
 if __name__ == "__main__":
     test_simple()

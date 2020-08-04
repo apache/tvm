@@ -184,9 +184,9 @@ def test_any_reshape():
         # Variable newshape only supports that output rank is the same as newshape
         verify_any_reshape(any_dims(3), (1, -1), (2, 3, 4), (1, 24), variable_newshape)
         verify_any_reshape(any_dims(3), (0, -1), (2, 3, 4), (2, 12), variable_newshape)
-        verify_any_reshape(any_dims(3), (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4), variable_newshape)
     verify_any_reshape(any_dims(3), (0, -2), (2, 3, 4), (2, 3, 4))
     verify_any_reshape(any_dims(3), (-4, -1, 2, -3), (6, 3, 4), (3, 2, 12))
+    verify_any_reshape(any_dims(3), (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4))
 
 def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
     x = relay.var('x', shape=x_shape, dtype=dtype)

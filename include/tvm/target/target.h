@@ -28,6 +28,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/node/container.h>
 #include <tvm/support/with.h>
+#include <tvm/target/target_id.h>
 
 #include <string>
 #include <unordered_set>
@@ -42,45 +43,49 @@ namespace tvm {
  */
 class TargetNode : public Object {
  public:
-  /*! \brief The name of the target device */
-  std::string target_name;
-  /*! \brief The name of the target device */
-  std::string device_name;
-  /*! \brief The type of the target device */
-  int device_type;
-  /*! \brief The maximum threads that a schedule should use for this device */
-  int max_num_threads = 1;
-  /*! \brief The warp size that should be used by the LowerThreadAllreduce pass */
-  int thread_warp_size = 1;
+  /*! \brief The id of the target device */
+  TargetId id;
+  /*! \brief Tag of the the target, can be empty */
+  String tag;
   /*! \brief Keys for this target */
-  Array<runtime::String> keys_array;
-  /*! \brief Options for this target */
-  Array<runtime::String> options_array;
-  /*! \brief Collection of imported libs */
-  Array<runtime::String> libs_array;
+  Array<String> keys;
+  /*! \brief Collection of attributes */
+  Map<String, ObjectRef> attrs;
 
   /*! \return the full device string to pass to codegen::Build */
   TVM_DLL const std::string& str() const;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("target_name", &target_name);
-    v->Visit("device_name", &device_name);
-    v->Visit("device_type", &device_type);
-    v->Visit("max_num_threads", &max_num_threads);
-    v->Visit("thread_warp_size", &thread_warp_size);
-    v->Visit("keys_array", &keys_array);
-    v->Visit("options_array", &options_array);
-    v->Visit("libs_array", &libs_array);
+    v->Visit("id", &id);
+    v->Visit("tag", &tag);
+    v->Visit("keys", &keys);
+    v->Visit("attrs", &attrs);
+  }
+
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetAttr(
+      const std::string& attr_key,
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
+    static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
+                  "Can only call GetAttr with ObjectRef types.");
+    auto it = attrs.find(attr_key);
+    if (it != attrs.end()) {
+      return Downcast<Optional<TObjectRef>>((*it).second);
+    } else {
+      return default_value;
+    }
+  }
+
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
+    return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
   }
 
   /*! \brief Get the keys for this target as a vector of string */
-  TVM_DLL std::vector<std::string> keys() const;
-
-  /*! \brief Get the options for this target as a vector of string */
-  TVM_DLL std::vector<std::string> options() const;
+  TVM_DLL std::vector<std::string> GetKeys() const;
 
   /*! \brief Get the keys for this target as an unordered_set of string */
-  TVM_DLL std::unordered_set<std::string> libs() const;
+  TVM_DLL std::unordered_set<std::string> GetLibs() const;
 
   static constexpr const char* _type_key = "Target";
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetNode, Object);
@@ -88,6 +93,7 @@ class TargetNode : public Object {
  private:
   /*! \brief Internal string repr. */
   mutable std::string str_repr_;
+  friend class Target;
 };
 
 /*!
@@ -102,7 +108,17 @@ class Target : public ObjectRef {
    * \brief Create a Target given a string
    * \param target_str the string to parse
    */
-  TVM_DLL static Target Create(const std::string& target_str);
+  TVM_DLL static Target Create(const String& target_str);
+  /*!
+   * \brief Construct a Target node from the given name and options.
+   * \param name The major target name. Should be one of
+   * {"aocl", "aocl_sw_emu", "c", "cuda", "ext_dev", "hexagon", "hybrid", "llvm",
+   *  "metal", "nvptx", "opencl", "rocm", "sdaccel", "stackvm", "vulkan"}
+   * \param options Additional options appended to the target
+   * \return The constructed Target
+   */
+  TVM_DLL static Target CreateTarget(const std::string& name,
+                                     const std::vector<std::string>& options);
   /*!
    * \brief Get the current target context from thread local storage.
    * \param allow_not_defined If the context stack is empty and this is set to true, an

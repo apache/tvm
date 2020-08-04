@@ -109,7 +109,8 @@ def generate_csource_module():
     TVM_DLL_EXPORT_TYPED_FUNC(json_rt_0, ccompiler_wrapper_0_);
 
     '''
-    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc")
+    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc", "",
+                                                              None)
     return csource_module
 
 
@@ -175,7 +176,8 @@ def generate_engine_module():
     '''
 
     gen_json_engine()
-    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc")
+    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc", "",
+                                                              None)
     return csource_module
 
 
@@ -477,7 +479,7 @@ def test_engine_extern():
                options=["-O2", "-std=c++14", "-I" + tmp_path.relpath("")])
 
 def test_json_extern():
-    if not tvm.get_global_func("module.loadfile_examplejson", True):
+    if not tvm.get_global_func("runtime.module.loadfile_examplejson", True):
         print("Skip because JSON example runtime is not enabled.")
         return
 

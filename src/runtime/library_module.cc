@@ -74,7 +74,7 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
     TVMValue ret_value;
     int ret_type_code = kTVMNullptr;
     int ret = (*faddr)(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
-                       args.num_args, &ret_value, &ret_type_code);
+                       args.num_args, &ret_value, &ret_type_code, NULL);
     CHECK_EQ(ret, 0) << TVMGetLastError();
     if (ret_type_code != kTVMNullptr) {
       *rv = TVMRetValue::MoveFromCHost(ret_value, ret_type_code);

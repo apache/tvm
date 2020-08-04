@@ -429,74 +429,10 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   os << sret;
 }
 
-void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
-  // This is only for backward compatibility with __shfl_{up/down}.
-  // A macro will be used to replace *_sync calls to legacy ones.
-  if (op->is_intrinsic("__shfl_sync") || op->is_intrinsic("__shfl_up_sync") ||
-      op->is_intrinsic("__shfl_down_sync")) {
-    enable_warp_shuffle_ = true;
-  }
-
-  if (op->is_intrinsic(intrinsic::tvm_fill_fragment)) {
-    need_mma_h_ = true;
-    CHECK_EQ(op->args.size(), 6U);
-    os << "nvcuda::wmma::fill_fragment(";
-    this->PrintExpr(op->args[0], os);
-    os << "[";
-    this->PrintExpr(op->args[4], os);
-    os << "], ";
-    this->PrintExpr(op->args[5], os);
-    os << ")";
-  } else if (op->is_intrinsic(intrinsic::tvm_load_matrix_sync)) {
-    need_mma_h_ = true;
-    CHECK_EQ(op->args.size(), 8U);
-    os << "nvcuda::wmma::load_matrix_sync(";
-    this->PrintExpr(op->args[0], os);
-    os << "[";
-    this->PrintExpr(op->args[4], os);
-    os << "], ";
-    this->PrintExpr(op->args[5], os);
-    os << ", ";
-    this->PrintExpr(op->args[6], os);
-    os << ")";
-  } else if (op->is_intrinsic(intrinsic::tvm_store_matrix_sync)) {
-    need_mma_h_ = true;
-    CHECK_EQ(op->args.size(), 8U);
-    os << "nvcuda::wmma::store_matrix_sync(";
-    this->PrintExpr(op->args[5], os);
-    os << ", ";
-    this->PrintExpr(op->args[0], os);
-    os << "[";
-    this->PrintExpr(op->args[4], os);
-    os << "], ";
-    this->PrintExpr(op->args[6], os);
-    if (const StringImmNode* str = op->args[7].as<StringImmNode>()) {
-      os << ", nvcuda::wmma::mem_" << str->value;
-    } else {
-      LOG(FATAL) << "Invalid parameters";
-    }
-    os << ")";
-  } else if (op->is_intrinsic(intrinsic::tvm_mma_sync)) {
-    need_mma_h_ = true;
-    CHECK_EQ(op->args.size(), 8U);
-    os << "nvcuda::wmma::mma_sync(";
-    for (int i = 0; i < 4; ++i) {
-      this->PrintExpr(op->args[i * 2], os);
-      os << "[";
-      this->PrintExpr(op->args[i * 2 + 1], os);
-      os << "]" << ((i < 3) ? ", " : ")");
-    }
-  } else if (op->is_intrinsic(intrinsic::tvm_bmma_sync)) {
-    need_mma_h_ = true;
-    CHECK_EQ(op->args.size(), 8U);
-    os << "nvcuda::wmma::bmma_sync(";
-    for (int i = 0; i < 4; ++i) {
-      this->PrintExpr(op->args[i * 2], os);
-      os << "[";
-      this->PrintExpr(op->args[i * 2 + 1], os);
-      os << "]" << ((i < 3) ? ", " : ")");
-    }
-  } else if (op->call_type == CallNode::PureExtern && op->dtype.is_vector()) {
+void CodeGenCUDA::PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                                  bool skip_first_arg, std::ostream& os) {  // NOLINT(*)
+  DataType ret_dtype = GetRuntimeDataType(ret_type);
+  if (ret_dtype.is_vector()) {
     //
     // Emit an unsupported vector call
     //
@@ -518,29 +454,104 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // Declare the result vector.
     std::string sret = GetUniqueName("_");
     this->PrintIndent();
-    this->PrintType(op->dtype, stream);
+    this->PrintType(ret_dtype, stream);
     stream << ' ' << sret << ";\n";
     {
       // Load arguments.
       std::vector<std::string> sargs;
-      for (size_t i = 0; i < op->args.size(); ++i) {
-        std::string val = SSAGetID(PrintExpr(op->args[i]), op->args[i].dtype());
+      size_t arg_begin = static_cast<size_t>(skip_first_arg);
+      for (size_t i = arg_begin; i < args.size(); ++i) {
+        std::string val = SSAGetID(PrintExpr(args[i]), args[i].dtype());
         sargs.push_back(std::move(val));
       }
 
       // Emit a scalar call for each lane.
-      for (int i = 0; i < op->dtype.lanes(); ++i) {
+      for (int i = 0; i < ret_dtype.lanes(); ++i) {
         std::ostringstream scall;
-        scall << op->name << "(";
-        for (size_t j = 0; j < op->args.size(); ++j) {
+        scall << global_symbol << "(";
+        for (size_t j = 0; j < sargs.size(); ++j) {
           if (j > 0) scall << ", ";
-          PrintVecElemLoad(sargs[j], op->args[j].dtype(), i, scall);
+          PrintVecElemLoad(sargs[j], args[arg_begin + j].dtype(), i, scall);
         }
         scall << ")";
-        PrintVecElemStore(sret, op->dtype, i, scall.str());
+        PrintVecElemStore(sret, ret_dtype, i, scall.str());
       }
     }
     os << sret;
+  } else {
+    CodeGenC::PrintCallExtern(ret_type, global_symbol, args, skip_first_arg, os);
+  }
+}
+
+void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
+  if (auto* ptr_op = op->op.as<OpNode>()) {
+    Op call_op = GetRef<Op>(ptr_op);
+    // This is only for backward compatibility with __shfl_{up/down}.
+    // A macro will be used to replace *_sync calls to legacy ones.
+    if (op_need_warp_shuffle_.get(call_op, false)) {
+      enable_warp_shuffle_ = true;
+    }
+  }
+
+  if (op->op.same_as(builtin::tvm_fill_fragment())) {
+    need_mma_h_ = true;
+    CHECK_EQ(op->args.size(), 6U);
+    os << "nvcuda::wmma::fill_fragment(";
+    this->PrintExpr(op->args[0], os);
+    os << "[";
+    this->PrintExpr(op->args[4], os);
+    os << "], ";
+    this->PrintExpr(op->args[5], os);
+    os << ")";
+  } else if (op->op.same_as(builtin::tvm_load_matrix_sync())) {
+    need_mma_h_ = true;
+    CHECK_EQ(op->args.size(), 8U);
+    os << "nvcuda::wmma::load_matrix_sync(";
+    this->PrintExpr(op->args[0], os);
+    os << "[";
+    this->PrintExpr(op->args[4], os);
+    os << "], ";
+    this->PrintExpr(op->args[5], os);
+    os << ", ";
+    this->PrintExpr(op->args[6], os);
+    os << ")";
+  } else if (op->op.same_as(builtin::tvm_store_matrix_sync())) {
+    need_mma_h_ = true;
+    CHECK_EQ(op->args.size(), 8U);
+    os << "nvcuda::wmma::store_matrix_sync(";
+    this->PrintExpr(op->args[5], os);
+    os << ", ";
+    this->PrintExpr(op->args[0], os);
+    os << "[";
+    this->PrintExpr(op->args[4], os);
+    os << "], ";
+    this->PrintExpr(op->args[6], os);
+    if (const StringImmNode* str = op->args[7].as<StringImmNode>()) {
+      os << ", nvcuda::wmma::mem_" << str->value;
+    } else {
+      LOG(FATAL) << "Invalid parameters";
+    }
+    os << ")";
+  } else if (op->op.same_as(builtin::tvm_mma_sync())) {
+    need_mma_h_ = true;
+    CHECK_EQ(op->args.size(), 8U);
+    os << "nvcuda::wmma::mma_sync(";
+    for (int i = 0; i < 4; ++i) {
+      this->PrintExpr(op->args[i * 2], os);
+      os << "[";
+      this->PrintExpr(op->args[i * 2 + 1], os);
+      os << "]" << ((i < 3) ? ", " : ")");
+    }
+  } else if (op->op.same_as(builtin::tvm_bmma_sync())) {
+    need_mma_h_ = true;
+    CHECK_EQ(op->args.size(), 8U);
+    os << "nvcuda::wmma::bmma_sync(";
+    for (int i = 0; i < 4; ++i) {
+      this->PrintExpr(op->args[i * 2], os);
+      os << "[";
+      this->PrintExpr(op->args[i * 2 + 1], os);
+      os << "]" << ((i < 3) ? ", " : ")");
+    }
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
@@ -598,9 +609,9 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
 }
 
 void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
-  if (is_const(op->value)) return;
+  if (is_const_int(op->value)) return;
   const CallNode* call = op->value.as<CallNode>();
-  if (call && call->is_intrinsic(intrinsic::tvm_global_barrier_kinit)) {
+  if (call && call->op.same_as(builtin::tvm_global_barrier_kinit())) {
     PrintIndent();
     stream << "__shared__ unsigned " << vid_global_barrier_expect_ << ";\n";
     PrintIndent();

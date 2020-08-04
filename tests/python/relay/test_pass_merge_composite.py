@@ -163,9 +163,9 @@ def make_bn_relu_pattern():
     r = is_op('nn.relu')(tuple_get_item_node)
     return r
 
-def check_result(pattern_table, graph, expected_graph):
+def check_result(pattern_table, graph, expected_graph, import_prelude=False):
     """Utility function to check merge composite results."""
-    result = run_opt_pass(graph, relay.transform.MergeComposite(pattern_table))
+    result = run_opt_pass(graph, relay.transform.MergeComposite(pattern_table), import_prelude=import_prelude)
     assert not relay.analysis.free_vars(result), \
         "Found free vars in the result graph: {0}".format(str(result))
     expected = run_opt_pass(expected_graph, relay.transform.InferType())
@@ -213,7 +213,7 @@ def test_simple_merge():
         r = relay.Call(add_relu, [a, b])
         return relay.Function([a, b], r)
 
-    check_result(pattern_table, before(), expected())
+    check_result(pattern_table, before(), expected(), import_prelude=True)
 
 
 def test_branch_merge():
@@ -916,31 +916,63 @@ def test_type_check():
         x = relay.var('x', shape=(1, 10, 10, 10))
         w = relay.var('w', shape=(10, 10, 3, 3))
         b = relay.var('b', shape=(8,))
-        conv = relay.nn.conv2d(x,
+        add = relay.op.add(x, x)
+        relu = relay.nn.relu(add)
+        conv = relay.nn.conv2d(relu,
                                w,
                                kernel_size=(3, 3),
                                kernel_layout="OIHW",
                                data_layout="NHWC")
         bias = relay.nn.bias_add(conv, b)
-        relu = relay.nn.relu(bias)
-        return relay.Function([x, w, b], relu)
+        relu2 = relay.nn.relu(bias)
+        return run_opt_pass(relay.Function([x, w, b], relu2), relay.transform.InferType())
 
-    def expected():
-        x = relay.var('x')
-        w = relay.var('w')
-        b = relay.var('b')
-        conv = relay.nn.conv2d(x, w, kernel_size=(3, 3), kernel_layout="OIHW", data_layout="NHWC")
-        bias = relay.nn.bias_add(conv, b)
-        relu = relay.nn.relu(bias)
-        func = relay.Function([x, w, b], relu)
-        func = func.with_attr("Composite", "conv_bias_relu")
-        func = func.with_attr("PartitionedFromPattern", "nn.conv2d_nn.bias_add_nn.relu_")
-
+    def expected_false():
         x = relay.var('x', shape=(1, 10, 10, 10))
         w = relay.var('w', shape=(10, 10, 3, 3))
         b = relay.var('b', shape=(8, ))
-        return relay.Function([x, w, b], func(x, w, b))
 
+        x0 = relay.var('x')
+        y0 = relay.var('y')
+
+        add = relay.op.add(y0, y0)
+        relu = relay.nn.relu(add)
+        func = relay.Function([x0, y0], relu)
+        func = func.with_attr("PartitionedFromPattern", "add_nn.relu_")
+        func = func.with_attr("Composite", "add_relu")
+        call = relay.Call(func, [x, x])
+
+        conv = relay.nn.conv2d(call, w, kernel_size=(3, 3), kernel_layout="OIHW", data_layout="NHWC")
+        bias = relay.nn.bias_add(conv, b)
+        relu2 = relay.nn.relu(bias)
+        return relay.Function([x, w, b], relu2)
+
+    def expected_true():
+        x = relay.var('x', shape=(1, 10, 10, 10))
+        w = relay.var('w', shape=(10, 10, 3, 3))
+        b = relay.var('b', shape=(8, ))
+
+        x0 = relay.var('x')
+        y0 = relay.var('y')
+
+        add = relay.op.add(y0, y0)
+        relu = relay.nn.relu(add)
+        func = relay.Function([x0, y0], relu)
+        func = func.with_attr("PartitionedFromPattern", "add_nn.relu_")
+        func = func.with_attr("Composite", "add_relu")
+        call = relay.Call(func, [x, x])
+
+        x2 = relay.var('x')
+        w1 = relay.var('w')
+        b1 = relay.var('b')
+        conv = relay.nn.conv2d(x2, w1, kernel_size=(3, 3), kernel_layout="OIHW", data_layout="NHWC")
+        bias = relay.nn.bias_add(conv, b1)
+        relu2 = relay.nn.relu(bias)
+        func = relay.Function([x2, w1, b1], relu2)
+        func = func.with_attr("Composite", "conv_bias_relu")
+        func = func.with_attr("PartitionedFromPattern", "nn.conv2d_nn.bias_add_nn.relu_")
+        call = relay.Call(func, [call, w, b])
+        return relay.Function([x, w, b], call)
 
     def _check_type_true(extract):
         conv = extract.args[0].args[0]
@@ -953,14 +985,16 @@ def test_type_check():
         return bool(typ.shape[0] != 1)
 
     pattern_table_false = [
+        ("add_relu", make_add_relu_pattern()),
         ("conv_bias_relu", make_conv_bias_relu_pattern(), _check_type_false)
     ]
-    check_result(pattern_table_false, before(), before())
+    check_result(pattern_table_false, before(), expected_false())
 
     pattern_table_true = [
+        ("add_relu", make_add_relu_pattern()),
         ("conv_bias_relu", make_conv_bias_relu_pattern(), _check_type_true)
     ]
-    check_result(pattern_table_true, before(), expected())
+    check_result(pattern_table_true, before(), expected_true())
 
 
 if __name__ == "__main__":

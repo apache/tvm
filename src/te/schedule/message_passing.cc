@@ -132,16 +132,14 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
       };
       if (r->factor.defined()) {
         Update(p_state, r->inner,
-               Range::make_by_min_extent(0, resolve_min_extent_for_split(r->inner, r->factor)),
-               actx);
+               Range::FromMinExtent(0, resolve_min_extent_for_split(r->inner, r->factor)), actx);
         Update(p_state, r->outer,
-               Range::make_by_min_extent(0, ceil_div(range_parent->extent, r->factor)), actx);
+               Range::FromMinExtent(0, ceil_div(range_parent->extent, r->factor)), actx);
       } else {
         Update(p_state, r->outer,
-               Range::make_by_min_extent(0, resolve_min_extent_for_split(r->outer, r->nparts)),
-               actx);
+               Range::FromMinExtent(0, resolve_min_extent_for_split(r->outer, r->nparts)), actx);
         Update(p_state, r->inner,
-               Range::make_by_min_extent(0, ceil_div(range_parent->extent, r->nparts)), actx);
+               Range::FromMinExtent(0, ceil_div(range_parent->extent, r->nparts)), actx);
       }
     } else if (const FuseNode* r = rel.as<FuseNode>()) {
       if (!state.count(r->outer) || !state.count(r->inner)) {
@@ -150,15 +148,15 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
       }
       const Range& range_outer = state.at(r->outer);
       const Range& range_inner = state.at(r->inner);
-      state[r->fused] = Range::make_by_min_extent(0, range_outer->extent * range_inner->extent);
+      state[r->fused] = Range::FromMinExtent(0, range_outer->extent * range_inner->extent);
     } else if (const RebaseNode* r = rel.as<RebaseNode>()) {
       if (!state.count(r->parent)) {
         CHECK(allow_missing);
         continue;
       }
-      Update(p_state, r->rebased, Range::make_by_min_extent(0, state.at(r->parent)->extent), actx);
+      Update(p_state, r->rebased, Range::FromMinExtent(0, state.at(r->parent)->extent), actx);
     } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
-      Update(p_state, s->iter, Range::make_by_min_extent(0, 1), actx);
+      Update(p_state, s->iter, Range::FromMinExtent(0, 1), actx);
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -278,8 +276,8 @@ void PassDownIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
 void PassUpDomain(const SplitNode* s, const std::unordered_map<IterVar, Range>& dom_map,
                   const IntSet& outer, const IntSet& inner, IntSet* parent) {
   if (dom_map.count(s->outer) && dom_map.count(s->inner) && dom_map.count(s->parent) &&
-      outer.match_range(dom_map.at(s->outer)) && inner.match_range(dom_map.at(s->inner))) {
-    *parent = IntSet::range(dom_map.at(s->parent));
+      outer.MatchRange(dom_map.at(s->outer)) && inner.MatchRange(dom_map.at(s->inner))) {
+    *parent = IntSet::FromRange(dom_map.at(s->parent));
     return;
   }
   PrimExpr factor = dom_map.at(s->inner)->extent;
@@ -298,33 +296,33 @@ void PassUpDomain(const FuseNode* s, const std::unordered_map<IterVar, Range>& d
   CHECK(dom_map.count(s->fused));
   arith::Analyzer ana;
 
-  if (fused.match_range(dom_map.at(s->fused))) {
-    *outer = IntSet::range(dom_map.at(s->outer));
-    *inner = IntSet::range(dom_map.at(s->inner));
+  if (fused.MatchRange(dom_map.at(s->fused))) {
+    *outer = IntSet::FromRange(dom_map.at(s->outer));
+    *inner = IntSet::FromRange(dom_map.at(s->inner));
     return;
   }
   PrimExpr outer_min = dom_map.at(s->outer)->min;
   PrimExpr inner_min = dom_map.at(s->inner)->min;
 
-  if (fused.is_single_point()) {
-    PrimExpr value = fused.point_value();
+  if (fused.IsSinglePoint()) {
+    PrimExpr value = fused.PointValue();
     PrimExpr factor = dom_map.at(s->inner)->extent;
     PrimExpr v_outer = indexdiv(value, factor);
     PrimExpr v_inner = indexmod(value, factor);
     if (!is_zero(outer_min)) v_outer = v_outer + outer_min;
     if (!is_zero(inner_min)) v_inner = v_inner + inner_min;
-    *outer = IntSet::single_point(v_outer);
-    *inner = IntSet::single_point(v_inner);
+    *outer = IntSet::SinglePoint(v_outer);
+    *inner = IntSet::SinglePoint(v_inner);
   } else {
     PrimExpr fused_extent = (fused.max() - fused.min() + 1);
     PrimExpr inner_extent = dom_map.at(s->inner)->extent;
-    *outer = IntSet::interval(outer_min + indexdiv(fused.min(), inner_extent),
+    *outer = IntSet::Interval(outer_min + indexdiv(fused.min(), inner_extent),
                               outer_min + indexdiv(fused.max(), inner_extent));
     if (is_zero(ana.Simplify(indexmod(inner_extent, fused_extent))) &&
         is_zero(ana.Simplify(indexmod(fused.min(), fused_extent)))) {
       // fused never spans multiple rows, make a tight bounding box
       // there may be other cases when bounding box could be tightened
-      *inner = IntSet::interval(inner_min + indexmod(fused.min(), inner_extent),
+      *inner = IntSet::Interval(inner_min + indexmod(fused.min(), inner_extent),
                                 inner_min + indexmod(fused.max(), inner_extent));
     } else {  // fused may span multiple rows, use full row widths
       if (!is_zero(ana.Simplify(indexmod(fused_extent, inner_extent))) ||
@@ -332,7 +330,7 @@ void PassUpDomain(const FuseNode* s, const std::unordered_map<IterVar, Range>& d
         LOG(WARNING)
             << "fused and original axes are not aligned, this may cause redundant computations";
       }
-      *inner = IntSet::range(dom_map.at(s->inner));
+      *inner = IntSet::FromRange(dom_map.at(s->inner));
     }
     return;
   }
@@ -341,8 +339,8 @@ void PassUpDomain(const FuseNode* s, const std::unordered_map<IterVar, Range>& d
 void PassUpDomain(const RebaseNode* s, const std::unordered_map<IterVar, Range>& dom_map,
                   const IntSet& rebased, IntSet* parent) {
   CHECK(dom_map.count(s->parent));
-  if (rebased.match_range(dom_map.at(s->rebased))) {
-    *parent = IntSet::range(dom_map.at(s->parent));
+  if (rebased.MatchRange(dom_map.at(s->rebased))) {
+    *parent = IntSet::FromRange(dom_map.at(s->parent));
     return;
   }
   PrimExpr parent_min = dom_map.at(s->parent)->min;
@@ -538,7 +536,7 @@ std::vector<PrimExpr> MakeBoundCheck(const Stage& stage, const Map<IterVar, Rang
 
   // setup domain map for set analysis
   for (const auto& kv : dom_map) {
-    iset_dmap.Set(kv.first->var, IntSet::range(kv.second));
+    iset_dmap.Set(kv.first->var, IntSet::FromRange(kv.second));
   }
 
   for (auto entry : dom_map) {

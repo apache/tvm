@@ -58,6 +58,7 @@ def build_config(opt_level=2,
                 "EliminateCommonSubexpr": 3,
                 "CombineParallelConv2D": 4,
                 "CombineParallelDense": 4,
+                "CombineParallelBatchMatmul": 4,
                 "FastMath": 4
             }
 
@@ -306,6 +307,39 @@ def CombineParallelDense(min_num_branches=3):
         The registered pass that combines parallel dense operators.
     """
     return _ffi_api.CombineParallelDense(min_num_branches)
+
+def CombineParallelBatchMatmul(min_num_branches=3):
+    """Combine multiple batch matmul operators into one. For example:
+
+    .. code-block
+                             data (1, 2, 3)
+                         /                  \
+        batch_matmul(data, (1, 4, 3))    batch_matmul(data, (1, 5, 3))
+            |                                |
+        elemwise/bcast (1, 2, 4)         elemwise/bcast (1, 2, 5)
+
+    Would become:
+
+    .. code-block
+
+                data (1, 2, 3)
+                |
+            batch_matmul(data, (1, 4+5, 3))
+                |
+            elemwise/bcast (1 ,2, 4+5)
+
+    Parameters
+    ----------
+    min_num_branches : int
+        The minimum number of required parallel branches for performing this
+        optimization.
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The registered pass that combines parallel dense operators.
+    """
+    return _ffi_api.CombineParallelBatchMatmul(min_num_branches)
 
 
 def AlterOpLayout():
@@ -591,6 +625,17 @@ def AnnotateTarget(targets):
     return _ffi_api.AnnotateTarget([tvm.runtime.container.String(t) for t in targets])
 
 
+def DynamicToStatic():
+    """If possible, convert tvm.relay.dynamic* ops to static versions
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for dynamic->static conversion.
+    """
+    return _ffi_api.DynamicToStatic()
+
+
 def Inline():
     """Perform inlining on the given Relay IR module. The global functions that
     are marked as `inline` should be always inlined. A cost model will be
@@ -864,6 +909,7 @@ def DenseToSparse(weight_name, weight_shape):
     """
     return _ffi_api.DenseToSparse(weight_name, weight_shape)
 
+
 def SimplifyFCTranspose(target_weight_name):
     """
     Rewrite ```y = nn.dense(x, transpose(w, [1, 0]))``` to ```y = nn.dense(x, wt)```
@@ -881,3 +927,15 @@ def SimplifyFCTranspose(target_weight_name):
         The registered SimplifyFCTranspose pass.
     """
     return _ffi_api.SimplifyFCTranspose(target_weight_name)
+
+
+def SimplifyExpr():
+    """
+    Simplify the Relay expression, including merging consecutive reshapes.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered SimplifyExpr pass.
+    """
+    return _ffi_api.SimplifyExpr()

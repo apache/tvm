@@ -34,8 +34,13 @@ pub mod ffi {
 
     include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/c_runtime_api.rs"));
 
-    pub type BackendPackedCFunc =
-        extern "C" fn(args: *const TVMValue, type_codes: *const c_int, num_args: c_int) -> c_int;
+    pub type BackendPackedCFunc = extern "C" fn(
+        args: *const TVMValue,
+        type_codes: *const c_int,
+        num_args: c_int,
+        out_ret_value: *mut TVMValue,
+        out_ret_tcode: *mut u32,
+    ) -> c_int;
 }
 
 pub mod array;
@@ -52,3 +57,15 @@ pub use context::{Context, DeviceType};
 pub use datatype::DataType;
 pub use errors::*;
 pub use packed_func::{ArgValue, RetValue};
+
+impl<T, E> std::convert::TryFrom<Result<T, E>> for RetValue
+where
+    RetValue: std::convert::TryFrom<T>,
+    E: From<<RetValue as std::convert::TryFrom<T>>::Error>,
+{
+    type Error = E;
+
+    fn try_from(val: Result<T, E>) -> Result<RetValue, Self::Error> {
+        val.and_then(|t| RetValue::try_from(t).map_err(|e| e.into()))
+    }
+}

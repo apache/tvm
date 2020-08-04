@@ -56,7 +56,9 @@ TEST(BuildModule, Basic) {
   auto module = build(lowered, target, Target());
 
   auto mali_target = Target::Create("opencl -model=Mali-T860MP4@800Mhz -device=mali");
-  CHECK_EQ(mali_target->str(), "opencl -model=Mali-T860MP4@800Mhz -device=mali");
+  CHECK_EQ(
+      mali_target->str(),
+      "opencl -keys=mali,opencl,gpu -device=mali -max_num_threads=256 -model=Mali-T860MP4@800Mhz");
 }
 
 TEST(BuildModule, Heterogeneous) {

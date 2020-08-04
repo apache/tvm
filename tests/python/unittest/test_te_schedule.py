@@ -289,6 +289,25 @@ def test_tensor_intrin_scalar_params():
     assert str(stmt.body.body.value.args[3]) == "(i: int32*i)"
     assert str(stmt.body.body.value.args[4]) == "(i: int32 + j: int32)"
 
+def test_legalize_invalid_attach():
+    A = te.compute((10, 10), lambda i, j: 1.0, name='A')
+    B = te.compute((10, 10), lambda i, j: A[i][j], name='B')
+
+    # Case 1: Split an axis which is the target of a compute_at
+    s = te.create_schedule([B.op])
+    s[A].compute_at(s[B], B.op.axis[1])
+    s[B].split(B.op.axis[1], 2)
+
+    stmt = tvm.lower(s, [A, B], simple_mode=True)['main'].body
+    assert isinstance(stmt.body.body, tvm.tir.stmt.For)
+
+    # Case 2: Fuse an axis which is the target of a compute_at
+    s = te.create_schedule([B.op])
+    s[A].compute_at(s[B], B.op.axis[1])
+    s[B].fuse(B.op.axis[0], B.op.axis[1])
+    stmt = tvm.lower(s, [A, B], simple_mode=True)['main'].body
+    assert isinstance(stmt, tvm.tir.stmt.For)
+
 if __name__ == "__main__":
     test_singleton()
     test_pragma()
@@ -305,3 +324,4 @@ if __name__ == "__main__":
     test_fuse_with_out_of_order_axis_with_reorder()
     test_vectorize()
     test_vectorize_commreduce()
+    test_legalize_invalid_attach()

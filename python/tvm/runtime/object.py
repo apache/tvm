@@ -46,9 +46,10 @@ class Object(ObjectBase):
         return _ffi_node_api.AsRepr(self)
 
     def __dir__(self):
+        class_names = dir(self.__class__)
         fnames = _ffi_node_api.NodeListAttrNames(self)
         size = fnames(-1)
-        return [fnames(i) for i in range(size)]
+        return sorted([fnames(i) for i in range(size)] + class_names)
 
     def __getattr__(self, name):
         try:

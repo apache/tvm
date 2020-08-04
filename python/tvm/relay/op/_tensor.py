@@ -92,7 +92,7 @@ register_broadcast_schedule("fast_erf")
 # zeros
 @register_compute("zeros")
 def zeros_compute(attrs, inputs, output_type):
-    assert len(inputs) == 1
+    assert not inputs
     return [topi.full(output_type.shape, output_type.dtype, 0.0)]
 
 register_broadcast_schedule("zeros")
@@ -109,7 +109,7 @@ register_broadcast_schedule("zeros_like")
 # ones
 @register_compute("ones")
 def ones_compute(attrs, inputs, output_type):
-    assert len(inputs) == 1
+    assert not inputs
     return [topi.full(output_type.shape, output_type.dtype, 1.0)]
 
 register_broadcast_schedule("ones")
@@ -130,6 +130,14 @@ def clip_compute(attrs, inputs, output_type):
     return [topi.clip(inputs[0], attrs.a_min, attrs.a_max)]
 
 register_injective_schedule("clip")
+
+# fixed point multiply
+@register_compute("fixed_point_multiply")
+def fixed_point_multiply_compute(attrs, inputs, output_type):
+    assert len(inputs) == 1
+    return [topi.fixed_point_multiply(inputs[0], attrs.multiplier, attrs.shift)]
+
+register_injective_schedule("fixed_point_multiply")
 
 # full
 @script

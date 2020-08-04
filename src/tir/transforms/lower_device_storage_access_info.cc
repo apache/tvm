@@ -25,6 +25,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target_info.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -52,7 +53,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
           << "Double allocation of " << it->second.scope.to_string();
 
       if (info->head_address.defined()) {
-        return LetStmtNode::make(op->buffer_var, info->head_address, op->body);
+        return LetStmt(op->buffer_var, info->head_address, op->body);
       } else {
         return op->body;
       }
@@ -63,7 +64,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
       const VarNode* buf = op->node.as<VarNode>();
-      StorageScope scope = StorageScope::make(op->value.as<StringImmNode>()->value);
+      StorageScope scope = StorageScope::Create(op->value.as<StringImmNode>()->value);
       StorageEntry e;
       e.scope = scope;
       if (scope.tag.length() != 0) {
@@ -79,7 +80,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
       return MakeAccessPtr(op);
     } else {
       return StmtExprMutator::VisitExpr_(op);

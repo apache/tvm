@@ -33,6 +33,9 @@ RUN bash /install/ubuntu_install_python_package.sh
 COPY install/ubuntu1804_install_llvm.sh /install/ubuntu1804_install_llvm.sh
 RUN bash /install/ubuntu1804_install_llvm.sh
 
+COPY install/ubuntu_install_dnnl.sh /install/ubuntu_install_dnnl.sh
+RUN bash /install/ubuntu_install_dnnl.sh
+
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
 RUN bash /install/ubuntu_install_rust.sh
@@ -71,3 +74,7 @@ RUN bash /install/ubuntu_install_tflite.sh
 # TensorFlow deps
 COPY install/ubuntu_install_tensorflow.sh /install/ubuntu_install_tensorflow.sh
 RUN bash /install/ubuntu_install_tensorflow.sh
+
+# Arm(R) Compute Library
+COPY install/ubuntu_install_arm_compute_lib.sh /install/ubuntu_install_arm_compute_lib.sh
+RUN bash /install/ubuntu_install_arm_compute_lib.sh

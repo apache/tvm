@@ -187,6 +187,25 @@ def schedule_conv2d_winograd_weight_transform(outs):
     return s
 
 
+def schedule_conv2d_gemm_weight_transform(outs):
+    """Schedule for weight transformation of gemm
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of this operator
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    # Typically this is computed in PreCompute pass
+    s = te.create_schedule([x.op for x in outs])
+    return s
+
+
 def schedule_conv3d_winograd_weight_transform(outs):
     """Schedule for weight transformation of 3D winograd
 
@@ -289,6 +308,24 @@ def schedule_conv3d_ndhwc(outs):
         The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+
+def schedule_conv3d_transpose_ncdhw(outs):
+    """Schedule for conv3d_transpose_ncdhw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of conv3d_transpose_ncdhw
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
 
 def schedule_conv2d_transpose_nchw(outs):
     """Schedule for conv2d_transpose_nchw

@@ -36,17 +36,26 @@ namespace tvm {
 namespace relay {
 namespace merge_composite {
 
+Function InferType(const Function& expr, const IRModule& m) {
+  IRModule mod(m);
+  mod->Update(mod->GetGlobalVar("main"), expr);
+  mod = transform::InferType()(mod);
+  return Downcast<Function>(mod->Lookup("main"));
+}
+
 Expr MergeComposite(const Function& func, const Array<runtime::String>& pattern_names,
-                    const Array<DFPattern>& patterns, const std::vector<PackedFunc>& checks) {
+                    const Array<DFPattern>& patterns, const std::vector<PackedFunc>& checks,
+                    const IRModule& m) {
   CHECK_EQ(pattern_names.size(), patterns.size());
-  Expr merged_expr = func->body;
+  Function merged_func = func;
   // merge the patterns one-by-one in order
   for (size_t i = 0; i < patterns.size(); i++) {
     Map<String, ObjectRef> attrs;
     attrs.Set("Composite", pattern_names[i]);
-    merged_expr = PartitionPattern(patterns[i], merged_expr, attrs, checks[i]);
+    merged_func = Downcast<Function>(PartitionPattern(patterns[i], merged_func, attrs, checks[i]));
+    merged_func = InferType(merged_func, m);
   }
-  return Function(func->params, merged_expr, func->ret_type, func->type_params, func->attrs);
+  return std::move(merged_func);
 }
 
 }  // namespace merge_composite
@@ -58,7 +67,7 @@ Pass MergeComposite(const tvm::Array<runtime::String>& pattern_names,
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(
-            relay::merge_composite::MergeComposite(f, pattern_names, patterns, checks));
+            relay::merge_composite::MergeComposite(f, pattern_names, patterns, checks, m));
       };
   auto func_pass = CreateFunctionPass(pass_func, 0, "MergeComposite", {});
   return func_pass;

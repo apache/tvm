@@ -20,7 +20,11 @@ name = "test-wasm32"
 version = "0.0.0"
 license = "Apache-2.0"
 authors = ["TVM Contributors"]
+edition = "2018"
 
 [dependencies]
 ndarray="0.12"
 tvm-runtime = { path = "../../" }
+
+[build-dependencies]
+anyhow = "^1.0"

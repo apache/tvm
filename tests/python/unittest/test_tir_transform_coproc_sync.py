@@ -17,6 +17,14 @@
 import tvm
 from tvm import te
 
+# register the ops
+tvm.ir.register_op_attr("tir.cop.coproc_sync", "TGlobalSymbol", "coproc_sync")
+tvm.ir.register_op_attr("tir.cop.coproc_read_barrier", "TGlobalSymbol", "coproc_readb")
+tvm.ir.register_op_attr("tir.cop.coproc_write_barrier", "TGlobalSymbol", "coproc_writeb")
+tvm.ir.register_op_attr("tir.cop.coproc_dep_push", "TGlobalSymbol", "coproc_dep_push")
+tvm.ir.register_op_attr("tir.cop.coproc_dep_pop", "TGlobalSymbol", "coproc_dep_pop")
+
+
 def test_coproc_sync():
     @tvm.register_func("tvm.info.mem.global.cache")
     def meminfo_cache():
@@ -26,6 +34,7 @@ def test_coproc_sync():
             max_simd_bits=32,
             max_num_bits=128,
             head_address=tvm.tir.call_extern("handle", "global_cache"))
+
     ib = tvm.tir.ir_builder.create()
     n = te.size_var("n")
     cp = te.thread_axis((0, 1), "cop")
@@ -43,10 +52,11 @@ def test_coproc_sync():
 
     body = stmt.body.body.body
     blist = tvm.tir.stmt_list(body)
-    assert(blist[1].value.name == "cop.coproc_read_barrier")
+
+    assert(blist[1].value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_read_barrier")))
     assert(blist[1].value.args[3].value == 80)
-    assert(blist[-2].value.name == "cop.coproc_sync")
-    assert(blist[-1].value.name == "cop.coproc_write_barrier")
+    assert(blist[-2].value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_sync")))
+    assert(blist[-1].value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_write_barrier")))
     assert(blist[-1].value.args[3].value == 10)
 
 
@@ -106,9 +116,9 @@ def test_coproc_sync3():
     slist = tvm.tir.stmt_list(slist[-1])
     pop_st = slist[0].body[0]
 
-    assert(push_st.value.name == "cop.coproc_dep_push")
+    assert(push_st.value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_dep_push")))
     assert(__check_list(push_st.value.args, [2,3]))
-    assert(pop_st.value.name == "cop.coproc_dep_pop")
+    assert(pop_st.value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_dep_pop")))
     assert(__check_list(pop_st.value.args, [2,3]))
 
 

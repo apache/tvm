@@ -79,25 +79,23 @@ class Span;
  */
 class SpanNode : public Object {
  public:
-  /*! \brief The source name */
+  /*! \brief The source name. */
   SourceName source;
-  /*! \brief Line number */
-  int lineno;
-  /*! \brief column offset */
-  int col_offset;
+  /*! \brief The line number. */
+  int line;
+  /*! \brief The column offset. */
+  int column;
+
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("source", &source);
-    v->Visit("lineno", &lineno);
-    v->Visit("col_offset", &col_offset);
+    v->Visit("line", &line);
+    v->Visit("column", &column);
   }
 
   bool SEqualReduce(const SpanNode* other, SEqualReducer equal) const {
-    return equal(source, other->source) && equal(lineno, other->lineno) &&
-           equal(col_offset, other->col_offset);
+    return equal(source, other->source) && equal(line, other->line) && equal(column, other->column);
   }
-
-  TVM_DLL static Span make(SourceName source, int lineno, int col_offset);
 
   static constexpr const char* _type_key = "Span";
   TVM_DECLARE_FINAL_OBJECT_INFO(SpanNode, Object);
@@ -105,6 +103,8 @@ class SpanNode : public Object {
 
 class Span : public ObjectRef {
  public:
+  TVM_DLL Span(SourceName source, int lineno, int col_offset);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Span, ObjectRef, SpanNode);
 };
 

@@ -590,6 +590,55 @@ def conv2d_NCHWc_int8(data, kernel, stride, padding, dilation, layout, out_layou
                       name='conv2d_NCHWc_int8', tag="conv2d_NCHWc_int8")
 
 
+def conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols):
+    """Weight transformation for winograd
+
+    Parameters
+    ----------
+    kernel: Tensor
+        The raw kernel tensor with layout "NHWC".
+    tile_rows: int
+        Tile rows of the weight transformation for ConvGemm.
+    tile_cols: int
+        Tile columns of the weight transformation for ConvGemm.
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        2-D with shape [CI*KH*KW,CO]
+    """
+    KH, KW, IC, OC = get_const_tuple(kernel.shape)
+    K = KH * KW * IC
+    N = OC
+
+    kernel_flat = te.compute((K, N), lambda x, y:
+                             kernel[(x // IC) // KW, (x // IC) % KW, x % IC, y],
+                             'weight_flatten')
+
+    pad_K = 0
+    pad_N = 0
+
+    if N % tile_rows != 0:
+        pad_N = tile_rows - (N % tile_rows)
+
+    if K % tile_cols != 0:
+        pad_K = tile_cols - (K % tile_cols)
+
+    N_padded = N + pad_N
+    K_padded = K + pad_K
+
+    if pad_K != 0 or pad_N != 0:
+        kernel_flat = pad(kernel_flat, pad_before=(0, 0), pad_after=(pad_K, pad_N),
+                          name='weight_padding')
+
+    return te.compute((N_padded // tile_rows,
+                       K_padded // tile_cols,
+                       tile_rows,
+                       tile_cols), lambda x, y, z, w:
+                      kernel_flat[w + tile_cols * y, z + tile_rows * x],
+                      name='weight_block_reshape')
+
+
 def conv2d_winograd_weight_transform(kernel, tile_size):
     """Weight transformation for winograd
 

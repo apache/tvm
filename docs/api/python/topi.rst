@@ -46,6 +46,7 @@ List of operators
    topi.reinterpret
    topi.transpose
    topi.flip
+   topi.reverse_sequence
    topi.strided_slice
    topi.expand_dims
    topi.reshape
@@ -55,6 +56,7 @@ List of operators
    topi.concatenate
    topi.split
    topi.take
+   topi.gather
    topi.gather_nd
    topi.full
    topi.full_like
@@ -102,6 +104,7 @@ List of operators
    topi.logical_not
    topi.logical_xor
    topi.arange
+   topi.meshgrid
    topi.stack
    topi.repeat
    topi.tile
@@ -151,6 +154,7 @@ topi
 .. autofunction:: topi.reinterpret
 .. autofunction:: topi.transpose
 .. autofunction:: topi.flip
+.. autofunction:: topi.reverse_sequence
 .. autofunction:: topi.strided_slice
 .. autofunction:: topi.expand_dims
 .. autofunction:: topi.reshape
@@ -160,6 +164,7 @@ topi
 .. autofunction:: topi.concatenate
 .. autofunction:: topi.split
 .. autofunction:: topi.take
+.. autofunction:: topi.gather
 .. autofunction:: topi.gather_nd
 .. autofunction:: topi.full
 .. autofunction:: topi.full_like
@@ -183,6 +188,7 @@ topi
 .. autofunction:: topi.greater
 .. autofunction:: topi.less
 .. autofunction:: topi.arange
+.. autofunction:: topi.meshgrid
 .. autofunction:: topi.stack
 .. autofunction:: topi.repeat
 .. autofunction:: topi.tile
@@ -214,6 +220,8 @@ topi.nn
 .. autofunction:: topi.nn.conv2d_hwcn
 .. autofunction:: topi.nn.depthwise_conv2d_nchw
 .. autofunction:: topi.nn.depthwise_conv2d_nhwc
+.. autofunction:: topi.nn.conv3d_ncdhw
+.. autofunction:: topi.nn.conv3d_transpose_ncdhw
 .. autofunction:: topi.nn.fifo_buffer
 
 topi.image
@@ -233,6 +241,8 @@ topi.generic
 
 .. autofunction:: topi.generic.schedule_conv2d_nchw
 .. autofunction:: topi.generic.schedule_depthwise_conv2d_nchw
+.. autofunction:: topi.generic.schedule_conv3d_ncdhw
+.. autofunction:: topi.generic.schedule_conv3d_transpose_ncdhw
 .. autofunction:: topi.generic.schedule_reduce
 .. autofunction:: topi.generic.schedule_broadcast
 .. autofunction:: topi.generic.schedule_injective

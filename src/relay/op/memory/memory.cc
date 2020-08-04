@@ -38,7 +38,6 @@ namespace relay {
 
 TVM_REGISTER_NODE_TYPE(AllocStorageAttrs);
 TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
-TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
 
 // The passing value in attrs and args doesn't seem super great.
 // We should consider a better solution, i.e the type relation
@@ -197,54 +196,6 @@ RELAY_REGISTER_OP("memory.alloc_tensor")
                              return {topi::identity(inputs[0])};
                            });
 
-bool InvokeTVMOPRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                    const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 4u);
-  auto func_type = types[0].as<FuncTypeNode>();
-  CHECK(func_type != nullptr) << "input must be operator with known type";
-  auto input_type = types[1].as<TupleTypeNode>();
-  auto output_type = types[2].as<TupleTypeNode>();
-  CHECK(input_type != nullptr)
-      << "internal invariant violated: invoke_tvm_op inputs must be a tuple";
-  CHECK(output_type != nullptr)
-      << "internal invariant violated: invoke_tvm_op outputs must be a tuple";
-  Type ex_output;
-  if (func_type->ret_type.as<TensorTypeNode>()) {
-    ex_output = TupleType({func_type->ret_type});
-  } else {
-    CHECK(func_type->ret_type.as<TupleTypeNode>()) << "should be tuple type";
-    ex_output = func_type->ret_type;
-  }
-  auto ex_input = TupleType(func_type->arg_types);
-  reporter->Assign(ex_input, GetRef<Type>(input_type));
-  reporter->Assign(ex_output, GetRef<Type>(output_type));
-  reporter->Assign(types[3], TupleType::Empty());
-  return true;
-}
-
-TVM_REGISTER_GLOBAL("relay.op.memory._make.invoke_tvm_op")
-    .set_body_typed([](Expr func, Expr inputs, Expr outputs) {
-      return Call(Op::Get("memory.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
-    });
-
-RELAY_REGISTER_OP("memory.invoke_tvm_op")
-    .describe(R"code(Invoke an operation compiled by TVM.)code" TVM_ADD_FILELINE)
-    .set_num_inputs(3)
-    .add_argument("op", "Function", "The operation to call")
-    .add_argument("ins", "Tuple", "The input tensors.")
-    .add_argument("outs", "Tuple", "The output tensors.")
-    .add_type_rel("InvokeTVMOP", InvokeTVMOPRel)
-    .set_support_level(10)
-    .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<TOpIsStateful>("TOpIsStateful", false)
-    .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_dtype) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
-
 bool KillRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
              const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2u);
@@ -268,14 +219,6 @@ RELAY_REGISTER_OP("memory.kill")
                               const Type& out_dtype) -> Array<te::Tensor> {
                              return {topi::identity(inputs[0])};
                            });
-
-TVM_REGISTER_GLOBAL("relay.op.memory._make.shape_func")
-    .set_body_typed([](Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input) {
-      static const Op& op = Op::Get("memory.shape_func");
-      auto attrs = make_object<ShapeFuncAttrs>();
-      attrs->is_input = is_input;
-      return Call(op, {func, inputs, outputs}, Attrs(attrs), {});
-    });
 
 static void FlattenTupleTypeAux(const Type& type, std::vector<TensorType>* out) {
   if (auto tt = type.as<TensorTypeNode>()) {
@@ -355,73 +298,6 @@ TVM_REGISTER_GLOBAL("relay.op.memory._make.ToTupleType")
     .set_body_typed([](Type t, Array<Expr> array) {
       return ToTupleType(t, std::vector<Expr>(array.begin(), array.end()));
     });
-
-bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                  const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 4u);
-  auto shape_func_attrs = attrs.as<ShapeFuncAttrs>();
-  CHECK(shape_func_attrs != nullptr) << "Internal compiler error";
-
-  auto func_type = types[0].as<FuncTypeNode>();
-  CHECK(func_type != nullptr);
-
-  auto tuple = TupleType(func_type->arg_types);
-  auto in_types = FlattenTupleType(tuple);
-  auto out_types = FlattenTupleType(func_type->ret_type);
-  Array<Integer> is_input;
-  for (size_t i = 0; i < func_type->arg_types.size(); ++i) {
-    auto const& aty = func_type->arg_types[i];
-    size_t num_types = 1;
-    if (aty.as<TupleTypeNode>()) {
-      num_types = FlattenTupleType(aty).size();
-    }
-    for (size_t j = 0; j < num_types; ++j) {
-      is_input.push_back(shape_func_attrs->is_input[i]);
-    }
-  }
-
-  Array<Type> shape_func_ins, shape_func_outs;
-  for (size_t i = 0; i < in_types.size(); i++) {
-    auto in_type = in_types[i];
-
-    if (is_input[i]) {
-      shape_func_ins.push_back(in_type);
-    } else {
-      auto shape = RankShape(in_type->shape);
-      shape_func_ins.push_back(TensorType(shape, DataType::Int(64)));
-    }
-  }
-
-  for (auto out_type : out_types) {
-    auto rank_shape = RankShape(out_type->shape);
-    shape_func_outs.push_back(TensorType(rank_shape, DataType::Int(64)));
-  }
-
-  auto input_type = TupleType(shape_func_ins);
-  auto output_type = TupleType(shape_func_outs);
-
-  reporter->Assign(types[1], input_type);
-  reporter->Assign(types[2], output_type);
-  reporter->Assign(types[3], TupleType::Empty());
-
-  return true;
-}
-
-RELAY_REGISTER_OP("memory.shape_func")
-    .describe(R"code(Get the shape of a tensor.)code" TVM_ADD_FILELINE)
-    .set_num_inputs(3)
-    .add_argument("tensor", "Tensor", "The tensor to retrieve the shape for.")
-    .add_type_rel("ShapeFuncRel", ShapeFuncRel)
-    .set_support_level(10)
-    .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<TOpIsStateful>("TOpIsStateful", false)
-    .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_dtype) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
 
 }  // namespace relay
 }  // namespace tvm

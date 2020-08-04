@@ -100,7 +100,7 @@ def intrin_wmma_load_matrix_A(strides_dst, strides_from, shape, layout, A_shape,
         BC = outs[0]
         row = wmma_m * wmma_k
         warp_index = BC.elem_offset // row + BC.elem_offset % row // wmma_k
-        ib.emit(tvm.tir.call_intrin('handle', 'tvm_load_matrix_sync',
+        ib.emit(tvm.tir.call_intrin('handle', 'tir.tvm_load_matrix_sync',
                                     BC.data, wmma_m, wmma_n, wmma_k, warp_index,
                                     BA.access_ptr('r'), strides_from[0], layout))
         return ib.get()
@@ -128,7 +128,7 @@ def intrin_wmma_load_matrix_W(strides_dst, strides_from, shape, layout, A_shape,
         BC = outs[0]
         row = wmma_n * wmma_k
         warp_index = BC.elem_offset // row + BC.elem_offset % row // wmma_n
-        ib.emit(tvm.tir.call_intrin('handle', 'tvm_load_matrix_sync',
+        ib.emit(tvm.tir.call_intrin('handle', 'tir.tvm_load_matrix_sync',
                                     BC.data, wmma_m, wmma_n, wmma_k, warp_index,
                                     BA.access_ptr('r'), strides_from[0], layout))
         return ib.get()
@@ -156,7 +156,7 @@ def intrin_wmma_store_matrix(strides_dst, strides_from, shape, out_dtype, A_shap
         BC = outs[0]
         row = wmma_m * wmma_n
         warp_index = BA.elem_offset // row + BA.elem_offset % row // wmma_n
-        ib.emit(tvm.tir.call_intrin('handle', 'tvm_store_matrix_sync',
+        ib.emit(tvm.tir.call_intrin('handle', 'tir.tvm_store_matrix_sync',
                                     BA.data, wmma_m, wmma_n, wmma_k, warp_index,
                                     BC.access_ptr('w'), strides_dst[0], 'row_major'))
         return ib.get()
@@ -207,13 +207,14 @@ def intrin_wmma_gemm(AL_gemm, WL_gemm, CL_compute, strides_A,
         def init():
             ib = tvm.tir.ir_builder.create()
             ib.emit(
-                tvm.tir.call_intrin('handle', 'tvm_fill_fragment', BC.data, wmma_m, wmma_n, wmma_k,
+                tvm.tir.call_intrin('handle', 'tir.tvm_fill_fragment',
+                                    BC.data, wmma_m, wmma_n, wmma_k,
                                     warp_index_C, 0.0))
             return ib.get()
 
         def update():
             ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_intrin('handle', 'tvm_mma_sync',
+            ib.emit(tvm.tir.call_intrin('handle', 'tir.tvm_mma_sync',
                                         BC.data, warp_index_C,
                                         BA.data, warp_index_A,
                                         BB.data, warp_index_B,

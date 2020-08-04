@@ -21,6 +21,8 @@
  * \file pooling.cc
  * \brief Pooling operators
  */
+#include "pooling.h"
+
 #include <topi/nn/pooling.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
@@ -54,34 +56,6 @@ Array<Array<Layout> > PoolInferCorrectLayout(const Attrs& attrs,
 
   Layout inferred_layout(params->layout);
   return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
-}
-
-template <typename T>
-Expr MakeMaxPool(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                 Array<IndexExpr> padding, String layout, bool ceil_mode, String op_name) {
-  auto attrs = make_object<T>();
-  attrs->pool_size = std::move(pool_size);
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->layout = std::move(layout);
-  attrs->ceil_mode = ceil_mode;
-  static const Op& op = Op::Get(op_name);
-  return Call(op, {data}, Attrs(attrs), {});
-}
-
-template <typename T>
-Expr MakeAvgPool(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                 Array<IndexExpr> padding, String layout, bool ceil_mode, bool count_include_pad,
-                 String op_name) {
-  auto attrs = make_object<T>();
-  attrs->pool_size = std::move(pool_size);
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->layout = std::move(layout);
-  attrs->ceil_mode = ceil_mode;
-  attrs->count_include_pad = count_include_pad;
-  static const Op& op = Op::Get(op_name);
-  return Call(op, {data}, Attrs(attrs), {});
 }
 
 template <typename AttrType>

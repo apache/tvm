@@ -29,7 +29,7 @@
 
 namespace tvm {
 
-// Define the dispatch functio here since primary user is in this file.
+// Define the dispatch function here since primary user is in this file.
 bool ReflectionVTable::SEqualReduce(const Object* self, const Object* other,
                                     SEqualReducer equal) const {
   uint32_t tindex = self->type_index();

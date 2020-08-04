@@ -47,7 +47,7 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
     return GetRef<te::Tensor>(ptr)();
   }
   if (auto* ptr = ref.as<runtime::StringObj>()) {
-    return tir::StringImmNode::make(GetRef<runtime::String>(ptr));
+    return tir::StringImm(GetRef<runtime::String>(ptr));
   }
   CHECK(ObjectTypeChecker<PrimExpr>::Check(ref.get()))
       << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName() << " but get "
@@ -57,7 +57,7 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
 
 IntImm::IntImm(DataType dtype, int64_t value) {
   CHECK(dtype.is_scalar()) << "ValueError: IntImm can only take scalar.";
-  CHECK(dtype.is_int() || dtype.is_uint()) << "ValueError: IntImm can only take scalar.";
+  CHECK(dtype.is_int() || dtype.is_uint()) << "ValueError: IntImm supports only int or uint type.";
   if (dtype.is_uint()) {
     CHECK_GE(value, 0U);
   }
@@ -119,11 +119,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 Range::Range(PrimExpr begin, PrimExpr end)
     : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin))) {}
 
-Range Range::make_by_min_extent(PrimExpr min, PrimExpr extent) {
+Range Range::FromMinExtent(PrimExpr min, PrimExpr extent) {
   return Range(make_object<RangeNode>(min, extent));
 }
 
-TVM_REGISTER_GLOBAL("ir.range_by_min_extent").set_body_typed(Range::make_by_min_extent);
+TVM_REGISTER_GLOBAL("ir.Range_from_min_extent").set_body_typed(Range::FromMinExtent);
 
 TVM_REGISTER_GLOBAL("ir.Range").set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = Range(args[0], args[1]);
@@ -171,8 +171,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<MapNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const MapNode*>(node.get());
       p->stream << '{';
-      for (auto it = op->data.begin(); it != op->data.end(); ++it) {
-        if (it != op->data.begin()) {
+      for (auto it = op->begin(); it != op->end(); ++it) {
+        if (it != op->begin()) {
           p->stream << ", ";
         }
         if (it->first->IsInstance<StringObj>()) {
@@ -185,4 +185,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
       p->stream << '}';
     });
+
+TVM_REGISTER_GLOBAL("ir.DebugPrint").set_body_typed([](ObjectRef ref) {
+  std::stringstream ss;
+  ss << ref;
+  return ss.str();
+});
+
 }  // namespace tvm

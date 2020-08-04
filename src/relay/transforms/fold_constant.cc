@@ -81,8 +81,9 @@ class ConstantFolder : public ExprMutator {
       : executor_(executor),
         module_(module),
         shape_of_op_(Op::Get("shape_of")),
-        invoke_tvm_op_(Op::Get("memory.invoke_tvm_op")),
-        shape_func_op_(Op::Get("memory.shape_func")),
+        vm_shape_of_op_(Op::Get("vm.shape_of")),
+        invoke_tvm_op_(Op::Get("vm.invoke_tvm_op")),
+        shape_func_op_(Op::Get("vm.shape_func")),
         alloc_tensor_op_(Op::Get("memory.alloc_tensor")),
         alloc_storage_op_(Op::Get("memory.alloc_storage")),
         cast_op_(Op::Get("cast")) {}
@@ -123,7 +124,7 @@ class ConstantFolder : public ExprMutator {
     // skip stateful ops.
     if (op_stateful.get(GetRef<Op>(op), false)) return res;
     // Try to evaluate shape_of op
-    if (call->op == shape_of_op_) {
+    if (call->op == shape_of_op_ || call->op == vm_shape_of_op_) {
       return EvaluateShapeOf(res, origin_args, call->attrs);
     }
 
@@ -166,6 +167,7 @@ class ConstantFolder : public ExprMutator {
 
   // Cache the following ops for equivalence checking in this pass.
   const Op& shape_of_op_;
+  const Op& vm_shape_of_op_;
   const Op& invoke_tvm_op_;
   const Op& shape_func_op_;
   const Op& alloc_tensor_op_;
@@ -192,7 +194,7 @@ class ConstantFolder : public ExprMutator {
       return Expr();
     }
   }
-  // Constant evaluate a expression.
+  // Constant evaluate an expression.
   Expr ConstEvaluate(Expr expr) {
     std::vector<transform::Pass> passes = {transform::FuseOps(0), transform::ToANormalForm(),
                                            transform::InferType()};

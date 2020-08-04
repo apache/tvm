@@ -24,6 +24,7 @@
 #ifndef TVM_NODE_ATTR_REGISTRY_H_
 #define TVM_NODE_ATTR_REGISTRY_H_
 
+#include <tvm/node/attr_registry_map.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/packed_func.h>
 
@@ -38,7 +39,7 @@ namespace tvm {
 /*!
  * \breif Implementation of registry with attributes.
  *
- * \tparam EntryType Tye type of the registry entry.
+ * \tparam EntryType The type of the registry entry.
  * \tparam KeyType The actual key that is used to lookup the attributes.
  *                 each entry has a corresponding key by default.
  */

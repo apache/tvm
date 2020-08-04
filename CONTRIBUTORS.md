@@ -56,6 +56,7 @@ We do encourage everyone to work anything they are interested in.
 - [Thierry Moreau](https://github.com/tmoreau89) (PPMC): @tmoreau89 - vta
 - [Kazutaka Morita](https://github.com/kazum): @kazum - frontends, opencl
 - [Jared Roesch](https://github.com/jroesch) (PPMC): @jroesch - relay
+- [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Haichen Shen](https://github.com/icemelon9) (PPMC): @icemelon9 - relay, topi
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
@@ -72,6 +73,7 @@ We do encourage everyone to work anything they are interested in.
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri
 - [Matthew Barrett](https://github.com/mbaret): @mbaret
 - [Arnaud Bergeron](https://github.com/abergeron): @abergeron
+- [Matthew Brookhart](https://github.com/mbrookhart): @mbrookhart
 - [Tianqi Chen](https://github.com/tqchen): @tqchen
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
 - [Zhi Chen](https://github.com/zhiics): @zhiics
@@ -99,8 +101,9 @@ We do encourage everyone to work anything they are interested in.
 - [Thierry Moreau](https://github.com/tmoreau89): @tmoreau89
 - [Kazutaka Morita](https://github.com/kazum): @kazum
 - [Tatsuya Nishiyama](https://github.com/nishi-t): @nishi-t
-- [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
+- [Wei Pan](https://github.com/wpan11nv): @wpan11nv
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
+- [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Jared Roesch](https://github.com/jroesch): @jroesch
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238

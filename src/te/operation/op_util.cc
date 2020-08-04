@@ -45,7 +45,7 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
                                              std::unordered_map<IterVar, PrimExpr>* p_value_map,
                                              bool debug_keep_trivial_loop) {
   auto leaf_iter_vars = stage->leaf_iter_vars;
-  Stmt no_op = EvaluateNode::make(0);
+  Stmt no_op = Evaluate(0);
   // create the loop nest
   std::vector<std::vector<Stmt> > nest;
   nest.resize(leaf_iter_vars.size() + 1);
@@ -108,31 +108,28 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
             pvalue = make_const(DataType::Int(32), 1);
           }
           nest[i + 1].emplace_back(
-              AttrStmtNode::make(iv, tir::attr::pragma_scope_prefix + pkey, pvalue, no_op));
+              AttrStmt(iv, tir::attr::pragma_scope_prefix + pkey, pvalue, no_op));
         }
       }
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
-        nest[i + 1].emplace_back(LetStmtNode::make(var, dom->min, no_op));
+        nest[i + 1].emplace_back(LetStmt(var, dom->min, no_op));
         value_map[iv] = dom->min;
       } else if (is_zero(dom->min)) {
-        nest[i + 1].emplace_back(
-            ForNode::make(var, 0, dom->extent, for_type, DeviceAPI::None, no_op));
+        nest[i + 1].emplace_back(For(var, 0, dom->extent, for_type, DeviceAPI::None, no_op));
         value_map[iv] = var;
       } else {
         Var idx(bind_iv->var->name_hint + ".idx", bind_iv->var.dtype());
-        nest[i + 1].emplace_back(
-            ForNode::make(idx, 0, dom->extent, for_type, DeviceAPI::None, no_op));
+        nest[i + 1].emplace_back(For(idx, 0, dom->extent, for_type, DeviceAPI::None, no_op));
         PrimExpr new_value = dom->min + idx;
         value_map[iv] = new_value;
-        nest[i + 1].emplace_back(LetStmtNode::make(var, new_value, no_op));
+        nest[i + 1].emplace_back(LetStmt(var, new_value, no_op));
       }
       if (it_attr.defined() && it_attr->prefetch_data.size() != 0) {
         CHECK(!is_one(dom->extent)) << "Cannot prefetch on trivial loop with extent=1";
         CHECK_EQ(it_attr->prefetch_data.size(), it_attr->prefetch_offset.size());
         for (size_t j = 0; j < it_attr->prefetch_data.size(); ++j) {
-          nest[i + 1].emplace_back(AttrStmtNode::make(it_attr->prefetch_data[j],
-                                                      tir::attr::prefetch_scope,
-                                                      it_attr->prefetch_offset[j], no_op));
+          nest[i + 1].emplace_back(AttrStmt(it_attr->prefetch_data[j], tir::attr::prefetch_scope,
+                                            it_attr->prefetch_offset[j], no_op));
         }
       }
     } else if (bind_iv->thread_tag == "vthread" || bind_iv->thread_tag == "cthread") {
@@ -141,8 +138,7 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
       CHECK(is_zero(dom->min));
       CHECK(is_positive_const(dom->extent));
       // annotate the extent of the IterVar
-      nest[i + 1].emplace_back(
-          AttrStmtNode::make(bind_iv, tir::attr::virtual_thread, dom->extent, no_op));
+      nest[i + 1].emplace_back(AttrStmt(bind_iv, tir::attr::virtual_thread, dom->extent, no_op));
       value_map[iv] = var;
     } else if (bind_iv->thread_tag == "pipeline") {
       // pipeline marker.
@@ -150,20 +146,19 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
       CHECK(is_one(dom->extent));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
-          AttrStmtNode::make(bind_iv, tir::attr::pipeline_exec_scope, dom->extent, no_op));
+          AttrStmt(bind_iv, tir::attr::pipeline_exec_scope, dom->extent, no_op));
       value_map[iv] = dom->min;
     } else {
       // Always restrict threaded IterVar to starts from 0.
       CHECK(is_zero(dom->min));
       // annotate the extent of the IterVar
-      nest[i + 1].emplace_back(
-          AttrStmtNode::make(bind_iv, tir::attr::thread_extent, dom->extent, no_op));
+      nest[i + 1].emplace_back(AttrStmt(bind_iv, tir::attr::thread_extent, dom->extent, no_op));
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         value_map[iv] = dom->min;
       } else {
-        runtime::ThreadScope ts = runtime::ThreadScope::make(bind_iv->thread_tag);
+        runtime::ThreadScope ts = runtime::ThreadScope::Create(bind_iv->thread_tag);
         if (stage->scope == "" ||
-            static_cast<int>(runtime::StorageScope::make(stage->scope).rank) <= ts.rank) {
+            static_cast<int>(runtime::StorageScope::Create(stage->scope).rank) <= ts.rank) {
           value_map[iv] = var;
         } else if (stage->scope == "warp" && ts.rank == 1) {
           // To determine whether a thread index is inside or outside a warp, we need
@@ -184,7 +179,7 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
     }
     // annotate the extent of the IterVar
     if (!new_loop_var) {
-      nest[i + 1].emplace_back(AttrStmtNode::make(iv, tir::attr::loop_scope, iv->var, no_op));
+      nest[i + 1].emplace_back(AttrStmt(iv, tir::attr::loop_scope, iv->var, no_op));
     }
   }
   // message passing to get offset of root iter vars.
@@ -193,10 +188,10 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
 }
 
 std::vector<Stmt> MakeIfNest(const std::vector<PrimExpr>& predicates) {
-  Stmt no_op = EvaluateNode::make(0);
+  Stmt no_op = Evaluate(0);
   std::vector<Stmt> nest;
   for (const PrimExpr& cond : predicates) {
-    nest.emplace_back(IfThenElseNode::make(cond, no_op));
+    nest.emplace_back(IfThenElse(cond, no_op));
   }
   return nest;
 }

@@ -20,6 +20,7 @@ import numpy as np
 from tvm import rpc
 from tvm.contrib import util, xcode, coreml_runtime
 
+import pytest
 import os
 
 proxy_host = os.environ.get("TVM_IOS_RPC_PROXY_HOST", "localhost")
@@ -27,7 +28,8 @@ proxy_port = os.environ.get("TVM_IOS_RPC_PROXY_PORT", 9090)
 destination = os.environ.get("TVM_IOS_RPC_DESTINATION", "")
 key = "iphone"
 
-def skipped_test_coreml_runtime():
+@pytest.mark.skip('skip because coremltools is not available in CI')
+def test_coreml_runtime():
 
     import coremltools
     from coremltools.models.neural_network import NeuralNetworkBuilder
@@ -56,7 +58,7 @@ def skipped_test_coreml_runtime():
                                 mode='MULTIPLY')
         return coremltools.models.MLModel(builder.spec)
 
-    def verify(coreml_model, compiled_model_path, ctx):
+    def verify(coreml_model, model_path, ctx):
         coreml_model = create_coreml_model()
 
         out_spec = coreml_model.output_description._fd_spec
@@ -72,7 +74,7 @@ def skipped_test_coreml_runtime():
         coreml_outputs = [coreml_model.predict(inputs)[name] for name in out_names]
 
         # inference via tvm coreml runtime
-        runtime = coreml_runtime.create(compiled_model_path, out_names, ctx)
+        runtime = coreml_runtime.create('main', model_path, ctx)
         for name in inputs:
             runtime.set_input(name, tvm.nd.array(inputs[name], ctx))
         runtime.invoke()
@@ -103,5 +105,4 @@ def skipped_test_coreml_runtime():
 
 
 if __name__ == "__main__":
-    # skipped_test_coreml_runtime()
-    pass
+    test_coreml_runtime()

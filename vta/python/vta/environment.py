@@ -77,10 +77,9 @@ class DevContext(object):
     def __init__(self, env):
         self.vta_axis = te.thread_axis("vta")
         self.vta_push_uop = tvm.tir.StringImm("VTAPushGEMMOp")
-        ctx = tvm.tir.call_extern("handle", "VTATLSCommandHandle")
+        ctx = tvm.tir.call_intrin("handle", "tir.vta.command_handle")
         self.command_handle = tvm.tir.Call(
-            "handle", "tvm_thread_context", [ctx],
-            tvm.tir.Call.Intrinsic)
+            "handle", "tir.tvm_thread_context", [ctx])
         self.DEBUG_NO_SYNC = False
         env._dev_ctx = self
         self.gemm = intrin.gemm(env, env.mock_mode)
@@ -238,9 +237,9 @@ class Environment(object):
     def target_host(self):
         """The target host"""
         if self.TARGET in ["pynq", "de10nano"]:
-            return "llvm -target=armv7-none-linux-gnueabihf"
+            return "llvm -mtriple=armv7-none-linux-gnueabihf"
         if self.TARGET == "ultra96":
-            return "llvm -target=aarch64-linux-gnu"
+            return "llvm -mtriple=aarch64-linux-gnu"
         if self.TARGET in ["sim", "tsim"]:
             return "llvm"
         raise ValueError("Unknown target %s" % self.TARGET)
@@ -296,6 +295,7 @@ def coproc_sync(op):
         "int32", "VTASynchronize",
         get_env().dev.command_handle,
         tvm.runtime.const(1<<31, dtype="uint32"))
+
 
 
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_push")

@@ -229,13 +229,17 @@ def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
 def is_fast_int8_on_intel():
     """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
     target = tvm.target.Target.current(allow_none=False)
-    intel_supported_arches = {'-mcpu=skylake-avx512', '-mcpu=cascadelake'}
-    return intel_supported_arches.intersection(set(target.options))
+    return target.mcpu in {'skylake-avx512', 'cascadelake'}
 
 def is_fast_int8_on_arm():
     """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
     target = tvm.target.Target.current(allow_none=False)
-    return '+v8.2a,+dotprod' in ' '.join(target.options)
+    return "+v8.2a" in target.mattr and "+dotprod" in target.mattr
+
+def is_aarch64_arm():
+    """ Checks whether we are compiling for an AArch64 target. """
+    target = tvm.target.Target.current(allow_none=False)
+    return 'aarch64' in target.attrs.get("mtriple", "")
 
 ########################
 # ARM CPU legalizations.
@@ -244,9 +248,10 @@ def is_fast_int8_on_arm():
 @qnn_conv2d_legalize.register('arm_cpu')
 def _qnn_conv2d_legalize_arm_cpu(attrs, inputs, types):
     # ARM prefers the dtypes to be same.
-    if is_fast_int8_on_arm():
+    if (is_aarch64_arm() and attrs["data_layout"] == "NHWC") or is_fast_int8_on_arm():
         return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
     return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.conv2d)
+
 
 @qnn_dense_legalize.register('arm_cpu')
 def _qnn_dense_legalize_arm_cpu(attrs, inputs, types):

@@ -55,9 +55,9 @@ Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
   return state_placeholder[i]->shape;
 }
 
-Operation ScanOpNode::make(std::string name, std::string tag, Map<String, ObjectRef> attrs,
-                           IterVar axis, Array<Tensor> init, Array<Tensor> update,
-                           Array<Tensor> state_placeholder, Array<Tensor> inputs) {
+ScanOp::ScanOp(std::string name, std::string tag, Map<String, ObjectRef> attrs, IterVar axis,
+               Array<Tensor> init, Array<Tensor> update, Array<Tensor> state_placeholder,
+               Array<Tensor> inputs) {
   if (!attrs.defined()) {
     attrs = Map<String, ObjectRef>();
   }
@@ -87,8 +87,8 @@ Operation ScanOpNode::make(std::string name, std::string tag, Map<String, Object
         // setup spatial axis
         std::ostringstream spatial_name;
         spatial_name << name << ".out" << i << ".i" << k;
-        n->spatial_axis_.push_back(IterVarNode::make(
-            Range::make_by_min_extent(0, update[i]->shape[k]), Var(spatial_name.str()), kOpaque));
+        n->spatial_axis_.push_back(IterVar(Range::FromMinExtent(0, update[i]->shape[k]),
+                                           Var(spatial_name.str()), kOpaque));
       }
     }
 
@@ -104,19 +104,23 @@ Operation ScanOpNode::make(std::string name, std::string tag, Map<String, Object
   n->update = std::move(update);
   n->state_placeholder = std::move(state_placeholder);
   n->inputs = std::move(inputs);
-  return Operation(n);
+  data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("te.ScanOp").set_body_typed(ScanOpNode::make);
+TVM_REGISTER_GLOBAL("te.ScanOp")
+    .set_body_typed([](std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                       IterVar axis, Array<Tensor> init, Array<Tensor> update,
+                       Array<Tensor> state_placeholder, Array<Tensor> inputs) {
+      return ScanOp(name, tag, attrs, axis, init, update, state_placeholder, inputs);
+    });
 
 Array<Tensor> scan(Array<Tensor> init, Array<Tensor> update, Array<Tensor> state_placeholder,
                    Array<Tensor> inputs, std::string name, std::string tag,
                    Map<String, ObjectRef> attrs) {
-  IterVar scan_axis = IterVarNode::make(
-      Range::make_by_min_extent(init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
-      Var(name + ".idx"), kOrdered);
-  Operation op =
-      ScanOpNode::make(name, tag, attrs, scan_axis, init, update, state_placeholder, inputs);
+  IterVar scan_axis =
+      IterVar(Range::FromMinExtent(init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
+              Var(name + ".idx"), kOrdered);
+  Operation op = ScanOp(name, tag, attrs, scan_axis, init, update, state_placeholder, inputs);
   Array<Tensor> res;
   for (int i = 0; i < op->num_outputs(); ++i) {
     res.push_back(op.output(i));
@@ -170,7 +174,7 @@ void ScanOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* analy
     // first dimension, always needed.
     if (init_dom) {
       init_dom->data[0].push_back(
-          IntSet::range(Range::make_by_min_extent(0, this->init[i]->shape[0])));
+          IntSet::FromRange(Range::FromMinExtent(0, this->init[i]->shape[0])));
     }
     if (update_dom) {
       update_dom->data[0].push_back(dom_map.at(this->scan_axis->var.get()));
@@ -206,9 +210,9 @@ void ScanOpNode::GatherBound(const Operation& self,
   CHECK(!out_dom_map->count(this->scan_axis));
   arith::Analyzer analyzer;
   Range sdom = this->scan_axis->dom;
-  Range r = arith::Union(time_dom).cover_range(sdom);
+  Range r = arith::Union(time_dom).CoverRange(sdom);
   (*out_dom_map)[this->scan_axis] =
-      Range::make_by_min_extent(sdom->min, analyzer.Simplify(r->extent + r->min - sdom->min));
+      Range::FromMinExtent(sdom->min, analyzer.Simplify(r->extent + r->min - sdom->min));
   Map<IterVar, PrimExpr> fix_pt = ScanFixPointAnalysis(self);
   // Update for spatial axis.
   size_t sp_idx = 0;
@@ -220,7 +224,7 @@ void ScanOpNode::GatherBound(const Operation& self,
       CHECK(fix_pt.count(sp_ax));
       if (fix_pt[sp_ax].as<tir::IntImmNode>()->value) {
         // fix point, we can slice it.
-        (*out_dom_map)[sp_ax] = arith::Union(d.data[k]).cover_range(sp_ax->dom);
+        (*out_dom_map)[sp_ax] = arith::Union(d.data[k]).CoverRange(sp_ax->dom);
       } else {
         // not a fix point, need to include everything.
         (*out_dom_map)[sp_ax] = sp_ax->dom;
@@ -234,7 +238,7 @@ Stmt ScanOpNode::BuildRealize(const Stage& stage, const std::unordered_map<IterV
   arith::Analyzer analyzer;
   CHECK_EQ(stage->op.get(), this);
   Range sdom = dom_map.at(this->scan_axis);
-  Range tdom = Range::make_by_min_extent(0, analyzer.Simplify(sdom->extent + sdom->min));
+  Range tdom = Range::FromMinExtent(0, analyzer.Simplify(sdom->extent + sdom->min));
   Stmt ret = body;
   size_t sp_idx = 0;
   for (size_t i = 0; i < update.size(); ++i) {
@@ -246,7 +250,7 @@ Stmt ScanOpNode::BuildRealize(const Stage& stage, const std::unordered_map<IterV
       IterVar sp_ax = this->spatial_axis_[sp_idx];
       bounds.push_back(dom_map.at(sp_ax));
     }
-    ret = tir::RealizeNode::make(t->op, t->value_index, t->dtype, bounds, const_true(), ret);
+    ret = tir::ProducerRealize(t, bounds, const_true(), ret);
   }
   return ret;
 }
@@ -254,9 +258,9 @@ Stmt ScanOpNode::BuildRealize(const Stage& stage, const std::unordered_map<IterV
 Stmt ScanOpNode::BuildProvide(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
                               bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt provide = AttrStmtNode::make(stage->op, tir::attr::scan_update_scope, this->scan_axis->var,
-                                    EvaluateNode::make(0));
-  Stmt init = AttrStmtNode::make(stage->op, tir::attr::scan_init_scope, 0, EvaluateNode::make(0));
+  Stmt provide =
+      AttrStmt(stage->op, tir::attr::scan_update_scope, this->scan_axis->var, Evaluate(0));
+  Stmt init = AttrStmt(stage->op, tir::attr::scan_init_scope, 0, Evaluate(0));
   size_t begin_scan = 0;
   for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
     if (stage->leaf_iter_vars[i]->iter_type == kThreadIndex) {

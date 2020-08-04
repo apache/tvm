@@ -78,6 +78,7 @@ class QConfig(Object):
         "calibrate_mode": "global_scale",
         "global_scale": 8.0,
         "weight_scale": "power2",
+        "skip_dense_layer": True,
         "skip_conv_layers": [0],
         "do_simulation": False,
         "round_for_shift": True,
@@ -156,6 +157,9 @@ def qconfig(**kwargs):
         power2: Find the maximum of the absolute value of the tensor, and then round up to power
         of two.
         max: Find the maximum of the absolute value of the tensor
+
+    skip_dense_layer: boolean
+        Whether to skip all nn.dense layer type. By default are skipped.
 
     skip_conv_layers: list
         Specifying which layers to be skipped. Provide a list of indices

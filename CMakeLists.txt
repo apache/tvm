@@ -43,6 +43,7 @@ tvm_option(USE_MICRO "Build with Micro" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
 tvm_option(USE_TF_TVMDSOOP "Build with TensorFlow TVMDSOOp" OFF)
+tvm_option(USE_FALLBACK_STL_MAP "Use TVM's POD compatible Map" OFF)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -69,6 +70,7 @@ tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
 tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
 tvm_option(USE_COREML "Build with coreml support" OFF)
+tvm_option(USE_TARGET_ONNX "Build with ONNX Codegen support" OFF)
 
 if(USE_CPP_RPC AND UNIX)
   message(FATAL_ERROR "USE_CPP_RPC is only supported with WIN32. Use the Makefile for non-Windows.")
@@ -184,6 +186,7 @@ assign_source_group("Include" ${GROUP_INCLUDE})
 
 # Source file lists
 file(GLOB_RECURSE COMPILER_SRCS
+    src/auto_scheduler/*.cc
     src/node/*.cc
     src/ir/*.cc
     src/arith/*.cc
@@ -191,6 +194,7 @@ file(GLOB_RECURSE COMPILER_SRCS
     src/autotvm/*.cc
     src/tir/*.cc
     src/driver/*.cc
+    src/parser/*.cc
     src/printer/*.cc
     src/support/*.cc
     src/hago/*.cc
@@ -305,6 +309,7 @@ endif(USE_EXAMPLE_EXT_RUNTIME)
 
 # Module rules
 include(cmake/modules/VTA.cmake)
+include(cmake/modules/StandaloneCrt.cmake)
 include(cmake/modules/CUDA.cmake)
 include(cmake/modules/Hexagon.cmake)
 include(cmake/modules/OpenCL.cmake)
@@ -326,6 +331,7 @@ include(cmake/modules/contrib/HybridDump.cmake)
 include(cmake/modules/contrib/TFLite.cmake)
 include(cmake/modules/contrib/TF_TVMDSOOP.cmake)
 include(cmake/modules/contrib/CoreML.cmake)
+include(cmake/modules/contrib/ONNX.cmake)
 
 include(CheckCXXCompilerFlag)
 if(NOT MSVC)
@@ -353,6 +359,16 @@ if(USE_RELAY_DEBUG)
 else()
   set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
 endif(USE_RELAY_DEBUG)
+
+if(USE_FALLBACK_STL_MAP)
+  message(STATUS "Building with STL Map...")
+  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
+  set_target_properties(tvm_topi PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
+else()
+  message(STATUS "Building with TVM Map...")
+  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
+  set_target_properties(tvm_topi PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
+endif(USE_FALLBACK_STL_MAP)
 
 if(BUILD_FOR_HEXAGON)
   # Wrap pthread_create to allow setting custom stack size.
