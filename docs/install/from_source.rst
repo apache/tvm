@@ -94,7 +94,7 @@ The configuration of TVM can be modified by `config.cmake`.
 
   - LLVM 4.0 or higher is needed for build with LLVM. Note that version of LLVM from default apt may lower than 4.0.
   - Since LLVM takes long time to build from source, you can download pre-built version of LLVM from
-    `LLVM Download Page <http://releases.llvm.org/download.html>`_.
+    `LLVM Download Page <https://github.com/llvm/llvm-project/releases/>`_.
 
     - Unzip to a certain location, modify ``build/config.cmake`` to add ``set(USE_LLVM /path/to/your/llvm/bin/llvm-config)``
     - You can also directly set ``set(USE_LLVM ON)`` and let cmake search for a usable version of LLVM.
