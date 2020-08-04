@@ -35,3 +35,6 @@ python3 -m pytest tests/python/frontend/tflite
 
 echo "Running relay Keras frontend test..."
 python3 -m pytest tests/python/frontend/keras
+
+echo "Running relay Caffe frontend test..."
+python3 -m pytest tests/python/frontend/caffe
