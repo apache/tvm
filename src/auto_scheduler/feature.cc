@@ -75,12 +75,7 @@ enum class AnnotationPosType : int {
 };
 
 // Buffer access type
-enum class BufferAccessType : int {
-  kRead = 0,
-  kWrite = 1,
-  kReadWrite = 2,
-  kUnknownRW = 3
-};
+enum class BufferAccessType : int { kRead = 0, kWrite = 1, kReadWrite = 2, kUnknownRW = 3 };
 
 // Accesses to a buffer
 struct BufferAccess {
@@ -89,11 +84,7 @@ struct BufferAccess {
 };
 
 // Data reuse type
-enum class ReuseType : int {
-  kLoopMultipleRead = 0,
-  kSerialMultipleReadWrite = 1,
-  kNoReuse = 2
-};
+enum class ReuseType : int { kLoopMultipleRead = 0, kSerialMultipleReadWrite = 1, kNoReuse = 2 };
 
 // Feature for an access of a buffer
 struct BufferAccessFeature {
@@ -1514,8 +1505,8 @@ TVM_REGISTER_GLOBAL("auto_scheduler.GetPerStoreFeaturesFromFile")
       std::vector<float> normalized_throughputs;
       std::vector<int> task_ids;
 
-      GetPerStoreFeaturesFromFile(filename, max_lines, max_n_bufs, &features, &normalized_throughputs,
-                                  &task_ids);
+      GetPerStoreFeaturesFromFile(filename, max_lines, max_n_bufs, &features,
+                                  &normalized_throughputs, &task_ids);
 
       std::vector<char> byte_data;
       *ret = SerializeFeatures(std::move(features), std::move(normalized_throughputs),
