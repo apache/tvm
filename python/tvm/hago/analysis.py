@@ -69,7 +69,7 @@ def evaluate(func, dataset, ctx, target):
     outputs = [[] for i in range(num_outputs)]
 
     for batch_id, batch in enumerate(dataset):
-        runtime.set_input('data', tvm.nd.array(batch['data']))
+        runtime.set_input('data', batch['data'])
         runtime.run()
         for i in range(num_outputs):
             output = runtime.get_output(i).asnumpy()
@@ -95,7 +95,9 @@ def collect_stats(graph, dataset, ctx, target):
 
 def compare(np_x, np_y):
     # compare two array in terms of statistic property
-    print('max value : {:.4f}, {:.4f}'.format(np.max(np.abs(np_x)), np.max(np.abs(np_y))))
+    print('max value : {:.4f}, {:.4f}'.format(np.max(np_x), np.max(np_y)))
+    print('min value : {:.4f}, {:.4f}'.format(np.min(np_x), np.min(np_y)))
+    print('max abs   : {:.4f}, {:.4f}'.format(np.max(np.abs(np_x)), np.max(np.abs(np_y))))
     print('mean      : {:.4f}, {:.4f}'.format(np.mean(np_x), np.mean(np_y)))
     print('var       : {:.4f}, {:.4f}'.format(np.var(np_x), np.var(np_y)))
     abs_err = np.abs(np_x - np_y)
@@ -118,10 +120,10 @@ def compare(np_x, np_y):
 
 
 # TODO(ziheng) avoid recompute
-def inspect_graph_statistic(func, hardware, strategy, dataset=None):
+def inspect_graph_statistic(func, hardware, strategy, dataset, ctx, target):
     print('inspect graph statistic')
     assert isinstance(func, relay.Function)
-    assert relay.analysis.structural_hash(func) == strategy.model_hash
+    assert tvm.ir.structural_hash(func) == strategy.model_hash
     topology = analyze_topology(func, hardware)
     edge2bit = build_edge_dict(func, strategy.bits, topology.edge_conds)
     bits = [edge2bit[key] for key in edge2bit]
@@ -161,32 +163,38 @@ def inspect_graph_statistic(func, hardware, strategy, dataset=None):
 
         # print('bits:')
         # print_edge_dict(graph, edge2bit)
-        sub_tholds = threshold_estimate(graph, topology, sub_bits, dataset)
-        sub_model_hash = relay.analysis.structural_hash(graph)
+        stats = collect_stats(graph, dataset, ctx, target)
+        sub_tholds = threshold_estimate(graph, topology, stats, sub_bits)
+        sub_model_hash = tvm.ir.structural_hash(graph)
         sub_strategy = Strategy(sub_model_hash, topology, sub_bits, sub_tholds)
 
         quantizer = create_quantizer(graph, hardware, sub_strategy)
         simulated_graph = quantizer.simulate()
         quantized_graph = quantizer.quantize()
 
-        real_out = evaluate(graph, data_batch)[0][0]
-        simulated_out = evaluate(simulated_graph, data_batch)[0][0]
-        quantized_out = evaluate(quantized_graph, data_batch)[0][0]
+        print('evaluate original graph')
+        real_out = evaluate(graph, data_batch, ctx, target)[0][0]
+        print('evaluate simulated graph')
+        simulated_out = evaluate(simulated_graph, data_batch, ctx, target)[0][0]
+        # print('evaluate quantized graph')
+        # quantized_out = evaluate(quantized_graph, data_batch, ctx, target)[0][0]
         print('compare real_out vs. simulated_out')
-        compare(real_out, simulated_out)
-        print('compare real_out vs. quantized_out')
-        compare(real_out, quantized_out)
-        if not np.allclose(simulated_out, quantized_out):
-            print('compare simulated_out vs. quantized_out')
-            compare(simulated_out, quantized_out)
-            is_close = np.isclose(simulated_out, quantized_out)
-            indexes = np.where(np.logical_not(is_close))
-            print('num of mismatched items: {}'.format(len(indexes[0])))
-            print('simulated out:\n{}'.format(simulated_out[indexes]))
-            print('quantized out:\n{}'.format(quantized_out[indexes]))
-            print('\nsimulated graph')
-            print(simulated_graph)
-            print('\nquantized graph')
-            print(quantized_graph)
-            # raise ValueError
+        rel_err = compare(real_out, simulated_out)
+        # if rel_err > 0.05:
+        #     raise ValueError
+        # print('compare real_out vs. quantized_out')
+        # compare(real_out, quantized_out)
+        # if not np.allclose(simulated_out, quantized_out):
+        #     print('compare simulated_out vs. quantized_out')
+        #     compare(simulated_out, quantized_out)
+        #     is_close = np.isclose(simulated_out, quantized_out)
+        #     indexes = np.where(np.logical_not(is_close))
+        #     print('num of mismatched items: {}'.format(len(indexes[0])))
+        #     print('simulated out:\n{}'.format(simulated_out[indexes]))
+        #     print('quantized out:\n{}'.format(quantized_out[indexes]))
+        #     print('\nsimulated graph')
+        #     print(simulated_graph)
+        #     print('\nquantized graph')
+        #     print(quantized_graph)
+        #     # raise ValueError
         print('\n\n')

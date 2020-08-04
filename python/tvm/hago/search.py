@@ -317,21 +317,6 @@ def _accuracy_as_measure(graph, dataset, simulated_out, ctx=None, target=None):
         num_correct += np.sum(sim_pred == label) 
         num_samples += label.shape[0]
     acc = num_correct / num_samples
-
-    # for idx, batch in enumerate(dataset):
-    #     print('batch {}'.format(idx))
-    #     runtime = relay.create_executor("graph", ctx=ctx, target=target).evaluate(graph)
-    #     out = runtime(batch['data']).asnumpy()
-    #     sim_out = simulated_out[idx].asnumpy()
-    #     err = analysis.compare(sim_out, out)
-    #     if np.abs(err) > 0.1:
-    #         # print('data')
-    #         # print(batch['data'])
-    #         print('real out')
-    #         print(out)
-    #         print('sim out')
-    #         print(sim_out)
-    #         raise ValueError
     return MeasureResult(accuracy=acc)
 
 
