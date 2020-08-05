@@ -752,7 +752,7 @@ def _convolution():
         # If groups > 1 but weight_shape[1] != 1, this is group convolution
         if groups > 1 and weight_shape[1] == 1:
             channel_multiplier = channels // groups
-            new_weight_shape = (groups, channel_multiplier, weight_shape[2], weight_shape[3])
+            new_weight_shape = (groups, channel_multiplier) + tuple(weight_shape[2:])
             weight = _op.transform.reshape(weight, new_weight_shape)
 
         kernel_size = weight_shape[2:]
