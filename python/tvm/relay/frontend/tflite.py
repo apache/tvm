@@ -2088,6 +2088,14 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
+        # If the tensors are quantized, ensure that input/output qnn params are same.
+        if input_tensor.qnn_params:
+            output_tensors = self.get_output_tensors(op)
+            assert len(output_tensors) == 1, "There should be only 1 output tensor"
+            output_tensor = output_tensors[0]
+            assert self.has_same_qnn_params(input_tensor, output_tensor), \
+                    "TFLite reshape requires input and output scale and zero points to be equal"
+
         begin = list(self.get_tensor_value(input_tensors[1]))
         size = list(self.get_tensor_value(input_tensors[2]))
         # strided_slice(Relay) needs the slice's end indices, not the size

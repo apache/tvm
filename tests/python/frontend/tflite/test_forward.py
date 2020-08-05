@@ -352,21 +352,47 @@ def test_forward_split():
 # slice
 # -----
 
-def _test_slice(data, begin, size):
+def _test_slice(data, begin, size, quantized=False):
     """ One iteration of SLICE """
-    with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-        out = array_ops.slice(in_data, begin, size)
-        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+    if quantized:
+        with tf.Graph().as_default():
+            data_array = np.random.uniform(0, 255, data.shape).astype('uint8')
+            in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="in_data")
+            # Ensure that min/max for inputs and outputs are same
+            min_value = -100
+            max_value = 100
+            inq_data = tf.quantization.fake_quant_with_min_max_args(in_data, min=min_value,
+                                                                    max=max_value, name='inq_data')
+            out = array_ops.slice(inq_data, begin, size)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=min_value,
+                                                               max=max_value, name="out")
+
+            # Set the input quantization range
+            input_range = {'in_data': (min_value, max_value)} if quantized else None
+
+            # Compare
+            compare_tflite_with_tvm(data_array, 'in_data', [in_data], [out], quantized=quantized, input_range=input_range)
+
+    else:
+        with tf.Graph().as_default():
+            in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="in_data")
+            out = array_ops.slice(in_data, begin, size)
+            input_range = {'in_data': (-100, 100)} if quantized else None
+            compare_tflite_with_tvm([data], ['in_data:0'], [in_data], [out],
+                                    quantized=quantized, input_range=input_range)
+
 
 def test_forward_slice():
     """ SLICE """
     _test_slice(np.arange(4, dtype=np.float32).reshape((4, )), begin=[0], size=[2])
     _test_slice(np.arange(18, dtype=np.int32).reshape((3, 2, 3)), begin=[1, 0, 0], size=[1, 1, 3])
+    _test_slice(np.arange(4, dtype=np.float32).reshape((4, )), begin=[0], size=[2], quantized=True)
+
     # tflite 1.13 outputs nonsense values if size[i] == -1
     if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
         _test_slice(np.arange(8, dtype=np.int32).reshape((2, 4)), begin=[0, 1], size=[-1, -1])
         _test_slice(np.arange(5, dtype=np.int32).reshape((5, )), begin=[4], size=[-1])
+        _test_slice(np.arange(5, dtype=np.float32).reshape((5, )), begin=[4], size=[-1], quantized=True)
 
 #######################################################################
 # Topk
