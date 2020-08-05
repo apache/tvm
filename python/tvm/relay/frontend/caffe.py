@@ -18,7 +18,6 @@
 # pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
 # pylint: disable=no-else-return, no-else-continue
 """Caffe frontend."""
-from __future__ import absolute_import as _abs
 import numpy as np
 import tvm
 from tvm.ir import IRModule
@@ -43,29 +42,29 @@ class OperatorConverter(object):
         self.changed_layers = None
 
         self.convert_map = {
-            'BatchNorm': self.bn,
-            'Concat': self.concat,
-            'Convolution': self.conv,
-            'Crop': self.crop,
-            'Deconvolution': self.deconv,
-            'Dropout': self.dropout,
-            'Eltwise': self.eltwise,
-            'Flatten': self.flatten,
-            'InnerProduct': self.innerproduct,
+            'BatchNorm': self.convert_batch_norm,
+            'Concat': self.convert_concat,
+            'Convolution': self.convert_conv,
+            'Crop': self.convert_crop,
+            'Deconvolution': self.convert_deconv,
+            'Dropout': self.convert_dropout,
+            'Eltwise': self.convert_eltwise,
+            'Flatten': self.convert_flatten,
+            'InnerProduct': self.convert_innerproduct,
             'Input': None,
-            'LRN': self.lrn,
-            'Pooling': self.pooling,
-            'PReLU': self.prelu,
-            'ReLU': self.relu,
-            'Reshape': self.reshape,
-            'Scale': self.scale,
-            'Sigmoid': self.sigmoid,
-            'Slice': self._slice,
-            'Softmax': self.softmax,
-            'TanH': self.tanh,
+            'LRN': self.convert_lrn,
+            'Pooling': self.convert_pooling,
+            'PReLU': self.convert_prelu,
+            'ReLU': self.convert_relu,
+            'Reshape': self.convert_reshape,
+            'Scale': self.convert_scale,
+            'Sigmoid': self.convert_sigmoid,
+            'Slice': self.convert_slice,
+            'Softmax': self.convert_softmax,
+            'TanH': self.convert_tanh,
         }
 
-    def flatten(self, op):
+    def convert_flatten(self, op):
         """ Convert Flatten layer """
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
@@ -76,7 +75,7 @@ class OperatorConverter(object):
 
         return out
 
-    def eltwise(self, op):
+    def convert_eltwise(self, op):
         """ Convert Eltwise layer """
         inputs = op.bottom
         assert len(inputs) == 2, "input tensors length should be 2"
@@ -162,7 +161,7 @@ class OperatorConverter(object):
         params['channels'] = conv_params.num_output
         return params
 
-    def bn(self, op):
+    def convert_batch_norm(self, op):
         """ Convert BatchNorm layer """
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
@@ -225,7 +224,7 @@ class OperatorConverter(object):
 
         return out[0]
 
-    def scale(self, op):
+    def convert_scale(self, op):
         """ Convert Scale layer """
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
@@ -253,7 +252,7 @@ class OperatorConverter(object):
 
         return out
 
-    def concat(self, op):
+    def convert_concat(self, op):
         """ Convert Concat layer """
         inputs = op.bottom
         in_expr = (self.exp_tab.get_expr(inputs[i])
@@ -265,7 +264,7 @@ class OperatorConverter(object):
 
         return out
 
-    def reshape(self, op):
+    def convert_reshape(self, op):
         """ Convert Reshape layer """
         inputs = op.bottom
         input_name = inputs[0]
@@ -305,7 +304,7 @@ class OperatorConverter(object):
         out = _op.reshape(in_expr, newshape=newshape)
         return out
 
-    def softmax(self, op):
+    def convert_softmax(self, op):
         """ Convert Softmax layer """
         inputs = op.bottom
         assert len(inputs) == 1, "input tensors length should be 1"
@@ -320,7 +319,7 @@ class OperatorConverter(object):
 
         return out
 
-    def conv(self, op):
+    def convert_conv(self, op):
         """ Convert Convolution layer """
         params = self._parse_conv_params(op)
         weight_bias_blobs = self.init_layer_dict[op.name].blobs
@@ -351,7 +350,7 @@ class OperatorConverter(object):
             out = _op.nn.bias_add(out, bias_expr)
         return out
 
-    def pooling(self, op):
+    def convert_pooling(self, op):
         """ Convert Pooling layer """
         inputs = op.bottom
         input_name = inputs[0]
@@ -411,7 +410,7 @@ class OperatorConverter(object):
 
         return out
 
-    def lrn(self, op):
+    def convert_lrn(self, op):
         """ Convert LRN layer """
         inputs = op.bottom
         input_name = inputs[0]
@@ -427,7 +426,7 @@ class OperatorConverter(object):
         out = _op.nn.lrn(in_expr, **params)
         return out
 
-    def innerproduct(self, op):
+    def convert_innerproduct(self, op):
         """ Convert InnerProduct layer """
         inputs = op.bottom
         weight_bias_blobs = self.init_layer_dict[op.name].blobs
@@ -469,7 +468,7 @@ class OperatorConverter(object):
             out = _op.nn.bias_add(out, bias_expr, axis=params["axis"])
         return out
 
-    def dropout(self, op):
+    def convert_dropout(self, op):
         """ Convert Dropout layer """
         inputs = op.bottom
         input_name = inputs[0]
@@ -483,7 +482,7 @@ class OperatorConverter(object):
         out = _op.nn.dropout(in_expr, **params)
         return out
 
-    def relu(self, op):
+    def convert_relu(self, op):
         """ Convert ReLU layer """
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
@@ -495,7 +494,7 @@ class OperatorConverter(object):
         out = _op.nn.relu(in_expr)
         return out
 
-    def prelu(self, op):
+    def convert_prelu(self, op):
         """ Convert PReLU layer """
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
@@ -507,7 +506,7 @@ class OperatorConverter(object):
         out = _op.nn.prelu(in_expr, alpha, axis=axis)
         return out
 
-    def deconv(self, op):
+    def convert_deconv(self, op):
         """ Convert Deconvolution layer """
         params = self._parse_conv_params(op)
         weight_bias_blobs = self.init_layer_dict[op.name].blobs
@@ -542,7 +541,7 @@ class OperatorConverter(object):
             out = _op.nn.bias_add(out, bias_expr)
         return out
 
-    def _slice(self, op):
+    def convert_slice(self, op):
         """ Convert Slice layer """
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
@@ -562,21 +561,21 @@ class OperatorConverter(object):
                         axis=axis)
         return out
 
-    def sigmoid(self, op):
+    def convert_sigmoid(self, op):
         """ Convert Sigmoid layer """
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
         out = _op.sigmoid(in_expr)
         return out
 
-    def tanh(self, op):
+    def convert_tanh(self, op):
         """ Convert TanH layer """
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
         out = _op.tanh(in_expr)
         return out
 
-    def crop(self, op):
+    def convert_crop(self, op):
         """ Convert Crop layer """
         inputs = op.bottom
         assert len(inputs) == 2, "Need two inputs of Crop layer"

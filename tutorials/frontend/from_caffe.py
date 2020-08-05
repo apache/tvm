@@ -113,9 +113,6 @@ m = graph_runtime.GraphModule(lib['default'](ctx))
 # Feed input data
 m.set_input('data', tvm.nd.array(image_data))
 
-# Feed related params
-m.set_input(**params)
-
 # execute
 m.run()
 
