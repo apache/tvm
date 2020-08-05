@@ -187,7 +187,7 @@ def test_combine_parallel_dense_biasadd_scale_reshape():
         tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
 
     check(3, 5, 4, 0.5, 0.25, (1, 1, 15))
-    check(100, 200, 300, 0.5, 0.25, (1, 1, 200))
+    check(100, 200, 300, 0.5, 0.25, (1, 1, 20000))
 
 
 def test_combine_parallel_dense_flat():
@@ -369,7 +369,7 @@ def test_combine_parallel_dense_flat_biasadd_scale_reshape():
         tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
 
     check(3, 5, 4, 0.5, 0.25, (1, 1, 15), (1, 1, 30))
-    check(100, 200, 300, 0.5, 0.25, (1, 1, 200), (1, 1, 400))
+    check(100, 200, 300, 0.5, 0.25, (1, 1, 20000), (1, 1, 40000))
 
 
 if __name__ == "__main__":
