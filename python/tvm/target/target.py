@@ -236,7 +236,7 @@ def bifrost(model='unknown', options=None):
     return _ffi_api.TargetCreate("opencl", *opts)
 
 
-def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
+def hexagon(cpu_ver='v66', sim_args=None, llvm_args=None, hvx=128):
     """Returns a Hexagon target.
 
     Parameters
@@ -249,6 +249,8 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
         Otherwise, separate versions are used for codegen and sim. Not
         all allowed cpu strings will be valid, simulator will throw an
         error if invalid. Does not affect codegen.
+    llvm_args : str or list of str
+        User defined compiler arguments.
     hvx : int
         Size of hvx register. Value of 0 indicates disabled hvx.
     """
@@ -274,7 +276,7 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
         # HVX enable
         if hvx:
             mattr = ' -mattr=+hvx' + cpu_ver + ',+hvx-length' + str(hvx) + 'b'
-        return 'llvm' + target + mcpu + mattr
+        return target + mcpu + mattr
 
     # Simulator string
     def create_sim(cpu_ver, sim_args):
@@ -325,12 +327,24 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
 
         return sim_cpu + ' ' + validate_hvx_length(hvx, sim_args)
 
+    # LLVM string
+    def create_llvm(llvm_args):
+        # TVM's option parser doesn't allow '=' in values, but '=' can
+        # appear in LLVM flags. Replace it with '@', since it's unlikely
+        # that '@' will be used in another context.
+        if llvm_args is None or len(llvm_args.replace(' ', '')) == 0:
+            return ''
+        args = [s.replace('=', '@') for s in llvm_args.split()]
+        return '--llvm-options=' + ','.join(args)
+
     # Sim args
     os.environ['HEXAGON_SIM_ARGS'] = create_sim(cpu_ver, sim_args)
 
     target_str = create_target(cpu_ver)
-    args_list = target_str.split()
-    return _ffi_api.TargetCreate("hexagon", *args_list)
+    llvm_str = create_llvm(llvm_args)
+    args_list = target_str.split() + llvm_str.split()
+
+    return _ffi_api.TargetCreate('hexagon', *args_list)
 
 
 def create(target_str):
