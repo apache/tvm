@@ -475,6 +475,10 @@ class AttrInitVisitor {
     } else {
       opt.value_missing_ = true;
     }
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wpessimizing-move"
+#endif
     return std::move(opt);
   }
 
