@@ -68,8 +68,17 @@ inline ObjectRef CopyTo(ObjectRef src, const DLContext& ctx) {
     if (nd_array->ctx.device_type != ctx.device_type) {
       return nd_array.CopyTo(ctx);
     }
+    return src;
+  } else {
+    CHECK(src->IsInstance<ADTObj>())
+        << "VM data must be NDArray or a list of NDArray, but received: " << src->_type_key;
+    std::vector<ObjectRef> ret;
+    ADT adt = Downcast<ADT>(src);
+    for (size_t i = 0; i < adt.size(); i++) {
+      ret.push_back(CopyTo(adt[i], ctx));
+    }
+    return ADT(0, ret.begin(), ret.end());
   }
-  return src;
 }
 
 std::vector<int64_t> ToShape(NDArray shape_tensor) {
@@ -151,9 +160,9 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       std::vector<ObjectRef> func_args(param_names.size());
       for (int i = 1; i < args.size(); ++i) {
         TVMContext ctx;
-        int device_type = vm_func.params_device_type[i-1];
+        int device_type = vm_func.params_device_type[i - 1];
         ctx.device_type = DLDeviceType(device_type);
-        //TODO(zhiics) How to decide which device id?
+        // TODO(zhiics) Use virtual device id
         ctx.device_id = 0;
         ObjectRef obj = CopyTo(args[i], ctx);
         func_args[i - 1] = obj;
@@ -338,7 +347,7 @@ void VirtualMachine::RunLoop() {
   while (true) {
   main_loop:
     auto const& instr = code_[this->pc_];
-    DLOG(INFO) << "Executing(" << pc_ << "): " << instr;
+    LOG(INFO) << "Executing(" << pc_ << "): " << instr;
 #if USE_RELAY_DEBUG
     InstructionPrint(std::cout, instr);
 #endif  // USE_RELAY_DEBUG

@@ -34,9 +34,13 @@ def any_dims(ndim):
         shape.append(relay.Any())
     return tuple(shape)
 
-def check_result(args, mod, expected, flatten=False, assert_shape=False):
-    for kind in ["vm"]:
+def check_result(args, mod, expected, flatten=False, assert_shape=False,
+                 only_vm=False):
+    for kind in ["debug", "vm"]:
         for tgt, ctx in ctx_list():
+            if kind == "debug" and (only_vm or ctx.device_type !=
+                                    tvm.cpu().device_type):
+                continue
             ex = relay.create_executor(kind, mod=mod, ctx=ctx, target=tgt)
             result = ex.evaluate()(*args)
             result = result.asnumpy()
@@ -172,13 +176,7 @@ def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newsha
     y = relay.reshape(relu_x, newshape=newshape)
     mod = tvm.IRModule()
     mod["main"] = relay.Function(params, y)
-    # check_result(args, mod, data, flatten=True)
-
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(*args).asnumpy()
-        assert result.shape == out_shape
-        tvm.testing.assert_allclose(result.flatten(), data.flatten())
+    check_result(args, mod, data, flatten=True)
 
 def test_any_reshape():
     for variable_newshape in [False, True]:
@@ -196,7 +194,14 @@ def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
     mod["main"] = relay.Function([x], y)
     data = np.random.choice([0, 1, 2, 3], size=x_np_shape).astype(dtype)
     expected = np.argwhere(data)
-    check_result([data], mod, expected, flatten=True)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data).asnumpy()
+        assert result.shape == expected.shape
+        tvm.testing.assert_allclose(result.flatten(), expected.flatten())
+
+    # TODO(@zhiics) argwhere gpu schedule is currently not avaiable
+    # check_result([data], mod, expected, flatten=True)
 
 def test_any_argwhere():
     verify_any_argwhere(any_dims(1), (5,))
@@ -331,7 +336,6 @@ def verify_any_transpose(data_shape, axes, static_data_shape):
 def test_any_transpose():
     verify_any_transpose(any_dims(3), (1, 0, 2), (10, 3, 2))
     verify_any_transpose(any_dims(3), None, (2, 3, 4))
-    # TODO(@zhiics) This test hangs, debug
     verify_any_transpose(any_dims(6), (0, 1, 3, 2, 5, 4), (11, 12, 2, 1, 9, 17))
     verify_any_transpose(any_dims(2), (-1, 0), (3, 2))
 
@@ -450,7 +454,6 @@ def test_any_batch_flatten():
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=(3, 3, 10)).astype(dtype)
     ref_out_shape = (3, 30)
-    # TODO(@zhiics) Check dense schedule
     check_result([data_np], mod, ref_out_shape, assert_shape=True)
 
 def verify_any_dense(data_shape, weight_shape, units, static_data_shape,
@@ -541,8 +544,13 @@ def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
     else:
         ref_out = sorted[0:kval]
 
-    # TODO(@zhiics) check topk cuda schedule
-    check_result(in_vals, mod, ref_out)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(*in_vals)
+        tvm.testing.assert_allclose(result.asnumpy(), ref_out)
+
+    # TODO(@zhiics) Fix topk cuda schedule for dynamic inputs
+    # check_result(in_vals, mod, ref_out)
 
 def test_any_topk():
     verify_any_topk(any_dims(1), 5, (10,), "float32")
@@ -602,7 +610,7 @@ def verify_any_strided_slice(data_shape, begin_shape, end_shape, strides_shape,
                             strides=strides, slice_mode=slice_mode)
     mod["main"] = relay.Function(args, y)
 
-    check_result(*np_inputs, mod, ref_res)
+    check_result(np_inputs, mod, ref_res)
 
 def test_any_strided_slice():
     verify_any_strided_slice(any_dims(2), (2,), (2,), (2,), (15, 21))
@@ -725,8 +733,8 @@ def test_mixed_input_type():
     data_np0 = np.random.uniform(size=static_data_shape).astype(dtype)
     data_np1 = np.random.uniform(size=static_data_shape).astype(dtype)
     ref_out_shape = (9, 4)
-    # TODO(@zhiics) FAILED
-    check_result([data_np0, data_np0], mod, ref_out_shape, assert_shape=True)
+    check_result([[[data_np0, data_np0], data_np0], data_np1], mod,
+                 ref_out_shape, assert_shape=True, only_vm=True)
 
 def verify_any_crop_and_resize(data_shape, boxes_shape, box_indices_shape, crop_size,
                                layout, static_boxes, static_box_indices_shape, ref_out_shape):

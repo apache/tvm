@@ -62,6 +62,7 @@ using GlobalMap = NodeMap<GlobalVar, Index>;
 using ConstMap = NodeMap<Constant, Index>;
 using ConstTensorShapeMap = NodeMap<TensorType, std::pair<Index, NDArray>>;
 using TargetsMap = Map<tvm::Integer, tvm::Target>;
+using ExprDeviceMap = std::unordered_map<Expr, TVMContext, ObjectHash, ObjectEqual>;
 
 struct VMCompilerContext {
   // The module context for the compilation
@@ -105,7 +106,7 @@ class VMCompiler : public runtime::ModuleNode {
    *
    * \param mod Relay Module
    * \param targets For heterogeneous compilation, it is a dictionary indicating context
-                    to target mapping. For homogeneous compilation, it is a build target.
+   *                to target mapping. For homogeneous compilation, it is a build target.
    * \param target_host Host compilation target, if target is device.
    */
   void Lower(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host);
@@ -114,10 +115,27 @@ class VMCompiler : public runtime::ModuleNode {
   void Codegen();
 
  protected:
+  /*
+   * \brief Perform a series of optimizations on the input IR module.
+   *
+   * \param mod The input IRModule.
+   * \param targets For heterogeneous compilation, it is a dictionary indicating context
+   *                to target mapping. For homogeneous compilation, it is a build target.
+   * \param target_host Host compilation target.
+   *
+   * \return The optimized IRModule.
+   */
   IRModule OptimizeModule(const IRModule& mod, const TargetsMap& targets,
                           const Target& target_host);
 
+  /*!
+   * \brief Populate the global function names in a map where the value is used
+   *        as the index by the VMFunctions.
+   */
   void PopulateGlobalMap();
+
+  /*! \brief Analyze the device context of each expression. */
+  ExprDeviceMap AnalyzeContext() const;
 
  protected:
   /*! \brief Target devices. */

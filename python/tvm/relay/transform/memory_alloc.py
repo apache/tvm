@@ -21,7 +21,7 @@ A pass for manifesting explicit memory allocations.
 import numpy as np
 import logging
 
-from tvm.ir.transform import PassContext
+from tvm.ir.transform import PassContext, module_pass
 from tvm import nd, container, tir
 from ..function import Function
 from ..expr_functor import ExprVisitor, ExprMutator
@@ -36,6 +36,8 @@ from ...import cpu
 from ..op.memory import alloc_storage
 from ..analysis.context_analysis import ContextAnalysis, mk_analysis_annotator
 from ..._ffi.runtime_ctypes import TVMContext
+
+# logging.basicConfig(level=logging.DEBUG)
 
 def alloc_tensor(storage, shape, dtype='float32', assert_shape=None):
     offset = expr.const(0, dtype="int64")
@@ -192,14 +194,14 @@ class ManifestAllocPass(ExprMutator):
         cpu_ctx = nd.cpu(0)
         for i, (arg, state) in enumerate(zip(new_args, input_states)):
             state = int(state)
+            ctx = self.get_context(arg)
             # Pass Shapes
             if state == 2:
                 for j, subexp in enumerate(from_tuple_type(arg.type_annotation, arg)):
-                    ctx = self.get_context(subexp)
                     if ctx.device_type != cpu_ctx.device_type:
                         subexp = self.device_copy(scope, subexp, ctx, cpu_ctx, j)
                     let_in_arg = scope.let("in_arg_{0}".format(input_pos + j), subexp)
-                    sh_of = self.visit(self.shape_of(subexp))
+                    sh_of = self.visit(self.shape_of(let_in_arg))
                     shape_func_ins.append(
                         scope.let("in_shape_{0}".format(input_pos + j), sh_of))
                     input_pos += 1
@@ -207,7 +209,6 @@ class ManifestAllocPass(ExprMutator):
             # Pass Inputs
             elif state == 1:
                 new_arg = self.visit(arg)
-                ctx = self.get_context(arg)
                 if ctx.device_type != cpu_ctx.device_type:
                     new_arg = self.device_copy(scope, new_arg, ctx, cpu_ctx, i)
                 shape_func_ins.append(
@@ -221,6 +222,8 @@ class ManifestAllocPass(ExprMutator):
         out_shapes = []
         for i, out in enumerate(cfunc.outputs):
             tt = ty.TensorType(out.shape, out.dtype)
+            # Put shape func on CPU. This also ensures that everything between
+            # shape_of and shape_func are on CPU.
             alloc = self.make_static_allocation(scope, tt, cpu_ctx, i)
             alloc = scope.let("shape_func_out_{0}".format(i), alloc)
             out_shapes.append(alloc)
@@ -335,40 +338,46 @@ class ManifestAllocPass(ExprMutator):
         return super().visit_call(call)
 
 
-@transform.function_pass(opt_level=0)
+@module_pass(opt_level=0)
 class ManifestAlloc:
     """The explicit pass wrapper around ManifestAlloc."""
     def __init__(self, target_host, targets):
         self.target_host = target_host
         self.targets = targets
 
-    def transform_function(self, func, mod, _):
+    def transform_module(self, mod, _):
         # TODO(@jroesch): Is there a way to do one shot initialization?
         # can we have def pass_init?
         mod.import_from_std("core.rly")
 
         assert isinstance(self.targets, (dict, container.Map))
+        cur_func = mod.get_global_var("main")
         if len(self.targets) > 1:
             pass_ctx = PassContext.current()
             if "relay.fallback_device_type" in pass_ctx.config:
                 fallback_ctx = nd.context(pass_ctx.config["relay.fallback_device_type"])
             else:
                 fallback_ctx = cpu(0)
-            ca = ContextAnalysis(TVMContext(fallback_ctx.device_type, 0))
+            ca = ContextAnalysis(mod, cur_func, TVMContext(fallback_ctx.device_type, 0))
         else:
             dev, _ = self.targets.items()[0]
-            ca = ContextAnalysis(nd.context(dev.value))
+            ca = ContextAnalysis(mod, cur_func, nd.context(dev.value))
 
+        func = mod["main"]
         # We use logger here to help debug.
         logging.debug("-----BEFORE ANALYSIS-----")
-        logging.debug(func.astext(False))
+        logging.debug(mod.astext(False))
         ca.visit(func)
         logging.debug("-----AFTER ANALYSIS-----")
-        logging.debug(func.astext(show_meta_data=False,
-                                  annotate=mk_analysis_annotator(ca.results())))
-        ea = ManifestAllocPass(self.target_host, ca.results())
-        func = ea.visit(func)
-        return func
+        logging.debug(mod.astext(show_meta_data=False,
+                                 annotate=mk_analysis_annotator(ca.results())))
+        ca_res = ca.results()
+        gv_funcs = mod.functions
+        for gv, f in gv_funcs.items():
+            ea = ManifestAllocPass(self.target_host, ca_res)
+            f = ea.visit(f)
+            mod.update_func(gv, f)
+        return mod
 
 
 register_func("relay.transform.ManifestAlloc", ManifestAlloc)

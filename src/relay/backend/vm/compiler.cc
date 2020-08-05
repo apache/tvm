@@ -52,8 +52,6 @@
 namespace tvm {
 namespace relay {
 
-using ExprDeviceMap = std::unordered_map<Expr, TVMContext, ObjectHash, ObjectEqual>;
-
 namespace transform {
 
 Pass LambdaLift();
@@ -65,11 +63,11 @@ Pass ManifestAlloc(Target target_host, vm::TargetsMap targets) {
   return (*f)(target_host, targets);
 }
 
-ExprDeviceMap ContextAnalysis(Expr expr, TVMContext default_device) {
+vm::ExprDeviceMap ContextAnalysis(IRModule mod, TVMContext default_device) {
   auto f = tvm::runtime::Registry::Get("relay.analysis.ContextAnalysis");
   CHECK(f != nullptr) << "could not load context analysis pass";
-  Map<Expr, Array<Integer> > m = (*f)(expr, default_device);
-  ExprDeviceMap ret;
+  Map<Expr, Array<Integer>> m = (*f)(mod, default_device);
+  vm::ExprDeviceMap ret;
   for (const auto& it : m) {
     TVMContext ctx;
     Array<Integer> ints = it.second;
@@ -270,34 +268,20 @@ int GetFallbackDevice() {
 
 class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
  public:
-  VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host)
+  VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host,
+                     ExprDeviceMap expr_device_map)
       : last_register_(0),
         registers_num_(0),
         engine_(CompileEngine::Global()),
         context_(context),
-        target_host_(target_host) {
+        target_host_(target_host),
+        expr_device_map_(std::move(expr_device_map)) {
     for (const auto& it : targets) {
       targets_[it.first->value] = it.second;
     }
   }
 
   VMFunction Compile(const GlobalVar& var, const Function& func) {
-    // Collect the annotated device information.
-    // This indicates which device each Relay expr should be executed on.
-    TVMContext default_device;
-    if (targets_.size() > 1) {
-      int fallback_dev = GetFallbackDevice();
-      default_device.device_type = static_cast<DLDeviceType>(fallback_dev);
-      default_device.device_id = 0;
-      expr_device_map_ = transform::ContextAnalysis(func, default_device);
-    } else {
-      default_device.device_type = static_cast<DLDeviceType>((targets_.begin())->first);
-      if (default_device.device_type != kDLCPU) {
-        default_device.device_id = 0;
-        expr_device_map_ = transform::ContextAnalysis(func, default_device);
-      }
-    }
-
     size_t i = 0;
     // We then assign register num to the free variables
     for (auto param : func->params) {
@@ -964,11 +948,15 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   // the global state.
   exec_->functions.resize(context_.module->functions.size());
 
+  // Collect the annotated device information.
+  // This indicates which device each Relay expr should be executed on.
+  ExprDeviceMap expr_device_map = AnalyzeContext();
+
   for (auto named_func : context_.module->functions) {
     auto gvar = named_func.first;
     if (auto* n = named_func.second.as<FunctionNode>()) {
       auto func = GetRef<Function>(n);
-      VMFunctionCompiler func_compiler(&context_, targets_, target_host_);
+      VMFunctionCompiler func_compiler(&context_, targets_, target_host_, expr_device_map);
       auto vm_func = func_compiler.Compile(gvar, func);
 
       size_t func_index = context_.global_map.at(gvar);
@@ -1185,6 +1173,25 @@ void VMCompiler::Codegen() {
   if (!ext_mods.empty()) {
     exec_->lib = codegen::CreateMetadataModule(params_, exec_->lib, ext_mods);
   }
+}
+
+ExprDeviceMap VMCompiler::AnalyzeContext() const {
+  TVMContext default_device;
+  ExprDeviceMap expr_device_map;
+  if (targets_.size() > 1) {
+    int fallback_dev = GetFallbackDevice();
+    default_device.device_type = static_cast<DLDeviceType>(fallback_dev);
+    default_device.device_id = 0;
+    expr_device_map = transform::ContextAnalysis(context_.module, default_device);
+  } else {
+    const auto& tgt = targets_.begin();
+    default_device.device_type = static_cast<DLDeviceType>((*tgt).first->value);
+    if (default_device.device_type != kDLCPU) {
+      default_device.device_id = 0;
+      expr_device_map = transform::ContextAnalysis(context_.module, default_device);
+    }
+  }
+  return expr_device_map;
 }
 
 runtime::Module CreateVMCompiler() {

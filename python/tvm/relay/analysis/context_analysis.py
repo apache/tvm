@@ -21,18 +21,37 @@ A pass for analyzing device attribute of each IR node.
 from typing import Optional
 from collections import defaultdict
 
+import tvm
 from ..expr_functor import ExprVisitor
 from ..function import Function
-from .. import op, expr as _expr
+from .. import ty, op, expr as _expr
 from ... import register_func, cpu
 from ..._ffi.runtime_ctypes import TVMContext
 
+def is_closure(func):
+    """Check if a function is a closure.
+
+    Parameters
+    ----------
+    func : tvm.relay.Function
+        The input function.
+
+    Returns
+    -------
+        True if the input function is a closure, otherwise false.
+    """
+    return hasattr(func, 'attrs') and \
+           hasattr(func.attrs, 'Closure') and int(func.attrs.Closure) == 1
+
+
 def is_device_copy(call):
     """Check if a call node is a device copy call.
+
     Parameters
     ----------
     call : tvm.relay.Call
         The call node to be checked.
+
     Returns
     -------
     ret : Boolean
@@ -48,9 +67,11 @@ def is_device_copy(call):
     return isinstance(call.op.body, _expr.Call) and \
             call.op.body.op == op.op.get("device_copy")
 
+
 class DeviceDomain:
     """A class to represent the device of a domain, i.e. a segment of relay
     program.
+
     Parameters
     ----------
     ctx : Optional[tvm.runtime.TVMContext]
@@ -61,10 +82,12 @@ class DeviceDomain:
 
     def join(self, other: 'DeviceDomain') -> 'DeviceDomain':
         """Merge the device of two domains.
+
         Parameters
         ----------
         other : DeviceDomain
             The other domain to be merged.
+
         Returns
         -------
         ret : DeviceDomain
@@ -105,10 +128,12 @@ def bottom():
 
 def device_type(ctx):
     """Create a domain with the given device context.
+
     Parameters
     ----------
     ctx : tvm.runtime.TVMContext
         The device context used to construct a domain.
+
     Returns
     -------
     ret : DeviceDomain
@@ -120,23 +145,35 @@ def device_type(ctx):
 class ContextAnalysis(ExprVisitor):
     """Compute on which device each sub-expression will execute. A union find
     algorithm is used to assign and merge the context domains.
+
     Parameters
     ----------
-    fallback_device : tvm.rutnime.TVMContext
+    mod : tvm.IRModule
+        The module that helps context analysis.
+
+    current_func : tvm.relay.GlobalVar
+        The current function that is being analyzed.
+
+    fallback_device : tvm.runtime.TVMContext
         The default device that could be attached to an expression.
     """
-    def __init__(self, fallback_device):
+    def __init__(self, mod, current_func, fallback_device):
         super().__init__()
         self.expr_to_device = defaultdict(bottom)
         self.device_uf = {}
+        self.mod = mod
+        self.closures = {}
+        self.current_func = current_func
         self.fallback_device = fallback_device
 
     def lookup(self, device):
         """Find the root domain of a given device domain.
+
         Parameters
         ----------
         device : DeviceDomain
             The domain that is used to query the root domain.
+
         Returns
         -------
         ret : DeviceDomain
@@ -148,12 +185,15 @@ class ContextAnalysis(ExprVisitor):
 
     def unify(self, lhs, rhs):
         """Unify the device context of two domains.
+
         Parameters
         ----------
         lhs : DeviceDomain
             The lhs domain to unify.
+
         rhs : DeviceDomain
             The rhs domain to unify.
+
         Returns
         -------
         ret : DeviceDomain
@@ -170,12 +210,15 @@ class ContextAnalysis(ExprVisitor):
 
     def unify_expr(self, lhs, rhs):
         """Compute the device type of both expressions and unify them.
+
         Parameters
         ----------
         lhs : tvm.relay.Expr
             The lhs expression to unify.
+
         rhs : tvm.relay.Expr
             The rhs expression to unify.
+
         Returns
         -------
         ret : DeviceDomain
@@ -185,10 +228,12 @@ class ContextAnalysis(ExprVisitor):
 
     def device_for(self, expr):
         """Find the domain that contains the given expr.
+
         Parameters
         ----------
         expr : tvm.relay.Expr
             The expression used to lookup a domain.
+
         Returns
         -------
         ret : DeviceDomain
@@ -200,18 +245,22 @@ class ContextAnalysis(ExprVisitor):
         """Unify the device context for device copy node. Device copy node is
         the only node that carries information in the input program. The device
         attribute of other nodes are propagated from it.
+
         Parameters
         ----------
         inps : List[tvm.relay.Expr]
             The input expression to the device copy node. The device type of
             the input should be the same as the source device type of the
             copy node.
+
         outputs : List[tvm.relay.Expr]
             The output expression of the device copy node. The device type of
             the output should be the same as the destination device type of the
             copy node.
+
         src_dev_type : int
             The source device type of the copy node.
+
         dst_dev_type : int
             The destination device type of the copy node.
         """
@@ -225,21 +274,26 @@ class ContextAnalysis(ExprVisitor):
 
     def unify_call(self, call_op, inputs, outputs, device=None):
         """Unify the domain of inputs and outputs of a relay Call.
+
         Parameters
         ----------
         op : tvm.relay.Expr
             The op of a call node.
+
         inputs : List[tvm.relay.Expr]
             The inputs of the call.
+
         outputs : List[tvm.relay.Expr]
             The outputs of the call.
+
         Returns
         -------
             The unified domain.
+
         Note
         ----
         For most call nodes, the op, inputs, and outputs should all be in the
-        same domain, i.e. have the same context. However, device_copy call node
+        same domain, i.e. having the same context. However, device_copy call node
         needs to be handled different as it copies data from one device to
         another.
         """
@@ -330,17 +384,93 @@ class ContextAnalysis(ExprVisitor):
             self.unify(device, self.device_for(call.op))
             self.unify(device, self.device_for(call.op.body))
             self.visit(call.op)
+        elif isinstance(call.op, _expr.GlobalVar):
+            device = self.device_for(call)
+            assert self.mod, "Cannot analyze context on a globalvar without module"
+            func = self.mod[call.op]
+
+            assert len(call.args) == len(func.params)
+
+            for arg, param in zip(call.args, func.params):
+                self.visit(arg)
+                # Save the the arg to function mapping for closures as it will
+                # be invoked/unified later.
+                if isinstance(arg.checked_type, ty.FuncType):
+                    assert arg in self.closures
+                    self.closures[param] = self.closures[arg]
+                self.unify(self.device_for(arg), self.device_for(param))
+
+            device = self.unify(device, self.device_for(call.op))
+            device = self.unify(device, self.device_for(func))
+            device = self.unify(device, self.device_for(func.body))
+            # Step into the callee. We need to skip recursive calls, otherwise, it
+            # would be a infinite loop, so does mutual recursive calls
+            cur_func = self.current_func
+            self.current_func = call.op
+            if cur_func.name_hint != call.op.name_hint:
+                self.visit(func)
+            self.current_func = cur_func
+        elif isinstance(call.op, _expr.Var):
+            # It is a closure when we call a var
+            # Unify the corresponding arguement and parameter
+            device = self.device_for(call)
+            assert call.op in self.closures, f"Cannot find {call.op}"
+            glb_var = self.closures[call.op]
+            assert self.mod, "Cannot analyze context on a globalvar without module"
+            func = self.mod[glb_var]
+            # Unify the underlying function for clousre or currying funcitons.
+            while is_closure(func) or (isinstance(func.body, _expr.Let) and
+                                       func.body.var in self.closures):
+                device = self.unify(device, self.device_for(func))
+                if is_closure(func):
+                    func = func.body
+                elif (isinstance(func.body, _expr.Let) and func.body.var in self.closures):
+                    func = self.mod[self.closures[func.body.var]]
+
+            assert isinstance(func, Function)
+            assert len(call.args) == len(func.params)
+
+            for dev_arg, dev_param in zip(call.args, func.params):
+                self.visit(dev_arg)
+                self.unify(self.device_for(dev_arg), self.device_for(dev_param))
+
+            device = self.unify(device, self.device_for(call.op))
+            device = self.unify(device, self.device_for(glb_var))
+            device = self.unify(device, self.device_for(func))
+            cur_func = self.current_func
+            # Step into the closure.
+            self.current_func = glb_var
+            if not tvm.ir.structural_equal(cur_func, glb_var):
+                self.visit(func)
+            self.current_func = cur_func
         else:
             self.unify_call(call, call.args, [call])
             super().visit_call(call)
 
+    def _extract_closure(self, expr):
+        while isinstance(expr, _expr.Let):
+            expr = expr.value
+            if isinstance(expr, _expr.GlobalVar):
+                return expr
+            elif isinstance(expr, _expr.Call) and isinstance(expr.op,
+                                                             _expr.GlobalVar):
+                return expr.op
+        return None
+
     def visit_let(self, let):
         while isinstance(let, _expr.Let):
+            # Save currying/closures since they will be invoked later
+            if isinstance(let.value.checked_type, ty.FuncType):
+                gv = self._extract_closure(let)
+                assert gv
+                self.closures[let.var] = gv
+
             self.unify(self.device_for(let.var), self.device_for(let.value))
             self.unify_expr(let, let.body)
-            self.visit(let.var)
             self.visit(let.value)
             let = let.body
+
+        self.visit(let)
 
     def visit_function(self, f):
         self.unify(self.device_for(f), self.device_for(f.body))
@@ -348,6 +478,8 @@ class ContextAnalysis(ExprVisitor):
 
     def visit_tuple(self, tup):
         # We only support tuple with the same of device.
+        if not tup:
+            return
         device = self.device_for(tup[0])
         for i in range(1, len(tup)):
             device = self.unify(device, self.device_for(tup[i]))
@@ -357,9 +489,20 @@ class ContextAnalysis(ExprVisitor):
     def visit_tuple_getitem(self, t):
         value = t.tuple_value
         if isinstance(t.tuple_value, _expr.Tuple):
+            self.unify(self.device_for(t), self.device_for(value))
             value = t.tuple_value[t.index]
         self.unify(self.device_for(t), self.device_for(value))
         super().visit_tuple_getitem(t)
+
+    def visit_match(self, m):
+        # For match node, we unify the value and the rhs of each clause
+        device = self.unify(self.device_for(m), self.device_for(m.data))
+        for c in m.clauses:
+            device = self.unify(device, self.device_for(c.rhs))
+        super().visit_match(m)
+
+    def visit_global_var(self, gv):
+        self.device_for(gv)
 
     def visit_var(self, var):
         self.device_for(var)
@@ -369,6 +512,7 @@ class ContextAnalysis(ExprVisitor):
 
     def results(self):
         """Return the analysis result.
+
         Returns
         -------
         ret : Dict[tvm.relay.Expr, DeviceDomain]
@@ -396,23 +540,30 @@ def mk_analysis_annotator(results):
     return _annotator
 
 
-def context_analysis(expr, fallback_device):
+def context_analysis(mod, fallback_device):
     """Perform device context analysis on a given relay program. This requires
     that the program has already been annotated and rewritten by replacing on
     device annotations with device copy nodes.
+
     Parameters
     ----------
-    expr : tvm.relay.Expr
-        The expression for analysis
+    mod : tvm.IRModule
+        The IRModule for analysis
+
     fallback_device : tvm.runtime.TVMContext
         The default device context
+
     Returns
     -------
     ret : Dict[tvm.relay.Expr, [int]]
         The mapping of each expression to the device context that is
         represented in a list form as TVMContext is not a runtime object.
     """
-    ca = ContextAnalysis(fallback_device)
+    assert isinstance(mod, tvm.IRModule)
+    # TODO(@zhiics) Apply the pass to all functions/entries
+    entry = mod.get_global_var("main")
+    ca = ContextAnalysis(mod, entry, fallback_device)
+    expr = mod[entry]
     ca.visit(expr)
     ret = defaultdict(list)
     for key, val in ca.results().items():

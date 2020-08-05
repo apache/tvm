@@ -448,6 +448,9 @@ TVM_REGISTER_GLOBAL("ir.Module_Update").set_body_typed([](IRModule mod, IRModule
   mod->Update(from);
 });
 
+TVM_REGISTER_GLOBAL("ir.Module_UpdateFunction")
+    .set_body_typed([](IRModule mod, GlobalVar gv, BaseFunc func) { mod->Update(gv, func); });
+
 TVM_REGISTER_GLOBAL("ir.Module_Import").set_body_typed([](IRModule mod, String path) {
   mod->Import(path);
 });

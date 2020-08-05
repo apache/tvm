@@ -623,8 +623,8 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::DeviceCopy: {
-      os << "device_copy $" << instr.dst << " $" << instr.src << " " << instr.src_device_type << " "
-         << instr.dst_device_type;
+      os << "device_copy $" << instr.dst << " $" << instr.src << " " << instr.dst_device_type << " "
+         << instr.src_device_type;
       break;
     }
     default:
