@@ -238,7 +238,8 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
       reader->BeginArray(reader);
       while (reader->NextArrayItem(reader)) {
         attr->dltype = vrealloc(attr->dltype, TVM_CRT_STRLEN_DLTYPE * (dltype_count + 1));
-        status = reader->ReadString(reader, attr->dltype + dltype_count * TVM_CRT_STRLEN_DLTYPE, TVM_CRT_STRLEN_DLTYPE);
+        status = reader->ReadString(reader, attr->dltype + dltype_count * TVM_CRT_STRLEN_DLTYPE,
+                                    TVM_CRT_STRLEN_DLTYPE);
         if (status != 0) {
           fprintf(stderr, "error reading dltype array item");
           break;

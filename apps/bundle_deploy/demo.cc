@@ -34,7 +34,8 @@ auto getFunc(void* bundle, const char* name) {
   return f;
 }
 
-static int read_all(const char* file_description, const char* file_path, char** out_params, size_t* params_size) {
+static int read_all(const char* file_description, const char* file_path, char** out_params,
+                    size_t* params_size) {
   FILE* fp = fopen(file_path, "rb");
   if (fp == NULL) {
     return 2;
@@ -48,7 +49,7 @@ static int read_all(const char* file_description, const char* file_path, char** 
 
   long file_size = ftell(fp);
   if (file_size < 0) {
-    return (int) file_size;
+    return (int)file_size;
   } else if (file_size == 0 || file_size > (10 << 20)) {  // file size should be in (0, 20MB].
     char buf[128];
     snprintf(buf, sizeof(buf), "determing file size: %s", file_path);
@@ -65,7 +66,7 @@ static int read_all(const char* file_description, const char* file_path, char** 
     return error;
   }
 
-  *out_params = (char*) malloc((unsigned long) file_size);
+  *out_params = (char*)malloc((unsigned long)file_size);
   if (fread(*out_params, file_size, 1, fp) != 1) {
     free(*out_params);
     *out_params = NULL;

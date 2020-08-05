@@ -18,13 +18,13 @@
  */
 
 #define _GNU_SOURCE
+#include "backtrace.h"
+
 #include <dlfcn.h>
 #include <execinfo.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-
-#include "backtrace.h"
 
 const char* g_argv0 = NULL;
 
@@ -42,9 +42,9 @@ void tvm_platform_abort_backtrace() {
       Dl_info info;
       if (dladdr(trace[i], &info)) {
         fprintf(stderr, "symbol %d: %s %s %p (%p)\n", i, info.dli_sname, info.dli_fname,
-                info.dli_fbase, (void*) (trace[i] - info.dli_fbase));
+                info.dli_fbase, (void*)(trace[i] - info.dli_fbase));
         snprintf(cmd_buf, sizeof(cmd_buf), "addr2line --exe=%s -p -i -a -f %p", g_argv0,
-                 (void*) (trace[i] - info.dli_fbase));
+                 (void*)(trace[i] - info.dli_fbase));
         int result = system(cmd_buf);
         if (result < 0) {
           perror("invoking backtrace command");
