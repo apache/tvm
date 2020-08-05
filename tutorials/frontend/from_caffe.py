@@ -16,6 +16,7 @@
 # under the License.
 """
 Compile Caffe Models
+====================
 **Author**: `Chen Feng <https://github.com/fernchen>`_
 
 This article is an introductory tutorial to deploy Caffe models with relay.
@@ -36,7 +37,7 @@ Below you can file an example on how to compile Caffe model using TVM.
 """
 ######################################################################
 # Download pretrained Caffe model
-# ----------------------------------------------
+# -------------------------------
 from tvm.contrib.download import download_testdata
 
 proto_file_url = ("https://github.com/shicai/MobileNet-Caffe/raw/"
