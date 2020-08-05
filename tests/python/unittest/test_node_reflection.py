@@ -65,6 +65,8 @@ def test_make_node():
     assert AA.op == A.op
     assert AA.value_index == A.value_index
 
+    y = tvm.ir.make_node("IntImm", dtype=tvm.runtime.String("int32"), value=10)
+
 
 def test_make_sum():
     A = te.placeholder((2, 10), name='A')
