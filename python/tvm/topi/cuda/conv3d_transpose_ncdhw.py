@@ -26,7 +26,8 @@ from .conv3d_direct import schedule_direct_conv3d_cuda
 
 
 @autotvm.register_topi_compute("conv3d_transpose_ncdhw.cuda")
-def conv3d_transpose_ncdhw(cfg, data, kernel, stride, padding, out_dtype):
+def conv3d_transpose_ncdhw(cfg, data, kernel, stride, padding, out_dtype,
+                           output_padding):
     """Transposed 3D convolution ncdhw forward operator.
 
     Parameters
@@ -43,6 +44,8 @@ def conv3d_transpose_ncdhw(cfg, data, kernel, stride, padding, out_dtype):
         Padding size, or ['VALID', 'SAME']
     out_dtype: str
         The output type. This is used in mixed precision
+    output_padding : tuple of three ints
+        Used to disambiguate output shape
 
     Returns
     -------
@@ -52,24 +55,27 @@ def conv3d_transpose_ncdhw(cfg, data, kernel, stride, padding, out_dtype):
     batch, inp_channels, inp_depth, inp_height, inp_width = get_const_tuple(data.shape)
     _, out_channels, kernel_depth, kernel_height, kernel_width = get_const_tuple(kernel.shape)
     stride_depth, stride_height, stride_width = stride
+    outpad_depth, outpad_height, outpad_width = output_padding
+    assert (outpad_height < stride_height and outpad_width < stride_width and
+            outpad_depth < stride_depth)
     cfg.stride = stride
     pad_front, pad_top, pad_left, pad_back, pad_bottom, pad_right = nn.get_pad_tuple3d(
         padding, (kernel_depth, kernel_height, kernel_width))
 
     out_depth = (inp_depth - 1) * stride_depth + \
-        kernel_depth - pad_front - pad_back
+        kernel_depth - pad_front - pad_back + outpad_depth
     pad_front = kernel_depth - 1 - pad_front
     pad_back = kernel_depth - 1 - pad_back
     dilated_depth = stride_depth * (inp_depth - 1) + 1
 
     out_width = (inp_width - 1) * stride_width + \
-        kernel_width - pad_left - pad_right
+        kernel_width - pad_left - pad_right + outpad_width
     pad_left = kernel_width - 1 - pad_left
     pad_right = kernel_width - 1 - pad_right
     dilated_width = stride_width * (inp_width - 1) + 1
 
     out_height = (inp_height - 1) * stride_height + \
-        kernel_height - pad_top - pad_bottom
+        kernel_height - pad_top - pad_bottom + outpad_height
     pad_top = kernel_height - 1 - pad_top
     pad_bottom = kernel_height - 1 - pad_bottom
     dilated_height = stride_height * (inp_height - 1) + 1
