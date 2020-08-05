@@ -17,9 +17,6 @@
  * under the License.
  */
 
-#define _GNU_SOURCE
-#include <dlfcn.h>
-#include <execinfo.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <tvm/runtime/crt/crt.h>
@@ -27,6 +24,9 @@
 #include <tvm/runtime/crt/packed_func.h>
 #include <unistd.h>
 
+#ifdef ENABLE_TVM_PLATFORM_ABORT_BACKTRACE
+#include "backtrace.h"
+#endif
 #include "bundle.h"
 
 /*! \brief macro to do C API call */
@@ -39,11 +39,11 @@
     }                                                                                \
   } while (0)
 
-const char* g_argv0 = NULL;
-
 TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
                                  const uint64_t params_size, const char* argv0) {
+#ifdef ENABLE_TVM_PLATFORM_ABORT_BACKTRACE
   g_argv0 = argv0;
+#endif
   int64_t device_type = kDLCPU;
   int64_t device_id = 0;
 
@@ -93,30 +93,8 @@ TVM_DLL void tvm_runtime_get_output(void* runtime, int32_t index, DLTensor* tens
 
 void __attribute__((noreturn)) TVMPlatformAbort(int error_code) {
   fprintf(stderr, "TVMPlatformAbort: %d\n", error_code);
-  void* trace[200];
-  int nptrs = backtrace(trace, sizeof(trace) / sizeof(void*));
-  fprintf(stderr, "backtrace: %d\n", nptrs);
-  if (nptrs < 0) {
-    perror("backtracing");
-  } else {
-    backtrace_symbols_fd(trace, nptrs, STDOUT_FILENO);
-
-    char cmd_buf[1024];
-    for (int i = 0; i < nptrs; i++) {
-      Dl_info info;
-      if (dladdr(trace[i], &info)) {
-        fprintf(stderr, "symbol %d: %s %s %p (%p)\n", i, info.dli_sname, info.dli_fname,
-                info.dli_fbase, trace[i] - info.dli_fbase);
-        snprintf(cmd_buf, sizeof(cmd_buf), "addr2line --exe=%s -p -i -a -f %p", g_argv0,
-                 trace[i] - info.dli_fbase);
-        int result = system(cmd_buf);
-        if (result < 0) {
-          perror("invoking backtrace command");
-        }
-      } else {
-        fprintf(stderr, "symbol %d: %p (unmapped)\n", i, trace[i]);
-      }
-    }
-  }
+#ifdef ENABLE_TVM_PLATFORM_ABORT_BACKTRACE
+  tvm_platform_abort_backtrace();
+#endif
   exit(-1);
 }

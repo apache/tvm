@@ -24,6 +24,10 @@
 #include <tvm/runtime/crt/graph_runtime.h>
 #include <tvm/runtime/crt/packed_func.h>
 
+#ifdef ENABLE_TVM_ABORT_BACKTRACE
+#include "backtrace.h"
+#endif
+
 /*! \brief macro to do C API call */
 #define TVM_CCALL(func)                                                              \
   do {                                                                               \
@@ -35,7 +39,11 @@
   } while (0)
 
 TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
-                                 const uint64_t params_size) {
+                                 const uint64_t params_size, const char* argv0) {
+#ifdef ENABLE_TVM_ABORT_BACKTRACE
+  g_argv0 = argv0;
+#endif
+
   int64_t device_type = kDLCPU;
   int64_t device_id = 0;
 
@@ -84,5 +92,8 @@ TVM_DLL void tvm_runtime_get_output(void* runtime, int32_t index, DLTensor* tens
 
 void __attribute__((noreturn)) TVMPlatformAbort(int error_code) {
   fprintf(stderr, "TVMPlatformAbort: %d\n", error_code);
+#ifdef ENABLE_TVM_ABORT_BACKTRACE
+  tvm_platform_abort_backtrace();
+#endif
   exit(-1);
 }
