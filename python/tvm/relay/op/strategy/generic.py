@@ -593,7 +593,7 @@ def dense_strategy(attrs, inputs, out_type, target):
 def wrap_compute_batch_matmul(topi_compute):
     """wrap batch_matmul topi compute"""
     def _compute_batch_matmul(attrs, inputs, out_type):
-        return [topi_compute(inputs[0], inputs[1])]
+        return [topi_compute(inputs[0], inputs[1], out_type.shape)]
     return _compute_batch_matmul
 
 @override_native_generic_func("batch_matmul_strategy")

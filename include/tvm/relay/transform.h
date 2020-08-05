@@ -209,6 +209,17 @@ TVM_DLL Pass SimplifyInference();
 TVM_DLL Pass FastMath();
 
 /*!
+ * \brief Find Dynamic ops and make them static
+ *
+ * Searches the graph for dynamic ops. If the dynamic inputs to those ops are constants, it replaces
+ * them with static ops and re-performs type inference and constant folding. The pass repeats
+ * istself until the graph stops changing or we run too many iterations.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass DynamicToStatic();
+
+/*!
  * \brief Infer the type of an expression.
  *
  * The result of type checking is a new expression with unambigous

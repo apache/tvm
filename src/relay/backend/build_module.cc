@@ -254,6 +254,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     Array<runtime::String> entry_functions{"main"};
     pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
     pass_seqs.push_back(transform::ToBasicBlockNormalForm());
+    pass_seqs.push_back(transform::DynamicToStatic());
 
     // Run all dialect legalization passes.
     pass_seqs.push_back(relay::qnn::transform::Legalize());

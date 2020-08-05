@@ -348,6 +348,32 @@ def test_batch_matmul():
     verify_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20))
     verify_batch_matmul((30, 16, 32), (30, 20, 32), (30, 16, 20))
 
+def verify_dynamic_batch_matmul(x_shape, y_shape, out_shape, dtype="float32"):
+    x = relay.var("x", relay.TensorType(x_shape, dtype))
+    y = relay.var("y", relay.TensorType((relay.Any(), ) * len(y_shape), dtype))
+    z = relay.nn.batch_matmul(x, y)
+
+    func = relay.Function([x, y], z)
+    x_np = np.random.uniform(size=x_shape).astype(dtype)
+    y_np = np.random.uniform(size=y_shape).astype(dtype)
+    z_np = tvm.topi.testing.batch_matmul(x_np, y_np)
+
+    for target, ctx in ctx_list():
+        for kind in ["vm", "debug"]:
+            mod = tvm.ir.IRModule.from_expr(func)
+            intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+            z = intrp.evaluate()(x_np, y_np)
+            tvm.testing.assert_allclose(z.asnumpy(), z_np, rtol=1e-5)
+
+# TODO(mbrookhart): enable once VM supports heterogenous execution
+# @tvm.testing.uses_gpu
+def test_dynamic_batch_matmul():
+    verify_dynamic_batch_matmul((1, 16, 32), (1, 16, 32), (1, 16, 16))
+    verify_dynamic_batch_matmul((5, 16, 32), (5, 16, 32), (5, 16, 16))
+    verify_dynamic_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20))
+    verify_dynamic_batch_matmul((30, 16, 32), (30, 20, 32), (30, 16, 20))
+
+
 @tvm.testing.uses_gpu
 def test_shape_of():
     shape = (10, 5, 12)
