@@ -68,7 +68,11 @@ def load_torchvision(model_name):
         for channel in range(3):
             input_data[:, channel] -= mean[channel]
             input_data[:, channel] /= std[channel]
-        model = getattr(torchvision.models, model_name)(pretrained=True)
+
+        if model_name.startswith("googlenet"):
+            model = getattr(torchvision.models, model_name)(pretrained=True, aux_logits=True)
+        else:
+            model = getattr(torchvision.models, model_name)(pretrained=True)
         model = model.float().eval()
         return model, [input_data]
 
