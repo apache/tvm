@@ -18,7 +18,7 @@
 import tvm
 from tvm import te
 import numpy as np
-import topi
+from tvm import topi
 import unittest
 from tvm.contrib.nvcc import have_fp16, have_int8
 from tvm.contrib import nvcc
@@ -881,14 +881,14 @@ def test_unrolled_vectorization():
 
     dtype = 'float32'
     target = 'cuda'
-    
+
     ## Compute declaration
     N = 128
     A = te.placeholder((N, N), name='A')
     B = te.placeholder((N, N), name='B')
     k = te.reduce_axis((0, N), name='k')
     C = te.compute((N, N), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
-    
+
     ## Schedule
     s = te.create_schedule([C.op])
     CC = s.cache_write(C, "local")
@@ -903,7 +903,7 @@ def test_unrolled_vectorization():
     ko, ki = s[CC].split(k, 2)
     s[CC].unroll(ki)
     s[CC].vectorize(j)
-    
+
     ## Check correctness
     ctx = tvm.context(target)
     a_tvm = tvm.nd.array(np.ones((N, N)).astype(dtype), ctx=ctx)

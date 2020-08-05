@@ -359,8 +359,7 @@ class MeasureErrorNo(object):
     """ Error type for MeasureResult. """
     NO_ERROR = 0              # No error
     INSTANTIATION_ERROR = 1   # Errors happen when apply transform steps from init state
-                              # Errors happen when compiling code on host (e.g. tvm.build)
-    COMPILE_HOST = 2
+    COMPILE_HOST = 2          # Errors happen when compiling code on host (e.g., tvm.build)
     COMPILE_DEVICE = 3        # Errors happen when compiling code on device
                               # (e.g. OpenCL JIT on the device)
     RUNTIME_DEVICE = 4        # Errors happen when run program on device

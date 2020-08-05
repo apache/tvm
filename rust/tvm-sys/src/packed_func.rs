@@ -161,7 +161,7 @@ TVMPODValue! {
     },
     match &self {
         Bytes(val) => {
-            (TVMValue { v_handle: val as *const _ as *mut c_void }, TVMArgTypeCode_kTVMBytes)
+            (TVMValue { v_handle: *val as *const _ as *mut c_void }, TVMArgTypeCode_kTVMBytes)
         }
         Str(val) => { (TVMValue { v_handle: val.as_ptr() as *mut c_void }, TVMArgTypeCode_kTVMStr) }
     }

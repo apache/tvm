@@ -106,6 +106,21 @@ def check_constant(expr):
     """
     return _ffi_api.check_constant(expr)
 
+def check_basic_block_normal_form(expr):
+    """Check whether an expression is in the basic block form
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression
+
+    Returns
+    -------
+    result : bool
+        Whether the expression is in the basic block form.
+    """
+    return _ffi_api.check_basic_block_normal_form(expr)
+
 
 def free_vars(expr):
     """Get free Vars from expression expr in Post DFS order.

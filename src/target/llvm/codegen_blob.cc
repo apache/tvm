@@ -33,12 +33,17 @@ namespace codegen {
 std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> CodeGenBlob(
     const std::string& data, bool system_lib, const std::string& target_triple) {
   InitializeLLVM();
-  auto tm = GetLLVMTargetMachine(std::string("-mtriple ") + target_triple);
+  std::string full_target_triple = std::string("-mtriple ") + target_triple;
+  auto tm = GetLLVMTargetMachine(full_target_triple);
   auto triple = tm->getTargetTriple();
   auto ctx = std::make_shared<llvm::LLVMContext>();
   std::string module_name = "devc";
   std::unique_ptr<llvm::Module> module(new llvm::Module(module_name, *ctx));
   module->setTargetTriple(triple.str());
+  // Store full target string in metadata, because flags such as -mfloat-abi must be preserved for
+  // ModulePackImportsToLLVM.
+  module->addModuleFlag(llvm::Module::ModFlagBehavior::Override, "tvm_target",
+                        llvm::MDString::get(*ctx, full_target_triple));
   module->setDataLayout(tm->createDataLayout());
   auto* blob_value = llvm::ConstantDataArray::getString(*ctx, data, false);
   auto* tvm_dev_mblob = new llvm::GlobalVariable(

@@ -21,11 +21,11 @@
  * \file unary.cc
  * \brief Unary operators.
  */
-#include <topi/elemwise.h>
-#include <topi/transform.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <tvm/topi/elemwise.h>
+#include <tvm/topi/transform.h>
 
 #include "../make_op.h"
 #include "../op_common.h"

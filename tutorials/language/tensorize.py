@@ -180,7 +180,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 #
 func = tvm.build(s, [A, B, C], target="llvm", name="gemv")
 
-from topi.util import get_const_tuple
+from tvm.topi.util import get_const_tuple
 dtype = A.dtype
 ctx = tvm.context("cpu", 0)
 a = np.random.uniform(size=get_const_tuple(A.shape)).astype(dtype)

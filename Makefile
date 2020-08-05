@@ -77,14 +77,12 @@ $(OUTPUTDIR)/libtvm_web_runtime.js: $(OUTPUTDIR)/libtvm_web_runtime.bc
 # Lint scripts
 cpplint:
 	python3 3rdparty/dmlc-core/scripts/lint.py vta cpp vta/include vta/src
-	python3 3rdparty/dmlc-core/scripts/lint.py topi cpp topi/include;
 	python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp \
 	 include src \
 	 examples/extension/src examples/graph_executor/src
 
 pylint:
 	python3 -m pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
-	python3 -m pylint topi/python/topi --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 	python3 -m pylint vta/python/vta --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 
 jnilint:

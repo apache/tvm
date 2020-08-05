@@ -22,7 +22,7 @@ def mxnet_check():
     User can directly run this script to verify correctness.
     """
     import mxnet as mx
-    import topi
+    from tvm import topi
     import tvm
     from tvm import te
     import numpy as np

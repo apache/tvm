@@ -17,7 +17,7 @@
 #pylint: disable=unused-argument,inconsistent-return-statements
 """Internal module for registering attribute for annotation."""
 import warnings
-import topi
+from tvm import topi
 import tvm._ffi
 from tvm.relay.op import op as _reg
 from .. import expr as _expr

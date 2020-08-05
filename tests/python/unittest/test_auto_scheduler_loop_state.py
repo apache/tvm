@@ -21,7 +21,7 @@ import numpy as np
 
 import tvm
 from tvm import auto_scheduler, te
-import topi
+from tvm import topi
 
 from test_auto_scheduler_common import matmul_auto_scheduler_test, conv2d_nchw_bn_relu
 

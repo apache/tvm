@@ -70,5 +70,5 @@ RUN cd /usr && \
     make -j10
 
 # Environment variables
-ENV PYTHONPATH=/usr/tvm/python:/usr/tvm/topi/python:/usr/tvm/vta/python:${PYTHONPATH}
+ENV PYTHONPATH=/usr/tvm/python:/usr/tvm/vta/python:${PYTHONPATH}
 ENV ANDROID_HOME=/opt/android-sdk-linux/

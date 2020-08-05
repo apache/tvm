@@ -61,6 +61,11 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       return PackedFunc([flag](TVMArgs args, TVMRetValue* rv) { *rv = flag; });
     } else if (name == "_get_target_triple") {
       std::string target_triple = tm_->getTargetTriple().str();
+      // getTargetTriple() doesn't include other flags besides the triple. Add back flags which are
+      // important for ModulePackImportsToLLVM.
+      if (tm_->Options.FloatABIType == llvm::FloatABI::ABIType::Soft) {
+        target_triple += " -mfloat-abi=soft";
+      }
       return PackedFunc([target_triple](TVMArgs args, TVMRetValue* rv) { *rv = target_triple; });
     }
     if (ee_ == nullptr) LazyInitJIT();

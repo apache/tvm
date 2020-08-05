@@ -23,7 +23,6 @@
  */
 #include "compile_engine.h"
 
-#include <topi/tags.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
@@ -37,6 +36,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
+#include <tvm/topi/tags.h>
 
 #include <functional>
 #include <limits>
@@ -770,7 +770,7 @@ class CompileEngineImpl : public CompileEngineNode {
 };
 
 /*! \brief The global compile engine */
-const CompileEngine& CompileEngine::Global() {
+CompileEngine& CompileEngine::Global() {
   // intentionally allocate raw pointer to avoid
   // free during destructuion.
   static CompileEngine* inst = new CompileEngine(make_object<CompileEngineImpl>());

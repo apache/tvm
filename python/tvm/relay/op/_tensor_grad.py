@@ -18,8 +18,8 @@
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
-from topi.nn.util import get_pad_tuple
-from topi.util import get_const_tuple
+from tvm.topi.nn.util import get_pad_tuple
+from tvm.topi.util import get_const_tuple
 
 from ..expr import Tuple, TupleGetItem, const
 from . import nn as _nn
