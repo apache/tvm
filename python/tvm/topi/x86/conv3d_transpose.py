@@ -23,9 +23,10 @@ from ..util import traverse_inline
 from .. import nn
 from .conv3d import conv3d_ncdhw, schedule_conv3d_ncdhw
 
-def conv3d_transpose_ncdhw(data, kernel, strides, padding, out_dtype):
+def conv3d_transpose_ncdhw(data, kernel, strides, padding, out_dtype, output_padding):
     data_pad, kernel_transform = \
-        nn.conv3d_transpose_ncdhw_preprocess(data, kernel, strides, padding, out_dtype)
+        nn.conv3d_transpose_ncdhw_preprocess(data, kernel, strides, padding,
+                                             out_dtype, output_padding)
 
     # reuse conv3d_ncdhw implementation
     return conv3d_ncdhw(data_pad, kernel_transform, (1, 1, 1),
