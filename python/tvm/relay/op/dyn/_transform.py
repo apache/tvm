@@ -25,11 +25,13 @@ from .. import op as _reg
 _reg.register_broadcast_schedule("dyn.broadcast_to")
 _reg.register_injective_schedule("dyn.reshape")
 _reg.register_broadcast_schedule("dyn.tile")
+_reg.register_injective_schedule("dyn.one_hot")
+
 
 @script
 def _reshape_shape_func_input_data(data, newshape, ndim):
-    out = output_tensor((ndim,), "int64")
-    data_shape = allocate((len(data.shape),), "int64")
+    out = output_tensor((ndim, ), "int64")
+    data_shape = allocate((len(data.shape), ), "int64")
     for x in const_range(len(data.shape)):
         data_shape[x] = int64(data.shape[x])
     src_idx = 0
@@ -59,7 +61,7 @@ def _reshape_shape_func_input_data(data, newshape, ndim):
         elif newshape[i] == -3:
             assert data_shape.shape[0] - src_idx > 1, \
                 "Not enough dims in input shape for -3"
-            out[dst_idx] = data_shape[src_idx] * data_shape[src_idx+1]
+            out[dst_idx] = data_shape[src_idx] * data_shape[src_idx + 1]
             src_idx += 2
             dst_idx += 1
         elif newshape[i] == -4:
@@ -82,6 +84,7 @@ def _reshape_shape_func_input_data(data, newshape, ndim):
             out[infer_idx] = old_size // new_size
     return out
 
+
 @_reg.register_shape_func("dyn.reshape", True)
 def dynamic_reshape_shape_func(attrs, inputs, out_ndims):
     return [_reshape_shape_func_input_data(*inputs, out_ndims[0])]
@@ -89,7 +92,7 @@ def dynamic_reshape_shape_func(attrs, inputs, out_ndims):
 
 @script
 def _tile_shape_func(data, reps, ndim, tndim, rndim):
-    out = output_tensor((tndim,), "int64")
+    out = output_tensor((tndim, ), "int64")
 
     if ndim == rndim:
         for i in const_range(tndim):
@@ -120,5 +123,25 @@ def tile_shape_func(attrs, inputs, _):
     ndim = len(inputs[0].shape)
     rndim = inputs[1].shape[0].value
     tndim = ndim if ndim > rndim else rndim
-    return [_tile_shape_func(inputs[0], reps, convert(ndim),
-                             convert(tndim), convert(rndim))]
+    return [_tile_shape_func(inputs[0], reps, convert(ndim), convert(tndim), convert(rndim))]
+
+
+@script
+def _onehot_shape_func(dshape, k, axis):
+    ndim = len(dshape) + 1
+    out = output_tensor((ndim, ), "int64")
+    for i in const_range(axis):
+        out[i] = int64(dshape[i])
+    out[axis] = int64(k[0])
+    for j in const_range(axis + 1, ndim):
+        out[j] = int64(dshape[j - 1])
+    return out
+
+
+@_reg.register_shape_func("dyn.one_hot", True)
+def one_hot_shape_func(attrs, inputs, _):
+    """
+    Shape function for dyn.one_hot op.
+    """
+    axis = len(inputs[0].shape) if attrs.axis == -1 else attrs.axis
+    return [_onehot_shape_func(inputs[0].shape, inputs[3], convert(axis))]

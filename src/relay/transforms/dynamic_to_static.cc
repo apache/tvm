@@ -33,44 +33,82 @@ namespace relay {
 
 class DynamicToStaticMutator : public MixedModeMutator {
  public:
-  DynamicToStaticMutator() {}
+  DynamicToStaticMutator() {
+    op_map_ = {
+        {Op::Get("dyn.reshape"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
+             CHECK_EQ(shape->data->ndim, 1);
+             return MakeReshape(call_node->args[0], ToVector(shape->data));
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.tile"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* reps = call_node->args[1].as<ConstantNode>()) {
+             CHECK_EQ(reps->data->ndim, 1);
+             return MakeTile(call_node->args[0], ToVector(reps->data));
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.topk"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* k = call_node->args[1].as<ConstantNode>()) {
+             const TopKAttrs* param = call_node->attrs.as<TopKAttrs>();
+             CHECK(param);
+             return MakeTopK(call_node->args[0], static_cast<int>(ToScalar(k->data, 0)),
+                             param->axis, param->ret_type, param->is_ascend, param->dtype);
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.broadcast_to"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
+             CHECK_EQ(shape->data->ndim, 1);
+             return MakeBroadCastTo(call_node->args[0], ToVector(shape->data));
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.zeros"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
+             const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
+             CHECK(param);
+             return MakeZeros(ToVector(shape->data), param->dtype);
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.ones"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
+             const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
+             CHECK(param);
+             return MakeOnes(ToVector(shape->data), param->dtype);
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.one_hot"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* depth = call_node->args[3].as<ConstantNode>()) {
+             const OneHotAttrs* param = call_node->attrs.as<OneHotAttrs>();
+             CHECK(param);
+             return MakeOneHot(call_node->args[0], call_node->args[1], call_node->args[2],
+                               static_cast<int>(ToScalar(depth->data, 0)), param->axis,
+                               param->dtype);
+           }
+           return Expr(nullptr);
+         }},
+    };
+  }
 
  private:
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
-    const CallNode* call_node = post.as<CallNode>();
-    if (call_node->op == Op::Get("dyn.reshape")) {
-      if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
-        CHECK_EQ(shape->data->ndim, 1);
-        return MakeReshape(call_node->args[0], ToVector(shape->data));
-      }
-    } else if (call_node->op == Op::Get("dyn.tile")) {
-      if (const ConstantNode* reps = call_node->args[1].as<ConstantNode>()) {
-        CHECK_EQ(reps->data->ndim, 1);
-        return MakeTile(call_node->args[0], ToVector(reps->data));
-      }
-    } else if (call_node->op == Op::Get("dyn.topk")) {
-      if (const ConstantNode* k = call_node->args[1].as<ConstantNode>()) {
-        const TopKAttrs* param = call_node->attrs.as<TopKAttrs>();
-        CHECK(param);
-        return MakeTopK(call_node->args[0], static_cast<int>(ToScalar(k->data, 0)), param->axis,
-                        param->ret_type, param->is_ascend, param->dtype);
-      }
-    } else if (call_node->op == Op::Get("dyn.broadcast_to")) {
-      if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
-        CHECK_EQ(shape->data->ndim, 1);
-        return MakeBroadCastTo(call_node->args[0], ToVector(shape->data));
-      }
-    } else if (call_node->op == Op::Get("dyn.zeros")) {
-      if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
-        const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
-        CHECK(param);
-        return MakeZeros(ToVector(shape->data), param->dtype);
-      }
-    } else if (call_node->op == Op::Get("dyn.ones")) {
-      if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
-        const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
-        CHECK(param);
-        return MakeOnes(ToVector(shape->data), param->dtype);
+    if (const CallNode* call_node = post.as<CallNode>()) {
+      if (op_map_.count(call_node->op)) {
+        auto out = op_map_[call_node->op](call_node);
+        if (out.defined()) {
+          return out;
+        }
       }
     }
     return post;
@@ -83,6 +121,8 @@ class DynamicToStaticMutator : public MixedModeMutator {
     }
     return post;
   }
+  std::unordered_map<Expr, std::function<Expr(const CallNode*)>, ObjectPtrHash, ObjectPtrEqual>
+      op_map_;
 };
 
 Expr DynamicToStatic(Function f, IRModule m) {
@@ -90,6 +130,7 @@ Expr DynamicToStatic(Function f, IRModule m) {
   Expr expr = f;
   auto fold_const = transform::FoldConstant();
   auto infer_type = transform::InferType();
+  DynamicToStaticMutator mutator;
   Map<BaseFunc, GlobalVar> vars;
   for (auto kv : m->functions) {
     vars.Set(kv.second, kv.first);
@@ -101,7 +142,7 @@ Expr DynamicToStatic(Function f, IRModule m) {
     // TODO(mbrookhart): Is it possible to run these passes JUST on the current function?
     m = infer_type(m);
     m = fold_const(m);
-    expr = DynamicToStaticMutator().Mutate(m->functions[gv]);
+    expr = mutator.Mutate(m->functions[gv]);
     m->Update(gv, Downcast<BaseFunc>(expr));
     i += 1;
   } while (pre != expr && i < 1000);
