@@ -35,8 +35,8 @@ from .registry import register_special_stmt
 
 
 @register_special_stmt
-def buffer_bind(parser, node, param, shape, dtype="float32", data=None, strides=[], elem_offset=None,
-                scope="global", align=-1, offset_factor=0, buffer_type="default"):
+def buffer_bind(parser, node, param, shape, dtype="float32", data=None, strides=None,
+                elem_offset=None, scope="global", align=-1, offset_factor=0, buffer_type="default"):
     """ Special function buffer_bind(var, shape, dtype, data, strides, elem_offset, scope, align,
                                      offset_factor, buffer_type)
 
@@ -50,6 +50,8 @@ def buffer_bind(parser, node, param, shape, dtype="float32", data=None, strides=
 
     if param not in parser.params:
         parser.report_error("Can not bind non-input param to buffer")
+    if strides is None:
+        strides = []
     align = align.value if not isinstance(align, int) else align
     offset_factor = offset_factor.value if not isinstance(offset_factor, int) else offset_factor
     buffer = tvm.tir.decl_buffer(shape, dtype, parser._assign_target, data, strides, elem_offset,
@@ -59,7 +61,7 @@ def buffer_bind(parser, node, param, shape, dtype="float32", data=None, strides=
 
 
 @register_special_stmt
-def buffer_decl(parser, node, shape, dtype="float32", data=None, strides=[], elem_offset=None,
+def buffer_decl(parser, node, shape, dtype="float32", data=None, strides=None, elem_offset=None,
                 scope="global", align=-1, offset_factor=0, buffer_type="default"):
     """ Special function buffer_decl(shape, dtype, data, strides, elem_offset, scope, align,
                                          offset_factor, buffer_type)
@@ -71,6 +73,8 @@ def buffer_decl(parser, node, shape, dtype="float32", data=None, strides=[], ele
         A = tir.buffer_decl((128, 128), dtype="float32")
 
     """
+    if strides is None:
+        strides = []
     align = align.value if not isinstance(align, int) else align
     offset_factor = offset_factor.value if not isinstance(offset_factor, int) else offset_factor
     buffer = tvm.tir.decl_buffer(shape, dtype, parser._assign_target, data, strides, elem_offset,

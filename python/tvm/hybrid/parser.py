@@ -17,10 +17,11 @@
 """Hybrid Script Parser For TIR"""
 # pylint: disable=invalid-name, missing-docstring, inconsistent-return-statements, no-else-return
 # pylint: disable=unnecessary-comprehension, unused-argument, import-outside-toplevel
-
+# pylint: disable=unused-import
 import json
 import numbers
 import operator
+from typed_ast import ast3 as ast
 
 import tvm._ffi
 from tvm import tir
@@ -28,7 +29,6 @@ from tvm._ffi.base import TVMError
 from tvm.ir import GlobalVar
 from tvm.tir import all as _all
 from tvm.tir import expr as _expr
-from typed_ast import ast3 as ast
 
 from . import scope_emitter, special_stmt, scope_handler, intrin
 from .meta_unparser import MetaUnparser
@@ -160,32 +160,32 @@ class HybridParser(ast.NodeVisitor):
             col_offset = self.current_col_offset
         raise HybridParserError(self.wrap_line_col(message, lineno, col_offset))
 
-    def get_type_name(self, type):
-        if isinstance(type, ast.Attribute) \
-                and isinstance(type.value, ast.Name) and type.value.id == 'ty':
-            return type.attr
+    def get_type_name(self, vtype):
+        if isinstance(vtype, ast.Attribute) \
+                and isinstance(vtype.value, ast.Name) and vtype.value.id == 'ty':
+            return vtype.attr
         self.report_error("invalid type annotation")
 
     def get_body(self):
         body = []
-        while len(self.scope_emitter.node_stack[-1]):
+        while len(self.scope_emitter.node_stack[-1]) > 0:
             res = self.visit(self.scope_emitter.node_stack[-1].pop())
             if res is not None:
                 body.append(res)
         return tvm.tir.SeqStmt(body) if len(body) > 1 else body[0]
 
-    def parse_type(self, type):
+    def parse_type(self, vtype):
         """ Parse type annotation AST into Type object """
-        if isinstance(type, ast.NameConstant) and type.value is None:
+        if isinstance(vtype, ast.NameConstant) and vtype.value is None:
             return tvm.ir.TupleType([])
-        elif isinstance(type, ast.Attribute):
-            return tvm.ir.PrimType(self.get_type_name(type))
-        elif isinstance(type, ast.Subscript) and isinstance(type.slice, ast.Index):
-            type_name = self.get_type_name(type.value)
-            if isinstance(type.slice.value, ast.Tuple):
-                args = [self.parse_type(element) for element in type.slice.value.elts]
+        elif isinstance(vtype, ast.Attribute):
+            return tvm.ir.PrimType(self.get_type_name(vtype))
+        elif isinstance(vtype, ast.Subscript) and isinstance(vtype.slice, ast.Index):
+            type_name = self.get_type_name(vtype.value)
+            if isinstance(vtype.slice.value, ast.Tuple):
+                args = [self.parse_type(element) for element in vtype.slice.value.elts]
             else:
-                args = [self.parse_type(type.slice.value)]
+                args = [self.parse_type(vtype.slice.value)]
             if type_name == "Ptr":
                 return tvm.ir.PointerType(*args)
             elif type_name == "Tuple":
@@ -416,7 +416,7 @@ class HybridParser(ast.NodeVisitor):
             1. with tir.let/tir.Assert()/tir.attr()/tir.allocate()/tir.realize()
         """
 
-        if not len(node.items) == 1:
+        if len(node.items) != 1:
             self.report_error("Only one with element is supported now")
         if not isinstance(node.items[0].context_expr, ast.Call):
             self.report_error("The context expression of with should be a Call")
@@ -456,7 +456,7 @@ class HybridParser(ast.NodeVisitor):
         self.scope_emitter.pop_scope()
 
         # else body
-        if len(node.orelse):
+        if len(node.orelse) > 0:
             self.scope_emitter.new_scope()
             self.scope_emitter.node_stack[-1].extend(reversed(node.orelse))
             else_body = self.get_body()

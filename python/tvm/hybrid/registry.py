@@ -16,11 +16,8 @@
 # under the License.
 """Hybrid Script Parser Function Registry """
 # pylint: disable=inconsistent-return-statements
-
 import inspect
 from enum import IntEnum
-
-import tvm
 from typed_ast import ast3 as ast
 
 

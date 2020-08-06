@@ -18,7 +18,7 @@
 
 IRNodes (StmtNodes without body, PrimExprNodes and more) are called intrins
 """
-
+# pylint: disable=redefined-builtin
 import tvm.tir
 from .registry import register_intrin
 

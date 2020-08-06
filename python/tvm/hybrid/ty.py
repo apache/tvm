@@ -19,6 +19,7 @@
 This module provides typing class for hybrid script type annotation usage, it can be viewed as
 a wrapper for uniform Type system in IR
 """
+# pylint: disable=invalid-name
 import tvm
 
 
@@ -30,8 +31,8 @@ class TypeGeneric:
 
 class ConcreteType(TypeGeneric):
     """Hybrid script typing class for uniform Type objects"""
-    def __init__(self, type):
-        self.type = type
+    def __init__(self, vtype):
+        self.type = vtype
 
     def evaluate(self):
         return self.type

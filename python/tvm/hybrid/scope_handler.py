@@ -26,7 +26,7 @@ Scope handler nodes are StmtNodes with body, which are used to handle such scena
     tir.name() # with scope handlers + concise scoping
 
 """
-# pylint: disable=redefined-builtin
+# pylint: disable=redefined-builtin, unused-argument, invalid-name
 import tvm.tir
 from .registry import register_scope_handler
 from .registry import Category
