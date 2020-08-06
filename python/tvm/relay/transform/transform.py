@@ -354,6 +354,21 @@ def CombineParallelBatchMatmul(min_num_branches=3):
     return _ffi_api.CombineParallelBatchMatmul(min_num_branches)
 
 
+def BatchingOps():
+    """Batching parallel operators into one for Conv2D, Dense and BatchMatmul.
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The sequential pass which apply batching for different operator types.
+    """
+    return tvm.transform.Sequential([
+        CombineParallelConv2D(),
+        CombineParallelDense(),
+        CombineParallelBatchMatmul()
+    ])
+
+
 def AlterOpLayout():
     """Alternate the layouts of operators or replace primitive operators with
     other expressions.
