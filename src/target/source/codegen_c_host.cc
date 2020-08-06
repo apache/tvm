@@ -22,12 +22,15 @@
  */
 #include "codegen_c_host.h"
 
+#include <tvm/runtime/container.h>
 #include <tvm/target/codegen.h>
 
 #include <string>
 #include <vector>
 
+#include "../../support/str_escape.h"
 #include "../build_common.h"
+#include "../func_registry_generator.h"
 
 namespace tvm {
 namespace codegen {
@@ -41,6 +44,15 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts) {
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "void* " << module_name_ << " = NULL;\n";
   CodeGenC::Init(output_ssa);
+}
+
+void CodeGenCHost::AddFunction(const PrimFunc& f) {
+  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  CHECK(global_symbol.defined())
+      << "CodeGenCHost: Expect PrimFunc to have the global_symbol attribute";
+  function_names_.emplace_back(global_symbol.value());
+
+  CodeGenC::AddFunction(f);
 }
 
 void CodeGenCHost::PrintFuncPrefix() {  // NOLINT(*)
@@ -263,11 +275,34 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
      << "? (" << a_id << ") : (" << b_id << "))";
 }
 
-runtime::Module BuildCHost(IRModule mod) {
+void CodeGenCHost::GenerateFuncRegistry() {
+  decl_stream << "#include <tvm/runtime/crt/module.h>\n";
+  stream << "static TVMBackendPackedCFunc _tvm_func_array[] = {\n";
+  for (auto f : function_names_) {
+    stream << "    " << f << ",\n";
+  }
+  auto registry = target::GenerateFuncRegistryNames(function_names_);
+  stream << "static const TVMFuncRegistry _tvm_func_registry = {\n"
+         << "    \"" << ::tvm::support::StrEscape(registry.data(), registry.size(), true) << "\","
+         << "    _tvm_func_array,\n"
+         << "};\n";
+}
+
+void CodeGenCHost::GenerateCrtSystemLib() {
+  stream << "static const TVMModule _tvm_system_lib = {\n"
+         << "    &system_lib_registry,\n"
+         << "};\n"
+         << "const TVMModule* TVMSystemLibEntryPoint(void) {\n"
+         << "    return &system_lib;\n"
+         << "}\n";
+}
+
+runtime::Module BuildCHost(IRModule mod, const std::string& target_str) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   bool emit_asserts = false;
   CodeGenCHost cg;
+  auto target = Target::Create(target_str);
   cg.Init(output_ssa, emit_asserts);
 
   for (auto kv : mod->functions) {
@@ -276,12 +311,19 @@ runtime::Module BuildCHost(IRModule mod) {
     cg.AddFunction(f);
   }
 
+  if (target->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
+    CHECK_EQ(target->GetAttr<String>("runtime").value_or(""), "c")
+        << "c target only supports generating C runtime SystemLibs";
+    cg.GenerateFuncRegistry();
+    cg.GenerateCrtSystemLib();
+  }
+
   std::string code = cg.Finish();
   return CSourceModuleCreate(code, "c");
 }
 
 TVM_REGISTER_GLOBAL("target.build.c").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = BuildCHost(args[0]);
+  *rv = BuildCHost(args[0], args[1]);
 });
 }  // namespace codegen
 }  // namespace tvm

@@ -17,20 +17,14 @@
  * under the License.
  */
 
-#ifndef TVM_APPS_BUNDLE_DEPLOY_BUNDLE_H_
-#define TVM_APPS_BUNDLE_DEPLOY_BUNDLE_H_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include <tvm/runtime/c_runtime_api.h>
+extern const char* g_argv0;
 
-TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
-                                 const uint64_t params_size, const char* argv);
+void tvm_platform_abort_backtrace(void);
 
-TVM_DLL void tvm_runtime_destroy(void* runtime);
-
-TVM_DLL void tvm_runtime_set_input(void* runtime, const char* name, DLTensor* tensor);
-
-TVM_DLL void tvm_runtime_run(void* runtime);
-
-TVM_DLL void tvm_runtime_get_output(void* runtime, int32_t index, DLTensor* tensor);
-
-#endif /* TVM_APPS_BUNDLE_DEPLOY_BUNDLE_H_ */
+#ifdef __cplusplus
+}
+#endif

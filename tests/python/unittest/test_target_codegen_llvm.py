@@ -784,6 +784,16 @@ def test_llvm_bf16():
     dotest(True)
     dotest(False)
 
+def test_llvm_crt_static_lib():
+    A = te.placeholder((32, ), dtype='bfloat16')
+    B = te.placeholder((32, ), dtype='bfloat16')
+    d = te.compute((32, ), lambda x: A[x] + B[x])
+    sch = te.create_schedule(d.op)
+    module = tvm.build(sch, [A, B, d], target=tvm.target.create('llvm --system-lib --runtime=c'))
+    print(module.get_source())
+    module.save('test.o')
+
+
 if __name__ == "__main__":
     test_multiple_func()
     test_llvm_large_uintimm()
@@ -807,3 +817,4 @@ if __name__ == "__main__":
     test_dwarf_debug_information()
     test_llvm_shuffle()
     test_llvm_bf16()
+    test_llvm_crt_static_lib()
