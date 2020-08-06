@@ -50,7 +50,6 @@ class TIRHybridPrinter : public StmtFunctor<Doc(const Stmt&)>,
                             runtime::TypedPackedFunc<std::string(Stmt)> annotate = nullptr)
       : show_meta_(show_meta), annotate_(annotate), meta_collector_(&meta_) {}
 
-
   /*! \brief Print the node */
   TVM_DLL Doc Print(const ObjectRef& node);
 
@@ -167,10 +166,10 @@ class TIRHybridPrinter : public StmtFunctor<Doc(const Stmt&)>,
   }
 
   /*!
- * \brief special method to render vectors of docs with a separator
- * \param vec vector of docs
- * \param sep separator
- */
+   * \brief special method to render vectors of docs with a separator
+   * \param vec vector of docs
+   * \param sep separator
+   */
   static Doc PrintSep(const std::vector<Doc>& vec, const Doc& sep) {
     Doc seq;
     if (vec.size() != 0) {
@@ -189,7 +188,7 @@ class TIRHybridPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc DumpMeta() {
     if (show_meta_) {
       return Doc::Text("__tvm_meta__ = ")
-          << (meta_.empty() ? Doc::Text("None") : meta_.GetMetaSection());
+             << (meta_.empty() ? Doc::Text("None") : meta_.GetMetaSection());
     } else {
       return Doc::Text("");
     }
@@ -353,9 +352,7 @@ Doc TIRHybridPrinter::VisitExpr_(const FloatImmNode* op) {
   return PrintConstScalar<double>(op->dtype, &(op->value));
 }
 
-Doc TIRHybridPrinter::VisitExpr_(const StringImmNode* op) {
-  return Doc::StrLiteral(op->value);
-}
+Doc TIRHybridPrinter::VisitExpr_(const StringImmNode* op) { return Doc::StrLiteral(op->value); }
 
 Doc TIRHybridPrinter::VisitExpr_(const CastNode* op) {
   Doc doc;
@@ -434,8 +431,8 @@ Doc TIRHybridPrinter::VisitExpr_(const BufferLoadNode* op) {
 
 Doc TIRHybridPrinter::VisitExpr_(const LoadNode* op) {
   Doc doc;
-  if (op->dtype == DataType::Float(32) && is_one(op->predicate)
-      && op->buffer_var->dtype == DataType::Float(32)) {
+  if (op->dtype == DataType::Float(32) && is_one(op->predicate) &&
+      op->buffer_var->dtype == DataType::Float(32)) {
     doc << Print(op->buffer_var) << "[" << Print(op->index) << "]";
   } else {
     doc << "tir.load(" << PrintDType(op->dtype) << ", " << Print(op->buffer_var) << ", "
@@ -504,8 +501,8 @@ Doc TIRHybridPrinter::VisitStmt_(const LetStmtNode* op) {
     doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
   } else {
     if (memo_var_.find(op->var) == memo_var_.end()) var_not_in_headers.insert(op->var.get());
-    doc << Print(op->var)  << ": " << Print(GetType(op->var))
-        << " = " << Print(op->value) << Doc::NewLine() << PrintBody(op->body);
+    doc << Print(op->var) << ": " << Print(GetType(op->var)) << " = " << Print(op->value)
+        << Doc::NewLine() << PrintBody(op->body);
   }
   return doc;
 }
@@ -568,12 +565,12 @@ Doc TIRHybridPrinter::VisitStmt_(const BufferRealizeNode* op) {
 Doc TIRHybridPrinter::VisitStmt_(const AllocateNode* op) {
   Doc doc;
   if (current_num_ != num_child_ - 1) {
-    doc << "with tir.allocate(" << Print(op->buffer_var) << ", "
-        << PrintDType(op->dtype) << ", " << Print(op->extents) << "):";
+    doc << "with tir.allocate(" << Print(op->buffer_var) << ", " << PrintDType(op->dtype) << ", "
+        << Print(op->extents) << "):";
     doc << Doc::Indent(4, PrintBody(op->body));
   } else {
-    doc << "tir.allocate(" << Print(op->buffer_var) << ", "
-        << PrintDType(op->dtype) << ", " << Print(op->extents) << ")";
+    doc << "tir.allocate(" << Print(op->buffer_var) << ", " << PrintDType(op->dtype) << ", "
+        << Print(op->extents) << ")";
     doc << Doc::NewLine() << PrintBody(op->body);
   }
   return doc;
@@ -621,8 +618,8 @@ inline const char* ForType2String(ForType t) {
 Doc TIRHybridPrinter::VisitStmt_(const ForNode* op) {
   Doc doc;
   var_not_in_headers.insert(op->loop_var.get());
-  doc << "for " << Print(op->loop_var)
-      << " in tir.range(" << Print(op->min) << ", " << Print(op->min + op->extent);
+  doc << "for " << Print(op->loop_var) << " in tir.range(" << Print(op->min) << ", "
+      << Print(op->min + op->extent);
   if (op->for_type != ForType::Serial) {
     doc << ", " << Doc::StrLiteral(ForType2String(op->for_type));
   }
@@ -693,7 +690,7 @@ Doc TIRHybridPrinter::PrintBody(const Stmt& body) {
   return doc;
 }
 
-Doc TIRHybridPrinter::PrintIRModule(const IRModule &module) {
+Doc TIRHybridPrinter::PrintIRModule(const IRModule& module) {
   auto* op = module.operator->();
   Doc doc;
   doc << "class Module:";
@@ -713,7 +710,7 @@ Doc TIRHybridPrinter::PrintIRModule(const IRModule &module) {
   return doc;
 }
 
-Doc TIRHybridPrinter::PrintPrimFunc(const PrimFunc &primFunc) {
+Doc TIRHybridPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   auto* op = primFunc.operator->();
   // clear renaming map
   memo_var_.clear();
@@ -751,7 +748,7 @@ Doc TIRHybridPrinter::PrintPrimFunc(const PrimFunc &primFunc) {
     body << ")" << Doc::NewLine();
   }
   // print body
-  body << "# body" <<  Doc::NewLine() << PrintBody(op->body);
+  body << "# body" << Doc::NewLine() << PrintBody(op->body);
   // print func attrs
   Doc header_attr;
   if (primFunc->attrs.defined()) {
@@ -802,7 +799,7 @@ Doc TIRHybridPrinter::PrintPrimFunc(const PrimFunc &primFunc) {
   return doc;
 }
 
-Doc TIRHybridPrinter::PrintArray(const ArrayNode *op) {
+Doc TIRHybridPrinter::PrintArray(const ArrayNode* op) {
   Doc doc;
   doc << '[';
   for (size_t i = 0; i < op->size(); ++i) {
@@ -838,12 +835,11 @@ Doc TIRHybridPrinter::PrintBuffer(const BufferNode* op) {
 }
 
 TVM_REGISTER_GLOBAL("tir.hybrid.AsHybrid")
-    .set_body_typed<std::string(const ObjectRef&, bool)>(
-        [](const ObjectRef& functions, bool show_meta) {
+    .set_body_typed<std::string(const ObjectRef&, bool)>([](const ObjectRef& functions,
+                                                            bool show_meta) {
       CHECK(functions.as<PrimFuncNode>() != nullptr || functions.as<IRModuleNode>() != nullptr);
       return TIRHybridPrinter(show_meta).Print(functions).str() + "\n";
     });
-
 
 }  // namespace tir
 }  // namespace tvm
