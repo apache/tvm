@@ -24,6 +24,8 @@ from test_auto_scheduler_common import matmul_auto_scheduler_test
 
 
 def test_random_model():
+    if not tvm.runtime.enabled("llvm"):
+        return
     N = 128
     workload_key = auto_scheduler.make_workload_key(matmul_auto_scheduler_test, (N, N, N))
     dag = auto_scheduler.ComputeDAG(workload_key)
