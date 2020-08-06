@@ -86,7 +86,7 @@ static std::string getNextString(std::stringstream* iss) {
  * \brief RPCServer RPC Server class.
  * \param host The hostname of the server, Default=0.0.0.0
  * \param port The port of the RPC, Default=9090
- * \param port_end The end search port of the RPC, Default=9199
+ * \param port_end The end search port of the RPC, Default=9099
  * \param tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
  * \param key The key used to identify the device type in tracker. Default=""
  * \param custom_addr Custom IP Address to Report to RPC Tracker. Default=""
@@ -362,7 +362,7 @@ void ServerLoopFromChild(SOCKET socket) {
  * \brief RPCServerCreate Creates the RPC Server.
  * \param host The hostname of the server, Default=0.0.0.0
  * \param port The port of the RPC, Default=9090
- * \param port_end The end search port of the RPC, Default=9199
+ * \param port_end The end search port of the RPC, Default=9099
  * \param tracker_addr The address of RPC tracker in host:port format e.g. 10.77.1.234:9190
  * Default="" \param key The key used to identify the device type in tracker. Default="" \param
  * custom_addr Custom IP Address to Report to RPC Tracker. Default="" \param silent Whether run in
