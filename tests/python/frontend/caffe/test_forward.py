@@ -38,7 +38,7 @@ from tvm import relay
 from tvm.contrib import util, graph_runtime
 from tvm.contrib.download import download_testdata
 
-CURRENT_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
+CURRENT_DIR = os.path.join(os.path.expanduser('~'), '.tvm_test_data', 'caffe_test')
 
 #######################################################################
 # Generic functions for TVM & Caffe
