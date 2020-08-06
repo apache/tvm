@@ -30,6 +30,11 @@ This folder contains a simple recipe to make RPC server in c++.
   set(ANDROID_ABI "arm64-v8a")
   set(ANDROID_PLATFORM android-28)
 ```
+- If linking against a custom device OpenCL library is needed, in the config specify the path to the OpenCL SDK containing the include/CL headers and lib/ or lib64/libOpenCL.so:
+```
+  set(USE_OPENCL /path/to/opencl-sdk)
+```
+
 - From within the configured tvm build directory, compile `tvm_runtime` and the `tvm_rpc` server:
 ```
   cd $TVM_ROOT/build
