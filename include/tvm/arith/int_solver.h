@@ -44,7 +44,7 @@ using tir::VarNode;
 // According to experiments two best simplifications orders were can->rw and rw->can->rw,
 // but rw->can->rw is better for a couple of cases.
 // Also we should end with rw because it factors multipliers out.
-constexpr int ARITH_SIMPLIFY_REWRITE_CANONICAL_REWRITE = 3;
+constexpr int kSimplifyRewriteCanonicalRewrite = 3;
 
 /*!
  * \brief Represent integer grouped bounds which are classified into
