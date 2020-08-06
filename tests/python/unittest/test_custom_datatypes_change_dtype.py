@@ -318,6 +318,11 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
     ]:
         check_binary_op(op, src_dtype, dst_dtype)
 
+    # we would like to test tvm_if_then_else
+    # but Relay.IfNode is not lowered to this intrinsic,
+    # so to keep our tests consistent with relay, we decide to not unit test
+    # Note: tvm_if_then_else is tested as part of the mobile_net model
+
 
 def run_model(get_workload,
               input_shape,
