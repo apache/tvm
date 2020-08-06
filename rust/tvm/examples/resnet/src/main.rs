@@ -91,7 +91,7 @@ fn main() {
         fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_param.params")).unwrap();
     let barr = ByteArray::from(&params);
     // load the parameters
-    load_param_fn.invoke(vec![barr.into()]).unwrap();
+    load_param_fn.invoke(vec![(&barr).into()]).unwrap();
     // get the set_input function
     let ref set_input_fn = graph_runtime_module
         .get_function("set_input", false)

@@ -16,26 +16,28 @@
 # under the License.
 # pylint: disable=line-too-long
 """
-.. _tutorial-relay-pass-infra:
+.. _tutorial-use-pass-infra:
 
-How to Use Relay Pass Infra
-===========================
+How to Use TVM Pass Infra
+=========================
 **Author**: `Zhi Chen <https://github.com/zhiics>`_
 
-As the number of optimization passes increases in Relay, it becomes intractable to
+As the number of optimization passes increases in Relay/tir, it becomes intractable to
 execute them and maintain their dependencies manually. Therefore, we have
-introduced an infrastructure to manage the optimization passes.
+introduced an infrastructure to manage the optimization passes and make it
+applicable to different layers of the IR in the TVM stack.
 
-The optimizations of a Relay program could be applied at various granularity,
-namely function-level and module-level using :py:class:`tvm.relay.transform.FunctionPass`
-and :py:class:`tvm.relay.transform.ModulePass`
-respectively. Or users can rely on py:class:`tvm.transform.Sequential` to apply a sequence of passes
-on a Relay program where the dependencies between passes can be resolved by the
+The optimizations of a Relay/tir program could be applied at various granularity,
+namely function-level and module-level using :py:class:`tvm.relay.transform.FunctionPass`/
+:py:class:`tvm.tir.transform.PrimFuncPass` and :py:class:`tvm.transform.ModulePass`
+respectively. Or users can rely on :py:class:`tvm.transform.Sequential` to apply a sequence of passes
+on a Relay/tir program where the dependencies between passes can be resolved by the
 pass infra. For more details about each type of these passes, please refer to
-the :ref:`relay-pass-infra`
+the :ref:`pass-infra`
 
-This tutorial demostrates how developers can use the Relay pass infra to perform
-a certain optimization and create an optimization pipeline.
+This tutorial mainly demostrates how developers can use the pass infra to perform
+a certain optimization and create an optimization pipeline for a Relay program.
+The same approach can be used for tir as well.
 """
 
 import numpy as np
@@ -48,6 +50,7 @@ import tvm.relay as relay
 # -------------------------------
 # First of all, we create a simple Relay program for the tutorial. This program
 # will be used by various optimizations of the examples in this tutorial.
+# Similarly, users can write a tir primitive function and apply the tir passes.
 
 def example():
     shape = (1, 64, 54, 54)
@@ -153,7 +156,7 @@ print(mod1)
 
 ###############################################################################
 # From the transformed Relay program, we can see that there are still two
-# identical addition operations. This is because `EliminateCommonSubexpr`
+# identical addition operations. This is because ``EliminateCommonSubexpr``
 # was not actually performed. The reason is because only the passes that have
 # optimization level less or equal to 2 will be executed by default under
 # :py:class:`tvm.transform.Sequential`. The pass infra,
@@ -230,10 +233,10 @@ print(mod3)
 ##############################################################################
 # Debug a Pass
 # ------------
-# Relay provides users a plug-and-play style debugging pass that print the IR
-# after a certain pass is done. For example, we can print out the IR on the
-# completion of constant folding and fusion by adding the debugging pass after
-# them.
+# TVM provides users a plug-and-play style debugging pass that print the IR
+# after a certain pass is done through a special pass (``PrintIR``) to dump the IR of the
+# whole module. A slightly modified version of the sequential pass example
+# could be like the following to enable IR dumping for ``FoldConstant`` optimization.
 
 f = example()
 mod = tvm.IRModule.from_expr(f)
@@ -241,8 +244,39 @@ seq = tvm.transform.Sequential([relay.transform.FoldConstant(),
                                 tvm.transform.PrintIR(),
                                 relay.transform.EliminateCommonSubexpr(),
                                 relay.transform.FuseOps(),
-                                tvm.transform.PrintIR()])
-with tvm.transform.PassContext(opt_level=3):
-    mod = seq(mod)
+                                relay.transform.AlterOpLayout()])
+
+# By inserting the ``PrintIR`` pass after ``FoldConstant``, the pass infra will
+# dump out the module IR when ``FoldConstant`` is done. Users can plug in this
+# pass after any pass they want to debug for viewing the optimization effect.
+# 
+# There is a more flexible debugging mechanism also exposed by the build configuration
+# object. One can pass a tracing function which can be used to execute arbitrary code
+# before and/or after each pass. A tracing function will receive a :py::class:`tvm.IRModule`,
+# a :py:class:`tvm.transform.PassInfo` object,
+# and a boolean indicating whether you are executing before, or after a pass.
+# An example is below.
+
+def print_ir(mod, info, is_before):
+    """Print the name of the pass, the IR, only before passes execute."""
+    if is_before:
+        print("Running pass: {}", info)
+        print(mod)
+
+with tvm.transform.PassContext(opt_level=3, trace=print_ir):
+    with tvm.target.create("llvm"):
+        # Perform the optimizations.
+        mod = seq(mod)
+print(mod)
 
 print("done")
+
+##############################################################################
+# Summary
+# -------
+# This tutorial has covered how we can write and invoke passes in TVM more
+# conveniently using the pass infra. Different ways of invoking a pass are also
+# disucssed. Using :py:class:`tvm.transform.Sequential` can largely help
+# users to ease the work of handling multiple optimization passes and their
+# dependencies. In addition, an example is provided to illustrate
+# how we can debug a pass using the ``PrintIR`` and tracing.

@@ -144,7 +144,7 @@ def load_best(filename, workload_key=None, target=None):
             continue
         if workload_key and inp.task.workload_key != workload_key:
             continue
-        if target and inp.task.target.id.name != target.id.name:
+        if target and inp.task.target.kind.name != target.kind.name:
             continue
 
         costs = [v.value for v in res.costs]

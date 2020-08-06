@@ -25,7 +25,7 @@ from .util import get_pad_tuple3d
 from ..util import simplify
 
 
-def conv3d_transpose_ncdhw(Input, Filter, strides, padding, out_dtype):
+def conv3d_transpose_ncdhw(Input, Filter, strides, padding, out_dtype, output_padding):
     """Transposed 3D convolution ncdhw forward operator.
 
     Parameters
@@ -45,31 +45,37 @@ def conv3d_transpose_ncdhw(Input, Filter, strides, padding, out_dtype):
     out_dtype : str
         The output data type. This is used for mixed precision.
 
+    output_padding : tuple of ints
+        Used to get the right output shape for gradients
+
     Returns
     -------
     Output : tvm.te.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
-    return declaration_conv3d_transpose_impl(Input, Filter, strides, padding, out_dtype)
+    return declaration_conv3d_transpose_impl(Input, Filter, strides, padding,
+                                             out_dtype, output_padding)
 
 
-def conv3d_transpose_ncdhw_preprocess(data, kernel, strides, padding, out_dtype):
+def conv3d_transpose_ncdhw_preprocess(data, kernel, strides, padding, out_dtype, output_padding):
     """Preprocess data and kernel to make the compute pattern
        of conv3d_transpose the same as conv3d"""
     batch, in_c, in_d, in_h, in_w = data.shape
     _, out_c, filter_d, filter_h, filter_w = kernel.shape
     stride_d, stride_h, stride_w = strides
+    opad_d, opad_h, opad_w = output_padding
+    assert opad_d < stride_d and opad_h < stride_h and opad_w < stride_w
     # dilate data
     data_dilate = dilate(data, [1, 1, stride_d, stride_h, stride_w], name='data_dilate')
     # pad data
     fpad_front, fpad_top, fpad_left, fpad_back, fpad_bottom, fpad_right = get_pad_tuple3d(
         padding, (filter_d, filter_h, filter_w))
     bpad_front = filter_d - 1 - fpad_front
-    bpad_back = filter_d - 1 - fpad_back
+    bpad_back = filter_d - 1 - fpad_back + opad_d
     bpad_top = filter_h - 1 - fpad_top
-    bpad_bottom = filter_h - 1 - fpad_bottom
+    bpad_bottom = filter_h - 1 - fpad_bottom + opad_h
     bpad_left = filter_w - 1 - fpad_left
-    bpad_right = filter_w - 1 - fpad_right
+    bpad_right = filter_w - 1 - fpad_right + opad_w
     data_pad = pad(data_dilate, \
                    [0, 0, bpad_front, bpad_top, bpad_left], \
                    [0, 0, bpad_back, bpad_bottom, bpad_right], \
@@ -82,10 +88,10 @@ def conv3d_transpose_ncdhw_preprocess(data, kernel, strides, padding, out_dtype)
     return data_pad, kernel_transform
 
 
-def declaration_conv3d_transpose_impl(data, kernel, strides, padding, out_dtype):
+def declaration_conv3d_transpose_impl(data, kernel, strides, padding, out_dtype, output_padding):
     """Implementation of conv3d transpose"""
     data_pad, kernel_transform = \
-        conv3d_transpose_ncdhw_preprocess(data, kernel, strides, padding, out_dtype)
+        conv3d_transpose_ncdhw_preprocess(data, kernel, strides, padding, out_dtype, output_padding)
     batch, in_c, in_d, in_h, in_w = data_pad.shape
     out_c, _, filter_d, filter_h, filter_w = kernel_transform.shape
     stride_d, stride_h, stride_w = strides

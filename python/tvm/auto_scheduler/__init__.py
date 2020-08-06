@@ -25,9 +25,10 @@ from . import utils
 from . import workload_registry
 
 # Shortcut
-from .compute_dag import ComputeDAG
 from .auto_schedule import SearchTask, TuningOptions, HardwareParams, \
     auto_schedule, EmptyPolicy
+from .compute_dag import ComputeDAG
+from .cost_model import RandomModel
 from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, \
     LocalRPCMeasureContext
 from .measure_record import RecordToFile, RecordReader, load_best, \

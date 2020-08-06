@@ -21,7 +21,7 @@ import tvm.topi.testing
 from tvm.topi.nn.util import get_pad_tuple3d
 
 
-def conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding):
+def conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding, output_padding):
     """Transposed 3d convolution operator in NCDHW layout.
 
     Parameters
@@ -38,6 +38,9 @@ def conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding):
     padding : int or str
         Padding size
 
+    output_padding : int or list/tuple of three ints
+        Used to disambiguate output shape.
+
     Returns
     -------
     b_np : np.ndarray
@@ -49,6 +52,11 @@ def conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding):
         stride_d = stride_h = stride_w = stride
     else:
         stride_d, stride_h, stride_w = stride
+    if isinstance(output_padding, int):
+        opad_d = opad_h = opad_w = output_padding
+    else:
+        opad_d, opad_h, opad_w = output_padding
+    assert opad_d < stride_d and opad_h < stride_h and opad_w < stride_w
 
     # dilate stage
     dilated_a_np = tvm.topi.testing.dilate_python(a_np, [1, 1, stride_d, stride_h, stride_w])
@@ -58,11 +66,11 @@ def conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding):
         padding, (filter_d, filter_h, filter_w))
 
     bpad_front = filter_d - 1 - fpad_front
-    bpad_back = filter_d - 1 - fpad_back
+    bpad_back = filter_d - 1 - fpad_back + opad_d
     bpad_top = filter_h - 1 - fpad_top
-    bpad_bottom = filter_h - 1 - fpad_bottom
+    bpad_bottom = filter_h - 1 - fpad_bottom + opad_h
     bpad_left = filter_w - 1 - fpad_left
-    bpad_right = filter_w - 1 - fpad_right
+    bpad_right = filter_w - 1 - fpad_right + opad_w
 
     padded_a_np = np.zeros((batch,
                             in_c,
@@ -70,7 +78,7 @@ def conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding):
                             dilated_a_np.shape[3]+bpad_top+bpad_bottom,
                             dilated_a_np.shape[4]+bpad_left+bpad_right))
 
-    padded_a_np[:, :, bpad_front:dilated_a_np.shape[2]+bpad_back,
+    padded_a_np[:, :, bpad_front:dilated_a_np.shape[2]+bpad_front,
                 bpad_top:dilated_a_np.shape[3]+bpad_top,
                 bpad_left:dilated_a_np.shape[4]+bpad_left] = dilated_a_np
 

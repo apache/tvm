@@ -78,6 +78,8 @@ Expr MakeVariance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, bool
 
 Expr MakeZeros(Array<Integer> shape, DataType dtype);
 
+Expr MakeOneHot(Expr indices, Expr on_value, Expr off_value, int depth, int axis, DataType dtype);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_MAKE_OP_H_

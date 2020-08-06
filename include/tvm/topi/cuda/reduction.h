@@ -70,7 +70,7 @@ Schedule ScheduleReduce(const Target& target, Operation op, Schedule sch,
   if (out_stage->op.as<ComputeOpNode>()->axis.size() > 0) {
     all_reduce = false;
     num_thread = 32;
-    if (target->id->name == "opencl") {
+    if (target->kind->name == "opencl") {
       // Without this, CL_INVALID_WORK_GROUP_SIZE occurs with python tests.
       // Don't know why.
       num_thread = 16;

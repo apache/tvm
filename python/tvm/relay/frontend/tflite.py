@@ -116,6 +116,7 @@ class OperatorConverter(object):
             'NOT_EQUAL': self.convert_not_equal,
             'PACK': self.convert_pack,
             'PAD': self.convert_pad,
+            'PADV2': self.convert_pad,
             'POW': self.convert_pow,
             'PRELU': self.convert_prelu,
             'RANGE': self.convert_range,
@@ -2306,34 +2307,57 @@ class OperatorConverter(object):
         return out
 
     def convert_pad(self, op):
-        """Convert TFLite PAD"""
-        input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 2, "input tensors length should be 2"
+        """Convert TFLite PAD/PADV2 \
+           TFLite treats PAD and PADV2 operators identically"""
 
-        # TFLite PAD only support CONSTANT mode and does not support constant_values parameter.
-        # tensor
+        input_tensors = self.get_input_tensors(op)
+
+        # TFLite PAD/PADV2 only supports CONSTANT mode
+        assert (len(input_tensors) == 2 or len(input_tensors) == 3), \
+            "input tensor's length should be 2 for PAD and 3 for PADV2"
+
+        if len(input_tensors) == 3:
+            assert input_tensors[0].tensor.Type() == input_tensors[2].tensor.Type(), \
+                "constant_values tensor must be of same type as input tensor"
+
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
         # paddings
         pad_list = self.get_tensor_value(input_tensors[1])
+
         # convert list of lists to tuple of tuples
         paddings = tuple(tuple(l) for l in pad_list)
 
-        # Set the pad value
+        # Set the pad value, by default 0, unless constant_values parameter is provided
         pad_value = 0
+
         if input_tensor.qnn_params:
             # Check that input and output tensor have same qnn params.
             output_tensors = self.get_output_tensors(op)
             output_tensor = output_tensors[0]
             assert self.has_same_qnn_params(input_tensor, output_tensor), \
-                    "TFLite reshape requires input and output scale and zero points to be equal"
+                "TFLite PADV2 requires input and output scale and zero points to be equal"
 
-            # The pad value for quantized pad is the input zero point.
+            # The pad value for quantized pad is the input zero point by default.
             pad_value = float(input_tensor.qnn_params['zero_point'].data.asnumpy())
+
+        if len(input_tensors) == 3:
+            pad_value = self.get_tensor_value(input_tensors[2])
+            if isinstance(pad_value, np.ndarray):
+                pad_value = pad_value.tolist()
+            if isinstance(pad_value, list):
+                assert len(pad_value) == 1, "Only one constant value is expected."
+                pad_value = pad_value[0]
+            if input_tensor.qnn_params:
+                # Check that input tensor and constant_values have same qnn params.
+                assert self.has_same_qnn_params(input_tensor, input_tensors[2]), \
+                    "TFLite PADV2 requires input and constant_values tensors' \
+                        scale and zero points to be equal"
 
         out = _op.nn.pad(in_expr, pad_width=paddings, pad_value=pad_value)
         return out
+
 
     def convert_floor_div(self, op):
         """Convert TFLite FLOOR_DIV"""

@@ -25,8 +25,8 @@ from . import _ffi_api
 
 
 @tvm._ffi.register_object
-class TargetId(Object):
-    """Id of a compilation target
+class TargetKind(Object):
+    """Kind of a compilation target
     """
 
 
@@ -45,6 +45,7 @@ class Target(Object):
     - :py:func:`tvm.target.mali` create Mali target
     - :py:func:`tvm.target.intel_graphics` create Intel Graphics target
     """
+
     def __enter__(self):
         _ffi_api.EnterTargetScope(self)
         return self
@@ -163,7 +164,8 @@ def intel_graphics(model='unknown', options=None):
     options : str or list of str
         Additional options
     """
-    opts = ["-device=intel_graphics", "-model=%s" % model, "-thread_warp_size=16"]
+    opts = ["-device=intel_graphics", "-model=%s" %
+            model, "-thread_warp_size=16"]
     opts = _merge_opts(opts, options)
     return _ffi_api.TargetCreate("opencl", *opts)
 
@@ -186,7 +188,10 @@ def arm_cpu(model='unknown', options=None):
         "p20":       ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
         "p20pro":    ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
         "rasp3b":    ["-model=bcm2837", "-mtriple=armv7l-linux-gnueabihf", "-mattr=+neon"],
-        "rasp4b":    ["-model=bcm2711", "-mtriple=arm-linux-gnueabihf", "-mattr=+neon"],
+        "rasp4b":    ["-model=bcm2711", "-mtriple=armv8l-linux-gnueabihf", "-mattr=+neon",
+                      "-mcpu=cortex-a72"],
+        "rasp4b64":  ["-model=bcm2711", "-mtriple=aarch64-linux-gnu", "-mattr=+neon",
+                      "-mcpu=cortex-a72"],
         "rk3399":    ["-model=rk3399", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
         "pynq":      ["-model=pynq", "-mtriple=armv7a-linux-eabi", "-mattr=+neon"],
         "ultra96":   ["-model=ultra96", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
@@ -280,7 +285,7 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
                 i = sim_args.index('hvx_length') + len('hvx_length') + 1
                 sim_hvx = sim_args[i:i+3]
                 if sim_hvx != str(codegen_hvx):
-                    print('WARNING: sim hvx {} and codegen hvx {} mismatch!' \
+                    print('WARNING: sim hvx {} and codegen hvx {} mismatch!'
                           .format(sim_hvx, codegen_hvx))
             elif codegen_hvx != 0:
                 # If --hvx_length was not given, add it if HVX is enabled
@@ -313,10 +318,10 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
             # Parse options into correct order
             cpu_attr = {x: str(m.groupdict()[x] or '') for x in m.groupdict()}
             sim_args = cpu_attr['base_version'] +  \
-                       cpu_attr['sub_version']  +  \
-                       cpu_attr['l2_size'] +       \
-                       cpu_attr['rev'] + ' ' +     \
-                       cpu_attr['pre'] + cpu_attr['post']
+                cpu_attr['sub_version'] +  \
+                cpu_attr['l2_size'] +       \
+                cpu_attr['rev'] + ' ' +     \
+                cpu_attr['pre'] + cpu_attr['post']
 
         return sim_cpu + ' ' + validate_hvx_length(hvx, sim_args)
 
