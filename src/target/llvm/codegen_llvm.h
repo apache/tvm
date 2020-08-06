@@ -73,9 +73,11 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param system_lib Whether to insert system library registration.
    * \param dynamic_lookup Whether dynamically lookup runtime function
    *                       or use the runtime function table passed by caller.
+   * \param target_c_runtime If true, generate a module to be executed by the C runtime. In practice
+   *                       this option influences whether global ctors are used.
    */
   virtual void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
-                    bool system_lib, bool dynamic_lookup);
+                    bool system_lib, bool dynamic_lookup, bool target_c_runtime);
   /*!
    * \brief Compile and add function f to the current module.
    * \param f The function to be added.
@@ -246,7 +248,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void GetAlignment(DataType t, const VarNode* buf_var, const PrimExpr& index, int* p_alignment,
                     int* p_native_bits);
   // Get constant string
-  llvm::Value* GetConstString(const std::string& str);
+  llvm::Constant* GetConstString(const std::string& str);
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(const CallNode* op, llvm::Function* f,
                                     const std::vector<llvm::Value*>& args);
