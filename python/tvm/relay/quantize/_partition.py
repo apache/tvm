@@ -164,8 +164,7 @@ def global_avg_pool2d_partition_function(ref_call, new_args, ctx):
     cond, expr = partition_expr_check(new_args[0])
     if cond:
         expr = new_args[0].realize()
-        return _forward_op(ref_call, [expr])
     else:
         expr = QPartitionExpr(new_args[0]).realize()
-        return _forward_op(ref_call, [expr])
-    return None
+
+    return _forward_op(ref_call, [expr])

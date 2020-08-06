@@ -366,8 +366,8 @@ Expr AddRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
     Expr dom_scale;
     // execute the operation with activation data type.
     const QConfig& cfg = QConfig::Current();
-    Array<Expr> ret_args = UnifyDTypeScale(ref_call->args, new_args,
-                                           &dtype, &dom_scale, cfg->dtype_activation);
+    Array<Expr> ret_args =
+        UnifyDTypeScale(ref_call->args, new_args, &dtype, &dom_scale, cfg->dtype_activation);
     for (size_t i = 0; i < ret_args.size(); ++i) {
       // do not fuse float32 arg
       if (new_args[i].as<QRealizeIntExprNode>()->dtype == DataType::Float(32)) {
