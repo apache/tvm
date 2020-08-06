@@ -315,7 +315,7 @@ Doc TIRHybridPrinter::Print(const ObjectRef& node) {
     return VisitExpr(Downcast<PrimExpr>(node));
   } else if (node->IsInstance<TypeNode>()) {
     return VisitType(Downcast<Type>(node));
-  } else if (node->IsInstance<PrimFuncNode>()){
+  } else if (node->IsInstance<PrimFuncNode>()) {
     return PrintPrimFunc(Downcast<PrimFunc>(node));
   } else if (node->IsInstance<IRModuleNode>()) {
     return PrintIRModule(Downcast<IRModule>(node));
@@ -366,7 +366,6 @@ Doc TIRHybridPrinter::VisitExpr_(const CastNode* op) {
 Doc TIRHybridPrinter::VisitExpr_(const VarNode* op) {
   const Var& var = GetRef<Var>(op);
   return meta_.InMeta(var) ? meta_.GetMetaNode(var) : AllocVar(GetRef<Var>(op));
-
 }
 
 #define TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(OpName, OpString)     \
@@ -725,7 +724,8 @@ Doc TIRHybridPrinter::PrintPrimFunc(const PrimFunc &primFunc) {
   buf_not_in_headers.clear();
   // print signature
   Doc doc;
-  doc << "def " << (func2var_.find(op) == func2var_.end() ? "func" : func2var_[op]->name_hint) << "(";
+  doc << "def " << (func2var_.find(op) == func2var_.end() ? "func" : func2var_[op]->name_hint)
+      << "(";
   std::vector<Doc> params;
   for (const auto& param : op->params) {
     var_not_in_headers.insert(param.get());
