@@ -261,10 +261,9 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
   // Simplify each inequality into the form `expr <= 0` and add to current formulas
   for (const PrimExpr& ineq : system_to_solve->relations) {
-    AddInequality(
-        &current_ineq_set_to_solve,
-        NormalizeComparisons()(analyzer.Simplify(ineq, kSimplifyRewriteCanonicalRewrite)),
-        &analyzer);
+    AddInequality(&current_ineq_set_to_solve,
+                  NormalizeComparisons()(analyzer.Simplify(ineq, kSimplifyRewriteCanonicalRewrite)),
+                  &analyzer);
   }
 
   Map<Var, IntGroupBounds> res_bounds;
@@ -280,10 +279,9 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     // Add bounds from vranges
     if (system_to_solve->ranges.count(v)) {
       const Range& range = system_to_solve->ranges[v];
-      PrimExpr range_lbound =
-          analyzer.Simplify(range->min, kSimplifyRewriteCanonicalRewrite);
-      PrimExpr range_ubound = analyzer.Simplify(
-          range->min + range->extent - 1, kSimplifyRewriteCanonicalRewrite);
+      PrimExpr range_lbound = analyzer.Simplify(range->min, kSimplifyRewriteCanonicalRewrite);
+      PrimExpr range_ubound =
+          analyzer.Simplify(range->min + range->extent - 1, kSimplifyRewriteCanonicalRewrite);
       coef_neg.push_back({-1, range_lbound});
       coef_pos.push_back({1, -range_ubound});
     }
@@ -304,8 +302,8 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         // we need rewrite_simplify -> canonical_simplify -> rewrite_simplify
         // to help simplify things like (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // with steps = 2 it's (y*2) - 10 <= 0
-        new_ineq = NormalizeComparisons()(
-            analyzer.Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite));
+        new_ineq =
+            NormalizeComparisons()(analyzer.Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite));
         AddInequality(&next_ineq_set_to_solve, new_ineq, &analyzer);
       }
     }

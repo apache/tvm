@@ -62,9 +62,8 @@ namespace te {
 
 using arith::DivMode;
 using arith::kFloorDiv;
-using arith::kTruncDiv;
-using arith::kTruncDiv;
 using arith::kSimplifyRewriteCanonicalRewrite;
+using arith::kTruncDiv;
 
 template <class K, class V>
 Map<K, V> Merge(Map<K, V> original, const Map<K, V>& update) {
@@ -145,9 +144,8 @@ bool IsSumCombiner(const CommReducer& combiner, const Map<Var, Range>& vranges) 
     return false;
   }
 
-  if (!is_const_value(analyzer.Simplify(
-                          combiner->identity_element[0], kSimplifyRewriteCanonicalRewrite),
-                      0)) {
+  if (!is_const_value(
+          analyzer.Simplify(combiner->identity_element[0], kSimplifyRewriteCanonicalRewrite), 0)) {
     return false;
   }
 
@@ -231,15 +229,13 @@ class NonzeroConditionFunctor : public ExprFunctor<NonzeroConditionResult(const 
 
     // If the false part is zero, we can get rid of the select
     if (is_const_value(nz_b.value, 0)) {
-      PrimExpr new_cond =
-          analyzer_.Simplify(nz_a.cond && cond, kSimplifyRewriteCanonicalRewrite);
+      PrimExpr new_cond = analyzer_.Simplify(nz_a.cond && cond, kSimplifyRewriteCanonicalRewrite);
       return {new_cond, nz_a.value};
     }
 
     // If the true part is zero, we can also get rid of the select
     if (is_const_value(nz_a.value, 0)) {
-      PrimExpr new_cond =
-          analyzer_.Simplify(nz_b.cond && !cond, kSimplifyRewriteCanonicalRewrite);
+      PrimExpr new_cond = analyzer_.Simplify(nz_b.cond && !cond, kSimplifyRewriteCanonicalRewrite);
       return {new_cond, nz_b.value};
     }
 
@@ -1016,8 +1012,8 @@ PrimExpr TrySimplifyCompute(const PrimExpr& expr, const PrimExpr& cond,
 
   arith::Analyzer analyzer;
   analyzer.Bind(res->dst->ranges);
-  PrimExpr new_expr = analyzer.Simplify(Substitute(expr, res->src_to_dst),
-                                        kSimplifyRewriteCanonicalRewrite);
+  PrimExpr new_expr =
+      analyzer.Simplify(Substitute(expr, res->src_to_dst), kSimplifyRewriteCanonicalRewrite);
   // TODO(yzhliu): This is mostly done to simplify if_then_else
   // which is not realized by the canonical simplifier
   new_expr = RemoveRedundantInequalities(new_expr, res->dst->relations);
@@ -1073,7 +1069,6 @@ PrimExpr TrySimplifyCompute(const PrimExpr& expr, const PrimExpr& cond,
 
   return ProducerLoad(tensor, args);
 }
-
 
 class ReductionAsTensorAccessMutator : public ExprMutator {
  public:
