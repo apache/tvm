@@ -250,7 +250,7 @@ runtime::Module BuildAMDGPU(IRModule mod, std::string target) {
   // have a shorter lifetime than the ctx.
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
 
-  cg->Init("TVMAMDGPUModule", tm.get(), ctx.get(), false, false);
+  cg->Init("TVMAMDGPUModule", tm.get(), ctx.get(), false, false, false);
 
   for (auto kv : mod->functions) {
     CHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";

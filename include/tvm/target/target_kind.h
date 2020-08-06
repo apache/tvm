@@ -150,6 +150,12 @@ class TargetKindAttrMap : public AttrRegistryMap<TargetKind, ValueType> {
   explicit TargetKindAttrMap(const AttrRegistryMapContainerMap<TargetKind>& map) : TParent(map) {}
 };
 
+/*! \brief Value used with --runtime in target specs to indicate the C++ runtime. */
+static constexpr const char* kTvmRuntimeCpp = "c++";
+
+/*! \brief Value used with --runtime in target specs to indicate the C runtime. */
+static constexpr const char* kTvmRuntimeCrt = "c";
+
 /*!
  * \brief Helper structure to register TargetKind
  * \sa TVM_REGISTER_TARGET_KIND
