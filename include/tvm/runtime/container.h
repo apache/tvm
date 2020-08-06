@@ -27,7 +27,6 @@
 #include <dmlc/logging.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <algorithm>
 #include <cstring>
@@ -73,6 +72,9 @@ class StringRef;
 
 namespace tvm {
 namespace runtime {
+
+// Forward declare TVMArgValue
+class TVMArgValue;
 
 /*! \brief String-aware ObjectRef equal functor */
 struct ObjectHash {
@@ -1289,9 +1291,7 @@ class String : public ObjectRef {
    * \param val The value to be checked
    * \return A boolean indicating if val can be converted to String
    */
-  static bool CanConvertFrom(const TVMArgValue& val) {
-    return val.type_code() == kTVMStr || val.IsObjectRef<tvm::runtime::String>();
-  }
+  inline static bool CanConvertFrom(const TVMArgValue& val);
 
   /*!
    * \brief Hash the binary bytes
@@ -1523,25 +1523,6 @@ inline bool ObjectEqual::operator()(const ObjectRef& a, const ObjectRef& b) cons
   return false;
 }
 
-template <>
-struct PackedFuncValueConverter<::tvm::runtime::String> {
-  static String From(const TVMArgValue& val) {
-    if (val.IsObjectRef<tvm::runtime::String>()) {
-      return val.AsObjectRef<tvm::runtime::String>();
-    } else {
-      return tvm::runtime::String(val.operator std::string());
-    }
-  }
-
-  static String From(const TVMRetValue& val) {
-    if (val.IsObjectRef<tvm::runtime::String>()) {
-      return val.AsObjectRef<tvm::runtime::String>();
-    } else {
-      return tvm::runtime::String(val.operator std::string());
-    }
-  }
-};
-
 /*! \brief Helper to represent nullptr for optional. */
 struct NullOptType {};
 
@@ -1657,18 +1638,6 @@ class Optional : public ObjectRef {
     return value() != other;
   }
   static constexpr bool _type_is_nullable = true;
-};
-
-template <typename T>
-struct PackedFuncValueConverter<Optional<T>> {
-  static Optional<T> From(const TVMArgValue& val) {
-    if (val.type_code() == kTVMNullptr) return Optional<T>(nullptr);
-    return PackedFuncValueConverter<T>::From(val);
-  }
-  static Optional<T> From(const TVMRetValue& val) {
-    if (val.type_code() == kTVMNullptr) return Optional<T>(nullptr);
-    return PackedFuncValueConverter<T>::From(val);
-  }
 };
 
 /*!
