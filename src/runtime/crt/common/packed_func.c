@@ -121,6 +121,8 @@ TVMArgs TVMArgs_Create(TVMValue* values, uint32_t* tcodes, uint32_t values_count
 }
 
 int TVMPackedFunc_Call(TVMPackedFunc* pf) {
+  pf->ret_value.values_count = 1;
+  pf->ret_value.tcodes[0] = kTVMNullptr;
   return TVMFuncCall(pf->fexec, pf->args.values, pf->args.tcodes, pf->args.values_count,
                      pf->ret_value.values, pf->ret_value.tcodes);
 }

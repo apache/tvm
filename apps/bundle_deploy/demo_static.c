@@ -24,8 +24,8 @@
 #include <sys/time.h>
 #include <tvm/runtime/c_runtime_api.h>
 
-#include "build/graph.json.c"
-#include "build/params.bin.c"
+#include "build/graph_c.json.c"
+#include "build/params_c.bin.c"
 #include "bundle.h"
 
 #define OUTPUT_LEN 1000
@@ -33,14 +33,14 @@
 int main(int argc, char** argv) {
   assert(argc == 2 && "Usage: demo_static <cat.bin>");
 
-  char* json_data = (char*)(build_graph_json);
-  char* params_data = (char*)(build_params_bin);
-  uint64_t params_size = build_params_bin_len;
+  char* json_data = (char*)(build_graph_c_json);
+  char* params_data = (char*)(build_params_c_bin);
+  uint64_t params_size = build_params_c_bin_len;
 
   struct timeval t0, t1, t2, t3, t4, t5;
   gettimeofday(&t0, 0);
 
-  void* handle = tvm_runtime_create(json_data, params_data, params_size);
+  void* handle = tvm_runtime_create(json_data, params_data, params_size, argv[0]);
   gettimeofday(&t1, 0);
 
   float input_storage[1 * 3 * 224 * 224];
