@@ -282,7 +282,8 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
       const Range& range = system_to_solve->ranges[v];
       PrimExpr range_lbound =
           analyzer.Simplify(range->min, kSimplifyRewriteCanonicalRewrite);
-      PrimExpr range_ubound = analyzer.Simplify(range->min + range->extent - 1, kSimplifyRewriteCanonicalRewrite);
+      PrimExpr range_ubound = analyzer.Simplify(
+          range->min + range->extent - 1, kSimplifyRewriteCanonicalRewrite);
       coef_neg.push_back({-1, range_lbound});
       coef_pos.push_back({1, -range_ubound});
     }
@@ -440,7 +441,8 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
       // There is an equation of the form `v == expr`, so this variable can be completely removed.
       // Note that we use the 0-th expression because they are ordered by complexity,
       // so it must be the simplest one.
-      Range best_range(bnd->equal[0], analyzer.Simplify(bnd->equal[0] + 1, kSimplifyRewriteCanonicalRewrite));
+      Range best_range(bnd->equal[0],
+                       analyzer.Simplify(bnd->equal[0] + 1, kSimplifyRewriteCanonicalRewrite));
       res_ranges.Set(var, best_range);
       vranges.Set(var, best_range);
     } else {

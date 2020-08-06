@@ -145,7 +145,8 @@ bool IsSumCombiner(const CommReducer& combiner, const Map<Var, Range>& vranges) 
     return false;
   }
 
-  if (!is_const_value(analyzer.Simplify(combiner->identity_element[0], kSimplifyRewriteCanonicalRewrite),
+  if (!is_const_value(analyzer.Simplify(
+                          combiner->identity_element[0], kSimplifyRewriteCanonicalRewrite),
                       0)) {
     return false;
   }
@@ -1015,7 +1016,8 @@ PrimExpr TrySimplifyCompute(const PrimExpr& expr, const PrimExpr& cond,
 
   arith::Analyzer analyzer;
   analyzer.Bind(res->dst->ranges);
-  PrimExpr new_expr = analyzer.Simplify(Substitute(expr, res->src_to_dst), kSimplifyRewriteCanonicalRewrite);
+  PrimExpr new_expr = analyzer.Simplify(Substitute(expr, res->src_to_dst),
+                                        kSimplifyRewriteCanonicalRewrite);
   // TODO(yzhliu): This is mostly done to simplify if_then_else
   // which is not realized by the canonical simplifier
   new_expr = RemoveRedundantInequalities(new_expr, res->dst->relations);
