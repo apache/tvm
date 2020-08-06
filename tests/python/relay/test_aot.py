@@ -1,11 +1,12 @@
+import numpy as np
+
+import tvm
 from tvm import relay
 from tvm import IRModule as Module
 from tvm.relay import var, Function, op, GlobalVar, TypeVar, FuncType
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions
-import numpy as np
-import tvm
-from tvm.runtime import aot
+from tvm.relay.backend import aot
 
 
 def compile(f, mod):
