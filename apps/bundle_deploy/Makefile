@@ -88,15 +88,15 @@ $(build_dir)/test_dynamic: test.cc ${build_dir}/test_graph_c.json ${build_dir}/t
 
 $(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o ${build_dir}/model_c.o ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)gcc $(PKG_CFLAGS) $(BACKTRACE_LDFLAGS) -o $@ $^
+	$(QUIET)gcc $(PKG_CFLAGS) -o $@ $^ $(BACKTRACE_CFLAGS)
 
 $(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o ${build_dir}/test_model_c.o ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)gcc $(PKG_CFLAGS) $(BACKTRACE_LDFLAGS) -o $@ $^
+	$(QUIET)gcc $(PKG_CFLAGS) -o $@ $^ $(BACKTRACE_LDFLAGS)
 
 $(build_dir)/backtrace.o: backtrace.c
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)gcc -c $(PKG_CFLAGS) $(BACKTRACE_CFLAGS) -o $@ $^
+	$(QUIET)gcc -c $(PKG_CFLAGS) -o $@ $^ $(BACKTRACE_CFLAGS)
 
 # Serialize our graph.json file.
 $(build_dir)/graph_cpp.json.c: $(build_dir)/graph_cpp.json
