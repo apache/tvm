@@ -19,7 +19,7 @@ from tvm import te
 from tvm.contrib import cudnn
 from tvm.contrib.nvcc import have_fp16
 import numpy as np
-import topi.testing
+import tvm.topi.testing
 
 def verify_conv2d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     in_channel = 4
@@ -79,10 +79,10 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     w = tvm.nd.array(w_np, ctx)
     y = tvm.nd.array(y_np, ctx)
     if tensor_format == 0:
-        c_np = topi.testing.conv2d_nchw_python(x_np, w_np, 1, 1, groups=groups)
+        c_np = tvm.topi.testing.conv2d_nchw_python(x_np, w_np, 1, 1, groups=groups)
     elif tensor_format == 1:
         wt = w_np.transpose((1, 2, 3, 0))  #OHWI => HWIO
-        c_np = topi.testing.conv2d_nhwc_python(x_np, wt, 1, 1, groups=groups)
+        c_np = tvm.topi.testing.conv2d_nhwc_python(x_np, wt, 1, 1, groups=groups)
 
     f(x, w, y)
     tvm.testing.assert_allclose(y.asnumpy(), c_np, atol=1e-2, rtol=1e-2)
@@ -154,7 +154,7 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     w = tvm.nd.array(w_np, ctx)
     y = tvm.nd.array(y_np, ctx)
     if tensor_format == 0:
-        c_np = topi.testing.conv3d_ncdhw_python(x_np, w_np, 1, 1, groups)
+        c_np = tvm.topi.testing.conv3d_ncdhw_python(x_np, w_np, 1, 1, groups)
     else:
         raise AssertionError("For now, conv3d tensor format only support: 0(NCHW)")
 
@@ -172,7 +172,7 @@ def verify_softmax(shape, axis, dtype="float32"):
 
     ctx = tvm.gpu(0)
     a_np = np.random.uniform(size=shape).astype(dtype)
-    b_np = topi.testing.softmax_python(a_np)
+    b_np = tvm.topi.testing.softmax_python(a_np)
     a = tvm.nd.array(a_np, ctx)
     b = tvm.nd.array(b_np, ctx)
     f = tvm.build(s, [A, B], "cuda", target_host="llvm", name="softmax")
@@ -187,7 +187,7 @@ def verify_softmax_4d(shape, dtype="float32"):
     ctx = tvm.gpu(0)
     n, c, h, w = shape
     a_np = np.random.uniform(size=shape).astype(dtype)
-    b_np = topi.testing.softmax_python(a_np.transpose(0, 2, 3, 1).reshape(h*w, c))
+    b_np = tvm.topi.testing.softmax_python(a_np.transpose(0, 2, 3, 1).reshape(h*w, c))
     b_np = b_np.reshape(n, h, w, c).transpose(0, 3, 1, 2)
     a = tvm.nd.array(a_np, ctx)
     b = tvm.nd.array(b_np, ctx)

@@ -18,7 +18,7 @@
 
 import tvm
 from tvm import te
-from topi.util import get_const_tuple
+from tvm.topi.util import get_const_tuple
 
 def test_layout():
     layout = tvm.tir.layout("NCHW16c")

@@ -20,7 +20,7 @@ import logging
 from abc import abstractmethod
 
 import numpy as np
-import topi
+from tvm import topi
 
 import tvm
 from tvm import te

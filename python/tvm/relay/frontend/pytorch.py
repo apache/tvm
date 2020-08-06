@@ -752,7 +752,7 @@ def _convolution():
         # If groups > 1 but weight_shape[1] != 1, this is group convolution
         if groups > 1 and weight_shape[1] == 1:
             channel_multiplier = channels // groups
-            new_weight_shape = (groups, channel_multiplier, weight_shape[2], weight_shape[3])
+            new_weight_shape = (groups, channel_multiplier) + tuple(weight_shape[2:])
             weight = _op.transform.reshape(weight, new_weight_shape)
 
         kernel_size = weight_shape[2:]
@@ -760,12 +760,18 @@ def _convolution():
 
         if isinstance(strides, _expr.Expr):
             strides = _infer_shape(strides)
+            if len(kernel_size) == 1:
+                strides = (1, ) + strides
 
         if isinstance(padding, _expr.Expr):
             padding = _infer_shape(padding)
+            if len(kernel_size) == 1:
+                padding = (0, ) + padding
 
         if isinstance(dilation, _expr.Expr):
             dilation = _infer_shape(dilation)
+            if len(kernel_size) == 1:
+                dilation = (1, ) + dilation
 
         if use_transpose:
             if len(kernel_size) == 3:
@@ -785,6 +791,9 @@ def _convolution():
             data_layout = "NCHW"
             kernel_layout = "OIHW"
 
+        if len(kernel_size) == 1:
+            data = _op.expand_dims(data, axis=2)
+            weight = _op.expand_dims(weight, axis=2)
 
         conv_out = conv_op(data,
                            weight,
@@ -793,15 +802,21 @@ def _convolution():
                            dilation=dilation,
                            groups=groups,
                            channels=channels,
-                           kernel_size=kernel_size,
+                           kernel_size=[1] + kernel_size \
+                                        if len(kernel_size) == 1 \
+                                        else kernel_size,
                            data_layout=data_layout,
                            kernel_layout=kernel_layout,
                            out_layout="",
                            out_dtype="")
         if use_bias:
-            return _op.nn.bias_add(conv_out, bias)
+            res = _op.nn.bias_add(conv_out, bias)
         else:
-            return conv_out
+            res = conv_out
+        if len(kernel_size) == 1:
+            res = _op.squeeze(res, axis=[2])
+        return res
+
     return _impl
 
 def _softmax():

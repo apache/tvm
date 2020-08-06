@@ -18,7 +18,7 @@
 import tvm
 from tvm import te
 from ctypes import *
-import topi
+from tvm import topi
 import numpy as np
 
 tgt = "llvm"

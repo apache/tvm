@@ -18,8 +18,8 @@
 import tvm
 from tvm import te
 from tvm.testing import check_numerical_grads, assert_allclose
-import topi
-from topi.util import get_const_tuple
+from tvm import topi
+from tvm.topi.util import get_const_tuple
 
 import numpy as np
 

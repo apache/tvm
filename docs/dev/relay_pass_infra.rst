@@ -612,7 +612,7 @@ sequential pass example could be like the following to enable IR dumping for
     seq = tvm.transform.Sequential([
         relay.transform.InferType(),
         relay.transform.FoldConstant(),
-        transform.PrintIR(),
+        ir.transform.PrintIR(),
         relay.transform.EliminateCommonSubexpr(),
         relay.transform.AlterOpLayout()
     ])

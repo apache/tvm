@@ -311,7 +311,7 @@ Pass LowerIntrin() {
     arith::Analyzer analyzer;
     auto mtriple = target.value()->GetAttr<runtime::String>("mtriple", "");
     n->body =
-        IntrinInjecter(&analyzer, target.value()->id->name, mtriple.value())(std::move(n->body));
+        IntrinInjecter(&analyzer, target.value()->kind->name, mtriple.value())(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerIntrin", {});

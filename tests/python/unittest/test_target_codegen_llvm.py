@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import te
-import topi
+from tvm import topi
 from tvm.contrib import util, clang
 import numpy as np
 import ctypes

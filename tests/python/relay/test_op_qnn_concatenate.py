@@ -20,7 +20,7 @@ from tvm import te
 import numpy as np
 from tvm import relay
 from tvm.contrib import graph_runtime
-import topi.testing
+import tvm.topi.testing
 
 def test_same_io_qnn_params():
     data_dtype = 'int32'

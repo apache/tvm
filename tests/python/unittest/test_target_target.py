@@ -18,18 +18,22 @@ import tvm
 from tvm import te
 from tvm.target import cuda, rocm, mali, intel_graphics, arm_cpu, vta, bifrost, hexagon
 
+
 @tvm.target.generic_func
 def mygeneric(data):
     # default generic function
     return data + 1
 
+
 @mygeneric.register(["cuda", "gpu"])
 def cuda_func(data):
     return data + 2
 
+
 @mygeneric.register("rocm")
 def rocm_func(data):
     return data + 3
+
 
 @mygeneric.register("cpu")
 def rocm_func(data):
@@ -58,7 +62,7 @@ def test_target_dispatch():
 def test_target_string_parse():
     target = tvm.target.create("cuda -model=unknown -libs=cublas,cudnn")
 
-    assert target.id.name == "cuda"
+    assert target.kind.name == "cuda"
     assert target.model == "unknown"
     assert set(target.keys) == set(['cuda', 'gpu'])
     assert set(target.libs) == set(['cublas', 'cudnn'])
@@ -70,7 +74,8 @@ def test_target_string_parse():
 
 
 def test_target_create():
-    targets = [cuda(), rocm(), mali(), intel_graphics(), arm_cpu('rk3399'), vta(), bifrost()]
+    targets = [cuda(), rocm(), mali(), intel_graphics(),
+               arm_cpu('rk3399'), vta(), bifrost()]
     for tgt in targets:
         assert tgt is not None
 

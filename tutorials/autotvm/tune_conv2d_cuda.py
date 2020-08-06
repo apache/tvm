@@ -50,8 +50,8 @@ import numpy as np
 
 import tvm
 from tvm import te
-import topi
-from topi.testing import conv2d_nchw_python
+from tvm import topi
+from tvm.topi.testing import conv2d_nchw_python
 
 from tvm import autotvm
 
