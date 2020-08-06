@@ -833,7 +833,8 @@ PrimExpr SimplifyReductionDomain(const PrimExpr& expr, const Map<Var, Range>& ou
 std::pair<PrimExpr, PrimExpr> ImplicationNotContainingVars(
     const PrimExpr& cond, const std::unordered_set<const VarNode*>& vars) {
   CHECK(cond.dtype().is_bool()) << "The type of cond must be bool";
-  // TODO(sgrechanik-h): NOT
+  // TODO(sgrechanik-h): NOTs could be pushed down using De Morgan laws
+  // before running this function but this case didn't seem to be important enough.
   if (const AndNode* op = cond.as<AndNode>()) {
     auto pair_a = ImplicationNotContainingVars(op->a, vars);
     auto pair_b = ImplicationNotContainingVars(op->b, vars);
@@ -1072,56 +1073,6 @@ PrimExpr TrySimplifyCompute(const PrimExpr& expr, const PrimExpr& cond,
   return ProducerLoad(tensor, args);
 }
 
-class FreeVarsVisitor : public StmtExprVisitor {
- public:
-  std::vector<Var> free_array;
-  std::unordered_set<const VarNode*> bound;
-  std::unordered_set<const VarNode*> free;
-
-  void VisitExpr_(const VarNode* op) final {
-    if (!bound.count(op) && !free.count(op)) {
-      free.insert(op);
-      free_array.push_back(GetRef<Var>(op));
-    }
-  }
-
-  void VisitStmt_(const LetStmtNode* op) final {
-    bound.insert(op->var.get());
-    StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitStmt_(const ForNode* op) final {
-    bound.insert(op->loop_var.get());
-    StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitExpr_(const LetNode* op) final {
-    bound.insert(op->var.get());
-    StmtExprVisitor::VisitExpr_(op);
-  }
-
-  void VisitExpr_(const ReduceNode* op) final {
-    for (const auto& iv : op->axis) {
-      bound.insert(iv->var.get());
-    }
-    StmtExprVisitor::VisitExpr_(op);
-  }
-
-  void VisitStmt_(const StoreNode* op) final {
-    VisitExpr(op->buffer_var);
-    StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitStmt_(const AllocateNode* op) final {
-    VisitExpr(op->buffer_var);
-    StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitExpr_(const LoadNode* op) final {
-    VisitExpr(op->buffer_var);
-    StmtExprVisitor::VisitExpr_(op);
-  }
-};
 
 class ReductionAsTensorAccessMutator : public ExprMutator {
  public:
@@ -1141,14 +1092,17 @@ class ReductionAsTensorAccessMutator : public ExprMutator {
     PrimExpr new_reduce =
         Reduce(op->combiner, new_source, op->axis, op->condition, op->value_index);
 
-    FreeVarsVisitor fv_visitor;
-    fv_visitor(new_reduce);
+    Array<Var> undefined_vars = UndefinedVars(new_reduce);
+    std::unordered_set<const VarNode*> undefined_var_set;
+    for (const Var& var : undefined_vars) {
+      undefined_var_set.insert(var.get());
+    }
 
     // Vars of the tensor we are going to create for this reduction
     Array<Var> vars;
     for (const Var& v : outer_axis_) {
       // We take variables from the outer_axis_ which are also present in the new reduction
-      if (fv_visitor.free.count(v.get())) {
+      if (undefined_var_set.count(v.get())) {
         vars.push_back(v);
       }
     }
