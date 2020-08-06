@@ -35,6 +35,9 @@ namespace parser {
 using tvm::relay::transform::CreateFunctionPass;
 using tvm::transform::PassContext;
 
+/* Set to arbitrary high number, since we should never schedule in normal pass manager flow. */
+static int kMetaExpandOptLevel = 1337;
+
 TVM_REGISTER_NODE_TYPE(MetaRefAttrs);
 
 bool MetaRefRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -59,12 +62,6 @@ Expr MetaRef(std::string type_key, uint64_t node_index) {
   attrs->node_index = node_index;
   return Call(op, {}, Attrs(attrs), {});
 }
-
-// class MetaRefAttrExpander : AttrFunctor<ObjectRef(const ObjectRef& n)> {
-//     ObjectRef VisitAttrDefault_(const Object* node) final {
-
-//     }
-// }
 
 struct MetaRefExpander : public ExprMutator {
   MetaTable table;
@@ -94,7 +91,7 @@ Function ExpandMetaRefs(const MetaTable& meta_table, const relay::Function& func
 IRModule ExpandMetaRefs(const MetaTable& meta_table, const IRModule& mod) {
   auto pass = CreateFunctionPass([&](Function func, IRModule module,
                                      PassContext ctx) { return ExpandMetaRefs(meta_table, func); },
-                                 1337, "ExpandMetaRefs", {});
+                                 kMetaExpandOptLevel, "ExpandMetaRefs", {});
 
   return pass(mod, PassContext::Create());
 }

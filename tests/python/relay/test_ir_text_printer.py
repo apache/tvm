@@ -22,20 +22,22 @@ import numpy as np
 from tvm.relay import Expr
 from tvm.relay.analysis import free_vars
 
-do_print = [False]
+do_print = [True]
 
-SEMVER = "v0.0.4\n"
+SEMVER = "#[version = \"0.0.4\"]\n"
 
-def astext(p, unify_free_vars=False):
-    txt = p.astext()
-    if isinstance(p, Expr) and free_vars(p):
-        return txt
-    x = relay.fromtext(txt)
-    if unify_free_vars:
-        tvm.ir.assert_structural_equal(x, p, map_free_vars=True)
+def astext(program, unify_free_vars=False):
+    text = program.astext()
+    print(text)
+
+    if isinstance(program, Expr):
+        roundtrip_program = tvm.parser.parse_expr(text)
     else:
-        tvm.ir.assert_structural_equal(x, p)
-    return txt
+        roundtrip_program = tvm.parser.fromtext(text)
+
+    tvm.ir.assert_structural_equal(roundtrip_program, program, map_free_vars=True)
+
+    return text
 
 def show(text):
     if do_print[0]:
@@ -252,23 +254,23 @@ def test_null_attribute():
 if __name__ == "__main__":
     do_print[0] = True
     test_lstm()
-    test_zeros()
-    test_meta_data()
-    test_let_inlining()
-    test_resnet()
-    test_mobilenet()
-    test_mlp()
-    test_dqn()
-    test_dcgan()
-    test_squeezenet()
-    test_inception_v3()
-    test_vgg()
-    test_densenet()
-    test_func()
-    test_env()
-    test_call_attrs()
-    test_let_if_scope()
-    test_variable_name()
-    test_call_node_order()
-    test_unapplied_constructor()
-    test_null_attribute()
+    # test_zeros()
+    # test_meta_data()
+    # test_let_inlining()
+    # test_resnet()
+    # test_mobilenet()
+    # test_mlp()
+    # test_dqn()
+    # test_dcgan()
+    # test_squeezenet()
+    # test_inception_v3()
+    # test_vgg()
+    # test_densenet()
+    # test_func()
+    # test_env()
+    # test_call_attrs()
+    # test_let_if_scope()
+    # test_variable_name()
+    # test_call_node_order()
+    # test_unapplied_constructor()
+    # test_null_attribute()

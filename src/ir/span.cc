@@ -65,8 +65,8 @@ Span::Span(SourceName source, int line, int column, int end_line, int end_column
   auto n = make_object<SpanNode>();
   n->source = std::move(source);
   n->line = line;
-  n->column = column;
   n->end_line = end_line;
+  n->column = column;
   n->end_column = end_column;
   data_ = std::move(n);
 }
@@ -74,21 +74,21 @@ Span::Span(SourceName source, int line, int column, int end_line, int end_column
 Span Span::Merge(const Span& other) {
   CHECK((*this)->source == other->source);
   return Span((*this)->source, std::min((*this)->line, other->line),
-              std::min((*this)->column, other->column),
               std::max((*this)->end_line, other->end_line),
+              std::min((*this)->column, other->column),
               std::max((*this)->end_column, other->end_column));
 }
 
 TVM_REGISTER_NODE_TYPE(SpanNode);
 
-TVM_REGISTER_GLOBAL("ir.Span").set_body_typed([](SourceName source, int line, int column,
-                                                 int end_line, int end_column) {
-  return Span(source, line, column, end_line, end_column);
+TVM_REGISTER_GLOBAL("ir.Span").set_body_typed([](SourceName source, int line, int end_line, int column,
+                                                 int end_column) {
+  return Span(source, line, end_line, column, end_column);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<SpanNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const SpanNode*>(ref.get());
-      p->stream << "Span(" << node->source << ", " << node->line << ", " << node->column << ")";
+      p->stream << "Span(" << node->source << ", " << node->line << ", " << node->end_line << ", " << node->column << ", " << node->end_column << ")";
     });
 }  // namespace tvm

@@ -365,7 +365,8 @@ class TextPrinter {
 
   /*! \brief whether show meta data */
   bool show_meta_data_;
-  /*! \brief whether show meta data */
+
+  /*! \brief whether show the meta data warning message */
   bool show_warning_;
 
   /*! \brief meta data context */

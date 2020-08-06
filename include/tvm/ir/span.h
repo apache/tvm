@@ -111,7 +111,7 @@ class SpanNode : public Object {
 
 class Span : public ObjectRef {
  public:
-  TVM_DLL Span(SourceName source, int line, int column, int end_line, int end_column);
+  TVM_DLL Span(SourceName source, int line, int end_line, int column, int end_column);
 
   /*! \brief Merge two spans into one which captures the combined regions. */
   TVM_DLL Span Merge(const Span& other);

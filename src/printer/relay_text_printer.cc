@@ -275,7 +275,7 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
   if (expr.as<VarNode>()) {
     // This is our first time visiting the var and we hit the VarNode case
     // in the visitor. Thus the variable is free.
-    doc_stack_.back() << "free_var " << printed_expr << Doc::NewLine();
+    doc_stack_.back() << "free_var " << printed_expr << ";" << Doc::NewLine();
     // Memoization is done in AllocVar.
     return memo_[expr];
   } else if (inline_expr) {

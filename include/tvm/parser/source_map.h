@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-#ifndef TVM_PARSER_SOURCE_MAP_H_
-#define TVM_PARSER_SOURCE_MAP_H_
 /*!
  * \file source_map.h
  * \brief A map from source names to source code.
  */
+#ifndef TVM_PARSER_SOURCE_MAP_H_
+#define TVM_PARSER_SOURCE_MAP_H_
+
 #include <tvm/ir/span.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>

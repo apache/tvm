@@ -71,12 +71,12 @@ struct MetaRefAttrs : public tvm::AttrsNode<MetaRefAttrs> {
  * of the program.
  *
  * \param type_key The type key of the object in the meta section.
- * \param kind The index into that subfield.
+ * \param node_index The index into that subfield.
  * \returns The meta table reference.
  */
 Expr MetaRef(std::string type_key, uint64_t node_index);
 
-relay::Function ExpandMetaRefs(const MetaTable& meta_table, const relay::Function& mod);
+relay::Function ExpandMetaRefs(const MetaTable& meta_table, const relay::Function& func);
 IRModule ExpandMetaRefs(const MetaTable& meta_table, const IRModule& mod);
 
 }  // namespace parser

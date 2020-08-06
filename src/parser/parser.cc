@@ -111,6 +111,7 @@ template <typename T>
 class ScopeStack {
  private:
   std::vector<Scope<T>> scope_stack;
+  std::unordered_map<std::string, T> free_vars;
 
  public:
   /*! \brief Adds a variable binding to the current scope. */
@@ -119,6 +120,10 @@ class ScopeStack {
       LOG(FATAL) << "internal issue";
     }
     this->scope_stack.back().name_map.insert({name, value});
+  }
+
+  void AddFreeVar(const std::string& name, const T& value) {
+    free_vars.insert({name, value});
   }
 
   /*! \brief Looks up a variable name in the scope stack returning the matching variable
@@ -130,6 +135,13 @@ class ScopeStack {
         return it->second;
       }
     }
+
+    // Check if we bound a free variable declaration.
+    auto it = free_vars.find(name);
+    if (it != free_vars.end()) {
+      return it->second;
+    }
+
     return T();
   }
 
@@ -265,10 +277,10 @@ class Parser {
     // For now we ignore all whitespace tokens and comments.
     // We can tweak this behavior later to enable white space sensitivity in the parser.
     while (pos < static_cast<int64_t>(tokens.size()) && ignore_whitespace &&
-           (tokens.at(pos)->token_type == TokenType::Whitespace ||
-            tokens.at(pos)->token_type == TokenType::Newline ||
-            tokens.at(pos)->token_type == TokenType::LineComment ||
-            tokens.at(pos)->token_type == TokenType::Comment)) {
+           (tokens.at(pos)->token_type == TokenType::kWhitespace ||
+            tokens.at(pos)->token_type == TokenType::kNewline ||
+            tokens.at(pos)->token_type == TokenType::kLineComment ||
+            tokens.at(pos)->token_type == TokenType::kComment)) {
       pos++;
     }
 
@@ -368,6 +380,17 @@ class Parser {
     return var;
   }
 
+  /*! \brief Bind a local variable in the expression scope.
+   *
+   * "x" -> Var("x"), these are needed to map from the raw string names
+   * to unique variable nodes.
+   */
+  Var BindFreeVar(const std::string& name, const relay::Type& type_annotation) {
+    auto var = Var(name, type_annotation);
+    this->expr_scopes.AddFreeVar(name, var);
+    return var;
+  }
+
   /*! \brief Bind a type variable in the type scope.
    *
    * "A" -> TypeVar("A", ...), these are needed to map from raw string names
@@ -386,8 +409,8 @@ class Parser {
   Var LookupLocal(const Token& local) {
     auto var = this->expr_scopes.Lookup(local.ToString());
     if (!var.defined()) {
-      diag_ctx->Emit({DiagnosticLevel::Error, local->span,
-                      "this local variable has not been previously declared"});
+      diag_ctx->Emit(Diagnostic::Error(local->span) <<
+                      "this local variable has not been previously declared");
     }
     return var;
   }
@@ -399,9 +422,8 @@ class Parser {
   TypeVar LookupTypeVar(const Token& ident) {
     auto var = this->type_scopes.Lookup(ident.ToString());
     if (!var.defined()) {
-      diag_ctx->Emit(
-          {DiagnosticLevel::Error, ident->span,
-           "this type variable has not been previously declared anywhere, perhaps a typo?"});
+      diag_ctx->Emit(Diagnostic::Error(ident->span)
+           << "this type variable has not been previously declared anywhere, perhaps a typo?");
     }
     return var;
   }
@@ -428,7 +450,7 @@ class Parser {
 
   /*! \brief Convert a numeric token to an NDArray for embedding into the Relay program. */
   NDArray NumberToNDArray(const Token& token) {
-    if (token->token_type == TokenType::Integer) {
+    if (token->token_type == TokenType::kInteger) {
       DLContext ctx = {DLDeviceType::kDLCPU, 0};
       auto dtype = String2DLDataType("int32");
       auto data = NDArray::Empty({}, dtype, ctx);
@@ -437,7 +459,7 @@ class Parser {
       int64_t value = Downcast<tvm::Integer>(token->data);
       array[0] = (int32_t)value;
       return data;
-    } else if (token->token_type == TokenType::Float) {
+    } else if (token->token_type == TokenType::kFloat) {
       DLContext ctx = {DLDeviceType::kDLCPU, 0};
       auto dtype = String2DLDataType("float32");
       auto data = NDArray::Empty({}, dtype, ctx);
@@ -479,13 +501,13 @@ class Parser {
   /*! \brief Parse `(` parser() `)`. */
   template <typename R>
   R Parens(std::function<R()> parser) {
-    return Bracket(TokenType::OpenParen, TokenType::CloseParen, parser);
+    return Bracket(TokenType::kOpenParen, TokenType::kCloseParen, parser);
   }
 
   /*! \brief Parse `{` parser() `}`. */
   template <typename R>
   R Block(std::function<R()> parser) {
-    return Bracket(TokenType::LCurly, TokenType::RCurly, parser);
+    return Bracket(TokenType::kLCurly, TokenType::kRCurly, parser);
   }
 
   /*! \brief Parses a sequence beginning with a start token, seperated by a seperator token, and
@@ -502,7 +524,7 @@ class Parser {
   template <typename T>
   Array<T> ParseSequence(TokenType start, TokenType sep, TokenType stop, std::function<T()> parse,
                          std::function<bool()> before_stop = nullptr) {
-    DLOG(INFO) << "Parser::ParseSequence: start=" << start << "sep=" << sep << "stop=" << stop;
+    DLOG(INFO) << "Parser::ParseSequence: start=" << ToString(start) << "sep=" << ToString(sep) << "stop=" << ToString(stop);
     Match(start);
 
     // This is for the empty arguments list case, if we have <start> <leftovers> <stop> token stream
@@ -521,12 +543,6 @@ class Parser {
     } else {
       auto data = parse();
       Array<T> elements = {data};
-
-      // parse '(' expr ','? ')'
-      // if we are at the end invoke leftover parser
-      // if (Peek()->token_type == sep && before_stop) {
-      //  before_stop();
-      // }
 
       if (WhenMatch(stop)) {
         return elements;
@@ -569,7 +585,7 @@ class Parser {
     // Parse the metadata section at the end.
     auto metadata = ParseMetadata();
 
-    Match(TokenType::EndOfFile);
+    Match(TokenType::kEndOfFile);
     Map<tvm::GlobalVar, BaseFunc> funcs;
     Map<tvm::GlobalTypeVar, TypeData> types;
 
@@ -589,8 +605,8 @@ class Parser {
 
   /*! \brief Parse the semantic versioning header. */
   SemVer ParseSemVer(bool required = true) {
-    if (Peek()->token_type == TokenType::Version) {
-      auto version = Match(TokenType::Version);
+    if (Peek()->token_type == TokenType::kVersion) {
+      auto version = Match(TokenType::kVersion);
       // TODO(@jroesch): we currently only support 0.0.5.
       if (version.ToString() != "\"0.0.5\"") {
         this->diag_ctx->Emit(DiagnosticBuilder(DiagnosticLevel::Error, version->span)
@@ -612,9 +628,9 @@ class Parser {
     while (true) {
       auto next = Peek();
       switch (next->token_type) {
-        case TokenType::Defn: {
-          Consume(TokenType::Defn);
-          auto global_tok = Match(TokenType::Global);
+        case TokenType::kDefn: {
+          Consume(TokenType::kDefn);
+          auto global_tok = Match(TokenType::kGlobal);
           auto global_name = global_tok.ToString();
           auto global = GlobalVar(global_name);
           try {
@@ -628,12 +644,12 @@ class Parser {
           defs.funcs.push_back(GlobalFunc(global, func));
           continue;
         }
-        case TokenType::TypeDef: {
+        case TokenType::kTypeDef: {
           defs.types.push_back(ParseTypeDef());
           continue;
         }
-        case TokenType::Extern: {
-          Consume(TokenType::Extern);
+        case TokenType::kExtern: {
+          Consume(TokenType::kExtern);
           auto type_def = ParseTypeDef();
           if (type_def->constructors.size()) {
             diag_ctx->Emit({DiagnosticLevel::Error, next->span,
@@ -650,9 +666,9 @@ class Parser {
   /*! \brief Parse zero or more Relay type definitions. */
   TypeData ParseTypeDef() {
     // Match the `type` keyword.
-    Match(TokenType::TypeDef);
+    Match(TokenType::kTypeDef);
     // Parse the type's identifier.
-    auto type_tok = Match(TokenType::Identifier);
+    auto type_tok = Match(TokenType::kIdentifier);
     auto type_id = type_tok.ToString();
     auto type_global = tvm::GlobalTypeVar(type_id, TypeKind::kAdtHandle);
 
@@ -667,33 +683,33 @@ class Parser {
     Array<TypeVar> generics;
 
     bool should_pop = false;
-    if (Peek()->token_type == TokenType::LSquare) {
+    if (Peek()->token_type == TokenType::kLSquare) {
       // If we have generics we need to add a type scope.
       PushTypeScope();
       should_pop = true;
       generics =
-          ParseSequence<TypeVar>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
-            auto type_var_name = Match(TokenType::Identifier).ToString();
+          ParseSequence<TypeVar>(TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare, [&]() {
+            auto type_var_name = Match(TokenType::kIdentifier).ToString();
             return BindTypeVar(type_var_name, TypeKind::kType);
           });
     }
 
     Array<tvm::Constructor> ctors;
-    if (Peek()->token_type == TokenType::LCurly) {
+    if (Peek()->token_type == TokenType::kLCurly) {
       // Parse the list of constructors.
       ctors = ParseSequence<tvm::Constructor>(
-          TokenType::LCurly, TokenType::Comma, TokenType::RCurly, [&]() {
+          TokenType::kLCurly, TokenType::kComma, TokenType::kRCurly, [&]() {
             // First match the name of the constructor.
-            auto ctor_tok = Match(TokenType::Identifier);
+            auto ctor_tok = Match(TokenType::kIdentifier);
             auto ctor_name = ctor_tok.ToString();
 
             Constructor ctor;
             // Match the optional field list.
-            if (Peek()->token_type != TokenType::OpenParen) {
+            if (Peek()->token_type != TokenType::kOpenParen) {
               ctor = tvm::Constructor(ctor_name, {}, type_global);
             } else {
               auto arg_types =
-                  ParseSequence<Type>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen,
+                  ParseSequence<Type>(TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen,
                                       [&]() { return ParseType(); });
               ctor = tvm::Constructor(ctor_name, arg_types, type_global);
             }
@@ -757,12 +773,12 @@ class Parser {
         switch (next->token_type) {
           // For graph or let, match first rhs, then invoke ParseBindingExpr
           // ParseBindingExpression then parse_lhs() parse_rhs() ';' continue
-          case TokenType::LCurly: {
+          case TokenType::kLCurly: {
             // NB: Might need to optimize to remove deep recursion.
             // Stack should only grow proportionally to the number of
             // nested scopes.
             // Parses `{` expression `}`.
-            auto block = Bracket<Expr>(TokenType::LCurly, TokenType::RCurly, [&]() {
+            auto block = Bracket<Expr>(TokenType::kLCurly, TokenType::kRCurly, [&]() {
               PushScope();
               auto expr = ParseExpr();
               PopScopes(1);
@@ -771,24 +787,32 @@ class Parser {
             exprs.push_back(block);
             break;
           }
+          case TokenType::kFreeVar: {
+            Consume(TokenType::kFreeVar);
+            auto var_token = Match(TokenType::kLocal);
+            Match(TokenType::kColon);
+            auto type = ParseType();
+            BindFreeVar(var_token.ToString(), type);
+            break;
+          }
           // Parses `let ...`;
-          case TokenType::Let:
+          case TokenType::kLet:
             exprs.push_back(ParseBindingExpr());
             break;
-          case TokenType::Match:
-          case TokenType::PartialMatch: {
-            bool is_total = next->token_type == TokenType::Match;
+          case TokenType::kMatch:
+          case TokenType::kPartialMatch: {
+            bool is_total = next->token_type == TokenType::kMatch;
             Consume(next->token_type);
             exprs.push_back(ParseMatch(is_total));
             break;
           }
-          case TokenType::If: {
+          case TokenType::kIf: {
             exprs.push_back(ParseIf());
             break;
           }
           // %x ...
-          case TokenType::Graph:
-            if (Lookahead(2)->token_type == TokenType::Equal) {
+          case TokenType::kGraph:
+            if (Lookahead(2)->token_type == TokenType::kEqual) {
               exprs.push_back(ParseBindingExpr());
               break;
             }
@@ -799,7 +823,7 @@ class Parser {
           }
         }
 
-        if (!WhenMatch(TokenType::Semicolon)) {
+        if (!WhenMatch(TokenType::kSemicolon)) {
           break;
         }
       }
@@ -853,34 +877,34 @@ class Parser {
 
     while (true) {
       auto next = Peek();
-      if (next->token_type == TokenType::Graph && Lookahead(2)->token_type == TokenType::Equal) {
-        Match(TokenType::Graph);
-        Match(TokenType::Equal);
+      if (next->token_type == TokenType::kGraph && Lookahead(2)->token_type == TokenType::kEqual) {
+        Match(TokenType::kGraph);
+        Match(TokenType::kEqual);
         auto val = this->ParseExprBinOp();
-        Match(TokenType::Semicolon);
+        Match(TokenType::kSemicolon);
         AddGraphBinding(next, val);
-      } else if (next->token_type == TokenType::Let) {
+      } else if (next->token_type == TokenType::kLet) {
         // Parse the 'let'.
-        Consume(TokenType::Let);
+        Consume(TokenType::kLet);
 
         // Parse the local '%<id>'.
-        auto local_tok = Match(TokenType::Local);
+        auto local_tok = Match(TokenType::kLocal);
         auto string = local_tok.ToString();
 
         // Parse the optional type annotation (':' <type>).
         Type type;
-        if (WhenMatch(TokenType::Colon)) {
+        if (WhenMatch(TokenType::kColon)) {
           type = ParseType();
         }
 
         auto var = BindVar(string, type);
 
         // Parse the '=';
-        Match(TokenType::Equal);
+        Match(TokenType::kEqual);
 
         // Parse the body, and the ';'.
         auto val = this->ParseExprBinOp();
-        Consume(TokenType::Semicolon);
+        Consume(TokenType::kSemicolon);
 
         // Add the bindings to the local data structure.
         bindings.push_back({var, val});
@@ -923,30 +947,30 @@ class Parser {
     PushTypeScope();
 
     Array<TypeVar> generics;
-    if (Peek()->token_type == TokenType::LSquare) {
+    if (Peek()->token_type == TokenType::kLSquare) {
       // If we have generics we need to add a type scope.
       PushTypeScope();
       generics =
-          ParseSequence<TypeVar>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
-            auto type_var_name = Match(TokenType::Identifier).ToString();
+          ParseSequence<TypeVar>(TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare, [&]() {
+            auto type_var_name = Match(TokenType::kIdentifier).ToString();
             return BindTypeVar(type_var_name, TypeKind::kType);
           });
     }
 
     auto params =
-        ParseSequence<Var>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&]() {
-          auto token = Match(TokenType::Local);
+        ParseSequence<Var>(TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen, [&]() {
+          auto token = Match(TokenType::kLocal);
           auto string = token.ToString();
           Type type;
-          if (WhenMatch(TokenType::Colon)) {
+          if (WhenMatch(TokenType::kColon)) {
             type = ParseType();
           }
           return BindVar(string, type);
         });
 
     Type ret_type;
-    if (WhenMatch(TokenType::Minus)) {
-      Match(TokenType::RAngle);
+    if (WhenMatch(TokenType::kMinus)) {
+      Match(TokenType::kRAngle);
       ret_type = ParseType();
     }
 
@@ -961,7 +985,7 @@ class Parser {
   /*! \brief Parse an if-expression. */
   Expr ParseIf() {
     DLOG(INFO) << "Parser::ParseIf";
-    Consume(TokenType::If);
+    Consume(TokenType::kIf);
     auto guard = Parens<Expr>([&] { return ParseExpr(); });
 
     auto true_branch = Block<Expr>([&] {
@@ -971,7 +995,7 @@ class Parser {
       return expr;
     });
 
-    Match(TokenType::Else);
+    Match(TokenType::kElse);
 
     auto false_branch = Block<Expr>([&] {
       this->PushScope();
@@ -985,7 +1009,7 @@ class Parser {
 
   /* This factors parsing a list of patterns for both tuples, and constructors. */
   Array<Pattern> ParsePatternList() {
-    return ParseSequence<Pattern>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen,
+    return ParseSequence<Pattern>(TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen,
                                   [&] { return ParsePattern(); });
   }
 
@@ -1000,24 +1024,24 @@ class Parser {
     DLOG(INFO) << "Parser::ParsePattern";
     auto next = Peek();
     switch (next->token_type) {
-      case TokenType::Underscore: {
-        Match(TokenType::Underscore);
+      case TokenType::kUnderscore: {
+        Match(TokenType::kUnderscore);
         return PatternWildcard();
       }
-      case TokenType::Local: {
-        auto id = Match(TokenType::Local);
+      case TokenType::kLocal: {
+        auto id = Match(TokenType::kLocal);
         Type type_annotation;
-        if (WhenMatch(TokenType::Colon)) {
+        if (WhenMatch(TokenType::kColon)) {
           type_annotation = ParseType();
         }
         auto var = BindVar(id.ToString(), type_annotation);
         return PatternVar(var);
       }
-      case TokenType::Identifier: {
-        auto id = Match(TokenType::Identifier);
+      case TokenType::kIdentifier: {
+        auto id = Match(TokenType::kIdentifier);
         auto ctor = ctors.Get(id.ToString());
         CHECK(ctor) << "undefined identifier";
-        if (Peek()->token_type == TokenType::OpenParen) {
+        if (Peek()->token_type == TokenType::kOpenParen) {
           auto fields = ParsePatternList();
           return PatternConstructor(ctor.value(), fields);
         } else {
@@ -1032,8 +1056,8 @@ class Parser {
   Clause ParseMatchArm() {
     PushScope();
     auto pattern = ParsePattern();
-    Match(TokenType::Equal);
-    Consume(TokenType::RAngle);
+    Match(TokenType::kEqual);
+    Consume(TokenType::kRAngle);
     auto expr = ParseExpr();
     PopScopes(1);
     return Clause(pattern, expr);
@@ -1043,7 +1067,7 @@ class Parser {
     Expr scrutinee = ParseExpr();
 
     Array<Clause> clauses = ParseSequence<Clause>(
-        TokenType::LCurly, TokenType::Comma, TokenType::RCurly, [&] { return ParseMatchArm(); });
+        TokenType::kLCurly, TokenType::kComma, TokenType::kRCurly, [&] { return ParseMatchArm(); });
 
     return relay::Match(scrutinee, clauses, is_total);
   }
@@ -1126,13 +1150,13 @@ class Parser {
     DLOG(INFO) << "Parser::ParseAttributeValue";
     auto next = Peek();
     switch (next->token_type) {
-      case TokenType::Float:
-      case TokenType::Integer:
-      case TokenType::Boolean:
-      case TokenType::StringLiteral:
+      case TokenType::kFloat:
+      case TokenType::kInteger:
+      case TokenType::kBoolean:
+      case TokenType::kStringLiteral:
         return Match(next->token_type)->data;
-      case TokenType::LSquare: {
-        return ParseSequence<ObjectRef>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare,
+      case TokenType::kLSquare: {
+        return ParseSequence<ObjectRef>(TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare,
                                         [&]() { return ParseAttributeValue(); });
       }
       default:
@@ -1143,58 +1167,67 @@ class Parser {
   Map<String, ObjectRef> ParseAttrs() {
     DLOG(INFO) << "Parser::ParseAttrs";
     Map<String, ObjectRef> kwargs;
-    while (Peek()->token_type == TokenType::Identifier) {
-      auto key = Match(TokenType::Identifier).ToString();
-      Match(TokenType::Equal);
+    while (Peek()->token_type == TokenType::kIdentifier) {
+      auto key = Match(TokenType::kIdentifier).ToString();
+      Match(TokenType::kEqual);
       // TOOD(@jroesch): syntactically what do we allow to appear in attribute right hand side.
       auto value = ParseAttributeValue();
+      // TODO(@jroesch): we need a robust way to handle this writing dtypes as strings in text format is bad.
       kwargs.Set(key, value);
-      WhenMatch(TokenType::Comma);
+      WhenMatch(TokenType::kComma);
     }
     DLOG(INFO) << "Parser::ParseAttrs: kwargs=" << kwargs;
     return kwargs;
   }
 
   Expr ParseCallArgs(Expr op) {
-    DLOG(INFO) << "Parser::ParseCallArgs";
-    Map<String, ObjectRef> raw_attrs;
-    std::string op_key;
-    bool is_op = false;
+    try {
+      DLOG(INFO) << "Parser::ParseCallArgs";
+      Map<String, ObjectRef> raw_attrs;
+      std::string op_key;
+      bool is_op = false;
 
-    if (auto op_node = op.as<OpNode>()) {
-      is_op = true;
-      op_key = op_node->attrs_type_key;
-    }
-
-    if (Peek()->token_type == TokenType::OpenParen) {
-      Array<Expr> args = ParseSequence<Expr>(
-          TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen,
-          [&] { return ParseExpr(); },
-          [&] {
-            auto is_ident = Lookahead(1)->token_type == TokenType::Identifier;
-            auto next_is_equal = Lookahead(2)->token_type == TokenType::Equal;
-
-            if (is_op && is_ident && next_is_equal) {
-              raw_attrs = ParseAttrs();
-              return true;
-            }
-
-            return false;
-          });
-
-      Attrs attrs;
-
-      if (is_op && op_key.size()) {
-        // raw_attrs.Set("type_key", tvm::String("hello"));
-        auto attr_obj = tvm::ReflectionVTable::Global()->CreateObject(op_key, raw_attrs);
-        CHECK(attr_obj.defined());
-        attrs = Downcast<Attrs>(attr_obj);
+      if (auto op_node = op.as<OpNode>()) {
+        is_op = true;
+        op_key = op_node->attrs_type_key;
       }
 
-      return Expr(Call(op, args, attrs, {}));
-    } else {
-      return Expr();
+      if (Peek()->token_type == TokenType::kOpenParen) {
+        Array<Expr> args = ParseSequence<Expr>(
+            TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen,
+            [&] { return ParseExpr(); },
+            [&] {
+              auto is_ident = Lookahead(1)->token_type == TokenType::kIdentifier;
+              auto next_is_equal = Lookahead(2)->token_type == TokenType::kEqual;
+
+              if (is_op && is_ident && next_is_equal) {
+                raw_attrs = ParseAttrs();
+                return true;
+              }
+
+              return false;
+            });
+
+        Attrs attrs;
+
+        if (is_op && op_key.size()) {
+            auto attr_obj = tvm::ReflectionVTable::Global()->CreateObject(op_key, raw_attrs);
+            CHECK(attr_obj.defined());
+            attrs = Downcast<Attrs>(attr_obj);
+        }
+
+        return Expr(Call(op, args, attrs, {}));
+      } else {
+        return Expr();
+      }
+    } catch (...) {
+       // TODO(@jroesch): AttrErrors should have fields
+            this->diag_ctx->Emit(
+              Diagnostic::Error(Peek()->span));
+                // << err.what());
     }
+
+    return Expr();
   }
 
   Expr ParseCallExpr() {
@@ -1205,12 +1238,20 @@ class Parser {
       //
       // NB(@jroesch): this seems like a hack but in order to parse curried functions
       // and avoid complex grammar we will parse multiple call lists in a row.
-      while (Peek()->token_type == TokenType::OpenParen) {
-        auto new_expr = ParseCallArgs(expr);
-        if (new_expr.defined()) {
-          expr = new_expr;
-        } else {
-          break;
+      while (Peek()->token_type == TokenType::kOpenParen) {
+        try {
+          auto new_expr = ParseCallArgs(expr);
+
+          if (new_expr.defined()) {
+            expr = new_expr;
+          } else {
+            break;
+          }
+        } catch (...) {
+       // TODO(@jroesch): AttrErrors should have fields
+            this->diag_ctx->EmitFatal(
+              Diagnostic::Error(Peek()->span));
+                // << err.what());
         }
       }
 
@@ -1241,29 +1282,29 @@ class Parser {
     auto expr = ConsumeWhitespace<Expr>([this] {
       auto next = Peek();
       switch (next->token_type) {
-        case TokenType::Integer:
-        case TokenType::Float: {
+        case TokenType::kInteger:
+        case TokenType::kFloat: {
           Consume(next->token_type);
           auto number = NumberToNDArray(next);
           Expr e = Constant(number, next->span);
           return e;
         }
-        case TokenType::Boolean: {
-          Consume(TokenType::Boolean);
+        case TokenType::kBoolean: {
+          Consume(TokenType::kBoolean);
           int value = Downcast<tvm::Integer>(next->data);
           auto boolean = BooleanToNDarray(value);
           Expr e = Constant(boolean, next->span);
           return e;
         }
         // Parse a local of the form `%x`.
-        case TokenType::Local: {
-          Consume(TokenType::Local);
+        case TokenType::kLocal: {
+          Consume(TokenType::kLocal);
           return Expr(LookupLocal(next));
         }
         // Parse a local of the form `@x`.
-        case TokenType::Global: {
+        case TokenType::kGlobal: {
           auto string = next.ToString();
-          Consume(TokenType::Global);
+          Consume(TokenType::kGlobal);
           auto global = global_names.Get(string);
           if (!global) {
             // TODO(@jroesch): fix global's needing span information
@@ -1276,10 +1317,10 @@ class Parser {
         }
         // Parse a local of the form `x`.
         // Right now we fail to parse `x.y`.
-        case TokenType::Identifier: {
+        case TokenType::kIdentifier: {
           auto ctor = ctors.Get(next.ToString());
           if (ctor) {
-            Consume(TokenType::Identifier);
+            Consume(TokenType::kIdentifier);
             return Expr(ctor.value());
           } else {
             auto idents = ParseHierName();
@@ -1296,37 +1337,37 @@ class Parser {
             return GetOp(op_name.str(), next);
           }
         }
-        case TokenType::Graph: {
-          Consume(TokenType::Graph);
+        case TokenType::kGraph: {
+          Consume(TokenType::kGraph);
           return LookupGraphBinding(next);
         }
-        case TokenType::MetaReference: {
-          Consume(TokenType::MetaReference);
+        case TokenType::kMetaReference: {
+          Consume(TokenType::kMetaReference);
           return Downcast<Expr>(next->data);
         }
-        case TokenType::Fn: {
-          Consume(TokenType::Fn);
+        case TokenType::kFn: {
+          Consume(TokenType::kFn);
           return Expr(ParseFunctionDef());
         }
-        case TokenType::OpenParen: {
-          Consume(TokenType::OpenParen);
+        case TokenType::kOpenParen: {
+          Consume(TokenType::kOpenParen);
           // parse '(' ')'
-          if (WhenMatch(TokenType::CloseParen)) {
+          if (WhenMatch(TokenType::kCloseParen)) {
             return Expr(Tuple(Array<Expr>()));
           } else {
             auto expr = ParseExpr();
             // parse '(' expr ')'
-            if (WhenMatch(TokenType::CloseParen)) {
+            if (WhenMatch(TokenType::kCloseParen)) {
               return expr;
               // parse '( expr ',' * ')'
-            } else if (WhenMatch(TokenType::Comma)) {
+            } else if (WhenMatch(TokenType::kComma)) {
               Array<Expr> exprs = {expr};
               while (true) {
-                if (WhenMatch(TokenType::CloseParen)) {
+                if (WhenMatch(TokenType::kCloseParen)) {
                   break;
                 } else {
                   auto expr = ParseExpr();
-                  WhenMatch(TokenType::Comma);
+                  WhenMatch(TokenType::kComma);
                   exprs.push_back(expr);
                 }
               }
@@ -1343,8 +1384,8 @@ class Parser {
       }
     });
 
-    if (WhenMatch(TokenType::Period)) {
-      auto index = Match(TokenType::Integer).ToNumber();
+    if (WhenMatch(TokenType::kPeriod)) {
+      auto index = Match(TokenType::kInteger).ToNumber();
       expr = relay::TupleGetItem(expr, index);
     }
 
@@ -1354,12 +1395,12 @@ class Parser {
   /*! \brief Parse a hierarchical name. */
   Array<String> ParseHierName() {
     Array<String> idents;
-    while (Peek()->token_type == TokenType::Identifier) {
+    while (Peek()->token_type == TokenType::kIdentifier) {
       idents.push_back(Peek().ToString());
-      Consume(TokenType::Identifier);
+      Consume(TokenType::kIdentifier);
 
-      if (Peek()->token_type == TokenType::Period) {
-        Consume(TokenType::Period);
+      if (Peek()->token_type == TokenType::kPeriod) {
+        Consume(TokenType::kPeriod);
         continue;
       } else {
         break;
@@ -1371,9 +1412,9 @@ class Parser {
 
   /*! \brief Parse a shape. */
   Array<tvm::PrimExpr> ParseShape() {
-    auto dims = ParseSequence<tvm::PrimExpr>(TokenType::OpenParen, TokenType::Comma,
-                                             TokenType::CloseParen, [&]() {
-                                               auto tok = Match(TokenType::Integer);
+    auto dims = ParseSequence<tvm::PrimExpr>(TokenType::kOpenParen, TokenType::kComma,
+                                             TokenType::kCloseParen, [&]() {
+                                               auto tok = Match(TokenType::kInteger);
                                                return Downcast<tvm::PrimExpr>(tok->data);
                                              });
     return dims;
@@ -1381,11 +1422,11 @@ class Parser {
 
   /*! \brief Parse a function type. */
   Type ParseFunctionType() {
-    auto ty_params = ParseSequence<Type>(TokenType::OpenParen, TokenType::Comma,
-                                         TokenType::CloseParen, [&]() { return ParseType(); });
+    auto ty_params = ParseSequence<Type>(TokenType::kOpenParen, TokenType::kComma,
+                                         TokenType::kCloseParen, [&]() { return ParseType(); });
 
-    Match(TokenType::Minus);
-    Match(TokenType::RAngle);
+    Match(TokenType::kMinus);
+    Match(TokenType::kRAngle);
     auto ret_type = ParseType();
 
     return relay::FuncType(ty_params, ret_type, {}, {});
@@ -1406,8 +1447,8 @@ class Parser {
     CHECK(head_type.defined()) << "internal error: head type must be defined";
 
     Array<Type> arg_types;
-    if (Peek()->token_type == TokenType::LSquare) {
-      arg_types = ParseSequence<Type>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare,
+    if (Peek()->token_type == TokenType::kLSquare) {
+      arg_types = ParseSequence<Type>(TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare,
                                       [&]() { return ParseType(); });
     }
 
@@ -1426,21 +1467,21 @@ class Parser {
   Type ParseType() {
     auto tok = Peek();
 
-    if (tok->token_type == TokenType::OpenParen) {
-      auto tys = ParseSequence<relay::Type>(TokenType::OpenParen, TokenType::Comma,
-                                            TokenType::CloseParen, [&]() { return ParseType(); });
+    if (tok->token_type == TokenType::kOpenParen) {
+      auto tys = ParseSequence<relay::Type>(TokenType::kOpenParen, TokenType::kComma,
+                                            TokenType::kCloseParen, [&]() { return ParseType(); });
       return relay::TupleType(tys);
-    } else if (WhenMatch(TokenType::Fn)) {
+    } else if (WhenMatch(TokenType::kFn)) {
       return ParseFunctionType();
-    } else if (WhenMatch(TokenType::Identifier)) {
+    } else if (WhenMatch(TokenType::kIdentifier)) {
       auto id = tok.ToString();
       if (id == "Tensor") {
-        Match(TokenType::LSquare);
+        Match(TokenType::kLSquare);
         auto shape = ParseShape();
-        Match(TokenType::Comma);
-        auto dtype_tok = Match(TokenType::Identifier);
+        Match(TokenType::kComma);
+        auto dtype_tok = Match(TokenType::kIdentifier);
         auto dtype = DataType(String2DLDataType(dtype_tok.ToString()));
-        Match(TokenType::RSquare);
+        Match(TokenType::kRSquare);
         return TensorType(shape, dtype);
       } else {
         auto ty = tok.ToString();
@@ -1454,7 +1495,7 @@ class Parser {
         }
       }
     }
-    if (WhenMatch(TokenType::Underscore)) {
+    if (WhenMatch(TokenType::kUnderscore)) {
       return IncompleteType();
     } else {
       this->diag_ctx->EmitFatal(DiagnosticBuilder(DiagnosticLevel::Error, tok->span)
@@ -1467,7 +1508,7 @@ class Parser {
   R ConsumeWhitespace(std::function<R()> func) {
     auto old = this->ignore_whitespace;
     this->ignore_whitespace = true;
-    while (tokens[pos]->token_type == TokenType::Whitespace) {
+    while (tokens[pos]->token_type == TokenType::kWhitespace) {
       pos++;
     }
     auto res = func();
@@ -1476,8 +1517,8 @@ class Parser {
   }
 
   Map<String, Array<ObjectRef>> ParseMetadata() {
-    if (Peek()->token_type == TokenType::Metadata) {
-      return Match(TokenType::Metadata).ToMetadata();
+    if (Peek()->token_type == TokenType::kMetadata) {
+      return Match(TokenType::kMetadata).ToMetadata();
     } else {
       return Map<String, Array<ObjectRef>>();
     }
@@ -1534,7 +1575,7 @@ Expr ParseExpr(std::string file_name, std::string file_content) {
   parser.ParseSemVer(false);
   parser.PushScope();
   auto expr = parser.ParseExpr();
-  parser.Match(TokenType::EndOfFile);
+  parser.Match(TokenType::kEndOfFile);
   // NB(@jroesch): it is very important that we render any errors before we procede
   // if there were any errors which allow the parser to procede we must render them
   // here.
