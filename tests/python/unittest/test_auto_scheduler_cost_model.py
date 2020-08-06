@@ -14,23 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import, redefined-builtin
-""" Namespace for TVM Auto-scheduler. """
 
-from . import compute_dag
-from . import measure
-from . import measure_record
-from . import loop_state
-from . import utils
-from . import workload_registry
+"""Test cost models"""
 
-# Shortcut
-from .auto_schedule import SearchTask, TuningOptions, HardwareParams, \
-    auto_schedule, EmptyPolicy
-from .compute_dag import ComputeDAG
-from .cost_model import RandomModel
-from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, \
-    LocalRPCMeasureContext
-from .measure_record import RecordToFile, RecordReader, load_best, \
-    load_records, save_records
-from .workload_registry import register_workload, make_workload_key
+import tvm
+from tvm import auto_scheduler
+
+from test_auto_scheduler_common import matmul_auto_scheduler_test
+
+
+def test_random_model():
+    if not tvm.runtime.enabled("llvm"):
+        return
+    N = 128
+    workload_key = auto_scheduler.make_workload_key(matmul_auto_scheduler_test, (N, N, N))
+    dag = auto_scheduler.ComputeDAG(workload_key)
+    target = tvm.target.create('llvm')
+    task = auto_scheduler.SearchTask(dag, workload_key, target)
+
+    model = auto_scheduler.RandomModel()
+    model.update([], [])
+    scores = model.predict(task, [dag.init_state, dag.init_state])
+    assert len(scores) == 2
+
+
+if __name__ == "__main__":
+    test_random_model()
