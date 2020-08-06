@@ -1,0 +1,1 @@
+from .aot import compile
