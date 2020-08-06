@@ -101,17 +101,17 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.image.resize"),
          [](const CallNode* call_node) {
-      if (const ConstantNode* size = call_node->args[1].as<ConstantNode>()) {
-        const ResizeAttrs* param = call_node->attrs.as<ResizeAttrs>();
-        CHECK(param);
-        auto size_int = ToVector(size->data);
-        Array<PrimExpr> size_prim;
-        for (size_t i = 0; i < size_int.size(); ++i) {
-          size_prim.push_back(size_int[i]);
-        }
-        return MakeResize(call_node->args[0], size_prim, param->layout, param->method,
-                          param->coordinate_transformation_mode, param->out_dtype);
-      }
+           if (const ConstantNode* size = call_node->args[1].as<ConstantNode>()) {
+             const ResizeAttrs* param = call_node->attrs.as<ResizeAttrs>();
+             CHECK(param);
+             auto size_int = ToVector(size->data);
+             Array<PrimExpr> size_prim;
+             for (size_t i = 0; i < size_int.size(); ++i) {
+               size_prim.push_back(size_int[i]);
+             }
+             return MakeResize(call_node->args[0], size_prim, param->layout, param->method,
+                               param->coordinate_transformation_mode, param->out_dtype);
+           }
            return Expr(nullptr);
          }},
     };
