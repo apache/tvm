@@ -530,6 +530,10 @@ class Mod(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "Mod op take 2 inputs, {} given".format(len(inputs))
+
+        # Note: attr['fmod'] determines whether the operator should behave like np.fmod or np.mod.
+        # attr['fmod'] == 0 will behave as np.mod and attr['fmod'] == 1 will force fmod treatment.
+        # The relay equivalent of np.fmod is relay.mod and np.mod is relay.floor_mod
         if attr['fmod'] == 0:
             op_name = "floor_mod"
         else:
