@@ -36,7 +36,13 @@ namespace relay {
 namespace quantize {
 
 /*! \brief Kind of annotate field */
-enum QAnnotateKind : int { kQIdentity = 0, kQInput = 1, kQWeight = 2, kQActivation = 3 };
+enum QAnnotateKind : int {
+  kQIdentity = 0,
+  kQInput = 1,
+  kQWeight = 2,
+  kQActivation = 3,
+  kQBias = 4
+};
 
 /*! \brief Attribute for simulated quantize operator */
 struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
@@ -60,9 +66,11 @@ class QConfigNode : public Object {
  public:
   int nbit_input = 8;
   int nbit_weight = 8;
+  int nbit_bias = 32;
   int nbit_activation = 32;
   DataType dtype_input = DataType::Int(8);
   DataType dtype_weight = DataType::Int(8);
+  DataType dtype_bias = DataType::Int(32);
   DataType dtype_activation = DataType::Int(32);
   std::string calibrate_mode = "global_scale";
   double global_scale = 8.0;
@@ -78,9 +86,11 @@ class QConfigNode : public Object {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("nbit_input", &nbit_input);
     v->Visit("nbit_weight", &nbit_weight);
+    v->Visit("nbit_bias", &nbit_bias);
     v->Visit("nbit_activation", &nbit_activation);
     v->Visit("dtype_input", &dtype_input);
     v->Visit("dtype_weight", &dtype_weight);
+    v->Visit("dtype_bias", &dtype_bias);
     v->Visit("dtype_activation", &dtype_activation);
     v->Visit("calibrate_mode", &calibrate_mode);
     v->Visit("global_scale", &global_scale);

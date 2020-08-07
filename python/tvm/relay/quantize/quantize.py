@@ -33,6 +33,7 @@ class QAnnotateKind(object):
     INPUT = 1
     WEIGHT = 2
     ACTIVATION = 3
+    BIAS = 4
 
 
 def kind2str(kind):
@@ -41,6 +42,7 @@ def kind2str(kind):
         QAnnotateKind.INPUT: "input",
         QAnnotateKind.WEIGHT: "weight",
         QAnnotateKind.ACTIVATION: "activation",
+        QAnnotateKind.BIAS: "bias",
         QAnnotateKind.IDENTITY: "identity"
     }
     assert kind in str_map
@@ -71,9 +73,11 @@ class QConfig(Object):
     _node_defaults = {
         "nbit_input": 8,
         "nbit_weight": 8,
+        "nbit_bias": 32,
         "nbit_activation": 32,
         "dtype_input": "int8",
         "dtype_weight": "int8",
+        "dtype_bias": "int32",
         "dtype_activation": "int32",
         "calibrate_mode": "global_scale",
         "global_scale": 8.0,
@@ -354,9 +358,11 @@ def quantize(mod, params=None, dataset=None):
     quant_passes = [partition(),
                     annotate(),
                     calibrate_pass]
+    # quant_passes.append(tvm.transform.PrintIR("Before realisze"))
     if not current_qconfig().do_simulation:
         quant_passes.append(realize())
     quant_passes.append(_transform.FoldConstant())
+    # quant_passes.append(tvm.transform.PrintIR("After realisze"))
     quantize_seq = tvm.transform.Sequential(quant_passes)
     with tvm.transform.PassContext(opt_level=3,
                                    required_pass=["QuantizeAnnotate",

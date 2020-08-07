@@ -39,10 +39,12 @@ class QAnnotateExpr;
 class QAnnotateExprNode : public TempExprNode {
  public:
   Expr expr;
+  Expr dom_scale;
   QAnnotateKind kind;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("expr", &expr);
+    v->Visit("dom_scale", &dom_scale);
     v->Visit("kind", &kind);
   }
 
@@ -57,25 +59,28 @@ class QAnnotateExpr : public TempExpr {
   /*!
    * \brief The constructor
    * \param expr The original relay expression.
+   * \param dom_scale The dom_scale of the expr.
    * \param kind The annotation kind.
    */
-  TVM_DLL QAnnotateExpr(Expr expr, QAnnotateKind kind);
+  TVM_DLL QAnnotateExpr(Expr expr, Expr dom_scale, QAnnotateKind kind);
 
   TVM_DEFINE_OBJECT_REF_METHODS(QAnnotateExpr, TempExpr, QAnnotateExprNode);
 };
 
 Expr QAnnotateExprNode::Realize() const { return expr; }
 
-QAnnotateExpr::QAnnotateExpr(Expr expr, QAnnotateKind kind) {
+QAnnotateExpr::QAnnotateExpr(Expr expr, Expr dom_scale, QAnnotateKind kind) {
   auto rnode = make_object<QAnnotateExprNode>();
   rnode->expr = std::move(expr);
+  rnode->dom_scale = std::move(dom_scale);
   rnode->kind = kind;
   data_ = std::move(rnode);
 }
 
-TVM_REGISTER_GLOBAL("relay._quantize.make_annotate_expr").set_body_typed([](Expr expr, int kind) {
-  return QAnnotateExpr(expr, static_cast<QAnnotateKind>(kind));
-});
+TVM_REGISTER_GLOBAL("relay._quantize.make_annotate_expr")
+    .set_body_typed([](Expr expr, Expr dom_scale, int kind) {
+      return QAnnotateExpr(expr, dom_scale, static_cast<QAnnotateKind>(kind));
+    });
 
 Pass QuantizeAnnotate() {
   // TODO(tvm-teams): since partition has added cast_hint in different
@@ -86,7 +91,11 @@ Pass QuantizeAnnotate() {
       CHECK(n);
       const PackedFunc* f = runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
       Expr ret = (*f)(n->expr, static_cast<int>(kQInput));
-      return static_cast<Expr>(QAnnotateExpr(ret, kQInput));
+      Expr dom_scale;
+      if (auto c = ret.as<CallNode>()) {
+        dom_scale = c->args[1];
+      }
+      return static_cast<Expr>(QAnnotateExpr(ret, dom_scale, kQInput));
     }
     return e;
   };

@@ -68,16 +68,16 @@ class QAnnotateExpr(_expr.TempExpr):
     kind: QAnnotateKind
         the kind of annotation field.
     """
-    def __init__(self, expr, kind):
+    def __init__(self, expr, dom_scale, kind):
         self.__init_handle_by_constructor__(
-            _quantize.make_annotate_expr, expr, kind)
+            _quantize.make_annotate_expr, expr, dom_scale, kind)
 
 
 def _get_expr_kind(anno):
     """Get the expression and QAnnotateKind from QAnnotateExpr or Expr"""
     if isinstance(anno, QAnnotateExpr):
-        return anno.expr, anno.kind
-    return anno, None
+        return anno.expr, anno.dom_scale, anno.kind
+    return anno, None, None
 
 
 def register_annotate_function(op_name, frewrite=None, level=10):
@@ -122,6 +122,22 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     kind: QAnnotateKind
         the kind of annotation field.
     """
+
+    dom_scale = _expr.var("dom_scale")
+    return attach_simulated_quantize_with_scale(data, dom_scale, kind, sign, rounding)
+
+
+def attach_simulated_quantize_with_scale(data, dom_scale, kind, sign=True, rounding="round"):
+    """Attach a simulated quantize operation with known scale.
+
+    Parameters
+    ---------
+    data: Expr
+        the original data expr.
+
+    kind: QAnnotateKind
+        the kind of annotation field.
+    """
     quantize_op = _op.get("relay.op.annotation.simulated_quantize")
     if isinstance(data, _expr.Call) and data.op == quantize_op:
         if data.attrs.kind == kind and data.attrs.sign == sign and data.attrs.rounding == rounding:
@@ -132,13 +148,13 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     if key in qctx.qnode_map:
         return qctx.qnode_map[key]
 
-    dom_scale = _expr.var("dom_scale")
     clip_min = _expr.var("clip_min")
     clip_max = _expr.var("clip_max")
     qnode = _quantize.simulated_quantize(
         data, dom_scale, clip_min, clip_max, kind, sign, rounding)
     qctx.qnode_map[key] = qnode
     return qnode
+
 
 tvm._ffi.register_func(
     "relay.quantize.attach_simulated_quantize", attach_simulated_quantize)
@@ -159,18 +175,24 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     if quantize_context().check_to_skip(ref_call):
         return None
 
-    lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
-    rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
+    lhs_expr, lhs_dom_scale, lhs_kind = _get_expr_kind(new_args[0])
+    rhs_expr, rhs_dom_scale, rhs_kind = _get_expr_kind(new_args[1])
 
     if lhs_kind is None or lhs_kind == QAnnotateKind.ACTIVATION:
         lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
+        lhs_dom_scale = lhs_expr.args[1]
 
     assert rhs_kind is None
     rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
+    rhs_dom_scale = rhs_expr.args[1]
 
     expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
 
-    return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+    # conv output scale is the product of input and weight scale. This will be used to set bias
+    # scale
+    out_dom_scale = tvm.relay.multiply(lhs_dom_scale, rhs_dom_scale)
+
+    return QAnnotateExpr(expr, out_dom_scale, QAnnotateKind.ACTIVATION)
 
 
 @register_annotate_function("nn.dense")
@@ -184,18 +206,24 @@ def dense_rewrite(ref_call, new_args, ctx):
     if quantize_context().check_to_skip(ref_call):
         return None
 
-    lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
-    rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
+    lhs_expr, lhs_dom_scale, lhs_kind = _get_expr_kind(new_args[0])
+    rhs_expr, rhs_dom_scale, rhs_kind = _get_expr_kind(new_args[1])
 
     if lhs_kind is None or lhs_kind == QAnnotateKind.ACTIVATION:
         lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
+        lhs_dom_scale = lhs_expr.args[1]
 
     assert rhs_kind is None
     rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
+    rhs_dom_scale = rhs_expr.args[1]
 
     expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
 
-    return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+    # dense output scale is the product of input and weight scale. This will be used to set bias
+    # scale
+    out_dom_scale = tvm.relay.multiply(lhs_dom_scale, rhs_dom_scale)
+
+    return QAnnotateExpr(expr, out_dom_scale, QAnnotateKind.ACTIVATION)
 
 
 @register_annotate_function("multiply")
@@ -204,8 +232,8 @@ def multiply_rewrite(ref_call, new_args, ctx):
     if quantize_context().check_to_skip(ref_call):
         return None
 
-    lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
-    rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
+    lhs_expr, lhs_dom_scale, lhs_kind = _get_expr_kind(new_args[0])
+    rhs_expr, rhs_dom_scale, rhs_kind = _get_expr_kind(new_args[1])
 
     if lhs_kind is None and rhs_kind is None:
         return None
@@ -214,12 +242,20 @@ def multiply_rewrite(ref_call, new_args, ctx):
         # quantize lhs to INPUT field
         if lhs_kind == QAnnotateKind.ACTIVATION:
             lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
+            lhs_dom_scale = lhs_expr.args[1]
+
         if _analysis.check_constant(rhs_expr):
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
         else:
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
+
+        rhs_dom_scale = rhs_expr.args[1]
+
+        # Multiply output scale is a multiplication of input scales
+        out_dom_scale = tvm.relay.multiply(lhs_dom_scale, rhs_dom_scale)
+
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-        return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+        return QAnnotateExpr(expr, out_dom_scale, QAnnotateKind.ACTIVATION)
 
     raise ValueError
 
@@ -230,41 +266,52 @@ def add_rewrite(ref_call, new_args, ctx):
     if quantize_context().check_to_skip(ref_call):
         return None
 
-    lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
-    rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
+    lhs_expr, lhs_dom_scale, lhs_kind = _get_expr_kind(new_args[0])
+    rhs_expr, _, rhs_kind = _get_expr_kind(new_args[1])
 
     if lhs_kind is None and rhs_kind is None:
         # trivial case
         return None
+
+    # The out_dom_scale of add is equal to the smaller one of the input scales. As, the scale values
+    # are unknown at this point of time. The real dom_scale is calculated in Realize pass, so we can
+    # ignore the dom_scale for now.
+    out_dom_scale = None
 
     if lhs_kind is None and rhs_kind is not None:
         # quantize lhs to INPUT field if it is normal expression
         assert rhs_kind in [QAnnotateKind.INPUT, QAnnotateKind.ACTIVATION]
         lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-        return QAnnotateExpr(expr, QAnnotateKind.INPUT)
+        return QAnnotateExpr(expr, out_dom_scale, QAnnotateKind.INPUT)
 
     if lhs_kind is not None and rhs_kind is None:
         if _analysis.check_constant(rhs_expr):
             # - introduced by batch_norm: add(out, const)
-            rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
+            # This is similar to bias_add. Instead of relying on bias values to decide the scale, we
+            # set bias scale equals to the product of conv input scale and conv weight scale. This
+            # has shown to achieve better accuracy with bias. lhs_dom_scale has already been set by
+            # the parent conv2d/dense op as the product of its input scales.
+            rhs_expr = attach_simulated_quantize_with_scale(rhs_expr, lhs_dom_scale,
+                                                            QAnnotateKind.BIAS)
+            out_dom_scale = lhs_dom_scale
         else:
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-        return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+        return QAnnotateExpr(expr, out_dom_scale, QAnnotateKind.ACTIVATION)
 
     if lhs_kind is not None and rhs_kind is not None:
         if lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.INPUT:
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-            return QAnnotateExpr(expr, QAnnotateKind.INPUT)
+            return QAnnotateExpr(expr, out_dom_scale, QAnnotateKind.INPUT)
         if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.ACTIVATION:
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-            return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+            return QAnnotateExpr(expr, out_dom_scale, QAnnotateKind.ACTIVATION)
         if (lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.INPUT) or \
             (lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.ACTIVATION):
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-            return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+            return QAnnotateExpr(expr, out_dom_scale, QAnnotateKind.ACTIVATION)
     raise ValueError()
 
 
@@ -273,12 +320,12 @@ def identity_rewrite(ref_call, new_args, ctx):
     if quantize_context().check_to_skip(ref_call):
         return None
 
-    x_expr, x_kind = _get_expr_kind(new_args[0])
+    x_expr, x_dom_scale, x_kind = _get_expr_kind(new_args[0])
     if x_kind is None:
         return None
 
     ret_expr = _forward_op(ref_call, [x_expr])
-    return QAnnotateExpr(ret_expr, x_kind)
+    return QAnnotateExpr(ret_expr, x_dom_scale, x_kind)
 
 
 register_annotate_function("clip", identity_rewrite)
@@ -293,15 +340,16 @@ def pool2d_rewrite(ref_call, new_args, ctx):
     if quantize_context().check_to_skip(ref_call):
         return None
 
-    expr, x_kind = _get_expr_kind(new_args[0])
+    expr, x_dom_scale, x_kind = _get_expr_kind(new_args[0])
 
     if x_kind is None:
         return None
     if x_kind == QAnnotateKind.ACTIVATION:
         expr = attach_simulated_quantize(expr, QAnnotateKind.INPUT)
+        x_dom_scale = expr.args[1]
 
     expr = _forward_op(ref_call, [expr])
-    return QAnnotateExpr(expr, QAnnotateKind.INPUT)
+    return QAnnotateExpr(expr, x_dom_scale, QAnnotateKind.INPUT)
 
 
 register_annotate_function("nn.max_pool2d", pool2d_rewrite)
@@ -310,7 +358,7 @@ register_annotate_function("nn.max_pool2d", pool2d_rewrite)
 @register_annotate_function("annotation.cast_hint")
 def cast_hint_rewrite(ref_call, new_args, ctx):
     """Rewrite function to force cast"""
-    expr, x_kind = _get_expr_kind(new_args[0])
+    expr, expr_dom_scale, x_kind = _get_expr_kind(new_args[0])
 
     if quantize_context().check_to_skip(ref_call):
         return expr
@@ -319,9 +367,10 @@ def cast_hint_rewrite(ref_call, new_args, ctx):
         return new_args[0]
     if x_kind == QAnnotateKind.ACTIVATION:
         expr = attach_simulated_quantize(expr, QAnnotateKind.INPUT)
+        expr_dom_scale = expr.args[1]
 
     expr = _forward_op(ref_call, [expr])
-    return QAnnotateExpr(expr, QAnnotateKind.INPUT)
+    return QAnnotateExpr(expr, expr_dom_scale, QAnnotateKind.INPUT)
 
 
 @register_annotate_function("concatenate")
@@ -329,6 +378,11 @@ def concatenate_rewrite(ref_call, new_args, ctx):
     """Rewrite function for concatenate"""
     if quantize_context().check_to_skip(ref_call):
         return None
+
+    # The out_dom_scale of concat is equal to the smaller one of the input scales. As, the scale
+    # values are unknown at this point of time. The real dom_scale is calculated in Realize pass, so
+    # we can ignore the dom_scale for now.
+    out_dom_scale = None
 
     input_tuple = new_args[0]
     expr_list = [_get_expr_kind(x)[0] for x in input_tuple]
@@ -342,7 +396,7 @@ def concatenate_rewrite(ref_call, new_args, ctx):
         if k is None:
             expr_list[i] = attach_simulated_quantize(expr_list[i], QAnnotateKind.ACTIVATION)
     expr = _forward_op(ref_call, [_expr.Tuple(expr_list)])
-    return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+    return QAnnotateExpr(expr, out_dom_scale, QAnnotateKind.ACTIVATION)
 
 
 @register_annotate_function("nn.global_avg_pool2d")
@@ -351,7 +405,7 @@ def global_avg_pool2d_rewrite(ref_call, new_args, ctx):
     if quantize_context().check_to_skip(ref_call):
         return None
 
-    expr, x_kind = _get_expr_kind(new_args[0])
+    expr, _, x_kind = _get_expr_kind(new_args[0])
 
     if x_kind is None:
         return None

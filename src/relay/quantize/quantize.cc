@@ -117,6 +117,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "qconfig(";
       p->stream << "nbit_input=" << op->nbit_input << ", ";
       p->stream << "nbit_weight=" << op->nbit_weight << ", ";
+      p->stream << "nbit_bias=" << op->nbit_bias << ", ";
       p->stream << "nbit_activation=" << op->nbit_activation << ", ";
       p->stream << "calibrate_mode=" << op->calibrate_mode << ", ";
       p->stream << "global_scale=" << op->global_scale << ", ";

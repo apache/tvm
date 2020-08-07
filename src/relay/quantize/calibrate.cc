@@ -177,7 +177,7 @@ class StatsCollector : private ExprMutator {
       Expr identity_quantize = Call(new_call->op, new_args, Attrs{new_attrs}, {});
 
       // add non-const expressions to profile data
-      if (attrs->kind != QAnnotateKind::kQWeight) {
+      if (attrs->kind != QAnnotateKind::kQWeight && attrs->kind != QAnnotateKind::kQBias) {
         CHECK(!quantize_input.as<ConstantNode>());
         profile_data_.push_back(identity_quantize);
       }

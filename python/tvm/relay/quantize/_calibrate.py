@@ -52,6 +52,53 @@ def _get_profile_runtime(mod):
     return runtime
 
 
+def collect_min_max(mod, dataset):
+    """Given an annotated graph, create a profile graph to collect min/max from the
+    calibration dataset. This pass collects simulated_quantize op input into a tuple.
+    Simulated_quantize ops are rewritten to identity mode. The tuple is the output of the profile
+    graph.
+
+    Parameters
+    ----------
+    mod: Module
+        The simulation graph after annotation.
+
+    dataset: Iterable[NDArray]
+        The calibration dataset.
+
+    Returns
+    -------
+    ret: Iterable[list of ndarray]
+        List of output data of each layer, chunked by the chunk_by parameter
+    """
+    logging.info("collecting statistics for calibration...")
+    runtime = _get_profile_runtime(mod)
+    num_outputs = runtime.get_num_outputs()
+
+    min_outputs = list()
+    max_outputs = list()
+
+    for i in range(num_outputs):
+        min_outputs.append(0.0)
+        max_outputs.append(0.0)
+
+    num_batches = 0
+    for batch in dataset:
+        num_batches += 1
+        runtime.set_input(**batch)
+        runtime.run()
+        for i in range(0, num_outputs):
+            out = runtime.get_output(i).asnumpy()
+            min_outputs[i] += np.amin(out)
+            max_outputs[i] += np.amax(out)
+
+    for i in range(num_outputs):
+        min_outputs[i] /= num_batches
+        max_outputs[i] /= num_batches
+
+    return list(zip(min_outputs, max_outputs))
+
+
 def collect_stats(mod, dataset, chunk_by=-1):
     """Given an annotated graph, create a profile graph to collect profile data from the
     calibration dataset. This pass collects simulated_quantize op input into a tuple.
@@ -109,6 +156,38 @@ def _kl_scale(mod, dataset):
     return func
 
 
+
+
+def _avg_min_max(mod, dataset):
+    """ Finds the scale for each simulated_quantize node by averaging min/max of tensor values over
+    the calibration dataset.
+
+    Parameters
+    ----------
+    mod: Module
+        The simulation graph after annotation.
+
+    dataset: Iterable[NDArray]
+        The calibration dataset.
+
+    Returns
+    -------
+    ret: Function
+        Function that returns scale of the tensors
+    """
+
+    avg_min_max_values = collect_min_max(mod, dataset)
+
+    def func(_):
+        min_value, max_value = avg_min_max_values[func.scale_idx]
+        scale = max(abs(min_value), abs(max_value))
+        func.scale_idx += 1
+        return scale
+    func.scale_idx = 0
+
+    return func
+
+
 def _set_params(mod, input_scale_func, weight_scale_func):
     quantize_op = _op.get("relay.op.annotation.simulated_quantize")
     cfg = quantize.current_qconfig()
@@ -127,6 +206,9 @@ def _set_params(mod, input_scale_func, weight_scale_func):
             if kind == quantize.QAnnotateKind.WEIGHT:
                 assert isinstance(expr.args[0], _expr.Constant)
                 scale = weight_scale_func(expr)
+            elif kind == quantize.QAnnotateKind.BIAS:
+                # If bias then scale already set
+                pass
             else:
                 scale = input_scale_func(expr)
 
@@ -134,7 +216,8 @@ def _set_params(mod, input_scale_func, weight_scale_func):
                 return _expr.const(val, 'float32')
 
             valid_range = 2**valid_bit
-            const_params[ndom_scale] = _make_const(scale / valid_range)
+            if kind != quantize.QAnnotateKind.BIAS:
+                const_params[ndom_scale] = _make_const(scale / valid_range)
             const_params[nclip_min] = _make_const(- (valid_range - 1))
             const_params[nclip_max] = _make_const((valid_range - 1))
 
@@ -192,6 +275,8 @@ def calibrate(dataset=None):
 
         if cfg.calibrate_mode == 'kl_divergence':
             input_scale_func = _kl_scale(mod, dataset)
+        elif cfg.calibrate_mode == 'avg_min_max':
+            input_scale_func = _avg_min_max(mod, dataset)
         elif cfg.calibrate_mode == 'global_scale':
             input_scale_func = _global_scale
         else:

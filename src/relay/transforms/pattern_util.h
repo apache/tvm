@@ -35,6 +35,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/transform.h>
 #include <tvm/tir/data_layout.h>
 
 #include <limits>
@@ -457,6 +458,7 @@ inline Expr Log(Expr e) {
   static const Op& op = Op::Get("log");
   return Call(op, {e});
 }
+
 /*!
  * \brief Get an immediate scalar from a Constant expr.
  *
@@ -466,6 +468,15 @@ inline Expr Log(Expr e) {
 template <typename T>
 T GetScalarFromConstant(Expr expr) {
   const auto* n = expr.as<ConstantNode>();
+  if (n == nullptr) {
+    // Try Constant Folding
+    auto mod = IRModule::FromExpr(expr);
+    mod = transform::FoldConstant()(mod);
+    auto entry_func = Downcast<Function>(mod->Lookup("main"));
+    expr = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
+  }
+  n = expr.as<ConstantNode>();
+
   CHECK(n) << "Expr must be a constant expr - " << AsText(expr, false);
   CHECK(n->is_scalar());
   return static_cast<T*>(n->data->data)[0];

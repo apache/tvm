@@ -333,13 +333,15 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
   }
   for (size_t i = 0; i < ret.size(); ++i) {
     auto ref_arg = ref_args[i].as<CallNode>();
-    if (nptrs[i]->dtype != dtype) {
-      ret.Set(i, Cast(ret[i], dtype));
-    } else if (ref_arg && ref_arg->op.same_as(simulated_quantize) &&
-               ref_arg->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput) {
+    if (ref_arg && ref_arg->op.same_as(simulated_quantize) &&
+        ref_arg->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput) {
       auto new_arg = Cast(ret[i], cfg->dtype_input);
       new_arg = StopFusion(new_arg);
-      ret.Set(i, Cast(new_arg, dtype));
+      ret.Set(i, new_arg);
+    }
+    // Cast all the input args for add to int32 to prevent overflow
+    if (nptrs[i]->dtype != DataType::Int(32)) {
+      ret.Set(i, Cast(ret[i], DataType::Int(32)));
     }
   }
 
@@ -348,7 +350,8 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
   Expr dom_scale = MakeConstantScalar(DataType::Float(32), s);
   for (size_t i = 0; i < ret.size(); ++i) {
     float cur_s = GetScalarFromConstant<float>(nptrs[i]->dom_scale);
-    ret.Set(i, MulAndDiv(ret[i], cur_s, s, dtype, ref_args[i]->type_as<TensorTypeNode>()->shape));
+    ret.Set(i, MulAndDiv(ret[i], cur_s, s, DataType::Int(32),
+                         ref_args[i]->type_as<TensorTypeNode>()->shape));
   }
 
   *dtype_ptr = dtype;
@@ -363,6 +366,9 @@ Expr AddRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
     Expr dom_scale;
     Array<Expr> ret_args = UnifyDTypeScale(ref_call->args, new_args, &dtype, &dom_scale);
     Expr ret = ForwardOp(ref_call, ret_args);
+    // FIXME - Commenting. In future, with better calibration, we might be able to cast the output
+    // back to orig dtype. auto q_min = qnn::GetQmin(dtype); auto q_max = qnn::GetQmax(dtype); ret =
+    // Clip(ret, q_min, q_max); ret = Cast(ret, dtype);
     return QRealizeIntExpr(ret, dom_scale, dtype);
   }
 
@@ -406,6 +412,8 @@ Expr ConcatenateRealize(const Call& ref_call, const Array<Expr>& new_args, const
     Expr dom_scale;
     Array<Expr> ret_args = UnifyDTypeScale(ref_arr, arr, &dtype, &dom_scale);
     Expr ret = ForwardOp(ref_call, {Tuple(ret_args)});
+    // Cast the concat output to the original dtype.
+    ret = Cast(ret, dtype);
     return QRealizeIntExpr(ret, dom_scale, dtype);
   } else {
     for (auto arg : new_args) {
