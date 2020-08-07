@@ -62,8 +62,8 @@ namespace te {
 
 using arith::DivMode;
 using arith::kFloorDiv;
-using arith::kTruncDiv;
 using arith::kSimplifyRewriteCanonicalRewrite;
+using arith::kTruncDiv;
 
 // Combine all expressions from the container using &&.
 template <class container>
