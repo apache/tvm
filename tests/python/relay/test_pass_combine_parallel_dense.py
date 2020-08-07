@@ -20,9 +20,9 @@ from tvm import relay
 from tvm.relay import transform
 
 
-def run_combine_parallel(expr, min_num_branches=3):
+def run_combine_parallel(expr, min_num_branches=3, to_batch=True):
     mod = tvm.IRModule.from_expr(expr)
-    mod = transform.CombineParallelDense(min_num_branches)(mod)
+    mod = transform.CombineParallelDense(min_num_branches, to_batch)(mod)
     return mod["main"]
 
 def run_opt_pass(expr, opt_pass):
@@ -190,7 +190,192 @@ def test_combine_parallel_dense_biasadd_scale_reshape():
     check(100, 200, 300, 0.5, 0.25, (1, 1, 200))
 
 
+def test_combine_parallel_dense_flat():
+    """Simple testcase. All matmul of different output dim can be combined"""
+    def before(x, w1, w2, w3):
+        args = [x, w1, w2, w3]
+        y1 = relay.nn.dense(x, w1)
+        y2 = relay.nn.dense(x, w2)
+        y3 = relay.nn.dense(x, w3)
+        y = relay.Tuple((y1, y2, y3))
+        return relay.Function(args, y)
+
+    def expected(x, w1, w2, w3, j):
+        args = [x, w1, w2, w3]
+        w_stacked = relay.concatenate((w1, w2, w3), axis=0)
+        y = relay.nn.dense(x, w_stacked, units=6 * j)
+        strides = relay.const([1, 1], 'int64')
+        y1 = relay.strided_slice(y,
+                                 begin=relay.const([0, 0], "int64"),
+                                 end=relay.const([-1, j], "int64"),
+                                 strides=strides, slice_mode="size")
+        y2 = relay.strided_slice(y,
+                                 begin=relay.const([0, j], "int64"),
+                                 end=relay.const([-1, 2 * j], "int64"),
+                                 strides=strides, slice_mode="size")
+        y3 = relay.strided_slice(y,
+                                 begin=relay.const([0, 3 * j], "int64"),
+                                 end=relay.const([-1, 3 * j], "int64"),
+                                 strides=strides, slice_mode="size")
+        y = relay.Tuple((y1, y2, y3))
+        return relay.Function(args, y)
+
+    def check(i, j, k):
+        x =  relay.var("x", shape=(i, k))
+        w1 = relay.var("w1", shape=(j, k))
+        w2 = relay.var("w2", shape=(2 * j, k))
+        w3 = relay.var("w3", shape=(3 * j, k))
+
+        y_before = before(x, w1, w2, w3)
+        combine_pass = transform.CombineParallelDense(min_num_branches=3,
+                                                      to_batch=False) 
+        y = run_opt_pass(y_before, combine_pass)
+        y_expected = expected(x, w1, w2, w3, j)
+        y_expected = run_opt_pass(y_expected, transform.InferType())
+        tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
+
+    check(3, 5, 4)
+    check(100, 200, 300)
+
+
+def test_combine_parallel_dense_flat_biasadd():
+    """Testcase of combining dense + 1d biasadd with different out dims"""
+    def before(x, w1, w2, b1, b2):
+        args = [x, w1, w2, b1, b2]
+        y1 = relay.nn.dense(x, w1)
+        y2 = relay.nn.dense(x, w2)
+        y1 = relay.add(y1, b1)
+        y2 = relay.add(y2, b2)
+        y = relay.Tuple((y1, y2))
+        return relay.Function(args, y)
+
+    def expected(x, w1, w2, b1, b2, j, bias_shape1, bias_shape2):
+        args = [x, w1, w2, b1, b2]
+        w_stacked = relay.concatenate((w1, w2), axis=0)
+        y = relay.nn.dense(x, w_stacked, units=3 * j)
+        n_out_dims = max(len(bias_shape1), 2)
+        if len(bias_shape1) == 0:
+            b1 = relay.repeat(relay.expand_dims(b1, -1), j, 0)
+        elif bias_shape1[-1] == 1:
+            b1 = relay.repeat(b1, j, len(bias_shape1) - 1)
+        if len(bias_shape2) == 0:
+            b2 = relay.repeat(relay.expand_dims(b2, -1), 2 * j, 0)
+        elif bias_shape2[-1] == 1:
+            b2 = relay.repeat(b2, 2 * j, len(bias_shape2) - 1)
+        b = relay.concatenate((b1, b2), axis=max(0, len(bias_shape1) - 1))
+        y = relay.add(y, b)
+        begin = [0 for _ in range(n_out_dims - 1)]
+        end = [-1 for _ in range(n_out_dims - 1)]
+        strides = [1 for _ in range(n_out_dims)]
+        y1 = relay.strided_slice(y,
+                                 begin=relay.const(begin + [0], "int64"),
+                                 end=relay.const(end + [j], "int64"),
+                                 strides=relay.const(strides, "int64"),
+                                 slice_mode="size")
+        y2 = relay.strided_slice(y,
+                                 begin=relay.const(begin + [j], "int64"),
+                                 end=relay.const(end + [2 * j], "int64"),
+                                 strides=relay.const(strides, "int64"),
+                                 slice_mode="size")
+        return relay.Function(args, relay.Tuple((y1, y2)))
+
+    def check(i, j, k, bias_shape1, bias_shape2):
+        x =  relay.var("x", shape=(i, k))
+        w1 = relay.var("w1", shape=(j, k))
+        w2 = relay.var("w2", shape=(2 * j, k))
+        b1 = relay.var("b1", shape=bias_shape1)
+        b2 = relay.var("b2", shape=bias_shape2)
+        
+        y_before = before(x, w1, w2, b1, b2)
+        combine_pass = transform.CombineParallelDense(min_num_branches=2,
+                                                      to_batch=False) 
+        y = run_opt_pass(y_before, combine_pass)
+        y_expected = expected(x, w1, w2, b1, b2, j, bias_shape1, bias_shape2)
+        y_expected = run_opt_pass(y_expected, transform.InferType())
+        print(y.astext(False))
+        print(y_expected.astext(False))
+        tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
+
+    check(3, 5, 4, (), ())
+    check(3, 5, 4, (1,), (1,))
+    check(3, 5, 4, (5,), (1,))
+    check(3, 5, 4, (1,), (10,))
+    check(3, 5, 4, (3, 1), (3, 1))
+    check(3, 5, 4, (3, 5), (3, 10))
+    check(3, 5, 4, (3, 1), (3, 10))
+    check(3, 5, 4, (3, 5), (3, 1))
+    check(3, 5, 4, (9, 3, 5), (9, 3, 10))
+    check(3, 5, 4, (9, 3, 5), (9, 3, 1))
+    check(3, 5, 4, (9, 3, 1), (9, 3, 10))
+
+def test_combine_parallel_dense_flat_biasadd_scale_reshape():
+    """Testcase of combining dense with different out dims
+       following bias add, scale, reshape ops
+    """
+    def before(x, w1, w2, b1, b2, scale1, scale2, newshape1, newshape2):
+        args = [x, w1, w2, b1, b2, scale1, scale2]
+        y1 = relay.nn.dense(x, w1)
+        y2 = relay.nn.dense(x, w2)
+        y1 = relay.add(y1, b1)
+        y2 = relay.add(y2, b2)
+        y1 = relay.multiply(y1, scale1)
+        y2 = relay.multiply(y2, scale2)
+        y1 = relay.reshape(y1, newshape=newshape1)
+        y2 = relay.reshape(y2, newshape=newshape2)
+        y = relay.Tuple((y1, y2))
+        return relay.Function(args, y)
+
+    def expected(x, w1, w2, b1, b2, scale1, scale2, newshape1, newshape2, j):
+        args = [x, w1, w2, b1, b2, scale1, scale2]
+        w_stacked = relay.concatenate((w1, w2), axis=0)
+        y = relay.nn.dense(x, w_stacked, units=3*j)
+        b = relay.concatenate((b1, b2), axis=0)
+        y = relay.add(y, b)
+        scale1 = relay.repeat(scale1, j, 0)
+        scale2 = relay.repeat(scale2, 2 * j, 0)
+        scale = relay.concatenate((scale1, scale2), axis=0)
+        y = relay.multiply(y, scale)
+        strides = relay.const([1, 1], 'int64')
+        y1 = relay.strided_slice(y,
+                                 begin=relay.const([0, 0], "int64"),
+                                 end=relay.const([-1, j], "int64"),
+                                 strides=strides, slice_mode="size")
+        y2 = relay.strided_slice(y,
+                                 begin=relay.const([0, j], "int64"),
+                                 end=relay.const([-1, 2 * j], "int64"),
+                                 strides=strides, slice_mode="size")
+        y1 = relay.reshape(y1, newshape=newshape1)
+        y2 = relay.reshape(y2, newshape=newshape2)
+        y = relay.Tuple((y1, y2))
+        return relay.Function(args, y)
+
+    def check(i, j, k, scale1, scale2, newshape1, newshape2):
+        x =  relay.var("x", shape=(i, k))
+        w1 = relay.var("w1", shape=(j, k))
+        w2 = relay.var("w2", shape=(2 * j, k))
+        b1 = relay.var("b1", shape=(j,))
+        b2 = relay.var("b2", shape=(2 * j,))
+        scale1 = relay.var("scale1", shape=(1,))
+        scale2 = relay.var("scale2", shape=(1,))
+
+        y_before = before(x, w1, w2, b1, b2, scale1, scale2,
+                          newshape1, newshape2)
+        combine_pass = transform.CombineParallelDense(min_num_branches=2,
+                                                      to_batch=False)
+        y = run_opt_pass(y_before, combine_pass)
+        y_expected = expected(x, w1, w2, b1, b2, scale1, scale2,
+                              newshape1, newshape2, j)
+        y_expected = run_opt_pass(y_expected, transform.InferType())
+        tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
+
+    check(3, 5, 4, 0.5, 0.25, (1, 1, 15), (1, 1, 30))
+    check(100, 200, 300, 0.5, 0.25, (1, 1, 200), (1, 1, 400))
+
+
 if __name__ == "__main__":
     test_combine_parallel_dense()
     test_combine_parallel_dense_biasadd()
     test_combine_parallel_dense_biasadd_scale_reshape()
+    test_combine_parallel_dense_flat()
+    test_combine_parallel_dense_flat_biasadd()
+    test_combine_parallel_dense_flat_biasadd_scale_reshape()

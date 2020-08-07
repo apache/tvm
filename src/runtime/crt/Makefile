@@ -31,8 +31,8 @@ RANLIB ?= ${PREFIX}ranlib
 QUIET ?= @
 
 CFLAGS += -isystem "${TVM_INCLUDE_DIR}" -isystem "${DLPACK_INCLUDE_DIR}" -I include -I $(dir ${CRT_CONFIG})
-CFLAGS += -Werror -g
-LDFLAGS += -Werror -g
+CFLAGS += -Werror -g $(EXTRA_CFLAGS)
+LDFLAGS += -Werror -g $(EXTRA_LDFLAGS)
 
 ${BUILD_DIR}/%.o: %.c
 	${QUIET}mkdir -p $(dir $@)

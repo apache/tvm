@@ -17,20 +17,21 @@
  * under the License.
  */
 
-#ifndef TVM_APPS_BUNDLE_DEPLOY_BUNDLE_H_
-#define TVM_APPS_BUNDLE_DEPLOY_BUNDLE_H_
+#include <dlpack/dlpack.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 
-#include <tvm/runtime/c_runtime_api.h>
-
-TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
-                                 const uint64_t params_size, const char* argv);
-
-TVM_DLL void tvm_runtime_destroy(void* runtime);
-
-TVM_DLL void tvm_runtime_set_input(void* runtime, const char* name, DLTensor* tensor);
-
-TVM_DLL void tvm_runtime_run(void* runtime);
-
-TVM_DLL void tvm_runtime_get_output(void* runtime, int32_t index, DLTensor* tensor);
-
-#endif /* TVM_APPS_BUNDLE_DEPLOY_BUNDLE_H_ */
+#include "../../src/runtime/c_runtime_api.cc"
+#include "../../src/runtime/cpu_device_api.cc"
+#include "../../src/runtime/file_util.cc"
+#include "../../src/runtime/graph/graph_runtime.cc"
+#include "../../src/runtime/library_module.cc"
+#include "../../src/runtime/module.cc"
+#include "../../src/runtime/ndarray.cc"
+#include "../../src/runtime/object.cc"
+#include "../../src/runtime/registry.cc"
+#include "../../src/runtime/system_library.cc"
+#include "../../src/runtime/thread_pool.cc"
+#include "../../src/runtime/threading_backend.cc"
+#include "../../src/runtime/workspace_pool.cc"
