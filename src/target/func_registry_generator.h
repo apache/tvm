@@ -17,20 +17,22 @@
  * under the License.
  */
 
-#ifndef TVM_APPS_BUNDLE_DEPLOY_BUNDLE_H_
-#define TVM_APPS_BUNDLE_DEPLOY_BUNDLE_H_
+/*!
+ * Defines functions that generate FuncRegistry structs for C runtime.
+ * \file func_registry_generator.h
+ */
+#ifndef TVM_TARGET_FUNC_REGISTRY_GENERATOR_H_
+#define TVM_TARGET_FUNC_REGISTRY_GENERATOR_H_
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <string>
+#include <vector>
 
-TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
-                                 const uint64_t params_size, const char* argv);
+namespace tvm {
+namespace target {
 
-TVM_DLL void tvm_runtime_destroy(void* runtime);
+std::string GenerateFuncRegistryNames(const std::vector<std::string>& function_names);
 
-TVM_DLL void tvm_runtime_set_input(void* runtime, const char* name, DLTensor* tensor);
+}  // namespace target
+}  // namespace tvm
 
-TVM_DLL void tvm_runtime_run(void* runtime);
-
-TVM_DLL void tvm_runtime_get_output(void* runtime, int32_t index, DLTensor* tensor);
-
-#endif /* TVM_APPS_BUNDLE_DEPLOY_BUNDLE_H_ */
+#endif  // TVM_TARGET_FUNC_REGISTRY_GENERATOR_H_

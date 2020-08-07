@@ -75,10 +75,10 @@ typedef struct JSONReader {
   char (*PeekNextNonSpace)(struct JSONReader* reader);
   int (*ReadUnsignedInteger)(struct JSONReader* reader, unsigned int* out_value);
   int (*ReadInteger)(struct JSONReader* reader, int64_t* out_value);
-  int (*ReadString)(struct JSONReader* reader, char* out_value);
+  int (*ReadString)(struct JSONReader* reader, char* out_str, size_t out_str_size);
   void (*BeginArray)(struct JSONReader* reader);
   void (*BeginObject)(struct JSONReader* reader);
-  uint8_t (*NextObjectItem)(struct JSONReader* reader, char* out_key);
+  uint8_t (*NextObjectItem)(struct JSONReader* reader, char* out_key, size_t out_key_size);
   uint8_t (*NextArrayItem)(struct JSONReader* reader);
 } JSONReader;
 

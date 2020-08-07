@@ -304,6 +304,76 @@ RELAY_REGISTER_OP("dyn.ones")
     .set_support_level(3)
     .add_type_rel("DynamicInitOp", InitOpRel);
 
+bool OneHotRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // `types` contains: [indices, on_value, off_value, result]
+  CHECK_EQ(types.size(), 5);
+  const auto* indices = types[0].as<TensorTypeNode>();
+  CHECK(indices);
+
+  const auto param = attrs.as<OneHotAttrs>();
+
+  Array<IndexExpr> oshape;
+  int ndim = indices->shape.size() + 1;
+  int indices_index = 0;
+  int true_axis = (param->axis == -1) ? indices->shape.size() : param->axis;
+  for (int i = 0; i < ndim; i++) {
+    if (i == true_axis) {
+      oshape.push_back(Any());
+    } else {
+      oshape.push_back(indices->shape[indices_index++]);
+    }
+  }
+
+  reporter->Assign(types[4], TensorType(oshape, param->dtype));
+  return true;
+}
+
+Array<te::Tensor> OneHotCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                const Type& out_type) {
+  const auto* param = attrs.as<OneHotAttrs>();
+  CHECK(param != nullptr);
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  return Array<te::Tensor>{topi::one_hot(inputs[0], inputs[1](), inputs[2](), -1, param->axis,
+                                         param->dtype, out_ttype->shape)};
+}
+
+Expr MakeOneHot(Expr indices, Expr on_value, Expr off_value, Expr depth, int axis, DataType dtype) {
+  auto attrs = make_object<OneHotAttrs>();
+  attrs->axis = axis;
+  attrs->dtype = dtype;
+  static const Op& op = Op::Get("dyn.one_hot");
+  return Call(op, {indices, on_value, off_value, depth}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.one_hot").set_body_typed(MakeOneHot);
+
+RELAY_REGISTER_OP("dyn.one_hot")
+    .describe(R"code(Returns a one-hot tensor where the locations repsented by indices take value 1,
+    other locations take value 0. Final dimension is <indices dimensions> x depth.
+
+    **indices** Locations to set to 1.
+
+    **on_value** Value to fill at indices.
+
+    **off_value** Value to fill at all other positions besides indices.
+
+    **depth** Depth of the one-hot dimension.
+
+    **axis** Axis to fill.
+
+    **dtype**)code" TVM_ADD_FILELINE)
+    .set_attrs_type<OneHotAttrs>()
+    .set_num_inputs(4)
+    .add_argument("indices", "Tensor", "Locations to set to on_value.")
+    .add_argument("on_value", "Expr", "Value to fill at indices.")
+    .add_argument("off_value", "Expr", "Value to fill at all other positions besides indices.")
+    .add_argument("depth", "Expr", "Value to fill at all other positions besides indices.")
+    .set_support_level(10)
+    .add_type_rel("DynOneHot", OneHotRel)
+    .set_attr<FTVMCompute>("FTVMCompute", OneHotCompute)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
+
 }  // namespace dyn
 }  // namespace relay
 }  // namespace tvm

@@ -26,9 +26,6 @@
 #include <random>
 #include <vector>
 
-#include "build/graph.json.c"
-#include "build/params.bin.c"
-
 template <typename F>
 auto getFunc(void* bundle, const char* name) {
   dlerror();
@@ -37,14 +34,75 @@ auto getFunc(void* bundle, const char* name) {
   return f;
 }
 
+static int read_all(const char* file_description, const char* file_path, char** out_params,
+                    size_t* params_size) {
+  FILE* fp = fopen(file_path, "rb");
+  if (fp == NULL) {
+    return 2;
+  }
+
+  int error = 0;
+  error = fseek(fp, 0, SEEK_END);
+  if (error < 0) {
+    return error;
+  }
+
+  long file_size = ftell(fp);
+  if (file_size < 0) {
+    return (int)file_size;
+  } else if (file_size == 0 || file_size > (10 << 20)) {  // file size should be in (0, 20MB].
+    char buf[128];
+    snprintf(buf, sizeof(buf), "determing file size: %s", file_path);
+    perror(buf);
+    return 2;
+  }
+
+  if (params_size != NULL) {
+    *params_size = file_size;
+  }
+
+  error = fseek(fp, 0, SEEK_SET);
+  if (error < 0) {
+    return error;
+  }
+
+  *out_params = (char*)malloc((unsigned long)file_size);
+  if (fread(*out_params, file_size, 1, fp) != 1) {
+    free(*out_params);
+    *out_params = NULL;
+
+    char buf[128];
+    snprintf(buf, sizeof(buf), "reading: %s", file_path);
+    perror(buf);
+    return 2;
+  }
+
+  error = fclose(fp);
+  if (error != 0) {
+    free(*out_params);
+    *out_params = NULL;
+  }
+
+  return 0;
+}
+
 int main(int argc, char** argv) {
-  assert(argc == 3 && "Usage: demo <bundle.so> <cat.bin>");
+  assert(argc == 5 && "Usage: demo <bundle.so> <graph.json> <params.bin> <cat.bin>");
   auto* bundle = dlopen(argv[1], RTLD_LAZY | RTLD_LOCAL);
   assert(bundle);
 
-  char* json_data = reinterpret_cast<char*>(build_graph_json);
-  char* params_data = reinterpret_cast<char*>(build_params_bin);
-  uint64_t params_size = build_params_bin_len;
+  char* json_data;
+  int error = read_all("graph.json", argv[2], &json_data, NULL);
+  if (error != 0) {
+    return error;
+  }
+
+  char* params_data;
+  size_t params_size;
+  error = read_all("params.bin", argv[3], &params_data, &params_size);
+  if (error != 0) {
+    return error;
+  }
 
   struct timeval t0, t1, t2, t3, t4, t5;
   gettimeofday(&t0, 0);
@@ -54,7 +112,7 @@ int main(int argc, char** argv) {
   gettimeofday(&t1, 0);
 
   float input_storage[1 * 3 * 224 * 224];
-  FILE* fp = fopen(argv[2], "rb");
+  FILE* fp = fopen(argv[3], "rb");
   fread(input_storage, 3 * 224 * 224, 4, fp);
   fclose(fp);
 

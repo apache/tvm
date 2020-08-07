@@ -1421,22 +1421,25 @@ inline Tensor ndarray_size(const Tensor& src, const DataType& dtype,
  * \param depth depth of the one-hot dimension.
  * \param axis axis to fill.
  * \param dtype data type of the output tensor.
+ * \param oshape shape of the output tensor.
  * \param name output tensor name.
  * \param tag output tensor tag.
  * \return one-hot tensor.
  */
 inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const PrimExpr off_value,
                       int depth, int axis, const DataType& dtype,
+                      Array<PrimExpr> oshape = Array<PrimExpr>(),
                       const std::string name = "T_one_hot", const std::string tag = kInjective) {
-  Array<PrimExpr> oshape;
-  int ndim = indices->shape.size() + 1;
-  int indices_index = 0;
   int true_axis = (axis == -1) ? indices->shape.size() : axis;
-  for (int i = 0; i < ndim; i++) {
-    if (i == true_axis) {
-      oshape.push_back(Integer(depth));
-    } else {
-      oshape.push_back(indices->shape[indices_index++]);
+  if (oshape.size() == 0) {
+    int ndim = indices->shape.size() + 1;
+    int indices_index = 0;
+    for (int i = 0; i < ndim; i++) {
+      if (i == true_axis) {
+        oshape.push_back(Integer(depth));
+      } else {
+        oshape.push_back(indices->shape[indices_index++]);
+      }
     }
   }
 
