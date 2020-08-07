@@ -574,7 +574,7 @@ class HybridParser(ast.NodeVisitor):
             2. meta[type_key][index], Meta info access
         """
 
-        if isinstance(node.value, ast.Name) or isinstance(node.value, ast.Attribute):
+        if isinstance(node.value, (ast.Name, ast.Attribute)):
             symbol = self.visit(node.value)
             if isinstance(node.slice, ast.Index):
                 # BufferLoad & BufferStore
