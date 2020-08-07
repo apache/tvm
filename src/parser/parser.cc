@@ -42,6 +42,9 @@ namespace parser {
 using namespace relay;
 using Expr = relay::Expr;
 
+/*! \brief The meta table maps from type key to a sequence of objects. */
+using MetaTable = Map<String, Array<ObjectRef>>;
+
 /*! \brief A wrapper structure for capturing the result of parsing
  * a global definition *before* we add it to the IRModule.
  *
@@ -262,14 +265,18 @@ class Parser {
   /*! \brief The set of expression scopes used for lexical scope. */
   ScopeStack<Var> expr_scopes;
 
+  /*! \brief The metadata section. */
+  MetaTable meta_table;
+
   Parser(DiagnosticContext* ctx, const SourceName& source_name, std::vector<Token> tokens,
-         OperatorTable op_table, Source source)
+         OperatorTable op_table, Source source, MetaTable table)
       : diag_ctx(ctx),
         source_name(source_name),
         pos(0),
         tokens(tokens),
         op_table(op_table),
-        ignore_whitespace(true) {}
+        ignore_whitespace(true),
+        meta_table(table) {}
 
   /*! \brief Examine the next token in the stream, the current parser is configured to be
    * whitespace insensitive so we will skip all whitespace or comment tokens. */
@@ -510,6 +517,10 @@ class Parser {
     return Bracket(TokenType::kLCurly, TokenType::kRCurly, parser);
   }
 
+  Object ParseMetaRef() {
+    Consume(TokenType::kMetaReference);
+    LOG(FATAL) << "implement me";
+  }
   /*! \brief Parses a sequence beginning with a start token, seperated by a seperator token, and
    * ending with a stop token.
    *
@@ -1342,6 +1353,7 @@ class Parser {
           return LookupGraphBinding(next);
         }
         case TokenType::kMetaReference: {
+          return Downcast<Expr>(ParseMetaRef());
           Consume(TokenType::kMetaReference);
           return Downcast<Expr>(next->data);
         }
