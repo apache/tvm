@@ -1253,9 +1253,14 @@ def _frobenius_norm():
 def _std():
     def _impl(inputs, input_types):
         data = inputs[0]
-        axis = list(_infer_shape(inputs[1]))
-        keepdims = bool(inputs[3])
-        unbiased = bool(inputs[2])
+        if len(inputs) == 2:
+            axis = None
+            keepdims = False
+            unbiased = bool(inputs[1])
+        else:
+            axis = list(_infer_shape(inputs[1]))
+            keepdims = bool(inputs[3])
+            unbiased = bool(inputs[2])
 
         if unbiased:
             msg = "Currently only supports standard-deviation calculated via the biased "\
