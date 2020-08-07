@@ -218,7 +218,7 @@ set(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME OFF)
 set(USE_ETHOSN OFF)
 # If USE_ETHOSN is enabled, use Ethos-N hardware (ON) or
 # software test infrastructure (OFF)
-set(USE_ETHOSN_HW ON)
+set(USE_ETHOSN_HW OFF)
 
 # Build ANTLR parser for Relay text format
 # Possible values:
