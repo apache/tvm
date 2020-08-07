@@ -131,8 +131,11 @@ def create_lower_func(extern_func_map):
 
     Parameters
     ----------
-    extern_func_name : str
-        The name of the extern "C" function to lower to
+    extern_func_map : map
+        If lowering a Cast, extern_func_map should be a map from tuples of
+        (src_bit_length, dest_bit_length) to the name of the extern "C" function to lower to.
+
+        Otherwise, for unary and binary ops, it should simply be a map from bit_length to the name of the extern "C" function to lower to.
     """
     def lower(op):
         """
