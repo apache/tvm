@@ -61,7 +61,9 @@ class RuleSkipStage : public SketchGenerationRule {
 };
 
 // The rule that inlines simple elementwise ops
-class RuleComputeInline : public SketchGenerationRule {
+// Notice: This rule will only inline the strictly inlineable stages. Stages marked as not strictly
+// inlineable will have a chance to try different compute at location in InitPopulation later
+class RuleAlwaysInline : public SketchGenerationRule {
  public:
   ConditionKind MeetCondition(const SketchSearchPolicyNode& policy, const State& state,
                               int stage_id) final {
@@ -81,7 +83,7 @@ class RuleComputeInline : public SketchGenerationRule {
       return (HasAttrsFlag(state, stage_id, SearchPolicyKey::Flag::always_compute_inline) ||
               IsStrictInlineable(policy.search_task, state, stage_id))
                  ? ConditionKind::kApplyAndSkipRest
-                 : ConditionKind::kApply;
+                 : ConditionKind::kSkip;
     }
 
     return ConditionKind::kSkip;
@@ -100,8 +102,9 @@ class RuleMultiLevelTiling : public SketchGenerationRule {
  public:
   ConditionKind MeetCondition(const SketchSearchPolicyNode& policy, const State& state,
                               int stage_id) final {
-    return NeedsMultilevelTiling(policy.search_task, state, stage_id) ? ConditionKind::kApply
-                                                                      : ConditionKind::kSkip;
+    return NeedsMultilevelTiling(policy.search_task, state, stage_id)
+               ? ConditionKind::kApplyAndSkipRest
+               : ConditionKind::kSkip;
   }
 
   std::vector<std::pair<State, int>> Apply(const SketchSearchPolicyNode& policy, const State& state,
@@ -241,7 +244,7 @@ class RuleAddRfactor : public SketchGenerationRule {
 };
 
 static RuleSkipStage rule_skip_stage;
-static RuleComputeInline rule_compute_inline;
+static RuleAlwaysInline rule_always_inline;
 static RuleMultiLevelTiling rule_multi_level_tiling;
 static RuleMultiLevelTilingWithFusion rule_multi_level_tiling_with_fusion;
 static RuleAddCacheWrite rule_add_cache_write_stage;
@@ -657,7 +660,7 @@ SketchSearchPolicy::SketchSearchPolicy(SearchTask task, CostModel schedule_cost_
   // The default sketch rules for CPU policy
   // Notice: We may apply and skip the rest when processing some rules. Should take care of the
   // order of rules here.
-  node->sketch_rules.push_back(&rule_compute_inline);
+  node->sketch_rules.push_back(&rule_always_inline);
   node->sketch_rules.push_back(&rule_add_rfactor);
   node->sketch_rules.push_back(&rule_add_cache_write_stage);
   node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
@@ -962,6 +965,9 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SketchSearchPolicy")
       return SketchSearchPolicy(task, schedule_cost_model, params, seed, verbose,
                                 init_search_callbacks);
     });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SketchSearchPolicyGenerateSketches")
+    .set_body_typed([](SketchSearchPolicy policy) { return policy->GenerateSketches(); });
 
 }  // namespace auto_scheduler
 }  // namespace tvm

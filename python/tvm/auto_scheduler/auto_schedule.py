@@ -159,6 +159,8 @@ class SketchSearchPolicy(SearchPolicy):
             _ffi_api.SketchSearchPolicy, task, schedule_cost_model, params,
             seed or random.randint(1, 1 << 30), verbose, init_search_callbacks)
 
+    def generate_sketches(self):
+        return _ffi_api.SketchSearchPolicyGenerateSketches(self)
 
 @tvm._ffi.register_object("auto_scheduler.TuningOptions")
 class TuningOptions(Object):

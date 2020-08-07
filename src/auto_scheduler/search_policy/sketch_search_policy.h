@@ -24,7 +24,7 @@
  * search to fine-tune them.
  *
  * Reference:
- * Lianmin, Chengfan, Minmin, Zhao, Cody, et al. "Ansor : Generating High-Performance Tensor
+ * L. Zheng, C. Jia, M. Sun, Z. Wu, C. Yu, et al. "Ansor : Generating High-Performance Tensor
  * Programs for Deep Learning." arXiv preprint arXiv:2006.06762 (2020).
  */
 
@@ -150,6 +150,12 @@ class SketchSearchPolicyNode : public SearchPolicyNode {
   State Search(int num_measure_trials, int early_stopping, int num_measures_per_round,
                ProgramMeasurer measurer) final;
 
+  /*!
+   * \brief Generate sketches.
+   * \return The generated sketches(states).
+   */
+  Array<State> GenerateSketches();
+
   static constexpr const char* _type_key = "auto_scheduler.SketchSearchPolicy";
 
   TVM_DECLARE_FINAL_OBJECT_INFO(SketchSearchPolicyNode, SearchPolicyNode);
@@ -163,12 +169,6 @@ class SketchSearchPolicyNode : public SearchPolicyNode {
    * \return The best several states generated in this search round.
    */
   Array<State> SearchOneRound(int num_random_states, Array<State>* random_states = nullptr);
-
-  /*!
-   * \brief Generate sketches.
-   * \return The generated sketches(states).
-   */
-  Array<State> GenerateSketches();
 
   /*!
    * \brief Sample init population.
