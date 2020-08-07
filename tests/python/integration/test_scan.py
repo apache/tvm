@@ -17,7 +17,9 @@
 import tvm
 from tvm import te
 import numpy as np
+import tvm.testing
 
+@tvm.testing.requires_gpu
 def test_scan():
     m = te.size_var("m")
     n = te.size_var("n")
@@ -47,7 +49,7 @@ def test_scan():
     # one line to build the function.
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         fscan = tvm.build(s, [X, res],

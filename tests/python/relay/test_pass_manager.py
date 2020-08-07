@@ -25,7 +25,8 @@ from tvm.relay import ExprFunctor
 from tvm.relay import Function, Call
 from tvm.relay import analysis
 from tvm.relay import transform as _transform
-from tvm.relay.testing import ctx_list, run_infer_type
+from tvm.relay.testing import run_infer_type
+import tvm.testing
 
 
 def get_var_func():
@@ -114,6 +115,7 @@ def check_func(func, ref_func):
     assert tvm.ir.structural_equal(func, ref_func)
 
 
+@tvm.testing.uses_gpu
 def test_module_pass():
     shape = (5, 10)
     dtype = 'float32'
@@ -178,7 +180,7 @@ def test_module_pass():
         x_nd = get_rand(shape, dtype)
         y_nd = get_rand(shape, dtype)
         ref_res = x_nd.asnumpy() + y_nd.asnumpy()
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             exe1 = relay.create_executor("graph", ctx=ctx, target=target)
             exe2 = relay.create_executor("debug", ctx=ctx, target=target)
             res1 = exe1.evaluate(new_add)(x_nd, y_nd)
@@ -214,6 +216,7 @@ def test_function_class_pass():
     assert tvm.ir.structural_equal(mod["main"], mod2["main"])
 
 
+@tvm.testing.uses_gpu
 def test_function_pass():
     shape = (10, )
     dtype = 'float32'
@@ -271,7 +274,7 @@ def test_function_pass():
         # Execute the add function.
         x_nd = get_rand(shape, dtype)
         ref_res = np.log(x_nd.asnumpy() * 2)
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             exe1 = relay.create_executor("graph", ctx=ctx, target=target)
             exe2 = relay.create_executor("debug", ctx=ctx, target=target)
             res1 = exe1.evaluate(new_log)(x_nd)
@@ -314,6 +317,7 @@ def test_pass_info():
     assert info.name == "xyz"
 
 
+@tvm.testing.uses_gpu
 def test_sequential_pass():
     shape = (10, )
     dtype = 'float32'
@@ -433,7 +437,7 @@ def test_sequential_pass():
         x_nd = get_rand(shape, dtype)
         y_nd = get_rand(shape, dtype)
         ref_res = np.subtract(x_nd.asnumpy() * 2, y_nd.asnumpy() * 2)
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             exe1 = relay.create_executor("graph", ctx=ctx, target=target)
             exe2 = relay.create_executor("debug", ctx=ctx, target=target)
             res1 = exe1.evaluate(new_sub)(x_nd, y_nd)
@@ -444,7 +448,7 @@ def test_sequential_pass():
         # Execute the updated abs function.
         x_nd = get_rand((5, 10), dtype)
         ref_res = np.abs(x_nd.asnumpy() * 2)
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             exe1 = relay.create_executor("graph", ctx=ctx, target=target)
             exe2 = relay.create_executor("debug", ctx=ctx, target=target)
             res1 = exe1.evaluate(new_abs)(x_nd)

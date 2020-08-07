@@ -23,7 +23,7 @@ from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay import transform
-
+import tvm.testing
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
@@ -624,22 +624,33 @@ def run_unpropagatable_graph(dev, tgt):
         tvm.testing.assert_allclose(res, ref_res, rtol=1e-5, atol=1e-5)
 
 
-def test_check_run():
-    for dev, tgt in [("opencl", "opencl"), ("cuda", "cuda"),
-                 ("opencl", str(tvm.target.intel_graphics()))]:
-        if not tvm.runtime.enabled(dev):
-            print("Skip test because %s is not enabled." % dev)
-            continue
-        run_fusible_network(dev, tgt)
-        run_unpropagatable_graph(dev, tgt)
+@tvm.testing.requires_opencl
+def test_check_run_opencl():
+    dev = "opencl"
+    tgt = "opencl"
+    run_fusible_network(dev, tgt)
+    run_unpropagatable_graph(dev, tgt)
 
 
+@tvm.testing.requires_opencl
+def test_check_run_opencl_intel():
+    dev = "opencl"
+    tgt = str(tvm.target.intel_graphics())
+    run_fusible_network(dev, tgt)
+    run_unpropagatable_graph(dev, tgt)
+
+
+@tvm.testing.requires_cuda
+def test_check_run_cuda():
+    dev = "cuda"
+    tgt = "cuda"
+    run_fusible_network(dev, tgt)
+    run_unpropagatable_graph(dev, tgt)
+
+
+@tvm.testing.requires_cuda
 def test_tuple_get_item():
     dev = "cuda"
-    if not tvm.runtime.enabled(dev):
-        print("Skip test because %s is not enabled." % dev)
-        return
-
     cpu_ctx = tvm.cpu(0)
     gpu_ctx = tvm.context(dev)
 

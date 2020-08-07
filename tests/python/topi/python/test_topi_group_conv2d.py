@@ -26,7 +26,8 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
 
-from common import get_all_backend, Int8Fallback
+from common import Int8Fallback
+import tvm.testing
 
 
 _group_conv2d_nchw_implement = {
@@ -71,7 +72,7 @@ def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, str
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
 
@@ -148,7 +149,7 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kerne
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         if device == "cuda" and not tvm.contrib.nvcc.have_int8(ctx.compute_version):
@@ -182,6 +183,7 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kerne
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_group_conv2d_nchw():
     # ResNeXt-50 workload
     verify_group_conv2d_nchw(1, 128, 56, 128, 3, 1, 1, 1, 32)
@@ -207,6 +209,7 @@ def test_group_conv2d_nchw():
 
 
 
+@tvm.testing.requires_cuda
 def test_group_conv2d_NCHWc_int8():
     with Int8Fallback():
         # ResNeXt-50 workload

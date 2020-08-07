@@ -16,9 +16,12 @@
 # under the License.
 import tvm
 from tvm import te
+import tvm.testing
 
 target = 'opencl'
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_opencl
 def test_opencl_ternary_expression():
     def check_if_then_else(ctx, n, dtype):
         A = te.placeholder((n,), name='A', dtype=dtype)
@@ -52,10 +55,6 @@ def test_opencl_ternary_expression():
         # Only need to test compiling here
         fun(a, c)
 
-    if not tvm.runtime.enabled(target):
-        print("skip because opencl is not enabled..")
-        return
-
     ctx = tvm.context(target, 0)
 
     check_if_then_else(ctx, 1, 'int8')
@@ -67,6 +66,8 @@ def test_opencl_ternary_expression():
     check_select(ctx, 1, 'int16')
     check_select(ctx, 1, 'uint16')
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_opencl
 def test_opencl_inf_nan():
     def check_inf_nan(ctx, n, value, dtype):
         A = te.placeholder((n,), name='A', dtype=dtype)
@@ -80,10 +81,6 @@ def test_opencl_inf_nan():
         # Only need to test compiling here
         fun(a, c)
 
-    if not tvm.runtime.enabled(target):
-        print("skip because opencl is not enabled..")
-        return
-
     ctx = tvm.context(target, 0)
 
     check_inf_nan(ctx, 1, -float('inf'), 'float32')
@@ -94,6 +91,8 @@ def test_opencl_inf_nan():
     check_inf_nan(ctx, 1, float('nan'), 'float64')
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_opencl
 def test_opencl_max():
     def check_max(ctx, n, dtype):
         A = te.placeholder((n,), name='A', dtype=dtype)
@@ -108,10 +107,6 @@ def test_opencl_max():
         c = tvm.nd.empty((n,), A.dtype, ctx)
         # Only need to test compiling here
         fun(a, c)
-
-    if not tvm.runtime.enabled(target):
-        print("skip because opencl is not enabled..")
-        return
 
     ctx = tvm.context(target, 0)
 
