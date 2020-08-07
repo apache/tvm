@@ -126,7 +126,7 @@ def register_op(lower_func,
 def register_min_func(func, type_name):
     _register_func("tvm.datatype.min." + type_name, func)
 
-def create_lower_func(extern_func_name):
+def create_lower_func(extern_func_map):
     """Returns a function which lowers an operation to a function call.
 
     Parameters
@@ -148,17 +148,25 @@ def create_lower_func(extern_func_name):
             dtype = "uint" + str(t.bits)
             if t.lanes > 1:
                 dtype += "x" + str(t.lanes)
-        if isinstance(op, (_Cast, _FloatImm)):
-            return _Call(dtype, extern_func_name, convert([op.value]),
+        if isinstance(op, _Cast):
+            src_bits = bit_length(op.value.dtype)
+            return _Call(dtype, extern_func_map[(src_bits, t.bits)], convert([op.value]),
+                         _Call.Extern)
+        elif isinstance(op, _FloatImm):
+            return _Call(dtype, extern_func_map[t.bits], convert([op.value]),
                          _Call.Extern)
         elif isinstance(op, _Call) and (op.call_type == _Call.Intrinsic or
                                         op.call_type == _Call.PureIntrinsic):
-            return _Call(dtype, extern_func_name, convert(op.args),
+            return _Call(dtype, extern_func_map[t.bits], convert(op.args),
                               _Call.Extern)
-        return _Call(dtype, extern_func_name, convert([op.a, op.b]),
+        return _Call(dtype, extern_func_map[t.bits], convert([op.a, op.b]),
                      _Call.Extern)
 
     return lower
+
+def bit_length(type_str):
+    t = DataType(type_str)
+    return t.bits
 
 def lower_ite(ite_intrin):
     dtype = ite_intrin.dtype

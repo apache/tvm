@@ -81,163 +81,109 @@ def setup():
     # You can pick a code for your datatype arbitrarily, as long as it is
     # greater than 128 and has not already been chosen.
 
-    register("posit32", 131)
+    register("posites2", 131)
 
-    register_op(create_lower_func("FloatToPosit32es2"), "Cast", "llvm",
-                "posit32", "float")
-    register_op(create_lower_func("Posit32es2ToFloat"), "Cast", "llvm",
-                "float", "posit32")
-    register_op(create_lower_func("IntToPosit32es2"), "Cast", "llvm",
-                "posit32", "int")
-    register_op(create_lower_func("Posit32es2Add"), "Add", "llvm", "posit32")
-    register_op(create_lower_func("Posit32es2Sub"), "Sub", "llvm", "posit32")
-    register_op(create_lower_func("FloatToPosit32es2"), "FloatImm", "llvm",
-                "posit32")
-    register_op(create_lower_func("Posit32es2Mul"), "Mul", "llvm", "posit32")
-    register_op(create_lower_func("Posit32es2Div"), "Div", "llvm", "posit32")
-    register_op(create_lower_func("Posit32es2Max"), "Max", "llvm", "posit32")
-    register_op(create_lower_func("Posit32es2Sqrt"),
-                "Call",
-                "llvm",
-                "posit32",
-                intrinsic_name="sqrt")
-    # TODO(gus) not sure if this will work...
+    register_op(create_lower_func(
+        {
+            (32, 32): "FloatToPosit32es2",
+            (32, 16): "FloatToPosit16es2",
+            (32, 8): 'FloatToPosit8es2',
+        }), 
+        "Cast", "llvm", "posites2", "float")
+    register_op(create_lower_func(
+        {
+            (32, 32): "Posit32es2ToFloat",
+            (16, 32): 'Posit16es2ToFloat',
+            (8, 32): 'Posit8es2ToFloat',
+        }), 
+        "Cast", "llvm", "float", "posites2")
+    register_op(create_lower_func(
+        {
+            (4, 32): 'IntToPosit32es2',
+            (4, 16): 'IntToPosit16es2',
+            (4, 8): 'IntToPosit8es2'
+        }), 
+        "Cast", "llvm", "posites2", "int")
+    register_op(create_lower_func({
+        32: 'Posit32es2Add',
+        16: 'Posit16es2Add',
+        8: 'Posit8es2Add'
+    }), "Add", "llvm", "posites2")
+    register_op(create_lower_func({
+        32: 'Posit32es2Sub',
+        16: 'Posit16es2Sub',
+        8: 'Posit8es2Sub'
+    }), "Sub", "llvm", "posites2")
+    register_op(create_lower_func({
+        32: 'FloatToPosit32es2',
+        16: 'FloatToPosit16es2',
+        8: 'FloatToPosit8es2'
+    }), "FloatImm", "llvm", "posites2")
+    register_op(create_lower_func({
+        32: 'Posit32es2Mul',
+        16: 'Posit16es2Mul',
+        8: 'Posit8es2Mul'
+    }), "Mul", "llvm", "posites2")
+    register_op(create_lower_func({
+        32: 'Posit32es2Div',
+        16: 'Posit16es2Div',
+        8: 'Posit8es2Div'
+    }), "Div", "llvm", "posites2")
+    register_op(create_lower_func({
+        32: 'Posit32es2Max',
+        16: 'Posit16es2Max',
+        8: 'Posit8es2Max'
+    }), "Max", "llvm", "posites2")
+    register_op(create_lower_func({
+        32: 'Posit32es2Sqrt',
+        16: 'Posit16es2Sqrt',
+        8: 'Posit8es2Sqrt'
+    }), "Call", "llvm", "posites2", intrinsic_name="sqrt")
     register_op(lower_ite,
                 "Call",
                 "llvm",
-                "posit32",
+                "posites2",
                 intrinsic_name="tvm_if_then_else")
-    register_op(create_lower_func("Posit32es2Exp"),
-                "Call",
-                "llvm",
-                "posit32",
-                intrinsic_name="exp")
-    register_op(create_lower_func("Posit32es2Log"),
-                "Call",
-                "llvm",
-                "posit32",
-                intrinsic_name="log")
-    register_op(create_lower_func("Posit32es2Sigmoid"),
-                "Call",
-                "llvm",
-                "posit32",
-                intrinsic_name="sigmoid")
-    register_op(create_lower_func("Posit32es2Tanh"),
-                "Call",
-                "llvm",
-                "posit32",
-                intrinsic_name="tanh")
-    register_min_func(lambda num_bits: -1.329227995784915872903807060280344576e36, "posit32")
+    register_op(create_lower_func({
+        32: 'Posit32es2Exp',
+        16: 'Posit16es2Exp',
+        8: 'Posit8es2Exp'
+    }), "Call", "llvm", "posites2", intrinsic_name="exp")
+    register_op(create_lower_func({
+        32: 'Posit32es2Log',
+        16: 'Posit16es2Log',
+        8: 'Posit8es2Log'
+    }), "Call", "llvm", "posites2", intrinsic_name="log")
+    register_op(create_lower_func({
+        32: 'Posit32es2Sigmoid',
+        16: 'Posit16es2Sigmoid',
+        8: 'Posit8es2Sigmoid'
+    }), "Call", "llvm", "posites2", intrinsic_name="sigmoid")
+    register_op(create_lower_func({
+        32: 'Posit32es2Tanh',
+        16: 'Posit16es2Tanh',
+        8: 'Posit8es2Tanh'
+    }), "Call", "llvm", "posites2", intrinsic_name="tanh")
+    register_min_func(lambda num_bits: - (2 ** 2 ** 2) ** (num_bits - 2), "posites2")
 
-    register("posit8", 132)
-    register_op(create_lower_func("FloatToPosit8es2"), "Cast", "llvm",
-                "posit8", "float")
-    register_op(create_lower_func("Posit8es2ToFloat"), "Cast", "llvm", "float",
-                "posit8")
-    register_op(create_lower_func("IntToPosit8es2"), "Cast", "llvm", "posit8",
-                "int")
-    register_op(create_lower_func("Posit8es2Add"), "Add", "llvm", "posit8")
-    register_op(create_lower_func("Posit8es2Sub"), "Sub", "llvm", "posit8")
-    register_op(create_lower_func("FloatToPosit8es2"), "FloatImm", "llvm",
-                "posit8")
-    register_op(create_lower_func("Posit8es2Mul"), "Mul", "llvm", "posit8")
-    register_op(create_lower_func("Posit8es2Div"), "Div", "llvm", "posit8")
-    register_op(create_lower_func("Posit8es2Max"), "Max", "llvm", "posit8")
-    register_op(create_lower_func("Posit8es2Sqrt"),
-                "Call",
-                "llvm",
-                "posit8",
-                intrinsic_name="sqrt")
-    # TODO(gus) not sure if this will work...
-    register_op(lower_ite,
-                "Call",
-                "llvm",
-                "posit8",
-                intrinsic_name="tvm_if_then_else")
-    register_op(create_lower_func("Posit8es2Exp"),
-                "Call",
-                "llvm",
-                "posit8",
-                intrinsic_name="exp")
-    register_op(create_lower_func("Posit8es2Log"),
-                "Call",
-                "llvm",
-                "posit8",
-                intrinsic_name="log")
-    register_op(create_lower_func("Posit8es2Sigmoid"),
-                "Call",
-                "llvm",
-                "posit8",
-                intrinsic_name="sigmoid")
-    register_op(create_lower_func("Posit8es2Tanh"),
-                "Call",
-                "llvm",
-                "posit8",
-                intrinsic_name="tanh")
-    register_min_func(lambda num_bits: -16777216, "posit8")
-
-    register("posit16", 133)
-    register_op(create_lower_func("FloatToPosit16es2"), "Cast", "llvm",
-                "posit16", "float")
-    register_op(create_lower_func("Posit16es2ToFloat"), "Cast", "llvm",
-                "float", "posit16")
-    register_op(create_lower_func("IntToPosit16es2"), "Cast", "llvm",
-                "posit16", "int")
-    register_op(create_lower_func("Posit16es2Add"), "Add", "llvm", "posit16")
-    register_op(create_lower_func("Posit16es2Sub"), "Sub", "llvm", "posit16")
-    register_op(create_lower_func("FloatToPosit16es2"), "FloatImm", "llvm",
-                "posit16")
-    register_op(create_lower_func("Posit16es2Mul"), "Mul", "llvm", "posit16")
-    register_op(create_lower_func("Posit16es2Div"), "Div", "llvm", "posit16")
-    register_op(create_lower_func("Posit16es2Max"), "Max", "llvm", "posit16")
-    register_op(create_lower_func("Posit16es2Sqrt"),
-                "Call",
-                "llvm",
-                "posit16",
-                intrinsic_name="sqrt")
-    # TODO(gus) not sure if this will work...
-    register_op(lower_ite,
-                "Call",
-                "llvm",
-                "posit16",
-                intrinsic_name="tvm_if_then_else")
-    register_op(create_lower_func("Posit16es2Exp"),
-                "Call",
-                "llvm",
-                "posit16",
-                intrinsic_name="exp")
-    register_op(create_lower_func("Posit16es2Log"),
-                "Call",
-                "llvm",
-                "posit16",
-                intrinsic_name="log")
-    register_op(create_lower_func("Posit16es2Sigmoid"),
-                "Call",
-                "llvm",
-                "posit16",
-                intrinsic_name="sigmoid")
-    register_op(create_lower_func("Posit16es2Tanh"),
-                "Call",
-                "llvm",
-                "posit16",
-                intrinsic_name="tanh")
-    register_min_func(lambda num_bits: -7.2057594037927936e16, "posit16")
-
-    register("noptype", 134)
-    register_op(create_lower_func("FloatToNop32"), "Cast", "llvm", "noptype",
-                "float")
-    register_op(create_lower_func("Nop32ToFloat"), "Cast", "llvm", "float",
+    register("noptype", 132)
+    register_op(create_lower_func({
+        (32, 32): "FloatToNop32"
+    }), "Cast", "llvm", "noptype", "float")
+    register_op(create_lower_func({
+        (32, 32): 'Nop32ToFloat'
+    }), "Cast", "llvm", "float", "noptype")
+    register_op(create_lower_func({
+        (4, 32): "IntToNop32"
+    }), "Cast", "llvm", "noptype", "int")
+    register_op(create_lower_func({32: 'IntToNop32'}), "Add", "llvm", "noptype")
+    register_op(create_lower_func({32: 'Nop32Sub'}), "Sub", "llvm", "noptype")
+    register_op(create_lower_func({32: 'FloatToNop32'}), "FloatImm", "llvm",
                 "noptype")
-    register_op(create_lower_func("IntToNop32"), "Cast", "llvm", "noptype",
-                "int")
-    register_op(create_lower_func("Nop32Add"), "Add", "llvm", "noptype")
-    register_op(create_lower_func("Nop32Sub"), "Sub", "llvm", "noptype")
-    register_op(create_lower_func("FloatToNop32"), "FloatImm", "llvm",
-                "noptype")
-    register_op(create_lower_func("Nop32Mul"), "Mul", "llvm", "noptype")
-    register_op(create_lower_func("Nop32Div"), "Div", "llvm", "noptype")
-    register_op(create_lower_func("Nop32Max"), "Max", "llvm", "noptype")
-    register_op(create_lower_func("Nop32Sqrt"),
+    register_op(create_lower_func({32: 'Nop32Mul'}), "Mul", "llvm", "noptype")
+    register_op(create_lower_func({32: 'Nop32Div'}), "Div", "llvm", "noptype")
+    register_op(create_lower_func({32: 'Nop32Max'}), "Max", "llvm", "noptype")
+    register_op(create_lower_func({32: 'Nop32Sqrt'}),
                 "Call",
                 "llvm",
                 "noptype",
@@ -248,22 +194,22 @@ def setup():
                 "llvm",
                 "noptype",
                 intrinsic_name="tvm_if_then_else")
-    register_op(create_lower_func("Nop32Exp"),
+    register_op(create_lower_func({32: 'Nop32Exp'}),
                 "Call",
                 "llvm",
                 "noptype",
                 intrinsic_name="exp")
-    register_op(create_lower_func("Nop32Log"),
+    register_op(create_lower_func({32: 'Nop32Log'}),
                 "Call",
                 "llvm",
                 "noptype",
                 intrinsic_name="log")
-    register_op(create_lower_func("Nop32Sigmoid"),
+    register_op(create_lower_func({32: 'Nop32Sigmoid'}),
                 "Call",
                 "llvm",
                 "noptype",
                 intrinsic_name="sigmoid")
-    register_op(create_lower_func("Nop32Tanh"),
+    register_op(create_lower_func({32: 'Nop32Tanh'}),
                 "Call",
                 "llvm",
                 "noptype",
@@ -472,9 +418,9 @@ def test_ops():
     # this is expected, b/c we're comparing between 32bit float and 8
     # bit posit.
     # Figure out a more logical way to test here.
-    run_ops('float32', 'custom[posit8]8', rtol=1, atol=1)
-    run_ops('float32', 'custom[posit16]16', rtol=0.01, atol=1)
-    run_ops('float32', 'custom[posit32]32')
+    run_ops('float32', 'custom[posites2]8', rtol=1, atol=1)
+    run_ops('float32', 'custom[posites2]16', rtol=0.01, atol=1)
+    run_ops('float32', 'custom[posites2]32')
 
 
 def test_conv2d():
@@ -493,7 +439,7 @@ def test_models():
     # Run cifar-10 sizes to be a little faster...
     run_model(get_mobilenet, (3, 32, 32),
               'float32',
-              'custom[posit32]32',
+              'custom[posites2]32',
               num_classes=10)
     # run_model(get_inception, (3, 32, 32),
     #           'float32',
