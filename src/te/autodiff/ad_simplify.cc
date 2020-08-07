@@ -62,16 +62,8 @@ namespace te {
 
 using arith::DivMode;
 using arith::kFloorDiv;
-using arith::kSimplifyRewriteCanonicalRewrite;
 using arith::kTruncDiv;
-
-template <class K, class V>
-Map<K, V> Merge(Map<K, V> original, const Map<K, V>& update) {
-  for (const auto& p : update) {
-    original.Set(p.first, p.second);
-  }
-  return std::move(original);
-}
+using arith::kSimplifyRewriteCanonicalRewrite;
 
 // Combine all expressions from the container using &&.
 template <class container>
@@ -687,7 +679,7 @@ class EliminateDivModMutator : public ExprMutator {
     conditions.push_back(mut == div * val_e + mod);
 
     if (!analyzer_.CanProve(mod_range->extent <= val_e)) {
-      // Since we use the C/C++ definition of mod, there may be multiple values of `mod`
+      // If we use the C/C++ definition of mod, there may be multiple values of `mod`
       // satisfying the added condition if the expr `e` may change its sign, so we
       // have to add another condition.
       LOG(WARNING) << "EliminateDivMod: cannot fully eliminate div or mod because "
@@ -766,7 +758,6 @@ arith::IntConstraintsTransform EliminateDivModFromDomainConditions(
   return arith::IntConstraintsTransform(domain, new_domain, src_to_dst, dst_to_src);
 }
 
-// Simplify an iteration domain.
 inline arith::IntConstraintsTransform IdentityTransformation(const arith::IntConstraints& domain) {
   Map<Var, PrimExpr> identity_map;
   for (const Var& v : domain->variables) {
@@ -775,6 +766,7 @@ inline arith::IntConstraintsTransform IdentityTransformation(const arith::IntCon
   return arith::IntConstraintsTransform(domain, domain, identity_map, identity_map);
 }
 
+// Simplify an iteration domain.
 arith::IntConstraintsTransform SimplifyDomain(const arith::IntConstraints& iter_domains,
                                               bool eliminate_div_mod) {
   arith::IntConstraintsTransform transf = IdentityTransformation(iter_domains);
@@ -787,13 +779,8 @@ arith::IntConstraintsTransform SimplifyDomain(const arith::IntConstraints& iter_
   // should find a better terminating criterion (like stop when the domain volume stops decreasing)
   // Also 2 steps seems to be slightly better than 3
   for (size_t i = 0; i < 2; ++i) {
-    arith::IntConstraintsTransform tr = arith::SolveLinearEquations(transf->dst);
-    transf = transf + tr;
-    // TODO(sgrechanik-h): This helps for some artificial examples, however I'm not sure about
-    // enabling it in general. The problem it solves is propagating equalities of outer vars.
-    // tr = AddOuterVariablesIntoDomain(transf->dst);
-    tr = arith::SolveInequalitiesDeskewRange(transf->dst);
-    transf = transf + tr;
+    transf = transf + arith::SolveLinearEquations(transf->dst);
+    transf = transf + arith::SolveInequalitiesDeskewRange(transf->dst);
   }
 
   return transf;
@@ -803,7 +790,7 @@ arith::IntConstraintsTransform SimplifyDomain(const arith::IntConstraints& iter_
 PrimExpr SimplifyReductionDomain(const PrimExpr& expr, const Map<Var, Range>& outer_vranges) {
   if (const ReduceNode* red = expr.as<ReduceNode>()) {
     Array<Var> vars = IterVarsToVars(red->axis);
-    Map<Var, Range> vranges = Merge(outer_vranges, IterVarsToMap(red->axis));
+    Map<Var, Range> vranges = outer_vranges.Merge(IterVarsToMap(red->axis));
     Array<PrimExpr> relations = FactorOutAtomicFormulas(red->condition).to_array();
 
     arith::IntConstraints domain(vars, vranges, relations);
@@ -867,7 +854,7 @@ std::pair<PrimExpr, PrimExpr> LiftConditionsThroughReduction(const PrimExpr& con
     allvars.push_back(v->var);
   }
 
-  auto vranges = Merge(IterVarsToMap(red_axis), IterVarsToMap(outer_axis));
+  auto vranges = IterVarsToMap(red_axis).Merge(IterVarsToMap(outer_axis));
   // start from reduction vars, so that input vars don't depend on them
   arith::IntConstraints ineq_to_solve(allvars, vranges, atomics);
   auto res_ineq = arith::SolveLinearInequalities(ineq_to_solve);
@@ -1078,7 +1065,7 @@ class ReductionAsTensorAccessMutator : public ExprMutator {
 
   PrimExpr VisitExpr_(const ReduceNode* op) final {
     ReductionAsTensorAccessMutator new_mutator(IterVarsToVars(op->axis).Concat(outer_axis_),
-                                               Merge(vranges_, IterVarsToMap(op->axis)), name_);
+                                               vranges_.Merge(IterVarsToMap(op->axis)), name_);
 
     Array<PrimExpr> new_source;
     for (const PrimExpr& src : op->source) {
@@ -1138,7 +1125,7 @@ PrimExpr LiftReductions(const PrimExpr& expr, const Array<Var>& outer_axis,
                         const Map<Var, Range>& vranges) {
   if (const ReduceNode* red = expr.as<ReduceNode>()) {
     Array<Var> new_outer_axis = IterVarsToVars(red->axis).Concat(outer_axis);
-    Map<Var, Range> new_vranges = Merge(vranges, IterVarsToMap(red->axis));
+    Map<Var, Range> new_vranges = vranges.Merge(IterVarsToMap(red->axis));
     Array<PrimExpr> new_source;
     for (const PrimExpr& src : red->source) {
       new_source.push_back(ReductionAsTensorAccess(src, new_outer_axis, new_vranges));
@@ -1154,7 +1141,7 @@ PrimExpr LiftReductions(const PrimExpr& expr, const Array<Var>& outer_axis,
 PrimExpr RemoveJacobianAndLiftNonzeroCondImpl(const PrimExpr& expr_orig, const Array<IterVar>& axis,
                                               const Map<Var, Range>& vranges) {
   PrimExpr result;
-  Map<Var, Range> combined_vranges = Merge(vranges, IterVarsToMap(axis));
+  Map<Var, Range> combined_vranges = vranges.Merge(IterVarsToMap(axis));
   arith::Analyzer analyzer;
   analyzer.Bind(combined_vranges);
 

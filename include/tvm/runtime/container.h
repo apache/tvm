@@ -957,7 +957,7 @@ class Array : public ObjectRef {
   /*!
    * \brief Concat with another Array. It does not mutate the current one.
    * \param other Array to be concatenated.
-   * @return The concatenated Array. Original Arrays are kept unchanged.
+   * @return The concatenated Array. Original Array is kept unchanged.
    */
   Array<T> Concat(const Array<T>& other) const {
     Array<T> ret = *this;
