@@ -984,20 +984,35 @@ def test_forward_transpose_conv():
 # Reshape
 # -------
 
-def _test_reshape(data, out_shape):
+def _test_reshape(data, out_shape, wrap_shape):
     """ One iteration of reshape operation with given data and out shape """
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-        out = array_ops.reshape(in_data, out_shape)
 
-        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+        out_shape = out_shape if not wrap_shape\
+            else np.array(out_shape, dtype=np.int32)
+
+        in_shape = out_shape if not wrap_shape\
+            else array_ops.placeholder(shape=out_shape.shape,\
+                                        dtype=out_shape.dtype,\
+                                        name="Newshape")
+
+        out = array_ops.reshape(in_data, in_shape)
+
+        compare_tflite_with_tvm(
+            [data, out_shape]               if wrap_shape else [data],\
+            ['Placeholder:0', 'Newshape:0'] if wrap_shape else ['Placeholder:0'],\
+            [in_data, in_shape]             if wrap_shape else [in_data],\
+            [out],
+            mode='vm')
 
 
 def test_forward_reshape():
-    _test_reshape(np.arange(6.0, dtype=np.float32), [2, 3])
-    _test_reshape(np.arange(6), [-1, 2])
-    _test_reshape(np.arange(6), [3, -1])
-    _test_reshape(np.arange(6), [-1])
+    for wrap in [True, False]:
+        _test_reshape(np.arange(6.0, dtype=np.float32), [2, 3], wrap)
+        _test_reshape(np.arange(6), [-1, 2], wrap)
+        _test_reshape(np.arange(6), [3, -1], wrap)
+        _test_reshape(np.arange(6), [-1], wrap)
 
 
 #######################################################################
