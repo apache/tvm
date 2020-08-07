@@ -14,12 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-from . import little_cpp
+"""
+Responsible for taking Little CPP ASTs and converting them
+into C++ source code.
+"""
 from tvm import relay
-from tvm.relay.prelude import Prelude
+from . import little_cpp
 
 class ExprWithStmt:
+    """
+    Representation of an expression that requires a
+    C++ statement to define terms used in it.
+    """
     def __init__(self, expr, stmt=""):
         assert isinstance(expr, str)
         assert isinstance(stmt, str)
@@ -35,6 +41,9 @@ class ExprWithStmt:
         return self.__str__()
 
 class ToSource:
+    """
+    Handles converting Little CPP ASTs into C++ source code.
+    """
     def __init__(self, gv_map):
         self.gv_map = gv_map
         self.name_counter = 0
@@ -50,8 +59,8 @@ class ToSource:
         self.name_counter += 1
         return name
 
-    def sanitize(self, str):
-        return str.replace("-", "_").replace("/", "_")
+    def sanitize(self, name):
+        return name.replace("-", "_").replace("/", "_")
 
     def fresh_local_name(self, var=None):
         if var is not None:
@@ -66,8 +75,32 @@ class ToSource:
         self.name_counter += 1
         return name
 
-    # return (str, str) with lhs being stmts, and rhs being expression
     def visit(self, node, *, local=True, name=None):
+        """
+        Visits a Little CPP node and returns C++ code as text
+        in the form of statements with the necessary definitions
+        and an expression corresponding to the result of the node.
+
+        Parameters
+        ----------
+        node: Little CPP node to be compiled
+
+        local: Optional[bool]
+            For function definitions, specifies whether to
+            treat it as a local definition (if True) or global (if False)
+
+        name: Optional[str]
+            Specifies a name for the node if it's a function
+            definition (otherwise the compiler generates a name)
+
+        Returns
+        -------
+        result: ExprWithStmt
+            Contains a C++ expression corresponding
+            to the result of `node` (as a string)
+            with one or more C++ statements (as strings)
+            containing needed definitions.
+        """
         if isinstance(node, little_cpp.PackedCall):
             res = self.visit_packed_call(node)
         elif isinstance(node, little_cpp.CPPFunction):
@@ -104,28 +137,36 @@ class ToSource:
         return res
 
     def visit_ref_create(self, node):
-        vv = self.visit(node.value)
-        return ExprWithStmt(f"RefValue({vv.expr})", vv.stmt)
+        value = self.visit(node.value)
+        return ExprWithStmt(f"RefValue({value.expr})", value.stmt)
 
     def visit_ref_read(self, node):
-        vr = self.visit(node.ref)
-        return ExprWithStmt(f"Downcast<RefValue>({vr.expr})->value", vr.stmt)
+        ref = self.visit(node.ref)
+        return ExprWithStmt(f"Downcast<RefValue>({ref.expr})->value", ref.stmt)
 
     def visit_ref_write(self, node):
-        vr = self.visit(node.ref)
-        vv = self.visit(node.value)
-        stmt = vr.stmt + vv.stmt + f"Downcast<RefValue>({vr.expr})->value={vv.expr};\n"
+        ref = self.visit(node.ref)
+        value = self.visit(node.value)
+        stmt = ref.stmt + value.stmt + f"Downcast<RefValue>({ref.expr})->value={value.expr};\n"
         return ExprWithStmt("runtime::ADT::Tuple()", stmt)
 
     def visit_tuple_getitem(self, node):
-        vt = self.visit(node.tuple_value)
-        return ExprWithStmt(f"Downcast<runtime::ADT>({vt.expr})[{node.index}]", vt.stmt)
+        visit_tup = self.visit(node.tuple_value)
+        return ExprWithStmt(f"Downcast<runtime::ADT>"
+                            f"({visit_tup.expr})"
+                            f"[{node.index}]", visit_tup.stmt)
 
     def visit_constructor(self, node):
-        args_str, stmt_str = self.visit_args(node.fields)
+        args_str, _ = self.visit_args(node.fields)
         return ExprWithStmt(f"TagToCV({node.tag}, {{{args_str}}})")
 
     def pattern_var(self, pat, var_set):
+        """
+        Given a match pattern `pat` and a set of variable names `var_set`,
+        adds the variables appearing in `pat` to `var_set` and
+        raises an exception if any is already in the set
+        (the names should be distinct).
+        """
         if isinstance(pat, relay.PatternConstructor):
             for x in pat.patterns:
                 self.pattern_var(x, var_set)
@@ -136,8 +177,11 @@ class ToSource:
             raise Exception(str(pat))
 
     def visit_match(self, node):
-        vd = self.visit(node.data)
-        stmt_str = vd.stmt
+        """
+        Handle a match expression.
+        """
+        data = self.visit(node.data)
+        stmt_str = data.stmt
 
         pattern_var_set = set()
         for c in node.clause:
@@ -156,13 +200,13 @@ class ToSource:
                 ok_case = ""
                 bind_names = []
                 assert len(pat.constructor.inputs) == len(pat.patterns)
-                for i, input_type in enumerate(pat.constructor.inputs):
+                for i, _ in enumerate(pat.constructor.inputs):
                     bind_name = self.fresh_local_name()
                     bind_names.append(bind_name)
                     ok_case += f"ObjectRef {bind_name} = {data_name}->fields[{i}];\n"
-                for bind_name, p in zip(bind_names, pat.patterns):
+                for bind_name, pattern in zip(bind_names, pat.patterns):
                     next_label = self.fresh_label_name()
-                    ok_case += visit_pattern(p, bind_name, fail_label, next_label)
+                    ok_case += visit_pattern(pattern, bind_name, fail_label, next_label)
                     ok_case += f"{next_label}:\n"
                 ok_case += f"goto {ok_label};"
                 return f"""
@@ -173,30 +217,31 @@ class ToSource:
                   goto {fail_label};
                 }}
                 """
-            elif isinstance(pat, relay.PatternVar):
+
+            if isinstance(pat, relay.PatternVar):
                 return f"""
                 {self.name_map[pat.var]} = {data_name};
                 """
-            else:
-                raise Exception(str(pat))
+
+            raise Exception(str(pat))
 
         in_name = self.fresh_local_name()
         out_name = self.fresh_local_name()
-        stmt_str += f"ObjectRef {in_name} = {vd.expr};\n"
+        stmt_str += f"ObjectRef {in_name} = {data.expr};\n"
         stmt_str += f"ObjectRef {out_name};\n"
         match_finish_label = self.fresh_label_name()
-        for c in node.clause:
-            vc = self.visit(c[1])
+        for clause in node.clause:
+            clause_value = self.visit(clause[1])
             fail_label = self.fresh_label_name()
             ok_label = self.fresh_label_name()
             stmt_str += f"""{{
-              {visit_pattern(c[0], in_name, fail_label, ok_label)}
+              {visit_pattern(clause[0], in_name, fail_label, ok_label)}
             }}
             """
             stmt_str += f"""{{
               {ok_label}:
-              {vc.stmt}
-              {out_name} = {vc.expr};
+              {clause_value.stmt}
+              {out_name} = {clause_value.expr};
               goto {match_finish_label};
             }}
             """
@@ -208,28 +253,31 @@ class ToSource:
     def visit_tuple(self, node):
         expr = []
         stmt_str = ""
-        for x in node.fields:
-            vx = self.visit(x)
-            expr.append(vx.expr)
-            stmt_str += vx.stmt
+        for field in node.fields:
+            visit_field = self.visit(field)
+            expr.append(visit_field.expr)
+            stmt_str += visit_field.stmt
         list_name = self.fresh_local_name()
         stmt_str += f"std::vector<ObjectRef> {list_name} = {{{inter(expr)}}};"
         return ExprWithStmt(f"runtime::ADT::Tuple({list_name})", stmt_str)
 
     def visit_if(self, node):
-        vc = self.visit(node.cond)
-        vt = self.visit(node.true_branch)
-        vf = self.visit(node.false_branch)
+        """
+        Handle an if-else expression.
+        """
+        cond = self.visit(node.cond)
+        true_branch = self.visit(node.true_branch)
+        false_branch = self.visit(node.false_branch)
         ret_name = self.fresh_local_name()
         stmt = f"ObjectRef {ret_name};"
         stmt += f"""
-        {vc.stmt}
-        if (NDToBool(ObjectRefToND({vc.expr}))) {{
-          {vt.stmt}
-          {ret_name} = {vt.expr};
+        {cond.stmt}
+        if (NDToBool(ObjectRefToND({cond.expr}))) {{
+          {true_branch.stmt}
+          {ret_name} = {true_branch.expr};
         }} else {{
-          {vf.stmt}
-          {ret_name} = {vf.expr};
+          {false_branch.stmt}
+          {ret_name} = {false_branch.expr};
         }}
         """
         return ExprWithStmt(ret_name, stmt)
@@ -242,22 +290,23 @@ class ToSource:
             self.input_const.append((name, const.data.asnumpy()))
         return ExprWithStmt(self.declare_map[const])
 
-    def visit_global_var(self, gv):
-        if gv not in self.declare_map:
+    def visit_global_var(self, global_var):
+        if global_var not in self.declare_map:
             name = self.fresh_global_name()
-            self.declare_map[gv] = f"{name}"
-            vgv = self.visit(self.gv_map[gv], local=False, name=name)
-            assert vgv.stmt == ""
-            assert vgv.expr == f"{name}"
-        return ExprWithStmt(self.declare_map[gv])
+            self.declare_map[global_var] = f"{name}"
+            visit_gv = self.visit(self.gv_map[global_var],
+                                  local=False, name=name)
+            assert visit_gv.stmt == ""
+            assert visit_gv.expr == f"{name}"
+        return ExprWithStmt(self.declare_map[global_var])
 
     def visit_args(self, args):
         args_str = ""
         stmt_str = ""
         for i, arg in enumerate(args):
-            va = self.visit(arg)
-            args_str += va.expr
-            stmt_str += va.stmt
+            visit_arg = self.visit(arg)
+            args_str += visit_arg.expr
+            stmt_str += visit_arg.stmt
             if i != len(args) - 1:
                 args_str += ", "
         return args_str, stmt_str
@@ -265,70 +314,87 @@ class ToSource:
     def visit_invoke(self, invoke):
         args_str, stmt_str = self.visit_args(invoke.args)
         func = self.visit(invoke.call)
-        return ExprWithStmt(f"Apply({func.expr}, std::vector<ObjectRef>({{{args_str}}}))", stmt_str + func.stmt)
+        return ExprWithStmt(
+            f"Apply({func.expr}, std::vector<ObjectRef>({{{args_str}}}))",
+            stmt_str + func.stmt)
 
     def visit_decl(self, decl):
+        """
+        Handles a declaration.
+        """
         source = ""
         for var, value in decl.bindings:
             local_name = self.fresh_local_name(var)
             self.name_map[var] = local_name
-            vv = self.visit(value, name=local_name)
-            source += vv.stmt
-            source += f"""ObjectRef {local_name} = {vv.expr};"""
-        vb = self.visit(decl.body)
-        source += vb.stmt
-        return ExprWithStmt(vb.expr, source)
+            visited_value = self.visit(value, name=local_name)
+            source += visited_value.stmt
+            source += f"""ObjectRef {local_name} = {visited_value.expr};"""
+        body = self.visit(decl.body)
+        source += body.stmt
+        return ExprWithStmt(body.expr, source)
 
-    def nd_dtype(self, tt):
-        assert isinstance(tt, relay.ty.TensorType)
-        if tt.dtype == 'int32':
+    def nd_dtype(self, tensor_type):
+        """Given a Relay tensor type, returns the appropriate dtype name"""
+        assert isinstance(tensor_type, relay.ty.TensorType)
+        if tensor_type.dtype == 'int32':
             return 'dtype_i32'
-        elif tt.dtype == 'int8':
+        if tensor_type.dtype == 'int8':
             return 'dtype_i8'
-        elif tt.dtype == 'float32':
+        if tensor_type.dtype == 'float32':
             return 'dtype_f32'
-        elif tt.dtype == 'bool':
+        if tensor_type.dtype == 'bool':
             return 'dtype_u1'
-        raise Exception("unknown tensor dtype: " + str(tt))
+        raise Exception("unknown tensor dtype: " + str(tensor_type))
 
-    def nd_shape(self, tt):
-        return f"{{{inter([str(s) for s in tt.shape])}}}"
+    def nd_shape(self, tensor_type):
+        """
+        Given a Relay tensor type, returns its shape.
+        """
+        return f"{{{inter([str(s) for s in tensor_type.shape])}}}"
 
     def visit_packed_call(self, call):
+        """
+        Handle a call to a PackedFunc.
+        """
         decl_str = ""
         args = []
         for arg in call.args:
-            va = self.visit(arg)
-            decl_str += va.stmt
-            args.append(va.expr)
+            visit_arg = self.visit(arg)
+            decl_str += visit_arg.stmt
+            args.append(visit_arg.expr)
         args_str = []
-        def convert_input(ty, arg):
-            if isinstance(ty, relay.ty.TensorType):
+
+        def convert_input(input_ty, arg):
+            if isinstance(input_ty, relay.ty.TensorType):
                 args_str.append(f"{arg}")
             else:
-                assert isinstance(ty, relay.ty.TupleType)
+                assert isinstance(input_ty, relay.ty.TupleType)
                 tuple_name = self.fresh_local_name()
                 nonlocal decl_str
-                decl_str += f"runtime::ADT {tuple_name} = Downcast<runtime::ADT>({arg});\n"
-                for i, t in enumerate(ty.fields):
+                decl_str += (f"runtime::ADT {tuple_name} ="
+                             f" Downcast<runtime::ADT>({arg});\n")
+                for i, t in enumerate(input_ty.fields):
                     convert_input(t, f"{tuple_name}[{i}]")
         assert len(call.args_type) == len(call.args)
         for i in range(len(call.args_type)):
             convert_input(call.args_type[i], args[i])
 
-        def convert_output(ty):
+        def convert_output(output_ty):
             nonlocal decl_str
-            if isinstance(ty, relay.ty.TensorType):
+            if isinstance(output_ty, relay.ty.TensorType):
                 tensor_name = self.fresh_local_name()
-                decl_str += f"NDArray {tensor_name} = NDArray::Empty({self.nd_shape(ty)}, {self.nd_dtype(ty)}, context);\n"
+                decl_str += (f"NDArray {tensor_name} = "
+                             f"NDArray::Empty({self.nd_shape(output_ty)}, "
+                             f"{self.nd_dtype(output_ty)}, context);\n")
                 args_str.append(f"{tensor_name}")
                 return tensor_name
-            else:
-                assert isinstance(ty, relay.ty.TupleType)
-                list_name = self.fresh_local_name()
-                list_members = inter([convert_output(t) for t in ty.fields])
-                decl_str += f"std::vector<ObjectRef> {list_name} = {{{list_members}}};"
-                return f"runtime::ADT::Tuple({list_name})"
+
+            assert isinstance(output_ty, relay.ty.TupleType)
+            list_name = self.fresh_local_name()
+            list_members = inter([convert_output(t) for t in output_ty.fields])
+            decl_str += f"std::vector<ObjectRef> {list_name} = {{{list_members}}};"
+            return f"runtime::ADT::Tuple({list_name})"
+
         out = convert_output(call.ret_type)
         return ExprWithStmt(out, f"""
             {decl_str}
@@ -338,40 +404,50 @@ class ToSource:
         """)
 
     def visit_cpp_function(self, func, local, name):
+        """
+        Handle a Little CPP function.
+        """
         vec = self.fresh_local_name()
         body = ""
 
-        end = len(func.params) - 1
         for i, param in enumerate(func.params):
             pname = self.fresh_local_name(param)
             self.name_map[param] = pname
             body += f"ObjectRef {pname} = {vec}.at({i});\n"
 
         body += f"ObjectRef {name} = self;\n"
-        vb = self.visit(func.body)
-        body = body + vb.stmt + f"""return {vb.expr};"""
-        expr = f"""FunctionValueNode::make([=](const std::vector<ObjectRef>& {vec}, const ObjectRef& self) {{
-                {body}
-            }});
+        visit_body = self.visit(func.body)
+        body = body + visit_body.stmt + f"""return {visit_body.expr};"""
+        expr = f"""
+                FunctionValueNode::make([=](
+                    const std::vector<ObjectRef>& {vec},
+                    const ObjectRef& self) {{
+                        {body}
+                    }});
             """
 
         if local:
             return ExprWithStmt(expr)
-        else:
-            if name is None:
-                name = self.fresh_global_name()
-            self.declare += f"""
-            static ObjectRef {name}_func() {{
-              static ObjectRef ret = {expr};
-              return ret;
-            }}
-            ObjectRef {name} = {name}_func();
-            """
-            return ExprWithStmt(f"{name}")
+
+        if name is None:
+            name = self.fresh_global_name()
+
+        self.declare += f"""
+        static ObjectRef {name}_func() {{
+            static ObjectRef ret = {expr};
+            return ret;
+        }}
+        ObjectRef {name} = {name}_func();
+        """
+        return ExprWithStmt(f"{name}")
 
     def mk_register_api(self, name: str, func) -> str:
-        vf = self.visit(func, local=False)
-        assert vf.stmt == ""
+        """
+        Converts the given Little CPP function into C++ text
+        and registers the produced C++ function as a TVM `PackedFunc` under the given name.
+        """
+        visited_func = self.visit(func, local=False)
+        assert visited_func.stmt == ""
         source = self.declare
 
         args = ""
@@ -391,15 +467,15 @@ class ToSource:
         .set_body([](TVMArgs args, TVMRetValue* ret) {{
             {init}
             std::initializer_list<ObjectRef> ilist = {{{args}}};
-            *ret = Apply({vf.expr}, std::vector<ObjectRef>(ilist));
+            *ret = Apply({visited_func.expr}, std::vector<ObjectRef>(ilist));
         }});
         """
         return source
 
 def inter(strs, sep=", "):
     ret = ""
-    for i in range(len(strs)):
-        ret += strs[i]
+    for i, string in enumerate(strs):
+        ret += string
         if i != len(strs) - 1:
             ret += sep
     return ret
@@ -482,7 +558,7 @@ def mk_file(body, ctx):
     {body}
     """
 
-def to_source(mod, program, gv_map, ctx, name) -> str:
+def to_source(program, gv_map, ctx, name) -> str:
     convert = ToSource(gv_map)
     ret = mk_file(convert.mk_register_api(name, program), ctx)
     return [value for name, value in convert.input_const], ret

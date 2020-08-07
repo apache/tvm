@@ -15,4 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from .aot import compile
+"""
+This module defines the Relay ahead-of-time (AoT) compiler,
+which translates Relay ASTs into C++ code that calls into
+already-compiled operators. These end-to-end compiled
+programs can in principle run without a runtime.
+"""
+from .aot import compile_prog

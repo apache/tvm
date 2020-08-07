@@ -14,30 +14,39 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""
+Defines the entry point into the AoT compiler.
+"""
 import ctypes
 import os
 import subprocess
 import tempfile
+import time
+
 import tvm
-from tvm import relay, get_global_func, target, register_func
+from tvm import relay, get_global_func, register_func
 from tvm.relay.function import Function
 from tvm.relay.expr import Expr, Let, GlobalVar
 from tvm.relay.adt import Constructor
-from tvm.relay.expr_functor import ExprFunctor, ExprVisitor
+from tvm.relay.expr_functor import ExprFunctor
 from tvm.relay.backend import compile_engine
-from .little_cpp import PackedCall, CPPFunction, Invoke, Decl, CPPIf, CPPTuple, CPPMatch, CPPConstructor, CPPTupleGetItem
-from .little_cpp import CPPRefCreate, CPPRefRead, CPPRefWrite
+from .little_cpp import (PackedCall, CPPFunction, Invoke, Decl, CPPIf,
+                         CPPTuple, CPPMatch, CPPConstructor, CPPTupleGetItem,
+                         CPPRefCreate, CPPRefRead, CPPRefWrite)
 from . import to_source
 from .convert import convert
 
 TVM_PATH = os.environ['TVM_HOME']
 
 def must_run_process(args):
-    proc = subprocess.run(args)
+    proc = subprocess.run(args, check=True)
     assert proc.returncode == 0
 
 def compile_cpp(source, lib_name, flags=None, lib_path=None):
+    """
+    Compiles the given source into a C++ library
+    and returns the full path to the compiled library.
+    """
     if flags is None:
         flags = []
 
@@ -59,37 +68,27 @@ def compile_cpp(source, lib_name, flags=None, lib_path=None):
     must_run_process(["clang-format", "-i", debug_source_path])
 
     system = os.uname()[0]
+    include_paths = [
+        f"-I{TVM_PATH}/3rdparty/dmlc-core/include",
+        f"-I{TVM_PATH}/3rdparty/dlpack/include",
+        f"-I{TVM_PATH}/3rdparty/HalideIR/src",
+        f"-I{TVM_PATH}/include",
+        f"-L{TVM_PATH}/build"
+    ]
+
     if system == 'Darwin':
         command = [
-            "clang",
-            "-std=c++14",
-            "-shared",
-            "-undefined",
-            "dynamic_lookup",
-            "-o",
-            lib_path,
+            "clang", "-std=c++14", "-shared", "-undefined", "dynamic_lookup",
+            "-o", lib_path,
             source_path,
-		    f"-I{TVM_PATH}/3rdparty/dmlc-core/include",
-		    f"-I{TVM_PATH}/3rdparty/dlpack/include",
-		    f"-I{TVM_PATH}/3rdparty/HalideIR/src",
-		    f"-I{TVM_PATH}/include",
-		    f"-L{TVM_PATH}/build",
+            *include_paths,
             "-ltvm"
         ] + flags
     else:
         command = [
-            "clang",
-            "-std=c++14",
-            "-shared",
-            "-fPIC",
-            "-o",
-            lib_path,
+            "clang", "-std=c++14", "-shared", "-fPIC", "-o", lib_path,
             source_path,
-		    f"-I{TVM_PATH}/3rdparty/dmlc-core/include",
-		    f"-I{TVM_PATH}/3rdparty/dlpack/include",
-		    f"-I{TVM_PATH}/3rdparty/HalideIR/src",
-		    f"-I{TVM_PATH}/include",
-		    f"-L{TVM_PATH}/build",
+            *include_paths,
             "-ltvm"
         ] + flags
 
@@ -99,10 +98,16 @@ def compile_cpp(source, lib_name, flags=None, lib_path=None):
 def load_lib(name):
     return ctypes.CDLL(name, ctypes.RTLD_GLOBAL)
 
-def is_primitive(e: relay.Expr):
-    return isinstance(e, relay.Function) and e.attrs and e.attrs.Primitive.value == 1
+def is_primitive(expr: relay.Expr):
+    return (isinstance(expr, relay.Function)
+            and expr.attrs
+            and expr.attrs.Primitive.value == 1)
 
 class AoTCompiler(ExprFunctor):
+    """
+    Takes a Relay program and converts into a Little CPP program
+    that can in turn be converted into C++ source code.
+    """
     def __init__(self, mod, tgt) -> None:
         super().__init__()
         self.mod = mod
@@ -126,8 +131,8 @@ class AoTCompiler(ExprFunctor):
 
     def mk_primitive_op(self, func: Expr, args, output_type) -> Expr:
         cc_key = compile_engine.CCacheKey(func, self.tgt)
-        hash = tvm.ir.structural_hash(func)
-        name = f"op_{hash}"
+        func_hash = tvm.ir.structural_hash(func)
+        name = f"op_{func_hash}"
         if not get_global_func(name, allow_missing=True):
             jit_func = self.engine.jit(cc_key, self.tgt)
             register_func(name, jit_func)
@@ -136,13 +141,12 @@ class AoTCompiler(ExprFunctor):
     def visit_call(self, call: Expr) -> Expr:
         if is_primitive(call.op):
             return self.mk_primitive_op(call.op, call.args, call.checked_type)
-        elif isinstance(call.op, Constructor):
+        if isinstance(call.op, Constructor):
             return CPPConstructor(call.op.tag, [self.visit(arg) for arg in call.args])
-        else:
-            assert(call.attrs == None)
-            args = [self.visit(arg) for arg in call.args]
-            fn = self.visit(call.op)
-            return Invoke(fn, args)
+        assert call.attrs is None
+        args = [self.visit(arg) for arg in call.args]
+        func = self.visit(call.op)
+        return Invoke(func, args)
 
     def visit_let(self, let: Expr) -> Expr:
         self.bindings.append([])
@@ -170,8 +174,7 @@ class AoTCompiler(ExprFunctor):
         if is_primitive(func):
             body = self.mk_primitive_op(func, func.params, func.ret_type)
             return CPPFunction(func.params, body, func.checked_type.ret_type)
-        else:
-            return CPPFunction(func.params, self.visit(func.body), func.checked_type.ret_type)
+        return CPPFunction(func.params, self.visit(func.body), func.checked_type.ret_type)
 
     def visit_constant(self, const):
         return const
@@ -192,6 +195,9 @@ class AoTCompiler(ExprFunctor):
 
     def visit_op(self, op):
         raise Exception(f'op outside of primitive: {op}')
+
+    def visit_constructor(self, ctor):
+        raise Exception('Constructors should be handled when visiting calls.')
 
     def visit_tuple_getitem(self, t):
         return CPPTupleGetItem(self.visit(t.tuple_value), t.index, t.checked_type)
@@ -215,19 +221,17 @@ def lib_and_func_name(name):
     _LIB_COUNTER += 1
     return lib_name, packed_name
 
-import time
-
-def _mk_wrapper(fn, ctx, constants, record_time):
+def _mk_wrapper(func, ctx, constants, record_time):
     def _wrapper(*args):
         new_constants = [convert(a, ctx) for a in constants]
         new_args = [convert(a, ctx) for a in args]
         begin = time.perf_counter()
-        res = fn(*new_constants, *new_args)
+        res = func(*new_constants, *new_args)
         end = time.perf_counter()
         return res if not record_time else (res, end - begin)
     return _wrapper
 
-def compile(func, mod, ctx, tgt, name='default', record_time=False):
+def compile_prog(func, mod, ctx, tgt, name='default', record_time=False):
     """Compile a Relay function into a C++ file that
     implements a program with the same semantics,
     which calls into TVM only for operators.
@@ -270,9 +274,9 @@ def compile(func, mod, ctx, tgt, name='default', record_time=False):
     func = compiler.optimize(func)
     func = compiler.visit(func)
     lib_name, packed_name = lib_and_func_name(name)
-    constants, source_code = to_source.to_source(mod, func, compiler.gv_map, ctx, packed_name)
+    constants, source_code = to_source.to_source(func, compiler.gv_map, ctx, packed_name)
     lib_name = f"librelay_aot_{_LIB_COUNTER}.so"
     library_path = compile_cpp(source_code, lib_name, flags=["-O3"])
     _LIB.append(load_lib(library_path))
-    fn = get_global_func(packed_name)
-    return _mk_wrapper(fn, ctx, constants, record_time)
+    func = get_global_func(packed_name)
+    return _mk_wrapper(func, ctx, constants, record_time)

@@ -14,13 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""
+Responsible for converting function arguments into
+a form that can be passed to a `PackedFunc`.
+"""
 import numpy as np
 import tvm
 from tvm import relay
 
-# convert(convert(a, tg), tg) = convert(a, tg)
 def convert(a, ctx):
+    """
+    Converts a function input `a`
+    (which may take constant defined in Relay, numpy arrays,
+    or TVM NDArrays)
+    into a form that can be passed to a TVM `PackedFunc`
+    with the given context.
+    """
+    # convert(convert(a, tg), tg) = convert(a, tg)
     while True:
         if isinstance(a, int):
             a = np.array(a, dtype='int32')
@@ -33,7 +43,8 @@ def convert(a, ctx):
             a = (a.op, *a.args)
         elif isinstance(a, tuple):
             assert isinstance(a[0], relay.Constructor)
-            a = relay.backend.interpreter.ConstructorValue(a[0].tag, [convert(arg, ctx) for arg in a[1:]], a[0])
+            a = relay.backend.interpreter.ConstructorValue(
+                a[0].tag, [convert(arg, ctx) for arg in a[1:]], a[0])
         elif isinstance(a, relay.backend.interpreter.ConstructorValue):
             return a
         else:

@@ -14,10 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-from tvm.relay import Var, TypeVar
+"""
+Defines the Little CPP intermediate representation used by the AoT compiler
+(corresponds to a small subset of the C++ AST
+and a couple of TVM-specific concepts).
+"""
 from typing import Any, Optional, List, Tuple
 import attr
+from tvm.relay import Var
 
 class LittleCppNode:
     pass
