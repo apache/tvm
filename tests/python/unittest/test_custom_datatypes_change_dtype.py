@@ -18,6 +18,7 @@
 import tvm
 import topi.testing
 import numpy as np
+from numpy.random import MT19937, RandomState, SeedSequence
 from tvm import relay
 from tvm.relay.testing.inception_v3 import get_workload as get_inception
 from tvm.relay.testing.resnet import get_workload as get_resnet
@@ -26,7 +27,9 @@ from tvm.target.datatype import register, register_min_func, register_op, create
 from nose.tools import nottest
 
 tgt = "llvm"
-
+# we use a random seed to generate input_data
+# to guarantee stable tests
+rs = RandomState(MT19937(SeedSequence(123456789)))
 
 def convert_ndarray(dst_dtype, *arrays):
     """Converts NDArray(s) into the specified datatype"""
@@ -224,7 +227,7 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
         t1 = relay.TensorType((5, 10, 5), src_dtype)
         x = relay.var("x", t1)
         z = op(x)
-        x_data = np.random.rand(5, 10, 5).astype(t1.dtype)
+        x_data = rs.rand(5, 10, 5).astype(t1.dtype)
 
         module = tvm.IRModule.from_expr(relay.Function([x], z))
 
@@ -250,8 +253,8 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
         x = relay.var("x", t1)
         y = relay.var("y", t2)
         z = opfunc(x, y)
-        x_data = np.random.rand(5, 10, 5).astype(t1.dtype)
-        y_data = np.random.rand(5).astype(t2.dtype)
+        x_data = rs.rand(5, 10, 5).astype(t1.dtype)
+        y_data = rs.rand(5).astype(t2.dtype)
         module = tvm.IRModule.from_expr(relay.Function([x, y], z))
 
         compare(module, (x_data, y_data), src_dtype, dst_dtype, rtol, atol)
@@ -281,7 +284,7 @@ def run_model(get_workload,
                                   num_classes=num_classes)
 
     # Convert the input into the correct format.
-    input = tvm.nd.array(np.random.rand(*input_shape).astype(src_dtype))
+    input = tvm.nd.array(rs.rand(*input_shape).astype(src_dtype))
 
     compare(module, (input, ), src_dtype, dst_dtype, rtol, atol, params)
 
@@ -313,8 +316,8 @@ def run_conv2d(src_dtype, dst_dtype):
                             groups=groups,
                             **attrs)
         module = tvm.IRModule.from_expr(relay.Function([x, w], y))
-        data = np.random.uniform(-scale, scale, size=dshape).astype(src_dtype)
-        kernel = np.random.uniform(-scale, scale,
+        data = rs.uniform(-scale, scale, size=dshape).astype(src_dtype)
+        kernel = rs.uniform(-scale, scale,
                                    size=kshape).astype(src_dtype)
         dkernel = topi.testing.dilate_python(kernel, (1, 1) + dilation)
         if fref is None:
