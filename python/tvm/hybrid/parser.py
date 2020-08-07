@@ -574,10 +574,8 @@ class HybridParser(ast.NodeVisitor):
             2. meta[type_key][index], Meta info access
         """
 
-        if isinstance(node.value, ast.Name):
-            symbol = self.scope_emitter.lookup_symbol(node.value.id)
-            if symbol is None:
-                self.report_error(node.value.id + " is not defined")
+        if isinstance(node.value, ast.Name) or isinstance(node.value, ast.Attribute):
+            symbol = self.visit(node.value)
             if isinstance(node.slice, ast.Index):
                 # BufferLoad & BufferStore
                 if isinstance(node.slice.value, ast.Tuple):

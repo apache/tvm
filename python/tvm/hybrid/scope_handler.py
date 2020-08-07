@@ -64,10 +64,10 @@ def attr(parser, node, attr_node, attr_key, value, body):
 
 
 @register_scope_handler(Category.WITH_SCOPE, concise=True)
-def allocate(parser, node, buffer_var, dtype, extents, condition, body):
+def allocate(parser, node, buffer_var, dtype, extents, body, condition=True):
     """ With scope handler function allocate(buffer_var, dtype, extents, condition, body) """
 
-    return tvm.tir.Allocate(buffer_var, dtype, extents, condition, body)
+    return tvm.tir.Allocate(buffer_var, dtype, extents, tvm.runtime.convert(condition), body)
 
 
 # For scope handler
@@ -87,5 +87,5 @@ def range(parser, node, begin, end, for_type="serial"):
     body = parser.get_body()
     parser.scope_emitter.pop_scope()
 
-    for_type_dict = {"serial": 0, "parallel": 1, "vectorized": 2, "Unrolled": 3, }
+    for_type_dict = {"serial": 0, "parallel": 1, "vectorized": 2, "unroll": 3, }
     return tvm.tir.For(loop_var, begin, extent, for_type_dict[for_type], 0, body)

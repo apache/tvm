@@ -838,7 +838,7 @@ TVM_REGISTER_GLOBAL("tir.hybrid.AsHybrid")
     .set_body_typed<std::string(const ObjectRef&, bool)>([](const ObjectRef& functions,
                                                             bool show_meta) {
       CHECK(functions.as<PrimFuncNode>() != nullptr || functions.as<IRModuleNode>() != nullptr);
-      return TIRHybridPrinter(show_meta).Print(functions).str() + "\n";
+      return "@tvm.hybrid.script\n" + TIRHybridPrinter(show_meta).Print(functions).str() + "\n";
     });
 
 }  // namespace tir
