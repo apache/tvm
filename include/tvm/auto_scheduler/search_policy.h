@@ -31,6 +31,17 @@
  *
  * Candidate schedules are measured against the specific hardware target.
  *
+ * We intend to introduce different level of automation on the schedule generation process:
+ * - Level 0(the default level): For all kinds of ops/subgraphs, the search policy should be able
+ *   to generate schedule automatically.
+ * - Level 1: For some complicated ops/subgraphs(e.g. conv2d windograd), the default search space
+ *   of level 0 may be too large to find a high performance schedule efficiently. We provide some
+ *   op attributes to help reduce the total search space, see `SearchPolicyKey` below for more
+ *   information.
+ * - Level 2: For some further special ops/subgraphs, users may more likely to write their own
+ *   template(just like AutoTVM). Search policy should be able to provide a flexible approach as
+ *   well.
+ *
  * \note How to add a new search policy.
  * In design, there's no need for users to implement their own search policy, our formal search
  * policy(will be brought later) should be enough to cover most use cases. Meanwhile, a custom rule
@@ -89,7 +100,7 @@ class SearchCallback : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SearchCallback, ObjectRef, SearchCallbackNode);
 };
 
-/*! \brief Op attr keys for SearchPolicy. */
+/*! \brief Attribute keys of ops used for SearchPolicy. */
 struct SearchPolicyKey {
   /*! \brief Dict keys to give hints to the policy. */
   struct Dict {

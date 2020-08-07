@@ -45,7 +45,7 @@ TVM_REGISTER_NODE_TYPE(SketchSearchPolicyNode);
 
 /********** Sketch Generation Rule **********/
 
-// The rule that simply skips the current stage(return a unchanged state and try the next stage)
+// The rule that simply skips the current stage(return a unchanged state and try the next stage).
 class RuleSkipStage : public SketchGenerationRule {
  public:
   ConditionKind MeetCondition(const SketchSearchPolicyNode& policy, const State& state,
@@ -60,9 +60,9 @@ class RuleSkipStage : public SketchGenerationRule {
   }
 };
 
-// The rule that inlines simple elementwise ops
-// Notice: This rule will only inline the strictly inlineable stages. Stages marked as not strictly
-// inlineable will have a chance to try different compute at location in InitPopulation later
+// The rule that inlines simple elementwise ops.
+// Notice: This rule only inlines the strictly inlineable stages. Stages marked as not strictly
+// inlineable will have a chance to try different compute at location in InitPopulation later.
 class RuleAlwaysInline : public SketchGenerationRule {
  public:
   ConditionKind MeetCondition(const SketchSearchPolicyNode& policy, const State& state,
@@ -81,7 +81,7 @@ class RuleAlwaysInline : public SketchGenerationRule {
       //    global memory
       // TODO(jcf94): Add the rule 3 when introducing GPU search policy.
       return (HasAttrsFlag(state, stage_id, SearchPolicyKey::Flag::always_compute_inline) ||
-              IsStrictInlineable(policy.search_task, state, stage_id))
+              IsStrictlyInlineable(policy.search_task, state, stage_id))
                  ? ConditionKind::kApplyAndSkipRest
                  : ConditionKind::kSkip;
     }
@@ -97,7 +97,7 @@ class RuleAlwaysInline : public SketchGenerationRule {
   }
 };
 
-// The rule that performs multi-level tiling
+// The rule that performs multi-level tiling.
 class RuleMultiLevelTiling : public SketchGenerationRule {
  public:
   ConditionKind MeetCondition(const SketchSearchPolicyNode& policy, const State& state,
@@ -117,7 +117,7 @@ class RuleMultiLevelTiling : public SketchGenerationRule {
   }
 };
 
-// The rule that performs multi-level tiling and fuses later consumers
+// The rule that performs multi-level tiling and fuses later consumers.
 class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
  public:
   ConditionKind MeetCondition(const SketchSearchPolicyNode& policy, const State& state,
@@ -142,6 +142,7 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
         DoMultiLevelTiling(state, stage_id, multi_level_tiling_structure, &spatial_split_step_ids);
 
     std::vector<std::pair<State, int>> ret;
+    // TODO(jcf94): Add follow_tiling_levels for GPU when introducing GPU search policy.
     std::vector<int> follow_tiling_levels{1, 2};
     for (int level : follow_tiling_levels) {
       if (tolower(multi_level_tiling_structure[level - 1]) != 's') {
@@ -162,7 +163,7 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
   int target_stage_id;
 };
 
-// The rule that adds a cache write stage
+// The rule that adds a cache write stage.
 class RuleAddCacheWrite : public SketchGenerationRule {
  public:
   ConditionKind MeetCondition(const SketchSearchPolicyNode& policy, const State& state,
@@ -191,7 +192,7 @@ class RuleAddCacheWrite : public SketchGenerationRule {
   }
 };
 
-// The rule that adds rfactor stage
+// The rule that adds rfactor stage.
 class RuleAddRfactor : public SketchGenerationRule {
  public:
   ConditionKind MeetCondition(const SketchSearchPolicyNode& policy, const State& state,
@@ -252,7 +253,7 @@ static RuleAddRfactor rule_add_rfactor;
 
 /********** Init Population **********/
 
-// The rule that fills the incomplete SplitSteps
+// The rule that fills the incomplete SplitSteps.
 class InitFillTileSize : public InitPopulationRule {
  public:
   ResultKind Apply(SketchSearchPolicyNode* policy, State* state) const final {
@@ -292,7 +293,8 @@ class InitFillTileSize : public InitPopulationRule {
   }
 };
 
-// The rule that randomly changes the computation location for some stages
+// The rule that randomly changes the computation location for some stages, which do not need
+// tiling and are not strictly inlineable(e.g. data padding).
 class InitChangeComputeLocation : public InitPopulationRule {
  public:
   ResultKind Apply(SketchSearchPolicyNode* policy, State* state) const {
@@ -302,12 +304,12 @@ class InitChangeComputeLocation : public InitPopulationRule {
 
     for (int stage_id = static_cast<int>((*state)->stages.size()) - 1; stage_id >= 0; stage_id--) {
       const Stage& stage = (*state)->stages[stage_id];
-
+      // Skip the inlined stages and placeholders
       if (stage->op_type == StageKind::kPlaceholder ||
           stage->compute_at == ComputeAtKind::kInlined) {
         continue;
       }
-
+      // Skip the tiled stages
       if (IsTiled(stage) || NeedsMultilevelTiling(policy->search_task, *state, stage_id)) {
         continue;
       }
@@ -316,7 +318,6 @@ class InitChangeComputeLocation : public InitPopulationRule {
       if (target_stage_id < 0) {
         continue;
       }
-
       const Stage& target_stage = (*state)->stages[target_stage_id];
       std::set<std::string> to_unroll_name_set;
       if (target_stage->op->attrs.count(SearchPolicyKey::Dict::always_unroll)) {
@@ -335,11 +336,11 @@ class InitChangeComputeLocation : public InitPopulationRule {
         const Iterator& target_iter = target_stage->iters[i];
         if (target_iter->iter_kind == IteratorKind::kReduction) {
           visited_reduce = true;
-          if (!target_is_tiled) {  // do not go into reduce iter
+          if (!target_is_tiled) {  // Do not go into reduce iter
             break;
           }
         } else if (target_iter->iter_kind == IteratorKind::kSpatial) {
-          if (visited_reduce) {  // do not go into inner tile
+          if (visited_reduce) {  // Do not go into inner tile
             break;
           }
         }
@@ -349,12 +350,13 @@ class InitChangeComputeLocation : public InitPopulationRule {
           break;
         }
 
-        if (GetExtent(target_iter) == 1) {  // skip iterators with length of 1
+        if (GetExtent(target_iter) == 1) {
+          // Skip iterators with length of 1
           continue;
         }
         if (target_compute_at_other && target_iter->iter_kind == IteratorKind::kSpatial &&
             StrEndsWith(target_iter->name, ".0")) {
-          // skip the first level iterators if target stage compute_at another stage
+          // Skip the first level iterators if target stage compute_at another stage
           // In this case, the lengths of first level iterators are always one
           continue;
         }
@@ -425,7 +427,7 @@ class InitChangeComputeLocation : public InitPopulationRule {
   }
 };
 
-// The rule that annotates parallel for CPU
+// The rule that annotates parallel for CPU.
 class InitParallel : public InitPopulationRule {
  public:
   ResultKind Apply(SketchSearchPolicyNode* policy, State* state) const {
@@ -681,7 +683,8 @@ State SketchSearchPolicyNode::Search(int n_trials, int early_stopping, int num_m
                                      ProgramMeasurer measurer) {
   num_measure_per_iter_ = num_measure_per_iter;
 
-  if (n_trials <= 1) {  // no measurement is allowed
+  if (n_trials <= 1) {
+    // No measurement is allowed
     const Array<State>& best_states = SearchOneRound(0);
     CHECK_GT(best_states.size(), 0);
     return best_states[0];

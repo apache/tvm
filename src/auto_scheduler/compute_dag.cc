@@ -309,12 +309,12 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
     if (op->IsInstance<te::PlaceholderOpNode>()) {
       node->is_simple_access[op] = true;
       node->needs_multi_level_tiling[op] = false;
-      node->is_strict_inlineable[op] = false;
+      node->is_strictly_inlineable[op] = false;
       node->is_output[op] = false;
     } else if (auto cop = op.as<te::ComputeOpNode>()) {
       // check whether this op is element-wise and strict-inlineable
       bool is_simple_access = true;
-      bool is_strict_inlineable = true;
+      bool is_strictly_inlineable = true;
 
       bool axis_missing, axis_duplicated, same_order;
       for (const auto& pair : node->read_from[op]) {
@@ -323,12 +323,12 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
           if (!auto_scheduler::IsSimpleAccess(op, access, &axis_missing, &axis_duplicated,
                                               &same_order)) {
             is_simple_access = false;
-            is_strict_inlineable = false;
+            is_strictly_inlineable = false;
             break;
           }
           if (!same_order || axis_duplicated) {
             // do not strictly inline transpose
-            is_strict_inlineable = false;
+            is_strictly_inlineable = false;
           }
         }
         if (!is_simple_access) {
@@ -342,11 +342,11 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
         has_expensive_op |= HasExpensiveOp(expr);
       }
       if (has_expensive_op || has_branch[op]) {
-        is_strict_inlineable = false;
+        is_strictly_inlineable = false;
       }
 
       node->is_simple_access[op] = is_simple_access;
-      node->is_strict_inlineable[op] = is_strict_inlineable;
+      node->is_strictly_inlineable[op] = is_strictly_inlineable;
 
       // check whether the op needs multi-level tiling
       bool needs_multi_level_tiling = false;
@@ -398,8 +398,8 @@ bool AccessAnalyzer::IsSimpleAccess(const te::Operation& op) const {
   return operator->()->is_simple_access.at(op);
 }
 
-bool AccessAnalyzer::IsStrictInlineable(const te::Operation& op) const {
-  return operator->()->is_strict_inlineable.at(op);
+bool AccessAnalyzer::IsStrictlyInlineable(const te::Operation& op) const {
+  return operator->()->is_strictly_inlineable.at(op);
 }
 
 OperationSet AccessAnalyzer::GetConsumers(const State& state, const te::Operation& op) const {

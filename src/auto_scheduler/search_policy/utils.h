@@ -58,7 +58,7 @@ inline std::vector<int> Argsort(const std::vector<T>& scores) {
   return index;
 }
 
-// Convert operation to stage id
+/*! \brief Convert operation to stage id. */
 inline int OperationToStage(const te::Operation& op, const State& state) {
   for (size_t i = 0; i < state->stages.size(); ++i) {
     if (op == state->stages[i]->op) {
@@ -71,7 +71,7 @@ inline int OperationToStage(const te::Operation& op, const State& state) {
 
 /********** Get Parameters **********/
 
-// Get an integer from a tvm str Map
+/*! \brief Get an integer from a tvm str Map. */
 inline int GetIntParam(const Map<String, ObjectRef>& attr_dict, const std::string& key) {
   CHECK_GT(attr_dict.count(key), 0) << "Cannot find key: \"" << key << "\" in " << attr_dict;
   auto pint = attr_dict[key].as<IntImmNode>();
@@ -79,7 +79,7 @@ inline int GetIntParam(const Map<String, ObjectRef>& attr_dict, const std::strin
   return pint->value;
 }
 
-// Get a double from a tvm str Map
+/*! \brief Get a double from a tvm str Map. */
 inline double GetDoubleParam(const Map<String, ObjectRef>& attr_dict, const std::string& key) {
   CHECK_GT(attr_dict.count(key), 0) << "Cannot find key: \"" << key << "\" in " << attr_dict;
   auto pdouble = attr_dict[key].as<FloatImmNode>();
@@ -87,7 +87,7 @@ inline double GetDoubleParam(const Map<String, ObjectRef>& attr_dict, const std:
   return pdouble->value;
 }
 
-// Get a string from a tvm str Map
+/*! \brief Get a string from a tvm str Map. */
 inline std::string GetStringParam(const Map<String, ObjectRef>& attr_dict, const std::string& key) {
   CHECK_GT(attr_dict.count(key), 0) << "Cannot find key: \"" << key << "\" in " << attr_dict;
   const auto& target = attr_dict[key];
@@ -99,7 +99,7 @@ inline std::string GetStringParam(const Map<String, ObjectRef>& attr_dict, const
   return pstr->data;
 }
 
-// Get a iterator name set from a tvm str Map
+/*! \brief Get a iterator name set from a tvm str Map. */
 inline std::set<std::string> GetIterNameSetParam(const Map<String, ObjectRef>& attr_dict,
                                                  const std::string& key) {
   std::set<std::string> ret;
@@ -112,43 +112,19 @@ inline std::set<std::string> GetIterNameSetParam(const Map<String, ObjectRef>& a
   return ret;
 }
 
-/********** Get Attrs **********/
-
-// Get axes that should not be splitted according to the attribute from tvm.compute
-inline std::pair<std::set<std::string>, std::set<std::string>> GetNoSplitAxisAttr(
-    const Stage& stage) {
-  std::pair<std::set<std::string>, std::set<std::string>> ret;
-  if (stage->op->attrs.count(SearchPolicyKey::Dict::no_split_at_inner)) {
-    ret.first = GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::Dict::no_split_at_inner);
-  }
-  if (stage->op->attrs.count(SearchPolicyKey::Dict::no_split_at_outer)) {
-    ret.second = GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::Dict::no_split_at_outer);
-  }
-  return ret;
-}
-
-// Get axes whose last split is one according to the attribute from tvm.compute
-inline std::set<std::string> GetLastSplitIsOneAxisAttr(const Stage& stage) {
-  std::set<std::string> ret;
-  if (stage->op->attrs.count(SearchPolicyKey::Dict::last_split_is_one)) {
-    ret = GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::Dict::last_split_is_one);
-  }
-  return ret;
-}
-
 /********** Checks with ComputeDAG **********/
 
-// Return whether an op is strict-inlineable
-inline bool IsStrictInlineable(const SearchTask& task, const State& state, int stage_id) {
+/*! \brief Return whether an op is strictly-inlineable. */
+inline bool IsStrictlyInlineable(const SearchTask& task, const State& state, int stage_id) {
   if (state->current_compute_dag) {
-    return state->current_compute_dag.as<ComputeDAGNode>()->access_analyzer.IsStrictInlineable(
+    return state->current_compute_dag.as<ComputeDAGNode>()->access_analyzer.IsStrictlyInlineable(
         state->stages[stage_id]->op);
   } else {
-    return task->compute_dag->access_analyzer.IsStrictInlineable(state->stages[stage_id]->op);
+    return task->compute_dag->access_analyzer.IsStrictlyInlineable(state->stages[stage_id]->op);
   }
 }
 
-// Return whether an op is an output op
+/*! \brief Return whether an op is an output op. */
 inline bool IsOutputOp(const SearchTask& task, const State& state, int stage_id) {
   if (state->current_compute_dag) {
     return state->current_compute_dag.as<ComputeDAGNode>()->access_analyzer.IsOutput(
@@ -158,7 +134,7 @@ inline bool IsOutputOp(const SearchTask& task, const State& state, int stage_id)
   }
 }
 
-// Return whether an op needs multi level tiling
+/*! \brief Return whether an op needs multi level tiling. */
 inline bool NeedsMultilevelTiling(const SearchTask& task, const State& state, int stage_id) {
   if (state->current_compute_dag) {
     return state->current_compute_dag.as<ComputeDAGNode>()->access_analyzer.NeedsMultiLevelTiling(
@@ -168,7 +144,7 @@ inline bool NeedsMultilevelTiling(const SearchTask& task, const State& state, in
   }
 }
 
-// Get all consumers for a stage. This function propagates the relation for inlined ops.
+/*! \brief Get all consumers for a stage. This function propagates the relation for inlined ops. */
 inline std::set<int> GetConsumers(const SearchTask& task, const State& state, int stage_id) {
   std::unordered_set<te::Operation, ObjectHash, ObjectEqual> consumers;
   std::set<int> ret;
@@ -186,233 +162,8 @@ inline std::set<int> GetConsumers(const SearchTask& task, const State& state, in
   return ret;
 }
 
-// Get all producers for a stage. This function propagates the relation for inlined ops.
-inline std::set<int> GetProducers(const SearchTask& task, const State& state, int stage_id) {
-  std::unordered_set<te::Operation, ObjectHash, ObjectEqual> producers;
-  std::set<int> ret;
-
-  if (state->current_compute_dag) {
-    producers = state->current_compute_dag.as<ComputeDAGNode>()->access_analyzer.GetProducers(
-        state, state->stages[stage_id]->op);
-  } else {
-    producers = task->compute_dag->access_analyzer.GetProducers(state, state->stages[stage_id]->op);
-  }
-
-  for (const auto& op : producers) {
-    ret.insert(OperationToStage(op, state));
-  }
-  return ret;
-}
-
-// Get all producers for a stage. This function DOES NOT propagates the relation for inlined ops.
-inline std::set<int> GetDirectProducers(const SearchTask& task, const State& state, int stage_id) {
-  std::unordered_set<te::Operation, ObjectHash, ObjectEqual> producers;
-  std::set<int> ret;
-
-  if (state->current_compute_dag) {
-    producers = state->current_compute_dag.as<ComputeDAGNode>()->access_analyzer.GetDirectProducers(
-        state->stages[stage_id]->op);
-  } else {
-    producers = task->compute_dag->access_analyzer.GetDirectProducers(state->stages[stage_id]->op);
-  }
-
-  for (const auto& op : producers) {
-    ret.insert(OperationToStage(op, state));
-  }
-  return ret;
-}
-
-// Get the number of common outer iterators
-// This function propagates the relation for chains with multiple ops.
-inline int GetNumCommonOuterIterator(const SearchTask& task, const State& state, int stage_id,
-                                     int target_stage_id) {
-  if (state->current_compute_dag) {
-    return state->current_compute_dag.as<ComputeDAGNode>()
-        ->access_analyzer.GetNumCommonOuterIterator(state->stages[stage_id]->op,
-                                                    state->stages[target_stage_id]->op);
-  } else {
-    return task->compute_dag->access_analyzer.GetNumCommonOuterIterator(
-        state->stages[stage_id]->op, state->stages[target_stage_id]->op);
-  }
-}
-
-// Return whether two ops are elementwise-matched
-inline bool ElementwiseMatch(const SearchTask& task, const State& state, int stage_id,
-                             int target_stage_id) {
-  const auto& op = state->stages[stage_id]->op;
-  const auto& target_op = state->stages[target_stage_id]->op;
-  if (state->current_compute_dag) {
-    return state->current_compute_dag.as<ComputeDAGNode>()->access_analyzer.ElementWiseMatch(
-        op, target_op);
-  } else {
-    return task->compute_dag->access_analyzer.ElementWiseMatch(op, target_op);
-  }
-}
-
-/********** Get informations from Stage/Iterator **********/
-
-// Return the extent of an iterator
-inline int64_t GetExtent(const Iterator& it) {
-  if (it->range.defined()) {
-    if (auto pint = it->range->extent.as<IntImmNode>()) {
-      return pint->value;
-    }
-  }
-  return -1;
-}
-
-// Compute the product of lengths of all space iters and all reduce iters, respectively
-inline std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLengh(const Stage& stage) {
-  int64_t cum_space_len = 1, cum_reduce_len = 1;
-  for (const auto& iter : stage->iters) {
-    if (iter->iter_kind == IteratorKind::kSpatial) {
-      cum_space_len *= GetExtent(iter);
-    } else if (iter->iter_kind == IteratorKind::kReduction) {
-      cum_reduce_len *= GetExtent(iter);
-    }
-  }
-  return std::make_pair(cum_space_len, cum_reduce_len);
-}
-
-// Return whether this stage needs rfactor
-inline bool NeedsRfactor(const SearchTask& task, const State& state, int stage_id) {
-  const auto& op = state->stages[stage_id]->op;
-  if (op->IsInstance<te::ComputeOpNode>()) {
-    // Compute the product of lengths of all space iters and all reduce iters
-    int cum_space_len, cum_reduce_len;
-    std::tie(cum_space_len, cum_reduce_len) =
-        GetCumulativeSpaceAndReductionLengh(state->stages[stage_id]);
-
-    if (NeedsMultilevelTiling(task, state, stage_id)) {
-      // Do not use rfactor if we have enough parallelism on space iters
-      if (cum_space_len > cum_reduce_len || cum_space_len > task->hardware_params->num_cores * 16) {
-        return false;
-      } else {
-        return true;
-      }
-    } else if (cum_reduce_len > 1) {
-      // Always try rfactor for reduction ops
-      return cum_reduce_len > task->hardware_params->num_cores;
-    }
-  }
-
-  return false;
-}
-
-// Return whether this stage needs rfactor
-inline bool NeedsCrossThreadReduction(const SearchTask& task, const State& state, int stage_id) {
-  const auto& op = state->stages[stage_id]->op;
-  if (op->IsInstance<te::ComputeOpNode>()) {
-    // Compute the product of lengths of all space iters and all reduce iters
-    int cum_space_len, cum_reduce_len;
-    std::tie(cum_space_len, cum_reduce_len) =
-        GetCumulativeSpaceAndReductionLengh(state->stages[stage_id]);
-
-    if (NeedsMultilevelTiling(task, state, stage_id)) {
-      // Do rfactor if we do not have enough parallelism on space iters
-      return cum_space_len < cum_reduce_len;
-    } else if (cum_reduce_len > 1) {
-      // Try rfactor for other reduction operators
-      return cum_reduce_len > task->hardware_params->warp_size;
-    }
-  }
-
-  return false;
-}
-
-// Return whether the stage has an attribute flag
-inline bool HasAttrsFlag(const State& state, int stage_id, const char* target) {
-  if (state->stages[stage_id]->op->attrs.count(target)) {
-    return GetStringParam(state->stages[stage_id]->op->attrs, target) == "True";
-  }
-  return false;
-}
-
-// Return whether the stage has reduce iterators
-inline bool HasReduceIter(const Stage& stage) {
-  for (const auto& iter : stage->iters) {
-    if (iter->iter_kind != IteratorKind::kSpatial) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Return whether the stage has specific annotated iterators
-inline bool HasAnnotatedIter(const Stage& stage, IteratorAnnotation type) {
-  for (const auto& iter : stage->iters) {
-    if (iter->annotation == type) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Return whether the stage has only one consumer and they are elementwise-matched
-inline bool HasSingleElementwiseMatchedConsumer(const SearchTask& task, const State& state,
-                                                int stage_id, int* target_stage_id = nullptr) {
-  // Temporal object to be used if the input pointer is nullptr
-  int temp_target_stage_id;
-  if (target_stage_id == nullptr) {
-    target_stage_id = &temp_target_stage_id;
-  }
-  const std::set<int>& consumers = GetConsumers(task, state, stage_id);
-  if (consumers.size() == 1) {
-    *target_stage_id = *consumers.begin();
-    if (ElementwiseMatch(task, state, stage_id, *target_stage_id) &&
-        (!(HasReduceIter(state->stages[stage_id]) &&
-           HasReduceIter(state->stages[*target_stage_id])))) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Return whether the state does cache_write for stage_id
-inline bool HasCacheWriteStage(const State& s, int stage_id) {
-  for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
-    if (auto ps = s->transform_steps[i].as<CacheWriteStepNode>()) {
-      if (stage_id == ps->stage_id) {
-        return true;
-      }
-    }
-
-    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
-        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
-        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
-      if (stage_id > s->transform_steps[i]->stage_id) {
-        stage_id--;
-      }
-    }
-  }
-  return false;
-}
-
-// Return whether the stage has been tiled already
-inline bool IsTiled(const Stage& stage) {
-  auto op = stage->op.as<te::ComputeOpNode>();
-  CHECK(op != nullptr);
-  return stage->iters.size() != op->axis.size() + op->reduce_axis.size();
-}
-
-// Extract primitive iterators from a nested fused or splitted iterator's name
-inline void ExtractOriginalIterators(const std::string& name, std::set<std::string>* rets) {
-  size_t last_pos = 0;
-  for (size_t i = 0; i < name.size(); ++i) {
-    if (name[i] == '@' || name[i] == '.') {  // '@' for fuse and '.' for split
-      if (!isdigit(name[last_pos]) && name[last_pos] != '@' && name[last_pos] != '.') {
-        rets->insert(name.substr(last_pos, i - last_pos));
-      }
-      last_pos = i + 1;
-    }
-  }
-
-  if (last_pos < name.size() && !isdigit(name[last_pos]) && name[last_pos] != '@' &&
-      name[last_pos] != '.') {
-    rets->insert(name.substr(last_pos, name.size() - last_pos));
-  }
-}
-
+/*! \brief Check if a stage has single consumer or all of its consumers share a common root, return
+ * the target consumer root or -1. */
 inline int GetSingleConsumerId(const SearchTask& task, const State& state, int stage_id) {
   const std::set<int>& consumers = GetConsumers(task, state, stage_id);
   if (consumers.empty()) {
@@ -422,7 +173,7 @@ inline int GetSingleConsumerId(const SearchTask& task, const State& state, int s
   if (consumers.size() == 1) {
     return *consumers.begin();
   } else {
-    // check all consumers share a common root
+    // Check all consumers share a common root
     int common_root_id = -1;
     bool mismatch = false;
     for (const auto& consumer_stage_id : consumers) {
@@ -449,7 +200,236 @@ inline int GetSingleConsumerId(const SearchTask& task, const State& state, int s
   }
 }
 
-// Fuse all reduction iterators
+/*! \brief Get all producers for a stage. This function propagates the relation for inlined ops. */
+inline std::set<int> GetProducers(const SearchTask& task, const State& state, int stage_id) {
+  std::unordered_set<te::Operation, ObjectHash, ObjectEqual> producers;
+  std::set<int> ret;
+
+  if (state->current_compute_dag) {
+    producers = state->current_compute_dag.as<ComputeDAGNode>()->access_analyzer.GetProducers(
+        state, state->stages[stage_id]->op);
+  } else {
+    producers = task->compute_dag->access_analyzer.GetProducers(state, state->stages[stage_id]->op);
+  }
+
+  for (const auto& op : producers) {
+    ret.insert(OperationToStage(op, state));
+  }
+  return ret;
+}
+
+/*! \brief Get all producers for a stage. This function DOES NOT propagates the relation for
+ * inlined ops. */
+inline std::set<int> GetDirectProducers(const SearchTask& task, const State& state, int stage_id) {
+  std::unordered_set<te::Operation, ObjectHash, ObjectEqual> producers;
+  std::set<int> ret;
+
+  if (state->current_compute_dag) {
+    producers = state->current_compute_dag.as<ComputeDAGNode>()->access_analyzer.GetDirectProducers(
+        state->stages[stage_id]->op);
+  } else {
+    producers = task->compute_dag->access_analyzer.GetDirectProducers(state->stages[stage_id]->op);
+  }
+
+  for (const auto& op : producers) {
+    ret.insert(OperationToStage(op, state));
+  }
+  return ret;
+}
+
+/*! \brief Get the number of common outer iterators. This function propagates the relation for
+ * chains with multiple ops. */
+inline int GetNumCommonOuterIterator(const SearchTask& task, const State& state, int stage_id,
+                                     int target_stage_id) {
+  if (state->current_compute_dag) {
+    return state->current_compute_dag.as<ComputeDAGNode>()
+        ->access_analyzer.GetNumCommonOuterIterator(state->stages[stage_id]->op,
+                                                    state->stages[target_stage_id]->op);
+  } else {
+    return task->compute_dag->access_analyzer.GetNumCommonOuterIterator(
+        state->stages[stage_id]->op, state->stages[target_stage_id]->op);
+  }
+}
+
+/*! \brief Return whether two ops are elementwise-matched. */
+inline bool ElementwiseMatch(const SearchTask& task, const State& state, int stage_id,
+                             int target_stage_id) {
+  const auto& op = state->stages[stage_id]->op;
+  const auto& target_op = state->stages[target_stage_id]->op;
+  if (state->current_compute_dag) {
+    return state->current_compute_dag.as<ComputeDAGNode>()->access_analyzer.ElementWiseMatch(
+        op, target_op);
+  } else {
+    return task->compute_dag->access_analyzer.ElementWiseMatch(op, target_op);
+  }
+}
+
+/********** Get informations from Stage/Iterator **********/
+
+/*! \brief Get axes that should not be splitted according to the attribute from tvm.compute. */
+inline std::pair<std::set<std::string>, std::set<std::string>> GetNoSplitAxisAttr(
+    const Stage& stage) {
+  std::pair<std::set<std::string>, std::set<std::string>> ret;
+  if (stage->op->attrs.count(SearchPolicyKey::Dict::no_split_at_inner)) {
+    ret.first = GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::Dict::no_split_at_inner);
+  }
+  if (stage->op->attrs.count(SearchPolicyKey::Dict::no_split_at_outer)) {
+    ret.second = GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::Dict::no_split_at_outer);
+  }
+  return ret;
+}
+
+/*! \brief Get axes whose last split is one according to the attribute from tvm.compute. */
+inline std::set<std::string> GetLastSplitIsOneAxisAttr(const Stage& stage) {
+  std::set<std::string> ret;
+  if (stage->op->attrs.count(SearchPolicyKey::Dict::last_split_is_one)) {
+    ret = GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::Dict::last_split_is_one);
+  }
+  return ret;
+}
+
+/*! \brief Return the extent of an iterator. */
+inline int64_t GetExtent(const Iterator& it) {
+  if (it->range.defined()) {
+    if (auto pint = it->range->extent.as<IntImmNode>()) {
+      return pint->value;
+    }
+  }
+  return -1;
+}
+
+/*! \brief Compute the product of lengths of all space iters and all reduce iters, respectively. */
+inline std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLengh(const Stage& stage) {
+  int64_t cum_space_len = 1, cum_reduce_len = 1;
+  for (const auto& iter : stage->iters) {
+    if (iter->iter_kind == IteratorKind::kSpatial) {
+      cum_space_len *= GetExtent(iter);
+    } else if (iter->iter_kind == IteratorKind::kReduction) {
+      cum_reduce_len *= GetExtent(iter);
+    }
+  }
+  return std::make_pair(cum_space_len, cum_reduce_len);
+}
+
+/*! \brief Return whether this stage needs rfactor. */
+inline bool NeedsRfactor(const SearchTask& task, const State& state, int stage_id) {
+  const auto& op = state->stages[stage_id]->op;
+  if (op->IsInstance<te::ComputeOpNode>()) {
+    // Compute the product of lengths of all space iters and all reduce iters
+    int cum_space_len, cum_reduce_len;
+    std::tie(cum_space_len, cum_reduce_len) =
+        GetCumulativeSpaceAndReductionLengh(state->stages[stage_id]);
+
+    if (NeedsMultilevelTiling(task, state, stage_id)) {
+      // Do not use rfactor if we have enough parallelism on space iters
+      if (cum_space_len > cum_reduce_len || cum_space_len > task->hardware_params->num_cores * 16) {
+        return false;
+      } else {
+        return true;
+      }
+    } else if (cum_reduce_len > 1) {
+      // Always try rfactor for reduction ops
+      return cum_reduce_len > task->hardware_params->num_cores;
+    }
+  }
+
+  return false;
+}
+
+/*! \brief Return whether the stage has an attribute flag. */
+inline bool HasAttrsFlag(const State& state, int stage_id, const char* target) {
+  if (state->stages[stage_id]->op->attrs.count(target)) {
+    return GetStringParam(state->stages[stage_id]->op->attrs, target) == "True";
+  }
+  return false;
+}
+
+/*! \brief Return whether the stage has reduce iterators. */
+inline bool HasReduceIter(const Stage& stage) {
+  for (const auto& iter : stage->iters) {
+    if (iter->iter_kind != IteratorKind::kSpatial) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/*! \brief Return whether the stage has specific annotated iterators. */
+inline bool HasAnnotatedIter(const Stage& stage, IteratorAnnotation type) {
+  for (const auto& iter : stage->iters) {
+    if (iter->annotation == type) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/*! \brief Return whether the stage has only one consumer and they are elementwise-matched. */
+inline bool HasSingleElementwiseMatchedConsumer(const SearchTask& task, const State& state,
+                                                int stage_id, int* target_stage_id = nullptr) {
+  // Temporal object to be used if the input pointer is nullptr
+  int temp_target_stage_id;
+  if (target_stage_id == nullptr) {
+    target_stage_id = &temp_target_stage_id;
+  }
+  const std::set<int>& consumers = GetConsumers(task, state, stage_id);
+  if (consumers.size() == 1) {
+    *target_stage_id = *consumers.begin();
+    if (ElementwiseMatch(task, state, stage_id, *target_stage_id) &&
+        (!(HasReduceIter(state->stages[stage_id]) &&
+           HasReduceIter(state->stages[*target_stage_id])))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/*! \brief Return whether the state does cache_write for stage_id. */
+inline bool HasCacheWriteStage(const State& s, int stage_id) {
+  for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
+    if (auto ps = s->transform_steps[i].as<CacheWriteStepNode>()) {
+      if (stage_id == ps->stage_id) {
+        return true;
+      }
+    }
+
+    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
+        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
+        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+      if (stage_id > s->transform_steps[i]->stage_id) {
+        stage_id--;
+      }
+    }
+  }
+  return false;
+}
+
+/*! \brief Return whether the stage has been tiled already. */
+inline bool IsTiled(const Stage& stage) {
+  auto op = stage->op.as<te::ComputeOpNode>();
+  CHECK(op != nullptr);
+  return stage->iters.size() != op->axis.size() + op->reduce_axis.size();
+}
+
+/*! \brief Extract primitive iterators from a nested fused or splitted iterator's name. */
+inline void ExtractOriginalIterators(const std::string& name, std::set<std::string>* rets) {
+  size_t last_pos = 0;
+  for (size_t i = 0; i < name.size(); ++i) {
+    if (name[i] == '@' || name[i] == '.') {  // '@' for fuse and '.' for split
+      if (!isdigit(name[last_pos]) && name[last_pos] != '@' && name[last_pos] != '.') {
+        rets->insert(name.substr(last_pos, i - last_pos));
+      }
+      last_pos = i + 1;
+    }
+  }
+
+  if (last_pos < name.size() && !isdigit(name[last_pos]) && name[last_pos] != '@' &&
+      name[last_pos] != '.') {
+    rets->insert(name.substr(last_pos, name.size() - last_pos));
+  }
+}
+
+/*! \brief Fuse all reduction iterators. */
 inline State FuseAllReductionIterators(const State& state, int stage_id, Iterator* fused_iter,
                                        Array<Iterator>* space_iters,
                                        Array<Iterator>* reduce_iters) {
@@ -474,7 +454,7 @@ inline State FuseAllReductionIterators(const State& state, int stage_id, Iterato
   return tmp_s;
 }
 
-// Random sample states
+/*! \brief Random sample states. */
 inline Array<State> RandomSampleStates(const Array<State>& in_states, std::mt19937* random_gen,
                                        size_t out_size) {
   Array<State> out_states;

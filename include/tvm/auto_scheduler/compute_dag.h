@@ -69,7 +69,7 @@ class AccessAnalyzerNode : public Object {
   /*! \brief Store whether the operation is strictly-inlineable
    * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations)
    */
-  OperationMap<bool> is_strict_inlineable;
+  OperationMap<bool> is_strictly_inlineable;
   /*! \brief Store whether the operation needs multi-level tiling
    * (e.g., computation-intensive ops with data reuse opportunity like matmul, conv2d) */
   OperationMap<bool> needs_multi_level_tiling;
@@ -102,7 +102,7 @@ class AccessAnalyzer : public ObjectRef {
    * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations)
    * \param op The operation
    */
-  TVM_DLL bool IsStrictInlineable(const te::Operation& op) const;
+  TVM_DLL bool IsStrictlyInlineable(const te::Operation& op) const;
 
   /*!
    * \brief Return whether this operation needs multi-level tiling
