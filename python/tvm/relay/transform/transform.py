@@ -277,7 +277,7 @@ def CombineParallelConv2D(min_num_branches=3):
     return _ffi_api.CombineParallelConv2D(min_num_branches)
 
 
-def CombineParallelDense(min_num_branches=3):
+def CombineParallelDense(min_num_branches=3, to_batch=True):
     """Combine multiple dense operators into one. For example:
 
     .. code-block
@@ -295,18 +295,30 @@ def CombineParallelDense(min_num_branches=3):
                 |
             batch_matmul+elemwise/bcast (2,2,2)
 
+    or (if to_batch=False)
+
+    .. code-block
+
+                data
+                |
+            dense+elemwise/bcast (2,2+2)
+
     Parameters
     ----------
     min_num_branches : int
         The minimum number of required parallel branches for performing this
         optimization.
 
+    to_batch_matmul : bool
+        If True, combine parallel dense ops into batch_matmul op.
+        If False, combine parallel dense ops into dense op.
+
     Returns
     -------
     ret: tvm.transform.Pass
         The registered pass that combines parallel dense operators.
     """
-    return _ffi_api.CombineParallelDense(min_num_branches)
+    return _ffi_api.CombineParallelDense(min_num_branches, to_batch)
 
 def CombineParallelBatchMatmul(min_num_branches=3):
     """Combine multiple batch matmul operators into one. For example:
@@ -340,6 +352,21 @@ def CombineParallelBatchMatmul(min_num_branches=3):
         The registered pass that combines parallel dense operators.
     """
     return _ffi_api.CombineParallelBatchMatmul(min_num_branches)
+
+
+def BatchingOps():
+    """Batching parallel operators into one for Conv2D, Dense and BatchMatmul.
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The sequential pass which apply batching for different operator types.
+    """
+    return tvm.transform.Sequential([
+        CombineParallelConv2D(),
+        CombineParallelDense(),
+        CombineParallelBatchMatmul()
+    ])
 
 
 def AlterOpLayout():
