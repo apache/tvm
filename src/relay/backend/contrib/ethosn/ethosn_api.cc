@@ -109,7 +109,7 @@ sl::CompilationOptions EthosnAPI::CreateOptions() {
     cfg = AttrsWithDefaultValues<EthosnCompilerConfig>();
   }
 
-  sl::CompilationOptions options(targets[cfg.value()->variant]);
+  sl::CompilationOptions options(variants[cfg.value()->variant]);
   options.m_Strategy0 = cfg.value()->strategy0;
   options.m_Strategy1 = cfg.value()->strategy1;
   options.m_Strategy3 = cfg.value()->strategy3;
