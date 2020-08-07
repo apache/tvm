@@ -76,6 +76,29 @@ pub fn function_pass<F: Fn(Function, IRModule, PassContext) -> Function + 'stati
     create_func_pass(func, pass_info)
 }
 
+/// A macro for generating the correct TVM symbols for plugin loading.
+///
+/// The expression passed to the macro will be run when TVM loads the
+/// shared library.
+///
+/// This is useful for calling register to register packed functions
+/// to consume via TVM's packed function APIs.
+#[macro_export]
+macro_rules! initialize {
+    ($body:expr) => {
+        #[no_mangle]
+        pub unsafe extern "C" fn initialize(
+            args: *mut tvm_sys::ffi::TVMValue,
+            type_codes: *mut c_int,
+            num_args: c_int,
+            ret: tvm_sys::ffi::TVMRetValueHandle,
+        ) -> c_int {
+            $body
+            return 0;
+        }
+    };
+}
+
 #[macro_export]
 macro_rules! export_pass {
     ($name:literal,$func:expr) => {
