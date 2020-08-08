@@ -533,12 +533,22 @@ struct Tokenizer {
         tokens() {}
 };
 
-std::vector<Token> Condense(const std::vector<Token>& tokens) {
+std::vector<Token> Condense(const std::vector<Token>& tokens, Token* table) {
   std::vector<Token> out;
+  bool found_metadata = false;
 
   for (size_t i = 0; i < tokens.size(); i++) {
     auto current = tokens.at(i);
     switch (current->token_type) {
+      case TokenType::kMetadata: {
+        if (!found_metadata) {
+          found_metadata = true;
+          *table = current;
+        } else {
+          LOG(FATAL) << "duplicate metadata section";
+        }
+        continue;
+      }
       case TokenType::kPercent: {
         auto next = tokens.at(i + 1);
         if (next->token_type == TokenType::kIdentifier) {
@@ -602,15 +612,16 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
   return out;
 }
 
-std::vector<Token> Tokenize(DiagnosticContext* ctx, const SourceName& source_name,
+std::pair<std::vector<Token>, Token> Tokenize(DiagnosticContext* ctx, const SourceName& source_name,
                             const std::string& source) {
   auto tokenizer = Tokenizer(ctx, source_name, source);
   tokenizer.Tokenize();
-  auto tokens = Condense(tokenizer.tokens);
+  Token meta_table(Span(), TokenType::kUnknown, ObjectRef());
+  auto tokens = Condense(tokenizer.tokens, &meta_table);
   for (auto token : tokens) {
     CHECK(token.defined());
   }
-  return tokens;
+  return { tokens, meta_table };
 }
 
 }  // namespace parser

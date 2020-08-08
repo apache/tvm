@@ -378,7 +378,12 @@ int64_t Token::ToNumber() const { return Downcast<tvm::Integer>(this->operator->
 std::string Token::ToString() const { return Downcast<tvm::String>(this->operator->()->data); }
 
 Map<String, Array<ObjectRef>> Token::ToMetadata() const {
-  return Downcast<Map<String, Array<ObjectRef>>>(this->operator->()->data);
+  ObjectRef data = this->operator->()->data;
+  if (data.defined()) {
+    return Downcast<Map<String, Array<ObjectRef>>>(data);
+  } else {
+    return Map<String, Array<ObjectRef>>({});
+  }
 }
 
 }  // namespace parser

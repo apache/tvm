@@ -234,9 +234,10 @@ def test_vars():
     assert op.name == "nn.global_avg_pool2d"
 
 def test_meta_ref():
-    meta_op = parse_text("meta[type_key][1337]")
-    assert meta_op.attrs.node_type_key == "type_key"
-    assert meta_op.attrs.node_index == 1337
+    with pytest.raises(tvm.error.DiagnosticError):
+        meta_op = parse_text("meta[type_key][1337]")
+        assert meta_op.attrs.node_type_key == "type_key"
+        assert meta_op.attrs.node_index == 1337
 
 
 def test_let():

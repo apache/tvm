@@ -517,9 +517,29 @@ class Parser {
     return Bracket(TokenType::kLCurly, TokenType::kRCurly, parser);
   }
 
-  Object ParseMetaRef() {
-    Consume(TokenType::kMetaReference);
-    LOG(FATAL) << "implement me";
+  ObjectRef ParseMetaRef() {
+    auto meta_ref = Match(TokenType::kMetaReference);
+    Call ref = Downcast<Call>(meta_ref->data);
+    auto attrs = ref->attrs.as<MetaRefAttrs>();
+    auto type_key = attrs->node_type_key;
+    auto index = attrs->node_index;
+    auto it = this->meta_table.find(type_key);
+    if (it != this->meta_table.end()) {
+      auto nodes = (*it).second;
+      if (index < nodes.size()) {
+        return nodes[index];
+      } else {
+        this->diag_ctx->Emit(
+          Diagnostic::Error(meta_ref->span)
+            << "the node index `" << index << "` is out of bounds for `" << type_key << "`");
+        return ObjectRef();
+      }
+    } else {
+        this->diag_ctx->Emit(
+          Diagnostic::Error(meta_ref->span)
+            << "no entry in the meta table for `" << type_key << "`");
+        return ObjectRef();
+    }
   }
   /*! \brief Parses a sequence beginning with a start token, seperated by a seperator token, and
    * ending with a stop token.
@@ -607,8 +627,7 @@ class Parser {
     auto mod = IRModule({}, types);
 
     for (auto func : defs.funcs) {
-      auto function = ExpandMetaRefs(metadata, func.function);
-      mod->Add(func.global, function);
+      mod->Add(func.global, func.function);
     }
 
     return mod;
@@ -801,8 +820,14 @@ class Parser {
           case TokenType::kFreeVar: {
             Consume(TokenType::kFreeVar);
             auto var_token = Match(TokenType::kLocal);
-            Match(TokenType::kColon);
-            auto type = ParseType();
+
+            Type type;
+            if (WhenMatch(TokenType::kColon)) {
+              type = ParseType();
+            } else {
+              type = IncompleteType();
+            }
+
             BindFreeVar(var_token.ToString(), type);
             break;
           }
@@ -950,7 +975,7 @@ class Parser {
 
   /*! Parse a function definition without a leading keyword or identifier.
    *
-   * Handles things of the form [T1, ..., TN](arg1: U1, ..., argN, UN) -> Ret { body }.
+   * Handles things of the form [T1, ..., TN](arg1: U1, ..., argN : UN) -> Ret { body }.
    */
   Function ParseFunctionDef() {
     DLOG(INFO) << "Parser::ParseFunctionDef";
@@ -968,6 +993,8 @@ class Parser {
           });
     }
 
+    Map<String, ObjectRef> raw_attrs;
+
     auto params =
         ParseSequence<Var>(TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen, [&]() {
           auto token = Match(TokenType::kLocal);
@@ -977,6 +1004,16 @@ class Parser {
             type = ParseType();
           }
           return BindVar(string, type);
+        }, [&] {
+              auto is_ident = Lookahead(1)->token_type == TokenType::kIdentifier;
+              auto next_is_equal = Lookahead(2)->token_type == TokenType::kEqual;
+
+              if (is_ident && next_is_equal) {
+                raw_attrs = ParseAttrs();
+                return true;
+              }
+
+              return false;
         });
 
     Type ret_type;
@@ -990,7 +1027,12 @@ class Parser {
     PopTypeScopes(1);
     PopScopes(1);
 
-    return relay::Function(params, body, ret_type, generics);
+    // TODO(@jroesch): attributes should never be null, they should always be empty.
+    if (raw_attrs.size()) {
+      return relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+    } else {
+      return relay::Function(params, body, ret_type, generics);
+    }
   }
 
   /*! \brief Parse an if-expression. */
@@ -1170,6 +1212,22 @@ class Parser {
         return ParseSequence<ObjectRef>(TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare,
                                         [&]() { return ParseAttributeValue(); });
       }
+      case TokenType::kOpenParen: {
+        // TODO(@jroesch: need to figure out bracket vs. sequence)
+        // return ParseSequence<ObjectRef>(TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen,
+        //                                 [&]() { return ParseAttributeValue(); });
+        return Bracket<ObjectRef>(TokenType::kOpenParen, TokenType::kCloseParen, [&]() { return ParseAttributeValue(); });
+      }
+      // TODO(@jroesch): not sure about this being the right way to handle nulls.
+      case TokenType::kIdentifier: {
+        if (auto text = next->data.as<tvm::StringObj>()) {
+          std::string id = GetRef<String>(text);
+          if (id == "nullptr") {
+            Match(TokenType::kIdentifier);
+            return ObjectRef();
+          }
+        }
+      }
       default:
         return ParseAtomicExpr();
     }
@@ -1278,6 +1336,7 @@ class Parser {
   }
 
   Expr GetOp(const std::string& op_name, const Token& tok) {
+    DLOG(INFO) << "op_name=" << op_name << " token=" << tok;
     try {
       return Op::Get(op_name);
     } catch (dmlc::Error e) {
@@ -1335,6 +1394,7 @@ class Parser {
             return Expr(ctor.value());
           } else {
             auto idents = ParseHierName();
+            CHECK_NE(idents.size(), 0);
             std::stringstream op_name;
             int i = 0;
             int periods = idents.size() - 1;
@@ -1354,8 +1414,6 @@ class Parser {
         }
         case TokenType::kMetaReference: {
           return Downcast<Expr>(ParseMetaRef());
-          Consume(TokenType::kMetaReference);
-          return Downcast<Expr>(next->data);
         }
         case TokenType::kFn: {
           Consume(TokenType::kFn);
@@ -1408,7 +1466,8 @@ class Parser {
   Array<String> ParseHierName() {
     Array<String> idents;
     while (Peek()->token_type == TokenType::kIdentifier) {
-      idents.push_back(Peek().ToString());
+      auto name = Peek().ToString();
+      idents.push_back(name);
       Consume(TokenType::kIdentifier);
 
       if (Peek()->token_type == TokenType::kPeriod) {
@@ -1426,8 +1485,14 @@ class Parser {
   Array<tvm::PrimExpr> ParseShape() {
     auto dims = ParseSequence<tvm::PrimExpr>(TokenType::kOpenParen, TokenType::kComma,
                                              TokenType::kCloseParen, [&]() {
-                                               auto tok = Match(TokenType::kInteger);
-                                               return Downcast<tvm::PrimExpr>(tok->data);
+                                               tvm::PrimExpr dim;
+                                               if (Peek()->token_type == TokenType::kMetaReference) {
+                                                 dim = Downcast<tvm::PrimExpr>(ParseMetaRef());
+                                               } else {
+                                                dim = Downcast<tvm::PrimExpr>(Match(TokenType::kInteger)->data);
+                                               }
+
+                                               return dim;
                                              });
     return dims;
   }
@@ -1565,10 +1630,12 @@ class Parser {
 IRModule ParseModule(std::string file_name, std::string file_content) {
   DLOG(INFO) << "ParseModule";
   SourceName src_name = SourceName::Get(file_name);
-  Source src(file_content);
+  Source src(src_name, file_content);
   DiagnosticContext ctx(src);
-  auto tokens = Tokenize(&ctx, src_name, file_content);
-  Parser parser(&ctx, src_name, tokens, DefaultOpTable(), Source(file_content));
+  auto tokens_and_table = Tokenize(&ctx, src_name, file_content);
+  auto tokens = tokens_and_table.first;
+  auto meta_data_table = tokens_and_table.second;
+  Parser parser(&ctx, src_name, tokens, DefaultOpTable(), src, meta_data_table.ToMetadata());
   auto mod = parser.ParseModule();
   // NB(@jroesch): it is very important that we render any errors before we procede
   // if there were any errors which allow the parser to procede we must render them
@@ -1580,10 +1647,12 @@ IRModule ParseModule(std::string file_name, std::string file_content) {
 Expr ParseExpr(std::string file_name, std::string file_content) {
   DLOG(INFO) << "ParseExpr";
   SourceName src_name = SourceName::Get(file_name);
-  Source src(file_content);
+  Source src(src_name, file_content);
   DiagnosticContext ctx(src);
-  auto tokens = Tokenize(&ctx, src_name, file_content);
-  Parser parser(&ctx, src_name, tokens, DefaultOpTable(), Source(file_content));
+  auto tokens_and_table = Tokenize(&ctx, src_name, file_content);
+  auto tokens = tokens_and_table.first;
+  auto meta_data_table = tokens_and_table.second;
+  Parser parser(&ctx, src_name, tokens, DefaultOpTable(), src, meta_data_table.ToMetadata());
   parser.ParseSemVer(false);
   parser.PushScope();
   auto expr = parser.ParseExpr();
