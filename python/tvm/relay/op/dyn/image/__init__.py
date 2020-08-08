@@ -15,10 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
-"""The Relay namespace containing dynamic ops."""
+"""The Relay namespace containing dynamic image ops."""
 
-from . import _algorithm
-from . import _transform
-from . import _tensor
-
-from .import image
+from . import _image
