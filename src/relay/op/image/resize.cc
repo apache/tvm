@@ -25,6 +25,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
 
+#include "../make_op.h"
 #include "../op_common.h"
 
 namespace tvm {
