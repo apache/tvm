@@ -17,5 +17,4 @@
 """Hybrid Script APIs of TVM Python Package, aimed to support TIR"""
 
 from .utils import create_module, ashybrid, script
-from .registry import register_intrin as register
-from .parser import source_to_op as from_source
+from .parser import from_source

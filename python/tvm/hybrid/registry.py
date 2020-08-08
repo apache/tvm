@@ -187,19 +187,13 @@ def register_intrin(origin_func):
     return origin_func
 
 
-def register_scope_handler(scope, concise=False):
-    """Decorator to register function under scope handler
+def register_with_scope(concise=False):
+    """Decorator to register function under with scope handler
 
     Parameters
     ----------
-    scope: Category
-        scope handler are first classified into 2 categories:
-            with scope handler(scope = Category.with_scope)
-            and for scope handler(scope = Category.for_scope)
-
     concise: bool
-        whether this scope handler is allowed in concise scoping (note that this only works for
-        with scope handlers)
+        whether this scope handler is allowed in concise scoping
 
     Example
     ------
@@ -213,8 +207,19 @@ def register_scope_handler(scope, concise=False):
 
     def decorate(origin_func):
         """Register function under category with_scope or for_scope"""
-        register_func(scope, origin_func,
+        register_func(Category.WITH_SCOPE, origin_func,
                       need_parser_and_node=True, need_body=True, concise=concise)
+        return origin_func
+
+    return decorate
+
+
+def register_for_scope():
+    """Decorator to register function under for scope handler"""
+    def decorate(origin_func):
+        """Register function under category with_scope or for_scope"""
+        register_func(Category.FOR_SCOPE, origin_func,
+                      need_parser_and_node=True, need_body=True, concise=False)
         return origin_func
 
     return decorate
@@ -235,6 +240,7 @@ def register_special_stmt(origin_func):
         return buffer
 
     """
+
     register_func(Category.SPECIAL_STMT, origin_func,
                   need_parser_and_node=True, need_body=False, concise=False)
     return origin_func

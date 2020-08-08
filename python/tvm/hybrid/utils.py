@@ -20,7 +20,7 @@ import inspect
 from tvm import IRModule
 
 from . import _ffi_api
-from .parser import source_to_op
+from .parser import from_source
 
 
 def create_module(functions=None):
@@ -29,26 +29,25 @@ def create_module(functions=None):
     Parameters
     -----------
     functions: Optional[dict].
-        Map of global var or str to PrimFunc or HybridFunction
+        Map of GlobalVar or str to PrimFunc
 
     Returns
     -------
     mod : IRModule
-        A IRModule containing the passed definitions
+        An IRModule containing the passed definitions
     """
 
-    functions = {key: _parse(func) if isinstance(func, HybridFunction) else func
-                 for key, func in functions.items()}
+    functions = {key: func for key, func in functions.items()}
     return IRModule(functions=functions)
 
 
 def ashybrid(input_ir, show_meta=False):
-    """Transform a Function or Module to python syntax script
+    """Transform a PrimFunc or IRModule to python syntax script
 
     Parameters
     ----------
-    input_ir : Union[Function, Module, HybridFunction]
-        The Function or Module to be dumped
+    input_ir : Union[PrimFunc, IRModule]
+        The PrimFunc or IRModule to be dumped
 
     show_meta : bool
         Whether show meta
@@ -59,13 +58,10 @@ def ashybrid(input_ir, show_meta=False):
         The Python script
     """
 
-    if isinstance(input_ir, HybridFunction):
-        # transform HybridFunction to Function
-        input_ir = _parse(input_ir)
     return _ffi_api.AsHybrid(input_ir, show_meta)
 
 
-def script(origin_script):
+def script(script_in):
     """Decorate a python function or class as hybrid script.
 
     The hybrid function or parsing support parsing to the internal TIR.
@@ -76,11 +72,11 @@ def script(origin_script):
         The Function or Module in IR.
     """
 
-    if inspect.isfunction(origin_script):
-        return HybridFunction(origin_script)
+    if inspect.isfunction(script_in):
+        return _parse(script_in)
 
-    if inspect.isclass(origin_script):
-        return HybridClass(origin_script)
+    if inspect.isclass(script_in):
+        return HybridClass(script_in)
 
     raise TypeError("Only function and class are supported")
 
@@ -88,22 +84,14 @@ def script(origin_script):
 class HybridClass:
     """Helper class for decorating a class"""
 
-    def __init__(self, origin_script):
-        self.origin_script = origin_script
+    def __init__(self, script_in):
+        self.script = script_in
 
     def __call__(self, *args, **kwargs):
         # call the parser to transform hybrid script into TIR
-        return _parse(self)
+        return _parse(self.script)
 
 
-class HybridFunction:
-    """Helper class for decorating a function"""
-
-    def __init__(self, origin_script):
-        self.origin_script = origin_script
-
-
-def _parse(hybrid_script):
+def _parse(script_in):
     """Helper function to parse hybrid_script into TIR"""
-    return source_to_op(inspect.getsource(hybrid_script.origin_script),
-                        inspect.getsourcelines(hybrid_script.origin_script)[1])
+    return from_source(inspect.getsource(script_in), inspect.getsourcelines(script_in)[1])

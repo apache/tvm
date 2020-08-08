@@ -220,7 +220,7 @@ class HybridParser(ast.NodeVisitor):
             # call hybrid parser when call this function, get a Function
             func = A
 
-        2. Generate a Module
+        2. Generate an IRModule
         .. code-block:: python
 
             import tvm
@@ -235,8 +235,8 @@ class HybridParser(ast.NodeVisitor):
 
                 __tvm_meta__ = ...
 
-            # call hybrid parser during construction, get a Module
-            mod = MyMod
+            # call hybrid parser during construction, get an IRModule
+            mod = MyMod()
         """
 
         if len(node.body) == 1 and isinstance(node.body[0], (ast.ClassDef, ast.FunctionDef)):
@@ -395,7 +395,7 @@ class HybridParser(ast.NodeVisitor):
         kw_args = [self.visit(keyword) for keyword in node.iter.keywords]
         kw_args = {kw_arg[0]: kw_arg[1] for kw_arg in kw_args}
         # All the functions supported in For stmt are registered in scope_handler.ForScope
-        if func_name not in Registry.for_scope.keys():
+        if func_name not in Registry.for_scope:
             self.report_error("Function " + func_name + " used in For stmt is not supported now",
                               self.current_lineno,
                               node.iter.col_offset)
@@ -431,7 +431,7 @@ class HybridParser(ast.NodeVisitor):
         args = [self.visit(arg) for arg in func_call.args]
         kw_args = [self.visit(keyword) for keyword in func_call.keywords]
         kw_args = {kw_arg[0]: kw_arg[1] for kw_arg in kw_args}
-        if func_name not in Registry.with_scope.keys():
+        if func_name not in Registry.with_scope:
             self.report_error("Function " + func_name + " used in With stmt is not supported now")
 
         # All the functions supported in With stmt are registered in scope_handler.WithScope
@@ -487,11 +487,11 @@ class HybridParser(ast.NodeVisitor):
         else:
             self.report_error("Unsupported function call")
 
-        if func_name in Registry.special_stmt.keys():
+        if func_name in Registry.special_stmt:
             return Registry.special_stmt.get(func_name)(self, node, args, kw_args)
-        if func_name in Registry.intrin.keys():
+        if func_name in Registry.intrin:
             return Registry.intrin.get(func_name)(self, node, args, kw_args)
-        if func_name in Registry.with_scope.keys():
+        if func_name in Registry.with_scope:
             return Registry.with_scope.get(func_name)(self, node, args, kw_args)
         if maybe_intrin:
             return tvm.tir.Call(kw_args["dtype"], tvm.ir.op.Op.get("tir." + func_name), args)
@@ -716,7 +716,7 @@ class HybridParser(ast.NodeVisitor):
         return node.s
 
 
-def source_to_op(src, func_lineno=0):
+def from_source(src, func_lineno=0):
     """ Another level of wrapper
     Parameters
     ----------
@@ -726,8 +726,8 @@ def source_to_op(src, func_lineno=0):
         The line number of the first line of the script to be parsed
     Returns
     -------
-    functions : PrimFunc or Module
-        The PrimFunc or Module in IR.
+    functions : PrimFunc or IRModule
+        The PrimFunc or IRModule in IR.
     """
 
     root = ast.parse(src)

@@ -28,27 +28,26 @@ Scope handler nodes are StmtNodes with body, which are used to handle such scena
 """
 # pylint: disable=redefined-builtin, unused-argument, invalid-name
 import tvm.tir
-from .registry import register_scope_handler
-from .registry import Category
+from .registry import register_with_scope, register_for_scope
 
 # With scope handler
 
 
-@register_scope_handler(Category.WITH_SCOPE, concise=False)
+@register_with_scope(concise=False)
 def Assert(parser, node, condition, message, body):
     """ With scope handler function assert(condition, message, body) """
 
     return tvm.tir.AssertStmt(condition, tvm.runtime.convert(message), body)
 
 
-@register_scope_handler(Category.WITH_SCOPE, concise=False)
+@register_with_scope(concise=False)
 def let(parser, node, var, value, body):
     """ With scope handler function let(var, value, body) """
 
     return tvm.tir.LetStmt(var, value, body)
 
 
-@register_scope_handler(Category.WITH_SCOPE, concise=True)
+@register_with_scope(concise=True)
 def realize(parser, node, buffer_bounds, body, condition=True):
     """ With scope handler function realize(buffer_bounds, condition, body) """
 
@@ -56,14 +55,14 @@ def realize(parser, node, buffer_bounds, body, condition=True):
     return tvm.tir.BufferRealize(buffer, bounds, condition, body)
 
 
-@register_scope_handler(Category.WITH_SCOPE, concise=True)
+@register_with_scope(concise=True)
 def attr(parser, node, attr_node, attr_key, value, body):
     """ With scope handler function attr(attr_node, attr_key, value, body) """
 
     return tvm.tir.AttrStmt(attr_node, attr_key, tvm.runtime.convert(value), body)
 
 
-@register_scope_handler(Category.WITH_SCOPE, concise=True)
+@register_with_scope(concise=True)
 def allocate(parser, node, buffer_var, dtype, extents, body, condition=True):
     """ With scope handler function allocate(buffer_var, dtype, extents, condition, body) """
 
@@ -73,7 +72,7 @@ def allocate(parser, node, buffer_var, dtype, extents, body, condition=True):
 # For scope handler
 
 
-@register_scope_handler(Category.FOR_SCOPE)
+@register_for_scope()
 def range(parser, node, begin, end, for_type="serial"):
     """ For scope handler function range(begin, end, annotation)"""
     ana = tvm.arith.Analyzer()
@@ -87,5 +86,7 @@ def range(parser, node, begin, end, for_type="serial"):
     body = parser.get_body()
     parser.scope_emitter.pop_scope()
 
-    for_type_dict = {"serial": 0, "parallel": 1, "vectorized": 2, "unroll": 3, }
+    for_type_dict = {"serial": 0, "parallel": 1, "vectorized": 2, "unroll": 3}
+    if for_type not in for_type_dict:
+        parser.report_error("unknown for type " + for_type)
     return tvm.tir.For(loop_var, begin, extent, for_type_dict[for_type], 0, body)
