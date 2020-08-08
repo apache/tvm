@@ -717,7 +717,8 @@ class HybridParser(ast.NodeVisitor):
 
 
 def from_source(src, func_lineno=0):
-    """ Another level of wrapper
+    """ Parse the src into TIR
+
     Parameters
     ----------
     src : str
