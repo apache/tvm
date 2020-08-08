@@ -55,7 +55,8 @@ struct Source {
   /*! \brief Construct a source from a string. */
   TVM_DLL explicit Source(const SourceName& src_name, const std::string& source);
 
-  TVM_DLL Source(const Source& source) : source_name(source.source_name), source(source.source), line_map(source.line_map) {}
+  TVM_DLL Source(const Source& source)
+      : source_name(source.source_name), source(source.source), line_map(source.line_map) {}
 
   /*! \brief Generate an error message at a specific line and column with the
    * annotated message.

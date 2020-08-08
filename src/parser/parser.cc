@@ -125,9 +125,7 @@ class ScopeStack {
     this->scope_stack.back().name_map.insert({name, value});
   }
 
-  void AddFreeVar(const std::string& name, const T& value) {
-    free_vars.insert({name, value});
-  }
+  void AddFreeVar(const std::string& name, const T& value) { free_vars.insert({name, value}); }
 
   /*! \brief Looks up a variable name in the scope stack returning the matching variable
    * in most recent scope. */
@@ -416,8 +414,8 @@ class Parser {
   Var LookupLocal(const Token& local) {
     auto var = this->expr_scopes.Lookup(local.ToString());
     if (!var.defined()) {
-      diag_ctx->Emit(Diagnostic::Error(local->span) <<
-                      "this local variable has not been previously declared");
+      diag_ctx->Emit(Diagnostic::Error(local->span)
+                     << "this local variable has not been previously declared");
     }
     return var;
   }
@@ -429,8 +427,9 @@ class Parser {
   TypeVar LookupTypeVar(const Token& ident) {
     auto var = this->type_scopes.Lookup(ident.ToString());
     if (!var.defined()) {
-      diag_ctx->Emit(Diagnostic::Error(ident->span)
-           << "this type variable has not been previously declared anywhere, perhaps a typo?");
+      diag_ctx->Emit(
+          Diagnostic::Error(ident->span)
+          << "this type variable has not been previously declared anywhere, perhaps a typo?");
     }
     return var;
   }
@@ -529,16 +528,15 @@ class Parser {
       if (index < nodes.size()) {
         return nodes[index];
       } else {
-        this->diag_ctx->Emit(
-          Diagnostic::Error(meta_ref->span)
-            << "the node index `" << index << "` is out of bounds for `" << type_key << "`");
+        this->diag_ctx->Emit(Diagnostic::Error(meta_ref->span)
+                             << "the node index `" << index << "` is out of bounds for `"
+                             << type_key << "`");
         return ObjectRef();
       }
     } else {
-        this->diag_ctx->Emit(
-          Diagnostic::Error(meta_ref->span)
-            << "no entry in the meta table for `" << type_key << "`");
-        return ObjectRef();
+      this->diag_ctx->Emit(Diagnostic::Error(meta_ref->span)
+                           << "no entry in the meta table for `" << type_key << "`");
+      return ObjectRef();
     }
   }
   /*! \brief Parses a sequence beginning with a start token, seperated by a seperator token, and
@@ -555,7 +553,8 @@ class Parser {
   template <typename T>
   Array<T> ParseSequence(TokenType start, TokenType sep, TokenType stop, std::function<T()> parse,
                          std::function<bool()> before_stop = nullptr) {
-    DLOG(INFO) << "Parser::ParseSequence: start=" << ToString(start) << "sep=" << ToString(sep) << "stop=" << ToString(stop);
+    DLOG(INFO) << "Parser::ParseSequence: start=" << ToString(start) << "sep=" << ToString(sep)
+               << "stop=" << ToString(stop);
     Match(start);
 
     // This is for the empty arguments list case, if we have <start> <leftovers> <stop> token stream
@@ -717,8 +716,8 @@ class Parser {
       // If we have generics we need to add a type scope.
       PushTypeScope();
       should_pop = true;
-      generics =
-          ParseSequence<TypeVar>(TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare, [&]() {
+      generics = ParseSequence<TypeVar>(
+          TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare, [&]() {
             auto type_var_name = Match(TokenType::kIdentifier).ToString();
             return BindTypeVar(type_var_name, TypeKind::kType);
           });
@@ -739,8 +738,8 @@ class Parser {
               ctor = tvm::Constructor(ctor_name, {}, type_global);
             } else {
               auto arg_types =
-                  ParseSequence<Type>(TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen,
-                                      [&]() { return ParseType(); });
+                  ParseSequence<Type>(TokenType::kOpenParen, TokenType::kComma,
+                                      TokenType::kCloseParen, [&]() { return ParseType(); });
               ctor = tvm::Constructor(ctor_name, arg_types, type_global);
             }
 
@@ -986,8 +985,8 @@ class Parser {
     if (Peek()->token_type == TokenType::kLSquare) {
       // If we have generics we need to add a type scope.
       PushTypeScope();
-      generics =
-          ParseSequence<TypeVar>(TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare, [&]() {
+      generics = ParseSequence<TypeVar>(
+          TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare, [&]() {
             auto type_var_name = Match(TokenType::kIdentifier).ToString();
             return BindTypeVar(type_var_name, TypeKind::kType);
           });
@@ -995,8 +994,9 @@ class Parser {
 
     Map<String, ObjectRef> raw_attrs;
 
-    auto params =
-        ParseSequence<Var>(TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen, [&]() {
+    auto params = ParseSequence<Var>(
+        TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen,
+        [&]() {
           auto token = Match(TokenType::kLocal);
           auto string = token.ToString();
           Type type;
@@ -1004,16 +1004,17 @@ class Parser {
             type = ParseType();
           }
           return BindVar(string, type);
-        }, [&] {
-              auto is_ident = Lookahead(1)->token_type == TokenType::kIdentifier;
-              auto next_is_equal = Lookahead(2)->token_type == TokenType::kEqual;
+        },
+        [&] {
+          auto is_ident = Lookahead(1)->token_type == TokenType::kIdentifier;
+          auto next_is_equal = Lookahead(2)->token_type == TokenType::kEqual;
 
-              if (is_ident && next_is_equal) {
-                raw_attrs = ParseAttrs();
-                return true;
-              }
+          if (is_ident && next_is_equal) {
+            raw_attrs = ParseAttrs();
+            return true;
+          }
 
-              return false;
+          return false;
         });
 
     Type ret_type;
@@ -1214,9 +1215,11 @@ class Parser {
       }
       case TokenType::kOpenParen: {
         // TODO(@jroesch: need to figure out bracket vs. sequence)
-        // return ParseSequence<ObjectRef>(TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen,
+        // return ParseSequence<ObjectRef>(TokenType::kOpenParen, TokenType::kComma,
+        // TokenType::kCloseParen,
         //                                 [&]() { return ParseAttributeValue(); });
-        return Bracket<ObjectRef>(TokenType::kOpenParen, TokenType::kCloseParen, [&]() { return ParseAttributeValue(); });
+        return Bracket<ObjectRef>(TokenType::kOpenParen, TokenType::kCloseParen,
+                                  [&]() { return ParseAttributeValue(); });
       }
       // TODO(@jroesch): not sure about this being the right way to handle nulls.
       case TokenType::kIdentifier: {
@@ -1241,7 +1244,8 @@ class Parser {
       Match(TokenType::kEqual);
       // TOOD(@jroesch): syntactically what do we allow to appear in attribute right hand side.
       auto value = ParseAttributeValue();
-      // TODO(@jroesch): we need a robust way to handle this writing dtypes as strings in text format is bad.
+      // TODO(@jroesch): we need a robust way to handle this writing dtypes as strings in text
+      // format is bad.
       kwargs.Set(key, value);
       WhenMatch(TokenType::kComma);
     }
@@ -1280,9 +1284,9 @@ class Parser {
         Attrs attrs;
 
         if (is_op && op_key.size()) {
-            auto attr_obj = tvm::ReflectionVTable::Global()->CreateObject(op_key, raw_attrs);
-            CHECK(attr_obj.defined());
-            attrs = Downcast<Attrs>(attr_obj);
+          auto attr_obj = tvm::ReflectionVTable::Global()->CreateObject(op_key, raw_attrs);
+          CHECK(attr_obj.defined());
+          attrs = Downcast<Attrs>(attr_obj);
         }
 
         return Expr(Call(op, args, attrs, {}));
@@ -1290,10 +1294,9 @@ class Parser {
         return Expr();
       }
     } catch (...) {
-       // TODO(@jroesch): AttrErrors should have fields
-            this->diag_ctx->Emit(
-              Diagnostic::Error(Peek()->span));
-                // << err.what());
+      // TODO(@jroesch): AttrErrors should have fields
+      this->diag_ctx->Emit(Diagnostic::Error(Peek()->span));
+      // << err.what());
     }
 
     return Expr();
@@ -1317,10 +1320,9 @@ class Parser {
             break;
           }
         } catch (...) {
-       // TODO(@jroesch): AttrErrors should have fields
-            this->diag_ctx->EmitFatal(
-              Diagnostic::Error(Peek()->span));
-                // << err.what());
+          // TODO(@jroesch): AttrErrors should have fields
+          this->diag_ctx->EmitFatal(Diagnostic::Error(Peek()->span));
+          // << err.what());
         }
       }
 
@@ -1483,17 +1485,17 @@ class Parser {
 
   /*! \brief Parse a shape. */
   Array<tvm::PrimExpr> ParseShape() {
-    auto dims = ParseSequence<tvm::PrimExpr>(TokenType::kOpenParen, TokenType::kComma,
-                                             TokenType::kCloseParen, [&]() {
-                                               tvm::PrimExpr dim;
-                                               if (Peek()->token_type == TokenType::kMetaReference) {
-                                                 dim = Downcast<tvm::PrimExpr>(ParseMetaRef());
-                                               } else {
-                                                dim = Downcast<tvm::PrimExpr>(Match(TokenType::kInteger)->data);
-                                               }
+    auto dims = ParseSequence<tvm::PrimExpr>(
+        TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen, [&]() {
+          tvm::PrimExpr dim;
+          if (Peek()->token_type == TokenType::kMetaReference) {
+            dim = Downcast<tvm::PrimExpr>(ParseMetaRef());
+          } else {
+            dim = Downcast<tvm::PrimExpr>(Match(TokenType::kInteger)->data);
+          }
 
-                                               return dim;
-                                             });
+          return dim;
+        });
     return dims;
   }
 

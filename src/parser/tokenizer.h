@@ -66,9 +66,11 @@ bool IsIdentLetter(char c) { return '_' == c || ('a' <= c && c <= 'z') || ('A' <
 bool IsIdent(char c) { return IsIdentLetter(c) || IsDigit(c); }
 
 static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
-    {"let", TokenType::kLet},     {"fn", TokenType::kFn},        {"def", TokenType::kDefn},
-    {"if", TokenType::kIf},       {"else", TokenType::kElse},    {"type", TokenType::kTypeDef},
-    {"match", TokenType::kMatch}, {"extern", TokenType::kExtern}, {"free_var", TokenType::kFreeVar}};
+    {"let", TokenType::kLet},         {"fn", TokenType::kFn},
+    {"def", TokenType::kDefn},        {"if", TokenType::kIf},
+    {"else", TokenType::kElse},       {"type", TokenType::kTypeDef},
+    {"match", TokenType::kMatch},     {"extern", TokenType::kExtern},
+    {"free_var", TokenType::kFreeVar}};
 
 struct Tokenizer {
   DiagnosticContext* diag_ctx;
@@ -613,7 +615,7 @@ std::vector<Token> Condense(const std::vector<Token>& tokens, Token* table) {
 }
 
 std::pair<std::vector<Token>, Token> Tokenize(DiagnosticContext* ctx, const SourceName& source_name,
-                            const std::string& source) {
+                                              const std::string& source) {
   auto tokenizer = Tokenizer(ctx, source_name, source);
   tokenizer.Tokenize();
   Token meta_table(Span(), TokenType::kUnknown, ObjectRef());
@@ -621,7 +623,7 @@ std::pair<std::vector<Token>, Token> Tokenize(DiagnosticContext* ctx, const Sour
   for (auto token : tokens) {
     CHECK(token.defined());
   }
-  return { tokens, meta_table };
+  return {tokens, meta_table};
 }
 
 }  // namespace parser

@@ -81,14 +81,15 @@ Span Span::Merge(const Span& other) {
 
 TVM_REGISTER_NODE_TYPE(SpanNode);
 
-TVM_REGISTER_GLOBAL("ir.Span").set_body_typed([](SourceName source, int line, int end_line, int column,
-                                                 int end_column) {
+TVM_REGISTER_GLOBAL("ir.Span").set_body_typed([](SourceName source, int line, int end_line,
+                                                 int column, int end_column) {
   return Span(source, line, end_line, column, end_column);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<SpanNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const SpanNode*>(ref.get());
-      p->stream << "Span(" << node->source << ", " << node->line << ", " << node->end_line << ", " << node->column << ", " << node->end_column << ")";
+      p->stream << "Span(" << node->source << ", " << node->line << ", " << node->end_line << ", "
+                << node->column << ", " << node->end_column << ")";
     });
 }  // namespace tvm

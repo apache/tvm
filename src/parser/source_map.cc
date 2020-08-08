@@ -27,7 +27,8 @@ namespace tvm {
 namespace parser {
 
 /*! \brief Construct a source from a string. */
-Source::Source(const SourceName& src_name, const std::string& source) : source_name(src_name), source(source) {
+Source::Source(const SourceName& src_name, const std::string& source)
+    : source_name(src_name), source(source) {
   int index = 0;
   int length = 0;
   line_map.push_back({index, length});
