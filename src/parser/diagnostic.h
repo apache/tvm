@@ -44,12 +44,12 @@ namespace tvm {
 namespace parser {
 
 /*! \brief The diagnostic level, controls the printing of the message. */
-enum DiagnosticLevel {
-  Bug,
-  Error,
-  Warning,
-  Note,
-  Help,
+enum class DiagnosticLevel {
+  kBug,
+  kError,
+  kWarning,
+  kNote,
+  kHelp,
 };
 
 struct DiagnosticBuilder;
@@ -62,12 +62,6 @@ struct Diagnostic {
   Span span;
   /*! \brief The diagnostic message. */
   std::string message;
-
-  /*! \brief A diagnostic for a single character token. */
-  Diagnostic(int line, int column, const std::string& message)
-      : level(DiagnosticLevel::Error),
-        span(SourceName(), line, column, line, column + 1),
-        message(message) {}
 
   Diagnostic(DiagnosticLevel level, Span span, const std::string& message)
       : level(level), span(span), message(message) {}
@@ -110,7 +104,7 @@ struct DiagnosticBuilder {
     return *this;
   }
 
-  DiagnosticBuilder() : level(DiagnosticLevel::Error), source_name(), span(Span()) {}
+  DiagnosticBuilder() : level(DiagnosticLevel::kError), source_name(), span(Span()) {}
 
   DiagnosticBuilder(const DiagnosticBuilder& builder)
       : level(builder.level), source_name(builder.source_name), span(builder.span) {}
@@ -125,23 +119,23 @@ struct DiagnosticBuilder {
 };
 
 DiagnosticBuilder Diagnostic::Bug(Span span) {
-  return DiagnosticBuilder(DiagnosticLevel::Bug, span);
+  return DiagnosticBuilder(DiagnosticLevel::kBug, span);
 }
 
 DiagnosticBuilder Diagnostic::Error(Span span) {
-  return DiagnosticBuilder(DiagnosticLevel::Error, span);
+  return DiagnosticBuilder(DiagnosticLevel::kError, span);
 }
 
 DiagnosticBuilder Diagnostic::Warning(Span span) {
-  return DiagnosticBuilder(DiagnosticLevel::Warning, span);
+  return DiagnosticBuilder(DiagnosticLevel::kWarning, span);
 }
 
 DiagnosticBuilder Diagnostic::Note(Span span) {
-  return DiagnosticBuilder(DiagnosticLevel::Note, span);
+  return DiagnosticBuilder(DiagnosticLevel::kNote, span);
 }
 
 DiagnosticBuilder Diagnostic::Help(Span span) {
-  return DiagnosticBuilder(DiagnosticLevel::Note, span);
+  return DiagnosticBuilder(DiagnosticLevel::kHelp, span);
 }
 
 /*! \brief A diagnostic context for recording errors against a source file.

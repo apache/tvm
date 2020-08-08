@@ -322,7 +322,7 @@ class Parser {
    */
   void Consume(const TokenType& token_type) {
     if (tokens[pos]->token_type != token_type) {
-      this->diag_ctx->EmitFatal(DiagnosticBuilder(DiagnosticLevel::Error, tokens[pos]->span)
+      this->diag_ctx->EmitFatal(Diagnostic::Error(tokens[pos]->span)
                                 << "expected a " << Pretty(token_type) << " found "
                                 << Pretty(Peek()->token_type));
     }
@@ -598,7 +598,7 @@ class Parser {
         return elements;
       } else {
         auto next = Peek();
-        this->diag_ctx->EmitFatal(DiagnosticBuilder(DiagnosticLevel::Error, next->span)
+        this->diag_ctx->EmitFatal(Diagnostic::Error(next->span)
                                   << "expected a " << Pretty(stop) << " found  "
                                   << Pretty(next->token_type));
         return Array<T>(nullptr);
@@ -638,7 +638,7 @@ class Parser {
       auto version = Match(TokenType::kVersion);
       // TODO(@jroesch): we currently only support 0.0.5.
       if (version.ToString() != "\"0.0.5\"") {
-        this->diag_ctx->Emit(DiagnosticBuilder(DiagnosticLevel::Error, version->span)
+        this->diag_ctx->Emit(Diagnostic::Error(version->span)
                              << "invalid semantic version `" << version.ToString() << "`");
       }
     } else if (required) {
@@ -681,8 +681,8 @@ class Parser {
           Consume(TokenType::kExtern);
           auto type_def = ParseTypeDef();
           if (type_def->constructors.size()) {
-            diag_ctx->Emit({DiagnosticLevel::Error, next->span,
-                            "an external type may not have any constructors"});
+            diag_ctx->Emit(Diagnostic::Error(next->span)
+                            << "an external type may not have any constructors");
           }
           defs.types.push_back(type_def);
         }
@@ -1342,7 +1342,7 @@ class Parser {
     try {
       return Op::Get(op_name);
     } catch (dmlc::Error e) {
-      this->diag_ctx->Emit(DiagnosticBuilder(DiagnosticLevel::Error, tok->span)
+      this->diag_ctx->Emit(Diagnostic::Error(tok->span)
                            << "operator `" << op_name
                            << "` not found, perhaps you forgot to register it?");
       return Expr();
@@ -1395,7 +1395,7 @@ class Parser {
             Consume(TokenType::kIdentifier);
             return Expr(ctor.value());
           } else {
-            auto idents = ParseHierName();
+            auto idents = ParseHierarchicalName();
             CHECK_NE(idents.size(), 0);
             std::stringstream op_name;
             int i = 0;
@@ -1448,7 +1448,7 @@ class Parser {
           }
         }
         default: {
-          this->diag_ctx->EmitFatal(DiagnosticBuilder(DiagnosticLevel::Error, next->span)
+          this->diag_ctx->EmitFatal(Diagnostic::Error(next->span)
                                     << "expected an expression found  "
                                     << Pretty(next->token_type));
           return Expr();
@@ -1464,18 +1464,30 @@ class Parser {
     return expr;
   }
 
-  /*! \brief Parse a hierarchical name. */
-  Array<String> ParseHierName() {
+  /*! \brief Parse a hierarchical name.
+   *
+   * The tokenizer produces a token stream of <id1> . <id2>
+   * and so on for names of the form `nn.conv2d`.
+   * Currently we only use string names everywhere instead
+   * of a notion of a hierarchical name.
+   *
+   * The below utility reassembles a token stream into a
+   * single stream inserting the required periods needed
+   * to look up registered names.
+   */
+  Array<String> ParseHierarchicalName() {
     Array<String> idents;
     while (Peek()->token_type == TokenType::kIdentifier) {
       auto name = Peek().ToString();
       idents.push_back(name);
       Consume(TokenType::kIdentifier);
 
+      // Keep parsing while we see a trailing period.
       if (Peek()->token_type == TokenType::kPeriod) {
         Consume(TokenType::kPeriod);
         continue;
       } else {
+        // No more periods means we are done!
         break;
       }
     }
@@ -1577,7 +1589,7 @@ class Parser {
     if (WhenMatch(TokenType::kUnderscore)) {
       return IncompleteType();
     } else {
-      this->diag_ctx->EmitFatal(DiagnosticBuilder(DiagnosticLevel::Error, tok->span)
+      this->diag_ctx->EmitFatal(Diagnostic::Error(tok->span)
                                 << "failed to parse type found " << tok);
       return Type();
     }

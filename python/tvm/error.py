@@ -124,4 +124,7 @@ class OpAttributeUnImplemented(OpError, NotImplementedError):
 
 @register_error
 class DiagnosticError(TVMError):
-    pass
+    """Error diagnostics were reported during the execution of a pass.
+
+    See the configured diagnostic renderer for detailed error information.
+    """
