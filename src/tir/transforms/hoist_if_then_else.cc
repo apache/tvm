@@ -37,6 +37,25 @@
 namespace tvm {
 namespace tir {
 
+struct HoistIfThenElseConfigNode : public tvm::AttrsNode<HoistIfThenElseConfigNode> {
+  bool support_block_scope_hosting;
+
+  TVM_DECLARE_ATTRS(HoistIfThenElseConfigNode, "tir.transform.HoistIfThenElseConfig") {
+    TVM_ATTR_FIELD(support_block_scope_hosting)
+        .describe("Hoist if cond with block scope variables")
+        .set_default(false);
+  }
+};
+
+class HoistIfThenElseConfig : public Attrs {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(HoistIfThenElseConfig, Attrs,
+                                            HoistIfThenElseConfigNode);
+};
+
+TVM_REGISTER_NODE_TYPE(HoistIfThenElseConfigNode);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.HoistIfThenElse", HoistIfThenElseConfig);
+
 using VarForMap = std::unordered_map<const VarNode*, const ForNode*>;
 using HoistForIfTuple = std::tuple<bool, const ForNode*, const IfThenElseNode*>;
 
@@ -98,6 +117,10 @@ using HoistForIfTuple = std::tuple<bool, const ForNode*, const IfThenElseNode*>;
 // Select potential candidate IRs that can be hoisted.
 class HoistCandidateSelector final : public StmtExprVisitor {
  public:
+  HoistCandidateSelector(bool support_block_scope_hosting)
+      : support_block_scope_hosting_(support_block_scope_hosting) {
+    InitRecorder();
+  }
   HoistCandidateSelector() { InitRecorder(); }
 
   void VisitStmt_(const ForNode* op) final {
@@ -126,10 +149,12 @@ class HoistCandidateSelector final : public StmtExprVisitor {
     // Maintain list of all vars in AttrStmt
     // To stop hoisting if any of the block variables are used.
     //
-    // NOTE: If in future
-    // hoisting is required for any specific case,
-    // then add exception to only those case
-    // rather than allowing for all.
+    // In case we want to use hoisting in beetween certain passes
+    // which interdependencies of the postioning of if nodes with scope var
+    // it is better to disable this section
+    if (!support_block_scope_hosting_) {
+      return StmtExprVisitor::VisitStmt_(op);
+    }
     UpdateAttrVarList(op);
     StmtExprVisitor::VisitStmt_(op);
     RemoveAttrVarList(op);
@@ -284,11 +309,14 @@ class HoistCandidateSelector final : public StmtExprVisitor {
 
   bool is_if_cond_{false};
   bool is_recorder_on_{false};
+  bool support_block_scope_hosting_{false};
 };
 
 class IfThenElseHoister : public StmtMutator {
  public:
   IfThenElseHoister() : hoist_selector_(HoistCandidateSelector()) {}
+  IfThenElseHoister(bool support_block_scope_hosting)
+      : hoist_selector_(HoistCandidateSelector(support_block_scope_hosting)) {}
 
   Stmt VisitAndMutate(Stmt stmt) {
     hoist_selector_(stmt);
@@ -344,6 +372,9 @@ class IfThenElseHoister : public StmtMutator {
   const IfThenElseNode* target_if_;
 };
 
+Stmt HoistIfThenElse(Stmt stmt, bool support_block_scope_hosting) {
+  return IfThenElseHoister(support_block_scope_hosting).VisitAndMutate(stmt);
+}
 Stmt HoistIfThenElse(Stmt stmt) { return IfThenElseHoister().VisitAndMutate(stmt); }
 
 namespace transform {
@@ -351,13 +382,28 @@ namespace transform {
 Pass HoistIfThenElse() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = HoistIfThenElse(std::move(n->body));
+    auto cfg = ctx->GetConfig<HoistIfThenElseConfig>("tir.HoistIfThenElse");
+    if (!cfg.defined()) {
+      cfg = AttrsWithDefaultValues<HoistIfThenElseConfig>();
+    }
+    n->body = HoistIfThenElse(std::move(n->body), cfg.value()->support_block_scope_hosting);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.HoistIfThenElse", {});
 }
 
+Pass HoistIfThenElseBasic() {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = HoistIfThenElse(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.HoistIfThenElseBasic", {});
+}
+
 TVM_REGISTER_GLOBAL("tir.transform.HoistIfThenElse").set_body_typed(HoistIfThenElse);
+
+TVM_REGISTER_GLOBAL("tir.transform.HoistIfThenElseBasic").set_body_typed(HoistIfThenElseBasic);
 
 }  // namespace transform
 
