@@ -37,7 +37,6 @@ def create_module(functions=None):
         An IRModule containing the passed definitions
     """
 
-    functions = {key: func for key, func in functions.items()}
     return IRModule(functions=functions)
 
 

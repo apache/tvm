@@ -30,9 +30,8 @@ Scope handler nodes are StmtNodes with body, which are used to handle such scena
 import tvm.tir
 from .registry import register_with_scope, register_for_scope
 
+
 # With scope handler
-
-
 @register_with_scope(concise=False)
 def Assert(parser, node, condition, message, body):
     """ With scope handler function assert(condition, message, body) """
@@ -70,8 +69,6 @@ def allocate(parser, node, buffer_var, dtype, extents, body, condition=True):
 
 
 # For scope handler
-
-
 @register_for_scope()
 def range(parser, node, begin, end, for_type="serial"):
     """ For scope handler function range(begin, end, annotation)"""
