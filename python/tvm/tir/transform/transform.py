@@ -500,11 +500,19 @@ def VerifyMemory():
     """
     return _ffi_api.VerifyMemory()
 
-def HoistIfThenElse():
+def HoistIfThenElse(variant=None):
     """Hoist loop-invariant IfThenElse nodes to outside the elligible loops.
+
+    Parameters
+    ----------
+    variant : str
+        The variant of the pass.
+
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.HoistIfThenElse()
+    if variant is None:
+        return _ffi_api.HoistIfThenElse()
+    return _ffi_api.HoistIfThenElseBasic()

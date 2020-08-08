@@ -117,7 +117,7 @@ using HoistForIfTuple = std::tuple<bool, const ForNode*, const IfThenElseNode*>;
 // Select potential candidate IRs that can be hoisted.
 class HoistCandidateSelector final : public StmtExprVisitor {
  public:
-  HoistCandidateSelector(bool support_block_scope_hosting)
+  explicit HoistCandidateSelector(bool support_block_scope_hosting)
       : support_block_scope_hosting_(support_block_scope_hosting) {
     InitRecorder();
   }
@@ -149,10 +149,10 @@ class HoistCandidateSelector final : public StmtExprVisitor {
     // Maintain list of all vars in AttrStmt
     // To stop hoisting if any of the block variables are used.
     //
-    // In case we want to use hoisting in beetween certain passes
-    // which interdependencies of the postioning of if nodes with scope var
+    // In case we want to use hoisting in between certain passes
+    // which have interdependencies of the postioning of if nodes with scope var
     // it is better to disable this section
-    if (!support_block_scope_hosting_) {
+    if (support_block_scope_hosting_) {
       return StmtExprVisitor::VisitStmt_(op);
     }
     UpdateAttrVarList(op);
@@ -315,7 +315,7 @@ class HoistCandidateSelector final : public StmtExprVisitor {
 class IfThenElseHoister : public StmtMutator {
  public:
   IfThenElseHoister() : hoist_selector_(HoistCandidateSelector()) {}
-  IfThenElseHoister(bool support_block_scope_hosting)
+  explicit IfThenElseHoister(bool support_block_scope_hosting)
       : hoist_selector_(HoistCandidateSelector(support_block_scope_hosting)) {}
 
   Stmt VisitAndMutate(Stmt stmt) {
