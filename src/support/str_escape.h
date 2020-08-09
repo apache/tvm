@@ -65,7 +65,9 @@ inline std::string StrEscape(const char* data, size_t size, bool use_octal_escap
           break;
         default:
           if (use_octal_escape) {
-            stream << '0' + ((c >> 6) & 0x03) << '0' + ((c >> 3) & 0x07) << '0' + (c & 0x03);
+            stream << static_cast<unsigned char>('0' + ((c >> 6) & 0x03))
+                   << static_cast<unsigned char>('0' + ((c >> 3) & 0x07))
+                   << static_cast<unsigned char>('0' + (c & 0x07));
           } else {
             const char* hex_digits = "0123456789ABCDEF";
             stream << 'x' << hex_digits[c >> 4] << hex_digits[c & 0xf];
