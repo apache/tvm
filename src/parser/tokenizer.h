@@ -31,8 +31,8 @@
 #include <fstream>
 #include <string>
 #include <unordered_map>
-#include <vector>
 #include <utility>
+#include <vector>
 
 #include "./meta_ref.h"
 #include "./token.h"

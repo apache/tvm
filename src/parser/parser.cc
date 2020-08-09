@@ -682,7 +682,7 @@ class Parser {
           auto type_def = ParseTypeDef();
           if (type_def->constructors.size()) {
             diag_ctx->Emit(Diagnostic::Error(next->span)
-                            << "an external type may not have any constructors");
+                           << "an external type may not have any constructors");
           }
           defs.types.push_back(type_def);
         }
