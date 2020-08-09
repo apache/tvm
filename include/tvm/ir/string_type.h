@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/ir/string_type.h
- * \brief Polymorphic tensor types.
+ * \brief string type.
  */
 #ifndef TVM_IR_STRING_TYPE_H_
 #define TVM_IR_STRING_TYPE_H_
@@ -46,7 +46,7 @@ class StringTypeNode : public TypeNode {
 
 /*!
  * \brief Managed reference to StringTypeNode.
- * \sa TensorTypeNode.
+ * \sa StringTypeNode.
  */
 class StringType : public Type {
  public:
