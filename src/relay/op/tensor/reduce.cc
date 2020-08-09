@@ -38,6 +38,7 @@ namespace tvm {
 namespace relay {
 
 TVM_REGISTER_NODE_TYPE(ReduceAttrs);
+TVM_REGISTER_NODE_TYPE(VarianceAttrs);
 
 /*!
  * \brief GetReduceAxes, get the new axis from indim and other arguments
@@ -193,12 +194,14 @@ Array<te::Tensor> ReduceCompute(const Attrs& attrs, const Array<te::Tensor>& inp
 /*!
  * \brief ReduceShapeImpl get the outshape for the reduction operator
  * \param in_shape Shape of input data.
- * \param param ReduceAttrs details.
+ * \param param Attrs details.
  * \param reporter The reporter to report solution to.
  * \return oshape Output shape inferred.
+ * \tparam AttrsType The attribute type.
  */
+template <typename AttrsType>
 inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr>& in_shape,
-                                              const ReduceAttrs* param,
+                                              const AttrsType* param,
                                               const TypeReporter& reporter) {
   uint32_t indim = in_shape.size();
   auto r_axes = GetReduceAxes(indim, param->axis, param->exclude);
@@ -542,7 +545,7 @@ bool VarianceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   std::vector<IndexExpr> mean_shape(mean->shape.begin(), mean->shape.end());
   CHECK_EQ(in_shape.size(), mean_shape.size());
 
-  const ReduceAttrs* param = attrs.as<ReduceAttrs>();
+  const VarianceAttrs* param = attrs.as<VarianceAttrs>();
   CHECK(param != nullptr);
 
   // assign output type and shape
@@ -554,39 +557,49 @@ bool VarianceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 Array<te::Tensor> VarianceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                   const Type& out_type) {
   IndexExpr count = tir::make_const(inputs[0]->dtype, 1);
-  const ReduceAttrs* param = attrs.as<ReduceAttrs>();
+  const VarianceAttrs* param = attrs.as<VarianceAttrs>();
   CHECK(param != nullptr);
   auto axes = param->axis;
+  bool unbiased = param->unbiased;
   auto data = inputs[0];
   auto mean = inputs[1];
   for (int64_t i : GetReduceAxes(data->shape.size(), param->axis, param->exclude)) {
     count *= data->shape[i];
   }
+  if (unbiased) {
+    count -= 1;
+  }
   std::vector<Integer> expand_shape;
   auto sq_diff = topi::power(topi::subtract(data, mean), 2);
-  auto var = topi::divide(ReduceCompute(attrs, {sq_diff}, out_type, topi::sum)[0], count);
+  if (param->exclude) {
+    axes = GetExcludeAxes(sq_diff->shape.size(), param->axis);
+    CHECK_NE(axes.size(), 0);
+  }
+  auto var = topi::divide(topi::sum(sq_diff, axes, param->keepdims, false), count);
 
   return {var};
 }
 
-Expr MakeVariance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, bool exclude) {
-  auto attrs = make_object<ReduceAttrs>();
+Expr MakeVariance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, bool exclude,
+                  bool unbiased = false) {
+  auto attrs = make_object<VarianceAttrs>();
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   attrs->exclude = exclude;
+  attrs->unbiased = unbiased;
   static const Op& op = Op::Get("variance");
   return Call(op, {data, mean}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make._variance").set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 5>(MakeVariance, args, rv);
+  runtime::detail::unpack_call<Expr, 6>(MakeVariance, args, rv);
 });
 
 RELAY_REGISTER_OP("variance")
     .describe(R"code(Computes the variance of array elements over given axes.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<ReduceAttrs>()
+    .set_attrs_type<VarianceAttrs>()
     .set_support_level(4)
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")

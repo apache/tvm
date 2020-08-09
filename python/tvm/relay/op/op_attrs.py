@@ -460,6 +460,11 @@ class ReduceAttrs(Attrs):
     """Attributes used in reduction operators (e.g. sum)"""
 
 
+@tvm._ffi.register_object("relay.attrs.VarianceAttrs")
+class VarianceAttrs(Attrs):
+    """Attributes used in reduction operators (e.g. sum)"""
+
+
 @tvm._ffi.register_object("relay.attrs.RequantizeAttrs")
 class RequantizeAttrs(Attrs):
     """Attributes used in requantize operators"""
