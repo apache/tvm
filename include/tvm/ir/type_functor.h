@@ -31,6 +31,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "string_type.h"
 
 namespace tvm {
 
@@ -76,6 +77,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
     return vtable(n, this, std::forward<Args>(args)...);
   }
   // Functions that can be overriden by subclass
+  virtual R VisitType_(const StringTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TensorTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TypeVarNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TypeConstraintNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
@@ -99,6 +101,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
   static FType InitVTable() {
     FType vtable;
     // Set dispatch
+    TVM_TYPE_FUNCTOR_DISPATCH(StringTypeNode);
     TVM_TYPE_FUNCTOR_DISPATCH(TensorTypeNode);
     TVM_TYPE_FUNCTOR_DISPATCH(TypeVarNode);
     TVM_TYPE_FUNCTOR_DISPATCH(TypeConstraintNode);
@@ -125,6 +128,7 @@ class TVM_DLL TypeVisitor : public TypeFunctor<void(const Type& n)> {
  public:
   void VisitType_(const TypeVarNode* op) override;
   void VisitType_(const IncompleteTypeNode* op) override;
+  void VisitType_(const StringTypeNode* op) override;
   void VisitType_(const TensorTypeNode* op) override;
   void VisitType_(const FuncTypeNode* op) override;
   void VisitType_(const TupleTypeNode* op) override;
@@ -144,6 +148,7 @@ class TVM_DLL TypeMutator : public TypeFunctor<Type(const Type& n)> {
  public:
   Type VisitType(const Type& t) override;
   Type VisitType_(const TypeVarNode* op) override;
+  Type VisitType_(const StringTypeNode* op) override;
   Type VisitType_(const TensorTypeNode* op) override;
   Type VisitType_(const IncompleteTypeNode* op) override;
   Type VisitType_(const FuncTypeNode* op) override;

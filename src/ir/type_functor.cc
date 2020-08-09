@@ -31,6 +31,8 @@ void TypeVisitor::VisitType_(const TypeVarNode* op) {}
 
 void TypeVisitor::VisitType_(const TensorTypeNode* op) {}
 
+void TypeVisitor::VisitType_(const StringTypeNode* op) {}
+
 void TypeVisitor::VisitType_(const IncompleteTypeNode* op) {}
 
 void TypeVisitor::VisitType_(const FuncTypeNode* op) {
@@ -108,6 +110,11 @@ Array<Type> TypeMutator::MutateArray(Array<Type> arr) {
 }
 
 Type TypeMutator::VisitType_(const TypeVarNode* op) { return GetRef<TypeVar>(op); }
+
+Type TypeMutator::VisitType_(const StringTypeNode* op) {
+  // TODO(tvm-team) recursively visit to replace Var
+  return GetRef<StringType>(op);
+}
 
 Type TypeMutator::VisitType_(const TensorTypeNode* op) {
   // TODO(tvm-team) recursively visit to replace Var

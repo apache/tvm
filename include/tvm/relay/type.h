@@ -27,6 +27,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/tensor_type.h>
+#include <tvm/ir/string_type.h>
 #include <tvm/ir/type.h>
 #include <tvm/ir/type_relation.h>
 #include <tvm/runtime/registry.h>
@@ -60,6 +61,8 @@ using IncompleteType = tvm::IncompleteType;
 using IncompleteTypeNode = tvm::IncompleteTypeNode;
 using RelayRefType = tvm::RelayRefType;
 using RelayRefTypeNode = tvm::RelayRefTypeNode;
+using StringType = tvm::StringType;
+using StringTypeNode = tvm::StringTypeNode;
 using TensorType = tvm::TensorType;
 using TensorTypeNode = tvm::TensorTypeNode;
 using TypeCall = tvm::TypeCall;

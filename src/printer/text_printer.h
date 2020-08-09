@@ -148,6 +148,7 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   Doc VisitType_(const TypeCallNode* node) final;
   Doc PrintDType(DataType dtype);
   Doc VisitType_(const TensorTypeNode* node) final;
+  Doc VisitType_(const StringTypeNode* node) final;
   Doc VisitType_(const TupleTypeNode* node) final;
   Doc VisitType_(const FuncTypeNode* node) final;
   Doc VisitType_(const RelayRefTypeNode* node) final;

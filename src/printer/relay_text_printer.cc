@@ -641,6 +641,11 @@ Doc RelayTextPrinter::VisitType_(const TensorTypeNode* node) {
   return doc << "), " << PrintDType(node->dtype) << "]";
 }
 
+Doc RelayTextPrinter::VisitType_(const StringTypeNode* node) {
+  Doc doc;
+  return doc << "String";
+}
+
 Doc RelayTextPrinter::VisitType_(const TupleTypeNode* node) {
   std::vector<Doc> fields;
   for (Type field : node->fields) {

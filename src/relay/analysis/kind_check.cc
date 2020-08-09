@@ -69,6 +69,8 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
 
   Kind VisitType_(const TensorTypeNode* op) override { return Kind::kType; }
 
+  Kind VisitType_(const StringTypeNode* op) override { return Kind::kType; }
+
   Kind VisitType_(const TupleTypeNode* op) override {
     // tuples should only contain normal types
     for (const Type& t : op->fields) {
