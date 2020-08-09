@@ -80,6 +80,9 @@ Expr MakeZeros(Array<Integer> shape, DataType dtype);
 
 Expr MakeOneHot(Expr indices, Expr on_value, Expr off_value, int depth, int axis, DataType dtype);
 
+Expr MakeResize(Expr data, Array<IndexExpr> size, String layout, String method,
+                String coordinate_transformation_mode, DataType out_dtype);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_MAKE_OP_H_

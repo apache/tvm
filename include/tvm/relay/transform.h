@@ -238,10 +238,12 @@ TVM_DLL Pass CombineParallelConv2D(uint64_t min_num_branches = 3);
  * `min_num_branch`.
  *
  * \param min_num_branches The minimun number of branches.
+ * \param to_batch_matmul Whether to combine parallel dense ops to batch matmul.
+ *                        If set false, combine dense ops to single dense op.
  *
  * \return The pass.
  */
-TVM_DLL Pass CombineParallelDense(uint64_t min_num_branches = 3);
+TVM_DLL Pass CombineParallelDense(uint64_t min_num_branches = 3, bool to_batch_matmul = true);
 
 /*!
  * \brief Combine parallel batch_matmul ops into a single batch_matmul
