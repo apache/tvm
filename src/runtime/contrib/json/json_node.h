@@ -28,7 +28,7 @@
 #include <dlpack/dlpack.h>
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/data_type.h>
 
 #include <cstdint>
 #include <cstdio>
