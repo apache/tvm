@@ -715,6 +715,8 @@ def test_alter_layout_strided_slice():
     mod_new = tvm.IRModule()
     mod_before["main"] = a
     mod_new["main"] = b
+    mod_before = transform.InferType()(mod_before)
+    mod_new = transform.InferType()(mod_new)
     with relay.build_config(opt_level=3):
         for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug", "vm"]:
@@ -1171,7 +1173,9 @@ def test_alter_op_with_global_var():
         mod = tvm.IRModule()
         foo = relay.GlobalVar("foo")
         mod[foo] = relay.Function([x, weight], y)
+        mod = transform.InferType()(mod)
         mod["main"] = relay.Function([x, weight], foo(x, weight))
+        mod = transform.InferType()(mod)
         return mod
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
@@ -1193,6 +1197,7 @@ def test_alter_op_with_global_var():
         mod = tvm.IRModule()
         foo = relay.GlobalVar("foo")
         mod[foo] = relay.Function([x, weight], y)
+        mod = transform.InferType()(mod)
         mod["main"] = relay.Function([x, weight], foo(x, weight))
         return mod
 

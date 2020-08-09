@@ -235,6 +235,7 @@ def test_sum_loop():
         sb.ret(relay.Call(sum_up, [one_less, new_accum]))
     func = relay.Function([i, accum], sb.get())
     mod[sum_up] = func
+    mod = relay.transform.InferType()(mod)
     loop_bound = 0
     i_data = np.array(loop_bound, dtype="int32")
     accum_data = np.array(0, dtype="int32")
@@ -273,9 +274,7 @@ def test_list_constructor():
     mod = tvm.IRModule()
     p = Prelude(mod)
 
-    nil = p.nil
-    cons = p.cons
-    l = p.l
+    l, cons, nil = mod.get_type("List")
 
     one2 = cons(relay.const(1), nil())
     one3 = cons(relay.const(2), one2)
@@ -372,10 +371,8 @@ def test_list_hd():
     mod = tvm.IRModule()
     p = Prelude(mod)
 
-    nil = p.nil
-    cons = p.cons
-    l = p.l
-    hd = p.hd
+    l, cons, nil = mod.get_type("List")
+    hd = mod.get_global_var("hd")
 
     one2 = cons(relay.const(1), nil())
     one3 = cons(relay.const(2), one2)
@@ -395,9 +392,8 @@ def test_list_tl_empty_list():
     mod = tvm.IRModule()
     p = Prelude(mod)
 
-    nil = p.nil
-    l = p.l
-    tl = p.tl
+    l, cons, nil = mod.get_type("List")
+    tl = mod.get_global_var("tl")
 
     f = relay.Function([], tl(nil()))
 
@@ -412,10 +408,8 @@ def test_list_tl():
     mod = tvm.IRModule()
     p = Prelude(mod)
 
-    nil = p.nil
-    cons = p.cons
-    l = p.l
-    tl = p.tl
+    l, cons, nil = mod.get_type("List")
+    tl = mod.get_global_var("tl")
 
     one2 = cons(relay.const(1), nil())
     one3 = cons(relay.const(2), one2)
@@ -438,9 +432,9 @@ def test_list_nth():
         mod = tvm.IRModule()
         p = Prelude(mod)
 
-        nil = p.nil
-        cons = p.cons
-        nth = p.nth
+        _, cons, nil = mod.get_type("List")
+        nth = mod.get_global_var("nth")
+
         l = nil()
         for i in reversed(expected):
             l = cons(relay.const(i), l)
@@ -459,9 +453,8 @@ def test_list_update():
     mod = tvm.IRModule()
     p = Prelude(mod)
 
-    nil = p.nil
-    cons = p.cons
-    update = p.update
+    _, cons, nil = mod.get_type("List")
+    update = mod.get_global_var("update")
 
     l = nil()
     # create zero initialized list
@@ -486,13 +479,12 @@ def test_list_length():
     mod = tvm.IRModule()
     p = Prelude(mod)
 
-    nil = p.nil
-    cons = p.cons
-    length = p.length
+    _, cons, nil = mod.get_type("List")
+    length = mod.get_global_var("length")
 
     l = nil()
     # create zero initialized list
-    for i in range(len(expected)):
+    for _ in range(len(expected)):
         l = cons(relay.const(0), l)
 
     l = length(l)
@@ -512,9 +504,8 @@ def test_list_map():
     x = relay.var("x", "int32")
     add_one_func = relay.Function([x], relay.const(1) + x)
 
-    nil = p.nil
-    cons = p.cons
-    map = p.map
+    _, cons, nil = mod.get_type("List")
+    map = mod.get_global_var("map")
 
     l = cons(relay.const(2), cons(relay.const(1), nil()))
 
@@ -530,9 +521,8 @@ def test_list_foldl():
     mod = tvm.IRModule()
     p = Prelude(mod)
 
-    nil = p.nil
-    cons = p.cons
-    foldl = p.foldl
+    _, cons, nil = mod.get_type("List")
+    foldl = mod.get_global_var("foldl")
 
     x = relay.var("x")
     y = relay.var("y")
@@ -551,9 +541,8 @@ def test_list_foldr():
     mod = tvm.IRModule()
     p = Prelude(mod)
 
-    nil = p.nil
-    cons = p.cons
-    foldr = p.foldr
+    _, cons, nil = mod.get_type("List")
+    foldr = mod.get_global_var("foldr")
 
     x = relay.var("x")
     y = relay.var("y")
@@ -572,9 +561,8 @@ def test_list_sum():
     mod = tvm.IRModule()
     p = Prelude(mod)
 
-    nil = p.nil
-    cons = p.cons
-    sum = p.sum
+    _, cons, nil = mod.get_type("List")
+    sum = mod.get_global_var("sum")
 
     l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
     f = relay.Function([], sum(l))
@@ -589,9 +577,8 @@ def test_list_filter():
     mod = tvm.IRModule()
     p = Prelude(mod)
 
-    nil = p.nil
-    cons = p.cons
-    filter = p.filter
+    _, cons, nil = mod.get_type("List")
+    filter = mod.get_global_var("filter")
 
     x = relay.var("x", "int32")
     greater_than_one = relay.Function([x], x > relay.const(1))

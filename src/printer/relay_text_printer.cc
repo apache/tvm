@@ -308,7 +308,7 @@ Doc RelayTextPrinter::ScalarLiteral(DataType dtype, const T& value) {
   } else if (dtype == DataType::Float(32)) {
     os << value << 'f';
   } else if (dtype == DataType::Float(64)) {
-    os << value;
+    os << value << "f64";
   } else if (dtype == DataType::Bool()) {
     return Doc::PyBoolLiteral(value != 0);
   } else {
@@ -500,12 +500,12 @@ Doc RelayTextPrinter::VisitExpr_(const RefCreateNode* op) {
 
 Doc RelayTextPrinter::VisitExpr_(const RefReadNode* op) {
   Doc doc;
-  return doc << Print(op->ref) << "^";
+  return doc << "ref_read(" << Print(op->ref) << ")";
 }
 
 Doc RelayTextPrinter::VisitExpr_(const RefWriteNode* op) {
   Doc doc;
-  return doc << "(" << Print(op->ref) << " := " << Print(op->value) << ")";
+  return doc << "ref_write(" << Print(op->ref) << ", " << Print(op->value) << ")";
 }
 
 Doc RelayTextPrinter::VisitExpr_(const MatchNode* op) {
@@ -522,10 +522,11 @@ Doc RelayTextPrinter::VisitExpr_(const MatchNode* op) {
     Doc clause_doc;
     clause_doc << PrintPattern(clause->lhs, false) << " => ";
     Doc rhs_doc = PrintScope(clause->rhs);
-    if (clause->rhs.as<LetNode>()) {
-      // only add braces if there are multiple lines on the rhs
-      rhs_doc = Doc::Brace("{", rhs_doc, "}");
-    }
+    // TODO(@jroesch): This is unsound right now, and we need to revist it.
+    // if (clause->rhs.as<LetNode>()) {
+    // only add braces if there are multiple lines on the rhs
+    rhs_doc = Doc::Brace("{", rhs_doc, "}");
+    // }
     clause_doc << rhs_doc << ",";
     clause_docs.push_back(clause_doc);
   }

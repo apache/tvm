@@ -45,6 +45,7 @@ def qnn_subtract_driver(x_datas, y_datas, golden_outputs, scale_and_zp, data_dty
     )
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
     for i in range(0, len(x_datas)):

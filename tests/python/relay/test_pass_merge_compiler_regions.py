@@ -208,7 +208,9 @@ def test_example_graph():
 
     mod = annotated()
     mod = relay.transform.MergeCompilerRegions()(mod)
+    mod = relay.transform.InferType()(mod)
     ref_mod = expected()
+    ref_mod = relay.transform.InferType()(ref_mod)
     assert tvm.ir.structural_equal(mod, ref_mod)
 
 

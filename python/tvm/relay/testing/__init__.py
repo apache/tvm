@@ -43,7 +43,7 @@ from . import temp_op_attr
 from . import synthetic
 
 from .init import create_workload
-from .nat import add_nat_definitions, count, make_nat_value, make_nat_expr
+from .nat import count, make_nat_value, make_nat_expr
 from .py_converter import to_python, run_as_python
 from ..transform import gradient
 
@@ -53,6 +53,7 @@ def run_opt_pass(expr, opt_pass, import_prelude=False):
     mod = tvm.IRModule.from_expr(expr)
     if import_prelude:
         Prelude(mod)
+    mod = relay.transform.InferType()(mod)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body

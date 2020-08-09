@@ -37,39 +37,38 @@ namespace parser {
 
 /*! \brief A program source in any language.
  *
- * Could represent the source from an ML framework or the internal
- * source of a TVM program.
+ * Could represent the source from an ML framework or a source
+ * representing a tvm::IRModule.
  */
-struct Source {
+class Source;
+
+class SourceNode : public Object {
+ public:
   /*! \brief The source name. */
   SourceName source_name;
 
   /*! \brief The raw source. */
-  std::string source;
+  String source;
+
   /*! \brief A mapping of line breaks into the raw source. */
   std::vector<std::pair<int, int>> line_map;
 
-  /*! \brief An empty source. */
-  Source() : source_name(), source(), line_map() {}
+  // override attr visitor
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("source_name", &source_name);
+    v->Visit("source", &source);
+  }
 
-  /*! \brief Construct a source from a string. */
-  TVM_DLL explicit Source(const SourceName& src_name, const std::string& source);
+  static constexpr const char* _type_key = "Source";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SourceNode, Object);
+};
 
-  TVM_DLL Source(const Source& source)
-      : source_name(source.source_name), source(source.source), line_map(source.line_map) {}
+class Source : public ObjectRef {
+ public:
+  TVM_DLL Source(SourceName src_name, std::string source);
+  TVM_DLL tvm::String GetLine(int line);
 
-  /*! \brief Generate an error message at a specific line and column with the
-   * annotated message.
-   *
-   * The error is written directly to the `out` std::ostream.
-   *
-   * \param out The output ostream.
-   * \param span The span to report the error at.
-   * \param msg The message to attach.
-   *
-   */
-  // TODO(@jroesch): replace the ostream with an interface for rendering errors.
-  TVM_DLL void ReportAt(std::ostream& out, const Span& span, const std::string& msg) const;
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Source, ObjectRef, SourceNode);
 };
 
 /*!
@@ -82,7 +81,7 @@ class SourceMap;
 class SourceMapNode : public Object {
  public:
   /*! \brief The source mapping. */
-  Map<SourceName, tvm::String> source_map;
+  Map<SourceName, Source> source_map;
 
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) { v->Visit("source_map", &source_map); }
@@ -97,11 +96,23 @@ class SourceMapNode : public Object {
 
 class SourceMap : public ObjectRef {
  public:
-  TVM_DLL SourceMap(Map<SourceName, tvm::String> source_map);
+  TVM_DLL SourceMap(Map<SourceName, Source> source_map);
 
-  TVM_DLL static SourceMap* Get();
+  TVM_DLL SourceMap(std::initializer_list<std::pair<SourceName, Source>> source_map)
+      : SourceMap(Map<SourceName, Source>(source_map)) {}
 
-  TVM_DEFINE_OBJECT_REF_METHODS(SourceMap, ObjectRef, SourceMapNode);
+  TVM_DLL SourceMap() : SourceMap({}) {}
+
+  TVM_DLL static SourceMap Global();
+
+  void Add(const Source& source);
+
+  SourceMapNode* operator->() {
+    CHECK(get() != nullptr);
+    return static_cast<SourceMapNode*>(get_mutable());
+  }
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SourceMap, ObjectRef, SourceMapNode);
 };
 
 }  // namespace parser

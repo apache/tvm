@@ -251,7 +251,7 @@ class TypeVar : public Type {
    * \param name_hint The name of the type var.
    * \param kind The kind of the type var.
    */
-  TVM_DLL TypeVar(String name_hint, TypeKind kind);
+  TVM_DLL TypeVar(String name_hint, TypeKind kind, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(TypeVar, Type, TypeVarNode);
 };
@@ -301,7 +301,7 @@ class GlobalTypeVar : public Type {
    * \param name_hint The name of the type var.
    * \param kind The kind of the type var.
    */
-  TVM_DLL GlobalTypeVar(String name_hint, TypeKind kind);
+  TVM_DLL GlobalTypeVar(String name_hint, TypeKind kind, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalTypeVar, Type, GlobalTypeVarNode);
 };
@@ -342,7 +342,7 @@ class TupleType : public Type {
    * \brief Constructor
    * \param fields Fields in the tuple.
    */
-  TVM_DLL explicit TupleType(Array<Type> fields);
+  TVM_DLL explicit TupleType(Array<Type> fields, Span span = Span());
 
   /*!
    * \brief Create an empty tuple type that constains nothing.
@@ -451,7 +451,7 @@ class FuncType : public Type {
    * \sa FuncTypeNode for more docs about these fields.
    */
   TVM_DLL FuncType(Array<Type> arg_types, Type ret_type, Array<TypeVar> type_params,
-                   Array<TypeConstraint> type_constraints);
+                   Array<TypeConstraint> type_constraints, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(FuncType, Type, FuncTypeNode);
 };
@@ -496,7 +496,7 @@ class IncompleteType : public Type {
    * \brief Constructor.
    * \param kind kind of the type.
    */
-  TVM_DLL explicit IncompleteType(TypeKind kind);
+  TVM_DLL explicit IncompleteType(TypeKind kind, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(IncompleteType, Type, IncompleteTypeNode);
 };
@@ -536,7 +536,7 @@ class RelayRefTypeNode : public TypeNode {
  */
 class RelayRefType : public Type {
  public:
-  TVM_DLL explicit RelayRefType(Type value);
+  TVM_DLL explicit RelayRefType(Type value, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(RelayRefType, Type, RelayRefTypeNode);
 };
 }  // namespace tvm
