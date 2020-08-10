@@ -91,7 +91,7 @@ class TFParser(object):
         output_names = set()
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
-        with tf.Session(config = config) as sess:
+        with tf.Session(config=config) as sess:
             meta_graph_def = tf.saved_model.loader.load(sess,
                                                         tags,
                                                         self._model_dir)
