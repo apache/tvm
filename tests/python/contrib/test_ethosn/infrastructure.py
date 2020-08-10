@@ -77,7 +77,6 @@ def get_cpu_op_count(mod):
         def visit_call(self, call):
             if isinstance(call.op, tvm.ir.Op):
                 self.count += 1
-
             super().visit_call(call)
 
     c = Counter()
