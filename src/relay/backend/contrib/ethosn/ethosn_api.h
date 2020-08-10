@@ -121,8 +121,7 @@ class EthosnAPI {
     return EthosnError();
   }
 
-  // Get a T from a constant represented by
-  // a NDArray.
+  // Get a T from a constant represented by a NDArray.
   template <typename T>
   static EthosnError AsConstant(const Expr& expr, T* out) {
     if (!expr->IsInstance<ConstantNode>()) {
