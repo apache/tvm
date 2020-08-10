@@ -43,7 +43,7 @@ struct HoistIfThenElseConfigNode : public tvm::AttrsNode<HoistIfThenElseConfigNo
   TVM_DECLARE_ATTRS(HoistIfThenElseConfigNode, "tir.transform.HoistIfThenElseConfig") {
     TVM_ATTR_FIELD(support_block_scope_hosting)
         .describe("Hoist if cond with block scope variables")
-        .set_default(false);
+        .set_default(true);
   }
 };
 
