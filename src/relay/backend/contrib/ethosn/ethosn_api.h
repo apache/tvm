@@ -55,6 +55,9 @@ struct SplitParams {
   sl::TensorInfo input_info;
 };
 
+/*!
+ * \brief A wrapper around std::stringstream to build an EthosnError.
+ */
 class ErrStrm {
  public:
   template <typename T>
@@ -68,33 +71,68 @@ class ErrStrm {
   friend class EthosnError;
 };
 
+/*!
+ * \brief Custom error class for storing error messages produced
+ * during compilation for Ethos-N.
+ */
 class EthosnError {
  public:
+  /*! \brief Default constructor */
   EthosnError() {}
+  /*!
+   * \brief Construct error from an Array of Strings
+   * \param msgs The messages
+   */
   explicit EthosnError(const Array<String>& msgs) : msgs(msgs) {}
+  /*!
+   * \brief Construct error from a String
+   * \param msg The message
+   */
   explicit EthosnError(const String& msg) { msgs.push_back(msg); }
+  /*!
+   * \brief Construct error from an ErrStrm
+   * \param err The ErrStrm
+   */
   explicit EthosnError(const ErrStrm& err) : EthosnError(err.stream_.str()) {}
 
+  /*! \return Whether there are any error messages */
   explicit operator bool() const { return !msgs.empty(); }
 
+  /*! \brief Add together two errors to give a single error with all the msgs */
   EthosnError& operator+=(const EthosnError& other) {
     msgs.insert(msgs.end(), other.msgs.begin(), other.msgs.end());
     return *this;
   }
 
+  /*! \brief The error messages */
   Array<String> msgs;
 };
 
+/*!
+ * \brief Functions to interact with Support Library's API including the
+ * translation of Relay ops/composite functions into Support Library
+ * equivalents.
+ */
 class EthosnAPI {
  public:
+  /*!
+   * \brief Compile a Support Library network using the given compiler options
+   * \param network The network to be compiled
+   * \param options The options to compile with
+   * \return compiled_network The compiled network
+   */
   static std::unique_ptr<sl::CompiledNetwork> Compile(std::shared_ptr<sl::Network> network,
                                                       const sl::CompilationOptions& options);
 
+  /*!
+   * \brief Get the Support Library compilation options from the PassContext
+   * \return options The compilation options
+   */
   static sl::CompilationOptions CreateOptions();
 
-  static bool IsEthosnOp(const Call& call, const std::string& op_name);
-
+  /*! \brief Extract the Support Library concatenate params from a Relay qnn.concatenate call */
   static EthosnError Concatenate(const Expr& expr, ConcatenateParams* params);
+  /*! \brief Extract the Support Library split params from a Relay split call */
   static EthosnError Split(const Expr& expr, SplitParams* params);
 
  private:

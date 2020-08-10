@@ -130,16 +130,6 @@ sl::CompilationOptions EthosnAPI::CreateOptions() {
   return options;
 }
 
-bool EthosnAPI::IsEthosnOp(const Call& call, const std::string& op_name) {
-  if (call->op->IsInstance<OpNode>()) {
-    Op op = Downcast<Op>(call->op);
-    CHECK(op.defined());
-    return op == Op::Get(op_name);
-  } else {
-    return false;
-  }
-}
-
 EthosnError EthosnAPI::Concatenate(const Expr& expr, ConcatenateParams* params) {
   Call call = Downcast<Call>(expr);
   const auto& attrs = call->attrs.as<ConcatenateAttrs>();
