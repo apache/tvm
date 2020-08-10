@@ -128,6 +128,36 @@ EthosnError EthosnAPI::Tvm2Npu(const tvm::DataType& dtype, sl::DataType* data_ty
   return EthosnError(ErrStrm() << "dtype=\'" << dtype << "\', dtype must be either uint8 or int32");
 }
 
+// Convert an array of IntImmNodes into ValueT
+// IndexT type of Array indexing variable
+// ValueT type of resulting value
+template <typename IndexT, typename ValueT>
+EthosnError EthosnAPI::AsArray(const Array<IndexT>& arr, std::array<ValueT, 4>* v) {
+  if (arr.size() > 4)
+    return EthosnError(ErrStrm() << "dimensions=" << arr.size() << ", dimensions must be <= 4");
+  for (size_t i = 0; i < std::min(arr.size(), 4ul); i++) {
+    const PrimExpr& a = arr[i];
+    const auto* intImm = a.as<IntImmNode>();
+    if (intImm->value > std::numeric_limits<ValueT>::max()) {
+      return EthosnError(ErrStrm() << "axis size=" << intImm->value << ", axis size must be <= "
+                                   << std::numeric_limits<ValueT>::max());
+    }
+    (*v)[i] = static_cast<ValueT>(intImm->value);
+  }
+  return EthosnError();
+}
+
+// Get a T from a constant represented by a NDArray.
+template <typename T>
+EthosnError EthosnAPI::AsConstant(const Expr& expr, T* out) {
+  if (!expr->IsInstance<ConstantNode>()) {
+    return EthosnError("expected constant data");
+  }
+  runtime::NDArray data = Downcast<Constant>(expr)->data;
+  *out = *static_cast<T*>(data.operator->()->data);
+  return EthosnError();
+}
+
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.concatenate")
     .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
       Call call = args[0];
