@@ -130,16 +130,6 @@ sl::CompilationOptions EthosnAPI::CreateOptions() {
   return options;
 }
 
-bool EthosnAPI::IsEthosFunc(const Call& call, const std::string& op_name) {
-  if (call->op->IsInstance<FunctionNode>()) {
-    Function func = Downcast<Function>(call->op);
-    CHECK(func.defined());
-    auto name_node = func->GetAttr<String>(attr::kComposite);
-    return name_node.value() == op_name;
-  }
-  return false;
-}
-
 bool EthosnAPI::IsEthosOp(const Call& call, const std::string& op_name) {
   if (call->op->IsInstance<OpNode>()) {
     Op op = Downcast<Op>(call->op);

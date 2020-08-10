@@ -33,25 +33,6 @@ from . import _infrastructure
 from tvm.relay.op.contrib import get_pattern_table
 
 
-def get_real_image(im_height, im_width):
-    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
-    img_name = 'elephant-299.jpg'
-    image_url = os.path.join(repo_base, img_name)
-    img_path = download.download_testdata(image_url, img_name, module='data')
-    image = Image.open(img_path).resize((im_height, im_width))
-    x = np.array(image).astype('uint8')
-    data = np.reshape(x, (1, im_height, im_width, 3))
-    return data
-
-
-def assert_lib_hash(lib, golden):
-    temp = util.tempdir()
-    path = temp.relpath("lib.cmm")
-    lib.imported_modules[1].save(path)
-    lib_hash = md5(open(path, 'rb').read()).hexdigest()
-    assert lib_hash == golden, "Expected hash: {} Got hash: {}".format(golden, lib_hash)
-
-
 def make_module(func, params):
     func = relay.Function(relay.analysis.free_vars(func), func)
     if len(params):
@@ -172,26 +153,6 @@ def inference_result(checksum, outputs):
             "relay.ethos-n.test.infra.inference_result", True):
         return _infrastructure.inference_result(checksum, *outputs)
     return False
-
-
-def generate_trials(space, r_factor=3):
-    np.random.seed(0)
-    max_len = 1
-    for option in space:
-        max_len = max(max_len, len(option))
-
-    num_trials = r_factor * max_len
-    trials = []
-    for i in range(num_trials):
-        trial = []
-        for option in space:
-            if i % len(option) == 0:
-                np.random.shuffle(option)
-            trial.append(option[i % len(option)])
-
-        trials.append(trial)
-
-    return trials
 
 
 def test_error(mod, params, err_msg):
