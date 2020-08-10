@@ -38,6 +38,9 @@ class Available(Enum):
     SW_ONLY = 1
     SW_AND_HW = 2
 
+    def __bool__(self):
+        return self != Available.UNAVAILABLE
+
 
 def ethosn_available():
     """Return whether Ethos-N software and hardware support is available"""
