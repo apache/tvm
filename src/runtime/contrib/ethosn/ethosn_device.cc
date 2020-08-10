@@ -174,6 +174,11 @@ bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
 }  // namespace tvm
 
 #else
+/* If USE_ETHOSN_HW=OFF, we mock the inference call with a known-good output.
+ * That output can be set by using relay.ethos-n.test.infra.inference_result
+ * which will set the values the mocked inference will return the next time
+ * it's called.
+ */
 
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
