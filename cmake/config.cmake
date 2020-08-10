@@ -216,8 +216,8 @@ set(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME OFF)
 # - path/to/arm-ethos-N-stack: use a specific version of the
 #   Ethos-N driver stack
 set(USE_ETHOSN OFF)
-# If USE_ETHOSN is enabled, use Ethos-N hardware (ON) or
-# software test infrastructure (OFF)
+# If USE_ETHOSN is enabled, use ETHOSN_HW (ON) if Ethos-N hardware is available on this machine
+# otherwise use ETHOSN_HW (OFF) to use the software test infrastructure
 set(USE_ETHOSN_HW OFF)
 
 # Build ANTLR parser for Relay text format
