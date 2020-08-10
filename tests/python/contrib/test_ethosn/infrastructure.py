@@ -35,7 +35,7 @@ from tvm.relay.op.contrib import get_pattern_table
 
 def make_module(func, params):
     func = relay.Function(relay.analysis.free_vars(func), func)
-    if len(params):
+    if params:
         relay.build_module.bind_params_by_name(func, params)
     return tvm.IRModule.from_expr(func)
 
