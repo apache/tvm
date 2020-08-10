@@ -258,58 +258,15 @@ NetworkWithIDs ConstructNetwork(const IRModule& mod, const GlobalVar& var, const
 
 class EthosnCompiler {
  public:
+  static runtime::Module CreateRuntimeModule(const ObjectRef& ref);
+
+ private:
   static runtime::ethosn::OrderedCompiledNetwork CompileEthosnFunc(const IRModule& mod,
                                                                    const GlobalVar& gvar,
-                                                                   const Function& func) {
-    // Construct the network
-    auto network_with_ids = ConstructNetwork(mod, gvar, func);
-    // Now set the required build flags
-    sl::CompilationOptions options = EthosnAPI::CreateOptions();
-    // Finally compile the network
-    auto compiled_network = EthosnAPI::Compile(network_with_ids.network, options);
-    auto input_output_order = GetInputOutputOrder(network_with_ids, compiled_network);
-    runtime::ethosn::OrderedCompiledNetwork ordered_network;
-    ordered_network.name = gvar->name_hint;
-    ordered_network.cmm = std::move(compiled_network);
-    ordered_network.inputs = input_output_order.first;
-    ordered_network.outputs = input_output_order.second;
-    return ordered_network;
-  }
-
-  static runtime::Module CreateRuntimeModule(const ObjectRef& ref) {
-    std::vector<runtime::ethosn::OrderedCompiledNetwork> cmms;
-    if (ref->IsInstance<FunctionNode>()) {
-      IRModule mod;
-      Function func = Downcast<Function>(ref);
-      auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-      CHECK(name_node.defined()) << "Failed to retrieved external symbol.";
-      GlobalVar gvar = GlobalVar(name_node.value());
-      mod->Add(gvar, func);
-      Function mod_func = Downcast<Function>(mod->functions.at(gvar));
-      cmms.emplace_back(CompileEthosnFunc(mod, gvar, mod_func));
-    } else {
-      LOG(FATAL) << "The input ref is expected to be a Relay function";
-    }
-    auto n = make_object<runtime::ethosn::EthosnModule>(&cmms);
-    return runtime::Module(n);
-  }
+                                                                   const Function& func);
 
   static std::pair<std::vector<uint32_t>, std::vector<uint32_t>> GetInputOutputOrder(
-      NetworkWithIDs network, const std::unique_ptr<sl::CompiledNetwork>& compiled_network) {
-    std::vector<sl::InputBufferInfo> input_infos = compiled_network->GetInputBufferInfos();
-    std::vector<sl::OutputBufferInfo> output_infos = compiled_network->GetOutputBufferInfos();
-    std::vector<uint32_t> input_order;
-    std::vector<uint32_t> output_order;
-    for (const auto& input_info : input_infos) {
-      input_order.push_back(network.input_ids[input_info.m_SourceOperationId]);
-    }
-    for (const auto& output_info : output_infos) {
-      auto output_id =
-          std::make_pair(output_info.m_SourceOperationId, output_info.m_SourceOperationOutputIndex);
-      output_order.push_back(network.output_ids[output_id]);
-    }
-    return std::make_pair(input_order, output_order);
-  }
+      NetworkWithIDs network, const std::unique_ptr<sl::CompiledNetwork>& compiled_network);
 };
 
 runtime::Module CompileEthosn(const ObjectRef& ref) {
