@@ -20,6 +20,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/crt.h>
+#include <tvm/runtime/crt/graph_runtime.h>
+#include <tvm/runtime/crt/packed_func.h>
+
+#ifdef ENABLE_TVM_ABORT_BACKTRACE
+#include "backtrace.h"
+#endif
 
 /*! \brief macro to do C API call */
 #define TVM_CCALL(func)                                                              \
@@ -32,7 +39,11 @@
   } while (0)
 
 TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
-                                 const uint64_t params_size) {
+                                 const uint64_t params_size, const char* argv0) {
+#ifdef ENABLE_TVM_ABORT_BACKTRACE
+  g_argv0 = argv0;
+#endif
+
   int64_t device_type = kDLCPU;
   int64_t device_id = 0;
 
@@ -45,50 +56,44 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
   ctx.device_id = device_id;
 
   // declare pointers
-  TVMModuleHandle (*SystemLibraryCreate)();
-  TVMModuleHandle (*TVMGraphRuntimeCreate)(const char*, const TVMModuleHandle, const TVMContext*);
-  int (*TVMGraphRuntime_LoadParams)(TVMModuleHandle, const char*, const uint32_t);
+  TVM_CCALL(TVMInitializeRuntime());
+  TVMPackedFunc pf;
+  TVMArgs args = TVMArgs_Create(NULL, NULL, 0);
+  TVM_CCALL(TVMPackedFunc_InitGlobalFunc(&pf, "runtime.SystemLib", &args));
+  TVM_CCALL(TVMPackedFunc_Call(&pf));
 
-  TVM_CCALL(TVMRuntimeInitialize());
-
-  // get pointers
-  TVM_CCALL(TVMFuncGetGlobal("runtime.SystemLib", (TVMFunctionHandle*)&SystemLibraryCreate));
-  TVM_CCALL(
-      TVMFuncGetGlobal("tvm.graph_runtime.create", (TVMFunctionHandle*)&TVMGraphRuntimeCreate));
+  TVMModuleHandle mod_syslib = TVMArgs_AsModuleHandle(&pf.ret_value, 0);
 
   // run modules
-  TVMModuleHandle mod_syslib = SystemLibraryCreate();
-  TVMModuleHandle mod = TVMGraphRuntimeCreate(json_data, mod_syslib, &ctx);
-  TVM_CCALL(
-      TVMModGetFunction(mod, "load_params", 0, (TVMFunctionHandle*)&TVMGraphRuntime_LoadParams));
-  TVMGraphRuntime_LoadParams(mod, params.data, params.size);
+  TVMGraphRuntime* graph_runtime = TVMGraphRuntime_Create(json_data, mod_syslib, &ctx);
+  TVMGraphRuntime_LoadParams(graph_runtime, params.data, params.size);
 
-  return mod;
+  return graph_runtime;
 }
 
 TVM_DLL void tvm_runtime_destroy(void* runtime) {
-  void (*TVMGraphRuntimeRelease)(TVMModuleHandle*);
-  TVM_CCALL(
-      TVMFuncGetGlobal("tvm.graph_runtime.release", (TVMFunctionHandle*)&TVMGraphRuntimeRelease));
-  TVMGraphRuntimeRelease(&runtime);
+  TVMGraphRuntime_Release((TVMGraphRuntime**)&runtime);
 }
 
 TVM_DLL void tvm_runtime_set_input(void* runtime, const char* name, DLTensor* tensor) {
-  void (*TVMGraphRuntime_SetInput)(TVMModuleHandle, const char*, DLTensor*);
-  TVM_CCALL(TVMFuncGetGlobal("tvm.graph_runtime.set_input",
-                             (TVMFunctionHandle*)&TVMGraphRuntime_SetInput));
-  TVMGraphRuntime_SetInput(runtime, name, tensor);
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*)runtime;
+  TVMGraphRuntime_SetInput(graph_runtime, name, tensor);
 }
 
 TVM_DLL void tvm_runtime_run(void* runtime) {
-  void (*TVMGraphRuntime_Run)(TVMModuleHandle runtime);
-  TVM_CCALL(TVMFuncGetGlobal("tvm.graph_runtime.run", (TVMFunctionHandle*)&TVMGraphRuntime_Run));
-  TVMGraphRuntime_Run(runtime);
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*)runtime;
+  TVMGraphRuntime_Run(graph_runtime);
 }
 
 TVM_DLL void tvm_runtime_get_output(void* runtime, int32_t index, DLTensor* tensor) {
-  int (*TVMGraphRuntime_GetOutput)(TVMModuleHandle, const int32_t, DLTensor*);
-  TVM_CCALL(TVMFuncGetGlobal("tvm.graph_runtime.get_output",
-                             (TVMFunctionHandle*)&TVMGraphRuntime_GetOutput));
-  TVMGraphRuntime_GetOutput(runtime, index, tensor);
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*)runtime;
+  TVMGraphRuntime_GetOutput(graph_runtime, index, tensor);
+}
+
+void __attribute__((noreturn)) TVMPlatformAbort(int error_code) {
+  fprintf(stderr, "TVMPlatformAbort: %d\n", error_code);
+#ifdef ENABLE_TVM_ABORT_BACKTRACE
+  tvm_platform_abort_backtrace();
+#endif
+  exit(-1);
 }

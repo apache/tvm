@@ -51,7 +51,7 @@ static const string kUsage =
     " server       - Start the server\n"
     "--host        - The hostname of the server, Default=0.0.0.0\n"
     "--port        - The port of the RPC, Default=9090\n"
-    "--port-end    - The end search port of the RPC, Default=9199\n"
+    "--port-end    - The end search port of the RPC, Default=9099\n"
     "--tracker     - The RPC tracker address in host:port format e.g. 10.1.1.2:9190 Default=\"\"\n"
     "--key         - The key used to identify the device type in tracker. Default=\"\"\n"
     "--custom-addr - Custom IP Address to Report to RPC Tracker. Default=\"\"\n"
@@ -66,7 +66,7 @@ static const string kUsage =
  * \brief RpcServerArgs.
  * \arg host The hostname of the server, Default=0.0.0.0
  * \arg port The port of the RPC, Default=9090
- * \arg port_end The end search port of the RPC, Default=9199
+ * \arg port_end The end search port of the RPC, Default=9099
  * \arg tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
  * \arg key The key used to identify the device type in tracker. Default=""
  * \arg custom_addr Custom IP Address to Report to RPC Tracker. Default=""
