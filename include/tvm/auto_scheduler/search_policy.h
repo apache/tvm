@@ -102,26 +102,15 @@ class SearchCallback : public ObjectRef {
 
 /*! \brief Attribute keys of ops used for SearchPolicy. */
 struct SearchPolicyKey {
-  /*! \brief Dict keys to give hints to the policy. */
-  struct Dict {
-    /*! \brief Always apply unroll to the inner most iterator of the specificed iterators. */
-    static constexpr const char* always_unroll_inner = "auto_scheduler_always_unroll_inner";
-    /*! \brief Always apply unroll to the specified iterators. */
-    static constexpr const char* always_unroll = "auto_scheduler_always_unroll";
-    /*! \brief The specified iterators will not be placed as the inner most iterator. */
-    static constexpr const char* no_split_at_inner = "auto_scheduler_no_split_at_inner";
-    /*! \brief The specified iterators will not be placed as the outter most iterator. */
-    static constexpr const char* no_split_at_outer = "auto_scheduler_no_split_at_outer";
-    /*! \brief The specified iterators will be split with the last factor as one. */
-    static constexpr const char* last_split_is_one = "auto_scheduler_last_split_is_one";
-  };
-  /*! \brief Flag keys to give hints to the policy. */
-  struct Flag {
-    /*! \brief Always apply compute inline to the specified op stage. */
-    static constexpr const char* always_compute_inline = "auto_scheduler_always_compute_inline";
-    /*! \brief Never apply cache write to the specified op stages. */
-    static constexpr const char* no_cache_write = "auto_scheduler_no_cache_write";
-  };
+  /*! \brief Always apply unroll to the inner most iterator of the specificed iterators. */
+  static constexpr const char* always_unroll_inner = "auto_scheduler_always_unroll_inner";
+  /*! \brief The specified iterators will not be placed as the inner most iterator. */
+  static constexpr const char* no_split_at_inner = "auto_scheduler_no_split_at_inner";
+  /*! \brief The specified iterators will not be placed as the outter most iterator. */
+  static constexpr const char* no_split_at_outer = "auto_scheduler_no_split_at_outer";
+  /*! \brief The specified iterators are some "fake reduction" with const tensors. */
+  static constexpr const char* simplify_const_tensor_indices =
+      "auto_scheduler_simplify_const_tensor_indices";
 };
 
 /*!

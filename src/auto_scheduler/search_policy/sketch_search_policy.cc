@@ -68,25 +68,16 @@ class RuleAlwaysInline : public SketchGenerationRule {
   ConditionKind MeetCondition(const SketchSearchPolicyNode& policy, const State& state,
                               int stage_id) final {
     const Stage& stage = state->stages[stage_id];
-    if (stage->op_type == StageKind::kPlaceholder) {
+    // Check the inline limitation of TE first
+    if (stage->op_type == StageKind::kPlaceholder ||
+        IsOutputOp(policy.search_task, state, stage_id) || HasReduceIter(stage)) {
       return ConditionKind::kSkip;
     }
 
-    // Check the inline limitation of TVM first
-    if (!IsOutputOp(policy.search_task, state, stage_id) && !HasReduceIter(stage)) {
-      // Always inline and skip the rest if:
-      // 1. Has attr that this must be inlined
-      // 2. Analyse shows this is strict inlineable
-      // 3. If A GPU stage can be inlined, that's usually a better choice to avoid going through
-      //    global memory
-      // TODO(jcf94): Add the rule 3 when introducing GPU search policy.
-      return (HasAttrsFlag(state, stage_id, SearchPolicyKey::Flag::always_compute_inline) ||
-              IsStrictlyInlineable(policy.search_task, state, stage_id))
-                 ? ConditionKind::kApplyAndSkipRest
-                 : ConditionKind::kSkip;
-    }
-
-    return ConditionKind::kSkip;
+    // TODO(jcf94): Greedily inline all inlinable ops on GPU when introducing GPU search policy.
+    return IsStrictlyInlineable(policy.search_task, state, stage_id)
+               ? ConditionKind::kApplyAndSkipRest
+               : ConditionKind::kSkip;
   }
 
   std::vector<std::pair<State, int>> Apply(const SketchSearchPolicyNode& policy, const State& state,
@@ -126,6 +117,7 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
         HasSingleElementwiseMatchedConsumer(policy.search_task, state, stage_id,
                                             &target_stage_id)) {
       // Always do fusion for stage with cache_write
+      // TODO(jcf94): Always do fusion on GPU when introducing GPU search policy.
       return HasCacheWriteStage(state, stage_id) ? ConditionKind::kApplyAndSkipRest
                                                  : ConditionKind::kApply;
     }
@@ -168,16 +160,12 @@ class RuleAddCacheWrite : public SketchGenerationRule {
  public:
   ConditionKind MeetCondition(const SketchSearchPolicyNode& policy, const State& state,
                               int stage_id) final {
-    // Handle attr that this should not be applied cache write
-    if (HasAttrsFlag(state, stage_id, SearchPolicyKey::Flag::no_cache_write)) {
-      return ConditionKind::kSkip;
-    }
-
     // Add cache write if a stage needs multi-level tiling, but does not have a element-wise
     // matched consumer
     if (NeedsMultilevelTiling(policy.search_task, state, stage_id) &&
         !HasSingleElementwiseMatchedConsumer(policy.search_task, state, stage_id)) {
       // An apply and skip rule will be handled in RuleMultiLevelTilingWithFusion
+      // TODO(jcf94): Always do cache_write on GPU when introducing GPU search policy.
       return ConditionKind::kApply;
     }
 
@@ -244,12 +232,62 @@ class RuleAddRfactor : public SketchGenerationRule {
   }
 };
 
+// The rule that deals with compute ops that perform "fake reduction" with const tensors.
+// This kind of op comes from winograd transformation.
+class RuleSimplifyComputeWithConstTensor : public SketchGenerationRule {
+ public:
+  ConditionKind MeetCondition(const SketchSearchPolicyNode& policy, const State& state,
+                              int stage_id) final {
+    return state->stages[stage_id]->op->attrs.count(SearchPolicyKey::simplify_const_tensor_indices)
+               ? ConditionKind::kApplyAndSkipRest
+               : ConditionKind::kSkip;
+  }
+
+  std::vector<std::pair<State, int>> Apply(const SketchSearchPolicyNode& policy, const State& state,
+                                           int stage_id) const final {
+    std::set<std::string> const_tensor_indices = GetIterNameSetParam(
+        state->stages[stage_id]->op->attrs, SearchPolicyKey::simplify_const_tensor_indices);
+
+    State tmp_s = state;
+    Array<Array<Iterator>> tiled_outer_iters;
+    Array<Iterator> unrolled_inner_iters;
+
+    // Currently set to 2
+    size_t tile_level = 2;
+
+    for (const auto& iter : state->stages[stage_id]->iters) {
+      if (const_tensor_indices.count(iter->name)) {
+        // unroll indices of const tensors
+        unrolled_inner_iters.push_back(tmp_s.unroll(stage_id, iter));
+      } else {
+        // tile other space indices
+        CHECK(iter->iter_kind == IteratorKind::kSpatial);
+        tiled_outer_iters.push_back(
+            tmp_s.split(stage_id, iter, Array<Optional<Integer>>(tile_level - 1, NullOpt)));
+      }
+    }
+
+    // reorder them
+    Array<Iterator> new_order;
+    for (size_t i = 0; i < tile_level; ++i) {
+      for (size_t j = 0; j < tiled_outer_iters.size(); ++j) {
+        new_order.push_back(tiled_outer_iters[j][i]);
+      }
+    }
+    new_order.insert(new_order.end(), unrolled_inner_iters.begin(), unrolled_inner_iters.end());
+    tmp_s.reorder(stage_id, new_order);
+
+    return {std::make_pair(tmp_s, stage_id - 1)};
+  }
+};
+
 static RuleSkipStage rule_skip_stage;
 static RuleAlwaysInline rule_always_inline;
 static RuleMultiLevelTiling rule_multi_level_tiling;
 static RuleMultiLevelTilingWithFusion rule_multi_level_tiling_with_fusion;
 static RuleAddCacheWrite rule_add_cache_write_stage;
 static RuleAddRfactor rule_add_rfactor;
+static RuleSimplifyComputeWithConstTensor rule_simplify_compute_with_const_tensor;
 
 /********** Init Population **********/
 
@@ -319,11 +357,6 @@ class InitChangeComputeLocation : public InitPopulationRule {
         continue;
       }
       const Stage& target_stage = (*state)->stages[target_stage_id];
-      std::set<std::string> to_unroll_name_set;
-      if (target_stage->op->attrs.count(SearchPolicyKey::Dict::always_unroll)) {
-        to_unroll_name_set =
-            GetIterNameSetParam(target_stage->op->attrs, SearchPolicyKey::Dict::always_unroll);
-      }
 
       std::vector<std::pair<int, int>> candidates;
       bool target_compute_at_other = target_stage->compute_at == ComputeAtKind::kIter;
@@ -345,8 +378,8 @@ class InitChangeComputeLocation : public InitPopulationRule {
           }
         }
 
-        if (to_unroll_name_set.count(target_iter->name)) {
-          // Do not go into always unroll region
+        if (target_iter->annotation == IteratorAnnotation::kUnroll) {
+          // Do not go into the unroll region of const tensor indices
           break;
         }
 
@@ -375,12 +408,6 @@ class InitChangeComputeLocation : public InitPopulationRule {
         target_target_stage_id =
             (*state)->attach_map->stage_to_attach_iter.at(target_stage_id).first;
         const Stage& target_target_stage = (*state)->stages[target_target_stage_id];
-        if (target_target_stage->op->attrs.count(SearchPolicyKey::Dict::always_unroll)) {
-          to_unroll_name_set = GetIterNameSetParam(target_target_stage->op->attrs,
-                                                   SearchPolicyKey::Dict::always_unroll);
-        } else {
-          to_unroll_name_set.clear();
-        }
 
         for (size_t i = 0; i < target_target_stage->iters.size(); ++i) {
           const Iterator& target_target_iter = target_target_stage->iters[i];
@@ -390,8 +417,8 @@ class InitChangeComputeLocation : public InitPopulationRule {
             break;
           }
 
-          if (to_unroll_name_set.count(target_target_iter->name)) {
-            // Do not go into always unroll region
+          if (target_target_iter->annotation == IteratorAnnotation::kUnroll) {
+            // Do not go into the unroll region of const tensor indices
             break;
           }
 
@@ -509,9 +536,9 @@ class InitUnroll : public InitPopulationRule {
       }
 
       // Handle always_unroll_inner attr
-      if (stage->op->attrs.count(SearchPolicyKey::Dict::always_unroll_inner)) {
+      if (stage->op->attrs.count(SearchPolicyKey::always_unroll_inner)) {
         const auto& to_unroll_name_set =
-            GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::Dict::always_unroll_inner);
+            GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::always_unroll_inner);
 
         // Unroll the space iterators and reduce iterators listed in the attrs in the innermost
         // tile
@@ -526,25 +553,6 @@ class InitUnroll : public InitPopulationRule {
           if (size_before == visited_names.size()) {
             break;
           }
-
-          std::set<std::string> name;
-          ExtractOriginalIterators(it->name, &name);
-          if (name.size() == 1 && to_unroll_name_set.count(*name.begin())) {
-            if (it->annotation == IteratorAnnotation::kNone) {
-              state->unroll(stage_id, it);
-            }
-          }
-        }
-      }
-
-      // Handle always_unroll attr
-      if (stage->op->attrs.count(SearchPolicyKey::Dict::always_unroll)) {
-        const auto& to_unroll_name_set =
-            GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::Dict::always_unroll);
-
-        // Unroll the space iterators and reduce iterators listed in the attrs
-        for (int n = static_cast<int>(stage->iters.size()) - 1; n >= 0; n--) {
-          const Iterator& it = stage->iters[n];
 
           std::set<std::string> name;
           ExtractOriginalIterators(it->name, &name);
@@ -660,9 +668,10 @@ SketchSearchPolicy::SketchSearchPolicy(SearchTask task, CostModel schedule_cost_
   }
 
   // The default sketch rules for CPU policy
-  // Notice: We may apply and skip the rest when processing some rules. Should take care of the
-  // order of rules here.
+  // Notice: Some rules require us to skip all the rest rules after they are applied.
+  // So the rules below should be ordered carefully.
   node->sketch_rules.push_back(&rule_always_inline);
+  node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
   node->sketch_rules.push_back(&rule_add_rfactor);
   node->sketch_rules.push_back(&rule_add_cache_write_stage);
   node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);

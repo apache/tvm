@@ -270,20 +270,11 @@ inline bool ElementwiseMatch(const SearchTask& task, const State& state, int sta
 inline std::pair<std::set<std::string>, std::set<std::string>> GetNoSplitAxisAttr(
     const Stage& stage) {
   std::pair<std::set<std::string>, std::set<std::string>> ret;
-  if (stage->op->attrs.count(SearchPolicyKey::Dict::no_split_at_inner)) {
-    ret.first = GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::Dict::no_split_at_inner);
+  if (stage->op->attrs.count(SearchPolicyKey::no_split_at_inner)) {
+    ret.first = GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::no_split_at_inner);
   }
-  if (stage->op->attrs.count(SearchPolicyKey::Dict::no_split_at_outer)) {
-    ret.second = GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::Dict::no_split_at_outer);
-  }
-  return ret;
-}
-
-/*! \brief Get axes whose last split is one according to the attribute from tvm.compute. */
-inline std::set<std::string> GetLastSplitIsOneAxisAttr(const Stage& stage) {
-  std::set<std::string> ret;
-  if (stage->op->attrs.count(SearchPolicyKey::Dict::last_split_is_one)) {
-    ret = GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::Dict::last_split_is_one);
+  if (stage->op->attrs.count(SearchPolicyKey::no_split_at_outer)) {
+    ret.second = GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::no_split_at_outer);
   }
   return ret;
 }
@@ -333,14 +324,6 @@ inline bool NeedsRfactor(const SearchTask& task, const State& state, int stage_i
     }
   }
 
-  return false;
-}
-
-/*! \brief Return whether the stage has an attribute flag. */
-inline bool HasAttrsFlag(const State& state, int stage_id, const char* target) {
-  if (state->stages[stage_id]->op->attrs.count(target)) {
-    return GetStringParam(state->stages[stage_id]->op->attrs, target) == "True";
-  }
   return false;
 }
 

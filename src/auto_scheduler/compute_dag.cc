@@ -24,6 +24,7 @@
 
 #include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/search_policy.h>
 #include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
@@ -345,6 +346,11 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
         is_strictly_inlineable = false;
       }
 
+      // constant tensor is strict-inlineable
+      if (node->read_from[op].empty()) {
+        is_strictly_inlineable = true;
+      }
+
       node->is_simple_access[op] = is_simple_access;
       node->is_strictly_inlineable[op] = is_strictly_inlineable;
 
@@ -372,6 +378,11 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
           needs_multi_level_tiling = true;
           break;
         }
+      }
+
+      // do not perform multi-level tiling on "fake reduction" with const tensors
+      if (op->attrs.count(SearchPolicyKey::simplify_const_tensor_indices)) {
+        needs_multi_level_tiling = false;
       }
 
       node->needs_multi_level_tiling[op] = needs_multi_level_tiling;
@@ -822,6 +833,58 @@ ComputeDAG ComputeDAG::ReplayAndGetDAG(const Array<Step>& transform_steps) const
 
   return ComputeDAG(new_tensors);
 }
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<AccessAnalyzerNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const AccessAnalyzerNode*>(ref.get());
+      for (const auto& op : node->ops_topo_order) {
+        p->stream << op << std::endl;
+        p->stream << "is_simple_access:\t" << node->is_simple_access.at(op) << "\t\t";
+        p->stream << "needs_multi_level_tiling:\t" << node->needs_multi_level_tiling.at(op)
+                  << std::endl;
+        p->stream << "is_strictly_inlinable:\t" << node->is_strictly_inlineable.at(op) << "\t";
+        p->stream << "is_output:\t" << node->is_output.at(op) << std::endl;
+        p->stream << "Read from:\t";
+        for (const auto& pair : node->read_from.at(op)) {
+          for (const auto& index : pair.second) {
+            p->stream << pair.first->name << Array<PrimExpr>(index) << ", ";
+          }
+        }
+        p->stream << std::endl;
+        p->stream << "Read by:\t";
+        for (const auto& pair : node->read_by.at(op)) {
+          for (const auto& index : pair.second) {
+            p->stream << pair.first->name << Array<PrimExpr>(index) << ", ";
+          }
+        }
+        p->stream << std::endl;
+        p->stream << Chars('=', 50) << std::endl;
+      }
+
+      AccessAnalyzer ana = GetRef<AccessAnalyzer>(node);
+      p->stream << "ElementwiseMatch: \n";
+      for (size_t i = 0; i < node->ops_topo_order.size(); ++i) {
+        for (size_t j = 0; j < node->ops_topo_order.size(); ++j) {
+          if (i == j) {
+            continue;
+          }
+          if (ana.ElementWiseMatch(node->ops_topo_order[i], node->ops_topo_order[j])) {
+            p->stream << node->ops_topo_order[i]->name << " -> " << node->ops_topo_order[j]->name
+                      << std::endl;
+          }
+        }
+      }
+      p->stream << Chars('=', 50) << std::endl;
+
+      p->stream << "NumCommonOuterIterators: \n";
+      for (const auto& src_pair : node->num_common_outer_iterators) {
+        for (const auto& dst_pair : src_pair.second) {
+          p->stream << src_pair.first->name << " " << dst_pair.first->name << " " << dst_pair.second
+                    << std::endl;
+        }
+      }
+      p->stream << Chars('=', 50) << std::endl;
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ComputeDAGNode>([](const ObjectRef& ref, ReprPrinter* p) {

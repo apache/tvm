@@ -58,7 +58,6 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   State tmp_s = state;
   const Stage& stage = state->stages[stage_id];
   const auto& no_split_name_pair = GetNoSplitAxisAttr(stage);  // handle special split strategy
-  const auto& last_split_is_one_name_set = GetLastSplitIsOneAxisAttr(stage);
   const std::set<std::string>& no_split_at_inner_name_set = no_split_name_pair.first;
   const std::set<std::string>& no_split_at_outer_name_set = no_split_name_pair.second;
 
@@ -67,18 +66,12 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
       if (!no_split_at_inner_name_set.count(iter->name) &&
           !no_split_at_outer_name_set.count(iter->name)) {
         CHECK_GE(n_space, 1);
-        int tmp_n_space = n_space;
 
-        if (last_split_is_one_name_set.count(iter->name)) {
-          tmp_n_space--;
-        }
-
-        if (tmp_n_space == 1) {
+        if (n_space == 1) {
           space_levels[0].push_back(iter);
         } else {
-          split_res =
-              tmp_s.split(stage_id, iter, Array<Optional<Integer>>(tmp_n_space - 1, NullOpt));
-          for (int i = 0; i < tmp_n_space; i++) {
+          split_res = tmp_s.split(stage_id, iter, Array<Optional<Integer>>(n_space - 1, NullOpt));
+          for (size_t i = 0; i < n_space; i++) {
             space_levels[i].push_back(split_res[i]);
           }
           spatial_split_step_ids->push_back(tmp_s->transform_steps.size() - 1);

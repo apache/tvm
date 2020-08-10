@@ -187,6 +187,7 @@ class ComputeDAGNode : public Object {
     v->Visit("ops", &ops);
     v->Visit("flop_ct", &flop_ct);
     v->Visit("init_state", &init_state);
+    v->Visit("access_analyzer", &access_analyzer);
   }
 
   static constexpr const char* _type_key = "auto_scheduler.ComputeDAG";

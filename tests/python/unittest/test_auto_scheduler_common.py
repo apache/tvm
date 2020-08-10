@@ -22,7 +22,7 @@ import threading
 import tvm
 from tvm import te, auto_scheduler
 from tvm import topi
-from tvm.topi.nn.winograd_util import _cook_toom_convolution, _interpolation_points
+from tvm.topi.nn.winograd_util import winograd_transform_matrices
 from tvm.topi.util import get_const_tuple
 
 
@@ -122,41 +122,6 @@ def conv2d_winograd_nhwc_auto_scheduler_test(N, H, W, CI, CO, kernel_size=3, str
 
     data_pad = topi.nn.pad(inputs, (0, HPAD, WPAD, 0), (0, HPAD, WPAD, 0), name="data_pad")
 
-    def const_matrix(matrix, name="const_matrix", attrs=None):
-        row, col = matrix.shape
-        dtype = str(matrix.dtype)
-        idxm = tvm.tir.indexmod
-
-        def select_array(i, j):
-            now = tvm.tir.const(0.0, dtype)
-            for ii in range(row):
-                for jj in range(col):
-                    now = tvm.tir.Select(tvm.tir.all(idxm(i, row) == ii, idxm(j, col) == jj),
-                                        tvm.tir.const(matrix[ii][jj], dtype),
-                                        now)
-            return now
-
-        return te.compute(matrix.shape, select_array, name=name, attrs=attrs)
-
-    def winograd_transform_matrices(tile_size, kernel_size, out_dtype):
-        """Compute the A, B, and G transform matrices for `tile_size` as a `tvm.Expr`.
-        """
-        if not 1 < tile_size < 9:
-            raise ValueError("Unsupported tile size for Winograd: {}".format(tile_size))
-        if not 2 < kernel_size < 8:
-            raise ValueError("Unsupported kernel size for Winograd: {}".format(kernel_size))
-
-        degree = tile_size + kernel_size - 2
-
-        intp_pts = _interpolation_points(degree)
-        A_data, B_data, G_data = _cook_toom_convolution(intp_pts, tile_size, kernel_size)
-
-        return (
-            const_matrix(A_data.astype(out_dtype), "A", attrs={"auto_scheduler_always_compute_inline": "True"}),
-            const_matrix(B_data.astype(out_dtype), "B", attrs={"auto_scheduler_always_compute_inline": "True"}),
-            const_matrix(G_data.astype(out_dtype), "G", attrs={"auto_scheduler_always_compute_inline": "True"}),
-        )
-
     r = KW
     m = tile_size
     alpha = m + r - 1
@@ -184,11 +149,7 @@ def conv2d_winograd_nhwc_auto_scheduler_test(N, H, W, CI, CO, kernel_size=3, str
     data_pack = te.compute((alpha, alpha, P, CI), lambda eps, nu, p, ci:
                             te.sum(input_tile[r_a][r_b][p][ci] * B[r_a][eps] * B[r_b][nu],
                                     axis=[r_a, r_b]), name='data_pack',
-                                    attrs={"auto_scheduler_no_split_at_inner": ["eps", "nu", "r_a", "r_b"],
-                                           "auto_scheduler_last_split_is_one": ["ci", "p"],
-                                           "auto_scheduler_always_unroll": ["eps", "nu", "r_a", "r_b"],
-                                           "auto_scheduler_no_cache_write": "True",
-                                           })
+                            attrs={"auto_scheduler_simplify_const_tensor_indices": ["eps", "nu", "r_a", "r_b"]})
 
     # do batch gemm
     ci = te.reduce_axis((0, CI), name='ci')
@@ -203,11 +164,7 @@ def conv2d_winograd_nhwc_auto_scheduler_test(N, H, W, CI, CO, kernel_size=3, str
     inverse = te.compute((m, m, P, CO), lambda vh, vw, p, co:
                           te.sum(bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw],
                                   axis=[r_a, r_b]), name='inverse',
-                          attrs={"auto_scheduler_no_split_at_inner": ["vh", "vw", "r_a", "r_b"],
-                                 "auto_scheduler_always_unroll": ["vh", "vw", "r_a", "r_b"],
-                                 "auto_scheduler_last_split_is_one": ["co", "p"],
-                                 "auto_scheduler_no_cache_write": "True",
-                                 })
+                          attrs={"auto_scheduler_simplify_const_tensor_indices": ["vh", "vw", "r_a", "r_b"]})
 
     # output
     output = te.compute((N, H, W, CO), lambda n, h, w, co:
@@ -215,11 +172,9 @@ def conv2d_winograd_nhwc_auto_scheduler_test(N, H, W, CI, CO, kernel_size=3, str
                                  idxmod(w, m),
                                  n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
                                  co],
-                         name='conv2d_winograd',
-                         tag='conv2d_winograd_nhwc',
-                         attrs={"auto_scheduler_no_split_at_outer": ["n", "h", "w", "co"],})
-    return [inputs, kernel_pack, output]
+                         name='conv2d_winograd')
 
+    return [inputs, kernel_pack, output]
 
 def get_tiled_matmul():
     A, B, C = matmul_auto_scheduler_test(512, 512, 512)
