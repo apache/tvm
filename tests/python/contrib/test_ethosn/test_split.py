@@ -20,6 +20,7 @@
 import numpy as np
 import tvm
 from tvm import relay
+from tvm.relay.op.contrib.ethosn import ethosn_available
 from . import infrastructure as tei
 
 
@@ -30,7 +31,7 @@ def _get_model(shape, dtype, splits, axis):
 
 
 def test_split():
-    if not tei.ethosn_available():
+    if not ethosn_available():
         return
 
     trials = [
@@ -53,7 +54,7 @@ def test_split():
 
 
 def test_split_failure():
-    if not tei.ethosn_available():
+    if not ethosn_available():
         return
 
     trials = [

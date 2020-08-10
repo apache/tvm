@@ -17,13 +17,36 @@
 # pylint: disable=invalid-name, unused-argument
 """Arm(R) Ethos(TM) -N NPU supported operators."""
 import tvm.ir
+from enum import Enum
 from ... import qnn as _qnn
 from . import _ethosn as support
+
+
+class Available(Enum):
+    UNAVAILABLE = 0
+    SW_ONLY = 1
+    SW_AND_HW = 2
+
+    def __bool__(self):
+        return self != Available.UNAVAILABLE
+
+
+def ethosn_available():
+    """Return whether Ethos-N software and hardware support is available"""
+    if not tvm.get_global_func("relay.ethos-n.query", True):
+        print("skip because Ethos-N module is not available")
+        return Available.UNAVAILABLE
+    else:
+        hw = tvm.get_global_func("relay.ethos-n.query")()
+        return Available.SW_AND_HW if hw else Available.SW_ONLY
 
 
 @tvm.ir.register_op_attr("qnn.concatenate", "target.ethos-n")
 def qnn_concatenate(attrs, args):
     """Check if a concatenate is supported by Ethos-N."""
+    if not ethosn_available():
+        return False
+
     conc = _qnn.op.concatenate(*args, **attrs)
     if not support.concatenate(conc):
         return False
@@ -50,6 +73,9 @@ def qnn_concatenate(attrs, args):
 @tvm.ir.register_op_attr("split", "target.ethos-n")
 def split(attrs, args):
     """Check if a split is supported by Ethos-N."""
+    if not ethosn_available():
+        return False
+
     if isinstance(attrs["indices_or_sections"], tvm.tir.IntImm):
         sp = tvm.relay.split(*args,
                              indices_or_sections=attrs["indices_or_sections"].value,

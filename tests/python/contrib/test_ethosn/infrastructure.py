@@ -33,25 +33,6 @@ from . import _infrastructure
 from tvm.relay.op.contrib import get_pattern_table
 
 
-class Available(Enum):
-    UNAVAILABLE = 0
-    SW_ONLY = 1
-    SW_AND_HW = 2
-
-    def __bool__(self):
-        return self != Available.UNAVAILABLE
-
-
-def ethosn_available():
-    """Return whether Ethos-N software and hardware support is available"""
-    if not tvm.get_global_func("relay.ethos-n.query", True):
-        print("skip because Ethos-N module is not available")
-        return Available.UNAVAILABLE
-    else:
-        hw = tvm.get_global_func("relay.ethos-n.query")()
-        return Available.SW_AND_HW if hw else Available.SW_ONLY
-
-
 def get_real_image(im_height, im_width):
     repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
     img_name = 'elephant-299.jpg'

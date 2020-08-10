@@ -20,6 +20,7 @@
 import numpy as np
 import tvm
 from tvm import relay
+from tvm.relay.op.contrib.ethosn import ethosn_available
 from . import infrastructure as tei
 
 
@@ -51,7 +52,7 @@ def _get_model(shapes, dtype, axis):
 
 
 def test_concatenate():
-    if not tei.ethosn_available():
+    if not ethosn_available():
         return
 
     trials = [
@@ -73,7 +74,7 @@ def test_concatenate():
 
 
 def test_concatenate_failure():
-    if not tei.ethosn_available():
+    if not ethosn_available():
         return
 
     trials = [

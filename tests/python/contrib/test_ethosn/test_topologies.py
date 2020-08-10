@@ -19,11 +19,12 @@
 import numpy as np
 import tvm
 from tvm import relay
+from tvm.relay.op.contrib.ethosn import ethosn_available
 from . import infrastructure as tei
 
 
 def test_split_with_asym_concats():
-    if not tei.ethosn_available():
+    if not ethosn_available():
         return
 
     def get_model(shape, splits, axis):
@@ -64,7 +65,7 @@ def test_split_with_asym_concats():
 def test_output_tuple_propagation():
     """This tests the case where the output tuple must be inferred
     as having dummy tensor information."""
-    if not tei.ethosn_available():
+    if not ethosn_available():
         return
 
     def get_model():
@@ -84,7 +85,7 @@ def test_output_tuple_propagation():
 
 
 def test_input_tuples():
-    if not tei.ethosn_available():
+    if not ethosn_available():
         return
 
     def get_model(shapes, axis):
