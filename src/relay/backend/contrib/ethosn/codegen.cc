@@ -43,11 +43,11 @@ void InferTensorsVisitor::InferCall(const CallNode* cn) {
   EthosnError err;
   Call call = GetRef<Call>(cn);
   // Determine call -> NPU mapping
-  if (EthosnAPI::IsEthosOp(call, "qnn.concatenate")) {
+  if (EthosnAPI::IsEthosnOp(call, "qnn.concatenate")) {
     ConcatenateParams params;
     err = EthosnAPI::Concatenate(call, &params);
     tensor_table_[cn->args[0]] = params.input_infos;
-  } else if (EthosnAPI::IsEthosOp(call, "split")) {
+  } else if (EthosnAPI::IsEthosnOp(call, "split")) {
     SplitParams params;
     params.input_info = GetTensorInfo(tensor_table_, call);
     err = EthosnAPI::Split(call, &params);
@@ -124,10 +124,10 @@ sl::TensorsAndId ConstructNetworkVisitor::HandleCall(const CallNode* cn) {
   sl::TensorAndId<sl::Operand> tensor;
   sl::TensorsAndId tensors;
   // Determine call -> NPU mapping
-  if (EthosnAPI::IsEthosOp(call, "qnn.concatenate")) {
+  if (EthosnAPI::IsEthosnOp(call, "qnn.concatenate")) {
     if ((err = MakeConcatenateLayer(call, &tensor))) ReportFatalError(call, err);
     return MakeOps(tensor);
-  } else if (EthosnAPI::IsEthosOp(call, "split")) {
+  } else if (EthosnAPI::IsEthosnOp(call, "split")) {
     if ((err = MakeSplitLayer(call, &tensors))) ReportFatalError(call, err);
     return tensors;
   } else {

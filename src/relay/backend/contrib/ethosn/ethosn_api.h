@@ -92,7 +92,7 @@ class EthosnAPI {
 
   static sl::CompilationOptions CreateOptions();
 
-  static bool IsEthosOp(const Call& call, const std::string& op_name);
+  static bool IsEthosnOp(const Call& call, const std::string& op_name);
 
   static EthosnError Concatenate(const Expr& expr, ConcatenateParams* params);
   static EthosnError Split(const Expr& expr, SplitParams* params);
