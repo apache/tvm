@@ -40,7 +40,7 @@ TVM_REGISTER_GLOBAL("ir.StringType").set_body_typed([]() { return StringType(); 
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<StringTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const StringTypeNode*>(ref.get());
+      // auto* node = static_cast<const StringTypeNode*>(ref.get());
       p->stream << "StringType";
     });
 
