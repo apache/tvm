@@ -26,12 +26,13 @@
 
 #include <tvm/runtime/packed_func.h>
 
-#include <ethosn_support_library/Support.hpp>
-#include <map>            // NOLINT
-#include <memory>         // NOLINT
-#include <string>         // NOLINT
-#include <unordered_map>  // NOLINT
-#include <vector>         // NOLINT
+#include <map>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "ethosn_support_library/Support.hpp"
 
 namespace tvm {
 namespace runtime {
