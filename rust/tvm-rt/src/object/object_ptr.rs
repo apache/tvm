@@ -315,7 +315,7 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
             ArgValue::ObjectHandle(handle) => {
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
-                println!("count: {}", optr.count());
+                // println!("count: {}", optr.count());
                 optr.downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
