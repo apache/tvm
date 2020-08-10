@@ -77,6 +77,7 @@ We do encourage everyone to work anything they are interested in.
 - [Tianqi Chen](https://github.com/tqchen): @tqchen
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
 - [Zhi Chen](https://github.com/zhiics): @zhiics
+- [Chenfan](https://github.com/jcf94): @jcf94
 - [Neo Chien](https://github.com/cchung100m): @cchung100m
 - [Meghan Cowan](https://github.com/cowanmeg): @cowanmeg
 - [Balint Cristian](https://github.com/cbalint13): @cbalint13
