@@ -259,18 +259,17 @@ NetworkWithIDs ConstructNetwork(const IRModule& mod, const GlobalVar& var, const
 class EthosnCompiler {
  public:
   static runtime::ethosn::OrderedCompiledNetwork CompileEthosnFunc(const IRModule& mod,
-                                                                   std::string name,
+                                                                   const GlobalVar& gvar,
                                                                    const Function& func) {
     // Construct the network
-    GlobalVar var = mod->GetGlobalVar(name);
-    auto network_with_ids = ConstructNetwork(mod, var, func);
+    auto network_with_ids = ConstructNetwork(mod, gvar, func);
     // Now set the required build flags
     sl::CompilationOptions options = EthosnAPI::CreateOptions();
     // Finally compile the network
     auto compiled_network = EthosnAPI::Compile(network_with_ids.network, options);
     auto input_output_order = GetInputOutputOrder(network_with_ids, compiled_network);
     runtime::ethosn::OrderedCompiledNetwork ordered_network;
-    ordered_network.name = name;
+    ordered_network.name = gvar->name_hint;
     ordered_network.cmm = std::move(compiled_network);
     ordered_network.inputs = input_output_order.first;
     ordered_network.outputs = input_output_order.second;
@@ -281,15 +280,13 @@ class EthosnCompiler {
     std::vector<runtime::ethosn::OrderedCompiledNetwork> cmms;
     if (ref->IsInstance<FunctionNode>()) {
       IRModule mod;
-      Function bfunc = Downcast<Function>(ref);
-      auto name_node = bfunc->GetAttr<String>(tvm::attr::kGlobalSymbol);
+      Function func = Downcast<Function>(ref);
+      auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
       CHECK(name_node.defined()) << "Failed to retrieved external symbol.";
-      mod->Add(GlobalVar(name_node.value()), bfunc);
-      for (const auto& it : mod->functions) {
-        Function func = Downcast<Function>(it.second);
-        name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-        cmms.emplace_back(CompileEthosnFunc(mod, name_node.value(), func));
-      }
+      GlobalVar gvar = GlobalVar(name_node.value());
+      mod->Add(gvar, func);
+      Function mod_func = Downcast<Function>(mod->functions.at(gvar));
+      cmms.emplace_back(CompileEthosnFunc(mod, gvar, mod_func));
     } else {
       LOG(FATAL) << "The input ref is expected to be a Relay function";
     }
