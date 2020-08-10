@@ -29,6 +29,13 @@ This folder contains a simple recipe to make RPC server in c++.
   # The Android ABI and platform to target
   set(ANDROID_ABI "arm64-v8a")
   set(ANDROID_PLATFORM android-28)
+  ```
+- Similarly, if cross compiling for embedded Linux add the following options to cmake config:
+```
+  # Needed to ensure pthread is linked
+  set(OS Linux)
+  # Path to the desired C++ cross compiler
+  set(CMAKE_CXX_COMPILER /path/to/cross/compiler/executable)
 ```
 - If linking against a custom device OpenCL library is needed, in the config specify the path to the OpenCL SDK containing the include/CL headers and lib/ or lib64/libOpenCL.so:
 ```
