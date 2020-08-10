@@ -121,7 +121,9 @@ class EthosnAPI {
   static EthosnError Split(const Expr& expr, SplitParams* params);
 
  private:
+  /*! \brief Convert a TVM tensor shape to a SL tensor shape */
   static EthosnError Tvm2Npu(const Array<IndexExpr>& shape, sl::TensorShape* npu_shape);
+  /*! \brief Convert a TVM data type to a SL data type */
   static EthosnError Tvm2Npu(const tvm::DataType& dtype, sl::DataType* data_type);
 
   // Convert an array of IntImmNodes into ValueT
