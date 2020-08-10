@@ -67,12 +67,16 @@ class TFParser(object):
     def _get_tag_set(self):
         """Return the tag set of saved model, multiple metagraphs are not supported"""
         try:
-            from tensorflow.contrib.saved_model.python.saved_model import reader
+            from tensorflow.contrib.saved_model.python.saved_model.reader \
+                import get_saved_model_tag_sets
         except ImportError:
-            raise ImportError(
-                "InputConfiguration: Unable to import saved_model.reader which is "
-                "required to get tag set from saved model.")
-        tag_sets = reader.get_saved_model_tag_sets(self._model_dir)
+            try:
+                from tensorflow.python.tools.saved_model_utils import get_saved_model_tag_sets
+            except ImportError:
+                raise ImportError(
+                    "InputConfiguration: Unable to import get_saved_model_tag_sets which is "
+                    "required to get tag set from saved model.")
+        tag_sets = get_saved_model_tag_sets(self._model_dir)
         return tag_sets[0]
 
     def _get_output_names(self):
