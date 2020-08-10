@@ -17,6 +17,15 @@
  * under the License.
  */
 
+/*!
+ * \file src/relay/backend/contrib/ethosn/capabilities.h
+ * \brief The Ethos-N processor series has four variants, the Ethos-N37, Ethos-N57, Ethos-N77
+ * and the Ethos-N78. This release of the integration supports the first three variants.
+ * Configuration information for each variant is stored as a blob in this file. These blobs
+ * are passed into the Ethos-N support library, which in turn uses them to optimize the
+ * generated command-stream appropriately for the specified variant.
+ */
+
 #ifndef TVM_RELAY_BACKEND_CONTRIB_ETHOSN_CAPABILITIES_H_
 #define TVM_RELAY_BACKEND_CONTRIB_ETHOSN_CAPABILITIES_H_
 
@@ -27,6 +36,11 @@ namespace relay {
 namespace contrib {
 namespace ethosn {
 
+/* Ethos-N variants (N77, N57 and N37)
+ * variant[0] - N77
+ * variant[1] - N57
+ * variant[2] - N37
+ */
 static std::vector<char> variants[3] = {
     {
         0x02, 0x00, 0x00, 0x00, 0x74, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
