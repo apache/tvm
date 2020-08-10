@@ -292,8 +292,7 @@ class EthosnCompiler {
         cmms.emplace_back(CompileEthosnFunc(mod, name_node.value(), func));
       }
     } else {
-      LOG(FATAL) << "The input ref is expected to be a Relay function or module"
-                 << "\n";
+      LOG(FATAL) << "The input ref is expected to be a Relay function";
     }
     auto n = make_object<runtime::ethosn::EthosnModule>(&cmms);
     return runtime::Module(n);
