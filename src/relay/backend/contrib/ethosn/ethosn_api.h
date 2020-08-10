@@ -115,21 +115,6 @@ class EthosnError {
  */
 class EthosnAPI {
  public:
-  /*!
-   * \brief Compile a Support Library network using the given compiler options
-   * \param network The network to be compiled
-   * \param options The options to compile with
-   * \return compiled_network The compiled network
-   */
-  static std::unique_ptr<sl::CompiledNetwork> Compile(std::shared_ptr<sl::Network> network,
-                                                      const sl::CompilationOptions& options);
-
-  /*!
-   * \brief Get the Support Library compilation options from the PassContext
-   * \return options The compilation options
-   */
-  static sl::CompilationOptions CreateOptions();
-
   /*! \brief Extract the Support Library concatenate params from a Relay qnn.concatenate call */
   static EthosnError Concatenate(const Expr& expr, ConcatenateParams* params);
   /*! \brief Extract the Support Library split params from a Relay split call */

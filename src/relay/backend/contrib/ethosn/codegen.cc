@@ -24,6 +24,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/module.h>
 
+#include "capabilities.h"
 #include "codegen_ethosn.h"
 #include "ethosn_api.h"
 
@@ -242,10 +243,17 @@ runtime::ethosn::OrderedCompiledNetwork EthosnCompiler::CompileEthosnFunc(const 
   // Construct the network
   auto network_with_ids = ConstructNetwork(mod, gvar, func);
   // Now set the required build flags
-  sl::CompilationOptions options = EthosnAPI::CreateOptions();
+  sl::CompilationOptions options = CreateOptions();
   // Finally compile the network
-  auto compiled_network = EthosnAPI::Compile(network_with_ids.network, options);
+  std::vector<std::unique_ptr<sl::CompiledNetwork>> compiled_networks =
+      sl::Compile(*network_with_ids.network, options);
+  CHECK_GE(compiled_networks.size(), 1) << "Ethos-N compiler failed to compile network";
+  auto compiled_network = std::move(compiled_networks[0]);
+  // Determine the order that the inputs/outputs are in and how that corresponds to the
+  // order that the TVM runtime will expect them in
   auto input_output_order = GetInputOutputOrder(network_with_ids, compiled_network);
+  // Use the order information to create an 'ordered' network with includes how to map
+  // the inputs/outputs from the TVM runtime to the inputs/outputs of the compiled network
   runtime::ethosn::OrderedCompiledNetwork ordered_network;
   ordered_network.name = gvar->name_hint;
   ordered_network.cmm = std::move(compiled_network);
@@ -254,15 +262,45 @@ runtime::ethosn::OrderedCompiledNetwork EthosnCompiler::CompileEthosnFunc(const 
   return ordered_network;
 }
 
+sl::CompilationOptions EthosnCompiler::CreateOptions() {
+  auto ctx = transform::PassContext::Current();
+  auto cfg = ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options");
+  if (!cfg.defined()) {
+    cfg = AttrsWithDefaultValues<EthosnCompilerConfig>();
+  }
+
+  sl::CompilationOptions options(variants[cfg.value()->variant]);
+  options.m_Strategy0 = cfg.value()->strategy0;
+  options.m_Strategy1 = cfg.value()->strategy1;
+  options.m_Strategy3 = cfg.value()->strategy3;
+  options.m_Strategy4 = cfg.value()->strategy4;
+  options.m_Strategy6 = cfg.value()->strategy6;
+  options.m_Strategy7 = cfg.value()->strategy7;
+  options.m_DebugInfo.m_DumpRam = cfg.value()->dump_ram;
+  options.m_DebugInfo.m_InitialSramDump = cfg.value()->initial_sram_dump;
+  options.m_BlockConfig16x16 = cfg.value()->block_config_16x16;
+  options.m_BlockConfig32x8 = cfg.value()->block_config_32x8;
+  options.m_BlockConfig8x32 = cfg.value()->block_config_8x32;
+  options.m_BlockConfig8x8 = cfg.value()->block_config_8x8;
+  options.m_EnableIntermediateCompression = cfg.value()->enable_intermediate_compression;
+  options.m_DisableWinograd = cfg.value()->disable_winograd;
+  options.m_DebugInfo.m_DumpDebugFiles = cfg.value()->dump_debug_files;
+  options.m_DebugInfo.m_DebugDir = cfg.value()->debug_dir;
+  options.m_EnableCascading = cfg.value()->enable_cascading;
+  return options;
+}
+
 std::pair<std::vector<uint32_t>, std::vector<uint32_t>> EthosnCompiler::GetInputOutputOrder(
     NetworkWithIDs network, const std::unique_ptr<sl::CompiledNetwork>& compiled_network) {
   std::vector<sl::InputBufferInfo> input_infos = compiled_network->GetInputBufferInfos();
   std::vector<sl::OutputBufferInfo> output_infos = compiled_network->GetOutputBufferInfos();
   std::vector<uint32_t> input_order;
   std::vector<uint32_t> output_order;
+  // Find the order of the inputs in the compiled network
   for (const auto& input_info : input_infos) {
     input_order.push_back(network.input_ids[input_info.m_SourceOperationId]);
   }
+  // Find the order of the outputs in the compiled network
   for (const auto& output_info : output_infos) {
     auto output_id =
         std::make_pair(output_info.m_SourceOperationId, output_info.m_SourceOperationOutputIndex);

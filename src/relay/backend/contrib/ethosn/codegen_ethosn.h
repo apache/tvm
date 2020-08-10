@@ -256,15 +256,102 @@ NetworkWithIDs ConstructNetwork(const IRModule& mod, const GlobalVar& var, const
   return ConstructNetworkVisitor(mod, var).Construct(func);
 }
 
+/*! \brief Attributes to store the compiler options for Ethos-N */
+struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode> {
+  int variant;
+  bool strategy0;
+  bool strategy1;
+  bool strategy3;
+  bool strategy4;
+  bool strategy6;
+  bool strategy7;
+  bool dump_ram;
+  bool initial_sram_dump;
+  bool block_config_16x16;
+  bool block_config_32x8;
+  bool block_config_8x32;
+  bool block_config_8x8;
+  bool enable_intermediate_compression;
+  bool disable_winograd;
+  bool dump_debug_files;
+  String debug_dir;
+  bool enable_cascading;
+
+  TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
+    TVM_ATTR_FIELD(variant)
+        .describe("0 for Ethos-N77, 1 for Ethos-N57, 2 for Ethos-N37. See Ethos-N documentation.")
+        .set_default(0);
+    TVM_ATTR_FIELD(strategy0).set_default(true);
+    TVM_ATTR_FIELD(strategy1).set_default(true);
+    TVM_ATTR_FIELD(strategy3).set_default(true);
+    TVM_ATTR_FIELD(strategy4).set_default(true);
+    TVM_ATTR_FIELD(strategy6).set_default(true);
+    TVM_ATTR_FIELD(strategy7).set_default(true);
+    TVM_ATTR_FIELD(dump_ram).set_default(false);
+    TVM_ATTR_FIELD(initial_sram_dump).set_default(false);
+    TVM_ATTR_FIELD(block_config_16x16).set_default(true);
+    TVM_ATTR_FIELD(block_config_32x8).set_default(true);
+    TVM_ATTR_FIELD(block_config_8x32).set_default(true);
+    TVM_ATTR_FIELD(block_config_8x8).set_default(true);
+    TVM_ATTR_FIELD(enable_intermediate_compression).set_default(true);
+    TVM_ATTR_FIELD(disable_winograd).set_default(false);
+    TVM_ATTR_FIELD(dump_debug_files).set_default(false);
+    TVM_ATTR_FIELD(debug_dir).set_default(".");
+    TVM_ATTR_FIELD(enable_cascading).set_default(false);
+  }
+};
+
+class EthosnCompilerConfig : public Attrs {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(EthosnCompilerConfig, Attrs, EthosnCompilerConfigNode);
+};
+
+TVM_REGISTER_NODE_TYPE(EthosnCompilerConfigNode);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.ethos-n.options", EthosnCompilerConfig);
+
+/*! \brief The compiler for Ethos-N functions */
 class EthosnCompiler {
  public:
+  /*!
+   * \brief Create an Ethos-N runtime module from a Relay Ethos-N function
+   * \param ref An ObjectRef pointing to a Relay Ethos-N function
+   * \return runtime_module An Ethos-N runtime module
+   */
   static runtime::Module CreateRuntimeModule(const ObjectRef& ref);
 
  private:
+  /*!
+   * \brief Compile a single Relay Ethos-N function into an ordered compiled network.
+   * Compilation options will be taken from the PassContext.
+   * \param mod The module the function is stored in (for error reporting purposes)
+   * \param gvar The global var corresponding to the function
+   * \param func The function to be compiled
+   * \return ordered_compiled_network A compiled network with additional information
+   * to handle difference in input/output ordering between the TVM runtime and the
+   * Ethos-N compiled network.
+   */
   static runtime::ethosn::OrderedCompiledNetwork CompileEthosnFunc(const IRModule& mod,
                                                                    const GlobalVar& gvar,
                                                                    const Function& func);
 
+  /*!
+   * \brief Get the Support Library compilation options from the PassContext
+   * \return options The compilation options
+   */
+  static sl::CompilationOptions CreateOptions();
+
+  /*!
+   * \brief Determine the order in which inputs should be provided/outputs should be
+   * read from a compiled network. This is required because when you compile a network
+   * for Ethos-N, you don't have control over the order in which the inputs/outputs
+   * are given. You can, however, query what order the compiler decided to give them in.
+   * We therefore keep track of our desired order and the actual order and create a
+   * small translation table between the two for use in the runtime.
+   * \param network A network additionally with the desired input/output order
+   * \param compiled_network The compiled network with an as yet undetermined input/output order
+   * \return input_output_order The order in which to permute the inputs/outputs given
+   * by the TVM runtime such that they map correctly to the compiled network.
+   */
   static std::pair<std::vector<uint32_t>, std::vector<uint32_t>> GetInputOutputOrder(
       NetworkWithIDs network, const std::unique_ptr<sl::CompiledNetwork>& compiled_network);
 };
