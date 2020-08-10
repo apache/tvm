@@ -136,20 +136,7 @@ class InferTensorsVisitor : private ErrorReportingPass, private ExprVisitor {
    * \note This algorithm does not traverse into functions, so call it on
    * the body of the function you're interested in.
    */
-  std::map<Expr, std::vector<sl::TensorInfo>> Infer(const Expr& expr) {
-    tensor_table_.clear();
-    CHECK(expr->checked_type().defined());
-    size_t output_size = 1;
-    if (auto tuple = expr->checked_type().as<TupleTypeNode>()) {
-      output_size = tuple->fields.size();
-    }
-    for (size_t i = 0; i < output_size; i++) {
-      tensor_table_[expr].push_back(sl::TensorInfo({1, 1, 1, 1}, sl::DataType::UINT8_QUANTIZED,
-                                                   sl::DataFormat::NHWC, sl::QuantizationInfo()));
-    }
-    VisitInferred(expr);
-    return tensor_table_;
-  }
+  std::map<Expr, std::vector<sl::TensorInfo>> Infer(const Expr& expr);
 
  private:
   // Infer a callnode if it's a supported operator/composite function
@@ -198,36 +185,7 @@ class ConstructNetworkVisitor : public MixedModeVisitor, private ErrorReportingP
    * \return A support library network that performs the same operation as the Relay
    * function.
    */
-  NetworkWithIDs Construct(const Function& func) {
-    // Initialise everything
-    NetworkWithIDs network_with_ids;
-    network_ = sl::CreateNetwork();
-    network_with_ids.network = network_;
-    operand_table_.clear();
-
-    // Infer tensor information
-    tensor_table_ = InferTensors(this->mod_, this->var_, func->body);
-    // Add the inputs in the order they appear in the parameters
-    unsigned int idx = 0;
-    for (const auto& param : func->params) {
-      for (const auto& tensor_info : tensor_table_[param]) {
-        auto tensor_and_id = AddInput(network_, tensor_info);
-        operand_table_[param].push_back(tensor_and_id.tensor);
-        id_table_[param].push_back(std::make_pair(tensor_and_id.operationId, 0));
-        network_with_ids.input_ids[tensor_and_id.operationId] = idx++;
-      }
-    }
-    // Add the function body
-    VisitExpr(func->body);
-    // Add the outputs
-    idx = 0;
-    for (const auto& layer : operand_table_[func->body]) {
-      AddOutput(network_, *layer);
-      network_with_ids.output_ids[id_table_[func->body][idx]] = idx;
-      idx++;
-    }
-    return network_with_ids;
-  }
+  NetworkWithIDs Construct(const Function& func);
 
  private:
   // Translate from a callnode to the appropriate 'Make' method
