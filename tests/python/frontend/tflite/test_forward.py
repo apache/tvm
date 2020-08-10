@@ -2031,6 +2031,35 @@ def test_forward_padv2():
 
 
 #######################################################################
+# ONE_HOT
+# -------
+
+def _test_one_hot(indices, depth, on_value, off_value, axis = None):
+    """ One iteration of One_Hot """
+    with tf.Graph().as_default():
+        in_indices = tf.placeholder(dtype=indices.dtype, shape=indices.shape, name="indices")
+        in_depth = ops.convert_to_tensor(depth, dtype=depth.dtype)
+        in_on_value = tf.placeholder(dtype=on_value.dtype, shape=on_value.shape, name="on_value")
+        in_off_value = tf.placeholder(dtype=off_value.dtype, shape=off_value.shape, name="off_value")
+        if axis is not None:
+            out = array_ops.one_hot(in_indices, in_depth, in_on_value, in_off_value, axis=axis)
+        else:
+            out = array_ops.one_hot(in_indices, in_depth, in_on_value, in_off_value)
+        compare_tflite_with_tvm(
+            [indices, on_value, off_value],
+            ["indices", "on_value", "off_value"],
+            [in_indices, in_on_value, in_off_value],
+            [out])
+
+def test_forward_one_hot():
+    """ One_Hot """
+    _test_one_hot(np.int32(2), np.int32(8), np.int32(1), np.int32(0))
+    _test_one_hot(np.int32(4), np.int32(8), np.float32(1), np.float32(0))
+    _test_one_hot(np.array([1, 2, 3], dtype=np.int32), np.int32(8), np.int32(3), np.int32(-1))
+    _test_one_hot(np.array([1, 2, 3], dtype=np.int32), np.int32(8), np.int32(3), np.int32(-1), axis=0)
+
+
+#######################################################################
 # Pack
 # ----
 

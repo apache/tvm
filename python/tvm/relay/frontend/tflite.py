@@ -114,6 +114,7 @@ class OperatorConverter(object):
             'MUL': self.convert_mul,
             'NEG': self.convert_neg,
             'NOT_EQUAL': self.convert_not_equal,
+            'ONE_HOT': self.convert_one_hot,
             'PACK': self.convert_pack,
             'PAD': self.convert_pad,
             'PADV2': self.convert_pad,
@@ -2902,6 +2903,56 @@ class OperatorConverter(object):
         boxes = _op.concatenate([ret[3], ret[2], ret[5], ret[4]], axis=2)
         ret = _expr.TupleWrapper(_expr.Tuple([boxes, cls_ids, scores, valid_count]), size=4)
         return ret
+
+    def convert_one_hot(self, op):
+        """Convert TFLite ONE_HOT"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.OneHotOptions import OneHotOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 4, "Input tensor's length should be 4"
+
+        # Ensuring input isn't quantized
+        assert all(not i.qnn_params for i in input_tensors), \
+            "Quantized input is not expected."
+
+        # TFlite ONE_HOT requires both on_value
+        # and off_value, making dtype redundant.
+        indices = input_tensors[0]
+        depth = input_tensors[1]
+        on_value = input_tensors[2]
+        off_value = input_tensors[3]
+
+        assert on_value.tensor.Type() == off_value.tensor.Type(), \
+            "on_value and off_value should be the same type"
+
+        # Getting relay expr
+        indices_expr = self.get_expr(indices.tensor_idx)
+        on_value_expr = self.get_expr(on_value.tensor_idx)
+        off_value_expr = self.get_expr(off_value.tensor_idx)
+
+        # Getting depth value
+        depth = self.get_tensor_value(depth)
+        if isinstance(depth, np.ndarray):
+            depth = int(depth)
+
+        # Getting Axis from Option (Attributes)
+        assert op.BuiltinOptionsType() == BuiltinOptions.OneHotOptions
+        op_options = op.BuiltinOptions()
+        one_hot_options = OneHotOptions()
+        one_hot_options.Init(op_options.Bytes, op_options.Pos)
+        axis = one_hot_options.Axis()
+
+        # Setting dtype
+        dtype = self.get_tensor_type_str(on_value.tensor.Type())
+
+        out = _op.one_hot(indices_expr, on_value_expr, off_value_expr, depth, axis, dtype)
+
+        return out
+
 
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))
