@@ -580,8 +580,9 @@ inline Expr Mean(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
   return MakeReduce(data, axis, keepdims, exclude, "mean");
 }
 
-inline Expr Variance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, bool exclude) {
-  return MakeVariance(data, mean, axis, keepdims, exclude);
+inline Expr Variance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, bool exclude,
+                     bool unbiased = false) {
+  return MakeVariance(data, mean, axis, keepdims, exclude, unbiased);
 }
 
 static inline Expr Where(const Expr& condition, const Expr& x, const Expr& y) {
