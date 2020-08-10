@@ -89,9 +89,7 @@ class TFParser(object):
                 "required to restore from saved model.")
         tags = self._get_tag_set()
         output_names = set()
-        config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        with tf.Session(config=config) as sess:
+        with tf.Session() as sess:
             meta_graph_def = tf.saved_model.loader.load(sess,
                                                         tags,
                                                         self._model_dir)
