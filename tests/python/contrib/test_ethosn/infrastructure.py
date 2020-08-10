@@ -68,7 +68,7 @@ def make_ethosn_partition(ethosn_expr):
     return mod
 
 
-def get_cpu_op_count(mod):
+def get_host_op_count(mod):
     class Counter(tvm.relay.ExprVisitor):
         def __init__(self):
             super().__init__()
@@ -84,7 +84,7 @@ def get_cpu_op_count(mod):
     return c.count
 
 
-def build(mod, params, npu=True, cpu_ops=0, npu_partitions=1):
+def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
     relay.backend.compile_engine.get().clear()
     with tvm.transform.PassContext(opt_level=3, config={
             "relay.ext.ethos-n.options": {"variant": 0}
@@ -97,9 +97,9 @@ def build(mod, params, npu=True, cpu_ops=0, npu_partitions=1):
                 mod = relay.transform.AnnotateTarget("ethos-n")(mod)
                 mod = relay.transform.MergeCompilerRegions()(mod)
                 mod = relay.transform.PartitionGraph()(mod)
-                cpu_op_count = get_cpu_op_count(mod)
-                assert cpu_op_count == cpu_ops, \
-                    "Got {} CPU operators, expected {}".format(cpu_op_count, cpu_ops)
+                host_op_count = get_host_op_count(mod)
+                assert host_op_count == expected_host_ops, \
+                    "Got {} host operators, expected {}".format(host_op_count, expected_host_ops)
                 partition_count = 0
                 for global_var in mod.get_global_vars():
                     if "ethos-n" in global_var.name_hint:
@@ -122,8 +122,8 @@ def run(graph, lib, params, inputs, outputs, npu=True):
     return out
 
 
-def build_and_run(mod, inputs, outputs, params, ctx=tvm.cpu(), npu=True, cpu_ops=0, npu_partitions=1):
-    graph, lib, params = build(mod, params, npu, cpu_ops, npu_partitions)
+def build_and_run(mod, inputs, outputs, params, ctx=tvm.cpu(), npu=True, expected_host_ops=0, npu_partitions=1):
+    graph, lib, params = build(mod, params, npu, expected_host_ops, npu_partitions)
     return run(graph, lib, params, inputs, outputs, npu)
 
 
