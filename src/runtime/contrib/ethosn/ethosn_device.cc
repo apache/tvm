@@ -176,6 +176,7 @@ bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
 #else
 
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace runtime {
