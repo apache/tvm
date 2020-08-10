@@ -237,8 +237,8 @@ runtime::Module EthosnCompiler::CreateRuntimeModule(const ObjectRef& ref) {
 }
 
 runtime::ethosn::OrderedCompiledNetwork EthosnCompiler::CompileEthosnFunc(const IRModule& mod,
-                                                                 const GlobalVar& gvar,
-                                                                 const Function& func) {
+                                                                          const GlobalVar& gvar,
+                                                                          const Function& func) {
   // Construct the network
   auto network_with_ids = ConstructNetwork(mod, gvar, func);
   // Now set the required build flags
@@ -255,7 +255,7 @@ runtime::ethosn::OrderedCompiledNetwork EthosnCompiler::CompileEthosnFunc(const 
 }
 
 std::pair<std::vector<uint32_t>, std::vector<uint32_t>> EthosnCompiler::GetInputOutputOrder(
-  NetworkWithIDs network, const std::unique_ptr<sl::CompiledNetwork>& compiled_network) {
+    NetworkWithIDs network, const std::unique_ptr<sl::CompiledNetwork>& compiled_network) {
   std::vector<sl::InputBufferInfo> input_infos = compiled_network->GetInputBufferInfos();
   std::vector<sl::OutputBufferInfo> output_infos = compiled_network->GetOutputBufferInfos();
   std::vector<uint32_t> input_order;
@@ -265,7 +265,7 @@ std::pair<std::vector<uint32_t>, std::vector<uint32_t>> EthosnCompiler::GetInput
   }
   for (const auto& output_info : output_infos) {
     auto output_id =
-      std::make_pair(output_info.m_SourceOperationId, output_info.m_SourceOperationOutputIndex);
+        std::make_pair(output_info.m_SourceOperationId, output_info.m_SourceOperationOutputIndex);
     output_order.push_back(network.output_ids[output_id]);
   }
   return std::make_pair(input_order, output_order);
