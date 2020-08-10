@@ -140,9 +140,8 @@ class InferTensorsVisitor : private ErrorReportingPass, private ExprVisitor {
     tensor_table_.clear();
     CHECK(expr->checked_type().defined());
     size_t output_size = 1;
-    if (expr->checked_type()->IsInstance<TupleTypeNode>()) {
-      auto type = expr->checked_type().as<TupleTypeNode>();
-      output_size = type->fields.size();
+    if (auto tuple = expr->checked_type().as<TupleTypeNode>()) {
+      output_size = tuple->fields.size();
     }
     for (size_t i = 0; i < output_size; i++) {
       tensor_table_[expr].push_back(sl::TensorInfo({1, 1, 1, 1}, sl::DataType::UINT8_QUANTIZED,
