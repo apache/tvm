@@ -113,6 +113,7 @@ void AttachMap::UpdateIters(const std::vector<IterKey>& original_iters,
                             const std::vector<IterKey>& new_iters) {
   CHECK_EQ(original_iters.size(), new_iters.size());
   AttachMapNode* pnode = CopyOnWrite();
+  std::unordered_map<IterKey, std::vector<StageKey>> new_iter_to_attached_stages;
   for (size_t i = 0; i < original_iters.size(); ++i) {
     auto entry = pnode->iter_to_attached_stages.find(original_iters[i]);
     // We get <IterKey, std::vector<StageKey>> from this map
@@ -130,7 +131,12 @@ void AttachMap::UpdateIters(const std::vector<IterKey>& original_iters,
     // iterator to it
     std::vector<int> attached_stages = std::move(entry->second);
     pnode->iter_to_attached_stages.erase(entry);
-    pnode->iter_to_attached_stages[new_iters[i]] = std::move(attached_stages);
+    new_iter_to_attached_stages[new_iters[i]] = std::move(attached_stages);
+  }
+
+  // Update new entries
+  for (auto& it : new_iter_to_attached_stages) {
+    pnode->iter_to_attached_stages[it.first] = std::move(it.second);
   }
 }
 

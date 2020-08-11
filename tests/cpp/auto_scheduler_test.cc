@@ -95,9 +95,9 @@ TEST(ComputeDAG, AccessAnalyzer) {
   std::set<int> is_strictly_inlinable = {bias_add, bn_mul, bn_add, relu};
   for (size_t stage_id = 0; stage_id < dag->ops.size(); stage_id++) {
     if (is_strictly_inlinable.count(stage_id)) {
-      CHECK(dag->access_analyzer.IsStrictInlineable(dag->ops[stage_id]));
+      CHECK(dag->access_analyzer.IsStrictlyInlineable(dag->ops[stage_id]));
     } else {
-      CHECK(!dag->access_analyzer.IsStrictInlineable(dag->ops[stage_id]));
+      CHECK(!dag->access_analyzer.IsStrictlyInlineable(dag->ops[stage_id]));
     }
   }
 

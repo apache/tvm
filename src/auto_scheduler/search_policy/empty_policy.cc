@@ -27,20 +27,28 @@
 #include <tvm/auto_scheduler/measure.h>
 #include <tvm/runtime/registry.h>
 
+#include <utility>
+
 namespace tvm {
 namespace auto_scheduler {
 
 TVM_REGISTER_NODE_TYPE(EmptyPolicyNode);
 
-State EmptyPolicyNode::Search(SearchTask task, int num_measure_trials, int early_stopping,
-                              int num_measures_per_round, int verbose, ProgramMeasurer measurer,
-                              Optional<Array<SearchCallback>> pre_search_callbacks) {
-  cur_task = task;
+EmptyPolicy::EmptyPolicy(SearchTask task, Optional<Array<SearchCallback>> init_search_callbacks) {
+  auto node = make_object<EmptyPolicyNode>();
+  node->search_task = task;
 
-  // Run pre_search_callbacks before the search process
+  // Run init_search_callbacks before the search process
   // This Interface is usually used to set some init status
-  RunCallbacks(pre_search_callbacks);
+  if (init_search_callbacks) {
+    node->RunCallbacks(init_search_callbacks.value());
+  }
 
+  data_ = std::move(node);
+}
+
+State EmptyPolicyNode::Search(int num_measure_trials, int early_stopping,
+                              int num_measures_per_round, ProgramMeasurer measurer) {
   // Basic design principe: `SearchOneRound()` several times to get candidate states,
   // measure them and return the best one
   // Measure is disabled if num_measure_trials <= 1
@@ -65,14 +73,14 @@ State EmptyPolicyNode::Search(SearchTask task, int num_measure_trials, int early
       for (const auto& state : res) {
         // The class members measured_states_set_ provided by SearchPolicy can be used to filter
         // out the already measured states
-        inputs.push_back(MeasureInput(cur_task, state));
+        inputs.push_back(MeasureInput(search_task, state));
       }
       // ProgramMeasurer will record the state with best performance during measure process
-      measurer->Measure(cur_task, GetRef<SearchPolicy>(this), inputs, &results);
+      measurer->Measure(search_task, GetRef<SearchPolicy>(this), inputs, &results);
     }
 
     // Return a state with best measured performance
-    return measurer->best_state[cur_task->workload_key];
+    return measurer->best_state[search_task->workload_key];
   }
 }
 
@@ -81,7 +89,7 @@ Array<State> EmptyPolicyNode::SearchOneRound() {
   Array<State> res;
 
   // 1. We will process `Program sampling` first to generate several initial schedules
-  res.push_back(cur_task->compute_dag->init_state);
+  res.push_back(search_task->compute_dag->init_state);
 
   // 2. Then `Performance Tuning`: use cost model and evolutionary search to seek for the schedule
   // with best performance
@@ -91,9 +99,10 @@ Array<State> EmptyPolicyNode::SearchOneRound() {
   return res;
 }
 
-TVM_REGISTER_GLOBAL("auto_scheduler.EmptyPolicy").set_body_typed([]() {
-  return EmptyPolicy(make_object<EmptyPolicyNode>());
-});
+TVM_REGISTER_GLOBAL("auto_scheduler.EmptyPolicy")
+    .set_body_typed([](SearchTask task, Optional<Array<SearchCallback>> init_search_callbacks) {
+      return EmptyPolicy(task, init_search_callbacks);
+    });
 
 }  // namespace auto_scheduler
 }  // namespace tvm
