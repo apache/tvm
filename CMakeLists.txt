@@ -4,6 +4,7 @@ project(tvm C CXX)
 # Utility functions
 include(cmake/util/Util.cmake)
 include(cmake/util/FindCUDA.cmake)
+include(cmake/util/FindOpenCL.cmake)
 include(cmake/util/FindVulkan.cmake)
 include(cmake/util/FindLLVM.cmake)
 include(cmake/util/FindROCM.cmake)
@@ -75,9 +76,6 @@ tvm_option(USE_TARGET_ONNX "Build with ONNX Codegen support" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB "Build with Arm Compute Library" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME "Build with Arm Compute Library graph runtime" OFF)
 
-if(USE_CPP_RPC AND UNIX)
-  message(FATAL_ERROR "USE_CPP_RPC is only supported with WIN32. Use the Makefile for non-Windows.")
-endif()
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
