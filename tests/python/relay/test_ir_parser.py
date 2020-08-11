@@ -895,9 +895,9 @@ def test_import_grad():
     mod.import_from_std("gradient.rly")
 
 def test_resnet():
-    mod, params = relay.testing.resnet.get_workload()
-    text = str(mod.astext())
-    parsed_mod = parse_module(text)
+    mod, _ = relay.testing.resnet.get_workload()
+    text = mod.astext()
+    parsed_mod = tvm.parser.parse(text)
     tvm.ir.assert_structural_equal(mod, parsed_mod)
 
 def inline_params(mod, params):
@@ -919,7 +919,7 @@ def test_resnet_inlined_params():
     mod, params = relay.testing.resnet.get_workload()
     mod = inline_params(mod, params)
     text = mod.astext()
-    parsed_mod = parse_module(text)
+    parsed_mod = tvm.parser.parse(text)
     tvm.ir.assert_structural_equal(mod, parsed_mod)
 
 if __name__ == "__main__":

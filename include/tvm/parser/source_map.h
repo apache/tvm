@@ -91,8 +91,8 @@ class SourceMapNode : public Object {
     return equal(source_map, other->source_map);
   }
 
-  static constexpr const char* _type_key = "Span";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SpanNode, Object);
+  static constexpr const char* _type_key = "SourceMap";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SourceMapNode, Object);
 };
 
 class SourceMap : public ObjectRef {

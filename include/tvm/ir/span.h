@@ -80,7 +80,7 @@ class Span;
 class SpanNode : public Object {
  public:
   /*! \brief The source name. */
-  SourceName source;
+  SourceName source_name;
   /*! \brief The line number. */
   int line;
   /*! \brief The column offset. */
@@ -92,15 +92,15 @@ class SpanNode : public Object {
 
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("source", &source);
+    v->Visit("source_name", &source_name);
     v->Visit("line", &line);
     v->Visit("column", &column);
-    v->Visit("end_line", &line);
-    v->Visit("end_column", &column);
+    v->Visit("end_line", &end_line);
+    v->Visit("end_column", &end_column);
   }
 
   bool SEqualReduce(const SpanNode* other, SEqualReducer equal) const {
-    return equal(source, other->source) && equal(line, other->line) &&
+    return equal(source_name, other->source_name) && equal(line, other->line) &&
            equal(column, other->column) && equal(end_line, other->end_line) &&
            equal(end_column, other->end_column);
   }
@@ -111,7 +111,7 @@ class SpanNode : public Object {
 
 class Span : public ObjectRef {
  public:
-  TVM_DLL Span(SourceName source, int line, int end_line, int column, int end_column);
+  TVM_DLL Span(SourceName source_name, int line, int end_line, int column, int end_column);
 
   /*! \brief Merge two spans into one which captures the combined regions. */
   TVM_DLL Span Merge(const Span& other);
