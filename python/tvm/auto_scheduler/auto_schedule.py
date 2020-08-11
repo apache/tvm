@@ -103,8 +103,8 @@ class EmptyPolicy(SearchPolicy):
         self.__init_handle_by_constructor__(_ffi_api.EmptyPolicy, task, init_search_callbacks)
 
 
-@tvm._ffi.register_object("auto_scheduler.SketchSearchPolicy")
-class SketchSearchPolicy(SearchPolicy):
+@tvm._ffi.register_object("auto_scheduler.SketchPolicy")
+class SketchPolicy(SearchPolicy):
     """  The search policy that searches in a hierarchical search space defined by sketches.
     The policy randomly samples programs from the space defined by sketches
     and use evolutionary search to fine-tune them.
@@ -150,14 +150,14 @@ class SketchSearchPolicy(SearchPolicy):
     def __init__(self, task, schedule_cost_model=RandomModel(), params=None, seed=None, verbose=1,
                  init_search_callbacks=None):
         if params is None:
-            params = SketchSearchPolicy.DEFAULT_PARAMS
+            params = SketchPolicy.DEFAULT_PARAMS
         else:
-            for key, value in SketchSearchPolicy.DEFAULT_PARAMS.items():
+            for key, value in SketchPolicy.DEFAULT_PARAMS.items():
                 if key not in params:
                     params[key] = value
 
         self.__init_handle_by_constructor__(
-            _ffi_api.SketchSearchPolicy, task, schedule_cost_model, params,
+            _ffi_api.SketchPolicy, task, schedule_cost_model, params,
             seed or random.randint(1, 1 << 30), verbose, init_search_callbacks)
 
     def generate_sketches(self, print_for_debug=False):
@@ -167,13 +167,13 @@ class SketchSearchPolicy(SearchPolicy):
         ----------
         print_for_debug : bool = False
             Whether print out the sketches for debug.
-        
+
         Returns
         -------
         sketches : List[State]
             The generated sketches of this search task.
         """
-        sketches =  _ffi_api.SketchSearchPolicyGenerateSketches(self)
+        sketches = _ffi_api.SketchPolicyGenerateSketches(self)
         if print_for_debug:
             for i, s in enumerate(sketches):
                 print("=" * 20 + " %d " % i + "=" * 20)

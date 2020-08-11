@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file auto_scheduler/search_policy/sketch_search_policy.h
+ * \file auto_scheduler/search_policy/sketch_policy.h
  * \brief The search policy that searches in a hierarchical search space defined by sketches.
  * The policy randomly samples programs from the space defined by sketches and use evolutionary
  * search to fine-tune them.
@@ -28,8 +28,8 @@
  * Programs for Deep Learning." arXiv preprint arXiv:2006.06762 (2020).
  */
 
-#ifndef TVM_AUTO_SCHEDULER_SEARCH_POLICY_SKETCH_SEARCH_POLICY_H_
-#define TVM_AUTO_SCHEDULER_SEARCH_POLICY_SKETCH_SEARCH_POLICY_H_
+#ifndef TVM_AUTO_SCHEDULER_SEARCH_POLICY_SKETCH_POLICY_H_
+#define TVM_AUTO_SCHEDULER_SEARCH_POLICY_SKETCH_POLICY_H_
 
 #include <tvm/auto_scheduler/cost_model.h>
 #include <tvm/auto_scheduler/search_policy.h>
@@ -40,66 +40,13 @@
 #include <utility>
 #include <vector>
 
+#include "sketch_policy_rules.h"
 #include "utils.h"
 
 namespace tvm {
 namespace auto_scheduler {
 
-class SketchSearchPolicyNode;
-
-/*! \brief The base class for derivation rules used in the sketch generation. */
-class SketchGenerationRule {
- public:
-  /*! \brief Result enumeration of the condition function. */
-  enum class ConditionKind : int {
-    /*! \brief Skip this rule and continue to try the next rules. */
-    kSkip = 0,
-    /*! \brief Apply this rule and continue to try the next rules. */
-    kApply = 1,
-    /*! \brief Apply this rule and skip the rest rules. */
-    kApplyAndSkipRest = 2
-  };
-
-  /*!
-   * \brief Condition check function of this rule.
-   * \param policy The SketchSearchPolicyNode of this rule, some information may be used during
-   * the condition checking.
-   * \param state The original state to be checked.
-   * \param stage_id The index of the stage to process this condition check.
-   * \return The condition check result of this rule.
-   */
-  virtual ConditionKind MeetCondition(const SketchSearchPolicyNode& policy, const State& state,
-                                      int stage_id) = 0;
-
-  /*!
-   * \brief Apply function of this rule.
-   * \param policy The SketchSearchPolicyNode of this rule, some information may be used during
-   * the rule applying.
-   * \param state The original state to apply this rule.
-   * \param stage_id The index of the next stage to apply this rule.
-   * \return The state after applying this rule, and index of the next stage.
-   */
-  virtual std::vector<std::pair<State, int>> Apply(const SketchSearchPolicyNode& policy,
-                                                   const State& state, int stage_id) const = 0;
-};
-
-/*! \brief The base class for derivation rules used in the initial population. */
-class InitPopulationRule {
- public:
-  /*! \brief Result enumeration of the apply function. */
-  enum class ResultKind : int { kValid = 0, kInvalid = 1 };
-
-  /*!
-   * \brief Apply function of this rule.
-   * \param policy The SketchSearchPolicyNode of this rule, some member may get changed during the
-   * rule applying. (e.g. random number generator)
-   * \param state The state to apply this rule, update inplace.
-   * \return The result of this rule, indicate if there's any valid state generated.
-   */
-  virtual ResultKind Apply(SketchSearchPolicyNode* policy, State* state) const = 0;
-};
-
-/*! \brief String keys used in parameter map of SketchSearchPolicy. */
+/*! \brief String keys used in parameter map of SketchPolicy. */
 struct SketchParamKey {
   /*! \brief Always allocate this percentage of measurements to random sampled states. */
   static constexpr const char* eps_greedy = "eps_greedy";
@@ -132,7 +79,7 @@ struct SketchParamKey {
  * The policy randomly samples programs from the space defined by sketches
  * and use evolutionary search to  fine-tune them.
  */
-class SketchSearchPolicyNode : public SearchPolicyNode {
+class SketchPolicyNode : public SearchPolicyNode {
  public:
   /*! \brief The cost model to estimate the complete schedules. */
   CostModel schedule_cost_model;
@@ -156,9 +103,9 @@ class SketchSearchPolicyNode : public SearchPolicyNode {
    */
   Array<State> GenerateSketches();
 
-  static constexpr const char* _type_key = "auto_scheduler.SketchSearchPolicy";
+  static constexpr const char* _type_key = "auto_scheduler.SketchPolicy";
 
-  TVM_DECLARE_FINAL_OBJECT_INFO(SketchSearchPolicyNode, SearchPolicyNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SketchPolicyNode, SearchPolicyNode);
 
  private:
   /*!
@@ -202,10 +149,10 @@ class SketchSearchPolicyNode : public SearchPolicyNode {
 };
 
 /*!
- * \brief Managed reference to SketchSearchPolicyNode.
- * \sa SketchSearchPolicyNode
+ * \brief Managed reference to SketchPolicyNode.
+ * \sa SketchPolicyNode
  */
-class SketchSearchPolicy : public SearchPolicy {
+class SketchPolicy : public SearchPolicy {
  public:
   /*!
    * \brief The constructor.
@@ -217,13 +164,13 @@ class SketchSearchPolicy : public SearchPolicy {
    * search.
    * \param init_search_callbacks SearchCallback to be called before schedule search.
    */
-  SketchSearchPolicy(SearchTask task, CostModel schedule_cost_model, Map<String, ObjectRef> params,
+  SketchPolicy(SearchTask task, CostModel schedule_cost_model, Map<String, ObjectRef> params,
                      int seed, int verbose, Optional<Array<SearchCallback>> init_search_callbacks);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SketchSearchPolicy, SearchPolicy, SketchSearchPolicyNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SketchPolicy, SearchPolicy, SketchPolicyNode);
 };
 
 }  // namespace auto_scheduler
 }  // namespace tvm
 
-#endif  // TVM_AUTO_SCHEDULER_SEARCH_POLICY_SKETCH_SEARCH_POLICY_H_
+#endif  // TVM_AUTO_SCHEDULER_SEARCH_POLICY_SKETCH_POLICY_H_

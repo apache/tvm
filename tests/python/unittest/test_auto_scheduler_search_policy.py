@@ -42,7 +42,7 @@ def search_common(workload=matmul_auto_scheduler_test, target="llvm",
     if search_policy == 'empty':
         search_policy = auto_scheduler.EmptyPolicy(task)
     elif search_policy == 'sketch':
-        search_policy = auto_scheduler.SketchSearchPolicy(task,
+        search_policy = auto_scheduler.SketchPolicy(task,
                 init_search_callbacks=init_search_callbacks)
 
     with tempfile.NamedTemporaryFile() as fp:

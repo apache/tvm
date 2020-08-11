@@ -29,7 +29,7 @@ def generate_sketches(workload_func, args, target, print_for_debug=False):
     workload_key = auto_scheduler.make_workload_key(workload_func, args)
     dag = auto_scheduler.ComputeDAG(workload_key)
     task = auto_scheduler.SearchTask(dag, workload_key, tvm.target.create(target))
-    policy = auto_scheduler.SketchSearchPolicy(task, verbose=0)
+    policy = auto_scheduler.SketchPolicy(task, verbose=0)
     return policy.generate_sketches(print_for_debug)
 
 def test_cpu_matmul_sketch():
