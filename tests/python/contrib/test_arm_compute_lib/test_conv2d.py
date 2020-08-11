@@ -392,7 +392,7 @@ def test_qnn_conv2d():
             "output scale": output_sc,
             "output zero point": output_zp
         }
-        verify(outputs, atol=1, rtol=0, params=params)
+        verify(outputs, atol=1, rtol=0, params=params, verify_saturation=True)
 
 
 def test_codegen_qnn_conv2d():
