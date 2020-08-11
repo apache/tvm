@@ -27,6 +27,7 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
 from .. import vision as _vision
+from .. import tensor as _tensor
 
 from ..function import Function
 from ..expr import Call, Let
@@ -1881,6 +1882,20 @@ class RoiAlign(OnnxOpConverter):
         return _vision.roi_align(x, rois, [output_height, output_width],
                                  spatial_scale, sampling_ratio)
 
+class Clip(OnnxOpConverter):
+    """Operator converter for Clip.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'})
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        clip_bounds = [attr[bound] if bound in attr else
+                       infer_value_simulated(inputs[i+1], params).asnumpy().item(0)
+                       for i, bound in enumerate(['min','max'])]
+        return _tensor.clip(inputs[0], *clip_bounds)
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1962,7 +1977,7 @@ def _get_convert_map(opset):
         'Min': Minimum.get_converter(opset),
         'Sum': Sum.get_converter(opset),
         'Mean': Mean.get_converter(opset),
-        'Clip': AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'}),
+        'Clip': Clip.get_converter(opset),
         # softmax default axis is different in onnx
         'Softmax': Softmax.get_converter(opset),
         'LogSoftmax': AttrCvt('log_softmax', {'axis': ('axis', 1)}),

@@ -121,6 +121,14 @@ def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, dtype)
         tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
 
+def make_constant_node(name, data_type, dims, vals):
+    return helper.make_node('Constant',
+                            inputs=[],
+                            outputs=[name],
+                            value=helper.make_tensor(name=name,
+                                                     data_type=data_type,
+                                                     dims=dims,
+                                                     vals=vals))
 
 def test_reshape():
     in_shape = (4, 3, 3, 4)
@@ -619,7 +627,31 @@ def test_clip():
                               'Clip',
                               {'min': -1.0, 'max': 1.0})
 
+def test_clip_min_max_as_inputs():
+    input_shape=(2,4,5,6)
+    nodes = [
+        make_constant_node('min', onnx.TensorProto.FLOAT, (), [0.]),
+        make_constant_node('max', onnx.TensorProto.FLOAT, (), [6.]),
+    ]
+    input_names = ['in', 'min', 'max']
+    nodes.append(helper.make_node(
+        'Clip',
+        inputs=input_names,
+        outputs=['out']))
+    graph = helper.make_graph(nodes,
+                              "clip_test",
+                              inputs=[helper.make_tensor_value_info("in",
+                                                                    TensorProto.FLOAT, list(input_shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(input_shape))])
+    model = helper.make_model(graph, producer_name='clip_test')
 
+    indata = np.random.uniform(-1, 7, size=input_shape).astype('float32')
+    onnx_out = get_onnxruntime_output(model, indata, 'float32')
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(
+            model, indata, target, ctx, input_shape, 'float32')
+    tvm.testing.assert_allclose(onnx_out, tvm_out)
 
 def test_round():
     _test_onnx_op_elementwise((2, 4, 5, 6), np.round, {}, 'float32', 'Round', {})
@@ -2941,15 +2973,6 @@ def test_gru():
 
 
 def test_resize():
-    def make_constant_node(name, data_type, dims, vals):
-        return helper.make_node('Constant',
-                                inputs=[],
-                                outputs=[name],
-                                value=helper.make_tensor(name=name,
-                                                         data_type=data_type,
-                                                         dims=dims,
-                                                         vals=vals))
-
     def verify(ishape, oshape, scales, mode, coord_trans):
         nodes = [
             make_constant_node('roi', onnx.TensorProto.FLOAT, (0,), []),
@@ -3140,6 +3163,7 @@ if __name__ == '__main__':
     test_isinf()
     test_isnan()
     test_clip()
+    test_clip_min_max_as_inputs()
     test_onehot()
     test_matmul()
     test_batch_matmul()

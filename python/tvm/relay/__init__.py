@@ -43,6 +43,7 @@ from .op import nn
 from .op import image
 from .op import annotation
 from .op import vision
+from .op import tensor
 from .op import contrib
 from .op import dyn
 from .op.reduce import *
