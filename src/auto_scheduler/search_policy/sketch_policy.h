@@ -165,7 +165,7 @@ class SketchPolicy : public SearchPolicy {
    * \param init_search_callbacks SearchCallback to be called before schedule search.
    */
   SketchPolicy(SearchTask task, CostModel schedule_cost_model, Map<String, ObjectRef> params,
-                     int seed, int verbose, Optional<Array<SearchCallback>> init_search_callbacks);
+               int seed, int verbose, Optional<Array<SearchCallback>> init_search_callbacks);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SketchPolicy, SearchPolicy, SketchPolicyNode);
 };

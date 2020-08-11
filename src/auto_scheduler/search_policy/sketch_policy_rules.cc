@@ -19,7 +19,7 @@
 
 /*!
  * \file auto_scheduler/search_policy/sketch_policy_rules.cc
- * \brief 
+ * \brief Rules defined to generate the sketches and initial sampled states in SketchPolicy.
  */
 
 #include "sketch_policy_rules.h"
@@ -38,15 +38,13 @@ namespace auto_scheduler {
 /********** RuleSkipStage **********/
 
 SketchGenerationRule::ConditionKind RuleSkipStage::MeetCondition(const SketchPolicyNode& policy,
-                                                                 const State& state,
-                                                                 int stage_id) {
+                                                                 const State& state, int stage_id) {
   // This rule should be the last rule, always return true to decrease the stage index count
   return ConditionKind::kApply;
 }
 
 std::vector<std::pair<State, int>> RuleSkipStage::Apply(const SketchPolicyNode& policy,
-                                                        const State& state,
-                                                        int stage_id) const {
+                                                        const State& state, int stage_id) const {
   return {std::make_pair(state, stage_id - 1)};
 }
 
@@ -64,13 +62,12 @@ SketchGenerationRule::ConditionKind RuleAlwaysInline::MeetCondition(const Sketch
 
   // TODO(jcf94): Greedily inline all inlinable ops on GPU when introducing GPU search policy.
   return IsStrictlyInlineable(policy.search_task, state, stage_id)
-              ? ConditionKind::kApplyAndSkipRest
-              : ConditionKind::kSkip;
+             ? ConditionKind::kApplyAndSkipRest
+             : ConditionKind::kSkip;
 }
 
 std::vector<std::pair<State, int>> RuleAlwaysInline::Apply(const SketchPolicyNode& policy,
-                                                           const State& state,
-                                                           int stage_id) const {
+                                                           const State& state, int stage_id) const {
   State tmp_s = state;
   tmp_s.compute_inline(stage_id);
   return {std::make_pair(std::move(tmp_s), stage_id - 1)};
@@ -81,8 +78,8 @@ std::vector<std::pair<State, int>> RuleAlwaysInline::Apply(const SketchPolicyNod
 SketchGenerationRule::ConditionKind RuleMultiLevelTiling::MeetCondition(
     const SketchPolicyNode& policy, const State& state, int stage_id) {
   return NeedsMultilevelTiling(policy.search_task, state, stage_id)
-              ? ConditionKind::kApplyAndSkipRest
-              : ConditionKind::kSkip;
+             ? ConditionKind::kApplyAndSkipRest
+             : ConditionKind::kSkip;
 }
 
 std::vector<std::pair<State, int>> RuleMultiLevelTiling::Apply(const SketchPolicyNode& policy,
@@ -100,12 +97,11 @@ std::vector<std::pair<State, int>> RuleMultiLevelTiling::Apply(const SketchPolic
 SketchGenerationRule::ConditionKind RuleMultiLevelTilingWithFusion::MeetCondition(
     const SketchPolicyNode& policy, const State& state, int stage_id) {
   if (NeedsMultilevelTiling(policy.search_task, state, stage_id) &&
-      HasSingleElementwiseMatchedConsumer(policy.search_task, state, stage_id,
-                                          &target_stage_id)) {
+      HasSingleElementwiseMatchedConsumer(policy.search_task, state, stage_id, &target_stage_id)) {
     // Always do fusion for stage with cache_write
     // TODO(jcf94): Always do fusion on GPU when introducing GPU search policy.
     return HasCacheWriteStage(state, stage_id) ? ConditionKind::kApplyAndSkipRest
-                                                : ConditionKind::kApply;
+                                               : ConditionKind::kApply;
   }
   return ConditionKind::kSkip;
 }
@@ -139,8 +135,9 @@ std::vector<std::pair<State, int>> RuleMultiLevelTilingWithFusion::Apply(
 
 /********** RuleAddCacheWrite **********/
 
-SketchGenerationRule::ConditionKind RuleAddCacheWrite::MeetCondition(
-    const SketchPolicyNode& policy, const State& state, int stage_id) {
+SketchGenerationRule::ConditionKind RuleAddCacheWrite::MeetCondition(const SketchPolicyNode& policy,
+                                                                     const State& state,
+                                                                     int stage_id) {
   // Add cache write if a stage needs multi-level tiling, but does not have a element-wise
   // matched consumer
   if (NeedsMultilevelTiling(policy.search_task, state, stage_id) &&
@@ -166,15 +163,13 @@ std::vector<std::pair<State, int>> RuleAddCacheWrite::Apply(const SketchPolicyNo
 SketchGenerationRule::ConditionKind RuleAddRfactor::MeetCondition(const SketchPolicyNode& policy,
                                                                   const State& state,
                                                                   int stage_id) {
-  return (NeedsRfactor(policy.search_task, state, stage_id) &&
-          !HasCacheWriteStage(state, stage_id))
-              ? ConditionKind::kApply
-              : ConditionKind::kSkip;
+  return (NeedsRfactor(policy.search_task, state, stage_id) && !HasCacheWriteStage(state, stage_id))
+             ? ConditionKind::kApply
+             : ConditionKind::kSkip;
 }
 
 std::vector<std::pair<State, int>> RuleAddRfactor::Apply(const SketchPolicyNode& policy,
-                                                         const State& state,
-                                                         int stage_id) const {
+                                                         const State& state, int stage_id) const {
   // Fuse all reduction iters
   Array<Iterator> space_iters, reduce_iters;
   Iterator fused_reduce_iter;
@@ -218,8 +213,8 @@ std::vector<std::pair<State, int>> RuleAddRfactor::Apply(const SketchPolicyNode&
 SketchGenerationRule::ConditionKind RuleSimplifyComputeWithConstTensor::MeetCondition(
     const SketchPolicyNode& policy, const State& state, int stage_id) {
   return state->stages[stage_id]->op->attrs.count(SearchPolicyKey::simplify_const_tensor_indices)
-              ? ConditionKind::kApplyAndSkipRest
-              : ConditionKind::kSkip;
+             ? ConditionKind::kApplyAndSkipRest
+             : ConditionKind::kSkip;
 }
 
 std::vector<std::pair<State, int>> RuleSimplifyComputeWithConstTensor::Apply(
@@ -283,8 +278,7 @@ InitPopulationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* policy,
       const auto& candidate_lens = policy->split_memo.GetFactorizationSchemes(
           extent, ps->lengths.size(),
           GetIntParam(policy->params, SketchParamKey::max_innermost_split_factor));
-      const auto& candidate_lengths =
-          candidate_lens[(policy->rand_gen)() % candidate_lens.size()];
+      const auto& candidate_lengths = candidate_lens[(policy->rand_gen)() % candidate_lens.size()];
 
       pstate->transform_steps.Set(
           step_id,
@@ -307,8 +301,7 @@ InitPopulationRule::ResultKind InitChangeComputeLocation::Apply(SketchPolicyNode
   for (int stage_id = static_cast<int>((*state)->stages.size()) - 1; stage_id >= 0; stage_id--) {
     const Stage& stage = (*state)->stages[stage_id];
     // Skip the inlined stages and placeholders
-    if (stage->op_type == StageKind::kPlaceholder ||
-        stage->compute_at == ComputeAtKind::kInlined) {
+    if (stage->op_type == StageKind::kPlaceholder || stage->compute_at == ComputeAtKind::kInlined) {
       continue;
     }
     // Skip the tiled stages
@@ -359,8 +352,7 @@ InitPopulationRule::ResultKind InitChangeComputeLocation::Apply(SketchPolicyNode
       }
       candidates.emplace_back(target_stage_id, i);
 
-      if ((*state)->attach_map->iter_to_attached_stages.count(
-              std::make_pair(target_stage_id, i))) {
+      if ((*state)->attach_map->iter_to_attached_stages.count(std::make_pair(target_stage_id, i))) {
         break;
       }
     }
@@ -369,8 +361,7 @@ InitPopulationRule::ResultKind InitChangeComputeLocation::Apply(SketchPolicyNode
     // We call stage X as `target_target_stage`
     if (target_compute_at_other) {
       int target_target_stage_id;
-      target_target_stage_id =
-          (*state)->attach_map->stage_to_attach_iter.at(target_stage_id).first;
+      target_target_stage_id = (*state)->attach_map->stage_to_attach_iter.at(target_stage_id).first;
       const Stage& target_target_stage = (*state)->stages[target_target_stage_id];
 
       for (size_t i = 0; i < target_target_stage->iters.size(); ++i) {
@@ -421,7 +412,7 @@ InitPopulationRule::ResultKind InitParallel::Apply(SketchPolicyNode* policy, Sta
   std::function<void(const SketchPolicyNode&, State*, int stage_id, int iter_offset)>
       annotate_parallel;
   annotate_parallel = [&annotate_parallel](const SketchPolicyNode& policy, State* state,
-                                            int stage_id, int iter_offset) {
+                                           int stage_id, int iter_offset) {
     const Stage& stage = (*state)->stages[stage_id];
 
     Array<Iterator> to_fuse;
@@ -443,8 +434,7 @@ InitPopulationRule::ResultKind InitParallel::Apply(SketchPolicyNode* policy, Sta
         break;
       }
 
-      if ((*state)->attach_map->iter_to_attached_stages.count(
-              std::make_pair(stage_id, iter_id))) {
+      if ((*state)->attach_map->iter_to_attached_stages.count(std::make_pair(stage_id, iter_id))) {
         break;
       }
     }
@@ -487,8 +477,7 @@ InitPopulationRule::ResultKind InitUnroll::Apply(SketchPolicyNode* policy, State
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
     // Skip the inlined stage and placeholder stage
-    if (stage->compute_at == ComputeAtKind::kInlined ||
-        stage->op_type == StageKind::kPlaceholder) {
+    if (stage->compute_at == ComputeAtKind::kInlined || stage->op_type == StageKind::kPlaceholder) {
       continue;
     }
 
@@ -537,8 +526,7 @@ InitPopulationRule::ResultKind InitVectorization::Apply(SketchPolicyNode* policy
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
     // Skip the inlined stage and placeholder stage
-    if (stage->compute_at == ComputeAtKind::kInlined ||
-        stage->op_type == StageKind::kPlaceholder) {
+    if (stage->compute_at == ComputeAtKind::kInlined || stage->op_type == StageKind::kPlaceholder) {
       continue;
     }
 
@@ -549,8 +537,7 @@ InitPopulationRule::ResultKind InitVectorization::Apply(SketchPolicyNode* policy
     while (num_fusible < static_cast<int>(stage->iters.size())) {
       int iter_id = static_cast<int>(stage->iters.size()) - 1 - num_fusible;
       // Stop if this iterator has been a compute at attatch point
-      if ((*state)->attach_map->iter_to_attached_stages.count(
-              std::make_pair(stage_id, iter_id))) {
+      if ((*state)->attach_map->iter_to_attached_stages.count(std::make_pair(stage_id, iter_id))) {
         break;
       }
 

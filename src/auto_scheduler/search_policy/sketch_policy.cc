@@ -66,8 +66,8 @@ static InitVectorization init_vectorization;
 TVM_REGISTER_NODE_TYPE(SketchPolicyNode);
 
 SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
-                                       Map<String, ObjectRef> params, int seed, int verbose,
-                                       Optional<Array<SearchCallback>> init_search_callbacks) {
+                           Map<String, ObjectRef> params, int seed, int verbose,
+                           Optional<Array<SearchCallback>> init_search_callbacks) {
   auto node = make_object<SketchPolicyNode>();
   node->search_task = std::move(task);
   node->schedule_cost_model = std::move(schedule_cost_model);
@@ -107,7 +107,7 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
 }
 
 State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure_per_iter,
-                                     ProgramMeasurer measurer) {
+                               ProgramMeasurer measurer) {
   num_measure_per_iter_ = num_measure_per_iter;
 
   if (n_trials <= 1) {
@@ -174,8 +174,7 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
   }
 }
 
-Array<State> SketchPolicyNode::SearchOneRound(int num_random_states,
-                                                    Array<State>* random_states) {
+Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State>* random_states) {
   // Temporal object to be used if the input pointer is nullptr
   Array<State> temp_random_states;
   if (random_states == nullptr) {
@@ -286,8 +285,7 @@ Array<State> SketchPolicyNode::GenerateSketches() {
   return out_states;
 }
 
-Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches,
-                                                          int out_size) {
+Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches, int out_size) {
   int fail_ct = 0;
   Array<State> out_states;
   auto tic_begin = std::chrono::high_resolution_clock::now();
@@ -325,7 +323,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
 }
 
 Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_populations,
-                                                        int out_size) {
+                                                  int out_size) {
   Array<State> best_states;
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
@@ -341,8 +339,9 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   return best_states;
 }
 
-Array<MeasureInput> SketchPolicyNode::PickStatesWithEpsGreedy(
-    const Array<State>& best_states, const Array<State>& random_states, int remaining_n_trials) {
+Array<MeasureInput> SketchPolicyNode::PickStatesWithEpsGreedy(const Array<State>& best_states,
+                                                              const Array<State>& random_states,
+                                                              int remaining_n_trials) {
   int num_random =
       static_cast<int>(GetDoubleParam(params, SketchParamKey::eps_greedy) * num_measure_per_iter_);
   int num_good = num_measure_per_iter_ - num_random;
@@ -392,8 +391,7 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicy")
     .set_body_typed([](SearchTask task, CostModel schedule_cost_model,
                        Map<String, ObjectRef> params, int seed, int verbose,
                        Optional<Array<SearchCallback>> init_search_callbacks) {
-      return SketchPolicy(task, schedule_cost_model, params, seed, verbose,
-                                init_search_callbacks);
+      return SketchPolicy(task, schedule_cost_model, params, seed, verbose, init_search_callbacks);
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicyGenerateSketches")

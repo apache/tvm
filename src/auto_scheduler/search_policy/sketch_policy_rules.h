@@ -19,7 +19,7 @@
 
 /*!
  * \file auto_scheduler/search_policy/sketch_policy_rules.h
- * \brief 
+ * \brief Rules defined to generate the sketches and initial sampled states in SketchPolicy.
  */
 
 #ifndef TVM_AUTO_SCHEDULER_SEARCH_POLICY_SKETCH_POLICY_RULES_H_
