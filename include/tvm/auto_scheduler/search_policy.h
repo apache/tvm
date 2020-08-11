@@ -104,11 +104,9 @@ class SearchCallback : public ObjectRef {
 struct SearchPolicyKey {
   /*! \brief Always apply unroll to the inner most iterator of the specificed iterators. */
   static constexpr const char* always_unroll_inner = "auto_scheduler_always_unroll_inner";
-  /*! \brief The specified iterators will not be placed as the inner most iterator. */
+  /*! \brief The specified iterators will be placed in the inner most tile without split. */
   static constexpr const char* no_split_at_inner = "auto_scheduler_no_split_at_inner";
-  /*! \brief The specified iterators will not be placed as the outter most iterator. */
-  static constexpr const char* no_split_at_outer = "auto_scheduler_no_split_at_outer";
-  /*! \brief The specified iterators are some "fake reduction" with const tensors. */
+  /*! \brief The specified iterators are indices of const tensors in "fake reduction". */
   static constexpr const char* simplify_const_tensor_indices =
       "auto_scheduler_simplify_const_tensor_indices";
 };

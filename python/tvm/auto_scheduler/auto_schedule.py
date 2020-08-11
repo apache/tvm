@@ -115,7 +115,7 @@ class SketchSearchPolicy(SearchPolicy):
         The SearchTask for the computation declaration.
     schedule_cost_model : CostModel = RandomModel()
         The cost model to estimate the complete schedules.
-    params : Optional[Dict[str, value]]
+    params : Optional[Dict[str, Any]]
         Parameters of the search policy.
         See `src/auto_scheduler/search_policy/sketch_search_policy.h` for the definitions.
         See `DEFAULT_PARAMS` below to find the default values.
@@ -124,11 +124,12 @@ class SketchSearchPolicy(SearchPolicy):
     verbose : int = 1
         Verbosity level. 0 for silent, 1 to output information during schedule search.
     init_search_callbacks : Optional[List[SearchCallback]]
-        Callback functions called before the search process.
-        Candidates:
+        Callback functions called before the search process, usually used to do extra
+        initializations.
+        Possible callbacks:
             - auto_scheduler.PreloadMeasuredStates
             - auto_scheduler.PreloadCustomSketchRule
-            TODO(jcf94): Add these implementation in later PRs.
+            TODO(jcf94): Add these search callback implementations.
     """
 
     DEFAULT_PARAMS = {
@@ -159,8 +160,25 @@ class SketchSearchPolicy(SearchPolicy):
             _ffi_api.SketchSearchPolicy, task, schedule_cost_model, params,
             seed or random.randint(1, 1 << 30), verbose, init_search_callbacks)
 
-    def generate_sketches(self):
-        return _ffi_api.SketchSearchPolicyGenerateSketches(self)
+    def generate_sketches(self, print_for_debug=False):
+        """ Generate the sketches, this is mainly used for debug.
+
+        Parameters
+        ----------
+        print_for_debug : bool = False
+            Whether print out the sketches for debug.
+        
+        Returns
+        -------
+        sketches : List[State]
+            The generated sketches of this search task.
+        """
+        sketches =  _ffi_api.SketchSearchPolicyGenerateSketches(self)
+        if print_for_debug:
+            for i, s in enumerate(sketches):
+                print("=" * 20 + " %d " % i + "=" * 20)
+                print(s)
+        return sketches
 
 @tvm._ffi.register_object("auto_scheduler.TuningOptions")
 class TuningOptions(Object):
@@ -224,7 +242,8 @@ def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
     task : SearchTask
         The SearchTask for the computation declaration.
     search_policy : Optional[SearchPolicy]
-        The search policy to be used for schedule search.
+        The search policy to be used for schedule search. Use EmptyPolicy as default, which always
+        returns an empty schedule.
     tuning_options : Optional[TuningOptions]
         Tuning and measurement options.
 
@@ -236,6 +255,5 @@ def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
         raise ValueError("Invalid task: " + task +
                          " . `auto_scheduler.auto_schedule` expects a SearchTask.")
 
-    # TODO(jcf94): Remove EmptyPolicy after finish the porting of SketchSearchPolicy
     sch, tensors = _ffi_api.AutoSchedule(search_policy or EmptyPolicy(task), tuning_options)
     return sch, tensors

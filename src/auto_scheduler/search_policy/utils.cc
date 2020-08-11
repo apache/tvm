@@ -57,14 +57,14 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
 
   State tmp_s = state;
   const Stage& stage = state->stages[stage_id];
-  const auto& no_split_name_pair = GetNoSplitAxisAttr(stage);  // handle special split strategy
-  const std::set<std::string>& no_split_at_inner_name_set = no_split_name_pair.first;
-  const std::set<std::string>& no_split_at_outer_name_set = no_split_name_pair.second;
+  const std::set<std::string>& no_split_at_inner_name_set =
+      stage->op->attrs.count(SearchPolicyKey::no_split_at_inner)
+          ? GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::no_split_at_inner)
+          : std::set<std::string>();
 
   for (const auto& iter : state->stages[stage_id]->iters) {
-    if (iter->iter_kind == IteratorKind::kSpatial) {
-      if (!no_split_at_inner_name_set.count(iter->name) &&
-          !no_split_at_outer_name_set.count(iter->name)) {
+    if (!no_split_at_inner_name_set.count(iter->name)) {
+      if (iter->iter_kind == IteratorKind::kSpatial) {
         CHECK_GE(n_space, 1);
 
         if (n_space == 1) {
@@ -76,17 +76,7 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
           }
           spatial_split_step_ids->push_back(tmp_s->transform_steps.size() - 1);
         }
-      } else {
-        if (no_split_at_inner_name_set.count(iter->name)) {
-          space_inner.push_back(iter);
-        }
-        if (no_split_at_outer_name_set.count(iter->name)) {
-          space_outer.push_back(iter);
-        }
-      }
-    } else if (iter->iter_kind == IteratorKind::kReduction) {
-      if (!no_split_at_inner_name_set.count(iter->name) &&
-          !no_split_at_outer_name_set.count(iter->name)) {
+      } else if (iter->iter_kind == IteratorKind::kReduction) {
         CHECK_GE(n_reduce, 1);
 
         if (n_reduce == 1) {
@@ -98,15 +88,16 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
           }
         }
       } else {
-        if (no_split_at_inner_name_set.count(iter->name)) {
-          reduce_inner.push_back(iter);
-        }
-        if (no_split_at_outer_name_set.count(iter->name)) {
-          reduce_outer.push_back(iter);
-        }
+        LOG(FATAL) << "Invalid iter type: " << int(iter->iter_kind);
       }
     } else {
-      LOG(FATAL) << "Invalid iter type: " << int(iter->iter_kind);
+      if (iter->iter_kind == IteratorKind::kSpatial) {
+        space_inner.push_back(iter);
+      } else if (iter->iter_kind == IteratorKind::kReduction) {
+        reduce_inner.push_back(iter);
+      } else {
+        LOG(FATAL) << "Invalid iter type: " << int(iter->iter_kind);
+      }
     }
   }
 
@@ -136,7 +127,7 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
                                 std::make_move_iterator(reduce_inner.end()));
   }
 
-  std::vector<Iterator> order;
+  Array<Iterator> order;
   int space_ct = 0, reduce_ct = 0;
   for (const auto c : format) {
     if (tolower(c) == 's') {
@@ -168,18 +159,16 @@ State FollowTiling(const State& state, int stage_id, const std::vector<int>& spl
   auto pop = state->stages[stage_id]->op.as<te::ComputeOpNode>();
   CHECK(pop != nullptr);
   const Stage& stage = state->stages[stage_id];
-  const auto& no_split_name_pair = GetNoSplitAxisAttr(stage);  // handle special split strategy
-  const std::set<std::string>& no_split_at_inner_name_set = no_split_name_pair.first;
-  const std::set<std::string>& no_split_at_outer_name_set = no_split_name_pair.second;
+  const std::set<std::string>& no_split_at_inner_name_set =
+      stage->op->attrs.count(SearchPolicyKey::no_split_at_inner)
+          ? GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::no_split_at_inner)
+          : std::set<std::string>();
   int no_split_at_inner_name_in_stage_cnt = 0;
-  int no_split_at_outer_name_in_stage_cnt = 0;
   for (const auto& iter : state->stages[stage_id]->iters) {
     no_split_at_inner_name_in_stage_cnt += no_split_at_inner_name_set.count(iter->name);
-    no_split_at_outer_name_in_stage_cnt += no_split_at_outer_name_set.count(iter->name);
   }
 
-  CHECK_EQ(state->stages[stage_id]->iters.size() - no_split_at_inner_name_in_stage_cnt -
-               no_split_at_outer_name_in_stage_cnt,
+  CHECK_EQ(state->stages[stage_id]->iters.size() - no_split_at_inner_name_in_stage_cnt,
            split_step_ids.size());
 
   State tmp_s = state;
@@ -187,8 +176,7 @@ State FollowTiling(const State& state, int stage_id, const std::vector<int>& spl
   for (const auto& iter : state->stages[stage_id]->iters) {
     if (iter->iter_kind == IteratorKind::kSpatial) {
       // For spatial iterator, split it into multi iterators
-      if (!no_split_at_inner_name_set.count(iter->name) &&
-          !no_split_at_outer_name_set.count(iter->name)) {
+      if (!no_split_at_inner_name_set.count(iter->name)) {
         IteratorAnnotation ann_type = iter->annotation;
         split_res = tmp_s.follow_split(stage_id, iter, split_step_ids[ct], n_split);
         // Restore annotation. Move unroll and vectorize to inner, move parallel
@@ -217,9 +205,6 @@ State FollowTiling(const State& state, int stage_id, const std::vector<int>& spl
         }
         ct++;
       } else {
-        if (no_split_at_outer_name_set.count(iter->name)) {
-          space_0.push_back(iter);
-        }
         if (no_split_at_inner_name_set.count(iter->name)) {
           if (n_split == 1) {
             space_1.push_back(iter);

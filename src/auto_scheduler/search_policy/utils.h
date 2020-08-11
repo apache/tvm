@@ -266,19 +266,6 @@ inline bool ElementwiseMatch(const SearchTask& task, const State& state, int sta
 
 /********** Get informations from Stage/Iterator **********/
 
-/*! \brief Get axes that should not be splitted according to the attribute from tvm.compute. */
-inline std::pair<std::set<std::string>, std::set<std::string>> GetNoSplitAxisAttr(
-    const Stage& stage) {
-  std::pair<std::set<std::string>, std::set<std::string>> ret;
-  if (stage->op->attrs.count(SearchPolicyKey::no_split_at_inner)) {
-    ret.first = GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::no_split_at_inner);
-  }
-  if (stage->op->attrs.count(SearchPolicyKey::no_split_at_outer)) {
-    ret.second = GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::no_split_at_outer);
-  }
-  return ret;
-}
-
 /*! \brief Return the extent of an iterator. */
 inline int64_t GetExtent(const Iterator& it) {
   if (it->range.defined()) {

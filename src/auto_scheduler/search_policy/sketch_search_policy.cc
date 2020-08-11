@@ -45,7 +45,8 @@ TVM_REGISTER_NODE_TYPE(SketchSearchPolicyNode);
 
 /********** Sketch Generation Rule **********/
 
-// The rule that simply skips the current stage(return a unchanged state and try the next stage).
+// The rule that simply skips the current stage. It returns an unchanged state and move to the next
+// stage.
 class RuleSkipStage : public SketchGenerationRule {
  public:
   ConditionKind MeetCondition(const SketchSearchPolicyNode& policy, const State& state,
@@ -607,7 +608,7 @@ class InitVectorization : public InitPopulationRule {
         }
 
         // Stop if the memory access is not continuous (vectorizable)
-        // This check is not so easy to do, so we ....... [here]
+        // Note: The check is too hard, so we use heuristic here
         if (IsTiled(stage) && num_fusible != 0) {
           // If the stage is tiled, then the memory access must not be continuous
           // for the innermost two iterators

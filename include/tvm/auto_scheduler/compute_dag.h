@@ -66,7 +66,7 @@ class AccessAnalyzerNode : public Object {
   /*! \brief Store whether the operation is an op with only simple access.
    *  (e.g., injective, broadcast and elementwise ops without reduction) */
   OperationMap<bool> is_simple_access;
-  /*! \brief Store whether the operation is strictly-inlineable
+  /*! \brief Store whether the operation is strictly inlineable
    * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations)
    */
   OperationMap<bool> is_strictly_inlineable;

@@ -25,17 +25,12 @@ from test_auto_scheduler_common import (matmul_auto_scheduler_test, conv2d_nchw_
                                         softmax_nm_auto_scheduler_test, softmax_abcd_auto_scheduler_test,
                                         conv2d_winograd_nhwc_auto_scheduler_test)
 
-def print_sketches(sketches):
-    for i, s in enumerate(sketches):
-        print("=" * 20 + " %d " % i + "=" * 20)
-        print(s)
-
-def generate_sketches(workload_func, args, target):
+def generate_sketches(workload_func, args, target, print_for_debug=False):
     workload_key = auto_scheduler.make_workload_key(workload_func, args)
     dag = auto_scheduler.ComputeDAG(workload_key)
     task = auto_scheduler.SearchTask(dag, workload_key, tvm.target.create(target))
     policy = auto_scheduler.SketchSearchPolicy(task, verbose=0)
-    return policy.generate_sketches()
+    return policy.generate_sketches(print_for_debug)
 
 def test_cpu_matmul_sketch():
     sketches = generate_sketches(matmul_auto_scheduler_test, (512, 512, 512), 'llvm')
