@@ -82,7 +82,7 @@ def partition_conversions(mod, quantized_dtypes, ensure_fully_integral):
     mid_mod, post_mod = partition_suffix(mid_mod, quantized_dtypes)
     if ensure_fully_integral:
         assert has_only_conversion_ops(pre_mod['main'])
-        assert all_dtypes(mid_mod['main']).issubset(quantized_dtypes)
+        assert relay.analysis.all_dtypes(mid_mod['main']).issubset(quantized_dtypes)
         assert has_only_conversion_ops(post_mod['main'])
     return fuse_partitions(pre_mod, mid_mod, post_mod)
 
@@ -366,50 +366,3 @@ def has_only_conversion_ops(func):
     checker = ConversionOpChecker()
     checker.visit(func)
     return checker.valid
-
-
-class TyDtypeCollector(TypeVisitor):
-    """Pass that collects data types used in the visited type."""
-
-    def __init__(self):
-        TypeVisitor.__init__(self)
-        self.dtypes = set()
-
-    def visit_tensor_type(self, tt):
-        self.dtypes.add(tt.dtype)
-
-
-class ExprDtypeCollector(ExprVisitor):
-    """Pass that collects data types used in all types in the visited expression."""
-
-    def __init__(self):
-        ExprVisitor.__init__(self)
-        self.ty_visitor = TyDtypeCollector()
-
-    def visit(self, expr):
-        if hasattr(expr, 'checked_type'):
-            self.ty_visitor.visit(expr.checked_type)
-        elif hasattr(expr, 'type_annotation'):
-            self.ty_visitor.visit(expr.type_annotation)
-        ExprVisitor.visit(self, expr)
-
-
-# TODO(weberlo) move `all_dtypes` to relay.analysis namespace when the visitors
-# are ported to C++
-
-def all_dtypes(expr):
-    """Collect set of all data types used in `expr`.
-
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression
-
-    Returns
-    -------
-    ret : Set[String]
-        Set of data types used in the expression
-    """
-    dtype_collector = ExprDtypeCollector()
-    dtype_collector.visit(expr)
-    return dtype_collector.ty_visitor.dtypes
