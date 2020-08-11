@@ -478,7 +478,7 @@ class SplitStepNode : public StepNode {
   /*! \brief The id of the iter to split. */
   int iter_id;
   /*! \brief The extent length of the axis to split. */
-  Optional<Integer> extent;
+  Optional<PrimExpr> extent;
   /*! \brief The split factors. */
   Array<Optional<Integer>> lengths;
   /*!
