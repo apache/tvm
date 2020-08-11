@@ -63,6 +63,11 @@ set(USE_SDACCEL OFF)
 set(USE_AOCL OFF)
 
 # Whether enable OpenCL runtime
+#
+# Possible values:
+# - ON: enable OpenCL with cmake's auto search
+# - OFF: disable OpenCL
+# - /path/to/opencl-sdk: use specific path to opencl-sdk
 set(USE_OPENCL OFF)
 
 # Whether enable Metal runtime
@@ -95,6 +100,9 @@ set(RUST_SGX_SDK "/path/to/rust-sgx-sdk")
 
 # Whether enable RPC runtime
 set(USE_RPC ON)
+
+# Whether to build the C++ RPC server binary
+set(USE_CPP_RPC OFF)
 
 # Whether embed stackvm into the runtime
 set(USE_STACKVM_RUNTIME OFF)
