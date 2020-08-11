@@ -145,7 +145,7 @@ def get_per_store_features_from_file(filename: str,
         The input filename
     max_lines: int
         Only extract the first n lines of the file
-    max_n_bufs: int
+    max_n_bufs: Optional[int]
         The maximum number of extracted buffers for one statement
 
     Returns
@@ -205,7 +205,7 @@ def get_per_store_features_from_states(states: List[Union[State, StateObject]],
         The input states
     task: SearchTask
         The search task of the input states
-    max_n_bufs: int
+    max_n_bufs: Optional[int]
         The maximum number of extracted buffers for one statement
 
     Returns
