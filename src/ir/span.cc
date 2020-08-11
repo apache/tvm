@@ -89,7 +89,7 @@ TVM_REGISTER_GLOBAL("ir.Span").set_body_typed([](SourceName source_name, int lin
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<SpanNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const SpanNode*>(ref.get());
-      p->stream << "Span(" << node->source_name << ", " << node->line << ", " << node->end_line << ", "
-                << node->column << ", " << node->end_column << ")";
+      p->stream << "Span(" << node->source_name << ", " << node->line << ", " << node->end_line
+                << ", " << node->column << ", " << node->end_column << ")";
     });
 }  // namespace tvm
