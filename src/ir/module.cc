@@ -29,6 +29,7 @@
 // and are only used in minimum cases where they are clearly marked.
 //
 // Rationale: We calls into relay's analysis module to verify correctness.
+#include <tvm/parser/parser.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 
@@ -371,10 +372,7 @@ void IRModuleNode::ImportFromStd(const String& path) {
 std::unordered_set<String> IRModuleNode::Imports() const { return this->import_set_; }
 
 IRModule IRModule::FromText(const String& text, const String& source_path) {
-  auto* f = tvm::runtime::Registry::Get("relay.fromtext");
-  CHECK(f != nullptr) << "The Relay std_path is not set, please register tvm.relay.std_path.";
-  IRModule mod = (*f)(text, source_path);
-  return mod;
+  return tvm::parser::ParseModule(source_path, text);
 }
 
 TVM_REGISTER_NODE_TYPE(IRModuleNode);
