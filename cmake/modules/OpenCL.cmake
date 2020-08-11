@@ -16,7 +16,7 @@
 # under the License.
 
 # OPENCL Module
-find_package(OpenCL QUIET)
+find_opencl(${USE_OPENCL})
 
 if(OpenCL_FOUND)
   # always set the includedir when cuda is available
@@ -49,7 +49,9 @@ else()
 endif(USE_AOCL)
 
 if(USE_OPENCL)
-  find_package(OpenCL REQUIRED)
+  if (NOT OpenCL_FOUND)
+    find_package(OpenCL REQUIRED)
+  endif()
   message(STATUS "Build with OpenCL support")
   file(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${OpenCL_LIBRARIES})
