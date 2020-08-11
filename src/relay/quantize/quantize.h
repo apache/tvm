@@ -74,7 +74,7 @@ class QConfigNode : public Object {
   Array<Expr> debug_enabled_ops = Array<Expr>(ObjectPtr<Object>(nullptr));
   std::string rounding = "UPWARD";
   int calibrate_chunk_by = -1;
-  bool partition_conversions = false;
+  std::string partition_conversions = "disabled";
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("nbit_input", &nbit_input);

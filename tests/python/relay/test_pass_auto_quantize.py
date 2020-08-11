@@ -127,8 +127,12 @@ def gen_rand_tvm(tt, low, high):
 
 
 def verify_partition_fails(mod, params):
+    # standard partition should always succeed
+    with relay.quantize.qconfig(**BASE_CFG, partition_conversions='enabled'):
+        partitioned_mod = relay.quantize.quantize(mod, params)
+
     try:
-        with relay.quantize.qconfig(**BASE_CFG, partition_conversions=True):
+        with relay.quantize.qconfig(**BASE_CFG, partition_conversions='fully_integral'):
             partitioned_mod = relay.quantize.quantize(mod, params)
         raise RuntimeError('partitioning should have failed')
     except AssertionError:
@@ -138,19 +142,12 @@ def verify_partition_fails(mod, params):
 def verify_partition(mod, params):
     with relay.quantize.qconfig(**BASE_CFG):
         unpartitioned_mod = relay.quantize.quantize(mod, params)
-    with relay.quantize.qconfig(**BASE_CFG, partition_conversions=True):
+        assert len(unpartitioned_mod.get_global_vars()) == 1, \
+            'unpartitioned module should only have one function'
+    with relay.quantize.qconfig(**BASE_CFG, partition_conversions='fully_integral'):
         partitioned_mod = relay.quantize.quantize(mod, params)
 
-    # ensure the quantized core indeed only consists of quantized dtypes
-    q_dtypes = set([
-        BASE_CFG['dtype_input'],
-        BASE_CFG['dtype_weight'],
-        BASE_CFG['dtype_activation']
-    ])
-    q_main_dtypes = relay.analysis.all_dtypes(partitioned_mod['quantized_main'])
-    assert q_main_dtypes.issubset(q_dtypes)
-
-    # ensure results of `partition_result=False` and `partition_result=True` agree
+    # ensure partitioned and unpartitioned results agree
     params = [
         gen_rand_tvm(param.type_annotation, 0, 1)
         for param in partitioned_mod['main'].params
