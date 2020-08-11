@@ -355,14 +355,20 @@ namespace tvm {
 class TextPrinter {
  public:
   explicit TextPrinter(bool show_meta_data,
-                       const runtime::TypedPackedFunc<std::string(ObjectRef)>& annotate)
+                       const runtime::TypedPackedFunc<std::string(ObjectRef)>& annotate,
+                       bool show_warning = true)
       : show_meta_data_(show_meta_data),
+        show_warning_(show_warning),
         annotate_(annotate),
         relay_text_printer_(show_meta_data, &meta_, annotate),
         tir_text_printer_(show_meta_data, &meta_) {}
 
   /*! \brief whether show meta data */
   bool show_meta_data_;
+
+  /*! \brief whether show the meta data warning message */
+  bool show_warning_;
+
   /*! \brief meta data context */
   TextMetaDataContext meta_;
   /*! \brief additional comment function */
@@ -385,10 +391,12 @@ class TextPrinter {
     if (!meta_.empty()) {
       doc << Doc::NewLine();
       if (show_meta_data_) {
-        // append meta data in the end.
-        doc << "METADATA:" << Doc::NewLine() << meta_.GetMetaSection();
-      } else {
-        doc << "// meta data omitted. you can use show_meta_data=True to include meta data";
+        doc << "#[metadata]" << Doc::NewLine() << meta_.GetMetaSection();
+      } else if (show_warning_) {
+        doc << "/* For debugging purposes the metadata section has been omitted." << Doc::NewLine()
+            << " * If you would like to see the full metadata section you can set the "
+            << Doc::NewLine() << " * option to `True` when invoking `astext`. " << Doc::NewLine()
+            << " */";
       }
     }
     return doc;

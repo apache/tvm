@@ -26,16 +26,16 @@
  * most efficient code we need to obtain type information for the
  * IR.
  *
- * Like computation graphs the IR leaves most type information
- * implicit and relies performing analysis of the program to
- * generate this information.
+ * Similar to previous computation graph based IRs, the Relay IR leaves
+ * type information implicit and computes types by performing program
+ * analysis.
  *
- * This pass given an expression `e` will infer a type `t` for
- * the expression simultaneous checking the property `e : t`
- * (i.e we can show e has type t).
+ * Given an expression `e` this pass infers a type `t` for
+ * the expression as well as simultaneously checking the property `e : t`
+ * (i.e., we can show e has type t).
  *
- * If we can not infer a type or there are conflicting typing
- * constraints we will trigger an error.
+ * If we can not infer a type or there is a conflicting
+ * constraint it will emit errors.
  */
 #include <tvm/ir/error.h>
 #include <tvm/ir/type_functor.h>

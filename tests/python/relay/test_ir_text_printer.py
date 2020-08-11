@@ -17,28 +17,29 @@
 import tvm
 from tvm import te
 from tvm import relay
-import tvm.relay.testing
+from tvm.relay import testing
 import numpy as np
 from tvm.relay import Expr
 from tvm.relay.analysis import free_vars
 
-do_print = [False]
+DEBUG_PRINT = False
 
-SEMVER = "v0.0.4\n"
+SEMVER = "#[version = \"0.0.5\"]\n"
 
-def astext(p, unify_free_vars=False):
-    txt = p.astext()
-    if isinstance(p, Expr) and free_vars(p):
-        return txt
-    x = relay.fromtext(txt)
-    if unify_free_vars:
-        tvm.ir.assert_structural_equal(x, p, map_free_vars=True)
+def astext(program, unify_free_vars=False):
+    text = program.astext()
+    print(text)
+    if isinstance(program, Expr):
+        roundtrip_program = tvm.parser.parse_expr(text)
     else:
-        tvm.ir.assert_structural_equal(x, p)
-    return txt
+        roundtrip_program = tvm.parser.fromtext(text)
+
+    tvm.ir.assert_structural_equal(roundtrip_program, program, map_free_vars=True)
+
+    return text
 
 def show(text):
-    if do_print[0]:
+    if DEBUG_PRINT:
         print("---------------------------")
         print(text)
 
@@ -135,55 +136,55 @@ def test_variable_name():
 
 
 def test_mlp():
-    net, params = tvm.relay.testing.mlp.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.mlp.get_workload(batch_size=1)
     astext(net)
 
 
 def test_resnet():
-    net, params = tvm.relay.testing.resnet.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.resnet.get_workload(batch_size=1)
     astext(net)
 
 
 def test_mobilenet():
-    net, params = tvm.relay.testing.mobilenet.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.mobilenet.get_workload(batch_size=1)
     astext(net)
 
 
 def test_dqn():
-    net, params = tvm.relay.testing.dqn.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.dqn.get_workload(batch_size=1)
     astext(net)
 
 
 def test_dcgan():
-    net, params = tvm.relay.testing.dcgan.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.dcgan.get_workload(batch_size=1)
     astext(net)
 
 
 def test_lstm():
-    net, params = tvm.relay.testing.lstm.get_workload(1, 1)
+    net, _ = tvm.relay.testing.lstm.get_workload(1, 1)
     astext(net)
 
-    net, params = tvm.relay.testing.lstm.get_workload(4, 4)
+    net, _ = tvm.relay.testing.lstm.get_workload(4, 4)
     astext(net)
 
 def test_inception_v3():
-    net, params = tvm.relay.testing.inception_v3.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.inception_v3.get_workload(batch_size=1)
     astext(net)
 
 
 def test_squeezenet():
     for version in ['1.0', '1.1']:
-        net, params = tvm.relay.testing.squeezenet.get_workload(batch_size=1, version=version)
+        net, _ = tvm.relay.testing.squeezenet.get_workload(batch_size=1, version=version)
         astext(net)
 
 
 def test_vgg():
-    net, params = tvm.relay.testing.vgg.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.vgg.get_workload(batch_size=1)
     astext(net)
 
 
 def test_densenet():
-    net, params = tvm.relay.testing.densenet.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.densenet.get_workload(batch_size=1)
     astext(net)
 
 
@@ -232,7 +233,7 @@ def @main[A]() -> fn (A, List[A]) -> List[A] {
   Cons
 }
     """
-    mod = relay.fromtext(SEMVER + type_def_str + main_def_str)
+    mod = tvm.parser.parse(SEMVER + type_def_str + main_def_str)
     mod_str = str(mod)
     # ensure constructors are printed correctly in type definitions (with their
     # signature) and as exprs (without their signature)
@@ -250,25 +251,5 @@ def test_null_attribute():
 
 
 if __name__ == "__main__":
-    do_print[0] = True
-    test_lstm()
-    test_zeros()
-    test_meta_data()
-    test_let_inlining()
-    test_resnet()
-    test_mobilenet()
-    test_mlp()
-    test_dqn()
-    test_dcgan()
-    test_squeezenet()
-    test_inception_v3()
-    test_vgg()
-    test_densenet()
-    test_func()
-    test_env()
-    test_call_attrs()
-    test_let_if_scope()
-    test_variable_name()
-    test_call_node_order()
-    test_unapplied_constructor()
-    test_null_attribute()
+    import sys
+    pytext.argv(sys.argv)

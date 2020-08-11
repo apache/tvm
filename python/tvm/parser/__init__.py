@@ -24,4 +24,4 @@ def parse_expr(source):
     return _ffi_api.ParseExpr("string", source)
 
 def fromtext(source, source_name="from_string"):
-    return parse(str(source), str(source_name))
+    return parse(source, source_name)

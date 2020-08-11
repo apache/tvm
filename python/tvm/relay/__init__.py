@@ -29,7 +29,6 @@ from . import adt
 from . import prelude
 from . import loops
 from . import scope_builder
-from . import parser
 
 from . import transform
 from . import analysis
@@ -132,11 +131,8 @@ ExprMutator = expr_functor.ExprMutator
 # Prelude
 Prelude = prelude.Prelude
 
-# Scope builder
+# Scope Builder
 ScopeBuilder = scope_builder.ScopeBuilder
-
-# Parser
-fromtext = parser.fromtext
 
 # Param Serialization
 save_param_dict = param_dict.save_param_dict

@@ -250,6 +250,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     std::vector<uint32_t> control_deps;
     // subgraphs
     std::vector<contrib::Subgraph> subgraphs;
+
     // JSON Loader
     void LoadAttrs(dmlc::JSONReader* reader, TVMOpParam* param) {
       int bitmask = 0;

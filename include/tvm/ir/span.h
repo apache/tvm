@@ -80,21 +80,29 @@ class Span;
 class SpanNode : public Object {
  public:
   /*! \brief The source name. */
-  SourceName source;
+  SourceName source_name;
   /*! \brief The line number. */
   int line;
   /*! \brief The column offset. */
   int column;
+  /*! \brief The end line number. */
+  int end_line;
+  /*! \brief The end column number. */
+  int end_column;
 
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("source", &source);
+    v->Visit("source_name", &source_name);
     v->Visit("line", &line);
     v->Visit("column", &column);
+    v->Visit("end_line", &end_line);
+    v->Visit("end_column", &end_column);
   }
 
   bool SEqualReduce(const SpanNode* other, SEqualReducer equal) const {
-    return equal(source, other->source) && equal(line, other->line) && equal(column, other->column);
+    return equal(source_name, other->source_name) && equal(line, other->line) &&
+           equal(column, other->column) && equal(end_line, other->end_line) &&
+           equal(end_column, other->end_column);
   }
 
   static constexpr const char* _type_key = "Span";
@@ -103,7 +111,10 @@ class SpanNode : public Object {
 
 class Span : public ObjectRef {
  public:
-  TVM_DLL Span(SourceName source, int lineno, int col_offset);
+  TVM_DLL Span(SourceName source_name, int line, int end_line, int column, int end_column);
+
+  /*! \brief Merge two spans into one which captures the combined regions. */
+  TVM_DLL Span Merge(const Span& other);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Span, ObjectRef, SpanNode);
 };
