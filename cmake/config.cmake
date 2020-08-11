@@ -123,14 +123,18 @@ set(USE_LLVM OFF)
 #---------------------------------------------
 # Contrib libraries
 #---------------------------------------------
-# Whether use BLAS, choices: openblas, mkl, atlas, apple
+# Whether use BLAS, choices: openblas, atlas, apple
 set(USE_BLAS none)
 
-# /path/to/mkl: mkl root path when use mkl blas library
-# set(USE_MKL_PATH /opt/intel/mkl) for UNIX
-# set(USE_MKL_PATH ../IntelSWTools/compilers_and_libraries_2018/windows/mkl) for WIN32
-# set(USE_MKL_PATH <path to venv or site-packages directory>) if using `pip install mkl`
-set(USE_MKL_PATH none)
+# Whether to use MKL
+# Possible values:
+# - ON: Enable MKL
+# - /path/to/mkl: mkl root path
+# - OFF: Disable MKL
+# set(USE_MKL /opt/intel/mkl) for UNIX
+# set(USE_MKL ../IntelSWTools/compilers_and_libraries_2018/windows/mkl) for WIN32
+# set(USE_MKL <path to venv or site-packages directory>) if using `pip install mkl`
+set(USE_MKL OFF)
 
 # Whether use MKLDNN library, choices: ON, OFF, path to mkldnn library
 set(USE_MKLDNN OFF)
