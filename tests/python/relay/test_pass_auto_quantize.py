@@ -140,7 +140,7 @@ def verify_partition_fails(mod, params):
 
 
 def verify_partition(mod, params):
-    with relay.quantize.qconfig(**BASE_CFG):
+    with relay.quantize.qconfig(**BASE_CFG, paritition_conversions='disabled'):
         unpartitioned_mod = relay.quantize.quantize(mod, params)
         assert len(unpartitioned_mod.get_global_vars()) == 1, \
             'unpartitioned module should only have one function'
