@@ -1,4 +1,4 @@
 .. _tutorials-autotvm-sec:
 
-Auto tuning
------------
+AutoTVM: Template Based Auto Tuning
+-----------------------------------

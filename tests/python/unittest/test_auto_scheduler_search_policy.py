@@ -39,14 +39,17 @@ def search_common(workload=matmul_auto_scheduler_test, target="llvm",
     target = tvm.target.create(target)
     task = auto_scheduler.SearchTask(dag, workload_key, target)
 
-    if search_policy == 'empty':
-        search_policy = auto_scheduler.EmptyPolicy(task)
-    elif search_policy == 'sketch':
-        search_policy = auto_scheduler.SketchPolicy(task,
-                init_search_callbacks=init_search_callbacks)
-
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
+
+        init_search_callbacks = init_search_callbacks or []
+        init_search_callbacks.append(auto_scheduler.PreloadMeasuredStates(log_file))
+
+        if search_policy == 'empty':
+            search_policy = auto_scheduler.EmptyPolicy(task)
+        elif search_policy == 'sketch':
+            search_policy = auto_scheduler.SketchPolicy(task,
+                    init_search_callbacks=init_search_callbacks)
 
         tuning_options = auto_scheduler.TuningOptions(num_measure_trials=num_measure_trials,
                 runner=runner, verbose=1, measure_callbacks=[auto_scheduler.RecordToFile(log_file)])

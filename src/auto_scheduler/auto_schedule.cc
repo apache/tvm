@@ -27,6 +27,8 @@
 #include <tvm/auto_scheduler/auto_schedule.h>
 #include <tvm/runtime/registry.h>
 
+#include "utils.h"
+
 namespace tvm {
 namespace auto_scheduler {
 
@@ -56,7 +58,16 @@ std::pair<te::Schedule, Array<te::Tensor>> AutoSchedule(SearchPolicy search_poli
   State state =
       search_policy->Search(tuning_options->num_measure_trials, tuning_options->early_stopping,
                             tuning_options->num_measures_per_round, measurer);
-  return search_policy->search_task->compute_dag.ApplySteps(state->transform_steps);
+  if (state.defined()) {
+    return search_policy->search_task->compute_dag.ApplySteps(state->transform_steps);
+  } else {
+    StdCout(tuning_options->verbose)
+        << "No valid state found in this search round. Check if it has traversed all of the "
+        << "search space." << std::endl;
+    // Return the default schedule
+    return {te::Schedule(search_policy->search_task->compute_dag->ops),
+            search_policy->search_task->compute_dag->tensors};
+  }
 }
 
 TVM_REGISTER_GLOBAL("auto_scheduler.TuningOptions")

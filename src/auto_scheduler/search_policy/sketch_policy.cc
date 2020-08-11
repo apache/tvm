@@ -122,6 +122,7 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
     measurer->Reset();
 
     int ct = 0;
+    int empty_retry_count = GetIntParam(params, SketchParamKey::empty_retry_count);
     Array<MeasureInput> inputs;
     Array<MeasureResult> results;
     while (ct < n_trials) {
@@ -144,10 +145,19 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
       // Also pick some random states to do eps-greedy
       inputs = PickStatesWithEpsGreedy(best_states, random_states, n_trials - ct);
 
-      // Have traversed all of the search space
+      // Currently it's hard to detect if all of the search space has been traversed
+      // Stop if no extra valid states found in several retries
       if (inputs.empty()) {
-        StdCout(verbose) << "All candidates in the search space have been measured." << std::endl;
-        break;
+        if (empty_retry_count-- > 0) {
+          continue;
+        } else {
+          StdCout(verbose) << "It seems all candidates in the search space have been measured."
+                           << std::endl;
+          break;
+        }
+      } else {
+        // Reset the retry count
+        empty_retry_count = GetIntParam(params, SketchParamKey::empty_retry_count);
       }
 
       // Measure candidate states
@@ -216,7 +226,7 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
 }
 
 Array<State> SketchPolicyNode::GenerateSketches() {
-  State init_state = search_task->compute_dag->init_state;
+  const State& init_state = search_task->compute_dag->init_state;
 
   // Two ping pong buffers to avoid copy
   Array<State> states_buf1{init_state}, states_buf2;
