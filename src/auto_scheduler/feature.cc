@@ -44,9 +44,9 @@
 
 namespace tvm {
 // import the function from driver_api.cc
-extern void GetBinds(const Array<te::Tensor>& args, bool compact,
-                     const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-                     Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list);
+void GetBinds(const Array<te::Tensor>& args, bool compact,
+              const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+              Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list);
 }  // namespace tvm
 
 namespace tvm {
