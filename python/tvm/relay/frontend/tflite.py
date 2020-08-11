@@ -84,6 +84,7 @@ class OperatorConverter(object):
             'ELU': self.convert_elu,
             'EQUAL': self.convert_equal,
             'EXP': self.convert_exp,
+            'EXPAND_DIMS': self.convert_expand_dims,
             'FILL': self.convert_fill,
             'FLOOR_DIV': self.convert_floor_div,
             'FLOOR_MOD': self.convert_floor_mod,
@@ -2903,6 +2904,31 @@ class OperatorConverter(object):
         boxes = _op.concatenate([ret[3], ret[2], ret[5], ret[4]], axis=2)
         ret = _expr.TupleWrapper(_expr.Tuple([boxes, cls_ids, scores, valid_count]), size=4)
         return ret
+
+    def convert_expand_dims(self, op):
+        """Convert TFLite EXPAND_DIMS"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        if input_tensors[0].qnn_params:
+            # Check that input and output tensor have same qnn params.
+            output_tensors = self.get_output_tensors(op)
+            assert self.has_same_qnn_params(input_tensors[0], output_tensors[0]), \
+                "TFLite EXPAND_DIMS requires input and output tensors' \
+                    scale and zero points to be equal"
+
+        input_expr = self.get_tensor_expr(input_tensors[0])
+        axis = self.get_tensor_value(input_tensors[1])
+        if isinstance(axis, np.ndarray):
+            assert len(axis) == 1, "only one value is expected."
+            axis = int(axis)
+
+        ndims = len(input_tensors[0].tensor.ShapeAsNumpy())
+        assert (-1-ndims <= axis <= ndims), "axis out of range"
+
+        out = _op.expand_dims(input_expr, axis, 1)
+
+        return out
 
     def convert_one_hot(self, op):
         """Convert TFLite ONE_HOT"""
