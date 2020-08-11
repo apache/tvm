@@ -279,7 +279,7 @@ def test_tuple_match():
 
 def test_inf_loop_case():
     code = """
-v0.0.4
+#[version = "0.0.5"]
 type Arith[A] {
     Zero,
     Const(A),
@@ -294,7 +294,7 @@ def @shallow_opt[A](%a: Arith[A]) -> Arith[A] {
     }
 }
 """
-    relay.fromtext(code)
+    tvm.parser.fromtext(code)
     # fromtext parse the module, then checked it (which include strictness checking).
 
 if __name__ == "__main__":

@@ -33,9 +33,6 @@ RUN bash /install/ubuntu1804_install_llvm.sh
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
 RUN bash /install/ubuntu_install_java.sh
 
-COPY install/ubuntu_install_antlr.sh /install/ubuntu_install_antlr.sh
-RUN bash /install/ubuntu_install_antlr.sh
-
 COPY install/ubuntu_install_nodejs.sh /install/ubuntu_install_nodejs.sh
 RUN bash /install/ubuntu_install_nodejs.sh
 
