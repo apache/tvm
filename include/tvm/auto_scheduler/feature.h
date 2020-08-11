@@ -41,7 +41,7 @@ namespace tvm {
 namespace auto_scheduler {
 
 /*!
- * \brief Get PerStore feature from a TIR Stmt
+ * \brief Get per-store feature from a TIR Stmt
  * \param stmt The input lowered TIR statement
  * \param cache_line_size The size of cache line in bytes
  * \param max_n_bufs The maximum number of extracted buffers for one statement
@@ -58,7 +58,7 @@ void GetPerStoreFeature(const Stmt& stmt, int cache_line_size, int max_n_bufs,
 void GetPerStoreFeatureName(int max_n_bufs, std::vector<std::string>* ret);
 
 /*!
- * \brief Get PerStore feature from states of the same task
+ * \brief Get per-store feature from states of the same task
  * \param states The input states
  * \param task The same search task for all states
  * \param skip_first_n_feature_extraction Skip feature extraction for the first n states
@@ -71,7 +71,7 @@ void GetPerStoreFeaturesFromStates(const Array<State>& states, const SearchTask&
                                    std::vector<std::vector<float> >* features);
 
 /*!
- * \brief Get PerStore feature from states of different tasks
+ * \brief Get per-store feature from states of different tasks
  * \param states The input states
  * \param tasks The search tasks corresponding to the input states
  * \param skip_first_n_feature_extraction Skip feature extraction for the first n states
@@ -84,7 +84,7 @@ void GetPerStoreFeaturesFromStates(const Array<State>& states, const std::vector
                                    std::vector<std::vector<float> >* features);
 
 /*!
- * \brief Get PerStore features from a log file
+ * \brief Get per-store features from a log file
  * \param filename The name of log file
  * \param max_lines Only read the first n lines of the file
  * \param max_n_bufs The maximum number of extracted buffers for one statement
@@ -99,7 +99,7 @@ void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int
                                  std::vector<int>* task_ids);
 
 /*!
- * \brief Get PerStore features from measurement input/result pairs
+ * \brief Get per-store features from measurement input/result pairs
  * \param inputs The meaurement inputs
  * \param results The measurement results
  * \param skip_first_n_feature_extraction Skip feature extraction for the first n meaurement pairs

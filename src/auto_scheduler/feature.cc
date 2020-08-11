@@ -64,14 +64,14 @@ static const int ARITH_INTENSITY_CURVE_SAMPLE_N = 10;
 
 // Annotation position encoding
 enum class AnnotationPosType : int {
-  kPosNone = 0,
-  kPosInnerSpatial = 1,
-  kPosMiddleSpatial = 2,
-  kPosOuterSpatial = 3,
-  kPosInnerReduce = 4,
-  kPosMiddleReduce = 5,
-  kPosOuterReduce = 6,
-  kPosMixed = 7
+  kPosNone = 0,           // Does not have this kind of annotation
+  kPosInnerSpatial = 1,   // The annotated iterator is the innermost spatial iterator
+  kPosMiddleSpatial = 2,  // The annotated iterator is a middle spatial iterator
+  kPosOuterSpatial = 3,   // The annotated iterator is the outermost spatial iterator
+  kPosInnerReduce = 4,    // The annotated iterator is the innermost reduce iterator
+  kPosMiddleReduce = 5,   // The annotated iterator is a middle reduce iterator
+  kPosOuterReduce = 6,    // The annotated iterator is the outermost reduce iterator
+  kPosMixed = 7           // The annotated iterator is a mixed space and reduce iterator
 };
 
 // Buffer access type
@@ -79,7 +79,10 @@ enum class BufferAccessType : int { kRead = 0, kWrite = 1, kReadWrite = 2, kUnkn
 
 // Accesses to a buffer
 struct BufferAccess {
+  // data reuse type
   BufferAccessType acc_type{BufferAccessType::kUnknownRW};
+  // Use a two-dimentional array to store multiple multi-dimentional accesses.
+  // The innermost vector stores the multi-dimentional indices of one access.
   std::vector<std::vector<PrimExpr>> indices;
 };
 
@@ -90,14 +93,14 @@ enum class ReuseType : int { kLoopMultipleRead = 0, kSerialMultipleReadWrite = 1
 struct BufferAccessFeature {
   std::string buffer_name;        // The name of the buffer
   BufferAccessType acc_type;      // The type of the access
-  float bytes;                    // touched memory in bytes
-  float unique_bytes;             // touched unique memory in bytes
-  float lines;                    // touched cache lines
-  float unique_lines;             // touched unique cache lines
-  ReuseType reuse_type;           // type of data reuse
-  float reuse_dis_iter;           // reuse distance in iterator number
-  float reuse_dis_bytes;          // reuse distance in total touched bytes
-  float reuse_ct;                 // reuse times
+  float bytes;                    // The touched memory in bytes
+  float unique_bytes;             // The touched unique memory in bytes
+  float lines;                    // The number of touched cache lines
+  float unique_lines;             // The number touched unique cache lines
+  ReuseType reuse_type;           // Tye type of data reuse
+  float reuse_dis_iter;           // The reuse distance in iterator number
+  float reuse_dis_bytes;          // The reuse distance in total touched bytes
+  float reuse_ct;                 // The reuse ratio
   float bytes_d_reuse_ct;         // bytes / reuse_ct
   float unique_bytes_d_reuse_ct;  // unique_bytes / reuse_ct
   float lines_d_reuse_ct;         // lines / reuse_ct
@@ -107,7 +110,7 @@ struct BufferAccessFeature {
 
 // Feature set of a BufferStore statement
 struct FeatureSet {
-  // compute feature
+  // Group 1: Computation related features
   float float_mad;                  // The number of float MAD (Multiply–add) ops
   float float_addsub;               // The number of float add and sub ops
   float float_mul;                  // The number of float multiply ops
@@ -145,19 +148,20 @@ struct FeatureSet {
   float threadIdx_z_len;            // The length of threadIdx.z
   float vthread_len;                // The length of virtual thread
 
-  // Points sampled from the arithmetic intensity curve.
-  float arith_intensity_curve[ARITH_INTENSITY_CURVE_SAMPLE_N];
-
-  // Buffer access feature (per buffer)
+  // Group 2: Buffer access related features (per buffer)
   std::vector<BufferAccessFeature> access_feas;
 
-  // Allocation feature
+  // Group 3: Arithmetic intensity related features
+  float arith_intensity_curve[ARITH_INTENSITY_CURVE_SAMPLE_N];  // points sampled from the
+                                                                // arithmetic intensity curve
+
+  // Group 4: Allocation related features
   float alloc_size;        // The size of allocated buffer in bytes
   float alloc_outer_prod;  // The product of lenghts of loops outside the scope of the allocation
   float alloc_inner_prod;  // The product of lenghts of loops inside the score of the allocation
   float alloc_prod;        // alloc_outer_prod * alloc_inner_prod
 
-  // Overall feature
+  // Group 5: Outer scope related features
   float outer_prod;            // The product of lenghts of outer loops
   float num_loops;             // The number of outer loops
   float auto_unroll_max_step;  // The value of pragma "auto_unroll_max_step"
@@ -272,6 +276,8 @@ class MathOpCounter : public StmtExprVisitor {
   VisitBinary(GTNode, float_cmp, int_cmp);
   VisitBinary(GENode, float_cmp, int_cmp);
 
+#undef VisitBinary
+
   void VisitExpr_(const AndNode* op) final {
     bool_op++;
     StmtExprVisitor::VisitExpr_(op);
@@ -312,12 +318,23 @@ class MathOpCounter : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  // todo(lmzheng): detect mad
-  size_t float_mad{0}, float_addsub{0}, float_mul{0}, float_divmod{0}, float_cmp{0},
-      float_math_func{0}, float_other_func{0};
-  size_t int_mad{0}, int_addsub{0}, int_mul{0}, int_divmod{0}, int_cmp{0}, int_math_func{0},
-      int_other_func{0};
-  size_t bool_op{0}, select_op{0};
+  // todo(merrymercy): Detect MAD (Multiply–add)
+  size_t float_mad{0};         // The number of float MAD (Multiply–add) ops
+  size_t float_addsub{0};      // The number of float add and sub ops
+  size_t float_mul{0};         // The number of float multiply ops
+  size_t float_divmod{0};      // The number of float div and mod ops
+  size_t float_cmp{0};         // The number of float comparison ops
+  size_t float_math_func{0};   // The number of float math func calls
+  size_t float_other_func{0};  // The number of other float func calls
+  size_t int_mad{0};           // The number of integer MAD (Multiply–add) ops
+  size_t int_addsub{0};        // The number of integer add and sub ops
+  size_t int_mul{0};           // The number of float multiply ops
+  size_t int_divmod{0};        // The number of float div and mod ops
+  size_t int_cmp{0};           // The number of float comparison ops
+  size_t int_math_func{0};     // The number of float math func calls
+  size_t int_other_func{0};    // The number of other float func calls
+  size_t bool_op{0};           // The number of bool ops
+  size_t select_op{0};         // The number of select ops
 
   OpAttrMap<TCallEffectKind> op_call_effect_ = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
 };
@@ -363,7 +380,7 @@ class BufferAccessExtractor : public StmtExprVisitor {
 };
 
 // Compute the coefficient for an loop iterator in an expression
-// Note: we use a approximation strategy to find coefficient.
+// Note: we use an approximation strategy to find coefficient.
 // Hopefully, it is faster than DetectLinearEquation and can handle more cases (non-linear)
 class CoefficientExtractor : public StmtExprVisitor {
  public:
@@ -571,22 +588,22 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
       const std::string& name = var.get()->name_hint;
       if (node->attr_key == tir::attr::thread_extent) {
         if (name == "blockIdx.x") {
-          plen = &blockIdx_x_len;
+          plen = &blockIdx_x_len_;
         } else if (name == "blockIdx.y") {
-          plen = &blockIdx_y_len;
+          plen = &block_idx_y_len_;
         } else if (name == "blockIdx.z") {
-          plen = &blockIdx_z_len;
+          plen = &block_idx_z_len_;
         } else if (name == "threadIdx.x") {
-          plen = &threadIdx_x_len;
+          plen = &threadIdx_x_len_;
         } else if (name == "threadIdx.y") {
-          plen = &threadIdx_y_len;
+          plen = &thread_idx_y_len_;
         } else if (name == "threadIdx.z") {
-          plen = &threadIdx_z_len;
+          plen = &thread_idx_z_len_;
         } else {
           LOG(FATAL) << "invalid thread itervar " + name;
         }
       } else {
-        plen = &vthread_len;
+        plen = &vthread_len_;
       }
 
       int extent_before = *plen;
@@ -596,25 +613,25 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
         *plen *= extent;
       }
 
-      is_gpu = true;
+      is_gpu_ = true;
 
       // make a fake for node for blockIdx.x or threadIdx.x
       Stmt fake_for_node = For(var, 0, extent, ForType::Parallel, DeviceAPI::None, node->body);
 
-      outer_loop_prod *= extent;
-      for_loop_stack.push_back(fake_for_node.as<ForNode>());
+      outer_loop_prod_ *= extent;
+      for_loop_stack_.push_back(fake_for_node.as<ForNode>());
       StmtExprVisitor::VisitStmt_(node);
-      for_loop_stack.pop_back();
-      outer_loop_prod /= extent;
+      for_loop_stack_.pop_back();
+      outer_loop_prod_ /= extent;
 
       *plen = extent_before;
     } else if (node->attr_key == "pragma_auto_unroll_max_step") {
       int value = GetIntImm(node->value);
 
-      int16_t old_value = cur_auto_unroll_max_step;
-      cur_auto_unroll_max_step = value;
+      int16_t old_value = cur_auto_unroll_max_step_;
+      cur_auto_unroll_max_step_ = value;
       StmtExprVisitor::VisitStmt_(node);
-      cur_auto_unroll_max_step = old_value;
+      cur_auto_unroll_max_step_ = old_value;
     } else {
       StmtExprVisitor::VisitStmt_(node);
     }
@@ -624,185 +641,186 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     int64_t loop_extent = GetLoopExtent(node);
 
     if (node->for_type == ForType::Vectorized) {
-      vec_for_stack.push_back(node);
+      vec_for_stack_.push_back(node);
     } else if (node->for_type == ForType::Unrolled) {
-      unroll_for_stack.push_back(node);
+      unroll_for_stack_.push_back(node);
     } else if (node->for_type == ForType::Parallel) {
-      parallel_for_stack.push_back(node);
+      parallel_for_stack_.push_back(node);
     }
 
-    outer_loop_prod *= loop_extent;
-    for_loop_stack.push_back(node);
+    outer_loop_prod_ *= loop_extent;
+    for_loop_stack_.push_back(node);
     StmtExprVisitor::VisitStmt_(node);
-    for_loop_stack.pop_back();
-    outer_loop_prod /= loop_extent;
+    for_loop_stack_.pop_back();
+    outer_loop_prod_ /= loop_extent;
 
     if (node->for_type == ForType::Vectorized) {
-      vec_for_stack.pop_back();
+      vec_for_stack_.pop_back();
     } else if (node->for_type == ForType::Unrolled) {
-      unroll_for_stack.pop_back();
+      unroll_for_stack_.pop_back();
     } else if (node->for_type == ForType::Parallel) {
-      parallel_for_stack.pop_back();
+      parallel_for_stack_.pop_back();
     }
   }
 
   void VisitStmt_(const BufferStoreNode* node) final {
+    MathOpCounter math_op_counter;
+    math_op_counter(node->value);
+    std::vector<float> mem_bytes_list;
+    std::vector<float> compute_ops_list;
+    int cur_compute_ops;
+
+    // Group 1: Computation related features
+    ExtractComputationFeature(node, math_op_counter);
+
+    // Group 2: Buffer access related features (per buffer)
+    ExtractBufferAccessFeature(node, math_op_counter, &cur_compute_ops, &compute_ops_list,
+                               &mem_bytes_list);
+
+    // Group 3: Arithmetic intensity related features
+    ExtractArithmeticIntensityFeature(node, cur_compute_ops, compute_ops_list, mem_bytes_list);
+
+    // Group 4: Allocation related features
+    ExtractOuterScopeFeature(node);
+  }
+
+  void VisitStmt_(const BufferRealizeNode* node) final {
+    StmtExprVisitor::VisitStmt_(node);
+
+    // Group 5: Outer scope related features
+    ExtractAllocationFeature(node);
+  }
+
+  // Extract computation related features (group 1)
+  void ExtractComputationFeature(const BufferStoreNode* node,
+                                 const MathOpCounter& math_op_counter) {
     FeatureSet& fea = buffer_features[node->buffer];
 
-    // compute feature
-    MathOpCounter mathops;
-    mathops(node->value);
-    fea.float_mad = outer_loop_prod * mathops.float_mad;
-    fea.float_addsub = outer_loop_prod * mathops.float_addsub;
-    fea.float_mul = outer_loop_prod * mathops.float_mul;
-    fea.float_divmod = outer_loop_prod * mathops.float_divmod;
-    fea.float_cmp = outer_loop_prod * mathops.float_cmp;
-    fea.float_math_func = outer_loop_prod * mathops.float_math_func;
-    fea.float_other_func = outer_loop_prod * mathops.float_other_func;
-    fea.int_mad = outer_loop_prod * mathops.int_mad;
-    fea.int_addsub = outer_loop_prod * mathops.int_addsub;
-    fea.int_mul = outer_loop_prod * mathops.int_mul;
-    fea.int_divmod = outer_loop_prod * mathops.int_divmod;
-    fea.int_math_func = outer_loop_prod * mathops.int_math_func;
-    fea.int_cmp = outer_loop_prod * mathops.int_cmp;
-    fea.int_other_func = outer_loop_prod * mathops.int_other_func;
-    fea.bool_op = outer_loop_prod * mathops.bool_op;
-    fea.select_op = outer_loop_prod * mathops.select_op;
+    // Computation related features
+    fea.float_mad = outer_loop_prod_ * math_op_counter.float_mad;
+    fea.float_addsub = outer_loop_prod_ * math_op_counter.float_addsub;
+    fea.float_mul = outer_loop_prod_ * math_op_counter.float_mul;
+    fea.float_divmod = outer_loop_prod_ * math_op_counter.float_divmod;
+    fea.float_cmp = outer_loop_prod_ * math_op_counter.float_cmp;
+    fea.float_math_func = outer_loop_prod_ * math_op_counter.float_math_func;
+    fea.float_other_func = outer_loop_prod_ * math_op_counter.float_other_func;
+    fea.int_mad = outer_loop_prod_ * math_op_counter.int_mad;
+    fea.int_addsub = outer_loop_prod_ * math_op_counter.int_addsub;
+    fea.int_mul = outer_loop_prod_ * math_op_counter.int_mul;
+    fea.int_divmod = outer_loop_prod_ * math_op_counter.int_divmod;
+    fea.int_math_func = outer_loop_prod_ * math_op_counter.int_math_func;
+    fea.int_cmp = outer_loop_prod_ * math_op_counter.int_cmp;
+    fea.int_other_func = outer_loop_prod_ * math_op_counter.int_other_func;
+    fea.bool_op = outer_loop_prod_ * math_op_counter.bool_op;
+    fea.select_op = outer_loop_prod_ * math_op_counter.select_op;
 
-    fea.outer_prod = outer_loop_prod;
-    fea.num_loops = for_loop_stack.size();
-    fea.auto_unroll_max_step = cur_auto_unroll_max_step;
     fea.vec_len = fea.unroll_len = fea.parallel_len = 0.0f;
     fea.vec_type = fea.unroll_type = fea.parallel_type = AnnotationPosType::kPosNone;
 
-    fea.vec_num = vec_for_stack.size();
-    if (!vec_for_stack.empty()) {
-      fea.vec_len = GetLoopExtent(vec_for_stack.back());
+    fea.vec_num = vec_for_stack_.size();
+    if (!vec_for_stack_.empty()) {
+      fea.vec_len = GetLoopExtent(vec_for_stack_.back());
       fea.vec_prod = 1.0;
-      for (const ForNode* pfor : vec_for_stack) {
+      for (const ForNode* pfor : vec_for_stack_) {
         fea.vec_prod *= GetLoopExtent(pfor);
       }
       fea.vec_type = AnnotationPosType::kPosMixed;
       // todo(merrymercy): this feature requires operation (tvm.compute) information
-      // GetAnnotationPosEncoding(vec_for_stack.back()->loop_var,
+      // GetAnnotationPosEncoding(vec_for_stack_.back()->loop_var,
       // node->args, pcompute->axis, pcompute->reduce_axis);
     }
 
-    fea.unroll_num = unroll_for_stack.size();
-    if (!unroll_for_stack.empty()) {
-      fea.unroll_len = GetLoopExtent(unroll_for_stack.back());
+    fea.unroll_num = unroll_for_stack_.size();
+    if (!unroll_for_stack_.empty()) {
+      fea.unroll_len = GetLoopExtent(unroll_for_stack_.back());
       fea.unroll_prod = 1.0;
-      for (const ForNode* pfor : unroll_for_stack) {
+      for (const ForNode* pfor : unroll_for_stack_) {
         fea.unroll_prod *= GetLoopExtent(pfor);
       }
       fea.unroll_type = AnnotationPosType::kPosMixed;
-      // GetAnnotationPosEncoding(unroll_for_stack.back()->loop_var,
+      // GetAnnotationPosEncoding(unroll_for_stack_.back()->loop_var,
       // node->args, pcompute->axis, pcompute->reduce_axis);
     }
 
-    fea.parallel_num = parallel_for_stack.size();
-    if (!parallel_for_stack.empty()) {
-      fea.parallel_len = GetLoopExtent(parallel_for_stack.back());
+    fea.parallel_num = parallel_for_stack_.size();
+    if (!parallel_for_stack_.empty()) {
+      fea.parallel_len = GetLoopExtent(parallel_for_stack_.back());
       fea.parallel_prod = 1.0;
-      for (const ForNode* pfor : parallel_for_stack) {
+      for (const ForNode* pfor : parallel_for_stack_) {
         fea.parallel_prod *= GetLoopExtent(pfor);
       }
       fea.parallel_type = AnnotationPosType::kPosMixed;
-      // GetAnnotationPosEncoding(parallel_for_stack.back()->loop_var,
+      // GetAnnotationPosEncoding(parallel_for_stack_.back()->loop_var,
       // node->args, pcompute->axis, pcompute->reduce_axis);
     }
 
     // GPU threads
-    fea.is_gpu = is_gpu;
-    fea.blockIdx_x_len = blockIdx_x_len;
-    fea.blockIdx_y_len = blockIdx_y_len;
-    fea.blockIdx_z_len = blockIdx_z_len;
-    fea.threadIdx_x_len = threadIdx_x_len;
-    fea.threadIdx_y_len = threadIdx_y_len;
-    fea.threadIdx_z_len = threadIdx_z_len;
-    fea.vthread_len = vthread_len;
+    fea.is_gpu = is_gpu_;
+    fea.blockIdx_x_len = blockIdx_x_len_;
+    fea.blockIdx_y_len = block_idx_y_len_;
+    fea.blockIdx_z_len = block_idx_z_len_;
+    fea.threadIdx_x_len = threadIdx_x_len_;
+    fea.threadIdx_y_len = thread_idx_y_len_;
+    fea.threadIdx_z_len = thread_idx_z_len_;
+    fea.vthread_len = vthread_len_;
+  }
 
-    // Extract all buffer access
+  // Extract buffer access related features (group 2)
+  void ExtractBufferAccessFeature(const BufferStoreNode* node, const MathOpCounter& math_op_counter,
+                                  int* cur_compute_ops, std::vector<float>* compute_ops_list,
+                                  std::vector<float>* mem_bytes_list) {
+    FeatureSet& fea = buffer_features[node->buffer];
+
+    // Extract all buffer accesses
     std::vector<BufferAccessFeature> acc_feas;
     BufferAccessExtractor buf_extractor;
     buf_extractor.InsertAccess(node->buffer, BufferAccessType::kWrite, node->indices);
     buf_extractor.ExtractReads(node->value);
 
     // Compute touched region for all outer loops
-    Analyzer ana;
-    for (auto x : for_loop_stack) {
-      ana.Bind(x->loop_var, Range::FromMinExtent(x->min, 1), true);
+    for (auto x : for_loop_stack_) {
+      ana_.Bind(x->loop_var, Range::FromMinExtent(x->min, 1), true);
     }
 
-    std::vector<float> mem_bytes_list;
-    std::vector<float> compute_ops_list;
+    mem_bytes_list->reserve(for_loop_stack_.size());
+    compute_ops_list->reserve(for_loop_stack_.size());
 
-    mem_bytes_list.reserve(for_loop_stack.size());
-    compute_ops_list.reserve(for_loop_stack.size());
-
-    int cur_compute_ops = mathops.float_mad + mathops.float_addsub + mathops.float_mul +
-                          mathops.float_divmod + mathops.float_cmp + mathops.float_math_func +
-                          mathops.float_other_func;
+    *cur_compute_ops = math_op_counter.float_mad + math_op_counter.float_addsub +
+                       math_op_counter.float_mul + math_op_counter.float_divmod +
+                       math_op_counter.float_cmp + math_op_counter.float_math_func +
+                       math_op_counter.float_other_func;
 
     std::vector<int> tmp_region;
-    for (int i = static_cast<int>(for_loop_stack.size()) - 1; i >= 0; i--) {
-      const ForNode* p_for = for_loop_stack[i];
+    for (int i = static_cast<int>(for_loop_stack_.size()) - 1; i >= 0; i--) {
+      const ForNode* p_for = for_loop_stack_[i];
 
-      ana.Bind(p_for->loop_var,
-               Range::FromMinExtent(for_loop_stack[i]->min, for_loop_stack[i]->extent), true);
+      ana_.Bind(p_for->loop_var,
+                Range::FromMinExtent(for_loop_stack_[i]->min, for_loop_stack_[i]->extent), true);
 
       // Note, here we do overwrite.
       // So if there are multiple BufferStoreNode, the last one will overwrite the first few.
       // e.g. The update part in gemm will overwrite the init part.
       BufferMap<std::vector<std::tuple<BufferAccessType, int64_t, int>>>& buffer_regions_map =
-          for_touch_regions[p_for];
+          for_touch_regions_[p_for];
 
       int64_t mem_bytes = 0;
       for (const auto& x : buf_extractor.buf_accesses) {
         const Buffer& t = x.first;
         const BufferAccess& acc = x.second;
 
-        ComputeRegion(acc.indices, &ana, &tmp_region);
+        ComputeRegion(acc.indices, &ana_, &tmp_region);
         int64_t touched_size = ElementProduct(tmp_region);
         buffer_regions_map[t].push_back(
             std::make_tuple(acc.acc_type, touched_size, t->dtype.bytes()));
         mem_bytes += touched_size * t->dtype.bytes();
       }
 
-      mem_bytes_list.push_back(std::log2(mem_bytes));
-      cur_compute_ops *= GetLoopExtent(for_loop_stack[i]);
-      compute_ops_list.push_back(std::log2(cur_compute_ops));
+      mem_bytes_list->push_back(std::log2(mem_bytes));
+      *cur_compute_ops *= GetLoopExtent(for_loop_stack_[i]);
+      compute_ops_list->push_back(std::log2(*cur_compute_ops));
     }
 
-    // Compute arithmetic intensity curve (y axis : arithmetic intensity, x axis : flops).
-    // We use piecewise linear interpolation to fit this curve.
-    int pt = 0;
-    if (cur_compute_ops <= 0 || compute_ops_list.empty()) {
-      std::fill(fea.arith_intensity_curve,
-                fea.arith_intensity_curve + ARITH_INTENSITY_CURVE_SAMPLE_N, 0.0);
-    } else {
-      for (size_t i = 0; i < ARITH_INTENSITY_CURVE_SAMPLE_N; ++i) {
-        float cur_compute_ops = compute_ops_list.back() * (i + 1) / ARITH_INTENSITY_CURVE_SAMPLE_N;
-        while (compute_ops_list[pt] < cur_compute_ops - 1e-4) {
-          pt++;
-        }
-        CHECK_LT(pt, compute_ops_list.size());
-
-        float value;
-        if (pt == 0) {
-          value = compute_ops_list[pt] / mem_bytes_list[pt];
-        } else {
-          float base = compute_ops_list[pt - 1] / mem_bytes_list[pt - 1];
-          float slope = (compute_ops_list[pt] / mem_bytes_list[pt] -
-                         compute_ops_list[pt - 1] / mem_bytes_list[pt - 1]) /
-                        (compute_ops_list[pt] - compute_ops_list[pt - 1]);
-          value = base + slope * (cur_compute_ops - compute_ops_list[pt - 1]);
-        }
-        fea.arith_intensity_curve[i] = value;
-      }
-    }
-
-    // Compute buffer access feature
+    //  Buffer access related features (per buffer)
     for (const auto& x : buf_extractor.buf_accesses) {
       const Buffer& t = x.first;
       const BufferAccess& acc = x.second;
@@ -815,7 +833,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
       size_t ele_bytes = t->dtype.bytes();
 
       // calculate bytes
-      float bytes = outer_loop_prod * ele_bytes;
+      float bytes = outer_loop_prod_ * ele_bytes;
       float unique_bytes;
 
       // calculate cache lines
@@ -823,33 +841,33 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
       float lines;
       float unique_lines;
 
-      if (for_loop_stack.empty()) {
+      if (for_loop_stack_.empty()) {
         unique_bytes = ele_bytes;
         stride = 0;
         lines = 1.0f;
         unique_lines = 1.0f;
       } else {
         unique_bytes =
-            std::get<1>(for_touch_regions[for_loop_stack.front()][t].front()) * ele_bytes;
+            std::get<1>(for_touch_regions_[for_loop_stack_.front()][t].front()) * ele_bytes;
 
         stride = 0;
         int64_t reduce_ratio = 1;
 
         int i;
-        for (i = static_cast<int>(for_loop_stack.size()) - 1; i >= 0; i--) {
-          stride = ComputeStride(acc.indices, int_shape, for_loop_stack[i]->loop_var.get());
+        for (i = static_cast<int>(for_loop_stack_.size()) - 1; i >= 0; i--) {
+          stride = ComputeStride(acc.indices, int_shape, for_loop_stack_[i]->loop_var.get());
           if (stride != 0) {
             break;
           }
-          reduce_ratio *= GetLoopExtent(for_loop_stack.back());
+          reduce_ratio *= GetLoopExtent(for_loop_stack_.back());
         }
 
-        lines = outer_loop_prod / reduce_ratio *
+        lines = outer_loop_prod_ / reduce_ratio *
                 std::min(1.0f, 1.0f * stride * ele_bytes / cache_line_size_);
         lines = std::max(lines, 1.0f);
 
         // convert `stride` back to the stride of the innermost iterator
-        stride = (i == static_cast<int>(for_loop_stack.size()) - 1 ? stride : 0);
+        stride = (i == static_cast<int>(for_loop_stack_.size()) - 1 ? stride : 0);
 
         float n_continuous = ele_bytes;
         for (int i = static_cast<int>(tmp_region.size()) - 1; i >= 0; i--) {
@@ -865,7 +883,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
       ReuseType reuse_type;
       float reuse_dis_iter, reuse_dis_bytes, reuse_ct;
       std::tie(reuse_type, reuse_dis_iter, reuse_dis_bytes, reuse_ct) =
-          ComputeReuse(t, acc.indices, for_loop_stack, for_touch_regions);
+          ComputeReuse(t, acc.indices, for_loop_stack_, for_touch_regions_);
 
       acc_feas.emplace_back();
       BufferAccessFeature& acc_fea = acc_feas.back();
@@ -898,9 +916,43 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     fea.access_feas = acc_feas;
   }
 
-  void VisitStmt_(const BufferRealizeNode* node) final {
-    StmtExprVisitor::VisitStmt_(node);
+  // Extract arithmetic intensity related feature (group 3)
+  void ExtractArithmeticIntensityFeature(const BufferStoreNode* node, int cur_compute_ops,
+                                         const std::vector<float>& compute_ops_list,
+                                         const std::vector<float>& mem_bytes_list) {
+    FeatureSet& fea = buffer_features[node->buffer];
 
+    // Compute arithmetic intensity curve (y axis : arithmetic intensity, x axis : flops).
+    // We use piecewise linear interpolation to fit this curve.
+    int pt = 0;
+    if (cur_compute_ops <= 0 || compute_ops_list.empty()) {
+      std::fill(fea.arith_intensity_curve,
+                fea.arith_intensity_curve + ARITH_INTENSITY_CURVE_SAMPLE_N, 0.0);
+    } else {
+      for (size_t i = 0; i < ARITH_INTENSITY_CURVE_SAMPLE_N; ++i) {
+        float cur_compute_ops = compute_ops_list.back() * (i + 1) / ARITH_INTENSITY_CURVE_SAMPLE_N;
+        while (compute_ops_list[pt] < cur_compute_ops - 1e-4) {
+          pt++;
+        }
+        CHECK_LT(pt, compute_ops_list.size());
+
+        float value;
+        if (pt == 0) {
+          value = compute_ops_list[pt] / mem_bytes_list[pt];
+        } else {
+          float base = compute_ops_list[pt - 1] / mem_bytes_list[pt - 1];
+          float slope = (compute_ops_list[pt] / mem_bytes_list[pt] -
+                         compute_ops_list[pt - 1] / mem_bytes_list[pt - 1]) /
+                        (compute_ops_list[pt] - compute_ops_list[pt - 1]);
+          value = base + slope * (cur_compute_ops - compute_ops_list[pt - 1]);
+        }
+        fea.arith_intensity_curve[i] = value;
+      }
+    }
+  }
+
+  // Extract allocation related features (group 4)
+  void ExtractAllocationFeature(const BufferRealizeNode* node) {
     FeatureSet& fea = buffer_features[node->buffer];
 
     float allocation_size = 1.0f;
@@ -909,45 +961,61 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     }
     // allocation feature
     fea.alloc_size = allocation_size * node->buffer->dtype.bytes();
-    fea.alloc_prod = allocation_size * outer_loop_prod;
-    fea.alloc_outer_prod = outer_loop_prod;
-    fea.alloc_inner_prod = fea.outer_prod / outer_loop_prod;
+    fea.alloc_prod = allocation_size * outer_loop_prod_;
+    fea.alloc_outer_prod = outer_loop_prod_;
+    fea.alloc_inner_prod = fea.outer_prod / outer_loop_prod_;
   }
 
-  float outer_loop_prod = 1.0f;
+  // Extract outer scope related features (group 5)
+  void ExtractOuterScopeFeature(const BufferStoreNode* node) {
+    FeatureSet& fea = buffer_features[node->buffer];
 
-  std::vector<const ForNode*> for_loop_stack;
-  std::vector<const ForNode*> parallel_for_stack;
-  std::vector<const ForNode*> vec_for_stack;
-  std::vector<const ForNode*> unroll_for_stack;
+    fea.outer_prod = outer_loop_prod_;
+    fea.num_loops = for_loop_stack_.size();
+    fea.auto_unroll_max_step = cur_auto_unroll_max_step_;
+  }
 
-  bool is_gpu;
-  int blockIdx_x_len{1};
-  int blockIdx_y_len{1};
-  int blockIdx_z_len{1};
-  int threadIdx_x_len{1};
-  int threadIdx_y_len{1};
-  int threadIdx_z_len{1};
-  int vthread_len{1};
-  int16_t cur_auto_unroll_max_step{0};
-
+  // Stores FeatureSet for every buffer
   BufferMap<FeatureSet> buffer_features;
 
-  // for a loop, for all its touched buffers, for all different accesses to the buffers,
+ private:
+  // The shared arithmetic analyzer
+  Analyzer ana_;
+
+  // The product of outer loop
+  float outer_loop_prod_ = 1.0f;
+
+  // The stacks to store parent loops during DFS
+  std::vector<const ForNode*> for_loop_stack_;
+  std::vector<const ForNode*> parallel_for_stack_;
+  std::vector<const ForNode*> vec_for_stack_;
+  std::vector<const ForNode*> unroll_for_stack_;
+
+  // GPU-related features
+  bool is_gpu_{false};
+  int blockIdx_x_len_{1};
+  int block_idx_y_len_{1};
+  int block_idx_z_len_{1};
+  int threadIdx_x_len_{1};
+  int thread_idx_y_len_{1};
+  int thread_idx_z_len_{1};
+  int vthread_len_{1};
+  int16_t cur_auto_unroll_max_step_{0};
+
+  // Store touch region information for all for loops. The format of this nested map:
+  // For a loop, for all its touched buffers, for all different accesses to the buffers,
   // its (access type, number of touched elements, number of bytes of single element)
   std::unordered_map<const ForNode*,
                      BufferMap<std::vector<std::tuple<BufferAccessType, int64_t, int>>>>
-      for_touch_regions;
+      for_touch_regions_;
 
- private:
+  // The default cache line size in bytes
   const int cache_line_size_ = 64;
 };
 
 // shifted log to incorporate the property that slog(0) = 0
 inline float slog(float x) { return x < 0 ? -std::log2(-x + 1) : std::log2(x + 1); }
 
-// Get features for all ir::Provide statements in a TVM program.
-// So we call it `PerStore` feature
 void GetPerStoreFeature(const Stmt& stmt, int cache_line_size, int max_n_bufs,
                         std::vector<float>* ret) {
   PerStoreFeatureExtractor extractor(cache_line_size);
@@ -958,7 +1026,7 @@ void GetPerStoreFeature(const Stmt& stmt, int cache_line_size, int max_n_bufs,
   for (const auto& x : extractor.buffer_features) {
     const FeatureSet& fea_set = x.second;
 
-    /***** compute feature *****/
+    /***** Group 1: Computation related features *****/
     ret->push_back(slog(fea_set.float_mad));
     ret->push_back(slog(fea_set.float_addsub));
     ret->push_back(slog(fea_set.float_mul));
@@ -1006,11 +1074,7 @@ void GetPerStoreFeature(const Stmt& stmt, int cache_line_size, int max_n_bufs,
     ret->push_back(slog(fea_set.threadIdx_z_len));
     ret->push_back(slog(fea_set.vthread_len));
 
-    for (size_t i = 0; i < ARITH_INTENSITY_CURVE_SAMPLE_N; ++i) {
-      ret->push_back(fea_set.arith_intensity_curve[i]);
-    }
-
-    /***** access feature *****/
+    /***** Group 2: Buffer access related features *****/
     // sort according to pair (lines, bytes)
     std::vector<std::pair<float, float>> buf_order_key;
     for (const auto& acc_fea : fea_set.access_feas) {
@@ -1071,22 +1135,26 @@ void GetPerStoreFeature(const Stmt& stmt, int cache_line_size, int max_n_bufs,
       ret->push_back(0.0f);
     }
 
-    /***** allocation feature *****/
+    /***** Group 3: Arithmetic intensity related features *****/
+    for (size_t i = 0; i < ARITH_INTENSITY_CURVE_SAMPLE_N; ++i) {
+      ret->push_back(fea_set.arith_intensity_curve[i]);
+    }
+
+    /***** Group 4: Allocation related features *****/
     ret->push_back(slog(fea_set.alloc_size));
     ret->push_back(slog(fea_set.alloc_prod));
     ret->push_back(slog(fea_set.alloc_outer_prod));
     ret->push_back(slog(fea_set.alloc_inner_prod));
 
-    /***** overall feature *****/
+    /***** Group 5: Outer scope related features *****/
     ret->push_back(slog(fea_set.outer_prod));
     ret->push_back(slog(fea_set.num_loops));
     ret->push_back(slog(fea_set.auto_unroll_max_step));
   }
 }
 
-/* \brief Get the name of every element in the feature vector. Use this for debug and inspection */
 void GetPerStoreFeatureName(int max_n_bufs, std::vector<std::string>* ret) {
-  /***** compute feature *****/
+  /***** Group 1: Computation related features *****/
   ret->push_back(("float_mad"));
   ret->push_back(("float_addsub"));
   ret->push_back(("float_mul"));
@@ -1144,12 +1212,9 @@ void GetPerStoreFeatureName(int max_n_bufs, std::vector<std::string>* ret) {
   ret->push_back(("threadIdx_y_len"));
   ret->push_back(("threadIdx_z_len"));
   ret->push_back(("vthread_len"));
-  for (size_t i = 0; i < ARITH_INTENSITY_CURVE_SAMPLE_N; ++i) {
-    ret->push_back(("arith_intensity_curve_" + std::to_string(i)));
-  }
-  // section total: 55 + ARITH_INTENSITY_CURVE_SAMPLE_N = 65
+  // section total: 57
 
-  /***** access feature *****/
+  /***** Group 2: Buffer access related features *****/
   for (size_t i = 0; i < static_cast<size_t>(max_n_bufs); ++i) {
     std::string prefix = "B" + std::to_string(i) + ".";
     ret->push_back((prefix + "acc_type.kRead"));
@@ -1173,18 +1238,24 @@ void GetPerStoreFeatureName(int max_n_bufs, std::vector<std::string>* ret) {
   }
   // section total : max_n_bufs * 18
 
-  /***** allocation feature *****/
+  /***** Group 3: Arithmetic intensity related features *****/
+  for (size_t i = 0; i < ARITH_INTENSITY_CURVE_SAMPLE_N; ++i) {
+    ret->push_back(("arith_intensity_curve_" + std::to_string(i)));
+  }
+  // section total: ARITH_INTENSITY_CURVE_SAMPLE_N = 10
+
+  /***** Group 4: Allocation related features *****/
   ret->push_back(("alloc_size"));
   ret->push_back(("alloc_prod"));
   ret->push_back(("alloc_outer_prod"));
   ret->push_back(("alloc_inner_prod"));
   // section total : 4
 
-  /***** overall feature *****/
+  /***** Group 5: Outer scope related features *****/
   ret->push_back(("outer_prod"));
   ret->push_back(("num_loops"));
   ret->push_back(("auto_unroll_max_step"));
-  // section total : 2
+  // section total : 3
 }
 
 void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, int max_n_bufs,
