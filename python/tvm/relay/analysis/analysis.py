@@ -23,8 +23,6 @@ configuring the passes and scripting them in Python.
 from tvm.ir import IRModule
 from tvm.relay import transform, build_module
 from tvm.runtime.ndarray import cpu
-from tvm.relay.expr_functor import ExprVisitor
-from tvm.relay.type_functor import TypeVisitor
 
 from . import _ffi_api
 from .feature import Feature

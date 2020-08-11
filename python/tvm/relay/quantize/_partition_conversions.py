@@ -19,7 +19,6 @@
 import tvm
 from tvm import relay
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
-from tvm.relay.type_functor import TypeMutator, TypeVisitor
 
 # operators that are allowed in prefix/suffix partitions, because they are used
 # to quantize/dequantize
