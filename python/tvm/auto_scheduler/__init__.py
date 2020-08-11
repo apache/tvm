@@ -26,7 +26,7 @@ from . import workload_registry
 
 # Shortcut
 from .auto_schedule import SearchTask, TuningOptions, HardwareParams, \
-    auto_schedule, EmptyPolicy
+    auto_schedule, EmptyPolicy, SketchPolicy
 from .compute_dag import ComputeDAG
 from .cost_model import RandomModel
 from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, \

@@ -27,9 +27,9 @@ from tvm import auto_scheduler
 from test_auto_scheduler_common import matmul_auto_scheduler_test, PropagatingThread
 
 def search_common(workload=matmul_auto_scheduler_test, target="llvm",
-                  search_policy=auto_scheduler.EmptyPolicy(),
-                  seed=random.randint(1, 1 << 30), runner='local', cost_model=None,
-                  num_measure_trials=2, params=None, pre_search_callbacks=None):
+                  search_policy='empty', seed=random.randint(1, 1 << 30), runner='local',
+                  cost_model=auto_scheduler.RandomModel(), num_measure_trials=2,
+                  init_search_callbacks=None):
     print("Test %s schedule search with the default search policy" % (target))
 
     random.seed(seed)
@@ -39,13 +39,17 @@ def search_common(workload=matmul_auto_scheduler_test, target="llvm",
     target = tvm.target.create(target)
     task = auto_scheduler.SearchTask(dag, workload_key, target)
 
+    if search_policy == 'empty':
+        search_policy = auto_scheduler.EmptyPolicy(task)
+    elif search_policy == 'sketch':
+        search_policy = auto_scheduler.SketchPolicy(task,
+                init_search_callbacks=init_search_callbacks)
+
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
 
-        tuning_options = auto_scheduler.TuningOptions(num_measure_trials=num_measure_trials, runner=runner,
-                                             verbose=0,
-                                             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
-                                             pre_search_callbacks=pre_search_callbacks)
+        tuning_options = auto_scheduler.TuningOptions(num_measure_trials=num_measure_trials,
+                runner=runner, verbose=1, measure_callbacks=[auto_scheduler.RecordToFile(log_file)])
         sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options)
         inp, res = auto_scheduler.load_best(log_file, workload_key, target)
 
@@ -88,5 +92,18 @@ def test_workload_registry_search_basic():
     t.start()
     t.join()
 
+
+def test_sketch_search_policy_basic():
+    if not tvm.runtime.enabled("llvm"):
+        return
+    # wrap the search in a new thread to avoid the conflict
+    # between python's multiprocessing and tvm's thread pool
+    t = PropagatingThread(target=search_common,
+                          kwargs={'seed': 944563397, 'search_policy': 'sketch'})
+    t.start()
+    t.join()
+
+
 if __name__ == "__main__":
     test_workload_registry_search_basic()
+    test_sketch_search_policy_basic()
