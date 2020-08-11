@@ -316,9 +316,7 @@ class DtypeCollector : protected ExprVisitor, protected TypeVisitor {
     ExprVisitor::VisitExpr(expr);
   }
 
-  void VisitType_(const TensorTypeNode* op) final {
-    dtypes_.insert(DLDataType2String(op->dtype));
-  }
+  void VisitType_(const TensorTypeNode* op) final { dtypes_.insert(DLDataType2String(op->dtype)); }
 
   Array<String> All(const Expr& expr) {
     VisitExpr(expr);

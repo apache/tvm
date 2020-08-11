@@ -374,9 +374,10 @@ def quantize(mod, params=None, dataset=None):
 
     q_cfg = current_qconfig()
     assert q_cfg.partition_conversions in ['disabled', 'enabled', 'fully_integral']
-    if q_cfg.partition_conversions != 'disabled':
+    if q_cfg.partition_conversions == 'disabled':
+        return mod
+    else:
         quantized_dtypes = {q_cfg.dtype_input, q_cfg.dtype_weight, q_cfg.dtype_activation}
         ensure_fully_integral = q_cfg.partition_conversions == 'fully_integral'
         return partition_conversions(mod, quantized_dtypes, ensure_fully_integral)
 
-    return mod
