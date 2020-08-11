@@ -82,7 +82,7 @@ public class RPCWatchdog extends Thread {
   }
 
   /**
-   * Method to terminate the running thread
+   * Default method to terminate the running RPCActivity process.
    */
   protected void terminate() {
     System.exit(0);
