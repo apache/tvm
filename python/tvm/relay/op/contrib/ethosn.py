@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Arm(R) Ethos(TM) -N NPU supported operators."""
-import tvm.ir
 from enum import Enum
+import tvm.ir
 from ... import qnn as _qnn
 from . import _ethosn as support
 
@@ -36,9 +36,8 @@ def ethosn_available():
     if not tvm.get_global_func("relay.ethos-n.query", True):
         print("skip because Ethos-N module is not available")
         return Available.UNAVAILABLE
-    else:
-        hw = tvm.get_global_func("relay.ethos-n.query")()
-        return Available.SW_AND_HW if hw else Available.SW_ONLY
+    hw = tvm.get_global_func("relay.ethos-n.query")()
+    return Available.SW_AND_HW if hw else Available.SW_ONLY
 
 
 @tvm.ir.register_op_attr("qnn.concatenate", "target.ethos-n")
