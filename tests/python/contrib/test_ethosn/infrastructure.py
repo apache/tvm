@@ -89,7 +89,7 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
     with tvm.transform.PassContext(opt_level=3, config={
             "relay.ext.ethos-n.options": {"variant": 0}
     }):
-        with tvm.target.create("llvm -mcpu=core-avx2"):
+        with tvm.target.create("llvm"):
             if npu:
                 f = relay.build_module.bind_params_by_name(mod["main"], params)
                 mod = tvm.IRModule()
