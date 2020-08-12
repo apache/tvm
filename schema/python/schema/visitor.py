@@ -42,12 +42,59 @@ class AttrsCollector(ExprFunctor):
 
 
 class CodeGenCPP(ExprFunctor):
+    def generate_fvisit_attrs(self, obj, fields):
+        if len(fields) == 0:
+            return ""
+        template = \
+        "\n" \
+        "  void VisitAttrs(AttrVisitor* v) {{"\
+        "{fields_str}" \
+        "\n  }}"
+        fields_str = [""]
+        for field in fields:
+            line = "v->Visit(\"{field_name}\", &{field_name});"
+            fields_str.append(line.format(field_name=field.name))
+        fields_str = '\n    '.join(fields_str)
+        return template.format(fields_str=fields_str)
+
+    def generate_fsequal_reduce(self, obj, fields):
+        if not obj.fsequal_reduce:
+            return ""
+        template = \
+        "\n" \
+        "  void SEqualReduce(const {obj_name}* other, SEqualReducer equal) const {{\n" \
+        "    return {fields_str}\n" \
+        "  }}"
+        fields_str = []
+        for field in fields:
+            line = "equal({field_name}, other->{field_name})"
+            fields_str.append(line.format(field_name=field.name))
+        fields_str = ' && '.join(fields_str)
+        return template.format(obj_name=obj.name, fields_str=fields_str)
+
+    def generate_fshash_reduce(self, obj, fields):
+        if not obj.fshash_reduce:
+            return ""
+        template = \
+        "\n" \
+        "  void SHashReduce(SHashReducer hash_reducer) const {{\n" \
+        "    {fields_str}\n" \
+        "  }}"
+        fields_str = []
+        for field in fields:
+            line = "hash_reducer({field_name});"
+            fields_str.append(line.format(field_name=field.name))
+        fields_str = '\n    '.join(fields_str)
+        return template.format(fields_str=fields_str)
+
     def visit_object_def(self, obj):
         template = \
         "class {name} : public {base_name} {{\n" \
         " public:" \
         "{fields}" \
-        "{visit_fields}" \
+        "{fvisit_fields}" \
+        "{fsequal_reduce}" \
+        "{fshash_reduce}" \
         "\n" \
         "  static constexpr const char* _type_key = \"{type_key}\";\n" \
         "  TVM_DECLARE_BASE_OBJECT_INFO({name}, {base_name});\n" \
@@ -60,19 +107,16 @@ class CodeGenCPP(ExprFunctor):
 
         collector = AttrsCollector()
         collector.visit(obj)
-        attrs = collector.fields
-        if obj.fvisit_attrs and len(attrs) > 0:
-            attrs_str = [""]
-            for field in attrs:
-                line = "v->Visit(\"{field_name}\", &{field_name});"
-                attrs_str.append(line.format(field_name=field.name))
-            attrs_str = '\n  '.join(attrs_str)
-        else:
-            attrs_str = ""
+        fvisit_fields = self.generate_fvisit_attrs(obj, collector.fields)
+        fsequal_reduce = self.generate_fsequal_reduce(obj, collector.fields)
+        fshash_reduce = self.generate_fshash_reduce(obj, collector.fields)
+
         src = template.format(name=obj.name,
                               base_name=base_name,
                               fields=fields,
-                              visit_fields=attrs_str,
+                              fvisit_fields=fvisit_fields,
+                              fsequal_reduce=fsequal_reduce,
+                              fshash_reduce=fshash_reduce,
                               type_key=obj.type_key)
         return src
 
