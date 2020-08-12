@@ -35,7 +35,7 @@ namespace ethosn {
 namespace sl = ::ethosn::support_library;
 
 bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
-               std::vector<uint32_t> input_order, std::vector<uint32_t> output_order);
+               const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order);
 
 }  // namespace ethosn
 }  // namespace runtime

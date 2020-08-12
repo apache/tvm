@@ -24,9 +24,9 @@
 
 #include <dlpack/dlpack.h>
 #include <poll.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/tir/expr.h>
 #include <unistd.h>
-#include <tvm/runtime/ndarray.h>
 
 #include <algorithm>
 #include <memory>
@@ -96,7 +96,8 @@ void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer> >* fm,
 }
 
 bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
-               std::vector<uint32_t> input_order, std::vector<uint32_t> output_order) {
+               const std::vector<uint32_t>& input_order,
+               const std::vector<uint32_t>& output_order) {
   // Unpack parameters
   uint8_t argc = 0;
   std::vector<DLTensor*> inputs(input_order.size());
@@ -197,7 +198,8 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.test.infra.inference_result")
 
 // Allow the ethos-n support code to be tested without a device
 bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
-               std::vector<uint32_t> input_order, std::vector<uint32_t> output_order) {
+               const std::vector<uint32_t>& input_order,
+               const std::vector<uint32_t>& output_order) {
   std::vector<DLTensor*> outputs;
   for (int argc = network->GetInputBufferInfos().size(); argc < args.size(); argc++) {
     outputs.push_back(args[argc]);
