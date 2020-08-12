@@ -225,6 +225,16 @@ def test_reduce_functions():
         if not keepdims:
             x = np.squeeze(x, axis=axis)
         return x
+    
+    def _unbiased_relay_wrapper(f):
+        def _unbiased_func(x, axis=None, keepdims=False, exclude=False):
+            return f(x, axis=axis, keepdims=keepdims, exclude=exclude, unbiased=True)
+        return _unbiased_func
+    
+    def _unbiased_np_wrapper(f):
+        def _unbiased_func(a, axis=None, dtype=None, keepdims=None):
+            return f(a, axis=axis, dtype=dtype, ddof=1, keepdims=keepdims)
+        return _unbiased_func
 
     d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
     for func in [[relay.sum, np.sum],
@@ -232,7 +242,9 @@ def test_reduce_functions():
                  [relay.min, np.min],
                  [relay.mean, np.mean],
                  [relay.variance, np.var],
+                 [_unbiased_relay_wrapper(relay.variance), _unbiased_np_wrapper(np.var)],
                  [relay.std, np.std],
+                 [_unbiased_relay_wrapper(relay.std), _unbiased_np_wrapper(np.std)],
                  [relay.prod, np.prod],
                  [relay.all, np.all],
                  [relay.any, np.any],

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/auto_scheduler/cost_model.h
+ * \file auto_scheduler/cost_model.h
  * \brief Cost models that estimate the performance of programs
  */
 
@@ -54,7 +54,7 @@ class CostModelNode : public Object {
    * \param states The input states
    * \param scores The predicted scores for all states
    */
-  virtual void Predict(const SearchTask& task, const std::vector<State>& states,
+  virtual void Predict(const SearchTask& task, const Array<State>& states,
                        std::vector<float>* scores) = 0;
 
   /*!
@@ -64,7 +64,7 @@ class CostModelNode : public Object {
    * \param state_scores The predicted scores for all states
    * \param stage_scores The predicted scores for all stages in all stages
    */
-  virtual void PredictStages(const SearchTask& task, const std::vector<State>& states,
+  virtual void PredictStages(const SearchTask& task, const Array<State>& states,
                              std::vector<float>* state_scores,
                              std::vector<std::vector<float>>* stage_scores) {
     LOG(FATAL) << "Not implemented";
@@ -91,7 +91,7 @@ class RandomModelNode : public CostModelNode {
 
   void Update(const Array<MeasureInput>& inputs, const Array<MeasureResult>& results) final;
 
-  void Predict(const SearchTask& task, const std::vector<State>& states,
+  void Predict(const SearchTask& task, const Array<State>& states,
                std::vector<float>* scores) final;
 
   static constexpr const char* _type_key = "auto_scheduler.RandomModel";
@@ -126,10 +126,10 @@ class PythonBasedModelNode : public CostModelNode {
 
   void Update(const Array<MeasureInput>& inputs, const Array<MeasureResult>& results) final;
 
-  void Predict(const SearchTask& task, const std::vector<State>& states,
+  void Predict(const SearchTask& task, const Array<State>& states,
                std::vector<float>* scores) final;
 
-  void PredictStages(const SearchTask& task, const std::vector<State>& states,
+  void PredictStages(const SearchTask& task, const Array<State>& states,
                      std::vector<float>* state_scores,
                      std::vector<std::vector<float>>* stage_scores) final;
 

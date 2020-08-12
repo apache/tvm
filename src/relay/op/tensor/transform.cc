@@ -25,6 +25,7 @@
 
 #include <tvm/ir/error.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/tir/data_layout.h>
@@ -579,6 +580,36 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     arith::Analyzer ana;
     infer_dim = ana.Simplify(infer_dim);
     oshape.Set(infer_idx, infer_dim);
+  }
+
+  // Verify that the sum of dimensions in the output shape is the sum of
+  // dimensions in the input shape
+  bool found_dynamic = false;
+  int64_t oshape_sum = 1;
+  for (auto& x : oshape) {
+    // Check if we have a dynamic shape. If we do, we can't verify if the
+    // reshape is valid. Dynamic shapes are marker by using Any, but can also
+    // occur from SizeVar's. In the case of SizeVar, the shape expression can
+    // be an AST. We can't easily check if we have an AST because of a ShapeVar
+    // or some other reason, so our check for dynamic shape is just if we can
+    // convert the shape to in integer or not.
+    if (!x->IsInstance<tvm::Integer::ContainerType>()) {
+      found_dynamic = true;
+      break;
+    }
+    oshape_sum *= Downcast<tvm::Integer>(x)->value;
+  }
+  int64_t data_shape_sum = 1;
+  for (auto& x : data_shape) {
+    if (!x->IsInstance<tvm::Integer::ContainerType>()) {
+      found_dynamic = true;
+      break;
+    }
+    data_shape_sum *= Downcast<tvm::Integer>(x)->value;
+  }
+  if (!found_dynamic) {
+    CHECK_EQ(oshape_sum, data_shape_sum)
+        << "Input tensor shape and reshaped shape are not compatible";
   }
 
   if (param->reverse) {

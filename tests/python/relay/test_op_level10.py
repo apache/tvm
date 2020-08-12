@@ -59,9 +59,9 @@ def test_checkpoint_alpha_equal():
         mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
-    df_parsed = relay.parser.fromtext(
+    df_parsed = tvm.parser.parse_expr(
         """
-        v0.0.4
+        #[version = "0.0.5"]
         fn (%x: Tensor[(1), float32], %y: Tensor[(1), float32],
             %z: Tensor[(1), float32], %w: Tensor[(1), float32])
             ->  (Tensor[(1), float32],
@@ -115,9 +115,9 @@ def test_checkpoint_alpha_equal_tuple():
         mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
-    df_parsed = relay.parser.fromtext(
+    df_parsed = tvm.parser.parse_expr(
         """
-        v0.0.4
+        #[version = "0.0.5"]
         fn (%x: Tensor[(1), float32], %y: Tensor[(1), float32],
             %z: Tensor[(1), float32], %w: Tensor[(1), float32])
             -> ((Tensor[(1), float32], Tensor[(1), float32]),

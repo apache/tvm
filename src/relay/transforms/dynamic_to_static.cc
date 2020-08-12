@@ -23,6 +23,7 @@
  * \brief Rewrite Dynamic Operations to Static operations where possible
  */
 #include <tvm/relay/attrs/algorithm.h>
+#include <tvm/relay/attrs/image.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
@@ -95,6 +96,21 @@ class DynamicToStaticMutator : public MixedModeMutator {
              return MakeOneHot(call_node->args[0], call_node->args[1], call_node->args[2],
                                static_cast<int>(ToScalar(depth->data, 0)), param->axis,
                                param->dtype);
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.image.resize"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* size = call_node->args[1].as<ConstantNode>()) {
+             const ResizeAttrs* param = call_node->attrs.as<ResizeAttrs>();
+             CHECK(param);
+             auto size_int = ToVector(size->data);
+             Array<PrimExpr> size_prim;
+             for (size_t i = 0; i < size_int.size(); ++i) {
+               size_prim.push_back(size_int[i]);
+             }
+             return MakeResize(call_node->args[0], size_prim, param->layout, param->method,
+                               param->coordinate_transformation_mode, param->out_dtype);
            }
            return Expr(nullptr);
          }},

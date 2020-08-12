@@ -14,3 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Constructor APIs"""
+import tvm._ffi
+
+tvm._ffi._init_api("relay.op.dyn.image._make", __name__)

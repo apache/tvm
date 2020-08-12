@@ -20,3 +20,5 @@
 from . import _algorithm
 from . import _transform
 from . import _tensor
+
+from .import image

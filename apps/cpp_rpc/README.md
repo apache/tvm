@@ -19,24 +19,38 @@
 This folder contains a simple recipe to make RPC server in c++.
 
 ## Usage (Non-Windows)
-- Build tvm runtime
-- Make the rpc executable [Makefile](Makefile).
-  `make CXX=/path/to/cross compiler g++/ TVM_RUNTIME_DIR=/path/to/tvm runtime library directory/ OS=Linux`
-  if you want to compile it for embedded Linux, you should add `OS=Linux`.
-  if the target os is Android, you doesn't need to pass OS argument.
-  You could cross compile the TVM runtime like this:
+- Configure the tvm cmake build with `config.cmake` ensuring that `USE_CPP_RPC` is set to `ON` in the config.
+- If cross compiling for Android, add the following options to the cmake config or specify them when invoking cmake:
 ```
-  cd tvm
-  mkdir arm_runtime
-  cp cmake/config.cmake arm_runtime
-  cd arm_runtime
-  cmake .. -DCMAKE_CXX_COMPILER="/path/to/cross compiler g++/"
-  make runtime
+  # Whether to build the C++ RPC server binary
+  set(USE_CPP_RPC ON)
+  # Path to the Android NDK cmake toolchain
+  set(CMAKE_TOOLCHAIN_FILE $ENV{ANDROID_NDK}/build/cmake/android.toolchain.cmake)
+  # The Android ABI and platform to target
+  set(ANDROID_ABI "arm64-v8a")
+  set(ANDROID_PLATFORM android-28)
+  ```
+- Similarly, if cross compiling for embedded Linux add the following options to cmake config:
+```
+  # Needed to ensure pthread is linked
+  set(OS Linux)
+  # Path to the desired C++ cross compiler
+  set(CMAKE_CXX_COMPILER /path/to/cross/compiler/executable)
+```
+- If linking against a custom device OpenCL library is needed, in the config specify the path to the OpenCL SDK containing the include/CL headers and lib/ or lib64/libOpenCL.so:
+```
+  set(USE_OPENCL /path/to/opencl-sdk)
+```
+
+- From within the configured tvm build directory, compile `tvm_runtime` and the `tvm_rpc` server:
+```
+  cd $TVM_ROOT/build
+  make -jN tvm_runtime tvm_rpc
 ```
 - Use `./tvm_rpc server` to start the RPC server
 
 ## Usage (Windows)
-- Build tvm with the argument -DUSE_CPP_RPC
+- Configure the tvm cmake build with `config.cmake` ensuring that `USE_CPP_RPC` is set to `ON` in the config.
 - Install [LLVM pre-build binaries](https://releases.llvm.org/download.html), making sure to select the option to add it to the PATH.
 - Verify Python 3.6 or newer is installed and in the PATH.
 - Use `<tvm_output_dir>\tvm_rpc.exe` to start the RPC server
@@ -59,4 +73,4 @@ Command line usage
 ```
 
 ## Note
-Currently support is only there for Linux / Android / Windows environment and proxy mode doesn't be supported currently.
+Currently support is only there for Linux / Android / Windows environment and proxy mode isn't supported currently.
