@@ -124,17 +124,10 @@ class RandomEngine {
     if (data->ctx.device_type == kDLCPU) {
       FillData(data, size);
     } else {
-      DLTensor local;
-      local.shape = data->shape;
-      local.ndim = data->ndim;
-      local.dtype = data->dtype;
-      local.strides = data->strides;
-      local.byte_offset = data->byte_offset;
-      local.ctx = {kDLCPU, 0};
-      local.data = runtime::DeviceAPI::Get(local.ctx)->AllocDataSpace(
-          {kDLCPU, 0}, runtime::GetDataSize(local), runtime::GetDataAlignment(local), local.dtype);
-      FillData(&local, size);
-      runtime::NDArray::CopyFromTo(&local, data);
+      runtime::NDArray local = runtime::NDArray::Empty(
+          std::vector<int64_t>{data->shape, data->shape + data->ndim}, data->dtype, {kDLCPU, 0});
+      FillData(&local.ToDLPack()->dl_tensor, size);
+      runtime::NDArray::CopyFromTo(&local.ToDLPack()->dl_tensor, data);
     }
   }
 

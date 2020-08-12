@@ -307,14 +307,6 @@ inline size_t GetDataSize(const DLTensor& arr) {
 }
 
 /*!
- * \brief return the data alignment in the DLTensor
- *
- *  \param arr the input DLTensor
- *  \return alignment of data in the DLTensor.
- */
-size_t GetDataAlignment(const DLTensor& arr);
-
-/*!
  * \brief check if a DLTensor is contiguous.
  * \param arr The input DLTensor.
  * \return The check result.
