@@ -848,6 +848,19 @@ class Array : public ObjectRef {
   // Array's own methods
 
   /*!
+   * \brief Concat two Arrays.
+   * \param lhs first Array to be concatenated.
+   * \param lhs second Array to be concatenated.
+   * \return The concatenated Array. Original Arrays are kept unchanged.
+   */
+  static Array<T> Concat(Array<T> lhs, const Array<T>& rhs) {
+    for (const auto& x : rhs) {
+      lhs.push_back(x);
+    }
+    return std::move(lhs);
+  }
+
+  /*!
    * \brief set i-th element of the array.
    * \param i The index
    * \param value The value to be setted.
@@ -954,19 +967,6 @@ class Array : public ObjectRef {
       return SwitchContainer(capacity());
     }
     return static_cast<ArrayNode*>(data_.get());
-  }
-
-  /*!
-   * \brief Concat with another Array. It does not mutate the current one.
-   * \param other Array to be concatenated.
-   * @return The concatenated Array. Original Array is kept unchanged.
-   */
-  Array<T> Concat(const Array<T>& other) const {
-    Array<T> ret = *this;
-    for (const auto& x : other) {
-      ret.push_back(x);
-    }
-    return std::move(ret);
   }
 
   /*! \brief specify container node */

@@ -1288,16 +1288,16 @@ class Map : public ObjectRef {
     return *this;
   }
   /*!
-   * \brief Merge with another Map. It does not mutate the current one.
-   * \param other Map to be merged.
-   * @return The merged Array. Original Map is kept unchanged.
+   * \brief Merge two Maps.
+   * \param lhs the first Map to merge.
+   * \param rhs the second Map to merge.
+   * @return The merged Array. Original Maps are kept unchanged.
    */
-  Map<K, V> Merge(const Map<K, V>& other) const {
-    Map<K, V> ret = *this;
-    for (const auto& p : other) {
-      ret.Set(p.first, p.second);
+  static Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
+    for (const auto& p : rhs) {
+      lhs.Set(p.first, p.second);
     }
-    return std::move(ret);
+    return std::move(lhs);
   }
   /*!
    * \brief constructor from pointer
