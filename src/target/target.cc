@@ -40,11 +40,29 @@ using runtime::TVMRetValue;
 
 TVM_REGISTER_NODE_TYPE(TargetNode);
 
-static inline size_t CountNumPrefixDashes(const std::string& s) {
-  size_t i = 0;
-  for (; i < s.length() && s[i] == '-'; ++i) {
+static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
+  std::vector<String> new_keys;
+  for (size_t i = 0; i < keys.size(); ++i) {
+    bool found = false;
+    for (size_t j = 0; j < i; ++j) {
+      if (keys[i] == keys[j]) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      new_keys.push_back(keys[i]);
+    }
   }
-  return i;
+  return new_keys;
+}
+
+static inline std::string RemovePrefixDashes(const std::string& s) {
+  size_t n_dashes = 0;
+  for (; n_dashes < s.length() && s[n_dashes] == '-'; ++n_dashes) {
+  }
+  CHECK(0 < n_dashes && n_dashes < s.size()) << "ValueError: Not an attribute key \"" << s << "\"";
+  return s.substr(n_dashes);
 }
 
 static inline int FindUniqueSubstr(const std::string& str, const std::string& substr) {
@@ -77,12 +95,8 @@ Map<String, ObjectRef> TargetNode::ParseAttrsFromRaw(
     const std::vector<std::string>& options) const {
   std::unordered_map<String, ObjectRef> attrs;
   for (size_t iter = 0, end = options.size(); iter < end;) {
-    std::string s = options[iter++];
     // remove the prefix dashes
-    size_t n_dashes = CountNumPrefixDashes(s);
-    CHECK(0 < n_dashes && n_dashes < s.size())
-        << "ValueError: Not an attribute key \"" << s << "\"";
-    s = s.substr(n_dashes);
+    std::string s = RemovePrefixDashes(options[iter++]);
     // parse name-obj pair
     std::string name;
     std::string obj;
@@ -237,20 +251,7 @@ Target Target::CreateTarget(const std::string& name, const std::vector<std::stri
       keys.push_back(key);
     }
     // de-duplicate keys
-    size_t new_size = 0;
-    for (size_t i = 0; i < keys.size(); ++i) {
-      if (keys[i] == "") {
-        continue;
-      }
-      keys[new_size++] = keys[i];
-      for (size_t j = i + 1; j < keys.size(); ++j) {
-        if (keys[j] == keys[i]) {
-          keys[j] = String("");
-        }
-      }
-    }
-    keys.resize(new_size);
-    target->keys = std::move(keys);
+    target->keys = DeduplicateKeys(keys);
   }
   return Target(target);
 }
@@ -402,25 +403,35 @@ Target Target::FromConfig(const Map<String, ObjectRef>& config_dict) {
     target->tag = "";
   }
   // parse "keys"
-  // TODO(@junrushao1994): add more keys according to CreateTarget
   if (config.count(kKeys)) {
-    const auto* keys = config[kKeys].as<ArrayNode>();
-    CHECK(keys != nullptr) << "AttributeError: Expect type of field 'keys' is an Array, but get: "
-                           << config[kTag]->GetTypeKey();
-    target->keys = {};
-    for (const ObjectRef& e : *keys) {
+    std::vector<String> keys;
+    // user provided keys
+    const auto* cfg_keys = config[kKeys].as<ArrayNode>();
+    CHECK(cfg_keys != nullptr)
+        << "AttributeError: Expect type of field 'keys' is an Array, but get: "
+        << config[kTag]->GetTypeKey();
+    for (const ObjectRef& e : *cfg_keys) {
       const auto* key = e.as<StringObj>();
       CHECK(key != nullptr) << "AttributeError: Expect 'keys' to be an array of strings, but it "
                                "contains an element of type: "
                             << e->GetTypeKey();
-      target->keys.push_back(GetRef<String>(key));
+      keys.push_back(GetRef<String>(key));
     }
+    // add device name
+    if (config_dict.count("device") && config_dict.at("device")->IsInstance<StringObj>()) {
+      keys.push_back(Downcast<String>(config_dict.at("device")));
+    }
+    // add default keys
+    for (const auto& key : target->kind->default_keys) {
+      keys.push_back(key);
+    }
+    // de-duplicate keys
+    target->keys = DeduplicateKeys(keys);
     config.erase(kKeys);
   } else {
     target->keys = {};
   }
   // parse attrs
-  // TODO(@junrushao1994): add default values
   std::unordered_map<String, ObjectRef> attrs;
   const auto& key2vtype = target->kind->key2vtype_;
   for (const auto& cfg_kv : config) {
@@ -428,8 +439,7 @@ Target Target::FromConfig(const Map<String, ObjectRef>& config_dict) {
     const ObjectRef& obj = cfg_kv.second;
     if (!key2vtype.count(name)) {
       std::ostringstream os;
-      os << "AttributeError: Invalid config option, cannot recognize \"" << name
-         << "\". Candidates are:";
+      os << "AttributeError: Unrecognized config option: \"" << name << "\". Candidates are:";
       for (const auto& kv : key2vtype) {
         os << " " << kv.first;
       }
@@ -443,6 +453,12 @@ Target Target::FromConfig(const Map<String, ObjectRef>& config_dict) {
                  << "\". Details: " << e.what();
     }
     attrs[name] = val;
+  }
+  // set default attribute values if they do not exist
+  for (const auto& kv : target->kind->key2default_) {
+    if (!attrs.count(kv.first)) {
+      attrs[kv.first] = kv.second;
+    }
   }
   target->attrs = attrs;
   return Target(target);
