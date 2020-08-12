@@ -664,7 +664,7 @@ class Parser {
           auto global = GlobalVar(global_name);
           try {
             global_names.Add(global_name, global);
-          } catch (DuplicateKeyError e) {
+          } catch (const DuplicateKeyError& e) {
             this->diag_ctx->Emit(Diagnostic::Error(global_tok->span) << "a function with the name "
                                                                      << "`@" << global_name << "` "
                                                                      << "was previously defined");
@@ -703,7 +703,7 @@ class Parser {
 
     try {
       type_names.Add(type_id, type_global);
-    } catch (DuplicateKeyError e) {
+    } catch (const DuplicateKeyError& e) {
       this->diag_ctx->Emit(Diagnostic::Error(type_tok->span) << "a type definition with the name "
                                                              << "`" << type_id << "` "
                                                              << "was previously defined");
@@ -747,7 +747,7 @@ class Parser {
 
             try {
               this->ctors.Add(ctor_name, ctor);
-            } catch (DuplicateKeyError e) {
+            } catch (const DuplicateKeyError& e) {
               this->diag_ctx->EmitFatal(Diagnostic::Error(ctor_tok->span)
                                         << "a constructor with the name "
                                         << "`" << ctor_name << "` "
@@ -1341,7 +1341,7 @@ class Parser {
     DLOG(INFO) << "op_name=" << op_name << " token=" << tok;
     try {
       return Op::Get(op_name);
-    } catch (dmlc::Error e) {
+    } catch (const dmlc::Error& e) {
       this->diag_ctx->Emit(Diagnostic::Error(tok->span)
                            << "operator `" << op_name
                            << "` not found, perhaps you forgot to register it?");
