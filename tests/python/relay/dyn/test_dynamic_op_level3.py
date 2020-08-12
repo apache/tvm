@@ -116,9 +116,9 @@ def test_dyn_full():
         func = relay.Function([x, dyn_src_shape], z)
         ref_res = np.full(src_shape, fill_value).astype(dtype)
 
-        verify_func(func, [fill_value, np.array(src_shape).astype('int64')], ref_res)
+        verify_func(func, [np.array(fill_value).astype(dtype), np.array(src_shape).astype('int64')], ref_res)
     verify_full(4, (1, 3, 4, 4), 'int32')
-    verify_full(4, (1, 3, 4, 4), 'int64') #does not pass, fix me
+    verify_full(4, (1, 3, 4, 4), 'int64')
     verify_full(4.0, (2, 50), 'float32')
 
 if __name__ == "__main__":
