@@ -86,17 +86,6 @@ class EthosnModule : public ModuleNode {
    *       ] * number of functions
    */
   static Module LoadFromBinary(void* strm);
-  /*!
-   * \brief Save a module to a specified path.
-   * \param path Where to save the serialized module.
-   */
-  void SaveToFile(const std::string& path, const std::string& format) override;
-  /*!
-   * \brief Create a module from a file.
-   * \param path The path of the file containing the serialized module.
-   * \return The created Ethos-N module.
-   */
-  static Module LoadFromFile(const std::string& path);
 
   const char* type_key() const override { return "ethos-n"; }
 
