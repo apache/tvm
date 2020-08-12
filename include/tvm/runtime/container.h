@@ -850,7 +850,7 @@ class Array : public ObjectRef {
   /*!
    * \brief Concat two Arrays.
    * \param lhs first Array to be concatenated.
-   * \param lhs second Array to be concatenated.
+   * \param rhs second Array to be concatenated.
    * \return The concatenated Array. Original Arrays are kept unchanged.
    */
   static Array<T> Concat(Array<T> lhs, const Array<T>& rhs) {
