@@ -212,6 +212,9 @@ def qnn_conv2d(attrs, args):
 @tvm.ir.register_op_attr("nn.dense", "target.arm_compute_lib")
 def dense(attrs, args):
     """Check if the external ACL codegen for dense should be used."""
+    data_typ = args[0].checked_type
+    if data_typ.dtype != "float32":
+        return False
     kernel_typ = args[1].checked_type
     if len(kernel_typ.shape) != 2 or kernel_typ.dtype != "float32":
         return False
@@ -222,6 +225,9 @@ def dense(attrs, args):
 
 def qnn_dense(attrs, args):
     """Check if the external ACL codegen for qnn.dense should be used."""
+    data_typ = args[0].checked_type
+    if data_typ.dtype != "uint8":
+        return False
     kernel_typ = args[1].checked_type
     if len(kernel_typ.shape) != 2 or kernel_typ.dtype != "uint8":
         return False
