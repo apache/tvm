@@ -82,14 +82,13 @@ macro(find_ethosn use_ethosn)
     if(__use_ethosn STREQUAL "ON")
       message(WARNING "No cmake find_package available for Arm Ethos-N")
     endif()
-  endif()
 
   # additional libraries
-  if(ETHOSN_FOUND)
+  else()
     message(STATUS "Found ETHOSN_DEFINITIONS=${ETHOSN_DEFINITIONS}")
     message(STATUS "Found ETHOSN_INCLUDE_DIRS=${ETHOSN_INCLUDE_DIRS}")
     message(STATUS "Found ETHOSN_COMPILER_LIBRARY=${ETHOSN_COMPILER_LIBRARY}")
     message(STATUS "Found ETHOSN_RUNTIME_LIBRARY=${ETHOSN_RUNTIME_LIBRARY}")
-  endif(ETHOSN_FOUND)
+  endif(NOT ETHOSN_FOUND)
 
 endmacro(find_ethosn)

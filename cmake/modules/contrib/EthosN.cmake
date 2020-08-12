@@ -22,9 +22,8 @@ if(NOT USE_ETHOSN STREQUAL "OFF")
 
   if(NOT ETHOSN_FOUND)
     message(FATAL_ERROR "Cannot find Ethos-N, USE_ETHOSN=" ${USE_ETHOSN})
-  endif()
 
-  if (ETHOSN_FOUND)
+  else()
     include_directories(${ETHOSN_INCLUDE_DIRS})
     add_definitions(${ETHOSN_DEFINITIONS})
 
@@ -50,7 +49,7 @@ if(NOT USE_ETHOSN STREQUAL "OFF")
       set_source_files_properties(${COMPILER_ETHOSN_SRCS}
         PROPERTIES COMPILE_FLAGS "-fno-rtti")
     endif()
-  endif(ETHOSN_FOUND)
+  endif(NOT ETHOSN_FOUND)
 else()
   if(USE_ETHOSN_HW)
     message(FATAL_ERROR "Cannot enable Ethos-N HW if USE_ETHOSN=OFF")
