@@ -154,7 +154,7 @@ EthosnError EthosnAPI::AsConstant(const Expr& expr, T* out) {
     return EthosnError("expected constant data");
   }
   runtime::NDArray data = Downcast<Constant>(expr)->data;
-  *out = *static_cast<T*>(data.operator->()->data);
+  *out = *static_cast<T*>(data->data);
   return EthosnError();
 }
 
