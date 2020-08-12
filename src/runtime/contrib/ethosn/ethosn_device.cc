@@ -26,6 +26,7 @@
 #include <poll.h>
 #include <tvm/tir/expr.h>
 #include <unistd.h>
+#include <tvm/runtime/ndarray.h>
 
 #include <algorithm>
 #include <memory>
@@ -44,14 +45,6 @@ namespace ethosn {
 
 namespace sl = ::ethosn::support_library;
 namespace dl = ::ethosn::driver_library;
-
-int64_t GetTensorSize(const DLTensor& tensor) {
-  int64_t size = 1;
-  for (int i = 0; i < tensor.ndim; i++) {
-    size *= tensor.shape[i];
-  }
-  return size;
-}
 
 bool WaitForInference(dl::Inference* inference, int timeout) {
   // Wait for inference to complete
@@ -97,7 +90,7 @@ void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer> >* fm,
   for (auto buffer : tensors) {
     auto* data = static_cast<uint8_t*>(buffer->data);
     // The NPU only needs the size of the tensor * uint8_t.
-    auto data_size = static_cast<uint32_t>(GetTensorSize(*buffer));
+    auto data_size = static_cast<uint32_t>(GetDataSize(*buffer));
     (*fm)[index++] = std::make_shared<dl::Buffer>(data, data_size, dl::DataFormat::NHWC);
   }
 }
