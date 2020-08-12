@@ -525,6 +525,67 @@ def test_forward_unary():
     verify_unary_threshold((1, 3, 20, 20), alpha=5.0)
 
 
+def test_forward_reduce():
+    from enum import Enum
+    class ReduceAxis(Enum):
+        CHW = 0
+        HW = 1
+        C = 2
+        H = 3
+        W = 4
+
+    def _verify_reduce(input_dim, mode, axis, ref_func, dtype='float32'):
+        print(input_dim, mode, axis)
+        a_np = np.random.uniform(size=input_dim).astype(dtype)
+
+        # translate to axis from coreml format
+        if axis == ReduceAxis.CHW:
+            np_axis = (-3, -2, -1)
+        elif axis == ReduceAxis.HW:
+            np_axis = (-2, -1)
+        elif axis == ReduceAxis.C:
+            np_axis = -3
+        elif axis == ReduceAxis.H:
+            np_axis = -2
+        elif axis == ReduceAxis.W:
+            np_axis = -1
+
+        if ref_func == np.argmax:
+            ref_val = np.expand_dims(ref_func(a_np, np_axis), np_axis).astype(dtype)
+        else:
+            ref_val = ref_func(a_np, np_axis, keepdims=True)
+
+        inputs = [('input', datatypes.Array(*input_dim))]
+        output = [('output', datatypes.Array(*ref_val.shape))]
+        builder = NeuralNetworkBuilder(inputs, output)
+        builder.add_reduce(name=mode,
+                          input_name='input',
+                          output_name='output',
+                          axis=axis.name,
+                          mode=mode)
+
+        model = cm.models.MLModel(builder.spec)
+        for target, ctx in ctx_list():
+            out = run_tvm_graph(model, target, ctx, [a_np],
+                                ['input'], ref_val.shape, dtype)
+            tvm.testing.assert_allclose(out, ref_val, rtol=1e-5, atol=1e-5)
+
+    dshapes = [[10, 10], [1, 10, 10], [1, 3, 10, 10]]
+    for dshape in dshapes:
+        for axis in ReduceAxis:
+            if len(dshape) < 3 and axis in [ReduceAxis.CHW, ReduceAxis.C]:
+                # input must have rank at least 3
+                continue
+            _verify_reduce(dshape, "sum", axis, np.sum)
+            _verify_reduce(dshape, "avg", axis, np.mean)
+            _verify_reduce(dshape, "prod", axis, np.prod)
+            _verify_reduce(dshape, "min", axis, np.min)
+            _verify_reduce(dshape, "max", axis, np.max)
+            if axis in [ReduceAxis.C, ReduceAxis.H, ReduceAxis.W]:
+                # For mode ArgMax, axis must be [-1] or [-2] or [-3]
+                _verify_reduce(dshape, "argmax", axis, np.argmax, dtype='int32')
+
+
 def verify_image_scaler(input_dim, blue_bias=0.0, green_bias=0.0, red_bias=0.0, image_scale=1.0):
     dtype = 'float32'
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -602,6 +663,7 @@ if __name__ == '__main__':
     test_forward_max()
     test_forward_min()
     test_forward_unary()
+    test_forward_reduce()
     test_mobilenet_checkonly()
     test_resnet50_checkonly()
     test_forward_image_scaler()

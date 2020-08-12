@@ -377,6 +377,40 @@ def _UnaryFunctionLayerParams(op, inexpr, etab):
         raise tvm.error.OpAttributeUnImplemented(msg.format(op_type))
 
 
+def _ReduceLayerParams(op, inexpr, etab):
+    axis = op.axis
+    if axis == op.CHW:
+        axis = [-3, -2, -1]
+    elif axis == op.HW:
+        axis = [-2, -1]
+    elif axis == op.C:
+        axis = -3
+    elif axis == op.H:
+        axis = -2
+    elif axis == op.W:
+        axis = -1
+    else:
+        msg = 'Reduce axis value {} is not supported in frontend CoreML.'
+        raise tvm.error.OpAttributeUnImplemented(msg.format(axis))
+
+    mode = op.mode
+    if mode == op.SUM:
+        return _op.sum(inexpr, axis=axis, keepdims=True)
+    elif mode == op.AVG:
+        return _op.mean(inexpr, axis=axis, keepdims=True)
+    elif mode == op.PROD:
+        return _op.prod(inexpr, axis=axis, keepdims=True)
+    elif mode == op.MIN:
+        return _op.min(inexpr, axis=axis, keepdims=True)
+    elif mode == op.MAX:
+        return _op.max(inexpr, axis=axis, keepdims=True)
+    elif mode == op.ARGMAX:
+        return _op.argmax(inexpr, axis=axis, keepdims=True)
+    else:
+        msg = 'Reduce mode value {} is not supported in frontend CoreML.'
+        raise tvm.error.OpAttributeUnImplemented(msg.format(mode))
+
+
 _convert_map = {
     'NeuralNetworkMeanImage': _NeuralNetworkMeanImage,
     'NeuralNetworkImageScaler': _NeuralNetworkImageScaler,
@@ -400,6 +434,7 @@ _convert_map = {
     'MaxLayerParams': _MaxLayerParams,
     'MinLayerParams': _MinLayerParams,
     'UnaryFunctionLayerParams': _UnaryFunctionLayerParams,
+    'ReduceLayerParams': _ReduceLayerParams,
 }
 
 # SAME padding: https://www.tensorflow.org/api_guides/python/nn
