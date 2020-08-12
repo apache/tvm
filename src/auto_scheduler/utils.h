@@ -32,6 +32,8 @@
 #include <deque>
 #include <exception>
 #include <future>
+#include <numeric>
+#include <random>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -96,6 +98,38 @@ inline void FindAndDeleteItem(std::vector<T>* array, const T& to_delete) {
   if (iter != array->end()) {
     array->erase(iter);
   }
+}
+
+/*! \brief Compute the product of all elements in a vector */
+inline int64_t ElementProduct(const std::vector<int>& array) {
+  int64_t ret = 1;
+  for (auto x : array) {
+    ret *= x;
+  }
+  return ret;
+}
+
+/*! \brief Move elements from multiple vectors to one vector */
+template <typename T>
+std::vector<T>& ConcatenateMove(std::vector<T>* out, std::vector<T>* in) {
+  out->insert(out->end(), std::make_move_iterator(in->begin()), std::make_move_iterator(in->end()));
+  return *out;
+}
+
+/*! \brief Move elements from multiple vectors to one vector */
+template <typename T, typename... Args>
+std::vector<T>& ConcatenateMove(std::vector<T>* out, std::vector<T>* first, Args... args) {
+  ConcatenateMove(out, first);
+  ConcatenateMove(out, args...);
+  return *out;
+}
+
+/*! \brief Get a random permutation of integers [0, n-1] */
+template <typename G>
+void RandomPermutation(int n, std::vector<int>* out, G* gen) {
+  out->assign(n, 0);
+  std::iota(out->begin(), out->end(), 0);
+  std::shuffle(out->begin(), out->end(), *gen);
 }
 
 /*! \brief Replace a sub-string to another sub-string in a string */
@@ -168,6 +202,12 @@ inline bool StrStartsWith(const String& a, const String& b) {
   return std::equal(a.c_str(), a.c_str() + b.size(), b.c_str());
 }
 
+/*! \brief Return whether a string ends with another substring */
+inline bool StrEndsWith(const String& a, const String& b) {
+  if (b.size() > a.size()) return false;
+  return std::equal(a.c_str() + a.size() - b.size(), a.c_str() + a.size(), b.c_str());
+}
+
 /********** Other Utilities **********/
 /*! \brief Get an int value from an Expr */
 inline int64_t GetIntImm(const PrimExpr& expr) {
@@ -228,13 +268,6 @@ inline std::string Chars(const char& str, int times) {
     ret << str;
   }
   return ret.str();
-}
-
-/*! \brief Print a title */
-inline void PrintTitle(const std::string& title, int verbose) {
-  StdCout(verbose) << Chars('-', 60) << "\n"
-                   << Chars('-', 25) << "  [ " << title << " ]\n"
-                   << Chars('-', 60) << std::endl;
 }
 
 }  // namespace auto_scheduler

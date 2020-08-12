@@ -262,15 +262,37 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
     """dense x86 strategy"""
     strategy = _op.OpStrategy()
     m, _ = inputs[0].shape
+    same_type = inputs[0].dtype == inputs[1].dtype == out_type.dtype
+    dtype = inputs[0].dtype
+    u8s8s32 = dtype == "uint8" and inputs[1].dtype == "int8" and out_type.dtype == "int32"
     strategy.add_implementation(wrap_compute_dense(topi.x86.dense_nopack),
                                 wrap_topi_schedule(topi.x86.schedule_dense_nopack),
                                 name="dense_nopack.x86",
                                 plevel=10)
     if "cblas" in target.libs:
-        strategy.add_implementation(wrap_compute_dense(topi.x86.dense_cblas),
-                                    wrap_topi_schedule(topi.x86.schedule_dense_cblas),
-                                    name="dense_cblas.x86",
-                                    plevel=15)
+        with SpecializedCondition(same_type and dtype in ["float32", "float64"]):
+            strategy.add_implementation(
+                wrap_compute_dense(topi.x86.dense_cblas),
+                wrap_topi_schedule(topi.x86.schedule_dense_cblas),
+                name="dense_cblas.x86",
+                plevel=13,
+            )
+    if "mkl" in target.libs:
+        with SpecializedCondition(same_type and dtype in ["float32", "float64"] or u8s8s32):
+            strategy.add_implementation(
+                wrap_compute_dense(topi.x86.dense_mkl),
+                wrap_topi_schedule(topi.x86.schedule_dense_mkl),
+                name="dense_mkl.x86",
+                plevel=14,
+            )
+    if "mkldnn" in target.libs:
+        with SpecializedCondition(same_type and dtype == "float32"):
+            strategy.add_implementation(
+                wrap_compute_dense(topi.x86.dense_mkldnn),
+                wrap_topi_schedule(topi.x86.schedule_dense_mkldnn),
+                name="dense_mkldnn.x86",
+                plevel=15,
+            )
     with SpecializedCondition(m >= 16):
         # this implementation may not be well-optimized, so use plevel=8 for now.
         strategy.add_implementation(wrap_compute_dense(topi.x86.dense_pack),

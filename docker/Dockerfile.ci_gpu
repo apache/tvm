@@ -87,9 +87,6 @@ RUN bash /install/ubuntu_install_vulkan.sh
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
 RUN bash /install/ubuntu_install_redis.sh
 
-COPY install/ubuntu_install_antlr.sh /install/ubuntu_install_antlr.sh
-RUN bash /install/ubuntu_install_antlr.sh
-
 # NNPACK deps
 COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh
 RUN bash /install/ubuntu_install_nnpack.sh

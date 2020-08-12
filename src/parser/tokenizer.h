@@ -24,20 +24,34 @@
 #ifndef TVM_PARSER_TOKENIZER_H_
 #define TVM_PARSER_TOKENIZER_H_
 
+#include <tvm/node/serialization.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
 #include <fstream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
+#include "./meta_ref.h"
 #include "./token.h"
 
 namespace tvm {
 namespace parser {
 
 using namespace runtime;
+
+// trim from start (in place)
+static inline void ltrim(std::string& s) {  // NOLINT(*)
+  s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) { return !std::isspace(ch); }));
+}
+
+// trim from end (in place)
+static inline void rtrim(std::string& s) {  // NOLINT(*)
+  s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) { return !std::isspace(ch); }).base(),
+          s.end());
+}
 
 bool IsDigit(char c) { return '0' <= c && c <= '9'; }
 
@@ -53,11 +67,16 @@ bool IsIdentLetter(char c) { return '_' == c || ('a' <= c && c <= 'z') || ('A' <
 bool IsIdent(char c) { return IsIdentLetter(c) || IsDigit(c); }
 
 static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
-    {"let", TokenType::Let},     {"fn", TokenType::Fn},        {"def", TokenType::Defn},
-    {"if", TokenType::If},       {"else", TokenType::Else},    {"type", TokenType::TypeDef},
-    {"match", TokenType::Match}, {"extern", TokenType::Extern}};
+    {"let", TokenType::kLet},         {"fn", TokenType::kFn},
+    {"def", TokenType::kDefn},        {"if", TokenType::kIf},
+    {"else", TokenType::kElse},       {"type", TokenType::kTypeDef},
+    {"match", TokenType::kMatch},     {"extern", TokenType::kExtern},
+    {"free_var", TokenType::kFreeVar}};
 
 struct Tokenizer {
+  DiagnosticContext* diag_ctx;
+  const SourceName& source_name;
+
   size_t pos;
   int col;
   int line;
@@ -84,8 +103,16 @@ struct Tokenizer {
     return this->source.at(this->pos);
   }
 
-  Token NewToken(TokenType token_type, ObjectRef data = ObjectRef()) {
-    return Token(this->line, this->col, token_type, data);
+  Token NewToken(TokenType token_type, ObjectRef data = ObjectRef(), int lines = 0, int cols = 1) {
+    auto span =
+        Span(this->source_name, this->line, this->line + lines, this->col, this->col + cols);
+    return Token(span, token_type, data);
+  }
+
+  Span SpanFrom(int line, int column) {
+    int end_line = this->line;
+    int end_column = this->col;
+    return Span(this->source_name, line, end_line, column, end_column);
   }
 
   enum CommentParserState {
@@ -104,7 +131,7 @@ struct Tokenizer {
     CommentParserState state = CommentParserState::Proceed;
     int nesting = 1;
 
-    while (true) {
+    while (More()) {
       switch (state) {
         case CommentParserState::Proceed: {
           if (Peek() == '/') {
@@ -130,11 +157,11 @@ struct Tokenizer {
               Next();
               buffer->pop_back();
               return;
-            } else {
-              buffer->operator+=(Next());
-              state = CommentParserState::Proceed;
             }
           }
+
+          buffer->operator+=(Next());
+          state = CommentParserState::Proceed;
           continue;
         }
       }
@@ -148,7 +175,7 @@ struct Tokenizer {
       if (is_float) {
         throw std::invalid_argument("is_float");
       }
-      auto token = NewToken(TokenType::Integer);
+      auto token = NewToken(TokenType::kInteger);
       size_t index = 0;
       int value = std::stoi(number, &index);
       if (number.size() > index) {
@@ -158,7 +185,7 @@ struct Tokenizer {
       token->data = tvm::Integer(value);
       return token;
     } catch (const std::invalid_argument& ia) {
-      auto token = NewToken(TokenType::Float);
+      auto token = NewToken(TokenType::kFloat);
 
       if (number.back() == 'f') {
         number.pop_back();
@@ -171,27 +198,132 @@ struct Tokenizer {
     }
   }
 
+  bool MatchString(const std::string& string) {
+    int start = this->pos;
+
+    for (auto c : string) {
+      if (Peek() != c) {
+        this->pos = start;
+        return false;
+      } else {
+        Next();
+      }
+    }
+
+    return true;
+  }
+
+  Token TokenizeMetaRef() {
+    int line = this->line;
+    int column = this->col;
+
+    CHECK_EQ(Peek(), '[');
+    Next();
+    std::stringstream type_key;
+    while (More() && Peek() != ']') {
+      type_key << Next();
+    }
+    CHECK_EQ(Peek(), ']');
+    Next();
+
+    CHECK_EQ(Peek(), '[');
+    Next();
+    std::stringstream str_index;
+    while (More() && Peek() != ']') {
+      str_index << Next();
+    }
+    CHECK_EQ(Peek(), ']');
+    Next();
+    // todo: add error handling around bad indices
+    auto index = ParseNumber(true, false, str_index.str()).ToNumber();
+    auto span = SpanFrom(line, column);
+    return Token(span, TokenType::kMetaReference, MetaRef(type_key.str(), index));
+  }
+
+  Token TokenizeAttr() {
+    int line = this->line;
+    int column = this->col;
+    Next();
+    if (Peek() == '[') {
+      Next();
+      std::stringstream raw_attribute;
+
+      while (More() && Peek() != ']') {
+        raw_attribute << Next();
+      }
+
+      CHECK_EQ(Next(), ']');
+
+      auto attribute = raw_attribute.str();
+      // Clean up the white-space on both sides.
+      ltrim(attribute);
+      rtrim(attribute);
+
+      // Metadata can only appear at the bottom of a file and goes to EOF.
+      if (attribute == "metadata") {
+        std::stringstream metadata;
+        while (More()) {
+          metadata << Next();
+        }
+        ObjectRef metadata_map = tvm::LoadJSON(metadata.str());
+        auto span = SpanFrom(line, column);
+        return Token(span, TokenType::kMetadata, metadata_map);
+      }
+      if (attribute.rfind("version", 0) == 0) {
+        std::string version = attribute.substr(attribute.find("=") + 1);
+        ltrim(version);
+        rtrim(version);
+        auto span = SpanFrom(line, column);
+        return Token(span, TokenType::kVersion, tvm::String(version));
+      } else {
+        // TOOD(@jroesch): maybe make this a warning an continue parsing?
+        auto span = SpanFrom(line, column);
+        this->diag_ctx->EmitFatal(Diagnostic::Error(span) << "unsupported attribute " << attribute);
+        return Token();
+      }
+    } else {
+      auto span = SpanFrom(line, column);
+      this->diag_ctx
+          ->EmitFatal(Diagnostic::Error(span)
+                      << "`#` denotes the start of an attribute can only be followed by `[`"
+                      << " found `" << Peek() << "`");
+      return Token();
+    }
+  }
+
   inline Token TokenizeOnce() {
+    int line = this->line;
+    int col = this->col;
     auto next = Peek();
+    DLOG(INFO) << "tvm::parser::TokenizeOnce: next=" << next;
     if (next == '\n') {
-      auto token = NewToken(TokenType::Newline);
+      auto token = NewToken(TokenType::kNewline);
       Next();
       return token;
     } else if (next == '\r') {
       Next();
       if (More() && Peek() == '\n') {
-        auto token = NewToken(TokenType::Newline);
+        auto token = NewToken(TokenType::kNewline);
         return token;
       } else {
-        // TODO(@jroesch): have lexer use diagnostic context too.
-        LOG(FATAL) << "lexer error";
+        auto span = SpanFrom(line, col);
+        this->diag_ctx->EmitFatal(
+            Diagnostic::Error(span)
+            << "\\r carriage returns must be followed by a \\n in the TVM text format");
         return Token();
       }
     } else if (next == '"') {
-      LOG(FATAL) << "string not working yet";
-      return NewToken(TokenType::Unknown);
+      // TODO(@jroesch): Properly tokenize escape sequences in strings.
+      // see https://github.com/apache/incubator-tvm/issues/6153.
+      Next();
+      std::stringstream string_content;
+      while (More() && Peek() != '"') {
+        string_content << Next();
+      }
+      Next();
+      return NewToken(TokenType::kStringLiteral, tvm::String(string_content.str()));
     } else if (IsWhitespace(next)) {
-      auto token = NewToken(TokenType::Whitespace);
+      auto token = NewToken(TokenType::kWhitespace);
       Next();
       return token;
     } else if (IsDigit(next) || next == '-') {
@@ -205,7 +337,7 @@ struct Tokenizer {
       // with multi-token return or something.
       if (negs && !IsDigit(Peek())) {
         pos = pos - (negs - 1);
-        return NewToken(TokenType::Minus);
+        return NewToken(TokenType::kMinus);
       }
 
       bool is_neg = negs % 2 == 1;
@@ -223,89 +355,106 @@ struct Tokenizer {
 
       return ParseNumber(!is_neg, is_float, ss.str());
     } else if (next == '.') {
-      auto token = NewToken(TokenType::Period);
+      auto token = NewToken(TokenType::kPeriod);
       Next();
       return token;
     } else if (next == ',') {
-      auto token = NewToken(TokenType::Comma);
+      auto token = NewToken(TokenType::kComma);
       Next();
       return token;
     } else if (next == '=') {
-      auto token = NewToken(TokenType::Equal);
+      auto token = NewToken(TokenType::kEqual);
       Next();
       return token;
     } else if (next == ';') {
-      auto token = NewToken(TokenType::Semicolon);
+      auto token = NewToken(TokenType::kSemicolon);
       Next();
       return token;
     } else if (next == ':') {
-      auto token = NewToken(TokenType::Colon);
+      auto token = NewToken(TokenType::kColon);
       Next();
       return token;
     } else if (next == '(') {
-      auto token = NewToken(TokenType::OpenParen);
+      auto token = NewToken(TokenType::kOpenParen);
       Next();
       return token;
     } else if (next == ')') {
-      auto token = NewToken(TokenType::CloseParen);
+      auto token = NewToken(TokenType::kCloseParen);
       Next();
       return token;
     } else if (next == '+') {
-      auto token = NewToken(TokenType::Plus);
+      auto token = NewToken(TokenType::kPlus);
       Next();
       return token;
     } else if (next == '-') {
-      auto token = NewToken(TokenType::Minus);
+      auto token = NewToken(TokenType::kMinus);
       Next();
       return token;
     } else if (next == '*') {
-      auto token = NewToken(TokenType::Star);
+      auto token = NewToken(TokenType::kStar);
       Next();
       return token;
     } else if (next == '<') {
-      auto token = NewToken(TokenType::LAngle);
+      auto token = NewToken(TokenType::kLAngle);
       Next();
       return token;
     } else if (next == '>') {
-      auto token = NewToken(TokenType::RAngle);
+      auto token = NewToken(TokenType::kRAngle);
       Next();
       return token;
     } else if (next == '{') {
-      auto token = NewToken(TokenType::LCurly);
+      auto token = NewToken(TokenType::kLCurly);
       Next();
       return token;
     } else if (next == '}') {
-      auto token = NewToken(TokenType::RCurly);
+      auto token = NewToken(TokenType::kRCurly);
       Next();
       return token;
     } else if (next == '[') {
-      auto token = NewToken(TokenType::LSquare);
+      auto token = NewToken(TokenType::kLSquare);
       Next();
       return token;
     } else if (next == ']') {
-      auto token = NewToken(TokenType::RSquare);
+      auto token = NewToken(TokenType::kRSquare);
       Next();
       return token;
     } else if (next == '!') {
-      auto token = NewToken(TokenType::Bang);
+      auto token = NewToken(TokenType::kBang);
       Next();
       return token;
     } else if (next == '@') {
-      auto token = NewToken(TokenType::At);
+      auto token = NewToken(TokenType::kAt);
       Next();
       return token;
     } else if (next == '?') {
-      auto token = NewToken(TokenType::Question);
+      auto token = NewToken(TokenType::kQuestion);
       Next();
       return token;
+    } else if (MatchString("meta")) {
+      return TokenizeMetaRef();
+    } else if (next == '#') {
+      return TokenizeAttr();
     } else if (next == '%') {
-      auto token = NewToken(TokenType::Percent);
+      auto token = NewToken(TokenType::kPercent);
       Next();
+
+      std::stringstream number;
+      while (More() && IsDigit(Peek())) {
+        number << Next();
+      }
+
+      auto number_str = number.str();
+      if (number_str.size()) {
+        auto num_tok = ParseNumber(true, false, number_str);
+        auto span = SpanFrom(token->span->line, token->span->column);
+        token = Token(span, TokenType::kGraph, num_tok->data);
+      }
+
       return token;
     } else if (next == '/') {
       Next();
       if (Peek() == '/') {
-        auto token = NewToken(TokenType::LineComment);
+        auto token = NewToken(TokenType::kLineComment);
         // Consume the /
         Next();
         std::stringstream comment;
@@ -319,10 +468,10 @@ struct Tokenizer {
         Next();
         std::string comment;
         MatchComment(&comment);
-        auto token = NewToken(TokenType::Comment, tvm::String(comment));
+        auto token = NewToken(TokenType::kComment, tvm::String(comment));
         return token;
       } else {
-        return NewToken(TokenType::Division);
+        return NewToken(TokenType::kDivision);
       }
     } else if (IsIdentLetter(next)) {
       std::stringstream ss;
@@ -343,57 +492,78 @@ struct Tokenizer {
       if (it != KEYWORD_TABLE.end()) {
         token_type = it->second;
 
-        if (token_type == TokenType::Match) {
+        if (token_type == TokenType::kMatch) {
           if (More() && Peek() == '?') {
             Next();
-            token_type = TokenType::PartialMatch;
+            token_type = TokenType::kPartialMatch;
           }
         }
       } else {
-        token_type = TokenType::Identifier;
+        token_type = TokenType::kIdentifier;
       }
 
-      return Token(line, col, token_type, tvm::String(ss.str()));
+      auto span = SpanFrom(line, col);
+      return Token(span, token_type, tvm::String(ss.str()));
     } else {
       std::stringstream ss;
       while (More() && !IsWhitespace(Peek())) {
         ss << Next();
       }
-      auto token = NewToken(TokenType::Unknown);
+      auto token = NewToken(TokenType::kUnknown);
       token->data = tvm::String(ss.str());
       return token;
     }
   }
 
   void Tokenize() {
+    DLOG(INFO) << "tvm::parser::Tokenize";
     while (this->More()) {
       auto token = TokenizeOnce();
       CHECK(token.defined());
       this->tokens.push_back(token);
     }
-    this->tokens.push_back(NewToken(TokenType::EndOfFile));
+    this->tokens.push_back(NewToken(TokenType::kEndOfFile));
   }
 
-  explicit Tokenizer(std::string& source) : pos(0), col(1), line(1), source(source), tokens() {}
+  explicit Tokenizer(DiagnosticContext* ctx, const SourceName& source_name,
+                     const std::string& source)
+      : diag_ctx(ctx),
+        source_name(source_name),
+        pos(0),
+        col(1),
+        line(1),
+        source(source),
+        tokens() {}
 };
 
-std::vector<Token> Condense(const std::vector<Token>& tokens) {
+std::vector<Token> Condense(const std::vector<Token>& tokens, Token* table) {
   std::vector<Token> out;
+  bool found_metadata = false;
 
   for (size_t i = 0; i < tokens.size(); i++) {
     auto current = tokens.at(i);
     switch (current->token_type) {
-      case TokenType::Percent: {
+      case TokenType::kMetadata: {
+        if (!found_metadata) {
+          found_metadata = true;
+          *table = current;
+        } else {
+          LOG(FATAL) << "duplicate metadata section";
+        }
+        continue;
+      }
+      case TokenType::kPercent: {
         auto next = tokens.at(i + 1);
-        if (next->token_type == TokenType::Identifier) {
+        if (next->token_type == TokenType::kIdentifier) {
           // Match this token.
           i += 1;
-          auto tok = Token(current->line, current->column, TokenType::Local, next->data);
+          // TODO(@jroesch): merge spans
+          auto tok = Token(current->span, TokenType::kLocal, next->data);
           CHECK(tok.defined());
           out.push_back(tok);
-        } else if (next->token_type == TokenType::Integer) {
+        } else if (next->token_type == TokenType::kInteger) {
           i += 1;
-          auto tok = Token(current->line, current->column, TokenType::Graph, next->data);
+          auto tok = Token(current->span, TokenType::kGraph, next->data);
           CHECK(tok.defined());
           out.push_back(tok);
         } else {
@@ -402,12 +572,13 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
         }
         continue;
       }
-      case TokenType::At: {
+      case TokenType::kAt: {
         auto next = tokens.at(i + 1);
-        if (next->token_type == TokenType::Identifier) {
+        if (next->token_type == TokenType::kIdentifier) {
           // Match this token.
           i += 1;
-          auto tok = Token(current->line, current->column, TokenType::Global, next->data);
+          // TODO(@jroesch): merge spans
+          auto tok = Token(current->span, TokenType::kGlobal, next->data);
           CHECK(tok.defined());
           out.push_back(tok);
         } else {
@@ -416,17 +587,18 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
         }
         continue;
       }
-      case TokenType::Identifier: {
+      case TokenType::kIdentifier: {
         std::string str = Downcast<tvm::String>(current->data);
         Token tok;
+        // TODO(@jroesch): merge spans
         if (str == "True") {
           auto data = tvm::Integer(1);
-          tok = Token(current->line, current->column, TokenType::Boolean, data);
+          tok = Token(current->span, TokenType::kBoolean, data);
         } else if (str == "False") {
           auto data = tvm::Integer(0);
-          tok = Token(current->line, current->column, TokenType::Boolean, data);
+          tok = Token(current->span, TokenType::kBoolean, data);
         } else if (str == "_") {
-          tok = Token(current->line, current->column, TokenType::Underscore);
+          tok = Token(current->span, TokenType::kUnderscore);
         } else {
           tok = current;
         }
@@ -443,14 +615,16 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
   return out;
 }
 
-std::vector<Token> Tokenize(std::string source) {
-  auto tokenizer = Tokenizer(source);
+std::pair<std::vector<Token>, Token> Tokenize(DiagnosticContext* ctx, const SourceName& source_name,
+                                              const std::string& source) {
+  auto tokenizer = Tokenizer(ctx, source_name, source);
   tokenizer.Tokenize();
-  auto tokens = Condense(tokenizer.tokens);
+  Token meta_table(Span(), TokenType::kUnknown, ObjectRef());
+  auto tokens = Condense(tokenizer.tokens, &meta_table);
   for (auto token : tokens) {
     CHECK(token.defined());
   }
-  return tokens;
+  return {tokens, meta_table};
 }
 
 }  // namespace parser

@@ -23,7 +23,7 @@ import tvm
 from tvm import auto_scheduler, te
 from tvm import topi
 
-from test_auto_scheduler_common import matmul_auto_scheduler_test, conv2d_nchw_bn_relu
+from test_auto_scheduler_common import matmul_auto_scheduler_test, conv2d_nchw_bn_relu_auto_scheduler_test
 
 
 def test_split_fuse_reorder_annotation():
@@ -86,8 +86,9 @@ def test_split_fuse_reorder_annotation():
     assert res.annotation == auto_scheduler.loop_state.State.ANNOTATION_TRANS_TABLE["vectorize"]
 
 def test_compute_at_root_inline():
-    dag = auto_scheduler.ComputeDAG(conv2d_nchw_bn_relu(N=1, H=224, W=224, CI=3, CO=64,
-                                                        kernel_size=7, strides=2, padding=3))
+    dag = auto_scheduler.ComputeDAG(conv2d_nchw_bn_relu_auto_scheduler_test(N=1, H=224, W=224, CI=3,
+                                                                            CO=64, kernel_size=7, strides=2,
+                                                                            padding=3))
     s0 = dag.get_init_state()
 
     # data, padding, kernel = 0, 1, 2

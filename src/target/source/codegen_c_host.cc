@@ -279,8 +279,9 @@ void CodeGenCHost::GenerateFuncRegistry() {
   decl_stream << "#include <tvm/runtime/crt/module.h>\n";
   stream << "static TVMBackendPackedCFunc _tvm_func_array[] = {\n";
   for (auto f : function_names_) {
-    stream << "    " << f << ",\n";
+    stream << "    (TVMBackendPackedCFunc)" << f << ",\n";
   }
+  stream << "};\n";
   auto registry = target::GenerateFuncRegistryNames(function_names_);
   stream << "static const TVMFuncRegistry _tvm_func_registry = {\n"
          << "    \"" << ::tvm::support::StrEscape(registry.data(), registry.size(), true) << "\","
@@ -290,10 +291,10 @@ void CodeGenCHost::GenerateFuncRegistry() {
 
 void CodeGenCHost::GenerateCrtSystemLib() {
   stream << "static const TVMModule _tvm_system_lib = {\n"
-         << "    &system_lib_registry,\n"
+         << "    &_tvm_func_registry,\n"
          << "};\n"
          << "const TVMModule* TVMSystemLibEntryPoint(void) {\n"
-         << "    return &system_lib;\n"
+         << "    return &_tvm_system_lib;\n"
          << "}\n";
 }
 

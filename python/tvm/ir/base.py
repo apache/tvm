@@ -84,9 +84,9 @@ class Span(Object):
     col_offset : int
         The column offset of the location.
     """
-    def __init__(self, source, lineno, col_offset):
+    def __init__(self, source_name, line, end_line, column, end_column):
         self.__init_handle_by_constructor__(
-            _ffi_api.Span, source, lineno, col_offset)
+            _ffi_api.Span, source_name, line, end_line, column, end_column)
 
 
 @tvm._ffi.register_object

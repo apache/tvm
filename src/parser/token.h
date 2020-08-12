@@ -25,6 +25,7 @@
 #ifndef TVM_PARSER_TOKEN_H_
 #define TVM_PARSER_TOKEN_H_
 
+#include <tvm/ir/span.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
@@ -37,160 +38,172 @@ namespace parser {
 
 using namespace runtime;
 
-enum TokenType {
-  CommentStart,
-  CommentEnd,
-  LineComment,
-  Comment,
-  Whitespace,
-  Newline,
-  StringLiteral,
-  Identifier,
-  Local,
-  Global,
-  Op,
-  Graph,
-  OpenParen,
-  CloseParen,
-  AtSymbol,
-  Percent,
-  Comma,
-  Period,
-  Equal,
-  Semicolon,
-  Colon,
-  Integer,
-  Float,
-  Division,
-  Boolean,
-  Plus,
-  Star,
-  Minus,
-  RAngle,
-  LAngle,
-  RCurly,
-  LCurly,
-  RSquare,
-  LSquare,
-  Bang,
-  At,
-  Question,
-  If,
-  Else,
-  Underscore,
-  Let,
-  Fn,
-  Defn,
-  TypeDef,
-  Extern,
-  Match,
-  PartialMatch,
-  Unknown,
-  EndOfFile,
-  Null,
+enum class TokenType {
+  kCommentStart,
+  kCommentEnd,
+  kLineComment,
+  kComment,
+  kWhitespace,
+  kNewline,
+  kStringLiteral,
+  kIdentifier,
+  kLocal,
+  kGlobal,
+  kOp,
+  kGraph,
+  kOpenParen,
+  kCloseParen,
+  kAtSymbol,
+  kPercent,
+  kComma,
+  kPeriod,
+  kEqual,
+  kSemicolon,
+  kColon,
+  kInteger,
+  kFloat,
+  kDivision,
+  kBoolean,
+  kPlus,
+  kStar,
+  kMinus,
+  kRAngle,
+  kLAngle,
+  kRCurly,
+  kLCurly,
+  kRSquare,
+  kLSquare,
+  kBang,
+  kAt,
+  kQuestion,
+  kIf,
+  kElse,
+  kUnderscore,
+  kLet,
+  kFn,
+  kDefn,
+  kTypeDef,
+  kExtern,
+  kMatch,
+  kPartialMatch,
+  kMetadata,
+  kMetaReference,
+  kFreeVar,
+  kVersion,
+  kUnknown,
+  kEndOfFile,
+  kNull,
 };
 
 std::string ToString(const TokenType& token_type) {
   switch (token_type) {
-    case TokenType::CommentStart:
+    case TokenType::kCommentStart:
       return "CommentStart";
-    case TokenType::CommentEnd:
+    case TokenType::kCommentEnd:
       return "CommentEnd";
-    case TokenType::LineComment:
+    case TokenType::kLineComment:
       return "LineComment";
-    case TokenType::Comment:
+    case TokenType::kComment:
       return "Comment";
-    case TokenType::Whitespace:
+    case TokenType::kWhitespace:
       return "WhiteSpace";
-    case TokenType::Newline:
+    case TokenType::kNewline:
       return "Newline";
-    case TokenType::StringLiteral:
+    case TokenType::kStringLiteral:
       return "StringLiteral";
-    case TokenType::Identifier:
+    case TokenType::kIdentifier:
       return "Identifier";
-    case TokenType::Local:
+    case TokenType::kLocal:
       return "Local";
-    case TokenType::Global:
+    case TokenType::kGlobal:
       return "Global";
-    case TokenType::Graph:
+    case TokenType::kGraph:
       return "Graph";
-    case TokenType::Op:
+    case TokenType::kOp:
       return "Op";
-    case TokenType::OpenParen:
+    case TokenType::kOpenParen:
       return "OpenParen";
-    case TokenType::CloseParen:
+    case TokenType::kCloseParen:
       return "CloseParen";
-    case TokenType::AtSymbol:
+    case TokenType::kAtSymbol:
       return "AtSymbol";
-    case TokenType::Percent:
+    case TokenType::kPercent:
       return "Percent";
-    case TokenType::Comma:
+    case TokenType::kComma:
       return "Comma";
-    case TokenType::Colon:
+    case TokenType::kColon:
       return "Colon";
-    case TokenType::Semicolon:
+    case TokenType::kSemicolon:
       return "Semicolon";
-    case TokenType::Period:
+    case TokenType::kPeriod:
       return "Period";
-    case TokenType::Equal:
+    case TokenType::kEqual:
       return "Equal";
-    case TokenType::Integer:
+    case TokenType::kInteger:
       return "Integer";
-    case TokenType::Float:
+    case TokenType::kFloat:
       return "Float";
-    case TokenType::Plus:
+    case TokenType::kPlus:
       return "Plus";
-    case TokenType::Star:
+    case TokenType::kStar:
       return "Star";
-    case TokenType::Minus:
+    case TokenType::kMinus:
       return "Minus";
-    case TokenType::Division:
+    case TokenType::kDivision:
       return "Division";
-    case TokenType::RAngle:
+    case TokenType::kRAngle:
       return "RAngle";
-    case TokenType::LAngle:
+    case TokenType::kLAngle:
       return "LAngle";
-    case TokenType::RCurly:
+    case TokenType::kRCurly:
       return "RCurly";
-    case TokenType::LCurly:
+    case TokenType::kLCurly:
       return "LCurly";
-    case TokenType::RSquare:
+    case TokenType::kRSquare:
       return "RSquare";
-    case TokenType::LSquare:
+    case TokenType::kLSquare:
       return "LSquare";
-    case TokenType::Bang:
+    case TokenType::kBang:
       return "Bang";
-    case TokenType::Underscore:
+    case TokenType::kUnderscore:
       return "Underscore";
-    case TokenType::At:
+    case TokenType::kAt:
       return "At";
-    case TokenType::Let:
+    case TokenType::kLet:
       return "Let";
-    case TokenType::If:
+    case TokenType::kIf:
       return "If";
-    case TokenType::Else:
+    case TokenType::kElse:
       return "Else";
-    case TokenType::Fn:
+    case TokenType::kFn:
       return "Fn";
-    case TokenType::Defn:
+    case TokenType::kDefn:
       return "Defn";
-    case TokenType::TypeDef:
+    case TokenType::kTypeDef:
       return "TypeDef";
-    case TokenType::Extern:
+    case TokenType::kExtern:
       return "Extern";
-    case TokenType::Match:
+    case TokenType::kMatch:
       return "Match";
-    case TokenType::PartialMatch:
+    case TokenType::kPartialMatch:
       return "PartialMatch";
-    case TokenType::Question:
+    case TokenType::kQuestion:
       return "Question";
-    case TokenType::Boolean:
+    case TokenType::kBoolean:
       return "Boolean";
-    case TokenType::Unknown:
+    case TokenType::kMetadata:
+      return "Metadata";
+    case TokenType::kMetaReference:
+      return "MetaReference";
+    case TokenType::kFreeVar:
+      return "FreeVar";
+    case TokenType::kVersion:
+      return "Version";
+    case TokenType::kUnknown:
       return "Unknown";
-    case TokenType::EndOfFile:
+    case TokenType::kEndOfFile:
       return "EndOfFile";
-    case TokenType::Null:
+    case TokenType::kNull:
       return "Null";
     // Older compilers warn even though the above code is exhaustive.
     default:
@@ -201,106 +214,114 @@ std::string ToString(const TokenType& token_type) {
 
 std::string Pretty(const TokenType& token_type) {
   switch (token_type) {
-    case TokenType::CommentStart:
+    case TokenType::kCommentStart:
       return "`/*`";
-    case TokenType::CommentEnd:
+    case TokenType::kCommentEnd:
       return "`*/`";
-    case TokenType::LineComment:
+    case TokenType::kLineComment:
       return "`//`";
-    case TokenType::Comment:
+    case TokenType::kComment:
       return "comment";
-    case TokenType::Whitespace:
+    case TokenType::kWhitespace:
       return "whitespace";
-    case TokenType::Newline:
+    case TokenType::kNewline:
       return "newline";
-    case TokenType::StringLiteral:
+    case TokenType::kStringLiteral:
       return "string literal";
-    case TokenType::Identifier:
+    case TokenType::kIdentifier:
       return "identifier";
-    case TokenType::Local:
+    case TokenType::kLocal:
       return "local variable";
-    case TokenType::Global:
+    case TokenType::kGlobal:
       return "global variable";
-    case TokenType::Graph:
+    case TokenType::kGraph:
       return "graph variable";
-    case TokenType::Op:
+    case TokenType::kOp:
       return "operator";
-    case TokenType::OpenParen:
+    case TokenType::kOpenParen:
       return "`(`";
-    case TokenType::CloseParen:
+    case TokenType::kCloseParen:
       return "`)`";
-    case TokenType::AtSymbol:
+    case TokenType::kAtSymbol:
       return "`@`";
-    case TokenType::Percent:
+    case TokenType::kPercent:
       return "`%`";
-    case TokenType::Comma:
+    case TokenType::kComma:
       return "`,`";
-    case TokenType::Colon:
+    case TokenType::kColon:
       return "`:`";
-    case TokenType::Semicolon:
+    case TokenType::kSemicolon:
       return "`;`";
-    case TokenType::Period:
+    case TokenType::kPeriod:
       return "`.`";
-    case TokenType::Equal:
+    case TokenType::kEqual:
       return "`=`";
-    case TokenType::Integer:
+    case TokenType::kInteger:
       return "integer";
-    case TokenType::Float:
+    case TokenType::kFloat:
       return "float";
-    case TokenType::Plus:
+    case TokenType::kPlus:
       return "`+`";
-    case TokenType::Star:
+    case TokenType::kStar:
       return "`*`";
-    case TokenType::Minus:
+    case TokenType::kMinus:
       return "`-`";
-    case TokenType::Division:
+    case TokenType::kDivision:
       return "`/`";
-    case TokenType::RAngle:
+    case TokenType::kRAngle:
       return "`<`";
-    case TokenType::LAngle:
+    case TokenType::kLAngle:
       return "`>`";
-    case TokenType::RCurly:
+    case TokenType::kRCurly:
       return "`}`";
-    case TokenType::LCurly:
+    case TokenType::kLCurly:
       return "`{`";
-    case TokenType::RSquare:
+    case TokenType::kRSquare:
       return "`]`";
-    case TokenType::LSquare:
+    case TokenType::kLSquare:
       return "`[`";
-    case TokenType::Bang:
+    case TokenType::kBang:
       return "`!`";
-    case TokenType::Underscore:
+    case TokenType::kUnderscore:
       return "`_`";
-    case TokenType::At:
+    case TokenType::kAt:
       return "`@`";
-    case TokenType::Let:
+    case TokenType::kLet:
       return "`let`";
-    case TokenType::If:
+    case TokenType::kIf:
       return "`if`";
-    case TokenType::Else:
+    case TokenType::kElse:
       return "`else`";
-    case TokenType::Fn:
+    case TokenType::kFn:
       return "`fn`";
-    case TokenType::Defn:
+    case TokenType::kDefn:
       return "`def`";
-    case TokenType::TypeDef:
+    case TokenType::kTypeDef:
       return "`type`";
-    case TokenType::Extern:
+    case TokenType::kExtern:
       return "`extern`";
-    case TokenType::Boolean:
+    case TokenType::kBoolean:
       return "boolean";
-    case TokenType::Match:
+    case TokenType::kMetadata:
+      return "metadata section";
+    case TokenType::kMetaReference:
+      return "`meta`";
+    case TokenType::kFreeVar:
+      return "`free_var`";
+    case TokenType::kMatch:
       return "`match`";
-    case TokenType::PartialMatch:
+    case TokenType::kPartialMatch:
       return "`match?`";
-    case TokenType::Question:
+    case TokenType::kQuestion:
       return "`?`";
-    case TokenType::Unknown:
+    case TokenType::kUnknown:
       return "unknown";
-    case TokenType::EndOfFile:
+    case TokenType::kEndOfFile:
       return "end of file";
-    case TokenType::Null:
+    case TokenType::kNull:
       return "null";
+    case TokenType::kVersion:
+      return "version attribute";
     // Older compilers warn even though the above code is exhaustive.
     default:
       LOG(FATAL) << "unreachable code";
@@ -312,8 +333,7 @@ class Token;
 
 class TokenNode : public Object {
  public:
-  int line;
-  int column;
+  Span span;
   TokenType token_type;
   mutable runtime::ObjectRef data;
 
@@ -326,36 +346,45 @@ class TokenNode : public Object {
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TokenNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const TokenNode*>(ref.get());
-      p->stream << "Token(line=" << node->line << ", column=" << node->column
-                << ", token_type=" << ToString(node->token_type) << ", data=" << node->data << ")";
+      p->stream << "Token(span=" << node->span << ", token_type=" << ToString(node->token_type)
+                << ", data=" << node->data << ")";
     });
 
 TVM_REGISTER_NODE_TYPE(TokenNode);
 
 class Token : public ObjectRef {
  public:
-  TVM_DLL explicit Token(int line, int column, TokenType token_type, ObjectRef data = ObjectRef());
+  TVM_DLL explicit Token(Span span, TokenType token_type, ObjectRef data = ObjectRef());
 
   static Token Null();
   int64_t ToNumber() const;
   std::string ToString() const;
+  Map<String, Array<ObjectRef>> ToMetadata() const;
   TVM_DEFINE_OBJECT_REF_METHODS(Token, ObjectRef, TokenNode);
 };
 
-Token::Token(int line, int column, TokenType token_type, ObjectRef data) {
+Token::Token(Span span, TokenType token_type, ObjectRef data) {
   ObjectPtr<TokenNode> n = make_object<TokenNode>();
-  n->line = line;
-  n->column = column;
+  n->span = span;
   n->token_type = token_type;
   n->data = data;
   data_ = std::move(n);
 }
 
-Token Token::Null() { return Token(0, 0, TokenType::Null); }
+Token Token::Null() { return Token(Span(SourceName(), 0, 0, 0, 0), TokenType::kNull); }
 
 int64_t Token::ToNumber() const { return Downcast<tvm::Integer>(this->operator->()->data); }
 
 std::string Token::ToString() const { return Downcast<tvm::String>(this->operator->()->data); }
+
+Map<String, Array<ObjectRef>> Token::ToMetadata() const {
+  ObjectRef data = this->operator->()->data;
+  if (data.defined()) {
+    return Downcast<Map<String, Array<ObjectRef>>>(data);
+  } else {
+    return Map<String, Array<ObjectRef>>({});
+  }
+}
 
 }  // namespace parser
 }  // namespace tvm

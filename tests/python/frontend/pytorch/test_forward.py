@@ -1873,6 +1873,18 @@ def test_forward_std():
         def forward(self, *args):
             return args[0].std(unbiased=False)
 
+    class Std7(Module):
+        def forward(self, *args):
+            return args[0].std(dim=1, keepdim=False, unbiased=True)
+
+    class Std8(Module):
+        def forward(self, *args):
+            return args[0].std(dim=(2,3), keepdim=True, unbiased=True)
+
+    class Std9(Module):
+        def forward(self, *args):
+            return args[0].std(unbiased=True)
+
     input_data = torch.rand(input_shape).float()
     verify_model(Std1().float().eval(), input_data=input_data)
     verify_model(Std2().float().eval(), input_data=input_data)
@@ -1880,6 +1892,9 @@ def test_forward_std():
     verify_model(Std4().float().eval(), input_data=input_data)
     verify_model(Std5().float().eval(), input_data=input_data)
     verify_model(Std6().float().eval(), input_data=input_data)
+    verify_model(Std7().float().eval(), input_data=input_data)
+    verify_model(Std8().float().eval(), input_data=input_data)
+    verify_model(Std9().float().eval(), input_data=input_data)
 
 
 def test_forward_variance():
@@ -1906,12 +1921,32 @@ def test_forward_variance():
         def forward(self, *args):
             return args[0].var(dim=(2,3), keepdim=False, unbiased=False)
 
+    class Variance6(Module):
+        def forward(self, *args):
+            return args[0].var(unbiased=False)
+
+    class Variance7(Module):
+        def forward(self, *args):
+            return args[0].var(dim=1, keepdim=False, unbiased=True)
+
+    class Variance8(Module):
+        def forward(self, *args):
+            return args[0].var(dim=(2,3), keepdim=True, unbiased=True)
+
+    class Variance9(Module):
+        def forward(self, *args):
+            return args[0].var(unbiased=True)
+
     input_data = torch.rand(input_shape).float()
     verify_model(Variance1().float().eval(), input_data=input_data)
     verify_model(Variance2().float().eval(), input_data=input_data)
     verify_model(Variance3().float().eval(), input_data=input_data)
     verify_model(Variance4().float().eval(), input_data=input_data)
     verify_model(Variance5().float().eval(), input_data=input_data)
+    verify_model(Variance6().float().eval(), input_data=input_data)
+    verify_model(Variance7().float().eval(), input_data=input_data)
+    verify_model(Variance8().float().eval(), input_data=input_data)
+    verify_model(Variance9().float().eval(), input_data=input_data)
 
 
 def test_forward_rsub():
