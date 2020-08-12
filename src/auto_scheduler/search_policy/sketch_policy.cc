@@ -49,9 +49,12 @@ static RuleSkipStage rule_skip_stage;
 static RuleAlwaysInline rule_always_inline;
 static RuleMultiLevelTiling rule_multi_level_tiling;
 static RuleMultiLevelTilingWithFusion rule_multi_level_tiling_with_fusion;
+static RuleAddCacheRead rule_add_cache_read_stage;
 static RuleAddCacheWrite rule_add_cache_write_stage;
 static RuleAddRfactor rule_add_rfactor;
+static RuleCrossThreadReduction rule_cross_thread_reduction;
 static RuleSimplifyComputeWithConstTensor rule_simplify_compute_with_const_tensor;
+static RuleSpecialComputeLocationGPU rule_special_compute_location_gpu;
 
 /********** Init population rules **********/
 
@@ -85,23 +88,44 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
     node->RunCallbacks(init_search_callbacks.value());
   }
 
-  // The default sketch rules for CPU policy
   // Notice: Some rules require us to skip all the rest rules after they are applied.
   // So the rules below should be ordered carefully.
-  node->sketch_rules.push_back(&rule_always_inline);
-  node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
-  node->sketch_rules.push_back(&rule_add_rfactor);
-  node->sketch_rules.push_back(&rule_add_cache_write_stage);
-  node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
-  node->sketch_rules.push_back(&rule_multi_level_tiling);
+  if (IsCPUTask(node->search_task)) {
+    // The default sketch rules for CPU policy
+    node->sketch_rules.push_back(&rule_always_inline);
+    node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
+    node->sketch_rules.push_back(&rule_add_rfactor);
+    node->sketch_rules.push_back(&rule_add_cache_write_stage);
+    node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
+    node->sketch_rules.push_back(&rule_multi_level_tiling);
+  } else if (IsCUDATask(node->search_task)) {
+    // The default sketch rules for CUDA policy
+    node->sketch_rules.push_back(&rule_add_cache_read_stage);
+    node->sketch_rules.push_back(&rule_always_inline);
+    node->sketch_rules.push_back(&rule_special_compute_location_gpu);
+    node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
+    node->sketch_rules.push_back(&rule_cross_thread_reduction);
+    node->sketch_rules.push_back(&rule_add_cache_write_stage);
+    node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
+    node->sketch_rules.push_back(&rule_multi_level_tiling);
+  } else {
+    LOG(FATAL) << "No default sketch rules for target: " << task->target;
+  }
   node->sketch_rules.push_back(&rule_skip_stage);  // This should always be the last rule
 
-  // The default init population rules for CPU policy
-  node->init_rules.push_back(&init_fill_tile_size);
-  node->init_rules.push_back(&init_change_compute_location);
-  node->init_rules.push_back(&init_parallel);
-  node->init_rules.push_back(&init_unroll);
-  node->init_rules.push_back(&init_vectorization);
+  node->init_rules.push_back(&init_fill_tile_size);  // This should always be the first rule
+  if (IsCPUTask(node->search_task)) {
+    // The default init population rules for CPU policy
+    node->init_rules.push_back(&init_change_compute_location);
+    node->init_rules.push_back(&init_parallel);
+    node->init_rules.push_back(&init_unroll);
+    node->init_rules.push_back(&init_vectorization);
+  } else if (IsCUDATask(node->search_task)) {
+    // The default init population rules for CUDA policy
+    // ddd
+  } else {
+    LOG(FATAL) << "No default init rules for target: " << task->target;
+  }
 
   data_ = std::move(node);
 }
