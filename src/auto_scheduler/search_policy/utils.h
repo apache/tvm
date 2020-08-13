@@ -45,23 +45,23 @@
 namespace tvm {
 namespace auto_scheduler {
 
-// Return whether the search task is targeting a CPU
+/*! \brief Return whether the search task is targeting a CPU. */
 inline bool IsCPUTask(const SearchTask& task) {
   return ((task)->target->kind->device_type == kDLCPU);
 }
 
-// Return whether the search task is targeting a GPU
+/*! \brief Return whether the search task is targeting a GPU. */
 inline bool IsGPUTask(const SearchTask& task) {
   return ((task)->target->kind->device_type == kDLGPU ||
           (task)->target->kind->device_type == kDLOpenCL);
 }
 
-// Return whether the search task is targeting a CUDA GPU
+/*! \brief Return whether the search task is targeting a CUDA GPU. */
 inline bool IsCUDATask(const SearchTask& task) {
   return (task)->target->kind->device_type == kDLGPU;
 }
 
-// Return whether the search task is targeting a OpenCL GPU
+/*! \brief Return whether the search task is targeting a OpenCL GPU. */
 inline bool IsOpenCLTask(const SearchTask& task) {
   return (task)->target->kind->device_type == kDLOpenCL;
 }
@@ -395,7 +395,7 @@ inline bool HasCacheWriteStage(const State& s, int stage_id) {
   return false;
 }
 
-// Return whether the stage does cross thread reduction
+/*! \brief Return whether the stage does cross thread reduction. */
 inline bool HasCrossThreadReduction(const State& state, int stage_id) {
   std::function<bool(const Stage&)> check_stage = [](const Stage& in_stage) {
     for (const auto& iter : in_stage->iters) {
@@ -453,7 +453,7 @@ inline void ExtractOriginalIterators(const std::string& name, std::set<std::stri
   }
 }
 
-// Get the last reduce iterator in the outermost reduce tile
+/*! \brief Get the last reduce iterator in the outermost reduce tile. */
 inline Iterator GetLastReduceIteratorInOutermostReduceTile(const Stage& stage) {
   auto pop = stage->op.as<te::ComputeOpNode>();
   CHECK(pop != nullptr);
@@ -491,7 +491,7 @@ inline Iterator GetLastReduceIteratorInOutermostReduceTile(const Stage& stage) {
   return stage->iters[0];
 }
 
-// Get all split steps for one stage
+/*! \brief Get all split steps for one stage. */
 inline void GetSplitStepIds(const State& s, int stage_id, std::vector<int>* split_step_ids) {
   for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
     if (auto ps = s->transform_steps[i].as<SplitStepNode>()) {
@@ -601,6 +601,7 @@ class SplitFactorizationMemo {
   std::unordered_map<int, std::vector<int>> factor_memory_;
 };
 
+/*! \brief Get the indexes of SplitStep that processes on spatial iteratior. */
 Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id);
 
 // Apply multi-level tiling structure according to a string format,

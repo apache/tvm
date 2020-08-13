@@ -112,7 +112,7 @@ DEFINE_SKETCH_GENERATION_RULE(RuleAddRfactor);
  * This kind of op comes from winograd transformation. */
 DEFINE_SKETCH_GENERATION_RULE(RuleSimplifyComputeWithConstTensor);
 
-/*! \brief xxxxxxx */
+/*! \brief The rule that use cross thread reduction for GPU. */
 DEFINE_SKETCH_GENERATION_RULE(RuleCrossThreadReduction);
 
 /*! \brief Handle special cases in Winograd transformation for GPU. We need to change the compute

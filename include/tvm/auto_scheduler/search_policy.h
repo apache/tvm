@@ -104,6 +104,7 @@ class SearchCallback : public ObjectRef {
  * This can resume the state of the search policy */
 class PreloadMeasuredStatesNode : public SearchCallbackNode {
  public:
+  /*! \brief The name of the record log file. */
   String filename;
 
   void Callback(SearchPolicyNode* policy) final;
@@ -118,6 +119,10 @@ class PreloadMeasuredStatesNode : public SearchCallbackNode {
  */
 class PreloadMeasuredStates : public SearchCallback {
  public:
+  /*!
+   * \brief The constructor.
+   * \param filename The name of the record log file.
+   */
   explicit PreloadMeasuredStates(String filename);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PreloadMeasuredStates, SearchCallback,
@@ -165,7 +170,10 @@ class SearchPolicyNode : public Object {
   virtual State Search(int num_measure_trials, int early_stopping, int num_measures_per_round,
                        ProgramMeasurer measurer) = 0;
 
-  // Preload measured states from a log file to resume the state of the search policy
+  /*!
+   * \brief Preload measured states from a log file to resume the state of the search policy.
+   * \param log_file The name of the record log file.
+   */
   void PreloadMeasuredStates(const String& log_file);
 
   /*!

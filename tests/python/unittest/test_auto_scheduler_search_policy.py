@@ -108,7 +108,7 @@ def test_sketch_search_policy_basic():
 
 
 def test_sketch_search_policy_cuda_rpc_runner():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.runtime.enabled("cuda"):
         return
     measure_ctx = auto_scheduler.LocalRPCMeasureContext()
     # wrap the search in a new thread to avoid the conflict
