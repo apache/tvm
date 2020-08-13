@@ -74,6 +74,11 @@ def _upsampling_nchw_shape_func(dshape, scale_h, scale_w, ndim):
 @register_shape_func("nn.dyn.upsampling", True)
 def upsampling_shape_func(attrs, inputs, _):
     if attrs.layout == "NHWC":
-        return [_upsampling_nhwc_shape_func(inputs[0].shape, inputs[1], inputs[2], convert(len(inputs[0].shape)))]
-    if attrs.layout == "NCHW":
-        return [_upsampling_nchw_shape_func(inputs[0].shape, inputs[1], inputs[2], convert(len(inputs[0].shape)))]
+        shape_func = _upsampling_nhwc_shape_func(inputs[0].shape, inputs[1], inputs[2],
+                                                 convert(len(inputs[0].shape)))
+    elif attrs.layout == "NCHW":
+        shape_func = _upsampling_nchw_shape_func(inputs[0].shape, inputs[1], inputs[2],
+                                                 convert(len(inputs[0].shape)))
+    else:
+        assert false, "Layout passed to the upsampling shape func must be NCHW or NHWC"
+    return [shape_func]

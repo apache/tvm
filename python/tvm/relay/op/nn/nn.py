@@ -16,8 +16,6 @@
 # under the License.
 #pylint: disable=invalid-name, too-many-lines
 """Neural network operations."""
-import tvm
-from tvm import relay
 from tvm.relay import expr
 
 from . import _make
@@ -1180,8 +1178,7 @@ def upsampling(data,
         if not isinstance(scale_w, Expr):
             scale_w = const(scale_w, "float64")
         return _dyn_make.upsampling(data, scale_h, scale_w, layout, method, align_corners)
-    else:
-        return _make.upsampling(data, scale_h, scale_w, layout, method, align_corners)
+    return _make.upsampling(data, scale_h, scale_w, layout, method, align_corners)
 
 
 def upsampling3d(data,
