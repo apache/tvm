@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 
 """Cost model based on xgboost"""
 import multiprocessing
@@ -22,8 +23,11 @@ from collections import defaultdict
 
 import numpy as np
 import xgboost as xgb
+from xgboost.core import EarlyStopException
+from xgboost.callback import _fmt_metric
+from xgboost.training import aggcv
 
-from tvm.autotvm.tuner.xgboost_cost_model import get_rank, recall_curve, max_curve
+from tvm.autotvm.tuner.metric import max_curve
 from .cost_model import PythonBasedModel
 from ..feature import get_per_store_features_from_measure_pairs, get_per_store_features_from_states
 from ..measure_record import RecordReader
@@ -71,18 +75,21 @@ dmatrix_context = XGBDMatrixContext()
 class XGBModel(PythonBasedModel):
     """Train a XGBoost model to predict the normalized throughputs of programs.
 
-    Let the normalized throughput be the score of a program (higher is better),
-    We predict (approximiate) the score of a program = the sum of the scores of all stages in this program.
-    i.e. score(P) = score_s0 + score_s1 + ... + score_sn, where score_si is the score of Stage i in Program P.
+    Let the normalized throughput be the score of a program (higher is better). We predict
+    (approximiate) the score of a program = the sum of the scores of all stages in this program.
+    i.e. score(P) = score_s0 + score_s1 + ... + score_sn,
+    where score_si is the score of Stage i in Program P.
 
     We extract feature for each stage and let the xgboost predict the score for each stage.
     We then sum up the predictions as the score of the whole program.
 
-    We use RMSE as the loss function.  i.e. loss(P, y) = 1/2 * (score(P) - y)^2, where P is the program
-    and y is the normalized throughput according to the ground truth (measurement).
-    XGBoost does not support this loss function because `score(P)` is a sum of the prediction of several samples,
-    so we implemented a custom loss function and call it pack-sum-rmse.
-    It is called "pack-sum" because we combine several samples into a "pack" and sum up their predictions.
+    We use RMSE as the loss function.  i.e. loss(P, y) = 1/2 * (score(P) - y)^2,
+    where P is the program and y is the normalized throughput according to
+    the ground truth (measurement).
+    XGBoost does not support this loss function because `score(P)` is a sum of the prediction
+    of several samples, so we implemented a custom loss function and call it pack-sum-rmse.
+    It is called "pack-sum" because we combine several samples into a "pack" and sum up
+    their predictions.
     """
     def __init__(self, verbose_eval=25, num_warmup_sample=100, seed=None):
         self.xgb_params = {
@@ -405,8 +412,8 @@ def pack_sum_square_error(preds, dtrain):
 
     if len(weight) == 0:
         return gradient, hessian
-    else:
-        return gradient * weight, hessian * weight
+
+    return gradient * weight, hessian * weight
 
 def pack_sum_rmse(raw_preds, labels):
     """Evaluate RMSE (rooted mean square error) in the pack-sum format
@@ -478,10 +485,6 @@ def pack_sum_average_peak_score(N):
 def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
                     maximize=False, verbose_eval=True, skip_every=2):
     """Callback function for xgboost to support multiple custom evaluation functions"""
-    from xgboost.core import EarlyStopException
-    from xgboost.callback import _fmt_metric
-    from xgboost.training import aggcv
-
     state = {}
     metric_shortname = metric.split("-")[1]
 
