@@ -233,7 +233,7 @@ class TypedPackedFunc<R(Args...)> {
    */
   template <typename FLambda, typename = typename std::enable_if<
                                   std::is_convertible<FLambda,
-                                                      std::function<R(Args...)> >::value>::type>
+                                                      std::function<R(Args...)>>::value>::type>
   TypedPackedFunc(const FLambda& typed_lambda) {  // NOLINT(*)
     this->AssignTypedLambda(typed_lambda);
   }
@@ -255,7 +255,7 @@ class TypedPackedFunc<R(Args...)> {
    */
   template <typename FLambda, typename = typename std::enable_if<
                                   std::is_convertible<FLambda,
-                                                      std::function<R(Args...)> >::value>::type>
+                                                      std::function<R(Args...)>>::value>::type>
   TSelf& operator=(FLambda typed_lambda) {  // NOLINT(*)
     this->AssignTypedLambda(typed_lambda);
     return *this;
