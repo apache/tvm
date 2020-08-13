@@ -414,8 +414,8 @@ inline bool HasCrossThreadReduction(const State& state, int stage_id) {
 
   // Check the attached stages
   for (size_t iter_id = 0; iter_id < state->stages[stage_id]->iters.size(); iter_id++) {
-    const auto& res = state->attach_map->iter_to_attached_stages.find(
-          std::make_pair(stage_id, iter_id));
+    const auto& res =
+        state->attach_map->iter_to_attached_stages.find(std::make_pair(stage_id, iter_id));
     if (res != state->attach_map->iter_to_attached_stages.end()) {
       for (int attached_stage_id : res->second) {
         if (check_stage(state->stages[attached_stage_id])) {

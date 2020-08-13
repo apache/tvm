@@ -40,8 +40,7 @@ namespace json {
 
 template <>
 struct Handler<::tvm::Array<::tvm::Integer>> {
-  inline static void Write(dmlc::JSONWriter* writer,
-                           const ::tvm::Array<::tvm::Integer>& array) {
+  inline static void Write(dmlc::JSONWriter* writer, const ::tvm::Array<::tvm::Integer>& array) {
     writer->BeginArray(false);
     for (const auto& i : array) {
       CHECK(i.defined());
@@ -49,8 +48,7 @@ struct Handler<::tvm::Array<::tvm::Integer>> {
     }
     writer->EndArray();
   }
-  inline static void Read(dmlc::JSONReader* reader,
-                          ::tvm::Array<::tvm::Integer>* array) {
+  inline static void Read(dmlc::JSONReader* reader, ::tvm::Array<::tvm::Integer>* array) {
     array->clear();
     reader->BeginArray();
     while (reader->NextArrayItem()) {

@@ -73,13 +73,13 @@ class SketchGenerationRule {
                                                    const State& state, int stage_id) const = 0;
 };
 
-#define DEFINE_SKETCH_GENERATION_RULE(rule_name) \
-  class rule_name : public SketchGenerationRule { \
-   public: \
-    ConditionKind MeetCondition(const SketchPolicyNode& policy, const State& state, \
-                                int stage_id) const final; \
+#define DEFINE_SKETCH_GENERATION_RULE(rule_name)                                                 \
+  class rule_name : public SketchGenerationRule {                                                \
+   public:                                                                                       \
+    ConditionKind MeetCondition(const SketchPolicyNode& policy, const State& state,              \
+                                int stage_id) const final;                                       \
     std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy, const State& state, \
-                                             int stage_id) const final; \
+                                             int stage_id) const final;                          \
   };
 
 /*! \brief The rule that simply skips the current stage. It returns an unchanged state and move to
@@ -137,9 +137,9 @@ class InitPopulationRule {
   virtual ResultKind Apply(SketchPolicyNode* policy, State* state) const = 0;
 };
 
-#define DEFINE_INIT_POPULATION_RULE(rule_name) \
-  class rule_name : public InitPopulationRule { \
-   public: \
+#define DEFINE_INIT_POPULATION_RULE(rule_name)                            \
+  class rule_name : public InitPopulationRule {                           \
+   public:                                                                \
     ResultKind Apply(SketchPolicyNode* policy, State* state) const final; \
   };
 

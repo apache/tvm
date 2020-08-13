@@ -54,20 +54,16 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
     auto ctx = TVMContext{kDLGPU, 0};
     auto func = tvm::runtime::Registry::Get("device_api.gpu");
     CHECK(func != nullptr) << "Cannot find GPU device_api in registry";
-    auto device_api =
-        static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
+    auto device_api = static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
 
     tvm::runtime::TVMRetValue ret;
-    device_api->GetAttr(
-        ctx, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
+    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
     p_hardware_params->max_shared_memory_per_block = ret;
 
-    device_api->GetAttr(
-        ctx, tvm::runtime::DeviceAttrKind::kMaxRegistersPerBlock, &ret);
+    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxRegistersPerBlock, &ret);
     p_hardware_params->max_registers_per_block = ret;
 
-    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock,
-                        &ret);
+    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
     p_hardware_params->max_threads_per_block = ret;
 
     device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
