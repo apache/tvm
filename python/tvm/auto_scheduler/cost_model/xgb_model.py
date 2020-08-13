@@ -28,7 +28,7 @@ from .cost_model import PythonBasedModel
 from ..feature import get_per_store_features_from_measure_pairs, get_per_store_features_from_states
 from ..measure_record import RecordReader
 
-logger = logging.getLogger('ansor')
+logger = logging.getLogger('auto_scheduler')
 
 class XGBDMatrixContext:
     """A global context to hold additional attributes of xgb.DMatrix"""
@@ -67,16 +67,22 @@ class XGBDMatrixContext:
 
 dmatrix_context = XGBDMatrixContext()
 
+
 class XGBModel(PythonBasedModel):
-    """Train a XGBoost model to predict the runtime cost of a program.
-    The cost of a program = the sum of the costs of all stages in this program.
-    i.e. Cost(p) = cost_s0 + cost_s1 + ... + cost_sn, where cost_si is the cost of Stage i
+    """Train a XGBoost model to predict the normalized throughputs of programs.
 
-    The xgboost model makes prediction per stage, then we sum them up.
-    The final predction made by this class is normalized throughtput (from 0 to 1, larger is better)
+    Let the normalized throughput be the score of a program (higher is better),
+    We predict (approximiate) the score of a program = the sum of the scores of all stages in this program.
+    i.e. score(P) = score_s0 + score_s1 + ... + score_sn, where score_si is the score of Stage i in Program P.
 
-    To support this stage decomposition, we have to implement a custom loss function for
-    XGBoost, which is the `pack_sum` in the code below.
+    We extract feature for each stage and let the xgboost predict the score for each stage.
+    We then sum up the predictions as the score of the whole program.
+
+    We use RMSE as the loss function.  i.e. loss(P, y) = 1/2 * (score(P) - y)^2, where P is the program
+    and y is the normalized throughput according to the ground truth (measurement).
+    XGBoost does not support this loss function because `score(P)` is a sum of the prediction of several samples,
+    so we implemented a custom loss function and call it pack-sum-rmse.
+    It is called "pack-sum" because we combine several samples into a "pack" and sum up their predictions.
     """
     def __init__(self, verbose_eval=25, num_warmup_sample=100, seed=None):
         self.xgb_params = {
@@ -84,7 +90,7 @@ class XGBModel(PythonBasedModel):
             'gamma': 0.001,
             'min_child_weight': 0,
             'eta': 0.2,
-            # todo(lmzheng): automatically decrease learning rate when the loss is too large
+            # todo(merrymercy): automatically decrease learning rate when the loss is too large
 
             'n_gpus': 0,
             'nthread': multiprocessing.cpu_count() // 2,
@@ -99,12 +105,21 @@ class XGBModel(PythonBasedModel):
 
         super().__init__()
 
-        # measurement input/result pairs
+        # cache measurement input/result pairs and extracted features
         self.inputs = []
         self.results = []
         self.inputs_feature_cache = []
 
     def update(self, inputs, results):
+        """Update the cost model according to new measurement results (training data).
+
+        Parameters
+        ----------
+        inputs : List[MeasureInput]
+            The measurement inputs
+        results : List[MeasureResult]
+            The measurement results
+        """
         if len(inputs) <= 0:
             return
 
@@ -139,11 +154,25 @@ class XGBModel(PythonBasedModel):
                                  verbose_eval=self.verbose_eval)])
 
     def predict(self, task, states):
+        """Predict the scores of states
+
+        Parameters
+        ----------
+        search_task : SearchTask
+            The search task of states
+        statse : List[State]
+            The input states
+
+        Returns
+        -------
+        scores: List[float]
+            The predicted scores for all states
+        """
         features = get_per_store_features_from_states(states, task)
         if self.bst is not None and len(self.inputs) > self.num_warmup_sample:
-            dtest, pack_ids = pack_sum_xgbmatrix_for_prediction(features)
+            dtest, pack_ids = feature_to_pack_sum_xgbmatrix(features)
             raw_preds = self.bst.predict(dtest)
-            ret = pack_sum_predict_throughput(raw_preds, pack_ids)
+            ret = predict_throughput_pack_sum(raw_preds, pack_ids)
         else:
             ret = np.random.uniform(0, 1, (len(states),))
 
@@ -155,18 +184,51 @@ class XGBModel(PythonBasedModel):
         return ret
 
     def predict_stages(self, task, states):
-        # Format: (s0 score, ..., sN score, s0 n_stage, s0 stage 0, ..., s1 n_stage, s1 stage 0,)
+        """Predict the scores of all stages in states. This is the breakdown version of `predict`.
+
+        Parameters
+        ----------
+        search_task : SearchTask
+            The search task of states
+        statse : List[State]
+            The input states
+
+        Returns
+        -------
+        scores: List[float]
+            The predicted scores for all stages in all states in the packed format
+
+        Note
+        ----
+        For faster data copy between c++ and python, the python part returns scores in a
+        single flatten array using a packed format. The c++ part then unpacks the flatten array.
+
+        The packed format is:
+        {
+          float  scores[N];                 // scores[i] is the score for states[i].
+          int    n_stage_0;                 // the number of stages in states[0]
+          float  stage_scores_0[[n_stage_0] // the scores for all stages in states[0]
+          int    n_stage_1;                 // the number of stages in states[1]
+          float  stage_scores_1[n_stage_1]; // the scores for all stages in states[1]
+          ...
+          int    n_stage_i;                 // the number of stages in states[i]
+          float  stage_scores_1[n_stage_i]; // the scores for all stages in states[i]
+          ...  // untill i == N - 1
+        }
+        To implement this format, we also store int as float, so we can store all numbers
+        into a single float array.
+        """
         features = get_per_store_features_from_states(states, task)
         if self.bst is not None and len(self.inputs) > self.num_warmup_sample:
-            dtest, pack_ids = pack_sum_xgbmatrix_for_prediction(features)
+            dtest, pack_ids = feature_to_pack_sum_xgbmatrix(features)
             raw_preds = self.bst.predict(dtest)
-            breakdown = pack_sum_predict_throughput(raw_preds, pack_ids)
+            breakdown = predict_throughput_pack_sum(raw_preds, pack_ids)
             stage_scores = [[] for _ in range(len(states))]
             for pred, pack_id in zip(raw_preds, pack_ids):
                 stage_scores[pack_id].append(pred)
             for idx, stage_score in enumerate(stage_scores):
                 breakdown = np.append(breakdown, len(stage_score))
-                breakdown = np.concatenate((breakdown, -np.array(stage_score)))
+                breakdown = np.concatenate((breakdown, np.array(stage_score)))
         else:
             breakdown = np.concatenate(
                 (np.random.uniform(0, 1, (len(states), )), np.zeros(len(states), )))
@@ -178,22 +240,59 @@ class XGBModel(PythonBasedModel):
 
         return breakdown
 
-    def load_log_file(self, file_name, n_lines=-1):
-        inputs, results = LogReader(file_name).read_lines(n_lines)
+    def load_log_file(self, file_name, n_lines=None):
+        """Load measure records from a log file to pre-train the cost model
+
+        Parameters
+        ----------
+        file_name: str
+            The filename
+        n_lines: int
+            Only
+        """
+        inputs, results = RecordReader(file_name).read_lines(n_lines)
         logger.info("XGBModel: Loaded %s measurement records from %s", len(inputs), file_name)
         self.update(inputs, results)
 
     def save(self, file_name: str):
+        """Save the model to a file
+
+        Parameters
+        ----------
+        file_name: str
+            The filename
+        """
         self.bst.save_model(file_name)
 
     def load(self, file_name: str):
+        """Load the model from a file
+
+        Parameters
+        ----------
+        file_name: str
+            The filename
+        """
         if self.bst is None:
             self.bst = xgb.Booster(self.xgb_params)
         self.bst.load_model(file_name)
         self.num_warmup_sample = -1
 
 
-def pack_sum_xgbmatrix_for_prediction(xs):
+def feature_to_pack_sum_xgbmatrix(xs):
+    """Convert an extracted multi-stage feature vector to a xgbmatrx in pack-sum format
+
+    Parameters
+    ----------
+    xs: np.ndarray
+        The feature vector
+
+    Returns
+    -------
+    dmatrix: xgb.DMatrix
+        The DMatrix
+    pack_ids: List[int]
+        pack ids information
+    """
     x_flatten = []
     pack_ids = []
 
@@ -206,6 +305,24 @@ def pack_sum_xgbmatrix_for_prediction(xs):
 
 
 def pack_sum_xgbmatrix(xs, ys, gids=None, weights=None):
+    """Convert (feature, label) pairs into a xgb matrix with pack-sum format
+
+    Parameters
+    ----------
+    xs: np.ndarray
+        The feature vector
+    ys: np.ndarray
+        The normaizlied throughput
+    gids: Optional[List[int]]
+        Group id (task id)
+    weights: Optional[np.ndarray]
+        The weight of samples
+
+    Returns
+    -------
+    dmatrix: xgb.DMatrix
+        The DMatrix with pack-sum information
+    """
     if gids is not None:
         # sort by group
         indices = gids.argsort()
@@ -243,106 +360,103 @@ def pack_sum_xgbmatrix(xs, ys, gids=None, weights=None):
     dmatrix_context.set('group_sizes', ret, group_sizes)
     return ret
 
-LOSS_TYPE = 3
 
-# Type 0
-# The model predicts cost. Use square error of throughput as loss
-# loss = 1/2 * (1 / sum(x_i) - y) ^ 2
-#
-# Type 1
-# The model predicts cost. Use square error of cost as loss
-# loss = 1/2 * (sum(x_i) - 1 / y) ^ 2
-#
-# Type 2
-# The model predicts throughput. Use square error of throughput as loss.
-# loss = 1/2 * (1 / sum(1 / x_i) - y) ^ 2
-#
-# Type 3
-# The model predicts throughput. Use square error of throughput as loss.
-# But approximate 1 / (1 / a_1 + 1 / a_2 + ... + 1 / a_n) with -(b_1 + b_2 + b_3)
-# loss = 1/2 * (-sum(x_i) - y) ^ 2
-#
-# Type 4
-# The model predicts throughput. Use square error of throughput as loss.
-# But approximate 1 / (1 / a_1 + 1 / a_2 + ... + 1 / a_n) with -(b_1 + b_2 + b_3)
-# Also add a sigmoid to force the prediction to be within the range of (0, 1)
-# loss = 1/2 * (sigmoid(-sum(x_i)) - y) ^ 2
-#
+def predict_throughput_pack_sum(raw_preds, pack_ids):
+    """Predict the throughputs for predictions in pack-sum format
 
-def pack_sum_predict_throughput(raw_preds, pack_ids):
-    if LOSS_TYPE == 0:
-        sum_pred = np.bincount(pack_ids, weights=raw_preds)
-        return 1 / sum_pred
-    elif LOSS_TYPE == 1:
-        sum_pred = np.bincount(pack_ids, weights=raw_preds)
-        return 1 / sum_pred
-    elif LOSS_TYPE == 2:
-        sum_inverse_preds = np.bincount(pack_ids, weights=1 / raw_preds)
-        return 1 / sum_inverse_preds
-    elif LOSS_TYPE == 3:
-        sum_pred = np.bincount(pack_ids, weights=raw_preds)
-        return - sum_pred # pylint: disable=invalid-unary-operand-type
-    elif LOSS_TYPE == 4:
-        sum_pred = np.bincount(pack_ids, weights=raw_preds)
-        return 1 / (1 + np.exp(sum_pred))
-    else:
-        raise ValueError("Invalid loss type: " + LOSS_TYPE)
+    Parameters
+    ----------
+    raw_preds: np.ndarray
+        The raw predictions
+    pack_ids: List[int]
+        The pack id for predictions
+
+    Returns
+    -------
+    throughputs: np.ndarray
+        The throughput
+    """
+    sum_pred = np.bincount(pack_ids, weights=raw_preds)
+    return sum_pred
 
 def pack_sum_square_error(preds, dtrain):
+    """Implement square error loss on pack-sum format as
+     a custom objective function for xgboost.
+
+    Parameters
+    ----------
+    preds: np.ndarray
+        The predicitons
+    dtrain: xgb.DMatrix
+        The training set
+
+    Returns
+    -------
+    gradient and hessian
+    """
     pack_ids = dmatrix_context.get("pack_ids", dtrain)
     weight = dtrain.get_weight()
 
-    if LOSS_TYPE == 0:
-        sum_pred = np.bincount(pack_ids, weights=preds)
-        x = sum_pred[pack_ids]
-        y = dtrain.get_label()
-        gradient = (x * y - 1) / np.power(x, 3)
-        hessian = (3 - 2 * x * y) / np.power(x, 4)
-    elif LOSS_TYPE == 1:
-        sum_pred = np.bincount(pack_ids, weights=preds)
-        x = sum_pred[pack_ids]
-        y = dtrain.get_label()
-        gradient = x - 1 / np.minimum(y, 1e6)
-        hessian = np.ones_like(gradient)
-    elif LOSS_TYPE == 2:
-        sum_inverse_preds = np.bincount(pack_ids, weights=1 / preds)[pack_ids]
-        y = dtrain.get_label()
-        gradient = (1 / sum_inverse_preds - y) / (np.power(preds * sum_inverse_preds, 2))
-        hessian = (2 * preds * y * np.power(sum_inverse_preds, 2) - 2 * y * sum_inverse_preds - 2 * preds * sum_inverse_preds + 3) / (np.power(preds * sum_inverse_preds, 4))
-    elif LOSS_TYPE == 3:
-        sum_pred = np.bincount(pack_ids, weights=preds)
-        x = sum_pred[pack_ids]
-        y = dtrain.get_label()
-        gradient = x + y
-        hessian = np.ones_like(gradient)
-    elif LOSS_TYPE == 4:
-        sum_pred = np.bincount(pack_ids, weights=preds)
-        exp_x = np.exp(sum_pred[pack_ids])
-        exp_2x = np.power(exp_x, 2)
-        y = dtrain.get_label()
-        gradient = exp_x * (exp_x * y + y - 1) / np.power(exp_x + 1, 3)
-        hessian = exp_x * (-exp_2x * y + 2 * exp_x + y - 1) / np.power(exp_x + 1, 4)
-    else:
-        raise ValueError("Invalid loss type: " + LOSS_TYPE)
+    sum_pred = np.bincount(pack_ids, weights=preds)
+    x = sum_pred[pack_ids]
+    y = dtrain.get_label()
+    gradient = x - y
+    hessian = np.ones_like(gradient)
 
     if len(weight) == 0:
         return gradient, hessian
     else:
         return gradient * weight, hessian * weight
 
-def pack_sum_rmse(raw_preds, dtrain):
-    pack_ids = dmatrix_context.get("pack_ids", dtrain)
-    preds = pack_sum_predict_throughput(raw_preds, pack_ids)[pack_ids]
-    return 'p-rmse', np.sqrt(np.mean(np.square((preds - dtrain.get_label()))))
+def pack_sum_rmse(raw_preds, labels):
+    """Evaluate RMSE (rooted mean square error) in the pack-sum format
+
+    Parameters
+    ----------
+    raw_preds: np.ndarray
+        The raw prediction
+    labels: xgb.DMatrix
+        The groud-truth label matrix
+
+    Returns
+    -------
+    The name and value of the metric
+    """
+    pack_ids = dmatrix_context.get("pack_ids", labels)
+    preds = predict_throughput_pack_sum(raw_preds, pack_ids)[pack_ids]
+    return 'p-rmse', np.sqrt(np.mean(np.square((preds - labels.get_label()))))
 
 def pack_sum_average_peak_score(N):
-    """Evaluate pack sum average peak score for xgb"""
+    """Return the evaluation function for average-peak-score@N
+
+    Parameters
+    ----------
+    N: int
+        The "N" in "average-peak-score@N"
+
+    Returns
+    -------
+    The evaluation function
+    """
 
     def feval(preds, labels):
+        """Evaluate average-peak-score@N in the pack-sum format
+
+        Parameters
+        ----------
+        raw_preds: np.ndarray
+            The raw prediction
+        labels: xgb.DMatrix
+            The groud-truth label matrix
+
+        Returns
+        -------
+        The name and value of the metric
+        """
         group_sizes = dmatrix_context.get('group_sizes', labels, [len(preds)])
         pack_ids = dmatrix_context.get("pack_ids", labels)
 
-        preds = pack_sum_predict_throughput(preds, pack_ids)
+        preds = predict_throughput_pack_sum(preds, pack_ids)
         labels = (np.bincount(pack_ids, weights=labels.get_label())
                   / np.unique(pack_ids, return_counts=True)[1])
 
@@ -358,31 +472,6 @@ def pack_sum_average_peak_score(N):
             curve = max_curve(trial_scores) / np.max(labels_group)
             scores.append(np.mean(curve))
         return "a-peak@%d" % N, np.mean(scores)
-    return feval
-
-def pack_sum_average_recall_score(N):
-    """Evaluate average recall score for xgb"""
-
-    def feval(preds, labels):
-        group_sizes = dmatrix_context.get('group_sizes', labels, [len(preds)])
-        pack_ids = dmatrix_context.get("pack_ids", labels)
-
-        preds = pack_sum_predict_throughput(preds, pack_ids)
-        labels = (np.bincount(pack_ids, weights=labels.get_label())
-                  / np.unique(pack_ids, return_counts=True)[1])
-
-        scores = []
-        offset = 0
-        for size in group_sizes:
-            preds_group = preds[offset:offset + size]
-            labels_group = labels[offset:offset + size]
-            offset += size
-
-            trials = np.argsort(preds_group)[::-1]
-            ranks = get_rank(labels_group[trials])[:N]
-            curve = recall_curve(ranks)
-            scores.append(np.mean(curve))
-        return "a-recall@%d" % N, np.mean(scores)
     return feval
 
 
