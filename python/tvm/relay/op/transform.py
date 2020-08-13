@@ -376,8 +376,12 @@ def full(fill_value, shape=(), dtype=""):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Expr):
+        return _dyn_make.full(fill_value, shape, dtype)
+    if isinstance(shape, int):
+        shape = [shape]
     if isinstance(shape, (list, tuple)):
-        shape = const(list(shape), "int32")
+        shape = list(shape)
     return _make.full(fill_value, shape, dtype)
 
 
