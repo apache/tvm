@@ -1288,18 +1288,6 @@ class Map : public ObjectRef {
     return *this;
   }
   /*!
-   * \brief Merge two Maps.
-   * \param lhs the first Map to merge.
-   * \param rhs the second Map to merge.
-   * @return The merged Array. Original Maps are kept unchanged.
-   */
-  static Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
-    for (const auto& p : rhs) {
-      lhs.Set(p.first, p.second);
-    }
-    return std::move(lhs);
-  }
-  /*!
    * \brief constructor from pointer
    * \param n the container pointer
    */
@@ -1438,6 +1426,22 @@ class Map : public ObjectRef {
   /*! \brief Return data_ as type of pointer of MapNode */
   MapNode* GetMapNode() const { return static_cast<MapNode*>(data_.get()); }
 };
+
+/*!
+ * \brief Merge two Maps.
+ * \param lhs the first Map to merge.
+ * \param rhs the second Map to merge.
+ * @return The merged Array. Original Maps are kept unchanged.
+ */
+template <typename K, typename V,
+          typename = typename std::enable_if<std::is_base_of<ObjectRef, K>::value>::type,
+          typename = typename std::enable_if<std::is_base_of<ObjectRef, V>::value>::type>
+static Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
+  for (const auto& p : rhs) {
+    lhs.Set(p.first, p.second);
+  }
+  return std::move(lhs);
+}
 
 }  // namespace tvm
 

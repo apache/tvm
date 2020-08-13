@@ -742,7 +742,7 @@ arith::IntConstraintsTransform EliminateDivModFromDomainConditions(
   auto elim_res = EliminateDivMod(All(domain->relations), domain->ranges);
 
   Map<Var, Range> new_vranges = elim_res.ranges;
-  Array<Var> new_axis = Array<Var>::Concat(domain->variables, elim_res.new_variables);
+  Array<Var> new_axis = Concat(domain->variables, elim_res.new_variables);
   PrimExpr new_cond = elim_res.expr && All(elim_res.conditions);
 
   arith::IntConstraints new_domain(new_axis, new_vranges,
@@ -790,7 +790,7 @@ arith::IntConstraintsTransform SimplifyDomain(const arith::IntConstraints& iter_
 PrimExpr SimplifyReductionDomain(const PrimExpr& expr, const Map<Var, Range>& outer_vranges) {
   if (const ReduceNode* red = expr.as<ReduceNode>()) {
     Array<Var> vars = IterVarsToVars(red->axis);
-    Map<Var, Range> vranges = Map<Var, Range>::Merge(outer_vranges, IterVarsToMap(red->axis));
+    Map<Var, Range> vranges = Merge(outer_vranges, IterVarsToMap(red->axis));
     Array<PrimExpr> relations = FactorOutAtomicFormulas(red->condition).to_array();
 
     arith::IntConstraints domain(vars, vranges, relations);
@@ -854,7 +854,7 @@ std::pair<PrimExpr, PrimExpr> LiftConditionsThroughReduction(const PrimExpr& con
     allvars.push_back(v->var);
   }
 
-  auto vranges = Map<Var, Range>::Merge(IterVarsToMap(red_axis), IterVarsToMap(outer_axis));
+  auto vranges = Merge(IterVarsToMap(red_axis), IterVarsToMap(outer_axis));
   // start from reduction vars, so that input vars don't depend on them
   arith::IntConstraints ineq_to_solve(allvars, vranges, atomics);
   auto res_ineq = arith::SolveLinearInequalities(ineq_to_solve);
@@ -1065,8 +1065,8 @@ class ReductionAsTensorAccessMutator : public ExprMutator {
 
   PrimExpr VisitExpr_(const ReduceNode* op) final {
     ReductionAsTensorAccessMutator new_mutator(
-        Array<Var>::Concat(IterVarsToVars(op->axis), outer_axis_),
-        Map<Var, Range>::Merge(vranges_, IterVarsToMap(op->axis)), name_);
+        Concat(IterVarsToVars(op->axis), outer_axis_),
+        Merge(vranges_, IterVarsToMap(op->axis)), name_);
 
     Array<PrimExpr> new_source;
     for (const PrimExpr& src : op->source) {
@@ -1125,8 +1125,8 @@ inline PrimExpr ReductionAsTensorAccess(const PrimExpr& expr, const Array<Var>& 
 PrimExpr LiftReductions(const PrimExpr& expr, const Array<Var>& outer_axis,
                         const Map<Var, Range>& vranges) {
   if (const ReduceNode* red = expr.as<ReduceNode>()) {
-    Array<Var> new_outer_axis = Array<Var>::Concat(IterVarsToVars(red->axis), outer_axis);
-    Map<Var, Range> new_vranges = Map<Var, Range>::Merge(vranges, IterVarsToMap(red->axis));
+    Array<Var> new_outer_axis = Concat(IterVarsToVars(red->axis), outer_axis);
+    Map<Var, Range> new_vranges = Merge(vranges, IterVarsToMap(red->axis));
     Array<PrimExpr> new_source;
     for (const PrimExpr& src : red->source) {
       new_source.push_back(ReductionAsTensorAccess(src, new_outer_axis, new_vranges));
@@ -1142,7 +1142,7 @@ PrimExpr LiftReductions(const PrimExpr& expr, const Array<Var>& outer_axis,
 PrimExpr RemoveJacobianAndLiftNonzeroCondImpl(const PrimExpr& expr_orig, const Array<IterVar>& axis,
                                               const Map<Var, Range>& vranges) {
   PrimExpr result;
-  Map<Var, Range> combined_vranges = Map<Var, Range>::Merge(vranges, IterVarsToMap(axis));
+  Map<Var, Range> combined_vranges = Merge(vranges, IterVarsToMap(axis));
   arith::Analyzer analyzer;
   analyzer.Bind(combined_vranges);
 

@@ -848,19 +848,6 @@ class Array : public ObjectRef {
   // Array's own methods
 
   /*!
-   * \brief Concat two Arrays.
-   * \param lhs first Array to be concatenated.
-   * \param rhs second Array to be concatenated.
-   * \return The concatenated Array. Original Arrays are kept unchanged.
-   */
-  static Array<T> Concat(Array<T> lhs, const Array<T>& rhs) {
-    for (const auto& x : rhs) {
-      lhs.push_back(x);
-    }
-    return std::move(lhs);
-  }
-
-  /*!
    * \brief set i-th element of the array.
    * \param i The index
    * \param value The value to be setted.
@@ -1008,6 +995,21 @@ class Array : public ObjectRef {
     return static_cast<ArrayNode*>(data_.get());
   }
 };
+
+/*!
+ * \brief Concat two Arrays.
+ * \param lhs first Array to be concatenated.
+ * \param rhs second Array to be concatenated.
+ * \return The concatenated Array. Original Arrays are kept unchanged.
+ */
+template <typename T,
+          typename = typename std::enable_if<std::is_base_of<ObjectRef, T>::value>::type>
+static Array<T> Concat(Array<T> lhs, const Array<T>& rhs) {
+  for (const auto& x : rhs) {
+    lhs.push_back(x);
+  }
+  return std::move(lhs);
+}
 
 // Specialize make_object<ArrayNode> to make sure it is correct.
 template <>
