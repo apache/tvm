@@ -424,7 +424,7 @@ static inline Array<Integer> ToVector(const runtime::NDArray& array) {
   Array<Integer> out;
   for (size_t i = 0; i < len; ++i) {
     long double elem_val = ToScalar(array, i);
-    out.push_back(Integer(IntImm(DataType::Int(64), static_cast<int64_t>(elem_val))));
+    out.push_back(Integer(IntImm(DataType::Int(32), static_cast<int64_t>(elem_val))));
   }
   return out;
 }
