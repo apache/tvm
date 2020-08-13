@@ -26,7 +26,7 @@ _reg.register_broadcast_schedule("dyn.broadcast_to")
 _reg.register_injective_schedule("dyn.reshape")
 _reg.register_broadcast_schedule("dyn.tile")
 _reg.register_injective_schedule("dyn.one_hot")
-
+_reg.register_injective_schedule("dyn.full")
 
 @script
 def _reshape_shape_func_input_data(data, newshape, ndim):

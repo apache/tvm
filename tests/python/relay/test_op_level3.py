@@ -460,6 +460,7 @@ def test_full():
                 op_res = intrp.evaluate(func)(np.array(fill_value, dtype))
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
     verify_full(4, (1, 3, 4, 4), "int32")
+    #verify_full(4, (1, 3, 4, 4), "int64") # This does not pass, python int32 is not upcast to int64, not sure how to fix it.
     verify_full(4.0, (1, 4), "float32")
 
 
