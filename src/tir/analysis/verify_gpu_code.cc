@@ -35,9 +35,10 @@ namespace tir {
 
 class GPUCodeVerifier : public StmtExprVisitor {
  public:
-   std::vector<String> Verify(Stmt stmt, int64_t max_local_memory_per_block, int64_t max_shared_memory_per_block,
-              int64_t max_threads_per_block, int64_t max_thread_x, int64_t max_thread_y,
-              int64_t max_thread_z, int64_t max_vthread, int64_t max_vector_bytes) {
+  std::vector<String> Verify(Stmt stmt, int64_t max_local_memory_per_block,
+                             int64_t max_shared_memory_per_block, int64_t max_threads_per_block,
+                             int64_t max_thread_x, int64_t max_thread_y, int64_t max_thread_z,
+                             int64_t max_vthread, int64_t max_vector_bytes) {
     max_local_memory_per_block_ = static_cast<size_t>(max_local_memory_per_block);
     max_shared_memory_per_block_ = static_cast<size_t>(max_shared_memory_per_block);
     max_threads_per_block_ = static_cast<size_t>(max_threads_per_block);
@@ -66,9 +67,11 @@ class GPUCodeVerifier : public StmtExprVisitor {
       shared_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     }
     if (op->dtype.lanes() > 1) {
-      if(static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
+      if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
         std::stringstream s;
-        s << "Number of lanes (" << op->dtype.lanes() << ") times number of bytes (" << op->dtype.bytes() << ") for dtype " << op->dtype << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
+        s << "Number of lanes (" << op->dtype.lanes() << ") times number of bytes ("
+          << op->dtype.bytes() << ") for dtype " << op->dtype
+          << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
     }
@@ -105,12 +108,13 @@ class GPUCodeVerifier : public StmtExprVisitor {
           auto err = [this](std::string id, size_t ext, size_t m) {
             if (ext > m) {
               std::stringstream s;
-              s << "Extent of " << id << " (" << ext << ") is greater than maximum allowed (" << m << ");";
+              s << "Extent of " << id << " (" << ext << ") is greater than maximum allowed (" << m
+                << ");";
               errors_.push_back(s.str());
             }
           };
 
-          if(name == "threadIdx.x") {
+          if (name == "threadIdx.x") {
             err("threadIdx.x", length, max_thread_x_);
             thread_x_extent_ = length;
           } else if (name == "threadIdx.y") {
@@ -146,7 +150,8 @@ class GPUCodeVerifier : public StmtExprVisitor {
         auto err = [this](std::string id, size_t num, size_t m) {
           if (num > m) {
             std::stringstream s;
-            s << "Used " << id << " (" << num << ") is greater than the allowed maximum (" << m << ")";
+            s << "Used " << id << " (" << num << ") is greater than the allowed maximum (" << m
+              << ")";
             errors_.push_back(s.str());
           }
         };
@@ -167,7 +172,8 @@ class GPUCodeVerifier : public StmtExprVisitor {
       size_t num_vthread = static_cast<size_t>(extent->value);
       if (num_vthread > max_vthread_) {
         std::stringstream s;
-        s << "Number of vthreads (" << num_vthread << ") is greater than the allowed maximum (" << max_vthread_ << ")";
+        s << "Number of vthreads (" << num_vthread << ") is greater than the allowed maximum ("
+          << max_vthread_ << ")";
         errors_.push_back(s.str());
       }
     }
@@ -177,9 +183,11 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
   void VisitExpr_(const LoadNode* op) {
     if (op->dtype.lanes() > 1) {
-      if(static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
+      if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
         std::stringstream s;
-        s << "Number of lanes (" << op->dtype.lanes() << ") times number of bytes (" << op->dtype.bytes() << ") for dtype " << op->dtype << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
+        s << "Number of lanes (" << op->dtype.lanes() << ") times number of bytes ("
+          << op->dtype.bytes() << ") for dtype " << op->dtype
+          << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
     }
@@ -188,9 +196,12 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
   void VisitStmt_(const StoreNode* op) {
     if (op->index->dtype.lanes() > 1) {
-      if(static_cast<size_t>(op->index->dtype.lanes() * op->index->dtype.bytes()) > max_vector_bytes_) {
+      if (static_cast<size_t>(op->index->dtype.lanes() * op->index->dtype.bytes()) >
+          max_vector_bytes_) {
         std::stringstream s;
-        s << "Number of lanes (" << op->index->dtype.lanes() << ") times number of bytes (" << op->index->dtype.bytes() << ") for dtype " << op->index->dtype << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
+        s << "Number of lanes (" << op->index->dtype.lanes() << ") times number of bytes ("
+          << op->index->dtype.bytes() << ") for dtype " << op->index->dtype
+          << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
     }
@@ -286,10 +297,12 @@ Pass VerifyGPUCode(Map<String, PrimExpr> constraints) {
         auto errs = VerifyGPUCode_(func, constraints);
         if (errs.size() != 0) {
           std::stringstream s;
-          for(auto& err : errs) {
+          for (auto& err : errs) {
             s << "    " << err << std::endl;
           }
-          LOG(FATAL) << "RuntimeError: GPU constraint(s) violated:\n" << s.str() << "  In function\n" << func;
+          LOG(FATAL) << "RuntimeError: GPU constraint(s) violated:\n"
+                     << s.str() << "  In function\n"
+                     << func;
         }
       }
     }
