@@ -1004,7 +1004,7 @@ class Array : public ObjectRef {
  */
 template <typename T,
           typename = typename std::enable_if<std::is_base_of<ObjectRef, T>::value>::type>
-static Array<T> Concat(Array<T> lhs, const Array<T>& rhs) {
+inline Array<T> Concat(Array<T> lhs, const Array<T>& rhs) {
   for (const auto& x : rhs) {
     lhs.push_back(x);
   }

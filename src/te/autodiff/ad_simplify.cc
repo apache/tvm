@@ -1064,9 +1064,8 @@ class ReductionAsTensorAccessMutator : public ExprMutator {
       : outer_axis_(outer_axis), vranges_(std::move(vranges)), name_(std::move(name)) {}
 
   PrimExpr VisitExpr_(const ReduceNode* op) final {
-    ReductionAsTensorAccessMutator new_mutator(
-        Concat(IterVarsToVars(op->axis), outer_axis_),
-        Merge(vranges_, IterVarsToMap(op->axis)), name_);
+    ReductionAsTensorAccessMutator new_mutator(Concat(IterVarsToVars(op->axis), outer_axis_),
+                                               Merge(vranges_, IterVarsToMap(op->axis)), name_);
 
     Array<PrimExpr> new_source;
     for (const PrimExpr& src : op->source) {

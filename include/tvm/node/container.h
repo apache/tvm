@@ -1436,7 +1436,7 @@ class Map : public ObjectRef {
 template <typename K, typename V,
           typename = typename std::enable_if<std::is_base_of<ObjectRef, K>::value>::type,
           typename = typename std::enable_if<std::is_base_of<ObjectRef, V>::value>::type>
-static Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
+inline Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
   for (const auto& p : rhs) {
     lhs.Set(p.first, p.second);
   }
