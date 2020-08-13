@@ -2555,7 +2555,7 @@ def test_forward_sparse_to_dense():
 # Fully Connected
 # ---------------
 
-def _test_fully_connected(tensor_in_sizes, wrap_input, filter_in_sizes, bias_in_size=None):
+def _test_fully_connected(tensor_in_sizes, const_input, filter_in_sizes, bias_in_size=None):
     """ One iteration of fully connected """
 
     total_size_1 = np.prod( tensor_in_sizes )
@@ -2571,9 +2571,9 @@ def _test_fully_connected(tensor_in_sizes, wrap_input, filter_in_sizes, bias_in_
 
     with tf.Graph().as_default():
         in_name="input"
-        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype=np.float32, name=in_name) \
-            if wrap_input \
-            else constant_op.constant(data_array, shape=tensor_in_sizes, dtype=np.float32, name=in_name)
+        in_data = constant_op.constant(data_array, shape=tensor_in_sizes, dtype=np.float32, name=in_name) \
+            if const_input \
+            else array_ops.placeholder(shape=tensor_in_sizes, dtype=np.float32, name=in_name)
 
         in_filter = constant_op.constant(filter_array, shape=filter_in_sizes, dtype=np.float32)
 
@@ -2591,18 +2591,18 @@ def _test_fully_connected(tensor_in_sizes, wrap_input, filter_in_sizes, bias_in_
 
         data_array = np.reshape(data_array, tensor_in_sizes).astype(np.float32)
         compare_tflite_with_tvm(data_array,
-                                in_data.name if wrap_input else [],
+                                [] if const_input else in_data.name,
                                 [in_data],
                                 [out])
 
 
 def test_forward_fully_connected():
     """ Fully Connected """
-    for wrap in [False, True]:
-        _test_fully_connected([1, 1, 1, 150], wrap, [150, 100])
-        _test_fully_connected([1, 1, 1, 150], wrap, [150, 100], [100])
-        _test_fully_connected([5, 1, 1, 150], wrap, [150, 100])
-        _test_fully_connected([5, 1, 1, 150], wrap, [150, 100], [100])
+    for const_input in [False, True]:
+        _test_fully_connected([1, 1, 1, 150], const_input, [150, 100])
+        _test_fully_connected([1, 1, 1, 150], const_input, [150, 100], [100])
+        _test_fully_connected([5, 1, 1, 150], const_input, [150, 100])
+        _test_fully_connected([5, 1, 1, 150], const_input, [150, 100], [100])
 
 
 #######################################################################
