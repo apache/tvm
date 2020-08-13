@@ -162,22 +162,23 @@ def verify_partition(mod, params):
 
 
 def test_add_partition():
-    func = relay.fromtext("""
-    v0.0.4
-    fn (%x: Tensor[(10, 10), float32],
+    mod = tvm.parser.parse("""
+    #[version = "0.0.5"]
+    def @main(
+        %x: Tensor[(10, 10), float32],
         %y: Tensor[(10, 10), float32]) {
       add(%x, %y)
     }
     """)
-    mod = tvm.IRModule.from_expr(func)
     params = {}
     verify_partition_fails(mod, params)
 
 
 def test_conv2d_partition():
-    func = relay.fromtext("""
-    v0.0.4
-    fn (%x: Tensor[(1, 4, 16, 16), float32],
+    mod = tvm.parser.parse("""
+    #[version = "0.0.5"]
+    def @main(
+        %x: Tensor[(1, 4, 16, 16), float32],
         %w: Tensor[(4, 4, 3, 3), float32]) -> Tensor[(1, 4, 16, 16), float32] {
       nn.conv2d(%x, %w,
         padding=[1, 1, 1, 1],
@@ -185,7 +186,6 @@ def test_conv2d_partition():
         kernel_size=[3, 3])
     }
     """)
-    mod = tvm.IRModule.from_expr(func)
     weight_ty = mod['main'].params[1].checked_type
     params = {
         'w': gen_rand_tvm(weight_ty, 0, 1)
@@ -194,9 +194,10 @@ def test_conv2d_partition():
 
 
 def test_multiple_arg_conversions_partition():
-    mod = tvm.IRModule.from_expr(relay.fromtext("""
-    v0.0.4
-    fn (%x1: Tensor[(1, 4, 16, 16), float32],
+    mod = tvm.parser.parse("""
+    #[version = "0.0.5"]
+    def @main(
+        %x1: Tensor[(1, 4, 16, 16), float32],
         %w1: Tensor[(4, 4, 3, 3), float32],
         %x2: Tensor[(1, 4, 16, 16), float32],
         %w2: Tensor[(4, 4, 3, 3), float32]
@@ -211,7 +212,7 @@ def test_multiple_arg_conversions_partition():
         kernel_size=[3, 3]);
       add(%0, %1)
     }
-    """))
+    """)
 
     w1_ty = mod['main'].params[1].checked_type
     w2_ty = mod['main'].params[3].checked_type
@@ -223,9 +224,10 @@ def test_multiple_arg_conversions_partition():
 
 
 def test_unquantizable_prefix_partition():
-    func = relay.fromtext("""
-    v0.0.4
-    fn (%x: Tensor[(1, 4, 16, 16), float32],
+    mod = tvm.parser.parse("""
+    #[version = "0.0.5"]
+    def @main(
+        %x: Tensor[(1, 4, 16, 16), float32],
         %b: Tensor[(4), float32],
         %w: Tensor[(4, 4, 3, 3), float32]) -> Tensor[(1, 4, 16, 16), float32] {
       // NOTE bias_add isn't currently quantizable
@@ -236,7 +238,6 @@ def test_unquantizable_prefix_partition():
         kernel_size=[3, 3])
     }
     """)
-    mod = tvm.IRModule.from_expr(func)
     bias_ty = mod['main'].params[1].checked_type
     weight_ty = mod['main'].params[2].checked_type
     params = {
@@ -247,9 +248,10 @@ def test_unquantizable_prefix_partition():
 
 
 def test_unquantizable_core_partition():
-    func = relay.fromtext("""
-    v0.0.4
-    fn (%x1: Tensor[(1, 4, 16, 16), float32],
+    mod = tvm.parser.parse("""
+    #[version = "0.0.5"]
+    def @main(
+        %x1: Tensor[(1, 4, 16, 16), float32],
         %w1: Tensor[(4, 4, 3, 3), float32],
         %b: Tensor[(4), float32],
         %w2: Tensor[(4, 4, 3, 3), float32]) -> Tensor[(1, 4, 16, 16), float32] {
@@ -265,7 +267,6 @@ def test_unquantizable_core_partition():
         kernel_size=[3, 3])
     }
     """)
-    mod = tvm.IRModule.from_expr(func)
     w1_ty = mod['main'].params[1].checked_type
     bias_ty = mod['main'].params[2].checked_type
     w2_ty = mod['main'].params[3].checked_type
@@ -278,9 +279,10 @@ def test_unquantizable_core_partition():
 
 
 def test_unquantizable_suffix_partition():
-    func = relay.fromtext("""
-    v0.0.4
-    fn (%x: Tensor[(1, 4, 16, 16), float32],
+    mod = tvm.parser.parse("""
+    #[version = "0.0.5"]
+    def @main(
+        %x: Tensor[(1, 4, 16, 16), float32],
         %w: Tensor[(4, 4, 3, 3), float32],
         %b: Tensor[(4), float32]) -> Tensor[(1, 4, 16, 16), float32] {
       %0 = nn.conv2d(%x, %w,
@@ -291,7 +293,6 @@ def test_unquantizable_suffix_partition():
       nn.bias_add(%0, %b)
     }
     """)
-    mod = tvm.IRModule.from_expr(func)
     weight_ty = mod['main'].params[1].checked_type
     bias_ty = mod['main'].params[2].checked_type
     params = {
