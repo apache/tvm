@@ -63,6 +63,7 @@ static InitChangeComputeLocation init_change_compute_location;
 static InitParallel init_parallel;
 static InitUnroll init_unroll;
 static InitVectorization init_vectorization;
+static InitThreadBind init_thread_bind;
 
 /********** Sketch policy **********/
 
@@ -122,7 +123,8 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
     node->init_rules.push_back(&init_vectorization);
   } else if (IsCUDATask(node->search_task)) {
     // The default init population rules for CUDA policy
-    // ddd
+    node->init_rules.push_back(&init_thread_bind);
+    node->init_rules.push_back(&init_unroll);
   } else {
     LOG(FATAL) << "No default init rules for target: " << task->target;
   }

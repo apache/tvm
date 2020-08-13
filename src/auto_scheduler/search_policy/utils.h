@@ -535,6 +535,32 @@ inline State FuseAllReductionIterators(const State& state, int stage_id, Iterato
   return tmp_s;
 }
 
+/*! \brief Fuse all outer level space iterators. */
+inline State FuseAllOuterSpaceIterators(const State& state, int stage_id, Iterator* fused_iter) {
+  std::vector<Iterator> to_fuse;
+  for (size_t iter_id = 0; iter_id < state->stages[stage_id]->iters.size(); ++iter_id) {
+    const auto& it = state->stages[stage_id]->iters[iter_id];
+    // Stop at reduce iterator or annotated iterator
+    if (it->iter_kind == IteratorKind::kReduction || it->annotation != IteratorAnnotation::kNone) {
+      break;
+    }
+    // Stop at compute_at attach point
+    if (state->attach_map->iter_to_attached_stages.count(std::make_pair(stage_id, iter_id - 1))) {
+      break;
+    }
+    to_fuse.push_back(it);
+  }
+
+  CHECK(!to_fuse.empty());
+  State tmp_s = state;
+  if (to_fuse.size() > 1) {
+    *fused_iter = tmp_s.fuse(stage_id, to_fuse);
+  } else {
+    *fused_iter = to_fuse[0];
+  }
+  return tmp_s;
+}
+
 /*! \brief Random sample states. */
 inline Array<State> RandomSampleStates(const Array<State>& in_states, std::mt19937* random_gen,
                                        size_t out_size) {
@@ -574,6 +600,8 @@ class SplitFactorizationMemo {
   Array<Array<Integer>>* results_;
   std::unordered_map<int, std::vector<int>> factor_memory_;
 };
+
+Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id);
 
 // Apply multi-level tiling structure according to a string format,
 // where "S" stands a space level, "R" stands for a reudciton level.

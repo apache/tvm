@@ -159,6 +159,9 @@ DEFINE_INIT_POPULATION_RULE(InitUnroll);
 /*! \brief The rule that annotates vectorization. */
 DEFINE_INIT_POPULATION_RULE(InitVectorization);
 
+/*! \brief The rule that annotates thread binding for GPU. */
+DEFINE_INIT_POPULATION_RULE(InitThreadBind);
+
 }  // namespace auto_scheduler
 }  // namespace tvm
 

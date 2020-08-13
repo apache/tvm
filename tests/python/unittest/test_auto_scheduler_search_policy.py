@@ -107,6 +107,20 @@ def test_sketch_search_policy_basic():
     t.join()
 
 
+def test_sketch_search_policy_cuda_rpc_runner():
+    if not tvm.runtime.enabled("llvm"):
+        return
+    measure_ctx = auto_scheduler.LocalRPCMeasureContext()
+    # wrap the search in a new thread to avoid the conflict
+    # between python's multiprocessing and tvm's thread pool
+    t = PropagatingThread(target=search_common,
+                          kwargs={'seed': 944563397, 'search_policy': 'sketch', 'target': 'cuda',
+                                  'runner': measure_ctx.runner})
+    t.start()
+    t.join()
+
+
 if __name__ == "__main__":
     test_workload_registry_search_basic()
     test_sketch_search_policy_basic()
+    test_sketch_search_policy_cuda_rpc_runner()
