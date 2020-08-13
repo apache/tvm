@@ -23,6 +23,9 @@
  * \brief Header of the upsampling file for methods that need to be accessed by multiple files
  */
 
+#ifndef TVM_RELAY_OP_DYN_NN_UPSAMPLING_H_
+#define TVM_RELAY_OP_DYN_NN_UPSAMPLING_H_
+
 namespace tvm {
 namespace relay {
 
@@ -33,4 +36,6 @@ Array<Array<Layout> > UpsamplingInferCorrectLayout(const Attrs& attrs,
                                                    const Array<tvm::relay::Type>& old_in_types);
 
 }
-}
+}  // namespace tvm
+
+#endif  // TVM_RELAY_OP_DYN_NN_UPSAMPLING_H_

@@ -21,6 +21,8 @@
  * \file upsampling.cc
  * \brief upsampling operator
  */
+#include "../nn/upsampling.h"
+
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
@@ -29,7 +31,6 @@
 #include <vector>
 
 #include "../../op_common.h"
-#include "../nn/upsampling.h"
 
 namespace tvm {
 namespace relay {
@@ -37,7 +38,7 @@ namespace dyn {
 
 bool UpSamplingRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
-                       // types = [data_type, scale_h_type, scale_w_type, ret_type]
+  // types = [data_type, scale_h_type, scale_w_type, ret_type]
   CHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* scale_h = types[1].as<TensorTypeNode>();
@@ -45,7 +46,7 @@ bool UpSamplingRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (data == nullptr) return false;
   if (scale_h == nullptr) return false;
   if (scale_w == nullptr) return false;
-  
+
   CHECK_EQ(data->shape.size(), 4);
   CHECK_EQ(scale_h->shape.size(), 0);
   CHECK_EQ(scale_w->shape.size(), 0);

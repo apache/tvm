@@ -37,7 +37,6 @@ def test_dyn_upsampling_run():
         elif layout == "NHWC":
             (n, h, w, c) = dshape
             x_data = np.random.uniform(size=(n, h, w, c)).astype("float32")
-        
 
         if method == "nearest_neighbor":
             ref_res = tvm.topi.testing.upsampling_python(x_data, (scale_h, scale_w), layout)

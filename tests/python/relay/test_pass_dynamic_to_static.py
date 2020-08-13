@@ -330,7 +330,7 @@ def test_dynamic_to_static_upsampling():
 
         func = run_infer_type(relay.Function([x], z))
         func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
-        
+
         zz = func2.body
         assert isinstance(zz, relay.Call)
         assert zz.op == relay.op.get("nn.upsampling")
@@ -338,7 +338,7 @@ def test_dynamic_to_static_upsampling():
         x_data = np.random.uniform(size=data_shape).astype(dtype)
         ref_res = tvm.topi.testing.upsampling_python(x_data, (scale_h_val, scale_w_val), "NCHW")
         verify_func(func2, [x_data], ref_res)
-        
+
     verify_upsampling((1, 16, 32, 32), 2, 2, 'int8')
     verify_upsampling((1, 16, 32, 32), 4, 4, 'int32')
 
