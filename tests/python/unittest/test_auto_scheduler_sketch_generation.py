@@ -156,6 +156,9 @@ def test_cuda_softmax_sketch():
 
 
 def test_cuda_conv2d_winograd_sketch():
+    if not tvm.context("cuda", 0).exist:
+        return
+
     sketches = generate_sketches(conv2d_winograd_nhwc_auto_scheduler_test,
                                  (1, 28, 28, 128, 128, 3, 1, 1), 'cuda')
     ''' 1 multi-level tiling sketch '''
