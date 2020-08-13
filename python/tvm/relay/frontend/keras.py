@@ -148,10 +148,9 @@ def _convert_advanced_activation(inexpr, keras_layer, etab):
     if act_type == 'PReLU':
         assert hasattr(keras_layer, 'alpha'), "alpha required for PReLU."
         _check_data_format(keras_layer)
-        size = len(keras_layer.alpha.shape)
-        alpha = etab.new_const(keras_layer.get_weights()[0] \
-                               .transpose(np.roll(range(size), 1)))
-        return _op.negative(alpha) * _op.nn.relu(_op.negative(inexpr)) + _op.nn.relu(inexpr)
+        alpha = etab.new_const(keras_layer.get_weights()[0].flatten())
+        axis = len(keras_layer.input_shape) - 1
+        return _op.nn.prelu(inexpr, alpha, axis)
     if act_type == 'ThresholdedReLU':
         theta = keras_layer.theta if hasattr(keras_layer, 'theta') else 1.
         return _op.multiply(inexpr, _op.greater(inexpr, \
