@@ -1343,12 +1343,7 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
-        if self.has_expr(input_tensors[0].tensor_idx):
-            data = self.get_expr(input_tensors[0].tensor_idx)
-        else:
-            data = self.exp_tab.new_const(self.get_tensor_value(input_tensors[0]),
-                                          dtype=self.get_tensor_type_str(input_tensors[0]\
-                                                                         .tensor.Type()))
+        data = self.get_tensor_expr(input_tensors[0])
         indices = input_tensors[1]
         indices_type = indices.tensor.Type()
         assert indices_type in (TensorType.INT32, TensorType.INT64)
