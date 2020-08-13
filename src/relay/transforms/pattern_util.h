@@ -419,7 +419,7 @@ static inline double ToScalar(const runtime::NDArray& array, size_t i = 0) {
  */
 static inline Array<Integer> ToVector(const runtime::NDArray& array) {
   size_t ndim = array.Shape().size();
-  CHECK_EQ(ndim, 1) << "This function should only used for shape tensor.";
+  CHECK_EQ(ndim, 1) << "This function should only be used for 1D NDArrays";
   size_t len = array.Shape().front();
   Array<Integer> out;
   for (size_t i = 0; i < len; ++i) {
@@ -428,6 +428,26 @@ static inline Array<Integer> ToVector(const runtime::NDArray& array) {
   }
   return out;
 }
+
+/*!
+ * \brief Convert a NDArray with type int or float to Array<Array<Integer>>.
+ * \param array Input NDArray
+ * \return Converted Array.
+ */
+static inline Array<Array<Integer>> ToMatrix(const runtime::NDArray& array) {
+  size_t ndim = array.Shape().size();
+  CHECK_EQ(ndim, 2) << "This function should only used for 2D NDArrays";
+  size_t dim1 = array.Shape().at(0);
+  size_t dim2 = array.Shape().at(1);
+  Array<Array<Integer>> out;
+  for (size_t i = 0; i < len; ++i) {
+    Array<Integer> inner_out; 
+    double elem_val = ToScalar(array, i);
+    out.push_back(Integer(static_cast<int>(elem_val)));
+  }
+  return out;
+}
+
 
 inline Expr GetField(Expr t, size_t i) { return TupleGetItem(t, i); }
 
