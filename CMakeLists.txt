@@ -309,11 +309,7 @@ include(cmake/modules/Metal.cmake)
 include(cmake/modules/ROCM.cmake)
 include(cmake/modules/LLVM.cmake)
 include(cmake/modules/Micro.cmake)
-<<<<<<< HEAD
-=======
-include(cmake/modules/ANTLR.cmake)
 include(cmake/modules/contrib/EthosN.cmake)
->>>>>>> [BYOC][ETHOSN] Introduce the Ethos-N BYOC integration
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/CODEGENC.cmake)
 include(cmake/modules/contrib/DNNL.cmake)
