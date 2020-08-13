@@ -1113,7 +1113,7 @@ class OperatorConverter(object):
 
         return out
 
-    def _convert_elemwise(self, relay_op, op, use_real_qnn=True):
+    def _convert_elemwise(self, relay_op, op, ignore_qnn_params=False):
         """Generic method to Convert TFLite elemwise"""
         try:
             from tflite.AddOptions import AddOptions
@@ -1137,15 +1137,15 @@ class OperatorConverter(object):
         output_tensor = output_tensors[0]
 
         # TFLite format demands equal scale and zero_point tuple parameters for some operations
-        # This allows us to use normal operations instead of quantized
-        if not use_real_qnn:
+        # to allow us to use non-quantized operation instead of quantized if ignore_qnn_params=True
+        if ignore_qnn_params:
             assert  lhs_tensor.qnn_params \
                 and self.has_same_qnn_params(lhs_tensor, output_tensor) \
                 and self.has_same_qnn_params(rhs_tensor, output_tensor), \
                 "All tensors should be quantized with the same (scale,zero-point) tuple parameters"
 
         # If quantized, extracts qnn params and call QNN add operator.
-        if use_real_qnn and lhs_tensor.qnn_params:
+        if not ignore_qnn_params and lhs_tensor.qnn_params:
             assert rhs_tensor.qnn_params, "Both tensors should be quantized."
             assert output_tensor.qnn_params, "Output tensor should be quantized."
             out = relay_op(lhs=lhs_expr,
@@ -1176,7 +1176,7 @@ class OperatorConverter(object):
             fused_activation_fn = options.FusedActivationFunction()
 
             # Handle fused activations
-            if use_real_qnn and output_tensor.qnn_params:
+            if not ignore_qnn_params and output_tensor.qnn_params:
                 scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
                 zero_point_val = get_scalar_from_constant(output_tensor.qnn_params['zero_point'])
                 output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
@@ -1243,11 +1243,11 @@ class OperatorConverter(object):
 
     def convert_maximum(self, op):
         """Convert TFLite MAXIMUM"""
-        return self._convert_elemwise(_op.maximum, op, not self.is_quantized(op))
+        return self._convert_elemwise(_op.maximum, op, self.is_quantized(op))
 
     def convert_minimum(self, op):
         """Convert TFLite MINIMUM"""
-        return self._convert_elemwise(_op.minimum, op, not self.is_quantized(op))
+        return self._convert_elemwise(_op.minimum, op, self.is_quantized(op))
 
     def convert_greater(self, op):
         """Convert TFLite GREATER"""
