@@ -112,6 +112,12 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
 
 
 def run(graph, lib, params, inputs, outputs, npu=True):
+    # Export and load lib to confirm this works
+    lib_name = "mod.so"
+    temp = util.tempdir()
+    lib_path = temp.relpath(lib_name)
+    lib.export_library(lib_path)
+    lib = tvm.runtime.load_module(lib_path)
     module = graph_runtime.create(graph, lib, tvm.cpu())
     module.set_input(**inputs)
     module.set_input(**params)
