@@ -21,6 +21,9 @@
  * \file upsampling.cc
  * \brief upsampling operator
  */
+
+#include "../nn/upsampling.h"
+
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
@@ -29,7 +32,6 @@
 #include <vector>
 
 #include "../../op_common.h"
-#include "../nn/upsampling.h"
 
 namespace tvm {
 namespace relay {
@@ -37,7 +39,7 @@ namespace dyn {
 
 bool UpSamplingRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
-                       // types = [data_type, scale_h_type, scale_w_type, ret_type]
+  // types = [data_type, scale_h_type, scale_w_type, ret_type]
   CHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* scale_h = types[1].as<TensorTypeNode>();
@@ -113,7 +115,7 @@ RELAY_REGISTER_OP("nn.dyn.upsampling")
     .set_support_level(2)
     .add_type_rel("DynamicUpSampling", UpSamplingRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                                    UpsamplingInferCorrectLayout<UpSamplingAttrs>)
+                                   UpsamplingInferCorrectLayout<UpSamplingAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace dyn
