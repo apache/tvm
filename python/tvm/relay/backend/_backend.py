@@ -90,11 +90,9 @@ def _tensor_value_repr(tvalue):
 
 @tvm._ffi.register_func("relay._constant_repr")
 def _tensor_constant_repr(tvalue):
-    # TODO(gus) do this in a smarter way
-    try:
+    if tvm.datatype.get_type_registered(tvalue.data.dtype.code):
+        return "custom tensor of type " + tvalue.data.dtype
+    else:
         return str(tvalue.data.asnumpy())
-    except:
-        return "custom tensor of type " + tvalue.data.dtype;
-
 
 tvm._ffi._init_api("relay.backend", __name__)

@@ -92,21 +92,21 @@ def setup():
             (32, 16): "FloatToPosit16es2",
             (32, 8): 'FloatToPosit8es2',
         }), 
-        "Cast", "llvm", "posites2", "float")
+        "Cast", "llvm", "float", "posites2")
     register_op(create_lower_func(
         {
             (32, 32): "Posit32es2ToFloat",
             (16, 32): 'Posit16es2ToFloat',
             (8, 32): 'Posit8es2ToFloat',
         }), 
-        "Cast", "llvm", "float", "posites2")
+        "Cast", "llvm", "posites2", "float")
     register_op(create_lower_func(
         {
             (4, 32): 'IntToPosit32es2',
             (4, 16): 'IntToPosit16es2',
             (4, 8): 'IntToPosit8es2'
         }), 
-        "Cast", "llvm", "posites2", "int")
+        "Cast", "llvm", "int", "posites2")
     register_op(create_lower_func({
         32: 'Posit32es2Add',
         16: 'Posit16es2Add',
@@ -169,65 +169,18 @@ def setup():
     }), "Call", "llvm", "posites2", intrinsic_name="tanh")
     register_min_func(lambda num_bits: - (2 ** 2 ** 2) ** (num_bits - 2), "posites2")
 
-    register("noptype", 132)
-    register_op(create_lower_func({
-        (32, 32): "FloatToNop32"
-    }), "Cast", "llvm", "noptype", "float")
-    register_op(create_lower_func({
-        (32, 32): 'Nop32ToFloat'
-    }), "Cast", "llvm", "float", "noptype")
-    register_op(create_lower_func({
-        (4, 32): "IntToNop32"
-    }), "Cast", "llvm", "noptype", "int")
-    register_op(create_lower_func({32: 'IntToNop32'}), "Add", "llvm", "noptype")
-    register_op(create_lower_func({32: 'Nop32Sub'}), "Sub", "llvm", "noptype")
-    register_op(create_lower_func({32: 'FloatToNop32'}), "FloatImm", "llvm",
-                "noptype")
-    register_op(create_lower_func({32: 'Nop32Mul'}), "Mul", "llvm", "noptype")
-    register_op(create_lower_func({32: 'Nop32Div'}), "Div", "llvm", "noptype")
-    register_op(create_lower_func({32: 'Nop32Max'}), "Max", "llvm", "noptype")
-    register_op(create_lower_func({32: 'Nop32Sqrt'}),
-                "Call",
-                "llvm",
-                "noptype",
-                intrinsic_name="sqrt")
-    # TODO(gus) not sure if this will work...
-    register_op(lower_ite,
-                "Call",
-                "llvm",
-                "noptype",
-                intrinsic_name="tvm_if_then_else")
-    register_op(create_lower_func({32: 'Nop32Exp'}),
-                "Call",
-                "llvm",
-                "noptype",
-                intrinsic_name="exp")
-    register_op(create_lower_func({32: 'Nop32Log'}),
-                "Call",
-                "llvm",
-                "noptype",
-                intrinsic_name="log")
-    register_op(create_lower_func({32: 'Nop32Sigmoid'}),
-                "Call",
-                "llvm",
-                "noptype",
-                intrinsic_name="sigmoid")
-    register_op(create_lower_func({32: 'Nop32Tanh'}),
-                "Call",
-                "llvm",
-                "noptype",
-                intrinsic_name="tanh")
-    # This can be anything, considering the type isn't functionally correct.
-    register_min_func(lambda num_bits: 0, "noptype")
-
-
 def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
     """Run the same op, but with two different datatypes"""
+    # used for unary ops, first shape in binary ops
+    shape1 = (5, 10, 5)
+    # second shape for binary ops
+    shape2 = (5, )
+
     def check_unary_op(op, src_dtype, dst_dtype):
-        t1 = relay.TensorType((5, 10, 5), src_dtype)
+        t1 = relay.TensorType(shape1, src_dtype)
         x = relay.var("x", t1)
         z = op(x)
-        x_data = rs.rand(5, 10, 5).astype(t1.dtype)
+        x_data = rs.rand(*shape1).astype(t1.dtype)
 
         module = tvm.IRModule.from_expr(relay.Function([x], z))
 
@@ -248,13 +201,13 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
         check_unary_op(op, src_dtype, dst_dtype)
 
     def check_binary_op(opfunc, src_dtype, dst_dtype):
-        t1 = relay.TensorType((5, 10, 5), src_dtype)
-        t2 = relay.TensorType((5, ), src_dtype)
+        t1 = relay.TensorType(shape1, src_dtype)
+        t2 = relay.TensorType(shape2, src_dtype)
         x = relay.var("x", t1)
         y = relay.var("y", t2)
         z = opfunc(x, y)
-        x_data = rs.rand(5, 10, 5).astype(t1.dtype)
-        y_data = rs.rand(5).astype(t2.dtype)
+        x_data = rs.rand(*shape1).astype(t1.dtype)
+        y_data = rs.rand(*shape2).astype(t2.dtype)
         module = tvm.IRModule.from_expr(relay.Function([x, y], z))
 
         compare(module, (x_data, y_data), src_dtype, dst_dtype, rtol, atol)
@@ -283,14 +236,10 @@ def run_model(get_workload,
     module, params = get_workload(image_shape=input_shape,
                                   num_classes=num_classes)
 
-    # Convert the input into the correct format.
+    # generate random input with appropriate shape/type
     input = tvm.nd.array(rs.rand(*input_shape).astype(src_dtype))
 
     compare(module, (input, ), src_dtype, dst_dtype, rtol, atol, params)
-
-    # # Simplifying inference is essential right now, as batch norms (which get
-    # # removed) are broken with custom datatypes.
-    # #expr = relay.ir_pass.simplify_inference(expr)
 
 def run_conv2d(src_dtype, dst_dtype):
     def run_test_conv2d(src_dtype,
@@ -417,10 +366,6 @@ def run_conv2d(src_dtype, dst_dtype):
 
 
 def test_ops():
-    # TODO(gus) these tolerances are high, and still sometimes fail;
-    # this is expected, b/c we're comparing between 32bit float and 8
-    # bit posit.
-    # Figure out a more logical way to test here.
     run_ops('float32', 'custom[posites2]8', rtol=1, atol=1)
     run_ops('float32', 'custom[posites2]16', rtol=0.01, atol=1)
     run_ops('float32', 'custom[posites2]32')
@@ -446,33 +391,14 @@ def test_models():
               num_classes=10)
     # run_model(get_inception, (3, 32, 32),
     #           'float32',
-    #           'custom[posit32]32',
+    #           'custom[posites2]32',
     #           num_classes=10)
     # run_model(get_resnet, (3, 32, 32),
     #           'float32',
-    #           'custom[posit32]32',
+    #           'custom[posites2]32',
     #           num_classes=10)
 
     # Meanwhile, noptype is not slow.
-    run_model(get_mobilenet, (3, 224, 224),
-              'float32',
-              'custom[noptype]32',
-              num_classes=1000,
-              rtol=float("inf"),
-              atol=float("inf"))
-    run_model(get_inception, (3, 299, 299),
-              'float32',
-              'custom[noptype]32',
-              num_classes=1000,
-              rtol=float("inf"),
-              atol=float("inf"))
-    run_model(get_resnet, (3, 224, 224),
-              'float32',
-              'custom[noptype]32',
-              num_classes=1000,
-              rtol=float("inf"),
-              atol=float("inf"))
-
 
 if __name__ == "__main__":
     setup()

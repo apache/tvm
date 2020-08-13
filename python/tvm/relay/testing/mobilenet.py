@@ -217,7 +217,6 @@ def mobile_net(
     bias = relay.var("fc_bias")
     fc = relay.nn.dense(data=flatten, weight=weight, units=num_classes)
     fc = relay.nn.bias_add(fc, bias)
-    # TODO(gus) i think softmax is broken
     softmax = relay.nn.softmax(data=fc)
     return relay.Function(relay.analysis.free_vars(softmax), softmax)
 

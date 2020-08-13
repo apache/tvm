@@ -76,8 +76,8 @@ def get_type_registered(type_code):
 def register_op(lower_func,
                 op_name,
                 target,
-                type_name,
-                src_type_name=None,
+                src_type_name,
+                dest_type_name=None,
                 intrinsic_name=None):
     """Register an external function which computes the given op.
 
@@ -98,11 +98,11 @@ def register_op(lower_func,
     target : str
         The name of codegen target.
 
-    type_name : str
+    src_type_name : str
         The name of the custom datatype, e.g. posit (but not custom[posit]8).
 
-    src_type_name : str
-        If op_name is "Cast", then this should be set to the source datatype of
+    dest_type_name : str
+        If op_name is "Cast", then this is required and should be set to the dest datatype of
         the argument to the Cast. If op_name is not "Cast", this is unused.
 
     intrinsic_name : str
@@ -112,14 +112,15 @@ def register_op(lower_func,
     """
 
     if op_name == "Cast":
-        assert src_type_name is not None
+        assert dest_type_name is not None
         lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
-                          + type_name + "." + src_type_name
+                          + dest_type_name + "." + src_type_name
     elif op_name == "Call" and intrinsic_name is not None:
         lower_func_name = "tvm.datatype.lower." + target + "." + op_name \
-                          + ".intrin." + intrinsic_name + "." + type_name
+                          + ".intrin." + intrinsic_name + "." + src_type_name
     else:
-        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." + type_name
+        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
+                          + src_type_name
     tvm._ffi.register_func(lower_func_name, lower_func)
 
 # TODO(gus) could probably make this a decorator if i want
