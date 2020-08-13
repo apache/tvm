@@ -441,7 +441,7 @@ static inline Array<Array<Integer>> ToMatrix(const runtime::NDArray& array) {
   size_t dim2 = array.Shape().at(1);
   Array<Array<Integer>> out;
   for (size_t i = 0; i < len; ++i) {
-    Array<Integer> inner_out; 
+    Array<Integer> inner_out;
     double elem_val = ToScalar(array, i);
     out.push_back(Integer(static_cast<int>(elem_val)));
   }
