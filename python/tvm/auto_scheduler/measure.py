@@ -76,7 +76,7 @@ class MeasureInput(Object):
         The State to be measured.
     """
     def __init__(self, task, state):
-        self.__init_handle_by_constructor__(_ffi_api.MeasureInput, task, state.state_object)
+        self.__init_handle_by_constructor__(_ffi_api.MeasureInput, task, state)
 
 
 @tvm._ffi.register_object("auto_scheduler.BuildResult")
