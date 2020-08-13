@@ -100,7 +100,7 @@ def test_pooling():
                     "dtype": dtype,
                     "padding": pad
                 }
-                verify(outputs, atol=atol, rtol=rtol, params=params)
+                verify(outputs, atol=atol, rtol=rtol, params=params, verify_saturation=True)
 
 
 def test_codegen_pooling():

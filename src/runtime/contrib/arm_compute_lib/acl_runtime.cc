@@ -31,6 +31,7 @@
 #ifdef TVM_GRAPH_RUNTIME_ARM_COMPUTE_LIB
 #include <arm_compute/core/Types.h>
 #include <arm_compute/runtime/NEON/functions/NEConvolutionLayer.h>
+#include <arm_compute/runtime/NEON/functions/NEFullyConnectedLayer.h>
 #include <arm_compute/runtime/NEON/functions/NEPoolingLayer.h>
 #include <arm_compute/runtime/NEON/functions/NEReshapeLayer.h>
 
@@ -127,6 +128,9 @@ class ACLRuntime : public JSONRuntimeBase {
         auto op_name = node.GetOpName();
         if ("nn.conv2d" == op_name || "qnn.conv2d" == op_name) {
           CreateConvolution2DLayer(&layer_, node, mm);
+          num_pools++;
+        } else if ("nn.dense" == op_name || "qnn.dense" == op_name) {
+          CreateFullyConnectedLayer(&layer_, node, mm);
           num_pools++;
         } else if ("nn.max_pool2d" == op_name) {
           CreatePoolingLayer(&layer_, node);
@@ -254,6 +258,50 @@ class ACLRuntime : public JSONRuntimeBase {
     function->configure(&layer->inputs[0], &layer->inputs[1],
                         has_bias ? &layer->inputs[2] : nullptr, &layer->outputs[0], pad_stride_info,
                         arm_compute::WeightsInfo(), dilation_2d, act_info);
+    layer->function = function;
+  }
+
+  /*!
+   * \brief Create a fully connected (dense) layer.
+   *
+   * \param layer The ACL layer to build. Containing inputs, outputs and the ACL function.
+   * \param node The JSON representation of the operator.
+   * \param mm The ACL fully connected layer can request auxiliary memory from TVM.
+   */
+  void CreateFullyConnectedLayer(CachedLayer* layer, const JSONGraphNode& node,
+                                 const std::shared_ptr<arm_compute::MemoryManagerOnDemand>& mm) {
+    arm_compute::FullyConnectedLayerInfo fc_info;
+    fc_info.set_weights_trained_layout(arm_compute::DataLayout::NHWC);
+
+    // Collect inputs and outputs, handling both nn.dense and qnn.dense cases.
+    std::vector<JSONGraphNodeEntry> inputs = node.GetInputs();
+    size_t num_inputs = inputs.size();
+    bool has_bias;
+    if (node.GetOpName() == "qnn.dense") {
+      CHECK(num_inputs >= 8U && num_inputs <= 9U)
+          << "Quantized fully connected (dense) layer requires 9 inputs with a bias, 8 inputs "
+             "without.";
+      has_bias = num_inputs == 9;
+      layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[0], &inputs[4], &inputs[2]));
+      layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[1], &inputs[5], &inputs[3]));
+      if (has_bias) {
+        layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[6]));
+      }
+      layer->outputs.push_back(
+          MakeACLTensorFromJSONNode(node, &inputs[6 + has_bias], &inputs[7 + has_bias]));
+    } else {
+      CHECK(num_inputs >= 2U && num_inputs <= 3U)
+          << "Fully connected (dense) layer requires 3 inputs with a bias, 2 inputs without.";
+      has_bias = num_inputs == 3;
+      for (const auto& i : inputs) {
+        layer->inputs.push_back(MakeACLTensorFromJSONEntry(i));
+      }
+      layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
+    }
+
+    auto function = std::make_shared<arm_compute::NEFullyConnectedLayer>(mm);
+    function->configure(&layer->inputs[0], &layer->inputs[1],
+                        has_bias ? &layer->inputs[2] : nullptr, &layer->outputs[0], fc_info);
     layer->function = function;
   }
 
