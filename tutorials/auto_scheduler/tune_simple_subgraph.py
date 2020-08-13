@@ -17,7 +17,7 @@
 """
 .. _auto_scheduler-simple-subgraph:
 
-Writing compute expression and Using auto-scheduler
+Writing compute expression and Using Auto-scheduler
 ===================================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, \
             `Chengfan Jia <https://github.com/jcf94>`_, \
@@ -25,9 +25,9 @@ Writing compute expression and Using auto-scheduler
             `Zhao Wu <https://github.com/FrozenGene>`_, \
             `Cody Hao Yu <https://github.com/comaniac>`_
 
-This is an introduction tutorial to the auto-scheduler module in TVM.
+This is an brief introduction tutorial to the Auto-scheduler module in TVM.
 
-There are two steps in auto-scheduling.
+There are two steps in auto scheduling.
 The first step is defining the target task.
 The second step is running a search algorithm to auto explore the schedule.
 In this tutorial, you can learn how to perform these two steps in TVM.
@@ -37,7 +37,7 @@ The whole workflow is illustrated by a matrix multiplication with bias add examp
 ######################################################################
 # Install dependencies
 # --------------------
-# To use auto_scheduler package in TVM, we need to install some extra dependencies.
+# To use Auto-scheduler package in TVM, we need to install some extra dependencies.
 # This step (installing xgboost) can be skipped as it doesn't need XGBoost
 # (change "3" to "2" if you use python2):
 #
@@ -74,7 +74,7 @@ from tvm import auto_scheduler
 #
 # .. note:: Comparing to :ref:`tutorials-autotvm-sec`
 #
-#  In auto_scheduler, we do not need users to provide a schedule template, the only input
+#  In Auto-scheduler, users do not need to provide a schedule template, the only input
 #  is the compute expression writing by :code:`tvm.te` API or topi op API.
 #
 # Here is how we implement a matrix multiplication subgraph in TVM.
@@ -101,7 +101,7 @@ def matmul_add(N, L, M, dtype):
 #
 # Auto-scheduler in TVM
 # ^^^^^^^^^^^^^^^^^^^^^
-# The job for the auto_scheduler auto-scheduler can be described by following pseudo code
+# The job for the Auto-scheduler can be described by following pseudo code
 #
 #   .. code-block:: c
 #
@@ -111,13 +111,18 @@ def matmul_add(N, L, M, dtype):
 #        measure this batch of schedules on real hardware and get results
 #        ct += batch_size
 #
-# When proposing the next batch of schedules, auto_scheduler can take different cost models to
+# When proposing the next batch of schedules, Auto-scheduler can take different cost models to
 # guide the schedule generating process.
 #
 # * :code:`RandomModel`: Generate and take new schedule randomly
 # * :code:`XGBModel`: Use XGBoost model to estimate the performance of potential schedules, try to pick schedules with better performance in each step
 #
 # XGBModel can explore more efficiently and find better schedules.
+#
+# .. note::
+#
+#  The XGBModel may not ready at the time we write this tutorial, this only gives a brief introduction while the
+#  performance get with RandomModel is not guaranteed.
 
 ################################################################
 # Begin tuning
@@ -129,7 +134,8 @@ def matmul_add(N, L, M, dtype):
 # do some analyzes with the target subgraph and the results will be used in
 # search policy later.
 #
-# Then we create the :code:`tvm.target` and a tuning task.
+# Then we create the :code:`tvm.target` and a tuning task. The :code:`auto_scheduler.ComputeDAG` and its
+# :code:`access_analyzer` can be printed out directly.
 
 N, L, M = 128, 128, 128
 A, B, C, D = matmul_add(N, L, M, 'float32')
@@ -141,17 +147,22 @@ print(dag.access_analyzer)
 tgt = tvm.target.create("llvm")
 task = auto_scheduler.SearchTask(dag, "test", tgt)
 
+# this create a local RPC measure runtime
+measure_ctx = auto_scheduler.LocalRPCMeasureContext()
+
 ################################################################
 # Next, we choose random model and create a default search policy:
 # :code:`auto_scheduler.SketchPolicy`.
 #
 # We only make 5 trials in this tutorial for demonstration. In practice,
 # you can do more trials according to your time budget.
-# :code:`auto_scheduler.RecordToFile` callback will log the tuning results into a
-# log file, which can be used to get the best config later.
+#
 # :code:`auto_scheduler.PreloadMeasuredStates` callback will load measured states
 # from history log before schedule search, we can add this callback to make
 # sure a same schedule will never be measured for a second time.
+#
+# :code:`auto_scheduler.RecordToFile` callback will log the tuning results into a
+# log file, which can be used to get the best config later.
 
 log_file = "matmul_add.json"
 
@@ -161,20 +172,24 @@ cost_model = auto_scheduler.RandomModel()
 search_policy = auto_scheduler.SketchPolicy(task, cost_model, seed=seed,
                                             init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file)])
 
-measure_ctx = auto_scheduler.LocalRPCMeasureContext()
 tune_option = auto_scheduler.TuningOptions(num_measure_trials=5, runner=measure_ctx.runner,
                                            measure_callbacks=[auto_scheduler.RecordToFile(log_file)])
 
 ################################################################
-# Then just call :code:`auto_scheduler.auto_schedule` and auto_scheduler will try to find a high
+# Then just call :code:`auto_scheduler.auto_schedule` and Auto-scheduler will try to find a high
 # performance schedule for the target subgraph automatically.
 #
 # The returned result will be a :code:`te.schedule` and a list of :code:`te.Tensor`,
 # which can be used as the input of :code:`tvm.lower` or :code:`tvm.build`.
 #
-# .. note:: If no valid state found during this search process
+# .. note:: There're cases that no valid state found during this search process.
 #
-#  dd
+#  This may because Auto-scheduler has already checked all of the search space, that in this search round
+#  Auto-scheduler can not find any unmeasured state.
+#
+# Even though the returned value of :code:`auto_scheduler.auto_schedule` can be used directly, we still recommend
+# to check the whole record log file using :code:`auto_scheduler.load_best`. In which way, we can make sure the
+# schedule get has the best performance.
 
 s, arg_bufs = auto_scheduler.auto_schedule(task, search_policy=search_policy,
                                            tuning_options=tune_option)
@@ -204,4 +219,5 @@ func(tvm.nd.array(a_np), tvm.nd.array(b_np), tvm.nd.array(c_np), d_tvm)
 
 tvm.testing.assert_allclose(d_np, d_tvm.asnumpy(), rtol=1e-2)
 
+# better explicitly delete the measure_ctx object
 del measure_ctx
