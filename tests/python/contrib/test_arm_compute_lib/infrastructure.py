@@ -183,7 +183,7 @@ def build_module(mod, target, params=None, enable_acl=True, tvm_ops=0, acl_parti
 def build_and_run(mod, inputs, outputs, params, device, enable_acl=True, no_runs=1,
                   tvm_ops=0, acl_partitions=1, config=None):
     """Build and run the relay module."""
-    if not config:
+    if config is None:
         config = {}
 
     try:
@@ -229,12 +229,12 @@ def verify(answers, atol, rtol, verify_saturation=False, config=None):
             f"No results to compare: expected at least two, found {len(answers)}")
     for answer in zip_longest(*answers):
         for outs in combinations(answer, 2):
-            if verify_saturation:
-                assert np.count_nonzero(outs[0].asnumpy() == 255) < 0.25 * outs[0].asnumpy().size, \
-                    "Output is saturated: {}".format(outs[0])
-                assert np.count_nonzero(outs[0].asnumpy() == 0) < 0.25 * outs[0].asnumpy().size, \
-                    "Output is saturated: {}".format(outs[0])
             try:
+                if verify_saturation:
+                    assert np.count_nonzero(outs[0].asnumpy() == 255) < 0.25 * outs[0].asnumpy().size, \
+                        "Output is saturated: {}".format(outs[0])
+                    assert np.count_nonzero(outs[0].asnumpy() == 0) < 0.25 * outs[0].asnumpy().size, \
+                        "Output is saturated: {}".format(outs[0])
                 tvm.testing.assert_allclose(
                    outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol)
             except AssertionError as e:

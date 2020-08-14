@@ -151,7 +151,7 @@ def test_pooling():
     pad = [(0, 0), (1, 1), (0, 1)]
     ceil_mode = [False, True]
     count_include_pad = [False, True]
-    input_shapes = [(8, 8, 16), (9, 9, 16)]
+    input_shapes = [(16, 16, 16), (15, 15, 16)]
     trials = generate_trials([typef, dtype, size, stride, pad, ceil_mode, count_include_pad, input_shapes], 3)
 
     for typef, (dtype, low, high, atol, rtol), size, stride, pad, ceil_mode, count_include_pad, \
@@ -180,12 +180,13 @@ def test_pooling():
             "ceil_mode": ceil_mode,
             "count_include_pad": count_include_pad
         }
+        verify_saturation = True if dtype == "uint8" else False
 
         for acl in [False, True]:
             outputs.append(build_and_run(func, inputs, 1, None, device,
                                          enable_acl=acl, config=config)[0])
 
-        verify(outputs, atol=atol, rtol=rtol, config=config)
+        verify(outputs, atol=atol, rtol=rtol, config=config, verify_saturation=verify_saturation)
 
 
 def test_global_pooling():
@@ -214,11 +215,13 @@ def test_global_pooling():
             "pooling type": typef,
             "dtype": dtype,
         }
+        verify_saturation = True if dtype == "uint8" else False
 
         for acl in [False, True]:
             outputs.append(build_and_run(func, inputs, 1, None, device,
                                          enable_acl=acl, config=config)[0])
-        verify(outputs, atol=atol, rtol=rtol, config=config, verify_saturation=True)
+
+        verify(outputs, atol=atol, rtol=rtol, config=config, verify_saturation=verify_saturation)
 
 
 def test_codegen_pooling():
