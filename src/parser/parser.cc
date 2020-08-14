@@ -1502,6 +1502,8 @@ class Parser {
           tvm::PrimExpr dim;
           if (Peek()->token_type == TokenType::kMetaReference) {
             dim = Downcast<tvm::PrimExpr>(ParseMetaRef());
+          } else if (WhenMatch(TokenType::kQuestion)) {
+            dim = tvm::tir::Any();
           } else {
             dim = Downcast<tvm::PrimExpr>(Match(TokenType::kInteger)->data);
           }
@@ -1585,8 +1587,7 @@ class Parser {
           return ParseNonPrimitiveType(tok);
         }
       }
-    }
-    if (WhenMatch(TokenType::kUnderscore)) {
+    } else if (WhenMatch(TokenType::kUnderscore)) {
       return IncompleteType();
     } else {
       this->diag_ctx->EmitFatal(Diagnostic::Error(tok->span)
