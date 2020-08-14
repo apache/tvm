@@ -24,6 +24,8 @@
 #ifndef TVM_SUPPORT_PARALLEL_FOR_H_
 #define TVM_SUPPORT_PARALLEL_FOR_H_
 
+#include <tvm/runtime/c_runtime_api.h>
+
 #include <functional>
 
 namespace tvm {
@@ -45,7 +47,7 @@ namespace support {
  * \param step The traversal step to the index.
  * \note Currently do not support nested parallel_for.
  */
-void parallel_for(int begin, int end, const std::function<void(int)>& f, int step = 1);
+TVM_DLL void parallel_for(int begin, int end, const std::function<void(int)>& f, int step = 1);
 
 }  // namespace support
 }  // namespace tvm

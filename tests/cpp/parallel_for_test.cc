@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "../src/support/parallel_for.h"
+#include "../../src/support/parallel_for.h"
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
@@ -25,7 +25,7 @@
 #include <vector>
 
 TEST(ParallelFor, Basic) {
-  using namespace tvm::support;
+  using tvm::support::parallel_for;
 
   int a[100], b[100];
 
@@ -41,7 +41,7 @@ TEST(ParallelFor, Basic) {
 }
 
 TEST(ParallelFor, Nested) {
-  using namespace tvm::support;
+  using tvm::support::parallel_for;
 
   int a[100][100], b[100][100], c[100][100];
 
@@ -75,7 +75,7 @@ TEST(ParallelFor, Nested) {
 }
 
 TEST(ParallelFor, Exception) {
-  using namespace tvm::support;
+  using tvm::support::parallel_for;
 
   bool exception = false;
   try {
