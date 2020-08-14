@@ -51,13 +51,14 @@ def get_serialized_output(mod, *data, params=None, target="llvm",
 
 def run_network(mod,
                 params,
-                data_shape=(1, 3, 224, 224),
                 dtype='float32'):
     def get_vm_output(mod, data, params, target, ctx, dtype='float32'):
         ex = relay.create_executor('vm', mod=mod, ctx=ctx)
         result = ex.evaluate()(data, **params)
         return result.asnumpy().astype(dtype)
 
+    print(mod["main"])
+    data_shape = [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
     data = np.random.uniform(size=data_shape).astype(dtype)
     target = "llvm"
     ctx = tvm.cpu(0)
@@ -272,8 +273,8 @@ def test_closure():
     tvm.testing.assert_allclose(res.asnumpy(), 3.0)
 
 
-def test_resnet():
-    mod, params = testing.resnet.get_workload(batch_size=1, num_layers=18)
+def test_synthetic():
+    mod, params = testing.synthetic.get_workload()
     run_network(mod, params)
 
 
@@ -306,6 +307,6 @@ if __name__ == "__main__":
     test_adt_list()
     test_adt_compose()
     test_closure()
-    test_resnet()
+    test_synthetic()
     test_mobilenet()
     test_vm_shape_of()
