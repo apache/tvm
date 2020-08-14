@@ -43,6 +43,7 @@ namespace support {
  * \param end The end index of this parallel loop(exclusive).
  * \param f The task function to be excuted. Assert to take an int index as input with no output.
  * \param step The traversal step to the index.
+ * \note Currently do not support nested parallel_for.
  */
 void parallel_for(int begin, int end, const std::function<void(int)>& f, int step = 1);
 

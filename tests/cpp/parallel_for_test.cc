@@ -74,6 +74,18 @@ TEST(ParallelFor, Nested) {
   }
 }
 
+TEST(ParallelFor, Exception) {
+  using namespace tvm::support;
+
+  bool exception = false;
+  try {
+    parallel_for(0, 100, [](int i) { LOG(FATAL) << "error"; });
+  } catch (const std::exception& e) {
+    exception = true;
+  }
+  CHECK(exception);
+}
+
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";

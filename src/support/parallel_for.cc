@@ -67,7 +67,6 @@ class ThreadPool {
   template <typename F, typename... Args, typename R = typename std::result_of<F(Args...)>::type>
   std::future<R> Enqueue(F&& f, Args&&... args) {
     std::packaged_task<R()> p(std::bind(f, args...));
-
     auto r = p.get_future();
     {
       std::unique_lock<std::mutex> l(m_);
@@ -119,8 +118,31 @@ class ThreadPool {
    */
   size_t NumWorkers() { return threads_.size(); }
 
+  /*!
+   * \brief The global singleton entry of ThreadPool.
+   * \return The ThreadPool reference;
+   */
+  static ThreadPool& Global() {
+    static ThreadPool* pool = new ThreadPool();
+    static int ct = 0;
+
+    ct = (ct + 1) % ThreadPool::REFRESH_EVERY;
+
+    if (ct == 0) {
+      pool->Abort();
+      delete pool;
+      pool = new ThreadPool();
+    }
+
+    if (pool->NumWorkers() == 0) {
+      pool->Launch(std::thread::hardware_concurrency());
+    }
+
+    return *pool;
+  }
+
+  /*! \brief Refresh the thread pool in every several runs. */
   static const int REFRESH_EVERY = 128;
-  static ThreadPool& Global();
 
   ~ThreadPool() { Join(); }
 
@@ -164,34 +186,25 @@ class ThreadPool {
   std::condition_variable finish_signal_;
 };
 
-ThreadPool& ThreadPool::Global() {
-  static ThreadPool* pool = new ThreadPool();
-  static int ct = 0;
-
-  ct = (ct + 1) % ThreadPool::REFRESH_EVERY;
-
-  if (ct == 0) {
-    pool->Abort();
-    delete pool;
-    pool = new ThreadPool();
-  }
-
-  if (pool->NumWorkers() == 0) {
-    pool->Launch(std::thread::hardware_concurrency());
-  }
-
-  return *pool;
-}
-
 void parallel_for(int begin, int end, const std::function<void(int)>& f, int step) {
   auto& pf = ThreadPool::Global();
+
   int batch_count = (end - begin) / step;
-  CHECK_GT(batch_count, 0);
+  CHECK_GT(batch_count, 0) << "Infinite loop condition, check the setting of begin, end, step.";
+
+  std::vector<std::future<void>> res_vec;
   pf.BeginBatch(batch_count);
   for (int i = begin; i < end; i += step) {
-    pf.Enqueue(f, i);
+    res_vec.push_back(pf.Enqueue(f, i));
   }
   pf.WaitBatch();
+  try {
+    for (auto& i : res_vec) {
+      i.get();
+    }
+  } catch (const std::exception& e) {
+    LOG(FATAL) << "Parallel_for error with " << e.what();
+  }
 }
 
 }  // namespace support
