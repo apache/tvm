@@ -374,7 +374,7 @@ inline bool IsEqualScalar(const Expr& a, const Expr& b) {
  * \param i element index
  * \return Converted scalar value.
  */
-static inline double ToScalar(const runtime::NDArray& array, size_t i = 0) {
+static inline long double ToScalar(const runtime::NDArray& array, size_t i = 0) {
   if (array->dtype.code == kDLInt) {
     if (array->dtype.bits == 8) {
       return reinterpret_cast<int8_t*>(array->data)[i];
@@ -423,8 +423,8 @@ static inline Array<Integer> ToVector(const runtime::NDArray& array) {
   size_t len = array.Shape().front();
   Array<Integer> out;
   for (size_t i = 0; i < len; ++i) {
-    double elem_val = ToScalar(array, i);
-    out.push_back(Integer(static_cast<int>(elem_val)));
+    long double elem_val = ToScalar(array, i);
+    out.push_back(Integer(IntImm(DataType::Int(32), static_cast<int64_t>(elem_val))));
   }
   return out;
 }
