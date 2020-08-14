@@ -84,11 +84,9 @@ def hwnc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dtyp
     if in_dtype in ['int4', 'uint4']:
         assert (batch % 8 == 0 and in_channels % 32 == 0 and num_filter % 8 == 0)
     else:
-        assert (batch % 16 == 0 and in_channels % 16 == 0 and num_filter % 16 == 0) or \
-               (batch % 8 == 0 and in_channels % 16 == 0 and num_filter % 32 == 0) or \
-               (batch % 32 == 0 and in_channels % 16 == 0 and num_filter % 8 == 0), \
+        assert (batch % 8 == 0 and in_channels % 16 == 0 and num_filter % 32 == 0), \
                "The shape of (batch, in_channels, num_filter) "\
-               "must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for fp16 and int8, "\
+               "must be multiple of (8, 16, 32) for int8, "\
                "and (8, 32, 8) for int4"
 
     # compute the output shape
