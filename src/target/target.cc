@@ -380,6 +380,7 @@ Target Target::FromConfig(const Map<String, ObjectRef>& config_dict) {
   const String kKind = "kind";
   const String kTag = "tag";
   const String kKeys = "keys";
+  const String kDeviceName = "device";
   std::unordered_map<std::string, ObjectRef> config(config_dict.begin(), config_dict.end());
   ObjectPtr<TargetNode> target = make_object<TargetNode>();
   // parse 'kind'
@@ -418,8 +419,10 @@ Target Target::FromConfig(const Map<String, ObjectRef>& config_dict) {
       keys.push_back(GetRef<String>(key));
     }
     // add device name
-    if (config_dict.count("device") && config_dict.at("device")->IsInstance<StringObj>()) {
-      keys.push_back(Downcast<String>(config_dict.at("device")));
+    if (config_dict.count(kDeviceName)) {
+      if (const auto* device = config_dict.at(kDeviceName).as<StringObj>()) {
+        keys.push_back(GetRef<String>(device));
+      }
     }
     // add default keys
     for (const auto& key : target->kind->default_keys) {
@@ -450,7 +453,8 @@ Target Target::FromConfig(const Map<String, ObjectRef>& config_dict) {
       val = target->ParseAttr(obj, key2vtype.at(name));
     } catch (const dmlc::Error& e) {
       LOG(FATAL) << "AttributeError: Error occurred in parsing the config key \"" << name
-                 << "\". Details: " << e.what();
+                 << "\". Details:\n"
+                 << e.what();
     }
     attrs[name] = val;
   }
