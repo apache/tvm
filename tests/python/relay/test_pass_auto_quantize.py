@@ -72,18 +72,19 @@ def test_batch_flatten_rewrite():
     # check if batch_flatten is quantized
     relay.analysis.post_order_visit(qmod["main"], _check_batch_flatten)
 
-def get_calibration_dataset(input_name):
+def get_calibration_dataset(mod, input_name):
     dataset = []
+    input_shape = [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
     for i in range(5):
-        data = np.random.uniform(size=(1, 3, 224, 224))
+        data = np.random.uniform(size=input_shape)
         dataset.append({input_name: data})
     return dataset
 
 
 @pytest.mark.parametrize("create_target", [True, False])
 def test_calibrate_target(create_target):
-    mod, params = testing.resnet.get_workload(num_layers=18)
-    dataset = get_calibration_dataset("data")
+    mod, params = testing.synthetic.get_workload()
+    dataset = get_calibration_dataset(mod, "data")
     with relay.quantize.qconfig(calibrate_mode="kl_divergence"):
         if create_target:
             with tvm.target.create("llvm"):
@@ -94,8 +95,8 @@ def test_calibrate_target(create_target):
 
 
 def test_calibrate_memory_bound():
-    mod, params = testing.resnet.get_workload(num_layers=18)
-    dataset = get_calibration_dataset("data")
+    mod, params = testing.synthetic.get_workload()
+    dataset = get_calibration_dataset(mod, "data")
     import multiprocessing
     num_cpu = multiprocessing.cpu_count()
     with relay.quantize.qconfig(calibrate_mode="kl_divergence",

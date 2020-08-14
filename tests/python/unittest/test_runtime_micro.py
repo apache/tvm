@@ -23,7 +23,6 @@ from tvm.contrib import graph_runtime, util
 from tvm import relay
 import tvm.micro as micro
 from tvm.micro import create_micro_mod
-from tvm.relay.testing import resnet
 
 # # Use the host emulated micro device.
 DEV_CONFIG_A = micro.device.host.generate_config()

@@ -66,11 +66,11 @@ def test_mod_export():
                 print("skip because %s is not enabled..." % device)
                 return
 
-        resnet18_mod, resnet18_params = relay.testing.resnet.get_workload(num_layers=18)
-        resnet50_mod, resnet50_params = relay.testing.resnet.get_workload(num_layers=50)
+        synthetic_mod, synthetic_params = relay.testing.synthetic.get_workload()
+        synthetic_llvm_mod, synthetic_llvm_params = relay.testing.synthetic.get_workload()
         with tvm.transform.PassContext(opt_level=3):
-            _, resnet18_gpu_lib, _ = relay.build_module.build(resnet18_mod, "cuda", params=resnet18_params)
-            _, resnet50_cpu_lib, _ = relay.build_module.build(resnet50_mod, "llvm", params=resnet50_params)
+            _, synthetic_gpu_lib, _ = relay.build_module.build(synthetic_mod, "cuda", params=synthetic_params)
+            _, synthetic_llvm_cpu_lib, _ = relay.build_module.build(synthetic_llvm_mod, "llvm", params=synthetic_llvm_params)
 
         from tvm.contrib import util
         temp = util.tempdir()
@@ -80,8 +80,8 @@ def test_mod_export():
             assert obj_format == ".tar"
             file_name = "deploy_lib.tar"
         path_lib = temp.relpath(file_name)
-        resnet18_gpu_lib.imported_modules[0].import_module(resnet50_cpu_lib)
-        resnet18_gpu_lib.export_library(path_lib)
+        synthetic_gpu_lib.imported_modules[0].import_module(synthetic_llvm_cpu_lib)
+        synthetic_gpu_lib.export_library(path_lib)
         loaded_lib = tvm.runtime.load_module(path_lib)
         assert loaded_lib.type_key == "library"
         assert loaded_lib.imported_modules[0].type_key == "cuda"
@@ -93,9 +93,9 @@ def test_mod_export():
                 print("skip because %s is not enabled..." % device)
                 return
 
-        resnet18_mod, resnet18_params = relay.testing.resnet.get_workload(num_layers=18)
+        synthetic_mod, synthetic_params = relay.testing.synthetic.get_workload()
         with tvm.transform.PassContext(opt_level=3):
-            _, resnet18_cpu_lib, _ = relay.build_module.build(resnet18_mod, "llvm", params=resnet18_params)
+            _, synthetic_cpu_lib, _ = relay.build_module.build(synthetic_mod, "llvm", params=synthetic_params)
 
         A = te.placeholder((1024,), name='A')
         B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
@@ -109,8 +109,8 @@ def test_mod_export():
             assert obj_format == ".tar"
             file_name = "deploy_lib.tar"
         path_lib = temp.relpath(file_name)
-        resnet18_cpu_lib.import_module(f)
-        resnet18_cpu_lib.export_library(path_lib)
+        synthetic_cpu_lib.import_module(f)
+        synthetic_cpu_lib.export_library(path_lib)
         loaded_lib = tvm.runtime.load_module(path_lib)
         assert loaded_lib.type_key == "library"
         assert loaded_lib.imported_modules[0].type_key == "library"
@@ -177,9 +177,9 @@ def test_mod_export():
                 print("skip because %s is not enabled..." % device)
                 return
 
-        resnet18_mod, resnet18_params = relay.testing.resnet.get_workload(num_layers=18)
+        synthetic_mod, synthetic_params = relay.testing.synthetic.get_workload()
         with tvm.transform.PassContext(opt_level=3):
-            _, resnet18_cpu_lib, _ = relay.build_module.build(resnet18_mod, "llvm", params=resnet18_params)
+            _, synthetic_cpu_lib, _ = relay.build_module.build(synthetic_mod, "llvm", params=synthetic_params)
 
         A = te.placeholder((1024,), name='A')
         B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
@@ -190,10 +190,10 @@ def test_mod_export():
         temp = util.tempdir()
         file_name = "deploy_lib.so"
         path_lib = temp.relpath(file_name)
-        resnet18_cpu_lib.import_module(f)
-        resnet18_cpu_lib.import_module(engine_module)
+        synthetic_cpu_lib.import_module(f)
+        synthetic_cpu_lib.import_module(engine_module)
         kwargs = {"options": ["-O2", "-std=c++14", "-I" + header_file_dir_path.relpath("")]}
-        resnet18_cpu_lib.export_library(path_lib, fcompile=False, **kwargs)
+        synthetic_cpu_lib.export_library(path_lib, fcompile=False, **kwargs)
         loaded_lib = tvm.runtime.load_module(path_lib)
         assert loaded_lib.type_key == "library"
         assert loaded_lib.imported_modules[0].type_key == "library"

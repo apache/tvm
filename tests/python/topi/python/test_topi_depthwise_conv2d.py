@@ -269,7 +269,6 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
     filter_width = filter_height
     stride_h = stride_w = stride
 
-    assert dilation == 1, "depthwise_conv2d_NCHWc currently does not support dilation."
     assert channel_multiplier == 1, "depthwise_conv2d_NCHWc currently does not support channel multiplier > 1."
     pad_h, pad_w, _, _ = get_pad_tuple(padding, (filter_height, filter_width))
     padding_args = (pad_h, pad_w)
@@ -307,7 +306,7 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
             # declare
             DepthwiseConv2d = topi.x86.depthwise_conv2d_NCHWc(Input, Filter,
                                                               (stride_h, stride_w),
-                                                              padding_args,
+                                                              padding,
                                                               (dilation, dilation),
                                                               in_layout,
                                                               out_layout, dtype)
@@ -330,8 +329,9 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
             input_np = np.random.uniform(size=input_shape).astype(dtype)
             filter_np = np.random.uniform(size=filter_shape).astype(dtype)
             # correctness with scipy
+            dw_np = tvm.topi.testing.dilate_python(filter_np, (1, 1, dilation, dilation)).astype(dtype)
             depthwise_conv2d_scipy = tvm.topi.testing.depthwise_conv2d_python_nchw(
-                input_np, filter_np, stride, padding)
+                input_np, dw_np, stride, padding)
             relu_scipy = np.maximum(depthwise_conv2d_scipy, 0)
             return (_transform_data(input_np, ic_block),
                     _transform_kernel(filter_np, oc_block),
@@ -390,6 +390,7 @@ def test_depthwise_conv2d():
     # depthwise_conv2d_with_workload_nhwc(1, 728, 64, 1, 3, 1, "SAME", dilation=2)
 
     # NCHW[x]c
+    depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "SAME", dilation=2)
     depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "SAME")
     depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "VALID")
 

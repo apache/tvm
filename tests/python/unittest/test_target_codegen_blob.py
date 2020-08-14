@@ -23,14 +23,16 @@ import tvm
 from tvm import te
 import ctypes
 
-def test_resnet18():
+def test_synthetic():
     for device in ["llvm", "cuda"]:
         if not tvm.runtime.enabled(device):
             print("skip because %s is not enabled..." % device)
             return
 
+    input_shape = (1, 5, 23, 61)
+
     def verify(data):
-        mod, params = relay.testing.resnet.get_workload(num_layers=18)
+        mod, params = relay.testing.synthetic.get_workload(input_shape=input_shape)
         with tvm.transform.PassContext(opt_level=3):
             graph, lib, graph_params = relay.build_module.build(mod, "llvm", params=params)
         ctx = tvm.cpu()
@@ -41,14 +43,14 @@ def test_resnet18():
         out = module.get_output(0).asnumpy()
         return out
 
-    resnet18_mod, resnet18_params = relay.testing.resnet.get_workload(num_layers=18)
+    synthetic_mod, synthetic_params = relay.testing.synthetic.get_workload(input_shape=input_shape)
     with tvm.transform.PassContext(opt_level=3):
-        graph, resnet18_gpu_lib, graph_params = relay.build_module.build(resnet18_mod, "cuda", params=resnet18_params)
+        graph, synthetic_gpu_lib, graph_params = relay.build_module.build(synthetic_mod, "cuda", params=synthetic_params)
 
     from tvm.contrib import util
     temp = util.tempdir()
     path_lib = temp.relpath("deploy_lib.so")
-    resnet18_gpu_lib.export_library(path_lib)
+    synthetic_gpu_lib.export_library(path_lib)
     with open(temp.relpath("deploy_graph.json"), "w") as fo:
         fo.write(graph)
     with open(temp.relpath("deploy_param.params"), "wb") as fo:
@@ -57,7 +59,7 @@ def test_resnet18():
     loaded_lib = tvm.runtime.load_module(path_lib)
     loaded_json = open(temp.relpath("deploy_graph.json")).read()
     loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
-    data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
+    data = np.random.uniform(-1, 1, size=input_shape).astype("float32")
     ctx = tvm.gpu()
     module = graph_runtime.create(loaded_json, loaded_lib, ctx)
     module.load_params(loaded_params)
@@ -96,5 +98,5 @@ def test_cuda_lib():
 
 
 if __name__ == "__main__":
-    test_resnet18()
+    test_synthetic()
     #test_system_lib()
