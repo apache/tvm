@@ -122,13 +122,18 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
 
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     HSTR, WSTR = strides
-    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding, (filter_height, filter_width))
 
     dh, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
-    assert (dh, dw) == (1, 1), "Does not support dilation"
 
-    out_height = (in_height - filter_height + pad_top + pad_down) // HSTR + 1
-    out_width = (in_width - filter_width + pad_left + pad_right) // WSTR + 1
+    dilated_kernel_h = (filter_height - 1) * dh + 1
+    dilated_kernel_w = (filter_width - 1) * dw + 1
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w))
+    HPAD = pad_top + pad_down
+    WPAD = pad_left + pad_right
+
+    out_height = (in_height + HPAD - dilated_kernel_h) // HSTR + 1
+    out_width = (in_width + WPAD - dilated_kernel_w) // WSTR + 1
 
     cfg.define_split("tile_ic", in_channel, num_outputs=2)
     cfg.define_split("tile_oc", out_channel, num_outputs=2)
@@ -140,7 +145,7 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
         te.placeholder((batch, in_channel, in_height, in_width), dtype=data.dtype),
         te.placeholder((out_channel, channel_multiplier, filter_height, filter_width),
                        dtype=kernel.dtype),
-        strides, padding, out_dtype)
+        strides, (pad_top, pad_down), out_dtype)
     if cfg.is_fallback:
         _fallback_schedule(cfg, wkl)
 
@@ -172,6 +177,7 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
     else:
         data_pad = data
 
+
     # depthconv stage
     idxdiv = tvm.tir.indexdiv
     idxmod = tvm.tir.indexmod
@@ -184,7 +190,7 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
             (data_pad[
                 b,
                 idxdiv(idxdiv(oco * out_channel_block + oci, channel_multiplier), in_channel_block),
-                oh*HSTR+kh, ow*WSTR+kw,
+                oh*HSTR+kh*dh, ow*WSTR+kw*dw,
                 idxmod(idxdiv(oco * out_channel_block + oci, channel_multiplier), in_channel_block)]
              .astype(out_dtype) *
              kernel[oco, 0, kh, kw, 0, oci].astype(out_dtype)),
