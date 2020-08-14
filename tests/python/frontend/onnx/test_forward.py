@@ -478,15 +478,15 @@ def _test_slice_iteration_v10(indata, outdata, starts, ends, axes=None):
     inputs = [
         helper.make_tensor_value_info("data", TensorProto.FLOAT,
                                       list(indata.shape)),
-        helper.make_tensor_value_info("starts", TensorProto.INT32,
+        helper.make_tensor_value_info("starts", TensorProto.INT64,
                                       list(starts.shape)),
-        helper.make_tensor_value_info("ends", TensorProto.INT32,
+        helper.make_tensor_value_info("ends", TensorProto.INT64,
                                       list(ends.shape))
     ]
     initializer = [
-        helper.make_tensor("starts", TensorProto.INT32, list(starts.shape),
+        helper.make_tensor("starts", TensorProto.INT64, list(starts.shape),
                            starts),
-        helper.make_tensor("ends", TensorProto.INT32, list(ends.shape), ends)
+        helper.make_tensor("ends", TensorProto.INT64, list(ends.shape), ends)
     ]
 
     if axes:
@@ -534,7 +534,8 @@ def test_slice():
     _test_slice_iteration_v10(x, x[0:3, 0:10], (0, 0), (3, 10), (0, 1))
     _test_slice_iteration_v10(x, x[:, :, 3:4], (0, 0, 3), (20, 10, 4))
     _test_slice_iteration_v10(x, x[:, 1:1000], (1), (1000), (1))
-    _test_slice_iteration_v10(x, x[:, 0:-1], (0), (-1), (1))
+    x = np.random.randn(1, 1, 1, 128).astype(np.float32)
+    _test_slice_iteration_v10(x, x, (0, 0), (9223372036854775807, 9223372036854775807), (0, 3))
 
 
 def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
