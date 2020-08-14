@@ -486,11 +486,9 @@ def _test_slice_iteration_v10(indata, outdata, **attrs):
     ]
     nodes = []
 
-    add_noop_to_input_attrs = []
     if 'add_noop_to_input_attrs' in attrs:
-        add_noop_to_input_attrs = attrs.pop('add_noop_to_input_attrs')
         def add_noop_to_input_attr(attr_name, attr):
-            attrs[attr_name] = attr_name+"_output"
+            output_name = attr_name+"_output"
 
             ref_shape = list(np.array(attr).shape)
             ref_shape.insert(0, 1)
@@ -514,14 +512,14 @@ def _test_slice_iteration_v10(indata, outdata, **attrs):
                                                                             vals=in_array.flatten().astype(int)))
 
             reshape1_node = helper.make_node("Reshape", [attr_name, "ref_in_"+attr_name], ["reshape_"+attr_name])
-            reshape2_node = helper.make_node("Reshape", ["reshape_"+attr_name, "input_shape_"+attr_name], [attrs[attr_name]])
+            reshape2_node = helper.make_node("Reshape", ["reshape_"+attr_name, "input_shape_"+attr_name], [output_name])
             return [ref_node, ref_node2, reshape1_node, reshape2_node]
 
     slice_inputs = []
     for attr_name in ["starts", "ends", "axes"]:
-        if attr_name is "axes" and axes is None:
+        if attr_name == "axes" and not axes:
             continue
-        if attr_name in add_noop_to_input_attrs:
+        if "add_noop_to_input_attrs" in attrs and attr_name in attrs["add_noop_to_input_attrs"]:
             nodes.extend(add_noop_to_input_attr(attr_name, attrs[attr_name]))
             slice_inputs.append(attr_name + "_output")
         else:
