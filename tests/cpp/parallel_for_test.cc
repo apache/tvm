@@ -2,6 +2,7 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
+
 #include <vector>
 
 TEST(ParallelFor, Basic) {
@@ -13,9 +14,7 @@ TEST(ParallelFor, Basic) {
     a[i] = i;
   }
 
-  parallel_for(0, 100, [&b](int i) {
-    b[i] = i;
-  });
+  parallel_for(0, 100, [&b](int i) { b[i] = i; });
 
   for (int i = 0; i < 100; i++) {
     CHECK_EQ(a[i], b[i]);
@@ -35,24 +34,22 @@ TEST(ParallelFor, Nested) {
 
   parallel_for(0, 100, [&b](int i) {
     for (int j = 0; j < 100; j++) {
-       b[i][j] = i * j;
+      b[i][j] = i * j;
     }
   });
 
   for (int i = 0; i < 100; i++) {
-    for (int j = 0; j < 100 ; j++) {
+    for (int j = 0; j < 100; j++) {
       CHECK_EQ(a[i][j], b[i][j]);
     }
   }
 
   for (int i = 0; i < 100; i++) {
-    parallel_for(0, 100, [&c, &i](int j) {
-      c[i][j] = i * j;
-    });
+    parallel_for(0, 100, [&c, &i](int j) { c[i][j] = i * j; });
   }
 
   for (int i = 0; i < 100; i++) {
-    for (int j = 0; j < 100 ; j++) {
+    for (int j = 0; j < 100; j++) {
       CHECK_EQ(a[i][j], c[i][j]);
     }
   }
