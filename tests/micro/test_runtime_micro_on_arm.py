@@ -23,7 +23,6 @@ from tvm.contrib import graph_runtime, util
 from tvm import relay
 import tvm.micro as micro
 from tvm.micro import create_micro_mod
-from tvm.relay.testing import resnet
 
 # Use real micro device - an STM32F746 discovery board
 # SETUP:

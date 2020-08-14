@@ -24,7 +24,7 @@ import tvm
 from tvm import te
 
 from tvm import autotvm, relay
-from tvm.relay.testing import resnet
+from tvm.relay.testing import synthetic
 from tvm.autotvm.graph_tuner.utils import has_multiple_inputs, get_direct_ancestor, get_in_nodes, \
     get_out_nodes, expr2graph, bind_inputs
 from tvm.autotvm.graph_tuner._base import OPT_OUT_OP
@@ -56,7 +56,7 @@ def test_has_multiple_inputs():
 
 
 def test_expr2graph():
-    mod, _ = resnet.get_workload(num_layers=50, batch_size=1)
+    mod, _ = synthetic.get_workload()
     node_dict = {}
     node_list = []
     target_ops = [relay.op.get("nn.conv2d")]

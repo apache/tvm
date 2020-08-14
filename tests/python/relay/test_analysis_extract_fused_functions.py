@@ -17,7 +17,7 @@
 """Test function extraction"""
 import tvm
 from tvm import relay
-from tvm.relay.testing.resnet import get_workload
+from tvm.relay.testing.synthetic import get_workload
 
 
 def get_conv_net():
@@ -106,7 +106,7 @@ def test_extract_conv_net():
 def test_extract_resnet():
     mod, _params = get_workload()
     items = relay.analysis.extract_fused_functions(mod)
-    assert len(items) == 34
+    assert len(items) == 6
 
 
 if __name__ == '__main__':
