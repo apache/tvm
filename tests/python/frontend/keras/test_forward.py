@@ -182,6 +182,7 @@ class TestKeras:
             x = act_func(data)
             keras_model = keras.models.Model(data, x)
             verify_keras_frontend(keras_model)
+            verify_keras_frontend(keras_model, False, 'NHWC')
 
 
     def test_forward_dense(self, keras):
