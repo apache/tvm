@@ -64,24 +64,6 @@ def test_dyn_upsampling_run():
     verify_upsampling((1, 16, 32, 32), 2.0, 2.0, "NHWC", "nearest_neighbor")
     verify_upsampling((1, 16, 32, 32), 2.0, 2.0,"NHWC", "bilinear", True)
 
-# tests upsampling type inference with scale_h and scale_w as variables
-def test_upsampling_infer_type():
-    n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
-
-    data = relay.var("data", relay.TensorType((n, c, h, w), "int8"))
-    scale_h = relay.Var("scale_h", relay.TensorType((), "float32"))
-    scale_w = relay.Var("scale_w", relay.TensorType((), "float32"))
-    
-    z = relay.nn.upsampling(data, scale_h, scale_w)
-    zz = run_infer_type(z)
-    assert zz.checked_type == relay.TensorType((n, c, relay.Any(), relay.Any()), "int8")
-    
-    n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
-    data = relay.var("data", relay.TensorType((n, h, w, c), "int8"))
-    z2 = relay.nn.upsampling(data, scale_h, scale_w, layout="NHWC")
-    zz2 = run_infer_type(z2)
-    assert zz2.checked_type == relay.TensorType((n, relay.Any(), relay.Any(), c), "int8")
-
 #tests upsampling type inference with scale_h passed in as a constant and scale_w as a variable
 def test_upsampling_infer_type_const():
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
