@@ -94,8 +94,7 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
       json_node = CreateCompositeConvJSONNode(cn);
     } else if (name == "arm_compute_lib.dense" || name == "arm_compute_lib.qnn_dense") {
       json_node = CreateCompositeDenseJSONNode(cn);
-    } else if (name == "arm_compute_lib.avg_pool2d" ||
-               name == "arm_compute_lib.global_avg_pool2d") {
+    } else if (name == "arm_compute_lib.avg_pool2d") {
       json_node = CreateCompositeAvgPool2DJSONNode(cn);
     } else if (name == "arm_compute_lib.l2_pool2d") {
       json_node = CreateCompositeL2Pool2DJSONNode(cn);

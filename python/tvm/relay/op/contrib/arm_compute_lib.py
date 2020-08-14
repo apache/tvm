@@ -127,7 +127,8 @@ def arm_compute_lib_pattern_table():
         return pattern
 
     def avg_pool2d_pattern():
-        """Create a uint8 avg_pool2d pattern.
+        """Creates a pattern that matches either quantized
+        avg_pool2d or quantized global_avg_pool2d.
 
         Returns
         -------
@@ -135,20 +136,7 @@ def arm_compute_lib_pattern_table():
             Denotes the convolution pattern.
         """
         pattern = is_op('cast')(wildcard())
-        pattern = is_op('nn.avg_pool2d')(pattern)
-        pattern = is_op('cast')(pattern)
-        return pattern
-
-    def global_avg_pool2d_pattern():
-        """Create a uint8 global_avg_pool2d pattern.
-
-        Returns
-        -------
-        pattern : dataflow_pattern.AltPattern
-            Denotes the convolution pattern.
-        """
-        pattern = is_op('cast')(wildcard())
-        pattern = is_op('nn.global_avg_pool2d')(pattern)
+        pattern = is_op('nn.avg_pool2d')(pattern) | is_op('nn.global_avg_pool2d')(pattern)
         pattern = is_op('cast')(pattern)
         return pattern
 
@@ -206,15 +194,6 @@ def arm_compute_lib_pattern_table():
             return False
         return avg_pool2d(pool.attrs, pool.args, from_quantized_composite=True)
 
-    def check_global_avg_pool2d(extract):
-        """Check global average pool2d pattern is supported by ACL."""
-        if extract.attrs.dtype != "uint8":
-            return False
-        pool = extract.args[0]
-        if pool.args[0].attrs.dtype != "int32":
-            return False
-        return global_avg_pool2d(pool.attrs, pool.args, from_quantized_composite=True)
-
     def check_l2_pool2d(extract):
         """Check l2 pool2d pattern is supported by ACL."""
         pool = extract.args[0]
@@ -226,8 +205,6 @@ def arm_compute_lib_pattern_table():
             ('arm_compute_lib.qnn_dense', qnn_dense_pattern(), check_qnn_dense),
             ('arm_compute_lib.qnn_conv2d', qnn_conv_pattern(), check_qnn_conv),
             ('arm_compute_lib.avg_pool2d', avg_pool2d_pattern(), check_avg_pool2d),
-            ('arm_compute_lib.global_avg_pool2d', global_avg_pool2d_pattern(),
-             check_global_avg_pool2d),
             ('arm_compute_lib.l2_pool2d', l2_pool2d_pattern(), check_l2_pool2d)]
 
 
@@ -342,15 +319,11 @@ def global_max_pool2d(attrs, args):
 
 
 @tvm.ir.register_op_attr("nn.global_avg_pool2d", "target.arm_compute_lib")
-def global_avg_pool2d(attrs, args, from_quantized_composite=False):
+def global_avg_pool2d(attrs, args):
     """Check if the external ACL codegen for global_avgpool2d should be used."""
     typ = args[0].checked_type
-    if from_quantized_composite:
-        if typ.dtype != "int32":
-            return False
-    else:
-        if typ.dtype not in ["float32"]:
-            return False
+    if typ.dtype not in ["float32"]:
+        return False
     if attrs.layout != "NHWC":
         return False
     return True
