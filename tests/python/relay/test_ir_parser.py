@@ -594,7 +594,7 @@ def test_tensor_type():
     assert_parses_as(
         "let %_ : Tensor[(?, 1), float32] = (); ()",
         relay.Let(
-            relay.Var("_", relay.TensorType((tvm.Any(), 1), "float32")),
+            relay.Var("_", relay.TensorType((tvm.tir.Any(), 1), "float32")),
             UNIT,
             UNIT
         )
