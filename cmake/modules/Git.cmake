@@ -24,10 +24,17 @@ if (${GIT_FOUND})
   execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
                   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
                   OUTPUT_VARIABLE TVM_GIT_COMMIT_HASH
-                  ERROR_QUIET
-                  OUTPUT_STRIP_TRAILING_WHITESPACE)
-  message(STATUS "Found TVM_GIT_COMMIT_HASH=${TVM_GIT_COMMIT_HASH}")
+                  RESULT_VARIABLE _TVM_GIT_RESULT
+                  ERROR_VARIABLE _TVM_GIT_ERROR
+                  OUTPUT_STRIP_TRAILING_WHITESPACE
+                  ERROR_STRIP_TRAILING_WHITESPACE)
+  if (${_TVM_GIT_RESULT} EQUAL 0)
+    message(STATUS "Found TVM_GIT_COMMIT_HASH=${TVM_GIT_COMMIT_HASH}")
+  else()
+    message(STATUS "Not a git repo")
+    set(TVM_GIT_COMMIT_HASH "NOT-FOUND")
+  endif()
 else()
   message(WARNING "Git not found")
-  set(TVM_GIT_COMMIT_HASH "git-not-found")
+  set(TVM_GIT_COMMIT_HASH "NOT-FOUND")
 endif()

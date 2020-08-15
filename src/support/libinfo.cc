@@ -21,7 +21,7 @@
 #include <tvm/runtime/registry.h>
 
 #ifndef TVM_GIT_COMMIT_HASH
-#define TVM_GIT_COMMIT_HASH "not-found"
+#define TVM_GIT_COMMIT_HASH "NOT-FOUND"
 #endif
 
 namespace tvm {
