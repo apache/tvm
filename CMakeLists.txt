@@ -321,6 +321,7 @@ include(cmake/modules/contrib/CoreML.cmake)
 include(cmake/modules/contrib/ONNX.cmake)
 include(cmake/modules/contrib/ArmComputeLib.cmake)
 include(cmake/modules/Git.cmake)
+include(cmake/modules/LibInfo.cmake)
 
 include(CheckCXXCompilerFlag)
 if(NOT MSVC)
@@ -332,6 +333,8 @@ else()
   set(CMAKE_CXX_FLAGS "/std:c++14 ${CMAKE_CXX_FLAGS}")
   set(CMAKE_CUDA_STANDARD 14)
 endif()
+
+add_lib_info(${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc)
 
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
@@ -366,15 +369,6 @@ if(BUILD_FOR_HEXAGON)
     PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/qurt"
     PUBLIC "${USE_HEXAGON_SDK}/incs"
     PUBLIC "${USE_HEXAGON_SDK}/incs/stddef")
-endif()
-
-if (${GIT_FOUND})
-  set_property(
-    SOURCE ${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc
-    APPEND
-    PROPERTY COMPILE_DEFINITIONS
-    TVM_GIT_COMMIT_HASH="${TVM_GIT_COMMIT_HASH}"
-  )
 endif()
 
 if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)

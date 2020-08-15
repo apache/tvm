@@ -24,11 +24,230 @@
 #define TVM_GIT_COMMIT_HASH "NOT-FOUND"
 #endif
 
+#ifndef TVM_USE_CUDA
+#define TVM_USE_CUDA "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_OPENCL
+#define TVM_USE_OPENCL "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_VULKAN
+#define TVM_USE_VULKAN "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_METAL
+#define TVM_USE_METAL "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_ROCM
+#define TVM_USE_ROCM "NOT-FOUND"
+#endif
+
+#ifndef TVM_ROCM_PATH
+#define TVM_ROCM_PATH "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_HEXAGON_DEVICE
+#define TVM_USE_HEXAGON_DEVICE "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_HEXAGON_SDK
+#define TVM_USE_HEXAGON_SDK "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_RPC
+#define TVM_USE_RPC "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_THREADS
+#define TVM_USE_THREADS "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_LLVM
+#define TVM_USE_LLVM "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_STACKVM_RUNTIME
+#define TVM_USE_STACKVM_RUNTIME "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_GRAPH_RUNTIME
+#define TVM_USE_GRAPH_RUNTIME "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_GRAPH_RUNTIME_DEBUG
+#define TVM_USE_GRAPH_RUNTIME_DEBUG "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_OPENMP
+#define TVM_USE_OPENMP "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_RELAY_DEBUG
+#define TVM_USE_RELAY_DEBUG "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_RTTI
+#define TVM_USE_RTTI "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_MSVC_MT
+#define TVM_USE_MSVC_MT "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_MICRO
+#define TVM_USE_MICRO "NOT-FOUND"
+#endif
+
+#ifndef TVM_INSTALL_DEV
+#define TVM_INSTALL_DEV "NOT-FOUND"
+#endif
+
+#ifndef TVM_HIDE_PRIVATE_SYMBOLS
+#define TVM_HIDE_PRIVATE_SYMBOLS "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_TF_TVMDSOOP
+#define TVM_USE_TF_TVMDSOOP "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_FALLBACK_STL_MAP
+#define TVM_USE_FALLBACK_STL_MAP "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_BLAS
+#define TVM_USE_BLAS "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_MKL
+#define TVM_USE_MKL "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_MKLDNN
+#define TVM_USE_MKLDNN "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_DNNL_CODEGEN
+#define TVM_USE_DNNL_CODEGEN "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_CUDNN
+#define TVM_USE_CUDNN "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_CUBLAS
+#define TVM_USE_CUBLAS "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_THRUST
+#define TVM_USE_THRUST "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_MIOPEN
+#define TVM_USE_MIOPEN "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_ROCBLAS
+#define TVM_USE_ROCBLAS "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_SORT
+#define TVM_USE_SORT "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_NNPACK
+#define TVM_USE_NNPACK "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_RANDOM
+#define TVM_USE_RANDOM "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_MICRO_STANDALONE_RUNTIME
+#define TVM_USE_MICRO_STANDALONE_RUNTIME "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_CPP_RPC
+#define TVM_USE_CPP_RPC "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_TFLITE
+#define TVM_USE_TFLITE "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_TENSORFLOW_PATH
+#define TVM_USE_TENSORFLOW_PATH "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_COREML
+#define TVM_USE_COREML "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_TARGET_ONNX
+#define TVM_USE_TARGET_ONNX "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_ARM_COMPUTE_LIB
+#define TVM_USE_ARM_COMPUTE_LIB "NOT-FOUND"
+#endif
+
+#ifndef TVM_USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME
+#define TVM_USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME "NOT-FOUND"
+#endif
+
 namespace tvm {
 
-Map<String, String> GetLibInfo() {
+/*!
+ * \brief Get a dictionary containing compile-time info, including cmake flags and git commit hash
+ * \return The compile-time info
+ */
+TVM_DLL Map<String, String> GetLibInfo() {
   Map<String, String> result = {
       {"GIT_COMMIT_HASH", TVM_GIT_COMMIT_HASH},
+      {"USE_CUDA", TVM_USE_CUDA},
+      {"USE_OPENCL", TVM_USE_OPENCL},
+      {"USE_VULKAN", TVM_USE_VULKAN},
+      {"USE_METAL", TVM_USE_METAL},
+      {"USE_ROCM", TVM_USE_ROCM},
+      {"ROCM_PATH", TVM_ROCM_PATH},
+      {"USE_HEXAGON_DEVICE", TVM_USE_HEXAGON_DEVICE},
+      {"USE_HEXAGON_SDK", TVM_USE_HEXAGON_SDK},
+      {"USE_RPC", TVM_USE_RPC},
+      {"USE_THREADS", TVM_USE_THREADS},
+      {"USE_LLVM", TVM_USE_LLVM},
+      {"USE_STACKVM_RUNTIME", TVM_USE_STACKVM_RUNTIME},
+      {"USE_GRAPH_RUNTIME", TVM_USE_GRAPH_RUNTIME},
+      {"USE_GRAPH_RUNTIME_DEBUG", TVM_USE_GRAPH_RUNTIME_DEBUG},
+      {"USE_OPENMP", TVM_USE_OPENMP},
+      {"USE_RELAY_DEBUG", TVM_USE_RELAY_DEBUG},
+      {"USE_RTTI", TVM_USE_RTTI},
+      {"USE_MSVC_MT", TVM_USE_MSVC_MT},
+      {"USE_MICRO", TVM_USE_MICRO},
+      {"INSTALL_DEV", TVM_INSTALL_DEV},
+      {"HIDE_PRIVATE_SYMBOLS", TVM_HIDE_PRIVATE_SYMBOLS},
+      {"USE_TF_TVMDSOOP", TVM_USE_TF_TVMDSOOP},
+      {"USE_FALLBACK_STL_MAP", TVM_USE_FALLBACK_STL_MAP},
+      {"USE_BLAS", TVM_USE_BLAS},
+      {"USE_MKL", TVM_USE_MKL},
+      {"USE_MKLDNN", TVM_USE_MKLDNN},
+      {"USE_DNNL_CODEGEN", TVM_USE_DNNL_CODEGEN},
+      {"USE_CUDNN", TVM_USE_CUDNN},
+      {"USE_CUBLAS", TVM_USE_CUBLAS},
+      {"USE_THRUST", TVM_USE_THRUST},
+      {"USE_MIOPEN", TVM_USE_MIOPEN},
+      {"USE_ROCBLAS", TVM_USE_ROCBLAS},
+      {"USE_SORT", TVM_USE_SORT},
+      {"USE_NNPACK", TVM_USE_NNPACK},
+      {"USE_RANDOM", TVM_USE_RANDOM},
+      {"USE_MICRO_STANDALONE_RUNTIME", TVM_USE_MICRO_STANDALONE_RUNTIME},
+      {"USE_CPP_RPC", TVM_USE_CPP_RPC},
+      {"USE_TFLITE", TVM_USE_TFLITE},
+      {"USE_TENSORFLOW_PATH", TVM_USE_TENSORFLOW_PATH},
+      {"USE_COREML", TVM_USE_COREML},
+      {"USE_TARGET_ONNX", TVM_USE_TARGET_ONNX},
+      {"USE_ARM_COMPUTE_LIB", TVM_USE_ARM_COMPUTE_LIB},
+      {"USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME", TVM_USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME},
   };
   return result;
 }

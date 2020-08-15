@@ -19,7 +19,14 @@ import tvm._ffi
 
 
 def libinfo():
-    return GetLibInfo()
+    """Returns a dictionary containing compile-time info, including cmake flags and git commit hash
+
+    Returns
+    -------
+    info: Dict[str, str]
+        The dictionary of compile-time info.
+    """
+    return {k: v for k, v in GetLibInfo().items()}  # pylint: disable=unnecessary-comprehension
 
 
 tvm._ffi._init_api("support", __name__)
