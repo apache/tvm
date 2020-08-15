@@ -320,6 +320,7 @@ include(cmake/modules/contrib/TF_TVMDSOOP.cmake)
 include(cmake/modules/contrib/CoreML.cmake)
 include(cmake/modules/contrib/ONNX.cmake)
 include(cmake/modules/contrib/ArmComputeLib.cmake)
+include(cmake/modules/Git.cmake)
 
 include(CheckCXXCompilerFlag)
 if(NOT MSVC)
@@ -365,6 +366,15 @@ if(BUILD_FOR_HEXAGON)
     PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/qurt"
     PUBLIC "${USE_HEXAGON_SDK}/incs"
     PUBLIC "${USE_HEXAGON_SDK}/incs/stddef")
+endif()
+
+if (${GIT_FOUND})
+  set_property(
+    SOURCE ${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc
+    APPEND
+    PROPERTY COMPILE_DEFINITIONS
+    TVM_GIT_COMMIT_HASH="${TVM_GIT_COMMIT_HASH}"
+  )
 endif()
 
 if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
