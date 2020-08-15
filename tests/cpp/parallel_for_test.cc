@@ -29,11 +29,24 @@ TEST(ParallelFor, Basic) {
 
   int a[100], b[100];
 
+  // Default
   for (int i = 0; i < 100; i++) {
     a[i] = i;
   }
 
   parallel_for(0, 100, [&b](int i) { b[i] = i; });
+
+  for (int i = 0; i < 100; i++) {
+    CHECK_EQ(a[i], b[i]);
+  }
+
+  // Check for step != 1
+  for (int i = 0; i < 100; i += 2) {
+    a[i] *= 2;
+  }
+
+  parallel_for(
+      0, 100, [&b](int i) { b[i] *= 2; }, 2);
 
   for (int i = 0; i < 100; i++) {
     CHECK_EQ(a[i], b[i]);
