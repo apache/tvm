@@ -130,7 +130,21 @@ class CodeGenHexagon final : public CodeGenLLVM {
 };
 
 void CodeGenHexagon::InitTarget(llvm::TargetMachine* tm) {
-  native_vector_bits_ = 128 * 8;
+  native_vector_bits_ = 64;  // Assume "scalar" vectors at first.
+  llvm::StringRef fs = tm->getTargetFeatureString();
+  size_t npos = llvm::StringRef::npos;
+  const auto hvx_length_feature = "+hvx-length";  // +hvx-length{64|128}b
+  size_t len_begin = fs.find(hvx_length_feature);
+  size_t len_end = len_begin != npos ? fs.find('b', len_begin) : npos;
+  if (len_end != npos) {
+    int hvx_bytes;
+    len_begin += std::strlen(hvx_length_feature);
+    CHECK(!fs.substr(len_begin, len_end - len_begin).getAsInteger(10, hvx_bytes))
+        << "invalid HVX length in feature string: " << fs.str();
+    CHECK(hvx_bytes == 64 || hvx_bytes == 128)
+        << "invalid HVX vector length: " << hvx_bytes << ", should be 64 or 128";
+    native_vector_bits_ = hvx_bytes * 8;
+  }
   CodeGenLLVM::InitTarget(tm);
 }
 
