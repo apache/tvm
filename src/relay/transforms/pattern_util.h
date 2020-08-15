@@ -439,11 +439,16 @@ static inline Array<Array<Integer>> ToMatrix(const runtime::NDArray& array) {
   CHECK_EQ(ndim, 2) << "This function should only used for 2D NDArrays";
   size_t dim1 = array.Shape().at(0);
   size_t dim2 = array.Shape().at(1);
+
   Array<Array<Integer>> out;
-  for (size_t i = 0; i < len; ++i) {
+
+  for (size_t i = 0; i < dim1; ++i) {
     Array<Integer> inner_out;
-    double elem_val = ToScalar(array, i);
-    out.push_back(Integer(static_cast<int>(elem_val)));
+    for (size_t j = 0; j < dim2; ++j) {
+      double elem_val = ToScalar(array, i*dim2 + j);
+      inner_out.push_back(Integer(static_cast<int>(elem_val)));
+    }
+    out.push_back(inner_out);
   }
   return out;
 }
@@ -649,7 +654,11 @@ static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexE
 
 static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value,
                        std::string pad_mode) {
-  return MakePad(data, pad_width, pad_value, pad_mode);
+  Array<Array<Integer>> pad_width_int;
+  for (size_t i = 0; i < pad_width.size(); ++i) {
+    pad_width_int.push_back(CheckConstantShapeArrayInteger(pad_width[i]));
+  }
+  return MakePad(data, pad_width_int, pad_value, pad_mode);
 }
 
 static inline Expr Tile(Expr data, Array<Integer> reps) { return MakeTile(data, reps); }

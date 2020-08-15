@@ -1418,7 +1418,7 @@ def prelu(data, alpha, axis=1):
 
 def pad(data,
         pad_width,
-        pad_value=0.0,
+        pad_value=0,
         pad_mode='constant'):
     r"""Padding
 
@@ -1429,10 +1429,10 @@ def pad(data,
     ----------
     data: tvm.relay.Expr
         The input data to the operator
-    pad_width: tuple of <tuple of <int>>, required
+    pad_width: tuple of <tuple of <int>>, or tvm.relay.Expr, required
         Number of values padded to the edges of each axis, in the format
         of ((before_1, after_1), ..., (before_N, after_N))
-    pad_value: float, optional, default=0.0
+    pad_value: float, or tvm.relay.Expr, optional, default=0
         The value used for padding
     pad_mode: 'constant', 'edge', 'reflect'
         'constant' pads with constant_value pad_value
@@ -1443,7 +1443,14 @@ def pad(data,
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.pad(data, pad_width, pad_value, pad_mode)
+    if (isinstance(pad_width, Expr) or (isinstance(pad_value, Expr))):
+        if not isinstance(pad_width, Expr):
+            pad_width = const(list(pad_width))
+        if not isinstance(pad_value, Expr):
+            pad_value = const(pad_value)
+        return _dyn_make.pad(data, pad_width, pad_value, pad_mode)
+    else:
+        return _make.pad(data, pad_width, pad_value, pad_mode)
 
 
 def dilate(data, strides):

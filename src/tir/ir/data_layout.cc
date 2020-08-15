@@ -320,7 +320,11 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
     if (!LayoutAxis::Get(axis).IsPrimal()) {
       result.push_back(axis->dom->extent);
     } else {
-      result.push_back(ana.Simplify(tir::Substitute(rule, bind_map)));
+      if (symbolic_var_set.count(i)) {
+        result.push_back(tir::Any());
+      } else {
+        result.push_back(ana.Simplify(tir::Substitute(rule, bind_map)));
+      }
     }
   }
   return result;

@@ -26,6 +26,11 @@
 #ifndef TVM_RELAY_OP_DYN_NN_UPSAMPLING_H_
 #define TVM_RELAY_OP_DYN_NN_UPSAMPLING_H_
 
+#include <tvm/relay/attrs/nn.h>
+#include <tvm/tir/data_layout.h>
+
+#include "../../op_common.h"
+
 namespace tvm {
 namespace relay {
 
