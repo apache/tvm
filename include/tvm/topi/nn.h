@@ -177,7 +177,7 @@ inline tvm::te::Tensor pad(const tvm::te::Tensor& t, const tvm::Array<tvm::PrimE
       }
     }
   } else {
-    for (int i = 0; i < (int) dyn_output_shape->size(); i++) {
+    for (size_t i = 0; i < dyn_output_shape->size(); i++) {
       output_shape.push_back((*dyn_output_shape)[i]);
     }
   }

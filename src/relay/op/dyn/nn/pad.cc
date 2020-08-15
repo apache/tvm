@@ -41,7 +41,6 @@ namespace dyn {
 
 bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
             const TypeReporter& reporter) {
-  
   // types = [data_type, pad_width_type, pad_value_type, ret_type]
   CHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -61,8 +60,9 @@ bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   auto pad_width_dim1 = pad_width->shape[0].as<IntImmNode>();
   auto pad_width_dim2 = pad_width->shape[1].as<IntImmNode>();
-  
-  CHECK(pad_width_dim1->value == data_rank && pad_width_dim2->value == 2) << "Pad width must have shape (N, 2), where N is the rank of input data";
+
+  CHECK(pad_width_dim1->value == data_rank && pad_width_dim2->value == 2)
+    << "Pad width must have shape (N, 2), where N is the rank of input data";
 
   const PadAttrs* param = attrs.as<PadAttrs>();
   CHECK(param != nullptr);
@@ -83,24 +83,23 @@ Array<te::Tensor> PadCompute(const Attrs& attrs, const Array<te::Tensor>& inputs
 
   auto data = inputs[0];
   auto pad_width = inputs[1];
-  
+
   const PrimExpr& pad_value = inputs[2](Array<PrimExpr>());
 
   Array<IndexExpr> pad_before;
   Array<IndexExpr> pad_after;
 
-  for (int i = 0; i < pad_width->shape[0].as<IntImmNode>()->value; ++i) { 
+  for (int i = 0; i < pad_width->shape[0].as<IntImmNode>()->value; ++i) {
     pad_before.push_back(pad_width[i][0]);
     pad_after.push_back(pad_width[i][1]);
   }
-  
+
   const auto* out_ttype = out_type.as<TensorTypeNode>();
   CHECK(out_ttype != nullptr);
 
   return Array<te::Tensor>{topi::pad(inputs[0], pad_before, pad_after,
-                                     pad_value,
-                                     "T_pad", topi::kElementWise, param->pad_mode, &out_type.as<TensorTypeNode>()->shape)};
-
+                                     pad_value, "T_pad", topi::kElementWise,
+                                     param->pad_mode, &out_type.as<TensorTypeNode>()->shape)};
 }
 
 // Handler to create a call to the padding op used by front-end FFI
@@ -127,6 +126,6 @@ RELAY_REGISTER_OP("nn.dyn.pad")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<FTVMCompute>("FTVMCompute", PadCompute);
 
-} // dyn
-} // relay
-} // tvm
+}  // namespace dyn
+}  // namespace relay
+}  // namespace tvm
