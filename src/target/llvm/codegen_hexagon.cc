@@ -137,7 +137,7 @@ void CodeGenHexagon::InitTarget(llvm::TargetMachine* tm) {
   size_t len_begin = fs.find(hvx_length_feature);
   size_t len_end = len_begin != npos ? fs.find('b', len_begin) : npos;
   if (len_end != npos) {
-    int hvx_bytes;
+    int hvx_bytes = 0;
     len_begin += std::strlen(hvx_length_feature);
     CHECK(!fs.substr(len_begin, len_end - len_begin).getAsInteger(10, hvx_bytes))
         << "invalid HVX length in feature string: " << fs.str();
