@@ -27,9 +27,23 @@
 #include <tvm/runtime/c_runtime_api.h>
 
 #include <functional>
+#include <vector>
 
 namespace tvm {
 namespace support {
+
+using PartitionerFuncType = std::function<std::vector<std::vector<int>>(int, int, int, int)>;
+
+/*!
+ * \brief A partitioner to split the task to each thread in Round-robin manner.
+ * \param begin The start index of this parallel loop(inclusive).
+ * \param end The end index of this parallel loop(exclusive).
+ * \param step The traversal step to the index.
+ * \param num_threads The number of threads(the number of tasks to be partitioned to).
+ * \return A list with `num_threads` elements, and each is a list of integers indicating the loop
+ * indexes for the corresponding thread to process.
+ */
+std::vector<std::vector<int>> rr_partitioner(int begin, int end, int step, int num_threads);
 
 /*!
  * \brief A runtime api provided to run the task function in parallel.
@@ -45,9 +59,12 @@ namespace support {
  * \param end The end index of this parallel loop(exclusive).
  * \param f The task function to be excuted. Assert to take an int index as input with no output.
  * \param step The traversal step to the index.
+ * \param partitioner A partition function to split tasks to different threads. Use Round-robin
+ * partitioner in default.
  * \note Currently do not support nested parallel_for.
  */
-TVM_DLL void parallel_for(int begin, int end, const std::function<void(int)>& f, int step = 1);
+TVM_DLL void parallel_for(int begin, int end, const std::function<void(int)>& f, int step = 1,
+                          const PartitionerFuncType partitioner = rr_partitioner);
 
 }  // namespace support
 }  // namespace tvm
