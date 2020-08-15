@@ -31,6 +31,7 @@
 #include <tvm/target/target_kind.h>
 
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -62,6 +63,13 @@ class TargetNode : public Object {
     v->Visit("attrs", &attrs);
   }
 
+  /*!
+   * \brief Get an entry from attrs of the target
+   * \tparam TObjectRef Type of the attribute
+   * \param attr_key The name of the attribute key
+   * \param default_value The value returned if the key is not present
+   * \return An optional, NullOpt if not found, otherwise the value found
+   */
   template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
@@ -75,15 +83,19 @@ class TargetNode : public Object {
       return default_value;
     }
   }
-
+  /*!
+   * \brief Get an entry from attrs of the target
+   * \tparam TObjectRef Type of the attribute
+   * \param attr_key The name of the attribute key
+   * \param default_value The value returned if the key is not present
+   * \return An optional, NullOpt if not found, otherwise the value found
+   */
   template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
     return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
   }
-
   /*! \brief Get the keys for this target as a vector of string */
   TVM_DLL std::vector<std::string> GetKeys() const;
-
   /*! \brief Get the keys for this target as an unordered_set of string */
   TVM_DLL std::unordered_set<std::string> GetLibs() const;
 
@@ -93,6 +105,26 @@ class TargetNode : public Object {
  private:
   /*! \brief Internal string repr. */
   mutable std::string str_repr_;
+  /*!
+   * \brief Parsing TargetNode::attrs from a list of raw strings
+   * \param obj The attribute to be parsed
+   * \param info The runtime type information for parsing
+   * \return The attribute parsed
+   */
+  ObjectRef ParseAttr(const ObjectRef& obj, const TargetKindNode::ValueTypeInfo& info) const;
+  /*!
+   * \brief Parsing TargetNode::attrs from a list of raw strings
+   * \param options The raw string of fields to be parsed
+   * \return The attributes parsed
+   */
+  Map<String, ObjectRef> ParseAttrsFromRaw(const std::vector<std::string>& options) const;
+  /*!
+   * \brief Serialize the attributes of a target to raw string
+   * \param attrs The attributes to be converted to string
+   * \return The string converted, NullOpt if attrs is empty
+   */
+  Optional<String> StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) const;
+
   friend class Target;
 };
 
@@ -103,10 +135,18 @@ class TargetNode : public Object {
 class Target : public ObjectRef {
  public:
   Target() {}
+  /*! \brief Constructor from ObjectPtr */
   explicit Target(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief Create a Target using a JSON-like configuration
+   * \param config The JSON-like configuration
+   * \return The target created
+   */
+  TVM_DLL static Target FromConfig(const Map<String, ObjectRef>& config);
   /*!
    * \brief Create a Target given a string
    * \param target_str the string to parse
+   * \return The target created
    */
   TVM_DLL static Target Create(const String& target_str);
   /*!

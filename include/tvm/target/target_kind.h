@@ -45,9 +45,6 @@ struct ValueTypeInfoMaker;
 
 class Target;
 
-/*! \brief Perform schema validation */
-TVM_DLL void TargetValidateSchema(const Map<String, ObjectRef>& config);
-
 template <typename>
 class TargetKindAttrMap;
 
@@ -67,14 +64,14 @@ class TargetKindNode : public Object {
     v->Visit("default_keys", &default_keys);
   }
 
-  Map<String, ObjectRef> ParseAttrsFromRaw(const std::vector<std::string>& options) const;
-
-  Optional<String> StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) const;
-
   static constexpr const char* _type_key = "TargetKind";
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetKindNode, Object);
 
  private:
+  /*! \brief Return the index stored in attr registry */
+  uint32_t AttrRegistryIndex() const { return index_; }
+  /*! \brief Return the name stored in attr registry */
+  String AttrRegistryName() const { return name; }
   /*! \brief Stores the required type_key and type_index of a specific attr of a target */
   struct ValueTypeInfo {
     String type_key;
@@ -82,21 +79,14 @@ class TargetKindNode : public Object {
     std::unique_ptr<ValueTypeInfo> key;
     std::unique_ptr<ValueTypeInfo> val;
   };
-
-  uint32_t AttrRegistryIndex() const { return index_; }
-  String AttrRegistryName() const { return name; }
-  /*! \brief Perform schema validation */
-  void ValidateSchema(const Map<String, ObjectRef>& config) const;
-  /*! \brief Verify if the obj is consistent with the type info */
-  void VerifyTypeInfo(const ObjectRef& obj, const TargetKindNode::ValueTypeInfo& info) const;
   /*! \brief A hash table that stores the type information of each attr of the target key */
   std::unordered_map<String, ValueTypeInfo> key2vtype_;
   /*! \brief A hash table that stores the default value of each attr of the target key */
   std::unordered_map<String, ObjectRef> key2default_;
   /*! \brief Index used for internal lookup of attribute registry */
   uint32_t index_;
-  friend void TargetValidateSchema(const Map<String, ObjectRef>&);
   friend class Target;
+  friend class TargetNode;
   friend class TargetKind;
   template <typename, typename>
   friend class AttrRegistry;
