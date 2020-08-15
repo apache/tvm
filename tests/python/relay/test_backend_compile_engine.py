@@ -20,7 +20,7 @@ from tvm import te
 import tvm.testing
 from tvm import relay
 from tvm import autotvm
-import topi
+from tvm import topi
 from tvm.relay.testing import run_infer_type
 from tvm.relay.testing.temp_op_attr import TempOpAttr
 

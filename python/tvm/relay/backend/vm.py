@@ -1,4 +1,4 @@
-# License .to the Apache Software Foundation (ASF) under one
+# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -27,6 +27,7 @@ import tvm.runtime.ndarray as _nd
 import tvm.runtime.vm as vm_rt
 from tvm import autotvm
 from tvm.relay import expr as _expr
+from tvm.relay.ty import is_dynamic
 from tvm.relay.backend.interpreter import Executor
 from . import _vm
 
@@ -72,6 +73,7 @@ def compile(mod, target=None, target_host=None, params=None):
 
 class VMCompiler(object):
     """Compiler that compiles Relay module to VM executable."""
+
     def __init__(self):
         self.mod = _vm._VMCompiler()
         self._lower = self.mod["lower"]
@@ -238,6 +240,7 @@ class VMExecutor(Executor):
     target : :py:class:`Target`
         The target option to build the function.
     """
+
     def __init__(self, mod, ctx, target):
         if mod is None:
             raise RuntimeError("Must provide module to get VM executor.")
@@ -245,14 +248,19 @@ class VMExecutor(Executor):
         self.ctx = ctx
         self.target = target
         self.executable = compile(mod, target)
-        self.vm = vm_rt.VirtualMachine(self.executable)
-        self.vm.init(ctx)
+        self.vm = vm_rt.VirtualMachine(self.executable, ctx)
 
     def _make_executor(self, expr=None):
         main = self.mod["main"]
 
         def _vm_wrapper(*args, **kwargs):
             args = self._convert_args(main, args, kwargs)
+            ret_type = self.mod["main"].checked_type.ret_type
+            if is_dynamic(ret_type) and "llvm" not in str(self.target) and "arm" not in str(
+                    self.target):
+                raise ValueError(
+                    "Virtual Machine only supports dynamic graphs on CPU, got output type",
+                    ret_type, "on target", self.target)
             return self.vm.run(*args)
 
         return _vm_wrapper

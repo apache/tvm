@@ -19,10 +19,10 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <topi/cuda/injective.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
+#include <tvm/topi/cuda/injective.h>
 
 #include <cmath>
 #include <string>
@@ -56,7 +56,9 @@ TEST(BuildModule, Basic) {
   auto module = build(lowered, target, Target());
 
   auto mali_target = Target::Create("opencl -model=Mali-T860MP4@800Mhz -device=mali");
-  CHECK_EQ(mali_target->str(), "opencl -model=Mali-T860MP4@800Mhz -device=mali");
+  CHECK_EQ(
+      mali_target->str(),
+      "opencl -keys=mali,opencl,gpu -device=mali -max_num_threads=256 -model=Mali-T860MP4@800Mhz");
 }
 
 TEST(BuildModule, Heterogeneous) {

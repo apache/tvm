@@ -18,7 +18,7 @@
 """Backend compiler related feature registration"""
 
 from tvm.te.hybrid import script
-import topi
+from tvm import topi
 
 from .op import register_compute, register_shape_func
 from .op import register_broadcast_schedule, register_injective_schedule
@@ -92,7 +92,7 @@ register_broadcast_schedule("fast_erf")
 # zeros
 @register_compute("zeros")
 def zeros_compute(attrs, inputs, output_type):
-    assert len(inputs) == 1
+    assert not inputs
     return [topi.full(output_type.shape, output_type.dtype, 0.0)]
 
 register_broadcast_schedule("zeros")
@@ -109,7 +109,7 @@ register_broadcast_schedule("zeros_like")
 # ones
 @register_compute("ones")
 def ones_compute(attrs, inputs, output_type):
-    assert len(inputs) == 1
+    assert not inputs
     return [topi.full(output_type.shape, output_type.dtype, 1.0)]
 
 register_broadcast_schedule("ones")
@@ -130,6 +130,14 @@ def clip_compute(attrs, inputs, output_type):
     return [topi.clip(inputs[0], attrs.a_min, attrs.a_max)]
 
 register_injective_schedule("clip")
+
+# fixed point multiply
+@register_compute("fixed_point_multiply")
+def fixed_point_multiply_compute(attrs, inputs, output_type):
+    assert len(inputs) == 1
+    return [topi.fixed_point_multiply(inputs[0], attrs.multiplier, attrs.shift)]
+
+register_injective_schedule("fixed_point_multiply")
 
 # full
 @script
@@ -193,11 +201,11 @@ def elemwise_shape_func(attrs, inputs, _):
     return [topi.math.identity(inputs[0])]
 
 register_shape_func("cast", False, elemwise_shape_func)
-register_shape_func("zeros", True, no_data_full_shape_func)
+register_shape_func("zeros", False, full_shape_func)
 register_shape_func("zeros_like", False, elemwise_shape_func)
-register_shape_func("ones", True, no_data_full_shape_func)
+register_shape_func("ones", False, full_shape_func)
 register_shape_func("ones_like", False, elemwise_shape_func)
-register_shape_func("full", True, full_shape_func)
+register_shape_func("full", False, full_shape_func)
 register_shape_func("full_like", False, elemwise_shape_func)
 register_shape_func("broadcast_to", True, full_shape_func)
 
@@ -231,3 +239,5 @@ register_shape_func("tan", False, elemwise_shape_func)
 register_shape_func("fast_exp", False, elemwise_shape_func)
 register_shape_func("fast_tanh", False, elemwise_shape_func)
 register_shape_func("fast_erf", False, elemwise_shape_func)
+register_shape_func("floor", False, elemwise_shape_func)
+register_shape_func("log", False, elemwise_shape_func)

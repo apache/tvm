@@ -29,6 +29,7 @@
 #include <tvm/target/target_info.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -45,7 +46,6 @@
 namespace tvm {
 namespace tir {
 
-using intrinsic::tvm_address_of;
 using runtime::StorageRank;
 using runtime::StorageScope;
 using runtime::ThreadScope;
@@ -101,7 +101,7 @@ class StorageFlattener : public StmtExprMutator {
     } else if (op->attr_key == attr::buffer_dim_align) {
       auto buffer = Downcast<tir::Buffer>(op->node);
       const CallNode* tuple = op->value.as<CallNode>();
-      CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
+      CHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
       auto& vinfo = dim_align_[buffer];
       int dim = tuple->args[0].as<IntImmNode>()->value;
       if (static_cast<size_t>(dim) >= vinfo.size()) {
@@ -321,10 +321,8 @@ class StorageFlattener : public StmtExprMutator {
         stmt = For(vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None, stmt);
       } else {
         PrimExpr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
-        PrimExpr address =
-            Call(DataType::Handle(), tvm_address_of, {load}, CallNode::PureIntrinsic);
-        PrimExpr prefetch =
-            Call(op->buffer->dtype, CallNode::prefetch, {address, 0, 3, 1}, CallNode::Intrinsic);
+        PrimExpr address = Call(DataType::Handle(), builtin::address_of(), {load});
+        PrimExpr prefetch = Call(op->buffer->dtype, builtin::prefetch(), {address, 0, 3, 1});
         stmt = Evaluate(prefetch);
         PrimExpr extent = (op->bounds[i]->extent - 1) / stride + 1;
         stmt = For(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
@@ -392,7 +390,7 @@ class StorageFlattener : public StmtExprMutator {
     const BufferNode* target = arr[1].as<BufferNode>();
     const CallNode* tuple = op->value.as<CallNode>();
     CHECK(buffer && target);
-    CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
+    CHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
     auto key = GetRef<Buffer>(target);
 
     auto it = buf_map_.find(key);

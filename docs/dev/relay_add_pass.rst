@@ -30,7 +30,7 @@ compiler passes.
 At a high level, there are two key components to writing a pass:
 
 - Creating one or more C++ classes that traverse the program
-- Wrapping the traversal implementation and its metadata in the pass manager API so it can neatly interface with the :ref:`relay-pass-infra`
+- Wrapping the traversal implementation and its metadata in the pass manager API so it can neatly interface with the :ref:`pass-infra`
 
 To begin, we'll give an overview of the key mechanisms for writing a compiler
 pass. Then, we'll walk through a concrete example of the constant-folding
@@ -181,7 +181,7 @@ Example: Constant Folding
 -------------------------
 
 In order to better understand the process of writing a pass, we will look at
-the constant folding pass (found in `src/relay/pass/fold_constant.cc`_)
+the constant folding pass (found in `src/relay/transforms/fold_constant.cc`_)
 as a guide, because it is a relatively simple pass that incorporates
 both types of traversals.
 
@@ -329,13 +329,13 @@ Now, we construct a more convenient interface ``FoldConstant`` for our constant
 folder. ``FoldConstant`` is a standalone function outside of the ``ConstantFolder``
 class that takes an expression and internally creates and uses a
 ``ConstantFolder`` instance (the full definition can be found in
-`src/relay/pass/fold_constant.cc`_).
+`src/relay/transforms/fold_constant.cc`_).
 
 
 Registering a Pass with the Pass Manager
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-*Note: please see the documentation on the :ref:`relay-pass-infra` for more specific detail on this subject.*
+*Note: please see the documentation on the :ref:`pass-infra` for more specific detail on this subject.*
 
 With the AST traversers written, the pass can be registered to become a TVM
 API endpoint with the following code:
@@ -395,7 +395,7 @@ the below code applies both the ``FoldConstant`` and ``ToANormalForm`` passes
     new_mod = seq(mod)
 
 More detail about registration can be found in :ref:`tvm-runtime-system` and more
-information about the pass manager interface can be found in :ref:`relay-pass-infra`.
+information about the pass manager interface can be found in :ref:`pass-infra`.
 Relay's standard passes are listed in `include/tvm/relay/transform.h`_ and implemented
 in `src/relay/pass/`_.
 
@@ -403,4 +403,4 @@ in `src/relay/pass/`_.
 
 .. _src/relay/pass/: https://github.com/apache/incubator-tvm/tree/master/src/relay/pass
 
-.. _src/relay/pass/fold_constant.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/pass/fold_constant.cc
+.. _src/relay/transforms/fold_constant.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/transforms/fold_constant.cc

@@ -112,12 +112,11 @@ def test_expr_constructor():
     assert x.vectors[0] == a
     assert x.indices[0].value == 0
 
-    x = tvm.tir.Call("float32", "xyz", [a], tvm.tir.Call.Extern)
+    x = tvm.tir.Call("float32", "tir.call_extern", [tvm.tir.StringImm("xyz"), a])
     assert isinstance(x, tvm.tir.Call)
     assert x.dtype == "float32"
-    assert x.name == "xyz"
-    assert x.args[0] == a
-    assert x.call_type == tvm.tir.Call.Extern
+    assert x.op.name == "tir.call_extern"
+    assert x.args[1] == a
 
     v = te.var("aa")
     x = tvm.tir.Let(v, 1, v)
@@ -170,10 +169,6 @@ def test_stmt_constructor():
     assert x.node == buffer_var
     assert x.attr_key == "xyz"
     assert x.body == nop
-
-    x = tvm.tir.Free(buffer_var)
-    assert isinstance(x, tvm.tir.Free)
-    assert x.buffer_var == buffer_var
 
     x = tvm.tir.IfThenElse(tvm.tir.const(1, "uint1"),
                             tvm.tir.Evaluate(11),

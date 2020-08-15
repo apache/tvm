@@ -28,7 +28,7 @@ import tvm.relay as relay
 from tvm.contrib import util, ndk, graph_runtime as runtime
 from tvm.contrib.download import download_testdata, download
 
-target = 'llvm -target=arm64-linux-android'
+target = 'llvm -mtriple=arm64-linux-android'
 target_host = None
 
 def del_dir(target: Union[Path, str], only_if_empty: bool = False):

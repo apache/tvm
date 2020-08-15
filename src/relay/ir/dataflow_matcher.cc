@@ -359,7 +359,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ExprPatternNode* op, const Expr& ex
 bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) {
   bool matches = false;
   if (const auto* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
-    matches = (op->index == tuple_get_item_node->index) &&
+    matches = (op->index == -1 || op->index == tuple_get_item_node->index) &&
               VisitDFPattern(op->tuple, tuple_get_item_node->tuple);
   }
   return matches;
@@ -388,6 +388,34 @@ Expr InferType(const Expr& expr) {
   } else {
     return mod->Lookup("main").as<FunctionNode>()->body;
   }
+}
+
+Expr InferTypeWithModule(const Expr& expr, const IRModule& m) {
+  IRModule mod(m->functions, m->type_definitions, m->Imports());
+  int idx = 0;
+  std::string gv_name;
+  do {
+    std::ostringstream oss;
+    oss << "_tmp" << idx;
+    gv_name = oss.str();
+    ++idx;
+  } while (mod->ContainGlobalVar(gv_name));
+  GlobalVar gvar(gv_name);
+  BaseFunc func;
+  if (expr.as<FunctionNode>()) {
+    func = Downcast<Function>(expr);
+  } else {
+    func = relay::Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod), {});
+  }
+  mod->Add(gvar, func);
+  mod = transform::InferType()(mod);
+  Expr ret;
+  if (expr.as<FunctionNode>()) {
+    ret = mod->Lookup(gvar);
+  } else {
+    ret = mod->Lookup(gvar).as<FunctionNode>()->body;
+  }
+  return ret;
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr) {
@@ -436,7 +464,8 @@ bool MatchPattern(DFPattern pattern, Expr expr) {
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.match").set_body_typed(MatchPattern);
 
-/* \brief PatternGrouper does pre-rewriting pattern matching and analysis
+/*!
+ * \brief PatternGrouper does pre-rewriting pattern matching and analysis
  *
  * This class creates a number of groups of matched expressions, ensures they don't overlap, and
  * returns them to the caller for post-analysis rewriting.
@@ -446,7 +475,7 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.match").set_body_typed(MatchPattern)
  */
 class PatternGrouper {
  public:
-  /* \brief Internal Group class for storing analysis */
+  /*! \brief Internal Group class for storing analysis */
   struct Group {
     Expr root_node;
     int gid;
@@ -456,13 +485,13 @@ class PatternGrouper {
     Array<Expr> args;
   };
 
-  /* \brief Return the group assignments of expressions */
+  /*! \brief Return the group assignments of expressions */
   const std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual>& GetGIDAssignments() {
     return gid_assignments_;
   }
-  /* \brief Group expressions that match the pattern */
-  const std::vector<Group>& GroupMatches(const DFPattern& pattern, const Expr& pre) {
-    groups_ = {Group()};
+  /*! \brief Group expressions that match the pattern */
+  const std::unordered_map<int, Group>& GroupMatches(const DFPattern& pattern, const Expr& pre) {
+    groups_.clear();
     gid_assignments_.clear();
 
     pattern_ = pattern;
@@ -474,7 +503,7 @@ class PatternGrouper {
   }
 
  protected:
-  /* \brief Iteratively traverse the Expression in pre-order to find subgraphs
+  /*! \brief Iteratively traverse the Expression in pre-order to find subgraphs
    *
    * If we traverse the graph in post-order, we can run into situtations where a small subgraph will
    * match the pattern. Due to options like AltPattern, a larger subgraph with more nodes later in
@@ -487,19 +516,21 @@ class PatternGrouper {
     for (size_t i = matcher_->expr_graph_.topological_order_.size(); i != 0; --i) {
       size_t index = i - 1;
       Expr current = matcher_->expr_graph_.topological_order_.at(index)->ref_;
-      if (auto op = current.as<FunctionNode>()) {
-        if (op->attrs.defined() && op->attrs->dict.count(attr::kPartitionedFromPattern) != 0) {
-          pre_partitioned.insert(current);
-          PostOrderVisit(op->body,
-                         [&pre_partitioned](const Expr& expr) { pre_partitioned.insert(expr); });
+      if (gid_assignments_.count(current) == 0) {  // Don't visit nodes we've already grouped
+        if (auto op = current.as<FunctionNode>()) {
+          if (op->attrs.defined() && op->attrs->dict.count(attr::kPartitionedFromPattern) != 0) {
+            pre_partitioned.insert(current);
+            PostOrderVisit(op->body,
+                           [&pre_partitioned](const Expr& expr) { pre_partitioned.insert(expr); });
+          }
         }
-      }
-      if (pre_partitioned.count(current) == 0 && matcher_->Match(pattern_, current)) {
-        CreateGroup(current);
+        if (pre_partitioned.count(current) == 0 && matcher_->Match(pattern_, current)) {
+          CreateGroup(current);
+        }
       }
     }
   }
-  /* \brief Creates a new set of nodes based on Group inputs, used to create functions and perform
+  /*! \brief Creates a new set of nodes based on Group inputs, used to create functions and perform
    * group overlap analysis */
   class MatchExtractor : public ExprMutator {
    public:
@@ -561,7 +592,7 @@ class PatternGrouper {
     const std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> inputs_;
   };
 
-  /* \brief Create a group based on a matched expression */
+  /*! \brief Create a group based on a matched expression */
   void CreateGroup(const Expr& expr) {
     int var_number = 0;
 
@@ -616,7 +647,7 @@ class PatternGrouper {
     CHECK(DFPatternMatcher(body).Match(pattern_, body));
     group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
     group.name = extractor.GetName();
-    // Check to make sure we aren't overlapping with another group
+    // Check to make sure we aren't overlapping with another group or creating an invalid fusion
     // The MatchExtractor will create a new graph by replacing nodes that match the inputs of the
     // pattern with the input FunctionVar* Variables. The resulting memoization map will only
     // contain nodes in the expression that matched the pattern. If a non-input node of the pattern
@@ -624,12 +655,29 @@ class PatternGrouper {
     // situation where we try to rewrite the same node twice in the second rewriting or parition
     // pass. This isn't valid, so we check for it here. We ignore Ops, functions, and constants
     // because they exist more globally outside of the fusion.
-    for (auto kv : extractor.GetMemo()) {
-      if (gid_assignments_.count(kv.first) != 0 && inputs.count(kv.first) == 0 &&
-          kv.first.as<OpNode>() == nullptr && kv.first.as<FunctionNode>() == nullptr &&
-          kv.first.as<ConstantNode>() == nullptr) {
-        // Exit due to overlapping partitions
-        return;
+    // Similiarly, if interior nodes in a group are used outside of the group fusing to a single
+    // output would create an invalid graph tranformation, so we block the creation of such groups.
+    auto memo = extractor.GetMemo();
+    for (auto kv : memo) {
+      // Check to ensure that this node isn't an input or a global
+      if (inputs.count(kv.first) == 0 && kv.first.as<OpNode>() == nullptr &&
+          kv.first.as<FunctionNode>() == nullptr && kv.first.as<ConstantNode>() == nullptr) {
+        if (gid_assignments_.count(kv.first) != 0) {
+          // check to see if the node is use in other groups
+          // Exit due to overlapping partitions
+          return;
+        } else if (kv.second != body) {
+          // if the node isn't the ouput of the group
+          auto node = matcher_->expr_graph_.node_map_.at(kv.first);
+          for (auto* output : node->outputs_) {
+            // and the node is used by nodes outside of the group
+            if (memo.count(output->ref_) == 0) {
+              // Exit because nodes in this pattern's body are used outside the pattern
+              // fusing it would be invalid
+              return;
+            }
+          }
+        }
       }
     }
     // Assign Group Ids
@@ -639,11 +687,10 @@ class PatternGrouper {
     }
 
     // Save Group
-    groups_.emplace_back(std::move(group));
-    CHECK_EQ(groups_[gid_].gid, gid_);
+    groups_[group.gid] = std::move(group);
   }
 
-  /* \brief EmbedConst implements rules for embedding constants into partitioned functions or
+  /*! \brief EmbedConst implements rules for embedding constants into partitioned functions or
    * lifting them into the function arguments.
    *
    * The rules depend on what pattern the ConstantNode matched.
@@ -675,7 +722,7 @@ class PatternGrouper {
   }
   // Internal State
   DFPattern pattern_;
-  std::vector<Group> groups_;
+  std::unordered_map<int, Group> groups_;
   std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
   DFPatternMatcher* matcher_ = nullptr;
   IndexedGraph<DFPattern> pattern_graph_;
@@ -685,28 +732,30 @@ class PatternGrouper {
 
 // Rewrite
 
-DFPatternCallback::DFPatternCallback(DFPattern pattern, PackedFunc function) {
+DFPatternCallback::DFPatternCallback(DFPattern pattern, PackedFunc function, bool require_type) {
   ObjectPtr<DFPatternCallbackNode> n = make_object<DFPatternCallbackNode>();
-  n->pattern_ = std::move(pattern);
-  n->function_ = std::move(function);
+  n->pattern = std::move(pattern);
+  n->function = std::move(function);
+  n->require_type = require_type;
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(DFPatternCallbackNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.DFPatternCallback")
-    .set_body_typed([](DFPattern pattern, PackedFunc function) {
-      return DFPatternCallback(pattern, function);
+    .set_body_typed([](DFPattern pattern, PackedFunc function, bool require_type) {
+      return DFPatternCallback(pattern, function, require_type);
     });
 
-/* \brief PatternRewriter rewrites the expression by finding matches and allowing user callback
+/*!
+ * \brief PatternRewriter rewrites the expression by finding matches and allowing user callback
  * function to rewrite those matches
  *
  * The class uses PatternGrouper to support the dominator pattern.
  */
 class PatternRewriter : protected MixedModeMutator {
  public:
-  PatternRewriter() {}
+  PatternRewriter(IRModule mod) : mod_(mod) {}
   /*! \brief Rewrite can take a number of callbacks and will repeatedly rewrite the graph with the
    * callbacks until it stops changing */
   Expr Rewrite(const Array<DFPatternCallback>& callbacks, const Expr& pre) {
@@ -714,20 +763,27 @@ class PatternRewriter : protected MixedModeMutator {
     auto last = post;
     // rewrite the graph until it stops changing to make sure all rewrites are complete
     int count = 0;
+    bool equal = true;
+    static auto* structural_equal = runtime::Registry::Get("node.StructuralEqual");
+    CHECK(structural_equal) << "node.StructuralEqual is not registered.";
     do {
       last = post;
       for (auto callback : callbacks) {
         callback_ = callback;
+        if (callback_->require_type) {
+          post = InferTypeWithModule(post, mod_);
+        }
         auto grouper = PatternGrouper();
-        groups_ = grouper.GroupMatches(callback_->pattern_, post);
+        groups_ = grouper.GroupMatches(callback_->pattern, post);
         gid_assignments_ = grouper.GetGIDAssignments();
         memo_.clear();
         post = this->VisitExpr(post);
         count++;
       }
-    } while (last != post || count >= 100);
+      equal = (*structural_equal)(last, post, false, true);
+    } while (!equal && count < 100);
     if (count >= 100) {
-      throw("Observed 100 rewrite passes, possible conflicting passes?");
+      LOG(FATAL) << "Observed 100 rewrite passes, possible conflicting passes?";
     }
     return post;
   }
@@ -747,23 +803,25 @@ class PatternRewriter : protected MixedModeMutator {
         node_map.insert({kv.first, tmp});
       }
       // run the user callback function
-      return callback_->function_(pre, post, Map<DFPattern, Array<Expr>>(node_map));
+      return callback_->function(pre, post, Map<DFPattern, Array<Expr>>(node_map));
     }
     return post;
   }
 
+  IRModule mod_;
   DFPatternCallback callback_;
-  std::vector<PatternGrouper::Group> groups_;
+  std::unordered_map<int, PatternGrouper::Group> groups_;
   std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
 };
 
-Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr) {
-  return PatternRewriter().Rewrite(callbacks, expr);
+Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr, IRModule mod) {
+  return PatternRewriter(mod).Rewrite(callbacks, expr);
 }
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.rewrite").set_body_typed(RewritePatterns);
 
-/* \brief PatternPartitioner replaces expressions that match a pattern with function call that
+/*!
+ * \brief PatternPartitioner replaces expressions that match a pattern with function call that
  * perform the same computation but allow for further analysis and lowering.
  *
  * The class uses PatternGrouper to support the dominator pattern.
@@ -805,7 +863,7 @@ class PatternPartitioner : protected MixedModeMutator {
   }
 
   Map<String, ObjectRef> attrs_;
-  std::vector<PatternGrouper::Group> groups_;
+  std::unordered_map<int, PatternGrouper::Group> groups_;
   std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
   PackedFunc check_;
 };

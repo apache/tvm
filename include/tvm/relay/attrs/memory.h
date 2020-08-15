@@ -35,7 +35,7 @@ namespace relay {
 
 std::vector<TensorType> FlattenTupleType(const Type& type);
 std::vector<Expr> FromTupleType(const Type& type, const Expr& expr);
-Expr ToTupleType(const Type& t, const Array<Expr>& exprs);
+Expr ToTupleType(const Type& t, const std::vector<Expr>& exprs);
 
 /*!
  * \brief Options for allocating storage.
@@ -71,19 +71,6 @@ struct AllocTensorAttrs : public tvm::AttrsNode<AllocTensorAttrs> {
         .describe(
             "The shape to cast the return type of the allocation to, "
             "used to specify the shape obtained via further analysis.");
-  }
-};
-
-/*!
- * \brief Options for the shape function operator.
- */
-struct ShapeFuncAttrs : public tvm::AttrsNode<ShapeFuncAttrs> {
-  Array<Integer> is_input;
-
-  TVM_DECLARE_ATTRS(ShapeFuncAttrs, "relay.attrs.ShapeFuncAttrs") {
-    TVM_ATTR_FIELD(is_input).describe(
-        "A bool indicating whether the shape function should"
-        "expect shape or input in each position.");
   }
 };
 

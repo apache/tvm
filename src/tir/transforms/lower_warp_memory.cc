@@ -30,6 +30,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -249,10 +250,9 @@ class WarpAccessRewriter : protected StmtExprMutator {
           << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->index
           << " local_index=" << local_index;
       PrimExpr load_value = Load(op->dtype, op->buffer_var, local_index, op->predicate);
-      PrimExpr mask =
-          Call(DataType::UInt(32), intrinsic::tvm_warp_activemask, {}, CallNode::Intrinsic);
-      return Call(load_value.dtype(), intrinsic::tvm_warp_shuffle,
-                  {mask, load_value, group, width_, warp_size_}, CallNode::Intrinsic);
+      PrimExpr mask = Call(DataType::UInt(32), builtin::tvm_warp_activemask(), {});
+      return Call(load_value.dtype(), builtin::tvm_warp_shuffle(),
+                  {mask, load_value, group, width_, warp_size_});
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -315,7 +315,7 @@ class BindVarBoundInfo : public StmtVisitor {
 
   void VisitStmt_(const ForNode* op) final {
     const Var& loop_var = op->loop_var;
-    analyzer_->Bind(loop_var, Range::make_by_min_extent(op->min, op->extent));
+    analyzer_->Bind(loop_var, Range::FromMinExtent(op->min, op->extent));
     StmtVisitor::VisitStmt_(op);
   }
 
@@ -324,7 +324,7 @@ class BindVarBoundInfo : public StmtVisitor {
       IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
       if (!var_dom_.count(iv->var.get())) {
-        Range dom = Range::make_by_min_extent(0, op->value);
+        Range dom = Range::FromMinExtent(0, op->value);
         var_dom_[iv->var.get()] = dom;
         analyzer_->Bind(iv->var, dom);
       }
@@ -392,7 +392,8 @@ Pass LowerWarpMemory() {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     CHECK(target.defined()) << "LowerWarpMemory: Require the target attribute";
-    n->body = WarpMemoryRewriter(target.value()->thread_warp_size).Rewrite(std::move(n->body));
+    int warp_size = target.value()->GetAttr<Integer>("thread_warp_size", 1).value();
+    n->body = WarpMemoryRewriter(warp_size).Rewrite(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerWarpMemory", {});

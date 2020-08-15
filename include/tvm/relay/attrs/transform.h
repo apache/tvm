@@ -82,7 +82,7 @@ struct TransposeAttrs : public tvm::AttrsNode<TransposeAttrs> {
 
 /*! \brief Attributes used in reshape operators */
 struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
-  Optional<Array<Integer>> newshape;
+  Array<Integer> newshape;
   bool reverse;
   TVM_DECLARE_ATTRS(ReshapeAttrs, "relay.attrs.ReshapeAttrs") {
     TVM_ATTR_FIELD(newshape).describe(
@@ -97,6 +97,14 @@ struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
   Integer axis;
 
   TVM_DECLARE_ATTRS(ScatterAttrs, "relay.attrs.ScatterAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
+  }
+};
+
+struct ScatterAddAttrs : public tvm::AttrsNode<ScatterAddAttrs> {
+  Integer axis;
+
+  TVM_DECLARE_ATTRS(ScatterAddAttrs, "relay.attrs.ScatterAddAttrs") {
     TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
   }
 };
@@ -152,6 +160,19 @@ struct ArangeAttrs : public tvm::AttrsNode<ArangeAttrs> {
     TVM_ATTR_FIELD(dtype).describe("Target data type.");
   }
 };  // struct ArangeAttrs
+
+/*! \brief Attributes used in meshgrid operators */
+struct MeshgridAttrs : public tvm::AttrsNode<MeshgridAttrs> {
+  std::string indexing;
+
+  TVM_DECLARE_ATTRS(MeshgridAttrs, "relay.attrs.MeshgridAttrs") {
+    TVM_ATTR_FIELD(indexing)
+        .describe(
+            "Indexing mode, either \"ij\" for matrix or \"xy\" for cartesian in which first two"
+            "dimensions are swapped.")
+        .set_default("ij");
+  }
+};  // struct MeshgridAttrs
 
 /*! \brief Attributes used in stack operators */
 struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
@@ -282,6 +303,19 @@ struct ClipAttrs : public tvm::AttrsNode<ClipAttrs> {
   TVM_DECLARE_ATTRS(ClipAttrs, "relay.attrs.ClipAttrs") {
     TVM_ATTR_FIELD(a_min).describe("The minimum clip value.");
     TVM_ATTR_FIELD(a_max).describe("The maximum clip value.");
+  }
+};
+
+/*! \brief Attributes for FixedPointMultiply operator */
+struct FixedPointMultiplyAttrs : public tvm::AttrsNode<FixedPointMultiplyAttrs> {
+  int32_t multiplier;
+  int32_t shift;
+
+  TVM_DECLARE_ATTRS(FixedPointMultiplyAttrs, "relay.attrs.FixedPointMultiplyAttrs") {
+    TVM_ATTR_FIELD(multiplier)
+        .describe("Multiplier of a fixed floating point number described as multiplier*2^(shift)");
+    TVM_ATTR_FIELD(shift).describe(
+        "Shift of a fixed floating point number described as multiplier*2^(shift)");
   }
 };
 

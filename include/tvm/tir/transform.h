@@ -322,6 +322,13 @@ TVM_DLL Pass CombineContextCall();
 TVM_DLL Pass NarrowDataType(int target_bits);
 
 /*!
+ * \brief Legalize bf16 typed Ops. Add a cast to fp32
+ *   before Ops, then add a cast back to bf16.
+ * \return The pass.
+ */
+TVM_DLL Pass BF16Legalize();
+
+/*!
  * \brief Rewrite the pointer content type of arguments,
  *  as well as Alloc internal to the function to use
  *  the most frequently accessed type for load/store
@@ -330,6 +337,14 @@ TVM_DLL Pass NarrowDataType(int target_bits);
  * \return The pass.
  */
 TVM_DLL Pass PointerValueTypeRewrite();
+
+/*!
+ * \brief Hoist loop-invariant IfThenElse nodes to
+ * outside the elligible loops.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass HoistIfThenElse();
 
 }  // namespace transform
 }  // namespace tir

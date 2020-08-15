@@ -253,6 +253,11 @@ def test_match_tuple():
     tuple_get_item_pattern = is_tuple_get_item(tuple_pattern, 1)
     assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 1))
 
+    tuple_get_item_pattern = is_tuple_get_item(tuple_pattern) # Match any index
+    assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 0))
+    assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 1))
+    assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 2))
+
 
 def test_no_match_tuple():
     x = relay.var('x')
@@ -594,6 +599,7 @@ def test_rewrite():
 
     class TestRewrite(DFPatternCallback):
         def __init__(self):
+            super(TestRewrite, self).__init__()
             self.pattern = add_pattern
 
         def callback(self, pre, post, node_map):
@@ -612,6 +618,7 @@ def test_rewrite_func():
 
     class TestRewrite(DFPatternCallback):
         def __init__(self):
+            super(TestRewrite, self).__init__()
             self.pattern = add_pattern
 
         def callback(self, pre, post, node_map):
@@ -629,6 +636,7 @@ def test_rewrite_func():
 def test_nested_rewrite():
     class PatternCallback(DFPatternCallback):
         def __init__(self, pattern):
+            super(PatternCallback, self).__init__()
             self.pattern = pattern
 
         def callback(self, pre, post, node_map):
@@ -677,6 +685,7 @@ def test_not_fuse_multi_diamond():
 
 class BatchnormCallback(DFPatternCallback):
     def __init__(self):
+        super(BatchnormCallback, self).__init__()
         self.x = wildcard()
         self.var = wildcard()
         self.mean = wildcard()
@@ -793,6 +802,7 @@ def test_fuse_batchnorm_commutation():
 def test_quadruple_rewrite_dominator():
     class DominatorRemovalCallback(DFPatternCallback):
         def __init__(self):
+            super(DominatorRemovalCallback, self).__init__()
             self.inp = wildcard()
             self.weight = wildcard()
             is_conv2d = is_op('nn.conv2d')(self.inp, self.weight)
@@ -855,31 +865,37 @@ def algebraic_simplify(expr):
 
     class AddCallback(ElwiseNullCallback):
         def __init__(self):
+            super(AddCallback, self).__init__()
             self.x = wildcard()
             self.pattern = self.x + zero
 
     class SubCallback(ElwiseNullCallback):
         def __init__(self):
+            super(SubCallback, self).__init__()
             self.x = wildcard()
             self.pattern = self.x - zero
 
     class MulCallback(ElwiseNullCallback):
         def __init__(self):
+            super(MulCallback, self).__init__()
             self.x = wildcard()
             self.pattern = self.x * one
 
     class DivCallback(ElwiseNullCallback):
         def __init__(self):
+            super(DivCallback, self).__init__()
             self.x = wildcard()
             self.pattern = self.x / one
 
     class MulZeroCallback(ElwiseNullCallback):
         def __init__(self):
+            super(MulZeroCallback, self).__init__()
             self.x = zero
             self.pattern = self.x * wildcard()
 
     class ZeroDivCallback(ElwiseNullCallback):
         def __init__(self):
+            super(ZeroDivCallback, self).__init__()
             self.x = zero
             self.pattern = self.x / wildcard()
 
@@ -1133,6 +1149,37 @@ def test_partition_double_batchnorm():
     reference = f2(gamma, f1(gamma, x, mean, var, beta), mean, var, beta)
     assert tvm.ir.structural_equal(partitioned, reference)
 
+def test_overlappting_partitions():
+    x = wildcard()
+    gamma = wildcard()
+    beta = wildcard()
+    moving_mean = wildcard()
+    moving_var = wildcard()
+    bn_node = is_op('nn.batch_norm')(x, gamma, beta, moving_mean, moving_var)
+    tuple_get_item_node = TupleGetItemPattern(bn_node, 0)
+
+    x = relay.var('x')
+    var = relay.var('var')
+    mean = relay.var('mean')
+    beta = relay.var('beta')
+    gamma = relay.var('gamma')
+    BN = relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=1e-5)
+    T1 = BN[0]
+    T2 = BN[0]
+    add = T1 + T2
+
+    assert tuple_get_item_node.partition(add) == add
+
+def test_partition_overused():
+    pattern = is_op("nn.relu")(is_op("nn.conv2d")(wildcard(), wildcard()))
+
+    x = relay.var('input')
+    w = relay.var('weight')
+    conv2d = relay.op.nn.conv2d(x, w)
+    relu = relay.op.nn.relu(conv2d)
+    out = relu + conv2d
+    
+    assert pattern.partition(out) == out
 
 def test_partition_check():
     pattern = is_op("nn.relu")(is_op("nn.conv2d")(wildcard(), wildcard()))
@@ -1229,6 +1276,7 @@ def test_match_match():
     add_pattern = is_op('add')(wildcard(), wildcard())
     class TestRewrite(DFPatternCallback):
         def __init__(self):
+            super(TestRewrite, self).__init__()
             self.pattern = add_pattern
         def callback(self, pre, post, node_map):
             return post.args[0] - post.args[1]

@@ -69,6 +69,12 @@ else
     DOCKER_BINARY="docker"
 fi
 
+if [[ "${DOCKER_IMAGE_NAME}" == *"ci"* ]]; then
+    CI_PY_ENV="-e PYTHONPATH=/workspace/python"
+else
+    CI_PY_ENV=""
+fi
+
 # Print arguments.
 echo "WORKSPACE: ${WORKSPACE}"
 echo "DOCKER CONTAINER NAME: ${DOCKER_IMAGE_NAME}"
@@ -76,22 +82,32 @@ echo ""
 
 echo "Running '${COMMAND[@]}' inside ${DOCKER_IMAGE_NAME}..."
 
+# When running from a git worktree, also mount the original git dir.
+EXTRA_MOUNTS=( )
+if [ -f "${WORKSPACE}/.git" ]; then
+    git_dir=$(cd ${WORKSPACE} && git rev-parse --git-common-dir)
+    if [ "${git_dir}" != "${WORKSPACE}/.git" ]; then
+        EXTRA_MOUNTS=( "${EXTRA_MOUNTS[@]}" -v "${git_dir}:${git_dir}" )
+    fi
+fi
+
 # By default we cleanup - remove the container once it finish running (--rm)
 # and share the PID namespace (--pid=host) so the process inside does not have
 # pid 1 and SIGKILL is propagated to the process inside (jenkins can kill it).
 ${DOCKER_BINARY} run --rm --pid=host\
     -v ${WORKSPACE}:/workspace \
     -v ${SCRIPT_DIR}:/docker \
+    "${EXTRA_MOUNTS[@]}" \
     -w /workspace \
     -e "CI_BUILD_HOME=/workspace" \
     -e "CI_BUILD_USER=$(id -u -n)" \
     -e "CI_BUILD_UID=$(id -u)" \
     -e "CI_BUILD_GROUP=$(id -g -n)" \
     -e "CI_BUILD_GID=$(id -g)" \
-    -e "PYTHONPATH=/workspace/python:/workspace/topi/python"\
     -e "CI_PYTEST_ADD_OPTIONS=$CI_PYTEST_ADD_OPTIONS" \
-    ${CUDA_ENV}\
+    ${CI_PY_ENV} \
+    ${CUDA_ENV} \
     ${CI_DOCKER_EXTRA_PARAMS[@]} \
-    ${DOCKER_IMAGE_NAME}\
+    ${DOCKER_IMAGE_NAME} \
     bash --login /docker/with_the_same_user \
     ${COMMAND[@]}

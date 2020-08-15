@@ -587,7 +587,7 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
       });
     } else if (name == "get_param_by_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        std::string key = args[0];
+        String key = args[0];
         CHECK_GT(this->output_.params.count(key), 0);
         *rv = this->output_.params[key];
       });
@@ -642,7 +642,6 @@ struct Handler<std::shared_ptr<tvm::relay::backend::GraphNode>> {
     LOG(FATAL) << "Not implemented.";
   }
 };
-
 template <>
 struct Handler<std::unordered_map<std::string, dmlc::any>> {
   inline static void Write(dmlc::JSONWriter* writer,
@@ -661,6 +660,8 @@ struct Handler<std::unordered_map<std::string, dmlc::any>> {
         writer->WriteObjectKeyValue(k, dmlc::get<std::vector<std::vector<int64_t>>>(v));
       } else if (SameType<std::vector<std::string>>(v)) {
         writer->WriteObjectKeyValue(k, dmlc::get<std::vector<std::string>>(v));
+      } else if (SameType<std::vector<dmlc::any>>(v)) {
+        writer->WriteObjectKeyValue(k, dmlc::get<std::vector<dmlc::any>>(v));
       } else {
         LOG(FATAL) << "Not supported";
       }

@@ -39,7 +39,7 @@ namespace codegen {
 class CodeGenCPU : public CodeGenLLVM {
  public:
   void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
-            bool system_lib, bool dynamic_lookup) override;
+            bool system_lib, bool dynamic_lookup, bool target_c_runtime) override;
   void AddFunction(const PrimFunc& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;
   std::unique_ptr<llvm::Module> Finish() override;
@@ -47,7 +47,8 @@ class CodeGenCPU : public CodeGenLLVM {
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
-  llvm::Value* CreateCallExtern(const CallNode* op) override;
+  llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                                bool skip_first_arg) override;
 
  protected:
   void AddStartupFunction() final;
@@ -61,6 +62,11 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::StructType* t_tvm_array_{nullptr};
   llvm::StructType* t_tvm_value_{nullptr};
   llvm::StructType* t_tvm_parallel_group_env_{nullptr};
+
+  llvm::FunctionType* ftype_tvm_backend_packed_c_func_{nullptr};
+  llvm::StructType* t_tvm_crt_func_registry_{nullptr};
+  llvm::StructType* t_tvm_crt_module_{nullptr};
+
   llvm::FunctionType* ftype_tvm_parallel_lambda_{nullptr};
   llvm::FunctionType* ftype_tvm_func_call_{nullptr};
   llvm::FunctionType* ftype_tvm_get_func_from_env_{nullptr};
@@ -122,7 +128,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::GlobalVariable* gv_tvm_api_set_last_error_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_launch_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_barrier_{nullptr};
-  std::unordered_map<std::string, llvm::GlobalVariable*> gv_func_map_;
+  std::unordered_map<String, llvm::GlobalVariable*> gv_func_map_;
   // context for direct dynamic lookup
   llvm::Function* f_tvm_func_call_{nullptr};
   llvm::Function* f_tvm_get_func_from_env_{nullptr};
@@ -135,9 +141,13 @@ class CodeGenCPU : public CodeGenLLVM {
   // global to packed function handle
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
   // List of symbols to be exported to TVM system lib.
-  std::vector<std::pair<std::string, llvm::Value*> > export_system_symbols_;
+  std::vector<std::pair<std::string, llvm::Constant*>> export_system_symbols_;
+  // List of functions to be registered in the FuncRegistry, if generated.
+  std::vector<std::pair<std::string, llvm::Function*>> registry_functions_;
   // internal debug information, to be populated by
   std::unique_ptr<DebugInfo> dbg_info_;
+  bool target_c_runtime_;
+  bool is_system_lib_;
 
   // Get the DWARF type corresponding to the LLVM type |ty|. The current API in practice only
   // generates |int32|, and |int8*|.

@@ -54,6 +54,7 @@ class DataTypeCode(object):
     UINT = 1
     FLOAT = 2
     HANDLE = 3
+    BFLOAT = 4
 
 
 class DataType(ctypes.Structure):
@@ -65,7 +66,8 @@ class DataType(ctypes.Structure):
         DataTypeCode.INT : 'int',
         DataTypeCode.UINT : 'uint',
         DataTypeCode.FLOAT : 'float',
-        DataTypeCode.HANDLE : 'handle'
+        DataTypeCode.HANDLE : 'handle',
+        DataTypeCode.BFLOAT : 'bfloat'
     }
     def __init__(self, type_str):
         super(DataType, self).__init__()
@@ -96,6 +98,9 @@ class DataType(ctypes.Structure):
             self.type_code = DataTypeCode.HANDLE
             bits = 64
             head = ""
+        elif head.startswith("bfloat"):
+            self.type_code = DataTypeCode.BFLOAT
+            head = head[6:]
         elif head.startswith("custom"):
             # pylint: disable=import-outside-toplevel
             import tvm.runtime._ffi_api
@@ -268,6 +273,9 @@ class TVMContext(ctypes.Structure):
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(str(self))
 
     def __repr__(self):
         if self.device_type >= RPC_SESS_MASK:

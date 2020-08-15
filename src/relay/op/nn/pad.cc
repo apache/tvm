@@ -21,14 +21,15 @@
  * \file pad.cc
  * \brief Implementation of operator pad
  */
-#include <topi/nn.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/op.h>
+#include <tvm/topi/nn.h>
 
 #include <vector>
 
+#include "../make_op.h"
 #include "../op_common.h"
 
 namespace tvm {

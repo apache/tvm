@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, import-self, unused-argument, unused-variable
+# pylint: disable=invalid-name, import-self, unused-argument, unused-variable, no-else-return
 # pylint: disable=inconsistent-return-statements, import-outside-toplevel
 """CoreML frontend."""
 import math
@@ -350,6 +350,67 @@ def _MinLayerParams(op, inexpr, etab):
     return _min
 
 
+def _UnaryFunctionLayerParams(op, inexpr, etab):
+    op_type = op.type
+    if op_type == op.SQRT:
+        return _op.sqrt(inexpr)
+    elif op_type == op.RSQRT:
+        epsilon = _expr.const(op.epsilon)
+        return _op.rsqrt(inexpr + epsilon)
+    elif op_type == op.INVERSE:
+        epsilon = _expr.const(op.epsilon)
+        return _expr.const(1.0) / (inexpr + epsilon)
+    elif op_type == op.POWER:
+        alpha = _expr.const(op.alpha)
+        return _op.power(inexpr, alpha)
+    elif op_type == op.EXP:
+        return _op.exp(inexpr)
+    elif op_type == op.LOG:
+        return _op.log(inexpr)
+    elif op_type == op.ABS:
+        return _op.abs(inexpr)
+    elif op_type == op.THRESHOLD:
+        alpha = _expr.const(op.alpha)
+        return _op.maximum(inexpr, alpha)
+    else:
+        msg = 'Unary Op type value {} is not supported in frontend CoreML.'
+        raise tvm.error.OpAttributeUnImplemented(msg.format(op_type))
+
+
+def _ReduceLayerParams(op, inexpr, etab):
+    axis = op.axis
+    if axis == op.CHW:
+        axis = [-3, -2, -1]
+    elif axis == op.HW:
+        axis = [-2, -1]
+    elif axis == op.C:
+        axis = -3
+    elif axis == op.H:
+        axis = -2
+    elif axis == op.W:
+        axis = -1
+    else:
+        msg = 'Reduce axis value {} is not supported in frontend CoreML.'
+        raise tvm.error.OpAttributeUnImplemented(msg.format(axis))
+
+    mode = op.mode
+    if mode == op.SUM:
+        return _op.sum(inexpr, axis=axis, keepdims=True)
+    elif mode == op.AVG:
+        return _op.mean(inexpr, axis=axis, keepdims=True)
+    elif mode == op.PROD:
+        return _op.prod(inexpr, axis=axis, keepdims=True)
+    elif mode == op.MIN:
+        return _op.min(inexpr, axis=axis, keepdims=True)
+    elif mode == op.MAX:
+        return _op.max(inexpr, axis=axis, keepdims=True)
+    elif mode == op.ARGMAX:
+        return _op.argmax(inexpr, axis=axis, keepdims=True)
+    else:
+        msg = 'Reduce mode value {} is not supported in frontend CoreML.'
+        raise tvm.error.OpAttributeUnImplemented(msg.format(mode))
+
+
 _convert_map = {
     'NeuralNetworkMeanImage': _NeuralNetworkMeanImage,
     'NeuralNetworkImageScaler': _NeuralNetworkImageScaler,
@@ -372,6 +433,8 @@ _convert_map = {
     'AverageLayerParams': _AverageLayerParams,
     'MaxLayerParams': _MaxLayerParams,
     'MinLayerParams': _MinLayerParams,
+    'UnaryFunctionLayerParams': _UnaryFunctionLayerParams,
+    'ReduceLayerParams': _ReduceLayerParams,
 }
 
 # SAME padding: https://www.tensorflow.org/api_guides/python/nn

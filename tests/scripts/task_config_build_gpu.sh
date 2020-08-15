@@ -29,6 +29,7 @@ echo set\(USE_CUDA ON\) >> config.cmake
 echo set\(USE_OPENGL ON\) >> config.cmake
 echo set\(USE_MICRO ON\) >> config.cmake
 echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
+echo set\(USE_STANDALONE_CRT ON\) >> config.cmake
 echo set\(USE_LLVM llvm-config-9\) >> config.cmake
 echo set\(USE_NNPACK ON\) >> config.cmake
 echo set\(NNPACK_PATH /NNPACK/build/\) >> config.cmake
@@ -38,7 +39,6 @@ echo set\(USE_GRAPH_RUNTIME ON\) >> config.cmake
 echo set\(USE_STACKVM_RUNTIME ON\) >> config.cmake
 echo set\(USE_GRAPH_RUNTIME_DEBUG ON\) >> config.cmake
 echo set\(USE_VM_PROFILER ON\) >> config.cmake
-echo set\(USE_EXAMPLE_EXT_RUNTIME ON\) >> config.cmake
 echo set\(USE_ANTLR ON\) >> config.cmake
 echo set\(USE_VTA_TSIM ON\) >> config.cmake
 echo set\(USE_VTA_FSIM ON\) >> config.cmake

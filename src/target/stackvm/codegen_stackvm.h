@@ -27,6 +27,7 @@
 #include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <string>
@@ -153,6 +154,9 @@ class CodeGenStackVM : public ExprFunctor<void(const PrimExpr&)>,
   std::unordered_map<std::string, int> str_idmap_;
   /*! \brief id of each global function */
   std::unordered_map<std::string, int> extern_fun_idmap_;
+
+  Op backend_alloc_workspace_op_ = Op::Get("tir.TVMBackendAllocWorkspace");
+  Op backend_free_workspace_op_ = Op::Get("tir.TVMBackendFreeWorkspace");
 };
 
 }  // namespace codegen

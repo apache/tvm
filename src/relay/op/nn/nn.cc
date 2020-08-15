@@ -24,19 +24,20 @@
 
 #include "nn.h"
 
-#include <topi/nn.h>
-#include <topi/nn/bias_add.h>
-#include <topi/nn/flatten.h>
-#include <topi/nn/softmax.h>
 #include <tvm/relay/attrs/image.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
+#include <tvm/topi/nn.h>
+#include <tvm/topi/nn/bias_add.h>
+#include <tvm/topi/nn/flatten.h>
+#include <tvm/topi/nn/softmax.h>
 
 #include <string>
 #include <vector>
 
 #include "../../transforms/infer_layout_util.h"
+#include "../make_op.h"
 #include "../op_common.h"
 #include "../type_relations.h"
 

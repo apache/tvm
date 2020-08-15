@@ -19,7 +19,8 @@
 """Transform operators."""
 
 from . import _make
-from ..expr import TupleWrapper, const
+from .dyn import _make as _dyn_make
+from ..expr import TupleWrapper, const, Expr, Tuple
 from ...tir import expr as _expr
 
 
@@ -147,6 +148,7 @@ def squeeze(data, axis=None):
     """
     return _make.squeeze(data, axis)
 
+
 def reshape(data, newshape):
     """Reshape the input array.
 
@@ -210,8 +212,10 @@ def reshape(data, newshape):
     result : relay.Expr
         The reshaped result.
     """
+    if isinstance(newshape, Expr):
+        return _dyn_make.reshape(data, newshape)
     if isinstance(newshape, int):
-        newshape = const([newshape])
+        newshape = [newshape]
     if isinstance(newshape, (tuple, list)):
         tempshape = []
         for shape in newshape:
@@ -222,8 +226,9 @@ def reshape(data, newshape):
                     tempshape.append(int(shape))
                 except ValueError as err:
                     raise RuntimeError('Unrecognized shape type: %s' % err)
-        newshape = const(tempshape)
-    return _make.reshape(data, newshape)
+        newshape = tempshape
+    return _make.reshape(data, list(newshape))
+
 
 def argwhere(condition):
     """Find the indices of elements of a tensor that are
@@ -248,6 +253,7 @@ def argwhere(condition):
     """
     return _make.argwhere(condition)
 
+
 def scatter(data, indices, updates, axis):
     """Update data at positions defined by indices with values in updates
 
@@ -271,6 +277,32 @@ def scatter(data, indices, updates, axis):
         The computed result.
     """
     return _make.scatter(data, indices, updates, axis)
+
+
+def scatter_add(data, indices, updates, axis):
+    """Update data by adding values in updates at positions defined by indices
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    indices : relay.Expr
+        The index locations to update.
+
+    updates : relay.Expr
+        The values to add.
+
+    axis : int
+        The axis to scatter_add on
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    return _make.scatter_add(data, indices, updates, axis)
+
 
 def reshape_like(data, shape_like):
     """Reshapes the input array by the size of another array.
@@ -344,8 +376,12 @@ def full(fill_value, shape=(), dtype=""):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Expr):
+        return _dyn_make.full(fill_value, shape, dtype)
+    if isinstance(shape, int):
+        shape = [shape]
     if isinstance(shape, (list, tuple)):
-        shape = const(list(shape), "int32")
+        shape = list(shape)
     return _make.full(fill_value, shape, dtype)
 
 
@@ -416,6 +452,47 @@ def arange(start, stop=None, step=None, dtype="float32"):
     return _make.arange(start, stop, step, dtype)
 
 
+def meshgrid(data, indexing="ij"):
+    """Create coordinate matrices from coordinate vectors.
+
+    .. note::
+        Similar to ``numpy.meshgrid``.
+
+    Parameters
+    ----------
+    data : Union(List[relay.Expr], Tuple[relay.Expr])
+        A list of tensors, which must be either scalars or 1-D vectors.
+
+    indexing : str
+        Indexing mode, either "ij" for matrix indexing or "xy" for Cartesian indexing.
+
+    Returns
+    -------
+    ret : relay.Tuple([relay.Expr, relay.Expr])
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [1, 2, 3]
+        y = [4, 5]
+
+        gx, gy = relay.meshgrid([x, y])
+
+        gx = [[1., 1.],
+              [2., 2.],
+              [3., 3.]]
+
+        gy = [[4., 5.],
+              [4., 5.],
+              [4., 5.]]
+    """
+    data = list(data)
+    ret_size = len(data)
+    return TupleWrapper(_make.meshgrid(Tuple(data), indexing), ret_size)
+
+
 def repeat(data, repeats, axis):
     """Repeats elements of an array.
     By default, repeat flattens the input array into 1-D and then repeats the elements.
@@ -454,7 +531,7 @@ def tile(data, reps):
     data : relay.Expr
         The input data to the operator.
 
-    reps : tuple of int
+    reps : tuple of int or relay.Expr
         The number of times repeating the tensor data.
 
     Returns
@@ -482,7 +559,8 @@ def tile(data, reps):
     data is promoted to be d-dimensional by prepending new axes.
     If data.ndim >=  d, reps is promoted to a.ndim by pre-pending 1's to it.
     """
-
+    if isinstance(reps, Expr):
+        return _dyn_make.tile(data, reps)
     return _make.tile(data, reps)
 
 
@@ -601,6 +679,7 @@ def where(condition, x, y):
     """
     return _make.where(condition, x, y)
 
+
 def broadcast_to(data, shape):
     """Return a scalar value array with the same type, broadcast to
     the provided shape.
@@ -618,9 +697,14 @@ def broadcast_to(data, shape):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Expr):
+        return _dyn_make.broadcast_to(data, shape)
+    if isinstance(shape, int):
+        shape = [shape]
     if isinstance(shape, (list, tuple)):
-        shape = const(list(shape), "int32")
+        shape = list(shape)
     return _make.broadcast_to(data, shape)
+
 
 def broadcast_to_like(data, broadcast_type):
     """Return a scalar value array with the same shape and type as the input array.
@@ -658,6 +742,27 @@ def collapse_sum_like(data, collapse_type):
         The resulting tensor.
     """
     return _make.collapse_sum_like(data, collapse_type)
+
+
+def collapse_sum_to(data, shape):
+    """Return a summation of data to the specified shape.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+
+    shape : relay.Expr
+        Shape to collapse to.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    if isinstance(shape, (list, tuple)):
+        shape = const(list(shape), "int32")
+    return _make.collapse_sum_to(data, shape)
 
 
 def split(data, indices_or_sections, axis=0):
@@ -844,7 +949,7 @@ def reverse_reshape(data, newshape):
     """
     if isinstance(newshape, int):
         newshape = [newshape]
-    return _make._contrib_reverse_reshape(data, list(newshape))
+    return _make.contrib_reverse_reshape(data, list(newshape))
 
 
 def gather(data, axis, indices):
@@ -961,6 +1066,7 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
     """
     return _make.sequence_mask(data, valid_length, mask_value, axis)
 
+
 def one_hot(indices, on_value, off_value, depth, axis, dtype):
     """
     Returns a one-hot tensor where the locations repsented by indices take value on_value,
@@ -978,7 +1084,7 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
     off_value : relay.Expr
         Value to fill at all other positions besides indices.
 
-    depth : int
+    depth : int or relay.Expr
         Depth of the one-hot dimension.
 
     axis : int
@@ -1003,6 +1109,8 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
              [0, 1, 0],
              [0, 0, 1]]
     """
+    if isinstance(depth, Expr):
+        return _dyn_make.one_hot(indices, on_value, off_value, depth, axis, dtype)
     return _make.one_hot(indices, on_value, off_value, depth, axis, dtype)
 
 
@@ -1027,6 +1135,7 @@ def unravel_index(indices, shape):
     """
 
     return _make.unravel_index(indices, shape)
+
 
 def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0):
     """Converts a sparse representation into a dense tensor.

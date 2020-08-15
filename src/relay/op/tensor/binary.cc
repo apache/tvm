@@ -21,9 +21,9 @@
  * \file binary.cc
  * \brief binary broadcast operators.
  */
-#include <topi/broadcast.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <tvm/topi/broadcast.h>
 
 #include "../op_common.h"
 #include "../type_relations.h"
@@ -40,7 +40,7 @@ namespace relay {
 
 // Addition
 RELAY_REGISTER_BINARY_OP("add")
-    .describe("Elementwise add with with broadcasting")
+    .describe("Elementwise add with broadcasting")
     .set_support_level(1)
     .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::add));
 

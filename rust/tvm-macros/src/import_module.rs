@@ -95,7 +95,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             extern "C" {
                 #(
                     pub(super) fn #fn_names(
-                        args: *const tvm_runtime::ffi::TVMValue,
+                        args: *const tvm_graph_rt::ffi::TVMValue,
                         type_codes: *const std::os::raw::c_int,
                         num_args: std::os::raw::c_int
                     ) -> std::os::raw::c_int;
@@ -105,7 +105,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     };
 
     let fns = quote! {
-        use tvm_runtime::{ffi::TVMValue, ArgValue, RetValue, FuncCallError};
+        use tvm_graph_rt::{ffi::TVMValue, ArgValue, RetValue, FuncCallError};
         #extern_fns
 
         #(

@@ -30,7 +30,7 @@ At the root of the TVM repository, we have following subdirectories that togethe
 - ``src`` - C++ code for operator compilation and deployment runtimes.
 - ``src/relay`` - Implementation of Relay, a new functional IR for deep learning framework.
 - ``python`` - Python frontend that wraps C++ functions and objects implemented in ``src``.
-- ``topi`` - Compute definitions and backend schedules for standard neural network operators.
+- ``src/topi`` - Compute definitions and backend schedules for standard neural network operators.
 
 Using standard Deep Learning terminology, ``src/relay`` is the component that manages a computational graph, and nodes in a graph are compiled and executed using infrastructure implemented in the rest of ``src``. ``python`` provides python bindings for the C++ API and driver code that users can use to execute compilation. Operators corresponding to each node are registered in ``src/relay/op``. Implementations of operators are in ``topi``, and they are coded in either C++ or Python.
 
@@ -73,11 +73,11 @@ You can also checkout `FFI Navigator <https://github.com/tqchen/ffi-navigator>`_
 
 A ``Tensor`` object has an ``Operation`` object associated with it, defined in ``python/tvm/te/tensor.py``, ``include/tvm/te/operation.h``, and ``src/tvm/te/operation`` subdirectory. A ``Tensor`` is an output of its ``Operation`` object. Each ``Operation`` object has in turn ``input_tensors()`` method, which returns a list of input ``Tensor`` to it. This way we can keep track of dependencies between ``Operation``.
 
-We pass the operation corresponding to the output tensor ``C`` to ``tvm.create_schedule()`` function in ``python/tvm/te/schedule.py``.
+We pass the operation corresponding to the output tensor ``C`` to ``tvm.te.create_schedule()`` function in ``python/tvm/te/schedule.py``.
 
 ::
 
-   s = tvm.create_schedule(C.op)
+   s = tvm.te.create_schedule(C.op)
 
 This function is mapped to the C++ function in ``include/tvm/schedule.h``.
 

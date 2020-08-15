@@ -258,20 +258,6 @@ class AttrStmt(Stmt):
             _ffi_api.AttrStmt, node, attr_key, value, body)
 
 
-@tvm._ffi.register_object("tir.Free")
-class Free(Stmt):
-    """Free node.
-
-    Parameters
-    ----------
-    buffer_var : Var
-        The buffer variable.
-    """
-    def __init__(self, buffer_var):
-        self.__init_handle_by_constructor__(
-            _ffi_api.Free, buffer_var)
-
-
 @tvm._ffi.register_object("tir.ProducerRealize")
 class ProducerRealize(Stmt):
     """ProducerRealize node.

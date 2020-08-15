@@ -35,9 +35,11 @@ namespace support {
  * \brief Create a stream with escape.
  * \param data The data
  * \param size The size of the string.
+ * \param use_octal_escape True to use octal escapes instead of hex. If producing C
+ *      strings, use octal escapes to avoid ambiguously-long hex escapes.
  * \return the Result string.
  */
-inline std::string StrEscape(const char* data, size_t size) {
+inline std::string StrEscape(const char* data, size_t size, bool use_octal_escape = false) {
   std::ostringstream stream;
   for (size_t i = 0; i < size; ++i) {
     unsigned char c = data[i];
@@ -62,8 +64,14 @@ inline std::string StrEscape(const char* data, size_t size) {
           stream << 'n';
           break;
         default:
-          const char* hex_digits = "0123456789ABCDEF";
-          stream << 'x' << hex_digits[c >> 4] << hex_digits[c & 0xf];
+          if (use_octal_escape) {
+            stream << static_cast<unsigned char>('0' + ((c >> 6) & 0x03))
+                   << static_cast<unsigned char>('0' + ((c >> 3) & 0x07))
+                   << static_cast<unsigned char>('0' + (c & 0x07));
+          } else {
+            const char* hex_digits = "0123456789ABCDEF";
+            stream << 'x' << hex_digits[c >> 4] << hex_digits[c & 0xf];
+          }
       }
     }
   }

@@ -74,7 +74,7 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
     TVMValue ret_value;
     int ret_type_code = kTVMNullptr;
     int ret = (*faddr)(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
-                       args.num_args, &ret_value, &ret_type_code);
+                       args.num_args, &ret_value, &ret_type_code, NULL);
     CHECK_EQ(ret, 0) << TVMGetLastError();
     if (ret_type_code != kTVMNullptr) {
       *rv = TVMRetValue::MoveFromCHost(ret_value, ret_type_code);
@@ -133,9 +133,24 @@ runtime::Module ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib) {
       CHECK(stream->Read(&import_tree_row_ptr));
       CHECK(stream->Read(&import_tree_child_indices));
     } else {
-      std::string fkey = "runtime.module.loadbinary_" + tkey;
+      std::string loadkey = "runtime.module.loadbinary_";
+      std::string fkey = loadkey + tkey;
       const PackedFunc* f = Registry::Get(fkey);
-      CHECK(f != nullptr) << "Loader of " << tkey << "(" << fkey << ") is not presented.";
+      if (f == nullptr) {
+        std::string loaders = "";
+        for (auto name : Registry::ListNames()) {
+          if (name.rfind(loadkey, 0) == 0) {
+            if (loaders.size() > 0) {
+              loaders += ", ";
+            }
+            loaders += name.substr(loadkey.size());
+          }
+        }
+        CHECK(f != nullptr)
+            << "Binary was created using " << tkey
+            << " but a loader of that name is not registered. Available loaders are " << loaders
+            << ". Perhaps you need to recompile with this runtime enabled.";
+      }
       Module m = (*f)(static_cast<void*>(stream));
       modules.emplace_back(m);
     }

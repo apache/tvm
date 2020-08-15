@@ -40,7 +40,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - uses: actions/setup-python@v1
+    - uses: actions/setup-python@v2
     - name: Lint Python
       if: matrix.os == 'macOS-latest'
       run: |

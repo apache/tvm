@@ -98,7 +98,7 @@ def test_reinterpret():
     nn = 1024
     n = tvm.runtime.convert(nn)
     A = te.placeholder((n,), name='A', dtype="int32")
-    B = te.compute(A.shape, lambda *i: tvm.tir.call_pure_intrin("float32", "reinterpret", A(*i)), name='B')
+    B = te.compute(A.shape, lambda *i: tvm.tir.call_intrin("float32", "tir.reinterpret", 2 + A(*i)), name='B')
     s = te.create_schedule(B.op)
 
     def check_c():
@@ -114,7 +114,7 @@ def test_reinterpret():
         b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
         fadd(a, b)
         tvm.testing.assert_allclose(
-            b.asnumpy(), a.asnumpy().view('float32'))
+            b.asnumpy(), (2 + a.asnumpy()).view('float32'))
     check_c()
 
 

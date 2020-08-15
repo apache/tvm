@@ -33,6 +33,9 @@ RUN bash /install/ubuntu_install_python_package.sh
 COPY install/ubuntu1804_install_llvm.sh /install/ubuntu1804_install_llvm.sh
 RUN bash /install/ubuntu1804_install_llvm.sh
 
+COPY install/ubuntu_install_dnnl.sh /install/ubuntu_install_dnnl.sh
+RUN bash /install/ubuntu_install_dnnl.sh
+
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
 RUN bash /install/ubuntu_install_rust.sh
@@ -57,9 +60,6 @@ ENV PATH $PATH:$CARGO_HOME/bin:/usr/lib/go-1.10/bin
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
 RUN bash /install/ubuntu_install_java.sh
 
-COPY install/ubuntu_install_antlr.sh /install/ubuntu_install_antlr.sh
-RUN bash /install/ubuntu_install_antlr.sh
-
 # Chisel deps for TSIM
 COPY install/ubuntu_install_chisel.sh /install/ubuntu_install_chisel.sh
 RUN bash /install/ubuntu_install_chisel.sh
@@ -71,3 +71,15 @@ RUN bash /install/ubuntu_install_tflite.sh
 # TensorFlow deps
 COPY install/ubuntu_install_tensorflow.sh /install/ubuntu_install_tensorflow.sh
 RUN bash /install/ubuntu_install_tensorflow.sh
+
+# Arm(R) Compute Library
+COPY install/ubuntu_install_arm_compute_lib.sh /install/ubuntu_install_arm_compute_lib.sh
+RUN bash /install/ubuntu_install_arm_compute_lib.sh
+
+# Caffe deps
+COPY install/ubuntu_install_caffe.sh /install/ubuntu_install_caffe.sh
+RUN bash /install/ubuntu_install_caffe.sh
+
+# Github Arm(R) Ethos(TM)-N NPU driver
+COPY install/ubuntu_install_ethosn_driver_stack.sh /install/ubuntu_install_ethosn_driver_stack.sh
+RUN bash /install/ubuntu_install_ethosn_driver_stack.sh

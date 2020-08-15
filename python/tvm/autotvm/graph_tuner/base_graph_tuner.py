@@ -20,7 +20,7 @@ import logging
 from abc import abstractmethod
 
 import numpy as np
-import topi
+from tvm import topi
 
 import tvm
 from tvm import te
@@ -152,6 +152,9 @@ class BaseGraphTuner(object):
 
         self._graph = graph
         self._in_nodes_dict = get_in_nodes(self._node_list, self._target_ops, input_shapes.keys())
+        if len(self._in_nodes_dict) == 0:
+            raise RuntimeError("Could not find any input nodes with whose "
+                               "operator is one of %s" % self._target_ops)
         self._out_nodes_dict = get_out_nodes(self._in_nodes_dict)
         self._fetch_cfg()
         self._opt_out_op = OPT_OUT_OP

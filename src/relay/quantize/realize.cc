@@ -113,7 +113,14 @@ inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype,
   } else if (static_cast<int>(factor) == factor) {
     return Multiply(data, MakeConstantScalar(dtype, factor));
   } else {
-    data = qnn::FixedPointMultiply(data, factor, data_shape, cfg->rounding);
+    if (cfg->rounding == "UPWARD") {
+      int32_t fixed_point_multiplier, shift;
+      std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift(factor);
+      data = relay::FixedPointMultiply(data, fixed_point_multiplier, shift);
+    } else {
+      data = qnn::FixedPointMultiplyToNearest(data, factor, data_shape);
+    }
+
     return Cast(data, dtype);
   }
 }
@@ -164,8 +171,15 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
       return QRealizeIntExpr(data, dom_scale, n->dtype);
     } else {
       data = Cast(data, DataType::Int(64));
-      data = qnn::FixedPointMultiply(data, idom_scale_imm / odom_scale_imm,
-                                     ref_call->type_as<TensorTypeNode>()->shape, cfg->rounding);
+      if (cfg->rounding == "UPWARD") {
+        int32_t fixed_point_multiplier, shift;
+        std::tie(fixed_point_multiplier, shift) =
+            qnn::GetFixedPointMultiplierShift(idom_scale_imm / odom_scale_imm);
+        data = relay::FixedPointMultiply(data, fixed_point_multiplier, shift);
+      } else {
+        data = qnn::FixedPointMultiplyToNearest(data, idom_scale_imm / odom_scale_imm,
+                                                ref_call->type_as<TensorTypeNode>()->shape);
+      }
       data = Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype);
       return QRealizeIntExpr(data, dom_scale, n->dtype);
     }
@@ -272,7 +286,7 @@ Expr MulRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
     Expr dom_scale = FoldConstantOpt(mul);
     return QRealizeIntExpr(ret, dom_scale, dtype);
   }
-  CHECK(!new_args[0]->IsInstance<TempExprNode>() && !new_args[1]->IsInstance<TempExprNode>());
+  CHECK(!new_args[0]->IsInstance<TempExprNode>() || !new_args[1]->IsInstance<TempExprNode>());
   return Expr(nullptr);
 }
 
@@ -417,6 +431,9 @@ Expr IdentityRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
 RELAY_REGISTER_OP("nn.relu").set_attr<FForwardRewrite>("FQRealizeRewrite", IdentityRealize);
 
 RELAY_REGISTER_OP("strided_slice").set_attr<FForwardRewrite>("FQRealizeRewrite", IdentityRealize);
+
+RELAY_REGISTER_OP("nn.batch_flatten")
+    .set_attr<FForwardRewrite>("FQRealizeRewrite", IdentityRealize);
 
 RELAY_REGISTER_OP("annotation.stop_fusion")
     .set_attr<FForwardRewrite>("FQRealizeRewrite", IdentityRealize);

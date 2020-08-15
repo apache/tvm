@@ -67,6 +67,15 @@ TVM_DLL Kind KindCheck(const Type& t, const IRModule& mod);
 TVM_DLL bool ConstantCheck(const Expr& e);
 
 /*!
+ * \brief Check whether an expression is in the basic block normal form.
+ *
+ * \param e the expression.
+ *
+ * \return whether the expression is in the basic block normal form.
+ */
+TVM_DLL bool BasicBlockNormalFormCheck(const Expr& e);
+
+/*!
  * \brief Check that each Var is only bound once.
  *
  * For example, the expression `let x = 1 in let x = 2 in 3` bound x twice.
@@ -235,6 +244,24 @@ TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod);
  * \return The reference count mapping.
  */
 TVM_DLL std::unordered_map<const Object*, size_t> GetExprRefCount(const Expr& body);
+
+/*!
+ * \brief Get the updated module for collecting calibration data.
+ *
+ * \param mod The module to be updated.
+ *
+ * \return The updated module.
+ */
+TVM_DLL IRModule GetCalibrateModule(IRModule mod);
+
+/*!
+ * \brief Get the output map between subgrpahs and its inputs/output.
+ *
+ * \param mod The module for running calibration.
+ *
+ * \return The mapping between a subgraph name and its postition in the output tuple.
+ */
+TVM_DLL Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& mod);
 
 }  // namespace relay
 }  // namespace tvm

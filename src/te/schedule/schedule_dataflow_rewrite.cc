@@ -370,7 +370,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch, const Array<Tensor>& te
     for (Range r : old_region) {
       PrimExpr min = VarReplacer(vsub2newvar)(r->min);
       PrimExpr extent = VarReplacer(vsub2newvar)(r->extent);
-      region.push_back(Range::make_by_min_extent(min, extent));
+      region.push_back(Range::FromMinExtent(min, extent));
     }
     new_regions.push_back(region);
   }
@@ -451,7 +451,7 @@ Tensor Schedule::cache_write(const Tensor& tensor, const std::string& scope) {
   }
 }
 
-void RebaseNonZeroMinLoop(const Schedule& sch) {
+void RebaseNonZeroMinLoop(ScheduleNode* sch) {
   std::unordered_map<IterVar, IterVar> rebase_map;
   for (Stage s : sch->stages) {
     if (s->attach_type == kInlinedAlready) continue;
@@ -614,10 +614,85 @@ void InjectInline(ScheduleNode* sch) {
   }
 }
 
+void LegalizeInvalidAttach(ScheduleNode* sch) {
+  // Legalize the compute_at location if the target iterator of compute_at is split or fused.
+  // Case 1: If the target of compute_at is split,
+  //         we will move the compute_at location to the inner iterator.
+  // Case 2: If the target of compute_at is fused,
+  //         we will move the compute_at location to the newly fused iterator.
+  // Note that case 2 can only happen if the target of compute_at
+  // is the innermost operand of fuse operation.
+
+  // Map an old invalid attach point to its new valid attach point
+  std::unordered_map<IterVar, IterVar> replace_map;
+
+  for (Stage stage : sch->stages) {
+    for (Stage s = stage; s.defined();) {
+      // The following logic is simiar to the `CreateAttachPath` in `src/te/schedule/graph.h`,
+      // because we follow the validation check in that function to legalize the attach.
+      Stage spec = s.GetAttachSpec();
+      if (spec->attach_type != kScope) {
+        break;
+      }
+      bool start_attach = false;
+      IterVar attach_ivar = spec->attach_ivar;
+      s = spec->attach_stage;
+      CHECK(attach_ivar.defined());
+      CHECK(s.defined());
+
+      for (size_t i = s->leaf_iter_vars.size(); i != 0; --i) {
+        IterVar iv = s->leaf_iter_vars[i - 1];
+        if (!start_attach && iv.same_as(attach_ivar)) {
+          start_attach = true;
+          break;
+        }
+      }
+
+      if (!start_attach) {
+        IterVar new_attach_ivar = attach_ivar;
+        bool updated = true;
+        // recursively update the relations
+        while (updated) {
+          updated = false;
+          for (const auto& rel : s->relations) {
+            if (const FuseNode* r = rel.as<FuseNode>()) {
+              if (new_attach_ivar.same_as(r->inner)) {
+                new_attach_ivar = r->fused;
+                updated = true;
+              }
+            } else if (const SplitNode* r = rel.as<SplitNode>()) {
+              if (new_attach_ivar.same_as(r->parent)) {
+                new_attach_ivar = r->inner;
+                updated = true;
+              }
+            }
+          }
+          replace_map[attach_ivar] = new_attach_ivar;
+        }
+      }
+    }
+  }
+
+  // remap the parent relation
+  for (Stage s : sch->stages) {
+    if (s->attach_type != kScope) continue;
+    if (replace_map.count(s->attach_ivar)) {
+      s->attach_ivar = replace_map.at(s->attach_ivar);
+    }
+  }
+  for (Stage s : sch->groups) {
+    if (s->attach_type != kScope) continue;
+    if (replace_map.count(s->attach_ivar)) {
+      s->attach_ivar = replace_map.at(s->attach_ivar);
+    }
+  }
+}
+
 Schedule Schedule::normalize() {
   Schedule sn = copy();
   InjectInline(sn.operator->());
-  RebaseNonZeroMinLoop(sn);
+  RebaseNonZeroMinLoop(sn.operator->());
+  LegalizeInvalidAttach(sn.operator->());
   return sn;
 }
 

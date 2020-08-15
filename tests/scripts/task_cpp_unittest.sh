@@ -31,6 +31,7 @@ export OMP_NUM_THREADS=1
 rm -f build/*_test
 
 make cpptest -j8
+make crttest -j8
 for test in build/*_test; do
     ./$test
 done

@@ -22,6 +22,7 @@ import tvm._ffi
 from tvm.relay.expr import RelayExpr as Expr
 
 from ... import _ffi as tvm_ffi
+from ... import ir as _ir
 from ...ir import make_node
 from ...ir.base import Node
 from ...runtime import Object
@@ -293,7 +294,7 @@ def is_tuple(fields: tvm.ir.container.Array) -> "DFPattern":
     return TuplePattern(fields)
 
 
-def is_tuple_get_item(tuple_value: "DFPattern", index: int) -> "DFPattern":
+def is_tuple_get_item(tuple_value: "DFPattern", index: Optional[int] = None) -> "DFPattern":
     """
     Syntatic sugar for creating an ExprPattern.
 
@@ -302,8 +303,8 @@ def is_tuple_get_item(tuple_value: "DFPattern", index: int) -> "DFPattern":
     tuple_value: tvm.relay.dataflow_pattern.DFPattern
         The input tuple expression.
 
-    index: int
-        The index.
+    index: Optional[int]
+        The index to match; Default (None) to match a TupleGetItem with any index.
 
     Returns
     -------
@@ -555,12 +556,13 @@ class TupleGetItemPattern(DFPattern):
     tuple_value: tvm.relay.dataflow_pattern.DFPattern
         The input tuple expression.
 
-    index: int
-        The index.
+    index: Optional[int]
+        The index to match; Default (None) to match a TupleGetItem with any index.
     """
 
-    def __init__(self, tuple_value: "DFPattern", index: int):
-        self.__init_handle_by_constructor__(ffi.TupleGetItemPattern, tuple_value, index)
+    def __init__(self, tuple_value: "DFPattern", index: Optional[int] = None):
+        match_index = index if index is not None else -1
+        self.__init_handle_by_constructor__(ffi.TupleGetItemPattern, tuple_value, match_index)
 
 
 @register_df_node
@@ -686,7 +688,15 @@ class DFPatternCallback:
     the callback returns.
 
     Users are expect to inherit from this class and provide a "self.pattern" to match
+
+    Parameters
+    ----------
+    require_type: bool
+        Whether InferType is required to be run before the callback.
     """
+    def __init__(self, require_type=False):
+        self.pattern = None
+        self.require_type = require_type
 
     def rewrite(self, expr: Expr) -> Expr:
         """
@@ -726,11 +736,11 @@ class DFPatternCallback:
 
 class _DFPatternCallback(Object):
     """C++ implemenation"""
-    def __init__(self, pattern, callback):
-        self.__init_handle_by_constructor__(ffi.DFPatternCallback, pattern, callback)
+    def __init__(self, pattern, callback, require_type):
+        self.__init_handle_by_constructor__(ffi.DFPatternCallback, pattern, callback, require_type)
 
 
-def rewrite(callbacks, expr: Expr) -> Expr:
+def rewrite(callbacks, expr: Expr, mod: Optional[_ir.IRModule] = None) -> Expr:
     """
     Rewrite expression with the given callbacks.
 
@@ -740,20 +750,23 @@ def rewrite(callbacks, expr: Expr) -> Expr:
         The input callback or list of callbacks.
     expr : tvm.relay.Expr
         The expression to rewrite.
+    mod : Optional[tvm.ir.IRModule]
+        The module that associates with the expression.
 
     Returns
     -------
     result : tvm.relay.Expr
         The Expression with matched subgraphs rewritten by the callbacks.
     """
-    if isinstance(callbacks, DFPatternCallback):
-        tmp = [_DFPatternCallback(callbacks.pattern, callbacks.callback)]
-    else:
-        tmp = []
-        for callback in callbacks:
-            tmp.append(_DFPatternCallback(callback.pattern, callback.callback))
+    if mod is None:
+        mod = _ir.IRModule()
+    callbacks = [callbacks] if isinstance(callbacks, DFPatternCallback) else callbacks
+    tmp = []
+    for callback in callbacks:
+        assert callback.pattern is not None
+        tmp.append(_DFPatternCallback(callback.pattern, callback.callback, callback.require_type))
 
-    return ffi.rewrite(tmp, expr)
+    return ffi.rewrite(tmp, expr, mod)
 
 
 def partition(pattern: "DFPattern",

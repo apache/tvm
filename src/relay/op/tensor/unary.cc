@@ -21,12 +21,13 @@
  * \file unary.cc
  * \brief Unary operators.
  */
-#include <topi/elemwise.h>
-#include <topi/transform.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <tvm/topi/elemwise.h>
+#include <tvm/topi/transform.h>
 
+#include "../make_op.h"
 #include "../op_common.h"
 #include "../type_relations.h"
 
@@ -266,13 +267,15 @@ RELAY_REGISTER_UNARY_OP("copy")
 // relay.clip
 TVM_REGISTER_NODE_TYPE(ClipAttrs);
 
-TVM_REGISTER_GLOBAL("relay.op._make.clip").set_body_typed([](Expr a, double a_min, double a_max) {
+Expr MakeClip(Expr a, double a_min, double a_max) {
   auto attrs = make_object<ClipAttrs>();
   attrs->a_min = a_min;
   attrs->a_max = a_max;
   static const Op& op = Op::Get("clip");
   return Call(op, {a}, Attrs(attrs), {});
-});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.clip").set_body_typed(MakeClip);
 
 RELAY_REGISTER_OP("clip")
     .describe(R"code(Clip tensor values.
@@ -286,6 +289,29 @@ This function takes a tensor, a minimum value `a_min`, and a maximum value `a_ma
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attrs_type<ClipAttrs>()
     .set_support_level(3);
+
+// relay.fixed_point_multiply
+TVM_REGISTER_NODE_TYPE(FixedPointMultiplyAttrs);
+
+TVM_REGISTER_GLOBAL("relay.op._make.fixed_point_multiply")
+    .set_body_typed([](Expr a, int32_t multiplier, int32_t shift) {
+      auto attrs = make_object<FixedPointMultiplyAttrs>();
+      attrs->multiplier = multiplier;
+      attrs->shift = shift;
+      static const Op& op = Op::Get("fixed_point_multiply");
+      return Call(op, {a}, Attrs(attrs), {});
+    });
+
+RELAY_REGISTER_OP("fixed_point_multiply")
+    .describe(R"code(fixed point multiplication)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_attr<TOpPattern>("TOpPattern", kElemWise)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attrs_type<FixedPointMultiplyAttrs>()
+    .set_support_level(10);
 
 RELAY_REGISTER_UNARY_OP("floor")
     .describe(R"code(Returns the floor of input array, computed element-wise.
@@ -396,20 +422,6 @@ RELAY_REGISTER_UNARY_OP("bitwise_not")
 // shape_of
 TVM_REGISTER_NODE_TYPE(ShapeOfAttrs);
 
-bool ShapeOfRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                const TypeReporter& reporter) {
-  CHECK_EQ(num_inputs, 1);
-  auto tt = types[0].as<TensorTypeNode>();
-  if (tt == nullptr) {
-    return false;
-  }
-  const auto* param = attrs.as<ShapeOfAttrs>();
-  CHECK(param != nullptr);
-  auto rank_shape = RankShape(tt->shape);
-  reporter->Assign(types[1], TensorType(rank_shape, param->dtype));
-  return true;
-}
-
 Array<te::Tensor> ShapeOfCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                  const Type& out_type) {
   CHECK_EQ(inputs.size(), 1);
@@ -450,7 +462,7 @@ bool NdarraySizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   CHECK(tt != nullptr);
   const auto* param = attrs.as<NdarraySizeAttrs>();
   CHECK(param != nullptr);
-  reporter->Assign(types[1], TensorType({1}, param->dtype));
+  reporter->Assign(types[1], TensorType({}, param->dtype));
   return true;
 }
 

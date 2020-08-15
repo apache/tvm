@@ -29,9 +29,11 @@
 #include <tvm/ir/module.h>
 #include <tvm/runtime/container.h>
 #include <tvm/target/codegen.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -71,9 +73,11 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param system_lib Whether to insert system library registration.
    * \param dynamic_lookup Whether dynamically lookup runtime function
    *                       or use the runtime function table passed by caller.
+   * \param target_c_runtime If true, generate a module to be executed by the C runtime. In practice
+   *                       this option influences whether global ctors are used.
    */
   virtual void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
-                    bool system_lib, bool dynamic_lookup);
+                    bool system_lib, bool dynamic_lookup, bool target_c_runtime);
   /*!
    * \brief Compile and add function f to the current module.
    * \param f The function to be added.
@@ -175,7 +179,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // create intrinstic given call
   virtual llvm::Value* CreateIntrinsic(const CallNode* op);
   // create extern function call
-  virtual llvm::Value* CreateCallExtern(const CallNode* op);
+  // skip first arg mode used for call extern intrinsic.
+  virtual llvm::Value* CreateCallExtern(Type ret_type, String global_symbol,
+                                        const Array<PrimExpr>& args, bool skip_first_arg);
   // Get the corresponding thread index
   virtual llvm::Value* GetThreadIndex(const IterVar& iv);
   // Get the corresponding thread index
@@ -242,7 +248,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void GetAlignment(DataType t, const VarNode* buf_var, const PrimExpr& index, int* p_alignment,
                     int* p_native_bits);
   // Get constant string
-  llvm::Value* GetConstString(const std::string& str);
+  llvm::Constant* GetConstString(const std::string& str);
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(const CallNode* op, llvm::Function* f,
                                     const std::vector<llvm::Value*>& args);
@@ -261,7 +267,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
   llvm::Value* CreateBufferPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
-  llvm::Value* CreateBufferVecPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);
@@ -271,7 +276,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
                        const Var& loop_var, const Stmt& body);
   // add alias information.
-  void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index, DataType type);
+  void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index);
   // The IRBuilder.
   using IRBuilder = llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>;
   // The current function
@@ -319,6 +324,18 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   std::unordered_set<const VarNode*> alias_var_set_;
   // set of volatile buffer.
   std::unordered_set<const VarNode*> volatile_buf_;
+  // deep comparison of PrimExpr
+  ExprDeepEqual deep_equal_;
+  // binding of let variables. Enables duplicate var defs that map to same value
+  std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  // Cache potential common path ops to slightly improve lookup time.
+  // global symbol table.
+  OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");
+  const Op& builtin_call_extern_ = builtin::call_extern();
+  const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
+  const Op& builtin_call_llvm_intrin_ = builtin::call_llvm_intrin();
+  const Op& builtin_call_llvm_pure_intrin_ = builtin::call_llvm_pure_intrin();
+
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {
     std::unique_ptr<llvm::DIBuilder> di_builder_;

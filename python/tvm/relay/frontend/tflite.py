@@ -67,6 +67,8 @@ class OperatorConverter(object):
             'ABS': self.convert_abs,
             'ADD': self.convert_add,
             'ADD_N': self.convert_add_n,
+            'ARG_MAX': self.convert_arg_max,
+            'ARG_MIN': self.convert_arg_min,
             'AVERAGE_POOL_2D': self.convert_average_pool2d,
             'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
             'CAST': self.convert_cast,
@@ -82,6 +84,7 @@ class OperatorConverter(object):
             'ELU': self.convert_elu,
             'EQUAL': self.convert_equal,
             'EXP': self.convert_exp,
+            'EXPAND_DIMS': self.convert_expand_dims,
             'FILL': self.convert_fill,
             'FLOOR_DIV': self.convert_floor_div,
             'FLOOR_MOD': self.convert_floor_mod,
@@ -112,8 +115,10 @@ class OperatorConverter(object):
             'MUL': self.convert_mul,
             'NEG': self.convert_neg,
             'NOT_EQUAL': self.convert_not_equal,
+            'ONE_HOT': self.convert_one_hot,
             'PACK': self.convert_pack,
             'PAD': self.convert_pad,
+            'PADV2': self.convert_pad,
             'POW': self.convert_pow,
             'PRELU': self.convert_prelu,
             'RANGE': self.convert_range,
@@ -244,42 +249,92 @@ class OperatorConverter(object):
             qnn_params = None
             tflite_qnn_params = tensor.Quantization()
             if tflite_qnn_params is not None:
-                scale = float(tflite_qnn_params.ScaleAsNumpy())
-                zero_point = int(tflite_qnn_params.ZeroPointAsNumpy())
+                # TFLite supports both per-tensor and per-axis (aka channel) quantization.  For
+                # per-tensor quantization, scale and zero points are scalar values.  For per-axis
+                # quantization, scale and zero points for the weights are tensors (activations are
+                # per-tensor quantized). However, the TFLite quantization spec puts restrictions on
+                # zero points for per-axis quantization.  Specifically, the zero point is a tensor
+                # but all values are 0. More information can be found here -
+                # https://www.tensorflow.org/lite/performance/quantization_spec
+
+                tflite_scale = tflite_qnn_params.ScaleAsNumpy()
+                tflite_zero_point = tflite_qnn_params.ZeroPointAsNumpy()
+                is_qnn_params_valid = True
+
+                # Handle Per-axis and per-tensor cases
+                if isinstance(tflite_scale, np.ndarray):
+                    assert isinstance(tflite_zero_point, np.ndarray)
+
+                    # Tensor - Per-axis quantization
+                    if tflite_scale.size != 1 and tflite_zero_point.size != 1:
+                        scale = tflite_scale
+                        # Ensure that all zero points are zeros
+                        zero_point = tflite_zero_point
+                        if not np.all(zero_point == 0):
+                            raise tvm.error.OpAttributeInvalid(\
+                                    "TFLite per-axis quantization restricts all zero points to be"
+                                    + " 0, but a non-zero value is observed")
+                        zero_point = int(zero_point[0])
+
+                    # Scalar - Per-tensor quantization
+                    elif tflite_scale.size == 1 and tflite_zero_point.size == 1:
+                        scale = float(tflite_scale[0])
+                        zero_point = int(tflite_zero_point[0])
+
+                    else:
+                        raise NotImplementedError(\
+                                "Quantized type {} (scale) and  {} (zero point) not supported"
+                                .format(type(tflite_scale), type(tflite_zero_point)))
+                elif tflite_scale == 0 and tflite_zero_point == 0:
+                    # Handle corner case for ops like quantized reshape whose second operand (shape)
+                    # has zero scale and zero zero point. This is not used.
+                    is_qnn_params_valid = False
+                else:
+                    raise NotImplementedError("Quantized type {} not supported"
+                                              .format(type(tflite_scale)))
+
                 # Check that the scale and zero points are valid.
-                if scale != 0 or zero_point != 0:
+                if is_qnn_params_valid:
                     qnn_params = dict()
                     qnn_params['scale'] = relay.const(scale, 'float32')
                     qnn_params['zero_point'] = relay.const(zero_point, 'int32')
             return_list.append(TensorWrapper(tensor_idx, tensor, buffer, qnn_params))
         return return_list
 
-    def get_tensor_value(self, tensor_wrapper):
-        """Get tensor buffer value from given tensor wrapper"""
+
+    def get_tensor_type_as_numpy(self, tensor_wrapper):
+        """Returns np.dtype out of TensorType"""
         assert isinstance(tensor_wrapper, TensorWrapper)
 
         try:
             from tflite.TensorType import TensorType
+            return {TensorType.UINT8: np.uint8,
+                    TensorType.INT8: np.int8,
+                    TensorType.FLOAT32: np.float32,
+                    TensorType.INT32: np.int32,
+                    TensorType.INT64: np.int64,
+                    TensorType.BOOL: np.bool_}[tensor_wrapper.tensor.Type()]
         except ImportError:
             raise ImportError("The tflite package must be installed")
+        except KeyError:
+            raise NotImplementedError("Tensor type '{}' currently not supported"
+                                      .format(tensor_wrapper.tensor.Type()))
 
-        if tensor_wrapper.tensor.Type() == TensorType.UINT8:
-            return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.uint8).reshape(
-                tensor_wrapper.tensor.ShapeAsNumpy())
-        if tensor_wrapper.tensor.Type() == TensorType.FLOAT32:
-            return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.float32).reshape(
-                tensor_wrapper.tensor.ShapeAsNumpy())
-        if tensor_wrapper.tensor.Type() == TensorType.INT32:
-            return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.int32).reshape(
-                tensor_wrapper.tensor.ShapeAsNumpy())
-        if tensor_wrapper.tensor.Type() == TensorType.INT64:
-            return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.int64).reshape(
-                tensor_wrapper.tensor.ShapeAsNumpy())
-        if tensor_wrapper.tensor.Type() == TensorType.BOOL:
-            return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.bool_).reshape(
-                tensor_wrapper.tensor.ShapeAsNumpy())
-        raise NotImplementedError("Tensor type {} is currently not supported"
-                                  .format(str(tensor_wrapper.tensor.Type())))
+
+    def get_tensor_value(self, tensor_wrapper):
+        """Get tensor buffer value from given tensor wrapper"""
+        assert isinstance(tensor_wrapper, TensorWrapper)
+
+        dtype = self.get_tensor_type_as_numpy(tensor_wrapper)
+        data = tensor_wrapper.buffer.DataAsNumpy()
+
+        if tensor_wrapper.tensor.ShapeLength() != 0:
+            shape = tensor_wrapper.tensor.ShapeAsNumpy()
+        else:
+            shape = []
+
+        return np.frombuffer(data, dtype=dtype).reshape(shape)
+
 
     def get_tensor_type_str(self, tensor_type):
         """Get tensor type string representation when given TFLite tensor type"""
@@ -406,26 +461,43 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
-        assert input_tensors, "input tensors should not be empty"
+        assert len(input_tensors) in (1, 2), "input tensors should not be empty"
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "There should be only 1 output tensor"
+
         input_tensor = input_tensors[0]
         input_tensor_idx = input_tensor.tensor_idx
 
-        assert op.BuiltinOptionsType() == BuiltinOptions.ReshapeOptions
-        op_options = op.BuiltinOptions()
-        reshape_options = ReshapeOptions()
-        reshape_options.Init(op_options.Bytes, op_options.Pos)
-        target_shape = reshape_options.NewShapeAsNumpy()
+        if len(input_tensors) == 2:
+            shape_tensor = input_tensors[1]
+            if self.has_expr(shape_tensor.tensor_idx):
+                target_shape = self.get_expr(shape_tensor.tensor_idx)
+            else:
+                target_shape = self.get_tensor_value(shape_tensor)
+                # convert to flattened list
+                from itertools import chain
+                try:
+                    target_shape = list(chain(*target_shape))
+                except TypeError:
+                    target_shape = list(chain(target_shape))
+
+        else:
+            assert op.BuiltinOptionsType() == BuiltinOptions.ReshapeOptions
+            op_options = op.BuiltinOptions()
+            reshape_options = ReshapeOptions()
+            reshape_options.Init(op_options.Bytes, op_options.Pos)
+            target_shape = tuple(reshape_options.NewShapeAsNumpy())
 
         in_expr = self.get_expr(input_tensor_idx)
 
         # If the tensors are quantized, ensure that input/output qnn params are same.
         if input_tensor.qnn_params:
-            output_tensors = self.get_output_tensors(op)
-            assert len(output_tensors) == 1, "There should be only 1 output tensor"
             output_tensor = output_tensors[0]
             assert self.has_same_qnn_params(input_tensor, output_tensor), \
                     "TFLite reshape requires input and output scale and zero points to be equal"
-        out = _op.reshape(in_expr, newshape=tuple(target_shape))
+
+        out = _op.reshape(in_expr, newshape=target_shape)
         return out
 
     def _convert_resize(self, method, op):
@@ -651,12 +723,43 @@ class OperatorConverter(object):
 
     def convert_relu(self, op):
         """Convert TFLite ReLU"""
+        try:
+            from tflite.ActivationFunctionType import ActivationFunctionType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
-
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
-        out = _op.nn.relu(in_expr)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            # Quantize a float value to an quantized integer value
+            scale_val = get_scalar_from_constant(input_tensor.qnn_params['scale'])
+            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
+
+            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
+            out = self.convert_qnn_fused_activation_function(\
+                    expr=in_expr,
+                    fused_activation_fn=ActivationFunctionType.RELU,
+                    scale=scale_val,
+                    zero_point=zero_point_val,
+                    dtype=output_tensor_type_str)
+        else:
+            out = _op.nn.relu(in_expr)
+
+        if output_tensor.qnn_params:
+            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
+            out = _qnn.op.requantize(out,
+                                     input_scale=input_tensor.qnn_params['scale'],
+                                     input_zero_point=input_tensor.qnn_params['zero_point'],
+                                     output_scale=output_tensor.qnn_params['scale'],
+                                     output_zero_point=output_tensor.qnn_params['zero_point'],
+                                     out_dtype=output_tensor_type_str)
 
         return out
 
@@ -692,6 +795,11 @@ class OperatorConverter(object):
 
     def convert_relu6(self, op):
         """Convert TFLite ReLU6"""
+        try:
+            from tflite.ActivationFunctionType import ActivationFunctionType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
@@ -705,17 +813,14 @@ class OperatorConverter(object):
             # Quantize a float value to an quantized integer value
             scale_val = get_scalar_from_constant(input_tensor.qnn_params['scale'])
             zero_point_val = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
-            quantize = lambda x: float(int(round(x / scale_val)) + zero_point_val)
 
-            # Get min/max of the input dtype. This will be used to ensure that
-            # clip a_min/a_max are not beyond the dtype range.
-            input_tensor_type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
-            qmin = float(tvm.tir.op.min_value(input_tensor_type_str).value)
-            qmax = float(tvm.tir.op.max_value(input_tensor_type_str).value)
-
-            out = _op.clip(in_expr,
-                           a_min=max(qmin, quantize(0)),
-                           a_max=min(qmax, quantize(6.0)))
+            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
+            out = self.convert_qnn_fused_activation_function(\
+                    expr=in_expr,
+                    fused_activation_fn=ActivationFunctionType.RELU6,
+                    scale=scale_val,
+                    zero_point=zero_point_val,
+                    dtype=output_tensor_type_str)
         else:
             out = _op.clip(in_expr, a_min=0, a_max=6)
 
@@ -1551,6 +1656,54 @@ class OperatorConverter(object):
     def convert_reduce_any(self, op):
         return self._convert_reduce(_op.reduce.any, op)
 
+    def _convert_arg_min_max(self, relay_op, op):
+        """Generic method converting TFLite arg_min_max"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ArgMinOptions import ArgMinOptions
+            from tflite.ArgMaxOptions import ArgMaxOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "two input tensor arguments expected"
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "one output tensor expected"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        axis_tensor = input_tensors[1]
+        # In Tensorflow, `axis` argument is a Tensor, not attribute. We
+        # support the case where it inputs from a scalar constant.
+        axis_value = self.get_tensor_value(axis_tensor)
+        assert axis_value.size == 1
+        axis_value = axis_value.item()
+
+        if op.BuiltinOptionsType() == BuiltinOptions.ArgMinOptions:
+            arg_min_max_options = ArgMinOptions()
+        elif op.BuiltinOptionsType() == BuiltinOptions.ArgMaxOptions:
+            arg_min_max_options = ArgMaxOptions()
+        op_options = op.BuiltinOptions()
+        arg_min_max_options.Init(op_options.Bytes, op_options.Pos)
+
+        # set keepdims to True since tflite 1.13 removes all dims of size 1
+        # WARNING: all other versions of tflite > 1.13 need keepdims=False
+        out = relay_op(in_expr, axis=axis_value, keepdims=False, exclude=False)
+
+        return out
+
+    def convert_arg_min(self, op):
+        """Convert TFLite ARG_MIN"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized ARG_MIN operator is not supported yet.')
+        return self._convert_arg_min_max(_op.argmin, op)
+
+    def convert_arg_max(self, op):
+        """Convert TFLite ARG_MAX"""
+        return self._convert_arg_min_max(_op.argmax, op)
+
     def convert_fully_connected(self, op):
         """Convert TFLite fully connected"""
         try:
@@ -1573,7 +1726,6 @@ class OperatorConverter(object):
         output_tensor_type = output_tensor.tensor.Type()
         output_tensor_type_str = self.get_tensor_type_str(output_tensor_type)
 
-        input_tensor_shape = input_tensor.tensor.ShapeAsNumpy()
         weight_tensor_shape = weight_tensor.tensor.ShapeAsNumpy()
 
         # Weight should have only 2 dimensions(TFLite convention)
@@ -1586,14 +1738,7 @@ class OperatorConverter(object):
         # Dense expected Input shape: [batch_size, n_units]
         # Dense expected Weight shape: [out_dim, n_units]
         # Dense output shape: [batch_size, out_dim]
-        # So it is evident that input shape: [batch_size = input_size / n_units, n_units]
-        input_size = 1
-        for _, shape in enumerate(input_tensor_shape):
-            input_size *= shape
-
-        # First get the batch size
-        batch_size = int(input_size / weight_tensor_shape[1])
-        target_shape = tuple((batch_size, weight_tensor_shape[1]))
+        target_shape = tuple((-1, weight_tensor_shape[1]))
         in_expr = self.get_expr(input_tensor_idx)
         in_expr = _op.reshape(in_expr, target_shape)
 
@@ -1604,9 +1749,9 @@ class OperatorConverter(object):
         fully_connected_options.Init(op_options.Bytes, op_options.Pos)
         fused_activation_fn = fully_connected_options.FusedActivationFunction()
 
-        # weight tensor type should be UINT8 (quantization) or FLOAT32
+        # weight tensor type should be INT8/UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
-        assert weight_tensor_type in (TensorType.UINT8, TensorType.FLOAT32)
+        assert weight_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
         if self.has_expr(weight_tensor.tensor_idx):
@@ -1795,9 +1940,9 @@ class OperatorConverter(object):
             params['channels'] = int(output_channels)
             params['kernel_layout'] = 'HWIO'
 
-        # weight tensor type should be UINT8 (quantization) or FLOAT32
+        # weight tensor type should be INT8/UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
-        assert weight_tensor_type in (TensorType.UINT8, TensorType.FLOAT32)
+        assert weight_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
         in_expr = self.get_expr(input_tensor_idx)
@@ -1856,9 +2001,15 @@ class OperatorConverter(object):
         if output_tensor.qnn_params:
             # Calculate the intermediate scale and zero point of the int32 output.
             data_scale = input_tensor.qnn_params['scale']
-            weight_scale = weight_tensor.qnn_params['scale']
             data_scale_val = get_scalar_from_constant(data_scale)
-            weight_scale_val = get_scalar_from_constant(weight_scale)
+
+            weight_scale = weight_tensor.qnn_params['scale']
+            # If weight scale is scalar, it is per-tensor quantization
+            if isinstance(weight_scale, float):
+                weight_scale_val = get_scalar_from_constant(weight_scale)
+            else:
+                weight_scale_val = get_tensor_from_constant(weight_scale)
+
             new_input_scale_val = data_scale_val * weight_scale_val
             new_input_scale = relay.const(new_input_scale_val, 'float32')
             new_input_zero_point = relay.const(0, 'int32')
@@ -1869,7 +2020,8 @@ class OperatorConverter(object):
                                      input_zero_point=new_input_zero_point,
                                      output_scale=output_tensor.qnn_params['scale'],
                                      output_zero_point=output_tensor.qnn_params['zero_point'],
-                                     out_dtype=output_tensor_type_str)
+                                     out_dtype=output_tensor_type_str,
+                                     axis=3)
 
             # Call activation function
             output_scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
@@ -1882,7 +2034,6 @@ class OperatorConverter(object):
                     dtype=output_tensor_type_str)
         else:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
-
         return out
 
     def convert_split(self, op):
@@ -2175,34 +2326,57 @@ class OperatorConverter(object):
         return out
 
     def convert_pad(self, op):
-        """Convert TFLite PAD"""
-        input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 2, "input tensors length should be 2"
+        """Convert TFLite PAD/PADV2 \
+           TFLite treats PAD and PADV2 operators identically"""
 
-        # TFLite PAD only support CONSTANT mode and does not support constant_values parameter.
-        # tensor
+        input_tensors = self.get_input_tensors(op)
+
+        # TFLite PAD/PADV2 only supports CONSTANT mode
+        assert (len(input_tensors) == 2 or len(input_tensors) == 3), \
+            "input tensor's length should be 2 for PAD and 3 for PADV2"
+
+        if len(input_tensors) == 3:
+            assert input_tensors[0].tensor.Type() == input_tensors[2].tensor.Type(), \
+                "constant_values tensor must be of same type as input tensor"
+
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
         # paddings
         pad_list = self.get_tensor_value(input_tensors[1])
+
         # convert list of lists to tuple of tuples
         paddings = tuple(tuple(l) for l in pad_list)
 
-        # Set the pad value
+        # Set the pad value, by default 0, unless constant_values parameter is provided
         pad_value = 0
+
         if input_tensor.qnn_params:
             # Check that input and output tensor have same qnn params.
             output_tensors = self.get_output_tensors(op)
             output_tensor = output_tensors[0]
             assert self.has_same_qnn_params(input_tensor, output_tensor), \
-                    "TFLite reshape requires input and output scale and zero points to be equal"
+                "TFLite PADV2 requires input and output scale and zero points to be equal"
 
-            # The pad value for quantized pad is the input zero point.
+            # The pad value for quantized pad is the input zero point by default.
             pad_value = float(input_tensor.qnn_params['zero_point'].data.asnumpy())
+
+        if len(input_tensors) == 3:
+            pad_value = self.get_tensor_value(input_tensors[2])
+            if isinstance(pad_value, np.ndarray):
+                pad_value = pad_value.tolist()
+            if isinstance(pad_value, list):
+                assert len(pad_value) == 1, "Only one constant value is expected."
+                pad_value = pad_value[0]
+            if input_tensor.qnn_params:
+                # Check that input tensor and constant_values have same qnn params.
+                assert self.has_same_qnn_params(input_tensor, input_tensors[2]), \
+                    "TFLite PADV2 requires input and constant_values tensors' \
+                        scale and zero points to be equal"
 
         out = _op.nn.pad(in_expr, pad_width=paddings, pad_value=pad_value)
         return out
+
 
     def convert_floor_div(self, op):
         """Convert TFLite FLOOR_DIV"""
@@ -2594,17 +2768,27 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
+        input_tensor_type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
+        output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
 
         # The output must be quantized
         assert output_tensor.qnn_params
-        # Quantize the input
-        out = self.quantize(in_expr, output_tensor)
 
+        # TFLite Quantize op can also act as Requantize op
+        if input_tensor_type_str == "float32":
+            out = self.quantize(in_expr, output_tensor)
+        else:
+            out = _qnn.op.requantize(in_expr,
+                                     input_scale=input_tensor.qnn_params['scale'],
+                                     input_zero_point=input_tensor.qnn_params['zero_point'],
+                                     output_scale=output_tensor.qnn_params['scale'],
+                                     output_zero_point=output_tensor.qnn_params['zero_point'],
+                                     out_dtype=output_tensor_type_str)
         return out
 
     def convert_dequantize(self, op):
@@ -2721,6 +2905,81 @@ class OperatorConverter(object):
         ret = _expr.TupleWrapper(_expr.Tuple([boxes, cls_ids, scores, valid_count]), size=4)
         return ret
 
+    def convert_expand_dims(self, op):
+        """Convert TFLite EXPAND_DIMS"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        if input_tensors[0].qnn_params:
+            # Check that input and output tensor have same qnn params.
+            output_tensors = self.get_output_tensors(op)
+            assert self.has_same_qnn_params(input_tensors[0], output_tensors[0]), \
+                "TFLite EXPAND_DIMS requires input and output tensors' \
+                    scale and zero points to be equal"
+
+        input_expr = self.get_tensor_expr(input_tensors[0])
+        axis = self.get_tensor_value(input_tensors[1])
+        if isinstance(axis, np.ndarray):
+            assert len(axis) == 1, "only one value is expected."
+            axis = int(axis)
+
+        ndims = len(input_tensors[0].tensor.ShapeAsNumpy())
+        assert (-1-ndims <= axis <= ndims), "axis out of range"
+
+        out = _op.expand_dims(input_expr, axis, 1)
+
+        return out
+
+    def convert_one_hot(self, op):
+        """Convert TFLite ONE_HOT"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.OneHotOptions import OneHotOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 4, "Input tensor's length should be 4"
+
+        # Ensuring input isn't quantized
+        assert all(not i.qnn_params for i in input_tensors), \
+            "Quantized input is not expected."
+
+        # TFlite ONE_HOT requires both on_value
+        # and off_value, making dtype redundant.
+        indices = input_tensors[0]
+        depth = input_tensors[1]
+        on_value = input_tensors[2]
+        off_value = input_tensors[3]
+
+        assert on_value.tensor.Type() == off_value.tensor.Type(), \
+            "on_value and off_value should be the same type"
+
+        # Getting relay expr
+        indices_expr = self.get_expr(indices.tensor_idx)
+        on_value_expr = self.get_expr(on_value.tensor_idx)
+        off_value_expr = self.get_expr(off_value.tensor_idx)
+
+        # Getting depth value
+        depth = self.get_tensor_value(depth)
+        if isinstance(depth, np.ndarray):
+            depth = int(depth)
+
+        # Getting Axis from Option (Attributes)
+        assert op.BuiltinOptionsType() == BuiltinOptions.OneHotOptions
+        op_options = op.BuiltinOptions()
+        one_hot_options = OneHotOptions()
+        one_hot_options.Init(op_options.Bytes, op_options.Pos)
+        axis = one_hot_options.Axis()
+
+        # Setting dtype
+        dtype = self.get_tensor_type_str(on_value.tensor.Type())
+
+        out = _op.one_hot(indices_expr, on_value_expr, off_value_expr, depth, axis, dtype)
+
+        return out
+
+
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))
 
@@ -2734,7 +2993,6 @@ class OperatorConverter(object):
         else:
             type_str = self.get_tensor_type_str(tensor.tensor.Type())
             expr = self.exp_tab.new_const(self.get_tensor_value(tensor), dtype=type_str)
-
         return expr
 
 
@@ -2747,6 +3005,13 @@ def get_scalar_from_constant(expr):
         "value must be float32/int32"
     return np.asscalar(value)
 
+def get_tensor_from_constant(expr):
+    """ Returns tensor of values from Relay constant node. """
+    assert isinstance(expr, _expr.Constant)
+    value = expr.data.asnumpy()
+    assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), \
+        "value must be float32/int32"
+    return value
 
 def build_str_map(obj):
     """Build string map of TFLite enum int value

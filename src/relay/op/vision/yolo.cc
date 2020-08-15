@@ -21,9 +21,9 @@
  * \file yolo.cc
  * \brief Yolo related operators
  */
-#include <topi/vision/reorg.h>
 #include <tvm/relay/attrs/vision.h>
 #include <tvm/relay/op.h>
+#include <tvm/topi/vision/reorg.h>
 
 #include <vector>
 

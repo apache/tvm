@@ -26,6 +26,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -69,7 +70,8 @@ class VarUseDefAnalysis : public StmtExprMutator {
     this->HandleDef(op->var.get());
     Stmt body = this->VisitStmt(op->body);
     // eliminate unreferenced let
-    if (use_count_.at(op->var.get()) == 0 && !HasSideEffect(op->value)) {
+    if (use_count_.at(op->var.get()) == 0 && SideEffect(op->value) <= CallEffectKind::kReadState &&
+        simplify_let_) {
       return body;
     } else {
       PrimExpr value = this->VisitExpr(op->value);
@@ -97,13 +99,28 @@ class VarUseDefAnalysis : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const LetNode* op) final {
-    this->HandleDef(op->var.get());
+    // Weaker SSA condition
+    // A single var can be binded in multiple lets
+    // but they have to bind to the same value.
+    // This is used to allow cases when we reuse a single let
+    // expression to construct a nested expr.
+    // (let x = 1 in x + 1) * (let x = 1 in x + 1)
+    auto it = let_binding_.find(op->var);
+    PrimExpr value = this->VisitExpr(op->value);
+    if (it != let_binding_.end()) {
+      CHECK(deep_equal_(it->second->value, value))
+          << "Let cannot bind the same var to two different values";
+      return GetRef<PrimExpr>(it->second);
+    } else {
+      this->HandleDef(op->var.get());
+      let_binding_[op->var] = op;
+    }
     PrimExpr body = this->VisitExpr(op->body);
     // eliminate unreferenced let
-    if (use_count_.at(op->var.get()) == 0 && !HasSideEffect(op->value)) {
+    if (use_count_.at(op->var.get()) == 0 && SideEffect(op->value) <= CallEffectKind::kReadState &&
+        simplify_let_) {
       return body;
     } else {
-      PrimExpr value = this->VisitExpr(op->value);
       if (body.same_as(op->body) && value.same_as(op->value)) {
         return GetRef<PrimExpr>(op);
       } else {
@@ -148,15 +165,21 @@ class VarUseDefAnalysis : public StmtExprMutator {
   // The fields are publically readible to
   // be accessible to the users.
   bool visit_thread_extent_{true};
+  bool simplify_let_{true};
   Array<Var> undefined_;
   Array<IterVar> thread_axis_;
   Array<PrimExpr> thread_extent_;
   std::unordered_map<const VarNode*, int> use_count_;
   std::unordered_map<const VarNode*, int> def_count_;
+
+ private:
+  ExprDeepEqual deep_equal_;
+  std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
 };
 
 Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
   VarUseDefAnalysis m;
+  m.simplify_let_ = false;
   for (Var arg : args) {
     m.use_count_[arg.get()] = 0;
   }
@@ -237,8 +260,7 @@ class HostDeviceSplitter : public StmtMutator {
     for (PrimExpr ext : m.thread_extent_) {
       call_args.push_back(ext);
     }
-    return Evaluate(
-        Call(DataType::Int(32), intrinsic::tvm_call_packed, call_args, CallNode::Intrinsic));
+    return Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), call_args));
   }
 
   // target ir module
@@ -277,7 +299,7 @@ Pass SplitHostDevice() {
     auto* func_dict = mod_ptr->functions.CopyOnWrite();
     IRModule device_mod = IRModule();
 
-    for (auto& kv : func_dict->data) {
+    for (auto& kv : *func_dict) {
       if (kv.second->IsInstance<PrimFuncNode>()) {
         PrimFunc func = Downcast<PrimFunc>(std::move(kv.second));
         kv.second = SplitHostDevice(std::move(func), &device_mod);

@@ -20,7 +20,8 @@ from tvm.runtime import ndarray as _nd
 from tvm.runtime import TVMContext as _TVMContext
 
 from . import _make
-from ..expr import Tuple, const
+from .dyn import _make as _dyn_make
+from ..expr import Tuple, Expr
 
 
 # We create a wrapper function for each operator in the
@@ -939,8 +940,12 @@ def zeros(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Expr):
+        return _dyn_make.zeros(shape, dtype)
+    if isinstance(shape, int):
+        shape = [shape]
     if isinstance(shape, (list, tuple)):
-        shape = const(list(shape), "int32")
+        shape = list(shape)
     return _make.zeros(shape, dtype)
 
 
@@ -976,8 +981,12 @@ def ones(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Expr):
+        return _dyn_make.ones(shape, dtype)
+    if isinstance(shape, int):
+        shape = [shape]
     if isinstance(shape, (list, tuple)):
-        shape = const(list(shape), "int32")
+        shape = list(shape)
     return _make.ones(shape, dtype)
 
 
@@ -1024,6 +1033,27 @@ def clip(a, a_min, a_max):
       # [1, 1, 4, 3, 4, 2]
     """
     return _make.clip(a, a_min, a_max)
+
+def fixed_point_multiply(data, multiplier, shift):
+    """Fixed point multiplication between data and a fixed point
+    constant expressed as multiplier * 2^(-shift), where multiplier
+    is a Q-number with 31 fractional bits
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+    multiplier : int
+        The integer multiplier of the fixed point constant.
+    a_max : float
+        The integer shift of the fixed point constant.
+
+    Returns
+    -------
+    result : relay.Expr
+        The output of the fixed point multiplication
+    """
+    return _make.fixed_point_multiply(data, multiplier, shift)
 
 
 def concatenate(data, axis):

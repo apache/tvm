@@ -25,7 +25,8 @@
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/vm.h>
+#include <tvm/runtime/vm/executable.h>
+#include <tvm/runtime/vm/vm.h>
 
 #include <algorithm>
 #include <iomanip>
@@ -417,6 +418,16 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       fields.push_back(instr.pc_offset);
       break;
     }
+    case Opcode::ShapeOf: {
+      // Number of fields = 2
+      fields.assign({instr.shape_of.tensor, instr.dst});
+      break;
+    }
+    case Opcode::ReshapeTensor: {
+      // Number of fields = 3
+      fields.assign({instr.reshape_tensor.tensor, instr.reshape_tensor.newshape, instr.dst});
+      break;
+    }
     default:
       LOG(FATAL) << "Invalid opcode" << static_cast<int>(instr.op);
       break;
@@ -552,7 +563,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     case Opcode::AllocTensor: {
       // Number of fields = 7 + instr.alloc_tensor.ndim
       DCHECK_GE(instr.fields.size(), 7U);
-      DCHECK_EQ(instr.fields.size(), 7U + static_cast<size_t>(instr.fields[4]));
+      DCHECK_EQ(instr.fields.size(), 7U + static_cast<size_t>(instr.fields[5]));
 
       RegName storage_reg = instr.fields[0];
       RegName offset = instr.fields[1];
@@ -682,6 +693,16 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       // Number of fields = 1
       DCHECK_EQ(instr.fields.size(), 1U);
       return Instruction::Goto(instr.fields[0]);
+    }
+    case Opcode::ShapeOf: {
+      // Number of fields = 2
+      DCHECK_EQ(instr.fields.size(), 2U);
+      return Instruction::ShapeOf(instr.fields[0], instr.fields[1]);
+    }
+    case Opcode::ReshapeTensor: {
+      // Number of fields = 3
+      DCHECK_EQ(instr.fields.size(), 3U);
+      return Instruction::ReshapeTensor(instr.fields[0], instr.fields[1], instr.fields[2]);
     }
     default:
       LOG(FATAL) << "Invalid opcode" << instr.opcode;

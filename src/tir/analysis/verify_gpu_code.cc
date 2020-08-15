@@ -33,20 +33,23 @@
 namespace tvm {
 namespace tir {
 
-class GPUCodeVerifier : public StmtVisitor {
+class GPUCodeVerifier : public StmtExprVisitor {
  public:
   bool Verify(Stmt stmt, int64_t max_local_memory_per_block, int64_t max_shared_memory_per_block,
               int64_t max_threads_per_block, int64_t max_thread_x, int64_t max_thread_y,
-              int64_t max_thread_z) {
+              int64_t max_thread_z, int64_t max_vthread, int64_t max_vector_bytes) {
     max_local_memory_per_block_ = static_cast<size_t>(max_local_memory_per_block);
     max_shared_memory_per_block_ = static_cast<size_t>(max_shared_memory_per_block);
     max_threads_per_block_ = static_cast<size_t>(max_threads_per_block);
     max_thread_x_ = static_cast<size_t>(max_thread_x);
     max_thread_y_ = static_cast<size_t>(max_thread_y);
     max_thread_z_ = static_cast<size_t>(max_thread_z);
+    max_vthread_ = static_cast<size_t>(max_vthread);
+    max_vector_bytes_ = static_cast<size_t>(max_vector_bytes);
 
     Reset_();
 
+    // TODO(jcf94): Add support of detecting CUDA Misaligned Address error
     this->VisitStmt(stmt);
 
     return valid_;
@@ -62,6 +65,9 @@ class GPUCodeVerifier : public StmtVisitor {
       size_t size = static_cast<size_t>(op->constant_allocation_size());
       shared_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     }
+    if (op->dtype.lanes() > 1) {
+      valid_ &= static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) <= max_vector_bytes_;
+    }
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
@@ -73,7 +79,7 @@ class GPUCodeVerifier : public StmtVisitor {
         visited_shared_buffers_.insert(op->node.as<VarNode>());
       }
       StmtVisitor::VisitStmt_(op);
-    } else if (op->attr_key == attr::thread_extent) {
+    } else if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       if (nest_level_ == 0) {
         // enter a new kernel, reset statistics
         Reset_();
@@ -83,9 +89,10 @@ class GPUCodeVerifier : public StmtVisitor {
       const auto* extent = op->value.as<IntImmNode>();
       CHECK(extent);
 
-      // record the number of threads in a block
       std::string name = var.get()->name_hint;
-      if (name == "threadIdx.x" || name == "threadIdx.y" || name == "threadIdx.z") {
+      // record the number of threads in a block
+      if (name == "threadIdx.x" || name == "threadIdx.y" || name == "threadIdx.z" ||
+          name == "vthread") {
         size_t length = static_cast<size_t>(extent->value);
         if (!visited_threads_.count(name)) {
           visited_threads_.insert(name);
@@ -100,6 +107,8 @@ class GPUCodeVerifier : public StmtVisitor {
           } else if (name == "threadIdx.z") {
             valid_ &= length <= max_thread_z_;
             thread_z_extent_ = length;
+          } else if (name == "vthread") {
+            valid_ &= length <= max_vthread_;
           }
         } else {
           // the thread should be bound to axes with the same length
@@ -129,6 +138,32 @@ class GPUCodeVerifier : public StmtVisitor {
     }
   }
 
+  void VisitStmt_(const ForNode* op) {
+    if (op->loop_var->name_hint == "vthread.s") {
+      const auto* extent = op->extent.as<IntImmNode>();
+      CHECK(extent);
+
+      valid_ &= static_cast<size_t>(extent->value) <= max_vthread_;
+    }
+
+    StmtVisitor::VisitStmt_(op);
+  }
+
+  void VisitExpr_(const LoadNode* op) {
+    if (op->dtype.lanes() > 1) {
+      valid_ &= static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) <= max_vector_bytes_;
+    }
+    ExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const StoreNode* op) {
+    if (op->index->dtype.lanes() > 1) {
+      valid_ &= static_cast<size_t>(op->index->dtype.lanes() * op->index->dtype.bytes()) <=
+                max_vector_bytes_;
+    }
+    StmtVisitor::VisitStmt_(op);
+  }
+
  private:
   int nest_level_{0};
 
@@ -145,7 +180,8 @@ class GPUCodeVerifier : public StmtVisitor {
   size_t max_local_memory_per_block_;
   size_t max_shared_memory_per_block_;
   size_t max_threads_per_block_;
-  size_t max_thread_x_, max_thread_y_, max_thread_z_;
+  size_t max_thread_x_, max_thread_y_, max_thread_z_, max_vthread_;
+  size_t max_vector_bytes_;
 
   bool valid_{true};
 
@@ -169,27 +205,35 @@ bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints) {
   int64_t max_thread_x = INT64_MAX;
   int64_t max_thread_y = INT64_MAX;
   int64_t max_thread_z = INT64_MAX;
+  int64_t max_vthread = INT64_MAX;
+  int64_t max_vector_bytes = INT64_MAX;
 
   for (auto iter : constraints) {
     const IntImmNode* val = iter.second.as<IntImmNode>();
-    if (iter.first == "max_local_memory_per_block")
+    if (iter.first == "max_local_memory_per_block") {
       max_local_memory_per_block = val->value;
-    else if (iter.first == "max_shared_memory_per_block")
+    } else if (iter.first == "max_shared_memory_per_block") {
       max_shared_memory_per_block = val->value;
-    else if (iter.first == "max_threads_per_block")
+    } else if (iter.first == "max_threads_per_block") {
       max_threads_per_block = val->value;
-    else if (iter.first == "max_thread_x")
+    } else if (iter.first == "max_thread_x") {
       max_thread_x = val->value;
-    else if (iter.first == "max_thread_y")
+    } else if (iter.first == "max_thread_y") {
       max_thread_y = val->value;
-    else if (iter.first == "max_thread_z")
+    } else if (iter.first == "max_thread_z") {
       max_thread_z = val->value;
-    else
+    } else if (iter.first == "max_vthread") {
+      max_vthread = val->value;
+    } else if (iter.first == "max_vector_bytes") {
+      max_vector_bytes = val->value;
+    } else {
       LOG(FATAL) << "Invalid check item: " << iter.first;
+    }
   }
 
   return verifier.Verify(func->body, max_local_memory_per_block, max_shared_memory_per_block,
-                         max_threads_per_block, max_thread_x, max_thread_y, max_thread_z);
+                         max_threads_per_block, max_thread_x, max_thread_y, max_thread_z,
+                         max_vthread, max_vector_bytes);
 }
 
 TVM_REGISTER_GLOBAL("tir.analysis.verify_gpu_code").set_body_typed(VerifyGPUCode);

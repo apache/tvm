@@ -145,10 +145,7 @@ print("Tensorflow protobuf imported to relay frontend.")
 #   lib: target library which can be deployed on target with TVM runtime.
 
 with tvm.transform.PassContext(opt_level=3):
-    graph, lib, params = relay.build(mod,
-                                     target=target,
-                                     target_host=target_host,
-                                     params=params)
+    lib = relay.build(mod, target=target, target_host=target_host, params=params)
 
 ######################################################################
 # Execute the portable graph on TVM
@@ -157,10 +154,9 @@ with tvm.transform.PassContext(opt_level=3):
 
 from tvm.contrib import graph_runtime
 dtype = 'uint8'
-m = graph_runtime.create(graph, lib, ctx)
+m = graph_runtime.GraphModule(lib['default'](ctx))
 # set inputs
 m.set_input('DecodeJpeg/contents', tvm.nd.array(x.astype(dtype)))
-m.set_input(**params)
 # execute
 m.run()
 # get outputs

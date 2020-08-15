@@ -40,10 +40,6 @@ RUN bash /install/ubuntu_install_python_package.sh
 COPY install/ubuntu_install_sphinx.sh /install/ubuntu_install_sphinx.sh
 RUN bash /install/ubuntu_install_sphinx.sh
 
-# Fix recommonmark to latest version
-RUN git clone --depth=1 https://github.com/rtfd/recommonmark
-RUN cd recommonmark; python3 setup.py install
-
 # Enable doxygen for c++ doc build
 RUN apt-get update && apt-get install -y doxygen graphviz libprotobuf-dev protobuf-compiler
 
@@ -90,9 +86,6 @@ RUN bash /install/ubuntu_install_vulkan.sh
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
 RUN bash /install/ubuntu_install_redis.sh
-
-COPY install/ubuntu_install_antlr.sh /install/ubuntu_install_antlr.sh
-RUN bash /install/ubuntu_install_antlr.sh
 
 # NNPACK deps
 COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh

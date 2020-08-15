@@ -147,6 +147,10 @@ def decode(row, protocol='json'):
             return None
 
         tgt, task_name, task_args, task_kwargs = row["input"]
+        tgt = str(tgt)
+        if "-target" in tgt:
+            logger.warning("\"-target\" is deprecated, use \"-mtriple\" instead.")
+            tgt = tgt.replace("-target", "-mtriple")
         tgt = _target.create(str(tgt))
 
         def clean_json_to_python(x):
@@ -205,13 +209,7 @@ def load_from_file(filename):
             ret = decode(row)
             if ret is None:
                 continue
-            inp, res = ret
-            # Avoid loading the record with an empty config. The TOPI schedule with no entities
-            # will result in an empty entity map (e.g., depthwise_conv2d_nchw on x86).
-            # Using an empty config will cause problems when applying alter op like NCHW to NCHWc.
-            if not inp.config._entity_map:
-                continue
-            yield (inp, res)
+            yield ret
 
 
 def split_workload(in_file, clean=True):

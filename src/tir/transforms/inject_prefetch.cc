@@ -49,15 +49,15 @@ class PrefetchInjector : public StmtMutator {
       Region region;
 
       auto iter_var = loop_nest_.back().get();
-      vectorized_[iter_var] = IntSet::single_point(loop_nest_.back() + op->value);
+      vectorized_[iter_var] = IntSet::SinglePoint(loop_nest_.back() + op->value);
 
       for (Range r : domain) {
         if (!r.defined()) {
           LOG(WARNING) << "Cannot decide prefetch region for " << buffer;
           return op->body;
         }
-        Range res(EvalSet(r, vectorized_).cover_range(none));
-        region.push_back(Range::make_by_min_extent(res->min, res->extent));
+        Range res(EvalSet(r, vectorized_).CoverRange(none));
+        region.push_back(Range::FromMinExtent(res->min, res->extent));
       }
 
       vectorized_.erase(iter_var);
@@ -72,7 +72,7 @@ class PrefetchInjector : public StmtMutator {
     auto& var = op->loop_var;
     loop_nest_.push_back(var);
     if (op->for_type == ForType::Vectorized) {
-      vectorized_[var.get()] = IntSet::interval(op->min, (op->min + op->extent) - 1);
+      vectorized_[var.get()] = IntSet::Interval(op->min, (op->min + op->extent) - 1);
     }
     Stmt ret = StmtMutator::VisitStmt_(op);
     if (op->for_type == ForType::Vectorized) {

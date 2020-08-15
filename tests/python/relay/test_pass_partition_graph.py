@@ -200,8 +200,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         code, lib = exe.save()
         lib = update_lib(lib)
         exe = runtime.vm.Executable.load_exec(code, lib)
-        vm = runtime.vm.VirtualMachine(exe)
-        vm.init(ctx)
+        vm = runtime.vm.VirtualMachine(exe, ctx)
         outs = vm.run(**map_inputs)
         outs = outs if isinstance(outs, runtime.container.ADT) else [outs]
         results = result if isinstance(result, list) else [result]
@@ -462,21 +461,17 @@ def test_extern_dnnl_mobilenet():
 
     dtype = 'float32'
     ishape = (1, 3, 224, 224)
-    mod, params = relay.testing.mobilenet.get_workload(
-        batch_size=1, dtype='float32')
-
-    mod = transform.AnnotateTarget(["dnnl"])(mod)
+    ref_mod, params = relay.testing.mobilenet.get_workload(batch_size=1, dtype='float32')
+    mod = transform.AnnotateTarget(["dnnl"])(ref_mod)
     mod = transform.MergeCompilerRegions()(mod)
     mod = transform.PartitionGraph()(mod)
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
-    ref_mod, params = relay.testing.mobilenet.get_workload(batch_size=1,
-                                                           dtype='float32')
     ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu(0))
     ref_res = ref_ex.evaluate()(i_data, **params)
+    compile_engine.get().clear()
 
-    check_result(mod, {"data": i_data},
-                 (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
+    check_result(mod, {"data": i_data}, (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
 
 
 def test_function_lifting():
@@ -1290,6 +1285,37 @@ def test_tuple_output_exec():
                  [(10, 10), (10, 10)],
                  [(a_data + b_data), (a_data - b_data)])
 
+def test_extern_opt():
+    def Optimize(mod):
+        return relay.transform.FoldConstant()(mod)
+
+    tvm.register_func("relay.ext.test_target.optimize", Optimize)
+
+    x = relay.var('x', shape=(2, 2))
+    y0 = relay.var('y0', shape=(2, 2))
+    y1 = relay.var('y1', shape=(2, 2))
+    yy0 = relay.annotation.compiler_begin(y0, 'test_target')
+    yy1 = relay.annotation.compiler_begin(y1, 'test_target')
+    z = yy0 + yy1
+    end = relay.annotation.compiler_end(z, 'test_target')
+    f = relay.Function([x, y0, y1], end * x)
+    c = np.ones(shape=(2, 2), dtype="float32")
+    f = bind_params_by_name(f, {"y0": tvm.nd.array(c), "y1": tvm.nd.array(c)})
+    mod = tvm.IRModule()
+    mod["main"] = f
+    mod = transform.PartitionGraph()(mod)
+
+    try:
+        t0 = mod["test_target_0"]
+    except:
+        raise KeyError("test_target_0 not found")
+
+    assert isinstance(t0.body, relay.Constant)
+    expected = np.empty([2, 2])
+    expected.fill(2)
+    tvm.testing.assert_allclose(t0.body.data.asnumpy(), expected, rtol=1e-5,
+                                atol=1e-5)
+
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
@@ -1309,3 +1335,4 @@ if __name__ == "__main__":
     test_constant_tuples()
     test_flatten_tuple_output()
     test_tuple_output_exec()
+    test_extern_opt()

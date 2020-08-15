@@ -28,6 +28,16 @@ def test_const_saveload_json():
     zz = tvm.ir.load_json(json_str)
     tvm.ir.assert_structural_equal(zz, z, map_free_vars=True)
 
+def _test_infinity_value(value, dtype):
+    x = tvm.tir.const(value, dtype)
+    json_str = tvm.ir.save_json(x)
+    tvm.ir.assert_structural_equal(x, tvm.ir.load_json(json_str))
+
+def test_infinity_value():
+    _test_infinity_value(float("inf"), 'float64')
+    _test_infinity_value(float("-inf"), 'float64')
+    _test_infinity_value(float("inf"), 'float32')
+    _test_infinity_value(float("-inf"), 'float32')
 
 def test_make_smap():
     # save load json
@@ -54,6 +64,8 @@ def test_make_node():
                        value_index=A.value_index)
     assert AA.op == A.op
     assert AA.value_index == A.value_index
+
+    y = tvm.ir.make_node("IntImm", dtype=tvm.runtime.String("int32"), value=10)
 
 
 def test_make_sum():
@@ -145,3 +157,4 @@ if __name__ == "__main__":
     test_make_sum()
     test_pass_config()
     test_dict()
+    test_infinity_value()

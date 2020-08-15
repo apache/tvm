@@ -64,8 +64,12 @@ void MetalWorkspace::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* r
     case kMaxThreadDimensions:
       return;
     case kExist:
-      break;
+      return;
+    case kMaxRegistersPerBlock:
+      return;
     case kGcnArch:
+      return;
+    case kApiVersion:
       return;
   }
 }

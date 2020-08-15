@@ -56,6 +56,27 @@ def _convert_batch_flatten(builder, name, inputs, outputs, args, attrs):
         output_name=outputs[0]
     )
 
+def _convert_expand_dims(builder, name, inputs, outputs, args, attrs):
+    if attrs.axis >= 0:
+        axes = list(range(attrs.axis, attrs.axis+attrs.num_newaxis))
+    else:
+        axes = list(range(attrs.axis-attrs.num_newaxis+1, attrs.axis+1))
+
+    builder.add_expand_dims(
+        name=name,
+        input_name=inputs[0],
+        output_name=outputs[0],
+        axes=axes
+    )
+
+def _convert_relu(builder, name, inputs, outputs, args, attrs):
+    builder.add_activation(
+        name=name,
+        non_linearity='RELU',
+        input_name=inputs[0],
+        output_name=outputs[0]
+    )
+
 def _convert_softmax(builder, name, inputs, outputs, args, attrs):
     builder.add_softmax_nd(
         name=name,
@@ -111,6 +132,8 @@ _convert_map = {
     'add'                       : _convert_add,
     'multiply'                  : _convert_multiply,
     'clip'                      : _convert_clip,
+    'expand_dims'               : _convert_expand_dims,
+    'nn.relu'                   : _convert_relu,
     'nn.batch_flatten'          : _convert_batch_flatten,
     'nn.softmax'                : _convert_softmax,
     'nn.conv2d'                 : _convert_conv2d,
@@ -207,20 +230,19 @@ class CodegenCoreML(ExprVisitor):
 
 
 @tvm._ffi.register_func("relay.ext.coremlcompiler")
-def coreml_compiler(ref):
+def coreml_compiler(func):
     """
     Create a CoreML runtime from a Relay module.
     """
+    assert isinstance(func, tvm.relay.function.Function)
     model_dir = os.getcwd()
-    if isinstance(ref, tvm.ir.module.IRModule):
-        for var, func in ref.functions.items():
-            name = var.name_hint
-            builder = CodegenCoreML(name, func)
-            builder.visit(func.body)
-            mlmodelc_path = "{}/{}.mlmodelc".format(model_dir, name)
-            if os.path.exists(mlmodelc_path):
-                shutil.rmtree(mlmodelc_path)
-            builder.compile(model_dir)
+    name = str(func.attrs.global_symbol)
+    builder = CodegenCoreML(name, func)
+    builder.visit(func.body)
+    mlmodelc_path = "{}/{}.mlmodelc".format(model_dir, name)
+    if os.path.exists(mlmodelc_path):
+        shutil.rmtree(mlmodelc_path)
+    builder.compile(model_dir)
 
     ctx = tvm.cpu(0)
-    return coreml_runtime.create(model_dir, ctx).module
+    return coreml_runtime.create(name, mlmodelc_path, ctx).module

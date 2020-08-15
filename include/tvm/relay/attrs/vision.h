@@ -88,7 +88,7 @@ struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs> {
 
 /*! \brief Attributes used in non_maximum_suppression operator */
 struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionAttrs> {
-  int max_output_size;
+  Optional<Integer> max_output_size;
   double iou_threshold;
   bool force_suppress;
   int top_k;
@@ -99,11 +99,7 @@ struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionA
   bool invalid_to_bottom;
 
   TVM_DECLARE_ATTRS(NonMaximumSuppressionAttrs, "relay.attrs.NonMaximumSuppressionAttrs") {
-    TVM_ATTR_FIELD(max_output_size)
-        .set_default(-1)
-        .describe(
-            "Max number of output valid boxes for each instance."
-            "By default all valid boxes are returned.");
+    TVM_ATTR_FIELD(max_output_size).describe("Max number of output valid boxes for each instance.");
     TVM_ATTR_FIELD(iou_threshold)
         .set_default(0.5)
         .describe("Non-maximum suppression iou threshold.");

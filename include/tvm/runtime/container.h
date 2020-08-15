@@ -27,13 +27,13 @@
 #include <dmlc/logging.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <algorithm>
 #include <cstring>
 #include <initializer_list>
 #include <memory>
 #include <string>
+#include <unordered_map>
 // We use c++14 std::experimental::string_view for optimizing hash computation
 // only right now, its usage is limited in this file. Any broader usage of
 // std::experiment in our core codebase is discouraged and needs community
@@ -71,10 +71,31 @@ class StringRef;
 }  // namespace llvm
 
 namespace tvm {
-
-struct ObjectEqual;
-
 namespace runtime {
+
+// Forward declare TVMArgValue
+class TVMArgValue;
+
+/*! \brief String-aware ObjectRef equal functor */
+struct ObjectHash {
+  /*!
+   * \brief Calculate the hash code of an ObjectRef
+   * \param a The given ObjectRef
+   * \return Hash code of a, string hash for strings and pointer address otherwise.
+   */
+  size_t operator()(const ObjectRef& a) const;
+};
+
+/*! \brief String-aware ObjectRef hash functor */
+struct ObjectEqual {
+  /*!
+   * \brief Check if the two ObjectRef are equal
+   * \param a One ObjectRef
+   * \param b The other ObjectRef
+   * \return String equality if both are strings, pointer address equality otherwise.
+   */
+  bool operator()(const ObjectRef& a, const ObjectRef& b) const;
+};
 
 /*!
  * \brief Base template for classes with array like memory layout.
@@ -209,7 +230,7 @@ class IterAdapter {
   using difference_type = typename std::iterator_traits<TIter>::difference_type;
   using value_type = typename Converter::ResultType;
   using pointer = typename Converter::ResultType*;
-  using reference = typename Converter::ResultType&;  // NOLINT(*)
+  using reference = typename Converter::ResultType&;
   using iterator_category = typename std::iterator_traits<TIter>::iterator_category;
 
   explicit IterAdapter(TIter iter) : iter_(iter) {}
@@ -221,12 +242,12 @@ class IterAdapter {
     --iter_;
     return *this;
   }
-  IterAdapter& operator++(int) {
+  IterAdapter operator++(int) {
     IterAdapter copy = *this;
     ++iter_;
     return copy;
   }
-  IterAdapter& operator--(int) {
+  IterAdapter operator--(int) {
     IterAdapter copy = *this;
     --iter_;
     return copy;
@@ -536,6 +557,7 @@ template <typename T,
           typename = typename std::enable_if<std::is_base_of<ObjectRef, T>::value>::type>
 class Array : public ObjectRef {
  public:
+  using value_type = T;
   // constructors
   /*!
    * \brief default constructor
@@ -1269,9 +1291,7 @@ class String : public ObjectRef {
    * \param val The value to be checked
    * \return A boolean indicating if val can be converted to String
    */
-  static bool CanConvertFrom(const TVMArgValue& val) {
-    return val.type_code() == kTVMStr || val.IsObjectRef<tvm::runtime::String>();
-  }
+  inline static bool CanConvertFrom(const TVMArgValue& val);
 
   /*!
    * \brief Hash the binary bytes
@@ -1329,7 +1349,7 @@ class String : public ObjectRef {
   friend String operator+(const String& lhs, const char* rhs);
   friend String operator+(const char* lhs, const String& rhs);
 
-  friend struct tvm::ObjectEqual;
+  friend struct tvm::runtime::ObjectEqual;
 };
 
 /*! \brief An object representing string moved from std::string. */
@@ -1484,24 +1504,24 @@ inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count, s
   }
 }
 
-template <>
-struct PackedFuncValueConverter<::tvm::runtime::String> {
-  static String From(const TVMArgValue& val) {
-    if (val.IsObjectRef<tvm::runtime::String>()) {
-      return val.AsObjectRef<tvm::runtime::String>();
-    } else {
-      return tvm::runtime::String(val.operator std::string());
-    }
+inline size_t ObjectHash::operator()(const ObjectRef& a) const {
+  if (const auto* str = a.as<StringObj>()) {
+    return String::HashBytes(str->data, str->size);
   }
+  return ObjectPtrHash()(a);
+}
 
-  static String From(const TVMRetValue& val) {
-    if (val.IsObjectRef<tvm::runtime::String>()) {
-      return val.AsObjectRef<tvm::runtime::String>();
-    } else {
-      return tvm::runtime::String(val.operator std::string());
+inline bool ObjectEqual::operator()(const ObjectRef& a, const ObjectRef& b) const {
+  if (a.same_as(b)) {
+    return true;
+  }
+  if (const auto* str_a = a.as<StringObj>()) {
+    if (const auto* str_b = b.as<StringObj>()) {
+      return String::memncmp(str_a->data, str_b->data, str_a->size, str_b->size) == 0;
     }
   }
-};
+  return false;
+}
 
 /*! \brief Helper to represent nullptr for optional. */
 struct NullOptType {};
@@ -1620,16 +1640,21 @@ class Optional : public ObjectRef {
   static constexpr bool _type_is_nullable = true;
 };
 
-template <typename T>
-struct PackedFuncValueConverter<Optional<T>> {
-  static Optional<T> From(const TVMArgValue& val) {
-    if (val.type_code() == kTVMNullptr) return Optional<T>(nullptr);
-    return PackedFuncValueConverter<T>::From(val);
-  }
-  static Optional<T> From(const TVMRetValue& val) {
-    if (val.type_code() == kTVMNullptr) return Optional<T>(nullptr);
-    return PackedFuncValueConverter<T>::From(val);
-  }
+/*!
+ * \brief An object representing a closure. This object is used by both the
+ * Relay VM and interpreter.
+ */
+class ClosureObj : public Object {
+ public:
+  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeClosure;
+  static constexpr const char* _type_key = "runtime.Closure";
+  TVM_DECLARE_BASE_OBJECT_INFO(ClosureObj, Object);
+};
+
+/*! \brief reference to closure. */
+class Closure : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Closure, ObjectRef, ClosureObj);
 };
 
 }  // namespace runtime

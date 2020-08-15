@@ -25,6 +25,7 @@
 #define TVM_TARGET_SPIRV_CODEGEN_SPIRV_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
@@ -140,6 +141,10 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   std::unordered_map<const VarNode*, spirv::Value> var_map_;
   // The analyzer.
   std::unique_ptr<arith::Analyzer> analyzer_;
+  // deep comparison of PrimExpr
+  ExprDeepEqual deep_equal_;
+  // binding of let variables. Enables duplicate var defs that map to same value
+  std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
 };
 
 }  // namespace codegen

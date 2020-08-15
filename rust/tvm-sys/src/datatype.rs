@@ -39,7 +39,7 @@ pub struct DataType {
 }
 
 impl DataType {
-    pub fn new(code: u8, bits: u8, lanes: u16) -> DataType {
+    pub const fn new(code: u8, bits: u8, lanes: u16) -> DataType {
         DataType { code, bits, lanes }
     }
 
@@ -72,6 +72,18 @@ impl DataType {
 
     pub fn lanes(&self) -> usize {
         self.lanes as usize
+    }
+
+    pub const fn int(bits: u8, lanes: u16) -> DataType {
+        DataType::new(DL_INT_CODE, bits, lanes)
+    }
+
+    pub const fn float(bits: u8, lanes: u16) -> DataType {
+        DataType::new(DL_FLOAT_CODE, bits, lanes)
+    }
+
+    pub const fn uint(bits: u8, lanes: u16) -> DataType {
+        DataType::new(DL_UINT_CODE, bits, lanes)
     }
 }
 

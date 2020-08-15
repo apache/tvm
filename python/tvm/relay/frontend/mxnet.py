@@ -23,7 +23,7 @@ import tvm
 from tvm.ir import IRModule
 
 from tvm import relay
-from topi.util import get_const_tuple
+from tvm.topi.util import get_const_tuple
 from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
@@ -903,6 +903,21 @@ def _mx_resize(inputs, attrs):
     return _op.image.resize(inputs[0], size,
                             coordinate_transformation_mode="align_corners")
 
+def _mx_amp_multicast(inputs, attrs):
+    cast_narrow = attrs.get_bool("cast_narrow", False)
+    dtypes = [_infer_type(x).checked_type.dtype for x in inputs]
+    supported_dtypes = ['float16', 'float32']
+    assert all([x in supported_dtypes for x in dtypes]), \
+            "amp_multicast support is limited to float16 and float32 inputs only."
+    has_float16 = any(x == "float16" for x in dtypes)
+    has_float32 = any(x == "float32" for x in dtypes)
+    dtype = dtypes[0]
+    if cast_narrow and has_float16:
+        dtype = 'float16'
+    if not cast_narrow and has_float32:
+        dtype = 'float32'
+    return [_op.cast(x, dtype) for x in inputs]
+
 def _mx_grid_generator(inputs, attrs):
     transform_type = attrs.get_str("transform_type")
     if transform_type == 'affine':
@@ -976,6 +991,42 @@ def _mx_box_nms(inputs, attrs):
                                              return_indices=False,
                                              invalid_to_bottom=True)
     return nms_out
+
+
+def _mx_box_decode(inputs, attrs):
+    std0 = relay.const(attrs.get_float('std0', 1), "float32")
+    std1 = relay.const(attrs.get_float('std1', 1), "float32")
+    std2 = relay.const(attrs.get_float('std2', 1), "float32")
+    std3 = relay.const(attrs.get_float('std3', 1), "float32")
+    clip = attrs.get_float('clip', -1)
+    in_format = attrs.get_str('format', 'corner')
+
+    anchors = inputs[1] # (1, N, 4) encoded in corner or center
+    a = _op.split(anchors, indices_or_sections=4, axis=-1)
+    # Convert to format "center".
+    if in_format == "corner":
+        a_width = a[2] - a[0]
+        a_height = a[3] - a[1]
+        a_x = a[0] + a_width * relay.const(0.5, "float32")
+        a_y = a[1] + a_height * relay.const(0.5, "float32")
+    else:
+        a_x, a_y, a_width, a_height = a
+    data = inputs[0] # (B, N, 4) predicted bbox offset
+    p = _op.split(data, indices_or_sections=4, axis=-1)
+    ox = p[0] * std0 * a_width + a_x
+    oy = p[1] * std1 * a_height + a_y
+    dw = p[2] * std2
+    dh = p[3] * std3
+    if clip > 0:
+        clip = relay.const(clip, "float32")
+        dw = _op.minimum(dw, clip)
+        dh = _op.minimum(dh, clip)
+    dw = _op.exp(dw)
+    dh = _op.exp(dh)
+    ow = dw * a_width * relay.const(0.5, "float32")
+    oh = dh * a_height * relay.const(0.5, "float32")
+    out = _op.concatenate([ox - ow, oy - oh, ox + ow, oy + oh], axis=-1)
+    return out
 
 
 def _mx_l2_normalize(inputs, attrs):
@@ -1445,7 +1496,7 @@ def _qnn_contrib_concat(inputs, attrs):
         # Get all dtypes. Find input and output scales, call concatenate.
         dtypes = [_infer_type(x).checked_type.dtype for x in input_exprs]
         assert all([x == 'uint8' for x in dtypes]), \
-                "Current suppor is limited to uint8 inputs only."
+                "Current support is limited to uint8 inputs only."
         new_min = min(mins)
         new_max = max(maxs)
         assert new_min == 0
@@ -1893,18 +1944,27 @@ def _qnn_batch_norm(inputs, attrs):
 
 def _qnn_fully_connected(inputs, attrs, subgraphs, params):
 
-    def _get_input_scale_zp(_data, _inputs, _has_bias):
+    def _get_input_scale_zp(_data_dtype, _inputs, _has_bias):
         data_min_idx, data_max_idx = (3, 4) if _has_bias else (2, 3)
         data_min, data_max = _inputs[data_min_idx], _inputs[data_max_idx]
-        data_dtype = _infer_type(_data).checked_type.dtype
         _data_scale = get_mkldnn_uint8_scale(data_min, data_max) \
-            if data_dtype == 'uint8' \
+            if _data_dtype == 'uint8' \
             else get_mkldnn_int8_scale(data_min, data_max)
         _data_zp = 0
         return _data_scale, _data_zp
 
-    def _get_kernel_scale_zp(_kernel, _inputs, _has_bias):
+    def _get_kernel_scale_zp_tensor_quantized(_kernel, _inputs, _has_bias):
         kernel_dtype = _infer_type(_kernel).checked_type.dtype
+
+        if kernel_dtype != "int8":
+            raise tvm.error.OpNotImplemented(\
+                "Tensor wise quantized expects weights in int8 data type")
+
+        if isinstance(_kernel, tvm.relay.Call) and _kernel.op.name == "qnn.quantize":
+            _kernel_scale = _kernel.args[1].data.asnumpy()
+            _kernel_zp = _kernel.args[2].data.asnumpy()
+            return _kernel_scale, _kernel_zp
+
         kernel_min_idx, kernel_max_idx = (5, 6) if _has_bias else (4, 5)
         kernel_min_name = _get_name(_inputs[kernel_min_idx])
         kernel_min = params[kernel_min_name].asnumpy()[0]
@@ -1916,7 +1976,34 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
         _kernel_zp = 0
         return _kernel_scale, _kernel_zp
 
+    def _get_kernel_scale_zp_channel_quantized(_kernel, _bias, _data_scale):
+        kernel_dtype = _infer_type(_kernel).checked_type.dtype
+        if kernel_dtype != "float32":
+            raise tvm.error.OpNotImplemented(\
+                "Channel wise quantized expects weights in float32 data type")
+
+        # Get the FP32 values, calculate min/max and then channel quantize them
+        np_kernel = _infer_value(_kernel, params).asnumpy()
+        kernel_channel_min = np.amin(np_kernel, axis=(1, ))
+        kernel_channel_max = np.amax(np_kernel, axis=(1, ))
+
+        np_bias = None
+        if _bias is not None:
+            np_bias = _infer_value(_bias, params).asnumpy()
+        return quantize_conv_weights_bias_channel_mkldnn_from_var(_kernel,
+                                                                  np_bias,
+                                                                  kernel_channel_min,
+                                                                  kernel_channel_max,
+                                                                  _data_scale)
+
     def _get_bias_requantize_scale(_inputs, _data_scale, _kernel_scale):
+        _bias = _inputs[2]
+        if isinstance(_bias, tvm.relay.Call) and _bias.op.name == "qnn.quantize":
+            _bias_scale = _bias.args[1].data.asnumpy()
+            _bias_requantize_scale = _bias_scale/(_data_scale * _kernel_scale)
+            _bias_requantize_scale = _expr.const(_bias_requantize_scale, dtype="float32")
+            return _bias_requantize_scale
+
         bias_min_name = _get_name(_inputs[7])
         bias_min = params[bias_min_name].asnumpy()[0]
         bias_max_name = _get_name(_inputs[8])
@@ -1936,16 +2023,48 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
         return res
     else:
         has_bias = not subgraph_dense_attrs.get_bool("no_bias", False)
-        # input
-        data = inputs[0]
-        data_scale, data_zp = _get_input_scale_zp(data, inputs, has_bias)
-        # kernel
-        kernel = inputs[1]
-        kernel_scale, kernel_zp = _get_kernel_scale_zp(kernel, inputs, has_bias)
         units = subgraph_dense_attrs.get_int("num_hidden")
+        is_flatten = subgraph_dense_attrs.get_bool("flatten", True)
+        enable_float_output = attrs.get_bool('enable_float_output', False)
+        is_channel_quantized = attrs.get_bool('channel_wise_quantize', False)
+
+        ########################
+        # Get data, kernel, bias
+        ########################
+        data, kernel = inputs[0], inputs[1]
+        bias = None
+        if has_bias:
+            bias = inputs[2]
+
+        ##############################
+        # Handle for shape of data > 2
+        ##############################
+        if is_flatten:
+            data = _op.nn.batch_flatten(data)
         data_shape = _infer_type(data).checked_type.shape
         if len(data_shape) > 2:
-            data = _op.nn.batch_flatten(data)
+            data = _op.reverse_reshape(data, [-1, 0])
+
+        ###############################
+        # Get data scale and zero point
+        ###############################
+        data_dtype = _infer_type(data).checked_type.dtype
+        data_scale, data_zp = _get_input_scale_zp(data_dtype, inputs, has_bias)
+
+        #################################
+        # Get weight scale and zero point
+        #################################
+        if is_channel_quantized:
+            kernel, kernel_scale, kernel_zp = _get_kernel_scale_zp_channel_quantized(kernel,
+                                                                                     bias,
+                                                                                     data_scale)
+        else:
+            kernel_scale, kernel_zp = _get_kernel_scale_zp_tensor_quantized(kernel, inputs,
+                                                                            has_bias)
+
+        ################
+        # Call QNN dense
+        ################
         res = relay.qnn.op.dense(data,
                                  kernel,
                                  input_zero_point=relay.const(data_zp, 'int32'),
@@ -1953,22 +2072,46 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
                                  input_scale=relay.const(data_scale, 'float32'),
                                  kernel_scale=relay.const(kernel_scale, 'float32'),
                                  units=units)
+
+        #################
+        # Handle bias add
+        #################
         if has_bias:
-            bias_data = inputs[2]
-            bias_requantize_scale = \
-                _get_bias_requantize_scale(inputs, data_scale, kernel_scale)
-            multiplied_bias = \
-                _op.multiply(_op.cast(bias_data, 'float32'), bias_requantize_scale)
-            rounded_bias = _op.round(multiplied_bias)
-            clipped_bias = _op.clip(rounded_bias,
-                                    a_min=tvm.tir.op.min_value('int32').value,
-                                    a_max=tvm.tir.op.max_value('int32').value)
-            requantized_bias = _op.cast(clipped_bias, 'int32')
-            res = _op.nn.bias_add(res, requantized_bias, axis=-1)
-        enable_float_output = attrs.get_bool('enable_float_output', False)
-        out_dtype = 'uint8' if attrs.get_bool('with_relu', False) else 'int8'
-        input_scale = np.float32(data_scale * kernel_scale)
-        if not enable_float_output:
+            if is_channel_quantized:
+                bias_scale = data_scale * kernel_scale
+                int32_bias = quantize_conv_bias_mkldnn_from_var(bias, bias_scale)
+                res = _op.nn.bias_add(res, int32_bias, axis=-1)
+            else:
+                bias_data = inputs[2]
+                bias_requantize_scale = \
+                    _get_bias_requantize_scale(inputs, data_scale, kernel_scale)
+                multiplied_bias = \
+                    _op.multiply(_op.cast(bias_data, 'float32'), bias_requantize_scale)
+                rounded_bias = _op.round(multiplied_bias)
+                clipped_bias = _op.clip(rounded_bias,
+                                        a_min=tvm.tir.op.min_value('int32').value,
+                                        a_max=tvm.tir.op.max_value('int32').value)
+                requantized_bias = _op.cast(clipped_bias, 'int32')
+                res = _op.nn.bias_add(res, requantized_bias, axis=-1)
+
+        ##############################################
+        # Dequantize if float32 output else Requantize
+        ##############################################
+        if enable_float_output:
+            output_scale = np.float32(data_scale * kernel_scale)
+            res = relay.qnn.op.dequantize(res,
+                                          relay.const(output_scale),
+                                          input_zero_point=relay.const(0, 'int32'),
+                                          axis=1)
+            if with_relu:
+                res = _op.nn.relu(res)
+        else:
+
+            if is_channel_quantized:
+                raise tvm.error.OpNotImplemented(\
+                    "Channel wise quantized dense with non float output is not supported yet")
+            out_dtype = 'uint8' if attrs.get_bool('with_relu', False) else 'int8'
+            input_scale = np.float32(data_scale * kernel_scale)
             min_output_range = attrs.get_float('min_calib_range')
             max_output_range = attrs.get_float('max_calib_range')
             output_scale = get_mkldnn_requantize_scale_outDtype(min_output_range,
@@ -1983,16 +2126,19 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
                 out_dtype=out_dtype)
             if with_relu:
                 res = _op.nn.relu(res)
-            return res, min_output_range, max_output_range
-        else:
-            output_scale = np.float32(data_scale * kernel_scale)
-            res = relay.qnn.op.dequantize(res,
-                                          relay.const(output_scale, 'float32'),
-                                          input_zero_point=relay.const(0, 'int32'))
-            if with_relu:
-                res = _op.nn.relu(res)
-            return res
 
+
+        ##############################
+        # Handle for shape of data > 2
+        ##############################
+        if len(data_shape) > 2:
+            new_shape = data_shape[:-1]
+            new_shape.append(units)
+            res = _op.reshape(res, new_shape)
+
+        if enable_float_output:
+            return res
+        return res, min_output_range, max_output_range
 
 def _mx_broadcast_to(inputs, attrs):
     data = inputs[0]
@@ -2148,6 +2294,8 @@ _convert_map = {
     "Reshape"       : _reshape,
     "reshape"       : _reshape,
     "Cast"          : _cast,
+    "amp_cast"      : _cast,
+    "amp_multicast" : _mx_amp_multicast,
     "clip"          : _clip,
     "transpose"     : _transpose,
     "UpSampling"    : _upsampling,
@@ -2164,6 +2312,7 @@ _convert_map = {
     "Dropout"       : _mx_dropout,
     "BatchNorm"     : _mx_batch_norm,
     "BatchNorm_v1"  : _mx_batch_norm,
+    "_contrib_SyncBatchNorm" : _mx_batch_norm,
     "InstanceNorm"  : _mx_instance_norm,
     "LayerNorm"     : _mx_layer_norm,
     "LRN"           : _mx_lrn,
@@ -2220,6 +2369,7 @@ _convert_map = {
     "_contrib_Proposal" : _mx_proposal,
     "_contrib_MultiProposal" : _mx_proposal,
     "_contrib_box_nms" : _mx_box_nms,
+    "_contrib_box_decode" : _mx_box_decode,
     "_contrib_DeformableConvolution" : _mx_deformable_convolution,
     "_contrib_AdaptiveAvgPooling2D" : _mx_adaptive_avg_pooling,
     "GridGenerator"                 : _mx_grid_generator,
@@ -2309,6 +2459,20 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, params=None, mod=None):
     node_map = {}
     shape_idx = 0
 
+    # Check if there have any unsupported ops
+    unsupported = {}
+    for node in jnodes:
+        op_name = node["op"]
+        if op_name != "null" and op_name not in _convert_map:
+            if op_name not in unsupported:
+                unsupported[op_name] = 0
+            unsupported[op_name] += 1
+
+    if unsupported:
+        msg = '\n'.join(['{}: {}'.format(op_name, cnt) for op_name, cnt in unsupported.items()])
+        raise tvm.error.OpNotImplemented(
+            'One or more operators are not supported in frontend MXNet:\n{}'.format(msg))
+
     for nid, node in enumerate(jnodes):
         children = [node_map[e[0]][e[1]] for e in node["inputs"]]
         attrs = StrAttrsDict(node.get("attrs", {}))
@@ -2330,7 +2494,8 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, params=None, mod=None):
             if isinstance(shape_dict, (list, tuple)):
                 shape_idx += 1
             node_map[nid] = [_expr.var(node_name, shape=shape, dtype=dtype)]
-        elif op_name in _convert_map:
+        else:
+            assert op_name in _convert_map
             op_params = _get_op_params(children, attrs, op_name,
                                        node, params)
             res = _convert_map[op_name](*op_params)
@@ -2344,9 +2509,6 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, params=None, mod=None):
             else:
                 raise RuntimeError("unexpected type %s" % type(res))
             node_map[nid] = res
-        else:
-            raise tvm.error.OpNotImplemented(
-                'Operator {} is not supported in frontend MXNet.'.format(op_name))
 
     outputs = [node_map[e[0]][e[1]] for e in jgraph["heads"]]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)

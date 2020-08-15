@@ -337,12 +337,11 @@ mod = tvm.IRModule()
 mod["main"] = func
 # Build with Relay
 with tvm.transform.PassContext(opt_level=0): # Currently only support opt_level=0
-    graph, lib, params = relay.build(mod, target, params=params)
+    lib = relay.build(mod, target, params=params)
 
 # Generate graph runtime
 ctx = tvm.context(target, 0)
-m = graph_runtime.create(graph, lib, ctx)
-m.set_input(**params)
+m = graph_runtime.GraphModule(lib['default'](ctx))
 
 ######################################################################
 # Run the TVM model, test for accuracy and verify with DGL

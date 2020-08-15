@@ -66,6 +66,8 @@ struct TypeIndex {
     kRuntimeString = 3,
     /*! \brief runtime::Array. */
     kRuntimeArray = 4,
+    /*! \brief runtime::Map. */
+    kRuntimeMap = 5,
     // static assignments that may subject to change.
     kRuntimeClosure,
     kRuntimeADT,
@@ -85,7 +87,7 @@ struct TypeIndex {
  *      the type index will be assigned during runtime.
  *      Runtime type index can be accessed by ObjectType::TypeIndex();
  * - _type_key:
- *       The unique string identifier of tyep type.
+ *       The unique string identifier of the type.
  * - _type_final:
  *       Whether the type is terminal type(there is no subclass of the type in the object system).
  *       This field is automatically set by macro TVM_DECLARE_FINAL_OBJECT_INFO
@@ -138,7 +140,7 @@ struct TypeIndex {
  *    // object properties
  *    static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
  *    static constexpr const char* _type_key = "test.LeafObj";
- *    TVM_DECLARE_BASE_OBJECT_INFO(LeaffObj, Object);
+ *    TVM_DECLARE_BASE_OBJECT_INFO(LeafObj, Object);
  *  };
  *
  *  // The following code should be put into a cc file.
@@ -590,6 +592,7 @@ class ObjectRef {
   friend struct ObjectPtrHash;
   friend class TVMRetValue;
   friend class TVMArgsSetter;
+  friend class ObjectInternal;
   template <typename SubRef, typename BaseRef>
   friend SubRef Downcast(BaseRef ref);
 };

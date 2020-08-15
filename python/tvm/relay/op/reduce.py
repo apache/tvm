@@ -312,7 +312,7 @@ def mean(data, axis=None, keepdims=False, exclude=False):
     return _make.mean(data, axis, keepdims, exclude)
 
 
-def variance(data, axis=None, keepdims=False, exclude=False):
+def variance(data, axis=None, keepdims=False, exclude=False, unbiased=False):
     """Computes the variance of data over given axes.
 
     Parameters
@@ -334,6 +334,9 @@ def variance(data, axis=None, keepdims=False, exclude=False):
         If `exclude` is true, reduction will be performed on the axes that are
         NOT in axis instead.
 
+    unbiased : bool
+        If this is set to True, the unbiased estimation will be used.
+
     Returns
     -------
     result : relay.Expr
@@ -341,10 +344,10 @@ def variance(data, axis=None, keepdims=False, exclude=False):
     """
     axis = [axis] if isinstance(axis, int) else axis
     m = mean(data, axis, True, exclude)
-    return _make._variance(data, m, axis, keepdims, exclude)
+    return _make._variance(data, m, axis, keepdims, exclude, unbiased)
 
 
-def std(data, axis=None, keepdims=False, exclude=False):
+def std(data, axis=None, keepdims=False, exclude=False, unbiased=False):
     """Computes the standard deviation of data over given axes.
 
     Parameters
@@ -366,6 +369,9 @@ def std(data, axis=None, keepdims=False, exclude=False):
         If `exclude` is true, reduction will be performed on the axes that are
         NOT in axis instead.
 
+    unbiased : bool
+        If this is set to True, the unbiased estimation will be used.
+
     Returns
     -------
     result : relay.Expr
@@ -373,7 +379,7 @@ def std(data, axis=None, keepdims=False, exclude=False):
     """
     axis = [axis] if isinstance(axis, int) else axis
     m = mean(data, axis, True, exclude)
-    return sqrt(_make._variance(data, m, axis, keepdims, exclude))
+    return sqrt(_make._variance(data, m, axis, keepdims, exclude, unbiased))
 
 
 def mean_variance(data, axis=None, keepdims=False, exclude=False):
@@ -405,7 +411,7 @@ def mean_variance(data, axis=None, keepdims=False, exclude=False):
     """
     axis = [axis] if isinstance(axis, int) else axis
     m = mean(data, axis, True, exclude)
-    var = _make._variance(data, m, axis, keepdims, exclude)
+    var = _make._variance(data, m, axis, keepdims, exclude, False)
     if not keepdims:
         m = squeeze(m)
     return TupleWrapper(Tuple((m, var)), 2)
@@ -440,7 +446,7 @@ def mean_std(data, axis=None, keepdims=False, exclude=False):
     """
     axis = [axis] if isinstance(axis, int) else axis
     m = mean(data, axis, True, exclude)
-    s = sqrt(_make._variance(data, m, axis, keepdims, exclude))
+    s = sqrt(_make._variance(data, m, axis, keepdims, exclude, False))
     if not keepdims:
         m = squeeze(m)
     return TupleWrapper(Tuple((m, s)), 2)
