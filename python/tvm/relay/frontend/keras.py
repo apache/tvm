@@ -1073,11 +1073,7 @@ def from_keras(model, shape=None, layout='NCHW'):
                 # The one exception is InputLayer. Changing input variable names after conversion
                 # would confuse users, so we should keep them as far as possible. Fortunately,
                 # they are named uniquely to input_1, input_2, input_3... by default.
-                zip_node = zip(
-                    _as_list(node.node_indices),
-                    _as_list(node.tensor_indices),
-                    _as_list(node.inbound_layers))
-                for n_idx, t_idx, inbound_layer in zip_node:
+                for inbound_layer, n_idx, t_idx, _ in node.iterate_inbound():
                     if isinstance(inbound_layer, input_layer_class):
                         expr_name = inbound_layer.name
                         _convert_input_layer(inbound_layer)
