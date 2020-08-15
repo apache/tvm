@@ -22,6 +22,7 @@ from numpy.random import MT19937, RandomState, SeedSequence
 from tvm import relay
 from tvm.relay.testing.inception_v3 import get_workload as get_inception
 from tvm.relay.testing.resnet import get_workload as get_resnet
+from tvm.relay.testing.layers import batch_norm_infer
 from tvm.relay.testing.mobilenet import get_workload as get_mobilenet
 from tvm.target.datatype import register, register_min_func, register_op, create_lower_func, lower_ite
 from nose.tools import nottest
@@ -376,6 +377,23 @@ def test_conv2d():
     # run_conv2d('float32', 'custom[posit32]32')
     pass
 
+def test_batchnorm():
+    def run_batchnorm(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
+        shape = (3, 32, 32)
+        t = relay.TensorType(shape, src_dtype)
+        x = relay.var("x", t)
+        bn = batch_norm_infer(data=x, epsilon=2e-5, scale=False, name='bn_x')
+        
+        f = relay.Function(relay.analysis.free_vars(bn), bn)
+
+        x_data = rs.rand(*shape).astype(t.dtype)
+        module = tvm.IRModule.from_expr(f)
+
+        compare(module, (x_data, ), src_dtype, dst_dtype, rtol, atol)
+
+    run_batchnorm('float32', 'custom[posites2]32')
+
+
 
 def test_models():
     # Expected posit8 might be faster, but it's not.
@@ -389,14 +407,14 @@ def test_models():
               'float32',
               'custom[posites2]32',
               num_classes=10)
-    # run_model(get_inception, (3, 32, 32),
-    #           'float32',
-    #           'custom[posites2]32',
-    #           num_classes=10)
-    # run_model(get_resnet, (3, 32, 32),
-    #           'float32',
-    #           'custom[posites2]32',
-    #           num_classes=10)
+    run_model(get_inception, (3, 299, 299),
+              'float32',
+              'custom[posites2]32',
+              num_classes=10)
+    run_model(get_resnet, (3, 32, 32),
+              'float32',
+              'custom[posites2]32',
+              num_classes=10)
 
     # Meanwhile, noptype is not slow.
 
@@ -405,3 +423,4 @@ if __name__ == "__main__":
     test_ops()
     test_conv2d()
     test_models()
+    test_batchnorm()
