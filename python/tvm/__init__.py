@@ -66,8 +66,12 @@ from . import hybrid
 # others
 from . import arith
 
+# support infra
+from . import support
+
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
+
 
 def tvm_wrap_excepthook(exception_hook):
     """Wrap given excepthook with TVM additional work."""
@@ -81,5 +85,6 @@ def tvm_wrap_excepthook(exception_hook):
                 p.terminate()
 
     return wrapper
+
 
 sys.excepthook = tvm_wrap_excepthook(sys.excepthook)
