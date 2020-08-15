@@ -21,11 +21,11 @@
  * \file pad.cc
  * \brief Implementation of dynamic pad
  */
-#include <tvm/topi/nn.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/op.h>
+#include <tvm/topi/nn.h>
 
 #include <vector>
 
@@ -37,7 +37,6 @@ namespace relay {
 namespace dyn {
 
 // relay.dyn.nn.pad
-
 
 bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
             const TypeReporter& reporter) {
@@ -62,7 +61,7 @@ bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   auto pad_width_dim2 = pad_width->shape[1].as<IntImmNode>();
 
   CHECK(pad_width_dim1->value == data_rank && pad_width_dim2->value == 2)
-    << "Pad width must have shape (N, 2), where N is the rank of input data";
+      << "Pad width must have shape (N, 2), where N is the rank of input data";
 
   const PadAttrs* param = attrs.as<PadAttrs>();
   CHECK(param != nullptr);
@@ -97,9 +96,9 @@ Array<te::Tensor> PadCompute(const Attrs& attrs, const Array<te::Tensor>& inputs
   const auto* out_ttype = out_type.as<TensorTypeNode>();
   CHECK(out_ttype != nullptr);
 
-  return Array<te::Tensor>{topi::pad(inputs[0], pad_before, pad_after,
-                                     pad_value, "T_pad", topi::kElementWise,
-                                     param->pad_mode, &out_type.as<TensorTypeNode>()->shape)};
+  return Array<te::Tensor>{topi::pad(inputs[0], pad_before, pad_after, pad_value, "T_pad",
+                                     topi::kElementWise, param->pad_mode,
+                                     &out_type.as<TensorTypeNode>()->shape)};
 }
 
 // Handler to create a call to the padding op used by front-end FFI

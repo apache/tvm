@@ -445,14 +445,13 @@ static inline Array<Array<Integer>> ToMatrix(const runtime::NDArray& array) {
   for (size_t i = 0; i < dim1; ++i) {
     Array<Integer> inner_out;
     for (size_t j = 0; j < dim2; ++j) {
-      double elem_val = ToScalar(array, i*dim2 + j);
+      double elem_val = ToScalar(array, i * dim2 + j);
       inner_out.push_back(Integer(static_cast<int>(elem_val)));
     }
     out.push_back(inner_out);
   }
   return out;
 }
-
 
 inline Expr GetField(Expr t, size_t i) { return TupleGetItem(t, i); }
 
