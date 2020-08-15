@@ -25,10 +25,7 @@
 
 #include <dmlc/logging.h>
 
-#include <deque>
-#include <functional>
 #include <future>
-#include <mutex>
 #include <thread>
 #include <utility>
 #include <vector>
