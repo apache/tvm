@@ -17,11 +17,11 @@
 """Custom datatype functionality"""
 import tvm
 from tvm.runtime import convert, DataType
-from tvm.tir.expr import Call as _Call, Cast as _Cast, FloatImm as _FloatImm, BinaryOpExpr as _BinaryOpExpr
+from tvm.tir.expr import (Call as _Call, Cast as _Cast,
+                          FloatImm as _FloatImm, BinaryOpExpr as _BinaryOpExpr)
 from tvm.tir.op import call_pure_extern
 from tvm._ffi import register_func as _register_func
 from tvm.tir import call_intrin
-from tvm.ir import Op
 
 
 def register(type_name, type_code):
@@ -138,7 +138,8 @@ def create_lower_func(extern_func_map):
         If lowering a Cast, extern_func_map should be a map from tuples of
         (src_bit_length, dest_bit_length) to the name of the extern "C" function to lower to.
 
-        Otherwise, for unary and binary ops, it should simply be a map from bit_length to the name of the extern "C" function to lower to.
+        Otherwise, for unary and binary ops, it should simply be a map
+        from bit_length to the name of the extern "C" function to lower to.
     """
     def lower(op):
         """
@@ -157,11 +158,11 @@ def create_lower_func(extern_func_map):
         if isinstance(op, _Cast):
             src_bits = bit_length(op.value.dtype)
             return call_pure_extern(dtype, extern_func_map[(src_bits, t.bits)], op.value)
-        elif isinstance(op, _FloatImm):
+        if isinstance(op, _FloatImm):
             return call_pure_extern(dtype, extern_func_map[t.bits], op.value)
-        elif isinstance(op, _Call):
+        if isinstance(op, _Call):
             return call_pure_extern(dtype, extern_func_map[t.bits], *op.args)
-        elif isinstance(op, _BinaryOpExpr):
+        if isinstance(op, _BinaryOpExpr):
             return call_pure_extern(dtype, extern_func_map[t.bits], op.a, op.b)
 
         raise RuntimeError(f"lowering unsupported op: {op.astext()}")

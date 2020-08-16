@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=unused-argument
+"""Change Datatype Pass"""
 from ..function import Function
 from ..expr_functor import ExprMutator
 from ..transform.transform import function_pass
@@ -50,12 +51,14 @@ class ChangeDatatype(ExprMutator):
     def visit_constant(self, const):
         if const.data.dtype == self.src:
             return const.astype(self.dst)
+        # TODO(andrew): should we raise an error in this case, or return const?
+        return const
 
-    def visit_function(self, func):
+    def visit_function(self, fn):
         new_params = []
         binds = {}
 
-        for param in func.params:
+        for param in fn.params:
             # Get the parameter's type annotation.
             var_type = param.type_annotation
 
@@ -71,7 +74,7 @@ class ChangeDatatype(ExprMutator):
             new_params.append(new_param)
             binds[param] = new_param
 
-        new_body = self.visit(func.body)
+        new_body = self.visit(fn.body)
         # Rewrite the body to use new parameters.
         new_body = bind(new_body, binds)
 
@@ -81,5 +84,5 @@ class ChangeDatatype(ExprMutator):
             new_body,
             # You could change the return type, if you use None it will re-infer.
             None,
-            type_params=func.type_params,
-            attrs=func.attrs)
+            type_params=fn.type_params,
+            attrs=fn.attrs)
