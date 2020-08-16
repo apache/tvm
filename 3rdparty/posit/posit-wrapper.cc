@@ -3,11 +3,11 @@
 
 #include <cstdint>
 
-#include "posit/posit.hpp"
 #include "posit/math/exponent.hpp"
-#include "posit/math/sqrt.hpp"
-#include "posit/math/logarithm.hpp"
 #include "posit/math/hyperbolic.hpp"
+#include "posit/math/logarithm.hpp"
+#include "posit/math/sqrt.hpp"
+#include "posit/posit.hpp"
 
 TVM_DLL sw::unum::posit<8, 2> Uint8ToPosit8es2(uint8_t in) {
   sw::unum::bitblock<8> bb;

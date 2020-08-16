@@ -16,7 +16,7 @@
 # under the License.
 """Utilities for changing datatypes of models."""
 import tvm
-import topi.testing
+import tvm.topi.testing
 import numpy as np
 from numpy.random import MT19937, RandomState, SeedSequence
 from tvm import relay
@@ -27,12 +27,11 @@ from tvm.relay.testing.mobilenet import get_workload as get_mobilenet
 from tvm.target.datatype import register, register_min_func, register_op, create_lower_func, lower_ite
 from nose.tools import nottest
 
-tgt = "llvm"
 # we use a random seed to generate input_data
 # to guarantee stable tests
 rs = RandomState(MT19937(SeedSequence(123456789)))
 
-def convert_ndarray(dst_dtype, *arrays):
+def convert_ndarray(dst_dtype, *args, **kwargs):
     """Converts NDArray(s) into the specified datatype"""
     def convert(array):
         x = relay.var('x', shape=array.shape, dtype=str(array.dtype))
@@ -40,7 +39,7 @@ def convert_ndarray(dst_dtype, *arrays):
         with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
             return relay.create_executor('graph').evaluate(cast)(array)
 
-    return tuple([convert(x) for x in arrays])
+    return (tuple([convert(x) for x in args]), {k: convert(v) for (k, v) in kwargs.items()})
 
 
 def change_dtype(src, dst, module, params):
@@ -49,21 +48,22 @@ def change_dtype(src, dst, module, params):
     params = dict((p, convert_ndarray(dst, params[p])) for p in params)
     return module, params
 
-def compare(module, input, src_dtype, dst_dtype, rtol, atol, params = {}):
+def compare(module, input, src_dtype, dst_dtype, rtol, atol, params = {}, target='llvm'):
+    module = relay.transform.SimplifyInference()(module)
     ex = relay.create_executor("graph", mod=module)
 
     correct = ex.evaluate()(*input, **params)
 
     module, _ = change_dtype(src_dtype, dst_dtype, module, [])
-    ex = relay.create_executor("graph", mod=module)
+    ex = relay.create_executor("graph", mod=module, target=target)
     # converts all inputs to dst_dtype
-    x_converted = convert_ndarray(dst_dtype, *input)
+    x_converted, x_params_converted = convert_ndarray(dst_dtype, *input, **params)
 
     # Vectorization is not implemented with custom datatypes
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        maybe_correct = ex.evaluate()(*x_converted, **params)
-        # TODO(andrew) this only works on single output
-        maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)[0]
+        maybe_correct = ex.evaluate()(*x_converted, **x_params_converted)
+        # currently this only works for comparing single output
+        maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)[0][0]
     np.testing.assert_allclose(maybe_correct_converted.asnumpy(),
                                 correct.asnumpy(),
                                 rtol=rtol,
@@ -186,8 +186,6 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
         module = tvm.IRModule.from_expr(relay.Function([x], z))
 
         compare(module, (x_data, ), src_dtype, dst_dtype, rtol, atol)
-        # print(maybe_correct_converted)
-        # print(correct)
 
     for op in [
             relay.nn.softmax,
@@ -226,14 +224,13 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
     # so to keep our tests consistent with relay, we decide to not unit test
     # Note: tvm_if_then_else is tested as part of the mobile_net model
 
-
 def run_model(get_workload,
               input_shape,
               src_dtype,
               dst_dtype,
               num_classes,
-              rtol=0.0001,
-              atol=0.0001):
+              rtol=1e-4,
+              atol=1e-4):
     module, params = get_workload(image_shape=input_shape,
                                   num_classes=num_classes)
 
@@ -242,21 +239,16 @@ def run_model(get_workload,
 
     compare(module, (input, ), src_dtype, dst_dtype, rtol, atol, params)
 
-def run_conv2d(src_dtype, dst_dtype):
+def run_conv2d(src_dtype, dst_dtype, rtol=1e-7, atol=1e-4):
     def run_test_conv2d(src_dtype,
                         dst_dtype,
                         scale,
                         dshape,
                         kshape,
                         padding=(1, 1),
-                        fref=None,
                         groups=1,
                         dilation=(1, 1),
-                        except_targets=None,
                         **attrs):
-        if except_targets is None:
-            except_targets = []
-
         x = relay.var("x", shape=dshape, dtype=src_dtype)
         w = relay.var("w", shape=kshape, dtype=src_dtype)
         y = relay.nn.conv2d(x,
@@ -269,32 +261,8 @@ def run_conv2d(src_dtype, dst_dtype):
         data = rs.uniform(-scale, scale, size=dshape).astype(src_dtype)
         kernel = rs.uniform(-scale, scale,
                                    size=kshape).astype(src_dtype)
-        dkernel = topi.testing.dilate_python(kernel, (1, 1) + dilation)
-        if fref is None:
-            ref_res = topi.testing.conv2d_nchw_python(
-                data.astype(src_dtype),
-                dkernel.astype(src_dtype),
-                1,
-                padding,
-                groups=groups)
-        else:
-            ref_res = fref(data.astype(src_dtype), dkernel.astype(src_dtype))
 
-        for target, ctx in [("llvm", tvm.cpu(0))]:
-            if target in except_targets:
-                continue
-            intrp1 = relay.create_executor("graph",
-                                           ctx=ctx,
-                                           target=target,
-                                           mod=module)
-            module, _ = change_dtype(src_dtype, dst_dtype, module, [])
-            data_converted = convert_ndarray(dst_dtype, data)
-            kernel_converted = convert_ndarray(dst_dtype, kernel)
-            with tvm.transform.PassContext(
-                    config={"tir.disable_vectorize": True}):
-                op_res1 = intrp1.evaluate()(data_converted, kernel_converted)
-            op_res1_converted = convert_ndarray(src_dtype, op_res1)
-            tvm.testing.assert_allclose(op_res1_converted.asnumpy(), ref_res)
+        compare(module, (data, kernel), src_dtype, dst_dtype, rtol, atol)
 
     # depthwise conv2d
     dshape = (1, 32, 18, 18)
@@ -307,9 +275,7 @@ def run_conv2d(src_dtype, dst_dtype):
                     padding=(1, 1),
                     channels=32,
                     groups=32,
-                    kernel_size=(3, 3),
-                    fref=lambda x, w: topi.testing.
-                    depthwise_conv2d_python_nchw(x, w, (1, 1), "SAME"))
+                    kernel_size=(3, 3))
 
     # CUDA is disabled for 'direct' schedule:
     # https://github.com/dmlc/tvm/pull/3070#issuecomment-486597553
@@ -324,8 +290,7 @@ def run_conv2d(src_dtype, dst_dtype):
                     padding=(1, 1),
                     channels=32,
                     groups=8,
-                    kernel_size=(3, 3),
-                    except_targets=['cuda'])
+                    kernel_size=(3, 3))
     # also group conv2d
     dshape = (1, 32, 18, 18)
     kshape = (64, 1, 3, 3)
@@ -337,8 +302,7 @@ def run_conv2d(src_dtype, dst_dtype):
                     padding=(1, 1),
                     channels=64,
                     groups=32,
-                    kernel_size=(3, 3),
-                    except_targets=['cuda'])
+                    kernel_size=(3, 3))
 
     # normal conv2d
     dshape = (1, 3, 224, 224)
@@ -371,29 +335,28 @@ def test_ops():
     run_ops('float32', 'custom[posites2]16', rtol=0.01, atol=1)
     run_ops('float32', 'custom[posites2]32')
 
-
 def test_conv2d():
-    # TODO(@gussmith23) slow and broken, needing refactor!
-    # run_conv2d('float32', 'custom[posit32]32')
-    pass
+    run_conv2d('float32', 'custom[posites2]8', rtol=1, atol=1)
+    run_conv2d('float32', 'custom[posites2]16', rtol=0.01, atol=1)
+    run_conv2d('float32', 'custom[posites2]32')
 
 def test_batchnorm():
-    def run_batchnorm(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
+    def run_batchnorm(src_dtype, dst_dtype, rtol=1e-4, atol=1e-4):
         shape = (3, 32, 32)
         t = relay.TensorType(shape, src_dtype)
         x = relay.var("x", t)
         bn = batch_norm_infer(data=x, epsilon=2e-5, scale=False, name='bn_x')
-        
         f = relay.Function(relay.analysis.free_vars(bn), bn)
 
         x_data = rs.rand(*shape).astype(t.dtype)
         module = tvm.IRModule.from_expr(f)
 
-        compare(module, (x_data, ), src_dtype, dst_dtype, rtol, atol)
+        zero_data = np.zeros((32), 'float32')
+        compare(module, (x_data, zero_data, zero_data, zero_data, zero_data), src_dtype, dst_dtype, rtol, atol)
 
+    run_batchnorm('float32', 'custom[posites2]8', rtol=1, atol=1)
+    run_batchnorm('float32', 'custom[posites2]16', rtol=0.01, atol=1)
     run_batchnorm('float32', 'custom[posites2]32')
-
-
 
 def test_models():
     # Expected posit8 might be faster, but it's not.
@@ -407,16 +370,15 @@ def test_models():
               'float32',
               'custom[posites2]32',
               num_classes=10)
-    run_model(get_inception, (3, 299, 299),
-              'float32',
-              'custom[posites2]32',
-              num_classes=10)
-    run_model(get_resnet, (3, 32, 32),
-              'float32',
-              'custom[posites2]32',
-              num_classes=10)
-
-    # Meanwhile, noptype is not slow.
+    # runs on the order of minutes...
+    # run_model(get_inception, (3, 299, 299),
+    #           'float32',
+    #           'custom[posites2]32',
+    #           num_classes=10)
+    # run_model(get_resnet, (3, 32, 32),
+    #           'float32',
+    #           'custom[posites2]32',
+    #           num_classes=10)
 
 if __name__ == "__main__":
     setup()

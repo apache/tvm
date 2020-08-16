@@ -104,8 +104,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     call = expr.as<CallNode>();
     if (toBeLowered) {
       auto op = call->op.as<OpNode>();
-      CHECK(op != nullptr)
-          << "Lowering non-intrinsic Calls not implemented";
+      CHECK(op != nullptr) << "Lowering non-intrinsic Calls not implemented";
       auto lower = datatype::GetIntrinLowerFunc(target_, op->name, call->dtype.code());
       CHECK(lower) << "Intrinsic lowering function for target " << target_ << ", intrinsic name "
                    << op->name << ", type " << static_cast<unsigned>(call->dtype.code())
