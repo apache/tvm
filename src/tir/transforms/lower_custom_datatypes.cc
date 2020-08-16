@@ -23,6 +23,7 @@
 
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -102,11 +103,12 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(call);
     call = expr.as<CallNode>();
     if (toBeLowered) {
-      CHECK(call->call_type == CallNode::Intrinsic || call->call_type == CallNode::PureIntrinsic)
+      auto op = call->op.as<OpNode>();
+      CHECK(op != nullptr)
           << "Lowering non-intrinsic Calls not implemented";
-      auto lower = datatype::GetIntrinLowerFunc(target_, call->name, call->dtype.code());
+      auto lower = datatype::GetIntrinLowerFunc(target_, op->name, call->dtype.code());
       CHECK(lower) << "Intrinsic lowering function for target " << target_ << ", intrinsic name "
-                   << call->name << ", type " << static_cast<unsigned>(call->dtype.code())
+                   << op->name << ", type " << static_cast<unsigned>(call->dtype.code())
                    << " not found";
       return (*lower)(expr);
     }

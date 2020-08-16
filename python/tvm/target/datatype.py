@@ -17,9 +17,11 @@
 """Custom datatype functionality"""
 import tvm
 from tvm.runtime import convert, DataType
-from tvm.tir.expr import Call as _Call, Cast as _Cast, FloatImm as _FloatImm
+from tvm.tir.expr import Call as _Call, Cast as _Cast, FloatImm as _FloatImm, BinaryOpExpr as _BinaryOpExpr
+from tvm.tir.op import call_pure_extern
 from tvm._ffi import register_func as _register_func
 from tvm.tir import call_intrin
+from tvm.ir import Op
 
 
 def register(type_name, type_code):
@@ -154,17 +156,15 @@ def create_lower_func(extern_func_map):
                 dtype += "x" + str(t.lanes)
         if isinstance(op, _Cast):
             src_bits = bit_length(op.value.dtype)
-            return _Call(dtype, extern_func_map[(src_bits, t.bits)], convert([op.value]),
-                         _Call.Extern)
+            return call_pure_extern(dtype, extern_func_map[(src_bits, t.bits)], op.value)
         elif isinstance(op, _FloatImm):
-            return _Call(dtype, extern_func_map[t.bits], convert([op.value]),
-                         _Call.Extern)
-        elif isinstance(op, _Call) and (op.call_type == _Call.Intrinsic or
-                                        op.call_type == _Call.PureIntrinsic):
-            return _Call(dtype, extern_func_map[t.bits], convert(op.args),
-                              _Call.Extern)
-        return _Call(dtype, extern_func_map[t.bits], convert([op.a, op.b]),
-                     _Call.Extern)
+            return call_pure_extern(dtype, extern_func_map[t.bits], op.value)
+        elif isinstance(op, _Call):
+            return call_pure_extern(dtype, extern_func_map[t.bits], *op.args)
+        elif isinstance(op, _BinaryOpExpr):
+            return call_pure_extern(dtype, extern_func_map[t.bits], op.a, op.b)
+
+        raise RuntimeError(f"lowering unsupported op: {op.astext()}")
 
     return lower
 
@@ -179,6 +179,6 @@ def lower_ite(ite_intrin):
     dtype = "uint" + str(t.bits)
     if t.lanes > 1:
         dtype += "x" + str(t.lanes)
-    return call_intrin(dtype, "tvm_if_then_else", convert(ite_intrin.args[0]),
+    return call_intrin(dtype, "tir.if_then_else", convert(ite_intrin.args[0]),
                        convert(ite_intrin.args[1]),
                        convert(ite_intrin.args[2]))

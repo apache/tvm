@@ -142,32 +142,32 @@ def setup():
         32: 'Posit32es2Sqrt',
         16: 'Posit16es2Sqrt',
         8: 'Posit8es2Sqrt'
-    }), "Call", "llvm", "posites2", intrinsic_name="sqrt")
+    }), "Call", "llvm", "posites2", intrinsic_name="tir.sqrt")
     register_op(lower_ite,
                 "Call",
                 "llvm",
                 "posites2",
-                intrinsic_name="tvm_if_then_else")
+                intrinsic_name="tir.if_then_else")
     register_op(create_lower_func({
         32: 'Posit32es2Exp',
         16: 'Posit16es2Exp',
         8: 'Posit8es2Exp'
-    }), "Call", "llvm", "posites2", intrinsic_name="exp")
+    }), "Call", "llvm", "posites2", intrinsic_name="tir.exp")
     register_op(create_lower_func({
         32: 'Posit32es2Log',
         16: 'Posit16es2Log',
         8: 'Posit8es2Log'
-    }), "Call", "llvm", "posites2", intrinsic_name="log")
+    }), "Call", "llvm", "posites2", intrinsic_name="tir.log")
     register_op(create_lower_func({
         32: 'Posit32es2Sigmoid',
         16: 'Posit16es2Sigmoid',
         8: 'Posit8es2Sigmoid'
-    }), "Call", "llvm", "posites2", intrinsic_name="sigmoid")
+    }), "Call", "llvm", "posites2", intrinsic_name="tir.sigmoid")
     register_op(create_lower_func({
         32: 'Posit32es2Tanh',
         16: 'Posit16es2Tanh',
         8: 'Posit8es2Tanh'
-    }), "Call", "llvm", "posites2", intrinsic_name="tanh")
+    }), "Call", "llvm", "posites2", intrinsic_name="tir.tanh")
     register_min_func(lambda num_bits: - (2 ** 2 ** 2) ** (num_bits - 2), "posites2")
 
 def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
