@@ -17,15 +17,18 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-function-args
 # pylint: disable=too-many-statements, unused-argument, too-many-arguments
 """Tensorcore template for cuda backend"""
-import numpy as np
 import tvm
 from tvm import te
 from tvm import autotvm
+from tvm.topi.cuda.injective import schedule_injective_from_existing
 from ..util import get_const_tuple, traverse_inline, simplify, tag
 from ..nn.pad import pad
 from ..nn.util import get_pad_tuple
-from tvm.topi.cuda.injective import schedule_injective_from_existing
-from .tensor_intrin import intrin_wmma_load_matrix_A, intrin_wmma_load_matrix_W, intrin_wmma_store_matrix, intrin_wmma_gemm
+from .tensor_intrin import intrin_wmma_load_matrix_A
+from .tensor_intrin import intrin_wmma_load_matrix_W
+from .tensor_intrin import intrin_wmma_store_matrix
+from .tensor_intrin import intrin_wmma_gemm
+
 
 def unpack_HWNCnc_to_hwnc(packed_out, out_dtype):
     """Unpack conv2d_hwnc output from layout hwncnc to hwnc
@@ -52,19 +55,23 @@ def unpack_HWNCnc_to_hwnc(packed_out, out_dtype):
     unpacked_out = \
         te.compute(oshape,
                    lambda h, w, n, o:
-                   packed_out[h, w, idxdiv(n, wmma_m), idxdiv(o, wmma_n), idxmod(n, wmma_m), idxmod(o, wmma_n)]
+                   packed_out[h, w, idxdiv(n, wmma_m), idxdiv(o, wmma_n),
+                              idxmod(n, wmma_m), idxmod(o, wmma_n)]
                    .astype(out_dtype),
                    name='output_unpack',
-                   tag=tag.INJECTIVE+",unpack_hwncc")
+                   tag=tag.INJECTIVE + ",unpack_hwncc")
     return unpacked_out
+
 
 def conv2d_hwnc_tensorcore(data, kernel, strides, padding, dilation, in_dtype, out_dtype='int32'):
     """Compute conv2d internally using conv2d_nchwc layout for int8 dtype"""
     assert data.dtype in ('int4', 'uint4', 'int8', 'uint8')
     assert kernel.dtype in ('int4', 'uint4', 'int8', 'uint8')
     # assert data.dtype == kernel.dtype
-    packed_out = hwnc_tensorcore_cuda(data, kernel, strides, padding, dilation, out_dtype)
+    packed_out = hwnc_tensorcore_cuda(
+        data, kernel, strides, padding, dilation, out_dtype)
     return unpack_HWNCnc_to_hwnc(packed_out, out_dtype)
+
 
 @autotvm.register_topi_compute("conv2d_HWNCnc_tensorcore.cuda")
 def hwnc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dtype='int32'):
@@ -95,18 +102,20 @@ def hwnc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dtyp
     pre_computed = len(Filter.shape) == 6
     in_height, in_width, batch, in_channels = get_const_tuple(Input.shape)
     if pre_computed:
-        kernel_h, kernel_w, oc_chunk, ic_chunk, oc_block_factor, ic_block_factor = get_const_tuple(Filter.shape)
+        kernel_h, kernel_w, oc_chunk, _, oc_block_factor, _\
+            = get_const_tuple(Filter.shape)
         num_filter = oc_block_factor * oc_chunk
     else:
         kernel_h, kernel_w, num_filter, _ = get_const_tuple(Filter.shape)
 
     if in_dtype in ['int4', 'uint4']:
-        assert (batch % 8 == 0 and in_channels % 32 == 0 and num_filter % 8 == 0)
+        assert (batch % 8 == 0 and in_channels %
+                32 == 0 and num_filter % 8 == 0)
     else:
         assert (batch % 8 == 0 and in_channels % 16 == 0 and num_filter % 32 == 0), \
-               "The shape of (batch, in_channels, num_filter) "\
-               "must be multiple of (8, 16, 32) for int8, "\
-               "and (8, 32, 8) for int4"
+            "The shape of (batch, in_channels, num_filter) "\
+            "must be multiple of (8, 16, 32) for int8, "\
+            "and (8, 32, 8) for int4"
 
     # compute the output shape
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
@@ -116,10 +125,13 @@ def hwnc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dtyp
         padding, (dilated_kernel_h, dilated_kernel_w))
 
     out_channels = num_filter
-    out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
-    out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
+    out_height = simplify(
+        (in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
+    out_width = simplify((in_width - dilated_kernel_w +
+                          pad_left + pad_right) // stride_w + 1)
 
-    cfg.add_flop(2 * batch * out_height * out_width * out_channels * in_channels * kernel_h * kernel_w)
+    cfg.add_flop(2 * batch * out_height * out_width *
+                 out_channels * in_channels * kernel_h * kernel_w)
 
     # Input feature map: (H, W, N, IC, n, ic)
     data_shape = (in_height,
@@ -146,29 +158,33 @@ def hwnc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dtyp
     if pre_computed:
         packed_kernel = Filter
     else:
-        packed_kernel = te.compute(kernel_shape,
-            lambda kh, kw, o, i, oo, ii: Filter[kh, kw, o * wmma_n + oo, i * wmma_k + ii],
-            name="packed_kernel"
-        )
+        packed_kernel = te.compute(kernel_shape, lambda kh, kw, o, i, oo, ii:
+                                   Filter[kh, kw, o * wmma_n + oo, i * wmma_k + ii],
+                                   name="packed_kernel"
+                                   )
 
     packed_data = te.compute(data_shape,
-        lambda h, w, n, i, nn, ii: Input[h, w, n * wmma_m + nn, i * wmma_k + ii]
-    )
+                             lambda h, w, n, i, nn, ii: Input[h,
+                                                              w, n * wmma_m + nn, i * wmma_k + ii]
+                             )
 
     pad_before = [pad_top, pad_left, 0, 0, 0, 0]
     pad_after = [pad_down, pad_right, 0, 0, 0, 0]
     pad_data = pad(packed_data, pad_before, pad_after, name="pad_data")
 
-    Conv = te.compute((out_height, out_width, batch // wmma_m, out_channels // wmma_n, wmma_m, wmma_n),
-                    lambda h, w, n, o, nn, oo: te.sum(
-                        (pad_data[h * stride_h + kh, w * stride_w + kw, n, ic, nn, ii].astype('int32') *
-                        packed_kernel[kh, kw, o, ic, oo, ii].astype('int32')),
-                        axis=[ic, kh, kw, ii]),
-                    name="Conv", tag="conv2d_HWNCnc_tensorcore")
+    Conv = te.compute((out_height, out_width, batch // wmma_m,
+                       out_channels // wmma_n, wmma_m, wmma_n),
+                      lambda h, w, n, o, nn, oo: te.sum(
+                          (pad_data[h * stride_h + kh, w * stride_w + kw,
+                                    n, ic, nn, ii].astype('int32') *
+                           packed_kernel[kh, kw, o, ic, oo, ii].astype('int32')),
+                          axis=[ic, kh, kw, ii]),
+                      name="Conv", tag="conv2d_HWNCnc_tensorcore")
     return Conv
 
 
 def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
+    """Schedule tensorcore template"""
     packed_data, packed_kernel = s[Conv].op.input_tensors
     ic, kh, kw, ii = s[Conv].op.reduce_axis
     pad_data = s[packed_data].op.input_tensors[0]
@@ -200,7 +216,8 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
 
     if isinstance(packed_kernel.op, te.tensor.ComputeOp) and packed_kernel.name == "packed_kernel":
         if autotvm.GLOBAL_SCOPE.in_tuning:
-            s[packed_kernel].pragma(s[packed_kernel].op.axis[0], "debug_skip_region")
+            s[packed_kernel].pragma(
+                s[packed_kernel].op.axis[0], "debug_skip_region")
         else:
             with tvm.target.create('cuda'):
                 schedule_injective_from_existing(s, packed_kernel)
@@ -259,7 +276,7 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
 
     # Schedule for output
     if len(s[output].op.axis) == 4:
-        hc, wc, nc, oc,  = output.op.axis
+        hc, wc, nc, oc, = output.op.axis
         nc, nnc = s[output].split(nc, factor=wmma_m)
         oc, ooc = s[output].split(oc, factor=wmma_n)
     else:
@@ -268,12 +285,14 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     kernel_scope, hc = s[output].split(hc, nparts=1)
 
     block_k = s[output].fuse(hc, wc)
-    block_k, split_block_k = s[output].split(block_k, factor=split_block_k_nums)
+    block_k, split_block_k = s[output].split(
+        block_k, factor=split_block_k_nums)
     nc, nci = s[output].split(nc, factor=warp_row_tiles)
     block_i, nc = s[output].split(nc, factor=block_row_warps)
     oc, oci = s[output].split(oc, factor=warp_col_tiles)
     block_j, oc = s[output].split(oc, factor=block_col_warps)
-    s[output].reorder(block_k, split_block_k, block_i, block_j, nc, oc, nci, oci, nnc, ooc)
+    s[output].reorder(block_k, split_block_k, block_i,
+                      block_j, nc, oc, nci, oci, nnc, ooc)
     t = s[output].fuse(nnc, ooc)
     _, tx = s[output].split(t, factor=warp_size)
     s[output].bind(block_k, block_z)
@@ -296,7 +315,7 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
 
     # Schedule local computation
     s[ConvF].compute_at(s[OL], oc)
-    h, w, n, o, nnf, oof = ConvF.op.axis
+    _, _, n, o, nnf, oof = ConvF.op.axis
     ko, ki = s[ConvF].split(ic, factor=chunk)
     s[ConvF].reorder(ko, kh, ki, kw, n, o, nnf, oof, ii)
 
@@ -322,9 +341,9 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
         s[AS].compute_at(s[ConvF], ko)
     else:
         s[AS].compute_at(s[ConvF], kh)
-    h, w, n, i, nn, ii = AS.op.axis
+    _, _, n, _, nn, ii = AS.op.axis
     tx, xo = s[AS].split(n, nparts=block_row_warps)
-    ty, yo = s[AS].split(xo, nparts=block_col_warps)
+    ty, _ = s[AS].split(xo, nparts=block_col_warps)
     t = s[AS].fuse(nn, ii)
     to, ti = s[AS].split(t, nparts=warp_size)
     ti, _t = s[AS].split(ti, factor=vector_as)
@@ -345,7 +364,7 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     s[WS].compute_at(s[ConvF], kw)
     kh, kw, ic, o, ii, oo = WS.op.axis
     tx, xo = s[WS].split(o, nparts=block_row_warps)
-    ty, yo = s[WS].split(xo, nparts=block_col_warps)
+    ty, _ = s[WS].split(xo, nparts=block_col_warps)
     t = s[WS].fuse(ii, oo)
     to, ti = s[WS].split(t, nparts=warp_size)
     ti, _t = s[WS].split(ti, factor=vector_ws)
@@ -381,8 +400,9 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     WL_gemm = te.placeholder(WL_shape, name='B', dtype=kernel_dtype)
     k_gemm = te.reduce_axis((0, wmma_k), name="k")
     CL_compute = te.compute(CL_shape, lambda ii, jj:
-                    te.sum((AL_gemm[ii, k_gemm].astype('int32')* WL_gemm[jj, k_gemm].astype('int32')), axis=k_gemm),
-                    name='C')
+                            te.sum((AL_gemm[ii, k_gemm].astype(
+                                'int32') * WL_gemm[jj, k_gemm].astype('int32')), axis=k_gemm),
+                            name='C')
 
     AL_strides = [wmma_k, 1]
     AS_strides = [wmma_k, 1]
@@ -391,26 +411,28 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     CL_strides = [wmma_n, 1]
     CS_strides = [wmma_n, 1]
 
+    s[AF].tensorize(AF.op.axis[-2],
+                    intrin_wmma_load_matrix_A(AL_strides, AS_strides, shape,
+                                              "row_major", AS_shape, AL_shape, data_dtype))
 
-    s[AF].tensorize(AF.op.axis[-2], intrin_wmma_load_matrix_A(AL_strides, AS_strides, shape,
-                                                    "row_major", AS_shape, AL_shape, data_dtype))
-
-    s[WF].tensorize(WF.op.axis[-2], intrin_wmma_load_matrix_W(WL_strides, WS_strides, shape,
-                                                    "col_major", WS_shape, WL_shape, kernel_dtype))
+    s[WF].tensorize(WF.op.axis[-2],
+                    intrin_wmma_load_matrix_W(WL_strides, WS_strides, shape,
+                                              "col_major", WS_shape, WL_shape, kernel_dtype))
 
     s[OL].tensorize(nnc, intrin_wmma_store_matrix(CS_strides, CL_strides,
                                                   shape, out_dtype, CL_shape, CS_shape))
-
 
     s[ConvF].tensorize(nnf, intrin_wmma_gemm(AL_gemm, WL_gemm, CL_compute, AL_strides,
                                              WL_strides, CL_strides, shape))
 
     return s
 
+
 @autotvm.register_topi_schedule("conv2d_HWNCnc_tensorcore.cuda")
 def schedule_conv2d_hwnc_tensorcore(cfg, outs):
     """TOPI schedule callback"""
     s = te.create_schedule([x.op for x in outs])
+
     def _callback(op):
         if 'conv2d_HWNCnc_tensorcore' in op.tag:
             schedule_hwnc_tensorcore_cuda(cfg, s, op.output(0))

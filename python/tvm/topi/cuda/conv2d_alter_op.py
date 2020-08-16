@@ -187,12 +187,12 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             ic_block_factor = 32
             oc_block_factor = 8
         else:
-            new_attrs['kernel_layout']= 'HWOI32o16i'
+            new_attrs['kernel_layout'] = 'HWOI32o16i'
             ic_block_factor = 16
             oc_block_factor = 32
 
         new_kernel = te.placeholder((KH, KW, CO // oc_block_factor, CI // ic_block_factor,
-                                    oc_block_factor, ic_block_factor), dtype=kernel.dtype)
+                                     oc_block_factor, ic_block_factor), dtype=kernel.dtype)
 
         new_workload = autotvm.task.args_to_workload(
             [data, new_kernel, strides, padding, dilation, out_dtype],

@@ -181,7 +181,8 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 out_channels = oc_chunk * oc_block_factor
             else:
                 _, _, out_channels, _ = get_const_tuple(kernel.shape)
-            if topi.cuda.is_shape_tensorcore_direct_qualified(batch=N, in_channels=in_channels, num_filter=out_channels, in_dtype=data.dtype):
+            if topi.cuda.is_shape_tensorcore_direct_qualified(
+                    batch=N, in_channels=in_channels, num_filter=out_channels, in_dtype=data.dtype):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.cuda.conv2d_hwnc_tensorcore),
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_hwnc_tensorcore),
