@@ -22,13 +22,12 @@
  * \brief The auto-scheduler's computational graph and related program analyses.
  *
  * We convert a compute declaration described by `tvm.compute` (could be a single operator or a
- * subgraph) to a ComputeDAG. It keeps the input/output tensors of the compute declaration,
- * a list of all operations in the DAG as well as static analysis results for the DAG (e.g. the
- * total float operation count, consumer/producer relations of each operation stage, whether an
- * operation stage should be tiled/compute inlined ...). These analyses can help the search policy
- * to make decisions during search process.
- * ComputeDAG is also responsible for the interaction between TVM Auto-scheduler `LoopState` and
- * TVM schedule (e.g. applying the `LoopState` transform steps to TVM schedule, providing
+ * subgraph) to a ComputeDAG. It keeps the input/output tensors, all operations in the DAG, and
+ * some static analysis results for the DAG (e.g. the total float operation count, consumer/producer
+ * relations of operations, whether an operation stage should be tiled/compute inlined ...).
+ * These analyses can help the search policy to make decisions during the search.
+ * ComputeDAG is also responsible for the interaction between auto-scheduler's `LoopState` and
+ * TVM schedule (e.g. applying the `LoopState` transform steps to a TVM schedule, providing
  * `LoopState` with extra information got from TVM schedule ...).
  */
 
@@ -47,18 +46,18 @@
 namespace tvm {
 namespace auto_scheduler {
 
-/*! \brief Static analysis result for a ComputeDAG */
+/*! \brief Static analyzer for a ComputeDAG */
 class AccessAnalyzerNode : public Object {
  public:
   template <class T>
   using OperationMap = std::unordered_map<te::Operation, T, ObjectPtrHash, ObjectPtrEqual>;
 
   /*! \brief Map an operation to all operations it reads from.
-   * For each operation pair, use a two-dimentional array to multiple multi-dimentional accesses
+   * For each operation pair, use a two-dimentional array for multiple multi-dimentional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
   OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_from;
   /*! \brief Map an operation to all operations it is read by.
-   * For each operation pair, use a two-dimentional array to multiple multi-dimentional accesses
+   * For each operation pair, use a two-dimentional array for multiple multi-dimentional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
   OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_by;
   /*! \brief Store the number of common outer iterators for operation pairs that have
@@ -67,10 +66,10 @@ class AccessAnalyzerNode : public Object {
   /*! \brief Store whether the operation is an op with only simple access.
    *  (e.g., injective, broadcast and elementwise ops without reduction) */
   OperationMap<bool> is_simple_access;
-  /*! \brief Store whether the operation is strictly-inlineable
+  /*! \brief Store whether the operation is strictly inlineable
    * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations)
    */
-  OperationMap<bool> is_strict_inlineable;
+  OperationMap<bool> is_strictly_inlineable;
   /*! \brief Store whether the operation needs multi-level tiling
    * (e.g., computation-intensive ops with data reuse opportunity like matmul, conv2d) */
   OperationMap<bool> needs_multi_level_tiling;
@@ -92,7 +91,7 @@ class AccessAnalyzer : public ObjectRef {
   explicit AccessAnalyzer(const Array<te::Tensor>& tensors);
 
   /*!
-   * \brief Return whether this operation is an injective operation
+   * \brief Return whether this operation is an op with simple access
    * (e.g., injective, broadcast and elementwise ops without reduction)
    * \param op The operation
    */
@@ -103,7 +102,7 @@ class AccessAnalyzer : public ObjectRef {
    * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations)
    * \param op The operation
    */
-  TVM_DLL bool IsStrictInlineable(const te::Operation& op) const;
+  TVM_DLL bool IsStrictlyInlineable(const te::Operation& op) const;
 
   /*!
    * \brief Return whether this operation needs multi-level tiling
@@ -113,13 +112,13 @@ class AccessAnalyzer : public ObjectRef {
   TVM_DLL bool NeedsMultiLevelTiling(const te::Operation& op) const;
 
   /*!
-   * \brief Return whether this operation is an output op
+   * \brief Return whether this operation is an output operation
    * \param op The operation
    */
   TVM_DLL bool IsOutput(const te::Operation& op) const;
 
   /*!
-   * \brief Get all consumers of on operation
+   * \brief Get all consumers of an operation
    * \param state The current loop state
    * \param op The operation
    * \return The set of consumers
@@ -129,7 +128,7 @@ class AccessAnalyzer : public ObjectRef {
       const State& state, const te::Operation& op) const;
 
   /*!
-   * \brief Get all producers of on operation
+   * \brief Get all producers of an operation
    * \param state The current loop state
    * \param op The operation
    * \return The set of producers
@@ -139,7 +138,7 @@ class AccessAnalyzer : public ObjectRef {
       const State& state, const te::Operation& op) const;
 
   /*!
-   * \brief Get all direct producers of on operation
+   * \brief Get all direct producers of an operation
    * \param op The operation
    * \return The set of direct producers
    * \note This function DOES NOT propagate the relation for inlined ops
@@ -158,7 +157,7 @@ class AccessAnalyzer : public ObjectRef {
 
   /*!
    * \brief Return whether two operations are elementwise-matched
-   *  (e.g. conv2d and relu are elementwise matched)
+   *  (e.g. conv2d and relu are elementwise-matched)
    * \note This function propagates the relation for chains with multiple ops.
    */
   TVM_DLL bool ElementWiseMatch(const te::Operation& op, const te::Operation& target_op) const;
@@ -166,7 +165,7 @@ class AccessAnalyzer : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(AccessAnalyzer, ObjectRef, AccessAnalyzerNode);
 };
 
-/*! \brief The TVM Auto-scheduler computational graph and related program analyses. */
+/*! \brief The auto-scheduler's computational graph and related program analyses. */
 class ComputeDAGNode : public Object {
  public:
   /*!
@@ -174,9 +173,9 @@ class ComputeDAGNode : public Object {
    * This is used as the input of `tvm.lower` or `tvm.build`.
    */
   Array<te::Tensor> tensors;
-  /*! \brief All related operations in topo order. */
+  /*! \brief All used operations in topo order. */
   Array<te::Operation> ops;
-  /*! \brief The number of total float operations for this ComputeDAG. */
+  /*! \brief The number of float operations in this ComputeDAG. */
   double flop_ct;
   /*! \brief The initial state without any transform steps. */
   State init_state;
@@ -188,6 +187,7 @@ class ComputeDAGNode : public Object {
     v->Visit("ops", &ops);
     v->Visit("flop_ct", &flop_ct);
     v->Visit("init_state", &init_state);
+    v->Visit("access_analyzer", &access_analyzer);
   }
 
   static constexpr const char* _type_key = "auto_scheduler.ComputeDAG";
@@ -237,6 +237,17 @@ class ComputeDAG : public ObjectRef {
    * \return The State with complete bound information
    */
   State InferBound(const State& state) const;
+
+  /*!
+   * \brief Fill the correct bound information for the given states by calling ir_pass::InferBound.
+   * The states can lose complete bound information after some transform steps (e.g., compute_at).
+   * We can call this function to infer and fill all the bound information.
+   * This function calls TVM InferBound pass internally to get the bound.
+   * The returned state of this function is guaranteed to have complete bound information.
+   * \param states The input states.
+   * \return The States with complete bound information
+   */
+  Array<State> InferBound(const Array<State>& states) const;
 
   /*!
    * \brief Since some steps may change the ComputeDAG (e.g. CacheRead/CacheWrite), the initial

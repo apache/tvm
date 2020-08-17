@@ -271,7 +271,7 @@ impl<'a> Tensor<'a> {
         }
     }
 
-    pub(crate) fn as_dltensor(&self, flatten: bool) -> DLTensor {
+    pub fn as_dltensor(&self, flatten: bool) -> DLTensor {
         assert!(!flatten || self.is_contiguous());
         DLTensor {
             data: unsafe { self.data.as_mut_ptr().offset(self.byte_offset) } as *mut c_void,

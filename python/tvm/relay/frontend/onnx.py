@@ -530,10 +530,15 @@ class Mod(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "Mod op take 2 inputs, {} given".format(len(inputs))
-        if attr['fmod'] == 1:
+
+        # Note: attr['fmod'] determines whether the operator should behave like np.fmod or np.mod.
+        # attr['fmod'] == 0 will behave as np.mod and attr['fmod'] == 1 will force fmod treatment.
+        # The relay equivalent of np.fmod is relay.mod and np.mod is relay.floor_mod
+        if attr['fmod'] == 0:
             op_name = "floor_mod"
         else:
             op_name = "mod"
+
         return AttrCvt(op_name)(inputs, {}, params)
 
 
@@ -1040,8 +1045,8 @@ class Slice(OnnxOpConverter):
         end = list(attr['ends'])
 
         return _op.strided_slice(inputs[0],
-                                 begin=_expr.const(begin, dtype="int32"),
-                                 end=_expr.const(end, dtype="int32"))
+                                 begin=_expr.const(begin, dtype="int64"),
+                                 end=_expr.const(end, dtype="int64"))
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
@@ -1058,8 +1063,8 @@ class Slice(OnnxOpConverter):
                 starts = new_starts
                 ends = new_ends
         return _op.strided_slice(inputs[0],
-                                 begin=_expr.const(starts, dtype="int32"),
-                                 end=_expr.const(ends, dtype="int32"))
+                                 begin=_expr.const(starts, dtype="int64"),
+                                 end=_expr.const(ends, dtype="int64"))
 
 
 class Gather(OnnxOpConverter):

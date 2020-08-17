@@ -107,6 +107,12 @@ class LetList {
     return ret;
   }
 
+  /*! \brief get the number of let bindings in the let list.
+   *
+   *  \return the let list size.
+   */
+  size_t size() const { return lets_.size(); }
+
   /*! \brief generate an LetList and wrap the result automatically.
    *
    *  \param f a function that generate the unwrapped Expr.

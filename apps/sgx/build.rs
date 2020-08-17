@@ -35,9 +35,7 @@ fn main() {
             concat!(
                 mf_dir!("/../../python"),
                 ":",
-                mf_dir!("/../../nnvm/python"),
-                ":",
-                mf_dir!("/../../topi/python")
+                mf_dir!("/../../nnvm/python")
             ),
         )
         .output()

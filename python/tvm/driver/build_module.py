@@ -156,8 +156,10 @@ def lower(sch,
     """
     # config setup
     pass_ctx = PassContext.current()
-    instrument_bound_checkers = bool(pass_ctx.config.get("tir.instrument_bound_checkers", False))
-    disable_vectorize = bool(pass_ctx.config.get("tir.disable_vectorize", False))
+    instrument_bound_checkers = bool(pass_ctx.config.get(
+        "tir.instrument_bound_checkers", False))
+    disable_vectorize = bool(pass_ctx.config.get(
+        "tir.disable_vectorize", False))
     add_lower_pass = pass_ctx.config.get("tir.add_lower_pass", [])
 
     lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
@@ -179,6 +181,7 @@ def lower(sch,
         tvm.tir.transform.BF16Legalize(),
         tvm.tir.transform.NarrowDataType(32),
         tvm.tir.transform.Simplify(),
+        tvm.tir.transform.HoistIfThenElse(),
     ]
     pass_list += lower_phase1
 
@@ -238,14 +241,16 @@ def _build_for_device(input_mod, target, target_host):
     """
     target = _target.create(target)
     target_host = _target.create(target_host)
-    device_type = ndarray.context(target.id.name, 0).device_type
+    device_type = ndarray.context(target.kind.name, 0).device_type
 
     mod_mixed = input_mod
-    mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
+    mod_mixed = tvm.tir.transform.Apply(
+        lambda f: f.with_attr("target", target))(mod_mixed)
 
     opt_mixed = [tvm.tir.transform.VerifyMemory()]
     if len(mod_mixed.functions) == 1:
-        opt_mixed += [tvm.tir.transform.Apply(lambda f: f.with_attr("tir.is_entry_func", True))]
+        opt_mixed += [tvm.tir.transform.Apply(
+            lambda f: f.with_attr("tir.is_entry_func", True))]
 
     if PassContext.current().config.get("tir.detect_global_barrier", False):
         opt_mixed += [tvm.tir.transform.ThreadSync("global")]
@@ -256,7 +261,6 @@ def _build_for_device(input_mod, target, target_host):
                   tvm.tir.transform.MakePackedAPI(),
                   tvm.tir.transform.SplitHostDevice()]
     mod_mixed = tvm.transform.Sequential(opt_mixed)(mod_mixed)
-
 
     # device optimizations
     opt_device = tvm.transform.Sequential(
@@ -288,7 +292,8 @@ def _build_for_device(input_mod, target, target_host):
             "Specified target %s, but cannot find device code, did you do "
             "bind?" % target)
 
-    rt_mod_dev = codegen.build_module(mod_dev, target) if len(mod_dev.functions) != 0 else None
+    rt_mod_dev = codegen.build_module(mod_dev, target) if len(
+        mod_dev.functions) != 0 else None
     return mod_host, rt_mod_dev
 
 
@@ -382,7 +387,8 @@ def build(inputs,
     elif isinstance(inputs, tvm.IRModule):
         input_mod = inputs
     elif not isinstance(inputs, (dict, container.Map)):
-        raise ValueError("inputs must be Schedule, IRModule or dict of target to IRModule")
+        raise ValueError(
+            "inputs must be Schedule, IRModule or dict of target to IRModule")
 
     if not isinstance(inputs, (dict, container.Map)):
         target = _target.Target.current() if target is None else target
@@ -402,7 +408,7 @@ def build(inputs,
     if not target_host:
         for tar, _ in target_input_mod.items():
             tar = _target.create(tar)
-            device_type = ndarray.context(tar.id.name, 0).device_type
+            device_type = ndarray.context(tar.kind.name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
                 target_host = tar
                 break

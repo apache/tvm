@@ -18,7 +18,7 @@
 """Backend compiler related feature registration"""
 
 from tvm.te.hybrid import script
-import topi
+from tvm import topi
 
 from .op import register_compute, register_shape_func
 from .op import register_broadcast_schedule, register_injective_schedule
@@ -201,11 +201,11 @@ def elemwise_shape_func(attrs, inputs, _):
     return [topi.math.identity(inputs[0])]
 
 register_shape_func("cast", False, elemwise_shape_func)
-register_shape_func("zeros", True, no_data_full_shape_func)
+register_shape_func("zeros", False, full_shape_func)
 register_shape_func("zeros_like", False, elemwise_shape_func)
-register_shape_func("ones", True, no_data_full_shape_func)
+register_shape_func("ones", False, full_shape_func)
 register_shape_func("ones_like", False, elemwise_shape_func)
-register_shape_func("full", True, full_shape_func)
+register_shape_func("full", False, full_shape_func)
 register_shape_func("full_like", False, elemwise_shape_func)
 register_shape_func("broadcast_to", True, full_shape_func)
 

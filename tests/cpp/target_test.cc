@@ -19,66 +19,135 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/target/target_id.h>
+#include <tvm/target/target.h>
 
 #include <cmath>
 #include <string>
 
 using namespace tvm;
 
-TVM_REGISTER_TARGET_ID("TestTargetId")
+TVM_REGISTER_TARGET_KIND("TestTargetKind")
     .set_attr<std::string>("Attr1", "Value1")
     .add_attr_option<Bool>("my_bool")
     .add_attr_option<Array<String>>("your_names")
     .add_attr_option<Map<String, Integer>>("her_maps");
 
-TEST(TargetId, GetAttrMap) {
-  auto map = tvm::TargetId::GetAttrMap<std::string>("Attr1");
-  auto target_id = tvm::TargetId::Get("TestTargetId");
-  std::string result = map[target_id];
+TEST(TargetKind, GetAttrMap) {
+  auto map = tvm::TargetKind::GetAttrMap<std::string>("Attr1");
+  auto target_kind = tvm::TargetKind::Get("TestTargetKind");
+  std::string result = map[target_kind];
   CHECK_EQ(result, "Value1");
 }
 
-TEST(TargetId, SchemaValidation) {
-  tvm::Map<String, ObjectRef> target;
-  {
-    tvm::Array<String> your_names{"junru", "jian"};
-    tvm::Map<String, Integer> her_maps{
-        {"a", 1},
-        {"b", 2},
-    };
-    target.Set("my_bool", Bool(true));
-    target.Set("your_names", your_names);
-    target.Set("her_maps", her_maps);
-    target.Set("id", String("TestTargetId"));
-  }
-  TargetValidateSchema(target);
-  tvm::Map<String, ObjectRef> target_host(target.begin(), target.end());
-  target.Set("target_host", target_host);
-  TargetValidateSchema(target);
+TEST(TargetCreation, NestedConfig) {
+  Map<String, ObjectRef> config = {
+      {"my_bool", Bool(true)},
+      {"your_names", Array<String>{"junru", "jian"}},
+      {"kind", String("TestTargetKind")},
+      {
+          "her_maps",
+          Map<String, Integer>{
+              {"a", 1},
+              {"b", 2},
+          },
+      },
+  };
+  Target target = Target::FromConfig(config);
+  CHECK_EQ(target->kind, TargetKind::Get("TestTargetKind"));
+  CHECK_EQ(target->tag, "");
+  CHECK(target->keys.empty());
+  Bool my_bool = target->GetAttr<Bool>("my_bool").value();
+  CHECK_EQ(my_bool.operator bool(), true);
+  Array<String> your_names = target->GetAttr<Array<String>>("your_names").value();
+  CHECK_EQ(your_names.size(), 2U);
+  CHECK_EQ(your_names[0], "junru");
+  CHECK_EQ(your_names[1], "jian");
+  Map<String, Integer> her_maps = target->GetAttr<Map<String, Integer>>("her_maps").value();
+  CHECK_EQ(her_maps.size(), 2U);
+  CHECK_EQ(her_maps["a"], 1);
+  CHECK_EQ(her_maps["b"], 2);
 }
 
-TEST(TargetId, SchemaValidationFail) {
-  tvm::Map<String, ObjectRef> target;
-  {
-    tvm::Array<String> your_names{"junru", "jian"};
-    tvm::Map<String, Integer> her_maps{
-        {"a", 1},
-        {"b", 2},
-    };
-    target.Set("my_bool", Bool(true));
-    target.Set("your_names", your_names);
-    target.Set("her_maps", her_maps);
-    target.Set("ok", ObjectRef(nullptr));
-    target.Set("id", String("TestTargetId"));
-  }
+TEST(TargetCreationFail, UnrecognizedConfigOption) {
+  Map<String, ObjectRef> config = {
+      {"my_bool", Bool(true)},
+      {"your_names", Array<String>{"junru", "jian"}},
+      {"kind", String("TestTargetKind")},
+      {"bad", ObjectRef(nullptr)},
+      {
+          "her_maps",
+          Map<String, Integer>{
+              {"a", 1},
+              {"b", 2},
+          },
+      },
+  };
   bool failed = false;
   try {
-    TargetValidateSchema(target);
+    Target::FromConfig(config);
   } catch (...) {
     failed = true;
   }
   ASSERT_EQ(failed, true);
+}
+
+TEST(TargetCreationFail, TypeMismatch) {
+  Map<String, ObjectRef> config = {
+      {"my_bool", String("true")},
+      {"your_names", Array<String>{"junru", "jian"}},
+      {"kind", String("TestTargetKind")},
+      {
+          "her_maps",
+          Map<String, Integer>{
+              {"a", 1},
+              {"b", 2},
+          },
+      },
+  };
+  bool failed = false;
+  try {
+    Target::FromConfig(config);
+  } catch (...) {
+    failed = true;
+  }
+  ASSERT_EQ(failed, true);
+}
+
+TEST(TargetCreationFail, TargetKindNotFound) {
+  Map<String, ObjectRef> config = {
+      {"my_bool", Bool("true")},
+      {"your_names", Array<String>{"junru", "jian"}},
+      {
+          "her_maps",
+          Map<String, Integer>{
+              {"a", 1},
+              {"b", 2},
+          },
+      },
+  };
+  bool failed = false;
+  try {
+    Target::FromConfig(config);
+  } catch (...) {
+    failed = true;
+  }
+  ASSERT_EQ(failed, true);
+}
+
+TEST(TargetCreation, DeduplicateKeys) {
+  Map<String, ObjectRef> config = {
+      {"kind", String("llvm")},
+      {"keys", Array<String>{"cpu", "arm_cpu"}},
+      {"device", String("arm_cpu")},
+  };
+  Target target = Target::FromConfig(config);
+  CHECK_EQ(target->kind, TargetKind::Get("llvm"));
+  CHECK_EQ(target->tag, "");
+  CHECK_EQ(target->keys.size(), 2U);
+  CHECK_EQ(target->keys[0], "cpu");
+  CHECK_EQ(target->keys[1], "arm_cpu");
+  CHECK_EQ(target->attrs.size(), 1U);
+  CHECK_EQ(target->GetAttr<String>("device"), "arm_cpu");
 }
 
 int main(int argc, char** argv) {

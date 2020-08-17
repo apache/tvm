@@ -27,7 +27,7 @@ This page is organized as follows:
 - The `Logical Architecture Components`_ section describes the logical components.
   The sections after are specific guides focused on each logical component, organized
   by the component's name.
-- The `How Tos`_ section contains useful tutorials to solve specific development problems.
+- Feel free to also checkout the :ref:`dev-how-to` for useful development tips.
 
 This guide provides a few complementary views of the architecture.
 First, we review a single end-to-end compilation flow and discuss the key data structures and the transformations.
@@ -295,6 +295,11 @@ The following code snippet gives an example of PassContext configuration.
 Op is the common class to represent all system-defined primitive operator/intrinsics.
 Developers can register new Ops as well as their additional attributes(e.g. whether the Op is elementwise) to the system.
 
+.. toctree::
+   :maxdepth: 1
+
+   pass_infra
+
 
 tvm/target
 ----------
@@ -335,8 +340,8 @@ these scheduling components to the a `tir::PrimFunc` itself.
    inferbound
    hybrid_script
 
-topi
-----
+tvm/topi
+--------
 While possible to construct operators directly via TIR or tensor expressions (TE) for each use case it is tedious to do so.
 `topi` (Tensor operator inventory) provides a set of pre-defined operators (in TE or TIR) defined by
 numpy and found in common deep learning workloads. We also provide a collection of common schedule templates to obtain performant implementations across different target platforms.
@@ -353,7 +358,6 @@ memory(for memory optimization).
 
    relay_intro
    relay_op_strategy
-   relay_pass_infra
    convert_layout
 
 
@@ -375,19 +379,15 @@ customize the search and plugin their algorithms from the Python binding.
 
    benchmark
 
-
-How Tos
--------
-This section contains a collection of tips about how to work on
-various areas of the TVM stack.
+Frontends
+---------
+Frontends ingest models from different frameworks into the TVM stack.
+:py:mod:`tvm.relay.frontend` is the namespace for model ingestion APIs.
 
 .. toctree::
    :maxdepth: 1
 
-   relay_add_op
-   relay_add_pass
-   relay_bring_your_own_codegen
-   codebase_walkthrough
+   frontend/tensorflow
 
 
 Security

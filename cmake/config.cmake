@@ -63,6 +63,11 @@ set(USE_SDACCEL OFF)
 set(USE_AOCL OFF)
 
 # Whether enable OpenCL runtime
+#
+# Possible values:
+# - ON: enable OpenCL with cmake's auto search
+# - OFF: disable OpenCL
+# - /path/to/opencl-sdk: use specific path to opencl-sdk
 set(USE_OPENCL OFF)
 
 # Whether enable Metal runtime
@@ -96,6 +101,9 @@ set(RUST_SGX_SDK "/path/to/rust-sgx-sdk")
 # Whether enable RPC runtime
 set(USE_RPC ON)
 
+# Whether to build the C++ RPC server binary
+set(USE_CPP_RPC OFF)
+
 # Whether embed stackvm into the runtime
 set(USE_STACKVM_RUNTIME OFF)
 
@@ -123,14 +131,18 @@ set(USE_LLVM OFF)
 #---------------------------------------------
 # Contrib libraries
 #---------------------------------------------
-# Whether use BLAS, choices: openblas, mkl, atlas, apple
+# Whether use BLAS, choices: openblas, atlas, apple
 set(USE_BLAS none)
 
-# /path/to/mkl: mkl root path when use mkl blas library
-# set(USE_MKL_PATH /opt/intel/mkl) for UNIX
-# set(USE_MKL_PATH ../IntelSWTools/compilers_and_libraries_2018/windows/mkl) for WIN32
-# set(USE_MKL_PATH <path to venv or site-packages directory>) if using `pip install mkl`
-set(USE_MKL_PATH none)
+# Whether to use MKL
+# Possible values:
+# - ON: Enable MKL
+# - /path/to/mkl: mkl root path
+# - OFF: Disable MKL
+# set(USE_MKL /opt/intel/mkl) for UNIX
+# set(USE_MKL ../IntelSWTools/compilers_and_libraries_2018/windows/mkl) for WIN32
+# set(USE_MKL <path to venv or site-packages directory>) if using `pip install mkl`
+set(USE_MKL OFF)
 
 # Whether use MKLDNN library, choices: ON, OFF, path to mkldnn library
 set(USE_MKLDNN OFF)
@@ -140,7 +152,7 @@ set(USE_MKLDNN OFF)
 set(USE_OPENMP none)
 
 # Whether use contrib.random in runtime
-set(USE_RANDOM OFF)
+set(USE_RANDOM ON)
 
 # Whether use NNPack
 set(USE_NNPACK OFF)
@@ -216,9 +228,6 @@ set(USE_VTA_TSIM OFF)
 
 # Whether to build VTA FPGA driver (device side only)
 set(USE_VTA_FPGA OFF)
-
-# Whether to build the example external runtime module
-set(USE_EXAMPLE_EXT_RUNTIME OFF)
 
 # Whether use Thrust
 set(USE_THRUST OFF)

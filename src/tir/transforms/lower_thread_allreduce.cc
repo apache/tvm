@@ -484,10 +484,11 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   // Also, the warp/wavefront size differs (64 on rocm, 32 on cuda).
   bool is_warp_reduction(const std::vector<DataType>& types) const {
     // Only cuda target supports warp reductions.
-    if ((target_->id->name != "cuda") && (target_->id->name != "rocm")) return false;
+    if ((target_->kind->name != "cuda") && (target_->kind->name != "rocm")) return false;
 
     // rocm only supports 32 bit operands for shuffling at the moment
-    if ((target_->id->name == "rocm") && (std::any_of(types.begin(), types.end(), [](DataType ty) {
+    if ((target_->kind->name == "rocm") &&
+        (std::any_of(types.begin(), types.end(), [](DataType ty) {
           if (ty.is_vector()) return true;
           return ty.bits() != 32;
         }))) {

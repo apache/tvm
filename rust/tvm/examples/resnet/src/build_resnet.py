@@ -112,7 +112,7 @@ def download_img_labels():
 def test_build(build_dir):
     """ Sanity check with random input"""
     graph = open(osp.join(build_dir, "deploy_graph.json")).read()
-    lib = tvm.runtime.load(osp.join(build_dir, "deploy_lib.so"))
+    lib = tvm.runtime.load_module(osp.join(build_dir, "deploy_lib.so"))
     params = bytearray(open(osp.join(build_dir,"deploy_param.params"), "rb").read())
     input_data = tvm.nd.array(np.random.uniform(size=data_shape).astype("float32"))
     ctx = tvm.cpu()

@@ -31,21 +31,21 @@ namespace auto_scheduler {
 TVM_REGISTER_OBJECT_TYPE(SearchCallbackNode);
 TVM_REGISTER_OBJECT_TYPE(SearchPolicyNode);
 
-void SearchPolicyNode::RunCallbacks(const Optional<Array<SearchCallback>>& callbacks) {
-  if (callbacks) {
-    for (const auto& callback : callbacks.value()) {
-      callback->Callback(this);
-    }
+void SearchPolicyNode::RunCallbacks(const Array<SearchCallback>& callbacks) {
+  for (const auto& callback : callbacks) {
+    callback->Callback(this);
   }
 }
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyRunCallbacks")
     .set_body_typed([](SearchPolicy policy, Optional<Array<SearchCallback>> callbacks) {
-      policy->RunCallbacks(callbacks);
+      if (callbacks) {
+        policy->RunCallbacks(callbacks.value());
+      }
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicySetTask")
-    .set_body_typed([](SearchPolicy policy, SearchTask task) { policy->cur_task = task; });
+    .set_body_typed([](SearchPolicy policy, SearchTask task) { policy->search_task = task; });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicySetVerbose")
     .set_body_typed([](SearchPolicy policy, int verbose) { policy->verbose = verbose; });

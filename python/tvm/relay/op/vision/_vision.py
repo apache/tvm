@@ -18,7 +18,7 @@
 """Definition of vision ops"""
 from __future__ import absolute_import
 
-import topi
+from tvm import topi
 from tvm.te.hybrid import script
 from .. import op as reg
 from .. import strategy

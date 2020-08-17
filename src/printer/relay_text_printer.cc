@@ -39,6 +39,7 @@
 #include <tvm/tir/function.h>
 
 #include "../ir/attr_functor.h"
+#include "../parser/meta_ref.h"
 #include "../relay/analysis/dependency_graph.h"
 #include "doc.h"
 #include "meta_data.h"
@@ -246,6 +247,7 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
 
   // determine whether to inline
   bool inline_expr = AlwaysInline(expr);
+
   if (try_inline) {
     inline_expr |= IsUnique(expr);
   }
@@ -254,6 +256,7 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
   if (it != memo_.end()) return it->second;
 
   Doc printed_expr;
+
   if (meta) {
     printed_expr = meta_->GetMetaNode(GetRef<ObjectRef>(expr.get()));
   } else if (!inline_expr && expr.as<LetNode>()) {
@@ -272,7 +275,7 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
   if (expr.as<VarNode>()) {
     // This is our first time visiting the var and we hit the VarNode case
     // in the visitor. Thus the variable is free.
-    doc_stack_.back() << "free_var " << printed_expr << Doc::NewLine();
+    doc_stack_.back() << "free_var " << printed_expr << ";" << Doc::NewLine();
     // Memoization is done in AllocVar.
     return memo_[expr];
   } else if (inline_expr) {
@@ -721,6 +724,8 @@ Doc RelayTextPrinter::PrintAttr(const ObjectRef& value, bool meta) {
     Doc printed_attr;
     if (value.as<tvm::tir::AnyNode>()) {
       printed_attr << "?";
+    } else if (auto str_obj = value.as<tvm::StringObj>()) {
+      printed_attr << Doc::StrLiteral(GetRef<String>(str_obj));
     } else if (meta) {
       printed_attr = meta_->GetMetaNode(Downcast<ObjectRef>(value));
     } else {

@@ -45,7 +45,7 @@
 
 ci_lint = "tvmai/ci-lint:v0.61"
 ci_gpu = "tvmai/ci-gpu:v0.64"
-ci_cpu = "tvmai/ci-cpu:v0.63"
+ci_cpu = "tvmai/ci-cpu:v0.65"
 ci_wasm = "tvmai/ci-wasm:v0.60"
 ci_i386 = "tvmai/ci-i386:v0.52"
 
@@ -56,7 +56,6 @@ tvm_lib = "build/libtvm.so, " + tvm_runtime
 tvm_multilib = "build/libtvm.so, " +
                "build/libvta_tsim.so, " +
                "build/libvta_fsim.so, " +
-               "build/libtvm_topi.so, " +
                tvm_runtime
 
 // command to start a docker container

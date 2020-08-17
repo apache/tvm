@@ -23,12 +23,12 @@
  * \brief Registration of annotation operators.
  */
 
-#include <topi/elemwise.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/expr.h>
+#include <tvm/topi/elemwise.h>
 
 #include "../../transforms/infer_layout_util.h"
 #include "../type_relations.h"

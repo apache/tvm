@@ -21,6 +21,7 @@ import pytest
 import tvm
 from tvm import te
 from tvm import relay
+from tvm.error import TVMError
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import ctx_list, check_grad, run_infer_type
 
@@ -282,6 +283,13 @@ def test_reshape():
     verify_reshape((2, 3, 4), (2, -4, -1, 3, -2), (2, 1, 3, 4))
 
 
+def test_reshape_fail():
+    with pytest.raises(TVMError) as reshape_err:
+        x = relay.var("x", relay.TensorType([2,3], "float32"))
+        z = relay.reshape(x, [7])
+        zz = run_infer_type(z)
+
+
 def test_reshape_like_infer_type():
     # concrete shape
     x = relay.var("x", relay.TensorType((1, 2, 3), "float32"))
@@ -452,6 +460,7 @@ def test_full():
                 op_res = intrp.evaluate(func)(np.array(fill_value, dtype))
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
     verify_full(4, (1, 3, 4, 4), "int32")
+    #verify_full(4, (1, 3, 4, 4), "int64") # This does not pass, python int32 is not upcast to int64, not sure how to fix it.
     verify_full(4.0, (1, 4), "float32")
 
 
@@ -1070,6 +1079,7 @@ if __name__ == "__main__":
     test_transpose()
     test_reshape_infer_type()
     test_reshape()
+    test_reshape_fail()
     test_reshape_like_infer_type()
     test_reshape_like()
     test_take_infer_type()

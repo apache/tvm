@@ -518,7 +518,7 @@ def bind(expr, binds):
     expr : tvm.relay.Expr
         The input expression.
 
-    binds : Union[Map[tvm.relay.Var, tvm.relay.Expr], Map[str, tvm.relay.Expr]]
+    binds : Map[tvm.relay.Var, tvm.relay.Expr]
         The specific bindings.
 
     Returns

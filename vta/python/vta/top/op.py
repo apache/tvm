@@ -20,7 +20,7 @@ from __future__ import absolute_import as _abs
 
 import tvm
 from tvm import te
-import topi
+from tvm import topi
 
 from tvm.relay.op import op as reg
 from tvm.relay.op import strategy as _strategy

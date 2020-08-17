@@ -267,7 +267,7 @@ runtime::Module BuildNVPTX(IRModule mod, std::string target) {
   // have a shorter lifetime than the ctx.
   std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
 
-  cg->Init("TVMPTXModule", tm.get(), ctx.get(), false, false);
+  cg->Init("TVMPTXModule", tm.get(), ctx.get(), false, false, false);
 
   for (auto kv : mod->functions) {
     CHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";

@@ -23,11 +23,11 @@
  */
 #include "pooling.h"
 
-#include <topi/nn/pooling.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/data_layout.h>
+#include <tvm/topi/nn/pooling.h>
 
 #include <vector>
 

@@ -24,6 +24,8 @@
 
 #include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/search_policy.h>
+#include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
@@ -308,12 +310,12 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
     if (op->IsInstance<te::PlaceholderOpNode>()) {
       node->is_simple_access[op] = true;
       node->needs_multi_level_tiling[op] = false;
-      node->is_strict_inlineable[op] = false;
+      node->is_strictly_inlineable[op] = false;
       node->is_output[op] = false;
     } else if (auto cop = op.as<te::ComputeOpNode>()) {
       // check whether this op is element-wise and strict-inlineable
       bool is_simple_access = true;
-      bool is_strict_inlineable = true;
+      bool is_strictly_inlineable = true;
 
       bool axis_missing, axis_duplicated, same_order;
       for (const auto& pair : node->read_from[op]) {
@@ -322,12 +324,12 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
           if (!auto_scheduler::IsSimpleAccess(op, access, &axis_missing, &axis_duplicated,
                                               &same_order)) {
             is_simple_access = false;
-            is_strict_inlineable = false;
+            is_strictly_inlineable = false;
             break;
           }
           if (!same_order || axis_duplicated) {
             // do not strictly inline transpose
-            is_strict_inlineable = false;
+            is_strictly_inlineable = false;
           }
         }
         if (!is_simple_access) {
@@ -341,11 +343,16 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
         has_expensive_op |= HasExpensiveOp(expr);
       }
       if (has_expensive_op || has_branch[op]) {
-        is_strict_inlineable = false;
+        is_strictly_inlineable = false;
+      }
+
+      // constant tensor is strict-inlineable
+      if (node->read_from[op].empty()) {
+        is_strictly_inlineable = true;
       }
 
       node->is_simple_access[op] = is_simple_access;
-      node->is_strict_inlineable[op] = is_strict_inlineable;
+      node->is_strictly_inlineable[op] = is_strictly_inlineable;
 
       // check whether the op needs multi-level tiling
       bool needs_multi_level_tiling = false;
@@ -373,6 +380,11 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
         }
       }
 
+      // do not perform multi-level tiling on "fake reduction" with const tensors
+      if (op->attrs.count(SearchPolicyKey::simplify_const_tensor_indices)) {
+        needs_multi_level_tiling = false;
+      }
+
       node->needs_multi_level_tiling[op] = needs_multi_level_tiling;
 
       // check whether the op is output
@@ -397,8 +409,8 @@ bool AccessAnalyzer::IsSimpleAccess(const te::Operation& op) const {
   return operator->()->is_simple_access.at(op);
 }
 
-bool AccessAnalyzer::IsStrictInlineable(const te::Operation& op) const {
-  return operator->()->is_strict_inlineable.at(op);
+bool AccessAnalyzer::IsStrictlyInlineable(const te::Operation& op) const {
+  return operator->()->is_strictly_inlineable.at(op);
 }
 
 OperationSet AccessAnalyzer::GetConsumers(const State& state, const te::Operation& op) const {
@@ -535,17 +547,25 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
     double ret = 0;
     for (const auto& op : ops) {
       if (auto pop = op.as<te::ComputeOpNode>()) {
-        double num_element = AxisLengthProd(pop->axis);
-        if (num_element == -1) {
-          fail_ = true;
-          break;
+        if (pop->attrs.count("FLOP")) {
+          // Use user-provided FLOP
+          auto pint = pop->attrs["FLOP"].as<IntImmNode>();
+          CHECK(pint != nullptr);
+          ret += pint->value;
+        } else {
+          // Estimate by parsing the compute body
+          double num_element = AxisLengthProd(pop->axis);
+          if (num_element == -1) {
+            fail_ = true;
+            break;
+          }
+          cur_type_code_ = pop->output_dtype(0).code();
+          double op_per_element = 0;
+          for (const auto& x : pop->body) {
+            op_per_element += VisitExpr(x);
+          }
+          ret += num_element * op_per_element;
         }
-        cur_type_code_ = pop->output_dtype(0).code();
-        double op_per_element = 0;
-        for (const auto& x : pop->body) {
-          op_per_element += VisitExpr(x);
-        }
-        ret += num_element * op_per_element;
       } else if (op->IsInstance<te::PlaceholderOpNode>()) {
         {}  // do nothing
       } else {
@@ -678,7 +698,7 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
   // Apply the history steps to TVM schedule
   // Call each step's ApplyToSchedule method
   for (const auto& step : transform_steps) {
-    StepApplyToSchedule(step, stages, stage_to_axes, &schedule);
+    StepApplyToSchedule(step, stages, stage_to_axes, &schedule, transform_steps);
   }
 
   return std::make_pair(schedule, operator->()->tensors);
@@ -722,7 +742,7 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
   }
   // Call each step's PrintAsPythonAPI method
   for (const auto& step : transform_steps) {
-    ss << StepPrintAsPythonAPI(step, &stages, &stage_to_axes, &schedule);
+    ss << StepPrintAsPythonAPI(step, &stages, &stage_to_axes, &schedule, transform_steps);
   }
 
   return ss.str();
@@ -740,7 +760,9 @@ State ComputeDAG::InferBound(const State& state) const {
     ret_state = operator->()->init_state;
     pstate = ret_state.CopyOnWrite();
     pstate->transform_steps = state->transform_steps;
-    ret_state.ApplySteps(*this);
+    for (const auto& step : pstate->transform_steps) {
+      StepApplyToState(step, &ret_state, *this);
+    }
   } else {
     ret_state = state;
     pstate = ret_state.CopyOnWrite();
@@ -788,6 +810,21 @@ State ComputeDAG::InferBound(const State& state) const {
   return ret_state;
 }
 
+Array<State> ComputeDAG::InferBound(const Array<State>& states) const {
+  Array<State> out_states;
+  // TODO(jcf94, merrymercy): Use parallel_for to run this in parallel
+  for (const auto& state : states) {
+    State out_state;
+    try {
+      out_state = this->InferBound(state);
+    } catch (dmlc::Error& e) {
+      LOG(WARNING) << "InferBound fails on the state:\n" << state << "\n" << e.what() << std::endl;
+    }
+    out_states.push_back(std::move(out_state));
+  }
+  return out_states;
+}
+
 ComputeDAG ComputeDAG::ReplayAndGetDAG(const Array<Step>& transform_steps) const {
   te::Schedule sch;
   Array<te::Tensor> old_tensors;
@@ -804,6 +841,58 @@ ComputeDAG ComputeDAG::ReplayAndGetDAG(const Array<Step>& transform_steps) const
 
   return ComputeDAG(new_tensors);
 }
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<AccessAnalyzerNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const AccessAnalyzerNode*>(ref.get());
+      for (const auto& op : node->ops_topo_order) {
+        p->stream << op << std::endl;
+        p->stream << "is_simple_access:\t" << node->is_simple_access.at(op) << "\t\t";
+        p->stream << "needs_multi_level_tiling:\t" << node->needs_multi_level_tiling.at(op)
+                  << std::endl;
+        p->stream << "is_strictly_inlinable:\t" << node->is_strictly_inlineable.at(op) << "\t";
+        p->stream << "is_output:\t" << node->is_output.at(op) << std::endl;
+        p->stream << "Read from:\t";
+        for (const auto& pair : node->read_from.at(op)) {
+          for (const auto& index : pair.second) {
+            p->stream << pair.first->name << Array<PrimExpr>(index) << ", ";
+          }
+        }
+        p->stream << std::endl;
+        p->stream << "Read by:\t";
+        for (const auto& pair : node->read_by.at(op)) {
+          for (const auto& index : pair.second) {
+            p->stream << pair.first->name << Array<PrimExpr>(index) << ", ";
+          }
+        }
+        p->stream << std::endl;
+        p->stream << Chars('=', 50) << std::endl;
+      }
+
+      AccessAnalyzer ana = GetRef<AccessAnalyzer>(node);
+      p->stream << "ElementwiseMatch: \n";
+      for (size_t i = 0; i < node->ops_topo_order.size(); ++i) {
+        for (size_t j = 0; j < node->ops_topo_order.size(); ++j) {
+          if (i == j) {
+            continue;
+          }
+          if (ana.ElementWiseMatch(node->ops_topo_order[i], node->ops_topo_order[j])) {
+            p->stream << node->ops_topo_order[i]->name << " -> " << node->ops_topo_order[j]->name
+                      << std::endl;
+          }
+        }
+      }
+      p->stream << Chars('=', 50) << std::endl;
+
+      p->stream << "NumCommonOuterIterators: \n";
+      for (const auto& src_pair : node->num_common_outer_iterators) {
+        for (const auto& dst_pair : src_pair.second) {
+          p->stream << src_pair.first->name << " " << dst_pair.first->name << " " << dst_pair.second
+                    << std::endl;
+        }
+      }
+      p->stream << Chars('=', 50) << std::endl;
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ComputeDAGNode>([](const ObjectRef& ref, ReprPrinter* p) {

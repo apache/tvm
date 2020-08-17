@@ -18,7 +18,7 @@
 import tvm
 from tvm import te
 import numpy as np
-from topi.x86.tensor_intrin import dot_16x1x16_uint8_int8_int16
+from tvm.topi.x86.tensor_intrin import dot_16x1x16_uint8_int8_int16
 
 
 def benchmark_fc_int8_acc16():

@@ -4,10 +4,10 @@ project(tvm C CXX)
 # Utility functions
 include(cmake/util/Util.cmake)
 include(cmake/util/FindCUDA.cmake)
+include(cmake/util/FindOpenCL.cmake)
 include(cmake/util/FindVulkan.cmake)
 include(cmake/util/FindLLVM.cmake)
 include(cmake/util/FindROCM.cmake)
-include(cmake/util/FindANTLR.cmake)
 
 if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.cmake)
   include(${CMAKE_CURRENT_BINARY_DIR}/config.cmake)
@@ -54,7 +54,7 @@ tvm_option(PICOJSON_PATH "Path to PicoJSON" "3rdparty/picojson")
 
 # Contrib library options
 tvm_option(USE_BLAS "The blas library to be linked" none)
-tvm_option(USE_MKL_PATH "MKL root path when use MKL blas" none)
+tvm_option(USE_MKL "MKL root path when use MKL blas" OFF)
 tvm_option(USE_MKLDNN "Build with MKLDNN" OFF)
 tvm_option(USE_DNNL_CODEGEN "Enable MKLDNN (DNNL) codegen" OFF)
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
@@ -66,7 +66,6 @@ tvm_option(USE_SORT "Build with sort support" OFF)
 tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" OFF)
 tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
-tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
 tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
 tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
@@ -75,9 +74,6 @@ tvm_option(USE_TARGET_ONNX "Build with ONNX Codegen support" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB "Build with Arm Compute Library" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME "Build with Arm Compute Library graph runtime" OFF)
 
-if(USE_CPP_RPC AND UNIX)
-  message(FATAL_ERROR "USE_CPP_RPC is only supported with WIN32. Use the Makefile for non-Windows.")
-endif()
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -196,6 +192,7 @@ file(GLOB_RECURSE COMPILER_SRCS
     src/te/*.cc
     src/autotvm/*.cc
     src/tir/*.cc
+    src/topi/*.cc
     src/driver/*.cc
     src/parser/*.cc
     src/printer/*.cc
@@ -242,11 +239,6 @@ endif(USE_VM_PROFILER)
 
 file(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
-
-
-file(GLOB TOPI_SRCS
-    topi/src/*.cc
-)
 
 file(GLOB RUNTIME_SRCS
   src/runtime/*.cc
@@ -303,12 +295,6 @@ if(USE_VM_PROFILER)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
 endif(USE_VM_PROFILER)
 
-if(USE_EXAMPLE_EXT_RUNTIME)
-  message(STATUS "Build with example external runtime...")
-  file(GLOB RUNTIME_EXAMPLE_EXTERNAL_SRCS src/runtime/contrib/example_ext_runtime/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_EXAMPLE_EXTERNAL_SRCS})
-endif(USE_EXAMPLE_EXT_RUNTIME)
-
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/StandaloneCrt.cmake)
@@ -321,7 +307,6 @@ include(cmake/modules/Metal.cmake)
 include(cmake/modules/ROCM.cmake)
 include(cmake/modules/LLVM.cmake)
 include(cmake/modules/Micro.cmake)
-include(cmake/modules/ANTLR.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/CODEGENC.cmake)
 include(cmake/modules/contrib/DNNL.cmake)
@@ -335,6 +320,8 @@ include(cmake/modules/contrib/TF_TVMDSOOP.cmake)
 include(cmake/modules/contrib/CoreML.cmake)
 include(cmake/modules/contrib/ONNX.cmake)
 include(cmake/modules/contrib/ArmComputeLib.cmake)
+include(cmake/modules/Git.cmake)
+include(cmake/modules/LibInfo.cmake)
 
 include(CheckCXXCompilerFlag)
 if(NOT MSVC)
@@ -347,17 +334,15 @@ else()
   set(CMAKE_CUDA_STANDARD 14)
 endif()
 
+add_lib_info(${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc)
+
 add_library(tvm_objs OBJECT ${COMPILER_SRCS} ${RUNTIME_SRCS})
-add_library(tvm_topi_objs OBJECT ${TOPI_SRCS})
 add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 
 add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs>)
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
-add_library(tvm_topi SHARED $<TARGET_OBJECTS:tvm_topi_objs>)
-set_property(TARGET tvm_topi APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
 add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs>)
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
-
 
 if(USE_CPP_RPC)
   add_subdirectory("apps/cpp_rpc")
@@ -374,11 +359,9 @@ endif(USE_RELAY_DEBUG)
 if(USE_FALLBACK_STL_MAP)
   message(STATUS "Building with STL Map...")
   set_target_properties(tvm_objs PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
-  set_target_properties(tvm_topi_objs PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
 else()
   message(STATUS "Building with TVM Map...")
   set_target_properties(tvm_objs PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
-  set_target_properties(tvm_topi_objs PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
 endif(USE_FALLBACK_STL_MAP)
 
 if(BUILD_FOR_HEXAGON)
@@ -398,13 +381,11 @@ if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
   set(THREADS_PREFER_PTHREAD_FLAG TRUE)
   find_package(Threads REQUIRED)
-  target_link_libraries(tvm Threads::Threads)
-  target_link_libraries(tvm_topi Threads::Threads)
-  target_link_libraries(tvm_runtime Threads::Threads)
+  target_link_libraries(tvm_objs Threads::Threads)
+  target_link_libraries(tvm_runtime_objs Threads::Threads)
 endif()
 
 target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
-target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
 
 # Related headers
@@ -413,9 +394,6 @@ target_include_directories(
   PUBLIC "topi/include")
 target_include_directories(
   tvm_objs
-  PUBLIC "topi/include")
-target_include_directories(
-  tvm_topi_objs
   PUBLIC "topi/include")
 
 set(TVM_TEST_LIBRARY_NAME tvm)
@@ -430,10 +408,8 @@ set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
   # but it's not available until CMake 3.13. Switch to 'target_link_options'
   # once minimum CMake version is bumped up to 3.13 or above.
   target_link_libraries(tvm ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_link_libraries(tvm_topi ${HIDE_SYMBOLS_LINKER_FLAGS})
   target_link_libraries(tvm_runtime ${HIDE_SYMBOLS_LINKER_FLAGS})
 endif()
-
 
 # Tests
 set(TEST_EXECS "")
@@ -470,17 +446,11 @@ add_custom_target(runtime DEPENDS tvm_runtime)
 
 # Installation rules
 install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
-install(TARGETS tvm_topi DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
 
 if (INSTALL_DEV)
   install(
     DIRECTORY "include/." DESTINATION "include"
-    FILES_MATCHING
-    PATTERN "*.h"
-  )
-  install(
-    DIRECTORY "topi/include/." DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
   )

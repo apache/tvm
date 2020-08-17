@@ -29,10 +29,15 @@ from tvm import te
 from tvm import relay
 try:
     import tensorflow.compat.v1 as tf
+    # tensorflow.python.framework.ops module itself is not part of
+    # TensorFlow's public API: the precise contents of that module
+    # may vary from one version to the next
+    import tensorflow.compat.v1 as ops
 except ImportError:
     import tensorflow as tf
+    import tensorflow as ops
 from tensorflow.python.framework import constant_op
-from tensorflow.python.framework import ops
+
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
@@ -235,7 +240,8 @@ def run_tflite_graph(tflite_model_buf, input_data):
 
 def compare_tflite_with_tvm(in_data, in_name, input_tensors,
                             output_tensors, init_global_variables=False,
-                            out_names=None, quantized=False, input_range=None, mode='graph_runtime'):
+                            out_names=None, quantized=False, input_range=None,
+                            mode='graph_runtime', experimental_new_converter=False):
     """Generic function to generate and compare TFLite and TVM output"""
     in_data = convert_to_list(in_data)
     in_name = convert_to_list(in_name)
@@ -250,7 +256,7 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
         # convert to tflite model
         converter = tf.lite.TFLiteConverter.from_session(
             sess, input_tensors, output_tensors)
-
+        converter.experimental_new_converter=experimental_new_converter
         if quantized:
             converter.inference_type = tf.lite.constants.QUANTIZED_UINT8
             input_arrays = converter.get_input_arrays()
@@ -984,20 +990,35 @@ def test_forward_transpose_conv():
 # Reshape
 # -------
 
-def _test_reshape(data, out_shape):
+def _test_reshape(data, out_shape, wrap_shape):
     """ One iteration of reshape operation with given data and out shape """
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-        out = array_ops.reshape(in_data, out_shape)
 
-        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+        out_shape = out_shape if not wrap_shape\
+            else np.array(out_shape, dtype=np.int32)
+
+        in_shape = out_shape if not wrap_shape\
+            else array_ops.placeholder(shape=out_shape.shape,\
+                                        dtype=out_shape.dtype,\
+                                        name="Newshape")
+
+        out = array_ops.reshape(in_data, in_shape)
+
+        compare_tflite_with_tvm(
+            [data, out_shape]               if wrap_shape else [data],\
+            ['Placeholder:0', 'Newshape:0'] if wrap_shape else ['Placeholder:0'],\
+            [in_data, in_shape]             if wrap_shape else [in_data],\
+            [out],
+            mode='vm')
 
 
 def test_forward_reshape():
-    _test_reshape(np.arange(6.0, dtype=np.float32), [2, 3])
-    _test_reshape(np.arange(6), [-1, 2])
-    _test_reshape(np.arange(6), [3, -1])
-    _test_reshape(np.arange(6), [-1])
+    for wrap in [True, False]:
+        _test_reshape(np.arange(6.0, dtype=np.float32), [2, 3], wrap)
+        _test_reshape(np.arange(6), [-1, 2], wrap)
+        _test_reshape(np.arange(6), [3, -1], wrap)
+        _test_reshape(np.arange(6), [-1], wrap)
 
 
 #######################################################################
@@ -1285,70 +1306,68 @@ def test_all_unary_elemwise():
 # Element-wise
 # ------------
 
-def _test_elemwise(math_op, data, fused_activation_function=None, quantized=False, qnn_op=None):
+def _test_elemwise(math_op, data, fused_activation_function=None, quantized=False, qnn_op=None, same_qnn_params=False):
     """ One iteration of elemwise """
 
     assert len(data) == 2
 
-    # Test with two tensors
-    with tf.Graph().as_default():
-        in_data = [array_ops.placeholder(shape=data[0].shape, dtype='float32', name='in_0'),
-                   array_ops.placeholder(shape=data[1].shape, dtype='float32', name='in_1')]
-
+    def __test_elemwise( in_data ):
+        assert 2 == len( in_data )
         if quantized:
-            # fake_quant will keep the tensors in float32 until the conversion in the session
-            inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0], min=-100, max=100, name="inq_0"),
-                        tf.quantization.fake_quant_with_min_max_args(in_data[1], min=-50, max=50, name="inq_1")]
-            input_range = {'inq_0': (-100, 100), 'inq_1': (-50, 50)}
-            out = math_op(inq_data[0], inq_data[1])
-            out = with_fused_activation_function(out, fused_activation_function)
             # set the fp32 output range with respect to the operation
             out_min, out_max = _test_elemwise_qnn_out_range(qnn_op)
-            out = tf.quantization.fake_quant_with_min_max_args(out, min=out_min, max=out_max, name="out")
-            compare_tflite_with_tvm(data, ['inq_0:0', 'inq_1:0'], inq_data, [out],
-                                    quantized=True, input_range=input_range)
-        else:
-            out = math_op(in_data[0], in_data[1])
-            out = with_fused_activation_function(out, fused_activation_function)
-            compare_tflite_with_tvm(data, ['in_0:0', 'in_1:0'], in_data, [out])
+            inq0_min, inq0_max = (-100, 100)
+            inq1_min, inq1_max = (-50, 50)
 
+            # if requested use same quantization parameters provided by _test_elemwise_qnn_out_range
+            if same_qnn_params:
+                inq0_min, inq0_max = (out_min, out_max)
+                inq1_min, inq1_max = (out_min, out_max)
+
+            # fake_quant will keep the tensors in float32 until the conversion in the session
+            inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0], min=out_min, max=out_max, name="inq_0")\
+                        if None != in_data[0]\
+                        else tf.quantization.fake_quant_with_min_max_args(data[0], min=out_min, max=out_max, name="const_tensor0"),
+                        tf.quantization.fake_quant_with_min_max_args(in_data[1], min=out_min, max=out_max, name="inq_1")\
+                        if None != in_data[1]\
+                        else tf.quantization.fake_quant_with_min_max_args(data[1], min=out_min, max=out_max, name="const_tensor1")]
+
+            input_range = {x[1][0]:x[1][1] for x in zip(in_data, (('inq_0', (inq0_min, inq0_max)),\
+                                                                  ('inq_1', (inq1_min, inq1_max)))) if None != x[0]}
+
+            out = math_op(inq_data[0], inq_data[1])
+            out = with_fused_activation_function(out, fused_activation_function)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=out_min, max=out_max, name="out")
+
+            # Note same_qnn_params uses experimental_new_converter as toco failed
+            compare_tflite_with_tvm([x[1] for x in zip(in_data, data) if None != x[0]],
+                [x + ":0" for x in input_range.keys()],
+                [x[1] for x in zip(in_data, inq_data) if None != x[0]],
+                [out],
+                quantized=True,
+                input_range=input_range,
+                experimental_new_converter=same_qnn_params)
+        else:
+            out = math_op(in_data[0] if None != in_data[0] else ops.convert_to_tensor(data[0], dtype=data[0].dtype),
+                          in_data[1] if None != in_data[1] else ops.convert_to_tensor(data[1], dtype=data[1].dtype))
+            out = with_fused_activation_function(out, fused_activation_function)
+            compare_tflite_with_tvm([x[1] for x in zip( in_data, data ) if None != x[0]],
+                    [x[1] for x in zip( in_data, ('in_0:0', 'in_1:0') ) if None != x[0]],
+                    [x for x in in_data if None != x],
+                    [out])
+
+    # Test with two tensors
+    with tf.Graph().as_default():
+        __test_elemwise( in_data = [array_ops.placeholder(shape=data[0].shape, dtype='float32', name='in_0'),
+                                    array_ops.placeholder(shape=data[1].shape, dtype='float32', name='in_1')])
     # Test with tensor and constant
     with tf.Graph().as_default():
-        in_data = [array_ops.placeholder(shape=data[0].shape, dtype='float32', name='in_0')]
-
-        if quantized:
-            inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0], min=-100, max=100, name="inq_0")]
-            inq_const = tf.quantization.fake_quant_with_min_max_args(data[1], min=-50, max=50, name="const_tensor")
-            input_range = {'inq_0': (-100, 100)}
-            # the 2nd tensor is treated as constant and directly added as part of the operation
-            out = math_op(inq_data, ops.convert_to_tensor(inq_const, dtype='float32', name='inq_const'))
-            out = with_fused_activation_function(out, fused_activation_function)
-            out_min, out_max = _test_elemwise_qnn_out_range(qnn_op)
-            out = tf.quantization.fake_quant_with_min_max_args(out, min=out_min, max=out_max, name="out")
-            compare_tflite_with_tvm(data[0], ['inq_0:0'], inq_data, [out], quantized=True, input_range=input_range)
-        else:
-            out = math_op(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype))
-            out = with_fused_activation_function(out, fused_activation_function)
-            compare_tflite_with_tvm(data[0], ['in_0:0'], in_data, [out])
-
+        __test_elemwise( in_data = [array_ops.placeholder(shape=data[0].shape, dtype='float32', name='in_0'),
+                                    None])
     # Test with constant and tensor
     with tf.Graph().as_default():
-        in_data = [array_ops.placeholder(shape=data[1].shape, dtype='float32', name='in_1')]
-
-        if quantized:
-            inq_const = tf.quantization.fake_quant_with_min_max_args(data[0], min=-100, max=100, name="const_tensor")
-            inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0], min=-50, max=50, name="inq_1")]
-            input_range = {'inq_1': (-50, 50)}
-            # the 1st tensor is treated as constant and directly added as part of the operation
-            out = math_op(ops.convert_to_tensor(inq_const, dtype='float32', name='inq_const'), inq_data)
-            out = with_fused_activation_function(out, fused_activation_function)
-            out_min, out_max = _test_elemwise_qnn_out_range(qnn_op)
-            out = tf.quantization.fake_quant_with_min_max_args(out, min=out_min, max=out_max, name="out")
-            compare_tflite_with_tvm(data[1], ['inq_1:0'], inq_data, [out], quantized=True, input_range=input_range)
-        else:
-            out = math_op(ops.convert_to_tensor(data[0], dtype=data[0].dtype), in_data[0])
-            out = with_fused_activation_function(out, fused_activation_function)
-            compare_tflite_with_tvm(data[1], ['in_1:0'], in_data, [out])
+        __test_elemwise( in_data = [None,
+                                    array_ops.placeholder(shape=data[1].shape, dtype='float32', name='in_1')])
 
 #######################################################################
 # Add
@@ -1391,16 +1410,16 @@ def _test_pow(data):
 # Maximum
 # -------
 
-def _test_maximum(data):
+def _test_maximum(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """ One iteration of maximum """
-    return _test_elemwise(math_ops.maximum, data)
+    return _test_elemwise(math_ops.maximum, data, fused_activation_function, quantized, qnn_op, same_qnn_params=True)
 #######################################################################
 # Minimum
 # -------
 
-def _test_minimum(data):
+def _test_minimum(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """ One iteration of minimum """
-    return _test_elemwise(math_ops.minimum, data)
+    return _test_elemwise(math_ops.minimum, data, fused_activation_function, quantized, qnn_op, same_qnn_params=True)
 #######################################################################
 # Greater
 # -------
@@ -1486,6 +1505,8 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_add: (-150, 150),
         _test_sub: (-150, 150),
         _test_mul: (-5e+3, 5e+3),
+        _test_maximum: (-112, 111),
+        _test_minimum: (-128, 127)
     }
 
     return qnn_out_range[qnn_op]
@@ -1510,7 +1531,9 @@ def test_all_elemwise():
     _test_forward_elemwise(partial(_test_div, fused_activation_function="RELU6"))
     _test_forward_elemwise(_test_pow)
     _test_forward_elemwise(_test_maximum)
+    _test_forward_elemwise_quantized(_test_maximum)
     _test_forward_elemwise(_test_minimum)
+    _test_forward_elemwise_quantized(_test_minimum)
     _test_forward_elemwise(_test_greater)
     _test_forward_elemwise(_test_squared_difference)
     _test_forward_elemwise(_test_greater_equal)
@@ -1922,6 +1945,181 @@ def test_forward_pad():
                np.array([[1, 1], [2, 2]], dtype=np.int32)], mode="SYMMETRIC")
     _test_pad([np.arange(0, 256, dtype=np.uint8).reshape((1, 256)),
                np.array([[1, 1], [2, 2]], dtype=np.int32)], quantized=True)
+
+
+#######################################################################
+# PADV2
+# -----
+
+def _test_padv2(data, mode="CONSTANT", quantized=False):
+    """ One iteration of PADV2 """
+
+    assert (len(data) == 2 or len(data) == 3)
+
+    with_constant_values = len(data) == 3
+
+    # Test with tensor and constant
+    with tf.Graph().as_default():
+        in_data = [array_ops.placeholder(shape=data[0].shape, dtype='float32', name='in')]
+
+        if quantized:
+            # fake_quant will keep the tensors in float32 until the conversion in the session
+            input_range = {'inq_0': (-100, 100)}
+            inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0],
+                                                                     min=-100,
+                                                                     max=100,
+                                                                     name="inq_0")]
+            if with_constant_values:
+                in_constant_values = constant_op.constant(data[2], shape=data[2].shape, dtype='float32', name='in_constant_values')
+                inq_constant_values = tf.quantization.fake_quant_with_min_max_args(in_constant_values,
+                                                                                     min=-100,
+                                                                                   max=100,
+                                                                                   name='inq_constant_values')
+                out = array_ops.pad_v2(inq_data[0],
+                                          ops.convert_to_tensor(data[1], dtype=data[1].dtype),
+                                       constant_values=inq_constant_values,
+                                       mode=mode)
+                out = tf.quantization.fake_quant_with_min_max_args(out, min=-100, max=100, name="out")
+            else:
+                out = array_ops.pad_v2(inq_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype), mode=mode)
+            compare_tflite_with_tvm([data[0]], ['inq_0:0'], inq_data, [out], quantized=True, input_range=input_range)
+        else:
+            if with_constant_values:
+                out = array_ops.pad_v2(in_data[0],
+                                       ops.convert_to_tensor(data[1], dtype=data[1].dtype),
+                                       constant_values= ops.convert_to_tensor(data[2], dtype=data[2].dtype),
+                                       mode=mode)
+            else:
+                out = array_ops.pad_v2(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype), mode=mode)
+            compare_tflite_with_tvm([data[0]], ['in:0'], in_data, [out])
+
+
+def test_forward_padv2():
+    """ PADV2 """
+    # Tests without Constant_values
+    _test_padv2([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 1, 3)),
+               np.array([[1, 1], [2, 2], [1, 1], [2, 2]], dtype=np.int32)])
+    _test_padv2([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3)),
+               np.array([[2, 2], [1, 1], [1, 1]], dtype=np.int32)])
+    _test_padv2([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 3)),
+               np.array([[1, 1], [2, 2]], dtype=np.int32)])
+    _test_padv2([np.arange(1.0, 4.0, dtype=np.float32).reshape((1, 3)),
+               np.array([[1, 1], [2, 2]], dtype=np.int32)])
+    _test_padv2([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 3)),
+               np.array([[1, 1], [2, 2]], dtype=np.int32)], mode="REFLECT")
+    _test_padv2([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 3)),
+               np.array([[1, 1], [2, 2]], dtype=np.int32)], mode="SYMMETRIC")
+    _test_padv2([np.arange(0, 256, dtype=np.uint8).reshape((1, 256)),
+               np.array([[1, 1], [2, 2]], dtype=np.int32)], quantized=True)
+
+    # Tests with Constant_values
+    _test_padv2([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 1, 3)),
+               np.array([[1, 1], [2, 2], [1, 1], [2, 2]], dtype=np.int32),
+            np.array([2], dtype=np.float32)])
+    _test_padv2([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3)),
+               np.array([[2, 2], [1, 1], [1, 1]], dtype=np.int32),
+            np.array([1], dtype=np.float32)])
+    _test_padv2([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 3)),
+               np.array([[1, 1], [2, 2]], dtype=np.int32),
+            np.array([-1], dtype=np.float32)])
+    _test_padv2([np.arange(1.0, 4.0, dtype=np.float32).reshape((1, 3)),
+               np.array([[1, 1], [2, 2]], dtype=np.int32),
+            np.array([2], dtype=np.float32)])
+    _test_padv2([np.arange(0, 256, dtype=np.uint8).reshape((1, 256)),
+               np.array([[1, 1], [2, 2]], dtype=np.int32),
+               np.array([2], dtype=np.uint8)], quantized=True)
+
+    # Constant Values input can be scalar
+    _test_padv2([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 1, 3)),
+               np.array([[1, 1], [2, 2], [1, 1], [2, 2]], dtype=np.int32),
+               np.float32(2)])
+    _test_padv2([np.arange(0, 256, dtype=np.uint8).reshape((1, 256)),
+                np.array([[1, 1], [2, 2]], dtype=np.int32),
+                np.uint8(10)], quantized=True)
+
+
+#######################################################################
+# EXPAND_DIMS
+# -----------
+
+def _test_expand_dims(input_shape, input_type, axis, quantized=False):
+    """ One iteration of EXPAND_DIMS """
+    with tf.Graph().as_default():
+        axis= ops.convert_to_tensor(axis, dtype=axis.dtype)
+
+        if quantized:
+            # ignoring input_type as quantized requires uint8
+            input = np.random.uniform(0, 256, input_shape).astype('uint8')
+            in_input = tf.placeholder(dtype='float32', shape=input.shape, name="input")
+
+            input_range = {'q_input': (-100, 100)}
+            inq_input = tf.quantization.fake_quant_with_min_max_args(
+                in_input,
+                min=-100,
+                max=100,
+                name="q_input")
+
+            out = array_ops.expand_dims(inq_input, axis=axis)
+            out = tf.quantization.fake_quant_with_min_max_args(
+                out,
+                min=-100,
+                max=100,
+                name="out")
+
+            compare_tflite_with_tvm(
+                [input],
+                ["q_input"],
+                [inq_input],
+                [out],
+                quantized=True,
+                input_range=input_range)
+        else:
+            input = np.random.uniform(-100, 100, input_shape).astype(input_type)
+            in_input = tf.placeholder(dtype=input.dtype, shape=input.shape, name="input")
+
+            out = array_ops.expand_dims(in_input, axis=axis)
+
+            compare_tflite_with_tvm(
+                [input],
+                ["input"],
+                [in_input],
+                [out])
+
+def test_forward_expand_dims():
+    """ EXPAND_DIMS """
+    for quantized in [False, True]:
+        _test_expand_dims((6, 2, 7, 5), 'float32', np.int32(0), quantized=quantized)
+        _test_expand_dims((1, 2, 3), 'int32', np.int32(-2), quantized=quantized)
+        _test_expand_dims((2, 4, 5), 'float32', np.array([1], dtype=np.int32), quantized=quantized)
+
+
+#######################################################################
+# ONE_HOT
+# -------
+
+def _test_one_hot(indices, depth, on_value, off_value, axis = None):
+    """ One iteration of One_Hot """
+    with tf.Graph().as_default():
+        in_indices = tf.placeholder(dtype=indices.dtype, shape=indices.shape, name="indices")
+        in_depth = ops.convert_to_tensor(depth, dtype=depth.dtype)
+        in_on_value = tf.placeholder(dtype=on_value.dtype, shape=on_value.shape, name="on_value")
+        in_off_value = tf.placeholder(dtype=off_value.dtype, shape=off_value.shape, name="off_value")
+        if axis is not None:
+            out = array_ops.one_hot(in_indices, in_depth, in_on_value, in_off_value, axis=axis)
+        else:
+            out = array_ops.one_hot(in_indices, in_depth, in_on_value, in_off_value)
+        compare_tflite_with_tvm(
+            [indices, on_value, off_value],
+            ["indices", "on_value", "off_value"],
+            [in_indices, in_on_value, in_off_value],
+            [out])
+
+def test_forward_one_hot():
+    """ One_Hot """
+    _test_one_hot(np.int32(2), np.int32(8), np.int32(1), np.int32(0))
+    _test_one_hot(np.int32(4), np.int32(8), np.float32(1), np.float32(0))
+    _test_one_hot(np.array([1, 2, 3], dtype=np.int32), np.int32(8), np.int32(3), np.int32(-1))
+    _test_one_hot(np.array([1, 2, 3], dtype=np.int32), np.int32(8), np.int32(3), np.int32(-1), axis=0)
 
 
 #######################################################################
@@ -2886,6 +3084,7 @@ if __name__ == '__main__':
     test_forward_select()
     test_forward_quantize_dequantize()
     test_forward_arg_min_max()
+    test_forward_expand_dims()
 
     # NN
     test_forward_convolution()

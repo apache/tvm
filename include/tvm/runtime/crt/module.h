@@ -27,6 +27,10 @@
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/crt/func_registry.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*!
  * \brief Module container of TVM.
  */
@@ -38,4 +42,7 @@ typedef struct TVMModule {
 /*! \brief Entry point for the system lib module. */
 const TVMModule* TVMSystemLibEntryPoint(void);
 
+#ifdef __cplusplus
+}
+#endif
 #endif  // TVM_RUNTIME_CRT_MODULE_H_

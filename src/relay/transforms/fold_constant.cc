@@ -77,16 +77,16 @@ TVM_REGISTER_GLOBAL("relay.analysis.check_constant").set_body_typed(ConstantChec
 // or make a more powerful partial evaluator.
 class ConstantFolder : public ExprMutator {
  public:
-  explicit ConstantFolder(FInterpreter executor, IRModule module)
-      : executor_(executor),
-        module_(module),
+  explicit ConstantFolder(IRModule module)
+      : module_(module),
         shape_of_op_(Op::Get("shape_of")),
         vm_shape_of_op_(Op::Get("vm.shape_of")),
         invoke_tvm_op_(Op::Get("vm.invoke_tvm_op")),
         shape_func_op_(Op::Get("vm.shape_func")),
         alloc_tensor_op_(Op::Get("memory.alloc_tensor")),
         alloc_storage_op_(Op::Get("memory.alloc_storage")),
-        cast_op_(Op::Get("cast")) {}
+        cast_op_(Op::Get("cast")),
+        ndarray_size_op_(Op::Get("ndarray_size")) {}
 
   Expr VisitExpr_(const LetNode* op) final {
     Expr value = this->Mutate(op->value);
@@ -128,6 +128,10 @@ class ConstantFolder : public ExprMutator {
       return EvaluateShapeOf(res, origin_args, call->attrs);
     }
 
+    if (call->op == ndarray_size_op_) {
+      return EvaluateNdarraySize(res, origin_args, call->attrs);
+    }
+
     // We should think about potentially constant evaluation over these ops too.
     if (call->op == invoke_tvm_op_ || call->op == shape_func_op_ || call->op == alloc_tensor_op_ ||
         call->op == alloc_storage_op_) {
@@ -158,8 +162,6 @@ class ConstantFolder : public ExprMutator {
   }
 
  private:
-  // Internal interepreter.
-  FInterpreter executor_;
   // Internal constant checker
   ConstantChecker checker_;
   // Module
@@ -173,6 +175,21 @@ class ConstantFolder : public ExprMutator {
   const Op& alloc_tensor_op_;
   const Op& alloc_storage_op_;
   const Op& cast_op_;
+  const Op& ndarray_size_op_;
+
+  // Create an interpreter.
+  FInterpreter GetInterpreter(const IRModule& mod) {
+    using tvm::transform::PassContext;
+    DLContext ctx;
+    ctx.device_type = kDLCPU;
+    ctx.device_id = 0;
+    Target target = Target::Create("llvm");
+    // use a fresh build context
+    // in case we are already in a build context.
+    With<PassContext> fresh_build_ctx(PassContext::Create());
+
+    return CreateInterpreter(mod, ctx, target);
+  }
 
   // Convert value to expression.
   Expr ObjectToExpr(const ObjectRef& value) {
@@ -212,7 +229,9 @@ class ConstantFolder : public ExprMutator {
     mod = seq(mod);
     auto entry_func = Downcast<Function>(mod->Lookup("main"));
     expr = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
-    return ObjectToExpr(executor_(expr));
+
+    FInterpreter executor = GetInterpreter(mod);
+    return ObjectToExpr(executor(expr));
   }
 
   // Evaluate a call to the shape_of operator for tensors with constant
@@ -223,10 +242,8 @@ class ConstantFolder : public ExprMutator {
     CHECK(param != nullptr);
 
     tvm::Array<IndexExpr> ishape;
-    if (const ConstantNode* op = input.as<ConstantNode>()) {
-      ishape = op->tensor_type()->shape;
-    } else if (input->checked_type_.defined()) {
-      ishape = input->checked_type().as<TensorTypeNode>()->shape;
+    if (auto opt = GetConstantShape(input)) {
+      ishape = opt.value();
     } else {
       return expr;
     }
@@ -261,25 +278,73 @@ class ConstantFolder : public ExprMutator {
       shape = Constant(ndarray);
     }
 
+    return CastValue(shape, param->dtype);
+  }
+
+  // Evaluate a call to the ndarray_size operator for tensors with constant
+  // shapes.
+  Expr EvaluateNdarraySize(Expr expr, Array<Expr> args, Attrs attrs) {
+    Expr input = args[0];
+    const auto* param = attrs.as<NdarraySizeAttrs>();
+    CHECK(param != nullptr);
+
+    tvm::Array<IndexExpr> ishape;
+    if (auto opt = GetConstantShape(input)) {
+      ishape = opt.value();
+    } else {
+      return expr;
+    }
+
+    // Get the constant size
+    DLContext ctx;
+    ctx.device_type = kDLCPU;
+    ctx.device_id = 0;
+    runtime::NDArray value;
+    DLDataType cdtype = DataType::Int(32);
+    value = runtime::NDArray::Empty({}, cdtype, ctx);
+    int32_t* data = static_cast<int32_t*>(value->data);
+    if (ishape.size() == 0) {
+      *data = 0;
+    } else {
+      *data = 1;
+      using ::tvm::tir::IntImmNode;
+      for (size_t i = 0; i < ishape.size(); ++i) {
+        if (const IntImmNode* dim = ishape[i].as<IntImmNode>()) {
+          *data *= dim->value;
+        } else {
+          return expr;
+        }
+      }
+    }
+
+    Constant size = Downcast<Constant>(ObjectToExpr(value));
+    return CastValue(size, param->dtype);
+  }
+
+  Expr CastValue(const Expr& value, DataType dtype) {
     // Cast the constant into correct dtype
     auto cast_attrs = make_object<CastAttrs>();
-    cast_attrs->dtype = param->dtype;
-    Expr ret = Call(cast_op_, {shape}, Attrs(cast_attrs), {});
+    cast_attrs->dtype = dtype;
+    Expr ret = Call(cast_op_, {value}, Attrs(cast_attrs), {});
     return ConstEvaluate(ret);
+  }
+
+  Optional<tvm::Array<IndexExpr>> GetConstantShape(const Expr& input) {
+    tvm::Array<IndexExpr> ishape;
+    if (const ConstantNode* op = input.as<ConstantNode>()) {
+      ishape = op->tensor_type()->shape;
+    } else if (input->checked_type_.defined()) {
+      ishape = input->checked_type().as<TensorTypeNode>()->shape;
+    } else {
+      return Optional<tvm::Array<IndexExpr>>(nullptr);
+    }
+
+    return Optional<tvm::Array<IndexExpr>>(ishape);
   }
 };
 
 Expr FoldConstant(const Expr& expr, const IRModule& mod) {
-  using tvm::transform::PassContext;
-  DLContext ctx;
-  ctx.device_type = kDLCPU;
-  ctx.device_id = 0;
-  Target target = Target::Create("llvm");
-  // use a fresh build context
-  // in case we are already in a build context.
-  With<PassContext> fresh_build_ctx(PassContext::Create());
-
-  return ConstantFolder(CreateInterpreter(mod, ctx, target), mod).Mutate(expr);
+  return ConstantFolder(mod).Mutate(expr);
 }
 
 namespace transform {

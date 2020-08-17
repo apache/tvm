@@ -23,7 +23,7 @@ import tvm
 from tvm.ir import IRModule
 
 from tvm import relay
-from topi.util import get_const_tuple
+from tvm.topi.util import get_const_tuple
 from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
@@ -2312,6 +2312,7 @@ _convert_map = {
     "Dropout"       : _mx_dropout,
     "BatchNorm"     : _mx_batch_norm,
     "BatchNorm_v1"  : _mx_batch_norm,
+    "_contrib_SyncBatchNorm" : _mx_batch_norm,
     "InstanceNorm"  : _mx_instance_norm,
     "LayerNorm"     : _mx_layer_norm,
     "LRN"           : _mx_lrn,

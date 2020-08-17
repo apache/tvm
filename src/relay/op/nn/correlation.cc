@@ -21,11 +21,11 @@
  * \file correlation.cc
  * \brief Correlation operators
  */
-#include <topi/nn.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/op.h>
+#include <tvm/topi/nn.h>
 
 #include <vector>
 

@@ -23,11 +23,13 @@ from . import measure_record
 from . import loop_state
 from . import utils
 from . import workload_registry
+from . import feature
 
 # Shortcut
-from .compute_dag import ComputeDAG
 from .auto_schedule import SearchTask, TuningOptions, HardwareParams, \
-    auto_schedule, EmptyPolicy
+    auto_schedule, EmptyPolicy, SketchPolicy
+from .compute_dag import ComputeDAG
+from .cost_model import RandomModel
 from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, \
     LocalRPCMeasureContext
 from .measure_record import RecordToFile, RecordReader, load_best, \

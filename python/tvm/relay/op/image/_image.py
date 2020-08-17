@@ -21,8 +21,8 @@ from __future__ import absolute_import
 from tvm.te.hybrid import script
 from tvm.runtime import convert
 
-import topi
-from topi.util import get_const_tuple
+from tvm import topi
+from tvm.topi.util import get_const_tuple
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern

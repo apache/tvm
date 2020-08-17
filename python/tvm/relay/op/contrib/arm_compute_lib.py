@@ -81,6 +81,50 @@ def arm_compute_lib_pattern_table():
         pattern = pattern.optional(is_op('nn.relu'))
         return pattern
 
+    def qnn_conv_pattern():
+        """Create a quantized convolution pattern.
+
+        Returns
+        -------
+        pattern : dataflow_pattern.AltPattern
+            Denotes the convolution pattern.
+        """
+        pattern = is_op('nn.pad')(wildcard()) | wildcard()
+        pattern = is_op('qnn.conv2d')(
+            pattern, is_constant(), is_constant(), is_constant(), is_constant(), is_constant())
+        pattern = pattern.optional(lambda x: is_op('nn.bias_add')(x, is_constant()))
+        pattern = pattern.optional(is_op('nn.relu'))
+        pattern = is_op('qnn.requantize')(
+            pattern, wildcard(), wildcard(), is_constant(), is_constant())
+        return pattern
+
+    def dense_pattern():
+        """Create a dense (fully-connected) pattern.
+
+        Returns
+        -------
+        pattern : dataflow_pattern.AltPattern
+            Denotes the convolution pattern.
+        """
+        pattern = is_op('nn.dense')(wildcard(), is_constant())
+        pattern = pattern.optional(lambda x: is_op('nn.bias_add')(x, is_constant()))
+        return pattern
+
+    def qnn_dense_pattern():
+        """Create a quantized dense (fully-connected) pattern.
+
+        Returns
+        -------
+        pattern : dataflow_pattern.AltPattern
+            Denotes the convolution pattern.
+        """
+        pattern = is_op('qnn.dense')(
+            wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant())
+        pattern = pattern.optional(lambda x: is_op('nn.bias_add')(x, is_constant()))
+        pattern = is_op('qnn.requantize')(
+            pattern, wildcard(), wildcard(), is_constant(), is_constant())
+        return pattern
+
     def check_conv(extract):
         """Check conv pattern is supported by ACL."""
         call = extract
@@ -88,7 +132,35 @@ def arm_compute_lib_pattern_table():
             call = call.args[0]
         return conv2d(call.attrs, call.args)
 
-    return [('arm_compute_lib.conv2d', conv_pattern(), check_conv)]
+    def check_qnn_conv(extract):
+        """Check qnn conv pattern is supported by ACL."""
+        if extract.attrs.out_dtype != "uint8":
+            return False
+        call = extract
+        while call.op.name != "qnn.conv2d":
+            call = call.args[0]
+        return qnn_conv2d(call.attrs, call.args)
+
+    def check_dense(extract):
+        """Check conv pattern is supported by ACL."""
+        call = extract
+        while call.op.name != "nn.dense":
+            call = call.args[0]
+        return dense(call.attrs, call.args)
+
+    def check_qnn_dense(extract):
+        """Check qnn conv pattern is supported by ACL."""
+        if extract.attrs.out_dtype != "uint8":
+            return False
+        call = extract
+        while call.op.name != "qnn.dense":
+            call = call.args[0]
+        return qnn_dense(call.attrs, call.args)
+
+    return [('arm_compute_lib.conv2d', conv_pattern(), check_conv),
+            ('arm_compute_lib.qnn_conv2d', qnn_conv_pattern(), check_qnn_conv),
+            ('arm_compute_lib.dense', dense_pattern(), check_dense),
+            ('arm_compute_lib.qnn_dense', qnn_dense_pattern(), check_qnn_dense)]
 
 
 def _register_external_op_helper(op_name, supported=True):
@@ -115,7 +187,51 @@ def conv2d(attrs, args):
     if len(data_typ.shape) != 4 or data_typ.shape[0] != 1 or data_typ.dtype != "float32":
         return False
     kernel_typ = args[1].checked_type
-    if kernel_typ.dtype != "float32":
+    if len(kernel_typ.shape) != 4 or kernel_typ.dtype != "float32":
+        return False
+    return True
+
+
+def qnn_conv2d(attrs, args):
+    """Check if the external ACL codegen for qnn.conv2d should be used."""
+    if attrs.groups != 1:
+        return False
+    if attrs.data_layout != "NHWC":
+        return False
+    if attrs.out_dtype != "int32" and attrs.out_dtype != "":
+        return False
+    data_typ = args[0].checked_type
+    if len(data_typ.shape) != 4 or data_typ.shape[0] != 1 or data_typ.dtype != "uint8":
+        return False
+    kernel_typ = args[1].checked_type
+    if len(kernel_typ.shape) != 4 or kernel_typ.dtype != "uint8":
+        return False
+    return True
+
+
+@tvm.ir.register_op_attr("nn.dense", "target.arm_compute_lib")
+def dense(attrs, args):
+    """Check if the external ACL codegen for dense should be used."""
+    data_typ = args[0].checked_type
+    if data_typ.dtype != "float32":
+        return False
+    kernel_typ = args[1].checked_type
+    if len(kernel_typ.shape) != 2 or kernel_typ.dtype != "float32":
+        return False
+    if attrs.out_dtype != "float32" and attrs.out_dtype != "":
+        return False
+    return True
+
+
+def qnn_dense(attrs, args):
+    """Check if the external ACL codegen for qnn.dense should be used."""
+    data_typ = args[0].checked_type
+    if data_typ.dtype != "uint8":
+        return False
+    kernel_typ = args[1].checked_type
+    if len(kernel_typ.shape) != 2 or kernel_typ.dtype != "uint8":
+        return False
+    if attrs.out_dtype != "int32":
         return False
     return True
 
@@ -126,6 +242,6 @@ def max_pool2d(attrs, args):
     if attrs.layout != "NHWC":
         return False
     typ = args[0].checked_type
-    if typ.dtype != "float32":
+    if typ.dtype not in ["float32", "uint8"]:
         return False
     return True

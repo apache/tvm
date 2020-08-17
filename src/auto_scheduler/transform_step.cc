@@ -81,10 +81,18 @@ Step StepReadFromRecord(dmlc::JSONReader* reader) {
     return AnnotationStep(reader);
   } else if (name == FuseStepNode::record_prefix_str) {
     return FuseStep(reader);
+  } else if (name == PragmaStepNode::record_prefix_str) {
+    return PragmaStep(reader);
   } else if (name == ReorderStepNode::record_prefix_str) {
     return ReorderStep(reader);
   } else if (name == SplitStepNode::record_prefix_str) {
     return SplitStep(reader);
+  } else if (name == FollowSplitStepNode::record_prefix_str) {
+    return FollowSplitStep(reader);
+  } else if (name == FollowFusedSplitStepNode::record_prefix_str) {
+    return FollowFusedSplitStep(reader);
+  } else if (name == StorageAlignStepNode::record_prefix_str) {
+    return StorageAlignStep(reader);
   } else if (name == ComputeAtStepNode::record_prefix_str) {
     return ComputeAtStep(reader);
   } else if (name == ComputeInlineStepNode::record_prefix_str) {
@@ -95,6 +103,8 @@ Step StepReadFromRecord(dmlc::JSONReader* reader) {
     return CacheReadStep(reader);
   } else if (name == CacheWriteStepNode::record_prefix_str) {
     return CacheWriteStep(reader);
+  } else if (name == RfactorStepNode::record_prefix_str) {
+    return RfactorStep(reader);
   } else {
     LOG(FATAL) << "Invalid step format: " << name;
   }
@@ -107,9 +117,17 @@ void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag) {
     ps->ApplyToState(state);
   } else if (auto ps = step.as<FuseStepNode>()) {
     ps->ApplyToState(state);
+  } else if (auto ps = step.as<PragmaStepNode>()) {
+    ps->ApplyToState(state);
   } else if (auto ps = step.as<ReorderStepNode>()) {
     ps->ApplyToState(state);
   } else if (auto ps = step.as<SplitStepNode>()) {
+    ps->ApplyToState(state);
+  } else if (auto ps = step.as<FollowSplitStepNode>()) {
+    ps->ApplyToState(state);
+  } else if (auto ps = step.as<FollowFusedSplitStepNode>()) {
+    ps->ApplyToState(state);
+  } else if (auto ps = step.as<StorageAlignStepNode>()) {
     ps->ApplyToState(state);
   } else if (auto ps = step.as<ComputeAtStepNode>()) {
     ps->ApplyToState(state);
@@ -120,6 +138,8 @@ void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag) {
   } else if (auto ps = step.as<CacheReadStepNode>()) {
     ps->ApplyToState(state, dag);
   } else if (auto ps = step.as<CacheWriteStepNode>()) {
+    ps->ApplyToState(state, dag);
+  } else if (auto ps = step.as<RfactorStepNode>()) {
     ps->ApplyToState(state, dag);
   } else {
     LOG(FATAL) << "Invalid step: " << step;
@@ -127,14 +147,22 @@ void StepApplyToState(const Step& step, State* state, const ComputeDAG& dag) {
 }
 
 void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                         te::Schedule* schedule) {
+                         te::Schedule* schedule, const Array<Step>& transform_steps) {
   if (auto ps = step.as<AnnotationStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes);
   } else if (auto ps = step.as<FuseStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes);
+  } else if (auto ps = step.as<PragmaStepNode>()) {
+    ps->ApplyToSchedule(stages, stage_to_axes);
   } else if (auto ps = step.as<ReorderStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes);
   } else if (auto ps = step.as<SplitStepNode>()) {
+    ps->ApplyToSchedule(stages, stage_to_axes);
+  } else if (auto ps = step.as<FollowSplitStepNode>()) {
+    ps->ApplyToSchedule(stages, stage_to_axes, transform_steps);
+  } else if (auto ps = step.as<FollowFusedSplitStepNode>()) {
+    ps->ApplyToSchedule(stages, stage_to_axes, transform_steps);
+  } else if (auto ps = step.as<StorageAlignStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes);
   } else if (auto ps = step.as<ComputeAtStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes);
@@ -146,20 +174,31 @@ void StepApplyToSchedule(const Step& step, Array<te::Stage>* stages, StageToAxes
     ps->ApplyToSchedule(stages, stage_to_axes, schedule);
   } else if (auto ps = step.as<CacheWriteStepNode>()) {
     ps->ApplyToSchedule(stages, stage_to_axes, schedule);
+  } else if (auto ps = step.as<RfactorStepNode>()) {
+    ps->ApplyToSchedule(stages, stage_to_axes, schedule);
   } else {
     LOG(FATAL) << "Invalid Step: " << step;
   }
 }
 
 String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
-                            StageToAxesMap* stage_to_axes, te::Schedule* schedule) {
+                            StageToAxesMap* stage_to_axes, te::Schedule* schedule,
+                            const Array<Step>& transform_steps) {
   if (auto ps = step.as<AnnotationStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<FuseStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
+  } else if (auto ps = step.as<PragmaStepNode>()) {
+    return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<ReorderStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<SplitStepNode>()) {
+    return ps->PrintAsPythonAPI(stages, stage_to_axes);
+  } else if (auto ps = step.as<FollowSplitStepNode>()) {
+    return ps->PrintAsPythonAPI(stages, stage_to_axes, transform_steps);
+  } else if (auto ps = step.as<FollowFusedSplitStepNode>()) {
+    return ps->PrintAsPythonAPI(stages, stage_to_axes, transform_steps);
+  } else if (auto ps = step.as<StorageAlignStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
   } else if (auto ps = step.as<ComputeAtStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes);
@@ -170,6 +209,8 @@ String StepPrintAsPythonAPI(const Step& step, Array<te::Stage>* stages,
   } else if (auto ps = step.as<CacheReadStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes, schedule);
   } else if (auto ps = step.as<CacheWriteStepNode>()) {
+    return ps->PrintAsPythonAPI(stages, stage_to_axes, schedule);
+  } else if (auto ps = step.as<RfactorStepNode>()) {
     return ps->PrintAsPythonAPI(stages, stage_to_axes, schedule);
   } else {
     LOG(FATAL) << "Invalid Step: " << step;
@@ -468,6 +509,113 @@ String FuseStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
   ss << CleanName(fused->var->name_hint) << " = s[" << CleanName(stage->op->name) << "].fuse("
      << to_fuse.str() << ")\n";
 
+  return ss.str();
+}
+
+/********** Pragma **********/
+PragmaStep::PragmaStep(int stage_id, int iter_id, String pragma_type) {
+  auto node = make_object<PragmaStepNode>();
+  node->stage_id = stage_id;
+  node->iter_id = iter_id;
+  node->pragma_type = std::move(pragma_type);
+  data_ = std::move(node);
+}
+
+PragmaStep::PragmaStep(dmlc::JSONReader* reader) {
+  auto node = make_object<PragmaStepNode>();
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->stage_id);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->iter_id);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  std::string string_value;
+  reader->Read(&string_value);
+  node->pragma_type = std::move(string_value);
+  data_ = std::move(node);
+}
+
+void PragmaStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
+  writer->WriteArrayItem(iter_id);
+  writer->WriteArraySeperator();
+  writer->WriteString(pragma_type);
+}
+
+void PragmaStepNode::ApplyToState(State* state) const {
+  if (pragma_type == "debug_skip_region") {
+    StateNode* pstate = state->CopyOnWrite();
+    pstate->attach_map.DeleteStage(stage_id);
+  } else if (StrStartsWith(pragma_type, "auto_unroll_max_step")) {
+    StateNode* pstate = state->CopyOnWrite();
+    Stage stage = pstate->stages[stage_id];
+    size_t pos = 0;
+    for (; pos < pragma_type.size(); ++pos) {
+      if ((*(pragma_type.c_str() + pos)) == '$') {
+        break;
+      }
+    }
+    CHECK_LT(pos, pragma_type.size()) << "max step value not found.";
+    stage.CopyOnWrite()->attrs.auto_unroll_max_step = atoi(pragma_type.c_str() + pos + 1);
+    pstate->stages.Set(stage_id, std::move(stage));
+  } else {
+    LOG(FATAL) << "Unsupported pragma: " << pragma_type;
+  }
+}
+
+void PragmaStepNode::ApplyToSchedule(Array<te::Stage>* stages,
+                                     StageToAxesMap* stage_to_axes) const {
+  te::Stage stage = (*stages)[stage_id];
+  const Array<IterVar>& axes = (*stage_to_axes)[stage];
+  if (StrStartsWith(pragma_type, "auto_unroll_max_step")) {
+    size_t pos = 0;
+    for (; pos < pragma_type.size(); ++pos) {
+      if ((*(pragma_type.c_str() + pos)) == '$') {
+        break;
+      }
+    }
+    CHECK_LT(pos, pragma_type.size()) << "max step value not found.";
+    int value = atoi(pragma_type.c_str() + pos + 1);
+    stage.pragma(axes[iter_id], "auto_unroll_max_step", value);
+    stage.pragma(axes[iter_id], "unroll_explicit", true);
+  } else {
+    stage.pragma(axes[iter_id], pragma_type);
+  }
+  stages->Set(stage_id, std::move(stage));
+}
+
+String PragmaStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
+                                        StageToAxesMap* stage_to_axes) const {
+  std::stringstream ss;
+  const auto& stage = (*stages)[stage_id];
+
+  if (StrStartsWith(pragma_type, "auto_unroll_max_step")) {
+    size_t pos = 0;
+    for (; pos < pragma_type.size(); ++pos) {
+      if ((*(pragma_type.c_str() + pos)) == '$') {
+        break;
+      }
+    }
+    CHECK_LT(pos, pragma_type.size()) << "max step value not found.";
+    int value = atoi(pragma_type.c_str() + pos + 1);
+    ss << "s[" << CleanName(stage->op->name) << "].pragma("
+       << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint)
+       << ", \"auto_unroll_max_step\", " << value << ")\n";
+    ss << "s[" << CleanName(stage->op->name) << "].pragma("
+       << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint)
+       << ", \"unroll_explicit\", True)\n";
+  } else {
+    ss << "s[" << CleanName(stage->op->name) << "].pragma("
+       << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint) << ", \"" << pragma_type
+       << "\")\n";
+  }
+
+  ApplyToSchedule(stages, stage_to_axes);
   return ss.str();
 }
 
@@ -776,6 +924,254 @@ String SplitStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
   return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id, lengths, inner_to_outer);
 }
 
+/********** Follow Split **********/
+FollowSplitStep::FollowSplitStep(int stage_id, int iter_id, int src_step_id, int n_split) {
+  auto node = make_object<FollowSplitStepNode>();
+  node->stage_id = stage_id;
+  node->iter_id = iter_id;
+  node->src_step_id = src_step_id;
+  node->n_split = n_split;
+  data_ = std::move(node);
+}
+
+void FollowSplitStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
+  writer->WriteArrayItem(iter_id);
+  writer->WriteArrayItem(src_step_id);
+  writer->WriteArrayItem(n_split);
+}
+
+Array<Optional<Integer>> FollowSplitStepNode::ExtractSplitLengths(
+    const Array<Step>& transform_steps) const {
+  // Make sure src_step_id is within the range of transform_steps.
+  CHECK_LT(src_step_id, transform_steps.size());
+  auto ps = transform_steps[src_step_id].as<SplitStepNode>();
+  CHECK(ps != nullptr);
+
+  // Make sure the size of ps->lengths is not smaller than n_split-1.
+  // Note that the number of actual splitting factors of src_step is ps->lengths.size()+1.
+  CHECK_LE(n_split, ps->lengths.size() + 1);
+  CHECK(ps != nullptr);
+
+  Array<Optional<Integer>> lengths;
+  lengths.reserve(n_split);
+  int j = 0;
+  // Get the first (n_split-1) split factors of followed src_step.
+  for (; j < n_split - 1; ++j) {
+    lengths.push_back(ps->lengths[j]);
+  }
+
+  // Get the last split factor of src_step for splitting level if n_split is smaller than
+  // ps->lengths.size()+1.
+  PrimExpr last_factor = 1;
+  for (; j < static_cast<int>(ps->lengths.size()); ++j) {
+    if (ps->lengths[j]) {
+      last_factor *= ps->lengths[j].value();
+    } else {
+      last_factor = PrimExpr();
+      break;
+    }
+  }
+  if (last_factor.defined()) {
+    lengths.push_back(Downcast<Integer>(last_factor));
+  } else {
+    lengths.push_back(NullOpt);
+  }
+
+  return lengths;
+}
+
+FollowSplitStep::FollowSplitStep(dmlc::JSONReader* reader) {
+  auto node = make_object<FollowSplitStepNode>();
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->stage_id);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->iter_id);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->src_step_id);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->n_split);
+  data_ = std::move(node);
+}
+
+Array<Iterator> FollowSplitStepNode::ApplyToState(State* state) const {
+  return ApplySplitToState(state, stage_id, iter_id, ExtractSplitLengths((*state)->transform_steps),
+                           true);
+}
+
+Array<IterVar> FollowSplitStepNode::ApplyToSchedule(Array<te::Stage>* stages,
+                                                    StageToAxesMap* stage_to_axes,
+                                                    const Array<Step>& transform_steps) const {
+  return ApplySplitToSchedule(stages, stage_to_axes, stage_id, iter_id,
+                              ExtractSplitLengths(transform_steps), true);
+}
+
+String FollowSplitStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
+                                             StageToAxesMap* stage_to_axes,
+                                             const Array<Step>& transform_steps) const {
+  return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id,
+                               ExtractSplitLengths(transform_steps), true);
+}
+
+/********** Follow Fused Split **********/
+FollowFusedSplitStep::FollowFusedSplitStep(int stage_id, int iter_id,
+                                           const Array<Integer>& src_step_ids, int level,
+                                           bool factor_or_nparts) {
+  auto node = make_object<FollowFusedSplitStepNode>();
+  node->stage_id = stage_id;
+  node->iter_id = iter_id;
+  node->src_step_ids = src_step_ids;
+  node->level = level;
+  node->factor_or_nparts = factor_or_nparts;
+  data_ = std::move(node);
+}
+
+FollowFusedSplitStep::FollowFusedSplitStep(dmlc::JSONReader* reader) {
+  auto node = make_object<FollowFusedSplitStepNode>();
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->stage_id);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->iter_id);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  std::vector<int> int_list;
+  reader->Read(&int_list);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->level);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->factor_or_nparts);
+  ::tvm::Array<::tvm::Integer> src_step_ids;
+  for (const auto& i : int_list) {
+    src_step_ids.push_back(i);
+  }
+  node->src_step_ids = src_step_ids;
+  data_ = std::move(node);
+}
+
+void FollowFusedSplitStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
+  writer->WriteArrayItem(iter_id);
+  writer->WriteArrayItem(IntArrayToVector(src_step_ids));
+  writer->WriteArrayItem(level);
+  writer->WriteArrayItem(static_cast<int>(factor_or_nparts));
+}
+
+Optional<Integer> FollowFusedSplitStepNode::ExtractSplitLength(
+    const Array<Step>& transform_steps) const {
+  PrimExpr ret(1);
+
+  for (int src_step_id : src_step_ids) {
+    // Make sure the src_step_id is within the range of transform_steps.
+    CHECK_LT(src_step_id, transform_steps.size());
+    auto ps = transform_steps[src_step_id].as<SplitStepNode>();
+    CHECK(ps != nullptr);
+    // Multiple the splitting factor on corresponding splitting level of src_steps.
+    if (ps->lengths[level] && ret.defined()) {
+      ret *= ps->lengths[level].value();
+    } else {
+      return NullOpt;
+    }
+  }
+  return Downcast<Integer>(ret);
+}
+
+Array<Iterator> FollowFusedSplitStepNode::ApplyToState(State* state) const {
+  return ApplySplitToState(state, stage_id, iter_id,
+                           {ExtractSplitLength((*state)->transform_steps)}, factor_or_nparts);
+}
+
+Array<IterVar> FollowFusedSplitStepNode::ApplyToSchedule(Array<te::Stage>* stages,
+                                                         StageToAxesMap* stage_to_axes,
+                                                         const Array<Step>& transform_steps) const {
+  return ApplySplitToSchedule(stages, stage_to_axes, stage_id, iter_id,
+                              {ExtractSplitLength(transform_steps)}, factor_or_nparts);
+}
+
+String FollowFusedSplitStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
+                                                  StageToAxesMap* stage_to_axes,
+                                                  const Array<Step>& transform_steps) const {
+  return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id,
+                               {ExtractSplitLength(transform_steps)}, factor_or_nparts);
+}
+
+/********** Storage Align **********/
+StorageAlignStep::StorageAlignStep(int stage_id, int iter_id, int factor, int offset) {
+  auto node = make_object<StorageAlignStepNode>();
+  node->stage_id = stage_id;
+  node->iter_id = iter_id;
+  node->factor = factor;
+  node->offset = offset;
+  data_ = std::move(node);
+}
+
+StorageAlignStep::StorageAlignStep(dmlc::JSONReader* reader) {
+  auto node = make_object<StorageAlignStepNode>();
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->stage_id);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->iter_id);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->factor);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->offset);
+  data_ = std::move(node);
+}
+
+void StorageAlignStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
+  writer->WriteArrayItem(iter_id);
+  writer->WriteArrayItem(factor);
+  writer->WriteArrayItem(offset);
+}
+
+void StorageAlignStepNode::ApplyToState(State* state) const {
+  StateNode* pstate = state->CopyOnWrite();
+  Stage stage = pstate->stages[stage_id];
+  stage.CopyOnWrite()->attrs.storage_offset = offset;
+  pstate->stages.Set(stage_id, std::move(stage));
+}
+
+void StorageAlignStepNode::ApplyToSchedule(Array<te::Stage>* stages,
+                                           StageToAxesMap* stage_to_axes) const {
+  te::Stage stage = (*stages)[stage_id];
+  const Array<IterVar>& axes = (*stage_to_axes)[stage];
+  stage.storage_align(axes[iter_id], factor, offset);
+  stages->Set(stage_id, std::move(stage));
+}
+
+String StorageAlignStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
+                                              StageToAxesMap* stage_to_axes) const {
+  std::stringstream ss;
+  const auto& stage = (*stages)[stage_id];
+  ss << "s[" << CleanName(stage->op->name) << "].storage_align("
+     << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint) << ", " << factor << ", "
+     << offset << ")\n";
+
+  ApplyToSchedule(stages, stage_to_axes);
+  return ss.str();
+}
+
 /********** Steps working on multiple stages **********/
 
 /********** Compute At **********/
@@ -958,7 +1354,7 @@ String ComputeRootStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
   return ss.str();
 }
 
-/********** Primitives adding new stages **********/
+/********** Steps adding new stages **********/
 
 /*!
  * \brief Common part for steps that add new stages(e.g. CacheReadStep, CacheWriteStep,
@@ -967,11 +1363,27 @@ String ComputeRootStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
  */
 Array<Step> GetFormerStageModifiableSteps(Step current_step, const Array<Step>& transform_steps) {
   Array<Step> ret_steps;
-  for (const Step& step : transform_steps) {
+  for (size_t i = 0; i < transform_steps.size(); ++i) {
+    const Step& step = transform_steps[i];
     if (step->IsInstance<CacheWriteStepNode>() || step->IsInstance<CacheReadStepNode>()) {
       ret_steps.push_back(step);
+    } else if (step->IsInstance<RfactorStepNode>()) {
+      // add FuseStepNode required by rfactor
+      if (i >= 2 && transform_steps[i - 2]->IsInstance<FuseStepNode>()) {
+        const Step& fuse_step = transform_steps[i - 2];
+        if (fuse_step->stage_id == step->stage_id) {
+          ret_steps.push_back(fuse_step);
+        }
+      }
+      // add SplitStepNode required by rfactor
+      CHECK_GE(i, 1);
+      CHECK(transform_steps[i - 1]->IsInstance<SplitStepNode>());
+      const Step& split_step = transform_steps[i - 1];
+      CHECK_EQ(split_step->stage_id, step->stage_id);
+      ret_steps.push_back(split_step);
+      // add RfactorStepNode
+      ret_steps.push_back(step);
     }
-    // TODO(jcf94): add rfactor support
     // A state may have multiple stage modifiable steps, stop by the current step to avoid
     // replaying excess steps
     if (step.same_as(current_step)) {
@@ -1224,6 +1636,131 @@ String CacheWriteStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxe
        << " + "
        << "tuple(" << CleanName(out->op->name) << ".op.reduce_axis)\n";
   }
+
+  return ss.str();
+}
+
+/********** Rfactor **********/
+RfactorStep::RfactorStep(int stage_id, int iter_id, int factor_iter_id) {
+  auto node = make_object<RfactorStepNode>();
+  node->stage_id = stage_id;
+  node->iter_id = iter_id;
+  node->factor_iter_id = factor_iter_id;
+  data_ = std::move(node);
+}
+
+RfactorStep::RfactorStep(dmlc::JSONReader* reader) {
+  auto node = make_object<RfactorStepNode>();
+  bool s;
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->stage_id);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->iter_id);
+  s = reader->NextArrayItem();
+  CHECK(s);
+  reader->Read(&node->factor_iter_id);
+  data_ = std::move(node);
+}
+
+void RfactorStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
+  writer->WriteArraySeperator();
+  writer->WriteString(record_prefix_str);
+  writer->WriteArrayItem(stage_id);
+  writer->WriteArrayItem(iter_id);
+  writer->WriteArrayItem(factor_iter_id);
+}
+
+int RfactorStepNode::ApplyToState(State* state, const ComputeDAG& dag) const {
+  StateNode* pstate = state->CopyOnWrite();
+  const auto& compute_at_type = pstate->stages[stage_id]->compute_at;
+  const ComputeDAG& current_compute_dag = dag.ReplayAndGetDAG(
+      GetFormerStageModifiableSteps(GetRef<Step>(this), (*state)->transform_steps));
+
+  // target_stage -> rfactor_compute + target_stage
+  // Insert a new compute stage, update the target stage and later stage, then update the stage_id
+  // mapping in AttachMap
+  pstate->stages.insert(pstate->stages.begin() + stage_id,
+                        Stage(current_compute_dag->ops[stage_id]));
+  // Maintain the compute_at type of the target stage
+  Stage target_stage = Stage(current_compute_dag->ops[stage_id + 1]);
+  target_stage.CopyOnWrite()->compute_at = compute_at_type;
+  pstate->stages.Set(stage_id + 1, std::move(target_stage));
+  for (size_t i = stage_id + 2; i < pstate->stages.size(); ++i) {
+    Stage stage = pstate->stages[i];
+    stage.CopyOnWrite()->op = current_compute_dag->ops[i];
+    pstate->stages.Set(i, std::move(stage));
+  }
+  pstate->attach_map = pstate->attach_map.ApplyStageIdOffset(stage_id);
+  pstate->current_compute_dag = std::move(current_compute_dag);
+
+  return stage_id;
+}
+
+Array<te::Tensor> RfactorStepNode::ApplyToSchedule(Array<te::Stage>* stages,
+                                                   StageToAxesMap* stage_to_axes,
+                                                   te::Schedule* schedule) const {
+  const auto& stage = (*stages)[stage_id];
+  const Array<IterVar>& axes = (*stage_to_axes)[stage];
+
+  const te::Tensor& tensor = stage->origin_op.output(0);
+  const IterVar& axis = axes[iter_id];
+  auto outs = schedule->rfactor(tensor, axis, factor_iter_id);
+
+  UpdateStageToAxesMap(stage, stage_to_axes);
+  const auto& new_stage = (*schedule)[outs[0]->op];
+  UpdateStageToAxesMap(new_stage, stage_to_axes);
+  stages->insert(stages->begin() + stage_id, new_stage);
+
+  return outs;
+}
+
+String RfactorStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                                         te::Schedule* schedule) const {
+  std::stringstream ss;
+  const auto& stage = (*stages)[stage_id];
+
+  const auto& tensor_name = CleanName(stage->origin_op.output(0)->op->name);
+  const auto& axis_name = CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint);
+
+  const auto& outs = ApplyToSchedule(stages, stage_to_axes, schedule);
+
+  for (size_t i = 0; i < outs.size(); ++i) {
+    ss << CleanName(outs[i]->op->name);
+    if (i != outs.size() - 1) {
+      ss << ", ";
+    }
+  }
+  ss << " = "
+     << "s.rfactor(" << tensor_name << ", " << axis_name << ", " << factor_iter_id << ")\n";
+
+  for (const auto& out : outs) {
+    const auto& iters = out->op->root_iter_vars();
+    for (size_t i = 0; i < iters.size(); ++i) {
+      ss << CleanName(iters[i]->var->name_hint);
+      if (i != iters.size() - 1) {
+        ss << ", ";
+      }
+    }
+    ss << " = "
+       << "tuple(" << CleanName(out->op->name) << ".op.axis)"
+       << " + "
+       << "tuple(" << CleanName(out->op->name) << ".op.reduce_axis)\n";
+  }
+
+  const auto& output = (*stages)[stage_id + 1]->op.output(0);
+  const auto& iters = output->op->root_iter_vars();
+  for (size_t i = 0; i < iters.size(); ++i) {
+    ss << CleanName(iters[i]->var->name_hint);
+    if (i != iters.size() - 1) {
+      ss << ", ";
+    }
+  }
+  ss << " = "
+     << "tuple(s[" << CleanName(output->op->name) << "].op.axis)"
+     << " + "
+     << "tuple(s[" << CleanName(output->op->name) << "].op.reduce_axis)\n";
 
   return ss.str();
 }

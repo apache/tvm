@@ -62,20 +62,14 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   }
 
   /// Verification result
-  bool Failed() const { return failure_; }
+  std::vector<String> Errors() const { return errs_; }
 
  protected:
   /// Visitor implementation
   //@{
-  void VisitExpr(const PrimExpr& n) final {
-    if (Failed()) return;
-    StmtExprVisitor::VisitExpr(n);
-  }
+  void VisitExpr(const PrimExpr& n) final { StmtExprVisitor::VisitExpr(n); }
 
-  void VisitStmt(const Stmt& n) final {
-    if (Failed()) return;
-    StmtExprVisitor::VisitStmt(n);
-  }
+  void VisitStmt(const Stmt& n) final { StmtExprVisitor::VisitStmt(n); }
 
   void VisitStmt_(const LetStmtNode* op) final {
     // Book keep definitions
@@ -139,7 +133,11 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
     if (!IsFromFunctionArgs(var.get())) return;
 
     // The verification fails in this case.
-    SetFailure();
+    std::stringstream s;
+    s << "Variable `" << var
+      << "` is directly accessed by host memory (it is not contained in a thread environment or in "
+         "the function arguments.";
+    errs_.push_back(s.str());
   }
 
   /// Status getter/setter
@@ -147,7 +145,6 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   bool InThreadEnv() const { return in_thread_env_; }
   void EnterThreadEnv() { in_thread_env_ = true; }
   void ExitThreadEnv() { in_thread_env_ = false; }
-  void SetFailure() { failure_ = true; }
   //@}
 
   /// Check if a given DLDeviceType/TVMDeviceExtType value denotes GPU device.
@@ -162,7 +159,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   /// Status of visitor
   //@{
   bool in_thread_env_{false};
-  bool failure_{false};  ///< If the verification fails (i.e. has illegal access)
+  std::vector<String> errs_;
   //@}
   tir::PrimFunc func_{nullptr};                        ///< Function to be verified.
   int dev_type_{kDLCPU};                               ///< Device type
@@ -171,38 +168,45 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 }  // namespace
 
 /// Interface of VerifyMemory pass
-bool VerifyMemory(const PrimFunc& func) {
+std::vector<String> VerifyMemory_(const PrimFunc& func) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   CHECK(target.defined()) << "LowerWarpMemory: Require the target attribute";
 
   if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
       CallingConv::kDefault) {
-    MemoryAccessVerifier v(func, target.value()->id->device_type);
+    MemoryAccessVerifier v(func, target.value()->kind->device_type);
     v.Run();
-    return !v.Failed();
+    return v.Errors();
   } else {
-    return true;
+    return {};
   }
 }
+
+bool VerifyMemory(const PrimFunc& func) { return VerifyMemory_(func).size() == 0; }
 
 TVM_REGISTER_GLOBAL("tir.analysis.verify_memory").set_body_typed(VerifyMemory);
 
 namespace transform {
 
 Pass VerifyMemory() {
-  auto pass_func =
-      [=](IRModule mod, PassContext ctx) {
-        for (auto kv : mod->functions) {
-          if (auto* n = kv.second.as<PrimFuncNode>()) {
-            auto func = GetRef<PrimFunc>(n);
-            CHECK(VerifyMemory(func))
-                << "RuntimeError: Direct host side access to device memory is detected."
-                << " Did you forget to bind?\n"
-                << func;
+  auto pass_func = [=](IRModule mod, PassContext ctx) {
+    for (auto kv : mod->functions) {
+      if (auto* n = kv.second.as<PrimFuncNode>()) {
+        auto func = GetRef<PrimFunc>(n);
+        auto errs = VerifyMemory_(func);
+        if (errs.size() > 0) {
+          std::stringstream s;
+          for (auto& err : errs) {
+            s << "    " << err << "\n";
           }
+          LOG(FATAL) << "RuntimeError: Memory verification failed with the following errors:\n"
+                     << s.str() << "  Did you forget to bind?\n"
+                     << func;
         }
-        return mod;
-      };
+      }
+    }
+    return mod;
+  };
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifyMemory", {});
 }
 

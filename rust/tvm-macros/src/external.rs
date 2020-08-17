@@ -51,7 +51,12 @@ impl Parse for External {
         assert!(method.semi_token != None);
         let ident = sig.ident;
         let generics = sig.generics;
-        let inputs = sig.inputs.iter().map(|param| param.clone()).collect();
+        let inputs = sig
+            .inputs
+            .iter()
+            .cloned()
+            .map(|param| param.clone())
+            .collect();
         let ret_type = sig.output;
 
         Ok(External {

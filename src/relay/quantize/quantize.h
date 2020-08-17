@@ -74,6 +74,7 @@ class QConfigNode : public Object {
   Array<Expr> debug_enabled_ops = Array<Expr>(ObjectPtr<Object>(nullptr));
   std::string rounding = "UPWARD";
   int calibrate_chunk_by = -1;
+  std::string partition_conversions = "disabled";
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("nbit_input", &nbit_input);
@@ -92,6 +93,7 @@ class QConfigNode : public Object {
     v->Visit("debug_enabled_ops", &debug_enabled_ops);
     v->Visit("rounding", &rounding);
     v->Visit("calibrate_chunk_by", &calibrate_chunk_by);
+    v->Visit("partition_conversions", &partition_conversions);
   }
 
   static constexpr const char* _type_key = "relay.quantize.QConfig";
