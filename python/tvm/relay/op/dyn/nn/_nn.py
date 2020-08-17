@@ -67,4 +67,5 @@ def upsampling_shape_func(attrs, inputs, _):
         if letter == "C":
             channel_axis = i
     return [_upsampling_shape_func(inputs[0].shape, inputs[1], inputs[2],
-                                   convert(height_axis), convert(width_axis), convert(channel_axis))]
+                                   convert(height_axis), convert(width_axis),
+                                   convert(channel_axis))]
