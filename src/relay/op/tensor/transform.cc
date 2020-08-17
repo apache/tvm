@@ -2397,7 +2397,7 @@ Array<te::Tensor> SplitCompute(const Attrs& attrs, const Array<te::Tensor>& inpu
     int64_t num_sections = sections->value;
     return Array<te::Tensor>{topi::split_sections(inputs[0], num_sections, param->axis)};
   } else {
-    auto indices = Downcast<Array<Integer>>(param->indices_or_sections);
+    auto indices = Downcast<Array<PrimExpr>>(param->indices_or_sections);
     return Array<te::Tensor>{topi::split(inputs[0], indices, param->axis)};
   }
 }
