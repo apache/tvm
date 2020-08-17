@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "posit/posit.hpp"
+// must go after posit.hpp
 #include "posit/math/exponent.hpp"
 #include "posit/math/hyperbolic.hpp"
 #include "posit/math/logarithm.hpp"
