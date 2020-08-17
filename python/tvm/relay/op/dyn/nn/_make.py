@@ -17,4 +17,4 @@
 """Constructor APIs"""
 import tvm._ffi
 
-tvm._ffi._init_api("relay.op.nn.dyn._make", __name__)
+tvm._ffi._init_api("relay.op.dyn.nn._make", __name__)

@@ -105,13 +105,13 @@ Array<te::Tensor> PadCompute(const Attrs& attrs, const Array<te::Tensor>& inputs
 Expr MakePad(Expr data, Expr pad_width, Expr pad_value, String pad_mode) {
   auto attrs = make_object<PadAttrs>();
   attrs->pad_mode = std::move(pad_mode);
-  static const Op& op = Op::Get("nn.dyn.pad");
+  static const Op& op = Op::Get("dyn.nn.pad");
   return Call(op, {data, pad_width, pad_value}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn.dyn._make.pad").set_body_typed(MakePad);
+TVM_REGISTER_GLOBAL("relay.op.dyn.nn._make.pad").set_body_typed(MakePad);
 
-RELAY_REGISTER_OP("nn.dyn.pad")
+RELAY_REGISTER_OP("dyn.nn.pad")
     .describe(R"code(Pad for n-D tensor.
 
 )code" TVM_ADD_FILELINE)
