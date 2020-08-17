@@ -22,7 +22,7 @@
  * \brief upsampling operator
  */
 
-#include "../nn/upsampling.h"
+#include "../../nn/upsampling.h"
 
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
