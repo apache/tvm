@@ -55,6 +55,7 @@ We do encourage everyone to work anything they are interested in.
 - [Masahiro Masuda](https://github.com/masahi) (PPMC): @masahi - topi, relay
 - [Thierry Moreau](https://github.com/tmoreau89) (PPMC): @tmoreau89 - vta
 - [Kazutaka Morita](https://github.com/kazum): @kazum - frontends, opencl
+- [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic - hexagon, llvm
 - [Jared Roesch](https://github.com/jroesch) (PPMC): @jroesch - relay
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
