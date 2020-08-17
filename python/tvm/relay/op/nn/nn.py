@@ -1172,12 +1172,6 @@ def upsampling(data,
     result : tvm.relay.Expr
         The computed result.
     """
-    if isinstance(scale_h, Expr) or isinstance(scale_w, Expr):
-        if not isinstance(scale_h, Expr):
-            scale_h = const(scale_h, "float64")
-        if not isinstance(scale_w, Expr):
-            scale_w = const(scale_w, "float64")
-        return _dyn_make.upsampling(data, scale_h, scale_w, layout, method, align_corners)
     return _make.upsampling(data, scale_h, scale_w, layout, method, align_corners)
 
 
@@ -1449,8 +1443,7 @@ def pad(data,
         if not isinstance(pad_value, Expr):
             pad_value = const(pad_value)
         return _dyn_make.pad(data, pad_width, pad_value, pad_mode)
-    else:
-        return _make.pad(data, pad_width, pad_value, pad_mode)
+    return _make.pad(data, pad_width, pad_value, pad_mode)
 
 
 def dilate(data, strides):
