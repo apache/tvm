@@ -155,6 +155,13 @@ inline tvm::te::Tensor pad(const tvm::te::Tensor& t, const tvm::Array<tvm::PrimE
                            PrimExpr pad_value = PrimExpr(), std::string name = "T_pad",
                            std::string tag = kElementWise, std::string pad_mode = "constant",
                            const Array<PrimExpr>* dyn_output_shape = nullptr) {
+
+  if (pad_after.size() < pad_before.size()) {
+     for (size_t i = pad_after.size(); i < pad_before.size(); ++i) {
+       pad_after.push_back(pad_before[i]);
+     }
+   }
+
   arith::Analyzer analyzer;
   CHECK_GE(pad_before.size(), 1);
   CHECK_EQ(pad_before.size(), pad_after.size());
