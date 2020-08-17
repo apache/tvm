@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 # This script provides
 #   - GIT_FOUND - true if the command line client was found
 #   - GIT_EXECUTABLE - path to git command line client
-#   - TVM_GIT_COMMIT_HASH
+#   - TVM_GIT_COMMIT_HASH - The git commit hash found, or "NOT-FOUND" if anything went wrong
 find_package(Git QUIET)
 if (${GIT_FOUND})
   message(STATUS "Git found: ${GIT_EXECUTABLE}")
