@@ -46,40 +46,25 @@ register_injective_schedule("dyn.nn.upsampling")
 
 # upsampling
 @script
-def _upsampling_nhwc_shape_func(dshape, scale_h, scale_w, ndim):
-    out = output_tensor((ndim,), "int64")
-    batch_size = dshape[0]
-    in_height = dshape[1]
-    in_width = dshape[2]
-    channels = dshape[3]
-    out[0] = int64(batch_size)
-    out[1] = int64(round(in_height * scale_h[0]))
-    out[2] = int64(round(in_width * scale_w[0]))
-    out[3] = int64(channels)
-    return out
-
-@script
-def _upsampling_nchw_shape_func(dshape, scale_h, scale_w, ndim):
-    out = output_tensor((ndim,), "int64")
-    batch_size = dshape[0]
-    channels = dshape[1]
-    in_height = dshape[2]
-    in_width = dshape[3]
-    out[0] = int64(batch_size)
-    out[1] = int64(channels)
-    out[2] = int64(round(in_height * scale_h[0]))
-    out[3] = int64(round(in_width * scale_w[0]))
+def _upsampling_shape_func(dshape, scale_h, scale_w, height_axis, width_axis, channel_axis):
+    out = output_tensor((4,), "int64")
+    out[0] = int64(dshape[0])
+    out[height_axis] = int64(round(dshape[height_axis] * scale_h[0]))
+    out[width_axis] = int64(round(dshape[width_axis] * scale_w[0]))
+    out[channel_axis] = int64(dshape[channel_axis])
     return out
 
 @register_shape_func("dyn.nn.upsampling", True)
 def upsampling_shape_func(attrs, inputs, _):
     """Shape function for upsampling. Supports NCHW and NHWC layouts."""
-    if attrs.layout == "NHWC":
-        shape_func = _upsampling_nhwc_shape_func(inputs[0].shape, inputs[1], inputs[2],
-                                                 convert(len(inputs[0].shape)))
-    elif attrs.layout == "NCHW":
-        shape_func = _upsampling_nchw_shape_func(inputs[0].shape, inputs[1], inputs[2],
-                                                 convert(len(inputs[0].shape)))
-    else:
-        assert false, "Layout passed to the upsampling shape func must be NCHW or NHWC"
-    return [shape_func]
+    layout = attrs.layout
+    height_axis = width_axis = 1
+    for i, letter in enumerate(layout):
+        if letter == "H":
+            height_axis = i
+        if letter == "W":
+            width_axis = i
+        if letter == "C":
+            channel_axis = i
+    return [_upsampling_shape_func(inputs[0].shape, inputs[1], inputs[2],
+                                   convert(height_axis), convert(width_axis), convert(channel_axis))]
