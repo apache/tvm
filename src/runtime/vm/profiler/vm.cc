@@ -106,10 +106,17 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
                                        Index output_size, const std::vector<ObjectRef>& args) {
   CHECK(exec_);
   CHECK(!ctxs_.empty()) << "Context has not been initialized yet.";
-  // TODO(@zhiics) Need to record the device type of each packed func so that
-  // we can correctly sync.
-  Index fallback_device_type = static_cast<Index>(ctxs_[0].device_type);
-  auto ctx = this->GetContext(fallback_device_type);
+  // The device context of any input of the operator is used for
+  // synchronization.
+  CHECK_GT(arg_count, 0U);
+  ObjectRef arg = args[0];
+  while (arg->IsInstance<ADTObj>()) {
+    ADT adt = Downcast<ADT>(arg);
+    arg = adt[0];
+  }
+  CHECK(arg->IsInstance<NDArray::ContainerType>());
+  auto nd_array = Downcast<NDArray>(arg);
+  auto ctx = nd_array->ctx;
 
   TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
 
