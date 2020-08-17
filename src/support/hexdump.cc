@@ -28,7 +28,7 @@
 namespace tvm {
 namespace support {
 
-void hexdump(const std::string& s, std::ostream& os) {
+void HexDump(const std::string& s, std::ostream& os) {
   os << std::hex << std::setfill('0') << std::right;
 
   int addr_width = 4;

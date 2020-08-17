@@ -32,11 +32,16 @@
 namespace tvm {
 namespace support {
 
-void hexdump(const std::string& s, std::ostream& os);
+/*! \brief generate a hexdump of some binary data.
+ * \param s Binary data to print.
+ * \param os stream that receives the hexdump.
+ */
+void HexDump(const std::string& s, std::ostream& os);
 
-inline std::string hexdump(const std::string& s) {
+/*! \brief return a string containing a hexdump of the data in s */
+inline std::string HexDump(const std::string& s) {
   std::stringstream ss;
-  hexdump(s, ss);
+  HexDump(s, ss);
   return ss.str();
 }
 
