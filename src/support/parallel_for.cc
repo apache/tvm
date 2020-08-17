@@ -68,11 +68,11 @@ void parallel_for(int begin, int end, const std::function<void(int)>& f, int ste
     threads.emplace_back(std::move(task), run_partition, f);
   }
 
-  for (auto& thread : threads) {
+  for (auto&& thread : threads) {
     thread.join();
   }
   try {
-    for (auto& i : res_vec) {
+    for (auto&& i : res_vec) {
       i.get();
     }
   } catch (const std::exception& e) {
