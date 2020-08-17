@@ -152,7 +152,7 @@ set(USE_MKLDNN OFF)
 set(USE_OPENMP none)
 
 # Whether use contrib.random in runtime
-set(USE_RANDOM OFF)
+set(USE_RANDOM ON)
 
 # Whether use NNPack
 set(USE_NNPACK OFF)
