@@ -1006,23 +1006,23 @@ transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
   // Manifest the allocations needed for the shape functions.
   pass_seqs.push_back(transform::ManifestAlloc(host_target, targets));
 
-  // // Fuse the shape functions.
-  // pass_seqs.push_back(transform::FuseOps());
+  // Fuse the shape functions.
+  pass_seqs.push_back(transform::FuseOps());
 
-  // // Perform memory planning in order to coalesce/reduce allocations.
-  // pass_seqs.push_back(transform::MemoryPlan());
+  // Perform memory planning in order to coalesce/reduce allocations.
+  pass_seqs.push_back(transform::MemoryPlan());
 
-  // // Compute away constant computation introduced by coalescing allocations.
-  // pass_seqs.push_back(transform::FoldConstant());
+  // Compute away constant computation introduced by coalescing allocations.
+  pass_seqs.push_back(transform::FoldConstant());
 
-  // // Fuse the shape functions.
-  // pass_seqs.push_back(transform::FuseOps());
+  // Fuse the shape functions.
+  pass_seqs.push_back(transform::FuseOps());
 
-  // // Create allocations for math introduced by dynamic region math.
-  // pass_seqs.push_back(transform::ManifestAlloc(host_target, targets));
+  // Create allocations for math introduced by dynamic region math.
+  pass_seqs.push_back(transform::ManifestAlloc(host_target, targets));
 
-  // // Compute away possibly introduced constant computation.
-  // pass_seqs.push_back(transform::FoldConstant());
+  // Compute away possibly introduced constant computation.
+  pass_seqs.push_back(transform::FoldConstant());
 
   // Lift constants to the top-level of the block to simplify VM code generation.
   // TODO(@icemelon9, @jroesch): Remove this pass for now because some

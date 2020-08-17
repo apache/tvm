@@ -294,7 +294,7 @@ class ContextAnalysis(ExprVisitor):
         ----
         For most call nodes, the op, inputs, and outputs should all be in the
         same domain, i.e. having the same context. However, device_copy call node
-        needs to be handled different as it copies data from one device to
+        needs to be handled differently as it copies data from one device to
         another.
         """
         device = device if device else bottom()
