@@ -19,12 +19,9 @@
 
 from __future__ import absolute_import
 
-from tvm import topi
-
-from tvm.runtime import convert
 from tvm.te.hybrid import script
-from ...op import register_shape_func, register_compute
-from ...op import register_injective_schedule, register_broadcast_schedule
+from ...op import register_shape_func
+from ...op import register_broadcast_schedule
 
 # pad
 register_broadcast_schedule("dyn.nn.pad")
