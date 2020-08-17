@@ -16,9 +16,14 @@
 # under the License.
 
 # This script provides
-#   - GIT_FOUND - true if the command line client was found
+#   - add_lib_info - A function to add definition flags to a specific file
 
 function(add_lib_info src_file)
+  if (NOT DEFINED TVM_INFO_LLVM_VERSION)
+    set(TVM_INFO_LLVM_VERSION "NOT-FOUND")
+  else()
+    string(STRIP ${TVM_INFO_LLVM_VERSION} TVM_INFO_LLVM_VERSION)
+  endif()
   set_property(
     SOURCE ${src_file}
     APPEND
@@ -35,6 +40,7 @@ function(add_lib_info src_file)
     TVM_INFO_USE_RPC="${USE_RPC}"
     TVM_INFO_USE_THREADS="${USE_THREADS}"
     TVM_INFO_USE_LLVM="${USE_LLVM}"
+    TVM_INFO_LLVM_VERSION="${TVM_INFO_LLVM_VERSION}"
     TVM_INFO_USE_STACKVM_RUNTIME="${USE_STACKVM_RUNTIME}"
     TVM_INFO_USE_GRAPH_RUNTIME="${USE_GRAPH_RUNTIME}"
     TVM_INFO_USE_GRAPH_RUNTIME_DEBUG="${USE_GRAPH_RUNTIME_DEBUG}"
