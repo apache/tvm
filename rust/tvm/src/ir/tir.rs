@@ -44,7 +44,10 @@ macro_rules! define_node {
         impl From<$name> for PrimExpr {
             // TODO(@jroesch): Remove we with subtyping traits.
             fn from(x: $name) -> PrimExpr {
-                unsafe { PrimExpr(std::mem::transmute(x.0)) }
+                x.downcast().expect(concat!(
+                    "Failed to downcast `",
+                    stringify!($name),
+                    "` to PrimExpr"))
             }
         }
     }
