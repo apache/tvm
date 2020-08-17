@@ -45,7 +45,6 @@ hexagon_link_master = os.path.join(                                 # pylint: di
 
 def register_linker(f):
     """Register a function that will return the path to the Hexagon linker."""
-    # register_func(name, func, override)
     return register_func('tvm.contrib.hexagon.hexagon_link', f, True)
 
 @register_func('tvm.contrib.hexagon.hexagon_link')
