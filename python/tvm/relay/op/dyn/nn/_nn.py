@@ -27,7 +27,7 @@ from ...op import register_shape_func, register_compute
 from ...op import register_injective_schedule
 
 # upsampling
-@register_compute("nn.dyn.upsampling")
+@register_compute("dyn.nn.upsampling")
 def compute_upsampling(attrs, inputs, out_dtype):
     data = inputs[0]
     scale_h = inputs[1]
@@ -38,7 +38,7 @@ def compute_upsampling(attrs, inputs, out_dtype):
     return [topi.nn.upsampling(data, scale_h, scale_w, layout,
                                method, align_corners, out_dtype.shape)]
 
-register_injective_schedule("nn.dyn.upsampling")
+register_injective_schedule("dyn.nn.upsampling")
 
 #####################
 #  Shape functions  #
@@ -71,7 +71,7 @@ def _upsampling_nchw_shape_func(dshape, scale_h, scale_w, ndim):
     out[3] = int64(round(in_width * scale_w[0]))
     return out
 
-@register_shape_func("nn.dyn.upsampling", True)
+@register_shape_func("dyn.nn.upsampling", True)
 def upsampling_shape_func(attrs, inputs, _):
     """Shape function for upsampling. Supports NCHW and NHWC layouts."""
     if attrs.layout == "NHWC":

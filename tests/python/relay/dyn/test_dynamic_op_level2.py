@@ -65,7 +65,7 @@ def test_dyn_upsampling_run():
     verify_upsampling((1, 16, 32, 32), 2.0, 2.0,"NHWC", "bilinear", True)
 
 #tests upsampling type inference with scale_h passed in as a constant and scale_w as a variable
-def test_upsampling_infer_type_const():
+def test_dyn_upsampling_infer_type_const():
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
 
     data = relay.var("data", relay.TensorType((n, c, h, w), "int8"))
@@ -77,6 +77,5 @@ def test_upsampling_infer_type_const():
     assert zz.checked_type == relay.TensorType((n, c, relay.Any(), relay.Any()), "int8")
 
 if __name__ == "__main__":
-    test_upsampling_infer_type()
-    test_upsampling_infer_type_const()
+    test_dyn_upsampling_infer_type_const()
     test_dyn_upsampling_run()

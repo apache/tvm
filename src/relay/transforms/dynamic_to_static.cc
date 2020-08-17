@@ -124,7 +124,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
            }
            return Expr(nullptr);
          }},
-        {Op::Get("nn.dyn.upsampling"),
+        {Op::Get("dyn.nn.upsampling"),
          [](const CallNode* call_node) {
            const ConstantNode* scale_h = call_node->args[1].as<ConstantNode>();
            const ConstantNode* scale_w = call_node->args[2].as<ConstantNode>();

@@ -81,13 +81,13 @@ Expr MakeUpSampling(Expr data, Expr scale_h, Expr scale_w, String layout, String
   attrs->method = std::move(method);
   attrs->align_corners = align_corners;
 
-  static const Op& op = Op::Get("nn.dyn.upsampling");
+  static const Op& op = Op::Get("dyn.nn.upsampling");
   return Call(op, {data, scale_h, scale_w}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn.dyn._make.upsampling").set_body_typed(MakeUpSampling);
+TVM_REGISTER_GLOBAL("relay.op.dyn.nn._make.upsampling").set_body_typed(MakeUpSampling);
 
-RELAY_REGISTER_OP("nn.dyn.upsampling")
+RELAY_REGISTER_OP("dyn.nn.upsampling")
     .describe(
         R"code(Perform upsampling on input array with nearest neighbour or bilinear interpolation.
 
