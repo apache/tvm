@@ -43,25 +43,26 @@ using PartitionerFuncType = std::function<std::vector<std::vector<int>>(int, int
  * \return A list with `num_threads` elements, and each is a list of integers indicating the loop
  * indexes for the corresponding thread to process.
  */
-std::vector<std::vector<int>> rr_partitioner(int begin, int end, int step, int num_threads);
+TVM_DLL std::vector<std::vector<int>> rr_partitioner(int begin, int end, int step, int num_threads);
 
 /*!
  * \brief A runtime api provided to run the task function in parallel.
  * e.g. A for loop:
  *   for (int i = 0; i < 10; i++) {
- *     std::cout << index << "\n";
+ *     a[i] = i;
  *   }
  * should work the same as:
- *   parallel_for(0, 10, [](int index) {
- *     std::cout << index << "\n";
+ *   parallel_for(0, 10, [&a](int index) {
+ *     a[i] = i;
  *   });
  * \param begin The start index of this parallel loop(inclusive).
  * \param end The end index of this parallel loop(exclusive).
  * \param f The task function to be excuted. Assert to take an int index as input with no output.
  * \param step The traversal step to the index.
  * \param partitioner A partition function to split tasks to different threads. Use Round-robin
- * partitioner in default.
- * \note Currently do not support nested parallel_for.
+ * partitioner by default.
+ * \note 1. Currently do not support nested parallel_for; 2. The order of execution in each thread
+ * is not guaranteed, the for loop task should be thread independent and thread safe.
  */
 TVM_DLL void parallel_for(int begin, int end, const std::function<void(int)>& f, int step = 1,
                           const PartitionerFuncType partitioner = rr_partitioner);

@@ -37,9 +37,12 @@ std::vector<std::vector<int>> rr_partitioner(int begin, int end, int step, int n
   int total_task_count = (end - begin) / step;
   CHECK_GT(total_task_count, 0) << "Infinite loop condition, check the input value of "
                                 << "`begin`, `end`, `step`.";
-
-  std::vector<std::vector<int>> ret(num_threads);
-  for (int thread = 0; begin < end; begin += step, thread = (thread + 1) % num_threads) {
+  std::vector<std::vector<int>> ret;
+  ret.reserve(num_threads);
+  for (size_t thread = 0; begin < end; begin += step, thread = (thread + 1) % num_threads) {
+    if (thread >= ret.size()) {
+      ret.push_back(std::vector<int>());
+    }
     ret[thread].push_back(begin);
   }
   return ret;
@@ -51,18 +54,18 @@ void parallel_for(int begin, int end, const std::function<void(int)>& f, int ste
   const auto& run_partitions = partitioner(begin, end, step, default_num_threads);
 
   std::vector<std::thread> threads;
+  threads.reserve(run_partitions.size());
   std::vector<std::future<void>> res_vec;
+  res_vec.reserve(run_partitions.size());
   for (const auto& run_partition : run_partitions) {
-    if (!run_partition.empty()) {
-      std::packaged_task<void(const std::vector<int>&, const std::function<void(int)>&)> task(
-          [](const std::vector<int>& run_pattition, const std::function<void(int)>& f) {
-            for (const auto& i : run_pattition) {
-              f(i);
-            }
-          });
-      res_vec.emplace_back(task.get_future());
-      threads.emplace_back(std::move(task), run_partition, f);
-    }
+    std::packaged_task<void(const std::vector<int>&, const std::function<void(int)>&)> task(
+        [](const std::vector<int>& run_pattition, const std::function<void(int)>& f) {
+          for (const auto& i : run_pattition) {
+            f(i);
+          }
+        });
+    res_vec.emplace_back(task.get_future());
+    threads.emplace_back(std::move(task), run_partition, f);
   }
 
   for (auto& thread : threads) {

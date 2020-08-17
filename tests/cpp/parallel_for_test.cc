@@ -27,61 +27,64 @@
 TEST(ParallelFor, Basic) {
   using tvm::support::parallel_for;
 
-  int a[100], b[100];
+  int a[1000], b[1000];
 
-  // Default
-  for (int i = 0; i < 100; i++) {
+  // Check for a small size of parallel
+  for (int i = 0; i < 10; i++) {
     a[i] = i;
   }
+  parallel_for(0, 10, [&b](int i) { b[i] = i; });
+  for (int i = 0; i < 10; i++) {
+    CHECK_EQ(a[i], b[i]);
+  }
 
-  parallel_for(0, 100, [&b](int i) { b[i] = i; });
-
-  for (int i = 0; i < 100; i++) {
+  // Check for a large size of parallel
+  for (int i = 0; i < 1000; i++) {
+    a[i] = i;
+  }
+  parallel_for(0, 1000, [&b](int i) { b[i] = i; });
+  for (int i = 0; i < 1000; i++) {
     CHECK_EQ(a[i], b[i]);
   }
 
   // Check for step != 1
-  for (int i = 0; i < 100; i += 2) {
+  for (int i = 0; i < 1000; i += 2) {
     a[i] *= 2;
   }
-
   parallel_for(
-      0, 100, [&b](int i) { b[i] *= 2; }, 2);
-
-  for (int i = 0; i < 100; i++) {
+      0, 1000, [&b](int i) { b[i] *= 2; }, 2);
+  for (int i = 0; i < 1000; i++) {
     CHECK_EQ(a[i], b[i]);
   }
 }
 
-TEST(ParallelFor, Nested) {
+TEST(ParallelFor, NestedWithNormalForLoop) {
   using tvm::support::parallel_for;
 
-  int a[100][100], b[100][100], c[100][100];
+  int a[500][500], b[500][500], c[500][500];
 
-  for (int i = 0; i < 100; i++) {
-    for (int j = 0; j < 100; j++) {
+  for (int i = 0; i < 500; i++) {
+    for (int j = 0; j < 500; j++) {
       a[i][j] = i * j;
     }
   }
 
-  parallel_for(0, 100, [&b](int i) {
-    for (int j = 0; j < 100; j++) {
+  parallel_for(0, 500, [&b](int i) {
+    for (int j = 0; j < 500; j++) {
       b[i][j] = i * j;
     }
   });
-
-  for (int i = 0; i < 100; i++) {
-    for (int j = 0; j < 100; j++) {
+  for (int i = 0; i < 500; i++) {
+    for (int j = 0; j < 500; j++) {
       CHECK_EQ(a[i][j], b[i][j]);
     }
   }
 
-  for (int i = 0; i < 100; i++) {
-    parallel_for(0, 100, [&c, &i](int j) { c[i][j] = i * j; });
+  for (int i = 0; i < 500; i++) {
+    parallel_for(0, 500, [&c, &i](int j) { c[i][j] = i * j; });
   }
-
-  for (int i = 0; i < 100; i++) {
-    for (int j = 0; j < 100; j++) {
+  for (int i = 0; i < 500; i++) {
+    for (int j = 0; j < 500; j++) {
       CHECK_EQ(a[i][j], c[i][j]);
     }
   }
