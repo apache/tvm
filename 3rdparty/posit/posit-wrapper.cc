@@ -10,13 +10,13 @@
 #include "posit/math/logarithm.hpp"
 #include "posit/math/sqrt.hpp"
 
-extern "C" {
 TVM_DLL sw::unum::posit<8, 2> Uint8ToPosit8es2(uint8_t in) {
   sw::unum::bitblock<8> bb;
   bb = static_cast<unsigned long long>(in);
   return sw::unum::posit<8, 2>().set(bb);
 }
 
+extern "C" {
 TVM_DLL uint8_t Posit8es2toUint8(sw::unum::posit<8, 2> in) {
   return static_cast<uint8_t>(in.get().to_ullong());
 }
@@ -73,6 +73,7 @@ TVM_DLL uint8_t Posit8es2Sigmoid(uint8_t a) {
 TVM_DLL uint8_t Posit8es2Tanh(uint8_t a) {
   return Posit8es2toUint8(sw::unum::tanh(Uint8ToPosit8es2(a)));
 }
+}
 
 TVM_DLL sw::unum::posit<16, 2> Uint16ToPosit16es2(uint16_t in) {
   sw::unum::bitblock<16> bb;
@@ -80,6 +81,7 @@ TVM_DLL sw::unum::posit<16, 2> Uint16ToPosit16es2(uint16_t in) {
   return sw::unum::posit<16, 2>().set(bb);
 }
 
+extern "C" {
 TVM_DLL uint16_t Posit16es2toUint16(sw::unum::posit<16, 2> in) {
   return static_cast<uint16_t>(in.get().to_ullong());
 }
@@ -136,6 +138,7 @@ TVM_DLL uint16_t Posit16es2Sigmoid(uint16_t a) {
 TVM_DLL uint16_t Posit16es2Tanh(uint16_t a) {
   return Posit16es2toUint16(sw::unum::tanh(Uint16ToPosit16es2(a)));
 }
+}
 
 TVM_DLL sw::unum::posit<32, 2> Uint32ToPosit32es2(uint32_t in) {
   sw::unum::bitblock<32> bb;
@@ -143,6 +146,7 @@ TVM_DLL sw::unum::posit<32, 2> Uint32ToPosit32es2(uint32_t in) {
   return sw::unum::posit<32, 2>().set(bb);
 }
 
+extern "C" {
 TVM_DLL uint32_t Posit32es2ToUint32(sw::unum::posit<32, 2> in) {
   return static_cast<uint32_t>(in.get().to_ullong());
 }
