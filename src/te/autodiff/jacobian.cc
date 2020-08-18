@@ -356,7 +356,9 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
     new_shape.push_back(e);
   }
 
-  return Tensor(new_shape, output->dtype, new_op, value_index);
+  Tensor ret = Tensor(new_shape, output->dtype, new_op, value_index);
+  ret = RemoveJacobianAndLiftNonzeroCond(ret);
+  return ret;
 }
 
 }  // namespace te
