@@ -70,6 +70,6 @@ def resize_shape_func(attrs, inputs, _):
             if letter == "C":
                 channel_axis = i
         out = [_resize_shape_func(inputs[0].shape, inputs[1], convert(len(inputs[0].shape)),
-                                  convert(height_axis), convert(widht_axis),
+                                  convert(height_axis), convert(width_axis),
                                   convert(channel_axis))]
     return out
