@@ -59,13 +59,6 @@ class CanonicalExprNode : public PrimExprNode {
   TVM_DECLARE_BASE_OBJECT_INFO(CanonicalExprNode, PrimExprNode);
 };
 
-enum DivMode {
-  /*! \brief Truncated division. */
-  kTruncDiv,
-  /*! \brief Floor division. */
-  kFloorDiv
-};
-
 inline PrimExpr ModImpl(PrimExpr a, PrimExpr b, DivMode mode) {
   if (mode == kTruncDiv) {
     return truncmod(a, b);
