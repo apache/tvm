@@ -73,7 +73,7 @@ class MetalModuleNode final : public runtime::ModuleNode {
   }
   // get a from primary context in device_id
   id<MTLComputePipelineState> GetPipelineState(size_t device_id, const std::string& func_name) {
-    metal::MetalWorkspace* w = metal::MetalWorkspace::Global().get();
+    metal::MetalWorkspace* w = metal::MetalWorkspace::Global();
     CHECK_LT(device_id, w->devices.size());
     // start lock scope.
     std::lock_guard<std::mutex> lock(mutex_);
@@ -168,7 +168,7 @@ class MetalWrappedFunc {
   void Init(MetalModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
             const std::vector<std::string>& thread_axis_tags) {
-    w_ = metal::MetalWorkspace::Global().get();
+    w_ = metal::MetalWorkspace::Global();
     m_ = m;
     sptr_ = sptr;
     func_name_ = func_name;
