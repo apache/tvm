@@ -17,10 +17,9 @@
  * under the License.
  */
 
-#include "../../src/support/parallel_for.h"
-
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
+#include <tvm/support/parallel_for.h>
 
 #include <vector>
 
