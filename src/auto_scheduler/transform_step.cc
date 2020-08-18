@@ -309,7 +309,7 @@ Iterator AnnotationStepNode::ApplyToState(State* state) const {
   Iterator it = stage->iters[iter_id];
 
   CHECK(it->annotation == IteratorAnnotation::kNone);
-  Iterator new_it = Iterator(it->name, it->range, it->iter_kind, annotation);
+  Iterator new_it = Iterator(it->name, it->range, it->iter_kind, annotation, &it->ori_iters);
   Stage new_stage = stage;
   new_stage.CopyOnWrite()->iters.Set(iter_id, new_it);
   state->CopyOnWrite()->stages.Set(stage_id, std::move(new_stage));
@@ -441,6 +441,7 @@ Iterator FuseStepNode::ApplyToState(State* state) const {
   String new_name;
   PrimExpr new_extent = 1;
   IteratorKind new_iter_kind = IteratorKind::kSpecial;
+  std::vector<Iterator> ori_iters;
 
   for (size_t i = 0; i < fused_ids.size(); ++i) {
     if (i > 0) {
@@ -458,6 +459,7 @@ Iterator FuseStepNode::ApplyToState(State* state) const {
     }
 
     const Iterator& it = stage->iters[fused_ids[i]];
+    ori_iters.push_back(it);
     new_name = new_name + it->name + "@";
 
     if (it->range.defined() && new_extent.defined()) {
@@ -479,7 +481,7 @@ Iterator FuseStepNode::ApplyToState(State* state) const {
   if (new_extent.defined()) {
     range = Range::FromMinExtent(0, new_extent);
   }
-  Iterator new_it = Iterator(new_name, range, new_iter_kind, IteratorAnnotation::kNone);
+  Iterator new_it = Iterator(new_name, range, new_iter_kind, IteratorAnnotation::kNone, &ori_iters);
   Array<Iterator> new_iters;
   new_iters.insert(new_iters.end(), stage->iters.begin(), stage->iters.begin() + fused_ids.front());
   new_iters.push_back(new_it);
@@ -1238,7 +1240,8 @@ void ComputeAtStepNode::ApplyToState(State* state) const {
   // compute at
   Array<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
-    new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation));
+    new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation,
+                        &it->ori_iters));
   }
 
   StateNode* pstate = state->CopyOnWrite();
@@ -1354,7 +1357,8 @@ void ComputeRootStepNode::ApplyToState(State* state) const {
   // compute root
   Array<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
-    new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation));
+    new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation,
+                                 &it->ori_iters));
   }
 
   StateNode* pstate = state->CopyOnWrite();
