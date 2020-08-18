@@ -69,7 +69,7 @@ def test_resize():
     for method in ["bilinear", "nearest_neighbor"]:
         for layout in ["NHWC", "NCHW"]:
             verify_resize((1, 4, 4, 4), 2, method, layout)
-            verify_resize((2, 8, 17, 20), 2, method, layout)
+            verify_resize((2, 8, 17, 20), 3, method, layout)
 
 def test_resize3d_infer_type():
     n, c, d, h, w = te.size_var("n"), te.size_var("c"), te.size_var("d"), te.size_var("h"), te.size_var("w")

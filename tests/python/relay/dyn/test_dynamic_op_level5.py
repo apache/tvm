@@ -68,7 +68,7 @@ def test_resize():
     for method in ["bilinear", "nearest_neighbor"]:
         for layout in ["NCHW", "NHWC"]:
             verify_resize((1, 4, 4, 4), 2, method, layout)
-            verify_resize((2, 8, 17, 20), 2, method, layout)
+            verify_resize((2, 8, 17, 20), 7, method, layout)
 
 if __name__ == "__main__":
     test_resize_infer_type()
