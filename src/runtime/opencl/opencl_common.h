@@ -245,7 +245,7 @@ class OpenCLWorkspace : public DeviceAPI {
   virtual OpenCLThreadEntry* GetThreadEntry();
 
   // get the global workspace
-  static const std::shared_ptr<OpenCLWorkspace>& Global();
+  static OpenCLWorkspace* Global();
 };
 
 /*! \brief Thread local workspace */
@@ -265,8 +265,7 @@ class OpenCLThreadEntry {
   /*! \brief workspace pool */
   WorkspacePool pool;
   // constructor
-  OpenCLThreadEntry(DLDeviceType device_type, std::shared_ptr<DeviceAPI> device)
-      : pool(device_type, device) {
+  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device) : pool(device_type, device) {
     context.device_id = 0;
     context.device_type = device_type;
   }
@@ -298,7 +297,7 @@ class OpenCLModuleNode : public ModuleNode {
   /*!
    * \brief Get the global workspace
    */
-  virtual const std::shared_ptr<cl::OpenCLWorkspace>& GetGlobalWorkspace();
+  virtual cl::OpenCLWorkspace* GetGlobalWorkspace();
 
   const char* type_key() const final { return workspace_->type_key.c_str(); }
 
@@ -315,7 +314,7 @@ class OpenCLModuleNode : public ModuleNode {
  private:
   // The workspace, need to keep reference to use it in destructor.
   // In case of static destruction order problem.
-  std::shared_ptr<cl::OpenCLWorkspace> workspace_;
+  cl::OpenCLWorkspace* workspace_;
   // the binary data
   std::string data_;
   // The format
