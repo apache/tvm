@@ -31,8 +31,8 @@ namespace cl {
 
 OpenCLThreadEntry* OpenCLWorkspace::GetThreadEntry() { return OpenCLThreadEntry::ThreadLocal(); }
 
-const std::shared_ptr<OpenCLWorkspace>& OpenCLWorkspace::Global() {
-  static std::shared_ptr<OpenCLWorkspace> inst = std::make_shared<OpenCLWorkspace>();
+OpenCLWorkspace* OpenCLWorkspace::Global() {
+  static OpenCLWorkspace* inst = new OpenCLWorkspace();
   return inst;
 }
 
@@ -276,7 +276,7 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
 }
 
 TVM_REGISTER_GLOBAL("device_api.opencl").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = OpenCLWorkspace::Global().get();
+  DeviceAPI* ptr = OpenCLWorkspace::Global();
   *rv = static_cast<void*>(ptr);
 });
 
