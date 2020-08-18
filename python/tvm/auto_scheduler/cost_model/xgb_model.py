@@ -119,6 +119,7 @@ class XGBModel(PythonBasedModel):
 
     def update(self, inputs, results):
         """Update the cost model according to new measurement results (training data).
+        XGBoost does not support incremental training, so we re-train a new model every time.
 
         Parameters
         ----------
