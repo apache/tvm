@@ -396,20 +396,31 @@ def test_forward_topk():
 # Gather
 # ------
 
-def _test_gather(dshape, indices, axis, dtype, quantized=False, oob=False):
+def _test_gather(dshape, indices, axis, dtype, quantized=False, oob=False, wrap_idx=False):
     """ One iteration of Gather """
     indices = np.asarray(indices).astype('int32')
     data = np.random.uniform(1, 10, size=dshape)
     data = data.astype(np.uint8) if quantized else data.astype(dtype)
     with tf.Graph().as_default():
+        if wrap_idx:
+            in_name = "in_indices"
+            indices_expr = array_ops.placeholder(shape=indices.shape, dtype=indices.dtype, name=in_name)
+            in_tensor_name = [in_name + ":0"]
+            in_indices = [indices_expr]
+        else:
+            indices_expr = indices
+            indices = []
+            in_tensor_name = []
+            in_indices = []
+
         in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="in_data")
         if axis:
-            out = array_ops.gather(in_data, indices, axis=axis)
+            out = array_ops.gather(in_data, indices_expr, axis=axis)
         else:
-            out = array_ops.gather(in_data, indices) #tflite conversion fails for None axis
+            out = array_ops.gather(in_data, indices_expr) #tflite conversion fails for None axis
         input_range = {'in_data': (-100, 100)} if quantized else None
         try:
-            compare_tflite_with_tvm([data], ['in_data:0'], [in_data], [out],
+            compare_tflite_with_tvm([data] + indices, ['in_data:0'] + in_tensor_name, [in_data] + in_indices, [out],
                                       quantized=quantized, input_range=input_range)
         except ValueError as e:
             if not oob:
@@ -420,16 +431,18 @@ def _test_gather(dshape, indices, axis, dtype, quantized=False, oob=False):
 def test_forward_gather():
     """ GATHER """
     for quantized in [False, True]:
-        _test_gather((4,), [1], 0, 'float32', quantized)
-        _test_gather((4,), [1], None, 'int32', quantized)
-        _test_gather((1, 4), [0], 0, 'int32', quantized)
-        _test_gather((4,), [[[1, 0], [0, 1]]], 0, 'float32', quantized)
-        _test_gather((2, 2), [[[1, 0], [0, 1]]], 1, 'int32', quantized)
-        _test_gather((2, 2), [[[1, 0], [0, 1]]], None, 'float32', quantized)
-        _test_gather((3, 3, 3),  [[[1, 0]]], 0, 'int32', quantized)
-        _test_gather((3, 3, 3), [[[1, 0]]], 2, 'int32', quantized)
-        _test_gather((4, 3, 5, 6),  [[2, 1, 0, 0]], 0, 'float32', quantized)
-        _test_gather((3, 3, 3), [[[2, 1]]], -1, 'int32', quantized)
+        for wrap_idx in [False, True]:
+            _test_gather((4,), [1], 0, 'float32', quantized, wrap_idx)
+            _test_gather((4,), [1], None, 'int32', quantized, wrap_idx)
+            _test_gather((1, 4), [0], 0, 'int32', quantized, wrap_idx)
+            _test_gather((4,), [[[1, 0], [0, 1]]], 0, 'float32', quantized, wrap_idx)
+            _test_gather((2, 2), [[[1, 0], [0, 1]]], 1, 'int32', quantized, wrap_idx)
+            _test_gather((2, 2), [[[1, 0], [0, 1]]], None, 'float32', quantized, wrap_idx)
+            _test_gather((3, 3, 3),  [[[1, 0]]], 0, 'int32', quantized, wrap_idx)
+            _test_gather((3, 3, 3), [[[1, 0]]], 2, 'int32', quantized, wrap_idx)
+            _test_gather((4, 3, 5, 6),  [[2, 1, 0, 0]], 0, 'float32', quantized, wrap_idx)
+            _test_gather((3, 3, 3), [[[2, 1]]], -1, 'int32', quantized, wrap_idx)
+        # Out of boundary error cannot be tested with wrapped index
         _test_gather((4,), [16], 0, 'float32', quantized, oob=True)
         _test_gather((1, 3, 3), [12], 0, 'int32', quantized, oob=True)
         _test_gather((1, 3, 3), [20], 1, 'float32', quantized, oob=True)
