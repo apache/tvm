@@ -52,6 +52,13 @@ class Analyzer;
 
 using tir::Var;
 
+enum DivMode {
+  /*! \brief Truncated division. */
+  kTruncDiv,
+  /*! \brief Floor division. */
+  kFloorDiv
+};
+
 /*!
  * \brief Constant integer up and lower bound(inclusive).
  *  Useful for value bound analysis.
