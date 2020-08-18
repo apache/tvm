@@ -1152,10 +1152,10 @@ def upsampling(data,
     data : tvm.relay.Expr
         The input data to the operator.
 
-    scale_h : tvm.relay.Expr or int or float
+    scale_h : tvm.relay.Expr
         The scale factor for height upsampling.
 
-    scale_w : tvm.relay.Expr or int or float
+    scale_w : tvm.relay.Expr
         The scale factor for width upsampling.
 
     layout : str, optional
