@@ -763,6 +763,112 @@ class IndexRewriter : public StmtExprMutator {
   const std::string& new_layout_;
 };
 
+std::string get_ori_layout(std::set<std::string>& placeholder_axis_names,
+                           const te::Operation& op,
+                           const te::Tensor& placeholder) {
+  ReadAccessExtractor extractor;
+  for (const auto& exp : op.as<te::ComputeOpNode>()->body) {
+    extractor.Extract(exp);
+  }
+
+  std::ostringstream os;
+  uint i = 0;
+  const auto& placeholder_op = placeholder->op;
+  CHECK(extractor.read_access.count(placeholder_op) > 0);
+  for (const auto& ev : extractor.read_access[placeholder_op]) {
+    for (const auto& e : ev) {
+      std::string axis_name;
+      if (const auto* pimm = e.as<IntImmNode>()) {
+        CHECK_EQ(pimm->value, 0);
+        axis_name = "IntImm";
+      } else {
+        axis_name = BaseName(CleanName(Downcast<Var>(e)->name_hint));
+      }
+
+      placeholder_axis_names.insert(axis_name);
+      os << placeholder->shape[i++] << axis_name;
+    }
+  }
+
+  CHECK_EQ(placeholder_axis_names.size(), placeholder->shape.size());
+  std::string ori_layout = os.str();
+  os.str("");
+  // TODO(minmin): uncomment this line for relay integration
+  // ::tvm::relay::KernelLayoutTransformer::global_ori_layouts_queue.push_back(ori_layout);
+  return ori_layout;
+}
+
+std::string get_new_layout(Array<PrimExpr>& new_shape,
+                           const State& state,
+                           const int stage_id,
+                           const Stage& stage,
+                           const te::Operation& op,
+                           const te::Tensor& placeholder,
+                           const std::set<std::string>& placeholder_axis_names) {
+    std::ostringstream os;
+    Array<Iterator> stage_iters;
+
+    auto attach_it = state->attach_map->stage_to_attach_iter.find(stage_id);
+    int attach_pos = -1;
+    size_t iters_before_attach = 0;
+    if (attach_it != state->attach_map->stage_to_attach_iter.end()) {
+      auto attach = attach_it->second;
+      const auto& attach_stage = state->stages[attach.first];
+      attach_pos = attach.second;
+      stage_iters.insert(stage_iters.end(),
+                          attach_stage->iters.begin(),
+                          attach_stage->iters.begin() + attach_pos + 1);
+    }
+
+    stage_iters.insert(stage_iters.end(), stage->iters.begin(), stage->iters.end());
+
+    std::vector<Iterator> iters;
+    for (size_t i = 0; i < stage_iters.size(); ++i) {
+      const auto& iter = stage_iters[i];
+      if (iter->ori_iters.empty()) {
+        iters.push_back(iter);
+      } else {
+        for (const Iterator& ori_iter : iter->ori_iters) {
+          iters.push_back(ori_iter);
+        }
+      }
+      if (static_cast<int>(i) == attach_pos) {
+        iters_before_attach = iters.size();
+      }
+    }
+
+    std::vector<std::string> new_names;
+    std::vector<std::string> new_axis_names;
+    for (const Iterator& iter : iters) {
+      std::set<std::string> ori_iter_names;
+      ExtractOriginalIterators(iter->name, &ori_iter_names);
+      // fused iters have been replaced with iter->ori_iters.
+      // So there should be only one ori iter name extracted from iter->name.
+      CHECK_EQ(ori_iter_names.size(), 1);
+      auto ori_iter_name = BaseName(*ori_iter_names.begin());
+      new_axis_names.push_back(ori_iter_name);
+    }
+    for (size_t i = 0; i < new_axis_names.size(); ++i) {
+      auto iter = iters[i];
+      std::string ori_iter_name;
+      if (i < iters_before_attach) {
+        ori_iter_name = new_axis_names[i + iters_before_attach];
+      } else {
+        ori_iter_name = new_axis_names[i];
+      }
+      if (placeholder_axis_names.count(ori_iter_name)) {
+        os << iter->range->extent << ori_iter_name;
+        new_names.push_back(ori_iter_name);
+        new_shape.push_back(iter->range->extent);
+      }
+    }
+    std::string new_layout = os.str();
+    os.str("");
+    // TODO(minmin): uncomment this line for relay integration
+    // ::tvm::relay::KernelLayoutTransformer::global_new_layouts_queue.push_back(new_layout);
+    return new_layout;
+}
+
 void ComputeDAG::RewriteLayout(
     const Array<Step> &transform_steps) {
   ComputeDAGNode* pdag = this->CopyOnWrite();
@@ -780,8 +886,8 @@ void ComputeDAG::RewriteLayout(
       if (attrs.count(layout_free_placeholders_key)) {
         const ObjectRef& attr_value = attrs[layout_free_placeholders_key];
         Array<te::Tensor> placeholders = Downcast<Array<te::Tensor>>(attr_value);
-        for (auto& placeholder : placeholders) {
-          const auto placeholder_op = placeholder->op;
+        for (const auto& placeholder : placeholders) {
+          const auto& placeholder_op = placeholder->op;
 
           // Check whether this placeholder has already been handled
           if (handled_ops.count(placeholder_op)) {
@@ -802,101 +908,14 @@ void ComputeDAG::RewriteLayout(
           }
 
           std::set<std::string> placeholder_axis_names;
-          ReadAccessExtractor extractor;
-          for (const auto& exp : op.as<te::ComputeOpNode>()->body) {
-            extractor.Extract(exp);
-          }
 
-          std::ostringstream os;
-          uint i = 0;
-          if (extractor.read_access.count(placeholder_op)) {
-            for (const auto& ev : extractor.read_access[placeholder_op]) {
-              for (const auto& e : ev) {
-                // TODO(minminsun): check whether the extents match the shape of placeholder
-                std::string axis_name;
-                if (const auto* pimm = e.as<IntImmNode>()) {
-                  CHECK_EQ(pimm->value, 0);
-                  // CHECK_EQ(placeholder->shape[i].as<IntImmNode>()->value, 1);
-                  axis_name = "IntImm";
-                } else {
-                  axis_name = BaseName(CleanName(Downcast<Var>(e)->name_hint));
-                }
 
-                placeholder_axis_names.insert(axis_name);
-                os << placeholder->shape[i++] << axis_name;
-              }
-            }
+          get_ori_layout(placeholder_axis_names, op, placeholder);
 
-            CHECK_EQ(placeholder_axis_names.size(), placeholder->shape.size());
-            std::string ori_layout = os.str();
-            std::cout << "ori_layout " << ori_layout << std::endl;
-            os.str("");
-            // TODO(minmin): uncomment this line for relay integration
-            // ::tvm::relay::KernelLayoutTransformer::global_ori_layouts_queue.push_back(ori_layout);
-          }
-
-          Array<Iterator> stage_iters;
-
-          auto attach_it = state->attach_map->stage_to_attach_iter.find(stage_id);
-          int attach_pos = -1;
-          size_t iters_before_attach = 0;
-          if (attach_it != state->attach_map->stage_to_attach_iter.end()) {
-            auto attach = attach_it->second;
-            const auto& attach_stage = state->stages[attach.first];
-            attach_pos = attach.second;
-            stage_iters.insert(stage_iters.end(),
-                               attach_stage->iters.begin(),
-                               attach_stage->iters.begin() + attach_pos + 1);
-          }
-
-          stage_iters.insert(stage_iters.end(), stage->iters.begin(), stage->iters.end());
-
-          std::vector<Iterator> iters;
-          for (size_t i = 0; i < stage_iters.size(); ++i) {
-            const auto& iter = stage_iters[i];
-            if (iter->ori_iters.empty()) {
-              iters.push_back(iter);
-            } else {
-              for (const Iterator& ori_iter : iter->ori_iters) {
-                iters.push_back(ori_iter);
-              }
-            }
-            if (static_cast<int>(i) == attach_pos) {
-              iters_before_attach = iters.size();
-            }
-          }
-
-          std::vector<std::string> new_names;
           Array<PrimExpr> new_shape;
-          std::vector<std::string> new_axis_names;
-          for (const Iterator& iter : iters) {
-            std::set<std::string> ori_iter_names;
-            ExtractOriginalIterators(iter->name, &ori_iter_names);
-            // fused iters have been replaced with iter->ori_iters.
-            // So there should be only one ori iter name extracted from iter->name.
-            CHECK_EQ(ori_iter_names.size(), 1);
-            auto ori_iter_name = BaseName(*ori_iter_names.begin());
-            new_axis_names.push_back(ori_iter_name);
-          }
-          for (size_t i = 0; i < new_axis_names.size(); ++i) {
-            auto iter = iters[i];
-            std::string ori_iter_name;
-            if (i < iters_before_attach) {
-              ori_iter_name = new_axis_names[i + iters_before_attach];
-            } else {
-              ori_iter_name = new_axis_names[i];
-            }
-            if (placeholder_axis_names.count(ori_iter_name)) {
-              os << iter->range->extent << ori_iter_name;
-              new_names.push_back(ori_iter_name);
-              new_shape.push_back(iter->range->extent);
-            }
-          }
-          std::string new_layout = os.str();
-          std::cout << "new_layout " << new_layout << std::endl;
-          os.str("");
-          // TODO(minmin): uncomment this line for relay integration
-          // ::tvm::relay::KernelLayoutTransformer::global_new_layouts_queue.push_back(new_layout);
+          std::string new_layout = get_new_layout(new_shape, state, stage_id, stage,
+                                                  op, placeholder, placeholder_axis_names);
+
           handled_ops.insert(placeholder_op);
 
           Array<te::Operation> old_ops = pdag->ops;
