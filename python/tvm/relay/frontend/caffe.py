@@ -258,9 +258,9 @@ class OperatorConverter(object):
         in_expr = (self.exp_tab.get_expr(inputs[i])
                    for i in range(len(inputs)))
 
-        params = dict()
-        params['axis'] = op.concat_param.axis
-        out = _op.concatenate(in_expr, axis=params['axis'])
+        c_params = dict()
+        c_params['axis'] = op.concat_param.axis
+        out = _op.concatenate(in_expr, axis=c_params['axis'])
 
         return out
 
