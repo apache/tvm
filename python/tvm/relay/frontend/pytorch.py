@@ -2056,6 +2056,7 @@ def _get_convert_map(prelude):
         "aten::len"                             : _list_len(prelude),
         "aten::type_as"                         : _type_as(),
         "aten::gather"                          : _gather(),
+        "aten::index_select"                    : _select(),
     }
     return convert_map
 
@@ -2666,5 +2667,4 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_d
                             default_dtype=default_dtype)
 
     mod["main"] = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
-
     return mod, tvm_params
