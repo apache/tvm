@@ -2056,6 +2056,7 @@ def _get_convert_map(prelude):
         "aten::len"                             : _list_len(prelude),
         "aten::type_as"                         : _type_as(),
         "aten::gather"                          : _gather(),
+        "aten::index_select"                    : _select(),
     }
     return convert_map
 
