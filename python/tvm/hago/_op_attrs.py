@@ -43,12 +43,30 @@ def my_print(data, msg):
         "tvm.contrib.print", ins[0], outs[0], msg))
     return ret
 
+@tvm.register_func("tvm.contrib.print_info")
+def print_info(data, in_scale, out_scale, clip_min, clip_max, out):
+    if RUNTIME_DEBUG:
+        print('in_scale:  {}'.format(in_scale.asnumpy()))
+        print('out_scale: {}'.format(out_scale.asnumpy()))
+        print('clip_min:  {}'.format(clip_min.asnumpy()))
+        print('clip_max:  {}'.format(clip_max.asnumpy()))
+    data.copyto(out)
+
+def print_info(data, in_scale, out_scale, clip_min, clip_max):
+    if not RUNTIME_DEBUG:
+        return data
+    ret = tvm.te.extern(data.shape, [data, in_scale, out_scale, clip_min, clip_max],
+        lambda ins, outs: tvm.tir.call_packed(
+        "tvm.contrib.print_info", ins[0], ins[1], ins[2], ins[3], ins[4], outs[0]))
+    return ret
+
+
 @tvm.register_func("tvm.contrib.inspect")
 def inspect_func(x, y, msg):
     if RUNTIME_DEBUG:
         print('------------------------------')
         print(msg)
-        print(x)
+        # print(x)
         np_x = x.asnumpy()
         print('max value: {:.4f}'.format(np.max(np.abs(np_x))))
         print('mean: {:.4f}'.format(np.mean(np_x)))
@@ -61,6 +79,35 @@ def inspect(data, msg):
     ret = tvm.te.extern(data.shape, [data], lambda ins, outs: tvm.tir.call_packed(
         "tvm.contrib.inspect", ins[0], outs[0], msg))
     return ret
+
+@tvm.register_func("tvm.contrib.compare")
+def compare_func(a, b, out, msg):
+    print('------------------------------')
+    print('------------COMPARE-----------')
+    print(msg)
+    np_x = a.asnumpy()
+    np_y = b.asnumpy()
+    print('max value : {:.4f}, {:.4f}'.format(np.max(np_x), np.max(np_y)))
+    print('min value : {:.4f}, {:.4f}'.format(np.min(np_x), np.min(np_y)))
+    print('max abs   : {:.4f}, {:.4f}'.format(np.max(np.abs(np_x)), np.max(np.abs(np_y))))
+    print('mean      : {:.4f}, {:.4f}'.format(np.mean(np_x), np.mean(np_y)))
+    print('var       : {:.4f}, {:.4f}'.format(np.var(np_x), np.var(np_y)))
+    abs_err = np.abs(np_x - np_y)
+    rel_err = (np_x - np_y) / np.max(np.abs(np_y))
+    idx = np.unravel_index(np.argmax(abs_err, axis=None), abs_err.shape)
+    print('maximum absolute error: {:.4f}({:.2f}%), compare {:.4f} with {:.4f}'
+          .format(np.max(abs_err), rel_err[idx] * 100, np_x[idx], np_y[idx]))
+    a.copyto(out)
+
+
+def compare(origin, ret, msg):
+    if not RUNTIME_DEBUG:
+        return ret
+    ret = tvm.te.extern(ret.shape, [origin, ret],
+        lambda ins, outs: tvm.tir.call_packed(
+        "tvm.contrib.compare", ins[0], ins[1], outs[0], msg))
+    return ret
+
 
 
 def isclose(old, new, rtol, atol):
@@ -109,7 +156,9 @@ def simulated_quantize_compute(attrs, inputs, out_type):
 
     data, in_scale, out_scale, clip_min, clip_max = inputs
     data = my_print(data, '\n\n*******************************************')
+    data = print_info(data, in_scale, out_scale, clip_min, clip_max)
     # data = my_print(data, "[in_scale={}, out_scale={}, clip_min={}, clip_max={}, in_dtype={}, out_dtype={}".format(in_scale, out_scale, clip_min, clip_max, attrs.in_dtype, attrs.out_dtype))
+    origin = data
     data = inspect(data, 'original data')
 
     # simulate overflow truncate error
@@ -145,6 +194,7 @@ def simulated_quantize_compute(attrs, inputs, out_type):
 
     ret = topi.multiply(cast_data, out_scale)
     ret = inspect(ret, 'return data')
+    ret = compare(origin, ret, "compare origin with return data")
     ret = my_print(ret, '*******************************************\n\n')
     return [ret]
 
@@ -244,7 +294,11 @@ def realize_addition(node, in_types, out_types):
 @register_realize("nn.conv2d")
 def realize_conv2d(node, in_types, out_types):
     data, weight = node.args
-    attrs_dict = {key: getattr(node.attrs, key) for key in dir(node.attrs)}
+    fields = node.attrs.list_field_info()
+    attrs_dict = {}
+    for field in fields:
+        key = field.name
+        attrs_dict[str(key)] = getattr(node.attrs, key)
     attrs_dict['out_dtype'] = DataType(out_types[0])
     attrs = tvm.ir.make_node("relay.attrs.Conv2DAttrs", **attrs_dict)
     return relay.Call(node.op, node.args, attrs, node.type_args)

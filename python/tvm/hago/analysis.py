@@ -170,7 +170,7 @@ def inspect_graph_statistic(func, hardware, strategy, dataset, ctx, target):
 
         quantizer = create_quantizer(graph, hardware, sub_strategy)
         simulated_graph = quantizer.simulate()
-        quantized_graph = quantizer.quantize()
+        # quantized_graph = quantizer.quantize()
 
         print('evaluate original graph')
         real_out = evaluate(graph, data_batch, ctx, target)[0][0]
@@ -180,8 +180,8 @@ def inspect_graph_statistic(func, hardware, strategy, dataset, ctx, target):
         # quantized_out = evaluate(quantized_graph, data_batch, ctx, target)[0][0]
         print('compare real_out vs. simulated_out')
         rel_err = compare(real_out, simulated_out)
-        # if rel_err > 0.05:
-        #     raise ValueError
+        if rel_err > 0.05:
+            raise ValueError
         # print('compare real_out vs. quantized_out')
         # compare(real_out, quantized_out)
         # if not np.allclose(simulated_out, quantized_out):

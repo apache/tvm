@@ -86,222 +86,224 @@ def generate_search_space(graph, hardware):
     # print_edge_dict(graph, edge2choices)
     return choices
 
-
-def grid_search(f, domains, args, max_iter=1000):
-    num_iter = 0
-    best_guess = None
-    best_cost = 0
-
-    for guess in itertools.product(*domains):
-        if num_iter >= max_iter:
-            break
-        cost = f(guess, *args)
-        if cost >= best_cost:
-            best_cost = cost
-            best_guess = guess
-        num_iter += 1
-        print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
-        num_iter += 1
-    return best_guess, best_cost
-
-
-def random_guess(domains):
-    while True:
-        guess = []
-        for domain in domains:
-            guess.append(random.choice(domain))
-        yield guess
-
-
-def random_search(fcost, domains, args, max_iter=1000):
-    num_iter = 0
-    best_guess = None
-    best_cost = 0
-
-    for guess in random_guess(domains):
-        print('iteration: {0}'.format(num_iter))
-        if num_iter >= max_iter:
-            break
-        cost = fcost(guess, *args)
-        if cost > best_cost:
-            best_cost = cost
-            best_guess = guess
-        print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
-        num_iter += 1
-    return best_guess, best_cost
-
-
-def simulated_annealing(fcost, domains, args, T=0.5, Tmin=0.0005, cool=0.99, portion=0.10, step=2):
-    def neighbour(origin, portion):
-        num_changed = int(portion * len(origin))
-        dims = random.sample(range(0, len(origin)), num_changed)
-        new = origin.copy()
-        for dim in dims:
-            disturbance = random.choice(range(-step, step + 1))
-            print('choose dimension {0}'.format(dim))
-            print('change from {} to {}'.format(new[dim], new[dim]+disturbance))
-            new[dim] += disturbance
-            if new[dim] < min(domains[dim]):
-                new[dim] = min(domains[dim])
-            if new[dim] > max(domains[dim]):
-                new[dim] = max(domains[dim])
-        return new
-
-    previous_guess, previous_cost = None, 0
-    best_guess, best_cost = None, 0
-    num_iter = 0
-    # init with random guess
-    guess = next(random_guess(domains))
-    while T > Tmin:
-        cost = fcost(guess, *args)
-        if cost >= best_cost:
-            # stored as best guess 
-            best_guess = guess
-            best_cost = cost
-        if cost >= previous_cost or random.random() < math.exp(- (previous_cost - cost) / T):
-            print('accept guess')
-            # accept the guess
-            previous_guess = guess
-            previous_cost = cost
-        T = T * cool
-        print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
-        num_iter += 1
-        # make new guess
-        guess = neighbour(previous_guess, portion)
-    return best_guess, best_cost
-
-
-def greedy_squash(fcost, domains, args, tolerance=0.0, max_iter=3000):
-    cfg = qtz.current_qconfig()
-    best_guess, best_cost = None, float("inf")
-    num_iter = 0
-    # init with maximum bit setting
-    guess = [choices[0] for choices in domains]
-    stop_guess = [choices[-1] for choices in domains]
-    dim_idx = 0
-    last_update_idx = 0
-    while num_iter < max_iter: 
-        cost = fcost(guess, *args)
-        if cost <= best_cost:
-            # stored as best guess 
-            best_guess = guess
-            best_cost = cost
-
-        if (cost - best_cost) <= tolerance:
-            previous_guess = guess
-            previous_cost = cost
-            last_update_idx = dim_idx
-        else:
-            # move to next dimension
-            dim_idx += 1
-
-        if dim_idx - last_update_idx > len(domains):
-            # early stopping
-            break
-
-        # make new guess
-        guess = previous_guess.copy()
-        while guess != stop_guess:
-            dim = dim_idx % len(domains)
-            if guess[dim] == min(domains[dim]):
-                dim_idx += 1
-            else:
-                break
-        guess[dim] -= 1
-        print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
-        num_iter += 1
-    return best_guess, best_cost
-
-
-def search_bits_strategy(eval_func, bit_choices, graph, hardware, topology, dataset):
-    cfg = qtz.current_qconfig()
-
-    args = (graph, hardware, topology, dataset)
-    if cfg.search_strategy == 'random_search':
-        best_bits, best_acc = random_search(eval_func, bit_choices, args)
-    elif cfg.search_strategy == 'default_setting':
-        best_bits = [choices[0] for choices in bit_choices]
-        # sim acc: 71.1, qtz acc: 71.1, imagenet: 68.7
-        # best_bits = [6, 8, 24, 21, 24, 24, 8, 8, 21, 18, 21, 8, 7, 27, 23, 30, 32, 26, 8, 8, 22, 20, 22, 8, 8, 22, 24, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32]
-        # sim acc: 71.9  qtz acc: 71.9, imagenet: 68.7
-        # best_bits = [6, 8, 24, 21, 24, 24, 8, 8, 21, 18, 21, 8, 7, 27, 23, 30, 32, 26, 8, 8, 22, 20, 22, 8, 8, 22, 19, 22, 21, 22, 8, 7, 21, 19, 8, 8, 23, 21, 23, 8, 8, 22, 20, 31, 22, 22, 8, 8, 21, 19, 20, 8, 8, 24, 21, 24, 23, 24, 8, 8, 17, 16, 8, 8, 22, 20, 22, 8, 8, 23, 20, 29, 23, 23, 8, 8, 19, 16, 18, 8, 8, 18, 16, 18, 16, 18, 8, 8, 13, 11, 8, 8, 30, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32]
-        best_acc = eval_func(best_bits, *args)
-        return best_bits, best_acc
-    elif cfg.search_strategy == 'grid_search':
-        best_bits, best_acc = grid_search(eval_func, bit_choices, args)
-    elif cfg.search_strategy == 'simulated_annealing':
-        best_bits, best_acc = simulated_annealing(eval_func, bit_choices, args)
-    elif cfg.search_strategy == 'greedy_squash':
-        best_bits, best_acc = greedy_squash(eval_func, bit_choices, args)
-    else:
-        raise ValueError('unknown search strategy: {}'.format(cfg.search_strategy))
-
-    return best_bits, best_acc
-
-
-def softmax_with_temperature(x, temp=1.0, axis=1):
-    e_x = np.exp((x - np.amax(x, axis=axis, keepdims=True)) / temp)
-    return e_x / e_x.sum(axis=axis, keepdims=True)
-
-
-def calculate_kl(out_x, out_y):
-    out_x = softmax_with_temperature(out_x, temp=8.0, axis=1)
-    out_y = softmax_with_temperature(out_y, temp=8.0, axis=1)
-    num_samples = out_x.shape[0]
-    kl = 0.
-    for i in range(num_samples):
-        entropy = scipy.stats.entropy(out_x[i], out_y[i])
-        kl += entropy
-    kl = kl / num_samples
-    return kl
-
-
-
-def old_search_quantize_strategy(mod, hardware, dataset=None):
-    graph = mod['main']
-    fout = open(current_qconfig().log_file, 'w+', buffering=1)
-    origin_out, origin_acc = eval_acc(graph, dataset)
-    print('original acc: {}'.format(origin_acc))
-    topology = analyze_topology(graph, hardware)
-    choices = generate_choices(graph, hardware, topology)
-    # search_space = create_search_space(graph, topology, choices)
-    model_hash = tvm.ir.structural_hash(graph)
-
-
-    # search for bits settings with learning method
-    def eval_func(bits, graph, hardware, topology, dataset):
-        edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
-        print('bits')
-        print_edge_dict(graph, edge2bit)
-        # coarse-grained threshold estimate
-        thresholds = threshold_estimate(graph, topology, bits, dataset)
-
-        strategy = Strategy(model_hash, topology, bits, thresholds)
-        quantizer = qtz.create_quantizer(graph, hardware, strategy)
-        simulated_graph = quantizer.simulate()
-        # print('simulated_graph')
-        # print(simulated_graph)
-        simulated_out, simulated_acc = eval_acc(simulated_graph, dataset)
-        # [optional] calibrate threshold estimation
-        quantized_graph = quantizer.quantize()
-        quantized_out, quantized_acc = eval_acc(quantized_graph, dataset)
-
-        kl_divergence = calculate_kl(origin_out, quantized_out)
-        # logging
-        print('simulated_acc: {}, quantized_acc: {}, kl_divergence: {}\n\n'.format(simulated_acc, quantized_acc, kl_divergence))
-        result = MeasureResult(sim_acc=simulated_acc, quant_acc=quantized_acc, kl_divergence=kl_divergence)
-        measure = Measure(strategy, result)
-        fout.write(serialize(measure))
-        fout.write('\n')
-        return kl_divergence
-
-    best_bits, best_acc = search_bits_strategy(eval_func, choices, graph, hardware, topology, dataset)
-    print('finished search')
-    print('best_acc: {0}'.format(best_acc))
-    best_thresholds = threshold_estimate(graph, topology, best_bits, dataset)
-    best_strategy = Strategy(model_hash, topology, best_bits, best_thresholds)
-    fout.close()
-    return best_strategy, best_acc
+############################################################
+# TODO: old search pipeline, need to move to new tuner API
+#
+# def grid_search(f, domains, args, max_iter=1000):
+#     num_iter = 0
+#     best_guess = None
+#     best_cost = 0
+# 
+#     for guess in itertools.product(*domains):
+#         if num_iter >= max_iter:
+#             break
+#         cost = f(guess, *args)
+#         if cost >= best_cost:
+#             best_cost = cost
+#             best_guess = guess
+#         num_iter += 1
+#         print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
+#         num_iter += 1
+#     return best_guess, best_cost
+# 
+# 
+# def random_guess(domains):
+#     while True:
+#         guess = []
+#         for domain in domains:
+#             guess.append(random.choice(domain))
+#         yield guess
+# 
+# 
+# def random_search(fcost, domains, args, max_iter=1000):
+#     num_iter = 0
+#     best_guess = None
+#     best_cost = 0
+# 
+#     for guess in random_guess(domains):
+#         print('iteration: {0}'.format(num_iter))
+#         if num_iter >= max_iter:
+#             break
+#         cost = fcost(guess, *args)
+#         if cost > best_cost:
+#             best_cost = cost
+#             best_guess = guess
+#         print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
+#         num_iter += 1
+#     return best_guess, best_cost
+# 
+# 
+# def simulated_annealing(fcost, domains, args, T=0.5, Tmin=0.0005, cool=0.99, portion=0.10, step=2):
+#     def neighbour(origin, portion):
+#         num_changed = int(portion * len(origin))
+#         dims = random.sample(range(0, len(origin)), num_changed)
+#         new = origin.copy()
+#         for dim in dims:
+#             disturbance = random.choice(range(-step, step + 1))
+#             print('choose dimension {0}'.format(dim))
+#             print('change from {} to {}'.format(new[dim], new[dim]+disturbance))
+#             new[dim] += disturbance
+#             if new[dim] < min(domains[dim]):
+#                 new[dim] = min(domains[dim])
+#             if new[dim] > max(domains[dim]):
+#                 new[dim] = max(domains[dim])
+#         return new
+# 
+#     previous_guess, previous_cost = None, 0
+#     best_guess, best_cost = None, 0
+#     num_iter = 0
+#     # init with random guess
+#     guess = next(random_guess(domains))
+#     while T > Tmin:
+#         cost = fcost(guess, *args)
+#         if cost >= best_cost:
+#             # stored as best guess 
+#             best_guess = guess
+#             best_cost = cost
+#         if cost >= previous_cost or random.random() < math.exp(- (previous_cost - cost) / T):
+#             print('accept guess')
+#             # accept the guess
+#             previous_guess = guess
+#             previous_cost = cost
+#         T = T * cool
+#         print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
+#         num_iter += 1
+#         # make new guess
+#         guess = neighbour(previous_guess, portion)
+#     return best_guess, best_cost
+# 
+# 
+# def greedy_squash(fcost, domains, args, tolerance=0.0, max_iter=3000):
+#     cfg = qtz.current_qconfig()
+#     best_guess, best_cost = None, float("inf")
+#     num_iter = 0
+#     # init with maximum bit setting
+#     guess = [choices[0] for choices in domains]
+#     stop_guess = [choices[-1] for choices in domains]
+#     dim_idx = 0
+#     last_update_idx = 0
+#     while num_iter < max_iter: 
+#         cost = fcost(guess, *args)
+#         if cost <= best_cost:
+#             # stored as best guess 
+#             best_guess = guess
+#             best_cost = cost
+# 
+#         if (cost - best_cost) <= tolerance:
+#             previous_guess = guess
+#             previous_cost = cost
+#             last_update_idx = dim_idx
+#         else:
+#             # move to next dimension
+#             dim_idx += 1
+# 
+#         if dim_idx - last_update_idx > len(domains):
+#             # early stopping
+#             break
+# 
+#         # make new guess
+#         guess = previous_guess.copy()
+#         while guess != stop_guess:
+#             dim = dim_idx % len(domains)
+#             if guess[dim] == min(domains[dim]):
+#                 dim_idx += 1
+#             else:
+#                 break
+#         guess[dim] -= 1
+#         print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
+#         num_iter += 1
+#     return best_guess, best_cost
+# 
+# 
+# def search_bits_strategy(eval_func, bit_choices, graph, hardware, topology, dataset):
+#     cfg = qtz.current_qconfig()
+# 
+#     args = (graph, hardware, topology, dataset)
+#     if cfg.search_strategy == 'random_search':
+#         best_bits, best_acc = random_search(eval_func, bit_choices, args)
+#     elif cfg.search_strategy == 'default_setting':
+#         best_bits = [choices[0] for choices in bit_choices]
+#         # sim acc: 71.1, qtz acc: 71.1, imagenet: 68.7
+#         # best_bits = [6, 8, 24, 21, 24, 24, 8, 8, 21, 18, 21, 8, 7, 27, 23, 30, 32, 26, 8, 8, 22, 20, 22, 8, 8, 22, 24, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32]
+#         # sim acc: 71.9  qtz acc: 71.9, imagenet: 68.7
+#         # best_bits = [6, 8, 24, 21, 24, 24, 8, 8, 21, 18, 21, 8, 7, 27, 23, 30, 32, 26, 8, 8, 22, 20, 22, 8, 8, 22, 19, 22, 21, 22, 8, 7, 21, 19, 8, 8, 23, 21, 23, 8, 8, 22, 20, 31, 22, 22, 8, 8, 21, 19, 20, 8, 8, 24, 21, 24, 23, 24, 8, 8, 17, 16, 8, 8, 22, 20, 22, 8, 8, 23, 20, 29, 23, 23, 8, 8, 19, 16, 18, 8, 8, 18, 16, 18, 16, 18, 8, 8, 13, 11, 8, 8, 30, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32]
+#         best_acc = eval_func(best_bits, *args)
+#         return best_bits, best_acc
+#     elif cfg.search_strategy == 'grid_search':
+#         best_bits, best_acc = grid_search(eval_func, bit_choices, args)
+#     elif cfg.search_strategy == 'simulated_annealing':
+#         best_bits, best_acc = simulated_annealing(eval_func, bit_choices, args)
+#     elif cfg.search_strategy == 'greedy_squash':
+#         best_bits, best_acc = greedy_squash(eval_func, bit_choices, args)
+#     else:
+#         raise ValueError('unknown search strategy: {}'.format(cfg.search_strategy))
+# 
+#     return best_bits, best_acc
+# 
+# 
+# def softmax_with_temperature(x, temp=1.0, axis=1):
+#     e_x = np.exp((x - np.amax(x, axis=axis, keepdims=True)) / temp)
+#     return e_x / e_x.sum(axis=axis, keepdims=True)
+# 
+# 
+# def calculate_kl(out_x, out_y):
+#     out_x = softmax_with_temperature(out_x, temp=8.0, axis=1)
+#     out_y = softmax_with_temperature(out_y, temp=8.0, axis=1)
+#     num_samples = out_x.shape[0]
+#     kl = 0.
+#     for i in range(num_samples):
+#         entropy = scipy.stats.entropy(out_x[i], out_y[i])
+#         kl += entropy
+#     kl = kl / num_samples
+#     return kl
+# 
+# 
+# 
+# def old_search_quantize_strategy(mod, hardware, dataset=None):
+#     graph = mod['main']
+#     fout = open(current_qconfig().log_file, 'w+', buffering=1)
+#     origin_out, origin_acc = eval_acc(graph, dataset)
+#     print('original acc: {}'.format(origin_acc))
+#     topology = analyze_topology(graph, hardware)
+#     choices = generate_choices(graph, hardware, topology)
+#     # search_space = create_search_space(graph, topology, choices)
+#     model_hash = tvm.ir.structural_hash(graph)
+# 
+# 
+#     # search for bits settings with learning method
+#     def eval_func(bits, graph, hardware, topology, dataset):
+#         edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
+#         print('bits')
+#         print_edge_dict(graph, edge2bit)
+#         # coarse-grained threshold estimate
+#         thresholds = threshold_estimate(graph, topology, bits, dataset)
+# 
+#         strategy = Strategy(model_hash, topology, bits, thresholds)
+#         quantizer = qtz.create_quantizer(graph, hardware, strategy)
+#         simulated_graph = quantizer.simulate()
+#         # print('simulated_graph')
+#         # print(simulated_graph)
+#         simulated_out, simulated_acc = eval_acc(simulated_graph, dataset)
+#         # [optional] calibrate threshold estimation
+#         quantized_graph = quantizer.quantize()
+#         quantized_out, quantized_acc = eval_acc(quantized_graph, dataset)
+# 
+#         kl_divergence = calculate_kl(origin_out, quantized_out)
+#         # logging
+#         print('simulated_acc: {}, quantized_acc: {}, kl_divergence: {}\n\n'.format(simulated_acc, quantized_acc, kl_divergence))
+#         result = MeasureResult(sim_acc=simulated_acc, quant_acc=quantized_acc, kl_divergence=kl_divergence)
+#         measure = Measure(strategy, result)
+#         fout.write(serialize(measure))
+#         fout.write('\n')
+#         return kl_divergence
+# 
+#     best_bits, best_acc = search_bits_strategy(eval_func, choices, graph, hardware, topology, dataset)
+#     print('finished search')
+#     print('best_acc: {0}'.format(best_acc))
+#     best_thresholds = threshold_estimate(graph, topology, best_bits, dataset)
+#     best_strategy = Strategy(model_hash, topology, best_bits, best_thresholds)
+#     fout.close()
+#     return best_strategy, best_acc
 
 
 def _accuracy_as_measure(graph, dataset, simulated_out, ctx=None, target=None):
