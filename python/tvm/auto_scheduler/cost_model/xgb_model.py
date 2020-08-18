@@ -248,8 +248,9 @@ class XGBModel(PythonBasedModel):
 
         return breakdown
 
-    def load_log_file(self, file_name, n_lines=None):
-        """Load measure records from a log file to pre-train the cost model
+    def update_from_file(self, file_name, n_lines=None):
+        """Load measure records from a log file to update the cost model.
+        This function can be used to pre-train the cost model with history log files.
 
         Parameters
         ----------

@@ -69,7 +69,7 @@ def test_xgb_model():
 
     with tempfile.NamedTemporaryFile() as fp:
         auto_scheduler.save_records(fp.name, inputs, results)
-        model.load_log_file(fp.name)
+        model.update_from_file(fp.name)
 
     with tempfile.NamedTemporaryFile() as fp:
         model.save(fp.name)
