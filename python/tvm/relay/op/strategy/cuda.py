@@ -172,6 +172,25 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                             wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc_tensorcore),
                             name="conv2d_nhwc_tensorcore.cuda",
                             plevel=20)
+        elif layout == "HWNC":
+            assert kernel_layout in ["HWOI", "HWOI16o16i", "HWOI8o32i", "HWOI32o16i"]
+            _, _, N, in_channels = get_const_tuple(data.shape)
+            pre_computed = len(kernel.shape) == 6
+            if pre_computed:
+                _, _, oc_chunk, _, oc_block_factor, _ = get_const_tuple(kernel.shape)
+                out_channels = oc_chunk * oc_block_factor
+            else:
+                _, _, out_channels, _ = get_const_tuple(kernel.shape)
+            if topi.cuda.is_shape_tensorcore_direct_qualified(
+                    batch=N, in_channels=in_channels, num_filter=out_channels, in_dtype=data.dtype):
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.cuda.conv2d_hwnc_tensorcore),
+                    wrap_topi_schedule(topi.cuda.schedule_conv2d_hwnc_tensorcore),
+                    name="conv2d_hwnc_tensorcore_direct.cuda",
+                    plevel=20)
+            else:
+                raise RuntimeError("Unsupported shape for conv2d HWNC.\
+                                    Need to satisfy tensor core schedule.")
         elif layout == "NCHW4c" and data.dtype in ["int8", "uint8"]:
             assert kernel_layout == "OIHW4o4i"
             strategy.add_implementation(
