@@ -49,7 +49,7 @@ class XGBDMatrixContext:
             The name of the attribute
         matrix: xgb.DMatrix
             The matrix
-        default: Optional
+        default: Optional[Any]
             The default value if the item does not exist
         """
         return self.context_dict[key].get(matrix.handle.value, default)
@@ -64,7 +64,7 @@ class XGBDMatrixContext:
             The name of the attribute
         matrix: xgb.DMatrix
             The matrix
-        value: Optional
+        value: Optional[Any]
             The new value
         """
         self.context_dict[key][matrix.handle.value] = value
@@ -76,7 +76,7 @@ class XGBModel(PythonBasedModel):
     """Train a XGBoost model to predict the normalized throughputs of programs.
 
     Let the normalized throughput be the score of a program (higher is better). We predict
-    (approximiate) the score of a program = the sum of the scores of all stages in this program.
+    the (approximiate) score of a program = the sum of the scores of all stages in this program.
     i.e. score(P) = score_s0 + score_s1 + ... + score_sn,
     where score_si is the score of Stage i in Program P.
 
@@ -129,6 +129,7 @@ class XGBModel(PythonBasedModel):
         """
         if len(inputs) <= 0:
             return
+        assert len(inputs) == len(results)
 
         self.inputs.extend(inputs)
         self.results.extend(results)
@@ -254,8 +255,8 @@ class XGBModel(PythonBasedModel):
         ----------
         file_name: str
             The filename
-        n_lines: int
-            Only
+        n_lines: Optional[int]
+            Only load first n lines of the log file
         """
         inputs, results = RecordReader(file_name).read_lines(n_lines)
         logger.info("XGBModel: Loaded %s measurement records from %s", len(inputs), file_name)
@@ -399,7 +400,9 @@ def pack_sum_square_error(preds, dtrain):
 
     Returns
     -------
-    gradient and hessian
+    gradient: np.ndarray
+    hessian: np.ndarray
+        gradient and hessian according to the xgboost format
     """
     pack_ids = dmatrix_context.get("pack_ids", dtrain)
     weight = dtrain.get_weight()
@@ -427,7 +430,9 @@ def pack_sum_rmse(raw_preds, labels):
 
     Returns
     -------
-    The name and value of the metric
+    name: str
+    score: float
+        The name and score of this metric
     """
     pack_ids = dmatrix_context.get("pack_ids", labels)
     preds = predict_throughput_pack_sum(raw_preds, pack_ids)[pack_ids]
@@ -458,7 +463,9 @@ def pack_sum_average_peak_score(N):
 
         Returns
         -------
-        The name and value of the metric
+        name: str
+        score: float
+        The name and score of this metric
         """
         group_sizes = dmatrix_context.get('group_sizes', labels, [len(preds)])
         pack_ids = dmatrix_context.get("pack_ids", labels)

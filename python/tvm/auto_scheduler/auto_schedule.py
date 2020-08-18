@@ -161,7 +161,9 @@ class SketchPolicy(SearchPolicy):
             seed or random.randint(1, 1 << 30), verbose, init_search_callbacks)
 
     def generate_sketches(self, print_for_debug=False):
-        """ Generate the sketches. This is mainly used for debugging and testing.
+        """ Generate the sketches.
+        This python interface is mainly used for debugging and testing.
+        The actual search is all doen in c++.
 
         Parameters
         ----------
@@ -181,7 +183,9 @@ class SketchPolicy(SearchPolicy):
         return sketches
 
     def sample_initial_population(self, pop_size):
-        """Sample initial population. This is mainly used for debugging and testing.
+        """Sample initial population.
+        This python interface is mainly used for debugging and testing.
+        The actual search is all doen in c++.
 
         Parameters
         ----------
