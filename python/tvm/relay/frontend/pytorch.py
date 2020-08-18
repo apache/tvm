@@ -2667,4 +2667,5 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_d
                             default_dtype=default_dtype)
 
     mod["main"] = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
+
     return mod, tvm_params
