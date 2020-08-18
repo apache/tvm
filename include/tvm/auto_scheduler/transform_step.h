@@ -45,6 +45,7 @@
 #ifndef TVM_AUTO_SCHEDULER_TRANSFORM_STEP_H_
 #define TVM_AUTO_SCHEDULER_TRANSFORM_STEP_H_
 
+#include <vector>
 #include <dmlc/common.h>
 #include <dmlc/json.h>
 #include <tvm/node/node.h>

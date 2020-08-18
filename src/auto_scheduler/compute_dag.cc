@@ -763,7 +763,7 @@ class IndexRewriter : public StmtExprMutator {
   const std::string& new_layout_;
 };
 
-std::string get_ori_layout(std::set<std::string>& placeholder_axis_names,
+std::string get_ori_layout(std::set<std::string>* placeholder_axis_names,
                            const te::Operation& op,
                            const te::Tensor& placeholder) {
   ReadAccessExtractor extractor;
@@ -774,7 +774,7 @@ std::string get_ori_layout(std::set<std::string>& placeholder_axis_names,
   std::ostringstream os;
   uint i = 0;
   const auto& placeholder_op = placeholder->op;
-  CHECK(extractor.read_access.count(placeholder_op) > 0);
+  CHECK_GT(extractor.read_access.count(placeholder_op), 0);
   for (const auto& ev : extractor.read_access[placeholder_op]) {
     for (const auto& e : ev) {
       std::string axis_name;
@@ -785,12 +785,12 @@ std::string get_ori_layout(std::set<std::string>& placeholder_axis_names,
         axis_name = BaseName(CleanName(Downcast<Var>(e)->name_hint));
       }
 
-      placeholder_axis_names.insert(axis_name);
+      placeholder_axis_names->insert(axis_name);
       os << placeholder->shape[i++] << axis_name;
     }
   }
 
-  CHECK_EQ(placeholder_axis_names.size(), placeholder->shape.size());
+  CHECK_EQ(placeholder_axis_names->size(), placeholder->shape.size());
   std::string ori_layout = os.str();
   os.str("");
   // TODO(minmin): uncomment this line for relay integration
@@ -798,7 +798,7 @@ std::string get_ori_layout(std::set<std::string>& placeholder_axis_names,
   return ori_layout;
 }
 
-std::string get_new_layout(Array<PrimExpr>& new_shape,
+std::string get_new_layout(Array<PrimExpr>* new_shape,
                            const State& state,
                            const int stage_id,
                            const Stage& stage,
@@ -859,7 +859,7 @@ std::string get_new_layout(Array<PrimExpr>& new_shape,
       if (placeholder_axis_names.count(ori_iter_name)) {
         os << iter->range->extent << ori_iter_name;
         new_names.push_back(ori_iter_name);
-        new_shape.push_back(iter->range->extent);
+        new_shape->push_back(iter->range->extent);
       }
     }
     std::string new_layout = os.str();
@@ -908,12 +908,10 @@ void ComputeDAG::RewriteLayout(
           }
 
           std::set<std::string> placeholder_axis_names;
-
-
-          get_ori_layout(placeholder_axis_names, op, placeholder);
+          get_ori_layout(&placeholder_axis_names, op, placeholder);
 
           Array<PrimExpr> new_shape;
-          std::string new_layout = get_new_layout(new_shape, state, stage_id, stage,
+          std::string new_layout = get_new_layout(&new_shape, state, stage_id, stage,
                                                   op, placeholder, placeholder_axis_names);
 
           handled_ops.insert(placeholder_op);
@@ -1156,7 +1154,8 @@ State ComputeDAG::InferBound(const State& state) const {
       auto find_res = bounds.find(axis);
       if (find_res != bounds.end()) {
         new_iters.push_back(
-            Iterator(iter->name, (*find_res).second, iter->iter_kind, iter->annotation, &iter->ori_iters));
+            Iterator(iter->name, (*find_res).second, iter->iter_kind, iter->annotation,
+                     &iter->ori_iters));
       } else {
         LOG(FATAL) << "Infer bound fails";
       }
