@@ -210,8 +210,7 @@ class ComputeDAG : public ObjectRef {
    * according to the loop nest derived with `transform_steps`.
    * \param transform_steps Transform steps of a state.
    */
-  void RewriteLayout(
-    const Array<Step> &transform_steps);
+  void RewriteLayout(const Array<Step>& transform_steps);
 
   /*!
    * \brief Apply the history transform steps to get a TVM schedule.
@@ -224,9 +223,10 @@ class ComputeDAG : public ObjectRef {
    * \return A `te.schedule` and the an Array of `te.Tensor` to be used in `tvm.lower`
    * or `tvm.build`.
    */
-  std::pair<te::Schedule, Array<te::Tensor>> ApplySteps(
-      const Array<Step>& transform_steps, Array<te::Stage>* stages = nullptr,
-      StageToAxesMap* stage_to_axes = nullptr, bool layout_rewrite = false) const;
+  std::pair<te::Schedule, Array<te::Tensor>> ApplySteps(const Array<Step>& transform_steps,
+                                                        Array<te::Stage>* stages = nullptr,
+                                                        StageToAxesMap* stage_to_axes = nullptr,
+                                                        bool layout_rewrite = false) const;
 
   /*!
    * \brief Print transform steps as equivalent python schedule API.

@@ -1240,8 +1240,7 @@ void ComputeAtStepNode::ApplyToState(State* state) const {
   // compute at
   Array<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
-    new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation,
-                        &it->ori_iters));
+    new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation, &it->ori_iters));
   }
 
   StateNode* pstate = state->CopyOnWrite();
@@ -1357,8 +1356,7 @@ void ComputeRootStepNode::ApplyToState(State* state) const {
   // compute root
   Array<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
-    new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation,
-                                 &it->ori_iters));
+    new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation, &it->ori_iters));
   }
 
   StateNode* pstate = state->CopyOnWrite();
