@@ -18,6 +18,7 @@
 import tvm
 import tvm.topi.testing
 import numpy as np
+import pytest
 from numpy.random import MT19937, RandomState, SeedSequence
 from tvm import relay
 from tvm.relay.testing.inception_v3 import get_workload as get_inception
@@ -69,6 +70,7 @@ def compare(module, input, src_dtype, dst_dtype, rtol, atol, params = {}, target
                                 rtol=rtol,
                                 atol=atol)
 
+@pytest.fixture(scope="session", autouse=True)
 def setup():
     """Set up tests
 
@@ -381,8 +383,4 @@ def test_models():
     #           num_classes=10)
 
 if __name__ == "__main__":
-    setup()
-    test_ops()
-    test_conv2d()
-    test_models()
-    test_batchnorm()
+    pytest.main([__file__])
