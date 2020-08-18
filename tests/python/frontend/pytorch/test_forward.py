@@ -973,6 +973,7 @@ def test_forward_view():
     verify_model(View2().float().eval(), input_data=input_data)
     verify_model(View3().float().eval(), input_data=input_data)
 
+
 def test_forward_select():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -981,8 +982,25 @@ def test_forward_select():
         def forward(self, *args):
             return args[0].select(1, 1)
 
+    class IndexedSelect(Module):
+        def __init__(self, inp, dim):
+            super().__init__()
+            self.inp = inp
+            self.dim = dim
+            if torch.cuda.is_available():
+                self.inp = self.inp.cuda()
+
+        def forward(self, index):
+            return torch.index_select(self.inp, self.dim, index)
+
     input_data = torch.rand(input_shape).float()
     verify_model(Select1().float().eval(), input_data=input_data)
+
+    x = torch.randn(3, 4)
+    indices = torch.tensor([0, 2])
+    verify_model(IndexedSelect(x, 0).eval(), input_data=indices)
+    verify_model(IndexedSelect(x, 1).eval(), input_data=indices)
+
 
 def test_forward_clone():
     torch.set_grad_enabled(False)
