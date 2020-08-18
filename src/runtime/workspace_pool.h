@@ -47,9 +47,9 @@ class TVM_DLL WorkspacePool {
   /*!
    * \brief Create pool with specific device type and device.
    * \param device_type The device type.
-   * \param device The device API.
+   * \param device_api The device API.
    */
-  WorkspacePool(DLDeviceType device_type, std::shared_ptr<DeviceAPI> device);
+  WorkspacePool(DLDeviceType device_type, DeviceAPI* device_api);
   /*! \brief destructor */
   ~WorkspacePool();
   /*!
@@ -73,7 +73,7 @@ class TVM_DLL WorkspacePool {
   /*! \brief device type this pool support */
   DLDeviceType device_type_;
   /*! \brief The device API */
-  std::shared_ptr<DeviceAPI> device_;
+  DeviceAPI* device_;
 };
 
 }  // namespace runtime

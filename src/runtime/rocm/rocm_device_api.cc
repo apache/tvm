@@ -174,8 +174,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
     ROCMThreadEntry::ThreadLocal()->pool.FreeWorkspace(ctx, data);
   }
 
-  static const std::shared_ptr<ROCMDeviceAPI>& Global() {
-    static std::shared_ptr<ROCMDeviceAPI> inst = std::make_shared<ROCMDeviceAPI>();
+  static ROCMDeviceAPI* Global() {
+    static ROCMDeviceAPI* inst = new ROCMDeviceAPI();
     return inst;
   }
 
@@ -197,7 +197,7 @@ ROCMThreadEntry::ROCMThreadEntry() : pool(kDLROCM, ROCMDeviceAPI::Global()) {}
 ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() { return ROCMThreadStore::Get(); }
 
 TVM_REGISTER_GLOBAL("device_api.rocm").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = ROCMDeviceAPI::Global().get();
+  DeviceAPI* ptr = ROCMDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
 }  // namespace runtime
