@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-#include <universal/posit/posit.hpp>
+#include "universal/posit/posit.hpp"
 // must go after posit.hpp
 #include "universal/posit/math/exponent.hpp"
 #include "universal/posit/math/hyperbolic.hpp"
