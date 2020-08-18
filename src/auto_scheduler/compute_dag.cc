@@ -1010,10 +1010,6 @@ void ComputeDAG::RewriteLayout(
             if (new_op.defined()) {
               auto index = old_tensor->value_index;
               ptensors->SetItem(i, new_op.output(index));
-              // TODO(minmin) uncomment these for relay integration
-              // te::TensorNode* old_tensor_node =
-              //  const_cast<te::TensorNode*>(old_tensor.as<te::TensorNode>());
-              // old_tensor_node->op = new_op;
             }
           }
         }  // end for placeholder
@@ -1312,10 +1308,12 @@ TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAG").set_body_typed([](Array<te::Ten
 });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGApplyStepsFromState")
-    .set_body_typed([](const ComputeDAG& dag, const State& state) {
+    .set_body_typed([](const ComputeDAG& dag, const State& state,
+                       const bool layout_rewrite) {
       te::Schedule sch;
       Array<te::Tensor> return_tensors;
-      std::tie(sch, return_tensors) = dag.ApplySteps(state->transform_steps, nullptr, nullptr, true);
+      std::tie(sch, return_tensors) = dag.ApplySteps(state->transform_steps,
+                                                     nullptr, nullptr, layout_rewrite);
       return Array<ObjectRef>{sch, return_tensors};
     });
 
