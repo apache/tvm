@@ -47,13 +47,17 @@ namespace auto_scheduler {
 
 /*! \brief Return whether the search task is targeting a CPU. */
 inline bool IsCPUTask(const SearchTask& task) {
-  return ((task)->target->kind->device_type == kDLCPU);
+  return (task)->target->kind->device_type == kDLCPU;
 }
 
 /*! \brief Return whether the search task is targeting a GPU. */
 inline bool IsGPUTask(const SearchTask& task) {
-  return ((task)->target->kind->device_type == kDLGPU ||
-          (task)->target->kind->device_type == kDLOpenCL);
+  return (task)->target->kind->device_type == kDLGPU ||
+         (task)->target->kind->device_type == kDLOpenCL ||
+         (task)->target->kind->device_type == kDLVulkan ||
+         (task)->target->kind->device_type == kDLMetal ||
+         (task)->target->kind->device_type == kDLROCM ||
+         (task)->target->kind->device_type == kOpenGL;
 }
 
 /*! \brief Return whether the search task is targeting a CUDA GPU. */

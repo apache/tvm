@@ -18,9 +18,9 @@
 """
 The search policies for TVM Auto-scheduler.
 
-This contains the specific strategy on how to generate a schedule automatically. We provide a
-default EmptyPolicy which always returns an unchanged initial state, and a practices proven
-effective SketchPolicy which is able to deal with various ops/subgraphs on different target devices.
+This contains the strategies to generate a schedule automatically. We provide an EmptyPolicy
+which always returns an unchanged initial state, and a more advanced SketchPolicy which can 
+deal with various ops/subgraphs on different target devices.
 
 Reference:
 L. Zheng, C. Jia, M. Sun, Z. Wu, C. Yu, et al. "Ansor : Generating High-Performance Tensor
@@ -52,7 +52,7 @@ class PreloadMeasuredStates(SearchCallback):
     Parameters
     ----------
     filename : str
-        The measure record to load measured states from.
+        The name of the record file.
     """
     def __init__(self, filename="auto_scheduler_tuning.json"):
         self.__init_handle_by_constructor__(_ffi_api.PreloadMeasuredStates, filename)
@@ -140,7 +140,9 @@ class SketchPolicy(SearchPolicy):
             seed or random.randint(1, 1 << 30), verbose, init_search_callbacks)
 
     def generate_sketches(self, print_for_debug=False):
-        """ Generate the sketches, this is mainly used for debug.
+        """ Generate the sketches.
+        This python interface is mainly used for debugging and testing.
+        The actual search is all done in c++.
 
         Parameters
         ----------
@@ -162,7 +164,7 @@ class SketchPolicy(SearchPolicy):
     def sample_initial_population(self, pop_size):
         """Sample initial population.
         This python interface is mainly used for debugging and testing.
-        The actual search is all doen in c++.
+        The actual search is all done in c++.
 
         Parameters
         ----------
