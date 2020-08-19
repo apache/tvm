@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=no-else-return, invalid-name, unused-argument, too-many-arguments, consider-using-in
-"""Backend compiler related feature registration"""
+"""Backend compiler related feature registration for dynamic relay ops in nn namespace"""
 
 from __future__ import absolute_import
 

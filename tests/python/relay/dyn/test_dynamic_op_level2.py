@@ -60,7 +60,7 @@ def test_dyn_upsampling_run():
                  tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
 
     verify_upsampling((1, 16, 32, 32), 2.0, 2.0,"NCHW", "nearest_neighbor")
-    verify_upsampling((1, 16, 32, 32), 2.0, 2.0,"NCHW", "bilinear", True)
+    verify_upsampling((1, 16, 32, 32), 2.0, 2.0, "NCHW", "bilinear", True)
     verify_upsampling((1, 16, 32, 32), 2.0, 2.0, "NHWC", "nearest_neighbor")
     verify_upsampling((1, 16, 32, 32), 2.0, 2.0,"NHWC", "bilinear", True)
 
