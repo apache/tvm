@@ -31,6 +31,7 @@ from ._tensor import elemwise_shape_func
 _reg.register_broadcast_schedule("broadcast_to")
 _reg.register_broadcast_schedule("broadcast_to_like")
 _reg.register_broadcast_schedule("expand_dims")
+_reg.register_broadcast_schedule("matrix_set_diag")
 _reg.register_broadcast_schedule("repeat")
 _reg.register_broadcast_schedule("tile")
 _reg.register_broadcast_schedule("where")

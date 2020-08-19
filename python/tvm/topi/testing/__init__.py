@@ -60,3 +60,4 @@ from .common import get_injective_schedule, get_reduce_schedule, get_broadcast_s
     get_elemwise_schedule, get_conv2d_nchw_implement, dispatch
 from .adaptive_pool_python import adaptive_pool
 from .grid_sample_python import affine_grid_python, grid_sample_nchw_python
+from .matrix_set_diag import matrix_set_diag
