@@ -204,6 +204,10 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   using Stream::Write;
   using Stream::WriteArray;
 
+  void MessageStart(uint64_t packet_nbytes) {
+    // Unused here, implemented for uTVM framing layer.
+  }
+
   bool Read(RPCCode* code) {
     int32_t cdata;
     if (!this->Read(&cdata)) return false;
@@ -213,6 +217,10 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   void Write(RPCCode code) {
     int32_t cdata = static_cast<int>(code);
     this->Write(cdata);
+  }
+
+  void MessageDone() {
+    // Unused here, implemented for uTVM framing layer.
   }
 
   template <typename T>

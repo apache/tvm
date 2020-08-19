@@ -18,20 +18,35 @@
  */
 
 /*!
- * \file micro_session.h
- * \brief session to manage multiple micro modules
- *
- * Each session consists of an interaction with a *single* logical device.
- * Within that interaction, multiple TVM modules can be loaded on the logical
- * device.
- *
- * Multiple sessions can exist simultaneously, but there is only ever one
- * *active* session. The idea of an active session mainly has implications for
- * the frontend, in that one must make a session active in order to allocate
- * new TVM objects on it. Aside from that, previously allocated objects can be
- * used even if the session which they belong to is not currently active.
+ * \file framing.h
+ * \brief Framing for RPC.
  */
-#ifndef TVM_RUNTIME_MICRO_MICRO_SESSION_H_
-#define TVM_RUNTIME_MICRO_MICRO_SESSION_H_
+#include "write_stream.h"
 
-#endif  // TVM_RUNTIME_MICRO_MICRO_SESSION_H_
+namespace tvm {
+namespace runtime {
+
+WriteStream::~WriteStream() {}
+
+tvm_crt_error_t WriteStream::WriteAll(uint8_t* data, size_t data_size_bytes, size_t* bytes_consumed) {
+  *bytes_consumed = 0;
+  while (data_size_bytes > 0) {
+    ssize_t to_return = Write(data, data_size_bytes);
+    if (to_return == 0) {
+      return kTvmErrorWriteStreamShortWrite;
+    } else if (to_return < 0) {
+      return (tvm_crt_error_t) to_return;
+    } else if (to_return > 0 && ((size_t) to_return) > data_size_bytes) {
+      return kTvmErrorWriteStreamLongWrite;
+    }
+
+    data += to_return;
+    data_size_bytes -= to_return;
+    *bytes_consumed += to_return;
+  }
+
+  return kTvmErrorNoError;
+}
+
+}  // namespace runtime
+}  // namespace tvm

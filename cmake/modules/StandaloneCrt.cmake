@@ -33,27 +33,50 @@ if(USE_STANDALONE_CRT)
   endfunction(tvm_crt_add_copy_file)
 
   # Build an isolated build directory, separate from the TVM tree.
-  file(GLOB_RECURSE crt_srcs
-       RELATIVE "${CMAKE_SOURCE_DIR}/src/runtime/crt"
-       "${CMAKE_SOURCE_DIR}/src/runtime/crt/common/*.c"
-       "${CMAKE_SOURCE_DIR}/src/runtime/crt/graph_runtime/*.c"
-       "${CMAKE_SOURCE_DIR}/src/runtime/crt/include/*.h")
+  set(CRC16_PATH "${CMAKE_SOURCE_DIR}/3rdparty/mbed-os/targets/TARGET_NORDIC/TARGET_NRF5x/TARGET_SDK_11/libraries/crc16")
+  list(APPEND CRT_FILE_COPY_JOBS
+       "3rdparty/mbed-os/targets/TARGET_NORDIC/TARGET_NRF5x/TARGET_SDK_11/libraries/crc16 *.h -> include *.c -> src/runtime/crt/utvm_rpc_server"
+       "3rdparty/dlpack/include *.h -> include"
+       "3rdparty/dmlc-core/include *.h -> include"
+       "include/tvm/runtime c_*_api.h -> include/tvm/runtime"
+       "include/tvm/runtime/crt *.h -> include/tvm/runtime/crt"
+       "src/runtime/crt Makefile -> ."
+       "src/runtime/crt/include *.h -> include"
+       "src/runtime/crt/common *.c -> src/runtime/crt/common"
+       "src/runtime/crt/graph_runtime *.c -> src/runtime/crt/graph_runtime"
+       "src/runtime/crt/utvm_rpc_server * -> src/runtime/crt/utvm_rpc_server"
+       "src/runtime/minrpc * -> src/runtime/minrpc"
+       "src/support generic_arena.h -> src/support"
+       )
 
-  foreach(src IN LISTS crt_srcs)
-    tvm_crt_add_copy_file(host_isolated_build_deps ${CMAKE_SOURCE_DIR}/src/runtime/crt/${src} standalone_crt/${src})
+  foreach(job_spec IN LISTS CRT_FILE_COPY_JOBS)
+    string(REPLACE " " ";" job_spec "${job_spec}")
+    list(LENGTH job_spec job_spec_length)
+    math(EXPR job_spec_length_mod "${job_spec_length} % 3")
+    if(NOT "${job_spec_length_mod}" EQUAL 1)
+      message(FATAL_ERROR "CRT copy job spec list length is ${job_spec_length}; parsed job spec is ${job_spec}")
+    endif()
+    math(EXPR job_spec_stop "${job_spec_length} - 3")
+
+    list(GET job_spec 0 job_src_base)
+    set(job_src_base "${CMAKE_SOURCE_DIR}/${job_src_base}")
+    foreach(copy_pattern_index RANGE 1 "${job_spec_stop}" 3)
+      list(GET job_spec ${copy_pattern_index} copy_pattern)
+      math(EXPR copy_dest_index "${copy_pattern_index} + 2")
+      list(GET job_spec ${copy_dest_index} copy_dest)
+
+      file(GLOB_RECURSE copy_files
+           RELATIVE "${job_src_base}"
+           "${job_src_base}/${copy_pattern}")
+      list(LENGTH copy_files copy_files_length)
+      if("${copy_files_length}" EQUAL 0)
+        message(FATAL_ERROR "CRT copy job matched 0 files: ${job_src_base}/${copy_pattern} -> ${copy_dest}")
+      endif()
+      foreach(copy_src IN LISTS copy_files)
+        tvm_crt_add_copy_file(host_isolated_build_deps ${job_src_base}/${copy_src} standalone_crt/${copy_dest}/${copy_src})
+      endforeach()
+    endforeach()
   endforeach()
-
-  file(GLOB_RECURSE crt_headers RELATIVE "${CMAKE_SOURCE_DIR}/include" include/tvm/runtime/crt/*.h)
-  foreach(hdr IN LISTS crt_headers)
-    tvm_crt_add_copy_file(host_isolated_build_deps ${CMAKE_SOURCE_DIR}/include/${hdr} standalone_crt/include/${hdr})
-  endforeach()
-
-  tvm_crt_add_copy_file(host_isolated_build_deps
-      ${CMAKE_SOURCE_DIR}/include/tvm/runtime/c_runtime_api.h standalone_crt/include/tvm/runtime/c_runtime_api.h)
-  tvm_crt_add_copy_file(host_isolated_build_deps
-      ${CMAKE_SOURCE_DIR}/include/tvm/runtime/c_backend_api.h standalone_crt/include/tvm/runtime/c_backend_api.h)
-  tvm_crt_add_copy_file(host_isolated_build_deps
-      ${CMAKE_SOURCE_DIR}/src/runtime/crt/Makefile standalone_crt/Makefile)
 
   get_filename_component(crt_config_abspath src/runtime/crt/host/crt_config.h ABSOLUTE)
   list(APPEND host_isolated_build_deps src/runtime/crt/host/crt_config.h)
@@ -83,37 +106,19 @@ if(USE_STANDALONE_CRT)
      DEPENDS standalone_crt
      INSTALL_COMMAND ""
      )
-  ExternalProject_Add_StepDependencies(host_standalone_crt build ${host_isolated_build_deps})
-#   add_custom_command(
-#       OUTPUT host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a
-#       COMMAND make
-#           DLPACK_INCLUDE_DIR=${CMAKE_SOURCE_DIR}/3rdparty/dlpack/include
-#           TVM_INCLUDE_DIR=${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include
-#           CRT_CONFIG=${crt_config_abspath}
-#           BUILD_DIR=${host_build_dir_abspath} all ${make_quiet}
-#       WORKING_DIRECTORY standalone_crt
-#       DEPENDS ${host_isolated_build_deps})
-#   add_custom_target(host_standalone_crt DEPENDS host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a)
+  ExternalProject_Add_StepDependencies(host_standalone_crt build standalone_crt) # ${host_isolated_build_deps})
 
-# #  add_custom_target(host_standalone_crt ALL
-# #      DEPENDS host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a)
-  add_library(host_standalone_crt_common STATIC IMPORTED GLOBAL)
-  add_dependencies(host_standalone_crt_common host_standalone_crt)
-  set_target_properties(host_standalone_crt_common PROPERTIES
-      IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common/libcommon.a"
-      IMPORTED_OBJECTS "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common/libcommon.a"
-      PUBLIC_HEADER "${crt_headers}")
-#   add_dependencies(host_standalone_crt_common host_standalone_crt)
-# #      ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common/libcommon.a)
-
-  add_library(host_standalone_crt_graph_runtime STATIC IMPORTED GLOBAL)
-  add_dependencies(host_standalone_crt_graph_runtime host_standalone_crt)
-  set_target_properties(host_standalone_crt_graph_runtime PROPERTIES
-      IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime/libgraph_runtime.a"
-      IMPORTED_OBJECTS "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime/libgraph_runtime.a"
-      PUBLIC_HEADER "${crt_headers}")
-#   add_dependencies(host_standalone_crt_graph_runtime host_standalone_crt)
-# #      ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime/libgraph_runtime.a)
+  list(APPEND crt_libraries common graph_runtime utvm_rpc_server)
+  foreach(crt_lib IN LISTS crt_libraries)
+    set(cmake_crt_lib_name host_standalone_crt_${crt_lib})
+    list(APPEND cmake_crt_libraries ${cmake_crt_lib_name})
+    add_library(${cmake_crt_lib_name} STATIC IMPORTED GLOBAL)
+    add_dependencies(${cmake_crt_lib_name} host_standalone_crt)
+    set_target_properties(${cmake_crt_lib_name} PROPERTIES
+        IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/lib${crt_lib}.a"
+        IMPORTED_OBJECTS "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/lib${crt_lib}.a"
+        PUBLIC_HEADER "${crt_headers}")
+  endforeach()
 
   # Standalone CRT tests
   file(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*.cc)
@@ -130,10 +135,7 @@ if(USE_STANDALONE_CRT)
       list(APPEND TEST_EXECS ${__execname})
       target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_SOURCE_DIR}/src/runtime/crt/host)
       target_compile_options(${__execname} PRIVATE -pthread)
-#      target_link_directories(${__execname} PRIVATE
-#          ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common
-#          ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime)
-      target_link_libraries(${__execname} host_standalone_crt_graph_runtime host_standalone_crt_common ${GTEST_LIB} pthread)
+      target_link_libraries(${__execname} ${cmake_crt_libraries} ${GTEST_LIB} pthread)
       set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
       set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
     endforeach()

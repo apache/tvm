@@ -1,0 +1,12 @@
+TEST_F(FramingTest, TestPacketStartAtEndOfWrite) {
+  Send("\x01");
+  Send("\x02");
+  Send("packet");
+}
+
+TEST_F(FramingTest, TestResetDuringPacketStart) {
+  Send("\x01\x01\x02");
+}
+
+
+TEST_F(FramingTest, TestEscapeCodeDuring

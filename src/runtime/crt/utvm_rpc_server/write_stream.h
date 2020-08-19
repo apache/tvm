@@ -18,20 +18,32 @@
  */
 
 /*!
- * \file micro_session.h
- * \brief session to manage multiple micro modules
- *
- * Each session consists of an interaction with a *single* logical device.
- * Within that interaction, multiple TVM modules can be loaded on the logical
- * device.
- *
- * Multiple sessions can exist simultaneously, but there is only ever one
- * *active* session. The idea of an active session mainly has implications for
- * the frontend, in that one must make a session active in order to allocate
- * new TVM objects on it. Aside from that, previously allocated objects can be
- * used even if the session which they belong to is not currently active.
+ * \file framing.h
+ * \brief Framing for RPC.
  */
-#ifndef TVM_RUNTIME_MICRO_MICRO_SESSION_H_
-#define TVM_RUNTIME_MICRO_MICRO_SESSION_H_
 
-#endif  // TVM_RUNTIME_MICRO_MICRO_SESSION_H_
+#ifndef TVM_RUNTIME_MINRPC_WRITE_STREAM_H_
+#define TVM_RUNTIME_MINRPC_WRITE_STREAM_H_
+
+#include <inttypes.h>
+#include <stddef.h>
+#include <sys/types.h>
+
+#include <tvm/runtime/crt/error_codes.h>
+
+namespace tvm {
+namespace runtime {
+
+class WriteStream {
+ public:
+  virtual ~WriteStream();
+  virtual ssize_t Write(const uint8_t* data, size_t data_size_bytes) = 0;
+  virtual void PacketDone(bool is_valid) = 0;
+
+  tvm_crt_error_t WriteAll(uint8_t* data, size_t data_size_bytes, size_t* bytes_consumed);
+};
+
+}  // namespace runtime
+}  // namespace tvm
+
+#endif  // TVM_RUNTIME_MINRPC_WRITE_STREAM_H_

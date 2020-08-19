@@ -83,6 +83,7 @@ include_directories(${DMLC_PATH})
 include_directories(${RANG_PATH})
 include_directories(${COMPILER_RT_PATH})
 include_directories(${PICOJSON_PATH})
+include_directories(${MBED_OS_CRC16_PATH})
 
 # initial variables
 set(TVM_LINKER_LIBS "")

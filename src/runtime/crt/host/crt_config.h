@@ -24,6 +24,9 @@
 #ifndef TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_
 #define TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_
 
+/*! Log level of the CRT runtime */
+#define TVM_CRT_LOG_LEVEL TVM_CRT_LOG_LEVEL_DEBUG
+
 /*! Support low-level debugging in MISRA-C runtime */
 #define TVM_CRT_DEBUG 0
 
@@ -64,5 +67,16 @@
 
 /*! Size of the global function registry, in bytes. */
 #define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 200
+
+/*! Maximum packet size, in bytes, including the length header. */
+#define TVM_CRT_MAX_PACKET_SIZE_BYTES 64000
+
+/*! \brief Maximum length of a PackedFunc function name. */
+#define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES  30
+
+/*! \brief Log2 of the page size (bytes) for a virtual memory page. */
+#define TVM_CRT_PAGE_BITS  10  // 1 kB
+
+#define TVM_CRT_FRAMER_ENABLE_LOGS
 
 #endif  // TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_

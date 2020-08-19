@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file rpc_procotol.h
+ * \file rpc_reference.h
  * \brief Common header defining the communication code used in the RPC protocol.
  */
-#ifndef TVM_RUNTIME_RPC_RPC_PROTOCOL_H_
-#define TVM_RUNTIME_RPC_RPC_PROTOCOL_H_
+#ifndef TVM_RUNTIME_MINRPC_RPC_REFERENCE_H_
+#define TVM_RUNTIME_MINRPC_RPC_REFERENCE_H_
 
 namespace tvm {
 namespace runtime {
@@ -71,6 +71,47 @@ enum class RPCServerStatus : int {
   kWriteError,
   kAllocError
 };
+
+inline const char* RPCCodeToString(RPCCode code) {
+  switch (code) {
+  case RPCCode::kShutdown:
+    return "kShutdown";
+  case RPCCode::kInitServer:
+    return "kInitServer";
+  case RPCCode::kCallFunc:
+    return "kCallFunc";
+  case RPCCode::kReturn:
+    return "kReturn";
+  case RPCCode::kException:
+    return "kException";
+  case RPCCode::kCopyFromRemote:
+    return "kCopyFromRemote";
+  case RPCCode::kCopyToRemote:
+    return "kCopyToRemote";
+  case RPCCode::kCopyAck:
+    return "kCopyAck";
+  // The following are syscall code that can send over CallRemote
+  case RPCCode::kGetGlobalFunc:
+    return "kGetGlobalFunc";
+  case RPCCode::kFreeHandle:
+    return "kFreeHandle";
+  case RPCCode::kDevSetDevice:
+    return "kDevSetDevice";
+  case RPCCode::kDevGetAttr:
+    return "kDevGetAttr";
+  case RPCCode::kDevAllocData:
+    return "kDevAllocData";
+  case RPCCode::kDevFreeData:
+    return "kDevFreeData";
+  case RPCCode::kDevStreamSync:
+    return "kDevStreamSync";
+  case RPCCode::kCopyAmongRemote:
+    return "kCopyAmongRemote";
+  default:
+    return "";
+  }
+}
+
 
 /*!
  * \brief Convert RPC server status to string.
@@ -421,12 +462,14 @@ struct RPCReference {
 
     uint64_t packet_nbytes = sizeof(code) + sizeof(num_args) + sizeof(tcode) + sizeof(len) + len;
 
+    channel->MessageStart(packet_nbytes);
     channel->Write(packet_nbytes);
     channel->Write(code);
     channel->Write(num_args);
     channel->Write(tcode);
     channel->Write(len);
     channel->WriteArray(msg, len);
+    channel->MessageDone();
   }
 
   /*!
@@ -444,9 +487,11 @@ struct RPCReference {
     uint64_t packet_nbytes =
         sizeof(code) + PackedSeqGetNumBytes(arg_values, type_codes, num_args, false, channel);
 
+    channel->MessageStart(packet_nbytes);
     channel->Write(packet_nbytes);
     channel->Write(code);
     SendPackedSeq(arg_values, type_codes, num_args, false, channel);
+    channel->MessageDone();
   }
 
   /*!
@@ -463,13 +508,16 @@ struct RPCReference {
 
     uint64_t packet_nbytes = sizeof(code) + sizeof(num_args) + sizeof(tcode);
 
+    channel->MessageStart(packet_nbytes);
     channel->Write(packet_nbytes);
     channel->Write(code);
     channel->Write(num_args);
     channel->Write(tcode);
+    channel->MessageDone();
   }
 };
 
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_RPC_RPC_PROTOCOL_H_
+
+#endif  // TVM_RUNTIME_MINRPC_RPC_REFERENCE_H_

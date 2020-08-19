@@ -34,15 +34,6 @@
 extern "C" {
 #endif
 
-/*! Number of bits in a page */
-#define TVM_CRT_PAGE_BITS ((1 << TVM_CRT_PAGE_BYTES_LOG) << 3)
-
-/*! \brief Translate log memory size into bytes */
-#define TVM_CRT_VIRT_MEM_SIZE (1 << TVM_CRT_LOG_VIRT_MEM_SIZE)
-
-/*! \brief Number of possible page entries in total */
-#define TVM_CRT_MAX_PAGES (TVM_CRT_VIRT_MEM_SIZE / TVM_CRT_PAGE_BYTES)
-
 /*! \brief A page in the DRAM */
 typedef struct Page {
   /*! \brief Start location in page table */
@@ -130,9 +121,28 @@ typedef struct MemoryManager {
   MultiMap free_map;
 } MemoryManager;
 
-// Exposed for testing
+/*!
+ * Exposed for testing.
+ *
+ * \param manager The memory manager to initialize.
+ * \param memory_pool Pointer to the global memory pool used by the CRT.
+ * \param memory_pool_size_bytes Size of `memory_pool`, in bytes.
+ * \param page_size_bytes_log2 log2 of the page size, in bytes.
+ */
 void MemoryManagerCreate(MemoryManager* manager, uint8_t* memory_pool,
                          size_t memory_pool_size_bytes, size_t page_size_bytes_log2);
+
+/*!
+ * Initialize the global memory manager.
+ *
+ * Call this function once before invoking any other CRT functions beginning with `TVM`.
+ * Repeated calls will cause TVMPlatformAbort to be invoked.
+ * \param memory_pool Pointer to the global memory pool used by the CRT.
+ * \param memory_pool_size_bytes Size of `memory_pool`, in bytes.
+ * \param page_size_bytes_log2 log2 of the page size, in bytes.
+ */
+void TVMInitializeGlobalMemoryManager(uint8_t* memory_pool, size_t memory_pool_size_bytes,
+                                      size_t page_size_bytes_log2);
 
 #ifdef __cplusplus
 }  // extern "C"
