@@ -78,6 +78,25 @@ void PythonBasedModelNode::PredictStages(const SearchTask& task, const Array<Sta
   flatten_scores.resize(n_states * n_stages * 2);
   predict_stage_func(task, states, static_cast<void*>(flatten_scores.data()));
 
+  /* For faster data copy between c++ and python, the python part returns scores in a
+   * single flatten array using a packed format. The c++ part then unpacks the flatten array.
+   *
+   * The packed format is:
+   * {
+   *   float  scores[N];                 // scores[i] is the score for states[i].
+   *   int    n_stage_0;                 // the number of stages in states[0]
+   *   float  stage_scores_0[[n_stage_0] // the scores for all stages in states[0]
+   *   int    n_stage_1;                 // the number of stages in states[1]
+   *   float  stage_scores_1[n_stage_1]; // the scores for all stages in states[1]
+   *   ...
+   *   int    n_stage_i;                 // the number of stages in states[i]
+   *   float  stage_scores_1[n_stage_i]; // the scores for all stages in states[i]
+   *   ...  // untill i == N - 1
+   * }
+   * To implement this format, we also store int as float, so we can store all numbers
+   * into a single float array.
+   */
+
   // Unpack flatten scores.
   state_scores->clear();
   stage_scores->clear();

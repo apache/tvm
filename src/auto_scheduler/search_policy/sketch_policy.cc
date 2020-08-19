@@ -196,7 +196,7 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
   const Array<State>& sketches = GenerateSketches();
 
   // 2. Sample the init population
-  Array<State> init_populations = SampleInitPopulation(
+  Array<State> init_population = SampleInitPopulation(
       sketches, is_cost_model_reasonable ? population - num_use_measured : population);
 
   // 3. If the cost model is useless (i.e. RandomCostModel), just random pick some generated
@@ -205,13 +205,13 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
     // Also insert already measured good states to the initial population
     std::vector<int> indices = Argsort(measured_states_throughputs_);
     for (int i = 0; i < num_use_measured; i++) {
-      init_populations.push_back(measured_states_vector_[indices[i]]);
+      init_population.push_back(measured_states_vector_[indices[i]]);
     }
     // Sample some random states for eps-greedy
-    *random_states = RandomSampleStates(init_populations, &rand_gen, num_random_states * 10);
-    return EvolutionarySearch(init_populations, num_measure_per_iter_ * 2);
+    *random_states = RandomSampleStates(init_population, &rand_gen, num_random_states * 10);
+    return EvolutionarySearch(init_population, num_measure_per_iter_ * 2);
   } else {
-    return RandomSampleStates(init_populations, &rand_gen, num_measure_per_iter_ * 3);
+    return RandomSampleStates(init_population, &rand_gen, num_measure_per_iter_ * 3);
   }
 }
 
@@ -322,7 +322,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
   return out_states;
 }
 
-Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_populations,
+Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_population,
                                                   int out_size) {
   Array<State> best_states;
   auto tic_begin = std::chrono::high_resolution_clock::now();
@@ -396,6 +396,14 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicy")
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicyGenerateSketches")
     .set_body_typed([](SketchPolicy policy) { return policy->GenerateSketches(); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicySampleInitialPopulation")
+    .set_body_typed([](SketchPolicy policy, int pop_size) {
+      const Array<State>& sketches = policy->GenerateSketches();
+
+      Array<State> init_population = policy->SampleInitPopulation(sketches, pop_size);
+      return init_population;
+    });
 
 }  // namespace auto_scheduler
 }  // namespace tvm
