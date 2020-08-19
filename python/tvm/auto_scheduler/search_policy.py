@@ -19,7 +19,7 @@
 The search policies for TVM Auto-scheduler.
 
 This contains the strategies to generate a schedule automatically. We provide an EmptyPolicy
-which always returns an unchanged initial state, and a more advanced SketchPolicy which can 
+which always returns an unchanged initial state, and a more advanced SketchPolicy which can
 deal with various ops/subgraphs on different target devices.
 
 Reference:
