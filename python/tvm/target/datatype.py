@@ -183,3 +183,12 @@ def lower_ite(ite_intrin):
     return call_intrin(dtype, "tir.if_then_else", convert(ite_intrin.args[0]),
                        convert(ite_intrin.args[1]),
                        convert(ite_intrin.args[2]))
+
+def lower_call_pure_extern(call_pure_extern):
+    dtype = call_pure_extern.dtype
+    t = tvm.DataType(dtype)
+    assert get_type_registered(t.type_code)
+    dtype = "uint" + str(t.bits)
+    if t.lanes > 1:
+        dtype += "x" + str(t.lanes)
+    return call_intrin(dtype, "tir.call_pure_extern", *call_pure_extern.args)

@@ -1,4 +1,3 @@
-
 #include <tvm/runtime/c_runtime_api.h>
 
 #include <cstdint>
@@ -17,6 +16,8 @@ TVM_DLL sw::unum::posit<8, 2> Uint8ToPosit8es2(uint8_t in) {
 }
 
 extern "C" {
+TVM_DLL uint8_t RawPosit8es2(uint8_t in) { return in; }
+
 TVM_DLL uint8_t Posit8es2toUint8(sw::unum::posit<8, 2> in) {
   return static_cast<uint8_t>(in.get().to_ullong());
 }
@@ -82,6 +83,8 @@ TVM_DLL sw::unum::posit<16, 2> Uint16ToPosit16es2(uint16_t in) {
 }
 
 extern "C" {
+TVM_DLL uint16_t RawPosit16es2(uint16_t in) { return in; }
+
 TVM_DLL uint16_t Posit16es2toUint16(sw::unum::posit<16, 2> in) {
   return static_cast<uint16_t>(in.get().to_ullong());
 }
@@ -147,6 +150,8 @@ TVM_DLL sw::unum::posit<32, 2> Uint32ToPosit32es2(uint32_t in) {
 }
 
 extern "C" {
+TVM_DLL uint32_t RawPosit32es2(uint32_t in) { return in; }
+
 TVM_DLL uint32_t Posit32es2ToUint32(sw::unum::posit<32, 2> in) {
   return static_cast<uint32_t>(in.get().to_ullong());
 }

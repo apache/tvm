@@ -25,7 +25,8 @@ from tvm.relay.testing.inception_v3 import get_workload as get_inception
 from tvm.relay.testing.resnet import get_workload as get_resnet
 from tvm.relay.testing.layers import batch_norm_infer
 from tvm.relay.testing.mobilenet import get_workload as get_mobilenet
-from tvm.target.datatype import register, register_min_func, register_op, create_lower_func, lower_ite
+from tvm.target.datatype import register, register_min_func, register_op, create_lower_func, lower_ite, lower_call_pure_extern
+from tvm.tir.op import call_pure_extern
 from nose.tools import nottest
 
 # we use a random seed to generate input_data
@@ -150,6 +151,11 @@ def setup():
                 "llvm",
                 "posites2",
                 intrinsic_name="tir.if_then_else")
+    register_op(lower_call_pure_extern,
+                "Call",
+                "llvm",
+                "posites2",
+                intrinsic_name="tir.call_pure_extern")
     register_op(create_lower_func({
         32: 'Posit32es2Exp',
         16: 'Posit16es2Exp',
@@ -170,7 +176,20 @@ def setup():
         16: 'Posit16es2Tanh',
         8: 'Posit8es2Tanh'
     }), "Call", "llvm", "posites2", intrinsic_name="tir.tanh")
-    register_min_func(lambda num_bits: - (2 ** 2 ** 2) ** (num_bits - 2), "posites2")
+
+    def posit_min_func(num_bits):
+        # encode raw bit representation
+        # min posit is all 1's in binary
+        value = np.dtype('int' + str(num_bits)).type(-1)
+        dtype = 'custom[posites2]' + str(num_bits)
+        func_map = {
+            32: 'RawPosit32es2',
+            16: 'RawPosit16es2',
+            8: 'RawPosit8es2'
+        }
+        return call_pure_extern(dtype, func_map[num_bits], value)
+    register_min_func(posit_min_func, "posites2")
+
 
 def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
     """Run the same op, but with two different datatypes"""
