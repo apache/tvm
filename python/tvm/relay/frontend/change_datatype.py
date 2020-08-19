@@ -21,8 +21,8 @@ from ..expr_functor import ExprMutator
 from ..transform.transform import function_pass
 from ..expr import var, bind
 
-# TODO(@gussmith23) what's the right opt level here?
-@function_pass(opt_level=0)
+
+@function_pass()
 class ChangeDatatype(ExprMutator):
     """Mutator for changing the datatype of Relay programs.
 
