@@ -112,6 +112,24 @@ using HoistForIfTuple = std::tuple<bool, const ForNode*, const IfThenElseNode*>;
  *            if (likely(j > 2))
  *                A[i+j+k] = B[i+j+k]
  *
+ *
+ * This pass do hoisting for Block scope variables also.
+ * As below:
+ * Attr(IterVar: threadIdx.x)
+ * for (i = 0; i < 3; i++)
+ *    for (j = 0; j < 4; j++)
+ *        for (k = 0; k < 5; k++)
+ *            if (likely(threadIdx.x < 3))
+ *                A[3*i+2j+k] = B[7*i+3j+k]
+ *
+ * Will be transformed to as below:
+ * Attr(IterVar: threadIdx.x)
+ * if (likely(threadIdx.x < 3))
+ *     for (i = 0; i < 3; i++)
+ *         for (j = 0; j < 4; j++)
+ *             for (k = 0; k < 5; k++)
+ *                 A[3*i+2j+k] = B[7*i+3j+k]
+ *
  */
 
 // Select potential candidate IRs that can be hoisted.
@@ -181,13 +199,8 @@ class HoistCandidateSelector final : public StmtExprVisitor {
       // Check corresponding for loop
       int match_for_loop_pos = -1;
       for (auto var : if_var_list_) {
-        for (int i = 0; i < static_cast<int>(ordered_list_.size() - 1); ++i) {
-          if (ordered_list_[i] == var_for_map_[var]) {
-            if (match_for_loop_pos < i) {
-              match_for_loop_pos = i;
-            }
-            break;
-          } else if (ordered_list_[i] == var) {
+        for (int i = 0; i < static_cast<int>(ordered_list_.size()); ++i) {
+          if ((ordered_list_[i] == var_for_map_[var]) || (ordered_list_[i] == var)) {
             if (match_for_loop_pos < i) {
               match_for_loop_pos = i;
             }
@@ -198,8 +211,8 @@ class HoistCandidateSelector final : public StmtExprVisitor {
       // then the if node need to be hoisted on top of all, provided no parent loop exists.
       int target_for_pos = GetNextLoopPos(match_for_loop_pos);
 
-      // Check if target for loop is not the parent of current if node
-      if (!IsParentForLoop(target_for_pos)) {
+      // Check if valid position
+      if (target_for_pos >= 0) {
         StopAndAddRecord(static_cast<const ForNode*>(ordered_list_[target_for_pos]), op);
         if_var_list_.clear();
         return;
@@ -246,25 +259,6 @@ class HoistCandidateSelector final : public StmtExprVisitor {
     // If no if var list is present, then all the condition vars are possibly from AttrStmt, so stop
     // hoisting
     return ((!if_var_list_.empty()) && (!CheckAttrVar()));
-  }
-
-  bool IsParentForLoop(int loop_pos) {
-    // Check if the loop position is higher than the parent loop position
-    for (auto var : if_var_list_) {
-      if (GetParentLoopPos(var_for_map_[var]) >= loop_pos) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  int GetParentLoopPos(const Object* node) {
-    for (size_t i = 0; i < ordered_list_.size(); ++i) {
-      if (ordered_list_[i] == node) {
-        return i;
-      }
-    }
-    return -1;
   }
 
   int GetNextLoopPos(int cur_pos) {
