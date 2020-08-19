@@ -114,6 +114,16 @@ class DynamicToStaticMutator : public MixedModeMutator {
            }
            return Expr(nullptr);
          }},
+        {Op::Get("dyn.full"),
+         [](const CallNode* call_node) {
+           if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
+             CHECK_EQ(shape->data->ndim, 1);
+             const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
+             CHECK(param);
+             return MakeFull(call_node->args[0], ToVector(shape->data), param->dtype);
+           }
+           return Expr(nullptr);
+         }},
     };
   }
 

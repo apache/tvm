@@ -40,7 +40,7 @@ class OpenCLWrappedFunc {
   void Init(OpenCLModuleNode* m, ObjectPtr<Object> sptr, OpenCLModuleNode::KTRefEntry entry,
             std::string func_name, std::vector<size_t> arg_size,
             const std::vector<std::string>& thread_axis_tags) {
-    w_ = m->GetGlobalWorkspace().get();
+    w_ = m->GetGlobalWorkspace();
     m_ = m;
     sptr_ = sptr;
     entry_ = entry;
@@ -110,7 +110,7 @@ OpenCLModuleNode::~OpenCLModuleNode() {
   }
 }
 
-const std::shared_ptr<cl::OpenCLWorkspace>& OpenCLModuleNode::GetGlobalWorkspace() {
+cl::OpenCLWorkspace* OpenCLModuleNode::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 

@@ -19,7 +19,7 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/target/target_kind.h>
+#include <tvm/target/target.h>
 
 #include <cmath>
 #include <string>
@@ -39,46 +39,115 @@ TEST(TargetKind, GetAttrMap) {
   CHECK_EQ(result, "Value1");
 }
 
-TEST(TargetKind, SchemaValidation) {
-  tvm::Map<String, ObjectRef> target;
-  {
-    tvm::Array<String> your_names{"junru", "jian"};
-    tvm::Map<String, Integer> her_maps{
-        {"a", 1},
-        {"b", 2},
-    };
-    target.Set("my_bool", Bool(true));
-    target.Set("your_names", your_names);
-    target.Set("her_maps", her_maps);
-    target.Set("kind", String("TestTargetKind"));
-  }
-  TargetValidateSchema(target);
-  tvm::Map<String, ObjectRef> target_host(target.begin(), target.end());
-  target.Set("target_host", target_host);
-  TargetValidateSchema(target);
+TEST(TargetCreation, NestedConfig) {
+  Map<String, ObjectRef> config = {
+      {"my_bool", Bool(true)},
+      {"your_names", Array<String>{"junru", "jian"}},
+      {"kind", String("TestTargetKind")},
+      {
+          "her_maps",
+          Map<String, Integer>{
+              {"a", 1},
+              {"b", 2},
+          },
+      },
+  };
+  Target target = Target::FromConfig(config);
+  CHECK_EQ(target->kind, TargetKind::Get("TestTargetKind"));
+  CHECK_EQ(target->tag, "");
+  CHECK(target->keys.empty());
+  Bool my_bool = target->GetAttr<Bool>("my_bool").value();
+  CHECK_EQ(my_bool.operator bool(), true);
+  Array<String> your_names = target->GetAttr<Array<String>>("your_names").value();
+  CHECK_EQ(your_names.size(), 2U);
+  CHECK_EQ(your_names[0], "junru");
+  CHECK_EQ(your_names[1], "jian");
+  Map<String, Integer> her_maps = target->GetAttr<Map<String, Integer>>("her_maps").value();
+  CHECK_EQ(her_maps.size(), 2U);
+  CHECK_EQ(her_maps["a"], 1);
+  CHECK_EQ(her_maps["b"], 2);
 }
 
-TEST(TargetKind, SchemaValidationFail) {
-  tvm::Map<String, ObjectRef> target;
-  {
-    tvm::Array<String> your_names{"junru", "jian"};
-    tvm::Map<String, Integer> her_maps{
-        {"a", 1},
-        {"b", 2},
-    };
-    target.Set("my_bool", Bool(true));
-    target.Set("your_names", your_names);
-    target.Set("her_maps", her_maps);
-    target.Set("ok", ObjectRef(nullptr));
-    target.Set("kind", String("TestTargetKind"));
-  }
+TEST(TargetCreationFail, UnrecognizedConfigOption) {
+  Map<String, ObjectRef> config = {
+      {"my_bool", Bool(true)},
+      {"your_names", Array<String>{"junru", "jian"}},
+      {"kind", String("TestTargetKind")},
+      {"bad", ObjectRef(nullptr)},
+      {
+          "her_maps",
+          Map<String, Integer>{
+              {"a", 1},
+              {"b", 2},
+          },
+      },
+  };
   bool failed = false;
   try {
-    TargetValidateSchema(target);
+    Target::FromConfig(config);
   } catch (...) {
     failed = true;
   }
   ASSERT_EQ(failed, true);
+}
+
+TEST(TargetCreationFail, TypeMismatch) {
+  Map<String, ObjectRef> config = {
+      {"my_bool", String("true")},
+      {"your_names", Array<String>{"junru", "jian"}},
+      {"kind", String("TestTargetKind")},
+      {
+          "her_maps",
+          Map<String, Integer>{
+              {"a", 1},
+              {"b", 2},
+          },
+      },
+  };
+  bool failed = false;
+  try {
+    Target::FromConfig(config);
+  } catch (...) {
+    failed = true;
+  }
+  ASSERT_EQ(failed, true);
+}
+
+TEST(TargetCreationFail, TargetKindNotFound) {
+  Map<String, ObjectRef> config = {
+      {"my_bool", Bool("true")},
+      {"your_names", Array<String>{"junru", "jian"}},
+      {
+          "her_maps",
+          Map<String, Integer>{
+              {"a", 1},
+              {"b", 2},
+          },
+      },
+  };
+  bool failed = false;
+  try {
+    Target::FromConfig(config);
+  } catch (...) {
+    failed = true;
+  }
+  ASSERT_EQ(failed, true);
+}
+
+TEST(TargetCreation, DeduplicateKeys) {
+  Map<String, ObjectRef> config = {
+      {"kind", String("llvm")},
+      {"keys", Array<String>{"cpu", "arm_cpu"}},
+      {"device", String("arm_cpu")},
+  };
+  Target target = Target::FromConfig(config);
+  CHECK_EQ(target->kind, TargetKind::Get("llvm"));
+  CHECK_EQ(target->tag, "");
+  CHECK_EQ(target->keys.size(), 2U);
+  CHECK_EQ(target->keys[0], "cpu");
+  CHECK_EQ(target->keys[1], "arm_cpu");
+  CHECK_EQ(target->attrs.size(), 1U);
+  CHECK_EQ(target->GetAttr<String>("device"), "arm_cpu");
 }
 
 int main(int argc, char** argv) {

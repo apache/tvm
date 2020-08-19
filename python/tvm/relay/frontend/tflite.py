@@ -363,12 +363,16 @@ class OperatorConverter(object):
         rhs_scale = rhs_tensor.qnn_params['scale']
         lhs_zero_point = lhs_tensor.qnn_params['zero_point']
         rhs_zero_point = rhs_tensor.qnn_params['zero_point']
-        lhs_scale_value = get_scalar_from_constant(lhs_scale)
-        rhs_scale_value = get_scalar_from_constant(rhs_scale)
-        lhs_zero_point_value = get_scalar_from_constant(lhs_zero_point)
-        rhs_zero_point_value = get_scalar_from_constant(rhs_zero_point)
-        return lhs_scale_value == rhs_scale_value and \
-                lhs_zero_point_value == rhs_zero_point_value
+        # 0.1 + 0.2 != 0.3
+        return np.allclose(lhs_scale.data.asnumpy(),
+                           rhs_scale.data.asnumpy(),
+                           rtol=1e-5,
+                           atol=1e-5) \
+               and \
+               np.allclose(lhs_zero_point.data.asnumpy(),
+                           rhs_zero_point.data.asnumpy(),
+                           rtol=1e-5,
+                           atol=1e-5)
 
     def is_quantized(self, op):
         """Check if an input tensor is quantized."""
@@ -1109,7 +1113,7 @@ class OperatorConverter(object):
 
         return out
 
-    def _convert_elemwise(self, relay_op, op):
+    def _convert_elemwise(self, relay_op, op, ignore_qnn_params=False):
         """Generic method to Convert TFLite elemwise"""
         try:
             from tflite.AddOptions import AddOptions
@@ -1132,8 +1136,16 @@ class OperatorConverter(object):
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
 
+        # TFLite format demands equal scale and zero_point tuple parameters for some operations
+        # to allow us to use non-quantized operation instead of quantized if ignore_qnn_params=True
+        if ignore_qnn_params:
+            assert  lhs_tensor.qnn_params \
+                and self.has_same_qnn_params(lhs_tensor, output_tensor) \
+                and self.has_same_qnn_params(rhs_tensor, output_tensor), \
+                "All tensors should be quantized with the same (scale,zero-point) tuple parameters"
+
         # If quantized, extracts qnn params and call QNN add operator.
-        if lhs_tensor.qnn_params:
+        if not ignore_qnn_params and lhs_tensor.qnn_params:
             assert rhs_tensor.qnn_params, "Both tensors should be quantized."
             assert output_tensor.qnn_params, "Output tensor should be quantized."
             out = relay_op(lhs=lhs_expr,
@@ -1164,7 +1176,7 @@ class OperatorConverter(object):
             fused_activation_fn = options.FusedActivationFunction()
 
             # Handle fused activations
-            if output_tensor.qnn_params:
+            if not ignore_qnn_params and output_tensor.qnn_params:
                 scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
                 zero_point_val = get_scalar_from_constant(output_tensor.qnn_params['zero_point'])
                 output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
@@ -1231,19 +1243,11 @@ class OperatorConverter(object):
 
     def convert_maximum(self, op):
         """Convert TFLite MAXIMUM"""
-        # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized MAXIMUM operator is not supported yet.')
-        return self._convert_elemwise(_op.maximum, op)
+        return self._convert_elemwise(_op.maximum, op, self.is_quantized(op))
 
     def convert_minimum(self, op):
         """Convert TFLite MINIMUM"""
-        # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized MINIMUM operator is not supported yet.')
-        return self._convert_elemwise(_op.minimum, op)
+        return self._convert_elemwise(_op.minimum, op, self.is_quantized(op))
 
     def convert_greater(self, op):
         """Convert TFLite GREATER"""
@@ -1343,14 +1347,10 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
-        data = self.get_expr(input_tensors[0].tensor_idx)
-
+        data = self.get_tensor_expr(input_tensors[0])
         indices = input_tensors[1]
         indices_type = indices.tensor.Type()
         assert indices_type in (TensorType.INT32, TensorType.INT64)
-        indices_type_str = self.get_tensor_type_str(indices_type)
-        indices = self.exp_tab.new_const(self.get_tensor_value(indices),
-                                         dtype=indices_type_str)
 
         assert op.BuiltinOptionsType() == BuiltinOptions.GatherOptions
         op_options = op.BuiltinOptions()
@@ -1362,37 +1362,31 @@ class OperatorConverter(object):
         data_shape = list(input_tensors[0].tensor.ShapeAsNumpy())
         data_dim = len(data_shape)
 
-        axis_n = axis
-        if axis_n < 0:
-            axis_n += axis_n + data_dim
-        assert axis_n >= 0, "Axis out of bounds"
-        assert axis_n < data_dim, "Axis out of bounds"
+        axis = data_dim + axis if axis < 0 else axis
+        assert axis >= 0, "Axis out of bounds"
+        assert axis < data_dim, "Axis out of bounds"
 
-        indices_val = self.get_tensor_value(input_tensors[1])
-        indices_shape = list(indices_val.shape)
-        indices_len = len(indices_shape)
+        if self.has_expr(indices.tensor_idx):
+            indices_expr = self.get_expr(indices.tensor_idx)
+        else:
+            indices_val = self.get_tensor_value(indices)
+            indices_expr = self.exp_tab.new_const(indices_val,
+                                                  dtype=self.get_tensor_type_str(indices_type))
+            indices_shape = list(indices_val.shape)
+            indices_len = len(indices_shape)
 
-        out_shape = []
-        for i in range(data_dim):
-            if axis_n == i:
-                for j in range(indices_len):
-                    out_shape.append(indices_shape[j])
-            else:
-                out_shape.append(data_shape[i])
+            out_shape = data_shape[:axis] + indices_shape[:] + data_shape[axis+1:]
 
-        loopover = [range(s) for s in out_shape]
-        for idx in list(itertools.product(*loopover)):
-            indices_position = [idx[j] for j in range(axis_n, axis_n+indices_len)]
-
-            real_indices = [idx[j] for j in range(axis_n)]
-            real_indices.append(indices_val[tuple(indices_position)])
-            real_indices.extend([idx[j] for j in range(axis_n + indices_len, len(idx))])
-            for r, d in zip(real_indices, data_shape):
-                if r >= d:
+            loopover = [range(s) for s in out_shape]
+            for idx in list(itertools.product(*loopover)):
+                real_indices = list(idx[:axis]) \
+                    + [indices_val[idx[axis: axis + indices_len]]] \
+                    + list(idx[axis + indices_len:])
+                if np.any(np.subtract(data_shape, real_indices) < 0):
                     raise ValueError("TFLite out of bound indices are not supported.")
 
         # Use mode 'fast' since indices are already checked within bounds.
-        out = _op.take(data, indices, axis=axis, mode="fast")
+        out = _op.take(data, indices_expr, axis=axis, mode="fast")
         return out
 
     def convert_gather_nd(self, op):

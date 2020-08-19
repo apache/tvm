@@ -152,7 +152,7 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 #
 # Setup the device config which is what will be used to communicate
 # with the microcontroller (a STM32F746 Discovery board)
-TARGET = 'c -device=micro_dev'
+TARGET = 'c --system-lib  --runtime=c'
 dev_config = micro.device.arm.stm32f746xx.generate_config("127.0.0.1", 6666)
 
 ######################################################################

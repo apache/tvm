@@ -547,17 +547,25 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
     double ret = 0;
     for (const auto& op : ops) {
       if (auto pop = op.as<te::ComputeOpNode>()) {
-        double num_element = AxisLengthProd(pop->axis);
-        if (num_element == -1) {
-          fail_ = true;
-          break;
+        if (pop->attrs.count("FLOP")) {
+          // Use user-provided FLOP
+          auto pint = pop->attrs["FLOP"].as<IntImmNode>();
+          CHECK(pint != nullptr);
+          ret += pint->value;
+        } else {
+          // Estimate by parsing the compute body
+          double num_element = AxisLengthProd(pop->axis);
+          if (num_element == -1) {
+            fail_ = true;
+            break;
+          }
+          cur_type_code_ = pop->output_dtype(0).code();
+          double op_per_element = 0;
+          for (const auto& x : pop->body) {
+            op_per_element += VisitExpr(x);
+          }
+          ret += num_element * op_per_element;
         }
-        cur_type_code_ = pop->output_dtype(0).code();
-        double op_per_element = 0;
-        for (const auto& x : pop->body) {
-          op_per_element += VisitExpr(x);
-        }
-        ret += num_element * op_per_element;
       } else if (op->IsInstance<te::PlaceholderOpNode>()) {
         {}  // do nothing
       } else {

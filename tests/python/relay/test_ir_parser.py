@@ -591,6 +591,16 @@ def test_tensor_type():
         )
     )
 
+    assert_parses_as(
+        "let %_ : Tensor[(?, 1), float32] = (); ()",
+        relay.Let(
+            relay.Var("_", relay.TensorType((tvm.tir.Any(), 1), "float32")),
+            UNIT,
+            UNIT
+        )
+    )
+
+
 
 def test_function_type():
     assert_parses_as(
@@ -677,6 +687,24 @@ def test_adt_defn():
         """,
         mod
     )
+
+def test_adt_any():
+    code = """
+    type my_dtype {
+        my_cons(Tensor[(?, 1), uint16]),
+    }
+    """
+    mod = parse_module(code)
+    items = mod.type_definitions.items()
+    global_type_var, type_data = items[0]
+    assert global_type_var.name_hint == "my_dtype"
+    ctors = type_data.constructors
+    assert len(ctors) == 1
+    my_cons = ctors[0]
+    assert my_cons.name_hint == "my_cons"
+    ty_shape = my_cons.inputs[0].shape
+    assert isinstance(ty_shape[0], tvm.tir.Any)
+    assert ty_shape[1] == 1
 
 
 def test_empty_adt_defn():
