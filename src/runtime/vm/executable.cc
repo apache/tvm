@@ -23,6 +23,7 @@
  */
 
 #include <dmlc/memory_io.h>
+#include <sched.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/vm/executable.h>
@@ -32,6 +33,7 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <random>
 #include <sstream>
 #include <utility>
 #include <vector>
@@ -249,6 +251,13 @@ void Executable::SaveConstantSection(dmlc::Stream* strm) {
   for (const auto& it : arrays) {
     runtime::SaveDLTensor(strm, it);
   }
+
+  // Save the const to device mapping.
+  std::vector<size_t> const_device_type;
+  for (auto dev_type : this->const_device_type) {
+    const_device_type.push_back(static_cast<size_t>(dev_type));
+  }
+  strm->Write(const_device_type);
 }
 
 void Executable::SavePrimitiveOpNames(dmlc::Stream* strm) {
@@ -448,7 +457,7 @@ void Executable::SaveCodeSection(dmlc::Stream* strm) {
   for (const auto& func : this->functions) {
     // Save the function info.
     VMFunctionSerializer func_format(func.name, func.register_file_size, func.instructions.size(),
-                                     func.params);
+                                     func.params, func.params_device_type);
     func_format.Save(strm);
 
     // Serialize each instruction.
@@ -514,6 +523,14 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
     runtime::NDArray constant;
     STREAM_CHECK(constant.Load(strm), "constant");
     this->constants.push_back(constant);
+  }
+
+  // Load the const to device mapping.
+  std::vector<size_t> const_device_type;
+  STREAM_CHECK(strm->Read(&const_device_type), "constant");
+  CHECK_EQ(size, const_device_type.size());
+  for (auto dev : const_device_type) {
+    this->const_device_type.push_back(static_cast<Index>(dev));
   }
 }
 
@@ -746,7 +763,7 @@ void Executable::LoadCodeSection(dmlc::Stream* strm) {
 
     // Create the VM function.
     VMFunction vm_func = VMFunction(loaded_func.name, loaded_func.params, instructions,
-                                    loaded_func.register_file_size);
+                                    loaded_func.register_file_size, loaded_func.params_device_type);
     auto it = this->global_map.find(loaded_func.name);
     CHECK(it != this->global_map.end());
     CHECK_LE(it->second, this->global_map.size());

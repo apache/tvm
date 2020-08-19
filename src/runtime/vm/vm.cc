@@ -157,6 +157,8 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       const auto& param_names = vm_func.params;
       CHECK_EQ(args.size() - 1, param_names.size())
           << "The number of provided parameters doesn't match the number of arguments";
+      CHECK_EQ(param_names.size(), vm_func.params_device_type.size())
+          << "The number of provided parameters doesn't match the number of assigned devices";
       std::vector<ObjectRef> func_args(param_names.size());
       for (int i = 1; i < args.size(); ++i) {
         TVMContext ctx;
