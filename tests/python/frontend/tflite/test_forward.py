@@ -2558,8 +2558,8 @@ def test_forward_sparse_to_dense():
 def _test_fully_connected(tensor_in_sizes, const_input, filter_in_sizes, bias_in_size=None):
     """ One iteration of fully connected """
 
-    total_size_1 = np.prod( tensor_in_sizes )
-    total_size_2 = np.prod( filter_in_sizes )
+    total_size_1 = np.prod(tensor_in_sizes)
+    total_size_2 = np.prod(filter_in_sizes)
 
     assert int(total_size_1 / tensor_in_sizes[0]) == filter_in_sizes[0], \
         "input size and filter size are mismatched"
