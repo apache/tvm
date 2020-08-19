@@ -31,6 +31,7 @@ from .. import expr as _expr
 from .. import op as _op
 from ..ty import TupleType, TensorType, Any
 from ..loops import while_loop
+from .. import transform
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
@@ -1507,14 +1508,16 @@ def _to():
         cast_func = {
             6: float,
             3: int,
+            4: int
         }
         cast_func_expr = {
             6: lambda x: _op.cast(x, "float32"),
             3: lambda x: _op.cast(x, "int32"),
+            4: lambda x: _op.cast(x, "int64"),
         }
         if inputs[1] in cast_func and not isinstance(data, _expr.Expr):
             return cast_func[inputs[1]](data)
-        elif inputs[1] in cast_func and isinstance(data, _expr.Expr):
+        elif inputs[1] in cast_func_expr and isinstance(data, _expr.Expr):
             return cast_func_expr[inputs[1]](data)
         return data
 
@@ -2668,4 +2671,4 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_d
 
     mod["main"] = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
 
-    return mod, tvm_params
+    return transform.RemoveUnusedFunctions()(mod), tvm_params

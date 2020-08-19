@@ -1296,31 +1296,27 @@ def test_upsample():
 def test_to():
     """ test for aten::to(...) """
     class ToCPU(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             return x.to("cpu")
 
     class ToFloat(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             return x.float()
 
     class ToInt(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             return x.int()
+
+    class ToLong(Module):
+        def forward(self, x):
+            return x.long()
 
     verify_model(ToCPU().eval(), torch.rand((1, 3, 32, 32)))
     verify_model(ToFloat().eval(), torch.zeros((1, 3, 32, 32), dtype=torch.int))
     verify_model(ToFloat().eval(), torch.tensor(2, dtype=torch.int))
     verify_model(ToInt().eval(), torch.zeros((1, 3, 32, 32)))
-    verify_model(ToInt().eval(), torch.tensor(2.0))
+    verify_model(ToInt().eval(), torch.tensor(0.8))
+    verify_model(ToLong().eval(), torch.tensor(0.8))
 
 
 def test_adaptive_pool3d():
