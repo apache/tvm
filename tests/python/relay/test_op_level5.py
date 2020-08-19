@@ -70,6 +70,7 @@ def test_resize():
     for layout in ["NHWC", "NCHW"]:
         verify_resize((1, 4, 4, 4), 2, "bilinear", layout, "align_corners")
         verify_resize((2, 8, 17, 20), 3, "bilinear", layout, "half_pixel")
+        verify_resize((2, 8, 17, 20), 3, "bilinear", layout, "asymmetric")
         verify_resize((3, 4, 5, 6), 5, "nearest_neighbor", layout, "asymmetric")
 
 def test_resize3d_infer_type():
