@@ -256,8 +256,12 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   std::unordered_map<Var, Doc, ObjectPtrHash, ObjectPtrEqual> memo_var_;
   /*! \brief Map from Buffer to Doc */
   std::unordered_map<Buffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_buf_;
-  /*! \brief name allocation map */
-  std::unordered_map<std::string, int> name_alloc_map_;
+  /*! \brief variable name allocation map */
+  std::unordered_map<std::string, int> var_name_alloc_map_;
+  /*! \brief buffer name allocation map */
+  std::unordered_map<std::string, int> buf_name_alloc_map_;
+  /*! \brief whether buffer or variable name pool */
+  bool is_buf_;
 
   friend class tvm::TextPrinter;
 

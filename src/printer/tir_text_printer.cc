@@ -558,7 +558,9 @@ Doc TIRTextPrinter::PrintConstScalar(DataType dtype, const T& data) {
 }
 
 Doc TIRTextPrinter::GetUniqueName(std::string prefix) {
-  // std::replace(prefix.begin(), prefix.end(), '.', '_');
+  std::unordered_map<std::string, int>& name_alloc_map_ =
+      is_buf_ ? buf_name_alloc_map_ : var_name_alloc_map_;
+
   std::string unique_prefix = prefix;
   auto it = name_alloc_map_.find(prefix);
   if (it != name_alloc_map_.end()) {
@@ -592,7 +594,11 @@ Doc TIRTextPrinter::AllocBuf(const Buffer& buffer) {
   if (name.length() == 0 || !std::isalpha(name[0])) {
     name = "buf_" + name;
   }
+  // Flag Buffer processing in visible scope to avoid unique name formation for variable node
+  is_buf_ = true;
   Doc val = GetUniqueName(name);
+  // End of scope
+  is_buf_ = false;
   memo_buf_[buffer] = val;
   return val;
 }
