@@ -331,22 +331,19 @@ class ContextAnalysis(ExprVisitor):
             self.device_copy(inps, outs, src_dev_type, dst_dev_type)
             super().visit_call(call)
         elif call.op == op.op.get("memory.alloc_storage"):
+            # The arguments should be on CPU.
+            for arg in (call.args[0], call.args[1]):
+                self.unify(self.device_for(arg), device_type(cpu(0)))
+                self.visit(arg)
             call_dev = device_type(TVMContext(call.attrs.device_type,
                                               call.attrs.device_id))
             self.unify(self.device_for(call), call_dev)
-            # The arguments should be one the same device as the call.
-            self.visit(call.args[0])
-            size = call.args[0]
-            self.visit(call.args[1])
-            alignment = call.args[1]
-            self.unify(self.device_for(size), call_dev)
-            self.unify(self.device_for(alignment), call_dev)
         elif call.op == op.op.get("memory.alloc_tensor"):
-            storage = call.args[0]
-            shape = call.args[1]
-            self.visit(call.args[1])
+            storage, shape = call.args[0], call.args[1]
             self.unify(self.device_for(storage), self.device_for(call))
-            self.unify(self.device_for(shape), self.device_for(call))
+            # The shape for alloc_tensor should be on CPU.
+            self.unify(self.device_for(shape), device_type(cpu(0)))
+            self.visit(shape)
         elif call.op == op.op.get("vm.shape_func"):
             shape_func_domain = device_type(cpu(0))
             # No need to union the op of a shape_func as shape_func doesn't
@@ -359,18 +356,21 @@ class ContextAnalysis(ExprVisitor):
             for arg in call.args[2]:
                 self.visit(arg)
         elif call.op == op.op.get("vm.invoke_tvm_op"):
-            if isinstance(call.args[0].body, _expr.Call) and \
-               call.args[0].body.op == op.op.get("device_copy"):
-                input_tensor = call.args[1]
-                output_tensor = call.args[2]
-                self.device_copy(input_tensor, output_tensor,
-                                 call.attrs.src_dev_type,
-                                 call.attrs.dst_dev_type)
-            else:
-                device = self.unify_call(call.args[0], call.args[1].fields,
-                                         call.args[2].fields)
-                self.unify(self.device_for(call), device)
-                super().visit_call(call)
+            device = self.unify_call(call.args[0], call.args[1].fields,
+                                     call.args[2].fields)
+            self.unify(self.device_for(call), device)
+            super().visit_call(call)
+        elif call.op == op.op.get("vm.shape_of"):
+            # vm shape_of is always on the CPU.
+            self.visit(call.args[0])
+            self.unify(self.device_for(call), device_type(cpu(0)))
+        elif call.op == op.op.get("vm.reshape_tensor"):
+            data, shape = call.args
+            self.unify(self.device_for(call), self.device_for(data))
+            # The shape field of reshape_tensor is always on the CPU.
+            self.unify(self.device_for(shape), device_type(cpu(0)))
+            self.visit(data)
+            self.visit(shape)
         elif isinstance(call.op, Function):
             device = self.device_for(call)
             for arg in call.args:

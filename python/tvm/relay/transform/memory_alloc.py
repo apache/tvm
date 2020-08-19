@@ -99,6 +99,7 @@ class ManifestAllocPass(ExprMutator):
         self.default_context = cpu(0)
         self.compute_dtype = "int64"
         self.context_analysis = context_analysis
+        self.cached_var = {}
         super().__init__()
 
     def get_context(self, expr):
@@ -172,6 +173,7 @@ class ManifestAllocPass(ExprMutator):
 
         self.scopes.append(scope)
         while isinstance(let, expr.Let):
+            self.cached_var[let.var] = let.value
             new_val = self.visit(let.value)
             scope.let(let.var, new_val)
             let = let.body
@@ -181,6 +183,13 @@ class ManifestAllocPass(ExprMutator):
         self.scopes.pop()
 
         return scope.get()
+
+    def skip_copy_input(self, var):
+        """Check if device copy for the input should be skipped. We currently
+        skip copying it when the input is a constant.
+        """
+        return (var in self.cached_var and isinstance(self.cached_var[var],
+                                                      expr.Constant))
 
     def emit_shape_func(self, scope, func, new_args):
         """Insert the shape function given a primitive function."""
@@ -198,10 +207,20 @@ class ManifestAllocPass(ExprMutator):
             # Pass Shapes
             if state == 2:
                 for j, subexp in enumerate(from_tuple_type(arg.type_annotation, arg)):
-                    if ctx.device_type != cpu_ctx.device_type:
+                    # Note vm.shape_of is always executed on CPU. The input may
+                    # need to have a copy as it is likely passed from other
+                    # callers and the argument was on other devices. Constants
+                    # can leave on CPU.
+                    #
+                    # However, this may cause an unnecessary copy when
+                    # all dynamic inputs can be assigned to CPU. An additional
+                    # pass may be needed to decide/remove this copy.
+                    if not self.skip_copy_input(subexp) and \
+                       ctx.device_type != cpu_ctx.device_type:
                         subexp = self.device_copy(scope, subexp, ctx, cpu_ctx, j)
-                    let_in_arg = scope.let("in_arg_{0}".format(input_pos + j), subexp)
-                    sh_of = self.visit(self.shape_of(let_in_arg))
+                        subexp = scope.let("in_arg_{0}".format(input_pos + j),
+                                           subexp)
+                    sh_of = self.visit(self.shape_of(subexp))
                     shape_func_ins.append(
                         scope.let("in_shape_{0}".format(input_pos + j), sh_of))
                     input_pos += 1
@@ -241,22 +260,16 @@ class ManifestAllocPass(ExprMutator):
         out_shapes = self.emit_shape_func(scope, func, new_args)
 
         storages = []
-        cpu_ctx = nd.cpu(0)
         func_ctx = self.get_context(func)
-        copy_out_shapes = []
         for i, (out_shape, out_type) in enumerate(zip(out_shapes, out_types)):
             size = self.compute_storage_in_relay(out_shape, out_type.dtype)
             alignment = self.compute_alignment(out_type.dtype)
-            if func_ctx.device_type != cpu_ctx.device_type:
-                size = self.device_copy(scope, size, cpu_ctx, func_ctx, i)
-                out_shape = self.device_copy(scope, out_shape, cpu_ctx, func_ctx, i)
-            copy_out_shapes.append(out_shape)
             sto = scope.let("storage_{i}".format(i=i), alloc_storage(
                 size, alignment, func_ctx, out_type.dtype))
             storages.append(sto)
 
         outs = []
-        sh_ty_storage = zip(copy_out_shapes, out_types, storages)
+        sh_ty_storage = zip(out_shapes, out_types, storages)
         for i, (out_shape, out_type, storage) in enumerate(sh_ty_storage):
             alloc = alloc_tensor(
                 storage,
@@ -276,11 +289,6 @@ class ManifestAllocPass(ExprMutator):
             out_shapes = self.emit_shape_func(scope, func, new_args)
             shape_expr = out_shapes[0]
             inp = new_args[0]
-            inp_ctx = self.get_context(func)
-            cpu_ctx = nd.cpu(0)
-            if inp_ctx.device_type != cpu_ctx.device_type:
-                shape_expr = self.device_copy(scope, shape_expr, cpu_ctx,
-                                              inp_ctx, 0)
             ret = self.reshape_tensor(inp, shape_expr, ret_type.shape)
             return ret
         else:
