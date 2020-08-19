@@ -1,4 +1,7 @@
+import re
+from collections import namedtuple
 from .expr import *
+from .registry import lookup
 
 class ExprFunctor:
     def __init__(self):
@@ -43,7 +46,7 @@ class AttrsCollector(ExprFunctor):
 
 class CodeGenCPP(ExprFunctor):
     def generate_fvisit_attrs(self, obj, fields):
-        if len(fields) == 0:
+        if not obj.fvisit_attrs or len(fields) == 0:
             return ""
         template = \
         "\n" \
@@ -142,3 +145,67 @@ class CodeGenCPP(ExprFunctor):
 def generate(expr, language='cpp'):
     if language == 'cpp':
         return CodeGenCPP().visit(expr)
+
+
+TextGroup = namedtuple("TextGroup", ['lines', 'is_normal'])
+
+def _process_schema_group(group):
+    lines = group.lines
+    property_lines = []
+    properties = {}
+    regex = r"//[\s]*([\D]+):[\s]*([a-zA-Z]+)"
+    for num, line in enumerate(lines):
+        if re.search(regex, line):
+            matches = re.findall(regex, line)
+            for match in matches:
+                properties[match[0]] = match[1]
+            property_lines.append(line)
+    assert 'name' in properties
+    assert 'schema-type' in properties
+    expr = lookup(properties['name'], properties['schema-type'])
+    content = generate(expr)
+    content = content.split('\n')
+    return [lines[0]] + property_lines + content + [lines[-1]]
+
+
+def process(fname):
+    with open(fname, 'r') as fin: 
+        text = fin.read()
+    lines = text.split('\n')
+    begin_num = []
+    end_num = []
+    for num, line in enumerate(lines):
+        if re.search(r"//[\s]*SCHEMA-BEGIN", line):
+            begin_num.append(num)
+        if re.search(r"//[\s]*SCHEMA-END", line):
+            end_num.append(num)
+
+    assert(len(begin_num) == len(end_num))
+    num_pairs = len(begin_num)
+    if num_pairs == 0:
+        return 
+
+    # separate lines into groups
+    groups = []
+    idx = 0
+    pair_idx = 0
+    while idx < len(lines) and pair_idx < num_pairs:
+        begin_idx = begin_num[pair_idx]
+        end_idx = end_num[pair_idx]
+        groups.append(TextGroup(lines[idx: begin_idx], is_normal=True))
+        groups.append(TextGroup(lines[begin_idx: end_idx+1], is_normal=False))
+        pair_idx += 1
+        idx = end_idx + 1
+    if idx < len(lines):
+        groups.append(TextGroup(lines[idx:], is_normal=True))
+
+    new_lines = []
+    for group in groups:
+        if group.is_normal:
+            new_lines += group.lines
+        else:
+            new_lines += _process_schema_group(group)
+
+    with open(fname, 'w+') as fout:
+        fout.write('\n'.join(new_lines))
+    return
