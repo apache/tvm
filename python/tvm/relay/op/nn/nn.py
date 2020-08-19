@@ -1149,7 +1149,7 @@ def upsampling(data,
 
     Parameters
     ----------
-    data : tvm.relay.Expr or tuple<anytype> or list<anytype>
+    data : tvm.relay.Expr
         The input data to the operator.
 
     scale_h : tvm.relay.Expr or int or float
