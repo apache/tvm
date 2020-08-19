@@ -460,8 +460,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
 
   // x / 2.0 = x * 0.5
   if (const FloatImmNode* ptr = op->b.as<FloatImmNode>()) {
-    // TODO(@gussmith23) is this ok?
-    // CHECK(op->dtype.is_float());
     return op->a * make_const(op->b.dtype(), 1.0 / ptr->value);
   }
 
