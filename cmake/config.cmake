@@ -210,6 +210,16 @@ set(USE_DNNL_CODEGEN OFF)
 set(USE_ARM_COMPUTE_LIB OFF)
 set(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME OFF)
 
+# Whether to build with Arm Ethos-N support
+# Possible values:
+# - OFF: disable Arm Ethos-N support
+# - path/to/arm-ethos-N-stack: use a specific version of the
+#   Ethos-N driver stack
+set(USE_ETHOSN OFF)
+# If USE_ETHOSN is enabled, use ETHOSN_HW (ON) if Ethos-N hardware is available on this machine
+# otherwise use ETHOSN_HW (OFF) to use the software test infrastructure
+set(USE_ETHOSN_HW OFF)
+
 # Build ANTLR parser for Relay text format
 # Possible values:
 # - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)
