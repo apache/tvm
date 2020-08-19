@@ -390,7 +390,7 @@ def test_mutual_recursion2():
     g = body(y, f_gv)
 
     mod = tvm.IRModule()
-    p = Prelude(mod)
+    # p = Prelude(mod)
     mod.add_unchecked(f_gv, f)
     mod.add_unchecked(g_gv, g)
     mod = transform.InferTypeAll()(mod)
@@ -421,7 +421,6 @@ def test_id_mutual():
     g = body(y, f_gv, [ty])
 
     mod = tvm.IRModule()
-    p = Prelude(mod)
     mod.add_unchecked(f_gv, f)
     mod.add_unchecked(g_gv, g)
     mod = transform.InferTypeAll()(mod)

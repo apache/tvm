@@ -118,6 +118,37 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   void Solve();
   Expr ResolveType(Expr expr);
 
+  // Lazily get type for expr
+  // expression, we will populate it now, and return the result.
+  Type GetType(const Expr& expr) {
+    auto it = type_map_.find(expr);
+    if (it != type_map_.end() && it->second.checked_type.defined()) {
+      return it->second.checked_type;
+    }
+    Type ret = this->VisitExpr(expr);
+    CHECK(ret.defined());
+    KindCheck(ret, mod_);
+    ResolvedTypeInfo& rti = type_map_[expr];
+    rti.checked_type = ret;
+    return ret;
+  }
+
+  // Lazily get type for expr
+  // expression, we will populate it now, and return the result.
+  Type GetTypeGlobalVar(const GlobalVar& expr) {
+    auto f = Downcast<Function>(mod_->Lookup(expr));
+    Type ret = GetType(f);
+    auto it = type_map_.find(expr);
+    if (it != type_map_.end() && it->second.checked_type.defined()) {
+      return it->second.checked_type;
+    }
+    CHECK(ret.defined());
+    KindCheck(ret, mod_);
+    ResolvedTypeInfo& rti = type_map_[expr];
+    rti.checked_type = ret;
+    return ret;
+  }
+
  private:
   // type resolver that maps back to type
   class Resolver;
@@ -150,21 +181,6 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
           expr, ErrorBuilder() << "Error unifying `" << t1 << "` and `" << t2 << "`: " << e.what());
       return Type();
     }
-  }
-
-  // Lazily get type for expr
-  // expression, we will populate it now, and return the result.
-  Type GetType(const Expr& expr) {
-    auto it = type_map_.find(expr);
-    if (it != type_map_.end() && it->second.checked_type.defined()) {
-      return it->second.checked_type;
-    }
-    Type ret = this->VisitExpr(expr);
-    CHECK(ret.defined());
-    KindCheck(ret, mod_);
-    ResolvedTypeInfo& rti = type_map_[expr];
-    rti.checked_type = ret;
-    return ret;
   }
 
   void ReportFatalError(const ObjectRef& expr, const Error& err) {
@@ -777,10 +793,10 @@ IRModule InferTypeAll(const IRModule& mod) {
 
   // second pass, fill in constraints
   for (const auto& var : globalvars) {
-    relay::Function func = Downcast<relay::Function>(mod->Lookup(var));
-    ti.SetCurrentFunc(var);
-    ti.GenerateConstraints(func);
-    // ti.Infer(func);
+    // relay::Function func = Downcast<relay::Function>(mod->Lookup(var));
+    // ti.SetCurrentFunc(var);
+    // ti.GenerateConstraints(func);
+    ti.GetTypeGlobalVar(var);
   }
 
   std::cout << "done generating constraints" << std::endl;
@@ -792,9 +808,11 @@ IRModule InferTypeAll(const IRModule& mod) {
   // third pass
   for (const auto& var : globalvars) {
     relay::Function func = Downcast<relay::Function>(mod->Lookup(var));
-    ti.SetCurrentFunc(var);
+    // ti.SetCurrentFunc(var);
     Expr func_ret = ti.ResolveType(func);
+    std::cout << "resolved " << var << std::endl;
     //Expr func_ret = ti.Infer(func);
+    std::cout << var << ": " << func_ret->checked_type() << std::endl;
     mod->AddUnchecked(var, Downcast<relay::Function>(func_ret));
   }
 
