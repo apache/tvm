@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Utilities for changing datatypes of models."""
+"""Unit tests for the Bring Your Own Datatype framework.
+
+TODO(@gussmith23 @hypercubestart) link to documentation"""
 import tvm
 import tvm.topi.testing
 import numpy as np
