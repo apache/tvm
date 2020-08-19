@@ -284,7 +284,7 @@ Array<State> SketchPolicyNode::GenerateSketches() {
             cur_stage_id_map[pair.first] = pair.second;
             pnext->push_back(pair.first);
           }
-          // Skip the reset rules
+          // Skip the rest rules
           if (cond == SketchGenerationRule::ConditionKind::kApplyAndSkipRest) {
             break;
           }

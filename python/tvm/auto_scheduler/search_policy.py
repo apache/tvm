@@ -158,3 +158,21 @@ class SketchPolicy(SearchPolicy):
                 print("=" * 20 + " %d " % i + "=" * 20)
                 print(s)
         return sketches
+
+    def sample_initial_population(self, pop_size):
+        """Sample initial population.
+        This python interface is mainly used for debugging and testing.
+        The actual search is all doen in c++.
+
+        Parameters
+        ----------
+        pop_size : int
+            The size of sampled population
+
+        Returns
+        -------
+        states: List[State]
+            The sampled states
+        """
+        states = _ffi_api.SketchPolicySampleInitialPopulation(self, pop_size)
+        return states
