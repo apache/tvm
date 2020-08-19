@@ -379,10 +379,50 @@ inline bool HasSingleElementwiseMatchedConsumer(const SearchTask& task, const St
   return false;
 }
 
+/*! \brief Return whether the state does cache_read for stage_id. */
+inline bool HasCacheReadStage(const State& s, int stage_id) {
+  for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
+    if (auto ps = s->transform_steps[i].as<CacheReadStepNode>()) {
+      if (stage_id == ps->stage_id) {
+        return true;
+      }
+    }
+
+    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
+        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
+        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+      if (stage_id > s->transform_steps[i]->stage_id) {
+        stage_id--;
+      }
+    }
+  }
+  return false;
+}
+
 /*! \brief Return whether the state does cache_write for stage_id. */
 inline bool HasCacheWriteStage(const State& s, int stage_id) {
   for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
     if (auto ps = s->transform_steps[i].as<CacheWriteStepNode>()) {
+      if (stage_id == ps->stage_id) {
+        return true;
+      }
+    }
+
+    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
+        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
+        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+      if (stage_id > s->transform_steps[i]->stage_id) {
+        stage_id--;
+      }
+    }
+  }
+  return false;
+}
+
+/*! \brief Return whether the state does rfactor for stage_id. */
+inline bool HasRfactorStage(const State& s, int stage_id) {
+  for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
+    if (auto ps = s->transform_steps[i].as<RfactorStepNode>()) {
       if (stage_id == ps->stage_id) {
         return true;
       }

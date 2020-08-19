@@ -320,5 +320,22 @@ const std::vector<int>& SplitFactorizationMemo::GetFactors(int n) {
   return res;
 }
 
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsIsTiled")
+    .set_body_typed([](const Stage& stage) { return IsTiled(stage); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsHasCacheReadStage")
+    .set_body_typed([](const State& s, int stage_id) { return HasCacheReadStage(s, stage_id); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsHasCacheWriteStage")
+    .set_body_typed([](const State& s, int stage_id) { return HasCacheWriteStage(s, stage_id); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsHasRfactorStage")
+    .set_body_typed([](const State& s, int stage_id) { return HasRfactorStage(s, stage_id); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsHasCrossThreadReduction")
+    .set_body_typed([](const State& s, int stage_id) {
+      return HasCrossThreadReduction(s, stage_id);
+    });
+
 }  // namespace auto_scheduler
 }  // namespace tvm
