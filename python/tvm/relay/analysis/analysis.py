@@ -236,6 +236,22 @@ def all_type_vars(expr, mod=None):
     return _ffi_api.all_type_vars(expr, use_mod)
 
 
+def all_dtypes(expr):
+    """Collect set of all data types used in `expr`.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression
+
+    Returns
+    -------
+    ret : Set[String]
+        Set of data types used in the expression (e.g., `{'int8', 'int32'}`)
+    """
+    return set(_ffi_api.all_dtypes(expr))
+
+
 def collect_device_info(expr):
     """Collect the device allocation map for the given expression. The device
     ids are propagated from the `device_copy` operators.

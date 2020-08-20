@@ -38,6 +38,32 @@
 namespace tvm {
 namespace arith {
 
+Array<PrimExpr> AsConditions(const Array<Var>& variables, const Map<Var, IntGroupBounds>& bounds,
+                             const Array<PrimExpr>& relations) {
+  Array<PrimExpr> res;
+  // use variables to keep the order of iteration
+  // so as to get rid of any non-determinism.
+  CHECK_EQ(variables.size(), bounds.size());
+  for (const auto v : variables) {
+    CHECK(bounds.count(v));
+    const auto& bnds = bounds[v];
+    PrimExpr lhs = bnds->coef * v;
+    for (const PrimExpr& rhs : bnds->equal) {
+      res.push_back(tir::EQ(lhs, rhs));
+    }
+    for (const PrimExpr& rhs : bnds->lower) {
+      res.push_back(tir::GE(lhs, rhs));
+    }
+    for (const PrimExpr& rhs : bnds->upper) {
+      res.push_back(tir::LE(lhs, rhs));
+    }
+  }
+  for (const PrimExpr& e : relations) {
+    res.push_back(e);
+  }
+  return res;
+}
+
 IntGroupBounds::IntGroupBounds(PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
                                Array<PrimExpr> upper) {
   CHECK(coef.dtype().is_int() || coef.dtype().is_uint())
@@ -229,6 +255,26 @@ IntConstraintsTransform::IntConstraintsTransform(IntConstraints src, IntConstrai
   node->src_to_dst = std::move(src_to_dst);
   node->dst_to_src = std::move(dst_to_src);
   data_ = std::move(node);
+}
+
+IntConstraintsTransform IntConstraintsTransform::operator+(
+    const IntConstraintsTransform& other) const {
+  CHECK(other->src.same_as(operator->()->dst));
+  Map<Var, PrimExpr> dst_to_src;
+  Map<Var, PrimExpr> src_to_dst;
+
+  Analyzer ana_first;
+  ana_first.Bind(operator->()->src->ranges);
+  for (auto p : other->dst_to_src) {
+    dst_to_src.Set(p.first, ana_first.Simplify(Substitute(p.second, operator->()->dst_to_src)));
+  }
+
+  Analyzer ana_second;
+  ana_second.Bind(other->dst->ranges);
+  for (auto p : operator->()->src_to_dst) {
+    src_to_dst.Set(p.first, ana_second.Simplify(Substitute(p.second, other->src_to_dst)));
+  }
+  return IntConstraintsTransform(operator->()->src, other->dst, src_to_dst, dst_to_src);
 }
 
 TVM_REGISTER_NODE_TYPE(IntConstraintsTransformNode);

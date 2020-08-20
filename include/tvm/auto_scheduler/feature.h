@@ -21,7 +21,7 @@
  * \file auto_scheduler/feature.h
  * \brief Feature extraction for the cost model.
  * We extract one feature vector per BufferStoreNode statement in a TIR Stmt,
- * so we call this feature as "Per Store" feature.
+ * so we call this feature as "per-store" feature.
  * The cost model also does prediction for each BufferStoreNode statement and aggregates
  * the predictions as the whole score for a TVM IR (Stmt).
  *

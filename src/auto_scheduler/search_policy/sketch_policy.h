@@ -83,7 +83,7 @@ class SketchPolicyNode : public SearchPolicyNode {
  public:
   /*! \brief The cost model to estimate the complete schedules. */
   CostModel schedule_cost_model;
-  /*! \brief The parameters map for this search process. */
+  /*! \brief The parameters map for this search policy. */
   Map<String, ObjectRef> params;
   /*! \brief The rules to generate sketches. */
   std::vector<SketchGenerationRule*> sketch_rules;
@@ -103,6 +103,14 @@ class SketchPolicyNode : public SearchPolicyNode {
    */
   Array<State> GenerateSketches();
 
+  /*!
+   * \brief Sample the init population.
+   * \param sketches The initial sketches for the sampled population
+   * \param out_size The number of output states.
+   * \return The generated states (the initial population).
+   */
+  Array<State> SampleInitPopulation(const Array<State>& sketches, int out_size);
+
   static constexpr const char* _type_key = "auto_scheduler.SketchPolicy";
 
   TVM_DECLARE_FINAL_OBJECT_INFO(SketchPolicyNode, SearchPolicyNode);
@@ -116,14 +124,6 @@ class SketchPolicyNode : public SearchPolicyNode {
    * \return The best several states generated in this search round.
    */
   Array<State> SearchOneRound(int num_random_states, Array<State>* random_states = nullptr);
-
-  /*!
-   * \brief Sample init population.
-   * \param sketches The initial sketches to process population.
-   * \param out_size The number of expected output states.
-   * \return The generated states after initial population.
-   */
-  Array<State> SampleInitPopulation(const Array<State>& sketches, int out_size);
 
   /*!
    * \brief Perform evolutionary search.

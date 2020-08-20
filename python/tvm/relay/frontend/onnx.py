@@ -1050,21 +1050,24 @@ class Slice(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        starts = params[get_name(inputs[1])].asnumpy()
-        ends = params[get_name(inputs[2])].asnumpy()
+        attrs = {'starts' : inputs[1], 'ends' : inputs[2]}
+        if len(inputs) >= 4:
+            attrs['axes'] = inputs[3]
+        attrs = {k : (v, get_name(v)) for (k, v) in attrs.items()}
+        attrs = {k : params[v[1]].asnumpy() if v[1] in params else
+                     infer_value_simulated(v[0], params).asnumpy()
+                 for (k, v) in attrs.items()}
 
         # Update the starts and ends according to axes if required.
-        if len(inputs) >= 4:
-            axes = params[get_name(inputs[3])].asnumpy()
-
-            if max(axes + 1) != len(axes):
+        if 'axes' in attrs:
+            if max(attrs['axes'] + 1) != len(attrs['axes']):
                 new_starts, new_ends, _ = cls._common(
-                    starts, ends, axes)
-                starts = new_starts
-                ends = new_ends
+                    attrs['starts'], attrs['ends'], attrs['axes'])
+                attrs['starts'] = new_starts
+                attrs['ends'] = new_ends
         return _op.strided_slice(inputs[0],
-                                 begin=_expr.const(starts, dtype="int64"),
-                                 end=_expr.const(ends, dtype="int64"))
+                                 begin=_expr.const(attrs['starts'], dtype="int64"),
+                                 end=_expr.const(attrs['ends'], dtype="int64"))
 
 
 class Gather(OnnxOpConverter):

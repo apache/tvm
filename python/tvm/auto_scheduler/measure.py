@@ -48,6 +48,7 @@ from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 from tvm.contrib import tar, ndk
 
 from . import _ffi_api
+from .loop_state import StateObject
 from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout, request_remote, \
     check_remote
 
@@ -71,12 +72,13 @@ class MeasureInput(Object):
     Parameters
     ----------
     task : SearchTask
-        The SearchTask of this measure.
-    state : State
+        The SearchTask of this measurement.
+    state : Union[State, StateObject]
         The State to be measured.
     """
     def __init__(self, task, state):
-        self.__init_handle_by_constructor__(_ffi_api.MeasureInput, task, state.state_object)
+        state = state if isinstance(state, StateObject) else state.state_object
+        self.__init_handle_by_constructor__(_ffi_api.MeasureInput, task, state)
 
 
 @tvm._ffi.register_object("auto_scheduler.BuildResult")

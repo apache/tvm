@@ -24,7 +24,7 @@ from tvm import topi
 from tvm.runtime import convert
 from tvm.te.hybrid import script
 from ...op import register_shape_func, register_compute
-from ...op import register_injective_schedule
+from ...op import register_injective_schedule, register_broadcast_schedule
 
 # upsampling
 @register_compute("dyn.nn.upsampling")
@@ -39,6 +39,7 @@ def compute_upsampling(attrs, inputs, out_dtype):
                                method, align_corners, out_dtype.shape)]
 
 register_injective_schedule("dyn.nn.upsampling")
+register_broadcast_schedule("dyn.nn.pad")
 
 #####################
 #  Shape functions  #
@@ -69,3 +70,17 @@ def upsampling_shape_func(attrs, inputs, _):
     return [_upsampling_shape_func(inputs[0].shape, inputs[1], inputs[2],
                                    convert(height_axis), convert(width_axis),
                                    convert(channel_axis))]
+@script
+def _dyn_pad_shape_func(data, pad_width):
+    ndim = len(data.shape)
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        out[i] = int64(pad_width[i, 0] + pad_width[i, 1] + data.shape[i])
+    return out
+
+@register_shape_func("dyn.nn.pad", True)
+def pad_shape_func(attrs, inputs, data):
+    """
+    Shape function for dynamic pad op.
+    """
+    return [_dyn_pad_shape_func(inputs[0], inputs[1])]

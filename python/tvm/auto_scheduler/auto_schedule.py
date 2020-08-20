@@ -161,7 +161,9 @@ class SketchPolicy(SearchPolicy):
             seed or random.randint(1, 1 << 30), verbose, init_search_callbacks)
 
     def generate_sketches(self, print_for_debug=False):
-        """ Generate the sketches, this is mainly used for debug.
+        """ Generate the sketches.
+        This python interface is mainly used for debugging and testing.
+        The actual search is all doen in c++.
 
         Parameters
         ----------
@@ -179,6 +181,24 @@ class SketchPolicy(SearchPolicy):
                 print("=" * 20 + " %d " % i + "=" * 20)
                 print(s)
         return sketches
+
+    def sample_initial_population(self, pop_size):
+        """Sample initial population.
+        This python interface is mainly used for debugging and testing.
+        The actual search is all doen in c++.
+
+        Parameters
+        ----------
+        pop_size : int
+            The size of sampled population
+
+        Returns
+        -------
+        states: List[State]
+            The sampled states
+        """
+        states = _ffi_api.SketchPolicySampleInitialPopulation(self, pop_size)
+        return states
 
 @tvm._ffi.register_object("auto_scheduler.TuningOptions")
 class TuningOptions(Object):

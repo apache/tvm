@@ -91,7 +91,7 @@ class MetalWorkspace final : public DeviceAPI {
   void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
   // get the global workspace
-  static const std::shared_ptr<MetalWorkspace>& Global();
+  static MetalWorkspace* Global();
 };
 
 /*! \brief Thread local workspace */
