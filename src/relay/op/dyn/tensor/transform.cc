@@ -32,9 +32,9 @@
 #include <tvm/topi/elemwise.h>
 #include <tvm/topi/transform.h>
 
+#include <string>
 #include <utility>
 #include <vector>
-#include <string>
 
 #include "../../../transforms/infer_layout_util.h"
 
