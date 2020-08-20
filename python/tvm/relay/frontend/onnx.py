@@ -1048,8 +1048,8 @@ class Slice(OnnxOpConverter):
         end = list(attr['ends'])
 
         return _op.strided_slice(inputs[0],
-                                 begin=_expr.const(begin, dtype="int64"),
-                                 end=_expr.const(end, dtype="int64"))
+                                 begin=begin,
+                                 end=end)
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
@@ -1069,8 +1069,8 @@ class Slice(OnnxOpConverter):
                 attrs['starts'] = new_starts
                 attrs['ends'] = new_ends
         return _op.strided_slice(inputs[0],
-                                 begin=_expr.const(attrs['starts'], dtype="int64"),
-                                 end=_expr.const(attrs['ends'], dtype="int64"))
+                                 begin=list(attrs['starts']),
+                                 end=list(attrs['ends']))
 
 
 class Gather(OnnxOpConverter):

@@ -282,9 +282,9 @@ def _slice():
 
         strides.append(int(inputs[4]))
         return _op.transform.strided_slice(data,
-                                           begin=_expr.const(begin),
-                                           end=_expr.const(end),
-                                           strides=_expr.const(strides),
+                                           begin=begin,
+                                           end=end,
+                                           strides=strides,
                                            slice_mode="end")
     return _impl
 
@@ -1346,9 +1346,9 @@ def _chunk(prelude):
             stride = [1] * len(shape)
 
             chunk_out = _op.transform.strided_slice(data,
-                                                    begin=_expr.const(begin),
-                                                    end=_expr.const(end),
-                                                    strides=_expr.const(stride))
+                                                    begin=begin,
+                                                    end=end,
+                                                    strides=stride)
             chunks.append(chunk_out)
 
         if dim % num_chunks:
@@ -1359,9 +1359,9 @@ def _chunk(prelude):
             stride = [1] * len(shape)
 
             chunk_out = _op.transform.strided_slice(data,
-                                                    begin=_expr.const(begin),
-                                                    end=_expr.const(end),
-                                                    strides=_expr.const(stride))
+                                                    begin=begin,
+                                                    end=end,
+                                                    strides=stride)
             chunks.append(chunk_out)
 
         return chunks
@@ -2157,8 +2157,6 @@ def _get_convert_map(prelude):
         "aten::type_as"                         : _type_as(),
         "aten::gather"                          : _gather(),
         "aten::index_select"                    : _select(),
-        "aten::index"                           : _index(),
-        "torchvision::nms"                      : _nms(prelude),
     }
     return convert_map
 

@@ -183,9 +183,9 @@ class ParallelDenseToDenseCombiner : public ParallelOpCombiner {
       auto& out_shape = call->type_as<TensorTypeNode>()->shape;
       auto out_dims = tir::as_const_int(out_shape[out_shape.size() - 1]);
       CHECK(out_dims != nullptr);
-      std::vector<int64_t> begin;
-      std::vector<int64_t> end;
-      std::vector<int64_t> strides;
+      Array<Integer> begin;
+      Array<Integer> end;
+      Array<Integer> strides;
       for (size_t k = 0; k < out_shape.size() - 1; ++k) {
         begin.push_back(0);
         end.push_back(-1);
@@ -195,11 +195,7 @@ class ParallelDenseToDenseCombiner : public ParallelOpCombiner {
       end.push_back(*out_dims);
       strides.push_back(1);
       index += *out_dims;
-      std::vector<int64_t> ndarray_shape = {static_cast<int64_t>(begin.size())};
-      Constant begin_const = MakeConstantTensor(DataType::Int(64), ndarray_shape, begin);
-      Constant end_const = MakeConstantTensor(DataType::Int(64), ndarray_shape, end);
-      Constant strides_const = MakeConstantTensor(DataType::Int(64), ndarray_shape, strides);
-      auto slice = MakeStridedSlice(data, begin_const, end_const, strides_const, "size");
+      auto slice = MakeStridedSlice(data, begin, end, strides, "size");
       subst_map->insert({GetRef<Expr>(branch[depth]), slice});
     }
   }

@@ -27,6 +27,7 @@
 
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 
 #include <memory>
