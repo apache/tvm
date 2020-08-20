@@ -364,7 +364,7 @@ def test_let_polymorphism():
     int32 = relay.TensorType((), "int32")
     tvm.ir.assert_structural_equal(body.checked_type, relay.TupleType([int32, relay.TupleType([])]))
 
-def test_mutual_recursion2():
+def test_mutual_recursion():
     # f(x) = if x > 0 then g(x - 1) else 0
     # g(y) = if y > 0 then f(y - 1) else 0
     tensortype = relay.TensorType((), 'float32')
@@ -399,7 +399,7 @@ def test_mutual_recursion2():
     tvm.ir.assert_structural_equal(mod[f_gv].checked_type, expected)
     tvm.ir.assert_structural_equal(mod[g_gv].checked_type, expected)
 
-def test_mutual_recursion_list_sum():
+def test_mutual_recursion_adt():
     # f[A](x: List[A]) = match x {
     #   Cons(a, Nil) => a
     #   Cons(_, b) => g(b)
@@ -445,34 +445,6 @@ def test_mutual_recursion_list_sum():
     expected = relay.FuncType([l(tv)], tv, [tv])
     tvm.ir.assert_structural_equal(mod[f_gv].checked_type, expected)
     tvm.ir.assert_structural_equal(mod[g_gv].checked_type, expected)
-
-
-def test_id_mutual():
-    # f(x) = g(x)
-    # g(y) = f(y)
-
-    tx = relay.TypeVar("x")
-    ty = relay.TypeVar("y")
-
-    x = relay.Var("x", tx)
-    y = relay.Var("y", ty)
-
-    f_gv = relay.GlobalVar('f')
-    g_gv = relay.GlobalVar('g')
-
-    def body(var, call_func, type_param):
-        body = relay.Call(call_func, [var])
-        func = relay.Function([var], body, type_params=type_param)
-        return func
-
-    f = body(x, g_gv, [tx])
-    g = body(y, f_gv, [ty])
-
-    mod = tvm.IRModule()
-    mod.add_unchecked(f_gv, f)
-    mod.add_unchecked(g_gv, g)
-    mod = transform.InferTypeAll()(mod)
-
 
 def test_if():
     choice_t = relay.FuncType([], relay.scalar_type('bool'))

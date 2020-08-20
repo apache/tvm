@@ -789,7 +789,7 @@ IRModule InferTypeAll(const IRModule& mod) {
     mod->AddUnchecked(var, func);
   }
 
-  TypeInferencer ti = TypeInferencer(mod, GlobalVar("all"));
+  TypeInferencer ti = TypeInferencer(mod, GlobalVar("dummy"));
 
   // second pass, fill in constraints
   for (const auto& var : globalvars) {

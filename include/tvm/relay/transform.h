@@ -210,6 +210,14 @@ TVM_DLL Pass FastMath();
  */
 TVM_DLL Pass InferType();
 
+/*!
+ * \brief Infer the type of all functions in a module.
+ *
+ * This pass should be used when typechecking modules
+ * with mutually recursive functions.
+ *
+ * \return The pass.
+ */
 TVM_DLL Pass InferTypeAll();
 
 /*!
