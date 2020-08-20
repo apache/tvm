@@ -136,6 +136,9 @@ class DynamicToStaticMutator : public MixedModeMutator {
              return MakeUpSampling(call_node->args[0], ToScalar(scale_h->data),
                                    ToScalar(scale_w->data), param->layout, param->method,
                                    param->align_corners);
+           }
+           return Expr(nullptr);
+         }},
         {Op::Get("dyn.nn.pad"),
          [](const CallNode* call_node) {
            const ConstantNode* pad_width = call_node->args[1].as<ConstantNode>();

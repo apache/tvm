@@ -70,6 +70,7 @@ def upsampling_shape_func(attrs, inputs, _):
     return [_upsampling_shape_func(inputs[0].shape, inputs[1], inputs[2],
                                    convert(height_axis), convert(width_axis),
                                    convert(channel_axis))]
+# pad
 @script
 def _dyn_pad_shape_func(data, pad_width):
     ndim = len(data.shape)
