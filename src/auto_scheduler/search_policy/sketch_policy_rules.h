@@ -162,6 +162,26 @@ DEFINE_INIT_POPULATION_RULE(InitVectorization);
 /*! \brief The rule that annotates thread binding for GPU. */
 DEFINE_INIT_POPULATION_RULE(InitThreadBind);
 
+/********** Mutation **********/
+
+/*! \brief The base class for mutation rules used in the evolutionary search. */
+class MutationRule : public InitPopulationRule {
+ public:
+  /*!
+   * \brief Get the priority level of this mutation rule.
+   * \return The priority level of this mutation rule. Higher the better.
+   */
+  virtual int GetLevel() const = 0;
+};
+
+/*! \brief The rule that mutates tile size by randomly dividing a tile size by a factor
+    and multipling it to another tile size. */
+class MutateTileSize : public MutationRule {
+ public:
+  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
+  int GetLevel() const final { return 50; }
+};
+
 }  // namespace auto_scheduler
 }  // namespace tvm
 
