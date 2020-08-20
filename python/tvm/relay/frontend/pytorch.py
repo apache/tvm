@@ -2141,16 +2141,10 @@ def _getattr_full_name(getattrs):
     return ".".join([_getattr_attr_name(node) for node in getattrs])
 
 
-def _get_pytorch_value_type(ivalue, outputs, default_dtype="float32"):
-    typ = ivalue.type()
+def _get_pytorch_value_type(typ, default_dtype="float32"):
     kind = typ.kind()
     if kind == 'TensorType':
-        if ivalue.node().kind() == "prim::GetAttr":
-            # GetAttr nodes always return None when we call scalarType() on it
-            name = ivalue.debugName()
-            assert name in outputs and isinstance(outputs[name], _expr.Var)
-            return outputs[name].type_annotation.dtype
-        elif typ.scalarType() is None:
+        if typ.scalarType() is None:
             # Tensor's type can be unknown if we use torch.jit.script(...)
             # Defaults can be passed in, if not it is float32
             logging.warning("Untyped Tensor found, assume it is %s", default_dtype)
@@ -2171,8 +2165,17 @@ def _get_pytorch_value_type(ivalue, outputs, default_dtype="float32"):
 
 def _get_input_types(op_node, outputs, default_dtype="float32"):
     """Returns a TVM dtype for each input nodes derived from the torch type"""
-    return [_get_pytorch_value_type(i, outputs, default_dtype=default_dtype)
-            for i in op_node.inputs()]
+    in_types = []
+    for inp in op_node.inputs():
+        if inp.node().kind() == "prim::GetAttr":
+            # GetAttr nodes always return None when we call scalarType() on it
+            name = inp.debugName()
+            assert name in outputs and isinstance(outputs[name], _expr.Var)
+            in_types.append(outputs[name].type_annotation.dtype)
+        else:
+            in_types.append(_get_pytorch_value_type(inp.type(), default_dtype=default_dtype))
+
+    return in_types
 
 
 def _get_constant(node):
