@@ -1708,10 +1708,9 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) >= 2, "input tensors length should be >= 2"
+        assert len(input_tensors) in (2, 3), "input tensors length should be two or three"
 
         input_tensor = input_tensors[0]
-        input_tensor_idx = input_tensor.tensor_idx
         weight_tensor = input_tensors[1]
 
         output_tensors = self.get_output_tensors(op)
@@ -1733,7 +1732,7 @@ class OperatorConverter(object):
         # Dense expected Weight shape: [out_dim, n_units]
         # Dense output shape: [batch_size, out_dim]
         target_shape = tuple((-1, weight_tensor_shape[1]))
-        in_expr = self.get_expr(input_tensor_idx)
+        in_expr = self.get_tensor_expr(input_tensor)
         in_expr = _op.reshape(in_expr, target_shape)
 
         #TODO: Change the output shape calculation based on keep_dim option

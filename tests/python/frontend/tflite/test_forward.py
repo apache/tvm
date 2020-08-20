@@ -2576,25 +2576,27 @@ def test_forward_sparse_to_dense():
 # Fully Connected
 # ---------------
 
-def _test_fully_connected(tensor_in_sizes, filter_in_sizes, bias_in_size=None):
+def _test_fully_connected(tensor_in_sizes, const_input, filter_in_sizes, bias_in_size=None):
     """ One iteration of fully connected """
 
-    total_size_1 = 1
-    total_size_2 = 1
-    for s in tensor_in_sizes:
-        total_size_1 *= s
-    for s in filter_in_sizes:
-        total_size_2 *= s
-    # Initializes the input tensor with array containing incrementing
-    # numbers from 1.
-    data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
-    filter_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
+    total_size_1 = np.prod(tensor_in_sizes)
+    total_size_2 = np.prod(filter_in_sizes)
+
     assert int(total_size_1 / tensor_in_sizes[0]) == filter_in_sizes[0], \
         "input size and filter size are mismatched"
 
+    # Initializes the input tensor with array containing incrementing
+    # numbers from 1.
+    data_array = np.arange(1, total_size_1 + 1, dtype=np.float32)
+    filter_array = np.arange(1, total_size_2 + 1, dtype=np.float32)
+
     with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
-        in_filter = constant_op.constant(filter_array, shape=filter_in_sizes, dtype='float32')
+        in_name="input"
+        in_data = constant_op.constant(data_array, shape=tensor_in_sizes, dtype=np.float32, name=in_name) \
+            if const_input \
+            else array_ops.placeholder(shape=tensor_in_sizes, dtype=np.float32, name=in_name)
+
+        in_filter = constant_op.constant(filter_array, shape=filter_in_sizes, dtype=np.float32)
 
         # reshape N H W C into N H*W*C
         in_data_reshape = array_ops.reshape(in_data, [tensor_in_sizes[0], -1])
@@ -2604,20 +2606,24 @@ def _test_fully_connected(tensor_in_sizes, filter_in_sizes, bias_in_size=None):
         # if we have bias
         if bias_in_size:
             assert bias_in_size[0] == filter_in_sizes[1], "bias and filter size are mismatched"
-            bias_array = [f * 1.0 for f in range(1, bias_in_size[0] + 1)]
-            in_bias = constant_op.constant(bias_array, shape=bias_in_size, dtype='float32')
+            bias_array = np.arange(1, bias_in_size[0] + 1, dtype=np.float32)
+            in_bias = constant_op.constant(bias_array, shape=bias_in_size, dtype=np.float32)
             out = nn_ops.bias_add(out, in_bias)
 
-        data_array = np.reshape(data_array, tensor_in_sizes).astype('float32')
-        compare_tflite_with_tvm(data_array, 'Placeholder:0', [in_data], [out])
+        data_array = np.reshape(data_array, tensor_in_sizes).astype(np.float32)
+        compare_tflite_with_tvm(data_array,
+                                [] if const_input else in_data.name,
+                                [in_data],
+                                [out])
 
 
 def test_forward_fully_connected():
     """ Fully Connected """
-    _test_fully_connected([1, 1, 1, 150], [150, 100])
-    _test_fully_connected([1, 1, 1, 150], [150, 100], [100])
-    _test_fully_connected([5, 1, 1, 150], [150, 100])
-    _test_fully_connected([5, 1, 1, 150], [150, 100], [100])
+    for const_input in [False, True]:
+        _test_fully_connected([1, 1, 1, 150], const_input, [150, 100])
+        _test_fully_connected([1, 1, 1, 150], const_input, [150, 100], [100])
+        _test_fully_connected([5, 1, 1, 150], const_input, [150, 100])
+        _test_fully_connected([5, 1, 1, 150], const_input, [150, 100], [100])
 
 
 #######################################################################
