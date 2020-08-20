@@ -1435,7 +1435,8 @@ def test_forward_npi_pad(data_shape, pad_width, mode, dtype, constant_value,targ
     op_res = intrp.evaluate()(data_np)
     tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
 
-
+    
+@pytest.mark.skipif(not hasattr(mx.sym.np, 'pad'), reason="test'll abort with Mxnet 1.x, skip for now")
 @pytest.mark.parametrize("data_shape", [(2,2,2),(2,7,2)])
 @pytest.mark.parametrize("dtype", ['float64', 'float32', 'int64', 'int32', 'bool'])
 @pytest.mark.parametrize("axes", [(1,0,2),None])
