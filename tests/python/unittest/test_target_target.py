@@ -120,7 +120,7 @@ def test_config_map():
     failed = False
     try:
         target = tvm.target.create(target_config)
-    except:
+    except AttributeError:
         failed = True
     assert failed == True
 
