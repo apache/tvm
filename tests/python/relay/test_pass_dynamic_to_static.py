@@ -23,7 +23,6 @@ from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.testing import run_infer_type, create_workload, ctx_list
 import tvm.topi.testing
 
-
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, tvm.transform.Pass)
 
@@ -312,7 +311,7 @@ def test_dynamic_to_static_full():
         
         zz = func2.body
         assert isinstance(zz, relay.Call)
-        assert zz.checked_type == relay.TensorType(fill_shape, dtype)
+        assert zz.op == relay.op.get("full")
 
         ref_res = np.full(fill_shape, fill_value).astype(dtype)
         y_data = np.random.uniform(low=-1, high=1, size=fill_shape).astype('int64')
@@ -320,6 +319,24 @@ def test_dynamic_to_static_full():
     
     verify_full(4, (1, 2, 3, 4), 'int32')
     verify_full(4.0, (1, 2, 8, 10), 'float32')
+
+def test_dynamic_to_static_pad():
+    def verify_pad(data_shape, pad_width, pad_val, dtype):
+        x = relay.var("x", relay.TensorType(data_shape, dtype))
+        z = relay.nn.pad(x, relay.const(np.array(pad_width)), pad_val)
+        func = run_infer_type(relay.Function([x], z))
+        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+        zz = func2.body
+        assert isinstance(zz, relay.Call)
+        assert zz.op == relay.op.get("nn.pad")
+
+        x_data = np.random.uniform(size=data_shape).astype(dtype)
+        ref_res = np.pad(x_data, pad_width, 'constant', constant_values=(((pad_val,)*2),) * len(data_shape))
+        verify_func(func2, [x_data], ref_res)
+
+    verify_pad((4, 10, 7, 7), ((1, 1), (2, 2), (3, 3), (4, 4)), 2.0, "int32")
+    verify_pad((2, 7), ((1, 4), (2, 2)), 4.0, "float64")
+
 
 if __name__ == "__main__":
     test_dynamic_to_static_reshape()
@@ -332,3 +349,4 @@ if __name__ == "__main__":
     test_dynamic_to_static_resize()
     test_dynamic_to_static_one_hot()
     test_dynamic_to_static_full()
+    test_dynamic_to_static_pad()
