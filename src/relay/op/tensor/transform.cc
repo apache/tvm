@@ -2186,13 +2186,11 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
     }
     Array<PrimExpr> begin_expr;
     Array<PrimExpr> strides_expr;
-    std::cout << input->shape << std::endl;
     for (size_t i = 0; i < src_tensor_dim; ++i) {
       int64_t begin_i = begin[i]->value;
       if (begin_i < 0) {
         begin_i += topi::detail::GetConstInt(input->shape[i]);
       }
-      std::cout << begin_i << std::endl;
       begin_expr.push_back(tir::make_const(begin[0].dtype(), begin_i));
       strides_expr.push_back(
           tir::make_const((strides.size() != 0 ? strides[0].dtype() : begin[0].dtype()),
