@@ -80,7 +80,31 @@ def test_target_create():
         assert tgt is not None
 
 
+def test_target_config():
+    """
+    Test that constructing a target from a dictionary works.
+    """
+    target_config = {
+        'kind': 'llvm',
+        'keys': ['arm_cpu', 'cpu'],
+        'device': 'arm_cpu',
+        'libs': ['cblas'],
+        'system-lib': True,
+        'mfloat-abi': 'hard',
+        'mattr': ['+neon', '-avx512f'],
+    }
+    target = tvm.target.create(target_config)
+    assert target.kind.name == 'llvm'
+    assert all([key in target.keys for key in ['arm_cpu', 'cpu']])
+    assert target.device_name == 'arm_cpu'
+    assert target.libs == ['cblas']
+    assert 'system-lib' in str(target)
+    assert target.attrs['mfloat-abi'] == 'hard'
+    assert all([attr in target.attrs['mattr'] for attr in ['+neon', '-avx512f']])
+
+
 if __name__ == "__main__":
     test_target_dispatch()
     test_target_string_parse()
     test_target_create()
+    test_target_config()
