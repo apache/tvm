@@ -17,6 +17,7 @@
 """Target data structure."""
 import os
 import re
+import json
 import warnings
 import tvm._ffi
 
@@ -353,8 +354,9 @@ def create(target):
     Parameters
     ----------
     target : str or dict
-        The target string or configuration dictionary.
-        When using a dictionary to configure target, the
+        Can be one of a literal target string, a json string describing
+        a configuration, or a dictionary of configuration options.
+        When using a dictionary or json string to configure target, the
         possible values are:
         {
             kind :  str (required)
@@ -395,10 +397,15 @@ def create(target):
     See the note on :py:mod:`tvm.target` on target string format.
     """
     if isinstance(target, Target):
-        return target_str
+        return target
     if isinstance(target, dict):
         return _ffi_api.TargetFromConfig(target)
     if isinstance(target, str):
-        return _ffi_api.TargetFromString(target)
+        # Check if target is a valid json string by trying to load it.
+        # If we cant, then assume it is a non-json target string.
+        try:
+            return _ffi_api.TargetFromConfig(json.loads(target))
+        except:
+            return _ffi_api.TargetFromString(target)
 
     raise ValueError("target has to be a string or dictionary.")
