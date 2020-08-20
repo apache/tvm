@@ -502,7 +502,7 @@ def test_mutual_recursion_peano():
     mod.add_unchecked(odd_gv, odd_func)
     mod = transform.InferTypeAll()(mod)
 
-    expected = relay.FuncType([p.nat], relay.TensorType((), dtype='bool'))
+    expected = relay.FuncType([p.nat()], relay.TensorType((), dtype='bool'))
     tvm.ir.assert_structural_equal(mod[even_gv].checked_type, expected)
     tvm.ir.assert_structural_equal(mod[odd_gv].checked_type, expected)
 
