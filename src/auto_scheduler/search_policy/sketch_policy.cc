@@ -69,6 +69,9 @@ static InitThreadBind init_thread_bind;
 /********** Mutation rules **********/
 
 static MutateTileSize mutate_tile_size;
+static MutateMaxUnrollFactor mutate_max_unroll_factor;
+static MutateComputeLocation mutate_compute_location;
+static MutateParallel mutate_parallel;
 
 /********** Sketch policy **********/
 
@@ -136,6 +139,9 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
 
   // The default mutation rules.
   node->mutation_rules.push_back(&mutate_tile_size);
+  node->mutation_rules.push_back(&mutate_max_unroll_factor);
+  node->mutation_rules.push_back(&mutate_compute_location);
+  node->mutation_rules.push_back(&mutate_parallel);
 
   data_ = std::move(node);
 }
@@ -448,12 +454,12 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   rule_select_probs.reserve(mutation_rules.size());
   std::vector<float> rule_levels;
   for (const auto& rule : mutation_rules) {
-    rule_levels.push_back(rule->GetLevel());
+    rule_levels.push_back(rule->GetLevel(search_task));
   }
   assign_prob(rule_levels, &rule_select_probs);
 
   // Evaluate the init populations.
-  search_task->compute_dag.InferBound(*pnow);
+  *pnow = search_task->compute_dag.InferBound(*pnow);
   PruneInvalidState(search_task, pnow);
   CHECK_GT(pnow->size(), 0) << "All initial populations are invalid";
   schedule_cost_model->Predict(search_task, *pnow, &scores);
@@ -488,7 +494,7 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
     }
 
     // Evaluate the new populations.
-    search_task->compute_dag.InferBound(*pnext);
+    *pnext = search_task->compute_dag.InferBound(*pnext);
     PruneInvalidState(search_task, pnext);
 
     // Throw away all states generated in this iterations if all new states are invalid.

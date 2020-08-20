@@ -26,9 +26,12 @@
 #define TVM_AUTO_SCHEDULER_SEARCH_POLICY_SKETCH_POLICY_RULES_H_
 
 #include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/search_task.h>
 
 #include <utility>
 #include <vector>
+
+#include "utils.h"
 
 namespace tvm {
 namespace auto_scheduler {
@@ -165,13 +168,25 @@ DEFINE_INIT_POPULATION_RULE(InitThreadBind);
 /********** Mutation **********/
 
 /*! \brief The base class for mutation rules used in the evolutionary search. */
-class MutationRule : public InitPopulationRule {
+class MutationRule {
  public:
+  /*! \brief Result enumeration of the apply function. */
+  enum class ResultKind : int { kValid = 0, kInvalid = 1 };
+
+  /*!
+   * \brief Apply function of this rule.
+   * \param policy The SketchPolicyNode of this rule, some member may get changed during the
+   * rule applying. (e.g. random number generator)
+   * \param state The state to apply this rule, update inplace.
+   * \return The result of this rule, indicate if there's any valid state generated.
+   */
+  virtual ResultKind Apply(SketchPolicyNode* policy, State* state) const = 0;
+
   /*!
    * \brief Get the priority level of this mutation rule.
    * \return The priority level of this mutation rule. Higher the better.
    */
-  virtual int GetLevel() const = 0;
+  virtual int GetLevel(const SearchTask& task) const = 0;
 };
 
 /*! \brief The rule that mutates tile size by randomly dividing a tile size by a factor
@@ -179,7 +194,33 @@ class MutationRule : public InitPopulationRule {
 class MutateTileSize : public MutationRule {
  public:
   ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
-  int GetLevel() const final { return 50; }
+  int GetLevel(const SearchTask& task) const final { return 100; }
+};
+
+class MutateMaxUnrollFactor : public MutationRule {
+ public:
+  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
+  int GetLevel(const SearchTask& task) const final { return 10; }
+
+  const std::vector<int> cpu_unroll_cands_ = {0, 16, 64, 512, 1024};
+  const std::vector<int> gpu_unroll_cands_ = {0, 16, 64, 512};
+};
+
+class MutateComputeLocation : public MutationRule {
+ public:
+  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
+  int GetLevel(const SearchTask& task) const final {
+    if (IsGPUTask(task)) {
+      return 0;
+    }
+    return 5;
+  }
+};
+
+class MutateParallel : public MutationRule {
+ public:
+  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
+  int GetLevel(const SearchTask& task) const final { return 50; }
 };
 
 }  // namespace auto_scheduler
