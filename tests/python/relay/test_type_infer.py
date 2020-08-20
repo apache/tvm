@@ -25,6 +25,7 @@ from tvm.relay.prelude import Prelude
 from tvm import relay
 from tvm.relay import op, transform, analysis
 from tvm.relay import Any
+from tvm.relay.testing import add_nat_definitions
 
 def run_infer_type(expr, mod=None):
     if not mod:
@@ -445,6 +446,65 @@ def test_mutual_recursion_adt():
     expected = relay.FuncType([l(tv)], tv, [tv])
     tvm.ir.assert_structural_equal(mod[f_gv].checked_type, expected)
     tvm.ir.assert_structural_equal(mod[g_gv].checked_type, expected)
+
+def test_mutual_recursion_peano():
+    # even and odd function for peano function
+    # even(x: nat) = match x {
+    #   z => true
+    #   s(a: nat) => odd(a)
+    # }
+    # odd(x: nat) = match x {
+    #   z => false
+    #   s(a: nat) => even(a)
+    # }
+    p = Prelude()
+    add_nat_definitions(p)
+    z = p.z
+    s = p.s
+
+    even_gv = relay.GlobalVar('even')
+    odd_gv = relay.GlobalVar('odd')
+
+    def create_even_func(odd_f):
+        x = relay.Var("x")
+        a = relay.Var("a")
+        true = tvm.nd.array(np.array(True))
+
+        body = relay.Match(
+            x, 
+            [
+                relay.Clause(relay.PatternConstructor(z), relay.Constant(true)),
+                relay.Clause(relay.PatternConstructor(s, [relay.PatternVar(a)]), relay.Call(odd_f, [a]))
+            ]
+        )
+        func = relay.Function([x], body)
+        return func
+    def create_odd_func(even_f):
+        x = relay.Var("x")
+        a = relay.Var("a")
+        false = tvm.nd.array(np.array(False))
+
+        body = relay.Match(
+            x, 
+            [
+                relay.Clause(relay.PatternConstructor(z), relay.Constant(false)),
+                relay.Clause(relay.PatternConstructor(s, [relay.PatternVar(a)]), relay.Call(even_f, [a]))
+            ]
+        )
+        func = relay.Function([x], body)
+        return func
+
+    even_func = create_even_func(odd_gv)
+    odd_func = create_odd_func(even_gv)
+
+    mod = p.mod
+    mod.add_unchecked(even_gv, even_func)
+    mod.add_unchecked(odd_gv, odd_func)
+    mod = transform.InferTypeAll()(mod)
+
+    expected = relay.FuncType([p.nat], relay.TensorType((), dtype='bool'))
+    tvm.ir.assert_structural_equal(mod[even_gv].checked_type, expected)
+    tvm.ir.assert_structural_equal(mod[odd_gv].checked_type, expected)
 
 def test_if():
     choice_t = relay.FuncType([], relay.scalar_type('bool'))
