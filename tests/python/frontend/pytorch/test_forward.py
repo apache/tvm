@@ -1431,19 +1431,13 @@ def test_forward_upsample3d():
 def test_forward_nms():
     """dynamic Non-Maximum Suppression"""
     torch.set_grad_enabled(False)
-    class NonMaxSupression1(Module):
-        def forward(self, *args):
-            return torchvision.ops.nms(args[0], args[1], 0.3)
+    class NonMaxSupression(Module):
+        def __init__(self, iou_thres):
+            super().__init__()
+            self.iou_threshold = iou_thres
 
-    class NonMaxSupression2(Module):
         def forward(self, *args):
-            from torchvision.ops import nms
-            return torchvision.ops.nms(args[0], args[1], 0.5)
-
-    class NonMaxSupression3(Module):
-        def forward(self, *args):
-            from torchvision.ops import nms
-            return torchvision.ops.nms(args[0], args[1], 0.9)
+            return torchvision.ops.nms(args[0], args[1], self.iou_threshold)
 
     # Generate random input data
     def _gen_rand_inputs(num_boxes):
@@ -1454,20 +1448,11 @@ def test_forward_nms():
         scores = torch.rand(num_boxes, dtype=torch.float)
         return boxes, scores
 
-    in_boxes, in_scores = _gen_rand_inputs(10)
-    scripted_model1 = torch.jit.trace(NonMaxSupression1(), [in_boxes, in_scores])
-    verify_script_model(scripted_model1, [in_boxes.shape, in_scores.shape],
-                        idata=[in_boxes, in_scores])
-
-    in_boxes, in_scores = _gen_rand_inputs(100)
-    scripted_model2 = torch.jit.trace(NonMaxSupression2(), [in_boxes, in_scores])
-    verify_script_model(scripted_model2, [in_boxes.shape, in_scores.shape],
-                        idata=[in_boxes, in_scores])
-
-    in_boxes, in_scores = _gen_rand_inputs(500)
-    scripted_model3 = torch.jit.trace(NonMaxSupression3(), [in_boxes, in_scores])
-    verify_script_model(scripted_model3, [in_boxes.shape, in_scores.shape],
-                        idata=[in_boxes, in_scores])
+    for num_boxes, iou_thres in [(10, 0.3), (100, 0.5), (500, 0.9)]:
+        in_boxes, in_scores = _gen_rand_inputs(num_boxes)
+        traced_model = torch.jit.trace(NonMaxSupression(iou_thres), [in_boxes, in_scores])
+        verify_trace_model(traced_model, [in_boxes.shape, in_scores.shape],
+                           idata=[in_boxes, in_scores])
 
 
 def test_conv3d():
@@ -1617,16 +1602,14 @@ def test_3d_models():
     verify_model(resnet3d, [torch.rand(input_shape)], atol=1e-4, rtol=1e-4)
 
 
-def verify_script_model(pt_model, ishapes, idata=None):
+def verify_script_model(pt_model, ishapes):
     script_module = torch.jit.script(pt_model)
 
     input_names = ["i{}".format(idx) for idx, ish in enumerate(ishapes)]
     input_shapes = list(zip(input_names, ishapes))
 
-    if not idata:
-        input_data = [torch.randn(shape, dtype=torch.float) for shape in ishapes]
-    else:
-        input_data = idata
+    inputs = [torch.randn(shape, dtype=torch.float)
+              for shape in ishapes]
 
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 
@@ -1634,13 +1617,46 @@ def verify_script_model(pt_model, ishapes, idata=None):
                                      target="llvm")
     evaluator = executor.evaluate()
 
-    for name, inp in zip(input_names, input_data):
+    for name, inp in zip(input_names, inputs):
         params[name] = inp.numpy()
 
     op_res = evaluator(**params)
 
     with torch.no_grad():
-        pt_result = pt_model(*input_data)
+        pt_result = pt_model(*inputs)
+
+    if not isinstance(pt_result, torch.Tensor):
+        tvm_res = op_res.asnumpy().item()
+        assert pt_result == tvm_res
+    else:
+        tvm.testing.assert_allclose(op_res.asnumpy(), pt_result.numpy(),
+                                    rtol=1e-5, atol=1e-5)
+
+
+def verify_trace_model(traced_model, ishapes, idata=None):
+    trace_module = traced_model
+
+    input_names = ["i{}".format(idx) for idx, ish in enumerate(ishapes)]
+    input_shapes = list(zip(input_names, ishapes))
+    if not idata:
+        inputs = [torch.randn(shape, dtype=torch.float)
+                  for shape in ishapes]
+    else:
+        inputs = idata
+
+    mod, params = relay.frontend.from_pytorch(trace_module, input_shapes)
+
+    executor = relay.create_executor("vm", mod=mod, ctx=tvm.cpu(0),
+                                     target="llvm")
+    evaluator = executor.evaluate()
+
+    for name, inp in zip(input_names, inputs):
+        params[name] = inp.numpy()
+
+    op_res = evaluator(**params)
+
+    with torch.no_grad():
+        pt_result = trace_module(*inputs)
 
     if not isinstance(pt_result, torch.Tensor):
         tvm_res = op_res.asnumpy().item()
