@@ -124,6 +124,21 @@ class DynamicToStaticMutator : public MixedModeMutator {
            }
            return Expr(nullptr);
          }},
+        {Op::Get("dyn.nn.pad"),
+         [](const CallNode* call_node) {
+           const ConstantNode* pad_width = call_node->args[1].as<ConstantNode>();
+           const ConstantNode* pad_fill = call_node->args[2].as<ConstantNode>();
+           if (pad_width && pad_fill) {
+             CHECK_EQ(pad_fill->data->ndim, 0);   // pad_val is 1d
+             CHECK_EQ(pad_width->data->ndim, 2);  // pad_width is 2d
+
+             const PadAttrs* param = call_node->attrs.as<PadAttrs>();
+             CHECK(param);
+             return MakePad(call_node->args[0], ToMatrix(pad_width->data), ToScalar(pad_fill->data),
+                            param->pad_mode);
+           }
+           return Expr(nullptr);
+         }},
     };
   }
 

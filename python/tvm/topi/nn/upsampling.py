@@ -57,7 +57,6 @@ def upsampling(data, scale_h, scale_w, layout="NCHW", method='nearest_neighbor',
     elif layout == "NHWC":
         out_shape = (simplify(topi.cast(te.round(data.shape[1] * scale_h), data.shape[1].dtype)),
                      simplify(topi.cast(te.round(data.shape[2] * scale_w), data.shape[2].dtype)))
-
     else:
         raise ValueError("not support this layout {} yet".format(layout))
     coord_trans = "align_corners" if align_corners else "asymmetric"
