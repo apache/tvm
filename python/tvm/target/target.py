@@ -405,7 +405,7 @@ def create(target):
         # If we cant, then assume it is a non-json target string.
         try:
             return _ffi_api.TargetFromConfig(json.loads(target))
-        except:
+        except json.decoder.JSONDecodeError:
             return _ffi_api.TargetFromString(target)
 
     raise ValueError("target has to be a string or dictionary.")
