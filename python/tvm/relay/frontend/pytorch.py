@@ -2130,6 +2130,7 @@ def _report_missing_conversion(op_names, convert_map):
         msg = "The following operators are not implemented: {}".format(missing)
         raise NotImplementedError(msg)
 
+
 def _getattr_attr_name(node):
     attribute_names = node.attributeNames()
     assert len(attribute_names) == 1
@@ -2170,8 +2171,14 @@ def _get_input_types(op_node, outputs, default_dtype="float32"):
         if inp.node().kind() == "prim::GetAttr":
             # GetAttr nodes always return None when we call scalarType() on it
             name = inp.debugName()
-            assert name in outputs and isinstance(outputs[name], _expr.Var)
-            in_types.append(outputs[name].type_annotation.dtype)
+            assert name in outputs
+            if isinstance(outputs[name], _expr.Var):
+                in_types.append(outputs[name].type_annotation.dtype)
+            else:
+                # For quantized modules with parameters, here we would get
+                # "prim::GetAttr[name="_packed_params"]". Since the dtype corresponding to
+                # _packed_params is not needed by quantized ops, we return an arbitrary type.
+                in_types.append(default_dtype)
         else:
             in_types.append(_get_pytorch_value_type(inp.type(), default_dtype=default_dtype))
 
