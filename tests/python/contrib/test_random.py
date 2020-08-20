@@ -38,6 +38,11 @@ ENABLED_CTX_LIST = enabled_ctx_list()
 def test_randint():
     m = 1024
     n = 1024
+    if not tvm.get_global_func("tvm.contrib.random.seed", True):
+        print("skip because extern function is not available")
+        return
+    seed = tvm.get_global_func("tvm.contrib.random.seed")
+    seed(0)
     A = random.randint(-127, 128, size=(m, n), dtype='int32')
     s = te.create_schedule(A.op)
 
@@ -62,6 +67,11 @@ def test_randint():
 def test_uniform():
     m = 1024
     n = 1024
+    if not tvm.get_global_func("tvm.contrib.random.seed", True):
+        print("skip because extern function is not available")
+        return
+    seed = tvm.get_global_func("tvm.contrib.random.seed")
+    seed(0)
     A = random.uniform(0, 1, size=(m, n))
     s = te.create_schedule(A.op)
 
@@ -86,6 +96,11 @@ def test_uniform():
 def test_normal():
     m = 1024
     n = 1024
+    if not tvm.get_global_func("tvm.contrib.random.seed", True):
+        print("skip because extern function is not available")
+        return
+    seed = tvm.get_global_func("tvm.contrib.random.seed")
+    seed(0)
     A = random.normal(3, 4, size=(m, n))
     s = te.create_schedule(A.op)
 
