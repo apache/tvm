@@ -65,7 +65,7 @@ def test_resize():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-5)
 
     for layout in ["NHWC", "NCHW"]:
         verify_resize((1, 4, 4, 4), 2, "bilinear", layout, "align_corners")
