@@ -90,7 +90,7 @@ class IRModule(Node):
     def add_unchecked(self, var, val):
         assert isinstance(val, _expr.RelayExpr)
         _ffi_api.Module_AddUnchecked(self, var, val)
-    
+
     def __getitem__(self, var):
         """Lookup a global definition by name or by variable.
 
