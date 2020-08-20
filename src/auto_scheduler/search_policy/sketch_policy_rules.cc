@@ -765,11 +765,15 @@ InitPopulationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* policy, S
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     if (NeedsMultilevelTiling(policy->search_task, *state, stage_id)) {
       const Stage& stage = (*state)->stages[stage_id];
-      CHECK(stage->compute_at == ComputeAtKind::kIter);
-      const auto res = (*state)->attach_map->stage_to_attach_iter.find(stage_id);
-      CHECK(res != (*state)->attach_map->stage_to_attach_iter.end());
-
-      multi_level_tiling_root_set.insert(res->second.first);
+      if (stage->compute_at != ComputeAtKind::kIter) {
+        // This stage is not multi-level tiled,
+        // so it must be produced by RuleCrossThreadReduction.
+        CHECK(HasCrossThreadReduction(*state, stage_id));
+      } else {
+        const auto res = (*state)->attach_map->stage_to_attach_iter.find(stage_id);
+        CHECK(res != (*state)->attach_map->stage_to_attach_iter.end());
+        multi_level_tiling_root_set.insert(res->second.first);
+      }
     }
   }
 
