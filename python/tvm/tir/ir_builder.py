@@ -17,7 +17,7 @@
 """Developer API of IR node builder make function."""
 from tvm._ffi.base import string_types
 from tvm.runtime import ObjectGeneric, DataType, convert, const
-from tvm.ir import container as _container
+from tvm.ir import container as _container, PointerType, PrimType
 
 from . import stmt as _stmt
 from . import expr as _expr
@@ -325,7 +325,7 @@ class IRBuilder(object):
         buffer : BufferVar
             The buffer var representing the buffer.
         """
-        buffer_var = _expr.Var(name, dtype="handle")
+        buffer_var = _expr.Var(name, PointerType(PrimType(dtype)))
         if not isinstance(shape, (list, tuple, _container.Array)):
             shape = [shape]
         if scope:
