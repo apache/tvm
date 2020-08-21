@@ -173,7 +173,8 @@ def schedule_conv2d_gemm(cfg, s, out, final_out):
         n_outer, n_inner = s[data_im2col].split(n, 16)
         s[data_im2col].unroll(n_outer)
         s[data_im2col].vectorize(n_inner)
-        s[data_im2col].parallel(m)
+        b_m_fused = s[data_im2col].fuse(b, m)
+        s[data_im2col].parallel(b_m_fused)
     else:
         s[data_im2col].compute_inline()
 
@@ -181,8 +182,9 @@ def schedule_conv2d_gemm(cfg, s, out, final_out):
     b, xo, yo, xi, yi = C_interleaved.op.axis
     outer_gemm, inner_gemm = cfg['reorder_gemm'].apply(s, C_interleaved, [xo, yo])
     s[C_interleaved].reorder(yi, xi)
-    s[C_interleaved].parallel(outer_gemm)
-    s[A_interleaved].compute_at(s[C_interleaved], outer_gemm)
+    b_outer_gemm_fused = s[C_interleaved].fuse(b, outer_gemm)
+    s[C_interleaved].parallel(b_outer_gemm_fused)
+    s[A_interleaved].compute_at(s[C_interleaved], b_outer_gemm_fused)
     _, _, _, outer_A_interleaved, inner_A_interleaved = A_interleaved.op.axis
     cfg['A_interleaved_unroll_vec'].apply(s,
                                           A_interleaved,
@@ -197,12 +199,12 @@ def schedule_conv2d_gemm(cfg, s, out, final_out):
         unroll = cfg['gemm_quantized_unroll'].val
         interleave = cfg['gemm_quantized_interleave'].val
         gemm = gemm_quantized(M, N, K, unroll, interleave, in_type, out_type)
-        s[C_interleaved].pragma(xo, "import_llvm", gemm_quantized_impl(M,
-                                                                       N,
-                                                                       K,
-                                                                       unroll,
-                                                                       interleave,
-                                                                       in_type))
+        s[C_interleaved].pragma(b_outer_gemm_fused, "import_llvm", gemm_quantized_impl(M,
+                                                                                       N,
+                                                                                       K,
+                                                                                       unroll,
+                                                                                       interleave,
+                                                                                       in_type))
         s[C_interleaved].tensorize(yi, gemm)
 
     # Output transform
