@@ -33,21 +33,17 @@ from nose.tools import nottest
 # to guarantee stable tests
 rs = RandomState(MT19937(SeedSequence(123456789)))
 
-def convert_ndarray(dst_dtype, *args, **kwargs):
+def convert_ndarray(dst_dtype, array):
     """Converts NDArray(s) into the specified datatype"""
-    def convert(array):
-        x = relay.var('x', shape=array.shape, dtype=str(array.dtype))
-        cast = relay.Function([x], x.astype(dst_dtype))
-        with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-            return relay.create_executor('graph').evaluate(cast)(array)
-
-    return (tuple([convert(x) for x in args]), {k: convert(v) for (k, v) in kwargs.items()})
-
+    x = relay.var('x', shape=array.shape, dtype=str(array.dtype))
+    cast = relay.Function([x], x.astype(dst_dtype))
+    with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
+        return relay.create_executor('graph').evaluate(cast)(array)
 
 def change_dtype(src, dst, module, params):
     module = relay.frontend.ChangeDatatype(src, dst)(module)
     module = relay.transform.InferType()(module)
-    params = dict((p, convert_ndarray(dst, params[p])) for p in params)
+    params = {k: convert_ndarray(dst, v) for k, v in params.items()}
     return module, params
 
 def compare(module, input, src_dtype, dst_dtype, rtol, atol, params = {}, target='llvm'):
@@ -56,16 +52,16 @@ def compare(module, input, src_dtype, dst_dtype, rtol, atol, params = {}, target
 
     correct = ex.evaluate()(*input, **params)
 
-    module, _ = change_dtype(src_dtype, dst_dtype, module, [])
+    module, converted_params = change_dtype(src_dtype, dst_dtype, module, params)
     ex = relay.create_executor("graph", mod=module, target=target)
     # converts all inputs to dst_dtype
-    x_converted, x_params_converted = convert_ndarray(dst_dtype, *input, **params)
+    x_converted = [convert_ndarray(dst_dtype, arr) for arr in input]
 
     # Vectorization is not implemented with custom datatypes
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        maybe_correct = ex.evaluate()(*x_converted, **x_params_converted)
+        maybe_correct = ex.evaluate()(*x_converted, **converted_params)
         # currently this only works for comparing single output
-        maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)[0][0]
+        maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)
     np.testing.assert_allclose(maybe_correct_converted.asnumpy(),
                                 correct.asnumpy(),
                                 rtol=rtol,
