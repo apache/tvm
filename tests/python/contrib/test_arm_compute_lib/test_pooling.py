@@ -22,7 +22,7 @@ import tvm
 from tvm import relay
 
 from .infrastructure import skip_runtime_test, skip_codegen_test, build_and_run, \
-    verify, verify_codegen, generate_trials
+    verify, verify_codegen
 from .infrastructure import Device
 
 
@@ -144,23 +144,25 @@ def test_pooling():
     device = Device()
     np.random.seed(0)
 
-    typef = ["nn.max_pool2d", "nn.avg_pool2d", "nn.l2_pool2d"]
-    dtype = [("float32", -127, 128, 0.001, 0.001), ("uint8", 0, 255, 1, 0)]
-    size = [(2, 2), (3, 3)]
-    stride = [(2, 2)]
-    pad = [(0, 0), (1, 1), (0, 1)]
-    ceil_mode = [False, True]
-    count_include_pad = [False, True]
-    input_shapes = [(16, 16, 16), (15, 15, 16)]
-    trials = generate_trials([typef, dtype, size, stride, pad, ceil_mode, count_include_pad, input_shapes], 3)
+    fp32_dtype = ("float32", -127, 128, 0.001, 0.001)
+    uint8_dtype = ("uint8", 0, 255, 1, 0)
+
+    trials = [["nn.max_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 0), False, True, (16, 16, 16)],
+              ["nn.max_pool2d", fp32_dtype, (3, 3), (2, 2), (1, 1), True, True, (15, 15, 16)],
+              ["nn.max_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 1), False, False, (16, 16, 16)],
+              ["nn.max_pool2d", uint8_dtype, (3, 3), (2, 2), (0, 1), False, False, (16, 16, 16)],
+              ["nn.max_pool2d", uint8_dtype, (2, 2), (2, 2), (1, 1), True, True, (15, 15, 16)],
+              ["nn.avg_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), False, False, (16, 16, 16)],
+              ["nn.avg_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 0), False, True, (16, 16, 16)],
+              ["nn.avg_pool2d", fp32_dtype, (3, 3), (2, 2), (0, 1), True, False, (15, 15, 16)],
+              ["nn.avg_pool2d", uint8_dtype, (2, 2), (2, 2), (1, 1), False, True, (16, 16, 16)],
+              ["nn.avg_pool2d", uint8_dtype, (3, 3), (2, 2), (0, 1), False, False, (16, 16, 16)],
+              ["nn.l2_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 1), True, False, (16, 16, 16)],
+              ["nn.l2_pool2d", fp32_dtype, (3, 3), (2, 2), (0, 0), False, False, (16, 16, 16)],
+              ["nn.l2_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), False, True, (15, 15, 16)]]
 
     for typef, (dtype, low, high, atol, rtol), size, stride, pad, ceil_mode, count_include_pad, \
             input_shape in trials:
-
-        # L2 pooling not currently supported for uint8
-        if typef == "nn.l2_pool2d" and dtype == "uint8":
-            continue
-
         shape = (1, *input_shape)
         outputs = []
         inputs = {
@@ -196,10 +198,19 @@ def test_global_pooling():
     device = Device()
     np.random.seed(0)
 
-    typef = ["nn.global_max_pool2d", "nn.global_avg_pool2d"]
-    dtype = [("float32", -127, 128, 0.001, 0.001), ("uint8", 0, 255, 1, 0)]
-    input_shapes = [(8, 8, 16), (9, 9, 16)]
-    trials = generate_trials([typef, dtype, input_shapes], 3)
+    fp32_dtype = ("float32", -127, 128, 0.001, 0.001)
+    uint8_dtype = ("uint8", 0, 255, 1, 0)
+
+    trials = [["nn.global_max_pool2d", fp32_dtype, (8, 8, 16)],
+              ["nn.global_max_pool2d", fp32_dtype, (9, 9, 16)],
+              ["nn.global_max_pool2d", fp32_dtype, (8, 8, 16)],
+              ["nn.global_max_pool2d", uint8_dtype, (8, 8, 16)],
+              ["nn.global_max_pool2d", uint8_dtype, (9, 9, 16)],
+              ["nn.global_avg_pool2d", fp32_dtype, (8, 8, 16)],
+              ["nn.global_avg_pool2d", fp32_dtype, (8, 8, 16)],
+              ["nn.global_avg_pool2d", fp32_dtype, (9, 9, 16)],
+              ["nn.global_avg_pool2d", uint8_dtype, (8, 8, 16)],
+              ["nn.global_avg_pool2d", uint8_dtype, (8, 8, 16)]]
 
     for typef, (dtype, low, high, atol, rtol), input_shape in trials:
         shape = (1, *input_shape)
@@ -228,23 +239,25 @@ def test_codegen_pooling():
     if skip_codegen_test():
         return
 
-    typef = ["nn.max_pool2d", "nn.avg_pool2d", "nn.l2_pool2d"]
-    dtype = [("float32", -127, 128), ("uint8", 0, 255)]
-    size = [(2, 2), (3, 3)]
-    stride = [(2, 2)]
-    pad = [(0, 0), (1, 1), (2, 1)]
-    ceil_mode = [False, True]
-    count_include_pad = [False, True]
-    input_shapes = [(8, 8, 16), (9, 9, 16)]
-    trials = generate_trials([typef, dtype, size, stride, pad, ceil_mode, count_include_pad, input_shapes], 3)
+    fp32_dtype = ("float32", -127, 128)
+    uint8_dtype = ("uint8", 0, 255)
+
+    trials = [["nn.max_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 0), False, True, (16, 16, 16)],
+              ["nn.max_pool2d", fp32_dtype, (3, 3), (2, 2), (1, 1), True, True, (15, 15, 16)],
+              ["nn.max_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 1), False, False, (16, 16, 16)],
+              ["nn.max_pool2d", uint8_dtype, (3, 3), (2, 2), (0, 1), False, False, (16, 16, 16)],
+              ["nn.max_pool2d", uint8_dtype, (2, 2), (2, 2), (1, 1), True, True, (15, 15, 16)],
+              ["nn.avg_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), False, False, (16, 16, 16)],
+              ["nn.avg_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 0), False, True, (16, 16, 16)],
+              ["nn.avg_pool2d", fp32_dtype, (3, 3), (2, 2), (0, 1), True, False, (15, 15, 16)],
+              ["nn.avg_pool2d", uint8_dtype, (2, 2), (2, 2), (1, 1), False, True, (16, 16, 16)],
+              ["nn.avg_pool2d", uint8_dtype, (3, 3), (2, 2), (0, 1), False, False, (16, 16, 16)],
+              ["nn.l2_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 1), True, False, (15, 15, 16)],
+              ["nn.l2_pool2d", fp32_dtype, (3, 3), (2, 2), (0, 0), False, False, (16, 16, 16)],
+              ["nn.l2_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), False, True, (15, 15, 16)]]
 
     for typef, (dtype, low, high), size, stride, pad, ceil_mode, count_include_pad, \
             input_shape in trials:
-
-        # L2 pooling not currently supported for uint8
-        if typef == "nn.l2_pool2d" and dtype == "uint8":
-            continue
-
         shape = (1, *input_shape)
         inputs = {"a"}
         args = (shape, dtype, typef, size,
@@ -258,10 +271,19 @@ def test_codegen_global_pooling():
     if skip_codegen_test():
         return
 
-    typef = ["nn.global_max_pool2d", "nn.global_avg_pool2d"]
-    dtype = [("float32", -127, 128), ("uint8", 0, 255)]
-    input_shapes = [(8, 8, 16), (9, 9, 16)]
-    trials = generate_trials([typef, dtype, input_shapes], 3)
+    fp32_dtype = ("float32", -127, 128)
+    uint8_dtype = ("uint8", 0, 255)
+
+    trials = [["nn.global_max_pool2d", fp32_dtype, (8, 8, 16)],
+              ["nn.global_max_pool2d", fp32_dtype, (9, 9, 16)],
+              ["nn.global_max_pool2d", fp32_dtype, (8, 8, 16)],
+              ["nn.global_max_pool2d", uint8_dtype, (8, 8, 16)],
+              ["nn.global_max_pool2d", uint8_dtype, (9, 9, 16)],
+              ["nn.global_avg_pool2d", fp32_dtype, (8, 8, 16)],
+              ["nn.global_avg_pool2d", fp32_dtype, (8, 8, 16)],
+              ["nn.global_avg_pool2d", fp32_dtype, (9, 9, 16)],
+              ["nn.global_avg_pool2d", uint8_dtype, (8, 8, 16)],
+              ["nn.global_avg_pool2d", uint8_dtype, (8, 8, 16)]]
 
     for typef, (dtype, low, high), input_shape in trials:
         shape = (1, *input_shape)
