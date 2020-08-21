@@ -1583,7 +1583,9 @@ def _upsample3d(method):
         else:
             align_corners = False
 
-        if align_corners:
+        if method == "nearest_neighbor":
+            coord_trans = "asymmetric"
+        elif align_corners:
             coord_trans = "align_corners"
         else:
             coord_trans = "half_pixel"
