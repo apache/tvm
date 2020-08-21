@@ -2550,6 +2550,19 @@ def test_forward_dtypes():
         tensor2 = torch.randn(3, 4).to(dtype=dt)
         verify_model(fn, input_data=[tensor1, tensor2])
 
+    class ModuleWithIntParameters(Module):
+        def __init__(self, arr):
+            super().__init__()
+            self.param = torch.nn.Parameter(torch.LongTensor(arr), requires_grad=False)
+
+        def forward(self, x):
+            return x.long() + self.param
+
+    shape = (10, 10)
+    param = torch.ones(shape, dtype=torch.long)
+    inp = torch.ones(shape, dtype=torch.int)
+    verify_model(ModuleWithIntParameters(param), input_data=inp)
+
 
 def test_weight_names():
     tm = torch.jit.trace(torch.nn.Linear(3, 4), [torch.randn(2, 3)])
