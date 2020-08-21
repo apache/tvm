@@ -2070,7 +2070,9 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
       oshape[i] = tir::make_const(dshape[i].dtype(), (slice_range + step - 1) / step);
     }
   } else {
-    CHECK(false) << "strided_slice recieved invalid params";
+    CHECK(param->begin) << "strided_slice recieved invalid begin";
+    CHECK(param->end) << "strided_slice recieved invalid end";
+    CHECK(param->strides) << "strided_slice recieved invalid strides";
   }
   reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;

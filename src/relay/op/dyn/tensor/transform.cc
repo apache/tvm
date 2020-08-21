@@ -436,6 +436,7 @@ RELAY_REGISTER_OP("dyn.full")
 
 bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {
+  // [data, begin, end, strides, out]
   CHECK_EQ(types.size(), 5);
   const StridedSliceAttrs* param = attrs.as<StridedSliceAttrs>();
   if (param == nullptr) {
@@ -487,12 +488,12 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
   te::Tensor end = inputs[2];
   te::Tensor strides = inputs[3];
   // Dynamic computation
-  int64_t attr_size = data->shape.size();
-  CHECK(begin->shape[0].as<IntImmNode>()->value == attr_size &&
-        end->shape[0].as<IntImmNode>()->value == attr_size &&
-        strides->shape[0].as<IntImmNode>()->value == attr_size)
+  int64_t data_rank = data->shape.size();
+  CHECK(begin->shape[0].as<IntImmNode>()->value == data_rank &&
+        end->shape[0].as<IntImmNode>()->value == data_rank &&
+        strides->shape[0].as<IntImmNode>()->value == data_rank)
       << "begin, end, and strides are required to have the same length"
-      << " if they are non-constant.";
+      << " if they are dynamic variables.";
   return Array<te::Tensor>{DynamicStridedSlice(data, begin, end, strides)};
 }
 

@@ -337,7 +337,7 @@ def test_strided_slice():
         text = func.astext()
         assert "begin=" in text
         assert "end=" in text
-        
+
         if output:
             assert func.body.checked_type == relay.ty.TensorType(output, "float32")
 

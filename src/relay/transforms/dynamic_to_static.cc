@@ -156,19 +156,17 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.strided_slice"),
          [](const CallNode* call_node) {
-           if (const ConstantNode* begin = call_node->args[1].as<ConstantNode>()) {
-             if (const ConstantNode* end = call_node->args[2].as<ConstantNode>()) {
-               if (const ConstantNode* stride = call_node->args[3].as<ConstantNode>()) {
-                 CHECK_EQ(begin->data->ndim, 1);
-                 CHECK_EQ(end->data->ndim, 1);
-                 CHECK_EQ(stride->data->ndim, 1);
-                 const StridedSliceAttrs* param = call_node->attrs.as<StridedSliceAttrs>();
-                 CHECK(param);
-                 return MakeStridedSlice(call_node->args[0], ToVector(begin->data),
-                                         ToVector(end->data), ToVector(stride->data),
-                                         param->slice_mode);
-               }
-             }
+           const ConstantNode* begin = call_node->args[1].as<ConstantNode>();
+           const ConstantNode* end = call_node->args[2].as<ConstantNode>();
+           const ConstantNode* stride = call_node->args[3].as<ConstantNode>();
+           if (begin && end && stride) {
+             CHECK_EQ(begin->data->ndim, 1);
+             CHECK_EQ(end->data->ndim, 1);
+             CHECK_EQ(stride->data->ndim, 1);
+             const StridedSliceAttrs* param = call_node->attrs.as<StridedSliceAttrs>();
+             CHECK(param);
+             return MakeStridedSlice(call_node->args[0], ToVector(begin->data), ToVector(end->data),
+                                     ToVector(stride->data), param->slice_mode);
            }
            return Expr(nullptr);
          }},
