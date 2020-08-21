@@ -76,7 +76,7 @@ int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
   *strm += sizeof(ndim);
   dtype = ((DLDataType*)*strm)[0];  // NOLINT(*)
   *strm += sizeof(dtype);
-  if ((ndim < 0) || (ndim > TVM_CRT_MAX_NDIM)) {
+  if (ndim > TVM_CRT_MAX_NDIM) {
     fprintf(stderr, "Invalid ndim=%d: expected to be 0 ~ %d.\n", ndim, TVM_CRT_MAX_NDIM);
     status = -1;
   }
