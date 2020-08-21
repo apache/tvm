@@ -74,6 +74,9 @@ Expr MakeTile(Expr data, Array<Integer> reps);
 
 Expr MakeTopK(Expr data, int k, int axis, String ret_type, bool is_ascend, DataType dtype);
 
+Expr MakeUpSampling(Expr data, double scale_h, double scale_w, String layout, String method,
+                    bool align_corners);
+
 Expr MakeVariance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, bool exclude,
                   bool unbiased);
 
