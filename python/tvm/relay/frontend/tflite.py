@@ -136,6 +136,7 @@ class OperatorConverter(object):
             'ROUND': self.convert_round,
             'RSQRT': self.convert_rsqrt,
             'REVERSE_SEQUENCE': self.convert_reverse_sequence,
+            'REVERSE_V2': self.convert_reverse_v2,
             'SELECT': self.convert_select,
             'SHAPE': self.convert_shape,
             'SIN': self.convert_sin,
@@ -2970,6 +2971,22 @@ class OperatorConverter(object):
 
         out = _op.one_hot(indices_expr, on_value_expr, off_value_expr, depth, axis, dtype)
 
+        return out
+
+    def convert_reverse_v2(self, op):
+        """Convert TFLite REVERSE_V2"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensor's length should be 2"
+
+        input_expr = self.get_expr(input_tensors[0].tensor_idx)
+
+        # Getting axis value
+        axis = self.get_tensor_value(input_tensors[1])
+        if isinstance(axis, np.ndarray):
+            assert len(axis) == 1, "TFLite does not support multi-axis yet"
+            axis = int(axis)
+
+        out = _op.reverse(input_expr, axis)
         return out
 
 

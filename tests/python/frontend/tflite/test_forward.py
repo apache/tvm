@@ -2627,6 +2627,32 @@ def test_forward_fully_connected():
 
 
 #######################################################################
+# REVERSE_V2
+# ----------
+
+def _test_reverse_v2(input_shape, axis, dtype):
+    """ One iteration of REVERSE_V2 """
+    with tf.Graph().as_default():
+        input = np.random.randint(0, 100, size=input_shape).astype(dtype)
+        in_input = tf.placeholder(dtype=input.dtype, shape=input.shape, name="input")
+        in_axis = ops.convert_to_tensor(axis, dtype=axis.dtype)
+
+        out = array_ops.reverse(in_input, in_axis)
+
+        compare_tflite_with_tvm(
+            [input],
+            ["input"],
+            [in_input],
+            [out])
+
+def test_forward_reverse_v2():
+    """ REVERSE_V2 """
+    for dtype in ['float32', 'int32']:
+        _test_reverse_v2((5), np.array([0], dtype='int32'), dtype)
+        _test_reverse_v2((5, 6, 4, 2), np.array([2], dtype='int32'), dtype)
+
+
+#######################################################################
 # Custom Operators
 # ----------------
 
@@ -3104,6 +3130,7 @@ if __name__ == '__main__':
     test_forward_quantize_dequantize()
     test_forward_arg_min_max()
     test_forward_expand_dims()
+    test_forward_reverse_v2()
 
     # NN
     test_forward_convolution()
