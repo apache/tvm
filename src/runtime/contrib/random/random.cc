@@ -123,11 +123,5 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.random_fill").set_body([](TVMArgs args, 
   entry->random_engine.RandomFill(out);
 });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.random.seed").set_body([](TVMArgs args, TVMRetValue* ret) {
-  RandomThreadLocalEntry* entry = RandomThreadLocalEntry::ThreadLocal();
-  uint64_t seed = args[0];
-  entry->random_engine.Seed(seed);
-});
-
 }  // namespace contrib
 }  // namespace tvm
