@@ -2990,7 +2990,7 @@ class OperatorConverter(object):
         out = _op.reverse(input_expr, axis)
         return out
 
-def convert_matrix_set_diag(self, op):
+    def convert_matrix_set_diag(self, op):
         """Convert TFLite MATRIX_SET_DIAG"""
 
         input_tensors = self.get_input_tensors(op)
