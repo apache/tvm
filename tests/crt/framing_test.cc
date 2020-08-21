@@ -24,6 +24,7 @@
 
 #include "../../src/runtime/crt/utvm_rpc_server/buffer.h"
 #include "../../src/runtime/crt/utvm_rpc_server/framing.h"
+#include "buffer_write_stream.h"
 
 #include "crt_config.h"
 
@@ -31,42 +32,6 @@ using ::tvm::runtime::Buffer;
 using ::tvm::runtime::Escape;
 using ::tvm::runtime::Framer;
 using ::tvm::runtime::Unframer;
-using ::tvm::runtime::WriteStream;
-
-template <unsigned int N>
-class BufferWriteStream : public WriteStream {
- public:
-  ssize_t Write(const uint8_t* data, size_t data_size_bytes) override {
-    return buffer_.Write(data, data_size_bytes);
-  }
-
-  void Reset() {
-    buffer_.Clear();
-    packet_done_ = false;
-  }
-
-  inline bool packet_done() { return packet_done_; }
-
-  inline bool is_valid() { return is_valid_; }
-
-  void PacketDone(bool is_valid) override {
-    EXPECT_FALSE(packet_done_);
-    packet_done_ = true;
-    is_valid_ = is_valid;
-  }
-
-  std::string BufferContents() {
-    return std::string((const char*) buffer_data_, buffer_.Size());
-  }
-
-  static constexpr unsigned int capacity() { return N; };
-
- private:
-  bool packet_done_{false};
-  bool is_valid_{false};
-  uint8_t buffer_data_[N];
-  Buffer buffer_{buffer_data_, N};
-};
 
 class FramerTest : public ::testing::Test {
  protected:

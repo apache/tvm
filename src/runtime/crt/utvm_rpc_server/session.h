@@ -26,6 +26,7 @@
 #define TVM_RUNTIME_MINRPC_SERVER_SESSION_H_
 
 #include <inttypes.h>
+#include <tvm/runtime/crt/error_codes.h>
 #include "buffer.h"
 #include "framing.h"
 #include "write_stream.h"
@@ -57,14 +58,28 @@ class Session {
  public:
   /*! \brief Callback invoked when a full message is received.
    *
-   * Note that this function is called for any message with type other than kStartSessionMessage.
+   * This function is called in the following situations:
+   *  - When a new session is established (this typically indicates the remote end reset).
+   *    In this case, buf is NULL.
+   *  - When a log message or normal traffic is received. In this case, buf points to a
+   *    valid buffer containing the message content.
+   *
+   * \param context The value of `message_received_func_context` passed to the constructor.
+   * \param message_type The type of session message received. Currently, this is always
+   *      either kNormalTraffic or kLogMessage.
+   * \param buf When message_type is not kStartSessionMessage, a Buffer whose read cursor is at the
+   *      first byte of the message payload. Otherwise, NULL.
    */
-  typedef void(*MessageReceivedFunc)(void*, MessageType, Buffer*);
+  typedef void(*MessageReceivedFunc)(void* context, MessageType message_type, Buffer* buf);
+
+  /*! \brief An invalid nonce value that typically indicates an unknown nonce. */
+  static constexpr const uint8_t kInvalidNonce = 0;
 
   Session(uint8_t initial_session_nonce, Framer* framer,
           Buffer* receive_buffer,  MessageReceivedFunc message_received_func,
           void* message_received_func_context) :
-      nonce_{initial_session_nonce}, state_{State::kReset}, session_id_{0}, receiver_{this},
+      local_nonce_{initial_session_nonce}, remote_nonce_{kInvalidNonce},
+      state_{State::kReset}, receiver_{this},
       framer_{framer}, receive_buffer_{receive_buffer},
       receive_buffer_has_complete_message_{false},
       message_received_func_{message_received_func},
@@ -80,9 +95,13 @@ class Session {
 
   /*!
    * \brief Start a new session regardless of state. Sends kStartSessionMessage.
+   *
+   * Generally speaking, this function should be called once per device reset by exactly one side
+   * in the system. No traffic can flow until this function is called.
+   *
    * \return 0 on success, negative error code on failure.
    */
-  int StartSession();
+  tvm_crt_error_t StartSession();
 
   /*!
    * \brief Obtain a WriteStream implementation for use by the framing layer.
@@ -99,7 +118,7 @@ class Session {
    * \param message_size_bytes The number of valid bytes in message_data.
    * \return 0 on success, negative error code on failure.
    */
-  int SendMessage(MessageType message_type, const uint8_t* message_data, size_t message_size_bytes);
+  tvm_crt_error_t SendMessage(MessageType message_type, const uint8_t* message_data, size_t message_size_bytes);
 
   /*!
    * \brief Send the framing and session layer headers.
@@ -111,7 +130,7 @@ class Session {
    *     layer headers.
    * \return 0 on success, negative error code on failure.
    */
-  int StartMessage(MessageType message_type, size_t message_size_bytes);
+  tvm_crt_error_t StartMessage(MessageType message_type, size_t message_size_bytes);
 
   /*!
    * \brief Send a part of the message body.
@@ -122,13 +141,13 @@ class Session {
    * \param chunk_size_bytes The number of valid bytes in chunk_data.
    * \return 0 on success, negative error code on failure.
    */
-  int SendBodyChunk(const uint8_t* chunk_data, size_t chunk_size_bytes);
+  tvm_crt_error_t SendBodyChunk(const uint8_t* chunk_data, size_t chunk_size_bytes);
 
   /*!
    * \brief Finish sending the message by sending the framing layer footer.
    * \return 0 on success, negative error code on failure.
    */
-  int FinishMessage();
+  tvm_crt_error_t FinishMessage();
 
   /*! \brief Returns true if the session is in the established state. */
   bool IsEstablished() const {
@@ -166,15 +185,33 @@ class Session {
 
   void RegenerateNonce();
 
-  int SendInternal(MessageType message_type, const uint8_t* message_data, size_t message_size_bytes);
+  tvm_crt_error_t SendInternal(MessageType message_type, const uint8_t* message_data, size_t message_size_bytes);
 
   void SendSessionStartReply(const SessionHeader& header);
 
   void ProcessStartSession(const SessionHeader& header);
 
-  uint8_t nonce_;
+  void OnSessionEstablishedMessage();
+
+  inline uint16_t inbound_session_id() {
+    return ((uint16_t) remote_nonce_) | (((uint16_t) local_nonce_) << 8);
+  }
+
+  inline uint16_t outbound_session_id() {
+    return ((uint16_t) local_nonce_) | (((uint16_t) remote_nonce_) << 8);
+  }
+
+  inline uint8_t sender_nonce(uint16_t session_id) {
+    return session_id & 0xff;
+  }
+
+  inline uint8_t receiver_nonce(uint16_t session_id) {
+    return (session_id >> 8) & 0xff;
+  }
+
+  uint8_t local_nonce_;
+  uint8_t remote_nonce_;
   State state_;
-  uint16_t session_id_;
   SessionReceiver receiver_;
   Framer* framer_;
   Buffer* receive_buffer_;

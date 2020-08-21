@@ -77,6 +77,6 @@
 /*! \brief Log2 of the page size (bytes) for a virtual memory page. */
 #define TVM_CRT_PAGE_BITS  10  // 1 kB
 
-#define TVM_CRT_FRAMER_ENABLE_LOGS
+//#define TVM_CRT_FRAMER_ENABLE_LOGS
 
 #endif  // TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_

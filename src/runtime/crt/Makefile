@@ -44,11 +44,11 @@ CFLAGS += ${INCLUDES} -Werror -g $(EXTRA_CFLAGS)
 CXXFLAGS += ${INCLUDES} -std=c++11 -Werror -g $(EXTRA_CXXFLAGS)
 LDFLAGS += -Werror -g $(EXTRA_LDFLAGS)
 
-${BUILD_DIR}/%.o: src/%.c
+${BUILD_DIR}/%.o: src/%.c $(CRT_CONFIG)
 	${QUIET}mkdir -p $(dir $@)
 	${QUIET}${CC} ${CFLAGS} -c -o "$@" "$<"
 
-${BUILD_DIR}/%.o: src/%.cc
+${BUILD_DIR}/%.o: src/%.cc $(CRT_CONFIG)
 	${QUIET}mkdir -p $(dir $@)
 	${QUIET}${CXX} ${CXXFLAGS} -c -o "$@" "$<"
 

@@ -31,7 +31,7 @@
 #include <string>
 #include <utility>
 
-#include "../minrpc/rpc_protocol.h"
+#include "../minrpc/rpc_reference.h"
 #include "../../support/ring_buffer.h"
 #include "rpc_channel.h"
 #include "rpc_session.h"

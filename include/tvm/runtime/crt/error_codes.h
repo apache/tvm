@@ -39,6 +39,7 @@ typedef enum {
   kTvmErrorCategoryFunctionRegistry = 1,
   kTvmErrorCategoryFraming = 2,
   kTvmErrorCategoryWriteStream = 3,
+  kTvmErrorCategorySession = 4,
 } tvm_crt_error_category_t;
 
 typedef enum {
@@ -61,6 +62,11 @@ typedef enum {
   // Write stream
   kTvmErrorWriteStreamShortWrite = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryWriteStream, 0),
   kTvmErrorWriteStreamLongWrite = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryWriteStream, 1),
+
+  // Session
+  kTvmErrorSessionInvalidState = DEFINE_TVM_CRT_ERROR(kTvmErrorCategorySession, 0),
+  kTvmErrorSessionReceiveBufferBusy = DEFINE_TVM_CRT_ERROR(kTvmErrorCategorySession, 1),
+  kTvmErrorSessionReceiveBufferShortWrite = DEFINE_TVM_CRT_ERROR(kTvmErrorCategorySession, 2),
 
   // System errors are always negative integers; this mask indicates presence of a system error.
   // Cast tvm_crt_error_t to a signed integer to interpret the negative error code.

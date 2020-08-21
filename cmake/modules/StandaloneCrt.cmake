@@ -45,6 +45,7 @@ if(USE_STANDALONE_CRT)
        "src/runtime/crt/common *.c -> src/runtime/crt/common"
        "src/runtime/crt/graph_runtime *.c -> src/runtime/crt/graph_runtime"
        "src/runtime/crt/utvm_rpc_server * -> src/runtime/crt/utvm_rpc_server"
+       "src/runtime/crt/host crt_config.h -> src/runtime/crt/host"
        "src/runtime/minrpc * -> src/runtime/minrpc"
        "src/support generic_arena.h -> src/support"
        )
@@ -78,8 +79,8 @@ if(USE_STANDALONE_CRT)
     endforeach()
   endforeach()
 
-  get_filename_component(crt_config_abspath src/runtime/crt/host/crt_config.h ABSOLUTE)
-  list(APPEND host_isolated_build_deps src/runtime/crt/host/crt_config.h)
+#  get_filename_component(crt_config_abspath src/runtime/crt/host/crt_config.h ABSOLUTE)
+#  list(APPEND host_isolated_build_deps src/runtime/crt/host/crt_config.h)
   add_custom_target(standalone_crt DEPENDS ${host_isolated_build_deps})
 
   get_filename_component(host_build_dir_abspath "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt" ABSOLUTE)
@@ -90,6 +91,9 @@ if(USE_STANDALONE_CRT)
   set(make_quiet )
   endif(${VERBOSE})
 
+  list(APPEND crt_libraries common graph_runtime utvm_rpc_server)
+  list(TRANSFORM crt_libraries PREPEND "host_standalone_crt/lib" OUTPUT_VARIABLE crt_library_paths)
+  list(TRANSFORM crt_library_paths APPEND ".a" OUTPUT_VARIABLE crt_library_paths)
   ExternalProject_Add(host_standalone_crt
       DOWNLOAD_COMMAND ""
       SOURCE_DIR standalone_crt
@@ -97,18 +101,17 @@ if(USE_STANDALONE_CRT)
       BUILD_COMMAND make
           DLPACK_INCLUDE_DIR=${CMAKE_SOURCE_DIR}/3rdparty/dlpack/include
           TVM_INCLUDE_DIR=${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include
-          CRT_CONFIG=${crt_config_abspath}
+          CRT_CONFIG=src/runtime/crt/host/crt_config.h
           BUILD_DIR=${host_build_dir_abspath} all ${make_quiet}
      BUILD_IN_SOURCE ON
      WORKING_DIRECTORY standalone_crt
      COMMENT "Building host CRT runtime"
-     BUILD_BYPRODUCTS host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a
+     BUILD_BYPRODUCTS "${crt_library_paths}"
      DEPENDS standalone_crt
      INSTALL_COMMAND ""
      )
-  ExternalProject_Add_StepDependencies(host_standalone_crt build standalone_crt) # ${host_isolated_build_deps})
+  ExternalProject_Add_StepDependencies(host_standalone_crt build standalone_crt ${host_isolated_build_deps})
 
-  list(APPEND crt_libraries common graph_runtime utvm_rpc_server)
   foreach(crt_lib IN LISTS crt_libraries)
     set(cmake_crt_lib_name host_standalone_crt_${crt_lib})
     list(APPEND cmake_crt_libraries ${cmake_crt_lib_name})
@@ -119,6 +122,8 @@ if(USE_STANDALONE_CRT)
         IMPORTED_OBJECTS "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/lib${crt_lib}.a"
         PUBLIC_HEADER "${crt_headers}")
   endforeach()
+
+  list(APPEND TVM_RUNTIME_LINKER_LIBS host_standalone_crt_utvm_rpc_server)
 
   # Standalone CRT tests
   file(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*.cc)

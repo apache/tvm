@@ -33,8 +33,8 @@
 #include "../rpc/rpc_session.h"
 
 #include "../crt/host/crt_config.h"
-#include "../crt/rpc_server/framing.h"
-#include "../crt/rpc_server/session.h"
+#include "../crt/utvm_rpc_server/framing.h"
+#include "../crt/utvm_rpc_server/session.h"
 
 namespace tvm {
 namespace runtime {

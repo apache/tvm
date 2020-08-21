@@ -34,8 +34,10 @@
 #ifdef TVM_CRT_FRAMER_ENABLE_LOGS
 #include <cstdio>
 #define TVM_FRAMER_DEBUG_LOG(msg, ...)  fprintf(stderr, "utvm framer: " msg " \n", ##__VA_ARGS__)
+#define TVM_UNFRAMER_DEBUG_LOG(msg, ...)  fprintf(stderr, "utvm unframer: " msg " \n", ##__VA_ARGS__)
 #else
 #define TVM_FRAMER_DEBUG_LOG(msg, ...)
+#define TVM_UNFRAMER_DEBUG_LOG(msg, ...)
 #endif
 
 namespace tvm {
@@ -58,7 +60,7 @@ tvm_crt_error_t Unframer::Write(const uint8_t* data, size_t data_size_bytes, siz
   input_size_bytes_ = data_size_bytes;
 
   while (return_code == kTvmErrorNoError && input_size_bytes_ > 0) {
-    TVM_FRAMER_DEBUG_LOG("state: %02x size %02lx", to_integral(state_), input_size_bytes_);
+    TVM_UNFRAMER_DEBUG_LOG("state: %02x size 0x%02zx", to_integral(state_), input_size_bytes_);
     switch (state_) {
     case State::kFindPacketStart:
       return_code = FindPacketStart();
@@ -186,7 +188,7 @@ tvm_crt_error_t Unframer::FindPacketLength() {
 
   // TODO endian
   num_payload_bytes_remaining_ = *((uint32_t*) buffer_);
-  TVM_FRAMER_DEBUG_LOG("packet length: %08zu", num_payload_bytes_remaining_);
+  TVM_UNFRAMER_DEBUG_LOG("payload length: 0x%zx", num_payload_bytes_remaining_);
   ClearBuffer();
   state_ = State::kFindPacketCrc;
   return to_return;
@@ -195,7 +197,6 @@ tvm_crt_error_t Unframer::FindPacketLength() {
 
 tvm_crt_error_t Unframer::FindPacketCrc() {
 //  CHECK(num_buffer_bytes_valid_ == 0);
-  TVM_FRAMER_DEBUG_LOG("find packet crc: %02zu", num_payload_bytes_remaining_);
   while (num_payload_bytes_remaining_ > 0) {
     size_t num_bytes_to_buffer = num_payload_bytes_remaining_;
     if (num_bytes_to_buffer > sizeof(buffer_)) {
@@ -375,7 +376,7 @@ tvm_crt_error_t Framer::WritePayloadChunk(const uint8_t* payload_chunk, size_t p
     return kTvmErrorFramingPayloadOverflow;
   }
 
-  TVM_FRAMER_DEBUG_LOG("write payload chunk: %" PRIuMAX " bytes\n", payload_chunk_size_bytes);
+  TVM_FRAMER_DEBUG_LOG("write payload chunk: %" PRIuMAX " bytes", payload_chunk_size_bytes);
   tvm_crt_error_t to_return = WriteAndCrc(
     payload_chunk, payload_chunk_size_bytes, true  /* escape */, true  /* update_crc */);
   if (to_return != kTvmErrorNoError) {
