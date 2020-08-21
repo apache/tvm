@@ -2612,11 +2612,6 @@ def test_forward_index():
     input_shape = [3, 4, 5, 6]
 
     class Index0(Module):
-        def __init__(self):
-            super().__init__()
-            if torch.cuda.is_available():
-                self.inp = self.inp.cuda()
-
         def forward(self, x):
             return x[[0, 1], [0, 2], :2, 4]
 
@@ -2624,11 +2619,6 @@ def test_forward_index():
     verify_model(Index0().eval(), input_data=input_data)
 
     class Index1(Module):
-        def __init__(self):
-            super().__init__()
-            if torch.cuda.is_available():
-                self.inp = self.inp.cuda()
-
         def forward(self, x):
             return x[[0], [1, 2, 3, 0], [3, 1, 2, 2], [4, 2, 1, 0]]
 
