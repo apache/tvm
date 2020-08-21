@@ -396,8 +396,11 @@ class ContextAnalysis(ExprVisitor):
                 # Save the the arg to function mapping for closures as it will
                 # be invoked/unified later.
                 if isinstance(arg.checked_type, ty.FuncType):
-                    assert arg in self.closures
-                    self.closures[param] = self.closures[arg]
+                    if arg in self.closures:
+                        self.closures[param] = self.closures[arg]
+                    else:
+                        assert isinstance(arg, _expr.GlobalVar)
+                        self.closures[param] = arg
                 self.unify(self.device_for(arg), self.device_for(param))
 
             device = self.unify(device, self.device_for(call.op))
@@ -474,7 +477,9 @@ class ContextAnalysis(ExprVisitor):
 
     def visit_function(self, f):
         self.unify(self.device_for(f), self.device_for(f.body))
-        super().visit_function(f)
+        for x in f.params:
+            self.device_for(x)
+        self.visit(f.body)
 
     def visit_tuple(self, tup):
         # We only support tuple with the same of device.

@@ -37,7 +37,7 @@ from ..op.memory import alloc_storage
 from ..analysis.context_analysis import ContextAnalysis, mk_analysis_annotator
 from ..._ffi.runtime_ctypes import TVMContext
 
-# logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
 def alloc_tensor(storage, shape, dtype='float32', assert_shape=None):
     offset = expr.const(0, dtype="int64")
@@ -368,7 +368,10 @@ class ManifestAlloc:
                 fallback_ctx = cpu(0)
             ca = ContextAnalysis(mod, cur_func, TVMContext(fallback_ctx.device_type, 0))
         else:
-            dev, _ = self.targets.items()[0]
+            if isinstance(self.targets, dict):
+                dev = list(self.targets.keys())[0]
+            else:
+                dev, _ = self.targets.items()[0]
             ca = ContextAnalysis(mod, cur_func, nd.context(dev.value))
 
         func = mod["main"]
