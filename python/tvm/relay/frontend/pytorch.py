@@ -1761,16 +1761,21 @@ def _index():
     def _impl(inputs, input_types):
         data = inputs[0]
         indices = []
+        raw_indices = []
         max_indices_len = -1
         for index in inputs[1]:
             if not isinstance(index, _expr.Constant):
-                raise RuntimeError("Only supports constant indices for "
-                                   "pytorch advanced indexing ")
+                try:
+                    index = _expr.const(_infer_value(index, {}))
+                except Exception:
+                    raise RuntimeError("Only supports constant indices for "
+                                       "pytorch advanced indexing ")
+            raw_indices.append(index)
             cindex_len = index.data.shape[0]
             if cindex_len > max_indices_len:
                 max_indices_len = cindex_len
 
-        for index in inputs[1]:
+        for index in raw_indices:
             cnp = index.data.asnumpy()
             cindex_len = cnp.shape[0]
             if cindex_len < max_indices_len:
