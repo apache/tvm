@@ -263,6 +263,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // Allocate
 Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
                    Stmt body) {
+  // TODO(tvm-team): Add invariant check to make sure
+  // IsPointerPType(buffer_var->type_annotation, dtype)
+  // once we fix the allocate hybrid script printing.
   for (size_t i = 0; i < extents.size(); ++i) {
     CHECK(extents[i].defined());
     CHECK(extents[i].dtype().is_scalar());
