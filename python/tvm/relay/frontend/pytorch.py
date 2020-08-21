@@ -31,6 +31,7 @@ from .. import expr as _expr
 from .. import op as _op
 from ..ty import TupleType, TensorType, Any
 from ..loops import while_loop
+from .. import transform
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
@@ -1507,14 +1508,16 @@ def _to():
         cast_func = {
             6: float,
             3: int,
+            4: int
         }
         cast_func_expr = {
             6: lambda x: _op.cast(x, "float32"),
             3: lambda x: _op.cast(x, "int32"),
+            4: lambda x: _op.cast(x, "int64"),
         }
         if inputs[1] in cast_func and not isinstance(data, _expr.Expr):
             return cast_func[inputs[1]](data)
-        elif inputs[1] in cast_func and isinstance(data, _expr.Expr):
+        elif inputs[1] in cast_func_expr and isinstance(data, _expr.Expr):
             return cast_func_expr[inputs[1]](data)
         return data
 
@@ -2127,6 +2130,7 @@ def _report_missing_conversion(op_names, convert_map):
         msg = "The following operators are not implemented: {}".format(missing)
         raise NotImplementedError(msg)
 
+
 def _getattr_attr_name(node):
     attribute_names = node.attributeNames()
     assert len(attribute_names) == 1
@@ -2136,6 +2140,7 @@ def _getattr_attr_name(node):
 
 def _getattr_full_name(getattrs):
     return ".".join([_getattr_attr_name(node) for node in getattrs])
+
 
 def _get_pytorch_value_type(typ, default_dtype="float32"):
     kind = typ.kind()
@@ -2159,16 +2164,25 @@ def _get_pytorch_value_type(typ, default_dtype="float32"):
         return 'UnsupportedType'
 
 
-def _get_input_types(op_node, default_dtype="float32"):
+def _get_input_types(op_node, outputs, default_dtype="float32"):
     """Returns a TVM dtype for each input nodes derived from the torch type"""
-    return [_get_pytorch_value_type(i.type(), default_dtype=default_dtype)
-            for i in op_node.inputs()]
+    in_types = []
+    for inp in op_node.inputs():
+        if inp.node().kind() == "prim::GetAttr":
+            # GetAttr nodes always return None when we call scalarType() on it
+            name = inp.debugName()
+            assert name in outputs
+            if isinstance(outputs[name], _expr.Var):
+                in_types.append(outputs[name].type_annotation.dtype)
+            else:
+                # For quantized modules with parameters, here we would get
+                # "prim::GetAttr[name="_packed_params"]". Since the dtype corresponding to
+                # _packed_params is not needed by quantized ops, we return an arbitrary type.
+                in_types.append(default_dtype)
+        else:
+            in_types.append(_get_pytorch_value_type(inp.type(), default_dtype=default_dtype))
 
-
-def _get_output_types(op_node, default_dtype="float32"):
-    """Returns a TVM dtype for each input nodes derived from the torch type"""
-    return [_get_pytorch_value_type(i.type(), default_dtype=default_dtype)
-            for i in op_node.outputs()]
+    return in_types
 
 
 def _get_constant(node):
@@ -2572,7 +2586,8 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude, defau
             outputs.update(zip(unpacked_names, loop_out))
         else:
             relay_op = convert_map[operator]
-            relay_out = relay_op(inputs, _get_input_types(op_node, default_dtype=default_dtype))
+            relay_out = relay_op(inputs, _get_input_types(op_node, outputs,
+                                                          default_dtype=default_dtype))
 
             if isinstance(relay_out, tuple):
                 # This is for torch operators that return multiple outputs
@@ -2668,4 +2683,4 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_d
 
     mod["main"] = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
 
-    return mod, tvm_params
+    return transform.RemoveUnusedFunctions()(mod), tvm_params

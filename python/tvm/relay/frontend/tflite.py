@@ -137,6 +137,7 @@ class OperatorConverter(object):
             'ROUND': self.convert_round,
             'RSQRT': self.convert_rsqrt,
             'REVERSE_SEQUENCE': self.convert_reverse_sequence,
+            'REVERSE_V2': self.convert_reverse_v2,
             'SELECT': self.convert_select,
             'SHAPE': self.convert_shape,
             'SIN': self.convert_sin,
@@ -1709,10 +1710,9 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) >= 2, "input tensors length should be >= 2"
+        assert len(input_tensors) in (2, 3), "input tensors length should be two or three"
 
         input_tensor = input_tensors[0]
-        input_tensor_idx = input_tensor.tensor_idx
         weight_tensor = input_tensors[1]
 
         output_tensors = self.get_output_tensors(op)
@@ -1734,7 +1734,7 @@ class OperatorConverter(object):
         # Dense expected Weight shape: [out_dim, n_units]
         # Dense output shape: [batch_size, out_dim]
         target_shape = tuple((-1, weight_tensor_shape[1]))
-        in_expr = self.get_expr(input_tensor_idx)
+        in_expr = self.get_tensor_expr(input_tensor)
         in_expr = _op.reshape(in_expr, target_shape)
 
         #TODO: Change the output shape calculation based on keep_dim option
@@ -2974,7 +2974,23 @@ class OperatorConverter(object):
 
         return out
 
-    def convert_matrix_set_diag(self, op):
+    def convert_reverse_v2(self, op):
+        """Convert TFLite REVERSE_V2"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensor's length should be 2"
+
+        input_expr = self.get_expr(input_tensors[0].tensor_idx)
+
+        # Getting axis value
+        axis = self.get_tensor_value(input_tensors[1])
+        if isinstance(axis, np.ndarray):
+            assert len(axis) == 1, "TFLite does not support multi-axis yet"
+            axis = int(axis)
+
+        out = _op.reverse(input_expr, axis)
+        return out
+
+def convert_matrix_set_diag(self, op):
         """Convert TFLite MATRIX_SET_DIAG"""
 
         input_tensors = self.get_input_tensors(op)

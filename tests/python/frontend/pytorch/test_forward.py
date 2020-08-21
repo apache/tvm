@@ -1296,31 +1296,27 @@ def test_upsample():
 def test_to():
     """ test for aten::to(...) """
     class ToCPU(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             return x.to("cpu")
 
     class ToFloat(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             return x.float()
 
     class ToInt(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             return x.int()
+
+    class ToLong(Module):
+        def forward(self, x):
+            return x.long()
 
     verify_model(ToCPU().eval(), torch.rand((1, 3, 32, 32)))
     verify_model(ToFloat().eval(), torch.zeros((1, 3, 32, 32), dtype=torch.int))
     verify_model(ToFloat().eval(), torch.tensor(2, dtype=torch.int))
     verify_model(ToInt().eval(), torch.zeros((1, 3, 32, 32)))
-    verify_model(ToInt().eval(), torch.tensor(2.0))
+    verify_model(ToInt().eval(), torch.tensor(0.8))
+    verify_model(ToLong().eval(), torch.tensor(0.8))
 
 
 def test_adaptive_pool3d():
@@ -2553,6 +2549,19 @@ def test_forward_dtypes():
         tensor1 = torch.randn(3, 4).to(dtype=dt)
         tensor2 = torch.randn(3, 4).to(dtype=dt)
         verify_model(fn, input_data=[tensor1, tensor2])
+
+    class ModuleWithIntParameters(Module):
+        def __init__(self, arr):
+            super().__init__()
+            self.param = torch.nn.Parameter(torch.LongTensor(arr), requires_grad=False)
+
+        def forward(self, x):
+            return x.long() + self.param
+
+    shape = (10, 10)
+    param = torch.ones(shape, dtype=torch.long)
+    inp = torch.ones(shape, dtype=torch.int)
+    verify_model(ModuleWithIntParameters(param), input_data=inp)
 
 
 def test_weight_names():
