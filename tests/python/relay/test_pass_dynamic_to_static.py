@@ -320,6 +320,27 @@ def test_dynamic_to_static_full():
     verify_full(4, (1, 2, 3, 4), 'int32')
     verify_full(4.0, (1, 2, 8, 10), 'float32')
 
+def test_dynamic_to_static_upsampling():
+    def verify_upsampling(data_shape, scale_h_val, scale_w_val, dtype):
+        x = relay.var("x", relay.TensorType(data_shape, dtype))
+        scale_h = relay.const(scale_h_val)
+        scale_w = relay.const(scale_w_val)
+        z = relay.nn.upsampling(x, scale_h, scale_w)
+
+        func = run_infer_type(relay.Function([x], z))
+        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+
+        zz = func2.body
+        assert isinstance(zz, relay.Call)
+        assert zz.op == relay.op.get("nn.upsampling")
+
+        x_data = np.random.uniform(size=data_shape).astype(dtype)
+        ref_res = tvm.topi.testing.upsampling_python(x_data, (scale_h_val, scale_w_val), "NCHW")
+        verify_func(func2, [x_data], ref_res)
+
+    verify_upsampling((1, 16, 32, 32), 2, 2, 'int8')
+    verify_upsampling((1, 16, 32, 32), 4, 4, 'int32')
+
 def test_dynamic_to_static_pad():
     def verify_pad(data_shape, pad_width, pad_val, dtype):
         x = relay.var("x", relay.TensorType(data_shape, dtype))
@@ -337,7 +358,6 @@ def test_dynamic_to_static_pad():
     verify_pad((4, 10, 7, 7), ((1, 1), (2, 2), (3, 3), (4, 4)), 2.0, "int32")
     verify_pad((2, 7), ((1, 4), (2, 2)), 4.0, "float64")
 
-
 if __name__ == "__main__":
     test_dynamic_to_static_reshape()
     test_dynamic_to_static_double_reshape()
@@ -349,4 +369,5 @@ if __name__ == "__main__":
     test_dynamic_to_static_resize()
     test_dynamic_to_static_one_hot()
     test_dynamic_to_static_full()
+    test_dynamic_to_static_upsampling()
     test_dynamic_to_static_pad()

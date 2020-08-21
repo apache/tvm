@@ -124,6 +124,21 @@ class DynamicToStaticMutator : public MixedModeMutator {
            }
            return Expr(nullptr);
          }},
+        {Op::Get("dyn.nn.upsampling"),
+         [](const CallNode* call_node) {
+           const ConstantNode* scale_h = call_node->args[1].as<ConstantNode>();
+           const ConstantNode* scale_w = call_node->args[2].as<ConstantNode>();
+           if (scale_h && scale_w) {
+             CHECK_EQ(scale_h->data->ndim, 0);
+             CHECK_EQ(scale_w->data->ndim, 0);
+             const UpSamplingAttrs* param = call_node->attrs.as<UpSamplingAttrs>();
+             CHECK(param);
+             return MakeUpSampling(call_node->args[0], ToScalar(scale_h->data),
+                                   ToScalar(scale_w->data), param->layout, param->method,
+                                   param->align_corners);
+           }
+           return Expr(nullptr);
+         }},
         {Op::Get("dyn.nn.pad"),
          [](const CallNode* call_node) {
            const ConstantNode* pad_width = call_node->args[1].as<ConstantNode>();
