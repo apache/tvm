@@ -410,7 +410,7 @@ Target Target::FromConfig(const Map<String, ObjectRef>& config_dict) {
     const auto* cfg_keys = config[kKeys].as<ArrayNode>();
     CHECK(cfg_keys != nullptr)
         << "AttributeError: Expect type of field 'keys' is an Array, but get: "
-        << config[kTag]->GetTypeKey();
+        << config[kKeys]->GetTypeKey();
     for (const ObjectRef& e : *cfg_keys) {
       const auto* key = e.as<StringObj>();
       CHECK(key != nullptr) << "AttributeError: Expect 'keys' to be an array of strings, but it "
@@ -524,6 +524,8 @@ TVM_REGISTER_GLOBAL("target.ExitTargetScope").set_body_typed(Target::Internal::E
 TVM_REGISTER_GLOBAL("target.GetCurrentTarget").set_body_typed(Target::Current);
 
 TVM_REGISTER_GLOBAL("target.TargetFromString").set_body_typed(Target::Create);
+
+TVM_REGISTER_GLOBAL("target.TargetFromConfig").set_body_typed(Target::FromConfig);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TargetNode>([](const ObjectRef& node, ReprPrinter* p) {

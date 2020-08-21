@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import json
 import tvm
 from tvm import te
 from tvm.target import cuda, rocm, mali, intel_graphics, arm_cpu, vta, bifrost, hexagon
@@ -80,7 +81,53 @@ def test_target_create():
         assert tgt is not None
 
 
+def test_target_config():
+    """
+    Test that constructing a target from a dictionary works.
+    """
+    target_config = {
+        'kind': 'llvm',
+        'keys': ['arm_cpu', 'cpu'],
+        'device': 'arm_cpu',
+        'libs': ['cblas'],
+        'system-lib': True,
+        'mfloat-abi': 'hard',
+        'mattr': ['+neon', '-avx512f'],
+    }
+    # Convert config dictionary to json string.
+    target_config_str = json.dumps(target_config)
+    # Test both dictionary input and json string.
+    for config in [target_config, target_config_str]:
+        target = tvm.target.create(config)
+        assert target.kind.name == 'llvm'
+        assert all([key in target.keys for key in ['arm_cpu', 'cpu']])
+        assert target.device_name == 'arm_cpu'
+        assert target.libs == ['cblas']
+        assert 'system-lib' in str(target)
+        assert target.attrs['mfloat-abi'] == 'hard'
+        assert all([attr in target.attrs['mattr'] for attr in ['+neon', '-avx512f']])
+
+
+def test_config_map():
+    """
+    Confirm that constructing a target with invalid
+    attributes fails as expected.
+    """
+    target_config = {
+        'kind': 'llvm',
+        'libs': {'a': 'b', 'c': 'd'}
+    }
+    failed = False
+    try:
+        target = tvm.target.create(target_config)
+    except AttributeError:
+        failed = True
+    assert failed == True
+
+
 if __name__ == "__main__":
     test_target_dispatch()
     test_target_string_parse()
     test_target_create()
+    test_target_config()
+    test_config_map()
