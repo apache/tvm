@@ -118,6 +118,7 @@ bool BroadcastCompRel(const Array<Type>& types, int num_inputs, const Attrs& att
   CHECK_EQ(types.size(), 3);
   // DLOG(INFO) << "In1:" << types[0] << ",In2:" << types[1]
   //                 << ",Out:" << types[2] << std::endl;
+  reporter->Assign(types[0], types[1]);
   if (auto* t0 = types[0].as<TensorTypeNode>()) {
     if (auto* t1 = types[1].as<TensorTypeNode>()) {
       CHECK_EQ(t0->dtype, t1->dtype);

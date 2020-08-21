@@ -370,8 +370,8 @@ def test_mutual_recursion():
     # g(y) = if y > 0 then f(y - 1) else 0
     tensortype = relay.TensorType((), 'float32')
 
-    x = relay.Var("x", tensortype)
-    y = relay.Var("y", tensortype)
+    x = relay.Var("x")
+    y = relay.Var("y")
 
     zero = relay.Constant(tvm.nd.array(np.array(0, dtype='float32')))
     one = relay.Constant(tvm.nd.array(np.array(1, dtype='float32')))
@@ -401,27 +401,28 @@ def test_mutual_recursion():
     tvm.ir.assert_structural_equal(mod[g_gv].checked_type, expected)
 
 def test_mutual_recursion_adt():
-    # f[A](x: List[A]) = match x {
+    # f[A](x: A) = match x {
     #   Cons(a, Nil) => a
     #   Cons(_, b) => g(b)
     # }
-    # g[B](y: List[B]) = match y {
+    # g[B](y: B) = match y {
     #   Cons(a, Nil) => a
     #   Cons(_, b) => f(b)
     # }
     p = Prelude()
     l = p.l
-    A = relay.TypeVar("x")
-    B = relay.TypeVar("y")
 
-    x = relay.Var("x", l(A))
-    y = relay.Var("y", l(B))
+    A = relay.TypeVar("A")
+    B = relay.TypeVar("B")
+
+    x = relay.Var("x")
+    y = relay.Var("y")
 
     f_gv = relay.GlobalVar('f')
     g_gv = relay.GlobalVar('g')
 
     def body(var, call_func, type_param):
-        a = relay.Var("a")
+        a = relay.Var("a", type_param)
         b = relay.Var("b")
         body = relay.Match(
             var, 
@@ -431,11 +432,11 @@ def test_mutual_recursion_adt():
             ],
             complete=False
         )
-        func = relay.Function([var], body, type_params=type_param)
+        func = relay.Function([var], body, type_params=[type_param])
         return func
 
-    f = body(x, g_gv, [A])
-    g = body(y, f_gv, [B])
+    f = body(x, g_gv, A)
+    g = body(y, f_gv, B)
 
     mod = p.mod
     mod.add_unchecked(f_gv, f)
@@ -449,11 +450,11 @@ def test_mutual_recursion_adt():
 
 def test_mutual_recursion_peano():
     # even and odd function for peano function
-    # even(x: nat) = match x {
+    # even(x) = match x {
     #   z => true
     #   s(a: nat) => odd(a)
     # }
-    # odd(x: nat) = match x {
+    # odd(x) = match x {
     #   z => false
     #   s(a: nat) => even(a)
     # }
