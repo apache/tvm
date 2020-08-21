@@ -383,9 +383,14 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
 Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
                PrimExpr elem_offset, String name, String scope, int data_alignment,
                int offset_factor, BufferType buffer_type) {
+  CHECK(IsPointerType(data->type_annotation, dtype))
+      << "Buffer data field expect to have the right pointer type annotation"
+      << " annotation=" << data->type_annotation << ", dtype=" << dtype;
+
   auto n = make_object<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
+
   n->shape = std::move(shape);
   n->strides = std::move(strides);
   n->name = std::move(name);
