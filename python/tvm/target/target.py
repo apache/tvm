@@ -358,34 +358,33 @@ def create(target):
         a configuration, or a dictionary of configuration options.
         When using a dictionary or json string to configure target, the
         possible values are:
-        {
-            kind :  str (required)
-                Which codegen path to use, for example 'llvm' or 'cuda'.
-            keys : List of str (optional)
-                A set of strategies that can be dispatched to. When using
-                "kind=opencl" for example, one could set keys to ["mali", "opencl", "gpu"].
-            device : str (optional)
-                A single key that corresponds to the actual device being run on.
-                This will be effectively appended to the keys.
-            libs : List of str (optional)
-                The set of external libraries to use. For example ['cblas', 'mkl'].
-            system-lib : bool (optional)
-                If True, build a module that contains self registered functions.
-                Useful for environments where dynamic loading like dlopen is banned.
-            mcpu : str (optional)
-                The specific cpu being run on. Serves only as an annotation.
-            model : str (optional)
-                An annotation indicating what model a workload came from.
-            runtime : str (optional)
-                An annotation indicating which runtime to use with a workload.
-            mtriple : str (optional)
-                The llvm triplet describing the target, for example "arm64-linux-android".
-            mattr : List of str (optional)
-                The llvm features to compile with, for example ["+avx512f", "+mmx"].
-            mfloat-abi : str (optional)
-                An llvm setting that is one of 'hard' or 'soft' indicating whether to use
-                hardware or software floating-point operations.
-        }
+
+        kind :  str (required)
+            Which codegen path to use, for example 'llvm' or 'cuda'.
+        keys : List of str (optional)
+            A set of strategies that can be dispatched to. When using
+            "kind=opencl" for example, one could set keys to ["mali", "opencl", "gpu"].
+        device : str (optional)
+            A single key that corresponds to the actual device being run on.
+            This will be effectively appended to the keys.
+        libs : List of str (optional)
+            The set of external libraries to use. For example ['cblas', 'mkl'].
+        system-lib : bool (optional)
+            If True, build a module that contains self registered functions.
+            Useful for environments where dynamic loading like dlopen is banned.
+        mcpu : str (optional)
+            The specific cpu being run on. Serves only as an annotation.
+        model : str (optional)
+            An annotation indicating what model a workload came from.
+        runtime : str (optional)
+            An annotation indicating which runtime to use with a workload.
+        mtriple : str (optional)
+            The llvm triplet describing the target, for example "arm64-linux-android".
+        mattr : List of str (optional)
+            The llvm features to compile with, for example ["+avx512f", "+mmx"].
+        mfloat-abi : str (optional)
+            An llvm setting that is one of 'hard' or 'soft' indicating whether to use
+            hardware or software floating-point operations.
 
     Returns
     -------
