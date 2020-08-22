@@ -22,19 +22,22 @@
  */
 
 #include "micro_session.h"
-#include <cstdarg>
+
 #include <dmlc/logging.h>
 #include <tvm/runtime/registry.h>
 
+#include <cstdarg>
+#include <memory>
+#include <string>
+#include <utility>
+
 #include "../../support/str_escape.h"
-
-#include "../rpc/rpc_channel.h"
-#include "../rpc/rpc_endpoint.h"
-#include "../rpc/rpc_session.h"
-
 #include "../crt/host/crt_config.h"
 #include "../crt/utvm_rpc_server/framing.h"
 #include "../crt/utvm_rpc_server/session.h"
+#include "../rpc/rpc_channel.h"
+#include "../rpc/rpc_endpoint.h"
+#include "../rpc/rpc_session.h"
 
 namespace tvm {
 namespace runtime {
@@ -59,15 +62,15 @@ class CallbackWriteStream : public WriteStream {
 
 class MicroTransportChannel : public RPCChannel {
  public:
-  MicroTransportChannel(PackedFunc fsend, PackedFunc frecv) :
-      write_stream_{fsend},
-      framer_{&write_stream_},
-      receive_buffer_{new uint8_t[TVM_CRT_MAX_PACKET_SIZE_BYTES], TVM_CRT_MAX_PACKET_SIZE_BYTES},
-      session_{0x5b, &framer_, &receive_buffer_, &HandleMessageReceivedCb, this},
-      unframer_{session_.Receiver()},
-      did_receive_message_{false},
-      frecv_{frecv},
-      message_buffer_{nullptr} {}
+  MicroTransportChannel(PackedFunc fsend, PackedFunc frecv)
+      : write_stream_{fsend},
+        framer_{&write_stream_},
+        receive_buffer_{new uint8_t[TVM_CRT_MAX_PACKET_SIZE_BYTES], TVM_CRT_MAX_PACKET_SIZE_BYTES},
+        session_{0x5b, &framer_, &receive_buffer_, &HandleMessageReceivedCb, this},
+        unframer_{session_.Receiver()},
+        did_receive_message_{false},
+        frecv_{frecv},
+        message_buffer_{nullptr} {}
 
   size_t ReceiveUntil(TypedPackedFunc<bool(void)> pf) {
     size_t bytes_received = 0;
@@ -78,9 +81,8 @@ class MicroTransportChannel : public RPCChannel {
     for (;;) {
       while (pending_chunk_.size() > 0) {
         size_t bytes_consumed = 0;
-        int unframer_error = unframer_.Write((const uint8_t*) pending_chunk_.data(),
-                                             pending_chunk_.size(),
-                                             &bytes_consumed);
+        int unframer_error = unframer_.Write((const uint8_t*)pending_chunk_.data(),
+                                             pending_chunk_.size(), &bytes_consumed);
 
         LOG(INFO) << "consumed " << bytes_consumed << " / " << pending_chunk_.size();
         CHECK(bytes_consumed <= pending_chunk_.size());
@@ -99,15 +101,13 @@ class MicroTransportChannel : public RPCChannel {
       pending_chunk_ = chunk;
       CHECK(pending_chunk_.size() != 0) << "zero-size chunk encountered";
       LOG(INFO) << "receive " << pending_chunk_.size();
-      CHECK(pending_chunk_.size() > 0);
+      CHECK_GT(pending_chunk_.size(), 0);
     }
   }
 
   void StartSession() {
     session_.StartSession();
-    ReceiveUntil([this]() -> bool {
-                   return session_.IsEstablished();
-                 });
+    ReceiveUntil([this]() -> bool { return session_.IsEstablished(); });
   }
 
   size_t Send(const void* data, size_t size) override {
@@ -137,9 +137,7 @@ class MicroTransportChannel : public RPCChannel {
       }
 
       did_receive_message_ = false;
-      ReceiveUntil([this]() -> bool {
-                     return did_receive_message_;
-                   });
+      ReceiveUntil([this]() -> bool { return did_receive_message_; });
       LOG(INFO) << "Received " << message_buffer_->ReadAvailable();
     }
 
@@ -167,8 +165,8 @@ class MicroTransportChannel : public RPCChannel {
       if (message_size_bytes == 0) {
         return;
       } else if (message_size_bytes > sizeof(message) - 1) {
-        LOG(ERROR)
-          << "Remote log message is too long to display: " << message_size_bytes << " bytes";
+        LOG(ERROR) << "Remote log message is too long to display: " << message_size_bytes
+                   << " bytes";
         return;
       }
 
@@ -216,8 +214,5 @@ void TVMLogf(const char* fmt, ...) {
   LOG(INFO) << msg_buf;
 }
 
-void TVMPlatformAbort(int error_code) {
-  CHECK(false) << "TVMPlatformAbort: " << error_code;
-}
-
+void TVMPlatformAbort(int error_code) { CHECK(false) << "TVMPlatformAbort: " << error_code; }
 }

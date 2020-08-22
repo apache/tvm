@@ -26,6 +26,7 @@
 
 #include <string.h>
 #include <tvm/runtime/crt/logging.h>
+
 #include "crt_config.h"
 
 // For debugging purposes, Framer logs can be enabled, but this should only be done when
@@ -33,8 +34,8 @@
 // framer in its implementation.
 #ifdef TVM_CRT_FRAMER_ENABLE_LOGS
 #include <cstdio>
-#define TVM_FRAMER_DEBUG_LOG(msg, ...)  fprintf(stderr, "utvm framer: " msg " \n", ##__VA_ARGS__)
-#define TVM_UNFRAMER_DEBUG_LOG(msg, ...)  fprintf(stderr, "utvm unframer: " msg " \n", ##__VA_ARGS__)
+#define TVM_FRAMER_DEBUG_LOG(msg, ...) fprintf(stderr, "utvm framer: " msg " \n", ##__VA_ARGS__)
+#define TVM_UNFRAMER_DEBUG_LOG(msg, ...) fprintf(stderr, "utvm unframer: " msg " \n", ##__VA_ARGS__)
 #else
 #define TVM_FRAMER_DEBUG_LOG(msg, ...)
 #define TVM_UNFRAMER_DEBUG_LOG(msg, ...)
@@ -54,7 +55,8 @@ void Unframer::Reset() {
   num_buffer_bytes_valid_ = 0;
 }
 
-tvm_crt_error_t Unframer::Write(const uint8_t* data, size_t data_size_bytes, size_t* bytes_consumed) {
+tvm_crt_error_t Unframer::Write(const uint8_t* data, size_t data_size_bytes,
+                                size_t* bytes_consumed) {
   tvm_crt_error_t return_code = kTvmErrorNoError;
   input_ = data;
   input_size_bytes_ = data_size_bytes;
@@ -62,21 +64,21 @@ tvm_crt_error_t Unframer::Write(const uint8_t* data, size_t data_size_bytes, siz
   while (return_code == kTvmErrorNoError && input_size_bytes_ > 0) {
     TVM_UNFRAMER_DEBUG_LOG("state: %02x size 0x%02zx", to_integral(state_), input_size_bytes_);
     switch (state_) {
-    case State::kFindPacketStart:
-      return_code = FindPacketStart();
-      break;
-    case State::kFindPacketLength:
-      return_code = FindPacketLength();
-      break;
-    case State::kFindPacketCrc:
-      return_code = FindPacketCrc();
-      break;
-    case State::kFindCrcEnd:
-      return_code = FindCrcEnd();
-      break;
-    default:
-      return_code = kTvmErrorFramingInvalidState;
-      break;
+      case State::kFindPacketStart:
+        return_code = FindPacketStart();
+        break;
+      case State::kFindPacketLength:
+        return_code = FindPacketLength();
+        break;
+      case State::kFindPacketCrc:
+        return_code = FindPacketCrc();
+        break;
+      case State::kFindCrcEnd:
+        return_code = FindCrcEnd();
+        break;
+      default:
+        return_code = kTvmErrorFramingInvalidState;
+        break;
     }
   }
 
@@ -98,7 +100,8 @@ tvm_crt_error_t Unframer::FindPacketStart() {
     if (input_[i] == to_integral(Escape::kEscapeStart)) {
       saw_escape_start_ = true;
     } else if (input_[i] == to_integral(Escape::kPacketStart) && saw_escape_start_) {
-      uint8_t packet_start_sequence[2]{to_integral(Escape::kEscapeStart), to_integral(Escape::kPacketStart)};
+      uint8_t packet_start_sequence[2]{to_integral(Escape::kEscapeStart),
+                                       to_integral(Escape::kPacketStart)};
       crc_ = crc16_compute(packet_start_sequence, sizeof(packet_start_sequence), nullptr);
       saw_escape_start_ = false;
       state_ = State::kFindPacketLength;
@@ -114,7 +117,8 @@ tvm_crt_error_t Unframer::FindPacketStart() {
   return kTvmErrorNoError;
 }
 
-tvm_crt_error_t Unframer::ConsumeInput(uint8_t* buffer, size_t buffer_size_bytes, size_t* bytes_filled, bool update_crc) {
+tvm_crt_error_t Unframer::ConsumeInput(uint8_t* buffer, size_t buffer_size_bytes,
+                                       size_t* bytes_filled, bool update_crc) {
   CHECK(*bytes_filled < buffer_size_bytes);
   tvm_crt_error_t to_return = kTvmErrorNoError;
   size_t i;
@@ -168,13 +172,10 @@ tvm_crt_error_t Unframer::ConsumeInput(uint8_t* buffer, size_t buffer_size_bytes
 
 tvm_crt_error_t Unframer::AddToBuffer(size_t buffer_full_bytes, bool update_crc) {
   CHECK(!is_buffer_full(buffer_full_bytes));
-  return ConsumeInput(
-    buffer_, buffer_full_bytes, &num_buffer_bytes_valid_, update_crc);
+  return ConsumeInput(buffer_, buffer_full_bytes, &num_buffer_bytes_valid_, update_crc);
 }
 
-void Unframer::ClearBuffer() {
-  num_buffer_bytes_valid_ = 0;
-}
+void Unframer::ClearBuffer() { num_buffer_bytes_valid_ = 0; }
 
 tvm_crt_error_t Unframer::FindPacketLength() {
   tvm_crt_error_t to_return = AddToBuffer(PacketFieldSizeBytes::kPayloadLength, true);
@@ -186,17 +187,15 @@ tvm_crt_error_t Unframer::FindPacketLength() {
     return to_return;
   }
 
-  // TODO endian
-  num_payload_bytes_remaining_ = *((uint32_t*) buffer_);
+  num_payload_bytes_remaining_ = *reinterpret_cast<uint32_t*>(buffer_);
   TVM_UNFRAMER_DEBUG_LOG("payload length: 0x%zx", num_payload_bytes_remaining_);
   ClearBuffer();
   state_ = State::kFindPacketCrc;
   return to_return;
-};
-
+}
 
 tvm_crt_error_t Unframer::FindPacketCrc() {
-//  CHECK(num_buffer_bytes_valid_ == 0);
+  //  CHECK(num_buffer_bytes_valid_ == 0);
   while (num_payload_bytes_remaining_ > 0) {
     size_t num_bytes_to_buffer = num_payload_bytes_remaining_;
     if (num_bytes_to_buffer > sizeof(buffer_)) {
@@ -220,7 +219,8 @@ tvm_crt_error_t Unframer::FindPacketCrc() {
 
     {
       size_t bytes_consumed;
-      tvm_crt_error_t to_return = stream_->WriteAll(buffer_, num_buffer_bytes_valid_, &bytes_consumed);
+      tvm_crt_error_t to_return =
+          stream_->WriteAll(buffer_, num_buffer_bytes_valid_, &bytes_consumed);
       num_payload_bytes_remaining_ -= bytes_consumed;
       if (to_return != kTvmErrorNoError) {
         // rewind input, skipping escape bytes.
@@ -263,17 +263,14 @@ tvm_crt_error_t Unframer::FindCrcEnd() {
     return kTvmErrorNoError;
   }
 
-  // TODO endian
-  stream_->PacketDone(crc_ == *((uint16_t*) buffer_));
+  // TODO(areusch): Handle endianness.
+  stream_->PacketDone(crc_ == *reinterpret_cast<uint16_t*>(buffer_);
   ClearBuffer();
   state_ = State::kFindPacketStart;
   return kTvmErrorNoError;
 }
 
-
-void Framer::Reset() {
-  state_ = State::kReset;
-}
+void Framer::Reset() { state_ = State::kReset; }
 
 tvm_crt_error_t Framer::Write(const uint8_t* payload, size_t payload_size_bytes) {
   tvm_crt_error_t to_return;
@@ -297,7 +294,8 @@ tvm_crt_error_t Framer::StartPacket(size_t payload_size_bytes) {
   if (state_ == State::kReset) {
     packet_header[ptr] = to_integral(Escape::kEscapeNop);
     ptr++;
-    tvm_crt_error_t to_return = WriteAndCrc(packet_header, ptr, false  /* escape */, false /* update_crc */);
+    tvm_crt_error_t to_return =
+        WriteAndCrc(packet_header, ptr, false /* escape */, false /* update_crc */);
     if (to_return != kTvmErrorNoError) {
       return to_return;
     }
@@ -311,15 +309,17 @@ tvm_crt_error_t Framer::StartPacket(size_t payload_size_bytes) {
   ptr++;
 
   crc_ = 0xffff;
-  tvm_crt_error_t to_return = WriteAndCrc(
-    packet_header, ptr, false  /* escape */, true  /* update_crc */);
+  tvm_crt_error_t to_return =
+      WriteAndCrc(packet_header, ptr, false /* escape */, true /* update_crc */);
   if (to_return != kTvmErrorNoError) {
     return to_return;
   }
 
   uint32_t payload_size_wire = payload_size_bytes;
-  to_return = WriteAndCrc(
-    (uint8_t*) &payload_size_wire, sizeof(payload_size_wire), true  /* escape */, true  /* update_crc */);
+  to_return = WriteAndCrc(reinterpret_cast<uint8_t*>(&payload_size_wire),
+                          sizeof(payload_size_wire),
+                          true /* escape */,
+                          true /* update_crc */);
   if (to_return == kTvmErrorNoError) {
     state_ = State::kTransmitPacketPayload;
     num_payload_bytes_remaining_ = payload_size_bytes;
@@ -328,7 +328,8 @@ tvm_crt_error_t Framer::StartPacket(size_t payload_size_bytes) {
   return to_return;
 }
 
-tvm_crt_error_t Framer::WriteAndCrc(const uint8_t* data, size_t data_size_bytes, bool escape, bool update_crc) {
+tvm_crt_error_t Framer::WriteAndCrc(const uint8_t* data, size_t data_size_bytes, bool escape,
+                                    bool update_crc) {
   while (data_size_bytes > 0) {
     uint8_t buffer[kMaxStackBufferSizeBytes];
     size_t buffer_ptr = 0;
@@ -369,7 +370,8 @@ tvm_crt_error_t Framer::WriteAndCrc(const uint8_t* data, size_t data_size_bytes,
   return kTvmErrorNoError;
 }
 
-tvm_crt_error_t Framer::WritePayloadChunk(const uint8_t* payload_chunk, size_t payload_chunk_size_bytes) {
+tvm_crt_error_t Framer::WritePayloadChunk(const uint8_t* payload_chunk,
+                                          size_t payload_chunk_size_bytes) {
   if (state_ != State::kTransmitPacketPayload) {
     return kTvmErrorFramingInvalidState;
   } else if (payload_chunk_size_bytes > num_payload_bytes_remaining_) {
@@ -377,8 +379,8 @@ tvm_crt_error_t Framer::WritePayloadChunk(const uint8_t* payload_chunk, size_t p
   }
 
   TVM_FRAMER_DEBUG_LOG("write payload chunk: %" PRIuMAX " bytes", payload_chunk_size_bytes);
-  tvm_crt_error_t to_return = WriteAndCrc(
-    payload_chunk, payload_chunk_size_bytes, true  /* escape */, true  /* update_crc */);
+  tvm_crt_error_t to_return = WriteAndCrc(payload_chunk, payload_chunk_size_bytes,
+                                          true /* escape */, true /* update_crc */);
   if (to_return != kTvmErrorNoError) {
     state_ = State::kReset;
     return to_return;
@@ -395,8 +397,8 @@ tvm_crt_error_t Framer::FinishPacket() {
     return kTvmErrorFramingPayloadIncomplete;
   }
 
-  tvm_crt_error_t to_return = WriteAndCrc(
-    reinterpret_cast<uint8_t*>(&crc_), sizeof(crc_), true  /* escape */, false  /* update_crc */);
+  tvm_crt_error_t to_return = WriteAndCrc(reinterpret_cast<uint8_t*>(&crc_), sizeof(crc_),
+                                          true /* escape */, false /* update_crc */);
   if (to_return != kTvmErrorNoError) {
     TVM_FRAMER_DEBUG_LOG("write and crc returned: %02x", to_return);
     state_ = State::kReset;

@@ -22,23 +22,20 @@
  * \brief Framing for RPC.
  */
 
-#ifndef TVM_RUNTIME_RPC_SERVER_FRAMING_H_
-#define TVM_RUNTIME_RPC_SERVER_FRAMING_H_
+#ifndef TVM_RUNTIME_CRT_UTVM_RPC_SERVER_FRAMING_H_
+#define TVM_RUNTIME_CRT_UTVM_RPC_SERVER_FRAMING_H_
 
+#include <crc16.h>
 #include <inttypes.h>
 #include <stddef.h>
-#include <crc16.h>
 #include <tvm/runtime/crt/error_codes.h>
+
 #include "write_stream.h"
 
 namespace tvm {
 namespace runtime {
 
-enum class Escape : uint8_t {
-  kEscapeStart = 0xff,
-  kEscapeNop = 0xfe,
-  kPacketStart = 0xfd
-};
+enum class Escape : uint8_t { kEscapeStart = 0xff, kEscapeNop = 0xfe, kPacketStart = 0xfd };
 
 class PacketFieldSizeBytes {
  public:
@@ -48,7 +45,11 @@ class PacketFieldSizeBytes {
 
 class Unframer {
  public:
-  Unframer(WriteStream* stream) : stream_{stream}, state_{State::kFindPacketStart}, saw_escape_start_{false}, num_buffer_bytes_valid_{0} {}
+  explicit Unframer(WriteStream* stream)
+      : stream_{stream},
+        state_{State::kFindPacketStart},
+        saw_escape_start_{false},
+        num_buffer_bytes_valid_{0} {}
 
   /*!
    * \brief Push data into unframer and try to decode one packet.
@@ -111,7 +112,8 @@ class Unframer {
    *     - Any negative value (i.e. with bits in kTvmErrorSystemErrorMask set) returned by the
    *       WriteStream's Write() function.
    */
-  tvm_crt_error_t ConsumeInput(uint8_t* buffer, size_t buffer_size_bytes, size_t* bytes_filled, bool update_crc);
+  tvm_crt_error_t ConsumeInput(uint8_t* buffer, size_t buffer_size_bytes, size_t* bytes_filled,
+                               bool update_crc);
 
   WriteStream* stream_;
 
@@ -141,13 +143,12 @@ class Unframer {
   uint16_t crc_;
 };
 
-
 class Framer {
  public:
-  typedef ssize_t(*WriteFunc)(const uint8_t* data, size_t data_size_bytes);
+  typedef ssize_t (*WriteFunc)(const uint8_t* data, size_t data_size_bytes);
 
-  Framer(WriteStream* stream) : stream_{stream}, state_{State::kReset},
-                                num_payload_bytes_remaining_{0} {}
+  explicit Framer(WriteStream* stream)
+      : stream_{stream}, state_{State::kReset}, num_payload_bytes_remaining_{0} {}
 
   /*! \brief Frame and write a full packet.
    * \param payload The entire packet payload.
@@ -248,7 +249,8 @@ class Framer {
    * \param update_crc true if escaping should be applied.
    * \return kTvmErrorNoError on success, negative value on error.
    */
-  tvm_crt_error_t WriteAndCrc(const uint8_t* data, size_t data_size_bytes, bool escape, bool update_crc);
+  tvm_crt_error_t WriteAndCrc(const uint8_t* data, size_t data_size_bytes, bool escape,
+                              bool update_crc);
 
   /*! \brief Called to write framed data to the transport. */
   WriteStream* stream_;
@@ -266,4 +268,4 @@ class Framer {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_RPC_SERVER_FRAMING_H_
+#endif  // TVM_RUNTIME_CRT_UTVM_RPC_SERVER_FRAMING_H_

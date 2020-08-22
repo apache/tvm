@@ -36,7 +36,6 @@
  *
  */
 
-
 /** @file
  *
  * @defgroup crc_compute CRC compute
@@ -68,12 +67,12 @@ extern "C" {
  *
  * @return The updated CRC-16 value, based on the input supplied.
  */
-uint16_t crc16_compute(uint8_t const * p_data, uint32_t size, uint16_t const * p_crc);
+uint16_t crc16_compute(uint8_t const* p_data, uint32_t size, uint16_t const* p_crc);
 
 #ifdef __cplusplus
 }  // extern "C"
 #endif
 
-#endif // CRC16_H__
+#endif  // CRC16_H__
 
 /** @} */

@@ -72,11 +72,11 @@
 #define TVM_CRT_MAX_PACKET_SIZE_BYTES 64000
 
 /*! \brief Maximum length of a PackedFunc function name. */
-#define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES  30
+#define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30
 
 /*! \brief Log2 of the page size (bytes) for a virtual memory page. */
-#define TVM_CRT_PAGE_BITS  10  // 1 kB
+#define TVM_CRT_PAGE_BITS 10  // 1 kB
 
-//#define TVM_CRT_FRAMER_ENABLE_LOGS
+// #define TVM_CRT_FRAMER_ENABLE_LOGS
 
 #endif  // TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_

@@ -23,7 +23,9 @@
  */
 
 #include "session.h"
+
 #include <tvm/runtime/crt/logging.h>
+
 #include "crt_config.h"
 
 namespace tvm {
@@ -37,7 +39,8 @@ void Session::RegenerateNonce() {
   }
 }
 
-tvm_crt_error_t Session::SendInternal(MessageType message_type, const uint8_t* message_data, size_t message_size_bytes) {
+tvm_crt_error_t Session::SendInternal(MessageType message_type, const uint8_t* message_data,
+                                      size_t message_size_bytes) {
   tvm_crt_error_t to_return = StartMessage(message_type, message_size_bytes);
   if (to_return != kTvmErrorNoError) {
     return to_return;
@@ -71,9 +74,7 @@ tvm_crt_error_t Session::SendBodyChunk(const uint8_t* chunk, size_t chunk_size_b
   return framer_->WritePayloadChunk(chunk, chunk_size_bytes);
 }
 
-tvm_crt_error_t Session::FinishMessage() {
-  return framer_->FinishPacket();
-}
+tvm_crt_error_t Session::FinishMessage() { return framer_->FinishPacket(); }
 
 tvm_crt_error_t Session::StartSession() {
   RegenerateNonce();
@@ -86,7 +87,8 @@ tvm_crt_error_t Session::StartSession() {
   return to_return;
 }
 
-tvm_crt_error_t Session::SendMessage(MessageType message_type, const uint8_t* message_data, size_t message_size_bytes) {
+tvm_crt_error_t Session::SendMessage(MessageType message_type, const uint8_t* message_data,
+                                     size_t message_size_bytes) {
   if (state_ != State::kSessionEstablished && message_type != MessageType::kLogMessage) {
     return kTvmErrorSessionInvalidState;
   }
@@ -113,8 +115,8 @@ void Session::SessionReceiver::PacketDone(bool is_valid) {
   }
 
   SessionHeader header;
-  int bytes_read = session_->receive_buffer_->Read(
-    reinterpret_cast<uint8_t*>(&header), sizeof(header));
+  int bytes_read =
+      session_->receive_buffer_->Read(reinterpret_cast<uint8_t*>(&header), sizeof(header));
   if (bytes_read != sizeof(header)) {
     return;
   }
@@ -125,24 +127,24 @@ void Session::SessionReceiver::PacketDone(bool is_valid) {
   //           session_->receive_buffer_->Size());
 
   switch (header.message_type) {
-  case MessageType::kStartSessionMessage:
-    session_->ProcessStartSession(header);
-    session_->receive_buffer_has_complete_message_ = false;
-    break;
-  case MessageType::kLogMessage:
-    if (header.session_id == 0 || header.session_id == session_->inbound_session_id()) {
-      // Special case for log messages: session id can be 0.
-      session_->message_received_func_(
-        session_->message_received_func_context_, header.message_type, session_->receive_buffer_);
-    }
-    break;
-  default:
-    if (session_->state_ == State::kSessionEstablished &&
-        header.session_id == session_->inbound_session_id()) {
-      session_->message_received_func_(
-        session_->message_received_func_context_, header.message_type, session_->receive_buffer_);
-    }
-    break;
+    case MessageType::kStartSessionMessage:
+      session_->ProcessStartSession(header);
+      session_->receive_buffer_has_complete_message_ = false;
+      break;
+    case MessageType::kLogMessage:
+      if (header.session_id == 0 || header.session_id == session_->inbound_session_id()) {
+        // Special case for log messages: session id can be 0.
+        session_->message_received_func_(session_->message_received_func_context_,
+                                         header.message_type, session_->receive_buffer_);
+      }
+      break;
+    default:
+      if (session_->state_ == State::kSessionEstablished &&
+          header.session_id == session_->inbound_session_id()) {
+        session_->message_received_func_(session_->message_received_func_context_,
+                                         header.message_type, session_->receive_buffer_);
+      }
+      break;
   }
 }
 
@@ -154,8 +156,8 @@ void Session::ClearReceiveBuffer() {
 void Session::SendSessionStartReply(const SessionHeader& header) {
   RegenerateNonce();
   remote_nonce_ = sender_nonce(header.session_id);
-  int to_return = SendInternal(MessageType::kStartSessionMessage, nullptr, 0);
-  CHECK(to_return == 0);
+  tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionMessage, nullptr, 0);
+  CHECK_EQ(to_return, kTvmErrorNoError);
 }
 
 void Session::ProcessStartSession(const SessionHeader& header) {
@@ -166,47 +168,48 @@ void Session::ProcessStartSession(const SessionHeader& header) {
   uint8_t remote_nonce = sender_nonce(header.session_id);
   uint8_t my_nonce = receiver_nonce(header.session_id);
   switch (state_) {
-  case State::kReset:
-    if (remote_nonce != 0 && my_nonce == 0) {
-      // Normal case: received a StartSession packet from reset.
-      SendSessionStartReply(header);
-      state_ = State::kSessionEstablished;
-      OnSessionEstablishedMessage();
-    }
-    // NOTE: don't issue any StartSession packets to try and rescue other cases. This prevents
-    // runaway livelock.
-    break;
-
-  case State::kStartSessionSent:
-    if (my_nonce == local_nonce_ && remote_nonce != kInvalidNonce) {
-      remote_nonce_ = remote_nonce;
-      state_ = State::kSessionEstablished;
-      OnSessionEstablishedMessage();
-    } else if (my_nonce == kInvalidNonce) {
-      // if both sides sent StartSession simultaneously, the lowest nonce sent is the initiator.
-      // if both sides choose the same non-zero nonce as the initiating StartSession packet, retry.
-      if (remote_nonce == local_nonce_) {
-        CHECK(StartSession() == 0);
-        state_ = State::kStartSessionSent;
-      } else if (remote_nonce < local_nonce_) {
+    case State::kReset:
+      if (remote_nonce != 0 && my_nonce == 0) {
+        // Normal case: received a StartSession packet from reset.
         SendSessionStartReply(header);
         state_ = State::kSessionEstablished;
         OnSessionEstablishedMessage();
       }
-    }
-    break;
+      // NOTE: don't issue any StartSession packets to try and rescue other cases. This prevents
+      // runaway livelock.
+      break;
 
-  case State::kSessionEstablished:
-    if (remote_nonce != kInvalidNonce && my_nonce == kInvalidNonce) {
-      SendSessionStartReply(header);
-      OnSessionEstablishedMessage();
-    } else {
+    case State::kStartSessionSent:
+      if (my_nonce == local_nonce_ && remote_nonce != kInvalidNonce) {
+        remote_nonce_ = remote_nonce;
+        state_ = State::kSessionEstablished;
+        OnSessionEstablishedMessage();
+      } else if (my_nonce == kInvalidNonce) {
+        // if both sides sent StartSession simultaneously, the lowest nonce sent is the initiator.
+        // if both sides choose the same non-zero nonce as the initiating StartSession packet,
+        // retry.
+        if (remote_nonce == local_nonce_) {
+          CHECK_EQ(StartSession(), kTvmErrorNoError);
+          state_ = State::kStartSessionSent;
+        } else if (remote_nonce < local_nonce_) {
+          SendSessionStartReply(header);
+          state_ = State::kSessionEstablished;
+          OnSessionEstablishedMessage();
+        }
+      }
+      break;
+
+    case State::kSessionEstablished:
+      if (remote_nonce != kInvalidNonce && my_nonce == kInvalidNonce) {
+        SendSessionStartReply(header);
+        OnSessionEstablishedMessage();
+      } else {
+        state_ = State::kReset;
+      }
+      break;
+
+    default:
       state_ = State::kReset;
-    }
-    break;
-
-  default:
-    state_ = State::kReset;
   }
 }
 

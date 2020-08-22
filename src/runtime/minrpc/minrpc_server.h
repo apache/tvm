@@ -29,8 +29,8 @@
 #define TVM_RUNTIME_MINRPC_MINRPC_SERVER_H_
 
 #include <dmlc/endian.h>
-#include <tvm/runtime/c_runtime_api.h>
 #include <string.h>
+#include <tvm/runtime/c_runtime_api.h>
 
 #include "../../support/generic_arena.h"
 #include "rpc_reference.h"
@@ -94,30 +94,30 @@ class MinRPCServer {
       this->HandleSyscallFunc(code);
     } else {
       switch (code) {
-      case RPCCode::kCallFunc: {
-        HandleNormalCallFunc();
-        break;
-      }
-      case RPCCode::kInitServer: {
-        HandleInitServer();
-        break;
-      }
-      case RPCCode::kCopyFromRemote: {
-        HandleCopyFromRemote();
-        break;
-      }
-      case RPCCode::kCopyToRemote: {
-        HandleCopyToRemote();
-        break;
-      }
-      case RPCCode::kShutdown: {
-        this->Shutdown();
-        return false;
-      }
-      default: {
-        this->ThrowError(RPCServerStatus::kUnknownRPCCode);
-        break;
-      }
+        case RPCCode::kCallFunc: {
+          HandleNormalCallFunc();
+          break;
+        }
+        case RPCCode::kInitServer: {
+          HandleInitServer();
+          break;
+        }
+        case RPCCode::kCopyFromRemote: {
+          HandleCopyFromRemote();
+          break;
+        }
+        case RPCCode::kCopyToRemote: {
+          HandleCopyToRemote();
+          break;
+        }
+        case RPCCode::kShutdown: {
+          this->Shutdown();
+          return false;
+        }
+        default: {
+          this->ThrowError(RPCServerStatus::kUnknownRPCCode);
+          break;
+        }
       }
     }
 
@@ -467,13 +467,9 @@ class MinRPCServer {
     return this->WriteRawBytes(data, sizeof(T) * count);
   }
 
-  void MessageStart(uint64_t packet_nbytes) {
-    io_->MessageStart(packet_nbytes);
-  }
+  void MessageStart(uint64_t packet_nbytes) { io_->MessageStart(packet_nbytes); }
 
-  void MessageDone() {
-    io_->MessageDone();
-  }
+  void MessageDone() { io_->MessageDone(); }
 
  private:
   // Internal allocator that redirects alloc to TVM's C API.
@@ -600,4 +596,4 @@ class MinRPCServer {
 
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_RPC_MINRPC_MINRPC_SERVER_H_
+#endif  // TVM_RUNTIME_MINRPC_MINRPC_SERVER_H_

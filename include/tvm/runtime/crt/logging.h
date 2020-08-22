@@ -17,7 +17,6 @@
  * under the License.
  */
 
-
 /*!
  * \file runtime/crt/logging.h
  * \brief A replacement of the dmlc logging system that avoids
@@ -30,19 +29,19 @@
 #include <tvm/runtime/crt/platform.h>
 
 #define TVM_CRT_LOG_LEVEL_DEBUG 3
-#define TVM_CRT_LOG_LEVEL_INFO  2
-#define TVM_CRT_LOG_LEVEL_WARN  1
+#define TVM_CRT_LOG_LEVEL_INFO 2
+#define TVM_CRT_LOG_LEVEL_WARN 1
 #define TVM_CRT_LOG_LEVEL_ERROR 0
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void __attribute__((format(printf,1,2))) TVMLogf(const char* fmt, ...);
+void __attribute__((format(printf, 1, 2))) TVMLogf(const char* fmt, ...);
 
-#define LOG(level, x, ...)                      \
-  if (TVM_CRT_LOG_LEVEL >= level) {                     \
-    TVMLogf(x, ##__VA_ARGS__);                  \
+#define LOG(level, x, ...)          \
+  if (TVM_CRT_LOG_LEVEL >= level) { \
+    TVMLogf(x, ##__VA_ARGS__);      \
   }
 
 #define LOG_ERROR(x, ...) LOG(TVM_CRT_LOG_LEVEL_ERROR, x, ##__VA_ARGS__)
@@ -51,22 +50,23 @@ void __attribute__((format(printf,1,2))) TVMLogf(const char* fmt, ...);
 #define LOG_DEBUG(x, ...) LOG(TVM_CRT_LOG_LEVEL_DEBUG, x, ##__VA_ARGS__)
 
 #ifndef CHECK
-#define CHECK(x)                                 \
-  do {                                           \
-    if (!(x)) {                                  \
-      LOG_ERROR(__FILE__ ":%d: Check failed: %s\n", __LINE__, #x);      \
-      TVMPlatformAbort(-1);                      \
-    }                                            \
+#define CHECK(x)                                                   \
+  do {                                                             \
+    if (!(x)) {                                                    \
+      LOG_ERROR(__FILE__ ":%d: Check failed: %s\n", __LINE__, #x); \
+      TVMPlatformAbort(-1);                                        \
+    }                                                              \
   } while (0)
 #endif
 
 #ifndef CHECK_BINARY_OP
-#define CHECK_BINARY_OP(op, x, y, fmt, ...)                                             \
-  do {                                                                                  \
-    if (!(x op y)) {                                                                    \
-      LOG_ERROR(__FILE__ ":%d: Check failed: %s %s %s: " fmt "\n", __LINE__, #x, #op, #y, ##__VA_ARGS__); \
-      exit(-1);                                                                         \
-    }                                                                                   \
+#define CHECK_BINARY_OP(op, x, y, fmt, ...)                                               \
+  do {                                                                                    \
+    if (!(x op y)) {                                                                      \
+      LOG_ERROR(__FILE__ ":%d: Check failed: %s %s %s: " fmt "\n", __LINE__, #x, #op, #y, \
+                ##__VA_ARGS__);                                                           \
+      exit(-1);                                                                           \
+    }                                                                                     \
   } while (0)
 #endif
 

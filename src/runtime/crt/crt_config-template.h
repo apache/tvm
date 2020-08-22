@@ -21,8 +21,8 @@
  * \file tvm/runtime/crt_config.h.template
  * \brief Template for CRT configuration, to be modified on each target.
  */
-#ifndef TVM_RUNTIME_CRT_CONFIG_H_
-#define TVM_RUNTIME_CRT_CONFIG_H_
+#ifndef TVM_RUNTIME_CRT_CRT_CONFIG_TEMPLATE_H_
+#define TVM_RUNTIME_CRT_CRT_CONFIG_TEMPLATE_H_
 
 /*! Maximum supported dimension in NDArray */
 #define TVM_CRT_MAX_NDIM 6
@@ -46,10 +46,10 @@
 #define TVM_CRT_MAX_STRLEN_FUNCTION_NAME 80
 
 /*! \brief Maximum length of a PackedFunc function name. */
-#define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES  30
+#define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30
 
 /*! \brief Log2 of the page size (bytes) for a virtual memory page. */
-#define TVM_CRT_PAGE_BITS  10  // 1 kB
+#define TVM_CRT_PAGE_BITS 10  // 1 kB
 
 /*! \brief Number of pages on device. */
 #define TVM_CRT_MAX_PAGES 300
@@ -57,4 +57,4 @@
 /*! \brief DLDataType for the return value from strlen */
 #define TVM_CRT_STRLEN_DLTYPE 10
 
-#endif  // TVM_RUNTIME_CRT_CONFIG_H_
+#endif  // TVM_RUNTIME_CRT_CRT_CONFIG_TEMPLATE_H_

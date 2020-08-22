@@ -22,8 +22,8 @@
  * \brief Buffer
  */
 
-#ifndef TVM_RUNTIME_RPC_SERVER_BUFFER_H_
-#define TVM_RUNTIME_RPC_SERVER_BUFFER_H_
+#ifndef TVM_RUNTIME_CRT_UTVM_RPC_SERVER_BUFFER_H_
+#define TVM_RUNTIME_CRT_UTVM_RPC_SERVER_BUFFER_H_
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -33,10 +33,8 @@ namespace runtime {
 
 class Buffer {
  public:
-  Buffer(uint8_t* data, size_t data_size_bytes) : data_{data},
-                                                  capacity_{data_size_bytes},
-                                                  num_valid_bytes_{0},
-                                                  read_cursor_{0} {}
+  Buffer(uint8_t* data, size_t data_size_bytes)
+      : data_{data}, capacity_{data_size_bytes}, num_valid_bytes_{0}, read_cursor_{0} {}
 
   size_t Write(const uint8_t* data, size_t data_size_bytes);
 
@@ -46,13 +44,9 @@ class Buffer {
 
   void Clear();
 
-  inline size_t ReadAvailable() const {
-    return num_valid_bytes_ - read_cursor_;
-  }
+  inline size_t ReadAvailable() const { return num_valid_bytes_ - read_cursor_; }
 
-  inline size_t Size() const {
-    return num_valid_bytes_;
-  }
+  inline size_t Size() const { return num_valid_bytes_; }
 
  private:
   /*! \brief pointer to data buffer. */
@@ -73,4 +67,4 @@ class Buffer {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif
+#endif  // TVM_RUNTIME_CRT_UTVM_RPC_SERVER_BUFFER_H_

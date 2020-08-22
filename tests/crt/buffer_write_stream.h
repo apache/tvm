@@ -50,9 +50,7 @@ class BufferWriteStream : public WriteStream {
     is_valid_ = is_valid;
   }
 
-  std::string BufferContents() {
-    return std::string((const char*) buffer_data_, buffer_.Size());
-  }
+  std::string BufferContents() { return std::string((const char*)buffer_data_, buffer_.Size()); }
 
   static constexpr unsigned int capacity() { return N; };
 

@@ -17,15 +17,16 @@
  * under the License.
  */
 
+#include "../../src/runtime/crt/utvm_rpc_server/framing.h"
+
 #include <gtest/gtest.h>
-#include <string>
-#include <vector>
 #include <tvm/runtime/crt/memory.h>
 
-#include "../../src/runtime/crt/utvm_rpc_server/buffer.h"
-#include "../../src/runtime/crt/utvm_rpc_server/framing.h"
-#include "buffer_write_stream.h"
+#include <string>
+#include <vector>
 
+#include "../../src/runtime/crt/utvm_rpc_server/buffer.h"
+#include "buffer_write_stream.h"
 #include "crt_config.h"
 
 using ::tvm::runtime::Buffer;
@@ -45,18 +46,16 @@ class TestPacket {
 
   // NOTE: take payload and wire as arrays to avoid clipping at \0
   template <int N, int M>
-  TestPacket(const std::string name, const char (&payload)[N], const char (&wire)[M]) :
-      name{name}, payload{payload, N - 1}, wire{wire, M - 1} {  // omit trailing \0
-        instances.emplace_back(this);
-      }
+  TestPacket(const std::string name, const char (&payload)[N], const char (&wire)[M])
+      : name{name}, payload{payload, N - 1}, wire{wire, M - 1} {  // omit trailing \0
+    instances.emplace_back(this);
+  }
 
   inline const uint8_t* payload_data() const {
     return reinterpret_cast<const uint8_t*>(payload.data());
   }
 
-  inline const uint8_t* wire_data() const {
-    return reinterpret_cast<const uint8_t*>(wire.data());
-  }
+  inline const uint8_t* wire_data() const { return reinterpret_cast<const uint8_t*>(wire.data()); }
 
   std::string name;
   std::string payload;
@@ -75,8 +74,8 @@ void PrintTo(tvm_crt_error_t p, std::ostream* os) {
 
 std::vector<const TestPacket*> TestPacket::instances;
 
-#define TEST_PACKET(name, payload, wire)        \
-  static const TestPacket k ## name{# name, payload, wire}
+#define TEST_PACKET(name, payload, wire) \
+  static const TestPacket k##name { #name, payload, wire }
 
 // NOTE: golden packet CRCs are generated with this python:
 // import binascii
@@ -108,11 +107,12 @@ TEST_PACKET(ZeroLengthPacket, "", "\xff\xfd\0\0\0\0\203D");
 // crc = b''
 // while b'\xff' not in crc:
 //   suffix = bytes(''.join(random.choices(string.printable, k=10)), 'utf-8')
-//   packet = b'\xff\xfd' + struct.pack('<I', len(escaped_prefix + suffix)) + escaped_prefix + suffix
-//   crc = struct.pack('<H', binascii.crc_hqx(packet, 0xffff))
+//   packet = b'\xff\xfd' + struct.pack('<I', len(escaped_prefix + suffix)) + escaped_prefix +
+//   suffix crc = struct.pack('<H', binascii.crc_hqx(packet, 0xffff))
 // print(suffix)
 // print(packet + crc.replace(b'\xff', b'\xff\xff'))
-TEST_PACKET(EscapePacket, "es_\xff_capeir/^>t@\"hr", "\xff\xfd\x13\0\0\0es_\xff\xff_capeir/^>t@\"hr\xb4\xff\xff");
+TEST_PACKET(EscapePacket, "es_\xff_capeir/^>t@\"hr",
+            "\xff\xfd\x13\0\0\0es_\xff\xff_capeir/^>t@\"hr\xb4\xff\xff");
 
 TEST_F(FramerTest, ValidPacketTrain) {
   EXPECT_EQ(kTvmErrorNoError, framer_.Write(kPacket1.payload_data(), kPacket1.payload.size()));
@@ -120,22 +120,23 @@ TEST_F(FramerTest, ValidPacketTrain) {
   framer_.Reset();
   EXPECT_EQ(kTvmErrorNoError, framer_.Write(kPacket3.payload_data(), kPacket3.payload.size()));
 
-  EXPECT_EQ("\xfe" + kPacket1.wire +  // packet1 plus nop prefix.
-            kPacket2.wire +  // packet2, no prefix.
-            "\xfe" + kPacket3.wire,  // packet3 plus nop prefix.
+  EXPECT_EQ("\xfe" + kPacket1.wire +     // packet1 plus nop prefix.
+                kPacket2.wire +          // packet2, no prefix.
+                "\xfe" + kPacket3.wire,  // packet3 plus nop prefix.
             write_stream_.BufferContents());
 }
 
 TEST_F(FramerTest, ZeroLengthPacket) {
-  EXPECT_EQ(kTvmErrorNoError, framer_.Write(kZeroLengthPacket.payload_data(), kZeroLengthPacket.payload.size()));
+  EXPECT_EQ(kTvmErrorNoError,
+            framer_.Write(kZeroLengthPacket.payload_data(), kZeroLengthPacket.payload.size()));
   EXPECT_EQ("\xfe" + kZeroLengthPacket.wire, write_stream_.BufferContents());
 }
 
 TEST_F(FramerTest, Escapes) {
-  EXPECT_EQ(kTvmErrorNoError, framer_.Write(kEscapePacket.payload_data(), kEscapePacket.payload.size()));
+  EXPECT_EQ(kTvmErrorNoError,
+            framer_.Write(kEscapePacket.payload_data(), kEscapePacket.payload.size()));
   EXPECT_EQ("\xfe" + kEscapePacket.wire, write_stream_.BufferContents());
 }
-
 
 class UnframerTest : public ::testing::Test {
  protected:
@@ -144,20 +145,20 @@ class UnframerTest : public ::testing::Test {
 };
 
 TEST_F(UnframerTest, PacketTooLong) {
-  const uint8_t escape[2] = {uint8_t(Escape::kEscapeStart),
-                             uint8_t(Escape::kPacketStart)};
+  const uint8_t escape[2] = {uint8_t(Escape::kEscapeStart), uint8_t(Escape::kPacketStart)};
   uint16_t crc = crc16_compute(escape, sizeof(escape), nullptr);
   size_t bytes_consumed;
   EXPECT_EQ(kTvmErrorNoError, unframer_.Write(escape, sizeof(escape), &bytes_consumed));
   EXPECT_EQ(sizeof(escape), bytes_consumed);
 
   uint8_t packet_length[4];
-  *((uint32_t*) packet_length) = write_stream_.capacity() + 1;
+  *((uint32_t*)packet_length) = write_stream_.capacity() + 1;
   for (char c : packet_length) {
     ASSERT_NE('\xff', c);
   }
   crc = crc16_compute(packet_length, sizeof(packet_length), &crc);
-  EXPECT_EQ(kTvmErrorNoError, unframer_.Write(packet_length, sizeof(packet_length), &bytes_consumed));
+  EXPECT_EQ(kTvmErrorNoError,
+            unframer_.Write(packet_length, sizeof(packet_length), &bytes_consumed));
   EXPECT_EQ(sizeof(packet_length), bytes_consumed);
 
   uint8_t long_payload[decltype(write_stream_)::capacity() + 1];
@@ -168,31 +169,34 @@ TEST_F(UnframerTest, PacketTooLong) {
     }
   }
   crc = crc16_compute(long_payload, sizeof(long_payload), &crc);
-  EXPECT_EQ(kTvmErrorWriteStreamShortWrite, unframer_.Write(long_payload, sizeof(long_payload), &bytes_consumed));
+  EXPECT_EQ(kTvmErrorWriteStreamShortWrite,
+            unframer_.Write(long_payload, sizeof(long_payload), &bytes_consumed));
   EXPECT_EQ(write_stream_.capacity(), bytes_consumed);
 
-  EXPECT_EQ(kTvmErrorNoError, unframer_.Write((uint8_t*) &crc, sizeof(crc), &bytes_consumed));
+  EXPECT_EQ(kTvmErrorNoError, unframer_.Write((uint8_t*)&crc, sizeof(crc), &bytes_consumed));
   EXPECT_EQ(2, bytes_consumed);  // 2, because framer is now in kFindPacketStart.
   EXPECT_FALSE(write_stream_.packet_done());
   EXPECT_FALSE(write_stream_.is_valid());
-  EXPECT_EQ(std::string((char*) long_payload, write_stream_.capacity()), write_stream_.BufferContents());
+  EXPECT_EQ(std::string((char*)long_payload, write_stream_.capacity()),
+            write_stream_.BufferContents());
 
   // Writing a smaller packet directly afterward should work.
   write_stream_.Reset();
-  EXPECT_EQ(kTvmErrorNoError, unframer_.Write(kPacket1.wire_data(), kPacket1.wire.size(), &bytes_consumed));
+  EXPECT_EQ(kTvmErrorNoError,
+            unframer_.Write(kPacket1.wire_data(), kPacket1.wire.size(), &bytes_consumed));
   EXPECT_EQ(kPacket1.wire.size(), bytes_consumed);
   EXPECT_TRUE(write_stream_.packet_done());
   EXPECT_TRUE(write_stream_.is_valid());
   EXPECT_EQ(kPacket1.payload, write_stream_.BufferContents());
 };
 
-
-class UnframerTestParameterized : public UnframerTest, public :: testing::WithParamInterface<const TestPacket*> {
-};
+class UnframerTestParameterized : public UnframerTest,
+                                  public ::testing::WithParamInterface<const TestPacket*> {};
 
 TEST_P(UnframerTestParameterized, TestFullPacket) {
   size_t bytes_consumed;
-  EXPECT_EQ(kTvmErrorNoError, unframer_.Write(GetParam()->wire_data(), GetParam()->wire.size(), &bytes_consumed));
+  EXPECT_EQ(kTvmErrorNoError,
+            unframer_.Write(GetParam()->wire_data(), GetParam()->wire.size(), &bytes_consumed));
   EXPECT_EQ(GetParam()->wire.size(), bytes_consumed);
   EXPECT_TRUE(write_stream_.packet_done());
   EXPECT_TRUE(write_stream_.is_valid());
@@ -203,7 +207,9 @@ TEST_P(UnframerTestParameterized, TestByteAtATime) {
   size_t bytes_consumed;
   size_t wire_size = GetParam()->wire.size();
   for (size_t i = 0; i < wire_size; i++) {
-    EXPECT_EQ(kTvmErrorNoError, unframer_.Write(reinterpret_cast<const uint8_t*>(&GetParam()->wire[i]), 1, &bytes_consumed));
+    EXPECT_EQ(kTvmErrorNoError,
+              unframer_.Write(reinterpret_cast<const uint8_t*>(&GetParam()->wire[i]), 1,
+                              &bytes_consumed));
     EXPECT_EQ(1, bytes_consumed);
     EXPECT_EQ(i == wire_size - 1, write_stream_.packet_done());
   }
@@ -220,7 +226,8 @@ TEST_P(UnframerTestParameterized, TestArbitraryBoundary) {
     EXPECT_EQ(kTvmErrorNoError, unframer_.Write(GetParam()->wire_data(), i, &bytes_consumed));
     EXPECT_EQ(i, bytes_consumed);
     EXPECT_FALSE(write_stream_.packet_done());
-    EXPECT_EQ(kTvmErrorNoError, unframer_.Write(&GetParam()->wire_data()[i], wire_size - i, &bytes_consumed));
+    EXPECT_EQ(kTvmErrorNoError,
+              unframer_.Write(&GetParam()->wire_data()[i], wire_size - i, &bytes_consumed));
     EXPECT_EQ(wire_size - i, bytes_consumed);
     EXPECT_TRUE(write_stream_.packet_done());
     EXPECT_TRUE(write_stream_.is_valid());
@@ -255,17 +262,20 @@ TEST_P(UnframerTestParameterized, TestArbitraryPacketReset) {
     EXPECT_EQ(i, bytes_consumed);
 
     // First test byte-by-byte interruption.
-    // Interrupt the packet transmission. The first byte will return no error as it is the escape byte.
+    // Interrupt the packet transmission. The first byte will return no error as it is the escape
+    // byte.
     EXPECT_EQ(kTvmErrorNoError, unframer_.Write(GetParam()->wire_data(), 1, &bytes_consumed));
     EXPECT_EQ(1, bytes_consumed);
     EXPECT_FALSE(write_stream_.packet_done());
 
     // Secondt byte will return a short packet error.
-    EXPECT_EQ(kTvmErrorFramingShortPacket, unframer_.Write(&GetParam()->wire_data()[1], 1, &bytes_consumed));
+    EXPECT_EQ(kTvmErrorFramingShortPacket,
+              unframer_.Write(&GetParam()->wire_data()[1], 1, &bytes_consumed));
     EXPECT_EQ(0, bytes_consumed);
     EXPECT_FALSE(write_stream_.packet_done());
 
-    EXPECT_EQ(kTvmErrorNoError, unframer_.Write(&GetParam()->wire_data()[1], wire_size - 1, &bytes_consumed));
+    EXPECT_EQ(kTvmErrorNoError,
+              unframer_.Write(&GetParam()->wire_data()[1], wire_size - 1, &bytes_consumed));
     EXPECT_EQ(wire_size - 1, bytes_consumed);
     EXPECT_TRUE(write_stream_.packet_done());
     EXPECT_TRUE(write_stream_.is_valid());
@@ -279,10 +289,12 @@ TEST_P(UnframerTestParameterized, TestArbitraryPacketReset) {
 
     // Interrupt the packet transmission. The first Write() call will just consume 1 byte to reset
     // the internal state.
-    EXPECT_EQ(kTvmErrorFramingShortPacket, unframer_.Write(GetParam()->wire_data(), wire_size, &bytes_consumed));
+    EXPECT_EQ(kTvmErrorFramingShortPacket,
+              unframer_.Write(GetParam()->wire_data(), wire_size, &bytes_consumed));
     EXPECT_EQ(1, bytes_consumed);
     EXPECT_FALSE(write_stream_.packet_done());
-    EXPECT_EQ(kTvmErrorNoError, unframer_.Write(&GetParam()->wire_data()[1], wire_size - 1, &bytes_consumed));
+    EXPECT_EQ(kTvmErrorNoError,
+              unframer_.Write(&GetParam()->wire_data()[1], wire_size - 1, &bytes_consumed));
     EXPECT_EQ(wire_size - 1, bytes_consumed);
     EXPECT_TRUE(write_stream_.packet_done());
     EXPECT_TRUE(write_stream_.is_valid());
@@ -294,12 +306,12 @@ TEST_P(UnframerTestParameterized, TestArbitraryPacketReset) {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-INSTANTIATE_TEST_CASE_P(UnframerTests, UnframerTestParameterized, ::testing::ValuesIn(TestPacket::instances));
+INSTANTIATE_TEST_CASE_P(UnframerTests, UnframerTestParameterized,
+                        ::testing::ValuesIn(TestPacket::instances));
 #pragma GCC diagnostic pop
 
 //   for
 //   unframer_.Write(
-
 
 extern "C" {
 void TVMPlatformAbort(int error_code) { FAIL() << "TVMPlatformAbort(" << error_code << ")"; }

@@ -22,8 +22,8 @@
  * \brief MicroTVM RPC Server
  */
 
-#ifndef TVM_RUNTIME_MICRO_UTVM_RPC_SERVER_H_
-#define TVM_RUNTIME_MICRO_UTVM_RPC_SERVER_H_
+#ifndef TVM_RUNTIME_CRT_UTVM_RPC_SERVER_H_
+#define TVM_RUNTIME_CRT_UTVM_RPC_SERVER_H_
 
 #include <stdlib.h>
 
@@ -53,13 +53,14 @@ typedef void* utvm_rpc_server_t;
  * \return A pointer to the TVM RPC Server. The pointer is allocated in the same memory space as
  *         the TVM workspace.
  */
-utvm_rpc_server_t utvm_rpc_server_init(uint8_t* memory, size_t memory_size_bytes, size_t page_size_bytes_log2,
+utvm_rpc_server_t utvm_rpc_server_init(uint8_t* memory, size_t memory_size_bytes,
+                                       size_t page_size_bytes_log2,
                                        utvm_rpc_channel_write_t write_func, void* write_func_ctx);
 
 /*! \brief Copy received data into an internal buffer for processing.
  *
- * Currently only handles 1 byte of data. In the future, the goal of this function is to be safe to invoke from
- * an ISR. At that time, this function will just append to an internal buffer.
+ * Currently only handles 1 byte of data. In the future, the goal of this function is to be safe to
+ * invoke from an ISR. At that time, this function will just append to an internal buffer.
  *
  * \param server The TVM RPC Server pointer.
  * \param byte The received byte of data.
@@ -78,4 +79,4 @@ void utvm_rpc_server_loop(utvm_rpc_server_t server);
 }
 #endif
 
-#endif  // TVM_RUNTIME_MICRO_UTVM_RPC_SERVER_H_
+#endif  // TVM_RUNTIME_CRT_UTVM_RPC_SERVER_H_

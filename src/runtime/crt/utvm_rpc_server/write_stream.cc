@@ -28,15 +28,16 @@ namespace runtime {
 
 WriteStream::~WriteStream() {}
 
-tvm_crt_error_t WriteStream::WriteAll(uint8_t* data, size_t data_size_bytes, size_t* bytes_consumed) {
+tvm_crt_error_t WriteStream::WriteAll(uint8_t* data, size_t data_size_bytes,
+                                      size_t* bytes_consumed) {
   *bytes_consumed = 0;
   while (data_size_bytes > 0) {
     ssize_t to_return = Write(data, data_size_bytes);
     if (to_return == 0) {
       return kTvmErrorWriteStreamShortWrite;
     } else if (to_return < 0) {
-      return (tvm_crt_error_t) to_return;
-    } else if (to_return > 0 && ((size_t) to_return) > data_size_bytes) {
+      return (tvm_crt_error_t)to_return;
+    } else if (to_return > 0 && ((size_t)to_return) > data_size_bytes) {
       return kTvmErrorWriteStreamLongWrite;
     }
 

@@ -33,17 +33,17 @@
 #endif
 
 #include <stddef.h>
+#include <utility>
 
 namespace tvm {
 namespace support {
 
 namespace {
-template<typename T>                // For lvalues (T is T&),
-T&& forward(T&& param)         // take/return lvalue refs.
-{                                   // For rvalues (T is T),
-    return static_cast<T&&>(param); // take/return rvalue refs.
-}
-}
+template <typename T>              // For lvalues (T is T&),
+T&& forward(T&& param) {           // take/return lvalue refs.
+  return static_cast<T&&>(param);  // For rvalues (T is T),
+}                                  // take/return rvalue refs.
+}  // namespace
 
 /*!
  * \brief An arena page header.
@@ -179,4 +179,4 @@ class GenericArena {
 
 }  // namespace support
 }  // namespace tvm
-#endif  // TVM_SUPPORT_ARENA_H_
+#endif  // TVM_SUPPORT_GENERIC_ARENA_H_

@@ -22,13 +22,12 @@
  * \brief Framing for RPC.
  */
 
-#ifndef TVM_RUNTIME_MINRPC_WRITE_STREAM_H_
-#define TVM_RUNTIME_MINRPC_WRITE_STREAM_H_
+#ifndef TVM_RUNTIME_CRT_UTVM_RPC_SERVER_WRITE_STREAM_H_
+#define TVM_RUNTIME_CRT_UTVM_RPC_SERVER_WRITE_STREAM_H_
 
 #include <inttypes.h>
 #include <stddef.h>
 #include <sys/types.h>
-
 #include <tvm/runtime/crt/error_codes.h>
 
 namespace tvm {
@@ -46,4 +45,4 @@ class WriteStream {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_MINRPC_WRITE_STREAM_H_
+#endif  // TVM_RUNTIME_CRT_UTVM_RPC_SERVER_WRITE_STREAM_H_

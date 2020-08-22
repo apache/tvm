@@ -17,22 +17,22 @@
  * under the License.
  */
 
-#include <gtest/gtest.h>
-#include <string>
-#include <vector>
-#include <tvm/runtime/crt/memory.h>
-
-#include "../../src/runtime/crt/utvm_rpc_server/buffer.h"
 #include "../../src/runtime/crt/utvm_rpc_server/session.h"
 
-#include "buffer_write_stream.h"
+#include <gtest/gtest.h>
+#include <tvm/runtime/crt/memory.h>
 
+#include <string>
+#include <vector>
+
+#include "../../src/runtime/crt/utvm_rpc_server/buffer.h"
+#include "buffer_write_stream.h"
 #include "crt_config.h"
 
-using ::tvm::runtime::Unframer;
 using ::tvm::runtime::Framer;
 using ::tvm::runtime::MessageType;
 using ::tvm::runtime::Session;
+using ::tvm::runtime::Unframer;
 
 extern "C" {
 void TestSessionMessageReceivedThunk(void* context, MessageType message_type, Buffer* buf);
@@ -52,14 +52,11 @@ class ReceivedMessage {
 
 class TestSession {
  public:
-  TestSession(uint8_t initial_nonce) : framer{&framer_write_stream},
-                                       receive_buffer{receive_buffer_array, sizeof(receive_buffer_array)},
-                                       sess{initial_nonce,
-                                            &framer,
-                                            &receive_buffer,
-                                            TestSessionMessageReceivedThunk,
-                                            this},
-                                       unframer{sess.Receiver()} {}
+  TestSession(uint8_t initial_nonce)
+      : framer{&framer_write_stream},
+        receive_buffer{receive_buffer_array, sizeof(receive_buffer_array)},
+        sess{initial_nonce, &framer, &receive_buffer, TestSessionMessageReceivedThunk, this},
+        unframer{sess.Receiver()} {}
 
   template <unsigned int N>
   void ExpectFramedPacket(const char (&expected)[N]) {
@@ -145,8 +142,11 @@ TEST_F(SessionTest, NormalExchange) {
   EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kStartSessionMessage, ""));
 
   alice_.ClearBuffers();
-  alice_.sess.SendMessage(MessageType::kNormalTraffic, reinterpret_cast<const uint8_t*>("hello"), 5);
-  alice_.ExpectFramedPacket("\xFF\xFD\b\0\0\0\x82" "f\x10hello\x90(");
+  alice_.sess.SendMessage(MessageType::kNormalTraffic, reinterpret_cast<const uint8_t*>("hello"),
+                          5);
+  alice_.ExpectFramedPacket(
+      "\xFF\xFD\b\0\0\0\x82"
+      "f\x10hello\x90(");
   alice_.WriteTo(&bob_);
   ASSERT_EQ(bob_.messages_received.size(), 2);
   EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kStartSessionMessage, ""));
@@ -163,7 +163,9 @@ TEST_F(SessionTest, NormalExchange) {
   bob_.ClearBuffers();
 
   alice_.sess.SendMessage(MessageType::kLogMessage, reinterpret_cast<const uint8_t*>("log1"), 4);
-  alice_.ExpectFramedPacket("\xff\xfd\a\0\0\0\x82" "f\x01log1\x90\x89");
+  alice_.ExpectFramedPacket(
+      "\xff\xfd\a\0\0\0\x82"
+      "f\x01log1\x90\x89");
   alice_.WriteTo(&bob_);
   ASSERT_EQ(bob_.messages_received.size(), 1);
   EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kLogMessage, "log1"));
@@ -209,10 +211,9 @@ TEST_F(SessionTest, DoubleStart) {
   // Sending Bob -> Alice should start the session.
   alice_.ClearBuffers();
   size_t bytes_consumed;
-  EXPECT_EQ(kTvmErrorNoError, alice_.unframer.Write(
-              reinterpret_cast<const uint8_t*>(kBobStartPacket),
-              sizeof(kBobStartPacket),
-              &bytes_consumed));
+  EXPECT_EQ(kTvmErrorNoError,
+            alice_.unframer.Write(reinterpret_cast<const uint8_t*>(kBobStartPacket),
+                                  sizeof(kBobStartPacket), &bytes_consumed));
   EXPECT_EQ(bytes_consumed, sizeof(kBobStartPacket));
   alice_.ExpectFramedPacket("\xFF\xFD\x3\0\0\0Ef\0\xF5\0");
   EXPECT_TRUE(alice_.sess.IsEstablished());

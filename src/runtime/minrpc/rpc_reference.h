@@ -74,44 +74,43 @@ enum class RPCServerStatus : int {
 
 inline const char* RPCCodeToString(RPCCode code) {
   switch (code) {
-  case RPCCode::kShutdown:
-    return "kShutdown";
-  case RPCCode::kInitServer:
-    return "kInitServer";
-  case RPCCode::kCallFunc:
-    return "kCallFunc";
-  case RPCCode::kReturn:
-    return "kReturn";
-  case RPCCode::kException:
-    return "kException";
-  case RPCCode::kCopyFromRemote:
-    return "kCopyFromRemote";
-  case RPCCode::kCopyToRemote:
-    return "kCopyToRemote";
-  case RPCCode::kCopyAck:
-    return "kCopyAck";
-  // The following are syscall code that can send over CallRemote
-  case RPCCode::kGetGlobalFunc:
-    return "kGetGlobalFunc";
-  case RPCCode::kFreeHandle:
-    return "kFreeHandle";
-  case RPCCode::kDevSetDevice:
-    return "kDevSetDevice";
-  case RPCCode::kDevGetAttr:
-    return "kDevGetAttr";
-  case RPCCode::kDevAllocData:
-    return "kDevAllocData";
-  case RPCCode::kDevFreeData:
-    return "kDevFreeData";
-  case RPCCode::kDevStreamSync:
-    return "kDevStreamSync";
-  case RPCCode::kCopyAmongRemote:
-    return "kCopyAmongRemote";
-  default:
-    return "";
+    case RPCCode::kShutdown:
+      return "kShutdown";
+    case RPCCode::kInitServer:
+      return "kInitServer";
+    case RPCCode::kCallFunc:
+      return "kCallFunc";
+    case RPCCode::kReturn:
+      return "kReturn";
+    case RPCCode::kException:
+      return "kException";
+    case RPCCode::kCopyFromRemote:
+      return "kCopyFromRemote";
+    case RPCCode::kCopyToRemote:
+      return "kCopyToRemote";
+    case RPCCode::kCopyAck:
+      return "kCopyAck";
+    // The following are syscall code that can send over CallRemote
+    case RPCCode::kGetGlobalFunc:
+      return "kGetGlobalFunc";
+    case RPCCode::kFreeHandle:
+      return "kFreeHandle";
+    case RPCCode::kDevSetDevice:
+      return "kDevSetDevice";
+    case RPCCode::kDevGetAttr:
+      return "kDevGetAttr";
+    case RPCCode::kDevAllocData:
+      return "kDevAllocData";
+    case RPCCode::kDevFreeData:
+      return "kDevFreeData";
+    case RPCCode::kDevStreamSync:
+      return "kDevStreamSync";
+    case RPCCode::kCopyAmongRemote:
+      return "kCopyAmongRemote";
+    default:
+      return "";
   }
 }
-
 
 /*!
  * \brief Convert RPC server status to string.
