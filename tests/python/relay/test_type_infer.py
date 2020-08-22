@@ -17,12 +17,12 @@
 """Test that type checker correcly computes types
    for expressions.
 """
+import pytest
 import tvm
 from tvm import te
 from tvm import relay
 from tvm.relay import op, transform, analysis
 from tvm.relay import Any
-
 
 def run_infer_type(expr, mod=None):
     if not mod:
@@ -368,26 +368,9 @@ def test_if():
     f = relay.Var('f', choice_t)
     true_branch = relay.Var('True', relay.TensorType([Any(), 1], dtype='float32'))
     false_branch = relay.Var('False', relay.TensorType([Any(), Any()], dtype='float32'))
-    top = relay.Function([true_branch, false_branch], relay.If(f(), true_branch, false_branch))
+    top = relay.Function([f, true_branch, false_branch], relay.If(f(), true_branch, false_branch))
     ft = run_infer_type(top)
     tvm.ir.assert_structural_equal(ft.ret_type, relay.TensorType([Any(), 1], dtype='float32'))
 
 if __name__ == "__main__":
-    test_free_expr()
-    test_dual_op()
-    test_single_op()
-    test_recursion()
-    test_monomorphic_let()
-    test_decl()
-    test_recursion()
-    test_tuple()
-    test_incomplete_call()
-    test_type_args()
-    test_global_var_recursion()
-    test_equal()
-    test_ref()
-    test_constructor_type()
-    test_constructor_call()
-    test_adt_match()
-    test_let_polymorphism()
-    test_if()
+    pytest.main([__file__])

@@ -65,7 +65,7 @@ def example():
     z = relay.add(y, c)
     z1 = relay.add(y, c)
     z2 = relay.add(z, z1)
-    return relay.Function([x], z2)
+    return relay.Function([x, weight], z2)
 
 ###############################################################################
 # Let us register layout alteration for a conv2d op so that we can apply the
