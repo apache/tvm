@@ -49,7 +49,11 @@ def test_resize():
             ref_res = tvm.topi.testing.upsampling_python(x_data, (scale, scale), layout)
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         size_var = relay.var("size", relay.TensorType((2,), "int64"))
-        z = relay.image.resize(x, size_var, layout, method, "align_corners")
+        
+        coord_trans = "asymmetric" if method == "nearest_neighbor" else "align_corners"
+        z = relay.image.resize(x, size_var, layout, method,
+                              coordinate_transformation_mode=coord_trans)
+
         zz = run_infer_type(z)
         func = relay.Function([x, size_var], z)
 
@@ -60,9 +64,11 @@ def test_resize():
                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
                 op_res = intrp.evaluate()(x_data, size)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
+
     for method in ["bilinear", "nearest_neighbor"]:
         for layout in ["NCHW", "NHWC"]:
             verify_resize((1, 4, 4, 4), 2, method, layout)
+            verify_resize((2, 8, 17, 20), 7, method, layout)
 
 if __name__ == "__main__":
     test_resize_infer_type()

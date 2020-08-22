@@ -937,7 +937,10 @@ class Upsample(OnnxOpConverter):
         else:
             assert len(scales) == 4
             attr['layout'] = 'NCHW'
-            attr['align_corners'] = True
+            if method == 'nearest_neighbor':
+                attr['align_corners'] = False
+            else:
+                attr['align_corners'] = True
             op_name = 'upsampling'
         return AttrCvt(op_name)(inputs, attr)
 
