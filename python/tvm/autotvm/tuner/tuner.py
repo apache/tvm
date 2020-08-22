@@ -128,7 +128,7 @@ class Tuner(object):
             configs = self.next_batch(min(n_parallel, n_trial - i))
 
             inputs = [MeasureInput(self.task.target, self.task, config) for config in configs]
-            results = measure_batch(inputs)
+            results = self.measure_batch(inputs) if hasattr(self, 'measure_batch') else measure_batch(inputs)
 
             # keep best config
             for k, (inp, res) in enumerate(zip(inputs, results)):
