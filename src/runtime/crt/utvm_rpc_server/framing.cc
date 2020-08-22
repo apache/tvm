@@ -316,10 +316,8 @@ tvm_crt_error_t Framer::StartPacket(size_t payload_size_bytes) {
   }
 
   uint32_t payload_size_wire = payload_size_bytes;
-  to_return = WriteAndCrc(reinterpret_cast<uint8_t*>(&payload_size_wire),
-                          sizeof(payload_size_wire),
-                          true /* escape */,
-                          true /* update_crc */);
+  to_return = WriteAndCrc(reinterpret_cast<uint8_t*>(&payload_size_wire), sizeof(payload_size_wire),
+                          true /* escape */, true /* update_crc */);
   if (to_return == kTvmErrorNoError) {
     state_ = State::kTransmitPacketPayload;
     num_payload_bytes_remaining_ = payload_size_bytes;

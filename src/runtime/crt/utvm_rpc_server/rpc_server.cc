@@ -76,7 +76,8 @@ class MicroIOHandler {
   void Close() {}
 
   void Exit(int code) {
-    for (;;) {}
+    for (;;) {
+    }
   }
 
  private:
@@ -143,7 +144,8 @@ class MicroRPCServer {
   }
 
   void Log(const uint8_t* message, size_t message_size_bytes) {
-    tvm_crt_error_t to_return = session_.SendMessage(MessageType::kLogMessage, message, message_size_bytes);
+    tvm_crt_error_t to_return =
+        session_.SendMessage(MessageType::kLogMessage, message, message_size_bytes);
     if (to_return != 0) {
       TVMPlatformAbort(to_return);
     }
@@ -224,8 +226,7 @@ void TVMLogf(const char* format, ...) {
     tvm::runtime::Framer framer{&write_stream};
     tvm::runtime::Session session{0xa5, &framer, nullptr, nullptr, nullptr};
     int to_return = session.SendMessage(tvm::runtime::MessageType::kLogMessage,
-                                        reinterpret_cast<uint8_t*>(log_buffer),
-                                        num_bytes_logged);
+                                        reinterpret_cast<uint8_t*>(log_buffer), num_bytes_logged);
     if (to_return != 0) {
       TVMPlatformAbort(-1);
     }

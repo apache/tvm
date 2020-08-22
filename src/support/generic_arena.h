@@ -33,6 +33,7 @@
 #endif
 
 #include <stddef.h>
+
 #include <utility>
 
 namespace tvm {
@@ -42,7 +43,7 @@ namespace {
 template <typename T>              // For lvalues (T is T&),
 T&& forward(T&& param) {           // take/return lvalue refs.
   return static_cast<T&&>(param);  // For rvalues (T is T),
-}                                  // take/return rvalue refs.
+}  // take/return rvalue refs.
 }  // namespace
 
 /*!
