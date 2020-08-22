@@ -296,11 +296,14 @@ def test_trace_can_change_traced_value_float():
     for t in ["float64", "float32"]:
         check_assign(t)
 
+def test_numpy_scalar():
+    maxint = (1<<63) - 1
+    assert tvm.testing.echo(np.int64(maxint)) == maxint
 
 
 if __name__ == "__main__":
+    test_numpy_scalar()
     test_rvalue_ref()
-    exit(0)
     test_empty_array()
     test_get_global()
     test_get_callback_with_node()
