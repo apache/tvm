@@ -165,6 +165,8 @@ def create_micro_lib_base(
         # TODO(weberlo): make compilation fail if there are any warnings
         run_cmd(curr_compile_cmd)
 
+    ar_cmd = [f"{toolchain_prefix}ar", "-s", out_obj_path] + prereq_obj_paths
+
     ld_cmd = [f"{toolchain_prefix}ld", "-relocatable"]
     ld_cmd += prereq_obj_paths
     ld_cmd += ["-o", out_obj_path]
