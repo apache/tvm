@@ -90,7 +90,8 @@ def _tensor_value_repr(tvalue):
 
 @tvm._ffi.register_func("relay._constant_repr")
 def _tensor_constant_repr(tvalue):
-    if tvm.datatype.get_type_registered(tvalue.data.dtype.code):
+    if hasattr(tvalue.data.dtype, 'code') and \
+            tvm.target.datatype.get_type_registered(tvalue.data.dtype.code):
         return "custom tensor of type " + tvalue.data.dtype
     return str(tvalue.data.asnumpy())
 
