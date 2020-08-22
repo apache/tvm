@@ -37,7 +37,7 @@ from ..op.memory import alloc_storage
 from ..analysis.context_analysis import ContextAnalysis, mk_analysis_annotator
 from ..._ffi.runtime_ctypes import TVMContext
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 def alloc_tensor(storage, shape, dtype='float32', assert_shape=None):
     offset = expr.const(0, dtype="int64")

@@ -165,6 +165,7 @@ class ContextAnalysis(ExprVisitor):
         self.closures = {}
         self.current_func = current_func
         self.fallback_device = fallback_device
+        self.visited = {}
 
     def lookup(self, device):
         """Find the root domain of a given device domain.
@@ -383,7 +384,7 @@ class ContextAnalysis(ExprVisitor):
 
             self.unify(device, self.device_for(call.op))
             self.unify(device, self.device_for(call.op.body))
-            self.visit(call.op)
+            # self.visit(call.op)
         elif isinstance(call.op, _expr.GlobalVar):
             device = self.device_for(call)
             assert self.mod, "Cannot analyze context on a globalvar without module"
@@ -412,6 +413,7 @@ class ContextAnalysis(ExprVisitor):
             self.current_func = call.op
             if cur_func.name_hint != call.op.name_hint:
                 self.visit(func)
+                self.visited[func] = device
             self.current_func = cur_func
         elif isinstance(call.op, _expr.Var):
             # It is a closure when we call a var
@@ -445,6 +447,7 @@ class ContextAnalysis(ExprVisitor):
             self.current_func = glb_var
             if not tvm.ir.structural_equal(cur_func, glb_var):
                 self.visit(func)
+                self.visited[func] = device
             self.current_func = cur_func
         else:
             self.unify_call(call, call.args, [call])
@@ -476,10 +479,14 @@ class ContextAnalysis(ExprVisitor):
         self.visit(let)
 
     def visit_function(self, f):
-        self.unify(self.device_for(f), self.device_for(f.body))
+        if f in self.visited and self.visited[f].domain:
+            return
+
+        device = self.unify(self.device_for(f), self.device_for(f.body))
         for x in f.params:
             self.device_for(x)
         self.visit(f.body)
+        self.visited[f] = device
 
     def visit_tuple(self, tup):
         # We only support tuple with the same of device.
