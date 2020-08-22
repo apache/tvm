@@ -250,7 +250,9 @@ def test_dynamic_to_static_resize():
 
         x = relay.var("x", relay.TensorType(shape, "float32"))
         size_var = relay.const(np.array(size).astype("float32"))
-        z = relay.image.resize(x, size_var, layout, method, "align_corners")
+        coord_trans = "asymmetric" if method == "nearest_neighbor" else "align_corners"
+        z = relay.image.resize(x, size_var, layout, method,
+                              coordinate_transformation_mode=coord_trans)
 
         func = run_infer_type(relay.Function([x], z))
         func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()),
