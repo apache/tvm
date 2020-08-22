@@ -1202,13 +1202,13 @@ def test_forward_slice():
 
     class Slice2(Module):
         def forward(self, *args):
-            return args[0][0, :, :, :]
+            return args[0][0, :, :-3, :]
 
     class Slice3(Module):
         def forward(self, *args):
             x0 = torch.tensor(2) - torch.tensor(1)
             x1 = torch.tensor(3) + torch.tensor(1)
-            return args[0][:, x0:, :x1, :]
+            return args[0][:, x0:, 1:x1, :]
 
     input_data = torch.rand(input_shape).float()
     verify_model(Slice1().float().eval(), input_data=input_data)
@@ -2620,6 +2620,25 @@ def test_forward_matmul():
     verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
 
 
+def test_forward_index():
+    torch.set_grad_enabled(False)
+    input_shape = [3, 4, 5, 6]
+
+    class Index0(Module):
+        def forward(self, x):
+            return x[[0, 1], [0, 2], :2, 4]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index0().eval(), input_data=input_data)
+
+    class Index1(Module):
+        def forward(self, x):
+            return x[[0], [1, 2, 3, 0], [3, 1, 2, 2], [4, 2, 1, 0]]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Index1().eval(), input_data=input_data)
+
+
 def test_forward_pretrained_bert_base_uncased():
     ######################################################################
     # This is an example how to run BERT models using TVM
@@ -2859,6 +2878,7 @@ if __name__ == "__main__":
     test_adaptive_pool3d()
     test_conv3d()
     test_conv3d_transpose()
+    test_forward_index()
 
     # Model tests
     test_resnet18()
