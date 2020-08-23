@@ -21,24 +21,24 @@ from ..expr_functor import ExprMutator
 from ..transform.transform import function_pass
 from ..expr import var, bind
 
-
 # TODO(@gussmith23) what's the right opt level here?
 @function_pass(opt_level=0)
 class ChangeDatatype(ExprMutator):
     """Mutator for changing the datatype of Relay programs.
 
-    Example usage:
-    ```python
-    from tvm.relay.testing.inception_v3 import get_workload
-    expr, params = get_workload()
+    Example:
 
-    def change_dtype(src, dst, expr, params):
-        cdtype = ChangeDatatype(src, dst)
-        expr = cdtype.visit(expr)
-        expr = relay.ir_pass.infer_type(expr)
-        params = dict((p, tvm.nd.array(params[p].asnumpy().astype(dst))) for p in params)
-        return expr, params
-    ```
+    .. code-block:: python
+
+        from tvm.relay.testing.inception_v3 import get_workload
+        expr, params = get_workload()
+
+        def change_dtype(src, dst, expr, params):
+            cdtype = ChangeDatatype(src, dst)
+            expr = cdtype.visit(expr)
+            expr = relay.ir_pass.infer_type(expr)
+            params = dict((p, tvm.nd.array(params[p].asnumpy().astype(dst))) for p in params)
+            return expr, params
     """
     def __init__(self, src, dst):
         self.src = src
@@ -51,7 +51,7 @@ class ChangeDatatype(ExprMutator):
     def visit_constant(self, const):
         if const.data.dtype == self.src:
             return const.astype(self.dst)
-        # TODO(andrew): should we raise an error in this case, or return const?
+        # TODO(hypercubestart): should we raise an error in this case, or return const?
         return const
 
     def visit_function(self, fn):
