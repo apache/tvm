@@ -29,9 +29,6 @@ TVM_DLL uint8_t FloatToPosit8es2(float in) {
   return Posit8es2toUint8(posit);
 }
 
-// TODO(gus) how wide should the input be?
-TVM_DLL uint8_t IntToPosit8es2(int in) { return Posit8es2toUint8(sw::unum::posit<8, 2>(in)); }
-
 TVM_DLL uint8_t Posit8es2Add(uint8_t a, uint8_t b) {
   return Posit8es2toUint8(Uint8ToPosit8es2(a) + Uint8ToPosit8es2(b));
 }
@@ -96,9 +93,6 @@ TVM_DLL uint16_t FloatToPosit16es2(float in) {
   return Posit16es2toUint16(posit);
 }
 
-// TODO(gus) how wide should the input be?
-TVM_DLL uint16_t IntToPosit16es2(int in) { return Posit16es2toUint16(sw::unum::posit<16, 2>(in)); }
-
 TVM_DLL uint16_t Posit16es2Add(uint16_t a, uint16_t b) {
   return Posit16es2toUint16(Uint16ToPosit16es2(a) + Uint16ToPosit16es2(b));
 }
@@ -162,9 +156,6 @@ TVM_DLL uint32_t FloatToPosit32es2(float in) {
   auto posit = sw::unum::posit<32, 2>(in);
   return Posit32es2ToUint32(posit);
 }
-
-// TODO(gus) how wide should the input be?
-TVM_DLL uint32_t IntToPosit32es2(int in) { return Posit32es2ToUint32(sw::unum::posit<32, 2>(in)); }
 
 TVM_DLL uint32_t Posit32es2Add(uint32_t a, uint32_t b) {
   return Posit32es2ToUint32(Uint32ToPosit32es2(a) + Uint32ToPosit32es2(b));

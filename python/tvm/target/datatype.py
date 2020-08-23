@@ -101,7 +101,7 @@ def register_op(lower_func,
         The name of codegen target.
 
     src_type_name : str
-        The name of the custom datatype, e.g. posit (but not custom[posit]8).
+        The name of the custom datatype, e.g. posites2 (but not custom[posites2]32).
 
     dest_type_name : str
         If op_name is "Cast", then this is required and should be set to the dest datatype of

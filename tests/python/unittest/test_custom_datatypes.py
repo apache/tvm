@@ -100,13 +100,6 @@ def setup():
             (8, 32): 'Posit8es2ToFloat',
         }), 
         "Cast", "llvm", "posites2", "float")
-    register_op(create_lower_func(
-        {
-            (4, 32): 'IntToPosit32es2',
-            (4, 16): 'IntToPosit16es2',
-            (4, 8): 'IntToPosit8es2'
-        }), 
-        "Cast", "llvm", "int", "posites2")
     register_op(create_lower_func({
         32: 'Posit32es2Add',
         16: 'Posit16es2Add',
