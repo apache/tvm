@@ -17,6 +17,7 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """A prelude containing useful global functions and ADT definitions."""
 from tvm.ir import IRModule, TypeCall
+from tvm import relay
 
 from .ty import GlobalTypeVar, TensorType, Any, scalar_type
 from .expr import Var, GlobalVar, If, const
@@ -1237,6 +1238,7 @@ class Prelude:
             mod = IRModule()
         self.mod = mod
         self.load_prelude()
+        self.mod = relay.transform.ToANormalForm()(self.mod)
 
     def get_name(self, canonical, dtype):
         """Get name corresponding to the canonical name"""
