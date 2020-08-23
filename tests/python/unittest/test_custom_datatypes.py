@@ -27,7 +27,6 @@ from tvm.relay.testing.layers import batch_norm_infer
 from tvm.relay.testing.mobilenet import get_workload as get_mobilenet
 from tvm.target.datatype import register, register_min_func, register_op, create_lower_func, lower_ite, lower_call_pure_extern
 from tvm.tir.op import call_pure_extern
-from nose.tools import nottest
 
 # we use a random seed to generate input_data
 # to guarantee stable tests
