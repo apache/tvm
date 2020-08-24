@@ -759,7 +759,7 @@ def verify_matrix_set_diag(input_shape, dtype):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = tvm.topi.testing.get_broadcast_schedule(device)(matrix_set_diag_result)
+            s = tvm.topi.testing.get_injective_schedule(device)(matrix_set_diag_result)
         fn = tvm.build(s, [input, diagonal, matrix_set_diag_result], device, name="matrix_set_diag")
         input_npy = np.random.randint(-100, 100, size=input_shape).astype(dtype)
         diagonal_npy = np.random.randint(-100, 100, size=diagonal_shape).astype(dtype)

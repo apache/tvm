@@ -31,7 +31,6 @@ from ._tensor import elemwise_shape_func
 _reg.register_broadcast_schedule("broadcast_to")
 _reg.register_broadcast_schedule("broadcast_to_like")
 _reg.register_broadcast_schedule("expand_dims")
-_reg.register_broadcast_schedule("matrix_set_diag")
 _reg.register_broadcast_schedule("repeat")
 _reg.register_broadcast_schedule("tile")
 _reg.register_broadcast_schedule("where")
@@ -62,6 +61,7 @@ _reg.register_reduce_schedule("collapse_sum_like")
 _reg.register_reduce_schedule("collapse_sum_to")
 _reg.register_injective_schedule("unravel_index")
 _reg.register_injective_schedule("sparse_to_dense")
+_reg.register_injective_schedule("matrix_set_diag")
 
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)

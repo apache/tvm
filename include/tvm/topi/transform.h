@@ -1521,7 +1521,7 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<Integer>
  */
 inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal,
                               const std::string name = "T_matrix_set_diag",
-                              const std::string tag = kBroadcast) {
+                              const std::string tag = kInjective) {
   size_t ndim = input->shape.size() - 1;
 
   return compute(

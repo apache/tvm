@@ -3141,7 +3141,7 @@ RELAY_REGISTER_OP("matrix_set_diag")
     .set_support_level(10)
     .add_type_rel("MatrixSetDiag", MatrixSetDiagRel)
     .set_attr<FTVMCompute>("FTVMCompute", MatrixSetDiagCompute)
-    .set_attr<TOpPattern>("TOpPattern", kBroadcast);
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay
 }  // namespace tvm
