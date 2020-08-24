@@ -50,6 +50,8 @@ namespace auto_scheduler {
 struct SketchParamKey {
   /*! \brief Always allocate this percentage of measurements to random sampled states. */
   static constexpr const char* eps_greedy = "eps_greedy";
+  /*! \brief Retry several times if SearchOneRound gets no valid state. */
+  static constexpr const char* empty_retry_count = "retry_search_one_round_on_empty";
 
   struct EvolutionarySearch {
     /*! \brief The population size for evolutionary search. */
