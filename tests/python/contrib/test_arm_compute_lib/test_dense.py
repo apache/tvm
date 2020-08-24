@@ -176,6 +176,8 @@ def _get_expected_codegen(shape, weight_shape, units, dtype,
 
 
 def test_dense():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
@@ -231,6 +233,8 @@ def test_codegen_dense():
 
 
 def test_qnn_dense():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 

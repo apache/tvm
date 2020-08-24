@@ -66,16 +66,12 @@ class Device:
     cross_compile : str
         Specify path to cross compiler to use when connecting a remote device from a non-arm platform.
     """
-    _location = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
-    with open(os.path.join(_location, "test_config.json"), mode="r") as config:
-        _test_config = json.load(config)
-
-    connection_type = _test_config["connection_type"]
-    host = _test_config["host"]
-    port = _test_config["port"]
-    target = _test_config["target"]
-    device_key = _test_config.get("device_key") or ""
-    cross_compile = _test_config.get("cross_compile") or ""
+    connection_type = "local"
+    host = "localhost"
+    port = 9090
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+neon"
+    device_key = ""
+    cross_compile = ""
 
     def __init__(self):
         """Keep remote device for lifetime of object."""
@@ -98,6 +94,24 @@ class Device:
                              "local, tracker, remote.")
 
         return device
+
+    @classmethod
+    def load(cls, file_name):
+        """Load test config
+
+        Load the test configuration by looking for file_name relative
+        to the test_arm_compute_lib directory.
+        """
+        location = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+        with open(os.path.join(location, file_name), mode="r") as config:
+            test_config = json.load(config)
+
+        cls.connection_type = test_config["connection_type"]
+        cls.host = test_config["host"]
+        cls.port = test_config["port"]
+        cls.target = test_config["target"]
+        cls.device_key = test_config.get("device_key") or ""
+        cls.cross_compile = test_config.get("cross_compile") or ""
 
 
 def get_cpu_op_count(mod):
@@ -126,6 +140,7 @@ def skip_runtime_test():
         return True
 
     # Remote device is in use or ACL runtime not present
+    # Note: Ensure that the device config has been loaded before this check
     if not Device.connection_type != "local" and not arm_compute_lib.is_arm_compute_runtime_enabled():
         print("Skip because runtime isn't present or a remote device isn't being used.")
         return True
