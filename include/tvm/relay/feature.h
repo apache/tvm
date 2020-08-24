@@ -126,11 +126,9 @@ class FeatureSet {
   bool is_subset_of(const FeatureSet& rhs) const { return ((*this) - rhs).bs_.none(); }
 
   /*!
-   * \brief Pretty Print the FeatureSet.
-   *
-   * \return a string representation.
+   * \brief return a string representation.
    */
-  std::string Print() const;
+  std::string ToString() const;
 
  private:
   std::bitset<feature_count> bs_;

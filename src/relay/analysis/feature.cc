@@ -86,7 +86,7 @@ FeatureSet DetectFeature(const Expr& expr) {
   return fd.fs;
 }
 
-std::string FeatureSet::Print() const {
+std::string FeatureSet::ToString() const {
   std::string ret;
   ret += "[";
   size_t detected = 0;

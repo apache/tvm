@@ -999,5 +999,4 @@ def test_type_check():
 
 
 if __name__ == "__main__":
-    test_simple_merge()
-    #pytest.main([__file__])
+    pytest.main([__file__])
