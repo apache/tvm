@@ -23,28 +23,41 @@
 # Usage: docker/bash.sh <CONTAINER_NAME>
 #     Starts an interactive session
 #
-# Usage2: docker/bash.sh <CONTAINER_NAME> [COMMAND]
-#     Execute command in the docker image, non-interactive
+# Usage2: docker/bash.sh [-i] <CONTAINER_NAME> [COMMAND]
+#     Execute command in the docker image, default non-interactive
+#     With -i, execute interactively.
 #
+interactive=0
+if [ "$1" == "-i" ]; then
+    interactive=1
+    shift
+fi
+
 if [ "$#" -lt 1 ]; then
-    echo "Usage: docker/bash.sh <CONTAINER_NAME> [COMMAND]"
+    echo "Usage: docker/bash.sh [-i] <CONTAINER_NAME> [COMMAND]"
     exit -1
 fi
 
 DOCKER_IMAGE_NAME=("$1")
 
+CI_DOCKER_EXTRA_PARAMS=( )
 if [ "$#" -eq 1 ]; then
     COMMAND="bash"
+    interactive=1
     if [[ $(uname) == "Darwin" ]]; then
         # Docker's host networking driver isn't supported on macOS.
         # Use default bridge network and expose port for jupyter notebook.
-        CI_DOCKER_EXTRA_PARAMS=("-it -p 8888:8888")
+        CI_DOCKER_EXTRA_PARAMS=( "${CI_DOCKER_EXTRA_PARAMS[@]}" "-p 8888:8888" )
     else
-        CI_DOCKER_EXTRA_PARAMS=("-it --net=host")
+        CI_DOCKER_EXTRA_PARAMS=( "${CI_DOCKER_EXTRA_PARAMS[@]}" "--net=host" )
     fi
 else
     shift 1
     COMMAND=("$@")
+fi
+
+if [ $interactive -eq 1 ]; then
+    CI_DOCKER_EXTRA_PARAMS=( "${CI_DOCKER_EXTRA_PARAMS[@]}" -it )
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -107,7 +120,7 @@ ${DOCKER_BINARY} run --rm --pid=host\
     -e "CI_PYTEST_ADD_OPTIONS=$CI_PYTEST_ADD_OPTIONS" \
     ${CI_PY_ENV} \
     ${CUDA_ENV} \
-    ${CI_DOCKER_EXTRA_PARAMS[@]} \
+    "${CI_DOCKER_EXTRA_PARAMS[@]}" \
     ${DOCKER_IMAGE_NAME} \
     bash --login /docker/with_the_same_user \
     ${COMMAND[@]}
