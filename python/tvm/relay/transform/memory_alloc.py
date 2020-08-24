@@ -22,11 +22,10 @@ import numpy as np
 import logging
 
 from tvm.ir.transform import PassContext, module_pass
-from tvm import nd, container, tir
+from tvm import nd, container
 from ..function import Function
 from ..expr_functor import ExprVisitor, ExprMutator
 from ..scope_builder import ScopeBuilder
-from . import transform
 from .. import op
 from ... import DataType, register_func
 from .. import ty, expr
@@ -34,7 +33,8 @@ from ..backend import compile_engine
 from ..op.memory import flatten_tuple_type, from_tuple_type, to_tuple_type
 from ...import cpu
 from ..op.memory import alloc_storage
-from ..analysis.context_analysis import ContextAnalysis, mk_analysis_annotator
+from ..analysis import context_analysis
+from ..analysis.context_analysis import mk_analysis_annotator
 from ..._ffi.runtime_ctypes import TVMContext
 
 # logging.basicConfig(level=logging.DEBUG)
@@ -358,31 +358,33 @@ class ManifestAlloc:
         # can we have def pass_init?
         mod.import_from_std("core.rly")
 
+        # We use logger here to help debug.
+        logging.debug("-----BEFORE CONTEXT ANALYSIS-----")
+        logging.debug(mod.astext(False))
+
         assert isinstance(self.targets, (dict, container.Map))
-        cur_func = mod.get_global_var("main")
         if len(self.targets) > 1:
             pass_ctx = PassContext.current()
             if "relay.fallback_device_type" in pass_ctx.config:
                 fallback_ctx = nd.context(pass_ctx.config["relay.fallback_device_type"])
             else:
                 fallback_ctx = cpu(0)
-            ca = ContextAnalysis(mod, cur_func, TVMContext(fallback_ctx.device_type, 0))
+            ca = context_analysis(mod, TVMContext(fallback_ctx.device_type, 0))
         else:
             if isinstance(self.targets, dict):
                 dev = list(self.targets.keys())[0]
             else:
                 dev, _ = self.targets.items()[0]
-            ca = ContextAnalysis(mod, cur_func, nd.context(dev.value))
+            ca = context_analysis(mod, nd.context(dev.value))
 
-        func = mod["main"]
-        # We use logger here to help debug.
-        logging.debug("-----BEFORE ANALYSIS-----")
-        logging.debug(mod.astext(False))
-        ca.visit(func)
-        logging.debug("-----AFTER ANALYSIS-----")
+        # TODO(zhiics) This is not needed after we port the pass to C++
+        ca_res = {}
+        for key, val in ca.items():
+            ca_res[key] = TVMContext(val[0].value, val[1].value)
+
+        logging.debug("-----AFTER CONTEXT ANALYSIS-----")
         logging.debug(mod.astext(show_meta_data=False,
-                                 annotate=mk_analysis_annotator(ca.results())))
-        ca_res = ca.results()
+                                 annotate=mk_analysis_annotator(ca_res)))
         gv_funcs = mod.functions
         for gv, f in gv_funcs.items():
             ea = ManifestAllocPass(self.target_host, ca_res)

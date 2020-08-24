@@ -590,4 +590,4 @@ def context_analysis(mod, fallback_device):
     return ret
 
 
-register_func("relay.analysis.ContextAnalysis", context_analysis)
+# register_func("relay.analysis.ContextAnalysis", context_analysis)
