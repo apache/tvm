@@ -498,7 +498,7 @@ DominatorTree DominatorTree::PostDom(support::Arena* arena, const IndexedForward
  */
 class GraphPartitioner {
  public:
-  explicit GraphPartitioner(support::Arena* arena, int opt_level, int max_fuse_depth)
+  explicit GraphPartitioner(support::Arena* arena, int opt_level, size_t max_fuse_depth)
       : arena_(arena), opt_level_(opt_level), max_fuse_depth_(max_fuse_depth) {}
   /*!
    * \brief Group as a union find data structure.
