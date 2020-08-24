@@ -140,7 +140,7 @@ TVM_REGISTER_GLOBAL("relay.analysis.detect_feature").set_body_typed(PyDetectFeat
 void CheckFeature(const Expr& expr, const FeatureSet& fs) {
   auto dfs = DetectFeature(expr);
   CHECK(dfs.is_subset_of(fs)) << AsText(expr, false)
-                              << "\nhas unsupported feature: " << (dfs - fs).Print();
+                              << "\nhas unsupported feature: " << (dfs - fs).ToString();
 }
 
 void CheckFeature(const IRModule& mod, const FeatureSet& fs) {
