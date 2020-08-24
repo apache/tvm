@@ -608,12 +608,16 @@ class GraphPartitioner {
    * \param parent The parent group.
    */
   void MergeFromTo(Group* child, Group* parent) {
-    // update the number of nodes of the parent group
-    LOG(INFO) << "parent->num_nodes, child->num_nodes " << parent->num_nodes << ", " << child->num_nodes;
-    parent->num_nodes += child->num_nodes;
     child = child->FindRoot();
     parent = parent->FindRoot();
     if (child == parent) return;
+    // update the number of nodes of the parent group
+    int count = 0;
+    for(auto g: groups_) {
+      if (g->FindRoot() == child) count++;
+    }
+    LOG(INFO) << "parent->num_nodes, child->num_nodes, child nodes " << parent->num_nodes << ", " << child->num_nodes << ", " << count;
+    parent->num_nodes += child->num_nodes;
     child->parent = parent;
     // update master ref and pattern
     if (child->master_ref != nullptr) {
@@ -665,7 +669,7 @@ class GraphPartitioner {
     Group* target = groups_[dom_parent->index];
     visited_.clear();
     CHECK(child != dom_parent);
-    return target->num_nodes + CountNodesUptoSink_(child, dom_parent);
+    return target->FindRoot()->num_nodes + CountNodesUptoSink_(child, dom_parent);
   }
 
   // Initialize the groups.
@@ -700,13 +704,12 @@ class GraphPartitioner {
       size_t dom_parent_gindex = dom_node->parent->gnode->index;
 
       // refuse the fusion if too many ops are going to be fused together
-      LOG(INFO) << "groups_[dom_parent_gindex]->num_nodes,  group_node->num_nodes " <<
-        groups_[dom_parent_gindex]->num_nodes << ", " <<  group_node->num_nodes;
+      // LOG(INFO) << "groups_[dom_parent_gindex]->num_nodes,  group_node->num_nodes " <<
+      //   groups_[dom_parent_gindex]->num_nodes << ", " <<  group_node->num_nodes;
 
-      if (CountNodesUptoDomParent(graph_node, dom_node->parent->gnode) > max_fuse_depth_) {
-        LOG(INFO) << "Skip fusion";
-        continue;
-      }
+      auto c = CountNodesUptoDomParent(graph_node, dom_node->parent->gnode);
+      LOG(INFO) << "Group count: " << c;
+      if (c > max_fuse_depth_) continue;
 
       if (phase == 2) {
         // Fuse injective ops into intermediate tuples, if any
@@ -794,9 +797,17 @@ std::vector<GraphPartitioner::Group*> GraphPartitioner::Partition(
   for (int phase = 0; phase < 3; ++phase) {
     this->RunFuse(graph, post_dom_tree, phase);
   }
+
+  std::unordered_map<GraphPartitioner::Group*, int> group_count;
+  for (auto g: groups_) {
+    group_count[g] = 0;
+  }
+  for (auto g: groups_) {
+    group_count[g->FindRoot()] += 1;
+  }
   for (auto g: groups_) {
     if (g->FindRoot() == g) {
-      LOG(INFO) << "num nodes: " << g->num_nodes;
+      LOG(INFO) << "num nodes: " << g->num_nodes << ", " << "group count: " << group_count[g->FindRoot()];
     }
   }
   return std::move(groups_);
@@ -920,14 +931,22 @@ class FuseMutator : private ExprMutator {
 
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {
     // If the function has no call, it is not a primitive function.
+    LOG(INFO) << "MakeNewFunction, group num node: " << group->num_nodes;
+    LOG(INFO) << "root group: " << group;
     struct HasCallVisitor : ExprVisitor {
+      HasCallVisitor(std::unordered_map<const Object*, GraphPartitioner::Group*> g) : gmap(g) {}
       bool has_call = false;
-      void VisitExpr_(const CallNode* op) final { has_call = true; }
-    } visitor;
+      std::unordered_map<const Object*, GraphPartitioner::Group*> gmap;
+      void VisitExpr_(const CallNode* op) final {
+        has_call = true;
+      }
+    } visitor(gmap_);
     visitor(body);
     const GroupInfo& ginfo = ginfo_[group];
     auto func = Function(ginfo.params, body, ret_type, {});
     func = WithAttr(std::move(func), attr::kPrimitive, tvm::Integer(visitor.has_call));
+
+    LOG(INFO) << AsText(func, false);
     return Call(func, ginfo.arguments, Attrs());
   }
 
@@ -963,6 +982,8 @@ class FuseMutator : private ExprMutator {
 };
 
 Expr FuseOps(const Expr& expr, int fuse_opt_level, size_t max_fuse_depth, const IRModule& module) {
+  LOG(INFO) << "Running fuse ops on";
+  LOG(INFO) << AsText(expr, false);
   return FuseMutator().Transform(expr, fuse_opt_level, max_fuse_depth);
 }
 
