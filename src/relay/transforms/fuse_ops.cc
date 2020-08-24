@@ -83,7 +83,7 @@ constexpr uint32_t kMaxFusedOps = 256;
 
 static const Op& stop_fusion_op = Op::Get("annotation.stop_fusion");
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relay.approx_max_fuse_depth", Integer);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.max_fuse_depth", Integer);
 
 /*!
  * \brief Indexed data flow graph in forward direction.
@@ -551,7 +551,7 @@ class GraphPartitioner {
   support::Arena* arena_;
   /*! \brief optimization level for fuse operation. */
   int opt_level_;
-  /*! \brief The approximate maximum number of operations in one fused function */
+  /*! \brief The maximum number of operations in one fused function */
   size_t max_fuse_depth_;
   /*! \brief The internal groups. */
   std::vector<Group*> groups_;
@@ -612,11 +612,6 @@ class GraphPartitioner {
     parent = parent->FindRoot();
     if (child == parent) return;
     // update the number of nodes of the parent group
-    int count = 0;
-    for(auto g: groups_) {
-      if (g->FindRoot() == child) count++;
-    }
-    LOG(INFO) << "parent->num_nodes, child->num_nodes, child nodes " << parent->num_nodes << ", " << child->num_nodes << ", " << count;
     parent->num_nodes += child->num_nodes;
     child->parent = parent;
     // update master ref and pattern
@@ -664,8 +659,14 @@ class GraphPartitioner {
     return sum;
   }
 
-  size_t CountNodesUptoDomParent(IndexedForwardGraph::Node* child,
-                                 IndexedForwardGraph::Node* dom_parent) {
+  // Count the number of nodes in a fused subgraph if child is additionaly fused.
+  // dom_parent is already known to be a part of the subgraph.
+  // For a diamond structure, there can be multiple paths connecting child and dom_parent.
+  // All intermediate nodes between child and dom_parent are taken into account.
+  // Since dom_parent can itself be an intermediate node in the subgraph, calling FindRoot()
+  // is important for correct calculation.
+  size_t CountFusedNodesWithNewChild(IndexedForwardGraph::Node* child,
+                                     IndexedForwardGraph::Node* dom_parent) {
     Group* target = groups_[dom_parent->index];
     visited_.clear();
     CHECK(child != dom_parent);
@@ -704,12 +705,7 @@ class GraphPartitioner {
       size_t dom_parent_gindex = dom_node->parent->gnode->index;
 
       // refuse the fusion if too many ops are going to be fused together
-      // LOG(INFO) << "groups_[dom_parent_gindex]->num_nodes,  group_node->num_nodes " <<
-      //   groups_[dom_parent_gindex]->num_nodes << ", " <<  group_node->num_nodes;
-
-      auto c = CountNodesUptoDomParent(graph_node, dom_node->parent->gnode);
-      LOG(INFO) << "Group count: " << c;
-      if (c > max_fuse_depth_) continue;
+      if (CountFusedNodesWithNewChild(graph_node, dom_node->parent->gnode) > max_fuse_depth_) continue;
 
       if (phase == 2) {
         // Fuse injective ops into intermediate tuples, if any
@@ -797,19 +793,6 @@ std::vector<GraphPartitioner::Group*> GraphPartitioner::Partition(
   for (int phase = 0; phase < 3; ++phase) {
     this->RunFuse(graph, post_dom_tree, phase);
   }
-
-  std::unordered_map<GraphPartitioner::Group*, int> group_count;
-  for (auto g: groups_) {
-    group_count[g] = 0;
-  }
-  for (auto g: groups_) {
-    group_count[g->FindRoot()] += 1;
-  }
-  for (auto g: groups_) {
-    if (g->FindRoot() == g) {
-      LOG(INFO) << "num nodes: " << g->num_nodes << ", " << "group count: " << group_count[g->FindRoot()];
-    }
-  }
   return std::move(groups_);
 }
 
@@ -825,7 +808,7 @@ class FuseMutator : private ExprMutator {
       gmap_[graph.post_dfs_order[nid]->ref] = groups[nid];
     }
     // The following line can be used for debug.
-    this->DebugDumpGroup(body);
+    // this->DebugDumpGroup(body);
     return this->Mutate(body);
   }
 
@@ -931,22 +914,14 @@ class FuseMutator : private ExprMutator {
 
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {
     // If the function has no call, it is not a primitive function.
-    LOG(INFO) << "MakeNewFunction, group num node: " << group->num_nodes;
-    LOG(INFO) << "root group: " << group;
     struct HasCallVisitor : ExprVisitor {
-      HasCallVisitor(std::unordered_map<const Object*, GraphPartitioner::Group*> g) : gmap(g) {}
       bool has_call = false;
-      std::unordered_map<const Object*, GraphPartitioner::Group*> gmap;
-      void VisitExpr_(const CallNode* op) final {
-        has_call = true;
-      }
-    } visitor(gmap_);
+      void VisitExpr_(const CallNode* op) final { has_call = true;}
+    } visitor;
     visitor(body);
     const GroupInfo& ginfo = ginfo_[group];
     auto func = Function(ginfo.params, body, ret_type, {});
     func = WithAttr(std::move(func), attr::kPrimitive, tvm::Integer(visitor.has_call));
-
-    LOG(INFO) << AsText(func, false);
     return Call(func, ginfo.arguments, Attrs());
   }
 
@@ -982,8 +957,6 @@ class FuseMutator : private ExprMutator {
 };
 
 Expr FuseOps(const Expr& expr, int fuse_opt_level, size_t max_fuse_depth, const IRModule& module) {
-  LOG(INFO) << "Running fuse ops on";
-  LOG(INFO) << AsText(expr, false);
   return FuseMutator().Transform(expr, fuse_opt_level, max_fuse_depth);
 }
 
@@ -993,10 +966,8 @@ Pass FuseOps(int fuse_opt_level) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
-        auto max_fuse_depth = pc->GetConfig("relay.approx_max_fuse_depth", Integer(kMaxFusedOps));
-        auto ret = Downcast<Function>(FuseOps(f, opt_level, max_fuse_depth.value(), m));
-        LOG(INFO) << "After fuse pass: "  << AsText(ret, false);
-        return ret;
+        auto max_fuse_depth = pc->GetConfig("relay.max_fuse_depth", Integer(kMaxFusedOps));
+        return Downcast<Function>(FuseOps(f, opt_level, max_fuse_depth.value(), m));;
       };
   return CreateFunctionPass(pass_func, 1, "FuseOps", {"InferType"});
 }
