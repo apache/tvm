@@ -916,7 +916,7 @@ class FuseMutator : private ExprMutator {
     // If the function has no call, it is not a primitive function.
     struct HasCallVisitor : ExprVisitor {
       bool has_call = false;
-      void VisitExpr_(const CallNode* op) final { has_call = true;}
+      void VisitExpr_(const CallNode* op) final { has_call = true; }
     } visitor;
     visitor(body);
     const GroupInfo& ginfo = ginfo_[group];
