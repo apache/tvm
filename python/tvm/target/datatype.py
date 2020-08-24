@@ -127,6 +127,17 @@ def register_op(lower_func,
 
 # TODO(gus) could probably make this a decorator if i want
 def register_min_func(func, type_name):
+    """Register the function that returns the minimum value of the type_name.
+
+    Parameters
+    ----------
+    func : function
+        Takes in num_bits, returns a value of type custom[type_name]num_bits
+        with the minimum value.
+
+    type_name : str
+        The name of the custom datatype, e.g. posites2 (but not custom[posites2]32).
+    """
     _register_func("tvm.datatype.min." + type_name, func)
 
 def create_lower_func(extern_func_map):

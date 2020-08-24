@@ -168,6 +168,9 @@ def setup():
     def posit_min_func(num_bits):
         # encode raw bit representation
         # min posit is all 1's in binary
+        # another possible way is to create a FloatImm storing the value
+        # of the minimum as a float and then casting to `posites2`,
+        # but the user should be wary of rounding errors
         value = np.dtype('int' + str(num_bits)).type(-1)
         dtype = 'custom[posites2]' + str(num_bits)
         func_map = {
