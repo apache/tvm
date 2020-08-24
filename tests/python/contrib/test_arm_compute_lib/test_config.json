@@ -1,0 +1,8 @@
+{
+  "connection_type": "local",
+  "host": "localhost",
+  "port": 9090,
+  "target": "llvm -mtriple=aarch64-linux-gnu -mattr=+neon",
+  "device_key": "",
+  "cross_compile": ""
+}

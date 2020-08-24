@@ -31,17 +31,51 @@ from tvm.autotvm.measure import request_remote
 
 class Device:
     """
-    Use the following environment variables to connect to and use a remote device.
-    The RPC mechanism can be used in the case of compiling an ACL module on an x86 machine
-    but running on an AArch64 machine.
-    """
-    rpc_host = os.environ.get("TVM_ARM_COMPUTE_LIB_RPC_HOST", "localhost")
-    rpc_port = int(os.environ.get("TVM_ARM_COMPUTE_LIB_RPC_PORT", 9090))
-    rpc_device_key = os.environ.get("TVM_ARM_COMPUTE_LIB_RPC_DEVICE_KEY", "")
-    target = os.environ.get("TVM_ARM_COMPUTE_LIB_TARGET", "llvm -mtriple=aarch64-linux-gnu -mattr=+neon")
+    Configuration for Arm Compute Library tests.
 
-    # Specify path to cross compiler to use when connecting a remote device from a non-arm platform.
-    cross_compile = os.environ.get("TVM_ARM_COMPUTE_LIB_CROSS_COMPILE", None)
+    Check tests/python/contrib/arm_compute_lib/ for the presence of an test_config.json file.
+    This file can be used to override the default configuration here which will attempt to run the Arm
+    Compute Library runtime tests locally if the runtime is available. Changing the configuration
+    will allow these runtime tests to be offloaded to a remote Arm device via a tracker for example.
+
+    Notes
+    -----
+        The test configuration will be loaded once when the the class is created. If the configuration
+        changes between tests, any changes will not be picked up.
+
+    Parameters
+    ----------
+    device : RPCSession
+        Allows tests to connect to and use remote device.
+
+    Attributes
+    ----------
+    connection_type : str
+        Details the type of RPC connection to use. Options:
+        local - Use the local device,
+        tracker - Connect to a tracker to request a remote device,
+        remote - Connect to a remote device directly.
+    host : str
+        Specify IP address or hostname of remote target.
+    port : int
+        Specify port number of remote target.
+    target : str
+        The compilation target.
+    device_key : str
+        The device key of the remote target. Use when connecting to a remote device via a tracker.
+    cross_compile : str
+        Specify path to cross compiler to use when connecting a remote device from a non-arm platform.
+    """
+    _location = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+    with open(os.path.join(_location, "test_config.json"), mode="r") as config:
+        _test_config = json.load(config)
+
+    connection_type = _test_config["connection_type"]
+    host = _test_config["host"]
+    port = _test_config["port"]
+    target = _test_config["target"]
+    device_key = _test_config.get("device_key") or ""
+    cross_compile = _test_config.get("cross_compile") or ""
 
     def __init__(self):
         """Keep remote device for lifetime of object."""
@@ -50,18 +84,20 @@ class Device:
     @classmethod
     def _get_remote(cls):
         """Get a remote (or local) device to use for testing."""
-        if cls.rpc_host != "localhost":
-            if cls.rpc_device_key:
-                device = request_remote(cls.rpc_device_key,
-                                        cls.rpc_host,
-                                        cls.rpc_port,
-                                        timeout=1000)
-            else:
-                device = rpc.connect(cls.rpc_host, cls.rpc_port)
-            return device
-        else:
+        if cls.connection_type == "tracker":
+            device = request_remote(cls.device_key,
+                                    cls.host,
+                                    cls.port,
+                                    timeout=1000)
+        elif cls.connection_type == "remote":
+            device = rpc.connect(cls.host, cls.port)
+        elif cls.connection_type == "local":
             device = rpc.LocalSession()
-            return device
+        else:
+            raise ValueError("connection_type in test_config.json should be one of: "
+                             "local, tracker, remote.")
+
+        return device
 
 
 def get_cpu_op_count(mod):
@@ -90,7 +126,7 @@ def skip_runtime_test():
         return True
 
     # Remote device is in use or ACL runtime not present
-    if Device.rpc_host == "localhost" and not arm_compute_lib.is_arm_compute_runtime_enabled():
+    if not Device.connection_type != "local" and not arm_compute_lib.is_arm_compute_runtime_enabled():
         print("Skip because runtime isn't present or a remote device isn't being used.")
         return True
 
