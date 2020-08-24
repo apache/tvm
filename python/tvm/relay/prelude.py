@@ -17,7 +17,6 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """A prelude containing useful global functions and ADT definitions."""
 from tvm.ir import IRModule, TypeCall
-from tvm import relay
 from tvm.relay.transform import ToANormalFormExpr
 
 from .ty import GlobalTypeVar, TensorType, Any, scalar_type
