@@ -18,6 +18,7 @@
 """A prelude containing useful global functions and ADT definitions."""
 from tvm.ir import IRModule, TypeCall
 from tvm import relay
+from tvm.relay.transform import ToANormalFormExpr
 
 from .ty import GlobalTypeVar, TensorType, Any, scalar_type
 from .expr import Var, GlobalVar, If, const
@@ -27,7 +28,6 @@ from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard
 from . import op, transform
 from .analysis import free_vars
-from tvm.relay.transform import ToANormalFormExpr
 
 def get_tensor_array_shape(expr, dtype, prelude):
     """Get the static shape of a tensor array if it has fixed rank shape.
