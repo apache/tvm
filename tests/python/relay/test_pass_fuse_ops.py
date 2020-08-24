@@ -626,7 +626,7 @@ def test_fuse_max():
     z = before(n)
     after = run_opt_pass(expected(n, max_fused_ops), transform.InferType())
 
-    with tvm.transform.PassContext(config={"relay.FuseOps.max_fuse_depth": max_fused_ops}):
+    with tvm.transform.PassContext(config={"relay.FuseOps.max_depth": max_fused_ops}):
         zz = run_opt_pass(z, transform.FuseOps())
 
     assert tvm.ir.structural_equal(zz, after)
@@ -766,7 +766,7 @@ def test_fuse_max_diamond():
     max_fused_ops = branch_len * 2 + 1  # the number of ops in one diamond
     num_diamond = 3
 
-    with tvm.transform.PassContext(config={"relay.FuseOps.max_fuse_depth": max_fused_ops}):
+    with tvm.transform.PassContext(config={"relay.FuseOps.max_depth": max_fused_ops}):
         fused = run_opt_pass(before(branch_len, num_diamond), transform.FuseOps())
 
     expected = run_opt_pass(after(branch_len, num_diamond), transform.InferType())
