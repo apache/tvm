@@ -180,7 +180,10 @@ class ContextAnalysis(ExprVisitor):
         ret : DeviceDomain
             The root domain.
         """
-        while device in self.device_uf:
+        while device in self.device_uf and device.domain is None:
+            # Path compression
+            if self.device_uf[device] in self.device_uf:
+                self.device_uf[device] = self.device_uf[self.device_uf[device]]
             device = self.device_uf[device]
         return device
 
@@ -319,7 +322,7 @@ class ContextAnalysis(ExprVisitor):
                 outs.append(call.op)
                 body = call.op.body
                 assert isinstance(body, _expr.Call) and is_device_copy(body)
-                outs.append(call.op.body)
+                # outs.append(call.op.body)
                 src_dev_type = call.op.body.attrs.src_dev_type
                 dst_dev_type = call.op.body.attrs.dst_dev_type
             else:
@@ -478,8 +481,12 @@ class ContextAnalysis(ExprVisitor):
 
         self.visit(let)
 
+    def is_primitive(self, func):
+          return hasattr(func, 'attrs') and hasattr(func.attrs, 'Primitive') \
+                  and int(func.attrs.Primitive) == 1
+
     def visit_function(self, f):
-        if f in self.visited and self.visited[f].domain:
+        if self.is_primitive(f) or (f in self.visited and self.visited[f].domain):
             return
 
         device = self.unify(self.device_for(f), self.device_for(f.body))
