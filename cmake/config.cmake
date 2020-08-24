@@ -218,6 +218,16 @@ set(USE_ETHOSN OFF)
 # otherwise use ETHOSN_HW (OFF) to use the software test infrastructure
 set(USE_ETHOSN_HW OFF)
 
+# Whether to use TensorRT codegen
+# Examples are available here: docs/deploy/tensorrt.rst.
+#
+# USE_TENSORRT - Support for compiling a relay graph offloading supported
+#                operators to TensorRT. OFF/ON
+# USE_TENSORRT_GRAPH_RUNTIME - Run TensorRT annotated functions via the TensoRT
+#                              runtime. OFF/ON/"path/to/TensorRT"
+set(USE_TENSORRT OFF)
+set(USE_TENSORRT_GRAPH_RUNTIME OFF)
+
 # Build ANTLR parser for Relay text format
 # Possible values:
 # - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)
