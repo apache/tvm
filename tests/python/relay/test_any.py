@@ -892,5 +892,23 @@ def test_reshape_concat():
                               np.reshape(np_data1, np_shape_like1.shape)], axis=0)
     check_result([np_data0, np_data1, np_shape_like0, np_shape_like1], mod, ref_res)
 
+def test_any_adv_index():
+    data = relay.var("data", shape=(5, relay.Any(), relay.Any()), dtype='float32')
+    index = relay.var("index", shape=(1, relay.Any()), dtype='int64')
+    out = relay.adv_index([data, index])
+    mod = tvm.IRModule()
+    mod['main'] = relay.Function([data, index], out)
+    np_data_shape = (5, 5, 10)
+    np_index_shape = (1, 4)
+    np_data = np.random.uniform(size=np_data_shape).astype('float32')
+    np_index = np.random.uniform(0, np_data_shape[0], size=np_index_shape).astype('int64')
+    ref_res = np_data[tuple([np_index,])]
+
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(np_data, np_index)
+        tvm.testing.assert_allclose(result.asnumpy(), ref_res)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

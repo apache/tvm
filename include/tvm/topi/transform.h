@@ -1563,22 +1563,39 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
                         const std::string tag = kInjective) {
   Array<PrimExpr> oshape;
   Array<PrimExpr> broadcast_shape;
+  Array<Tensor> bindices;
   std::vector<int64_t> flatten_shape_lens;
   int64_t num_picked_elems = 1;
 
-  for (const auto& index : indices) {
-    int64_t flatten_len = 1;
-    for (const auto& dim : index->shape) {
-      const IntImmNode* axis_len = dim.as<IntImmNode>();
-      if (!axis_len) {
-        LOG(FATAL) << "Dynamic shape indexing tensor is not allowed in advanced index.";
+  // Only allows dynamic index tensor shape when just have 1 index tensor.
+  if (indices.size() == 1) {
+    broadcast_shape = indices[0]->shape;
+    bindices = indices;
+  } else {
+    for (const auto& index : indices) {
+      int64_t flatten_len = 1;
+      for (const auto& dim : index->shape) {
+        const IntImmNode* axis_len = dim.as<IntImmNode>();
+        if (!axis_len) {
+          LOG(FATAL) << "Dynamic shape indexing tensor is not allowed in "
+            "advanced index if more than one index tensor are provided.";
+        }
+        flatten_len *= axis_len->value;
       }
-      flatten_len *= axis_len->value;
+      flatten_shape_lens.push_back(flatten_len);
+      if (flatten_len > num_picked_elems) {
+        num_picked_elems = flatten_len;
+        broadcast_shape = index->shape;
+      }
     }
-    flatten_shape_lens.push_back(flatten_len);
-    if (flatten_len > num_picked_elems) {
-      num_picked_elems = flatten_len;
-      broadcast_shape = index->shape;
+
+    // Do broadcast for indices
+    for (size_t i = 0; i < indices.size(); ++i) {
+      if (flatten_shape_lens[i] < num_picked_elems) {
+        bindices.push_back(broadcast_to(indices[i], broadcast_shape));
+      } else {
+        bindices.push_back(indices[i]);
+      }
     }
   }
 
@@ -1587,16 +1604,6 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
   }
   for (size_t i = indices.size(); i < data->shape.size(); ++i) {
     oshape.push_back(data->shape[i]);
-  }
-
-  // Do broadcast for indices
-  Array<Tensor> bindices;
-  for (size_t i = 0; i < indices.size(); ++i) {
-    if (flatten_shape_lens[i] < num_picked_elems) {
-      bindices.push_back(broadcast_to(indices[i], broadcast_shape));
-    } else {
-      bindices.push_back(indices[i]);
-    }
   }
 
   return compute(

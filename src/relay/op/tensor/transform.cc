@@ -3176,22 +3176,28 @@ bool AdvIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   Array<IndexExpr> broadcast_shape;
   int64_t num_picked_elems = 1;
 
-  for (size_t i = 1; i < inputs->fields.size(); ++i) {
-    auto index_type = inputs->fields[i].as<TensorTypeNode>();
-    CHECK(index_type != nullptr);
-    CHECK(index_type->dtype.is_int()) << "indices must be tensor of integers";
+  // Only allows dynamic index tensor shape when just have 1 index tensor.
+  if (inputs->fields.size() == 2) {
+    broadcast_shape = inputs->fields[1].as<TensorTypeNode>()->shape;
+  } else {
+    for (size_t i = 1; i < inputs->fields.size(); ++i) {
+      auto index_type = inputs->fields[i].as<TensorTypeNode>();
+      CHECK(index_type != nullptr);
+      CHECK(index_type->dtype.is_int()) << "indices must be tensor of integers";
 
-    int64_t flatten_len = 1;
-    for (const auto& dim : index_type->shape) {
-      const IntImmNode* axis_len = dim.as<IntImmNode>();
-      if (!axis_len) {
-        LOG(FATAL) << "Dynamic shape indexing tensor is not allowed in advanced index.";
+      int64_t flatten_len = 1;
+      for (const auto& dim : index_type->shape) {
+        const IntImmNode* axis_len = dim.as<IntImmNode>();
+        if (!axis_len) {
+          LOG(FATAL) << "Dynamic shape indexing tensor is not allowed in "
+            "advanced index if more than one index tensor are provided.";
+        }
+        flatten_len *= axis_len->value;
       }
-      flatten_len *= axis_len->value;
-    }
-    if (flatten_len > num_picked_elems) {
-      num_picked_elems = flatten_len;
-      broadcast_shape = index_type->shape;
+      if (flatten_len > num_picked_elems) {
+        num_picked_elems = flatten_len;
+        broadcast_shape = index_type->shape;
+      }
     }
   }
 

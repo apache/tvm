@@ -662,3 +662,25 @@ def split_shape_func(attrs, inputs, _):
                               convert(i),
                               convert(indices_or_sections),
                               convert(axis)) for i in range(num_out)]
+
+@script
+def _adv_index_shape_func(data_shape, index_shape):
+    index_rank = index_shape.shape[0]
+    data_rank = data_shape.shape[0]
+    out = output_tensor((data_rank + index_rank - 1,), "int64")
+
+    for i in const_range(index_rank):
+        out[i] = index_shape[i]
+
+    for i in const_range(data_rank - 1):
+        out[i + index_rank] = data_shape[i + 1]
+
+    return out
+
+@_reg.register_shape_func("adv_index", False)
+def adv_index_shape_func(attrs, inputs, _):
+    """
+    Shape func for adv_index.
+    Only allow single index tensor.
+    """
+    return [_adv_index_shape_func(inputs[0], inputs[1])]
