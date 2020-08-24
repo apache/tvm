@@ -357,7 +357,7 @@ Expr LiftTensor(const std::function<Expr(const Expr& t)>& f,
   if (forward_type.as<TensorTypeNode>()) {
     auto ret = ll->Push(f(e));
     ret->checked_type_ = tf(forward_type);
-    return ret;
+    return std::move(ret);
   } else if (auto* tt = forward_type.as<TupleTypeNode>()) {
     tvm::Array<Expr> fields;
     tvm::Array<Type> types;
@@ -368,7 +368,7 @@ Expr LiftTensor(const std::function<Expr(const Expr& t)>& f,
     }
     auto ret = ll->Push(Tuple(fields));
     ret->checked_type_ = TupleType(types);
-    return ret;
+    return std::move(ret);
   } else {
     LOG(FATAL) << "unsupported input/output type: " << tt;
     throw;
@@ -459,7 +459,7 @@ struct ReverseAD : ExprMutator {
         // memoize Var -> ADVar so we don't end up with free Vars when checkpointing
         auto var_ref = GetRef<Var>(var);
         if (ad_vars->count(var_ref) == 0) {
-          return var_ref;
+          return std::move(var_ref);
         } else {
           return GetValue(var_ref->checked_type(), ad_vars->at(var_ref), ll);
         }
@@ -648,7 +648,7 @@ Expr Gradient(const Expr& re, const Optional<IRModule>& mod) {
   });
   auto ret = Function(f->params, body, GradRetType(GetRef<Function>(f)), {});
   CheckFeature(ret, FeatureSet::All() - fGraph);
-  return ret;
+  return std::move(ret);
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.gradient").set_body_typed(Gradient);
