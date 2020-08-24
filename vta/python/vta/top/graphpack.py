@@ -211,9 +211,6 @@ class ExprDeviceAnnot(ExprMutator):
     def visit_call(self, call):
         """ Visit the children. """
         # First visit the children.
-        oshape = _get_tensor_shape(call)
-        odtype = _get_tensor_type(call)
-        input_types = [arg.checked_type for arg in call.args]
         args = [self.visit(arg) for arg in call.args]
 
         self.counter += 1
@@ -221,11 +218,13 @@ class ExprDeviceAnnot(ExprMutator):
             ret = relay.Call(call.op, args, call.attrs)
             ret = relay.annotation.on_device(ret, self.ext_ctx)
             return ret
-        elif self.counter == self.end:
+
+        if self.counter == self.end:
             ret = relay.Call(call.op, args, call.attrs)
             ret = relay.annotation.on_device(ret, self.cpu_ctx)
             return ret
-        elif self.counter > self.start and self.counter < self.end:
+
+        if self.counter > self.start and self.counter < self.end:
             ret = relay.Call(call.op, args, call.attrs)
 
             # skip the float op, i.e., float->int cast
@@ -244,11 +243,11 @@ class ExprDeviceAnnot(ExprMutator):
         """
         args = call.args
         odtype = _get_tensor_type(call)
-        op = call.op
 
         if odtype == "float32":
             return True
-        elif op == self.cast:
+
+        if call.op == self.cast:
             idtype = _get_tensor_type(args[0])
             if idtype == "float32":
                 return True
@@ -578,7 +577,8 @@ def graph_pack(expr,
     """
     assert isinstance(expr, relay.Function)
     assert ((start_name != stop_name) or (start_name_idx is None != stop_name_idx is None) or \
-            (not (start_name_idx is None and stop_name_idx is None)) or (start_name_idx < stop_name_idx))
+            (not (start_name_idx is None and stop_name_idx is None)) \
+            or (start_name_idx < stop_name_idx))
     expr = get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, count_meta)
     expr = run_opt_pass(expr, transform.InferType())
     packer = ExprPack(bfactor, cfactor, weight_bits)
@@ -599,8 +599,6 @@ def graph_pack(expr,
 
         device_annot = ExprDeviceAnnot(start=start, end=end)
         expr = device_annot.visit(expr)
-        ret = run_opt_pass(expr, transform.InferType())
+        return run_opt_pass(expr, transform.InferType())
 
-        return ret
-    else:
-        return expr
+    return expr

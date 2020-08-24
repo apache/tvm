@@ -56,10 +56,9 @@ RELAY_REGISTER_OP("on_device")
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute",
-                           [] (const Attrs& attrs,
-                               const Array<te::Tensor>& inputs,
-                               const Type& out_type) -> Array<te::Tensor> {
-                           return {topi::identity(inputs[0])};
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_type) -> Array<te::Tensor> {
+                             return {topi::identity(inputs[0])};
                            });
 
 Expr StopFusion(Expr data) {
