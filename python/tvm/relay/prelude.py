@@ -1207,7 +1207,7 @@ class TensorArrayOps(object):
                                      self.prelude.hd(tensor_array_expand_dims),
                                      self.prelude.tl(tensor_array_expand_dims))
         self.prelude.mod[stack_var] = \
-            ToANormalFormExpr(Function([tensor_array], tensors, tensor_type_var(), []))
+            Function([tensor_array], ToANormalFormExpr(tensors), tensor_type_var(), [])
 
     def register(self):
         """Register all tensor array ops in Prelude"""
