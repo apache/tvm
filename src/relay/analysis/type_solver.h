@@ -66,7 +66,7 @@ class TypeSolver {
   TypeSolver(const GlobalVar& current_func, const IRModule& _mod, ErrorReporter* err_reporter);
   ~TypeSolver();
 
-  void SetCurrentFunc(GlobalVar current_func) { this->current_func = current_func; }
+  void SetCurrentFunc(const GlobalVar& current_func) { this->current_func = current_func; }
 
   /*!
    * \brief Add a type constraint to the solver.

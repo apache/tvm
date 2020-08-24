@@ -86,31 +86,6 @@ struct ResolvedTypeInfo {
   Array<Type> type_args = Array<Type>(ObjectPtr<Object>(nullptr));
 };
 
-// helper class to dedup typevars of a type
-// - types do not have to be already typechecked
-//
-// This is used to Dedup GlobalVar type to avoid
-// incorrect type resolving across different usages
-class DeDupType : public TypeMutator, public ExprMutator, public PatternMutator {
- public:
-  TypeVar Fresh(const TypeVar& tv) {
-    TypeVar ret = TypeVar(tv->name_hint, tv->kind);
-    type_rename_[tv] = ret;
-    return ret;
-  }
-
-  Type VisitType(const Type& t) final { return t.defined() ? TypeMutator::VisitType(t) : t; }
-
-  Pattern VisitPattern(const Pattern& p) final { return PatternFunctor::VisitPattern(p); }
-
-  Type VisitType_(const TypeVarNode* op) final {
-    TypeVar v = GetRef<TypeVar>(op);
-    return type_rename_.count(v) != 0 ? type_rename_.at(v) : Fresh(v);
-  }
-
- private:
-  std::unordered_map<TypeVar, TypeVar, ObjectPtrHash, ObjectPtrEqual> type_rename_;
-};
 //
 // The inference algorithm can roughly be devided into three stages:
 // - Populate the constraints by visiting the expression (TypeInferencer.GetType)
@@ -150,7 +125,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       if (expr.as<GlobalVarNode>() != nullptr) {
         // if we don't dedup GlobalVarNode, two functions that use the same GlobalVar
         // may resolve to the same type incorrectly
-        return DeDupType().VisitType(it->second.checked_type);
+        return DeDupType(it->second.checked_type);
       }
       return it->second.checked_type;
     }

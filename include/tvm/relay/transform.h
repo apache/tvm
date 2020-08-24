@@ -503,6 +503,15 @@ TVM_DLL Function UnCPS(const Function& f);
  */
 TVM_DLL Expr DeDup(const Expr& e);
 
+/*!
+ * \brief Deduplicate the bound type variables in the type.
+ *
+ * \param e the type (does not have to be typechecked).
+ *
+ * \return the deduplicated type.
+ */
+TVM_DLL Type DeDupType(const Type& e);
+
 }  // namespace relay
 }  // namespace tvm
 

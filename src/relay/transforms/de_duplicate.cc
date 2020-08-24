@@ -99,6 +99,33 @@ Expr DeDup(const Expr& e) {
   return ret;
 }
 
+// dedup bound type variables in type
+// - types do not have to be already typechecked
+Type DeDupType(const Type& e) {
+  class DeDupTypeMutator : public TypeMutator, public ExprMutator, public PatternMutator {
+   public:
+    TypeVar Fresh(const TypeVar& tv) {
+      TypeVar ret = TypeVar(tv->name_hint, tv->kind);
+      type_rename_[tv] = ret;
+      return ret;
+    }
+
+    Type VisitType(const Type& t) final { return t.defined() ? TypeMutator::VisitType(t) : t; }
+
+    Pattern VisitPattern(const Pattern& p) final { return PatternFunctor::VisitPattern(p); }
+
+    Type VisitType_(const TypeVarNode* op) final {
+      TypeVar v = GetRef<TypeVar>(op);
+      return type_rename_.count(v) != 0 ? type_rename_.at(v) : Fresh(v);
+    }
+
+   private:
+    std::unordered_map<TypeVar, TypeVar, ObjectPtrHash, ObjectPtrEqual> type_rename_;
+  };
+
+  Type ret = DeDupTypeMutator().VisitType(e);
+  return ret;
+}
 TVM_REGISTER_GLOBAL("relay._transform.dedup").set_body_typed(DeDup);
 
 }  // namespace relay
