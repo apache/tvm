@@ -140,7 +140,6 @@ def _strided_slice_shape_func_input_shape(data_shape, begin, end, strides, slice
             cbegin = int64(begin[i])
             if cbegin < 0:
                 cbegin += int64(data_shape[i])
-            assert cbegin >= 0, "begin value is too negative"
         if len(end) <= i:
             cend = int64(data_shape[i])
         elif slice_mode != 0:
@@ -156,7 +155,6 @@ def _strided_slice_shape_func_input_shape(data_shape, begin, end, strides, slice
                 cend = int64(end[i])
                 if cend < 0:
                     cend += int64(data_shape[i])
-            assert cend >= 0, "end value is too negative"
         assert cstride != 0, "Strides can't be zero."
         if cstride < 0:
             slice_range = cbegin - cend
