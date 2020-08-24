@@ -315,6 +315,10 @@ TVM_REGISTER_GLOBAL("relay._transform.ToANormalForm").set_body_typed([]() {
   return ToANormalForm();
 });
 
+TVM_REGISTER_GLOBAL("relay._transform.ToANormalFormExpr").set_body_typed([](const Expr& e) {
+  return ToANormalForm(e);
+});
+
 }  // namespace transform
 
 }  // namespace relay

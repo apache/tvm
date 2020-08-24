@@ -27,6 +27,7 @@ from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard
 from . import op, transform
 from .analysis import free_vars
+from tvm.relay.transform import ToANormalFormExpr
 
 def get_tensor_array_shape(expr, dtype, prelude):
     """Get the static shape of a tensor array if it has fixed rank shape.
@@ -204,7 +205,6 @@ class StaticTensorArrayOps(object):
 
         self.prelude.mod[concat_var] = \
             Function([x, y], Match(x, [case], False), tensor_type_var(), [])
-
 
     def define_tensor_expand_dims(self):
         """Defines a function to grow a tensor_t's rank by adding one dimension in front
@@ -512,8 +512,9 @@ class StaticTensorArrayOps(object):
                                      self.prelude.hd(tensor_array_expand_dims),
                                      self.prelude.tl(tensor_array_expand_dims))
         output_tensor_type_var, _ = self._get_adt_by_shape(output_shape)
-        self.prelude.mod[stack_var] = Function([tensor_array], tensors,
-                                               output_tensor_type_var(), [])
+        self.prelude.mod[stack_var] = \
+            Function([tensor_array], tensors,
+                     output_tensor_type_var(), [])
 
     def define_tensor_array_gather(self):
         """Defines a function to return the selected values in a tensor array as tensor_t.
@@ -810,7 +811,7 @@ class TensorArrayOps(object):
                                                tensor4_var(op.concatenate([t41, t42], axis=0)))],
                                     False))
         # op.concatenate does not support tensor with rank higher than 4
-        self.prelude.mod[concat_var] =\
+        self.prelude.mod[concat_var] = \
             Function([x, y], Match(x, [tensor1_case,
                                        tensor2_case,
                                        tensor3_case,
@@ -1168,7 +1169,7 @@ class TensorArrayOps(object):
         current = Var("current", scalar_type('int32'))
         limit = Var("limit", scalar_type('int32'))
         indices_ = Var('indices_', TensorType([Any()], 'int32'))
-        helper_body =\
+        helper_body = \
             If(equal(current, const(0)),
                stack_var(accu),
                helper_var(
@@ -1188,7 +1189,7 @@ class TensorArrayOps(object):
         indices_shape = op.shape_of(indices)
         limit = op.take(indices_shape, const(0))
         body = helper_var(tensor_array, self.prelude.nil(), limit, limit, indices)
-        self.prelude.mod[gather_var] =\
+        self.prelude.mod[gather_var] = \
             Function([tensor_array, indices], body, tensor_type_var(), [])
 
     def define_tensor_array_stack(self):
@@ -1206,7 +1207,8 @@ class TensorArrayOps(object):
         tensors = self.prelude.foldl(concat_var,
                                      self.prelude.hd(tensor_array_expand_dims),
                                      self.prelude.tl(tensor_array_expand_dims))
-        self.prelude.mod[stack_var] = Function([tensor_array], tensors, tensor_type_var(), [])
+        self.prelude.mod[stack_var] = \
+            ToANormalFormExpr(Function([tensor_array], tensors, tensor_type_var(), []))
 
     def register(self):
         """Register all tensor array ops in Prelude"""
@@ -1238,7 +1240,6 @@ class Prelude:
             mod = IRModule()
         self.mod = mod
         self.load_prelude()
-        self.mod = relay.transform.ToANormalForm()(self.mod)
 
     def get_name(self, canonical, dtype):
         """Get name corresponding to the canonical name"""
