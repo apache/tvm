@@ -125,7 +125,7 @@ DEFINE_SKETCH_GENERATION_RULE(RuleSpecialComputeLocationGPU);
 /********** Init Population **********/
 
 /*! \brief The base class for derivation rules used in the initial population. */
-class InitPopulationRule {
+class PopulationGenerationRule {
  public:
   /*! \brief Result enumeration of the apply function. */
   enum class ResultKind : int { kValid = 0, kInvalid = 1 };
@@ -141,17 +141,13 @@ class InitPopulationRule {
 };
 
 #define DEFINE_INIT_POPULATION_RULE(rule_name)                            \
-  class rule_name : public InitPopulationRule {                           \
+  class rule_name : public PopulationGenerationRule {                     \
    public:                                                                \
     ResultKind Apply(SketchPolicyNode* policy, State* state) const final; \
   };
 
 /*! \brief The rule that fills the incomplete SplitSteps. */
 DEFINE_INIT_POPULATION_RULE(InitFillTileSize);
-
-/*! \brief The rule that randomly changes the computation location for some stages, which do not
- * need tiling and are not strictly inlineable(e.g. data padding). */
-DEFINE_INIT_POPULATION_RULE(InitChangeComputeLocation);
 
 /*! \brief The rule that annotates parallel for CPU. */
 DEFINE_INIT_POPULATION_RULE(InitParallel);
@@ -168,20 +164,8 @@ DEFINE_INIT_POPULATION_RULE(InitThreadBind);
 /********** Mutation **********/
 
 /*! \brief The base class for mutation rules used in the evolutionary search. */
-class MutationRule {
+class PopulationMutationRule : public PopulationGenerationRule {
  public:
-  /*! \brief Result enumeration of the apply function. */
-  enum class ResultKind : int { kValid = 0, kInvalid = 1 };
-
-  /*!
-   * \brief Apply function of this rule.
-   * \param policy The SketchPolicyNode of this rule, some member may get changed during the
-   * rule applying. (e.g. random number generator)
-   * \param state The state to apply this rule, update inplace.
-   * \return The result of this rule, indicate if there's any valid state generated.
-   */
-  virtual ResultKind Apply(SketchPolicyNode* policy, State* state) const = 0;
-
   /*!
    * \brief Get the priority level of this mutation rule.
    * \return The priority level of this mutation rule. Higher the better.
@@ -189,15 +173,23 @@ class MutationRule {
   virtual int GetLevel(const SearchTask& task) const = 0;
 };
 
+// A helper to define mutation rules with a constant rule level.
+#define DEFINE_MUTATE_POPULATION_RULE(rule_name, rule_level)                \
+  class rule_name : public PopulationMutationRule {                         \
+   public:                                                                  \
+    ResultKind Apply(SketchPolicyNode* policy, State* state) const final;   \
+    int GetLevel(const SearchTask& task) const final { return rule_level; } \
+  };
+
 /*! \brief The rule that mutates tile size by randomly dividing a tile size by a factor
     and multipling it to another tile size. */
-class MutateTileSize : public MutationRule {
- public:
-  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
-  int GetLevel(const SearchTask& task) const final { return 100; }
-};
+DEFINE_MUTATE_POPULATION_RULE(MutateTileSize, 100);
 
-class MutateMaxUnrollFactor : public MutationRule {
+/*! \brief The rule that mutates the fusion iterators annotated by parallel. */
+DEFINE_MUTATE_POPULATION_RULE(MutateParallel, 50);
+
+/*! \brief The rule that mutates the factor of a randomly selected auto max unroll step. */
+class MutateMaxUnrollFactor : public PopulationMutationRule {
  public:
   ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
   int GetLevel(const SearchTask& task) const final { return 10; }
@@ -206,7 +198,9 @@ class MutateMaxUnrollFactor : public MutationRule {
   const std::vector<int> gpu_unroll_cands_ = {0, 16, 64, 512};
 };
 
-class MutateComputeLocation : public MutationRule {
+/*! \brief The rule that randomly changes the computation location for some stages, which do not
+ * need tiling and are not strictly inlineable(e.g. data padding). */
+class MutateComputeLocation : public PopulationMutationRule {
  public:
   ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
   int GetLevel(const SearchTask& task) const final {
@@ -215,12 +209,6 @@ class MutateComputeLocation : public MutationRule {
     }
     return 5;
   }
-};
-
-class MutateParallel : public MutationRule {
- public:
-  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
-  int GetLevel(const SearchTask& task) const final { return 50; }
 };
 
 }  // namespace auto_scheduler

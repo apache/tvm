@@ -94,9 +94,9 @@ class SketchPolicyNode : public SearchPolicyNode {
   /*! \brief The rules to generate sketches. */
   std::vector<SketchGenerationRule*> sketch_rules;
   /*! \brief The rules to generate initial states. */
-  std::vector<InitPopulationRule*> init_rules;
+  std::vector<PopulationGenerationRule*> init_rules;
   /*! \brief The rules to mutate states. */
-  std::vector<MutationRule*> mutation_rules;
+  std::vector<PopulationMutationRule*> mutation_rules;
   /*! \brief Random generator. */
   std::mt19937 rand_gen;
   /*! \brief Memorize split space for Split. */

@@ -60,7 +60,6 @@ static RuleSpecialComputeLocationGPU rule_special_compute_location_gpu;
 /********** Init population rules **********/
 
 static InitFillTileSize init_fill_tile_size;
-static InitChangeComputeLocation init_change_compute_location;
 static InitParallel init_parallel;
 static InitUnroll init_unroll;
 static InitVectorization init_vectorization;
@@ -125,7 +124,7 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
   node->init_rules.push_back(&init_fill_tile_size);  // This should always be the first rule
   if (IsCPUTask(node->search_task)) {
     // The default init population rules for CPU policy
-    node->init_rules.push_back(&init_change_compute_location);
+    node->init_rules.push_back(&mutate_compute_location);
     node->init_rules.push_back(&init_parallel);
     node->init_rules.push_back(&init_unroll);
     node->init_rules.push_back(&init_vectorization);
@@ -350,7 +349,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
     // Derivation rule based enumeration
     bool valid = true;
     for (const auto& rule : init_rules) {
-      if (rule->Apply(this, &tmp_s) == InitPopulationRule::ResultKind::kInvalid) {
+      if (rule->Apply(this, &tmp_s) == PopulationGenerationRule::ResultKind::kInvalid) {
         valid = false;
         break;
       }
@@ -482,7 +481,7 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
       if (uniform_dist(rand_gen) < mutation_prob) {
         // Select a rule and mutate the state.
         const auto rule = mutation_rules[RandomChoose(rule_select_probs, &rand_gen)];
-        if (rule->Apply(this, &tmp_s) == MutationRule::ResultKind::kValid) {
+        if (rule->Apply(this, &tmp_s) == PopulationGenerationRule::ResultKind::kValid) {
           pnext->push_back(std::move(tmp_s));
         } else {
           fail_ct++;
