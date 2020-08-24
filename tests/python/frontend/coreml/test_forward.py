@@ -586,6 +586,68 @@ def test_forward_reduce():
                 _verify_reduce(dshape, "argmax", axis, np.argmax, dtype='int32')
 
 
+def verify_reshape(input_dim, target_shape, mode):
+    dtype = 'float32'
+
+    a_np = np.random.uniform(-100.0, 100.0, size=input_dim).astype(dtype)
+    ref_val = np.reshape(a_np, target_shape)
+
+    inputs = [('input', datatypes.Array(*input_dim))]
+    output = [('output', datatypes.Array(*ref_val.shape))]
+    builder = NeuralNetworkBuilder(inputs, output)
+    builder.add_reshape(name="reshape",
+                       input_name='input',
+                       output_name='output',
+                       target_shape=target_shape,
+                       mode=mode)
+
+    model = cm.models.MLModel(builder.spec)
+    for target, ctx in ctx_list():
+        out = run_tvm_graph(model, target, ctx, [a_np],
+                            ['input'], ref_val.shape, dtype)
+        tvm.testing.assert_allclose(out, ref_val, rtol=1e-5)
+
+
+def test_forward_reshape():
+    for mode in [0, 1]:
+        verify_reshape((20,), (1, 2, 2, 5), mode)
+        verify_reshape((1, 3, 20, 20), (1, 12, 10, 10), mode)
+
+
+def verify_split(input_dim, nOutputs):
+    dtype = 'float32'
+
+    a_np = np.random.uniform(-100.0, 100.0, size=input_dim).astype(dtype)
+    ref_val = np.split(a_np, nOutputs, axis=-3)
+
+    inputs = [('input', datatypes.Array(*input_dim))]
+
+    output_names = []
+    outputs = []
+    output_shapes = []
+    for i, out in enumerate(ref_val):
+        output_name = "output" + str(i)
+        output_names = output_names + [output_name]
+        outputs = outputs + [(output_name, datatypes.Array(*out.shape))]
+        output_shapes = output_shapes + [out.shape]
+
+    builder = NeuralNetworkBuilder(inputs, outputs)
+    builder.add_split(name="split",
+                      input_name='input',
+                      output_names=output_names)
+
+    model = cm.models.MLModel(builder.spec)
+    for target, ctx in ctx_list():
+        out = run_tvm_graph(model, target, ctx, [a_np],
+                            ['input'], output_shapes, [dtype] * len(output_shapes))
+        tvm.testing.assert_allclose(out, ref_val, rtol=1e-5)
+
+
+def test_forward_split():
+    verify_split((1, 4, 4, 4,), 2)
+    verify_split((1, 3, 30, 20,), 3)
+
+
 def verify_image_scaler(input_dim, blue_bias=0.0, green_bias=0.0, red_bias=0.0, image_scale=1.0):
     dtype = 'float32'
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -664,6 +726,8 @@ if __name__ == '__main__':
     test_forward_min()
     test_forward_unary()
     test_forward_reduce()
+    test_forward_reshape()
+    test_forward_split()
     test_mobilenet_checkonly()
     test_resnet50_checkonly()
     test_forward_image_scaler()

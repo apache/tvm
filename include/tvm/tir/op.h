@@ -617,6 +617,23 @@ TVM_DECLARE_INTRIN_BINARY(hypot);
 TVM_DECLARE_INTRIN_BINARY(ldexp);
 
 namespace tir {
+
+/*!
+ * \brief Check if type is a pointer to a runtime element type.
+ * \param type The type to be checked.
+ * \param element_type The corresponding element type.
+ * \return The check results
+ */
+inline bool IsPointerType(const Type& type, const DataType& element_type) {
+  if (!type.defined()) return false;
+  if (const auto* ptr_type = type.as<PointerTypeNode>()) {
+    if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
+      return prim_type->dtype == element_type;
+    }
+  }
+  return false;
+}
+
 /*!
  * \brief Make a const value with certain data type.
  * \param t The target type.

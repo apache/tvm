@@ -41,19 +41,21 @@ def test_resize_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, 100, 200), "int8")
 
 def test_resize():
-    def verify_resize(dshape, scale, method, layout):
+    def verify_resize(dshape, scale, method, layout, coord_trans):
         if layout == "NHWC":
             size = (dshape[1] * scale, dshape[2] * scale)
         else:
             size = (dshape[2] * scale, dshape[3] * scale)
 
         x_data = np.random.uniform(size=dshape).astype("float32")
+
         if method == "bilinear":
-            ref_res = tvm.topi.testing.bilinear_resize_python(x_data, size, layout)
+            ref_res = tvm.topi.testing.bilinear_resize_python(x_data, size, layout, coord_trans)
         else:
             ref_res = tvm.topi.testing.upsampling_python(x_data, (scale, scale), layout)
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.image.resize(x, size, layout, method, "align_corners")
+        z = relay.image.resize(x, size, layout, method,
+                              coordinate_transformation_mode=coord_trans)
         assert "size=" in z.astext()
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
@@ -63,10 +65,13 @@ def test_resize():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
-    for method in ["bilinear", "nearest_neighbor"]:
-        for layout in ["NHWC", "NCHW"]:
-            verify_resize((1, 4, 4, 4), 2, method, layout)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-5)
+
+    for layout in ["NHWC", "NCHW"]:
+        verify_resize((1, 4, 4, 4), 2, "bilinear", layout, "align_corners")
+        verify_resize((2, 8, 17, 20), 3, "bilinear", layout, "half_pixel")
+        verify_resize((2, 8, 17, 20), 3, "bilinear", layout, "asymmetric")
+        verify_resize((3, 4, 5, 6), 5, "nearest_neighbor", layout, "asymmetric")
 
 def test_resize3d_infer_type():
     n, c, d, h, w = te.size_var("n"), te.size_var("c"), te.size_var("d"), te.size_var("h"), te.size_var("w")

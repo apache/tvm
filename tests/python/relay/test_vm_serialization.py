@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, missing-docstring, no-else-return
 """Unit tests for the Relay VM serialization and deserialization."""
+import pytest
 import numpy as np
 
 import tvm
@@ -291,22 +292,11 @@ def test_vm_shape_of():
 
     newshape_var = relay.var('newshape', shape=(2,), dtype='int64')
     args.append(np.array((1, -1), dtype='int64'))
-    main = relay.reshape(relu_x, newshape=newshape_var)
+    main = relay.Function([x, newshape_var], relay.reshape(relu_x, newshape=newshape_var))
 
     res = get_serialized_output(main, *args).asnumpy()
     tvm.testing.assert_allclose(res.flatten(), data.flatten())
 
 
 if __name__ == "__main__":
-    test_serializer()
-    test_save_load()
-    test_const()
-    test_if()
-    test_loop()
-    test_tuple()
-    test_adt_list()
-    test_adt_compose()
-    test_closure()
-    test_synthetic()
-    test_mobilenet()
-    test_vm_shape_of()
+    pytest.main([__file__])

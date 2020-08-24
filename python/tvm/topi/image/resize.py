@@ -529,8 +529,11 @@ def resize(data, size, layout="NCHW", method="bilinear",
         or [batch, in_height*scale, in_width*scale, channel]
         or 5-D with shape [batch, channel-major, in_height*scale, in_width*scale, channel-minor]
     """
-
     method = method.lower()
+    if method == "nearest_neighbor" and coordinate_transformation_mode != "asymmetric":
+        raise ValueError('Topi Resize does not support the combination of method %s ' \
+                         'and coordinate_transformation_mode %s' %
+                         (method, coordinate_transformation_mode))
     if layout == 'NHWC':
         in_n, in_h, in_w, in_c = data.shape
         if output_shape is None:

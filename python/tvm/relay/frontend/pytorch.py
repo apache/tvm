@@ -31,6 +31,7 @@ from .. import expr as _expr
 from .. import op as _op
 from ..ty import TupleType, TensorType, Any
 from ..loops import while_loop
+from .. import transform
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
@@ -273,16 +274,18 @@ def _slice():
             end[dim] = min(end[dim], int(inputs[3]))
         else:
             if isinstance(inputs[3], _expr.Call):
-                end[dim] = np.asscalar(_infer_value(inputs[3], {}).asnumpy().astype(np.int))
+                target_end = np.asscalar(_infer_value(inputs[3], {}).asnumpy().astype(np.int))
             else:
-                end[dim] = inputs[3]
+                target_end = inputs[3]
+
+            end[dim] = min(end[dim], target_end)
 
         strides.append(int(inputs[4]))
         return _op.transform.strided_slice(data,
                                            begin=_expr.const(begin),
                                            end=_expr.const(end),
                                            strides=_expr.const(strides),
-                                           slice_mode="size")
+                                           slice_mode="end")
     return _impl
 
 def _split():
@@ -1507,14 +1510,16 @@ def _to():
         cast_func = {
             6: float,
             3: int,
+            4: int
         }
         cast_func_expr = {
             6: lambda x: _op.cast(x, "float32"),
             3: lambda x: _op.cast(x, "int32"),
+            4: lambda x: _op.cast(x, "int64"),
         }
         if inputs[1] in cast_func and not isinstance(data, _expr.Expr):
             return cast_func[inputs[1]](data)
-        elif inputs[1] in cast_func and isinstance(data, _expr.Expr):
+        elif inputs[1] in cast_func_expr and isinstance(data, _expr.Expr):
             return cast_func_expr[inputs[1]](data)
         return data
 
@@ -1536,7 +1541,9 @@ def _upsample(method, prelude):
         else:
             align_corners = False
 
-        if align_corners:
+        if method == "nearest_neighbor":
+            coord_trans = "asymmetric"
+        elif align_corners:
             coord_trans = "align_corners"
         else:
             coord_trans = "half_pixel"
@@ -1581,7 +1588,9 @@ def _upsample3d(method):
         else:
             align_corners = False
 
-        if align_corners:
+        if method == "nearest_neighbor":
+            coord_trans = "asymmetric"
+        elif align_corners:
             coord_trans = "align_corners"
         else:
             coord_trans = "half_pixel"
@@ -1749,6 +1758,50 @@ def _one_hot():
         off_value = tvm.relay.const(0.0, dtype)
 
         return _op.one_hot(indices, on_value, off_value, num_classes, -1, dtype)
+    return _impl
+
+
+def _index():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        indices = []
+        raw_indices = []
+        max_indices_len = -1
+        for index in inputs[1]:
+            if not isinstance(index, _expr.Constant):
+                try:
+                    index = _expr.const(_infer_value(index, {}))
+                except Exception:
+                    raise RuntimeError("Only supports constant indices for "
+                                       "pytorch advanced indexing ")
+            raw_indices.append(index)
+            cindex_len = index.data.shape[0]
+            if cindex_len > max_indices_len:
+                max_indices_len = cindex_len
+
+        for index in raw_indices:
+            cnp = index.data.asnumpy()
+            cindex_len = cnp.shape[0]
+            if cindex_len < max_indices_len:
+                cnp = np.tile(cnp, max_indices_len // cindex_len)
+            indices.append(cnp)
+
+        ret = []
+        slice_map = {}
+        for i in range(indices[0].shape[0]):
+            tmp = data
+            current_indices = []
+            for index in indices:
+                current_indices.append(index[i])
+                index_key = tuple(current_indices)
+                if index_key in slice_map:
+                    tmp = slice_map[index_key]
+                else:
+                    tmp = _op.take(tmp, _expr.const(index[i]), axis=0)
+                    slice_map[index_key] = tmp
+            ret.append(_op.expand_dims(tmp, axis=0))
+
+        return _op.concatenate(ret, axis=0)
     return _impl
 
 
@@ -2057,6 +2110,7 @@ def _get_convert_map(prelude):
         "aten::type_as"                         : _type_as(),
         "aten::gather"                          : _gather(),
         "aten::index_select"                    : _select(),
+        "aten::index"                           : _index(),
     }
     return convert_map
 
@@ -2127,6 +2181,7 @@ def _report_missing_conversion(op_names, convert_map):
         msg = "The following operators are not implemented: {}".format(missing)
         raise NotImplementedError(msg)
 
+
 def _getattr_attr_name(node):
     attribute_names = node.attributeNames()
     assert len(attribute_names) == 1
@@ -2136,6 +2191,7 @@ def _getattr_attr_name(node):
 
 def _getattr_full_name(getattrs):
     return ".".join([_getattr_attr_name(node) for node in getattrs])
+
 
 def _get_pytorch_value_type(typ, default_dtype="float32"):
     kind = typ.kind()
@@ -2159,16 +2215,25 @@ def _get_pytorch_value_type(typ, default_dtype="float32"):
         return 'UnsupportedType'
 
 
-def _get_input_types(op_node, default_dtype="float32"):
+def _get_input_types(op_node, outputs, default_dtype="float32"):
     """Returns a TVM dtype for each input nodes derived from the torch type"""
-    return [_get_pytorch_value_type(i.type(), default_dtype=default_dtype)
-            for i in op_node.inputs()]
+    in_types = []
+    for inp in op_node.inputs():
+        if inp.node().kind() == "prim::GetAttr":
+            # GetAttr nodes always return None when we call scalarType() on it
+            name = inp.debugName()
+            assert name in outputs
+            if isinstance(outputs[name], _expr.Var):
+                in_types.append(outputs[name].type_annotation.dtype)
+            else:
+                # For quantized modules with parameters, here we would get
+                # "prim::GetAttr[name="_packed_params"]". Since the dtype corresponding to
+                # _packed_params is not needed by quantized ops, we return an arbitrary type.
+                in_types.append(default_dtype)
+        else:
+            in_types.append(_get_pytorch_value_type(inp.type(), default_dtype=default_dtype))
 
-
-def _get_output_types(op_node, default_dtype="float32"):
-    """Returns a TVM dtype for each input nodes derived from the torch type"""
-    return [_get_pytorch_value_type(i.type(), default_dtype=default_dtype)
-            for i in op_node.outputs()]
+    return in_types
 
 
 def _get_constant(node):
@@ -2572,7 +2637,8 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude, defau
             outputs.update(zip(unpacked_names, loop_out))
         else:
             relay_op = convert_map[operator]
-            relay_out = relay_op(inputs, _get_input_types(op_node, default_dtype=default_dtype))
+            relay_out = relay_op(inputs, _get_input_types(op_node, outputs,
+                                                          default_dtype=default_dtype))
 
             if isinstance(relay_out, tuple):
                 # This is for torch operators that return multiple outputs
@@ -2668,4 +2734,4 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_d
 
     mod["main"] = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
 
-    return mod, tvm_params
+    return transform.RemoveUnusedFunctions()(mod), tvm_params
