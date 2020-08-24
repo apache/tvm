@@ -42,12 +42,12 @@ You can run the following script to reproduce the CI sphinx pre-check stage.
 This script skips the tutorial executions and is useful for quickly check the content.
 
 ```bash
-./tests/scrpts/task_sphinx_precheck.sh
+./tests/scripts/task_sphinx_precheck.sh
 ```
 
 The following script runs the full build which includes tutorial executions.
 You will need a gpu CI environment.
 
 ```bash
-./tests/scrpts/task_python_docs.sh
+./tests/scripts/task_python_docs.sh
 ```

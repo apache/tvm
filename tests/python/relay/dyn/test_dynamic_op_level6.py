@@ -73,4 +73,4 @@ def test_dynamic_topk():
 
 
 if __name__ == "__main__":
-    test_topk()
+    test_dynamic_topk()

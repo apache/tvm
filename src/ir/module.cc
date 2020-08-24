@@ -29,6 +29,7 @@
 // and are only used in minimum cases where they are clearly marked.
 //
 // Rationale: We calls into relay's analysis module to verify correctness.
+#include <tvm/parser/parser.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 
@@ -188,16 +189,10 @@ relay::Function RunTypeCheck(const IRModule& mod, const GlobalVar& var, relay::F
   // Type check the item before we add it to the module.
   auto fv = relay::FreeVars(func);
   auto ftv = relay::FreeTypeVars(func, mod);
-  if (fv.size() != 0) {
-    LOG(WARNING) << "There are free variables: " << fv << " in function: " << AsText(func, false)
-                 << std::endl;
-  }
-  if (ftv.size() != 0) {
-    LOG(WARNING) << "There are free type variables: " << ftv
-                 << " in function: " << AsText(func, false) << std::endl;
-  }
-  func = relay::Function(concat(func->params, fv), func->body, func->ret_type,
-                         concat(func->type_params, ftv), func->attrs);
+  CHECK_EQ(fv.size(), 0) << "There are free variables: " << fv
+                         << " in function: " << AsText(func, false);
+  CHECK_EQ(ftv.size(), 0) << "There are free type variables: " << fv
+                          << " in function: " << AsText(func, false);
   // Type check the item before we add it to the module.
   relay::Function checked_func = InferType(func, mod, var);
   return checked_func;
@@ -371,10 +366,7 @@ void IRModuleNode::ImportFromStd(const String& path) {
 std::unordered_set<String> IRModuleNode::Imports() const { return this->import_set_; }
 
 IRModule IRModule::FromText(const String& text, const String& source_path) {
-  auto* f = tvm::runtime::Registry::Get("relay.fromtext");
-  CHECK(f != nullptr) << "The Relay std_path is not set, please register tvm.relay.std_path.";
-  IRModule mod = (*f)(text, source_path);
-  return mod;
+  return tvm::parser::ParseModule(source_path, text);
 }
 
 TVM_REGISTER_NODE_TYPE(IRModuleNode);

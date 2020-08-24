@@ -134,6 +134,13 @@ class VarUseDefAnalysis : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
+  PrimExpr VisitExpr_(const ReduceNode* op) final {
+    for (const auto& iv : op->axis) {
+      this->HandleDef(iv->var.get());
+    }
+    return StmtExprMutator::VisitExpr_(op);
+  }
+
   PrimExpr VisitExpr_(const LoadNode* op) final {
     this->HandleUse(op->buffer_var);
     return StmtExprMutator::VisitExpr_(op);
@@ -184,6 +191,13 @@ Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
     m.use_count_[arg.get()] = 0;
   }
   m(stmt);
+  return m.undefined_;
+}
+
+Array<Var> UndefinedVars(const PrimExpr& expr) {
+  VarUseDefAnalysis m;
+  m.simplify_let_ = false;
+  m(expr);
   return m.undefined_;
 }
 

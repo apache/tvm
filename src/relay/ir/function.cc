@@ -27,7 +27,7 @@ namespace tvm {
 namespace relay {
 
 Function::Function(tvm::Array<Var> params, Expr body, Type ret_type,
-                   tvm::Array<TypeVar> type_params, DictAttrs attrs) {
+                   tvm::Array<TypeVar> type_params, DictAttrs attrs, Span span) {
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   CHECK(params.defined());
   CHECK(type_params.defined());
@@ -36,6 +36,7 @@ Function::Function(tvm::Array<Var> params, Expr body, Type ret_type,
   n->ret_type = std::move(ret_type);
   n->type_params = std::move(type_params);
   n->attrs = std::move(attrs);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 

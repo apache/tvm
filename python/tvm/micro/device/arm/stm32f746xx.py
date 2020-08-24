@@ -30,7 +30,7 @@ BASE_ADDR = 0x20000000
 AVAILABLE_MEM = 320000
 DEFAULT_SECTION_CONSTRAINTS = {
     "text": (18000, MemConstraint.ABSOLUTE_BYTES),
-    "rodata": (100, MemConstraint.ABSOLUTE_BYTES),
+    "rodata": (512, MemConstraint.ABSOLUTE_BYTES),
     "data": (100, MemConstraint.ABSOLUTE_BYTES),
     "bss": (640, MemConstraint.ABSOLUTE_BYTES),
     "args": (4096, MemConstraint.ABSOLUTE_BYTES),

@@ -17,10 +17,10 @@
 
 package org.apache.tvm.tvmrpc;
 
+import android.app.Activity;
 import android.os.ParcelFileDescriptor;
 import java.net.Socket;
 import org.apache.tvm.rpc.ConnectTrackerServerProcessor;
-import org.apache.tvm.rpc.RPCWatchdog;
 
 /**
  * Connect to RPC proxy and deal with requests.
@@ -33,9 +33,15 @@ class RPCProcessor extends Thread {
   private long startTime;
   private ConnectTrackerServerProcessor currProcessor;
   private boolean first = true;
+  private Activity rpc_activity = null;
+
+  public RPCProcessor(Activity activity) {
+    super();
+    rpc_activity = activity;
+  }
 
   @Override public void run() {
-    RPCWatchdog watchdog = new RPCWatchdog();
+    RPCAndroidWatchdog watchdog = new RPCAndroidWatchdog(rpc_activity);
     watchdog.start();
     while (true) {
       synchronized (this) {

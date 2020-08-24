@@ -28,8 +28,10 @@ namespace tvm {
 namespace runtime {
 namespace metal {
 
-const std::shared_ptr<MetalWorkspace>& MetalWorkspace::Global() {
-  static std::shared_ptr<MetalWorkspace> inst = std::make_shared<MetalWorkspace>();
+MetalWorkspace* MetalWorkspace::Global() {
+  // NOTE: explicitly use new to avoid exit-time destruction of global state
+  // Global state will be recycled by OS as the process exits.
+  static MetalWorkspace* inst = new MetalWorkspace();
   return inst;
 }
 
@@ -273,7 +275,7 @@ typedef dmlc::ThreadLocalStore<MetalThreadEntry> MetalThreadStore;
 MetalThreadEntry* MetalThreadEntry::ThreadLocal() { return MetalThreadStore::Get(); }
 
 TVM_REGISTER_GLOBAL("device_api.metal").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = MetalWorkspace::Global().get();
+  DeviceAPI* ptr = MetalWorkspace::Global();
   *rv = static_cast<void*>(ptr);
 });
 

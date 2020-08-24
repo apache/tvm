@@ -40,9 +40,8 @@ namespace auto_scheduler {
  */
 class EmptyPolicyNode : public SearchPolicyNode {
  public:
-  State Search(SearchTask task, int num_measure_trials, int early_stopping,
-               int num_measures_per_round, int verbose, ProgramMeasurer measurer,
-               Optional<Array<SearchCallback>> pre_search_callbacks) final;
+  State Search(int num_measure_trials, int early_stopping, int num_measures_per_round,
+               ProgramMeasurer measurer) final;
 
   static constexpr const char* _type_key = "auto_scheduler.EmptyPolicy";
   TVM_DECLARE_FINAL_OBJECT_INFO(EmptyPolicyNode, SearchPolicyNode);
@@ -61,6 +60,8 @@ class EmptyPolicyNode : public SearchPolicyNode {
  */
 class EmptyPolicy : public SearchPolicy {
  public:
+  explicit EmptyPolicy(SearchTask task, Optional<Array<SearchCallback>> init_search_callbacks);
+
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EmptyPolicy, SearchPolicy, EmptyPolicyNode);
 };
 

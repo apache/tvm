@@ -377,6 +377,48 @@ def _UnaryFunctionLayerParams(op, inexpr, etab):
         raise tvm.error.OpAttributeUnImplemented(msg.format(op_type))
 
 
+def _ReduceLayerParams(op, inexpr, etab):
+    axis = op.axis
+    if axis == op.CHW:
+        axis = [-3, -2, -1]
+    elif axis == op.HW:
+        axis = [-2, -1]
+    elif axis == op.C:
+        axis = -3
+    elif axis == op.H:
+        axis = -2
+    elif axis == op.W:
+        axis = -1
+    else:
+        msg = 'Reduce axis value {} is not supported in frontend CoreML.'
+        raise tvm.error.OpAttributeUnImplemented(msg.format(axis))
+
+    mode = op.mode
+    if mode == op.SUM:
+        return _op.sum(inexpr, axis=axis, keepdims=True)
+    elif mode == op.AVG:
+        return _op.mean(inexpr, axis=axis, keepdims=True)
+    elif mode == op.PROD:
+        return _op.prod(inexpr, axis=axis, keepdims=True)
+    elif mode == op.MIN:
+        return _op.min(inexpr, axis=axis, keepdims=True)
+    elif mode == op.MAX:
+        return _op.max(inexpr, axis=axis, keepdims=True)
+    elif mode == op.ARGMAX:
+        return _op.argmax(inexpr, axis=axis, keepdims=True)
+    else:
+        msg = 'Reduce mode value {} is not supported in frontend CoreML.'
+        raise tvm.error.OpAttributeUnImplemented(msg.format(mode))
+
+
+def _ReshapeLayerParams(op, inexpr, etab):
+    return _op.reshape(inexpr, op.targetShape)
+
+
+def _SplitLayerParams(op, inexpr, etab):
+    return _op.split(inexpr, op.nOutputs, axis=-3)
+
+
 _convert_map = {
     'NeuralNetworkMeanImage': _NeuralNetworkMeanImage,
     'NeuralNetworkImageScaler': _NeuralNetworkImageScaler,
@@ -400,6 +442,9 @@ _convert_map = {
     'MaxLayerParams': _MaxLayerParams,
     'MinLayerParams': _MinLayerParams,
     'UnaryFunctionLayerParams': _UnaryFunctionLayerParams,
+    'ReduceLayerParams': _ReduceLayerParams,
+    'ReshapeLayerParams': _ReshapeLayerParams,
+    'SplitLayerParams': _SplitLayerParams,
 }
 
 # SAME padding: https://www.tensorflow.org/api_guides/python/nn
@@ -429,7 +474,7 @@ def get_pad_value(data, kernel, stride):
     return pad_before, pad_after
 
 
-def coreml_op_to_relay(op, inname, outname, etab):
+def coreml_op_to_relay(op, inname, outnames, etab):
     """Convert coreml layer to a Relay expression and update the expression table.
 
     Parameters
@@ -439,7 +484,7 @@ def coreml_op_to_relay(op, inname, outname, etab):
     inname : str or list of str
         Name of the input Relay expression.
 
-    outname : str
+    outnames : str or list of str
         Name of the output Relay expression.
 
     etab : relay.frontend.common.ExprTable
@@ -453,9 +498,17 @@ def coreml_op_to_relay(op, inname, outname, etab):
         insym = etab.get_expr(inname)
     else:
         insym = [etab.get_expr(i) for i in inname]
-    ret = _convert_map[classname](op, insym, etab)
-    if outname:
-        etab.set_expr(outname, ret, force_override=True)
+    outs = _convert_map[classname](op, insym, etab)
+
+    if outnames:
+        if isinstance(outnames, _base.string_types) or len(outnames) == 1:
+            outname = outnames if isinstance(outnames, _base.string_types) else outnames[0]
+            etab.set_expr(outname, outs, force_override=True)
+        else:
+            # the number of ouputs from model op and tvm relay must be same
+            assert len(outnames) == len(outs)
+            for outname, out in zip(outnames, outs):
+                etab.set_expr(outname, out, force_override=True)
 
 
 def from_coreml(model, shape=None):
@@ -515,16 +568,18 @@ def from_coreml(model, shape=None):
     for l in cc.layers:
         layertype = l.WhichOneof('layer')
         layerop = getattr(l, layertype)
-        assert len(l.output) == 1
         if len(l.input) == 1:
-            coreml_op_to_relay(layerop, l.input[0], l.output[0], etab)
+            coreml_op_to_relay(layerop, l.input[0], l.output, etab)
         else:
-            coreml_op_to_relay(layerop, list(l.input), l.output[0], etab)
+            coreml_op_to_relay(layerop, list(l.input), l.output, etab)
 
     outexpr = [etab.get_expr(o.name) if o.name in etab.exprs else _expr.var(o.name)
                for o in spec.description.output]
-    # for now return first output
-    outexpr = outexpr[0]
+
+    # check there are multiple outputs in the model and all are there in etab
+    multi_out = all([bool(o.name in etab.exprs) for o in spec.description.output])
+    outexpr = _expr.Tuple(outexpr) if multi_out else outexpr[0]
+
     func = _function.Function(analysis.free_vars(outexpr), outexpr)
     params = {k:_nd.array(np.array(v, dtype=np.float32)) for k, v in etab.params.items()}
     return IRModule.from_expr(func), params

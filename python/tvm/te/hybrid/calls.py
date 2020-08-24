@@ -73,7 +73,7 @@ def _math_intrin(func_id, args):
     from tvm.tir import op
     return getattr(op, func_id)(*args)
 
-sqrt = log = exp = tanh = sigmoid = power = popcount = _math_intrin #pylint: disable=invalid-name
+sqrt = log = exp = tanh = sigmoid = power = popcount = round = _math_intrin #pylint: disable=invalid-name
 
 
 def _min_max(func_id, args):

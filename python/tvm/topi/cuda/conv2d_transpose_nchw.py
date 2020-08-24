@@ -65,13 +65,13 @@ def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype,
     out_width = (inp_width - 1) * stride_width + \
         kernel_width - pad_left - pad_right + outpad_width
     pad_left = kernel_width - 1 - pad_left
-    pad_right = kernel_width - 1 - pad_right
+    pad_right = kernel_width - 1 - pad_right + outpad_width
     dilated_width = stride_width * (inp_width - 1) + 1
 
     out_height = (inp_height - 1) * stride_height + \
         kernel_height - pad_top - pad_bottom + outpad_height
     pad_top = kernel_height - 1 - pad_top
-    pad_bottom = kernel_height - 1 - pad_bottom
+    pad_bottom = kernel_height - 1 - pad_bottom + outpad_height
     dilated_height = stride_height * (inp_height - 1) + 1
 
     # compute pad

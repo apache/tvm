@@ -42,10 +42,7 @@ class TuningOptionsNode : public Object {
   int early_stopping;
   /*! \brief The number of programs to be measured at each search round. */
   int num_measures_per_round;
-  /*!
-   * \brief Verbosity level.
-   * 0 for silent, 1 to output information during schedule searching.
-   */
+  /*! \brief Verbosity level. 0 for silent, 1 to output information during schedule searching. */
   int verbose;
   /*! \brief ProgramBuilder which builds the program */
   ProgramBuilder builder;
@@ -53,8 +50,6 @@ class TuningOptionsNode : public Object {
   ProgramRunner runner;
   /*! \brief MeasureCallback functions to be called after each measure batch */
   Optional<Array<MeasureCallback>> measure_callbacks;
-  /*! \brief SearchCallback functions to be called before schedule search */
-  Optional<Array<SearchCallback>> pre_search_callbacks;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("num_measure_trials", &num_measure_trials);
@@ -64,7 +59,6 @@ class TuningOptionsNode : public Object {
     v->Visit("builder", &builder);
     v->Visit("runner", &runner);
     v->Visit("measure_callbacks", &measure_callbacks);
-    v->Visit("pre_search_callbacks", &pre_search_callbacks);
   }
 
   static constexpr const char* _type_key = "auto_scheduler.TuningOptions";
@@ -87,26 +81,22 @@ class TuningOptions : public ObjectRef {
    * \param builder ProgramBuilder which builds the program.
    * \param runner ProgramRunner which runs the program and measure time costs.
    * \param measure_callbacks MeasureCallback functions to be called after each measure batch.
-   * \param pre_search_callbacks SearchCallback functions to be called before schedule search.
    */
   TuningOptions(int num_measure_trials, int early_stopping, int num_measures_per_round, int verbose,
                 ProgramBuilder builder, ProgramRunner runner,
-                Optional<Array<MeasureCallback>> measure_callbacks,
-                Optional<Array<SearchCallback>> pre_search_callbacks);
+                Optional<Array<MeasureCallback>> measure_callbacks);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TuningOptions, ObjectRef, TuningOptionsNode);
 };
 
 /*!
  * \brief Run schedule search for a given compute declaration.
- * \param task The search task of the compute declaration.
  * \param search_policy The search policy.
  * \param tuning_options Tuning and measurement options.
  * \return A `te::schedule` and an Array of `te::Tensor` to be used in `tvm.lower` or
  * `tvm.build`.
  */
-TVM_DLL std::pair<te::Schedule, Array<te::Tensor>> AutoSchedule(SearchTask task,
-                                                                SearchPolicy search_policy,
+TVM_DLL std::pair<te::Schedule, Array<te::Tensor>> AutoSchedule(SearchPolicy search_policy,
                                                                 TuningOptions tuning_options);
 }  // namespace auto_scheduler
 }  // namespace tvm

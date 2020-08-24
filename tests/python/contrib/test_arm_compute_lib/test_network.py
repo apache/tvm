@@ -93,7 +93,7 @@ def test_vgg16():
         return mod, params, inputs
 
     _build_and_run_network(*get_model(), device=device,
-                           tvm_ops=10, acl_partitions=18,
+                           tvm_ops=4, acl_partitions=21,
                            atol=0.002, rtol=0.01)
 
 

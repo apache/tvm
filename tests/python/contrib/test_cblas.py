@@ -20,14 +20,16 @@ from tvm import te
 import numpy as np
 import tvm.topi.testing
 from tvm.contrib import cblas
+from tvm.contrib import mkl
+from tvm.contrib import mkldnn
 
-def verify_matmul_add(m, l, n, transa=False, transb=False, dtype="float32"):
+def verify_matmul_add(m, l, n, lib, transa=False, transb=False, dtype="float32"):
     bias = te.var('bias', dtype=dtype)
     ashape = (l, n) if transa else (n, l)
     bshape = (m, l) if transb else (l, m)
     A = te.placeholder(ashape, name='A', dtype=dtype)
     B = te.placeholder(bshape, name='B', dtype=dtype)
-    C = cblas.matmul(A, B, transa, transb)
+    C = lib.matmul(A, B, transa, transb)
     D = te.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
     s = te.create_schedule(D.op)
 
@@ -42,7 +44,7 @@ def verify_matmul_add(m, l, n, transa=False, transb=False, dtype="float32"):
         if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
-        if not tvm.get_global_func("tvm.contrib.cblas.matmul", True):
+        if not tvm.get_global_func(lib.__name__ + ".matmul", True):
             print("skip because extern function is not available")
             return
         ctx = tvm.cpu(0)
@@ -57,17 +59,34 @@ def verify_matmul_add(m, l, n, transa=False, transb=False, dtype="float32"):
     verify()
 
 def test_matmul_add():
-    verify_matmul_add(235, 128, 1024)
-    verify_matmul_add(235, 128, 1024, True, False)
-    verify_matmul_add(235, 128, 1024, False, True)
-    verify_matmul_add(235, 128, 1024, True, True)
-    verify_matmul_add(1, 16, 4)
-    verify_matmul_add(1, 16, 3, True, False)
-    verify_matmul_add(1, 16, 3, False, False)
-    verify_matmul_add(1, 16, 3, True, True)
+    verify_matmul_add(235, 128, 1024, cblas)
+    verify_matmul_add(235, 128, 1024, cblas, True, False)
+    verify_matmul_add(235, 128, 1024, cblas, False, True)
+    verify_matmul_add(235, 128, 1024, cblas, True, True)
+    verify_matmul_add(235, 128, 1024, mkl)
+    verify_matmul_add(235, 128, 1024, mkl, True, False)
+    verify_matmul_add(235, 128, 1024, mkl, False, True)
+    verify_matmul_add(235, 128, 1024, mkl, True, True)
+    verify_matmul_add(235, 128, 1024, mkldnn)
+    verify_matmul_add(235, 128, 1024, mkldnn, True, False)
+    verify_matmul_add(235, 128, 1024, mkldnn, False, True)
+    verify_matmul_add(235, 128, 1024, mkldnn, True, True)
+    verify_matmul_add(1, 16, 4, cblas)
+    verify_matmul_add(1, 16, 3, cblas, True, False)
+    verify_matmul_add(1, 16, 3, cblas, False, False)
+    verify_matmul_add(1, 16, 3, cblas, True, True)
+    verify_matmul_add(1, 16, 4, mkl)
+    verify_matmul_add(1, 16, 3, mkl, True, False)
+    verify_matmul_add(1, 16, 3, mkl, False, False)
+    verify_matmul_add(1, 16, 3, mkl, True, True)
+    verify_matmul_add(1, 16, 4, mkldnn)
+    verify_matmul_add(1, 16, 3, mkldnn, True, False)
+    verify_matmul_add(1, 16, 3, mkldnn, False, False)
+    verify_matmul_add(1, 16, 3, mkldnn, True, True)
 
 def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):
-    pytest.skip("Quantized dense is supported only for MKL. TVM GPU CI uses openblas")
+    if not tvm.get_global_func("tvm.contrib.mkl.matmul_u8s8s32", True):
+        pytest.skip("Quantized dense is supported only for MKL. TVM GPU CI uses openblas")
     data_dtype = "uint8"
     kernel_dtype = "int8"
     out_dtype = "int32"
@@ -76,7 +95,7 @@ def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):
     bshape = (m, l) if transb else (l, m)
     A = te.placeholder(ashape, name='A', dtype=data_dtype)
     B = te.placeholder(bshape, name='B', dtype=kernel_dtype)
-    C = cblas.matmul_u8s8s32(A, B, transa, transb, dtype=out_dtype)
+    C = mkl.matmul_u8s8s32(A, B, transa, transb, dtype=out_dtype)
     D = te.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
     s = te.create_schedule(D.op)
 
@@ -91,7 +110,7 @@ def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):
         if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
-        if not tvm.get_global_func("tvm.contrib.cblas.matmul_u8s8s32", True):
+        if not tvm.get_global_func("tvm.contrib.mkl.matmul_u8s8s32", True):
             print("skip because extern function is not available")
             return
         ctx = tvm.cpu(0)
@@ -117,7 +136,7 @@ def test_quantized_matmul_add():
     verify_quantized_matmul_add(1, 16, 3, False, True)
     verify_quantized_matmul_add(1, 16, 3, True, True)
 
-def verify_batch_matmul(batch, m, l, n, transa=False, transb=False, iterative=False, dtype="float32"):
+def verify_batch_matmul(batch, m, l, n, lib, transa=False, transb=False, iterative=False, dtype="float32"):
     ashape = (batch, l, n) if transa else (batch, n, l)
     bshape = (batch, m, l) if transb else (batch, l, m)
     A = te.placeholder(ashape, name='A', dtype=dtype)
@@ -137,7 +156,7 @@ def verify_batch_matmul(batch, m, l, n, transa=False, transb=False, iterative=Fa
         if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
-        if not tvm.get_global_func("tvm.contrib.cblas.matmul", True):
+        if not tvm.get_global_func(lib.__name__ + ".matmul", True):
             print("skip because extern function is not available")
             return
         ctx = tvm.cpu(0)
@@ -151,16 +170,26 @@ def verify_batch_matmul(batch, m, l, n, transa=False, transb=False, iterative=Fa
     verify()
 
 def test_batch_matmul():
-    verify_batch_matmul(16, 235, 128, 1024)
-    verify_batch_matmul(16, 235, 128, 1024, True, False)
-    verify_batch_matmul(16, 235, 128, 1024, False, True)
-    verify_batch_matmul(16, 235, 128, 1024, True, True)
-    verify_batch_matmul(1, 1, 16, 3)
-    verify_batch_matmul(1, 1, 16, 3, True, False)
-    verify_batch_matmul(1, 1, 16, 3, False, False)
-    verify_batch_matmul(1, 1, 16, 3, True, True)
-    verify_batch_matmul(1, 1, 16, 3, iterative=True)
+    verify_batch_matmul(16, 235, 128, 1024, cblas)
+    verify_batch_matmul(16, 235, 128, 1024, cblas, True, False)
+    verify_batch_matmul(16, 235, 128, 1024, cblas, False, True)
+    verify_batch_matmul(16, 235, 128, 1024, cblas, True, True)
+    verify_batch_matmul(16, 235, 128, 1024, mkl)
+    verify_batch_matmul(16, 235, 128, 1024, mkl, True, False)
+    verify_batch_matmul(16, 235, 128, 1024, mkl, False, True)
+    verify_batch_matmul(16, 235, 128, 1024, mkl, True, True)
+    verify_batch_matmul(1, 1, 16, 3, cblas)
+    verify_batch_matmul(1, 1, 16, 3, cblas, True, False)
+    verify_batch_matmul(1, 1, 16, 3, cblas, False, False)
+    verify_batch_matmul(1, 1, 16, 3, cblas, True, True)
+    verify_batch_matmul(1, 1, 16, 3, cblas, iterative=True)
+    verify_batch_matmul(1, 1, 16, 3, mkl)
+    verify_batch_matmul(1, 1, 16, 3, mkl, True, False)
+    verify_batch_matmul(1, 1, 16, 3, mkl, False, False)
+    verify_batch_matmul(1, 1, 16, 3, mkl, True, True)
+    verify_batch_matmul(1, 1, 16, 3, mkl, iterative=True)
 
 if __name__ == "__main__":
     test_matmul_add()
+    test_quantized_matmul_add()
     test_batch_matmul()

@@ -594,7 +594,7 @@ def test_add_op_broadcast():
     check_result([x_data, y_data], x_data + y_data, mod=mod)
 
 def test_vm_optimize():
-    mod, params = testing.resnet.get_workload(batch_size=1, num_layers=18)
+    mod, params = testing.synthetic.get_workload()
     comp = relay.vm.VMCompiler()
     opt_mod, _ = comp.optimize(mod, "llvm", params)
 

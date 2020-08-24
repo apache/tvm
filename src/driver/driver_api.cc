@@ -69,7 +69,7 @@ Target DefaultTargetHost(Target target) {
 
 tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std::string name,
                                       int data_alignment, int offset_factor, bool compact) {
-  auto data = tir::Var(name, DataType::Handle());
+  auto data = tir::Var(name, PointerType(PrimType(dtype)));
   bool has_any = false;
   if (!compact) {
     for (const auto& it : shape) {

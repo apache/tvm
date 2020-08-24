@@ -22,6 +22,8 @@ from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas
+from tvm.contrib import mkl
+from tvm.contrib import mkldnn
 
 from .util import get_fp32_len
 from .. import generic, tag
@@ -220,25 +222,56 @@ def schedule_dense_pack(cfg, outs):
     traverse_inline(s, outs[0].op, _callback)
     return s
 
-@autotvm.register_topi_compute("dense_cblas.x86")
-def dense_cblas(cfg, data, weight, bias=None, out_dtype=None):
-    """Compute dense using cblas library"""
+def dense_blas_common(cfg, data, weight, bias, out_dtype, lib):
+    """Compute dense using a BLAS library"""
     M, K = get_const_tuple(data.shape)
     N, _ = get_const_tuple(weight.shape)
     cfg.add_flop(M * K * N * 2)
-    if data.dtype == 'uint8' and weight.dtype == 'int8' and out_dtype == 'int32':
-        C = cblas.matmul_u8s8s32(data, weight, False, True, dtype=out_dtype)
-    elif data.dtype == 'float32':
-        C = cblas.matmul(data, weight, False, True)
+    if data.dtype == "uint8" and weight.dtype == "int8" and out_dtype == "int32":
+        if not hasattr(lib, "matmul_u8s8s32"):
+            raise NotImplementedError(
+                f"Dense with {lib.__name__} for {data.dtype} is not supported "
+                "(matmulu8s8s32 not imlemented)"
+            )
+        C = lib.matmul_u8s8s32(data, weight, False, True, dtype=out_dtype)
+    elif data.dtype == 'float32' or data.dtype == 'float64':
+        C = lib.matmul(data, weight, False, True)
     else:
-        raise NotImplementedError(f"Dense with cblas for {data.dtype} is not supported")
+        raise NotImplementedError(
+            f"Dense with {lib.__name__} for {data.dtype} is not supported"
+        )
 
     if bias is not None:
         C = te.compute(C.shape, lambda i, j: C[i, j] + bias[j].astype(out_dtype),
                        tag=tag.BROADCAST)
     return C
 
+@autotvm.register_topi_compute("dense_cblas.x86")
+def dense_cblas(cfg, data, weight, bias=None, out_dtype=None):
+    """Compute dense using a cblas"""
+    return dense_blas_common(cfg, data, weight, bias, out_dtype, cblas)
+
 @autotvm.register_topi_schedule("dense_cblas.x86")
 def schedule_dense_cblas(_, outs):
     """Create schedule for dense_cblas"""
+    return generic.schedule_extern(outs)
+
+@autotvm.register_topi_compute("dense_mkl.x86")
+def dense_mkl(cfg, data, weight, bias=None, out_dtype=None):
+    """Compute dense using mkl"""
+    return dense_blas_common(cfg, data, weight, bias, out_dtype, mkl)
+
+@autotvm.register_topi_schedule("dense_mkl.x86")
+def schedule_dense_mkl(_, outs):
+    """Create schedule for dense_mkl"""
+    return generic.schedule_extern(outs)
+
+@autotvm.register_topi_compute("dense_mkldnn.x86")
+def dense_mkldnn(cfg, data, weight, bias=None, out_dtype=None):
+    """Compute dense using mkldnn"""
+    return dense_blas_common(cfg, data, weight, bias, out_dtype, mkldnn)
+
+@autotvm.register_topi_schedule("dense_mkldnn.x86")
+def schedule_dense_mkldnn(_, outs):
+    """Create schedule for dense_mkldnn"""
     return generic.schedule_extern(outs)

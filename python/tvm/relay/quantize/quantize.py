@@ -22,6 +22,7 @@ from tvm.runtime import Object
 
 from . import _quantize
 from ._calibrate import calibrate
+from ._partition_conversions import partition_conversions
 from .. import expr as _expr
 from .. import transform as _transform
 
@@ -85,6 +86,7 @@ class QConfig(Object):
         "debug_enabled_ops": None,
         "rounding": "UPWARD",
         "calibrate_chunk_by": -1,
+        "partition_conversions": "disabled",
     }
 
     # pylint: disable=no-member
@@ -178,6 +180,17 @@ def qconfig(**kwargs):
 
     rounding: "UPWARD" or "TONEAREST"
         Rounding direction for fixed point multiplications.
+
+    partition_conversions: 'disabled', 'enabled', or 'fully_integral'
+        If set to 'enabled' or 'fully_integral', partitions a quantized
+        result into a module containing
+        a prefix function (consisting of input conversion into the quantized data space),
+        a middle function (consisting of the core quantized network),
+        a suffix function (consisting of output dequantization),
+        and a main function (that calls the prefix, middle, and suffix functions in succession).
+        If set to 'fully_integral' and there are unquantized operators in the result,
+        an exception is raised.
+        The default value is 'disabled'.
 
     Returns
     -------
@@ -358,5 +371,12 @@ def quantize(mod, params=None, dataset=None):
                                                   "QuantizeRealize"]):
         with quantize_context():
             mod = quantize_seq(mod)
+
+    q_cfg = current_qconfig()
+    assert q_cfg.partition_conversions in ['disabled', 'enabled', 'fully_integral']
+    if q_cfg.partition_conversions != 'disabled':
+        quantized_dtypes = {q_cfg.dtype_input, q_cfg.dtype_weight, q_cfg.dtype_activation}
+        ensure_fully_integral = q_cfg.partition_conversions == 'fully_integral'
+        return partition_conversions(mod, quantized_dtypes, ensure_fully_integral)
 
     return mod

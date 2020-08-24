@@ -42,7 +42,7 @@ RandomModel::RandomModel() {
 void RandomModelNode::Update(const Array<MeasureInput>& inputs,
                              const Array<MeasureResult>& results) {}
 
-void RandomModelNode::Predict(const SearchTask& task, const std::vector<State>& states,
+void RandomModelNode::Predict(const SearchTask& task, const Array<State>& states,
                               std::vector<float>* scores) {
   scores->resize(states.size());
   (*random_number_func)(states.size(), static_cast<void*>(scores->data()));
@@ -62,14 +62,13 @@ void PythonBasedModelNode::Update(const Array<MeasureInput>& inputs,
   update_func(inputs, results);
 }
 
-void PythonBasedModelNode::Predict(const SearchTask& task, const std::vector<State>& states,
+void PythonBasedModelNode::Predict(const SearchTask& task, const Array<State>& states,
                                    std::vector<float>* scores) {
   scores->resize(states.size());
-  predict_func(task, Array<State>(states.begin(), states.end()),
-               static_cast<void*>(scores->data()));
+  predict_func(task, states, static_cast<void*>(scores->data()));
 }
 
-void PythonBasedModelNode::PredictStages(const SearchTask& task, const std::vector<State>& states,
+void PythonBasedModelNode::PredictStages(const SearchTask& task, const Array<State>& states,
                                          std::vector<float>* state_scores,
                                          std::vector<std::vector<float>>* stage_scores) {
   size_t n_states = states.size();
@@ -77,8 +76,26 @@ void PythonBasedModelNode::PredictStages(const SearchTask& task, const std::vect
   std::vector<float> flatten_scores;
   // Allocate sufficient spaces.
   flatten_scores.resize(n_states * n_stages * 2);
-  predict_stage_func(task, Array<State>(states.begin(), states.end()),
-                     static_cast<void*>(flatten_scores.data()));
+  predict_stage_func(task, states, static_cast<void*>(flatten_scores.data()));
+
+  /* For faster data copy between c++ and python, the python part returns scores in a
+   * single flatten array using a packed format. The c++ part then unpacks the flatten array.
+   *
+   * The packed format is:
+   * {
+   *   float  scores[N];                 // scores[i] is the score for states[i].
+   *   int    n_stage_0;                 // the number of stages in states[0]
+   *   float  stage_scores_0[[n_stage_0] // the scores for all stages in states[0]
+   *   int    n_stage_1;                 // the number of stages in states[1]
+   *   float  stage_scores_1[n_stage_1]; // the scores for all stages in states[1]
+   *   ...
+   *   int    n_stage_i;                 // the number of stages in states[i]
+   *   float  stage_scores_1[n_stage_i]; // the scores for all stages in states[i]
+   *   ...  // untill i == N - 1
+   * }
+   * To implement this format, we also store int as float, so we can store all numbers
+   * into a single float array.
+   */
 
   // Unpack flatten scores.
   state_scores->clear();
@@ -144,7 +161,7 @@ TVM_REGISTER_GLOBAL("auto_scheduler.CostModelUpdate")
 TVM_REGISTER_GLOBAL("auto_scheduler.CostModelPredict")
     .set_body_typed([](CostModel model, SearchTask task, Array<State> states) {
       std::vector<float> scores;
-      model->Predict(task, std::vector<State>(states.begin(), states.end()), &scores);
+      model->Predict(task, states, &scores);
       Array<FloatImm> ret;
       for (auto x : scores) {
         ret.push_back(FloatImm(DataType::Float(32), x));

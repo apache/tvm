@@ -26,7 +26,10 @@ def verify_reduction_grad(red_fn, d_shape, axis=None, keepdims=False, exclude=Fa
 
 
 def test_reduction_grad():
-    for op in (relay.sum, relay.variance, relay.mean):
+    def _unbiased_variance(x, axis=None, keepdims=False, exclude=False):
+        return relay.variance(x, axis=axis, keepdims=keepdims, exclude=exclude, unbiased=True)
+
+    for op in (relay.sum, relay.variance, _unbiased_variance, relay.mean):
         verify_reduction_grad(op, (4, 2))
         verify_reduction_grad(op, (4, 2), axis=-1, keepdims=True)
         verify_reduction_grad(op, (4, 2, 1), axis=(1, 2), exclude=True)

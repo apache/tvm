@@ -18,10 +18,26 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm.contrib import random
+from tvm import rpc
+
+def enabled_ctx_list():
+    ctx_list = [('cpu', tvm.cpu(0)),
+                ('gpu', tvm.gpu(0)),
+                ('cl', tvm.opencl(0)),
+                ('metal', tvm.metal(0)),
+                ('rocm', tvm.rocm(0)),
+                ('vulkan', tvm.vulkan(0)),
+                ('vpi', tvm.vpi(0))]
+    for k, v  in ctx_list:
+        assert tvm.context(k, 0) == v
+    ctx_list = [x[1] for x in ctx_list if x[1].exist]
+    return ctx_list
+
+ENABLED_CTX_LIST = enabled_ctx_list()
 
 def test_randint():
-    m = 1024
-    n = 1024
+    m = 10240
+    n = 10240
     A = random.randint(-127, 128, size=(m, n), dtype='int32')
     s = te.create_schedule(A.op)
 
@@ -37,15 +53,15 @@ def test_randint():
         a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), ctx)
         f(a)
         na = a.asnumpy()
-        assert abs(np.mean(na)) < 0.2
+        assert abs(np.mean(na)) < 0.3
         assert np.min(na) == -127
         assert np.max(na) == 127
     verify()
 
 
 def test_uniform():
-    m = 1024
-    n = 1024
+    m = 10240
+    n = 10240
     A = random.uniform(0, 1, size=(m, n))
     s = te.create_schedule(A.op)
 
@@ -61,15 +77,15 @@ def test_uniform():
         a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), ctx)
         f(a)
         na = a.asnumpy()
-        assert abs(np.mean(na) - 0.5) < 1e-2
+        assert abs(np.mean(na) - 0.5) < 1e-1
         assert abs(np.min(na) - 0.0) < 1e-3
         assert abs(np.max(na) - 1.0) < 1e-3
     verify()
 
 
 def test_normal():
-    m = 1024
-    n = 1024
+    m = 10240
+    n = 10240
     A = random.normal(3, 4, size=(m, n))
     s = te.create_schedule(A.op)
 
@@ -85,12 +101,53 @@ def test_normal():
         a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), ctx)
         f(a)
         na = a.asnumpy()
-        assert abs(np.mean(na) - 3) < 1e-2
+        assert abs(np.mean(na) - 3) < 1e-1
         assert abs(np.std(na) - 4) < 1e-2
     verify()
 
+def test_random_fill():
+    def test_local(ctx, dtype):
+        if not tvm.get_global_func("tvm.contrib.random.random_fill", True):
+            print("skip because extern function is not available")
+            return
+        np_ones = np.ones((512, 512), dtype=dtype)
+        value = tvm.nd.empty(np_ones.shape, np_ones.dtype, ctx)
+        random_fill = tvm.get_global_func("tvm.contrib.random.random_fill")
+        random_fill(value)
+
+        assert np.count_nonzero(value.asnumpy()) == 512 * 512
+
+        # make sure arithmentic doesn't overflow too
+        np_values = value.asnumpy()
+        assert np.isfinite(np_values * np_values + np_values).any()
+
+    def test_rpc(dtype):
+        if not tvm.get_global_func("tvm.contrib.random.random_fill", True):
+            print("skip because extern function is not available")
+            return
+        if not tvm.runtime.enabled("rpc") or not tvm.runtime.enabled("llvm"):
+            return
+        np_ones = np.ones((512, 512), dtype=dtype)
+        server = rpc.Server("localhost")
+        remote = rpc.connect(server.host, server.port)
+        value = tvm.nd.empty(np_ones.shape, np_ones.dtype, remote.cpu())
+        random_fill = remote.get_function("tvm.contrib.random.random_fill")
+        random_fill(value)
+
+        assert np.count_nonzero(value.asnumpy()) == 512 * 512
+
+        # make sure arithmentic doesn't overflow too
+        np_values = value.asnumpy()
+        assert np.isfinite(np_values * np_values + np_values).any()
+
+    for dtype in ["bool", "int8", "uint8", "int16", "uint16", "int32", "int32",
+                  "int64", "uint64", "float16", "float32", "float64"]:
+        for ctx in ENABLED_CTX_LIST:
+            test_local(ctx, dtype)
+        test_rpc(dtype)
 
 if __name__ == "__main__":
     test_randint()
     test_uniform()
     test_normal()
+    test_random_fill()

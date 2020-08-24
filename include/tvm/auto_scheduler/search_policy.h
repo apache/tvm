@@ -31,6 +31,17 @@
  *
  * Candidate schedules are measured against the specific hardware target.
  *
+ * We intend to introduce different level of automation on the schedule generation process:
+ * - Level 0(the default level): For all kinds of ops/subgraphs, the search policy should be able
+ *   to generate schedule automatically.
+ * - Level 1: For some complicated ops/subgraphs(e.g. conv2d windograd), the default search space
+ *   of level 0 may be too large to find a high performance schedule efficiently. We provide some
+ *   op attributes to help reduce the total search space, see `SearchPolicyKey` below for more
+ *   information.
+ * - Level 2: For some further special ops/subgraphs, users may more likely to write their own
+ *   template(just like AutoTVM). Search policy should be able to provide a flexible approach as
+ *   well.
+ *
  * \note How to add a new search policy.
  * In design, there's no need for users to implement their own search policy, our formal search
  * policy(will be brought later) should be enough to cover most use cases. Meanwhile, a custom rule
@@ -89,13 +100,24 @@ class SearchCallback : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SearchCallback, ObjectRef, SearchCallbackNode);
 };
 
+/*! \brief Attribute keys of ops used for SearchPolicy. */
+struct SearchPolicyKey {
+  /*! \brief Always apply unroll to the inner most iterator of the specificed iterators. */
+  static constexpr const char* always_unroll_inner = "auto_scheduler_always_unroll_inner";
+  /*! \brief The specified iterators will be placed in the inner most tile without split. */
+  static constexpr const char* no_split_at_inner = "auto_scheduler_no_split_at_inner";
+  /*! \brief The specified iterators are indices of const tensors in "fake reduction". */
+  static constexpr const char* simplify_const_tensor_indices =
+      "auto_scheduler_simplify_const_tensor_indices";
+};
+
 /*!
  * \brief The base class of search policies.
  */
 class SearchPolicyNode : public Object {
  public:
   /*! \brief The current search task. */
-  SearchTask cur_task;
+  SearchTask search_task;
   /*!
    * \brief Verbose level to control the screen output during schedule search.
    * 0 for silent, 1 to output state & measure information during search process.
@@ -103,32 +125,27 @@ class SearchPolicyNode : public Object {
   int verbose;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("cur_task", &cur_task);
+    v->Visit("search_task", &search_task);
     v->Visit("verbose", &verbose);
   }
 
   /*!
    * \brief Do schedule search for a task. Takes the SearchTask as input and returns the best state
    * found during the search.
-   * \param task  The SearchTask for the computation declaration
    * \param num_measure_trials The number of total measurement trials.
    * \param early_stopping Stops the tuning early if no improvement after n measurements.
    * \param num_measures_per_round  The number of programs to be measured at each search round.
-   * \param verbose Verbose level. 0 for silent, 1 to output information during schedule
-   * search.
    * \param measurer A ProgramMeasurer to build and measure programs
-   * \param pre_search_callbacks SearchCallback to be called before schedule search.
    * \return The best state found.
    */
-  virtual State Search(SearchTask task, int num_measure_trials, int early_stopping,
-                       int num_measures_per_round, int verbose, ProgramMeasurer measurer,
-                       Optional<Array<SearchCallback>> pre_search_callbacks) = 0;
+  virtual State Search(int num_measure_trials, int early_stopping, int num_measures_per_round,
+                       ProgramMeasurer measurer) = 0;
 
   /*!
    * \brief Call SearchCallback with the current SearchPolicyNode
    * \param callbacks SearchCallback to be called.
    */
-  void RunCallbacks(const Optional<Array<SearchCallback>>& callbacks);
+  void RunCallbacks(const Array<SearchCallback>& callbacks);
 
   static constexpr const char* _type_key = "auto_scheduler.SearchPolicy";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchPolicyNode, Object);

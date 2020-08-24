@@ -139,6 +139,8 @@ def schedule_reduce(outs):
             for tensor in input_tensors:
                 if tensor.op not in scheduled_ops:
                     traverse_before_reduce(tensor.op)
+        elif isinstance(operator, tvm.te.PlaceholderOp):
+            pass
         else:
             raise RuntimeError("Unsupported operator: %s" % operator.tag)
 

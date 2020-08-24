@@ -30,9 +30,10 @@ namespace relay {
 using tvm::ReprPrinter;
 using namespace tvm::runtime;
 
-Constant::Constant(runtime::NDArray data) {
+Constant::Constant(runtime::NDArray data, Span span) {
   ObjectPtr<ConstantNode> n = make_object<ConstantNode>();
   n->data = std::move(data);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -63,9 +64,10 @@ TensorType ConstantNode::tensor_type() const {
   return TensorType(shape, dtype);
 }
 
-Tuple::Tuple(tvm::Array<relay::Expr> fields) {
+Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
   ObjectPtr<TupleNode> n = make_object<TupleNode>();
   n->fields = std::move(fields);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -81,10 +83,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "Tuple(" << node->fields << ")";
     });
 
-Var::Var(Id vid, Type type_annotation) {
+Var::Var(Id vid, Type type_annotation, Span span) {
   ObjectPtr<VarNode> n = make_object<VarNode>();
   n->vid = std::move(vid);
   n->type_annotation = std::move(type_annotation);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -105,12 +108,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << ")";
     });
 
-Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args) {
+Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span span) {
   ObjectPtr<CallNode> n = make_object<CallNode>();
   n->op = std::move(op);
   n->args = std::move(args);
   n->attrs = std::move(attrs);
   n->type_args = std::move(type_args);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -128,11 +132,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << node->type_args << ")";
     });
 
-Let::Let(Var var, Expr value, Expr body) {
+Let::Let(Var var, Expr value, Expr body, Span span) {
   ObjectPtr<LetNode> n = make_object<LetNode>();
   n->var = std::move(var);
   n->value = std::move(value);
   n->body = std::move(body);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -148,11 +153,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "LetNode(" << node->var << ", " << node->value << ", " << node->body << ")";
     });
 
-If::If(Expr cond, Expr true_branch, Expr false_branch) {
+If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
   ObjectPtr<IfNode> n = make_object<IfNode>();
   n->cond = std::move(cond);
   n->true_branch = std::move(true_branch);
   n->false_branch = std::move(false_branch);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -170,10 +176,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << node->false_branch << ")";
     });
 
-TupleGetItem::TupleGetItem(Expr tuple, int index) {
+TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
   ObjectPtr<TupleGetItemNode> n = make_object<TupleGetItemNode>();
   n->tuple = std::move(tuple);
   n->index = index;
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -189,9 +196,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "TupleGetItemNode(" << node->tuple << ", " << node->index << ")";
     });
 
-RefCreate::RefCreate(Expr value) {
+RefCreate::RefCreate(Expr value, Span span) {
   ObjectPtr<RefCreateNode> n = make_object<RefCreateNode>();
   n->value = std::move(value);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -207,9 +215,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "RefCreateNode(" << node->value << ")";
     });
 
-RefRead::RefRead(Expr ref) {
+RefRead::RefRead(Expr ref, Span span) {
   ObjectPtr<RefReadNode> n = make_object<RefReadNode>();
   n->ref = std::move(ref);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -223,10 +232,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "RefReadNode(" << node->ref << ")";
     });
 
-RefWrite::RefWrite(Expr ref, Expr value) {
+RefWrite::RefWrite(Expr ref, Expr value, Span span) {
   ObjectPtr<RefWriteNode> n = make_object<RefWriteNode>();
   n->ref = std::move(ref);
   n->value = std::move(value);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 

@@ -134,7 +134,7 @@ class WorkspacePool::Pool {
   std::vector<Entry> allocated_;
 };
 
-WorkspacePool::WorkspacePool(DLDeviceType device_type, std::shared_ptr<DeviceAPI> device)
+WorkspacePool::WorkspacePool(DLDeviceType device_type, DeviceAPI* device)
     : device_type_(device_type), device_(device) {}
 
 WorkspacePool::~WorkspacePool() {
@@ -143,7 +143,7 @@ WorkspacePool::~WorkspacePool() {
       TVMContext ctx;
       ctx.device_type = device_type_;
       ctx.device_id = static_cast<int>(i);
-      array_[i]->Release(ctx, device_.get());
+      array_[i]->Release(ctx, device_);
       delete array_[i];
     }
   }
@@ -156,7 +156,7 @@ void* WorkspacePool::AllocWorkspace(TVMContext ctx, size_t size) {
   if (array_[ctx.device_id] == nullptr) {
     array_[ctx.device_id] = new Pool();
   }
-  return array_[ctx.device_id]->Alloc(ctx, device_.get(), size);
+  return array_[ctx.device_id]->Alloc(ctx, device_, size);
 }
 
 void WorkspacePool::FreeWorkspace(TVMContext ctx, void* ptr) {

@@ -66,10 +66,10 @@ class AccessAnalyzerNode : public Object {
   /*! \brief Store whether the operation is an op with only simple access.
    *  (e.g., injective, broadcast and elementwise ops without reduction) */
   OperationMap<bool> is_simple_access;
-  /*! \brief Store whether the operation is strictly-inlineable
+  /*! \brief Store whether the operation is strictly inlineable
    * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations)
    */
-  OperationMap<bool> is_strict_inlineable;
+  OperationMap<bool> is_strictly_inlineable;
   /*! \brief Store whether the operation needs multi-level tiling
    * (e.g., computation-intensive ops with data reuse opportunity like matmul, conv2d) */
   OperationMap<bool> needs_multi_level_tiling;
@@ -102,7 +102,7 @@ class AccessAnalyzer : public ObjectRef {
    * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations)
    * \param op The operation
    */
-  TVM_DLL bool IsStrictInlineable(const te::Operation& op) const;
+  TVM_DLL bool IsStrictlyInlineable(const te::Operation& op) const;
 
   /*!
    * \brief Return whether this operation needs multi-level tiling
@@ -187,6 +187,7 @@ class ComputeDAGNode : public Object {
     v->Visit("ops", &ops);
     v->Visit("flop_ct", &flop_ct);
     v->Visit("init_state", &init_state);
+    v->Visit("access_analyzer", &access_analyzer);
   }
 
   static constexpr const char* _type_key = "auto_scheduler.ComputeDAG";
@@ -236,6 +237,17 @@ class ComputeDAG : public ObjectRef {
    * \return The State with complete bound information
    */
   State InferBound(const State& state) const;
+
+  /*!
+   * \brief Fill the correct bound information for the given states by calling ir_pass::InferBound.
+   * The states can lose complete bound information after some transform steps (e.g., compute_at).
+   * We can call this function to infer and fill all the bound information.
+   * This function calls TVM InferBound pass internally to get the bound.
+   * The returned state of this function is guaranteed to have complete bound information.
+   * \param states The input states.
+   * \return The States with complete bound information
+   */
+  Array<State> InferBound(const Array<State>& states) const;
 
   /*!
    * \brief Since some steps may change the ComputeDAG (e.g. CacheRead/CacheWrite), the initial
