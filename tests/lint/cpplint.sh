@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,33 +16,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
 
-cleanup()
-{
-  rm -rf /tmp/$$.*
-}
-trap cleanup 0
-
-
-echo "Check file types..."
-python3 tests/lint/check_file_type.py
-
-echo "Check ASF license header..."
-tests/lint/check_asf_header.sh
-
-echo "Check codestyle of c++ code..."
-tests/lint/cpplint.sh
-
-echo "clang-format check..."
-tests/lint/clang_format.sh
-
-echo "Check codestyle of python code..."
-tests/lint/pylint.sh
-echo "Check codestyle of jni code..."
-tests/lint/jnilint.sh
-
-echo "Check documentations of c++ code..."
-tests/lint/cppdocs.sh
+python3 3rdparty/dmlc-core/scripts/lint.py vta cpp vta/include vta/src
+python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp \
+	 include src \
+	 examples/extension/src examples/graph_executor/src
