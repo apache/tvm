@@ -23,6 +23,7 @@
  */
 
 #include <tvm/auto_scheduler/search_task.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
@@ -44,8 +45,33 @@ HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes, int cache_l
 
 HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target,
                                                             const Target& target_host) {
-  if (target->kind->name == "llvm") {
+  if (target->kind->device_type == kDLCPU) {
     return HardwareParams(tvm::runtime::threading::MaxConcurrency(), 64, 64);
+  } else if (target->kind->device_type == kDLGPU) {
+    auto hardware_params = HardwareParams(-1, 16, 64);
+    auto* p_hardware_params = hardware_params.CopyOnWrite();
+
+    auto ctx = TVMContext{kDLGPU, 0};
+    auto func = tvm::runtime::Registry::Get("device_api.gpu");
+    CHECK(func != nullptr) << "Cannot find GPU device_api in registry";
+    auto device_api = static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
+
+    tvm::runtime::TVMRetValue ret;
+    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
+    p_hardware_params->max_shared_memory_per_block = ret;
+
+    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxRegistersPerBlock, &ret);
+    p_hardware_params->max_registers_per_block = ret;
+
+    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
+    p_hardware_params->max_threads_per_block = ret;
+
+    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
+    p_hardware_params->warp_size = ret;
+
+    p_hardware_params->max_vthread_extent = p_hardware_params->warp_size / 4;
+
+    return hardware_params;
   } else {
     LOG(FATAL) << "No default hardware parameters for target: " << target;
   }

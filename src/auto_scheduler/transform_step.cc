@@ -35,6 +35,56 @@
 
 #include "utils.h"
 
+namespace dmlc {
+namespace json {
+
+template <>
+struct Handler<::tvm::Array<::tvm::Integer>> {
+  inline static void Write(dmlc::JSONWriter* writer, const ::tvm::Array<::tvm::Integer>& array) {
+    writer->BeginArray(false);
+    for (const auto& i : array) {
+      CHECK(i.defined());
+      writer->WriteArrayItem(i->value);
+    }
+    writer->EndArray();
+  }
+  inline static void Read(dmlc::JSONReader* reader, ::tvm::Array<::tvm::Integer>* array) {
+    array->clear();
+    reader->BeginArray();
+    while (reader->NextArrayItem()) {
+      int value;
+      Handler<int>::Read(reader, &value);
+      array->push_back(value);
+    }
+  }
+};
+
+template <>
+struct Handler<::tvm::Array<::tvm::Optional<::tvm::Integer>>> {
+  inline static void Write(dmlc::JSONWriter* writer,
+                           const ::tvm::Array<::tvm::Optional<::tvm::Integer>>& array) {
+    writer->BeginArray(false);
+    for (const auto& i : array) {
+      CHECK(i);
+      writer->WriteArrayItem(i.value()->value);
+    }
+    writer->EndArray();
+  }
+  inline static void Read(dmlc::JSONReader* reader,
+                          ::tvm::Array<::tvm::Optional<::tvm::Integer>>* array) {
+    array->clear();
+    reader->BeginArray();
+    while (reader->NextArrayItem()) {
+      int value;
+      Handler<int>::Read(reader, &value);
+      array->push_back(::tvm::Integer(value));
+    }
+  }
+};
+
+}  // namespace json
+}  // namespace dmlc
+
 namespace tvm {
 namespace auto_scheduler {
 
@@ -371,15 +421,9 @@ FuseStep::FuseStep(dmlc::JSONReader* reader) {
   s = reader->NextArrayItem();
   CHECK(s);
   reader->Read(&node->stage_id);
-  std::vector<int> int_list;
   s = reader->NextArrayItem();
   CHECK(s);
-  reader->Read(&int_list);
-  ::tvm::Array<::tvm::Integer> fused_ids;
-  for (const auto& i : int_list) {
-    fused_ids.push_back(i);
-  }
-  node->fused_ids = fused_ids;
+  reader->Read(&node->fused_ids);
   data_ = std::move(node);
 }
 
@@ -387,7 +431,7 @@ void FuseStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
   writer->WriteArraySeperator();
   writer->WriteString(record_prefix_str);
   writer->WriteArrayItem(stage_id);
-  writer->WriteArrayItem(IntArrayToVector(fused_ids));
+  writer->WriteArrayItem(fused_ids);
 }
 
 Iterator FuseStepNode::ApplyToState(State* state) const {
@@ -638,13 +682,7 @@ ReorderStep::ReorderStep(dmlc::JSONReader* reader) {
   reader->Read(&node->stage_id);
   s = reader->NextArrayItem();
   CHECK(s);
-  std::vector<int> int_list;
-  reader->Read(&int_list);
-  ::tvm::Array<::tvm::Integer> after_ids;
-  for (const auto& i : int_list) {
-    after_ids.push_back(i);
-  }
-  node->after_ids = after_ids;
+  reader->Read(&node->after_ids);
   data_ = std::move(node);
 }
 
@@ -652,7 +690,7 @@ void ReorderStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
   writer->WriteArraySeperator();
   writer->WriteString(record_prefix_str);
   writer->WriteArrayItem(stage_id);
-  writer->WriteArrayItem(IntArrayToVector(after_ids));
+  writer->WriteArrayItem(after_ids);
 }
 
 void ReorderStepNode::ApplyToState(State* state) const {
@@ -887,13 +925,7 @@ SplitStep::SplitStep(dmlc::JSONReader* reader) {
   }
   s = reader->NextArrayItem();
   CHECK(s);
-  std::vector<int> int_list;
-  reader->Read(&int_list);
-  ::tvm::Array<::tvm::Optional<::tvm::Integer>> lengths;
-  for (const auto& i : int_list) {
-    lengths.push_back(::tvm::Integer(i));
-  }
-  node->lengths = lengths;
+  reader->Read(&node->lengths);
   s = reader->NextArrayItem();
   CHECK(s);
   reader->Read(&node->inner_to_outer);
@@ -906,7 +938,7 @@ void SplitStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
   writer->WriteArrayItem(stage_id);
   writer->WriteArrayItem(iter_id);
   writer->WriteArrayItem(extent ? GetIntImm(extent.value()) : 0);
-  writer->WriteArrayItem(IntArrayToVector(lengths));
+  writer->WriteArrayItem(lengths);
   writer->WriteArrayItem(static_cast<int>(inner_to_outer));
 }
 
@@ -1044,19 +1076,13 @@ FollowFusedSplitStep::FollowFusedSplitStep(dmlc::JSONReader* reader) {
   reader->Read(&node->iter_id);
   s = reader->NextArrayItem();
   CHECK(s);
-  std::vector<int> int_list;
-  reader->Read(&int_list);
+  reader->Read(&node->src_step_ids);
   s = reader->NextArrayItem();
   CHECK(s);
   reader->Read(&node->level);
   s = reader->NextArrayItem();
   CHECK(s);
   reader->Read(&node->factor_or_nparts);
-  ::tvm::Array<::tvm::Integer> src_step_ids;
-  for (const auto& i : int_list) {
-    src_step_ids.push_back(i);
-  }
-  node->src_step_ids = src_step_ids;
   data_ = std::move(node);
 }
 
@@ -1065,7 +1091,7 @@ void FollowFusedSplitStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
   writer->WriteString(record_prefix_str);
   writer->WriteArrayItem(stage_id);
   writer->WriteArrayItem(iter_id);
-  writer->WriteArrayItem(IntArrayToVector(src_step_ids));
+  writer->WriteArrayItem(src_step_ids);
   writer->WriteArrayItem(level);
   writer->WriteArrayItem(static_cast<int>(factor_or_nparts));
 }
@@ -1416,13 +1442,7 @@ CacheReadStep::CacheReadStep(dmlc::JSONReader* reader) {
   node->scope_name = std::move(string_value);
   s = reader->NextArrayItem();
   CHECK(s);
-  std::vector<int> int_list;
-  reader->Read(&int_list);
-  Array<Integer> reader_stage_ids;
-  for (int i : int_list) {
-    reader_stage_ids.push_back(i);
-  }
-  node->reader_stage_ids = std::move(reader_stage_ids);
+  reader->Read(&node->reader_stage_ids);
   data_ = std::move(node);
 }
 
@@ -1432,7 +1452,7 @@ void CacheReadStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
   writer->WriteArrayItem(stage_id);
   writer->WriteArraySeperator();
   writer->WriteString(scope_name);
-  writer->WriteArrayItem(IntArrayToVector(reader_stage_ids));
+  writer->WriteArrayItem(reader_stage_ids);
 }
 
 int CacheReadStepNode::ApplyToState(State* state, const ComputeDAG& dag) const {

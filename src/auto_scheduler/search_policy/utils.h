@@ -45,6 +45,31 @@
 namespace tvm {
 namespace auto_scheduler {
 
+/*! \brief Return whether the search task is targeting a CPU. */
+inline bool IsCPUTask(const SearchTask& task) {
+  return (task)->target->kind->device_type == kDLCPU;
+}
+
+/*! \brief Return whether the search task is targeting a GPU. */
+inline bool IsGPUTask(const SearchTask& task) {
+  return (task)->target->kind->device_type == kDLGPU ||
+         (task)->target->kind->device_type == kDLOpenCL ||
+         (task)->target->kind->device_type == kDLVulkan ||
+         (task)->target->kind->device_type == kDLMetal ||
+         (task)->target->kind->device_type == kDLROCM ||
+         (task)->target->kind->device_type == kOpenGL;
+}
+
+/*! \brief Return whether the search task is targeting a CUDA GPU. */
+inline bool IsCUDATask(const SearchTask& task) {
+  return (task)->target->kind->device_type == kDLGPU;
+}
+
+/*! \brief Return whether the search task is targeting a OpenCL GPU. */
+inline bool IsOpenCLTask(const SearchTask& task) {
+  return (task)->target->kind->device_type == kDLOpenCL;
+}
+
 /*! \brief Argsort. Order: largest to smallest */
 template <typename T>
 inline std::vector<int> Argsort(const std::vector<T>& scores) {
@@ -354,6 +379,26 @@ inline bool HasSingleElementwiseMatchedConsumer(const SearchTask& task, const St
   return false;
 }
 
+/*! \brief Return whether the state does cache_read for stage_id. */
+inline bool HasCacheReadStage(const State& s, int stage_id) {
+  for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
+    if (auto ps = s->transform_steps[i].as<CacheReadStepNode>()) {
+      if (stage_id == ps->stage_id) {
+        return true;
+      }
+    }
+
+    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
+        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
+        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+      if (stage_id > s->transform_steps[i]->stage_id) {
+        stage_id--;
+      }
+    }
+  }
+  return false;
+}
+
 /*! \brief Return whether the state does cache_write for stage_id. */
 inline bool HasCacheWriteStage(const State& s, int stage_id) {
   for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
@@ -371,6 +416,59 @@ inline bool HasCacheWriteStage(const State& s, int stage_id) {
       }
     }
   }
+  return false;
+}
+
+/*! \brief Return whether the state does rfactor for stage_id. */
+inline bool HasRfactorStage(const State& s, int stage_id) {
+  for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
+    if (auto ps = s->transform_steps[i].as<RfactorStepNode>()) {
+      if (stage_id == ps->stage_id) {
+        return true;
+      }
+    }
+
+    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
+        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
+        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+      if (stage_id > s->transform_steps[i]->stage_id) {
+        stage_id--;
+      }
+    }
+  }
+  return false;
+}
+
+/*! \brief Return whether the stage does cross thread reduction. */
+inline bool HasCrossThreadReduction(const State& state, int stage_id) {
+  std::function<bool(const Stage&)> check_stage = [](const Stage& in_stage) {
+    for (const auto& iter : in_stage->iters) {
+      if (iter->annotation == IteratorAnnotation::kThreadX &&
+          iter->iter_kind == IteratorKind::kReduction) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Check the stage itself
+  if (check_stage(state->stages[stage_id])) {
+    return true;
+  }
+
+  // Check the attached stages
+  for (size_t iter_id = 0; iter_id < state->stages[stage_id]->iters.size(); iter_id++) {
+    const auto& res =
+        state->attach_map->iter_to_attached_stages.find(std::make_pair(stage_id, iter_id));
+    if (res != state->attach_map->iter_to_attached_stages.end()) {
+      for (int attached_stage_id : res->second) {
+        if (check_stage(state->stages[attached_stage_id])) {
+          return true;
+        }
+      }
+    }
+  }
+
   return false;
 }
 
@@ -399,6 +497,63 @@ inline void ExtractOriginalIterators(const std::string& name, std::set<std::stri
   }
 }
 
+/*! \brief Get the last reduce iterator in the outermost reduce tile. */
+inline Iterator GetLastReduceIteratorInOutermostReduceTile(const Stage& stage) {
+  auto pop = stage->op.as<te::ComputeOpNode>();
+  CHECK(pop != nullptr);
+  std::set<std::string> original_names;
+
+  const std::set<std::string>& no_split_at_inner_name_set =
+      stage->op->attrs.count(SearchPolicyKey::no_split_at_inner)
+          ? GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::no_split_at_inner)
+          : std::set<std::string>();
+  size_t reduce_axis_size = 0;
+  for (const auto axis : pop->reduce_axis) {
+    if (!no_split_at_inner_name_set.count(axis->var->name_hint)) {
+      reduce_axis_size++;
+    }
+  }
+  if (reduce_axis_size) {
+    for (const auto& iter : stage->iters) {
+      if (iter->iter_kind == IteratorKind::kReduction) {
+        ExtractOriginalIterators(iter->name, &original_names);
+        if (original_names.size() == reduce_axis_size) {
+          return iter;
+        }
+      }
+    }
+  } else {
+    // Return the first reduce iterator
+    for (const auto& iter : stage->iters) {
+      if (iter->iter_kind == IteratorKind::kReduction) {
+        return iter;
+      }
+    }
+  }
+
+  LOG(FATAL) << "Cannot find the iterator.";
+  return stage->iters[0];
+}
+
+/*! \brief Get all split steps for one stage. */
+inline void GetSplitStepIds(const State& s, int stage_id, std::vector<int>* split_step_ids) {
+  for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
+    if (auto ps = s->transform_steps[i].as<SplitStepNode>()) {
+      if (stage_id == ps->stage_id) {
+        split_step_ids->push_back(i);
+      }
+    }
+
+    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
+        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
+        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+      if (stage_id > s->transform_steps[i]->stage_id) {
+        stage_id--;
+      }
+    }
+  }
+}
+
 /*! \brief Fuse all reduction iterators. */
 inline State FuseAllReductionIterators(const State& state, int stage_id, Iterator* fused_iter,
                                        Array<Iterator>* space_iters,
@@ -420,6 +575,32 @@ inline State FuseAllReductionIterators(const State& state, int stage_id, Iterato
     *fused_iter = tmp_s.fuse(stage_id, *reduce_iters);
   } else {
     *fused_iter = (*reduce_iters)[0];
+  }
+  return tmp_s;
+}
+
+/*! \brief Fuse all outer level space iterators. */
+inline State FuseAllOuterSpaceIterators(const State& state, int stage_id, Iterator* fused_iter) {
+  std::vector<Iterator> to_fuse;
+  for (size_t iter_id = 0; iter_id < state->stages[stage_id]->iters.size(); ++iter_id) {
+    const auto& it = state->stages[stage_id]->iters[iter_id];
+    // Stop at reduce iterator or annotated iterator
+    if (it->iter_kind == IteratorKind::kReduction || it->annotation != IteratorAnnotation::kNone) {
+      break;
+    }
+    // Stop at compute_at attach point
+    if (state->attach_map->iter_to_attached_stages.count(std::make_pair(stage_id, iter_id - 1))) {
+      break;
+    }
+    to_fuse.push_back(it);
+  }
+
+  CHECK(!to_fuse.empty());
+  State tmp_s = state;
+  if (to_fuse.size() > 1) {
+    *fused_iter = tmp_s.fuse(stage_id, to_fuse);
+  } else {
+    *fused_iter = to_fuse[0];
   }
   return tmp_s;
 }
@@ -463,6 +644,9 @@ class SplitFactorizationMemo {
   Array<Array<Integer>>* results_;
   std::unordered_map<int, std::vector<int>> factor_memory_;
 };
+
+/*! \brief Get the indexes of SplitStep that processes on spatial iteratior. */
+Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id);
 
 // Apply multi-level tiling structure according to a string format,
 // where "S" stands a space level, "R" stands for a reudciton level.
