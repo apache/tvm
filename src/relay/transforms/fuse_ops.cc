@@ -83,7 +83,7 @@ constexpr uint32_t kMaxFusedOps = 256;
 
 static const Op& stop_fusion_op = Op::Get("annotation.stop_fusion");
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relay.max_fuse_depth", Integer);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.FuseOps.max_fuse_depth", Integer);
 
 /*!
  * \brief Indexed data flow graph in forward direction.
@@ -967,7 +967,7 @@ Pass FuseOps(int fuse_opt_level) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
-        auto max_fuse_depth = pc->GetConfig("relay.max_fuse_depth", Integer(kMaxFusedOps));
+        auto max_fuse_depth = pc->GetConfig("relay.FuseOps.max_fuse_depth", Integer(kMaxFusedOps));
         return Downcast<Function>(FuseOps(f, opt_level, max_fuse_depth.value(), m));
       };
   return CreateFunctionPass(pass_func, 1, "FuseOps", {"InferType"});
