@@ -653,7 +653,9 @@ InitPopulationRule::ResultKind InitParallel::Apply(SketchPolicyNode* policy, Sta
 }
 
 InitPopulationRule::ResultKind InitUnroll::Apply(SketchPolicyNode* policy, State* state) const {
-  std::vector<int> auto_unroll_configs = {0, 16, 64, 512};
+  std::vector<int> auto_unroll_configs = IsGPUTask(policy->search_task)
+                                             ? std::vector<int>({0, 16, 64, 512, 1024})
+                                             : std::vector<int>({0, 16, 64, 512});
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
     // Skip the inlined stage and placeholder stage
