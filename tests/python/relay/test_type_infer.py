@@ -369,9 +369,10 @@ def test_mutual_recursion():
     # f(x) = if x > 0 then g(x - 1) else 0
     # g(y) = if y > 0 then f(y - 1) else 0
     tensortype = relay.TensorType((), 'float32')
-
-    x = relay.Var("x")
-    y = relay.Var("y")
+    # we need to annotate with tensortype
+    # because binary op does add relations between operands
+    x = relay.Var("x", tensortype)
+    y = relay.Var("y", tensortype)
 
     zero = relay.Constant(tvm.nd.array(np.array(0, dtype='float32')))
     one = relay.Constant(tvm.nd.array(np.array(1, dtype='float32')))

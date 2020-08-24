@@ -126,7 +126,6 @@ bool BroadcastCompRel(const Array<Type>& types, int num_inputs, const Attrs& att
       return true;
     }
   }
-  reporter->Assign(types[0], types[1]);
   return false;
 }
 
