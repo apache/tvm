@@ -2157,6 +2157,8 @@ def _get_convert_map(prelude):
         "aten::type_as"                         : _type_as(),
         "aten::gather"                          : _gather(),
         "aten::index_select"                    : _select(),
+        "aten::index"                           : _index(),
+        "torchvision::nms"                      : _nms(prelude),
     }
     return convert_map
 
