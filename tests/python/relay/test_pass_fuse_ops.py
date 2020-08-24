@@ -626,7 +626,7 @@ def test_fuse_max():
     z = before(n)
     after = run_opt_pass(expected(n, max_fused_ops), transform.InferType())
 
-    with tvm.transform.PassContext(opt_level=3, config={"relay.max_fuse_depth": max_fused_ops}):
+    with tvm.transform.PassContext(config={"relay.max_fuse_depth": max_fused_ops}):
         zz = run_opt_pass(z, transform.FuseOps())
 
     assert tvm.ir.structural_equal(zz, after)
@@ -732,6 +732,47 @@ def test_fuse_bcast_reduce_scalar():
     assert tvm.ir.structural_equal(m["main"], after)
 
 
+def test_fuse_max_diamond():
+    def create_diamond(x, branch_len):
+        x1 = x
+        x2 = x
+        for _ in range(branch_len):
+            x1 = relay.exp(x1)
+            x2 = relay.exp(x2)
+        return relay.add(x1, x2)
+
+    def before(branch_len, num_diamond):
+        x = relay.var("x", shape=(10, 20))
+        out = x
+        for _ in range(num_diamond):
+            out = create_diamond(out, branch_len)
+        return relay.Function([x], out)
+
+    def after(branch_len, num_diamond):
+        def create_diamond_func(inp):
+            inp_var = relay.var("p", shape=(10, 20))
+            d = create_diamond(inp_var, branch_len)
+            f = relay.Function([inp_var], d)
+            f = f.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+            return relay.Call(f, [inp])
+
+        inp = relay.var("x", shape=(10, 20))
+        out = inp
+        for _ in range(num_diamond):
+            out = create_diamond_func(out)
+        return relay.Function([inp], out)
+
+    branch_len = 5
+    max_fused_ops = branch_len * 2 + 1  # the number of ops in one diamond
+    num_diamond = 3
+
+    with tvm.transform.PassContext(config={"relay.max_fuse_depth": max_fused_ops}):
+        fused = run_opt_pass(before(branch_len, num_diamond), transform.FuseOps())
+
+    expected = run_opt_pass(after(branch_len, num_diamond), transform.InferType())
+    assert tvm.ir.structural_equal(fused, expected)
+
+
 if __name__ == "__main__":
     test_fuse_simple()
     test_conv2d_fuse()
@@ -751,3 +792,4 @@ if __name__ == "__main__":
     test_fuse_take()
     test_fuse_gather_nd()
     test_fuse_bcast_reduce_scalar()
+    test_fuse_max_diamond()
