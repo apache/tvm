@@ -587,17 +587,14 @@ def test_split():
 
 def test_fuse_max():
     """Test the constraint of number of nodes in op fusion."""
-    max_fused_ops = 256
-    # n is the number of nodes to be fused, should be less than 2*max_fused_ops
-    n = 300
-    def before():
+    def before(n):
         x = relay.var("x", shape=(10, 20))
         y = x
         for i in range(n):
             y = relay.exp(y)
         return relay.Function([x], y)
 
-    def expected():
+    def expected(n, max_fused_ops):
         x = relay.var("p", shape=(10, 20))
         y = x
         for i in range(max_fused_ops):
@@ -608,6 +605,7 @@ def test_fuse_max():
         z = relay.Call(f1, [x])
         xx = relay.var("pp", shape=(10, 20))
         yy = xx
+        # it is assumed that there are two fused functions
         for i in range(n-max_fused_ops):
             yy = relay.exp(yy)
         f2 = relay.Function([xx], yy)
@@ -615,10 +613,22 @@ def test_fuse_max():
         zz = relay.Call(f2, [z])
         return relay.Function([x], zz)
 
-    z = before()
+    max_fused_ops = 256
+    n = 300
+    z = before(n)
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     zz = run_opt_pass(z, transform.FuseOps())
-    after = run_opt_pass(expected(), transform.InferType())
+    after = run_opt_pass(expected(n, max_fused_ops), transform.InferType())
+    assert tvm.ir.structural_equal(zz, after)
+
+    max_fused_ops = 10
+    n = 20
+    z = before(n)
+    after = run_opt_pass(expected(n, max_fused_ops), transform.InferType())
+
+    with tvm.transform.PassContext(opt_level=3, config={"relay.max_fuse_depth": max_fused_ops}):
+        zz = run_opt_pass(z, transform.FuseOps())
+
     assert tvm.ir.structural_equal(zz, after)
 
 
