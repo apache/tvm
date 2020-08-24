@@ -968,7 +968,7 @@ Pass FuseOps(int fuse_opt_level) {
       [=](Function f, IRModule m, PassContext pc) {
         int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
         auto max_fuse_depth = pc->GetConfig("relay.max_fuse_depth", Integer(kMaxFusedOps));
-        return Downcast<Function>(FuseOps(f, opt_level, max_fuse_depth.value(), m));;
+        return Downcast<Function>(FuseOps(f, opt_level, max_fuse_depth.value(), m));
       };
   return CreateFunctionPass(pass_func, 1, "FuseOps", {"InferType"});
 }
