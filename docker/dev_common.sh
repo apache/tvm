@@ -25,7 +25,7 @@ fi
 INVOCATION_PWD="$(pwd)"
 
 
-GIT_TOPLEVEL=$(cd $(dirname $0) && git rev-parse --show-toplevel)
+GIT_TOPLEVEL=$(cd $(dirname ${BASH_SOURCE[0]}) && git rev-parse --show-toplevel)
 
 
 function run_docker() {
