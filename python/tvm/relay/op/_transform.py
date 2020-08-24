@@ -62,6 +62,7 @@ _reg.register_reduce_schedule("collapse_sum_to")
 _reg.register_injective_schedule("unravel_index")
 _reg.register_injective_schedule("sparse_to_dense")
 _reg.register_injective_schedule("matrix_set_diag")
+_reg.register_injective_schedule("adv_index")
 
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)
