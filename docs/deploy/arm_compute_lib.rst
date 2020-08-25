@@ -162,7 +162,28 @@ More examples
 The example above only shows a basic example of how ACL can be used for offloading a single
 Maxpool2D. If you would like to see more examples for each implemented operator and for
 networks refer to the tests: `tests/python/contrib/test_arm_compute_lib`. Here you can modify
-`infrastructure.py` to use the remote device you have setup.
+`test_config.json` to configure how a remote device is created in `infrastructure.py` and,
+as a result, how runtime tests will be run.
+
+An example configuration for `test_config.json`:
+
+* connection_type - The type of RPC connection. Options: local, tracker, remote.
+* host - The host device to connect to.
+* port - The port to use when connecting.
+* target - The target to use for compilation.
+* device_key - The device key when connecting via a tracker.
+* cross_compile - Path to cross compiler when connecting from a non-arm platform e.g. aarch64-linux-gnu-g++.
+
+.. code:: json
+
+    {
+      "connection_type": "local",
+      "host": "localhost",
+      "port": 9090,
+      "target": "llvm -mtriple=aarch64-linux-gnu -mattr=+neon",
+      "device_key": "",
+      "cross_compile": ""
+    }
 
 
 Operator support

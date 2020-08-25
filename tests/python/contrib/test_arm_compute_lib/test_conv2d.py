@@ -235,6 +235,8 @@ def _get_expected_codegen(shape, kernel_h, kernel_w, padding, strides,
 
 
 def test_conv2d():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
@@ -325,6 +327,8 @@ def test_codegen_conv2d():
 
 
 def test_qnn_conv2d():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
