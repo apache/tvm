@@ -45,17 +45,17 @@ pub struct PassInfoNode {
 
 impl PassInfo {
     pub fn new(opt_level: i32, name: String, required: Vec<String>) -> Result<PassInfo> {
-        let required: Result<_> = required
+        let required = required
             .into_iter()
-            .map(|name| TString::new(name))
+            .map(|name| name.into())
             .collect();
 
-        let required = Array::from_vec(required?)?;
+        let required = Array::from_vec(required)?;
 
         let node = PassInfoNode {
             base: Object::base_object::<PassInfoNode>(),
             opt_level,
-            name: TString::new(name).unwrap(),
+            name: name.into(),
             required,
         };
 

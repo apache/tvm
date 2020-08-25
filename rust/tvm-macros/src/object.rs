@@ -104,7 +104,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
 
             fn try_from(ret_val: #tvm_rt_crate::RetValue) -> #result<#ref_id> {
                 use std::convert::TryInto;
-                let oref: ObjectRef = ret_val.try_into()?;
+                let oref: #tvm_rt_crate::ObjectRef = ret_val.try_into()?;
                 let ptr = oref.0.ok_or(#tvm_rt_crate::Error::Null)?;
                 let ptr = ptr.downcast::<#payload_id>()?;
                 Ok(#ref_id(Some(ptr)))

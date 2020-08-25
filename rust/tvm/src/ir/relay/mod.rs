@@ -96,7 +96,7 @@ impl GlobalVar {
     pub fn new(name_hint: String, _span: ObjectRef) -> GlobalVar {
         let node = GlobalVarNode {
             base: RelayExpr::base::<GlobalVarNode>(),
-            name_hint: TString::new(name_hint).unwrap(),
+            name_hint: name_hint.into(),
         };
         GlobalVar(Some(ObjectPtr::new(node)))
     }
@@ -135,7 +135,7 @@ impl Var {
     pub fn new(name_hint: String, _span: ObjectRef) -> Var {
         let node = VarNode {
             base: RelayExpr::base::<VarNode>(),
-            vid: Id::new(TString::new(name_hint.to_string()).unwrap()),
+            vid: Id::new(name_hint.into()),
             type_annotation: ObjectRef::null(),
         };
         Var(Some(ObjectPtr::new(node)))

@@ -35,8 +35,9 @@ pub fn as_text<T: IsObjectRef>(object: T) -> String {
     let no_func = unsafe { runtime::Function::null() };
     _as_text(object.to_object_ref(), 0, no_func)
         .unwrap()
-        .to_string()
+        .as_str()
         .unwrap()
+        .into()
 }
 
 #[repr(C)]
