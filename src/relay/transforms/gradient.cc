@@ -501,8 +501,8 @@ struct ReverseAD : ExprMutator {
       Expr nbp = Function({}, LetList::With([&](LetList* ll) {
                             // we need a new ReverseAD visitor to avoid clobbering the bp local var
                             auto dup_bp = ll->Push(BPEmpty());
-                            auto dup_ad = ll->Push(ReverseAD(mod, dup_bp, ad_vars, ad_gvars)(DeDup(x)));
-
+                            auto dup_ad = ll->Push(ReverseAD(mod, dup_bp, ad_vars, ad_gvars)
+                                                   (DeDup(x)));
                             TransferGrads(call->checked_type(), ret, dup_ad, ll);
                             ll->Push(Call(RefRead(dup_bp), {}));
                             return Call(bpv, {});
@@ -554,8 +554,7 @@ struct ReverseAD : ExprMutator {
       });
     } else if (const ConstructorNode* con = call->op.as<ConstructorNode>()) {
       return ExprMutator::VisitExpr_(call);
-    }
-    else {
+    } else {
       std::vector<Expr> args;
       for (const auto& arg : call->args) {
         args.push_back(VisitExpr(arg));
@@ -612,12 +611,16 @@ struct ReverseAD : ExprMutator {
 
   Expr VisitExpr_(const FunctionNode* op) final {
     std::vector<Var> params;
-    for (const auto& var: op->params) {
+    for (const auto& var : op->params) {
       params.push_back(Downcast<Var>(VisitExpr(var)));
     }
     auto new_bp = Var("bp", bpt);
     params.push_back(new_bp);
-    return Function(params, ReverseAD(mod, new_bp, ad_vars, ad_gvars)(op->body), VisitType(op->ret_type), op->type_params, op->attrs);
+    return Function(params,
+                    ReverseAD(mod, new_bp, ad_vars, ad_gvars)(op->body),
+                    VisitType(op->ret_type),
+                    op->type_params,
+                    op->attrs);
   }
 
   Type VisitType(const Type& t) final { return t.defined() ? ReverseType(t) : t; }
