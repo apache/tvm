@@ -26,6 +26,7 @@
 
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/error.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/expr_functor.h>
@@ -61,22 +62,6 @@ Pass ManifestAlloc(Target target_host, vm::TargetsMap targets) {
   auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
   CHECK(f != nullptr) << "unable to load allocation manifestation pass";
   return (*f)(target_host, targets);
-}
-
-vm::ExprDeviceMap ContextAnalysis(IRModule mod, TVMContext default_device) {
-  auto f = tvm::runtime::Registry::Get("relay.analysis.ContextAnalysis");
-  CHECK(f != nullptr) << "could not load context analysis pass";
-  Map<Expr, Array<Integer>> m = (*f)(mod, default_device);
-  vm::ExprDeviceMap ret;
-  for (const auto& it : m) {
-    TVMContext ctx;
-    Array<Integer> ints = it.second;
-    CHECK_EQ(ints.size(), 2U);
-    ctx.device_type = static_cast<DLDeviceType>(ints[0]->value);
-    ctx.device_id = static_cast<int>(ints[1]->value);
-    ret[it.first] = ctx;
-  }
-  return ret;
 }
 
 Pass MemoryPlan() {
@@ -1182,13 +1167,13 @@ ExprDeviceMap VMCompiler::AnalyzeContext() const {
     int fallback_dev = GetFallbackDevice();
     default_device.device_type = static_cast<DLDeviceType>(fallback_dev);
     default_device.device_id = 0;
-    expr_device_map = transform::ContextAnalysis(context_.module, default_device);
+    expr_device_map = ContextAnalysis(context_.module, default_device);
   } else {
     const auto& tgt = targets_.begin();
     default_device.device_type = static_cast<DLDeviceType>((*tgt).first->value);
     if (default_device.device_type != kDLCPU) {
       default_device.device_id = 0;
-      expr_device_map = transform::ContextAnalysis(context_.module, default_device);
+      expr_device_map = ContextAnalysis(context_.module, default_device);
     }
   }
   return expr_device_map;

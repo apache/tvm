@@ -37,11 +37,12 @@
 
 namespace tvm {
 namespace relay {
-namespace analysis {
 
 using PackedAnalysisResultMap = Map<Expr, Array<Integer>>;
 using AnalysisResultMap =
     std::unordered_map<Expr, TVMContext, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
+
+namespace analysis {
 
 // Cache ops
 static const Op& device_copy_op = Op::Get("device_copy");
@@ -651,16 +652,18 @@ class ContextAnalyzer : public ExprVisitor {
   std::unordered_set<Expr, runtime::ObjectPtrHash, runtime::ObjectPtrEqual> visited_;
 };
 
+}  // namespace analysis
+
 AnalysisResultMap ContextAnalysis(const IRModule& mod, const TVMContext& default_context) {
   // TODO(@zhiics) Apply the pass to all functions/entries
   auto entry = mod->GetGlobalVar("main");
-  auto ca = ContextAnalyzer(mod, entry, default_context);
+  auto ca = analysis::ContextAnalyzer(mod, entry, default_context);
   auto expr = mod->Lookup(entry);
   ca.VisitExpr(expr);
   return ca.Results();
 }
 
-// Unpack the device type and deivce fields in TVMContext for PackedFunc calls
+// Unpack the device type and deivce id fields in TVMContext for PackedFunc calls
 // as TVMContext is not in the object system.
 PackedAnalysisResultMap ContextAnalysisPacked(const IRModule& mod,
                                               const TVMContext& default_context) {
@@ -675,11 +678,9 @@ PackedAnalysisResultMap ContextAnalysisPacked(const IRModule& mod,
   return ret;
 }
 
-}  // namespace analysis
-
 TVM_REGISTER_GLOBAL("relay.analysis.ContextAnalysis")
     .set_body_typed([](IRModule mod, TVMContext default_context) {
-      return analysis::ContextAnalysisPacked(mod, default_context);
+      return ContextAnalysisPacked(mod, default_context);
     });
 
 }  // namespace relay

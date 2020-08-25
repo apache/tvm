@@ -19,7 +19,6 @@
 A pass for manifesting explicit memory allocations.
 """
 import numpy as np
-import logging
 
 from tvm.ir.transform import PassContext, module_pass
 from tvm import nd, container
@@ -33,11 +32,8 @@ from ..backend import compile_engine
 from ..op.memory import flatten_tuple_type, from_tuple_type, to_tuple_type
 from ...import cpu
 from ..op.memory import alloc_storage
-from ..analysis import context_analysis
-from ..analysis.context_analysis import mk_analysis_annotator
+from ..analysis import context_analysis as _context_analysis
 from ..._ffi.runtime_ctypes import TVMContext
-
-# logging.basicConfig(level=logging.DEBUG)
 
 def alloc_tensor(storage, shape, dtype='float32', assert_shape=None):
     offset = expr.const(0, dtype="int64")
@@ -102,14 +98,19 @@ class ManifestAllocPass(ExprMutator):
         self.cached_var = {}
         super().__init__()
 
-    def get_context(self, expr):
-        assert expr in self.context_analysis, expr.astext(False)
-        return self.context_analysis[expr]
+    def get_context(self, exp):
+        """Get the context of a given expression"""
+        assert exp in self.context_analysis, exp.astext(False)
+        val = self.context_analysis[exp]
+        # val[0], val[1] are device_type and device_id, respectively.
+        # We don't need to unpack after porting this pass to C++.
+        assert len(val) == 2
+        return TVMContext(val[0].value, val[1].value)
 
-    def device_copy(self, scope, inp, src_ctx, dst_ctx, idx):
+    def device_copy(self, inp, src_ctx, dst_ctx):
+        """Insert a device copy node."""
         copy = self.visit(op.tensor.device_copy(inp, src_ctx, dst_ctx))
-        copy_out = scope.let("copy_out_{0}".format(idx), copy)
-        return copy_out
+        return copy
 
     def current_scope(self):
         return self.scopes[-1]
@@ -217,7 +218,7 @@ class ManifestAllocPass(ExprMutator):
                     # pass may be needed to decide/remove this copy.
                     if not self.skip_copy_input(subexp) and \
                        ctx.device_type != cpu_ctx.device_type:
-                        subexp = self.device_copy(scope, subexp, ctx, cpu_ctx, j)
+                        subexp = self.device_copy(subexp, ctx, cpu_ctx)
                         subexp = scope.let("in_arg_{0}".format(input_pos + j),
                                            subexp)
                     sh_of = self.visit(self.shape_of(subexp))
@@ -229,7 +230,7 @@ class ManifestAllocPass(ExprMutator):
             elif state == 1:
                 new_arg = self.visit(arg)
                 if ctx.device_type != cpu_ctx.device_type:
-                    new_arg = self.device_copy(scope, new_arg, ctx, cpu_ctx, i)
+                    new_arg = self.device_copy(new_arg, ctx, cpu_ctx)
                 shape_func_ins.append(
                     scope.let("in_shape_{0}".format(input_pos), new_arg))
                 input_pos += 1
@@ -324,9 +325,9 @@ class ManifestAllocPass(ExprMutator):
                     attr = call.op.body.attrs
                 else:
                     attr = call.attr
-                return op.tensor.device_copy(new_args[0],
-                                             TVMContext(attr.src_dev_type, 0),
-                                             TVMContext(attr.dst_dev_type, 0))
+                return self.device_copy(new_args[0],
+                                        TVMContext(attr.src_dev_type, 0),
+                                        TVMContext(attr.dst_dev_type, 0))
             if self.is_dynamic(ret_type):
                 # Handle dynamic case.
                 return self.dynamic_invoke(scope, call.op, ins, new_args, out_types, ret_type)
@@ -346,6 +347,20 @@ class ManifestAllocPass(ExprMutator):
         return super().visit_call(call)
 
 
+def mk_analysis_annotator(results):
+    """Pretty print the annotated relay program with device info"""
+    def _annotator(exp):
+        if exp in results:
+            val = results[exp]
+            assert len(val) == 2
+            ctx = TVMContext(val[0].value, val[1].value)
+            return f"<{ctx}>"
+        else:
+            return ""
+
+    return _annotator
+
+
 @module_pass(opt_level=0)
 class ManifestAlloc:
     """The explicit pass wrapper around ManifestAlloc."""
@@ -358,10 +373,6 @@ class ManifestAlloc:
         # can we have def pass_init?
         mod.import_from_std("core.rly")
 
-        # We use logger here to help debug.
-        logging.debug("-----BEFORE CONTEXT ANALYSIS-----")
-        logging.debug(mod.astext(False))
-
         assert isinstance(self.targets, (dict, container.Map))
         if len(self.targets) > 1:
             pass_ctx = PassContext.current()
@@ -369,25 +380,21 @@ class ManifestAlloc:
                 fallback_ctx = nd.context(pass_ctx.config["relay.fallback_device_type"])
             else:
                 fallback_ctx = cpu(0)
-            ca = context_analysis(mod, TVMContext(fallback_ctx.device_type, 0))
+            ca = _context_analysis(mod, TVMContext(fallback_ctx.device_type, 0))
         else:
             if isinstance(self.targets, dict):
                 dev = list(self.targets.keys())[0]
             else:
                 dev, _ = self.targets.items()[0]
-            ca = context_analysis(mod, nd.context(dev.value))
+            ca = _context_analysis(mod, nd.context(dev.value))
 
-        # TODO(zhiics) This is not needed after we port the pass to C++
-        ca_res = {}
-        for key, val in ca.items():
-            ca_res[key] = TVMContext(val[0].value, val[1].value)
+        # The following code can be used for debugging the module after
+        # annotation.
+        # print(mod.astext(show_meta_data=False, annotate=mk_analysis_annotator(ca)))
 
-        logging.debug("-----AFTER CONTEXT ANALYSIS-----")
-        logging.debug(mod.astext(show_meta_data=False,
-                                 annotate=mk_analysis_annotator(ca_res)))
         gv_funcs = mod.functions
         for gv, f in gv_funcs.items():
-            ea = ManifestAllocPass(self.target_host, ca_res)
+            ea = ManifestAllocPass(self.target_host, ca)
             f = ea.visit(f)
             mod.update_func(gv, f)
         return mod

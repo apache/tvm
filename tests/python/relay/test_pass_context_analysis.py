@@ -21,7 +21,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay import expr as _expr, transform
-from tvm.relay.analysis.context_analysis import ContextAnalysis, mk_analysis_annotator
+from tvm.relay.analysis import context_analysis
 
 
 def test_device_copy():
@@ -34,7 +34,7 @@ def test_device_copy():
     out = copy + relay.const(np.random.rand(2, 3))
     glb_var = relay.GlobalVar("main")
     mod[glb_var] = relay.Function([x], out)
-    ca = ContextAnalysis(mod, glb_var, tvm.cpu())
+    ca = context_analysis(mod, tvm.cpu())
     ca.visit(mod[glb_var])
     ca_res = ca.results()
 
@@ -78,10 +78,8 @@ def test_dynamic_input():
     y = nested_data_tuple[1] * data_tuple[1] + data1
     mod["main"] = relay.Function([data0, data1], y)
     compiler = relay.vm.VMCompiler()
-    entry = mod.get_global_var("main")
-    ca = ContextAnalysis(mod, entry, tvm.cpu())
-    ca.visit(mod[entry])
-    ca_res = ca.results()
+    # mod, _ = compiler.optimize(mod, target="cuda")
+    # ca = context_analysis(mod, tvm.cpu())
 
 if __name__ == "__main__":
     pass

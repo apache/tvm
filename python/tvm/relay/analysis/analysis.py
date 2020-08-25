@@ -29,7 +29,8 @@ from .feature import Feature
 
 
 def context_analysis(mod, default_context):
-    """Analyze the context information of a Relay program.
+    """Analyze the device context information of each IR node in a Relay
+    program.
 
     Parameters
     ----------
