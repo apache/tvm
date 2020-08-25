@@ -176,9 +176,9 @@ class HoistCandidateSelector final : public StmtExprVisitor {
         StmtExprVisitor::VisitStmt_(op);
         RemoveRecord(GetRef<ObjectRef>(op));
         return;
+      } else {
+        return StmtExprVisitor::VisitStmt_(op);
       }
-
-      return StmtExprVisitor::VisitStmt_(op);
     }
     UpdateAttrVarList(op);
     StmtExprVisitor::VisitStmt_(op);
@@ -327,6 +327,7 @@ class HoistCandidateSelector final : public StmtExprVisitor {
     return false;
   }
 
+  // Ordered List maintains all ForNodes & AttrStmtNodes encountered in sequence
   std::vector<const Object*> ordered_list_;
   std::vector<const VarNode*> if_var_list_;
   std::unordered_set<const VarNode*> attr_var_list_;
