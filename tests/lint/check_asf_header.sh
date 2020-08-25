@@ -17,28 +17,36 @@
 # under the License.
 
 
-rat_output=/tmp/$$.apache-rat.txt
+rat_tempdir="$(mktemp -d)"
+
+function cleanup() {
+    rm -rf "${rat_tempdir}"
+}
+trap cleanup EXIT
+
+rat_output="${rat_tempdir}/$$.apache-rat.txt"
 
 filter_untracked=0
 if [ "$1" == "--local" ]; then
     filter_untracked=1
 fi
 
-java -jar /bin/apache-rat.jar -E tests/lint/rat-excludes  -d . | (grep -E "^== File" >${rat_output} || true)
+java -jar /bin/apache-rat.jar -E tests/lint/rat-excludes  -d . | (grep -E "^== File" >"${rat_output}" || true)
 
 # Rat can't be configured to ignore untracked files, so filter them.
 if [ ${filter_untracked} -eq 1 ]; then
     echo "NOTE: --local flag present, filtering untracked files"
+    processed_rat_output="${rat_output}-processed"
     cat ${rat_output} | sed 's/^== File: //g' | \
-        python3 $(dirname $0)/filter_untracked.py | \
-        sed 's/^/== File: /g' >${rat_output}-processed
-    rat_output=${rat_output}-processed
+        python3 $(dirname "$0")/filter_untracked.py | \
+        sed 's/^/== File: /g' >"${processed_rat_output}"
+    rat_output="${processed_rat_output}"
 fi
 
-if grep --quiet -E "File" ${rat_output}; then
+if grep --quiet -E "File" "${rat_output}"; then
     echo "Need to add ASF header to the following files."
     echo "----------------File List----------------"
-    cat ${rat_output}
+    cat "${rat_output}"
     echo "-----------------------------------------"
     echo "Use the following steps to add the headers:"
     echo "- Create file_list.txt in your text editor"

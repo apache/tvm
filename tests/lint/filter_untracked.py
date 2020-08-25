@@ -38,11 +38,22 @@ def check_output(args, **kw):
 def main():
     script_dir = os.path.dirname(__file__) or os.getcwd()
     toplevel_dir = check_output(['git', 'rev-parse', '--show-toplevel'], cwd=script_dir).strip('\n')
+    # NOTE: --ignore-submodules because this can drag in some problems related to mounting a git
+    # worktree in the docker VM in a different location than it exists on the host. The problem
+    # isn't quite clear, but anyhow it shouldn't be necessary to filter untracked files in
+    # submodules here.
     git_status_output = check_output(['git', 'status', '-s', '--ignored'],
                                      cwd=toplevel_dir)
     untracked = [line[3:]
                  for line in git_status_output.split('\n')
                  if line.startswith('?? ') or line.startswith('!! ')]
+
+    # also add .git in case rat picks up files in .git or the .git file (if a worktree).
+    toplevel_git_dentry = os.path.join(toplevel_dir, '.git')
+    if os.path.isfile(toplevel_git_dentry):
+        untracked.append('.git')
+    else:
+        untracked.append('.git/')
 
     for line in sys.stdin:
         cleaned_line = line

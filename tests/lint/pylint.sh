@@ -17,5 +17,5 @@
 # under the License.
 
 
-python3 -m pylint python/tvm --rcfile=$(dirname $0)/pylintrc
-python3 -m pylint vta/python/vta --rcfile=$(dirname $0)/pylintrc
+python3 -m pylint python/tvm --rcfile=$(dirname "$0")/pylintrc
+python3 -m pylint vta/python/vta --rcfile=$(dirname "$0")/pylintrc
