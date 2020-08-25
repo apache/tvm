@@ -19,6 +19,8 @@
 
 source "$(dirname $0)/dev_common.sh"
 
+DEFAULT_STEPS=( file_type asf cpplint clang_format pylint jnilint cppdocs )
+
 function run_lint_step() {
     validate_only=0
     if [ "$1" == "--validate-only" ]; then
@@ -49,7 +51,9 @@ function run_lint_step() {
             cmd=( tests/lint/cppdocs.sh )
             ;;
         *)
-            echo "error: don't know how to run lint step $1" >&2
+            echo "error: don't know how to run lint step: $1" >&2
+            echo "available lint steps: ${DEFAULT_STEPS[@]}"
+            exit 2
             ;;
     esac
 
@@ -60,7 +64,7 @@ function run_lint_step() {
 
 if [ $# -eq 0 ]; then
     # NOTE: matches order in tests/scripts/task_lint.sh
-    steps=( file_type asf cpplint clang_format pylint jnilint cppdocs )
+    steps=( "${DEFAULT_STEPS[@]}" )
 else
     steps=( "$@" )
 fi
