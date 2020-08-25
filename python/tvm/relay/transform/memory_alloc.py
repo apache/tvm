@@ -343,6 +343,7 @@ class ManifestAlloc:
         self.targets = targets
 
     def transform_module(self, mod, _):
+        """Invokes the pass"""
         # TODO(@jroesch): Is there a way to do one shot initialization?
         # can we have def pass_init?
         mod.import_from_std("core.rly")

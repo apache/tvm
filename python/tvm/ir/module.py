@@ -118,19 +118,19 @@ class IRModule(Node):
             other = Module(other)
         return _ffi_api.Module_Update(self, other)
 
-    def update_func(self, gv, func):
+    def update_func(self, var, func):
         """Update the function corresponding to a global variable in the
         module.
 
         Parameters
         ----------
-        gv: GlobalVar
+        var: GlobalVar
             The global variable.
 
         func: tvm.relay.Function
             The function to be inserted.
         """
-        return _ffi_api.Module_UpdateFunction(self, gv, func)
+        return _ffi_api.Module_UpdateFunction(self, var, func)
 
     def get_global_var(self, name):
         """Get a global variable in the function by name.
