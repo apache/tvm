@@ -510,10 +510,25 @@ def ToANormalForm():
 
     Returns
     -------
-    ret: Union[tvm.transform.Pass, tvm.relay.Expr]
+    ret : Union[tvm.transform.Pass, tvm.relay.Expr]
         The registered pass that transforms an expression into A Normal Form.
     """
     return _ffi_api.ToANormalForm()
+
+def ToANormalFormExpr(e):
+    """ToANormalForm, but on expression level.
+
+    Parameters
+    ----------
+    e : Expr
+        The graph expression.
+
+    Returns
+    -------
+    ret : Expr
+        The transformed expresion.
+    """
+    return _ffi_api.ToANormalFormExpr(e)
 
 def ToBasicBlockNormalForm():
     """Turn an expression to Basic Block Normal Form.

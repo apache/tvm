@@ -52,6 +52,7 @@
  */
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/feature.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/transform.h>
 
@@ -301,11 +302,13 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm) {
 }
 
 Function ToCPS(const Function& f, const IRModule& m) {
+  CheckFeature(f, m, FeatureSet::All() - fGraph);
   CPSMap cps;
   return ToCPS(f, m, &cps);
 }
 
 Function UnCPS(const Function& f) {
+  CheckFeature(f, FeatureSet::All() - fGraph);
   CHECK_GT(f->params.size(), 0);
   std::vector<Var> new_params;
   for (const auto& p : f->params) {
