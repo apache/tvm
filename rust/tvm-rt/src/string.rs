@@ -20,7 +20,7 @@
 use std::cmp::{Ordering, PartialEq};
 use std::hash::{Hash, Hasher};
 
-use super::{Object, ObjectPtr, ObjectRef};
+use super::{Object, ObjectPtr};
 
 use tvm_macros::Object;
 

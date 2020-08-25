@@ -17,7 +17,7 @@
  * under the License.
  */
 
-use crate::runtime::{Object, ObjectPtr, ObjectRef, String as TVMString};
+use crate::runtime::{Object, ObjectPtr, String as TVMString};
 use crate::DataType;
 
 use super::*;
