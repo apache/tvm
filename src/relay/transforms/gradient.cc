@@ -546,7 +546,7 @@ struct ReverseAD : ExprMutator {
         // TODO(@M.K.): ToANF should be called on rev. Enhance ToANF for that.
         return ret;
       });
-    } else if (const ConstructorNode* con = call->op.as<ConstructorNode>()) {
+    } else if (call->op.as<ConstructorNode>()) {
       return ExprMutator::VisitExpr_(call);
     } else {
       std::vector<Expr> args;
