@@ -41,15 +41,13 @@ def compute_resize(attrs, inputs, out_type):
 reg.register_injective_schedule("dyn.image.resize")
 
 @script
-def _resize_shape_func(dshape, size, ndim, height_axis, width_axis, channel_axis):
+def _resize_shape_func(dshape, size, ndim, height_axis, width_axis):
     out = output_tensor((ndim, ), "int64")
     for i in const_range(ndim):
         out[i] = int64(dshape[i])
     out[height_axis] = int64(size[0])
     out[width_axis] = int64(size[1])
-    out[channel_axis] = int64(dshape[channel_axis])
     return out
-
 
 @reg.register_shape_func("dyn.image.resize", True)
 def resize_shape_func(attrs, inputs, _):
@@ -59,7 +57,7 @@ def resize_shape_func(attrs, inputs, _):
     layout = attrs.layout
     if nchw_pack_layout(layout) or nchw_xc_layout(layout):
         out = [_resize_shape_func(inputs[0].shape, inputs[1], convert(len(inputs[0].shape)),
-                                  convert(2), convert(3), convert(1))]
+                                  convert(2), convert(3))]
     else:
         height_axis = width_axis = channel_axis = 1
         for i, letter in enumerate(layout):
@@ -67,9 +65,6 @@ def resize_shape_func(attrs, inputs, _):
                 height_axis = i
             if letter == "W":
                 width_axis = i
-            if letter == "C":
-                channel_axis = i
         out = [_resize_shape_func(inputs[0].shape, inputs[1], convert(len(inputs[0].shape)),
-                                  convert(height_axis), convert(width_axis),
-                                  convert(channel_axis))]
+                                  convert(height_axis), convert(width_axis))]
     return out
