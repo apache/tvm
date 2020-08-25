@@ -46,11 +46,10 @@ def setup_git_repo():
       subprocess.check_output(['git', 'add', '.gitignore'], cwd=git_repo_dir)
 
       # NOTE: explicitly set the author so this test passes in the CI.
-      commit_env = dict(os.environ)
-      commit_env['GIT_AUTHOR_NAME'] = 'Unit Test'
-      commit_env['GIT_AUTHOR_EMAIL'] = 'unit.test@testing.tvm.ai'
-      subprocess.check_output(['git', 'commit', '-m', 'initial commit'],
-                              env=commit_env,
+      subprocess.check_output(['git',
+                               '-c', 'user.name=Unit Test',
+                               '-c', 'user.email=unit.test@testing.tvm.ai',
+                               'commit', '-m', 'initial commit'],
                               cwd=git_repo_dir)
 
       with open(f'{git_repo_dir}/added-to-index', 'w') as added_f:
