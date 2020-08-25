@@ -206,8 +206,7 @@ def test_mod_export():
         complied_graph_lib.export_library(path_lib)
 
         from tvm import rpc
-        server = rpc.Server("localhost", use_popen=True, port=9093)
-        remote = rpc.connect(server.host, server.port)
+        remote = rpc.LocalSession()
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
@@ -395,8 +394,7 @@ def test_remove_package_params():
             fo.write(relay.save_param_dict(complied_graph_lib.get_params()))
 
         from tvm import rpc
-        server = rpc.Server("localhost", use_popen=True, port=9095)
-        remote = rpc.connect(server.host, server.port)
+        remote = rpc.LocalSession()
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
@@ -447,8 +445,7 @@ def test_remove_package_params():
             fo.write(relay.save_param_dict(complied_graph_lib.get_params()))
 
         from tvm import rpc
-        server = rpc.Server("localhost", use_popen=True, port=9092)
-        remote = rpc.connect(server.host, server.port)
+        remote = rpc.LocalSession()
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")

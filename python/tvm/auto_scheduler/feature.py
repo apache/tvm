@@ -19,7 +19,7 @@
 Python API for Feature extraction. The extracted features vector are used by cost models.
 
 We extract one feature vector per BufferStoreNode statement in a TIR Stmt,
-so we call this feature as "Per Store" feature.
+so we call this feature as "per-store" feature.
 The cost model also does prediction for each BufferStoreNode statement and aggregates
 the predicted score of each BufferStoreNode as the score of a TIR Stmt.
 
@@ -61,22 +61,30 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
         Normalized throughputs
     task_ids: np.ndarray
         Task ids
+
+    Note
+    ----
+    For faster data copy between c++ and python, the c++ part returns features in a single
+    flatten array using a packed format. The python part then unpacks the flatten array.
+
+    The packed format for n records is:
+    {
+      int   n;
+      int   sizes[n+2];           // The sizes for the following arrays
+
+      float features_0[size[0]];  // The features for record 0
+      float features_1[size[1]];  // The features for record 1
+      ...
+      float features_i[size[i]];  // The features for record i
+      ... // until i == n - 1
+
+      float throuputs[sizes[n]];  // The normalized throughputs for n records
+      int   task_ids[size[n+1];   // The task ids for n records
+
+    }
+    To implement this format, we also store int as float, so we can store all numbers
+    into a single float array.
     """
-
-    # The format for n records is:
-    # {
-    #   int n;
-    #   int[n+2] sizes
-
-    #   float[sizes[0]]    feature for record 1
-    #   float[sizes[1]]    feature for record 2
-    #   ...                feature for record i...
-    #   float[sizes[n-1]]  feature for record n
-
-    #   float[sizes[n]]    normalized throughput for n records
-    #   int[sizes[n+1]]    task id for n records
-    # }
-
     vec_len = DEFAULT_FEATURE_VEC_LEN
 
     # unpack sizes
@@ -95,8 +103,8 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
         # Now, we need to unpack the feature for multiple statements.
         # The format is:
         # {
-        #     int n_stmts
-        #     float[n_stmt][vec_len] feature_vecs
+        #   int   n_stage;                        // The number of stages
+        #   float feature_vecs[n_stage][vec_len]  // The feature vector for each stage
         # }
         # where vec_len can be calculated by `(size - 1) / n_stmts`
 
@@ -137,7 +145,7 @@ def get_per_store_features_from_file(filename: str,
                                      max_lines: int,
                                      max_n_bufs: Optional[int] = None) \
         -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Get per_store features from a log file
+    """Get per-store features from a log file
 
     Parameters
     ----------
@@ -167,7 +175,7 @@ def get_per_store_features_from_measure_pairs(inputs: List[MeasureInput],
                                               skip_first_n_feature_extraction: int = 0,
                                               max_n_bufs: Optional[int] = None) \
         -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Get per_store features from measurement input/result pairs
+    """Get per-store features from measurement input/result pairs
 
     Parameters
     ----------
@@ -197,7 +205,7 @@ def get_per_store_features_from_measure_pairs(inputs: List[MeasureInput],
 def get_per_store_features_from_states(states: List[Union[State, StateObject]],
                                        task: "SearchTask",
                                        max_n_bufs: Optional[int] = None) -> List[np.ndarray]:
-    """Get per_store features from measurement input/result pairs
+    """Get per-store features from measurement input/result pairs
 
     Parameters
     ----------

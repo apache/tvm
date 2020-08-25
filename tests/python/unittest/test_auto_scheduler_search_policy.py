@@ -39,14 +39,17 @@ def search_common(workload=matmul_auto_scheduler_test, target="llvm",
     target = tvm.target.create(target)
     task = auto_scheduler.SearchTask(dag, workload_key, target)
 
-    if search_policy == 'empty':
-        search_policy = auto_scheduler.EmptyPolicy(task)
-    elif search_policy == 'sketch':
-        search_policy = auto_scheduler.SketchPolicy(task,
-                init_search_callbacks=init_search_callbacks)
-
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
+
+        init_search_callbacks = init_search_callbacks or []
+        init_search_callbacks.append(auto_scheduler.PreloadMeasuredStates(log_file))
+
+        if search_policy == 'empty':
+            search_policy = auto_scheduler.EmptyPolicy(task)
+        elif search_policy == 'sketch':
+            search_policy = auto_scheduler.SketchPolicy(task,
+                    init_search_callbacks=init_search_callbacks)
 
         tuning_options = auto_scheduler.TuningOptions(num_measure_trials=num_measure_trials,
                 runner=runner, verbose=1, measure_callbacks=[auto_scheduler.RecordToFile(log_file)])
@@ -104,6 +107,20 @@ def test_sketch_search_policy_basic():
     t.join()
 
 
+def test_sketch_search_policy_cuda_rpc_runner():
+    if not tvm.runtime.enabled("cuda"):
+        return
+    measure_ctx = auto_scheduler.LocalRPCMeasureContext()
+    # wrap the search in a new thread to avoid the conflict
+    # between python's multiprocessing and tvm's thread pool
+    t = PropagatingThread(target=search_common,
+                          kwargs={'seed': 944563397, 'search_policy': 'sketch', 'target': 'cuda',
+                                  'runner': measure_ctx.runner})
+    t.start()
+    t.join()
+
+
 if __name__ == "__main__":
     test_workload_registry_search_basic()
     test_sketch_search_policy_basic()
+    test_sketch_search_policy_cuda_rpc_runner()

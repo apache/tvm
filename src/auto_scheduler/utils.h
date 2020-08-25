@@ -141,27 +141,6 @@ inline void StrReplace(std::string* base, const std::string& from, const std::st
   }
 }
 
-/*! \brief Convert a Array<Integer> to std::vector<int>. */
-inline std::vector<int> IntArrayToVector(const ::tvm::Array<::tvm::Integer>& data) {
-  std::vector<int> out;
-  for (const auto& x : data) {
-    CHECK(x.defined());
-    out.push_back(x);
-  }
-  return out;
-}
-
-/*! \brief Convert a Array<Optional<Integer>> to std::vector<int>. */
-inline std::vector<int> IntArrayToVector(
-    const ::tvm::Array<::tvm::Optional<::tvm::Integer>>& data) {
-  std::vector<int> out;
-  for (const auto& x : data) {
-    CHECK(x);
-    out.push_back(x.value());
-  }
-  return out;
-}
-
 /*! \brief Return whether two int arrays are elementwise-equal */
 inline bool IntArrayEqual(const Array<PrimExpr>& arr1, const Array<PrimExpr>& arr2) {
   if (arr1.size() != arr2.size()) {

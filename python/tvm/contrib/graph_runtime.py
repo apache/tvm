@@ -81,7 +81,7 @@ def get_device_ctx(libmod, ctx):
         ctx = [ctx]
     elif not isinstance(ctx, (list, tuple)):
         raise ValueError("ctx has to be the type of TVMContext or a list of "
-                         "TVMCTVMContext")
+                         "TVMContext")
     for cur_ctx in ctx:
         if not isinstance(cur_ctx, TVMContext):
             raise ValueError("ctx has to be the type of TVMContext or a list "

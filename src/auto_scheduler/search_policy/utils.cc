@@ -29,6 +29,44 @@
 namespace tvm {
 namespace auto_scheduler {
 
+Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id) {
+  const auto& stage = s->stages[stage_id];
+  const auto& pop = s->stages[stage_id]->op.as<te::ComputeOpNode>();
+  CHECK(pop != nullptr);
+  const std::set<std::string>& no_split_at_inner_name_set =
+      stage->op->attrs.count(SearchPolicyKey::no_split_at_inner)
+          ? GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::no_split_at_inner)
+          : std::set<std::string>();
+  size_t reduce_count = 0;
+  for (const auto axis : pop->reduce_axis) {
+    if (!no_split_at_inner_name_set.count(axis->var->name_hint)) {
+      reduce_count++;
+    }
+  }
+
+  Array<Integer> spatial_split_step_ids;
+  for (int i = s->transform_steps.size() - 1; i >= 0; --i) {
+    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
+        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
+        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+      if (stage_id > s->transform_steps[i]->stage_id) {
+        stage_id--;
+      }
+    } else if (auto ps = s->transform_steps[i].as<SplitStepNode>()) {
+      if (stage_id == ps->stage_id) {
+        // Assume SplitStep on reduction axes are always after SplitStep on spatial axes.
+        if (reduce_count) {
+          reduce_count--;
+        } else {
+          spatial_split_step_ids.push_back(i);
+        }
+      }
+    }
+  }
+
+  return spatial_split_step_ids;
+}
+
 State DoMultiLevelTiling(const State& state, int stage_id, const std::string& format,
                          std::vector<int>* spatial_split_step_ids) {
   // Temporal object to be used if the input pointer is nullptr
@@ -281,6 +319,23 @@ const std::vector<int>& SplitFactorizationMemo::GetFactors(int n) {
   std::sort(res.begin(), res.end());
   return res;
 }
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsIsTiled")
+    .set_body_typed([](const Stage& stage) { return IsTiled(stage); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsHasCacheReadStage")
+    .set_body_typed([](const State& s, int stage_id) { return HasCacheReadStage(s, stage_id); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsHasCacheWriteStage")
+    .set_body_typed([](const State& s, int stage_id) { return HasCacheWriteStage(s, stage_id); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsHasRfactorStage")
+    .set_body_typed([](const State& s, int stage_id) { return HasRfactorStage(s, stage_id); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsHasCrossThreadReduction")
+    .set_body_typed([](const State& s, int stage_id) {
+      return HasCrossThreadReduction(s, stage_id);
+    });
 
 }  // namespace auto_scheduler
 }  // namespace tvm

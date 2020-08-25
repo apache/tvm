@@ -25,7 +25,7 @@ from .op.tensor import add, subtract, equal
 from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard
 from . import op, transform
-
+from .analysis import free_vars
 
 def get_tensor_array_shape(expr, dtype, prelude):
     """Get the static shape of a tensor array if it has fixed rank shape.
@@ -51,7 +51,7 @@ def get_tensor_array_shape(expr, dtype, prelude):
         has dynamic shape.
     """
     mod = prelude.mod
-    mod["main"] = Function([], expr)
+    mod["main"] = Function(free_vars(expr), expr)
     mod = transform.InferType()(mod)
     checked_type = mod["main"].body.checked_type
     assert isinstance(checked_type, TypeCall), "Input must be a tensor array."

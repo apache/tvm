@@ -81,6 +81,9 @@ def test_resize():
     # half_pixel
     verify_resize(4, 16, 16, 16, 32, 32, 'NCHW', "half_pixel", method="bilinear")
     verify_resize(4, 16, 16, 16, 32, 32, 'NHWC', "half_pixel", method="bilinear")
+    # Bilinear + Fractional
+    verify_resize(4, 16, 32, 32, 50, 50, 'NCHW', "asymmetric", method="bilinear")
+    verify_resize(4, 16, 32, 32, 50, 50, 'NHWC', "asymmetric", method="bilinear")
 
 
 def verify_resize3d(batch, in_channel, in_depth, in_height, in_width, out_depth, out_height, out_width,

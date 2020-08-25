@@ -49,9 +49,12 @@ static RuleSkipStage rule_skip_stage;
 static RuleAlwaysInline rule_always_inline;
 static RuleMultiLevelTiling rule_multi_level_tiling;
 static RuleMultiLevelTilingWithFusion rule_multi_level_tiling_with_fusion;
+static RuleAddCacheRead rule_add_cache_read_stage;
 static RuleAddCacheWrite rule_add_cache_write_stage;
 static RuleAddRfactor rule_add_rfactor;
+static RuleCrossThreadReduction rule_cross_thread_reduction;
 static RuleSimplifyComputeWithConstTensor rule_simplify_compute_with_const_tensor;
+static RuleSpecialComputeLocationGPU rule_special_compute_location_gpu;
 
 /********** Init population rules **********/
 
@@ -60,6 +63,7 @@ static InitChangeComputeLocation init_change_compute_location;
 static InitParallel init_parallel;
 static InitUnroll init_unroll;
 static InitVectorization init_vectorization;
+static InitThreadBind init_thread_bind;
 
 /********** Sketch policy **********/
 
@@ -85,23 +89,45 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
     node->RunCallbacks(init_search_callbacks.value());
   }
 
-  // The default sketch rules for CPU policy
   // Notice: Some rules require us to skip all the rest rules after they are applied.
   // So the rules below should be ordered carefully.
-  node->sketch_rules.push_back(&rule_always_inline);
-  node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
-  node->sketch_rules.push_back(&rule_add_rfactor);
-  node->sketch_rules.push_back(&rule_add_cache_write_stage);
-  node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
-  node->sketch_rules.push_back(&rule_multi_level_tiling);
+  if (IsCPUTask(node->search_task)) {
+    // The default sketch rules for CPU policy
+    node->sketch_rules.push_back(&rule_always_inline);
+    node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
+    node->sketch_rules.push_back(&rule_add_rfactor);
+    node->sketch_rules.push_back(&rule_add_cache_write_stage);
+    node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
+    node->sketch_rules.push_back(&rule_multi_level_tiling);
+  } else if (IsCUDATask(node->search_task)) {
+    // The default sketch rules for CUDA policy
+    node->sketch_rules.push_back(&rule_add_cache_read_stage);
+    node->sketch_rules.push_back(&rule_always_inline);
+    node->sketch_rules.push_back(&rule_special_compute_location_gpu);
+    node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
+    node->sketch_rules.push_back(&rule_cross_thread_reduction);
+    node->sketch_rules.push_back(&rule_add_cache_write_stage);
+    node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
+    node->sketch_rules.push_back(&rule_multi_level_tiling);
+  } else {
+    LOG(FATAL) << "No default sketch rules for target: " << task->target;
+  }
   node->sketch_rules.push_back(&rule_skip_stage);  // This should always be the last rule
 
-  // The default init population rules for CPU policy
-  node->init_rules.push_back(&init_fill_tile_size);
-  node->init_rules.push_back(&init_change_compute_location);
-  node->init_rules.push_back(&init_parallel);
-  node->init_rules.push_back(&init_unroll);
-  node->init_rules.push_back(&init_vectorization);
+  node->init_rules.push_back(&init_fill_tile_size);  // This should always be the first rule
+  if (IsCPUTask(node->search_task)) {
+    // The default init population rules for CPU policy
+    node->init_rules.push_back(&init_change_compute_location);
+    node->init_rules.push_back(&init_parallel);
+    node->init_rules.push_back(&init_unroll);
+    node->init_rules.push_back(&init_vectorization);
+  } else if (IsCUDATask(node->search_task)) {
+    // The default init population rules for CUDA policy
+    node->init_rules.push_back(&init_thread_bind);
+    node->init_rules.push_back(&init_unroll);
+  } else {
+    LOG(FATAL) << "No default init rules for target: " << task->target;
+  }
 
   data_ = std::move(node);
 }
@@ -122,6 +148,7 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
     measurer->Reset();
 
     int ct = 0;
+    int empty_retry_count = GetIntParam(params, SketchParamKey::empty_retry_count);
     Array<MeasureInput> inputs;
     Array<MeasureResult> results;
     while (ct < n_trials) {
@@ -144,10 +171,19 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
       // Also pick some random states to do eps-greedy
       inputs = PickStatesWithEpsGreedy(best_states, random_states, n_trials - ct);
 
-      // Have traversed all of the search space
+      // Currently it's hard to detect if all of the search space has been traversed
+      // Stop if no extra valid states found in several retries
       if (inputs.empty()) {
-        StdCout(verbose) << "All candidates in the search space have been measured." << std::endl;
-        break;
+        if (empty_retry_count-- > 0) {
+          continue;
+        } else {
+          StdCout(verbose) << "It seems all candidates in the search space have been measured."
+                           << std::endl;
+          break;
+        }
+      } else {
+        // Reset the retry count
+        empty_retry_count = GetIntParam(params, SketchParamKey::empty_retry_count);
       }
 
       // Measure candidate states
@@ -196,7 +232,7 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
   const Array<State>& sketches = GenerateSketches();
 
   // 2. Sample the init population
-  Array<State> init_populations = SampleInitPopulation(
+  Array<State> init_population = SampleInitPopulation(
       sketches, is_cost_model_reasonable ? population - num_use_measured : population);
 
   // 3. If the cost model is useless (i.e. RandomCostModel), just random pick some generated
@@ -205,18 +241,18 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
     // Also insert already measured good states to the initial population
     std::vector<int> indices = Argsort(measured_states_throughputs_);
     for (int i = 0; i < num_use_measured; i++) {
-      init_populations.push_back(measured_states_vector_[indices[i]]);
+      init_population.push_back(measured_states_vector_[indices[i]]);
     }
     // Sample some random states for eps-greedy
-    *random_states = RandomSampleStates(init_populations, &rand_gen, num_random_states * 10);
-    return EvolutionarySearch(init_populations, num_measure_per_iter_ * 2);
+    *random_states = RandomSampleStates(init_population, &rand_gen, num_random_states * 10);
+    return EvolutionarySearch(init_population, num_measure_per_iter_ * 2);
   } else {
-    return RandomSampleStates(init_populations, &rand_gen, num_measure_per_iter_ * 3);
+    return RandomSampleStates(init_population, &rand_gen, num_measure_per_iter_ * 3);
   }
 }
 
 Array<State> SketchPolicyNode::GenerateSketches() {
-  State init_state = search_task->compute_dag->init_state;
+  const State& init_state = search_task->compute_dag->init_state;
 
   // Two ping pong buffers to avoid copy
   Array<State> states_buf1{init_state}, states_buf2;
@@ -248,7 +284,7 @@ Array<State> SketchPolicyNode::GenerateSketches() {
             cur_stage_id_map[pair.first] = pair.second;
             pnext->push_back(pair.first);
           }
-          // Skip the reset rules
+          // Skip the rest rules
           if (cond == SketchGenerationRule::ConditionKind::kApplyAndSkipRest) {
             break;
           }
@@ -322,7 +358,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
   return out_states;
 }
 
-Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_populations,
+Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_population,
                                                   int out_size) {
   Array<State> best_states;
   auto tic_begin = std::chrono::high_resolution_clock::now();
@@ -396,6 +432,14 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicy")
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicyGenerateSketches")
     .set_body_typed([](SketchPolicy policy) { return policy->GenerateSketches(); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicySampleInitialPopulation")
+    .set_body_typed([](SketchPolicy policy, int pop_size) {
+      const Array<State>& sketches = policy->GenerateSketches();
+
+      Array<State> init_population = policy->SampleInitPopulation(sketches, pop_size);
+      return init_population;
+    });
 
 }  // namespace auto_scheduler
 }  // namespace tvm

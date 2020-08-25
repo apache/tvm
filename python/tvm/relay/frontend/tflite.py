@@ -136,6 +136,7 @@ class OperatorConverter(object):
             'ROUND': self.convert_round,
             'RSQRT': self.convert_rsqrt,
             'REVERSE_SEQUENCE': self.convert_reverse_sequence,
+            'REVERSE_V2': self.convert_reverse_v2,
             'SELECT': self.convert_select,
             'SHAPE': self.convert_shape,
             'SIN': self.convert_sin,
@@ -1347,14 +1348,10 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
-        data = self.get_expr(input_tensors[0].tensor_idx)
-
+        data = self.get_tensor_expr(input_tensors[0])
         indices = input_tensors[1]
         indices_type = indices.tensor.Type()
         assert indices_type in (TensorType.INT32, TensorType.INT64)
-        indices_type_str = self.get_tensor_type_str(indices_type)
-        indices = self.exp_tab.new_const(self.get_tensor_value(indices),
-                                         dtype=indices_type_str)
 
         assert op.BuiltinOptionsType() == BuiltinOptions.GatherOptions
         op_options = op.BuiltinOptions()
@@ -1366,37 +1363,31 @@ class OperatorConverter(object):
         data_shape = list(input_tensors[0].tensor.ShapeAsNumpy())
         data_dim = len(data_shape)
 
-        axis_n = axis
-        if axis_n < 0:
-            axis_n += axis_n + data_dim
-        assert axis_n >= 0, "Axis out of bounds"
-        assert axis_n < data_dim, "Axis out of bounds"
+        axis = data_dim + axis if axis < 0 else axis
+        assert axis >= 0, "Axis out of bounds"
+        assert axis < data_dim, "Axis out of bounds"
 
-        indices_val = self.get_tensor_value(input_tensors[1])
-        indices_shape = list(indices_val.shape)
-        indices_len = len(indices_shape)
+        if self.has_expr(indices.tensor_idx):
+            indices_expr = self.get_expr(indices.tensor_idx)
+        else:
+            indices_val = self.get_tensor_value(indices)
+            indices_expr = self.exp_tab.new_const(indices_val,
+                                                  dtype=self.get_tensor_type_str(indices_type))
+            indices_shape = list(indices_val.shape)
+            indices_len = len(indices_shape)
 
-        out_shape = []
-        for i in range(data_dim):
-            if axis_n == i:
-                for j in range(indices_len):
-                    out_shape.append(indices_shape[j])
-            else:
-                out_shape.append(data_shape[i])
+            out_shape = data_shape[:axis] + indices_shape[:] + data_shape[axis+1:]
 
-        loopover = [range(s) for s in out_shape]
-        for idx in list(itertools.product(*loopover)):
-            indices_position = [idx[j] for j in range(axis_n, axis_n+indices_len)]
-
-            real_indices = [idx[j] for j in range(axis_n)]
-            real_indices.append(indices_val[tuple(indices_position)])
-            real_indices.extend([idx[j] for j in range(axis_n + indices_len, len(idx))])
-            for r, d in zip(real_indices, data_shape):
-                if r >= d:
+            loopover = [range(s) for s in out_shape]
+            for idx in list(itertools.product(*loopover)):
+                real_indices = list(idx[:axis]) \
+                    + [indices_val[idx[axis: axis + indices_len]]] \
+                    + list(idx[axis + indices_len:])
+                if np.any(np.subtract(data_shape, real_indices) < 0):
                     raise ValueError("TFLite out of bound indices are not supported.")
 
         # Use mode 'fast' since indices are already checked within bounds.
-        out = _op.take(data, indices, axis=axis, mode="fast")
+        out = _op.take(data, indices_expr, axis=axis, mode="fast")
         return out
 
     def convert_gather_nd(self, op):
@@ -1718,10 +1709,9 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) >= 2, "input tensors length should be >= 2"
+        assert len(input_tensors) in (2, 3), "input tensors length should be two or three"
 
         input_tensor = input_tensors[0]
-        input_tensor_idx = input_tensor.tensor_idx
         weight_tensor = input_tensors[1]
 
         output_tensors = self.get_output_tensors(op)
@@ -1743,7 +1733,7 @@ class OperatorConverter(object):
         # Dense expected Weight shape: [out_dim, n_units]
         # Dense output shape: [batch_size, out_dim]
         target_shape = tuple((-1, weight_tensor_shape[1]))
-        in_expr = self.get_expr(input_tensor_idx)
+        in_expr = self.get_tensor_expr(input_tensor)
         in_expr = _op.reshape(in_expr, target_shape)
 
         #TODO: Change the output shape calculation based on keep_dim option
@@ -2981,6 +2971,22 @@ class OperatorConverter(object):
 
         out = _op.one_hot(indices_expr, on_value_expr, off_value_expr, depth, axis, dtype)
 
+        return out
+
+    def convert_reverse_v2(self, op):
+        """Convert TFLite REVERSE_V2"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensor's length should be 2"
+
+        input_expr = self.get_expr(input_tensors[0].tensor_idx)
+
+        # Getting axis value
+        axis = self.get_tensor_value(input_tensors[1])
+        if isinstance(axis, np.ndarray):
+            assert len(axis) == 1, "TFLite does not support multi-axis yet"
+            axis = int(axis)
+
+        out = _op.reverse(input_expr, axis)
         return out
 
 
