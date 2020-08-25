@@ -79,6 +79,8 @@ def _get_keras_model(keras_model, inputs_dict):
 
 
 def test_vgg16():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
@@ -98,6 +100,8 @@ def test_vgg16():
 
 
 def test_mobilenet():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
@@ -117,6 +121,8 @@ def test_mobilenet():
 
 
 def test_quantized_mobilenet():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
