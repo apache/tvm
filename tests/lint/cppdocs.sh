@@ -17,6 +17,11 @@
 # under the License.
 
 
+function cleanup() {
+    rm -f /tmp/$$.log.txt /tmp/$$.logclean.txt
+}
+trap cleanup EXIT
+
 make doc 2>/tmp/$$.log.txt
 
 grep -v -E "ENABLE_PREPROCESSING|unsupported tag" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
