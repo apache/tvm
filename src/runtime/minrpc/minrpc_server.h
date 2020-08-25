@@ -28,7 +28,7 @@
 #ifndef TVM_RUNTIME_MINRPC_MINRPC_SERVER_H_
 #define TVM_RUNTIME_MINRPC_MINRPC_SERVER_H_
 
-#include <dmlc/endian.h>
+#define DMLC_LITTLE_ENDIAN true
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
 

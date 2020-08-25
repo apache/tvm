@@ -26,6 +26,7 @@
 #define TVM_RUNTIME_CRT_UTVM_RPC_SERVER_H_
 
 #include <stdlib.h>
+#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {

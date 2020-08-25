@@ -136,10 +136,10 @@ def build_static_runtime(workspace, compiler, module, lib_opts=None, bin_opts=No
         Module to statically link.
 
     lib_opts : dict
-        Extra kwargs passed to Library(),
+        Extra kwargs passed to library(),
 
     bin_opts : dict
-        Extra kwargs passed to Binary(),
+        Extra kwargs passed to binary(),
 
     Returns
     -------
@@ -170,10 +170,10 @@ def build_static_runtime(workspace, compiler, module, lib_opts=None, bin_opts=No
             if RUNTIME_SRC_REGEX.match(p):
                 lib_srcs.append(os.path.join(lib_src_dir, p))
 
-        libs.append(compiler.Library(lib_build_dir, lib_srcs, lib_opts))
+        libs.append(compiler.library(lib_build_dir, lib_srcs, lib_opts))
 
-    libs.append(compiler.Library(mod_build_dir, [mod_src_path], lib_opts))
+    libs.append(compiler.library(mod_build_dir, [mod_src_path], lib_opts))
 
     runtime_build_dir = workspace.relpath(f'build/runtime')
     os.makedirs(runtime_build_dir)
-    return compiler.Binary(runtime_build_dir, libs, bin_opts)
+    return compiler.binary(runtime_build_dir, libs, bin_opts)

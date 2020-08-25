@@ -47,8 +47,8 @@ ssize_t utvm_write_func(void* context, const uint8_t* data, size_t num_bytes) {
   return to_return;
 }
 
-void TVMPlatformAbort(int exit_code) {
-  std::cerr << "TVM Abort: " << exit_code << std::endl;
+void TVMPlatformAbort(tvm_crt_error_t error_code) {
+  std::cerr << "TVM Abort: " << error_code << std::endl;
   throw "Aborted";
 }
 

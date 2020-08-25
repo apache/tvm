@@ -157,7 +157,7 @@ void Session::SendSessionStartReply(const SessionHeader& header) {
   RegenerateNonce();
   remote_nonce_ = sender_nonce(header.session_id);
   tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionMessage, nullptr, 0);
-  CHECK_EQ(to_return, kTvmErrorNoError);
+  CHECK_EQ(to_return, kTvmErrorNoError, "SendSessionStartReply");
 }
 
 void Session::ProcessStartSession(const SessionHeader& header) {
@@ -189,7 +189,7 @@ void Session::ProcessStartSession(const SessionHeader& header) {
         // if both sides choose the same non-zero nonce as the initiating StartSession packet,
         // retry.
         if (remote_nonce == local_nonce_) {
-          CHECK_EQ(StartSession(), kTvmErrorNoError);
+          CHECK_EQ(StartSession(), kTvmErrorNoError, "StartSession");
           state_ = State::kStartSessionSent;
         } else if (remote_nonce < local_nonce_) {
           SendSessionStartReply(header);

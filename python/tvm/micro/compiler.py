@@ -238,7 +238,7 @@ class DefaultCompiler(Compiler):
         if link_main:
             host_main_srcs = glob.glob(os.path.join(build.CRT_ROOT_DIR, 'host', '*.cc'))
             if main_options:
-                main_lib = self.Library(os.path.join(output, 'host'), host_main_srcs, main_options)
+                main_lib = self.library(os.path.join(output, 'host'), host_main_srcs, main_options)
                 for lib_name in main_lib.library_files:
                     args.append(main_lib.abspath(lib_name))
             else:

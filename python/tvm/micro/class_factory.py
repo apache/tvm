@@ -27,7 +27,7 @@ class ClassFactory:
     def override_kw(self, **kw_overrides):
         kwargs = self.init_kw
         if kw_overrides:
-            kwargs = dict(kw)
+            kwargs = dict(kwargs)
             for k, v in kw_overrides.items():
                 kwargs[k] = v
 

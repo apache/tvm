@@ -52,7 +52,7 @@ def create_micro_library(output, objects, options=None):
     temp_dir = util.tempdir()
     comp = compiler.DefaultCompiler()
     output = temp_dir.relpath('micro-library.o')
-    comp.Library(output, objects, options=options)
+    comp.library(output, objects, options=options)
 
     with open(output, 'rb') as output_f:
         elf_data = output_f.read()

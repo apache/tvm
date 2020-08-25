@@ -264,7 +264,7 @@ tvm_crt_error_t Unframer::FindCrcEnd() {
   }
 
   // TODO(areusch): Handle endianness.
-  stream_->PacketDone(crc_ == *reinterpret_cast<uint16_t*>(buffer_);
+  stream_->PacketDone(crc_ == *reinterpret_cast<uint16_t*>(buffer_));
   ClearBuffer();
   state_ = State::kFindPacketStart;
   return kTvmErrorNoError;

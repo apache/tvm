@@ -54,7 +54,7 @@ void __attribute__((format(printf, 1, 2))) TVMLogf(const char* fmt, ...);
   do {                                                             \
     if (!(x)) {                                                    \
       LOG_ERROR(__FILE__ ":%d: Check failed: %s\n", __LINE__, #x); \
-      TVMPlatformAbort(-1);                                        \
+      TVMPlatformAbort(kTvmErrorPlatformCheckFailure);             \
     }                                                              \
   } while (0)
 #endif
@@ -65,7 +65,7 @@ void __attribute__((format(printf, 1, 2))) TVMLogf(const char* fmt, ...);
     if (!(x op y)) {                                                                      \
       LOG_ERROR(__FILE__ ":%d: Check failed: %s %s %s: " fmt "\n", __LINE__, #x, #op, #y, \
                 ##__VA_ARGS__);                                                           \
-      exit(-1);                                                                           \
+      TVMPlatformAbort(kTvmErrorPlatformCheckFailure);                                    \
     }                                                                                     \
   } while (0)
 #endif

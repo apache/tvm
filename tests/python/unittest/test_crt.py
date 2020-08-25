@@ -53,7 +53,7 @@ def _make_session(mod):
   workspace = tvm.micro.Workspace(debug=True)
 
   compiler = tvm.micro.DefaultCompiler(target=TARGET)
-  opts = tvm.micro.DefaultOptions(os.path.join(tvm.micro.CRT_ROOT_DIR, 'host'))
+  opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, 'host'))
 
   micro_binary = tvm.micro.build_static_runtime(
     # the x86 compiler *expects* you to give the exact same dictionary for both
@@ -65,7 +65,7 @@ def _make_session(mod):
   flasher_kw = {
     'debug': DEBUG,
   }
-  flasher = compiler.Flasher(**flasher_kw)
+  flasher = compiler.flasher(**flasher_kw)
   return tvm.micro.Session(binary=micro_binary, flasher=flasher)
 
 

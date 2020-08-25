@@ -64,7 +64,7 @@ class Session:
             Returns self.
         """
         if self.flasher is not None:
-            self.transport_context_manager = self.flasher.Flash(self.binary)
+            self.transport_context_manager = self.flasher.flash(self.binary)
             time.sleep(3.0)
 
         self.transport = TransportLogger(

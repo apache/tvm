@@ -67,7 +67,7 @@ class MicroIOHandler {
     return buf_size_bytes;
   }
 
-  void MessageDone() { CHECK_EQ(session_->FinishMessage(), kTvmErrorNoError); }
+  void MessageDone() { CHECK_EQ(session_->FinishMessage(), kTvmErrorNoError, "FinishMessage"); }
 
   ssize_t PosixRead(uint8_t* buf, size_t buf_size_bytes) {
     return receive_buffer_->Read(buf, buf_size_bytes);
@@ -129,8 +129,8 @@ class MicroRPCServer {
   bool Loop() {
     if (has_pending_byte_) {
       size_t bytes_consumed;
-      CHECK_EQ(unframer_.Write(&pending_byte_, 1, &bytes_consumed), kTvmErrorNoError);
-      CHECK_EQ(bytes_consumed, 1);
+      CHECK_EQ(unframer_.Write(&pending_byte_, 1, &bytes_consumed), kTvmErrorNoError, "unframer_.Write");
+      CHECK_EQ(bytes_consumed, 1, "bytes_consumed");
       has_pending_byte_ = false;
     }
 
@@ -181,6 +181,8 @@ class MicroRPCServer {
 }  // namespace runtime
 }  // namespace tvm
 
+void* operator new[](size_t count, void* ptr) noexcept { return ptr; }
+
 extern "C" {
 
 static utvm_rpc_server_t g_rpc_server = nullptr;
@@ -192,8 +194,9 @@ utvm_rpc_server_t utvm_rpc_server_init(uint8_t* memory, size_t memory_size_bytes
   tvm::runtime::g_write_func_ctx = write_func_ctx;
 
   TVMInitializeGlobalMemoryManager(memory, memory_size_bytes, page_size_bytes_log2);
-  if (TVMInitializeRuntime() != 0) {
-    TVMPlatformAbort(-1);
+  tvm_crt_error_t err = TVMInitializeRuntime();
+  if (err != kTvmErrorNoError) {
+    TVMPlatformAbort(err);
   }
 
   auto receive_buffer =
@@ -225,10 +228,10 @@ void TVMLogf(const char* format, ...) {
     tvm::runtime::SerialWriteStream write_stream;
     tvm::runtime::Framer framer{&write_stream};
     tvm::runtime::Session session{0xa5, &framer, nullptr, nullptr, nullptr};
-    int to_return = session.SendMessage(tvm::runtime::MessageType::kLogMessage,
-                                        reinterpret_cast<uint8_t*>(log_buffer), num_bytes_logged);
-    if (to_return != 0) {
-      TVMPlatformAbort(-1);
+    tvm_crt_error_t err = session.SendMessage(tvm::runtime::MessageType::kLogMessage,
+                                              reinterpret_cast<uint8_t*>(log_buffer), num_bytes_logged);
+    if (err != kTvmErrorNoError) {
+      TVMPlatformAbort(err);
     }
   }
 }

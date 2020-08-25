@@ -6,6 +6,8 @@ import signal
 import subprocess
 import threading
 
+from . import transport
+
 
 class Debugger(metaclass=abc.ABCMeta):
     """An interface for controlling micro TVM debuggers."""
