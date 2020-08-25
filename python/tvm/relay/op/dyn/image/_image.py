@@ -59,7 +59,7 @@ def resize_shape_func(attrs, inputs, _):
         out = [_resize_shape_func(inputs[0].shape, inputs[1], convert(len(inputs[0].shape)),
                                   convert(2), convert(3))]
     else:
-        height_axis = width_axis = channel_axis = 1
+        height_axis = width_axis = 1
         for i, letter in enumerate(layout):
             if letter == "H":
                 height_axis = i
