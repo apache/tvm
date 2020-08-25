@@ -45,7 +45,10 @@ def setup_git_repo():
 
       subprocess.check_output(['git', 'add', '.gitignore'], cwd=git_repo_dir)
 
-      subprocess.check_output(['git', 'commit', '-m', 'initial commit'], cwd=git_repo_dir)
+      # NOTE: explicitly set the author so this test passes in the CI.
+      subprocess.check_output(
+          ['git', 'commit', '-m', 'initial commit', '--author=Unit Test <unittest@tvm.ai>'],
+          cwd=git_repo_dir)
 
       with open(f'{git_repo_dir}/added-to-index', 'w') as added_f:
           added_f.write('only added to git index\n')
