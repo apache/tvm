@@ -378,7 +378,7 @@ struct Instruction {
    * \param src_device_type The device type of the tensor for the source register.
    * \param dst_device_type The device type of the tensor ofr the destination register.
    * \param dst The destination register to store the copied tensor.
-   * \return The reshape tensor instruction.
+   * \return The device copy instruction.
    */
   static Instruction DeviceCopy(RegName src, Index src_device_type, Index dst_device_type,
                                 RegName dst);

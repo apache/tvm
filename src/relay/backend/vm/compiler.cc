@@ -640,9 +640,9 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                    auto dtype = alloc_attrs->dtype;
 
                    Index device_type;
-                   // There is bug if all expression are annotated with the device that
-                   // other than the first one in the target list.
                    if (expr_device_map_.empty()) {
+                     // TODO(zhiics) There is bug if all expressions are annotated with the device
+                     // that is different the first one in the target list.
                      auto& kv = *(targets_.begin());
                      device_type = kv.first;
                    } else {

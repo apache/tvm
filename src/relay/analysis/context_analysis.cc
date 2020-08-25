@@ -443,6 +443,7 @@ class ContextAnalyzer : public ExprVisitor {
   }
 
   void UnifyAllocStorageCall(const CallNode* call) {
+    // [size, alignment]
     CHECK_EQ(call->args.size(), 2U);
 
     // The arguments of alloc storage should be on CPU.
@@ -458,6 +459,7 @@ class ContextAnalyzer : public ExprVisitor {
   }
 
   void UnifyAllocTensorCall(const CallNode* call) {
+    // [storage, offset, shape]
     CHECK_EQ(call->args.size(), 3U);
 
     Expr storage = call->args[0];
@@ -470,6 +472,7 @@ class ContextAnalyzer : public ExprVisitor {
   }
 
   void UnifyShapeFuncCall(const CallNode* call) {
+    // [func, inputs, outputs]
     CHECK_EQ(call->args.size(), 3U);
     auto shape_func_domain = DeviceType(cpu_ctx_);
 
@@ -489,6 +492,7 @@ class ContextAnalyzer : public ExprVisitor {
   }
 
   void UnifyInvokeTVMOpCall(const CallNode* call) {
+    // [op, inputs, outputs]
     CHECK_EQ(call->args.size(), 3U);
     Tuple inps = Downcast<Tuple>(call->args[1]);
     Tuple outputs = Downcast<Tuple>(call->args[2]);
@@ -509,6 +513,7 @@ class ContextAnalyzer : public ExprVisitor {
   }
 
   void UnifyReshapeTensorCall(const CallNode* call) {
+    // [data, shape]
     CHECK_EQ(call->args.size(), 2U);
     Expr data = call->args[0];
     Expr shape = call->args[1];

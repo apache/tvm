@@ -95,7 +95,6 @@ class ManifestAllocPass(ExprMutator):
         self.default_context = cpu(0)
         self.compute_dtype = "int64"
         self.context_analysis = context_analysis
-        self.cached_var = {}
         super().__init__()
 
     def get_context(self, exp):
@@ -173,7 +172,6 @@ class ManifestAllocPass(ExprMutator):
 
         self.scopes.append(scope)
         while isinstance(let, expr.Let):
-            self.cached_var[let.var] = let.value
             new_val = self.visit(let.value)
             scope.let(let.var, new_val)
             let = let.body
@@ -183,13 +181,6 @@ class ManifestAllocPass(ExprMutator):
         self.scopes.pop()
 
         return scope.get()
-
-    def skip_copy_input(self, var):
-        """Check if device copy for the input should be skipped. We currently
-        skip copying it when the input is a constant.
-        """
-        return (var in self.cached_var and isinstance(self.cached_var[var],
-                                                      expr.Constant))
 
     def emit_shape_func(self, scope, func, new_args):
         """Insert the shape function given a primitive function."""
@@ -203,7 +194,6 @@ class ManifestAllocPass(ExprMutator):
         cpu_ctx = nd.cpu(0)
         for i, (arg, state) in enumerate(zip(new_args, input_states)):
             state = int(state)
-            ctx = self.get_context(arg)
             # Pass Shapes
             if state == 2:
                 for j, subexp in enumerate(from_tuple_type(arg.type_annotation, arg)):
@@ -215,6 +205,7 @@ class ManifestAllocPass(ExprMutator):
             # Pass Inputs
             elif state == 1:
                 new_arg = self.visit(arg)
+                ctx = self.get_context(arg)
                 if ctx.device_type != cpu_ctx.device_type:
                     new_arg = self.device_copy(new_arg, ctx, cpu_ctx)
                 shape_func_ins.append(
@@ -275,14 +266,11 @@ class ManifestAllocPass(ExprMutator):
         if self.is_dynamic(ret_type):
             out_shapes = self.emit_shape_func(scope, func, new_args)
             shape_expr = out_shapes[0]
-            inp = new_args[0]
-            ret = self.reshape_tensor(inp, shape_expr, ret_type.shape)
-            return ret
         else:
             # constant output shape
             shape = [int(dim) for dim in ret_type.shape]
             shape_expr = expr.const(shape, dtype=self.compute_dtype)
-            return self.reshape_tensor(new_args[0], shape_expr, ret_type.shape)
+        return self.reshape_tensor(new_args[0], shape_expr, ret_type.shape)
 
     def is_dynamic(self, ret_type):
         is_dynamic = ty.is_dynamic(ret_type)
