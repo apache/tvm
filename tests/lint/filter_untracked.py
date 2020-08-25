@@ -38,7 +38,7 @@ def check_output(args, **kw):
 def main():
     script_dir = os.path.dirname(__file__) or os.getcwd()
     toplevel_dir = check_output(['git', 'rev-parse', '--show-toplevel'], cwd=script_dir).strip('\n')
-    git_status_output = check_output(['git', 'status', '-s', '--ignored=traditional'],
+    git_status_output = check_output(['git', 'status', '-s', '--ignored'],
                                      cwd=toplevel_dir)
     untracked = [line[3:]
                  for line in git_status_output.split('\n')
