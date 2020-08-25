@@ -129,7 +129,8 @@ class MicroRPCServer {
   bool Loop() {
     if (has_pending_byte_) {
       size_t bytes_consumed;
-      CHECK_EQ(unframer_.Write(&pending_byte_, 1, &bytes_consumed), kTvmErrorNoError, "unframer_.Write");
+      CHECK_EQ(unframer_.Write(&pending_byte_, 1, &bytes_consumed), kTvmErrorNoError,
+               "unframer_.Write");
       CHECK_EQ(bytes_consumed, 1, "bytes_consumed");
       has_pending_byte_ = false;
     }
@@ -228,8 +229,9 @@ void TVMLogf(const char* format, ...) {
     tvm::runtime::SerialWriteStream write_stream;
     tvm::runtime::Framer framer{&write_stream};
     tvm::runtime::Session session{0xa5, &framer, nullptr, nullptr, nullptr};
-    tvm_crt_error_t err = session.SendMessage(tvm::runtime::MessageType::kLogMessage,
-                                              reinterpret_cast<uint8_t*>(log_buffer), num_bytes_logged);
+    tvm_crt_error_t err =
+        session.SendMessage(tvm::runtime::MessageType::kLogMessage,
+                            reinterpret_cast<uint8_t*>(log_buffer), num_bytes_logged);
     if (err != kTvmErrorNoError) {
       TVMPlatformAbort(err);
     }
