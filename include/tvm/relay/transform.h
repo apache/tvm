@@ -148,6 +148,15 @@ TVM_DLL Pass ToBasicBlockNormalForm();
 TVM_DLL Pass ToANormalForm();
 
 /*!
+ * \brief ToANormalForm but on incomplete graph.
+ *
+ * \param expr the graph.
+ *
+ * \return The transformed program.
+ */
+TVM_DLL Expr ToANormalForm(const Expr& expr);
+
+/*!
  * \brief Turn an expression into continuation passing style(CPS).
  *
  * CPS mean that every function will, instead of returning the result directly,

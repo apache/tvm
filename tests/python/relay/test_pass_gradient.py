@@ -45,6 +45,18 @@ def test_id():
     tvm.testing.assert_allclose(grad.asnumpy(), np.ones_like(x.asnumpy()))
 
 
+def test_relu():
+    shape = (10, 10)
+    dtype = 'float32'
+    t = relay.TensorType(shape, dtype)
+    x = relay.var("x", t)
+    func = relay.Function([x], op.nn.relu(x))
+    func = run_infer_type(func)
+    back_func = run_infer_type(gradient(func))
+    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
+    # gradient will implicitly check that no graph appear in result
+
+
 def test_add():
     shape = (10, 10)
     dtype = 'float32'
@@ -72,12 +84,14 @@ def test_check_grad():
 
 
 def test_temp_add():
+    scope = relay.ScopeBuilder()
     shape = (10, 10)
     dtype = 'float32'
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
-    y = x + x
-    func = relay.Function([x], y + y)
+    y = scope.let("y", x + x)
+    scope.ret(y + y)
+    func = relay.Function([x], scope.get())
     func = run_infer_type(func)
     back_func = run_infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
@@ -280,12 +294,14 @@ def test_if():
 
 
 def test_grad_tuple():
+    scope = relay.ScopeBuilder()
     shape = (10, 10)
     dtype = 'float32'
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
-    y = x + x
-    func = relay.Function([x], relay.Tuple([y + y, y]))
+    y = scope.let("y", x + x)
+    scope.ret(relay.Tuple([y + y, y]))
+    func = relay.Function([x], scope.get())
     func = run_infer_type(func)
     back_func = run_infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([relay.TupleType([t, t]), relay.TupleType([t])]))
