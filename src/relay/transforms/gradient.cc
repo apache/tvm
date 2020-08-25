@@ -456,14 +456,10 @@ struct ReverseAD : ExprMutator {
   std::shared_ptr<ADGVarMap> ad_gvars;
   const OpAttrMap<FPrimalGradient> rev_map = Op::GetAttrMap<FPrimalGradient>("FPrimalGradient");
 
-  explicit ReverseAD(const Optional<IRModule>& mod,
-                     const Var& bp,
+  explicit ReverseAD(const Optional<IRModule>& mod, const Var& bp,
                      const std::shared_ptr<ADVarMap>& ad_vars,
-                     const std::shared_ptr<ADGVarMap>& ad_gvars) :
-    mod(mod),
-    bp(bp),
-    ad_vars(ad_vars),
-    ad_gvars(ad_gvars) { }
+                     const std::shared_ptr<ADGVarMap>& ad_gvars)
+      : mod(mod), bp(bp), ad_vars(ad_vars), ad_gvars(ad_gvars) {}
 
   Expr VisitExpr_(const OpNode* op) final {
     LOG(FATAL) << "op should only be inside call";
@@ -501,8 +497,8 @@ struct ReverseAD : ExprMutator {
       Expr nbp = Function({}, LetList::With([&](LetList* ll) {
                             // we need a new ReverseAD visitor to avoid clobbering the bp local var
                             auto dup_bp = ll->Push(BPEmpty());
-                            auto dup_ad = ll->Push(ReverseAD(mod, dup_bp, ad_vars, ad_gvars)
-                                                   (DeDup(x)));
+                            auto dup_ad =
+                                ll->Push(ReverseAD(mod, dup_bp, ad_vars, ad_gvars)(DeDup(x)));
                             TransferGrads(call->checked_type(), ret, dup_ad, ll);
                             ll->Push(Call(RefRead(dup_bp), {}));
                             return Call(bpv, {});
@@ -537,15 +533,13 @@ struct ReverseAD : ExprMutator {
         orig_var->checked_type_ = call->checked_type();
         auto ret = ll->Push(GetRev(call->checked_type(), orig_var, ll));
         auto bpv = ll->Push(RefRead(bp));
-        Expr nbp_body =
-          LetList::With([&](LetList* ll) {
-            tvm::Array<Expr> rev =
-              rev_map[op_ref](orig, GetGrad(call->checked_type(), ret, ll));
-            CHECK(args.size() == rev.size());
-            for (size_t i = 0; i < args.size(); ++i) {
-              UpdateGrad(call->args[i]->checked_type(), args[i], rev[i], ll);
-            }
-            return Call(bpv, {});
+        Expr nbp_body = LetList::With([&](LetList* ll) {
+          tvm::Array<Expr> rev = rev_map[op_ref](orig, GetGrad(call->checked_type(), ret, ll));
+          CHECK(args.size() == rev.size());
+          for (size_t i = 0; i < args.size(); ++i) {
+            UpdateGrad(call->args[i]->checked_type(), args[i], rev[i], ll);
+          }
+          return Call(bpv, {});
         });
         Expr nbp = Function({}, nbp_body, TupleType::Empty(), {});
         ll->Push(RefWrite(bp, transform::ToANormalForm(nbp)));
@@ -603,7 +597,7 @@ struct ReverseAD : ExprMutator {
       params.push_back(bp);
       Expr body = VisitExpr(orig_f->body);
       Function f(params, body, VisitType(orig_f->ret_type), orig_f->type_params, orig_f->attrs);
-      std::cout << "gv " << op->name_hint << ": " <<  AsText(f, false) << std::endl;
+      std::cout << "gv " << op->name_hint << ": " << AsText(f, false) << std::endl;
       mod.value()->Add(gv, f);
     }
     return ad_gvars->at(orig_gv);
@@ -616,11 +610,8 @@ struct ReverseAD : ExprMutator {
     }
     auto new_bp = Var("bp", bpt);
     params.push_back(new_bp);
-    return Function(params,
-                    ReverseAD(mod, new_bp, ad_vars, ad_gvars)(op->body),
-                    VisitType(op->ret_type),
-                    op->type_params,
-                    op->attrs);
+    return Function(params, ReverseAD(mod, new_bp, ad_vars, ad_gvars)(op->body),
+                    VisitType(op->ret_type), op->type_params, op->attrs);
   }
 
   Type VisitType(const Type& t) final { return t.defined() ? ReverseType(t) : t; }
@@ -669,9 +660,7 @@ Expr Gradient(const Expr& re, const Optional<IRModule>& mod) {
   CHECK(!MissingGrad(e)) << "input has operators with missing gradients";
   Expr body = LetList::With([&](LetList* ll) {
     Var bp = ll->Push(BPEmpty(), bpt);
-    Expr rev = ReverseAD(mod,
-                         bp,
-                         std::make_shared<ReverseAD::ADVarMap>(),
+    Expr rev = ReverseAD(mod, bp, std::make_shared<ReverseAD::ADVarMap>(),
                          std::make_shared<ReverseAD::ADGVarMap>())(e);
     std::vector<Expr> normal_args, args;
     for (const auto& p : f->params) {
