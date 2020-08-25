@@ -40,6 +40,9 @@ def convert_ndarray(dst_dtype, array):
         return relay.create_executor('graph').evaluate(cast)(array)
 
 def change_dtype(src, dst, module, params):
+    """Convert constants and functions in module from src type to dst type.
+    Returns changed module and converted params of type dst_type.
+    """
     module = relay.frontend.ChangeDatatype(src, dst)(module)
     module = relay.transform.InferType()(module)
     params = {k: convert_ndarray(dst, v) for k, v in params.items()}
@@ -166,11 +169,14 @@ def setup():
     }), "Call", "llvm", "posites2", intrinsic_name="tir.tanh")
 
     def posit_min_func(num_bits):
-        # encode raw bit representation
-        # min posit is all 1's in binary
+        # the minimum representable posit is all 1's in binary,
+        # here we encode the raw bit representation in an integer
+        # and use the extern function to simply interpret
+        # the integer as a posites2
+        # 
         # another possible way is to create a FloatImm storing the value
-        # of the minimum as a float and then casting to `posites2`,
-        # but the user should be wary of rounding errors
+        # of the minimum as a float64 and then casting to `posites2`,
+        # but float imprecision makes this approach susceptible to hard-to-find bugs
         value = np.dtype('int' + str(num_bits)).type(-1)
         dtype = 'custom[posites2]' + str(num_bits)
         func_map = {
@@ -189,16 +195,17 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
     # second shape for binary ops
     shape2 = (5, )
 
-    def check_unary_op(op, src_dtype, dst_dtype):
-        t1 = relay.TensorType(shape1, src_dtype)
+    def check_unary_op(op, src_dtype, dst_dtype, shape):
+        t1 = relay.TensorType(shape, src_dtype)
         x = relay.var("x", t1)
         z = op(x)
-        x_data = rs.rand(*shape1).astype(t1.dtype)
+        x_data = rs.rand(*shape).astype(t1.dtype)
 
         module = tvm.IRModule.from_expr(relay.Function([x], z))
 
         compare(module, (x_data, ), src_dtype, dst_dtype, rtol, atol)
 
+    # test unary ops
     for op in [
             relay.nn.softmax,
             tvm.relay.log,
@@ -208,8 +215,18 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
             tvm.relay.sigmoid,
             tvm.relay.tanh,
             relay.nn.relu,
+            relay.nn.batch_flatten
     ]:
-        check_unary_op(op, src_dtype, dst_dtype)
+        check_unary_op(op, src_dtype, dst_dtype, shape1)
+
+    # test unary ops over 4d data
+    for op in [
+        relay.nn.max_pool2d,
+        relay.nn.avg_pool2d,
+        # relay.nn.global_avg_pool2d, (fails for custom[posites]32; atol=1e-6, rtol=5e-6)
+    ]:
+        shape_2d = (3, 32, 32, 32)
+        check_unary_op(op, src_dtype, dst_dtype, shape_2d)
 
     def check_binary_op(opfunc, src_dtype, dst_dtype):
         t1 = relay.TensorType(shape1, src_dtype)

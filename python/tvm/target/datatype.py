@@ -83,8 +83,7 @@ def register_op(lower_func,
                 intrinsic_name=None):
     """Register an external function which computes the given op.
 
-    Currently, this will only work with Casts and binary expressions
-    whose arguments are named `a` and `b`.
+    Currently, this will work with Casts, intrinsics, and binary expressions.
     TODO(gus) figure out what other special cases must be handled by
         looking through expr.py.
 
@@ -95,13 +94,14 @@ def register_op(lower_func,
 
     op_name : str
         The name of the operation which the function computes, given by its
-        class name (e.g. Add, LE, Cast).
+        class name (e.g. Add, LE, Cast, Call).
 
     target : str
         The name of codegen target.
 
     src_type_name : str
         The name of the custom datatype, e.g. posites2 (but not custom[posites2]32).
+        If op_name is not "Cast", then target type is guaranteed to be the same as src_type_name.
 
     dest_type_name : str
         If op_name is "Cast", then this is required and should be set to the dest datatype of
@@ -127,13 +127,13 @@ def register_op(lower_func,
 
 # TODO(gus) could probably make this a decorator if i want
 def register_min_func(func, type_name):
-    """Register the function that returns the minimum value of the type_name.
+    """Register the function that returns the minimum representable value of type_name.
 
     Parameters
     ----------
     func : function
         Takes in num_bits, returns a value of type custom[type_name]num_bits
-        with the minimum value.
+        with the minimum representable value.
 
     type_name : str
         The name of the custom datatype, e.g. posites2 (but not custom[posites2]32).
@@ -154,9 +154,9 @@ def create_lower_func(extern_func_map):
     """
     def lower(op):
         """
-        Takes an op---either a Cast or a binary op (e.g. an Add) and returns a
+        Takes an op---either a Cast, Call, or a binary op (e.g. an Add) and returns a
         call to the specified external function, passing the op's argument
-        (Cast) or arguments (a binary op). The return type of the call depends
+        or arguments. The return type of the call depends
         on the type of the op: if it is a custom type, then a uint of the same
         width as the custom type is returned. Otherwise, the type is
         unchanged."""
@@ -184,18 +184,42 @@ def bit_length(type_str):
     t = DataType(type_str)
     return t.bits
 
-def lower_ite(ite_intrin):
-    dtype = ite_intrin.dtype
+def lower_ite(ite_op):
+    """Lowered if then else function that calls intrinsic if_then_else.
+    Unlike a function lowered by create_lower_func, this function
+    calls the tvm intrinsic if_then_else.
+
+    Parameters
+    ----------
+    ite_op : Op
+        Takes an if then else op and returns a
+        call to tir.if_then_else function, passing the op's
+        arguments. The return type of the call if a uint of the same
+        width as the custom type is returned.
+    """
+    dtype = ite_op.dtype
     t = tvm.DataType(dtype)
     assert get_type_registered(t.type_code)
     dtype = "uint" + str(t.bits)
     if t.lanes > 1:
         dtype += "x" + str(t.lanes)
-    return call_intrin(dtype, "tir.if_then_else", convert(ite_intrin.args[0]),
-                       convert(ite_intrin.args[1]),
-                       convert(ite_intrin.args[2]))
+    return call_intrin(dtype, "tir.if_then_else", convert(ite_op.args[0]),
+                       convert(ite_op.args[1]),
+                       convert(ite_op.args[2]))
 
 def lower_call_pure_extern(op):
+    """Lowered call pure extern function that calls intrinsic call_pure_extern.
+    Unlike a function lowered by create_lower_func, this function
+    calls the tvm intrinsic if_then_else.
+
+    Parameters
+    ----------
+    ite_op : Op
+        Takes a call_pure_extern op and returns a
+        call to tir.call_pure_extern function, passing the op's
+        arguments. The return type of the call if a uint of the same
+        width as the custom type is returned.
+    """
     dtype = op.dtype
     t = tvm.DataType(dtype)
     assert get_type_registered(t.type_code)
