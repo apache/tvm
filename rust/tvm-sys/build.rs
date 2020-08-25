@@ -20,21 +20,29 @@
 extern crate bindgen;
 
 use std::path::PathBuf;
-
 use std::env;
 
-fn main() {
+use anyhow::{Result, Context};
+
+fn main() -> Result<()> {
     let tvm_home = option_env!("TVM_HOME").map(str::to_string).unwrap_or({
         let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .canonicalize()
-            .unwrap();
+            .with_context(|| {
+                format!("failed to cannonicalize() CARGO MANIFEST_DIR={}", env!("CARGO_MANIFEST_DIR"))
+            })?;
+
         crate_dir
             .parent()
-            .unwrap()
+            .with_context(|| {
+                format!("failed to find parent of CARGO MANIFEST_DIR={}", env!("CARGO_MANIFEST_DIR"))
+            })?
             .parent()
-            .unwrap()
+            .with_context(|| {
+                format!("failed to find the parent of the parent of CARGO MANIFEST_DIR={}", env!("CARGO_MANIFEST_DIR"))
+            })?
             .to_str()
-            .unwrap()
+            .context("failed to convert to strings")?
             .to_string()
     });
 
@@ -56,7 +64,9 @@ fn main() {
         .derive_eq(true)
         .derive_default(true)
         .generate()
-        .expect("unable to generate bindings")
+        .map_err(|()| anyhow::anyhow!("failed to generate bindings"))?
         .write_to_file(PathBuf::from("src/c_runtime_api.rs"))
-        .expect("can not write the bindings!");
+        .context("failed to write bindings")?;
+
+    Ok(())
 }

@@ -19,7 +19,7 @@
 
 use std::{env, path::Path, process::Command};
 
-fn main() {
+fn main() -> Result<()> {
     let out_dir = env::var("OUT_DIR").unwrap();
 
     let output = Command::new(concat!(
@@ -29,6 +29,7 @@ fn main() {
     .arg(&out_dir)
     .output()
     .expect("Failed to execute command");
+
     assert!(
         Path::new(&format!("{}/test.so", out_dir)).exists(),
         "Could not build tvm lib: {}",
