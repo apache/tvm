@@ -17,6 +17,7 @@
 from itertools import zip_longest, combinations
 import json
 import os
+import warnings
 
 import numpy as np
 
@@ -103,7 +104,11 @@ class Device:
         to the test_arm_compute_lib directory.
         """
         location = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
-        with open(os.path.join(location, file_name), mode="r") as config:
+        config_file = os.path.join(location, file_name)
+        if not os.path.exists(config_file):
+            warnings.warn("Config file doesn't exist, resuming Arm Compute Library tests with default config.")
+            return
+        with open(config_file, mode="r") as config:
             test_config = json.load(config)
 
         cls.connection_type = test_config["connection_type"]
