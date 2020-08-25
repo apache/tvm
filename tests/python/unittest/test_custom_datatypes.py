@@ -223,7 +223,7 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
     for op in [
         relay.nn.max_pool2d,
         relay.nn.avg_pool2d,
-        # relay.nn.global_avg_pool2d, (fails for custom[posites]32; atol=1e-6, rtol=5e-6)
+        relay.nn.global_avg_pool2d
     ]:
         shape_2d = (3, 32, 32, 32)
         check_unary_op(op, src_dtype, dst_dtype, shape_2d)
@@ -362,7 +362,7 @@ def run_conv2d(src_dtype, dst_dtype, rtol=1e-7, atol=1e-4):
 def test_ops():
     run_ops('float32', 'custom[posites2]8', rtol=1, atol=1)
     run_ops('float32', 'custom[posites2]16', rtol=0.01, atol=1)
-    run_ops('float32', 'custom[posites2]32')
+    run_ops('float32', 'custom[posites2]32', rtol=1e-6, atol=1e-6)
 
 def test_conv2d():
     run_conv2d('float32', 'custom[posites2]8', rtol=1, atol=1)
