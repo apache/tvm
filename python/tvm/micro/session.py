@@ -1,13 +1,11 @@
-import os
-import tempfile
+"""Defines a top-level glue class that operates the Transport and Flasher classes."""
+
+import logging
 import time
 
 from .base import _rpc_connect
 from ..rpc import RPCSession
 from .transport import TransportLogger
-from . import compiler
-from . import micro_binary
-from .. import register_func, register_object
 
 
 class Session:
@@ -69,7 +67,6 @@ class Session:
             self.transport_context_manager = self.flasher.Flash(self.binary)
             time.sleep(3.0)
 
-        import logging
         self.transport = TransportLogger(
             self.session_name, self.transport_context_manager, level=logging.INFO).__enter__()
         self._rpc = RPCSession(_rpc_connect(
@@ -80,49 +77,3 @@ class Session:
     def __exit__(self, exc_type, exc_value, exc_traceback):
         """Tear down this session and associated RPC session resources."""
         self.transport.__exit__(exc_type, exc_value, exc_traceback)
-
-
-RPC_SESSION_CONFIG = None
-
-
-def load_rpc_session_config(file_name):
-    global RPC_SESSION_CONFIG
-    with open(file_name) as json_f:
-        RPC_SESSION_CONFIG = json.load(json_f)
-
-
-RPC_SESSION = None
-
-
-@register_func("tvm.micro.create_micro_session")
-def create_micro_session(build_result_filename, build_result_bin, flasher_factory_json):
-    global RPC_SESSION
-    if RPC_SESSION is not None:
-        raise Exception('Micro session already established')
-
-    with tempfile.NamedTemporaryFile(prefix=build_result_filename, mode='w+b') as tf:
-        tf.write(build_result_bin)
-        tf.flush()
-
-#    if RPC_SESSION_CONFIG is None:
-#        raise Exception('No RPC_SESSION_CONFIG loaded')
-
-        binary = micro_binary.MicroBinary.unarchive(
-            tf.name, os.path.join(tempfile.mkdtemp(), 'binary'))
-        flasher_obj = compiler.FlasherFactory.from_json(flasher_factory_json).instantiate()
-
-        RPC_SESSION = Session(binary=binary, flasher=flasher_obj)
-        RPC_SESSION.__enter__()
-        return RPC_SESSION._rpc._sess
-
-
-@register_func
-def destroy_micro_session():
-    global RPC_SESSION
-    if RPC_SESSION is not None:
-        exc_type, exc_value, traceback = RPC_SESSION.__exit__(None, None, None)
-        RPC_SESSION = None
-        if (exc_type, exc_value, traceback) != (None, None, None):
-            e = exc_type(exc_value)  # See PEP 3109
-            e.__traceback__ = traceback
-            raise e
