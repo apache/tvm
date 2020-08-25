@@ -500,6 +500,11 @@ class ContextAnalyzer : public ExprVisitor {
     // vm shape_of is always on the CPU.
     CHECK_EQ(call->args.size(), 1U);
     ExprVisitor::VisitExpr(call->args[0]);
+    // Note we don't unify the input of a shape_of with the cpu domain. This is
+    // because vm.shape_of has a native instruction to compute the shape of
+    // a tensor regardless its device type.
+    // Instead, the device type of the input is left for its other consumers to
+    // unify or it will fallback to the default context.
     Unify(DeviceFor(GetRef<Call>(call)), DeviceType(cpu_ctx_));
   }
 

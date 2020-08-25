@@ -109,8 +109,7 @@ class ManifestAllocPass(ExprMutator):
 
     def device_copy(self, inp, src_ctx, dst_ctx):
         """Insert a device copy node."""
-        copy = self.visit(op.tensor.device_copy(inp, src_ctx, dst_ctx))
-        return copy
+        return self.visit(op.tensor.device_copy(inp, src_ctx, dst_ctx))
 
     def current_scope(self):
         return self.scopes[-1]
@@ -208,19 +207,6 @@ class ManifestAllocPass(ExprMutator):
             # Pass Shapes
             if state == 2:
                 for j, subexp in enumerate(from_tuple_type(arg.type_annotation, arg)):
-                    # Note vm.shape_of is always executed on CPU. The input may
-                    # need to have a copy as it is likely passed from other
-                    # callers and the argument was on other devices. Constants
-                    # can leave on CPU.
-                    #
-                    # However, this may cause an unnecessary copy when
-                    # all dynamic inputs can be assigned to CPU. An additional
-                    # pass may be needed to decide/remove this copy.
-                    if not self.skip_copy_input(subexp) and \
-                       ctx.device_type != cpu_ctx.device_type:
-                        subexp = self.device_copy(subexp, ctx, cpu_ctx)
-                        subexp = scope.let("in_arg_{0}".format(input_pos + j),
-                                           subexp)
                     sh_of = self.visit(self.shape_of(subexp))
                     shape_func_ins.append(
                         scope.let("in_shape_{0}".format(input_pos + j), sh_of))
