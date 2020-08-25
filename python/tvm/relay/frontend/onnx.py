@@ -27,7 +27,6 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
 from .. import vision as _vision
-from .. import tensor as _tensor
 
 from ..function import Function
 from ..expr import Call, Let
@@ -35,6 +34,7 @@ from ..expr import If, Tuple, TupleGetItem
 from ..expr import RefCreate, RefRead, RefWrite
 from ..expr_functor import ExprFunctor
 from ..adt import Match, Clause
+from ..op.tensor import minimum as _minimum, maximum as _maximum
 
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels
@@ -1885,16 +1885,26 @@ class RoiAlign(OnnxOpConverter):
 class Clip(OnnxOpConverter):
     """Operator converter for Clip.
     """
+    @staticmethod
+    def convert_attributes(inputs, attr, params):
+        convert = AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'})
+        return convert(inputs, attr, params)
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'})
+        return Clip.convert_attributes(inputs, attr, params)
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
-        clip_bounds = [attr[bound] if bound in attr else
-                       infer_value_simulated(inputs[i+1], params).asnumpy().item(0)
-                       for i, bound in enumerate(['min','max'])]
-        return _tensor.clip(inputs[0], *clip_bounds)
+        if 'min' in attr and 'max' in attr:
+            return Clip.convert_attributes(inputs, attr, params)
+
+        assert len(inputs) <= 3, "Clip-11 takes up to 3 inputs, input, min, max"
+        result = inputs[0]
+        for i, op in enumerate([_maximum, _minimum]):
+            if i < len(inputs) - 1:
+                result = op(result, inputs[i+1])
+        return result
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
