@@ -377,10 +377,8 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
   size_t population = init_population.size();
-  int num_iters =
-      static_cast<int>(GetIntParam(params, SketchParamKey::EvolutionarySearch::num_iters));
-  double mutation_prob = static_cast<double>(
-      GetDoubleParam(params, SketchParamKey::EvolutionarySearch::mutation_prob));
+  int num_iters = GetIntParam(params, SketchParamKey::EvolutionarySearch::num_iters);
+  double mutation_prob = GetDoubleParam(params, SketchParamKey::EvolutionarySearch::mutation_prob);
 
   // Two ping pong buffers to avoid copy.
   Array<State> states_buf1{init_population}, states_buf2;
@@ -389,7 +387,7 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   Array<State>* pnow = &states_buf1;
   Array<State>* pnext = &states_buf2;
 
-  // The set of explored states to avoid redendants.
+  // The set of explored states to avoid redundancy.
   std::unordered_set<std::string> explored_set;
 
   // The heap to maintain the so far best states.
@@ -480,7 +478,7 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
       State tmp_s = (*pnow)[RandomChoose(state_select_probs, &rand_gen)];
       if (uniform_dist(rand_gen) < mutation_prob) {
         // Select a rule and mutate the state.
-        const auto rule = mutation_rules[RandomChoose(rule_select_probs, &rand_gen)];
+        const auto& rule = mutation_rules[RandomChoose(rule_select_probs, &rand_gen)];
         if (rule->Apply(this, &tmp_s) == PopulationGenerationRule::ResultKind::kValid) {
           pnext->push_back(std::move(tmp_s));
         } else {
