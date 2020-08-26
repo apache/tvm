@@ -54,12 +54,18 @@ class ConvertTransformMemorizerNode : public TransformMemorizerNode {
    * \param desired_layouts Specify mapping of op_name to array of desired layouts for each input.
    *                        For example: Map("nn.conv2d", Array("NHWC", "OHWI")),
    *                        this specifies the desired layout for data then kernel for nn.conv2d.
+   * \param custom_layout Specify a function which will take in: the name of the operator, the call
+   *                      attributes and the call arguments, which then returns a list of
+   *                      layouts. Use this option when you need to check the characteristics of an
+   *                      operator before deciding the layout to use.
    */
-  explicit ConvertTransformMemorizerNode(Map<String, Array<String>> desired_layouts)
-      : desired_layouts_(std::move(desired_layouts)) {}
+  explicit ConvertTransformMemorizerNode(Map<String, Array<String>> desired_layouts,
+                                         PackedFunc custom_layout)
+      : desired_layouts_(std::move(desired_layouts)), custom_layout_(std::move(custom_layout)) {}
 
   /*! \brief A mapping of op_name to array of desired layouts for each input. */
   Map<String, Array<String>> desired_layouts_;
+  PackedFunc custom_layout_;
 };
 
 /*!
@@ -99,6 +105,18 @@ class ConvertTransformMemorizer : public TransformMemorizer {
         LOG(FATAL) << "Desired layout(s) not specified for op: " << op->name;
       }
       Array<String> op_desired_layouts = desired_layouts.at(op->name);
+
+      // Some operators have a custom layout defined
+      if (op_desired_layouts.size() == 1 && op_desired_layouts[0] == "custom") {
+        auto custom_layout = operator->()->custom_layout_;
+        TVMRetValue ret = custom_layout(op->name, ref_call->attrs, ref_call->args);
+        if (ret.type_code() != kTVMObjectHandle && !ret.IsObjectRef<Array<String>>()) {
+          LOG(FATAL) << "Return type must be an array of layouts for each input";
+        }
+        Array<String> custom_layouts = ret.operator Array<String>();
+        op_desired_layouts = custom_layouts;
+      }
+
       Expr altered_value =
           fconvert_layout[op](ref_call->attrs, new_args, tinfos, op_desired_layouts);
       if (altered_value.defined()) {
@@ -123,9 +141,10 @@ class ConvertTransformMemorizer : public TransformMemorizer {
  * 1. The altered op should have the same number of arguments as the previous one.
  * 2. Do not support nested tuple arguments.
  */
-Expr ConvertLayout(const Expr& expr, const Map<String, Array<String>>& desired_layouts) {
+Expr ConvertLayout(const Expr& expr, const Map<String, Array<String>>& desired_layouts,
+                   const PackedFunc& custom_layout) {
   ConvertTransformMemorizer transformMemorizer(
-      make_object<ConvertTransformMemorizerNode>(desired_layouts));
+      make_object<ConvertTransformMemorizerNode>(desired_layouts, custom_layout));
   auto fcontext = [&](const Call& call) -> ObjectRef { return transformMemorizer; };
 
   return ForwardRewrite(expr, LayoutRewriter<ConvertTransformMemorizer>, fcontext);
@@ -135,10 +154,12 @@ Expr ConvertLayout(const Expr& expr, const Map<String, Array<String>>& desired_l
 
 namespace transform {
 
-Pass ConvertLayout(const Map<String, Array<String>>& desired_layouts) {
+Pass ConvertLayout(const Map<String, Array<String>>& desired_layouts,
+                   const PackedFunc& custom_layout) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(relay::convert_op_layout::ConvertLayout(f, desired_layouts));
+        return Downcast<Function>(
+            relay::convert_op_layout::ConvertLayout(f, desired_layouts, custom_layout));
       };
   return CreateFunctionPass(pass_func, 3, "ConvertLayout", {"InferType", "CanonicalizeOps"});
 }

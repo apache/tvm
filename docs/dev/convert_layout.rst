@@ -264,5 +264,53 @@ The ordering of the layouts is defined by the implementation of `register_conver
 
 Current implementation has support for almost all the operators commonly used in image classification models. However, if one encounters too many data layout transforms in the graph, it is highly likely that there is an operator whose layouts need special handling as described in Section 3. Some pull requests that can help in such a situation are
 
+
+****************
+5. Complex Usage
+****************
+
+In some cases it may not be enough to decide the layout based solely on the operator name. In this case we require additional logic on the operator's attributes and arguments to decide what layout should be used. For example, lets take the kernel layout of convolution (nn.conv2d). We may require the kernel layout for a depth-wise convolution be different from any other type of convolution - IHWO as opposed to OHWI. By only being able to specify the operators name we are unable to do this. Instead, we allow a 'custom' layout to be specified along with a function that is able to decide which layouts should be returned.
+
+In the example below we define a function which will be run to determine the layout(s) for every operator that uses the 'custom' option. If the 'custom' option isn't defined for a certain operator, the usual convert layout characteristics apply.
+
+.. code-block:: python
+
+    # TFlite framework to Relay parser - Default layout is NHWC
+    mod, params = relay.frontend.from_tflite(tflite_model,
+                                             shape_dict=shape_dict,
+                                             dtype_dict=dtype_dict)
+
+    # A custom function which will decide the required layout based on attributes and arguments of
+    # the current call. The custom_layouts function is run on all operators defined as 'custom' so
+    # we may need to filter the operators we receive. In this specific example, it is not necessary
+    # to filter the operators - we do it here for clarity.
+    from tvm.relay.op.strategy.generic import is_depthwise_conv2d
+    def custom_layouts(op_name, attrs, args):
+        if op_name == "nn.conv2d":
+            data = args[0].checked_type
+            weight = args[1].checked_type
+            is_depthwise = is_depthwise_conv2d(data.shape,
+                                               attrs['data_layout'],
+                                               weight.shape,
+                                               attrs['kernel_layout'],
+                                               attrs['groups'])
+            return ['NHWC', 'IHWO'] if is_depthwise else ['NHWC', 'OHWI']
+        raise ValueError(f'No custom layout defined for {op_name}')
+
+    # We assume our model's heavily-layout sensitive operators only consist of nn.conv2d
+    desired_layouts = {'nn.conv2d': ['custom']}
+
+    # Convert the kernel layout
+    # RemoveUnunsedFunctions is used to clean up the graph.
+    seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
+                                    relay.transform.ConvertLayout(desired_layouts, custom_layouts)])
+    with tvm.transform.PassContext(opt_level=3):
+        mod = seq(mod)
+
+    # Call relay compilation
+    with relay.build_config(opt_level=3):
+         graph, lib, params = relay.build(mod, target, params=params)
+
+
 - Layout inference for `Batch Norm <https://github.com/apache/incubator-tvm/pull/4600>`_ - Batch normalization falls into the category of lightly-sensitive operator. The PR shows how to handle the layout inference for batch norm.
 - Python Callback for `Convolution <https://github.com/apache/incubator-tvm/pull/4335>`_- For highly-sensitive operators, one might have to do python callback as well. The PR shows how to define a python callback function for Convolution operator.

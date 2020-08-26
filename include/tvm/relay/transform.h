@@ -321,9 +321,14 @@ TVM_DLL Pass AlterOpLayout();
  * \param desired_layouts Specify mapping of op_name to array of desired layouts for each input.
  *                        For example: Map("nn.conv2d", Array("NHWC", "OHWI")),
  *                        this specifies the desired layout for data then kernel for nn.conv2d.
+ * \param custom_layout Specify a function which will take in: the name of the operator, the call
+ *                      attributes and the call arguments, which then returns a list of layouts. Use
+ *                      this option when you need to check the characteristics of an operator
+ *                      before deciding the layout to use.
  * \return The pass.
  */
-TVM_DLL Pass ConvertLayout(const Map<String, Array<String>>& desired_layouts);
+TVM_DLL Pass ConvertLayout(const Map<String, Array<String>>& desired_layouts,
+                           const PackedFunc& custom_layout = PackedFunc());
 
 /*!
  * \brief Legalizes an expr with another expression.

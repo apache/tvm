@@ -21,6 +21,8 @@ from tvm import te
 from tvm import relay
 from tvm.relay.op import register_alter_op_layout
 from tvm.relay import transform, analysis
+from tvm.relay.op.strategy.generic import is_depthwise_conv2d
+from tvm.error import TVMError
 
 
 def run_opt_pass(expr, passes):
@@ -792,6 +794,166 @@ def test_different_ops_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_custom_layout_convert_layout():
+    """ Check that using a custom function works as intended. """
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(64, 3, 3, 1))
+        y = relay.nn.conv2d(x, weight, channels=64, groups=64, kernel_size=(3, 3), padding=(1, 1),
+                            data_layout='NHWC', kernel_layout='OHWI')
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        w = relay.var("weight", shape=(64, 3, 3, 1))
+        w = relay.layout_transform(w, 'OHWI', 'IHWO')
+        y = relay.nn.conv2d(x, w,
+                            channels=64,
+                            groups=64,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout='NHWC',
+                            kernel_layout='IHWO')
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def custom_layouts(op_name, attrs, args):
+        if op_name == "nn.conv2d":
+            data = args[0].checked_type
+            weight = args[1].checked_type
+            is_depthwise = is_depthwise_conv2d(data.shape,
+                                               attrs['data_layout'],
+                                               weight.shape,
+                                               attrs['kernel_layout'],
+                                               attrs['groups'])
+            return ['NHWC', 'IHWO'] if is_depthwise else ['NHWC', 'OHWI']
+        raise ValueError(f'No custom layout defined for {op_name}')
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['custom']}, custom_layouts))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
+def test_custom_layout_invalid_return():
+    """A test to check that only an array of strings can be returned from a custom layout function."""
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(64, 3, 3, 1))
+        y = relay.nn.conv2d(x, weight, channels=64, groups=64, kernel_size=(3, 3), padding=(1, 1),
+                            data_layout='NHWC', kernel_layout='OHWI')
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def custom_layouts(op_name, attrs, args):
+        return "invalid"
+
+    a = before()
+    caught = None
+
+    try:
+        run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['custom']}, custom_layouts))
+    except TVMError as e:
+        caught = e.args[0]
+
+    assert caught is not None
+    assert "Return type must be an array of layouts for each input" in caught, caught
+
+
+def test_custom_layout_invalid_format():
+    """A test to check that invalid usage for the 'custom' label results in error."""
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(64, 3, 3, 1))
+        y = relay.nn.conv2d(x, weight, channels=64, groups=64, kernel_size=(3, 3), padding=(1, 1),
+                            data_layout='NHWC', kernel_layout='OHWI')
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def custom_layouts(op_name, attrs, args):
+        return ['NHWC', 'OHWI']
+
+    a = before()
+    caught = None
+
+    try:
+        # 'custom' should only be defined as the first element in the list with no other items.
+        run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['NHWC', 'custom']}, custom_layouts))
+    except TVMError as e:
+        caught = e.args[0]
+
+    assert caught is not None
+    assert "Invalid layout custom" in caught, caught
+
+
+def test_custom_layout_with_normal():
+    """Check convert layout works when using custom layouts alongside the standard usage."""
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var("weight1", shape=(64, 3, 3, 64))
+        weight2 = relay.var("weight2", shape=(64, 3, 3, 64), dtype='int8')
+        out = relay.nn.conv2d(x, weight1,
+                              channels=64,
+                              kernel_size=(3, 3),
+                              padding=(1, 1),
+                              data_layout='NCHW',
+                              kernel_layout='OHWI')
+        out = relay.cast(out, 'int8')
+        out = relay.qnn.op.conv2d(out, weight2,
+                                  relay.const(1, 'int32'),
+                                  relay.const(1, 'int32'),
+                                  relay.const(1, 'float32'),
+                                  relay.const(1, 'float32'),
+                                  channels=64,
+                                  kernel_size=(3, 3),
+                                  padding=(1, 1),
+                                  data_layout='NCHW',
+                                  kernel_layout='OHWI')
+        out = relay.Function(analysis.free_vars(out), out)
+        return out
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var("weight1", shape=(64, 3, 3, 64))
+        weight2 = relay.var("weight2", shape=(64, 3, 3, 64), dtype='int8')
+        x = relay.layout_transform(x, 'NCHW', 'NHWC')
+        weight1 = relay.layout_transform(weight1, 'OHWI', 'HWIO')
+        out = relay.nn.conv2d(x, weight1,
+                              channels=64,
+                              kernel_size=(3, 3),
+                              padding=(1, 1),
+                              data_layout='NHWC',
+                              kernel_layout='HWIO')
+        out = relay.cast(out, 'int8')
+        out = relay.layout_transform(out, 'NHWC', 'NCHW')
+        weight2 = relay.layout_transform(weight2, 'OHWI', 'OIHW')
+        out = relay.qnn.op.conv2d(out, weight2,
+                                  relay.const(1, 'int32'),
+                                  relay.const(1, 'int32'),
+                                  relay.const(1, 'float32'),
+                                  relay.const(1, 'float32'),
+                                  channels=64,
+                                  kernel_size=(3, 3),
+                                  padding=(1, 1),
+                                  data_layout='NCHW',
+                                  kernel_layout='OIHW')
+        out = relay.Function(analysis.free_vars(out), out)
+        return out
+
+    def custom_layout(op_name, attrs, args):
+        return ['NHWC', 'HWIO']
+
+    a = before()
+    desired_layouts = {'nn.conv2d': ['custom'],
+                       'qnn.conv2d': ['NCHW', 'OIHW']}
+    a = run_opt_pass(a, transform.ConvertLayout(desired_layouts, custom_layout))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 if __name__ == "__main__":
     test_no_convert_layout()
     test_conv_convert_layout()
@@ -809,3 +971,7 @@ if __name__ == "__main__":
     test_conv_transpose_convert_layout()
     test_default_keyword()
     test_different_ops_convert_layout()
+    test_custom_layout_convert_layout()
+    test_custom_layout_invalid_return()
+    test_custom_layout_invalid_format()
+    test_custom_layout_with_normal()
