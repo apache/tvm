@@ -26,19 +26,37 @@ from ..expr import var, bind
 class ChangeDatatype(ExprMutator):
     """Mutator for changing the datatype of Relay programs.
 
+    This pass should be useful for users of the Bring Your Own Datatypes
+    framework.
+    TODO(@gussmith23 @hypercubestart) Add link to documentation when it exists
+
     Example:
 
     .. code-block:: python
 
         from tvm.relay.testing.inception_v3 import get_workload
-        expr, params = get_workload()
+        mod, params = get_workload()
 
-        def change_dtype(src, dst, expr, params):
-            cdtype = ChangeDatatype(src, dst)
-            expr = cdtype.visit(expr)
-            expr = relay.ir_pass.infer_type(expr)
+        def change_dtype(mod, params, src, dst):
+            mod = ChangeDatatype(src, dst)(mod)
             params = dict((p, tvm.nd.array(params[p].asnumpy().astype(dst))) for p in params)
-            return expr, params
+            return mod, params
+
+        mod, params = change_dtype(mod, params, "float32", "posites2")
+
+    Parameters
+    ----------
+    src : String
+        The source datatype name, e.g. "float" or "posites2" (but not "float32"
+        or "custom[posites2]32").
+    dst : String
+        The destination datatype name, in the same format.
+
+    Returns
+    -------
+    mod : tvm.IRModule
+        Module where all nodes of dtype `src` have been changed to have dtype
+        `dst`.
     """
     def __init__(self, src, dst):
         self.src = src
