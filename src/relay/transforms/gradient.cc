@@ -449,16 +449,16 @@ Expr BPEmpty() {
 
 struct ReverseAD : ExprMutator {
   using ADVarMap = std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>;
-  using ADGVarMap = std::unordered_map<GlobalVar, GlobalVar, ObjectPtrHash, ObjectPtrEqual>;
+  using ADGlobalVarMap = std::unordered_map<GlobalVar, GlobalVar, ObjectPtrHash, ObjectPtrEqual>;
   Optional<IRModule> mod;
   Var bp;
   std::shared_ptr<ADVarMap> ad_vars;
-  std::shared_ptr<ADGVarMap> ad_gvars;
+  std::shared_ptr<ADGlobalVarMap> ad_gvars;
   const OpAttrMap<FPrimalGradient> rev_map = Op::GetAttrMap<FPrimalGradient>("FPrimalGradient");
 
   explicit ReverseAD(const Optional<IRModule>& mod, const Var& bp,
                      const std::shared_ptr<ADVarMap>& ad_vars,
-                     const std::shared_ptr<ADGVarMap>& ad_gvars)
+                     const std::shared_ptr<ADGlobalVarMap>& ad_gvars)
       : mod(mod), bp(bp), ad_vars(ad_vars), ad_gvars(ad_gvars) {}
 
   Expr VisitExpr_(const OpNode* op) final {
@@ -589,7 +589,7 @@ struct ReverseAD : ExprMutator {
     if (ad_gvars->count(orig_gv) == 0) {
       GlobalVar gv(op->name_hint + "_grad");
       (*ad_gvars)[orig_gv] = gv;
-      Function orig_f = Downcast<Function>(mod.value()->Lookup(GetRef<GlobalVar>(op)));
+      Function orig_f = Downcast<Function>(DeDup(mod.value()->Lookup(orig_gv)));
       std::vector<Var> params;
       for (const auto& p : orig_f->params) {
         params.push_back(Downcast<Var>(VisitExpr(p)));
@@ -661,7 +661,7 @@ Expr Gradient(const Expr& re, const Optional<IRModule>& mod) {
   Expr body = LetList::With([&](LetList* ll) {
     Var bp = ll->Push(BPEmpty(), bpt);
     Expr rev = ReverseAD(mod, bp, std::make_shared<ReverseAD::ADVarMap>(),
-                         std::make_shared<ReverseAD::ADGVarMap>())(e);
+                         std::make_shared<ReverseAD::ADGlobalVarMap>())(e);
     std::vector<Expr> normal_args, args;
     for (const auto& p : f->params) {
       auto x = ll->Push(Pair(p, RefCreate(ZerosLike(p))));

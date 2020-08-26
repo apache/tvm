@@ -360,7 +360,9 @@ def test_no_duplication():
 
 def test_global_function():
     m = tvm.IRModule()
-    t = relay.TensorType([])
+    shape = (10, 10)
+    dtype = 'float32'
+    t = relay.TensorType(shape, dtype)
     x = relay.Var('x', t)
     d = GlobalVar('double')
     m[d] = relay.Function([x], x + x)
@@ -369,6 +371,13 @@ def test_global_function():
     m[q] = relay.Function([y], d(d(y)))
     g = GlobalVar('grad')
     m[g] = tvm.relay.transform.gradient(q, m)
+    back_func = m[g]
+    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
+    ex = create_executor(mod=m)
+    x = rand(dtype, *shape)
+    forward, (grad,) = ex.evaluate(back_func)(x)
+    tvm.testing.assert_allclose(forward.asnumpy(), 4 * x.asnumpy())
+    tvm.testing.assert_allclose(grad.asnumpy(), 4 * np.ones_like(x.asnumpy()))
 
 
 if __name__ == "__main__":
