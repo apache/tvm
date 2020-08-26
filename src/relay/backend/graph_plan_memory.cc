@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file relay/backend/graph_mem_alloca.cc
+ * \file relay/backend/graph_plan_memory.cc
  * \brief Memory index assignment pass for executing
  *   the program in the graph runtime.
  */
@@ -68,7 +68,7 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
   }
 
   void VisitExpr_(const FunctionNode* op) final {
-    // do not recursive into sub function.
+    // do not recurse into sub function.
   }
 
   void VisitExpr_(const GlobalVarNode* op) final {
