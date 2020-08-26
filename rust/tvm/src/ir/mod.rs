@@ -22,6 +22,7 @@ use crate::runtime::{self, external, IsObject, IsObjectRef, Object, ObjectRef};
 use crate::DataType;
 use tvm_macros::Object;
 
+pub mod arith;
 pub mod relay;
 pub mod tir;
 
