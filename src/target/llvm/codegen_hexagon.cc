@@ -636,7 +636,7 @@ bool UsesExportABI(const PrimFunc& f) {
   return false;
 }
 
-__attribute__((unused)) std::ostream& operator<<(std::ostream& os, const llvm::Module& m) {
+DMLC_ATTRIBUTE_UNUSED std::ostream& operator<<(std::ostream& os, const llvm::Module& m) {
   std::string ms;
   llvm::raw_string_ostream sos(ms);
   sos << m;
