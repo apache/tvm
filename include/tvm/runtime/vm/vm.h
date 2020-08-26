@@ -248,9 +248,6 @@ class VirtualMachine : public runtime::ModuleNode {
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
 
-  /*! \brief Get device context for params. */
-  TVMContext GetParamsContext() const;
-
   /*! \brief Get context from the context list based on a given device type. */
   TVMContext GetContext(Index device_type) const;
 

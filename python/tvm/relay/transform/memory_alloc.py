@@ -302,6 +302,7 @@ class ManifestAllocPass(ExprMutator):
                 return self.device_copy(new_args[0],
                                         TVMContext(attr.src_dev_type, 0),
                                         TVMContext(attr.dst_dev_type, 0))
+
             if self.is_dynamic(ret_type):
                 # Handle dynamic case.
                 return self.dynamic_invoke(scope, call.op, ins, new_args, out_types, ret_type)
