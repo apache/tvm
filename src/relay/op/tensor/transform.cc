@@ -886,7 +886,6 @@ RELAY_REGISTER_OP("scatter_add")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_support_level(10);
 
-
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
