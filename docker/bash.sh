@@ -59,6 +59,17 @@ if [ "$#" -lt 1 ]; then
     exit -1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE="$(pwd)"
+
+if [ "$1" == "--repo-mount-point" ]; then
+    shift
+    REPO_MOUNT_POINT="$1"
+    shift
+else
+    REPO_MOUNT_POINT="${WORKSPACE}"
+fi
+
 DOCKER_IMAGE_NAME=$(lookup_image_spec "$1")
 if [ -z "${DOCKER_IMAGE_NAME}" ]; then
     DOCKER_IMAGE_NAME=("$1")
@@ -70,7 +81,7 @@ if [ "$#" -eq 1 ]; then
     if [[ $(uname) == "Darwin" ]]; then
         # Docker's host networking driver isn't supported on macOS.
         # Use default bridge network and expose port for jupyter notebook.
-        CI_DOCKER_EXTRA_PARAMS+=( "${CI_DOCKER_EXTRA_PARAMS[@]}" "-p 8888:8888" )
+        CI_DOCKER_EXTRA_PARAMS=( "${CI_DOCKER_EXTRA_PARAMS[@]}" "-p" "8888:8888" )
     else
         CI_DOCKER_EXTRA_PARAMS+=( "${CI_DOCKER_EXTRA_PARAMS[@]}" "--net=host" )
     fi
@@ -82,9 +93,6 @@ fi
 if [ $interactive -eq 1 ]; then
     CI_DOCKER_EXTRA_PARAMS=( "${CI_DOCKER_EXTRA_PARAMS[@]}" -it )
 fi
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE="$(pwd)"
 
 # Use nvidia-docker if the container is GPU.
 if [[ ! -z $CUDA_VISIBLE_DEVICES ]]; then
@@ -160,12 +168,12 @@ fi
 ${DOCKER_BINARY} run --rm --pid=host\
     ${DOCKER_DEVICES}\
     ${WORKSPACE_VOLUMES}\
-    -v ${WORKSPACE}:/workspace \
+    -v ${WORKSPACE}:${REPO_MOUNT_POINT} \
     -v ${SCRIPT_DIR}:/docker \
     "${CI_DOCKER_MOUNT_CMD[@]}" \
     "${EXTRA_MOUNTS[@]}" \
-    -w /workspace \
-    -e "CI_BUILD_HOME=/workspace" \
+    -w "${REPO_MOUNT_POINT}" \
+    -e "CI_BUILD_HOME=${REPO_MOUNT_POINT}" \
     -e "CI_BUILD_USER=$(id -u -n)" \
     -e "CI_BUILD_UID=$(id -u)" \
     -e "CI_BUILD_GROUP=$(id -g -n)" \
