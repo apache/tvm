@@ -141,7 +141,7 @@ class EthosnAPI {
   static EthosnError Tvm2Npu(const Array<IndexExpr>& strides, sl::Stride* npu_stride);
   static EthosnError Tvm2Npu(const std::string& dformat, sl::DataFormat* data_format);
   static EthosnError Tvm2Npu(int32_t zero_point, float scale, sl::QuantizationInfo* npu_qinfo);
-  static EthosnError Tvm2Npu(const Array<Array<IndexExpr>>& padding, sl::Padding* npu_padding);
+  static EthosnError Tvm2Npu(const Array<Array<Integer>>& padding, sl::Padding* npu_padding);
 
   // Convert an array of IntImmNodes into ValueT
   // IndexT type of Array indexing variable

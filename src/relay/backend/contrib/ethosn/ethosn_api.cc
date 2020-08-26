@@ -286,7 +286,7 @@ EthosnError EthosnAPI::Tvm2Npu(int32_t zero_point, float scale, sl::Quantization
   return EthosnError();
 }
 
-EthosnError EthosnAPI::Tvm2Npu(const Array<Array<IndexExpr>>& padding, sl::Padding* npu_padding) {
+EthosnError EthosnAPI::Tvm2Npu(const Array<Array<Integer>>& padding, sl::Padding* npu_padding) {
   if (padding.size() != 4) {
     return EthosnError(ErrStrm() << "padding tuple size=" << padding.size()
                                  << ", padding tuple size must = 4");
