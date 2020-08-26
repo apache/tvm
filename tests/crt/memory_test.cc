@@ -121,6 +121,7 @@ TEST_F(MemoryManagerTest, Realloc) {
 
 extern "C" {
 void TVMPlatformAbort(int error_code) { FAIL() << "TVMPlatformAbort(" << error_code << ")"; }
+void* TVMSystemLibEntryPoint() { return NULL; }
 }
 
 int main(int argc, char** argv) {

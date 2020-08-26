@@ -94,11 +94,8 @@ def test_compile_runtime():
     C_data = tvm.nd.array(np.array([0, 0], dtype='int8'), ctx=sess.context)
     assert (C_data.asnumpy() == np.array([0, 0])).all()
 
-    print('get system lib')
     system_lib = sess.get_system_lib()
-    print('got system lib', system_lib)
     system_lib.get_function('add')(A_data, B_data, C_data)
-    print('got data!', C_data.asnumpy())
     assert (C_data.asnumpy() == np.array([6, 7])).all()
 
 
