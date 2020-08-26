@@ -28,51 +28,105 @@ from tvm.tir import call_intrin
 
 def register(type_name, type_code):
     """Register a custom datatype with the given type name and type code
-    Currently, the type code is manually allocated by the user, and the
-    user must ensure that no two custom types share the same code.
-    Generally, this should be straightforward, as the user will be
-    manually registering all of their custom types.
+
+    Currently, the type code is manually allocated by the user, and the user
+    must ensure that no two custom types share the same code. Generally, this
+    should be straightforward, as the user will be manually registering all of
+    their custom types.
+
+    Example:
+
+    .. code-block:: python
+
+        # Register a dtype named 'posites2' under type code 130.
+        tvm.datatype.register('posites2', 130)
+
 
     Parameters
     ----------
     type_name : str
-        The name of the custom datatype
+        The name of the custom datatype.
 
     type_code : int
-        The type's code, which should be >= kCustomBegin
+        The type's code, which should be >= kCustomBegin. See
+        include/tvm/runtime/data_type.h.
     """
     tvm.runtime._ffi_api._datatype_register(type_name, type_code)
 
 
 def get_type_name(type_code):
-    """Get the type name from the type code
+    """Get the type name of a custom datatype from the type code.
+
+    Note that this only works for custom datatypes registered with
+    tvm.datatype.register(). It does not work for TVM-native types.
+
+    Example:
+
+    .. code-block:: python
+
+        tvm.datatype.register('posites2', 130)
+        assert tvm.datatype.get_type_name(130) == 'posites2'
 
     Parameters
     ----------
     type_code : int
-        The type code
+        The type code of the custom datatype.
+
+    Returns
+    -------
+    type_name : String
+        The name of the custom datatype.
+
     """
     return tvm.runtime._ffi_api._datatype_get_type_name(type_code)
 
 
 def get_type_code(type_name):
-    """Get the type code from the type name
+    """Get the type code of a custom datatype from its type name
+
+    Note that this only works for custom datatypes registered with
+    tvm.datatype.register(). It does not work for TVM-native types.
+
+    Example:
+
+    .. code-block:: python
+
+        tvm.datatype.register('posites2', 130)
+        assert tvm.datatype.get_type_code('posites2') == 130
 
     Parameters
     ----------
     type_name : str
         The type name
+
+    Returns
+    -------
+    type_code : int
+        The type code of the custom datatype.
     """
     return tvm.runtime._ffi_api._datatype_get_type_code(type_name)
 
 
 def get_type_registered(type_code):
-    """Get a boolean representing whether the type is registered
+    """Returns true if a custom datatype is registered under the given type code
+
+    Example:
+
+    .. code-block:: python
+
+        tvm.datatype.register('posites2', 130)
+        assert tvm.datatype.get_type_registered(130)
 
     Parameters
     ----------
     type_code: int
         The type code
+
+    Returns
+    -------
+    type_registered : bool
+        True if a custom datatype is registered under this type code, and false
+        otherwise.
     """
     return tvm.runtime._ffi_api._datatype_get_type_registered(type_code)
 
@@ -83,11 +137,30 @@ def register_op(lower_func,
                 src_type_name,
                 dest_type_name=None,
                 intrinsic_name=None):
-    """Register an external function which computes the given op.
+    """Register a lowering function for a specific operator of a custom datatype
 
-    Currently, this will work with Casts, intrinsics, and binary expressions.
-    TODO(gus) figure out what other special cases must be handled by
-        looking through expr.py.
+    At build time, Relay must lower operators over custom datatypes into
+    operators it understands how to compile. For each custom datatype operator
+    which Relay finds while lowering custom datatypes, Relay expects to find a
+    user-defined lowering function. Users register their user-defined lowering
+    functions using this function.
+
+    Users should use create_lower_func to create their lowering function. It
+    should serve most use-cases.
+
+    Currently, this will work with Casts, intrinsics (e.g. sqrt, sigmoid), and
+    binary expressions (e.g. Add, Sub, Mul, Div).
+
+    See the LowerCustomDatatypes pass to see how registered functions are used.
+
+    Lowering Functions
+    ------------------
+    TODO(@gussmith23) Get the terminology right here.
+    Lowering functions take in a Relay node, and should return a semantically
+    equivalent Relay node which Relay can build. This means that the returned
+    node should not contain any custom datatypes. Users should likely not need
+    to define lowering functions by hand -- see the helper function
+    create_lower_func.
 
     Parameters
     ----------
