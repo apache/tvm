@@ -86,8 +86,9 @@ class TestSession {
   Unframer unframer;
 };
 
-#define EXPECT_FRAMED_PACKET(session, expected) \
-  EXPECT_EQ(std::string(expected, sizeof(expected) - 1), (session).framer_write_stream.BufferContents());
+#define EXPECT_FRAMED_PACKET(session, expected)          \
+  EXPECT_EQ(std::string(expected, sizeof(expected) - 1), \
+            (session).framer_write_stream.BufferContents());
 
 extern "C" {
 void TestSessionMessageReceivedThunk(void* context, MessageType message_type, Buffer* buf) {
@@ -131,7 +132,9 @@ TEST_F(SessionTest, NormalExchange) {
 
   bob_.ClearBuffers();
   alice_.WriteTo(&bob_);
-  EXPECT_FRAMED_PACKET(bob_, "\xfe\xff\xfd\x3\0\0\0\x82" "f\x01\xb3\xb3");
+  EXPECT_FRAMED_PACKET(bob_,
+                       "\xfe\xff\xfd\x3\0\0\0\x82"
+                       "f\x01\xb3\xb3");
   EXPECT_TRUE(bob_.sess.IsEstablished());
 
   bob_.WriteTo(&alice_);
@@ -140,9 +143,10 @@ TEST_F(SessionTest, NormalExchange) {
   EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kStartSessionReply, ""));
 
   alice_.ClearBuffers();
-  alice_.sess.SendMessage(MessageType::kNormal, reinterpret_cast<const uint8_t*>("hello"),
-                          5);
-  EXPECT_FRAMED_PACKET(alice_, "\xFF\xFD\b\0\0\0\x82" "f\x10hello\x90(");
+  alice_.sess.SendMessage(MessageType::kNormal, reinterpret_cast<const uint8_t*>("hello"), 5);
+  EXPECT_FRAMED_PACKET(alice_,
+                       "\xFF\xFD\b\0\0\0\x82"
+                       "f\x10hello\x90(");
   alice_.WriteTo(&bob_);
   ASSERT_EQ(bob_.messages_received.size(), 2);
   EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kStartSessionReply, ""));
@@ -150,7 +154,9 @@ TEST_F(SessionTest, NormalExchange) {
 
   bob_.ClearBuffers();
   bob_.sess.SendMessage(MessageType::kNormal, reinterpret_cast<const uint8_t*>("olleh"), 5);
-  EXPECT_FRAMED_PACKET(bob_, "\xff\xfd\b\0\0\0\x82" "f\x10ollehLv");
+  EXPECT_FRAMED_PACKET(bob_,
+                       "\xff\xfd\b\0\0\0\x82"
+                       "f\x10ollehLv");
   bob_.WriteTo(&alice_);
   ASSERT_EQ(alice_.messages_received.size(), 1);
   EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kNormal, "olleh"));

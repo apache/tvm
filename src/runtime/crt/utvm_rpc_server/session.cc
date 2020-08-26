@@ -203,23 +203,23 @@ void Session::ProcessStartSessionReply(const SessionHeader& header) {
   }
 
   switch (state_) {
-  case State::kReset:
-    break;
-  case State::kStartSessionSent:
-    if (initiator_nonce(header.session_id) == local_nonce_) {
-      SetSessionId(local_nonce_, responder_nonce(header.session_id));
-      state_ = State::kSessionEstablished;
-      OnSessionEstablishedMessage();
-    }
-    break;
-  case State::kSessionEstablished:
-    if (initiator_nonce(header.session_id) != kInvalidNonce &&
-        responder_nonce(header.session_id) == kInvalidNonce) {
-      SendSessionStartReply(header);
-    } else {
-      state_ = State::kReset;
-    }
-    break;
+    case State::kReset:
+      break;
+    case State::kStartSessionSent:
+      if (initiator_nonce(header.session_id) == local_nonce_) {
+        SetSessionId(local_nonce_, responder_nonce(header.session_id));
+        state_ = State::kSessionEstablished;
+        OnSessionEstablishedMessage();
+      }
+      break;
+    case State::kSessionEstablished:
+      if (initiator_nonce(header.session_id) != kInvalidNonce &&
+          responder_nonce(header.session_id) == kInvalidNonce) {
+        SendSessionStartReply(header);
+      } else {
+        state_ = State::kReset;
+      }
+      break;
   }
 }
 

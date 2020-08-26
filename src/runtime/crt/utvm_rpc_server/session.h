@@ -196,7 +196,7 @@ class Session {
   void OnSessionEstablishedMessage();
 
   inline void SetSessionId(uint8_t initiator_nonce, uint8_t responder_nonce) {
-    session_id_ = initiator_nonce | (((uint16_t) responder_nonce) << 8);
+    session_id_ = initiator_nonce | (((uint16_t)responder_nonce) << 8);
   }
 
   inline uint8_t initiator_nonce(uint16_t session_id) { return session_id & 0xff; }

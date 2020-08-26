@@ -229,9 +229,8 @@ void TVMLogf(const char* format, ...) {
     tvm::runtime::SerialWriteStream write_stream;
     tvm::runtime::Framer framer{&write_stream};
     tvm::runtime::Session session{0xa5, &framer, nullptr, nullptr, nullptr};
-    tvm_crt_error_t err =
-        session.SendMessage(tvm::runtime::MessageType::kLog,
-                            reinterpret_cast<uint8_t*>(log_buffer), num_bytes_logged);
+    tvm_crt_error_t err = session.SendMessage(
+        tvm::runtime::MessageType::kLog, reinterpret_cast<uint8_t*>(log_buffer), num_bytes_logged);
     if (err != kTvmErrorNoError) {
       TVMPlatformAbort(err);
     }
