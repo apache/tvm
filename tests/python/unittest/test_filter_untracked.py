@@ -127,7 +127,6 @@ def run_test(repo_path, passed_files, filtered_files):
         f'expected {len(filter_output_lines)} == 2 * {len(passed_files)}')
 
 
-
 def test_filter_untracked():
     repo_path, to_rm = setup_git_repo()
     try:
