@@ -81,6 +81,9 @@ class ComputeDAG(Object):
         state : Union[State, StateObject]
             The state from which we get transform steps.
 
+        layout_rewrite: Bool
+            Rewrite the layout of placeholder.
+
         Returns
         -------
             A `te.schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
