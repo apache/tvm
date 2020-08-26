@@ -92,8 +92,10 @@ if(USE_STANDALONE_CRT)
   endif(${VERBOSE})
 
   list(APPEND crt_libraries common graph_runtime utvm_rpc_server)
-  list(TRANSFORM crt_libraries PREPEND "host_standalone_crt/lib" OUTPUT_VARIABLE crt_library_paths)
-  list(TRANSFORM crt_library_paths APPEND ".a" OUTPUT_VARIABLE crt_library_paths)
+  foreach(crt_lib_name IN LISTS crt_libraries)
+    list(APPEND crt_library_paths "host_standalone_crt/lib${crt_lib_name}.a")
+  endforeach()
+
   ExternalProject_Add(host_standalone_crt
       DOWNLOAD_COMMAND ""
       SOURCE_DIR standalone_crt
