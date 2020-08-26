@@ -88,7 +88,7 @@ else
 fi
 
 if [[ "${DOCKER_IMAGE_NAME}" == *"ci"* ]]; then
-    CI_PY_ENV="-e PYTHONPATH=${WORKSPACE_MOUNT_POINT}/python"
+    CI_PY_ENV="-e PYTHONPATH=${REPO_MOUNT_POINT}/python"
 else
     CI_PY_ENV=""
 fi
