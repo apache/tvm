@@ -25,8 +25,7 @@ use crate::object::{IsObjectRef, Object, ObjectPtr, ObjectRef};
 use crate::{
     external,
     function::{Function, Result},
-    ArgValue,
-    RetValue,
+    ArgValue, RetValue,
 };
 
 #[repr(C)]
@@ -66,7 +65,7 @@ impl<T: IsObjectRef> Array<T> {
             array_data.count()
         );
 
-               Ok(Array {
+        Ok(Array {
             object: ObjectRef(Some(array_data)),
             _data: PhantomData,
         })
@@ -103,7 +102,10 @@ impl<'a, T: IsObjectRef> TryFrom<ArgValue<'a>> for Array<T> {
     fn try_from(array: ArgValue<'a>) -> Result<Array<T>> {
         let object_ref: ObjectRef = array.try_into()?;
         // TODO: type check
-        Ok(Array { object: object_ref, _data: PhantomData })
+        Ok(Array {
+            object: object_ref,
+            _data: PhantomData,
+        })
     }
 }
 
@@ -112,6 +114,9 @@ impl<'a, T: IsObjectRef> TryFrom<RetValue> for Array<T> {
 
     fn try_from(array: RetValue) -> Result<Array<T>> {
         let object_ref = array.try_into()?;
-        Ok(Array { object: object_ref, _data: PhantomData })
+        Ok(Array {
+            object: object_ref,
+            _data: PhantomData,
+        })
     }
 }

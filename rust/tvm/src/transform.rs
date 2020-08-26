@@ -45,10 +45,7 @@ pub struct PassInfoNode {
 
 impl PassInfo {
     pub fn new(opt_level: i32, name: String, required: Vec<String>) -> Result<PassInfo> {
-        let required = required
-            .into_iter()
-            .map(|name| name.into())
-            .collect();
+        let required = required.into_iter().map(|name| name.into()).collect();
 
         let required = Array::from_vec(required)?;
 

@@ -169,13 +169,15 @@ where
 use std::fmt;
 
 impl<K, V> fmt::Debug for Map<K, V>
-where K: IsObjectRef, V: IsObjectRef {
+where
+    K: IsObjectRef,
+    V: IsObjectRef,
+{
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ctr = debug_print(self.object.clone()).unwrap();
         fmt.write_fmt(format_args!("{:?}", ctr))
     }
 }
-
 
 impl<K, V, S> From<Map<K, V>> for HashMap<K, V, S>
 where
@@ -190,41 +192,58 @@ where
 }
 
 impl<'a, K, V> From<Map<K, V>> for ArgValue<'a>
-where K: IsObjectRef, V: IsObjectRef {
+where
+    K: IsObjectRef,
+    V: IsObjectRef,
+{
     fn from(map: Map<K, V>) -> ArgValue<'a> {
         map.object.into()
     }
 }
 
 impl<K, V> From<Map<K, V>> for RetValue
-where K: IsObjectRef, V: IsObjectRef {
+where
+    K: IsObjectRef,
+    V: IsObjectRef,
+{
     fn from(map: Map<K, V>) -> RetValue {
         map.object.into()
     }
 }
 
 impl<'a, K, V> TryFrom<ArgValue<'a>> for Map<K, V>
-where K: IsObjectRef, V: IsObjectRef {
+where
+    K: IsObjectRef,
+    V: IsObjectRef,
+{
     type Error = Error;
 
     fn try_from(array: ArgValue<'a>) -> Result<Map<K, V>> {
         let object_ref: ObjectRef = array.try_into()?;
         // TODO: type check
-        Ok(Map { object: object_ref, _data: PhantomData })
+        Ok(Map {
+            object: object_ref,
+            _data: PhantomData,
+        })
     }
 }
 
 impl<K, V> TryFrom<RetValue> for Map<K, V>
-where K: IsObjectRef, V: IsObjectRef {
+where
+    K: IsObjectRef,
+    V: IsObjectRef,
+{
     type Error = Error;
 
     fn try_from(array: RetValue) -> Result<Map<K, V>> {
         let object_ref = array.try_into()?;
         // TODO: type check
-        Ok(Map { object: object_ref, _data: PhantomData })
+        Ok(Map {
+            object: object_ref,
+            _data: PhantomData,
+        })
     }
 }
-
 
 #[cfg(test)]
 mod test {
