@@ -23,7 +23,6 @@
  */
 
 #include <dmlc/memory_io.h>
-#include <sched.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/vm/executable.h>

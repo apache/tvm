@@ -156,7 +156,7 @@ class ContextAnalyzer : public ExprVisitor {
     while (device_uf_.count(device) && device != device_uf_[device]) {
       // Path compression
       if (device_uf_.count(device_uf_[device])) {
-        device_uf_[device] == device_uf_[device_uf_[device]];
+        device_uf_[device] = device_uf_[device_uf_[device]];
       }
       device = device_uf_[device];
     }
