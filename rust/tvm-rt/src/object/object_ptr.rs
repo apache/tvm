@@ -290,7 +290,7 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
             RetValue::ObjectHandle(handle) => {
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
-                println!("back to type {}", optr.count());
+                // println!("back to type {}", optr.count());
                 optr.downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", ret_value), "ObjectHandle")),
