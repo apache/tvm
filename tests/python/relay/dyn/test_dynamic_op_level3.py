@@ -28,8 +28,6 @@ import tvm.testing
 def verify_func(func, data, ref_res):
     assert isinstance(data, list)
     for target, ctx in tvm.testing.enabled_targets():
-        #TODO(mbrookhart): enable Cuda tests onces the VM supports dynamic shapes
-        if "llvm" not in target: continue
         for kind in ["vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)

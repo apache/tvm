@@ -47,14 +47,14 @@ def is_primitive(call):
 
 def is_device_copy(func):
     """
-    Check if the current relay expression is shape_of call. We can simply check
-    the body of it if it is a function becase the shape_of op is opaque.
+    Check if the current relay expression is a device copy call. We can simply check
+    the body of it if it is a function becase the device_copy op is opaque.
     """
     if isinstance(func, Function):
         body = func.body
         return isinstance(body, expr.Call) and body.op == op.get("device_copy")
     if isinstance(func, expr.Call):
-        return body.op == op.get("device_copy")
+        return func.op == op.get("device_copy")
     return False
 
 

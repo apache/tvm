@@ -34,7 +34,7 @@ def context_analysis(mod, default_context):
 
     Parameters
     ----------
-    expr : tvm.IRModule
+    mod : tvm.IRModule
         The input module.
 
     default_context : tvm.runtime.TVMContext

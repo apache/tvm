@@ -47,12 +47,11 @@ def test_dyn_broadcast_to():
     dyn_shape = (1, ) * rank
     ref_res = np.broadcast_to(x, dyn_shape)
     for target, ctx in tvm.testing.enabled_targets():
-        if (target != 'cuda'):  #skip cuda because we don't have dynamic support for GPU
-            for kind in ["vm", "debug"]:
-                mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x, np.array(dyn_shape).astype(shape_type))
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+        for kind in ["vm", "debug"]:
+            mod = tvm.ir.IRModule.from_expr(func)
+            intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(x, np.array(dyn_shape).astype(shape_type))
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
