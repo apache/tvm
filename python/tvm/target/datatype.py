@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Custom datatype functionality"""
+"""Bring Your Own Datatypes custom datatype framework
+
+TODO(@gussmith23 @hypercubestart) link to BYODT docs when they exist"""
 import tvm
 from tvm.runtime import convert, DataType
 from tvm.tir.expr import (Call as _Call, Cast as _Cast,
