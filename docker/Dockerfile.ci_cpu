@@ -83,3 +83,7 @@ RUN bash /install/ubuntu_install_caffe.sh
 # Github Arm(R) Ethos(TM)-N NPU driver
 COPY install/ubuntu_install_ethosn_driver_stack.sh /install/ubuntu_install_ethosn_driver_stack.sh
 RUN bash /install/ubuntu_install_ethosn_driver_stack.sh
+
+# Vitis-AI PyXIR CI deps
+COPY install/ubuntu_install_vai_packages.sh /install/ubuntu_install_vai_packages.sh
+RUN bash /install/ubuntu_install_vai_packages.sh
