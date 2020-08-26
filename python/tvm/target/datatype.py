@@ -200,7 +200,6 @@ def register_op(lower_func,
                           + src_type_name
     tvm._ffi.register_func(lower_func_name, lower_func)
 
-# TODO(gus) could probably make this a decorator if i want
 def register_min_func(func, type_name):
     """Register the function that returns the minimum representable value of type_name.
 
