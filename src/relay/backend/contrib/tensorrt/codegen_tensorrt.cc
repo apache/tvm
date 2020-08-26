@@ -35,6 +35,7 @@
 #include <unordered_map>
 
 #include "../../../../runtime/contrib/tensorrt/tensorrt_module.h"
+#include "../../utils.h"
 #include "../codegen_c/codegen_c.h"
 #if TVM_GRAPH_RUNTIME_TENSORRT
 #include "NvInfer.h"
@@ -43,6 +44,8 @@
 namespace tvm {
 namespace relay {
 namespace contrib {
+
+using namespace backend;
 
 /*!
  * \brief Generates a TensorRTModule from a relay expression. This "compilation"

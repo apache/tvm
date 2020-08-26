@@ -441,8 +441,6 @@ def test_tensorrt_ops():
     run_and_verify(test_pool3d(relay.nn.max_pool3d, padding=(0, 0, 0, 1, 1, 1)))
     run_and_verify(test_pool3d(relay.nn.max_pool3d, strides=(1, 1, 1)))
     run_and_verify(test_conv3d_transpose())
-    # Verify that op is not converted because output_padding isn't supported by TRT.
-    run_and_verify(test_conv3d_transpose(output_padding=(1, 1, 1, 1, 1, 1)))
 
 def test_tensorrt_integration(test_all_models=False):
     if should_skip():
