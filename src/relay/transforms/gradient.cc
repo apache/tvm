@@ -72,7 +72,7 @@ Type WithGradientType(const Type&);
 Expr FirstOrderGradient(const Expr& e, const Optional<IRModule>& mod);
 
 Type WithGradientType(const Type& t) {
-  // TODO(M.K.): stricter checking
+  // TODO(@M.K.): stricter checking
   auto ty = t.as<FuncTypeNode>();
   CHECK(ty) << "input should be a function";
   return FuncType(ty->arg_types, TupleType({ty->ret_type, TupleType(ty->arg_types)}), {}, {});
@@ -451,6 +451,7 @@ struct ReverseAD : ExprMutator {
   using ADVarMap = std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>;
   using ADGlobalVarMap = std::unordered_map<GlobalVar, GlobalVar, ObjectPtrHash, ObjectPtrEqual>;
   Optional<IRModule> mod;
+  // TODO(@M.K.) refactor AD to always use mod.
   Var bp;
   std::shared_ptr<ADVarMap> ad_vars;
   std::shared_ptr<ADGlobalVarMap> ad_gvars;
