@@ -639,7 +639,8 @@ bool UsesExportABI(const PrimFunc& f) {
 #ifdef __GNUC__
 __attribute__((unused))
 #endif
-std::ostream& operator<<(std::ostream& os, const llvm::Module& m) {
+std::ostream&
+operator<<(std::ostream& os, const llvm::Module& m) {
   std::string ms;
   llvm::raw_string_ostream sos(ms);
   sos << m;
