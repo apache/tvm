@@ -20,7 +20,6 @@ Caffe testcases
 ====================
 This article is a test script to test Caffe operator with Relay.
 """
-from __future__ import print_function
 import os
 os.environ['GLOG_minloglevel'] = '2'
 import sys
@@ -206,7 +205,7 @@ def _run_tvm(data, proto_file, blob_file):
     target_host = 'llvm'
 
     ctx = tvm.cpu(0)
-    with tvm.transform.PassContext(opt_level=2):
+    with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod,
                           target=target,
                           target_host=target_host,
@@ -218,7 +217,6 @@ def _run_tvm(data, proto_file, blob_file):
             m.set_input('data' + str(idx), tvm.nd.array(d.astype(dtype)))
     else:
         m.set_input('data', tvm.nd.array(data.astype(dtype)))
-    m.set_input(**params)
     # execute
     m.run()
     tvm_output = list()
@@ -293,7 +291,6 @@ def test_forward_BatchNorm():
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_batchnorm(data)
     _test_batchnorm(data, moving_average_fraction=0.88, eps=1e-4)
-    print("Testing layer BatchNorm pass!")
 
 
 #######################################################################
@@ -315,7 +312,6 @@ def test_forward_Concat():
                   np.random.rand(2, 10, 10)],
                  axis=0)
     _test_concat([np.random.rand(3, 10), np.random.rand(2, 10)], axis=0)
-    print("Testing layer Concat pass!")
 
 
 #######################################################################
@@ -381,8 +377,6 @@ def test_forward_Convolution():
                       weight_filler=dict(type="xavier"),
                       bias_filler=dict(type="xavier"))
 
-    print("Testing layer Convolution pass!")
-
 
 #######################################################################
 # Crop
@@ -426,7 +420,6 @@ def test_forward_Crop():
                 np.random.rand(50, 60)],
                axis=0,
                offset=[2, 4])
-    print("Testing layer Crop pass!")
 
 
 #######################################################################
@@ -475,7 +468,6 @@ def test_forward_Deconvolution():
                             dilation=1,
                             weight_filler=dict(type="xavier"),
                             bias_filler=dict(type="xavier")))
-    print("Testing layer Deconvolution pass!")
 
 
 #######################################################################
@@ -493,7 +485,6 @@ def test_forward_Dropout():
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_dropout(data)
     _test_dropout(data, dropout_ratio=0.7)
-    print("Testing layer Dropout pass!")
 
 
 #######################################################################
@@ -529,7 +520,6 @@ def test_forward_Eltwise():
     ],
                   operation=1,
                   coeff=[0.5, 1])
-    print("Testing layer Eltwise pass!")
 
 
 #######################################################################
@@ -547,7 +537,6 @@ def test_forward_Flatten():
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_flatten(data)
     _test_flatten(data, axis=1)
-    print("Testing layer Flatten pass!")
 
 
 #######################################################################
@@ -577,7 +566,6 @@ def test_forward_InnerProduct():
                         bias_term=True,
                         weight_filler=dict(type='xavier'),
                         bias_filler=dict(type='xavier'))
-    print("Testing layer InnerProduct pass!")
 
 
 #######################################################################
@@ -609,7 +597,6 @@ def test_forward_LRN():
         beta=0.5,
     )
     _test_lrn(data, local_size=3, alpha=2., beta=0.5, k=2.)
-    print("Testing layer LRN pass!")
 
 
 #######################################################################
@@ -649,8 +636,6 @@ def test_forward_Pooling():
                   pool=P.Pooling.AVE)
     _test_pooling(data, pool=P.Pooling.AVE, global_pooling=True)
 
-    print("Testing layer Pooling pass!")
-
 
 #######################################################################
 # PReLU
@@ -669,8 +654,6 @@ def test_forward_PReLU():
     _test_prelu(data)
     _test_prelu(np.random.rand(10, 20).astype(np.float32))
 
-    print("Testing layer PReLU pass!")
-
 
 #######################################################################
 # ReLU
@@ -687,7 +670,6 @@ def test_forward_ReLU():
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_relu(data)
     _test_relu(np.random.rand(10, 20).astype(np.float32))
-    print("Testing layer ReLU pass!")
 
 
 #######################################################################
@@ -735,8 +717,6 @@ def test_forward_Reshape():
                       'num_axes': 2
                   })
 
-    print("Testing layer Reshape pass!")
-
 
 #######################################################################
 # Scale
@@ -757,8 +737,6 @@ def test_forward_Scale():
                 bias_term=True,
                 bias_filler=dict(type="xavier"))
 
-    print("Testing layer Scale pass!")
-
 
 #######################################################################
 # Sigmoid
@@ -774,8 +752,6 @@ def test_forward_Sigmoid():
     """ Sigmoid """
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_sigmoid(data)
-
-    print("Testing layer Sigmoid pass!")
 
 
 #######################################################################
@@ -796,8 +772,6 @@ def test_forward_Slice():
     _test_slice(data, ntop=3, slice_param=dict(axis=2, slice_point=[1, 6]))
     _test_slice(data, ntop=3)
 
-    print("Testing layer Slice pass!")
-
 
 #######################################################################
 # Softmax
@@ -816,8 +790,6 @@ def test_forward_Softmax():
     _test_softmax(np.random.rand(10, 10).astype(np.float32), axis=0)
     _test_softmax(np.random.rand(2, 10, 10).astype(np.float32), axis=1)
 
-    print("Testing layer Softmax pass!")
-
 
 #######################################################################
 # TanH
@@ -835,8 +807,6 @@ def test_forward_TanH():
     _test_tanh(np.random.rand(3, 10, 10).astype(np.float32))
     _test_tanh(np.random.rand(10, 10).astype(np.float32))
     _test_tanh(np.random.rand(10).astype(np.float32))
-
-    print("Testing layer TanH pass!")
 
 
 #######################################################################
@@ -868,7 +838,6 @@ def test_forward_Mobilenetv2():
     """ Mobilenetv2 """
     data = np.random.randint(0, 256, size=(1, 3, 224, 224)).astype(np.float32)
     _test_mobilenetv2(data)
-    print("Testing network Mobilenetv2 pass!")
 
 
 #######################################################################
@@ -898,8 +867,6 @@ def test_forward_Alexnet():
     """ Alexnet """
     data = np.random.randint(0, 256, size=(1, 3, 227, 227)).astype(np.float32)
     _test_alexnet(data)
-
-    print("Testing network Alexnet pass!")
 
 
 #######################################################################
@@ -932,7 +899,6 @@ def test_forward_Resnet50():
     """ Resnet50 """
     data = np.random.randint(0, 256, size=(1, 3, 224, 224)).astype(np.float32)
     _test_resnet50(data)
-    print("Testing network Resnet50 pass!")
 
 
 #######################################################################
@@ -963,7 +929,6 @@ def test_forward_Inceptionv1():
     """ Inceptionv4 """
     data = np.random.randint(0, 256, size=(1, 3, 224, 224)).astype(np.float32)
     _test_inceptionv1(data)
-    print("Testing network Inceptionv4 pass!")
 
 
 if __name__ == "__main__":
