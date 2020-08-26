@@ -192,6 +192,8 @@ def test_pooling():
 
 
 def test_global_pooling():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
