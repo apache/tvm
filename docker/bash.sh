@@ -26,6 +26,23 @@
 # Usage2: docker/bash.sh <CONTAINER_NAME> [COMMAND]
 #     Execute command in the docker image, non-interactive
 #
+interactive=0
+if [ "$1" == "-i" ]; then
+    interactive=1
+    shift
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE="$(pwd)"
+
+if [ "$1" == "--repo-mount-point" ]; then
+    shift
+    REPO_MOUNT_POINT="$1"
+    shift
+else
+    REPO_MOUNT_POINT="${WORKSPACE}"
+fi
+
 if [ "$#" -lt 1 ]; then
     echo "Usage: docker/bash.sh <CONTAINER_NAME> [COMMAND]"
     exit -1
@@ -47,8 +64,9 @@ else
     COMMAND=("$@")
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE="$(pwd)"
+if [ $interactive -eq 1 ]; then
+    CI_DOCKER_EXTRA_PARAMS=( "${CI_DOCKER_EXTRA_PARAMS[@]}" -it )
+fi
 
 # Use nvidia-docker if the container is GPU.
 if [[ ! -z $CUDA_VISIBLE_DEVICES ]]; then
@@ -70,7 +88,7 @@ else
 fi
 
 if [[ "${DOCKER_IMAGE_NAME}" == *"ci"* ]]; then
-    CI_PY_ENV="-e PYTHONPATH=/workspace/python"
+    CI_PY_ENV="-e PYTHONPATH=${WORKSPACE_MOUNT_POINT}/python"
 else
     CI_PY_ENV=""
 fi
@@ -94,12 +112,12 @@ fi
 # By default we cleanup - remove the container once it finish running (--rm)
 # and share the PID namespace (--pid=host) so the process inside does not have
 # pid 1 and SIGKILL is propagated to the process inside (jenkins can kill it).
-${DOCKER_BINARY} run --rm --pid=host\
-    -v ${WORKSPACE}:/workspace \
+${DOCKER_BINARY} run --rm --pid=host \
+    -v ${WORKSPACE}:${REPO_MOUNT_POINT} \
     -v ${SCRIPT_DIR}:/docker \
     "${EXTRA_MOUNTS[@]}" \
-    -w /workspace \
-    -e "CI_BUILD_HOME=/workspace" \
+    -w "${REPO_MOUNT_POINT}" \
+    -e "CI_BUILD_HOME=${REPO_MOUNT_POINT}" \
     -e "CI_BUILD_USER=$(id -u -n)" \
     -e "CI_BUILD_UID=$(id -u)" \
     -e "CI_BUILD_GROUP=$(id -g -n)" \
@@ -110,4 +128,4 @@ ${DOCKER_BINARY} run --rm --pid=host\
     ${CI_DOCKER_EXTRA_PARAMS[@]} \
     ${DOCKER_IMAGE_NAME} \
     bash --login /docker/with_the_same_user \
-    ${COMMAND[@]}
+    "${COMMAND[@]}"
