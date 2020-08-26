@@ -159,7 +159,7 @@ class MicroTransportChannel : public RPCChannel {
   }
 
   void HandleMessageReceived(MessageType message_type, Buffer* buf) {
-    if (message_type == MessageType::kLogMessage) {
+    if (message_type == MessageType::kLog) {
       uint8_t message[1024];
       size_t message_size_bytes = buf->ReadAvailable();
       if (message_size_bytes == 0) {

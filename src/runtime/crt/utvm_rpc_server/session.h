@@ -36,9 +36,10 @@ namespace tvm {
 namespace runtime {
 
 enum class MessageType : uint8_t {
-  kStartSessionMessage = 0x00,
-  kLogMessage = 0x01,
-  kNormalTraffic = 0x10,
+  kStartSessionInit = 0x00,
+  kStartSessionReply = 0x01,
+  kLog = 0x02,
+  kNormal = 0x10,
 };
 
 typedef struct SessionHeader {
@@ -52,8 +53,8 @@ typedef struct SessionHeader {
  *  - in-order delivery.
  *  - reliable delivery.
  *
- * Specifically, designed for use with UARTs. Will probably work over semihosting and USB; will
- * probably not work reliably enough over UDP.
+ * Specifically, designed for use with UARTs. Will probably work over semihosting, USB, and TCP;
+ * will probably not work reliably enough over UDP.
  */
 class Session {
  public:
@@ -67,7 +68,7 @@ class Session {
    *
    * \param context The value of `message_received_func_context` passed to the constructor.
    * \param message_type The type of session message received. Currently, this is always
-   *      either kNormalTraffic or kLogMessage.
+   *      either kNormal or kLog.
    * \param buf When message_type is not kStartSessionMessage, a Buffer whose read cursor is at the
    *      first byte of the message payload. Otherwise, NULL.
    */
@@ -79,7 +80,7 @@ class Session {
   Session(uint8_t initial_session_nonce, Framer* framer, Buffer* receive_buffer,
           MessageReceivedFunc message_received_func, void* message_received_func_context)
       : local_nonce_{initial_session_nonce},
-        remote_nonce_{kInvalidNonce},
+        session_id_{0},
         state_{State::kReset},
         receiver_{this},
         framer_{framer},
@@ -188,24 +189,22 @@ class Session {
 
   void SendSessionStartReply(const SessionHeader& header);
 
-  void ProcessStartSession(const SessionHeader& header);
+  void ProcessStartSessionInit(const SessionHeader& header);
+
+  void ProcessStartSessionReply(const SessionHeader& header);
 
   void OnSessionEstablishedMessage();
 
-  inline uint16_t inbound_session_id() {
-    return ((uint16_t)remote_nonce_) | (((uint16_t)local_nonce_) << 8);
+  inline void SetSessionId(uint8_t initiator_nonce, uint8_t responder_nonce) {
+    session_id_ = initiator_nonce | (((uint16_t) responder_nonce) << 8);
   }
 
-  inline uint16_t outbound_session_id() {
-    return ((uint16_t)local_nonce_) | (((uint16_t)remote_nonce_) << 8);
-  }
+  inline uint8_t initiator_nonce(uint16_t session_id) { return session_id & 0xff; }
 
-  inline uint8_t sender_nonce(uint16_t session_id) { return session_id & 0xff; }
-
-  inline uint8_t receiver_nonce(uint16_t session_id) { return (session_id >> 8) & 0xff; }
+  inline uint8_t responder_nonce(uint16_t session_id) { return (session_id >> 8) & 0xff; }
 
   uint8_t local_nonce_;
-  uint8_t remote_nonce_;
+  uint16_t session_id_;
   State state_;
   SessionReceiver receiver_;
   Framer* framer_;

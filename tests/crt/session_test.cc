@@ -58,11 +58,6 @@ class TestSession {
         sess{initial_nonce, &framer, &receive_buffer, TestSessionMessageReceivedThunk, this},
         unframer{sess.Receiver()} {}
 
-  template <unsigned int N>
-  void ExpectFramedPacket(const char (&expected)[N]) {
-    EXPECT_EQ(std::string(expected, N - 1), framer_write_stream.BufferContents());
-  }
-
   void WriteTo(TestSession* other) {
     auto framer_buffer = framer_write_stream.BufferContents();
     size_t bytes_to_write = framer_buffer.size();
@@ -91,10 +86,13 @@ class TestSession {
   Unframer unframer;
 };
 
+#define EXPECT_FRAMED_PACKET(session, expected) \
+  EXPECT_EQ(std::string(expected, sizeof(expected) - 1), (session).framer_write_stream.BufferContents());
+
 extern "C" {
 void TestSessionMessageReceivedThunk(void* context, MessageType message_type, Buffer* buf) {
   std::string message;
-  if (message_type != MessageType::kStartSessionMessage) {
+  if (message_type != MessageType::kStartSessionReply) {
     uint8_t message_buf[300];
     EXPECT_LE(buf->ReadAvailable(), sizeof(message_buf));
     size_t message_size_bytes = buf->Read(message_buf, sizeof(message_buf));
@@ -129,83 +127,79 @@ TEST_F(SessionTest, NormalExchange) {
   alice_.ClearBuffers();
   tvm_crt_error_t err = alice_.sess.StartSession();
   EXPECT_EQ(err, kTvmErrorNoError);
-  alice_.ExpectFramedPacket("\xfe\xff\xfd\x03\0\0\0\x82\0\0\x1E\x2");
+  EXPECT_FRAMED_PACKET(alice_, "\xfe\xff\xfd\x03\0\0\0\x82\0\0\x1E\x2");
 
   bob_.ClearBuffers();
   alice_.WriteTo(&bob_);
-  bob_.ExpectFramedPacket("\xfe\xff\xfd\x3\0\0\0f\x82\0\x15\x03");
+  EXPECT_FRAMED_PACKET(bob_, "\xfe\xff\xfd\x3\0\0\0\x82" "f\x01\xb3\xb3");
   EXPECT_TRUE(bob_.sess.IsEstablished());
 
   bob_.WriteTo(&alice_);
   EXPECT_TRUE(alice_.sess.IsEstablished());
   ASSERT_EQ(alice_.messages_received.size(), 1);
-  EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kStartSessionMessage, ""));
+  EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kStartSessionReply, ""));
 
   alice_.ClearBuffers();
-  alice_.sess.SendMessage(MessageType::kNormalTraffic, reinterpret_cast<const uint8_t*>("hello"),
+  alice_.sess.SendMessage(MessageType::kNormal, reinterpret_cast<const uint8_t*>("hello"),
                           5);
-  alice_.ExpectFramedPacket(
-      "\xFF\xFD\b\0\0\0\x82"
-      "f\x10hello\x90(");
+  EXPECT_FRAMED_PACKET(alice_, "\xFF\xFD\b\0\0\0\x82" "f\x10hello\x90(");
   alice_.WriteTo(&bob_);
   ASSERT_EQ(bob_.messages_received.size(), 2);
-  EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kStartSessionMessage, ""));
-  EXPECT_EQ(bob_.messages_received[1], ReceivedMessage(MessageType::kNormalTraffic, "hello"));
+  EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kStartSessionReply, ""));
+  EXPECT_EQ(bob_.messages_received[1], ReceivedMessage(MessageType::kNormal, "hello"));
 
   bob_.ClearBuffers();
-  bob_.sess.SendMessage(MessageType::kNormalTraffic, reinterpret_cast<const uint8_t*>("olleh"), 5);
-  bob_.ExpectFramedPacket("\xFF\xFD\b\0\0\0f\x82\x10olleh=\xd0");
+  bob_.sess.SendMessage(MessageType::kNormal, reinterpret_cast<const uint8_t*>("olleh"), 5);
+  EXPECT_FRAMED_PACKET(bob_, "\xff\xfd\b\0\0\0\x82" "f\x10ollehLv");
   bob_.WriteTo(&alice_);
   ASSERT_EQ(alice_.messages_received.size(), 1);
-  EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kNormalTraffic, "olleh"));
+  EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kNormal, "olleh"));
 
   alice_.ClearBuffers();
   bob_.ClearBuffers();
 
-  alice_.sess.SendMessage(MessageType::kLogMessage, reinterpret_cast<const uint8_t*>("log1"), 4);
-  alice_.ExpectFramedPacket(
-      "\xff\xfd\a\0\0\0\x82"
-      "f\x01log1\x90\x89");
+  alice_.sess.SendMessage(MessageType::kLog, reinterpret_cast<const uint8_t*>("log1"), 4);
+  EXPECT_FRAMED_PACKET(alice_, "\xff\xfd\a\0\0\0\0\0\x02log1\xa1~");
   alice_.WriteTo(&bob_);
   ASSERT_EQ(bob_.messages_received.size(), 1);
-  EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kLogMessage, "log1"));
+  EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kLog, "log1"));
 
-  bob_.sess.SendMessage(MessageType::kLogMessage, reinterpret_cast<const uint8_t*>("zero"), 4);
-  bob_.ExpectFramedPacket("\xff\xfd\a\0\0\0f\x82\x1zerona");
+  bob_.sess.SendMessage(MessageType::kLog, reinterpret_cast<const uint8_t*>("zero"), 4);
+  EXPECT_FRAMED_PACKET(bob_, "\xff\xfd\a\0\0\0\0\0\x02zero\xe3\xc2");
   bob_.WriteTo(&alice_);
   ASSERT_EQ(alice_.messages_received.size(), 1);
-  EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kLogMessage, "zero"));
+  EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kLog, "zero"));
 }
 
 TEST_F(SessionTest, LogBeforeSessionStart) {
-  alice_.sess.SendMessage(MessageType::kLogMessage, reinterpret_cast<const uint8_t*>("log1"), 4);
-  alice_.ExpectFramedPacket("\xfe\xff\xfd\a\0\0\0\0\0\x1log1s\x90");
+  alice_.sess.SendMessage(MessageType::kLog, reinterpret_cast<const uint8_t*>("log1"), 4);
+  EXPECT_FRAMED_PACKET(alice_, "\xfe\xff\xfd\a\0\0\0\0\0\x02log1\xa1~");
   alice_.WriteTo(&bob_);
   ASSERT_EQ(bob_.messages_received.size(), 1);
-  EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kLogMessage, "log1"));
+  EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kLog, "log1"));
 
-  bob_.sess.SendMessage(MessageType::kLogMessage, reinterpret_cast<const uint8_t*>("zero"), 4);
-  bob_.ExpectFramedPacket("\xfe\xff\xfd\a\0\0\0\0\0\x1zero1,");
+  bob_.sess.SendMessage(MessageType::kLog, reinterpret_cast<const uint8_t*>("zero"), 4);
+  EXPECT_FRAMED_PACKET(bob_, "\xfe\xff\xfd\a\0\0\0\0\0\x02zero\xe3\xc2");
   bob_.WriteTo(&alice_);
   ASSERT_EQ(alice_.messages_received.size(), 1);
-  EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kLogMessage, "zero"));
+  EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kLog, "zero"));
 }
 
 static constexpr const char kBobStartPacket[] = "\xfe\xff\xfd\x03\0\0\0f\0\0\xef~";
 
 TEST_F(SessionTest, DoubleStart) {
   EXPECT_EQ(kTvmErrorNoError, alice_.sess.StartSession());
-  alice_.ExpectFramedPacket("\xfe\xff\xfd\x03\0\0\0\x82\0\0\x1E\x2");
+  EXPECT_FRAMED_PACKET(alice_, "\xfe\xff\xfd\x03\0\0\0\x82\0\0\x1E\x2");
   EXPECT_FALSE(alice_.sess.IsEstablished());
 
   EXPECT_EQ(kTvmErrorNoError, bob_.sess.StartSession());
-  bob_.ExpectFramedPacket(kBobStartPacket);
+  EXPECT_FRAMED_PACKET(bob_, kBobStartPacket);
   EXPECT_FALSE(bob_.sess.IsEstablished());
 
   // Sending Alice -> Bob should have no effect (regenerated Bob nonce > regenerated Alice nonce).
   bob_.framer_write_stream.Reset();
   alice_.WriteTo(&bob_);
-  bob_.ExpectFramedPacket("");
+  EXPECT_FRAMED_PACKET(bob_, "");
   EXPECT_FALSE(bob_.sess.IsEstablished());
 
   // Sending Bob -> Alice should start the session.
@@ -215,7 +209,7 @@ TEST_F(SessionTest, DoubleStart) {
             alice_.unframer.Write(reinterpret_cast<const uint8_t*>(kBobStartPacket),
                                   sizeof(kBobStartPacket), &bytes_consumed));
   EXPECT_EQ(bytes_consumed, sizeof(kBobStartPacket));
-  alice_.ExpectFramedPacket("\xFF\xFD\x3\0\0\0Ef\0\xF5\0");
+  EXPECT_FRAMED_PACKET(alice_, "\xFF\xFD\x3\0\0\0fE\x01\xF7\x9c");
   EXPECT_TRUE(alice_.sess.IsEstablished());
 
   bob_.ClearBuffers();

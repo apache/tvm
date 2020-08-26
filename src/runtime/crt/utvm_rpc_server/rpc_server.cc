@@ -56,7 +56,7 @@ class MicroIOHandler {
       : session_{session}, receive_buffer_{receive_buffer} {}
 
   void MessageStart(size_t message_size_bytes) {
-    session_->StartMessage(MessageType::kNormalTraffic, message_size_bytes + 8);
+    session_->StartMessage(MessageType::kNormal, message_size_bytes + 8);
   }
 
   ssize_t PosixWrite(const uint8_t* buf, size_t buf_size_bytes) {
@@ -146,7 +146,7 @@ class MicroRPCServer {
 
   void Log(const uint8_t* message, size_t message_size_bytes) {
     tvm_crt_error_t to_return =
-        session_.SendMessage(MessageType::kLogMessage, message, message_size_bytes);
+        session_.SendMessage(MessageType::kLog, message, message_size_bytes);
     if (to_return != 0) {
       TVMPlatformAbort(to_return);
     }
@@ -166,7 +166,7 @@ class MicroRPCServer {
   bool is_running_;
 
   void HandleCompleteMessage(MessageType message_type, Buffer* buf) {
-    if (message_type != MessageType::kNormalTraffic) {
+    if (message_type != MessageType::kNormal) {
       return;
     }
 
@@ -230,7 +230,7 @@ void TVMLogf(const char* format, ...) {
     tvm::runtime::Framer framer{&write_stream};
     tvm::runtime::Session session{0xa5, &framer, nullptr, nullptr, nullptr};
     tvm_crt_error_t err =
-        session.SendMessage(tvm::runtime::MessageType::kLogMessage,
+        session.SendMessage(tvm::runtime::MessageType::kLog,
                             reinterpret_cast<uint8_t*>(log_buffer), num_bytes_logged);
     if (err != kTvmErrorNoError) {
       TVMPlatformAbort(err);
