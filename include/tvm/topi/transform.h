@@ -1511,6 +1511,35 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<Integer>
       name, tag);
 }
 
+/*!
+ * \brief Returns a tensor with the diagonal of input tensor replaced with the provided diagonal.
+ * \param input input tensor.
+ * \param diagonal values to be filled in the diagonal.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return new tensor with given diagonal values.
+ */
+inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal,
+                              const std::string name = "T_matrix_set_diag",
+                              const std::string tag = kInjective) {
+  size_t ndim = input->shape.size() - 1;
+
+  return compute(
+      input->shape,
+      [&](const Array<Var>& iter_vars) {
+        auto get_diag = [&]() {
+          Array<PrimExpr> diagonal_indices;
+          for (size_t i = 0; i < ndim; i++) {
+            diagonal_indices.push_back(iter_vars[i]);
+          }
+          return diagonal(diagonal_indices);
+        };
+        return if_then_else((PrimExpr)iter_vars[ndim] == iter_vars[ndim - 1], get_diag(),
+                            input(iter_vars));
+      },
+      name, tag);
+}
+
 }  // namespace topi
 }  // namespace tvm
 #endif  // TVM_TOPI_TRANSFORM_H_
