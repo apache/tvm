@@ -20,6 +20,7 @@ from tvm import te
 from tvm.testing import check_numerical_grads, assert_allclose
 from tvm import topi
 from tvm.topi.util import get_const_tuple
+import pytest
 
 import numpy as np
 
@@ -324,6 +325,15 @@ def test_stride_dilation():
     Y = topi.nn.pool(X, [3, 3], [3, 3], [0, 0, 0, 0], 'max')
     check_grad(Y, [X])
 
+@pytest.mark.xfail
+def test_reduction_init():
+    np.random.seed(0)
+    shape = (10, 10)
+    k = te.reduce_axis((0, 10), name="k")
+    A0 = te.placeholder(shape, name='A0')
+
+    B = te.compute((10,), lambda i: te.sum(A0[i, k]*A0[k, i], axis=k, init=0.0), name='B')
+    check_grad(B, A0)
 
 if __name__ == "__main__":
     test_basic_operation()
