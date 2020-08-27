@@ -29,6 +29,7 @@ import numpy as np
 import tvm
 import tvm.relay
 import tvm.micro
+from tvm.micro import transport
 
 from tvm.topi.util import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
@@ -99,5 +100,16 @@ def test_compile_runtime():
     assert (C_data.asnumpy() == np.array([6, 7])).all()
 
 
+def test_reset():
+  """Test when the remote end resets during a session."""
+  with _make_add_sess() as sess:
+    try:
+      sess._rpc.get_function('tvm.testing.reset_server')()
+      assert False, 'expected to raise SessionTerminatedError; did not raise'
+    except transport.SessionTerminatedError:
+      pass
+
+
 if __name__ == '__main__':
   test_compile_runtime()
+  test_reset()

@@ -81,8 +81,9 @@ size_t utvm_rpc_server_receive_byte(utvm_rpc_server_t server, uint8_t byte);
 /*! \brief Perform normal processing of received data.
  *
  * \param server The TVM RPC Server pointer.
+ * \return true while the server is still running. false when it shuts down gracefully.
  */
-void utvm_rpc_server_loop(utvm_rpc_server_t server);
+bool utvm_rpc_server_loop(utvm_rpc_server_t server);
 
 #ifdef __cplusplus
 }

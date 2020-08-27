@@ -23,7 +23,14 @@ import string
 import subprocess
 import typing
 
+import tvm
+
 _LOG = logging.getLogger(__name__)
+
+
+@tvm.error.register_error
+class SessionTerminatedError(Exception):
+  """Raised when a transport read operationd discovers that the remote session is terminated."""
 
 
 class Transport(metaclass=abc.ABCMeta):
@@ -61,6 +68,13 @@ class Transport(metaclass=abc.ABCMeta):
             Data read from the channel. Less than `n` bytes may be returned, but 0 bytes should
             never be returned except in error. Note that if a transport error occurs, an Exception
             should be raised rather than simply returning empty bytes.
+
+
+        Raises
+        ------
+        SessionTerminatedError :
+            When the transport layer determines that the active session was terminated by the
+            remote side. Typically this indicates that the remote device has reset.
         """
         raise NotImplementedError()
 

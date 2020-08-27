@@ -22,6 +22,7 @@
  * \brief main entry point for host subprocess-based CRT
  */
 #include <inttypes.h>
+#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/utvm_rpc_server.h>
 #include <unistd.h>
@@ -48,7 +49,7 @@ ssize_t utvm_write_func(void* context, const uint8_t* data, size_t num_bytes) {
 }
 
 void TVMPlatformAbort(tvm_crt_error_t error_code) {
-  std::cerr << "TVM Abort: " << error_code << std::endl;
+  std::cerr << "TVMPlatformAbort: " << error_code << std::endl;
   throw "Aborted";
 }
 
@@ -80,9 +81,27 @@ int TVMPlatformTimerStop(double* res_us) {
 
 uint8_t memory[512 * 1024];
 
+static char** g_argv = NULL;
+
+int testonly_reset_server(TVMValue* args, int* type_codes, int num_args,
+                          TVMValue* out_ret_value, int* out_ret_tcode,
+                          void* resource_handle) {
+  execvp(g_argv[0], g_argv);
+  perror("utvm runtime: error restarting");
+  return -1;
+}
+
 int main(int argc, char** argv) {
+  g_argv = argv;
   utvm_rpc_server_t rpc_server =
       utvm_rpc_server_init(memory, sizeof(memory), 8, &utvm_write_func, nullptr);
+
+  if (TVMFuncRegisterGlobal("tvm.testing.reset_server",
+                            (TVMFunctionHandle) &testonly_reset_server,
+                            0)) {
+    fprintf(stderr, "utvm runtime: internal error registering global packedfunc; exiting\n");
+    return 2;
+  }
 
   setbuf(stdin, NULL);
   setbuf(stdout, NULL);
@@ -103,7 +122,12 @@ int main(int argc, char** argv) {
       abort();
     }
     // fprintf(stderr, "SL\n");
-    utvm_rpc_server_loop(rpc_server);
+    if (!utvm_rpc_server_loop(rpc_server)) {
+      execvp(argv[0], argv);
+      perror("utvm runtime: error restarting");
+      return 2;
+    }
+
     // fprintf(stderr, "LD\n");
   }
   return 0;

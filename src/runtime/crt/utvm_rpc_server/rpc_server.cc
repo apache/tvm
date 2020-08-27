@@ -121,6 +121,10 @@ class MicroRPCServer {
 
   void* operator new(size_t count, void* ptr) { return ptr; }
 
+  void Initialize() {
+    CHECK_EQ(kTvmErrorNoError, session_.Initialize(), "rpc server init");
+  }
+
   /*! \brief Process one message from the receive buffer, if possible.
    *
    * \return true if additional messages could be processed. false if the server shutdown request
@@ -202,9 +206,11 @@ utvm_rpc_server_t utvm_rpc_server_init(uint8_t* memory, size_t memory_size_bytes
 
   auto receive_buffer =
       new (vmalloc(TVM_CRT_MAX_PACKET_SIZE_BYTES)) uint8_t[TVM_CRT_MAX_PACKET_SIZE_BYTES];
-  g_rpc_server = static_cast<utvm_rpc_server_t>(
-      new (vmalloc(sizeof(tvm::runtime::MicroRPCServer))) tvm::runtime::MicroRPCServer(
-          receive_buffer, TVM_CRT_MAX_PACKET_SIZE_BYTES, write_func, write_func_ctx));
+  auto rpc_server = new (vmalloc(sizeof(tvm::runtime::MicroRPCServer)))
+    tvm::runtime::MicroRPCServer(
+      receive_buffer, TVM_CRT_MAX_PACKET_SIZE_BYTES, write_func, write_func_ctx);
+  g_rpc_server = static_cast<utvm_rpc_server_t>(rpc_server);
+  rpc_server->Initialize();
   return g_rpc_server;
 }
 
@@ -245,9 +251,9 @@ size_t utvm_rpc_server_receive_byte(utvm_rpc_server_t server_ptr, uint8_t byte) 
   return 1;
 }
 
-void utvm_rpc_server_loop(utvm_rpc_server_t server_ptr) {
+bool utvm_rpc_server_loop(utvm_rpc_server_t server_ptr) {
   tvm::runtime::MicroRPCServer* server = static_cast<tvm::runtime::MicroRPCServer*>(server_ptr);
-  server->Loop();
+  return server->Loop();
 }
 
 }  // extern "C"

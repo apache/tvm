@@ -77,6 +77,8 @@ tvm_crt_error_t Session::SendBodyChunk(const uint8_t* chunk, size_t chunk_size_b
 tvm_crt_error_t Session::FinishMessage() { return framer_->FinishPacket(); }
 
 tvm_crt_error_t Session::StartSession() {
+  CHECK_NE(state_, State::kReset, "must call Initialize");
+
   RegenerateNonce();
   SetSessionId(local_nonce_, 0);
   tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionInit, nullptr, 0);
@@ -85,6 +87,16 @@ tvm_crt_error_t Session::StartSession() {
   }
 
   return to_return;
+}
+
+tvm_crt_error_t Session::Initialize() {
+  return TerminateSession();
+}
+
+tvm_crt_error_t Session::TerminateSession() {
+  SetSessionId(0, 0);
+  state_ = State::kNoSessionEstablished;
+  return SendInternal(MessageType::kTerminateSession, nullptr, 0);
 }
 
 tvm_crt_error_t Session::SendMessage(MessageType message_type, const uint8_t* message_data,
@@ -122,9 +134,6 @@ void Session::SessionReceiver::PacketDone(bool is_valid) {
   }
 
   session_->receive_buffer_has_complete_message_ = true;
-  // LOG_DEBUG("MessageDone: %zu/%zu",
-  //           session_->receive_buffer_->ReadAvailable(),
-  //           session_->receive_buffer_->Size());
 
   switch (header.message_type) {
     case MessageType::kStartSessionInit:
@@ -133,6 +142,13 @@ void Session::SessionReceiver::PacketDone(bool is_valid) {
       break;
     case MessageType::kStartSessionReply:
       session_->ProcessStartSessionReply(header);
+      session_->receive_buffer_has_complete_message_ = false;
+      break;
+    case MessageType::kTerminateSession:
+      if (session_->state_ == State::kSessionEstablished) {
+        session_->state_ = State::kNoSessionEstablished;
+        session_->OnSessionTerminatedMessage();
+      }
       session_->receive_buffer_has_complete_message_ = false;
       break;
     case MessageType::kLog:
@@ -173,6 +189,7 @@ void Session::ProcessStartSessionInit(const SessionHeader& header) {
 
   switch (state_) {
     case State::kReset:
+    case State::kNoSessionEstablished:
       // Normal case: received a StartSession packet from reset.
       SendSessionStartReply(header);
       break;
@@ -204,6 +221,7 @@ void Session::ProcessStartSessionReply(const SessionHeader& header) {
 
   switch (state_) {
     case State::kReset:
+    case State::kNoSessionEstablished:
       break;
     case State::kStartSessionSent:
       if (initiator_nonce(header.session_id) == local_nonce_) {
@@ -225,6 +243,10 @@ void Session::ProcessStartSessionReply(const SessionHeader& header) {
 
 void Session::OnSessionEstablishedMessage() {
   message_received_func_(message_received_func_context_, MessageType::kStartSessionReply, NULL);
+}
+
+void Session::OnSessionTerminatedMessage() {
+  message_received_func_(message_received_func_context_, MessageType::kTerminateSession, NULL);
 }
 
 }  // namespace runtime

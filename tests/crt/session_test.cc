@@ -125,15 +125,28 @@ class SessionTest : public ::testing::Test {
 };
 
 TEST_F(SessionTest, NormalExchange) {
+  tvm_crt_error_t err;
+  err = alice_.sess.Initialize();
+  EXPECT_EQ(kTvmErrorNoError, err);
+  EXPECT_FRAMED_PACKET(alice_, "\xfe\xff\xfd\x03\0\0\0\0\0\x02" "fw");
+  alice_.WriteTo(&bob_);
+
+  err = bob_.sess.Initialize();
+  EXPECT_EQ(kTvmErrorNoError, err);
+  EXPECT_FRAMED_PACKET(bob_, "\xfe\xff\xfd\x03\0\0\0\0\0\x02" "fw");
+  alice_.WriteTo(&alice_);
+
+  bob_.ClearBuffers();
   alice_.ClearBuffers();
-  tvm_crt_error_t err = alice_.sess.StartSession();
+
+  err = alice_.sess.StartSession();
   EXPECT_EQ(err, kTvmErrorNoError);
-  EXPECT_FRAMED_PACKET(alice_, "\xfe\xff\xfd\x03\0\0\0\x82\0\0\x1E\x2");
+  EXPECT_FRAMED_PACKET(alice_, "\xff\xfd\x03\0\0\0\x82\0\0\x1E\x2");
 
   bob_.ClearBuffers();
   alice_.WriteTo(&bob_);
   EXPECT_FRAMED_PACKET(bob_,
-                       "\xfe\xff\xfd\x3\0\0\0\x82"
+                       "\xff\xfd\x3\0\0\0\x82"
                        "f\x01\xb3\xb3");
   EXPECT_TRUE(bob_.sess.IsEstablished());
 
@@ -165,13 +178,13 @@ TEST_F(SessionTest, NormalExchange) {
   bob_.ClearBuffers();
 
   alice_.sess.SendMessage(MessageType::kLog, reinterpret_cast<const uint8_t*>("log1"), 4);
-  EXPECT_FRAMED_PACKET(alice_, "\xff\xfd\a\0\0\0\0\0\x02log1\xa1~");
+  EXPECT_FRAMED_PACKET(alice_, "\xff\xfd\a\0\0\0\0\0\x03log1\xf0\xd4");
   alice_.WriteTo(&bob_);
   ASSERT_EQ(bob_.messages_received.size(), 1);
   EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kLog, "log1"));
 
   bob_.sess.SendMessage(MessageType::kLog, reinterpret_cast<const uint8_t*>("zero"), 4);
-  EXPECT_FRAMED_PACKET(bob_, "\xff\xfd\a\0\0\0\0\0\x02zero\xe3\xc2");
+  EXPECT_FRAMED_PACKET(bob_, "\xff\xfd\a\0\0\0\0\0\x03zero\xb2h");
   bob_.WriteTo(&alice_);
   ASSERT_EQ(alice_.messages_received.size(), 1);
   EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kLog, "zero"));
@@ -179,23 +192,37 @@ TEST_F(SessionTest, NormalExchange) {
 
 TEST_F(SessionTest, LogBeforeSessionStart) {
   alice_.sess.SendMessage(MessageType::kLog, reinterpret_cast<const uint8_t*>("log1"), 4);
-  EXPECT_FRAMED_PACKET(alice_, "\xfe\xff\xfd\a\0\0\0\0\0\x02log1\xa1~");
+  EXPECT_FRAMED_PACKET(alice_, "\xfe\xff\xfd\a\0\0\0\0\0\x03log1\xf0\xd4");
   alice_.WriteTo(&bob_);
   ASSERT_EQ(bob_.messages_received.size(), 1);
   EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kLog, "log1"));
 
   bob_.sess.SendMessage(MessageType::kLog, reinterpret_cast<const uint8_t*>("zero"), 4);
-  EXPECT_FRAMED_PACKET(bob_, "\xfe\xff\xfd\a\0\0\0\0\0\x02zero\xe3\xc2");
+  EXPECT_FRAMED_PACKET(bob_, "\xfe\xff\xfd\a\0\0\0\0\0\x03zero\xb2h");
   bob_.WriteTo(&alice_);
   ASSERT_EQ(alice_.messages_received.size(), 1);
   EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kLog, "zero"));
 }
 
-static constexpr const char kBobStartPacket[] = "\xfe\xff\xfd\x03\0\0\0f\0\0\xef~";
+static constexpr const char kBobStartPacket[] = "\xff\xfd\x03\0\0\0f\0\0\xef~";
 
 TEST_F(SessionTest, DoubleStart) {
+  tvm_crt_error_t err;
+  err = alice_.sess.Initialize();
+  EXPECT_EQ(kTvmErrorNoError, err);
+  EXPECT_FRAMED_PACKET(alice_, "\xfe\xff\xfd\x03\0\0\0\0\0\x02" "fw");
+  alice_.WriteTo(&bob_);
+
+  err = bob_.sess.Initialize();
+  EXPECT_EQ(kTvmErrorNoError, err);
+  EXPECT_FRAMED_PACKET(bob_, "\xfe\xff\xfd\x03\0\0\0\0\0\x02" "fw");
+  alice_.WriteTo(&alice_);
+
+  bob_.ClearBuffers();
+  alice_.ClearBuffers();
+
   EXPECT_EQ(kTvmErrorNoError, alice_.sess.StartSession());
-  EXPECT_FRAMED_PACKET(alice_, "\xfe\xff\xfd\x03\0\0\0\x82\0\0\x1E\x2");
+  EXPECT_FRAMED_PACKET(alice_, "\xff\xfd\x03\0\0\0\x82\0\0\x1E\x2");
   EXPECT_FALSE(alice_.sess.IsEstablished());
 
   EXPECT_EQ(kTvmErrorNoError, bob_.sess.StartSession());

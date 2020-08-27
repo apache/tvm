@@ -104,7 +104,8 @@ class MicroTransportChannel : public RPCChannel {
   }
 
   void StartSession() {
-    session_.StartSession();
+    CHECK_EQ(kTvmErrorNoError, session_.Initialize());
+    CHECK_EQ(kTvmErrorNoError, session_.StartSession());
     ReceiveUntil([this]() -> bool { return session_.IsEstablished(); });
   }
 
@@ -153,9 +154,19 @@ class MicroTransportChannel : public RPCChannel {
   }
 
   void HandleMessageReceived(MessageType message_type, Buffer* buf) {
-    if (message_type == MessageType::kLog) {
+    size_t message_size_bytes;
+    switch (message_type) {
+    case MessageType::kStartSessionInit:
+    case MessageType::kStartSessionReply:
+      break;
+
+    case MessageType::kTerminateSession:
+      LOG(FATAL) << "SessionTerminatedError: remote side has probably reset";
+      break;
+
+    case MessageType::kLog:
       uint8_t message[1024];
-      size_t message_size_bytes = buf->ReadAvailable();
+      message_size_bytes = buf->ReadAvailable();
       if (message_size_bytes == 0) {
         return;
       } else if (message_size_bytes > sizeof(message) - 1) {
@@ -169,9 +180,12 @@ class MicroTransportChannel : public RPCChannel {
       LOG(INFO) << "remote: " << message;
       session_.ClearReceiveBuffer();
       return;
+
+    case MessageType::kNormal:
+      did_receive_message_ = true;
+      message_buffer_ = buf;
+      break;
     }
-    did_receive_message_ = true;
-    message_buffer_ = buf;
   }
 
   CallbackWriteStream write_stream_;

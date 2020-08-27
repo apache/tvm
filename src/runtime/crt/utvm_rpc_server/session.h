@@ -38,7 +38,8 @@ namespace runtime {
 enum class MessageType : uint8_t {
   kStartSessionInit = 0x00,
   kStartSessionReply = 0x01,
-  kLog = 0x02,
+  kTerminateSession = 0x02,
+  kLog = 0x03,
   kNormal = 0x10,
 };
 
@@ -97,12 +98,24 @@ class Session {
   }
 
   /*!
+   * \brief Send a session terminate message, usually done at startup to interrupt a hanging remote.
+   * \return kTvmErrorNoError on success, or an error code otherwise.
+   */
+  tvm_crt_error_t Initialize();
+
+  /*!
+   * \brief Terminate any previously-established session.
+   * \return kTvmErrorNoError on success, or an error code otherwise.
+   */
+  tvm_crt_error_t TerminateSession();
+
+  /*!
    * \brief Start a new session regardless of state. Sends kStartSessionMessage.
    *
    * Generally speaking, this function should be called once per device reset by exactly one side
    * in the system. No traffic can flow until this function is called.
    *
-   * \return 0 on success, negative error code on failure.
+   * \return kTvmErrorNoError on success, or an error code otherwise.
    */
   tvm_crt_error_t StartSession();
 
@@ -117,7 +130,7 @@ class Session {
    * \param message_type One of MessageType; distinguishes the type of traffic at the session layer.
    * \param message_data The data contained in the message.
    * \param message_size_bytes The number of valid bytes in message_data.
-   * \return 0 on success, negative error code on failure.
+   * \return kTvmErrorNoError on success, or an error code otherwise.
    */
   tvm_crt_error_t SendMessage(MessageType message_type, const uint8_t* message_data,
                               size_t message_size_bytes);
@@ -130,6 +143,7 @@ class Session {
    * \param message_type One of MessageType; distinguishes the type of traffic at the session layer.
    * \param message_size_bytes The size of the message body, in bytes. Excludes the framing and
    * session layer headers. \return 0 on success, negative error code on failure.
+   * \return kTvmErrorNoError on success, or an error code otherwise.
    */
   tvm_crt_error_t StartMessage(MessageType message_type, size_t message_size_bytes);
 
@@ -140,13 +154,13 @@ class Session {
    *
    * \param chunk_data The data contained in this message body chunk.
    * \param chunk_size_bytes The number of valid bytes in chunk_data.
-   * \return 0 on success, negative error code on failure.
+   * \return kTvmErrorNoError on success, or an error code otherwise.
    */
   tvm_crt_error_t SendBodyChunk(const uint8_t* chunk_data, size_t chunk_size_bytes);
 
   /*!
    * \brief Finish sending the message by sending the framing layer footer.
-   * \return 0 on success, negative error code on failure.
+   * \return kTvmErrorNoError on success, or an error code otherwise.
    */
   tvm_crt_error_t FinishMessage();
 
@@ -178,8 +192,9 @@ class Session {
 
   enum class State : uint8_t {
     kReset = 0,
-    kStartSessionSent = 1,
-    kSessionEstablished = 2,
+    kNoSessionEstablished = 1,
+    kStartSessionSent = 2,
+    kSessionEstablished = 3,
   };
 
   void RegenerateNonce();
@@ -194,6 +209,8 @@ class Session {
   void ProcessStartSessionReply(const SessionHeader& header);
 
   void OnSessionEstablishedMessage();
+
+  void OnSessionTerminatedMessage();
 
   inline void SetSessionId(uint8_t initiator_nonce, uint8_t responder_nonce) {
     session_id_ = initiator_nonce | (((uint16_t)responder_nonce) << 8);
