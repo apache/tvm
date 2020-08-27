@@ -21,8 +21,7 @@ from ..expr_functor import ExprMutator
 from ..transform.transform import function_pass
 from ..expr import var, bind
 
-
-@function_pass()
+@function_pass(opt_level=0)
 class ChangeDatatype(ExprMutator):
     """Mutator for changing the datatype of Relay programs.
 

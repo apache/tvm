@@ -214,6 +214,27 @@ def register_min_func(func, type_name):
     """
     _register_func("tvm.datatype.min." + type_name, func)
 
+def create_min_lower_func(extern_func_map, type_name):
+    """Returns a function which lowers the minimum value operation to a pure extern call.
+
+    Parameters
+    ----------
+    extern_func_map : map
+        A map from bit lengths to the external function name
+
+    type_name : string
+        The name of the custom datatype, e.g. posites2 (but not custom[posites2]32).
+    """
+    def lower(num_bits):
+        dtype = f'custom[{type_name}]{num_bits}'
+
+        if num_bits not in extern_func_map:
+            raise RuntimeError('missing minimum function for {dtype}')
+
+        return call_pure_extern(dtype, extern_func_map[num_bits])
+
+    return lower
+
 def create_lower_func(extern_func_map):
     """Returns a function which lowers an operation to a function call.
 

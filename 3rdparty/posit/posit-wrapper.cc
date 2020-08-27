@@ -32,6 +32,7 @@
 #include "universal/posit/math/hyperbolic.hpp"
 #include "universal/posit/math/logarithm.hpp"
 #include "universal/posit/math/sqrt.hpp"
+#include "universal/posit/numeric_limits.hpp"
 
 TVM_DLL sw::unum::posit<8, 2> Uint8ToPosit8es2(uint8_t in) {
   sw::unum::bitblock<8> bb;
@@ -40,10 +41,13 @@ TVM_DLL sw::unum::posit<8, 2> Uint8ToPosit8es2(uint8_t in) {
 }
 
 extern "C" {
-TVM_DLL uint8_t RawPosit8es2(uint8_t in) { return in; }
-
 TVM_DLL uint8_t Posit8es2toUint8(sw::unum::posit<8, 2> in) {
   return static_cast<uint8_t>(in.get().to_ullong());
+}
+
+TVM_DLL uint8_t MinPosit8es2() {
+  auto min = std::numeric_limits<sw::unum::posit<8, 2>>::lowest();
+  return Posit8es2toUint8(min);
 }
 
 TVM_DLL float Posit8es2ToFloat(uint8_t in) { return Uint8ToPosit8es2(in).operator float(); }
@@ -104,10 +108,13 @@ TVM_DLL sw::unum::posit<16, 2> Uint16ToPosit16es2(uint16_t in) {
 }
 
 extern "C" {
-TVM_DLL uint16_t RawPosit16es2(uint16_t in) { return in; }
-
 TVM_DLL uint16_t Posit16es2toUint16(sw::unum::posit<16, 2> in) {
   return static_cast<uint16_t>(in.get().to_ullong());
+}
+
+TVM_DLL uint8_t MinPosit16es2() {
+  auto min = std::numeric_limits<sw::unum::posit<16, 2>>::lowest();
+  return Posit16es2toUint16(min);
 }
 
 TVM_DLL float Posit16es2ToFloat(uint16_t in) { return Uint16ToPosit16es2(in).operator float(); }
@@ -168,10 +175,13 @@ TVM_DLL sw::unum::posit<32, 2> Uint32ToPosit32es2(uint32_t in) {
 }
 
 extern "C" {
-TVM_DLL uint32_t RawPosit32es2(uint32_t in) { return in; }
-
 TVM_DLL uint32_t Posit32es2ToUint32(sw::unum::posit<32, 2> in) {
   return static_cast<uint32_t>(in.get().to_ullong());
+}
+
+TVM_DLL uint8_t MinPosit32es2() {
+  auto min = std::numeric_limits<sw::unum::posit<32, 2>>::lowest();
+  return Posit32es2ToUint32(min);
 }
 
 TVM_DLL float Posit32es2ToFloat(uint32_t in) { return Uint32ToPosit32es2(in).operator float(); }

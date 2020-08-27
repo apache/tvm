@@ -27,7 +27,7 @@ from tvm.relay.testing.inception_v3 import get_workload as get_inception
 from tvm.relay.testing.resnet import get_workload as get_resnet
 from tvm.relay.testing.layers import batch_norm_infer
 from tvm.relay.testing.mobilenet import get_workload as get_mobilenet
-from tvm.target.datatype import register, register_min_func, register_op, create_lower_func, lower_ite, lower_call_pure_extern
+from tvm.target.datatype import register, register_min_func, register_op, create_lower_func, lower_ite, lower_call_pure_extern, create_min_lower_func
 from tvm.tir.op import call_pure_extern
 
 # we use a random seed to generate input_data
@@ -170,25 +170,11 @@ def setup():
         8: 'Posit8es2Tanh'
     }), "Call", "llvm", "posites2", intrinsic_name="tir.tanh")
 
-    def posit_min_func(num_bits):
-        # the minimum representable posit is all 1's in binary,
-        # here we encode the raw bit representation in an integer
-        # and use the extern function to simply interpret
-        # the integer as a posites2
-        # 
-        # another possible way is to create a FloatImm storing the value
-        # of the minimum as a float64 and then casting to `posites2`,
-        # but float imprecision makes this approach susceptible to hard-to-find bugs
-        value = np.dtype('int' + str(num_bits)).type(-1)
-        dtype = 'custom[posites2]' + str(num_bits)
-        func_map = {
-            32: 'RawPosit32es2',
-            16: 'RawPosit16es2',
-            8: 'RawPosit8es2'
-        }
-        return call_pure_extern(dtype, func_map[num_bits], value)
-    register_min_func(posit_min_func, "posites2")
-
+    register_min_func(create_min_lower_func({
+        32: 'MinPosit32es2',
+        16: 'MinPosit16es2',
+        8: 'MinPosit8es2'
+    }, "posites2"), "posites2")
 
 def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
     """Run the same op, but with two different datatypes"""
