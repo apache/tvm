@@ -341,7 +341,8 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
         // Derivation rule based enumeration
         bool valid = true;
         for (const auto& rule : init_rules) {
-          // Some rule needs use the random generator of SketchPolicyNode, which has to be protected
+          // Some rules use the random generator of SketchPolicyNode, so this part has to be
+          // protected
           std::unique_lock<std::mutex> l(m);
           if (rule->Apply(this, &tmp_s) == InitPopulationRule::ResultKind::kInvalid) {
             valid = false;
