@@ -132,8 +132,11 @@ class ACLRuntime : public JSONRuntimeBase {
         } else if ("nn.dense" == op_name || "qnn.dense" == op_name) {
           CreateFullyConnectedLayer(&layer_, node, mm);
           num_pools++;
-        } else if ("nn.max_pool2d" == op_name) {
+        } else if ("nn.max_pool2d" == op_name || "nn.avg_pool2d" == op_name ||
+                   "nn.l2_pool2d" == op_name) {
           CreatePoolingLayer(&layer_, node);
+        } else if ("nn.global_max_pool2d" == op_name || "nn.global_avg_pool2d" == op_name) {
+          CreateGlobalPoolingLayer(&layer_, node);
         } else if ("reshape" == op_name) {
           CreateReshapeLayer(&layer_, node);
         } else {
@@ -308,7 +311,7 @@ class ACLRuntime : public JSONRuntimeBase {
   /*!
    * \brief Create a pooling layer.
    *
-   * \note Currently only maxpool is supported.
+   * \note Currently max_pool2d, avg_pool2d and L2 pooling are supported.
    *
    * \param layer The ACL layer to build. Containing inputs, outputs and the ACL function.
    * \param node The JSON representation of the operator.
@@ -316,22 +319,65 @@ class ACLRuntime : public JSONRuntimeBase {
   void CreatePoolingLayer(CachedLayer* layer, const JSONGraphNode& node) {
     std::vector<std::string> padding = node.GetAttr<std::vector<std::string>>("padding");
     std::vector<std::string> strides = node.GetAttr<std::vector<std::string>>("strides");
-    arm_compute::PadStrideInfo pad_stride_info = MakeACLPadStride(padding, strides);
+    bool ceil_mode = std::stoi(node.GetAttr<std::vector<std::string>>("ceil_mode")[0]);
+    arm_compute::PadStrideInfo pad_stride_info = MakeACLPadStride(padding, strides, ceil_mode);
 
     auto attr_pool_size = node.GetAttr<std::vector<std::string>>("pool_size");
     int pool_size_h = std::stoi(attr_pool_size[0]);
     int pool_size_w = std::stoi(attr_pool_size[1]);
 
+    // Only applies to average pool and l2 pool.
+    // ACL exclude pad option is inverse to Relays include pad option.
+    bool exclude_pad = false;
+    if (node.HasAttr("count_include_pad")) {
+      int count_include_pad =
+          std::stoi(node.GetAttr<std::vector<std::string>>("count_include_pad")[0]);
+      exclude_pad = !count_include_pad;
+    }
+
     arm_compute::PoolingType pool_type;
     if (node.GetOpName() == "nn.max_pool2d") {
       pool_type = arm_compute::PoolingType::MAX;
+    } else if (node.GetOpName() == "nn.avg_pool2d") {
+      pool_type = arm_compute::PoolingType::AVG;
+    } else if (node.GetOpName() == "nn.l2_pool2d") {
+      pool_type = arm_compute::PoolingType::L2;
     } else {
       LOG(FATAL) << "Pooling type not supported";
     }
 
     arm_compute::PoolingLayerInfo pool_info =
         arm_compute::PoolingLayerInfo(pool_type, arm_compute::Size2D(pool_size_h, pool_size_w),
-                                      arm_compute::DataLayout::NHWC, pad_stride_info);
+                                      arm_compute::DataLayout::NHWC, pad_stride_info, exclude_pad);
+
+    layer->inputs.push_back(MakeACLTensorFromJSONEntry(node.GetInputs()[0]));
+    layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
+
+    auto function = std::make_shared<arm_compute::NEPoolingLayer>();
+    function->configure(&layer->inputs[0], &layer->outputs[0], pool_info);
+    layer->function = function;
+  }
+
+  /*!
+   * \brief Create a global pooling layer.
+   *
+   * \note Currently global_max_pool2d and global_avg_pool2d are supported.
+   *
+   * \param layer The ACL layer to build. Containing inputs, outputs and the ACL function.
+   * \param node The JSON representation of the operator.
+   */
+  void CreateGlobalPoolingLayer(CachedLayer* layer, const JSONGraphNode& node) {
+    arm_compute::PoolingType pool_type;
+    if (node.GetOpName() == "nn.global_max_pool2d") {
+      pool_type = arm_compute::PoolingType::MAX;
+    } else if (node.GetOpName() == "nn.global_avg_pool2d") {
+      pool_type = arm_compute::PoolingType::AVG;
+    } else {
+      LOG(FATAL) << "Pooling type not supported";
+    }
+
+    arm_compute::PoolingLayerInfo pool_info =
+        arm_compute::PoolingLayerInfo(pool_type, arm_compute::DataLayout::NHWC);
 
     layer->inputs.push_back(MakeACLTensorFromJSONEntry(node.GetInputs()[0]));
     layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
