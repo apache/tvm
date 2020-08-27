@@ -121,10 +121,45 @@ RELAY_REGISTER_OP("dyn.nn.upsampling")
 // UpSampling3D
 bool UpSampling3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {
+    // types = [data_type, scale_d_type, scale_h_type, scale_w_type, ret_type]
+    CHECK_EQ(types.size(), 5);
+    const auto* data = types[0].as<TensorTypeNode>();
+    if (data == nullptr) return False;
+
+    static const Layout kNCHW("NCDHW");
+
+    const UpSampling3DAttrs* param = attrs.as<UpSampling3DAttrs>();
+    CHECK(param != nullptr);
+    const Layout in_layout(param->layout);
+
+    auto layout_converter = tir::BijectiveLayout(in_layout, kNCDHW);
+    CHECK(layout_converter.defined())
+        << "UpSampling3D only support input layouts that are convertible from NCDHW."
+        << " But got " << in_layout;
+
+    auto ncdhw_oshape = layout_converter.ForwardShape(data->shape);
+
+    ncdhw_oshape.Set(2, Any());
+    ncdhw_oshape.Set(3, Any());
+    ncdhw_oshape.Set(4, Any());
+
+    auto oshape = layout_converter.BackwardShape(ncdhw_oshape);
+
+    reporter->Assign(types[5], TensorType(oshape, data->dtype));
+    return true;
 }
 
 Expr MakeUpSampling3D(Expr data, Expr scale_d, Expr scale_h, Expr scale_w, String layout,
                       String method, String coordinate_transformation_mode) {
+
+  auto attrs = make_object<UpSampling3DAttrs>();
+  attrs->layout = std::move(layout);
+  attrs->method = std::move(method);
+  attrs->align_corners = align_corners;
+  attrs->coordinate_transformation_mode = coordinate_transformation_mode;
+
+  static const Op& op = Op::Get("dyn.nn.upsampling3d");
+  return Call(op, {data, scale_d, scale_h, scale_w}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.upsampling3d").set_body_typed(MakeUpSampling3D);
