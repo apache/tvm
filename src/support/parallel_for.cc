@@ -34,8 +34,8 @@ namespace support {
 
 std::vector<std::vector<int>> rr_partitioner(int begin, int end, int step, int num_threads) {
   int total_task_count = (end - begin) / step;
-  CHECK_GT(total_task_count, 0) << "Infinite loop condition, check the input value of "
-                                << "`begin`, `end`, `step`.";
+  CHECK_GE(total_task_count, 0) << "Infinite loop condition with begin: " << begin
+                                << " end: " << end << " step: " << step;
   std::vector<std::vector<int>> ret;
   ret.reserve(num_threads);
   for (size_t thread = 0; begin < end; begin += step, thread = (thread + 1) % num_threads) {

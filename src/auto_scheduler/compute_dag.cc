@@ -27,6 +27,7 @@
 #include <tvm/auto_scheduler/search_policy.h>
 #include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/parallel_for.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
@@ -812,16 +813,24 @@ State ComputeDAG::InferBound(const State& state) const {
 
 Array<State> ComputeDAG::InferBound(const Array<State>& states) const {
   Array<State> out_states;
-  // TODO(jcf94, merrymercy): Use parallel_for to run this in parallel
-  for (const auto& state : states) {
+  out_states.reserve(states.size());
+  std::mutex m;
+
+  tvm::support::parallel_for(0, states.size(), [this, &states, &out_states, &m](int index) {
     State out_state;
     try {
-      out_state = this->InferBound(state);
+      out_state = this->InferBound(states[index]);
     } catch (dmlc::Error& e) {
-      LOG(WARNING) << "InferBound fails on the state:\n" << state << "\n" << e.what() << std::endl;
+      LOG(WARNING) << "InferBound fails on the state:\n"
+                   << states[index] << "\n"
+                   << "with: " << e.what() << std::endl;
     }
-    out_states.push_back(std::move(out_state));
-  }
+    if (out_state.defined()) {
+      std::unique_lock<std::mutex> l(m);
+      out_states.push_back(std::move(out_state));
+    }
+  });
+
   return out_states;
 }
 

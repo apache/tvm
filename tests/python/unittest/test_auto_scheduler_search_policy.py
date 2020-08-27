@@ -48,7 +48,7 @@ def search_common(workload=matmul_auto_scheduler_test, target="llvm",
         if search_policy == 'empty':
             search_policy = auto_scheduler.EmptyPolicy(task)
         elif search_policy == 'sketch':
-            search_policy = auto_scheduler.SketchPolicy(task,
+            search_policy = auto_scheduler.SketchPolicy(task, schedule_cost_model=cost_model,
                     init_search_callbacks=init_search_callbacks)
 
         tuning_options = auto_scheduler.TuningOptions(num_measure_trials=num_measure_trials,
@@ -107,6 +107,18 @@ def test_sketch_search_policy_basic():
     t.join()
 
 
+def test_sketch_search_policy_xgbmodel():
+    if not tvm.runtime.enabled("llvm"):
+        return
+    # wrap the search in a new thread to avoid the conflict
+    # between python's multiprocessing and tvm's thread pool
+    t = PropagatingThread(target=search_common,
+                          kwargs={'seed': 944563397, 'search_policy': 'sketch',
+                                  'cost_model': auto_scheduler.XGBModel()})
+    t.start()
+    t.join()
+
+
 def test_sketch_search_policy_cuda_rpc_runner():
     if not tvm.runtime.enabled("cuda"):
         return
@@ -121,6 +133,7 @@ def test_sketch_search_policy_cuda_rpc_runner():
 
 
 if __name__ == "__main__":
-    test_workload_registry_search_basic()
+    # test_workload_registry_search_basic()
     test_sketch_search_policy_basic()
+    test_sketch_search_policy_xgbmodel()
     test_sketch_search_policy_cuda_rpc_runner()

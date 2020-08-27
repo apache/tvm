@@ -27,6 +27,7 @@
 #include "sketch_policy.h"
 
 #include <tvm/runtime/registry.h>
+#include <tvm/support/parallel_for.h>
 
 #include <algorithm>
 #include <iomanip>
@@ -322,32 +323,39 @@ Array<State> SketchPolicyNode::GenerateSketches() {
 }
 
 Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches, int out_size) {
-  int fail_ct = 0;
+  std::atomic<int> fail_ct(0);
+  std::mutex m;
   Array<State> out_states;
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
-  // TODO(jcf94, merrymercy): Use parallel_for to run this loop in parallel
-  while (static_cast<int>(out_states.size()) < out_size && fail_ct < static_cast<int>(out_size)) {
-    // Random choose a starting sketch
-    // TODO(jcf94, merrymercy): Maybe choose sketches in different possibility for they may have
-    // different potential on generating state with better performance
-    State tmp_s = sketches[(rand_gen)() % sketches.size()];
+  support::parallel_for(
+      0, out_size, [this, &out_size, &sketches, &out_states, &fail_ct, &m](int i) {
+        if (fail_ct >= out_size) {
+          return;
+        }
 
-    // Derivation rule based enumeration
-    bool valid = true;
-    for (const auto& rule : init_rules) {
-      if (rule->Apply(this, &tmp_s) == InitPopulationRule::ResultKind::kInvalid) {
-        valid = false;
-        break;
-      }
-    }
+        // Random choose a starting sketch
+        // TODO(jcf94, merrymercy): Maybe choose sketches in different possibility for they may have
+        // different potential on generating state with better performance
+        State tmp_s = sketches[(rand_gen)() % sketches.size()];
+        // Derivation rule based enumeration
+        bool valid = true;
+        for (const auto& rule : init_rules) {
+          // Some rule needs use the random generator of SketchPolicyNode, which has to be protected
+          std::unique_lock<std::mutex> l(m);
+          if (rule->Apply(this, &tmp_s) == InitPopulationRule::ResultKind::kInvalid) {
+            valid = false;
+            break;
+          }
+        }
 
-    if (valid) {
-      out_states.push_back(std::move(tmp_s));
-    } else {
-      fail_ct++;
-    }
-  }
+        if (valid) {
+          std::unique_lock<std::mutex> l(m);
+          out_states.push_back(std::move(tmp_s));
+        } else {
+          fail_ct++;
+        }
+      });
 
   double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
                         std::chrono::high_resolution_clock::now() - tic_begin)
