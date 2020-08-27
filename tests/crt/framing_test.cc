@@ -28,7 +28,6 @@
 #include "../../src/runtime/crt/utvm_rpc_server/buffer.h"
 #include "buffer_write_stream.h"
 #include "crt_config.h"
-
 #include "platform.cc"
 
 using ::tvm::runtime::Buffer;
