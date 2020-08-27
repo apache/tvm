@@ -219,14 +219,7 @@ def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
     mod["main"] = relay.Function([x], y)
     data = np.random.choice([0, 1, 2, 3], size=x_np_shape).astype(dtype)
     expected = np.argwhere(data)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data).asnumpy()
-        assert result.shape == expected.shape
-        tvm.testing.assert_allclose(result.flatten(), expected.flatten())
-
-    # TODO(@zhiics) argwhere gpu schedule is currently not avaiable
-    # check_result([data], mod, expected, flatten=True)
+    check_result([data], mod, expected, flatten=True)
 
 
 @tvm.testing.uses_gpu
