@@ -436,8 +436,8 @@ std::vector<std::pair<State, int>> RuleSpecialComputeLocationGPU::Apply(
 
 /********** Init Population **********/
 
-InitPopulationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* policy,
-                                                       State* state) const {
+PopulationGenerationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* policy,
+                                                             State* state) const {
   StateNode* pstate = state->CopyOnWrite();
   // Scan the transformation history and randomly fill tiles size for all SplitStep
   for (size_t step_id = 0; step_id < (*state)->transform_steps.size(); ++step_id) {
@@ -472,10 +472,11 @@ InitPopulationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* policy,
   return ResultKind::kValid;
 }
 
-InitPopulationRule::ResultKind InitChangeComputeLocation::Apply(SketchPolicyNode* policy,
-                                                                State* state) const {
+PopulationGenerationRule::ResultKind MutateComputeLocationCommon(SketchPolicyNode* policy,
+                                                                 State* state,
+                                                                 bool infer_bound = true) {
   if (GetIntParam(policy->params, SketchParamKey::disable_change_compute_location)) {
-    return ResultKind::kValid;
+    return PopulationGenerationRule::ResultKind::kValid;
   }
 
   for (int stage_id = static_cast<int>((*state)->stages.size()) - 1; stage_id >= 0; stage_id--) {
@@ -584,11 +585,19 @@ InitPopulationRule::ResultKind InitChangeComputeLocation::Apply(SketchPolicyNode
     }
   }
 
-  *state = policy->search_task->compute_dag.InferBound(*state);
-  return ResultKind::kValid;
+  if (infer_bound) {
+    *state = policy->search_task->compute_dag.InferBound(*state);
+  }
+  return PopulationGenerationRule::ResultKind::kValid;
 }
 
-InitPopulationRule::ResultKind InitParallel::Apply(SketchPolicyNode* policy, State* state) const {
+PopulationGenerationRule::ResultKind InitChangeComputeLocation::Apply(SketchPolicyNode* policy,
+                                                                      State* state) const {
+  return MutateComputeLocationCommon(policy, state, false);
+}
+
+PopulationGenerationRule::ResultKind InitParallel::Apply(SketchPolicyNode* policy,
+                                                         State* state) const {
   std::function<void(const SketchPolicyNode&, State*, int stage_id, int iter_offset)>
       annotate_parallel;
   annotate_parallel = [&annotate_parallel](const SketchPolicyNode& policy, State* state,
@@ -652,7 +661,8 @@ InitPopulationRule::ResultKind InitParallel::Apply(SketchPolicyNode* policy, Sta
   return ResultKind::kValid;
 }
 
-InitPopulationRule::ResultKind InitUnroll::Apply(SketchPolicyNode* policy, State* state) const {
+PopulationGenerationRule::ResultKind InitUnroll::Apply(SketchPolicyNode* policy,
+                                                       State* state) const {
   std::vector<int> auto_unroll_configs = IsGPUTask(policy->search_task)
                                              ? std::vector<int>({0, 16, 64, 512, 1024})
                                              : std::vector<int>({0, 16, 64, 512});
@@ -703,8 +713,8 @@ InitPopulationRule::ResultKind InitUnroll::Apply(SketchPolicyNode* policy, State
   return ResultKind::kValid;
 }
 
-InitPopulationRule::ResultKind InitVectorization::Apply(SketchPolicyNode* policy,
-                                                        State* state) const {
+PopulationGenerationRule::ResultKind InitVectorization::Apply(SketchPolicyNode* policy,
+                                                              State* state) const {
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
     // Skip the inlined stage and placeholder stage
@@ -762,7 +772,8 @@ InitPopulationRule::ResultKind InitVectorization::Apply(SketchPolicyNode* policy
   return ResultKind::kValid;
 }
 
-InitPopulationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* policy, State* state) const {
+PopulationGenerationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* policy,
+                                                           State* state) const {
   std::set<int> multi_level_tiling_root_set;
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     if (NeedsMultilevelTiling(policy->search_task, *state, stage_id)) {
@@ -908,7 +919,251 @@ InitPopulationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* policy, S
       state->bind(stage_id, iters1[1], IteratorAnnotation::kThreadX);
     }
   }
+  return ResultKind::kValid;
+}
 
+PopulationGenerationRule::ResultKind MutateTileSize::Apply(SketchPolicyNode* policy,
+                                                           State* state) const {
+  int max_innermost_split_factor =
+      GetIntParam(policy->params, SketchParamKey::max_innermost_split_factor);
+
+  // Extract all SplitStep
+  std::vector<size_t> split_step_ids;
+  for (size_t i = 0; i < (*state)->transform_steps.size(); ++i) {
+    if (auto ps = (*state)->transform_steps[i].as<SplitStepNode>()) {
+      if (!ps->extent.defined() || !ps->extent.value()->IsInstance<IntImmNode>()) {
+        continue;
+      }
+      auto innermost_factor = ps->lengths.back().value_or(max_innermost_split_factor + 1);
+      if (GetIntImm(innermost_factor) <= max_innermost_split_factor) {
+        split_step_ids.push_back(i);
+      }
+    }
+  }
+  if (split_step_ids.empty()) {
+    // No tile size could be mutated.
+    return ResultKind::kInvalid;
+  }
+
+  // Select a SplitStep with extent larger than one to mutate.
+  int retry_ct = 0;
+  int64_t extent = 1;
+  int step_id;
+  const SplitStepNode* ps;
+
+  do {
+    step_id = split_step_ids[(policy->rand_gen)() % split_step_ids.size()];
+    ps = (*state)->transform_steps[step_id].as<SplitStepNode>();
+    CHECK(ps != nullptr);
+    extent = GetIntImm(ps->extent.value());
+    retry_ct += 1;
+  } while (retry_ct < static_cast<int>(split_step_ids.size()) << 2 && (extent == 1 || extent == 0));
+
+  if (extent <= 1) {
+    // Cannot find a step with extent larger than one.
+    return ResultKind::kInvalid;
+  }
+
+  // Fetch the current tile sizes.
+  std::vector<int> lengths(ps->lengths.size() + 1, 1);
+  for (int i = 0; i < static_cast<int>(ps->lengths.size()); ++i) {
+    lengths[i + 1] = GetIntImm(ps->lengths[i].value());
+  }
+  lengths[0] = extent / ElementProduct(lengths);
+
+  // Random permute the tile size order.
+  std::vector<int> random_perm;
+  RandomPermutation(lengths.size(), &random_perm, &(policy->rand_gen));
+
+  // Try to divide a factor from one tile size and multiple it to another.
+  for (size_t i = 0; i < random_perm.size(); ++i) {
+    size_t src_idx = random_perm[i];
+    int length = lengths[src_idx];
+    if (length <= 1) {
+      continue;
+    }
+
+    size_t dst_idx = random_perm[(i + 1) % random_perm.size()];
+    const std::vector<int>& factors = policy->split_memo.GetFactors(length);
+    CHECK_GE(factors.size(), 1);
+
+    int divide_factor;
+    if (dst_idx == lengths.size() - 1) {
+      // Maintain the restriction of hardware_params.max_innermost_split_factor.
+      int max_factor_index = static_cast<int>(factors.size()) - 1;
+      for (; max_factor_index >= 1; max_factor_index--) {
+        if (factors[max_factor_index] * lengths[dst_idx] <= max_innermost_split_factor) {
+          break;
+        }
+      }
+      if (max_factor_index == 0) {
+        // Failed on this dst_idx, try next one.
+        continue;
+      }
+      divide_factor = factors[1 + (policy->rand_gen)() % (max_factor_index)];
+    } else {
+      divide_factor = factors[1 + (policy->rand_gen)() % (factors.size() - 1)];
+    }
+
+    // Divide one factor from lengths[src_idx] and multiply it to lengths[dst_idx].
+    Array<Integer> new_lengths;
+    for (size_t j = 1; j < lengths.size(); ++j) {
+      if (j == src_idx) {
+        new_lengths.push_back(Integer(lengths[j] / divide_factor));
+      } else if (j == dst_idx) {
+        new_lengths.push_back(Integer(lengths[j] * divide_factor));
+      } else {
+        new_lengths.push_back(Integer(lengths[j]));
+      }
+    }
+
+    StateNode* pstate = state->CopyOnWrite();
+    pstate->transform_steps.Set(
+        step_id, SplitStep(ps->stage_id, ps->iter_id, ps->extent,
+                           Array<Optional<Integer>>(new_lengths.begin(), new_lengths.end()),
+                           ps->inner_to_outer));
+    return ResultKind::kValid;
+  }
+  return ResultKind::kInvalid;
+}
+
+PopulationGenerationRule::ResultKind MutateMaxUnrollFactor::Apply(SketchPolicyNode* policy,
+                                                                  State* state) const {
+  // Extract all auto_unroll_max_step pragma steps.
+  std::vector<int> annotate_steps;
+  for (size_t i = 0; i < (*state)->transform_steps.size(); ++i) {
+    if (auto ps = (*state)->transform_steps[i].as<PragmaStepNode>()) {
+      if (StrStartsWith(ps->pragma_type, "auto_unroll_max_step")) {
+        annotate_steps.push_back(i);
+      }
+    }
+  }
+  if (annotate_steps.empty()) {
+    return ResultKind::kInvalid;
+  }
+
+  // Random pick up one unroll factor candidate.
+  auto cands = (IsGPUTask(policy->search_task)) ? &gpu_unroll_cands_ : &cpu_unroll_cands_;
+  auto new_factor = std::to_string((*cands)[(policy->rand_gen)() % cands->size()]);
+
+  // Random pick up and mutate an unroll step.
+  auto step_id = annotate_steps[(policy->rand_gen)() % annotate_steps.size()];
+  auto ps = (*state)->transform_steps[step_id].as<PragmaStepNode>();
+  CHECK(ps);
+  StateNode* pstate = state->CopyOnWrite();
+  pstate->transform_steps.Set(step_id,
+                              PragmaStep(ps->stage_id, ps->iter_id,
+                                         std::string("auto_unroll_max_step") + "$" + new_factor));
+  return ResultKind::kValid;
+}
+
+PopulationGenerationRule::ResultKind MutateComputeLocation::Apply(SketchPolicyNode* policy,
+                                                                  State* state) const {
+  return MutateComputeLocationCommon(policy, state, true);
+}
+
+PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* policy,
+                                                           State* state) const {
+  // This mutation rule only focuses on a case that parallel was added to
+  // the outermost loop and the loop is generated by fusing other loops.
+  // In short, we mutate the fusion step before the parallel step.
+
+  // Extract all parallel steps.
+  std::vector<int> parallel_steps;
+  for (size_t s = 0; s < (*state)->transform_steps.size(); ++s) {
+    auto ps = (*state)->transform_steps[s].as<AnnotationStepNode>();
+    if (!ps || ps->annotation != IteratorAnnotation::kParallel) {
+      continue;
+    }
+
+    // Skip non-outermost loop or the parallel step without fusion beforehand.
+    if (ps->iter_id > 0 || s == 0 || !(*state)->transform_steps[s - 1].as<FuseStepNode>()) {
+      continue;
+    }
+    parallel_steps.push_back(s);
+  }
+  if (parallel_steps.empty()) {
+    return ResultKind::kInvalid;
+  }
+
+  // Randomly pick one parallel step.
+  size_t step_id = parallel_steps[(policy->rand_gen)() % parallel_steps.size()];
+  auto ps = (*state)->transform_steps[step_id].as<AnnotationStepNode>();
+  CHECK(ps);
+  size_t stage_id = ps->stage_id;
+  size_t iter_id = ps->iter_id;
+  const Stage& stage = (*state)->stages[stage_id];
+  const Iterator& it = stage->iters[iter_id];
+
+  // Replay a new state until the picked fuse step.
+  State tmp_s = policy->search_task->compute_dag->init_state;
+  for (size_t s = 0; s < step_id - 1; ++s) {
+    auto step = (*state)->transform_steps[s];
+    tmp_s.CopyOnWrite()->transform_steps.push_back(step);
+    StepApplyToState(step, &tmp_s, policy->search_task->compute_dag);
+  }
+
+  // Determine the fusion mutation direction.
+  // 0: fuse less; 1: fuse more.
+  auto fuse_step = (*state)->transform_steps[step_id - 1].as<FuseStepNode>();
+  auto fused_ids = fuse_step->fused_ids;
+  std::vector<double> fuse_dir = {0.5, 1.0};
+
+  // The case that we can only fuse more. This may happen after multiple mutations.
+  if (fused_ids.size() == 1) {
+    fuse_dir[0] = 0.0;
+  }
+
+  // The cases that we cannot fuse the next iters.
+  if ((*state)->attach_map->iter_to_attached_stages.count(std::make_pair(stage_id, iter_id)) ||
+      it->iter_kind == IteratorKind::kReduction || it->annotation != IteratorAnnotation::kNone) {
+    if (fuse_dir[0] == 0.0) {
+      // No room to mutate this fusion.
+      return ResultKind::kInvalid;
+    }
+    fuse_dir[0] = 1.0;
+  }
+
+  // Mutate the fusion iters and replay the mutated fused/annotation steps.
+  int iter_offset = 0;
+  if (RandomChoose(fuse_dir, &(policy->rand_gen)) == 0) {
+    fused_ids.pop_back();
+    iter_offset = 1;
+  } else {
+    auto last_id = fused_ids.back().get()->value;
+    fused_ids.push_back(last_id + 1);
+    iter_offset = -1;
+  }
+  auto new_fuse_step = FuseStep(stage_id, fused_ids);
+  tmp_s.CopyOnWrite()->transform_steps.push_back(new_fuse_step);
+  StepApplyToState(new_fuse_step, &tmp_s, policy->search_task->compute_dag);
+  tmp_s.CopyOnWrite()->transform_steps.push_back((*state)->transform_steps[step_id]);
+  StepApplyToState((*state)->transform_steps[step_id], &tmp_s, policy->search_task->compute_dag);
+
+  // Replay the rest steps.
+  for (size_t s = step_id + 1; s < (*state)->transform_steps.size(); ++s) {
+    auto step = (*state)->transform_steps[s];
+    if (step->stage_id == static_cast<int>(stage_id)) {
+      // Since we changed the loop structure, iter ID in later steps to the same stage
+      // has to be adjusted.
+      auto ps = step.as<AnnotationStepNode>();
+      if (ps) {
+        if (ps->iter_id == 0) {
+          step = AnnotationStep(ps->stage_id, 0, ps->annotation);
+        } else {
+          CHECK_LE(ps->iter_id + iter_offset, tmp_s->stages[stage_id]->iters.size());
+          step = AnnotationStep(ps->stage_id, ps->iter_id + iter_offset, ps->annotation);
+        }
+      } else {
+        // Unexpected step node that we did not process for now.
+        return ResultKind::kInvalid;
+      }
+    }
+    tmp_s.CopyOnWrite()->transform_steps.push_back(step);
+    StepApplyToState(step, &tmp_s, policy->search_task->compute_dag);
+  }
+
+  *state = tmp_s;
   return ResultKind::kValid;
 }
 
