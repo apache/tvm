@@ -67,6 +67,12 @@ impl AsRef<[u8]> for String {
     }
 }
 
+impl std::fmt::Display for String {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.to_string_lossy().fmt(f)
+    }
+}
+
 impl String {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -82,6 +88,10 @@ impl String {
 
     pub fn as_str(&self) -> Result<&str, std::str::Utf8Error> {
         std::str::from_utf8(self.as_bytes())
+    }
+
+    pub fn to_string_lossy(&self) -> std::borrow::Cow<str> {
+        std::string::String::from_utf8_lossy(self.as_bytes())
     }
 }
 

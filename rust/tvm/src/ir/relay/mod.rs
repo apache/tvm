@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn test_id() -> Result<()> {
-        let string = TString::new("foo".to_string()).expect("bar");
+        let string = TString::from("foo");
         let id = Id::new(string);
         let text = as_text(id.clone());
         assert!(text.contains("relay.Id"));
@@ -275,8 +275,8 @@ mod tests {
             Var::new("bar".into(), ObjectRef::null()),
         ];
         let array = Array::from_vec(vec)?;
-        assert_eq!(array.get(0)?.name_hint().to_string()?, "foo");
-        assert_eq!(array.get(1)?.name_hint().to_string()?, "bar");
+        assert_eq!(array.get(0)?.name_hint().to_string(), "foo");
+        assert_eq!(array.get(1)?.name_hint().to_string(), "bar");
         Ok(())
     }
 }
