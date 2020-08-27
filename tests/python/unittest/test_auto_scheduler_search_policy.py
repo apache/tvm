@@ -133,7 +133,7 @@ def test_sketch_search_policy_cuda_rpc_runner():
 
 
 if __name__ == "__main__":
-    # test_workload_registry_search_basic()
+    test_workload_registry_search_basic()
     test_sketch_search_policy_basic()
     test_sketch_search_policy_xgbmodel()
     test_sketch_search_policy_cuda_rpc_runner()

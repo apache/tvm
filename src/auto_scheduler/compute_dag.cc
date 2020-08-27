@@ -816,13 +816,13 @@ Array<State> ComputeDAG::InferBound(const Array<State>& states) const {
   out_states.reserve(states.size());
   std::mutex m;
 
-  tvm::support::parallel_for(0, states.size(), [this, &states, &out_states, &m](int index) {
+  support::parallel_for(0, states.size(), [this, &states, &out_states, &m](int i) {
     State out_state;
     try {
-      out_state = this->InferBound(states[index]);
+      out_state = this->InferBound(states[i]);
     } catch (dmlc::Error& e) {
       LOG(WARNING) << "InferBound fails on the state:\n"
-                   << states[index] << "\n"
+                   << states[i] << "\n"
                    << "with: " << e.what() << std::endl;
     }
     if (out_state.defined()) {
