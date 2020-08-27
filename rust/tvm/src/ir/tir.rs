@@ -58,32 +58,36 @@ define_node!(IntImm, "IntImm", "IntImm";
 define_node!(Var, "Var", "tir.Var";
              VarNode { name_hint: TVMString });
 
-define_node!(Add, "Add", "tir.Add";
-             AddNode { a: PrimExpr, b: PrimExpr });
+define_node!(Add, "Add", "tir.Add"; AddNode { a: PrimExpr, b: PrimExpr });
+define_node!(Sub, "Sub", "tir.Sub"; SubNode { a: PrimExpr, b: PrimExpr });
+define_node!(Mul, "Mul", "tir.Mul"; MulNode { a: PrimExpr, b: PrimExpr });
 
-define_node!(Sub, "Sub", "tir.Sub";
-             SubNode { a: PrimExpr, b: PrimExpr });
-define_node!(Mul, "Mul", "tir.Mul";
-             MulNode { a: PrimExpr, b: PrimExpr });
+define_node!(Div, "Div", "tir.Div"; DivNode { a: PrimExpr, b: PrimExpr });
+define_node!(Mod, "Mod", "tir.Mod"; ModNode { a: PrimExpr, b: PrimExpr });
+define_node!(FloorDiv, "FloorDiv", "tir.FloorDiv"; FloorDivNode { a: PrimExpr, b: PrimExpr });
+define_node!(FloorMod, "FloorMod", "tir.FloorMod"; FloorModNode { a: PrimExpr, b: PrimExpr });
 
-define_node!(Div, "Div", "tir.Div";
-             DivNode { a: PrimExpr, b: PrimExpr });
-define_node!(Mod, "Mod", "tir.Mod";
-             ModNode { a: PrimExpr, b: PrimExpr });
-define_node!(FloorDiv, "FloorDiv", "tir.FloorDiv";
-             FloorDivNode { a: PrimExpr, b: PrimExpr });
-define_node!(FloorMod, "FloorMod", "tir.FloorMod";
-             FloorModNode { a: PrimExpr, b: PrimExpr });
-
-define_node!(Min, "Min", "tir.Min";
-             MinNode { a: PrimExpr, b: PrimExpr });
-define_node!(Max, "Max", "tir.Max";
-             MaxNode { a: PrimExpr, b: PrimExpr });
+define_node!(Min, "Min", "tir.Min"; MinNode { a: PrimExpr, b: PrimExpr });
+define_node!(Max, "Max", "tir.Max"; MaxNode { a: PrimExpr, b: PrimExpr });
 
 // the new datatype is in the base expr
-define_node!(Cast, "Cast", "tir.Cast";
-             CastNode { value: PrimExpr });
+define_node!(Cast, "Cast", "tir.Cast"; CastNode { value: PrimExpr });
 
 // renamed base to start to avoid name clash
-define_node!(Ramp, "Ramp", "tir.Ramp";
-             RampNode { start: PrimExpr, stride: PrimExpr, lanes: i32 });
+define_node!(Ramp, "Ramp", "tir.Ramp"; RampNode { start: PrimExpr, stride: PrimExpr, lanes: i32 });
+
+define_node!(Select, "Select", "tir.Select";
+             SelectNode { condition: PrimExpr, true_value: PrimExpr, false_value: PrimExpr });
+
+define_node!(Eq, "Eq", "tir.EQ"; EqNode { a: PrimExpr, b: PrimExpr });
+define_node!(Ne, "Ne", "tir.NE"; NeNode { a: PrimExpr, b: PrimExpr });
+define_node!(Lt, "Lt", "tir.LT"; LtNode { a: PrimExpr, b: PrimExpr });
+define_node!(Le, "Le", "tir.LE"; LeNode { a: PrimExpr, b: PrimExpr });
+define_node!(Gt, "Gt", "tir.GT"; GtNode { a: PrimExpr, b: PrimExpr });
+define_node!(Ge, "Ge", "tir.GE"; GeNode { a: PrimExpr, b: PrimExpr });
+
+define_node!(And, "And", "tir.And"; AndNode { a: PrimExpr, b: PrimExpr });
+define_node!(Or,  "Or",  "tir.Or";  OrNode  { a: PrimExpr, b: PrimExpr });
+define_node!(Not, "Not", "tir.Not"; NotNode { value: PrimExpr });
+
+define_node!(Let, "Let", "tir.Let"; LetNode { var: Var, value: PrimExpr, body: PrimExpr });
