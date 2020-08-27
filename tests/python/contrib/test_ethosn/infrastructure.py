@@ -162,26 +162,6 @@ def inference_result(checksum, outputs):
     return False
 
 
-def generate_trials(space, r_factor=3):
-    np.random.seed(0)
-    max_len = 1
-    for option in space:
-        max_len = max(max_len, len(option))
-
-    num_trials = r_factor * max_len
-    trials = []
-    for i in range(num_trials):
-        trial = []
-        for option in space:
-            if i % len(option) == 0:
-                np.random.shuffle(option)
-            trial.append(option[i % len(option)])
-
-        trials.append(trial)
-
-    return trials
-
-
 def test_error(mod, params, err_msg):
     caught = None
     with tvm.transform.PassContext(opt_level=3):
