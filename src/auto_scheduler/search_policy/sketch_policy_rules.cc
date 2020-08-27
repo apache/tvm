@@ -472,6 +472,130 @@ PopulationGenerationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* p
   return ResultKind::kValid;
 }
 
+PopulationGenerationRule::ResultKind MutateComputeLocationCommon(SketchPolicyNode* policy,
+                                                                 State* state,
+                                                                 bool infer_bound = true) {
+  if (GetIntParam(policy->params, SketchParamKey::disable_change_compute_location)) {
+    return PopulationGenerationRule::ResultKind::kValid;
+  }
+
+  for (int stage_id = static_cast<int>((*state)->stages.size()) - 1; stage_id >= 0; stage_id--) {
+    const Stage& stage = (*state)->stages[stage_id];
+    // Skip the inlined stages and placeholders
+    if (stage->op_type == StageKind::kPlaceholder || stage->compute_at == ComputeAtKind::kInlined) {
+      continue;
+    }
+    // Skip the tiled stages
+    if (IsTiled(stage) || NeedsMultilevelTiling(policy->search_task, *state, stage_id)) {
+      continue;
+    }
+
+    int target_stage_id = GetSingleConsumerId(policy->search_task, *state, stage_id);
+    if (target_stage_id < 0) {
+      continue;
+    }
+    const Stage& target_stage = (*state)->stages[target_stage_id];
+
+    std::vector<std::pair<int, int>> candidates;
+    bool target_compute_at_other = target_stage->compute_at == ComputeAtKind::kIter;
+    bool target_is_tiled = IsTiled(target_stage);
+
+    bool visited_reduce = false;
+    // enumerate compute_at location at target_stage
+    // TODO(merrymercy): More analysis here to make smarter choices
+    for (size_t i = 0; i < target_stage->iters.size(); ++i) {
+      const Iterator& target_iter = target_stage->iters[i];
+      if (target_iter->iter_kind == IteratorKind::kReduction) {
+        visited_reduce = true;
+        if (!target_is_tiled) {  // Do not go into reduce iter
+          break;
+        }
+      } else if (target_iter->iter_kind == IteratorKind::kSpatial) {
+        if (visited_reduce) {  // Do not go into inner tile
+          break;
+        }
+      }
+
+      if (target_iter->annotation == IteratorAnnotation::kUnroll) {
+        // Do not go into the unroll region of const tensor indices
+        break;
+      }
+
+      if (GetExtent(target_iter) == 1) {
+        // Skip iterators with length of 1
+        continue;
+      }
+      if (target_compute_at_other && target_iter->iter_kind == IteratorKind::kSpatial &&
+          StrEndsWith(target_iter->name, ".0")) {
+        // Skip the first level iterators if target stage compute_at another stage
+        // In this case, the lengths of first level iterators are always one
+        continue;
+      }
+      candidates.emplace_back(target_stage_id, i);
+
+      if ((*state)->attach_map->iter_to_attached_stages.count(std::make_pair(target_stage_id, i))) {
+        break;
+      }
+    }
+
+    // if the target_stage is already compute_at another stage X, try also compute_at X
+    // We call stage X as `target_target_stage`
+    if (target_compute_at_other) {
+      int target_target_stage_id;
+      target_target_stage_id = (*state)->attach_map->stage_to_attach_iter.at(target_stage_id).first;
+      const Stage& target_target_stage = (*state)->stages[target_target_stage_id];
+
+      for (size_t i = 0; i < target_target_stage->iters.size(); ++i) {
+        const Iterator& target_target_iter = target_target_stage->iters[i];
+        if (target_target_iter->iter_kind == IteratorKind::kReduction ||
+            (*state)->attach_map->iter_to_attached_stages.count(
+                std::make_pair(target_target_stage_id, i))) {
+          break;
+        }
+
+        if (target_target_iter->annotation == IteratorAnnotation::kUnroll) {
+          // Do not go into the unroll region of const tensor indices
+          break;
+        }
+
+        if (GetExtent(target_target_iter) == 1) {  // skip iterators with length of 1
+          continue;
+        }
+
+        candidates.emplace_back(target_target_stage_id, i);
+      }
+    }
+
+    int choice = (policy->rand_gen)() % (candidates.size() + 2);
+
+    if (choice == 0) {
+      if (!HasReduceIter(stage)) {
+        const auto& stage_to_attach_iter = (*state)->attach_map->stage_to_attach_iter;
+        if (stage_to_attach_iter.find(stage_id) != stage_to_attach_iter.end()) {
+          state->compute_inline(stage_id);
+        }
+      }
+    } else if (choice == 1) {
+      state->compute_root(stage_id);
+    } else {
+      choice = choice - 2;
+      const Stage& stage = (*state)->stages[candidates[choice].first];
+      state->compute_at(stage_id, candidates[choice].first,
+                        stage->iters[candidates[choice].second]);
+    }
+  }
+
+  if (infer_bound) {
+    *state = policy->search_task->compute_dag.InferBound(*state);
+  }
+  return PopulationGenerationRule::ResultKind::kValid;
+}
+
+PopulationGenerationRule::ResultKind InitChangeComputeLocation::Apply(SketchPolicyNode* policy,
+                                                                      State* state) const {
+  return MutateComputeLocationCommon(policy, state, false);
+}
+
 PopulationGenerationRule::ResultKind InitParallel::Apply(SketchPolicyNode* policy,
                                                          State* state) const {
   std::function<void(const SketchPolicyNode&, State*, int stage_id, int iter_offset)>
@@ -855,7 +979,7 @@ PopulationGenerationRule::ResultKind MutateTileSize::Apply(SketchPolicyNode* pol
   for (size_t i = 0; i < random_perm.size(); ++i) {
     size_t src_idx = random_perm[i];
     int length = lengths[src_idx];
-    if (length == 1) {
+    if (length <= 1) {
       continue;
     }
 
@@ -935,118 +1059,7 @@ PopulationGenerationRule::ResultKind MutateMaxUnrollFactor::Apply(SketchPolicyNo
 
 PopulationGenerationRule::ResultKind MutateComputeLocation::Apply(SketchPolicyNode* policy,
                                                                   State* state) const {
-  if (GetIntParam(policy->params, SketchParamKey::disable_change_compute_location)) {
-    return ResultKind::kValid;
-  }
-
-  for (int stage_id = static_cast<int>((*state)->stages.size()) - 1; stage_id >= 0; stage_id--) {
-    const Stage& stage = (*state)->stages[stage_id];
-    // Skip the inlined stages and placeholders
-    if (stage->op_type == StageKind::kPlaceholder || stage->compute_at == ComputeAtKind::kInlined) {
-      continue;
-    }
-    // Skip the tiled stages
-    if (IsTiled(stage) || NeedsMultilevelTiling(policy->search_task, *state, stage_id)) {
-      continue;
-    }
-
-    int target_stage_id = GetSingleConsumerId(policy->search_task, *state, stage_id);
-    if (target_stage_id < 0) {
-      continue;
-    }
-    const Stage& target_stage = (*state)->stages[target_stage_id];
-
-    std::vector<std::pair<int, int>> candidates;
-    bool target_compute_at_other = target_stage->compute_at == ComputeAtKind::kIter;
-    bool target_is_tiled = IsTiled(target_stage);
-
-    bool visited_reduce = false;
-    // enumerate compute_at location at target_stage
-    // TODO(merrymercy): More analysis here to make smarter choices
-    for (size_t i = 0; i < target_stage->iters.size(); ++i) {
-      const Iterator& target_iter = target_stage->iters[i];
-      if (target_iter->iter_kind == IteratorKind::kReduction) {
-        visited_reduce = true;
-        if (!target_is_tiled) {  // Do not go into reduce iter
-          break;
-        }
-      } else if (target_iter->iter_kind == IteratorKind::kSpatial) {
-        if (visited_reduce) {  // Do not go into inner tile
-          break;
-        }
-      }
-
-      if (target_iter->annotation == IteratorAnnotation::kUnroll) {
-        // Do not go into the unroll region of const tensor indices
-        break;
-      }
-
-      if (GetExtent(target_iter) == 1) {
-        // Skip iterators with length of 1
-        continue;
-      }
-      if (target_compute_at_other && target_iter->iter_kind == IteratorKind::kSpatial &&
-          StrEndsWith(target_iter->name, ".0")) {
-        // Skip the first level iterators if target stage compute_at another stage
-        // In this case, the lengths of first level iterators are always one
-        continue;
-      }
-      candidates.emplace_back(target_stage_id, i);
-
-      if ((*state)->attach_map->iter_to_attached_stages.count(std::make_pair(target_stage_id, i))) {
-        break;
-      }
-    }
-
-    // if the target_stage is already compute_at another stage X, try also compute_at X
-    // We call stage X as `target_target_stage`
-    if (target_compute_at_other) {
-      int target_target_stage_id;
-      target_target_stage_id = (*state)->attach_map->stage_to_attach_iter.at(target_stage_id).first;
-      const Stage& target_target_stage = (*state)->stages[target_target_stage_id];
-
-      for (size_t i = 0; i < target_target_stage->iters.size(); ++i) {
-        const Iterator& target_target_iter = target_target_stage->iters[i];
-        if (target_target_iter->iter_kind == IteratorKind::kReduction ||
-            (*state)->attach_map->iter_to_attached_stages.count(
-                std::make_pair(target_target_stage_id, i))) {
-          break;
-        }
-
-        if (target_target_iter->annotation == IteratorAnnotation::kUnroll) {
-          // Do not go into the unroll region of const tensor indices
-          break;
-        }
-
-        if (GetExtent(target_target_iter) == 1) {  // skip iterators with length of 1
-          continue;
-        }
-
-        candidates.emplace_back(target_target_stage_id, i);
-      }
-    }
-
-    int choice = (policy->rand_gen)() % (candidates.size() + 2);
-
-    if (choice == 0) {
-      if (!HasReduceIter(stage)) {
-        const auto& stage_to_attach_iter = (*state)->attach_map->stage_to_attach_iter;
-        if (stage_to_attach_iter.find(stage_id) != stage_to_attach_iter.end()) {
-          state->compute_inline(stage_id);
-        }
-      }
-    } else if (choice == 1) {
-      state->compute_root(stage_id);
-    } else {
-      choice = choice - 2;
-      const Stage& stage = (*state)->stages[candidates[choice].first];
-      state->compute_at(stage_id, candidates[choice].first,
-                        stage->iters[candidates[choice].second]);
-    }
-  }
-
-  *state = policy->search_task->compute_dag.InferBound(*state);
-  return ResultKind::kValid;
+  return MutateComputeLocationCommon(policy, state, true);
 }
 
 PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* policy,

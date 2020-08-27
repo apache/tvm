@@ -149,6 +149,10 @@ class PopulationGenerationRule {
 /*! \brief The rule that fills the incomplete SplitSteps. */
 DEFINE_INIT_POPULATION_RULE(InitFillTileSize);
 
+/*! \brief The rule that randomly changes the computation location for some stages, which do not
+ * need tiling and are not strictly inlineable(e.g. data padding). */
+DEFINE_INIT_POPULATION_RULE(InitChangeComputeLocation);
+
 /*! \brief The rule that annotates parallel for CPU. */
 DEFINE_INIT_POPULATION_RULE(InitParallel);
 
