@@ -857,7 +857,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // Reduce
 Reduce::Reduce(CommReducer combiner, Array<PrimExpr> source, Array<IterVar> axis,
-               PrimExpr condition, int value_index) {
+               PrimExpr condition, int value_index, Array<PrimExpr> init) {
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK_EQ(axis[i]->iter_type, kCommReduce) << "Can only take axis created by reduce_axis";
   }
@@ -869,9 +869,18 @@ Reduce::Reduce(CommReducer combiner, Array<PrimExpr> source, Array<IterVar> axis
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK(axis[i].defined());
   }
+  if (!init.empty()) {
+    CHECK_EQ(init.size(), source.size()) << "Number of inits should match number of exprs";
+    for (size_t i = 0; i < init.size(); i++) {
+      CHECK(init[i]->IsInstance<ProducerLoadNode>() || init[i]->IsInstance<IntImmNode>() ||
+            init[i]->IsInstance<FloatImmNode>())
+          << "init can only be a IntImm, FloatImm or ProducerLoad";
+    }
+  }
   n->dtype = source[value_index].dtype();
   n->combiner = std::move(combiner);
   n->source = std::move(source);
+  n->init = std::move(init);
   n->axis = std::move(axis);
   n->condition = condition;
   n->value_index = value_index;
@@ -880,8 +889,8 @@ Reduce::Reduce(CommReducer combiner, Array<PrimExpr> source, Array<IterVar> axis
 
 TVM_REGISTER_GLOBAL("tir.Reduce")
     .set_body_typed([](CommReducer combiner, Array<PrimExpr> source, Array<IterVar> axis,
-                       PrimExpr condition, int value_index) {
-      return Reduce(combiner, source, axis, condition, value_index);
+                       PrimExpr condition, int value_index, Array<PrimExpr> init) {
+      return Reduce(combiner, source, axis, condition, value_index, init);
     });
 
 TVM_REGISTER_NODE_TYPE(ReduceNode);
@@ -891,6 +900,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       auto* op = static_cast<const ReduceNode*>(node.get());
       p->stream << "reduce(combiner=" << op->combiner;
       p->stream << ", source=" << op->source;
+      p->stream << ", init=" << op->init;
       p->stream << ", axis=" << op->axis;
       p->stream << ", where=" << op->condition;
       p->stream << ", value_index=" << op->value_index;
