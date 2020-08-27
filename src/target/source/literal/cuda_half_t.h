@@ -308,6 +308,10 @@ static inline __device__ __host__ half htanh(half x) {
   float result = tanhf(tmp_x);
   return __float2half(result);
 }
+
+static inline __device__ __host__ half herf(half x) {
+  return __float2half(erf(__half2float(x)));
+}
 #endif
 )";
 
