@@ -254,14 +254,33 @@ inline int DetectCUDAComputeVersion() {
   }
 }
 
-runtime::Module BuildNVPTX(IRModule mod, std::string target) {
+static void UpdateTargetConfig(const String& key, const String& value,
+                               Map<String, ObjectRef>* target_config) {
+  if (target_config->count(key)) {
+    const ObjectRef& obj = (*target_config)[key];
+    CHECK(obj->IsInstance<StringObj>())
+        << "TypeError: In code generation for AMDGPU, expect key \"" << key
+        << "\" to be String, but gets type: " << obj->GetTypeKey();
+    String old_value = Downcast<String>(obj);
+    CHECK_EQ(old_value, value) << "ValueError: In code generation for AMDGPU, key \"" << key
+                               << "\" has been set to \"" << old_value
+                               << "\", and should not be reset to \"" << value << "\"";
+  }
+  target_config->Set(key, value);
+}
+
+Target UpdateTarget(const Target& original_target, int compute_ver) {
+  Map<String, ObjectRef> target_config = original_target->Export();
+  UpdateTargetConfig("mtriple", "nvptx64-nvidia-cuda", &target_config);
+  UpdateTargetConfig("mcpu", "sm_" + std::to_string(compute_ver), &target_config);
+  return Target::FromConfig(target_config);
+}
+
+runtime::Module BuildNVPTX(IRModule mod, Target original_target) {
   InitializeLLVM();
-  CHECK(target.length() >= 5 && target.substr(0, 5) == "nvptx");
   int compute_ver = DetectCUDAComputeVersion();
-  std::ostringstream config;
-  config << "-mtriple=nvptx64-nvidia-cuda -mcpu=sm_" << compute_ver
-         << target.substr(5, target.length() - 5);
-  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
+  Target target = UpdateTarget(original_target, compute_ver);
+  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   // careful: cg will hold a naked pointer reference to ctx, so it should
   // have a shorter lifetime than the ctx.

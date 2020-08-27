@@ -191,12 +191,17 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 };
 
-inline int DetectROCMComputeVersion(const std::string& target) {
-  size_t pos = target.find("=gfx");
-  if (pos != std::string::npos) {
-    int value;
-    std::stringstream is(target.substr(pos + 4));
-    if (is >> value) return value;
+inline int DetectROCMComputeVersion(const Target& target) {
+  if (const Optional<String> mcpu = target->GetAttr<String>("mcpu")) {
+    std::string gfx = mcpu.value();
+    if (gfx.length() >= 3 && gfx.substr(0, 3) == "gfx") {
+      int version;
+      std::stringstream is(gfx.substr(3));
+      if (is >> version) {
+        return version;
+      }
+    }
+    LOG(FATAL) << "ValueError: Unrecognized -mcpu value: " << mcpu;
   }
   TVMContext tvm_ctx;
   tvm_ctx.device_type = kDLROCM;
@@ -228,23 +233,48 @@ inline int DetectROCMApiVersion() {
   return 305;
 }
 
-runtime::Module BuildAMDGPU(IRModule mod, std::string target) {
+static void UpdateTargetConfig(const String& key, const String& value,
+                               Map<String, ObjectRef>* target_config) {
+  if (target_config->count(key)) {
+    const ObjectRef& obj = (*target_config)[key];
+    CHECK(obj->IsInstance<StringObj>())
+        << "TypeError: In code generation for AMDGPU, expect key \"" << key
+        << "\" to be String, but gets type: " << obj->GetTypeKey();
+    String old_value = Downcast<String>(obj);
+    CHECK_EQ(old_value, value) << "ValueError: In code generation for AMDGPU, key \"" << key
+                               << "\" has been set to \"" << old_value
+                               << "\", and should not be reset to \"" << value << "\"";
+  }
+  target_config->Set(key, value);
+}
+
+Target UpdateTarget(const Target& original_target) {
+  Map<String, ObjectRef> target_config = original_target->Export();
+  UpdateTargetConfig("mtriple", "amdgcn-amd-amdhsa-hcc", &target_config);
+  UpdateTargetConfig("mcpu", "gfx" + std::to_string(DetectROCMComputeVersion(original_target)),
+                     &target_config);
+  if (DetectROCMApiVersion() < 305) {
+    // before ROCm 3.5 we needed code object v2, starting
+    // with 3.5 we need v3 (this argument disables v3)
+    Array<String> mattr;
+    if (target_config.count("mattr")) {
+      mattr = Downcast<Array<String>>(target_config["mattr"]);
+    }
+    mattr.push_back("-code-object-v3");
+    target_config.Set("mattr", mattr);
+  }
+  return Target::FromConfig(target_config);
+}
+
+runtime::Module BuildAMDGPU(IRModule mod, Target original_target) {
 #if TVM_LLVM_VERSION < 90
   LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
   // Lower versions will crash when loading the bitcode, see
   // issue #4087 for a discussion
 #endif
   InitializeLLVM();
-  CHECK(target.length() >= 4 && target.substr(0, 4) == "rocm");
-  std::ostringstream config;
-  config << "-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx" << DetectROCMComputeVersion(target);
-  if (DetectROCMApiVersion() < 305) {
-    // before ROCm 3.5 we needed code object v2, starting
-    // with 3.5 we need v3 (this argument disables v3)
-    config << " -mattr=-code-object-v3 ";
-  }
-  config << target.substr(4, target.length() - 4);
-  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
+  Target target = UpdateTarget(original_target);
+  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   // careful: cg will hold a naked pointer reference to ctx, so it should
   // have a shorter lifetime than the ctx.
