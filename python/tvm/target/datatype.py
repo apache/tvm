@@ -261,23 +261,27 @@ def create_lower_func(extern_func_map):
             dtype = "uint" + str(t.bits)
             if t.lanes > 1:
                 dtype += "x" + str(t.lanes)
+
+        key = t.bits
         if isinstance(op, _Cast):
-            src_bits = bit_length(op.value.dtype)
-            return call_pure_extern(dtype, extern_func_map[(src_bits, t.bits)], op.value)
+            src_bits = DataType(op.value.dtype).bits
+            key = (src_bits, t.bits)
+
+        if key not in extern_func_map:
+            raise RuntimeError(f'missing key {key} in extern_func_map for {op.astext()}')
+
+        if isinstance(op, _Cast):
+            return call_pure_extern(dtype, extern_func_map[key], op.value)
         if isinstance(op, _FloatImm):
-            return call_pure_extern(dtype, extern_func_map[t.bits], op.value)
+            return call_pure_extern(dtype, extern_func_map[key], op.value)
         if isinstance(op, _Call):
-            return call_pure_extern(dtype, extern_func_map[t.bits], *op.args)
+            return call_pure_extern(dtype, extern_func_map[key], *op.args)
         if isinstance(op, _BinaryOpExpr):
-            return call_pure_extern(dtype, extern_func_map[t.bits], op.a, op.b)
+            return call_pure_extern(dtype, extern_func_map[key], op.a, op.b)
 
         raise RuntimeError(f"lowering unsupported op: {op.astext()}")
 
     return lower
-
-def bit_length(type_str):
-    t = DataType(type_str)
-    return t.bits
 
 def lower_ite(ite_op):
     """Lowered if then else function that calls intrinsic if_then_else.
