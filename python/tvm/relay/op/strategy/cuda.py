@@ -923,3 +923,9 @@ def correlation_strategy_cuda(attrs, inputs, out_type, target):
         name="correlation.cuda",
     )
     return strategy
+
+@schedule_argwhere.register(["cuda", "gpu"])
+def schedule_argwhere_cuda(attrs, outs, target):
+    """schedule argwhere for cuda"""
+    with target:
+        return topi.cuda.schedule_argwhere(outs)
