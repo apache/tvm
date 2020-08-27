@@ -95,16 +95,16 @@ RELAY_REGISTER_OP("dyn.nn.upsampling")
             (batch_size, channels, in_height, in_width) for NCHW
             (batch_size, in_height, in_width, channels) for NHWC
 
-- **scale_h**: scale_h is an integer of the amount to scale height by
+- **scale_h**: scale_h is a double of the amount to scale height by
 
-- **scale_w**: scale_w is an integer of the amount to scale width by
+- **scale_w**: scale_w is a double of the amount to scale width by
 
 - **out**: Output is 4D array of shape
            for layout NCHW
-           (batch_size, channels, in_height*scale, in_width*scale)
+           (batch_size, channels, in_height*scale_h, in_width*scale_w)
 
            for layout NHWC
-           (batch_size, in_height*scale, in_width*scale, channels)
+           (batch_size, in_height*scale_h, in_width*scale_w, channels)
 
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<UpSamplingAttrs>()
@@ -118,6 +118,55 @@ RELAY_REGISTER_OP("dyn.nn.upsampling")
                                    UpsamplingInferCorrectLayout<UpSamplingAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+// UpSampling3D
+bool UpSampling3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter) {
+}
+
+Expr MakeUpSampling3D(Expr data, Expr scale_d, Expr scale_h, Expr scale_w, String layout,
+                      String method, String coordinate_transformation_mode) {
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.upsampling3d").set_body_typed(MakeUpSampling3D);
+
+RELAY_REGISTER_OP("nn.upsampling3d")
+    .describe(R"code(Perform upsampling on input array with nearest neighbour or
+bilinear interpolation.
+
+- **data**: data is 5D array of shape
+            (batch_size, channels, in_depth, in_height, in_width) for NCDHW
+            (batch_size, in_depth, in_height, in_width, channels) for NDHWC
+
+- **scale_d**: scale_d is a double of the amount to scale depth by
+
+- **scale_h**: scale_h is a double of the amount to scale height by
+
+- **scale_w**: scale_w is a double of the amount to scale width by
+
+- **out**: Output is 5D array of shape
+           for layout NCDHW
+           (batch_size, channels, in_depth*scale_d, in_height*scale_h, in_width*scale_w)
+
+           for layout NDHWC
+           (batch_size, in_depth*scale_d, in_height*scale_h, in_width*scale_w, channels)
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<UpSampling3DAttrs>()
+    .set_num_inputs(4)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("scale_d", "double", "The scale for the depth.")
+    .add_argument("scale_h", "double", "The scale for the height.")
+    .add_argument("scale_w", "double", "The scale for the width.")
+    .set_support_level(2)
+    .add_type_rel("UpSampling3D", UpSampling3DRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   UpsamplingInferCorrectLayout<UpSampling3DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
+
 }  // namespace dyn
 }  // namespace relay
 }  // namespace tvm
+
+
+// TODO(electriclilies): make sure upsamplinginfercorrectlayout works for htis! (I think it does.. )

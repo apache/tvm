@@ -519,8 +519,9 @@ def resize(data, size, layout="NCHW", method="bilinear",
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
 
-    output_shape: optional
+    output_shape: tvm.te.Tensor, optional
         Shape to return. If left None will be inferred
+        (If shape is determined dynamically, use output_shape)
 
     Returns
     -------
@@ -671,7 +672,7 @@ def crop_and_resize(data, boxes, box_indices, crop_size, layout="NCHW",
 
 
 def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
-             coordinate_transformation_mode="align_corners", out_dtype=None):
+             coordinate_transformation_mode="align_corners", out_dtype=None, output_shape=None):
     """Perform resize operation on the data.
 
     Parameters
@@ -693,6 +694,9 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
         Method to be used for resizing.
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
+    output_shape: tvm.te.Tensor, optional
+        Shape to return. If left None will be inferred.
+        (If shape is determined dynamically, use output_shape)
 
     Returns
     -------
