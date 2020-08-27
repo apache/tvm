@@ -632,54 +632,54 @@ PrimExpr isinf(PrimExpr x) {
 // isfinite
 PrimExpr isfinite(PrimExpr x) { return !isinf(x) && !isnan(x); }
 
-PrimExpr sum(PrimExpr source, Array<IterVar> rdom) {
+PrimExpr sum(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init) {
   Var x("x", source.dtype()), y("y", source.dtype());
   PrimExpr result = tir::Add(x, y);
   PrimExpr identity_element = make_zero(source.dtype());
   tir::CommReducer combiner = tir::CommReducer({x}, {y}, {result}, {identity_element});
-  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init);
 }
 
-PrimExpr all(PrimExpr source, Array<IterVar> rdom) {
+PrimExpr all(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init) {
   CHECK(source.dtype().is_bool());
   Var x("x", source.dtype()), y("y", source.dtype());
   PrimExpr result = tir::And(x, y);
   PrimExpr identity_element = make_const(source.dtype(), true);
   tir::CommReducer combiner = tir::CommReducer({x}, {y}, {result}, {identity_element});
-  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init);
 }
 
-PrimExpr any(PrimExpr source, Array<IterVar> rdom) {
+PrimExpr any(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init) {
   CHECK(source.dtype().is_bool());
   Var x("x", source.dtype()), y("y", source.dtype());
   PrimExpr result = tir::Or(x, y);
   PrimExpr identity_element = make_const(source.dtype(), false);
   tir::CommReducer combiner = tir::CommReducer({x}, {y}, {result}, {identity_element});
-  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init);
 }
 
-PrimExpr max(PrimExpr source, Array<IterVar> rdom) {
+PrimExpr max(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init) {
   Var x("x", source.dtype()), y("y", source.dtype());
   PrimExpr result = tir::Max(x, y);
   PrimExpr identity_element = min_value(source.dtype());
   tir::CommReducer combiner = tir::CommReducer({x}, {y}, {result}, {identity_element});
-  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init);
 }
 
-PrimExpr min(PrimExpr source, Array<IterVar> rdom) {
+PrimExpr min(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init) {
   Var x("x", source.dtype()), y("y", source.dtype());
   PrimExpr result = tir::Min(x, y);
   PrimExpr identity_element = max_value(source.dtype());
   tir::CommReducer combiner = tir::CommReducer({x}, {y}, {result}, {identity_element});
-  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init);
 }
 
-PrimExpr prod(PrimExpr source, Array<IterVar> rdom) {
+PrimExpr prod(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init) {
   Var x("x", source.dtype()), y("y", source.dtype());
   PrimExpr result = tir::Mul(x, y);
   PrimExpr identity_element = make_const(source.dtype(), 1);
   tir::CommReducer combiner = tir::CommReducer({x}, {y}, {result}, {identity_element});
-  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return tir::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0, init);
 }
 
 // fmod

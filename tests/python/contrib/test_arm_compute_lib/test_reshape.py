@@ -57,6 +57,8 @@ def _get_expected_codegen(input_shape, output_shape, dtype):
 
 
 def test_reshape():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 

@@ -252,7 +252,34 @@ Expr Fill::VisitExpr_(const MatchNode* m, const Var& v) {
   return Compound(e, Match(data, clauses, m->complete), v);
 }
 
-Expr ToANormalFormAux(const Expr& e) {
+IRModule ToANormalForm(const IRModule& m) {
+  DLOG(INFO) << "ToANF:" << std::endl << m;
+
+  tvm::Map<GlobalVar, Function> updates;
+  auto funcs = m->functions;
+  for (const auto& it : funcs) {
+    CHECK_EQ(FreeVars(it.second).size(), 0);
+    if (const auto* n = it.second.as<FunctionNode>()) {
+      if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
+    }
+    Expr ret = TransformF([&](const Expr& e) { return transform::ToANormalForm(e); }, it.second);
+    CHECK_EQ(FreeVars(ret).size(), 0)
+        << AsText(ret) << "should not has free vars: " << FreeVars(ret);
+    updates.Set(it.first, Downcast<Function>(ret));
+  }
+
+  for (auto pair : updates) {
+    m->Add(pair.first, pair.second, true);
+  }
+
+  DLOG(INFO) << "ToANF: transformed" << std::endl << m;
+
+  return m;
+}
+
+namespace transform {
+
+Expr ToANormalForm(const Expr& e) {
   /* When you lift a lambda, what is inside is also being lift.
    *
    * So we must determine the scope of the lambda before determining the scope of it's body.
@@ -278,40 +305,19 @@ Expr ToANormalFormAux(const Expr& e) {
   return Fill::ToANormalForm(e, dg, &scopes.first);
 }
 
-IRModule ToANormalForm(const IRModule& m) {
-  DLOG(INFO) << "ToANF:" << std::endl << m;
-
-  tvm::Map<GlobalVar, Function> updates;
-  auto funcs = m->functions;
-  for (const auto& it : funcs) {
-    CHECK_EQ(FreeVars(it.second).size(), 0);
-    if (const auto* n = it.second.as<FunctionNode>()) {
-      if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
-    }
-    Expr ret = TransformF([&](const Expr& e) { return ToANormalFormAux(e); }, it.second);
-    CHECK_EQ(FreeVars(ret).size(), 0)
-        << AsText(ret) << "should not has free vars: " << FreeVars(ret);
-    updates.Set(it.first, Downcast<Function>(ret));
-  }
-
-  for (auto pair : updates) {
-    m->Add(pair.first, pair.second, true);
-  }
-
-  DLOG(INFO) << "ToANF: transformed" << std::endl << m;
-
-  return m;
-}
-
-namespace transform {
-
 Pass ToANormalForm() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
       [=](IRModule m, PassContext pc) { return relay::ToANormalForm(m); };
   return CreateModulePass(pass_func, 1, "ToANormalForm", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.ToANormalForm").set_body_typed(ToANormalForm);
+TVM_REGISTER_GLOBAL("relay._transform.ToANormalForm").set_body_typed([]() {
+  return ToANormalForm();
+});
+
+TVM_REGISTER_GLOBAL("relay._transform.ToANormalFormExpr").set_body_typed([](const Expr& e) {
+  return ToANormalForm(e);
+});
 
 }  // namespace transform
 

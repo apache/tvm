@@ -90,6 +90,9 @@ void ExprVisitor::VisitExpr_(const ReduceNode* op) {
     this->VisitExpr(r->dom->extent);
   });
   VisitArray(op->source, [this](const PrimExpr& e) { this->VisitExpr(e); });
+  if (!op->init.empty()) {
+    VisitArray(op->init, [this](const PrimExpr& e) { this->VisitExpr(e); });
+  }
   this->VisitExpr(op->condition);
 }
 
@@ -225,13 +228,15 @@ PrimExpr ExprMutator::VisitExpr_(const ReduceNode* op) {
 
   auto fexpr = [this](const PrimExpr& e) { return this->VisitExpr(e); };
   Array<PrimExpr> source = MutateArray(op->source, fexpr);
+  Array<PrimExpr> init = MutateArray(op->init, fexpr);
 
   PrimExpr condition = this->VisitExpr(op->condition);
 
-  if (axis.same_as(op->axis) && source.same_as(op->source) && condition.same_as(op->condition)) {
+  if (axis.same_as(op->axis) && source.same_as(op->source) && condition.same_as(op->condition) &&
+      init.same_as(op->init)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return Reduce(op->combiner, source, axis, condition, op->value_index);
+    return Reduce(op->combiner, source, axis, condition, op->value_index, init);
   }
 }
 

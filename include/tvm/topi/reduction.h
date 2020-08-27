@@ -43,7 +43,8 @@ namespace topi {
 using namespace tvm::te;
 
 /*! \brief The operation to use for CommReduce */
-using FReduce = std::function<PrimExpr(PrimExpr source, const Array<IterVar>& axis)>;
+using FReduce =
+    std::function<PrimExpr(PrimExpr source, const Array<IterVar>& axis, Array<PrimExpr> init)>;
 
 /*! \brief The operation to use for CommReduceIdx */
 using FCommReduce = std::function<Array<PrimExpr>(Array<PrimExpr> exprs, const Array<IterVar>& axis,
@@ -158,7 +159,7 @@ inline Tensor DoCommReduce(const Tensor& data, FReduce func, const Array<PrimExp
       arg_counter++;
     }
 
-    return func(data(eval_range), r_axes);
+    return func(data(eval_range), r_axes, {});
   };
 
   return tvm::te::compute(target_shape, compute, data->op->name + "_red", kCommReduce);
@@ -284,23 +285,25 @@ inline FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity,
     auto combiner = tvm::tir::CommReducer(lhs, rhs, result, id_elem);
     Array<PrimExpr> outputs;
     for (size_t i = 0; i < exprs.size(); ++i) {
-      outputs.push_back(tvm::tir::Reduce(combiner, exprs, axis, cond, static_cast<int>(i)));
+      outputs.push_back(tvm::tir::Reduce(combiner, exprs, axis, cond, static_cast<int>(i), {}));
     }
     return outputs;
   };
 }
 
 /*! \brief Wrap tvm::min to ensure we get the correct overload */
-inline PrimExpr MinOp(PrimExpr source, Array<IterVar> axis) { return tvm::min(source, axis); }
+inline PrimExpr MinOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> init = {}) {
+  return tvm::min(source, axis, init);
+}
 
 /*! \brief Wrap tvm::max to ensure we get the correct overload */
-inline PrimExpr MaxOp(PrimExpr source, Array<IterVar> axis) {
-  return tvm::max(source, axis);  // NOLINT(*)
+inline PrimExpr MaxOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> init = {}) {
+  return tvm::max(source, axis, init);  // NOLINT(*)
 }
 
 /*! \brief Wrap tvm::prod to ensure we get the correct overload */
-inline PrimExpr ProdOp(PrimExpr source, Array<IterVar> axis) {
-  return tvm::prod(source, axis);  // NOLINT(*)
+inline PrimExpr ProdOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> init = {}) {
+  return tvm::prod(source, axis, init);  // NOLINT(*)
 }
 
 /*!

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for merge composite."""
+import pytest
 import tvm
 from tvm import relay, tir
 from tvm.relay.dataflow_pattern import TupleGetItemPattern, is_op, wildcard
@@ -213,7 +214,7 @@ def test_simple_merge():
         r = relay.Call(add_relu, [a, b])
         return relay.Function([a, b], r)
 
-    check_result(pattern_table, before(), expected(), import_prelude=True)
+    check_result(pattern_table, before(), expected())
 
 
 def test_branch_merge():
@@ -998,15 +999,4 @@ def test_type_check():
 
 
 if __name__ == "__main__":
-    test_simple_merge()
-    test_branch_merge()
-    test_multiple_patterns()
-    test_optional_pattern()
-    test_merge_order()
-    test_parallel_merge()
-    test_multiple_input_subgraphs()
-    test_reuse_call_merge()
-    test_tuple_get_item_merge()
-    test_pattern_with_check()
-    test_diamond_not_merge()
-    test_type_check()
+    pytest.main([__file__])

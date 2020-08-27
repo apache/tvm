@@ -1239,10 +1239,12 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             res = fcombine(res, args[i+1])
         return res
 
-    def _make_reduce(expr, axis, where=None):
+    def _make_reduce(expr, axis, where=None, init=None):
         code = fcombine.__code__
         assert fcombine.__code__.co_argcount == 2
         expr = convert(expr)
+        if init is not None:
+            init = convert(init)
         if isinstance(expr, Array):
             size = len(expr)
             larr = []
@@ -1255,6 +1257,16 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
                 larr.append(Var(lname, dtype))
                 rname = code.co_varnames[1] + "_" + str(i)
                 rarr.append(Var(rname, dtype))
+            if init is not None:
+                init = convert(init)
+                assert isinstance(init, Array)
+                assert len(init) == size
+                for init_i in range(size):
+                    init_i = convert(init_i)
+                    assert isinstance(init_i,
+                                      (tvm.tir.ProducerLoad, tvm.tir.IntImm, tvm.tir.FloatImm))
+            else:
+                init = convert([])
             lhs = convert(larr)
             rhs = convert(rarr)
             result = fcombine(lhs, rhs)
@@ -1270,21 +1282,28 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             lhs = convert([lvar])
             rhs = convert([rvar])
             expr = convert([expr])
+            if init is not None:
+                assert isinstance(init, (tvm.tir.ProducerLoad, tvm.tir.IntImm, tvm.tir.FloatImm))
+                init = convert([init])
         result = convert(result)
         id_elem = convert(id_elem)
         combiner = CommReducer(lhs, rhs, result, id_elem)
         axis = convert(axis if isinstance(axis, (list, tuple)) else [axis])
         if where is None:
             where = convert(True)
-        outputs = tuple(tvm.tir.Reduce(combiner, expr, axis, where, i)
-                        for i in range(size))
+        if init is None:
+            outputs = tuple(tvm.tir.Reduce(combiner, expr, axis, where, i, convert([]))
+                            for i in range(size))
+        else:
+            outputs = tuple(tvm.tir.Reduce(combiner, expr, axis, where, i, init)
+                            for i in range(size))
         return outputs[0] if size == 1 else outputs
 
     # pylint: disable=keyword-arg-before-vararg
-    def reducer(expr, axis, where=None, *args):
+    def reducer(expr, axis, where=None, init=None, *args):
         if isinstance(axis, (tvm.tir.IterVar, list, tuple)):
             assert not args
-            return _make_reduce(expr, axis, where)
+            return _make_reduce(expr, axis, where, init)
         if where is None:
             assert not args
             return _reduce_directly(expr, axis)

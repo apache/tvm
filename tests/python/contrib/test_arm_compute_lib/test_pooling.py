@@ -68,6 +68,8 @@ def _get_expected_codegen(shape, dtype, typef, sizes, strides,
 
 
 def test_pooling():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 

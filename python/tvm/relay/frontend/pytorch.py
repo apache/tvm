@@ -32,7 +32,7 @@ from .. import op as _op
 from ..ty import TupleType, TensorType, Any
 from ..loops import while_loop
 from .. import transform
-from .common import get_relay_op
+from .common import AttrCvt, get_relay_op
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
@@ -1811,6 +1811,53 @@ def _meshgrid():
         return _op.meshgrid(data, indexing="ij")
     return _impl
 
+
+def _nms(prelude):
+    def _impl(inputs, input_types):
+        boxes = inputs[0]
+        scores = inputs[1]
+        iou_threshold = inputs[2]
+
+        # Generate data with shape (1, num_anchors, 5)
+        scores = AttrCvt(op_name="expand_dims",
+                         extras={'axis': -1, 'num_newaxis': 1})([scores], {})
+
+        # Prepare input data for get_valid_counts
+        data = _op.concatenate([scores, boxes], -1)
+        data = _op.expand_dims(data, 0, 1)
+        # Leverage get_valid_counts to sort the data and clear invalid boxes
+        ct, data, indices = get_relay_op('get_valid_counts')(data,
+                                                             score_threshold=-1.0,
+                                                             id_index=-1,
+                                                             score_index=0)
+
+        # Perform Non-Maximum Suppression,
+        # PyTorch NMS doesn't have parameter top_k and max_output_size
+        score_index = 0
+        top_k = max_out_size = -1
+        nms_ret = get_relay_op('non_max_suppression')(data=data,
+                                                      valid_count=ct,
+                                                      indices=indices,
+                                                      max_output_size=max_out_size,
+                                                      iou_threshold=iou_threshold,
+                                                      force_suppress=True,
+                                                      top_k=top_k,
+                                                      coord_start=1,
+                                                      score_index=score_index,
+                                                      id_index=-1,
+                                                      return_indices=True,
+                                                      invalid_to_bottom=False)
+
+        # squeeze the two outputs of nms for strided_slice
+        size = get_relay_op("squeeze")(nms_ret[1], axis=[1])
+        data_slice = get_relay_op("squeeze")(nms_ret[0], axis=[0])
+
+        # strided slice to get the dynamic result
+        return get_relay_op("strided_slice")(data_slice, begin=_expr.const([0]),
+                                             end=size, slice_mode="size")
+    return _impl
+
+
 def _pytorch_result_type(dtypes, non_tensor_inputs):
     """This promotes TVM dtypes like PyTorch would"""
     import torch
@@ -2111,6 +2158,7 @@ def _get_convert_map(prelude):
         "aten::gather"                          : _gather(),
         "aten::index_select"                    : _select(),
         "aten::index"                           : _index(),
+        "torchvision::nms"                      : _nms(prelude),
     }
     return convert_map
 
