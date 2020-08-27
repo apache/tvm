@@ -18,14 +18,14 @@
 import tvm
 from tvm import autotvm
 from tvm import te
+from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
+
 from .util import get_fp32_len
 from ..util import get_const_tuple
 from ..nn.pad import pad
 from .. import tag
 
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
-
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 
 def group_conv2d_nchw(data, kernel, strides, padding, dilation, groups, out_dtype):
@@ -67,16 +67,21 @@ def _fallback_schedule(cfg, wkl):
 
     oc_bn = 1
 
+    oc_bn = 1
     for bn in range(simd_width, 0, -1):
         if KPG % bn == 0:
             oc_bn = bn
             break
+    if oc_bn > KPG:
+        oc_bn = KPG
 
     ic_bn = 1
     for bn in range(oc_bn, 0, -1):
         if CPG % bn == 0:
             ic_bn = bn
             break
+    if ic_bn > CPG:
+        ic_bn = CPG
 
     reg_n = 1
     for n in range(31, 0, -1):
