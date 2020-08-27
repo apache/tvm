@@ -181,8 +181,10 @@ def test_reduce_combiner_simplify():
     # Test that SimplifyCombiner makes use of vranges
     ck.analyzer.update(dummy, tvm.arith.ConstIntBound(-10, -4))
     ck.verify(sum_or_prod(A[k], k), te.sum(A[k], k))
+    ck.verify(sum_or_prod(A[k], k, init=1), te.sum(A[k], k, init=1))
     ck.analyzer.update(dummy, tvm.arith.ConstIntBound(5, 9), True)
     ck.verify(sum_or_prod(A[k], k), prod(A[k], k))
+    ck.verify(sum_or_prod(A[k], k, init=1), prod(A[k], k, init=1))
     ck.analyzer.update(dummy, tvm.arith.ConstIntBound(-10, 100), True)
     ck.verify(sum_and_prod((A[k], A[10-k]), k)[0], te.sum(A[k], k))
     ck.verify(sum_and_prod((A[k], A[10-k]), k)[1], prod(A[10-k], k))
@@ -219,6 +221,7 @@ def test_reduce_simplify():
     ck.verify(te.sum(tvm.tir.Select(k + j < 12, k + j, 0), [k, j]),
               te.sum(k + j, [k, j]))
     ck.verify(te.sum(A[3], []), A[3])
+    ck.verify(te.sum(A[3], [], where=k > 12, init=1.0), tvm.tir.const(1.0, dtype='float32'))
     # The rule below is not typical, removed for now
     ck.verify(te.sum(te.div(k, 10), k), te.sum(tvm.tir.const(0, "int32"), k))
 
