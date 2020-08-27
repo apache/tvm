@@ -124,9 +124,9 @@ bool UpSampling3DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
     // types = [data_type, scale_d_type, scale_h_type, scale_w_type, ret_type]
     CHECK_EQ(types.size(), 5);
     const auto* data = types[0].as<TensorTypeNode>();
-    if (data == nullptr) return False;
+    if (data == nullptr) return false;
 
-    static const Layout kNCHW("NCDHW");
+    static const Layout kNCDHW("NCDHW");
 
     const UpSampling3DAttrs* param = attrs.as<UpSampling3DAttrs>();
     CHECK(param != nullptr);
@@ -155,16 +155,15 @@ Expr MakeUpSampling3D(Expr data, Expr scale_d, Expr scale_h, Expr scale_w, Strin
   auto attrs = make_object<UpSampling3DAttrs>();
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
-  attrs->align_corners = align_corners;
   attrs->coordinate_transformation_mode = coordinate_transformation_mode;
 
   static const Op& op = Op::Get("dyn.nn.upsampling3d");
   return Call(op, {data, scale_d, scale_h, scale_w}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.upsampling3d").set_body_typed(MakeUpSampling3D);
+TVM_REGISTER_GLOBAL("relay.op.dyn.nn._make.upsampling3d").set_body_typed(MakeUpSampling3D);
 
-RELAY_REGISTER_OP("nn.upsampling3d")
+RELAY_REGISTER_OP("dyn.nn.upsampling3d")
     .describe(R"code(Perform upsampling on input array with nearest neighbour or
 bilinear interpolation.
 
