@@ -85,5 +85,5 @@ COPY install/ubuntu_install_ethosn_driver_stack.sh /install/ubuntu_install_ethos
 RUN bash /install/ubuntu_install_ethosn_driver_stack.sh
 
 # Vitis-AI PyXIR CI deps
-COPY install/ubuntu_install_vai_packages.sh /install/ubuntu_install_vai_packages.sh
-RUN bash /install/ubuntu_install_vai_packages.sh
+COPY install/ubuntu_install_vitis_ai_packages_ci.sh /install/ubuntu_install_vitis_ai_packages_ci.sh
+RUN bash /install/ubuntu_install_vitis_ai_packages_ci.sh

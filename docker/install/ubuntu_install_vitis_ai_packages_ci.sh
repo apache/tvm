@@ -21,7 +21,7 @@ set -u
 set -o pipefail
 
 export PYXIR_HOME=/opt/pyxir
-mkdir /opt/pyxir
+mkdir "$PYXIR_HOME"
 
 pip3 install progressbar
 
