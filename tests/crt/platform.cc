@@ -17,9 +17,9 @@
  * under the License.
  */
 
-#include <stdarg.h>
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
+#include <stdarg.h>
 #include <tvm/runtime/crt/platform.h>
 
 extern "C" {
