@@ -255,24 +255,26 @@ inline int DetectCUDAComputeVersion() {
 }
 
 static void UpdateTargetConfig(const String& key, const String& value,
-                               Map<String, ObjectRef>* target_config) {
+                               Map<String, ObjectRef>* target_config, bool error_if_inconsistent) {
   if (target_config->count(key)) {
     const ObjectRef& obj = (*target_config)[key];
     CHECK(obj->IsInstance<StringObj>())
         << "TypeError: In code generation for AMDGPU, expect key \"" << key
         << "\" to be String, but gets type: " << obj->GetTypeKey();
-    String old_value = Downcast<String>(obj);
-    CHECK_EQ(old_value, value) << "ValueError: In code generation for AMDGPU, key \"" << key
-                               << "\" has been set to \"" << old_value
-                               << "\", and should not be reset to \"" << value << "\"";
+    if (error_if_inconsistent) {
+      String old_value = Downcast<String>(obj);
+      CHECK_EQ(old_value, value) << "ValueError: In code generation for AMDGPU, key \"" << key
+                                 << "\" has been set to \"" << old_value
+                                 << "\", and should not be reset to \"" << value << "\"";
+    }
   }
   target_config->Set(key, value);
 }
 
 Target UpdateTarget(const Target& original_target, int compute_ver) {
   Map<String, ObjectRef> target_config = original_target->Export();
-  UpdateTargetConfig("mtriple", "nvptx64-nvidia-cuda", &target_config);
-  UpdateTargetConfig("mcpu", "sm_" + std::to_string(compute_ver), &target_config);
+  UpdateTargetConfig("mtriple", "nvptx64-nvidia-cuda", &target_config, true);
+  UpdateTargetConfig("mcpu", "sm_" + std::to_string(compute_ver), &target_config, false);
   return Target::FromConfig(target_config);
 }
 
