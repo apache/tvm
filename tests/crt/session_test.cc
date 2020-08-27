@@ -29,6 +29,8 @@
 #include "buffer_write_stream.h"
 #include "crt_config.h"
 
+#include "platform.cc"
+
 using ::tvm::runtime::Framer;
 using ::tvm::runtime::MessageType;
 using ::tvm::runtime::Session;
@@ -256,12 +258,6 @@ TEST_F(SessionTest, DoubleStart) {
   bob_.ClearBuffers();
   alice_.WriteTo(&bob_);
   EXPECT_TRUE(bob_.sess.IsEstablished());
-}
-
-extern "C" {
-void TVMPlatformAbort(int error_code) { FAIL() << "TVMPlatformAbort(" << error_code << ")"; }
-
-void* TVMSystemLibEntryPoint() { return NULL; }
 }
 
 int main(int argc, char** argv) {

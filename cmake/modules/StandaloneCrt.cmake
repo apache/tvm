@@ -44,8 +44,8 @@ if(USE_STANDALONE_CRT)
        "src/runtime/crt/include *.h -> include"
        "src/runtime/crt/common *.c -> src/runtime/crt/common"
        "src/runtime/crt/graph_runtime *.c -> src/runtime/crt/graph_runtime"
-       "src/runtime/crt/utvm_rpc_server * -> src/runtime/crt/utvm_rpc_server"
        "src/runtime/crt/host crt_config.h -> src/runtime/crt/host"
+       "src/runtime/crt/utvm_rpc_server * -> src/runtime/crt/utvm_rpc_server"
        "src/runtime/minrpc * -> src/runtime/minrpc"
        "src/support generic_arena.h -> src/support"
        )
@@ -90,7 +90,7 @@ if(USE_STANDALONE_CRT)
   set(make_quiet )
   endif(${VERBOSE})
 
-  list(APPEND crt_libraries common graph_runtime utvm_rpc_server)
+  list(APPEND crt_libraries graph_runtime utvm_rpc_server common)  # NOTE: listed in link order.
   foreach(crt_lib_name IN LISTS crt_libraries)
     list(APPEND crt_library_paths "host_standalone_crt/lib${crt_lib_name}.a")
   endforeach()
@@ -127,7 +127,7 @@ if(USE_STANDALONE_CRT)
   list(APPEND TVM_RUNTIME_LINKER_LIBS host_standalone_crt_utvm_rpc_server)
 
   # Standalone CRT tests
-  file(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*.cc)
+  file(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*_test.cc)
   find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
   find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
 

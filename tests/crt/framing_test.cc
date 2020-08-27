@@ -29,6 +29,8 @@
 #include "buffer_write_stream.h"
 #include "crt_config.h"
 
+#include "platform.cc"
+
 using ::tvm::runtime::Buffer;
 using ::tvm::runtime::Escape;
 using ::tvm::runtime::Framer;
@@ -309,15 +311,6 @@ TEST_P(UnframerTestParameterized, TestArbitraryPacketReset) {
 INSTANTIATE_TEST_CASE_P(UnframerTests, UnframerTestParameterized,
                         ::testing::ValuesIn(TestPacket::instances));
 #pragma GCC diagnostic pop
-
-//   for
-//   unframer_.Write(
-
-extern "C" {
-void TVMPlatformAbort(int error_code) { FAIL() << "TVMPlatformAbort(" << error_code << ")"; }
-
-void* TVMSystemLibEntryPoint() { return NULL; }
-}
 
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);

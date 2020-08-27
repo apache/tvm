@@ -399,6 +399,13 @@ target_include_directories(
 target_include_directories(
   tvm_objs
   PUBLIC "topi/include")
+set(CRC16_INCLUDE_PATH "3rdparty/mbed-os/targets/TARGET_NORDIC/TARGET_NRF5x/TARGET_SDK_11/libraries/crc16")
+target_include_directorieS(
+  tvm_objs
+  PRIVATE "${CRC16_INCLUDE_PATH}")
+target_include_directorieS(
+  tvm_runtime_objs
+  PRIVATE "${CRC16_INCLUDE_PATH}")
 
 set(TVM_TEST_LIBRARY_NAME tvm)
 if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
