@@ -417,36 +417,19 @@ def gemm_quantized(M, N, K, unroll, interleave, in_type, out_type):
     idxm = tvm.tir.indexmod
 
     k = te.reduce_axis((0, K), "k")
+    C = te.compute((te.var("m"), te.var("n")),
+                   lambda x, y: te.sum(A[k // 16, x, idxm(k, 16)].astype('int32') *
+                                       B[k // 16, y, idxm(k, 16)].astype('int32'),
+                                       axis=k), name="C")
 
-    C = te.compute(
-        (te.var("m"), te.var("n")),
-        lambda x, y: te.sum(
-            A[k // 16, x, idxm(k, 16)].astype(out_type)
-            * B[k // 16, y, idxm(k, 16)].astype(out_type),
-            axis=k,
-        ),
-        name="C",
-    )
+    a_buffer = tvm.tir.decl_buffer(A.shape, dtype=in_type, name="a_buffer",
+                                   offset_factor=1, strides=[te.var('sa_1'), te.var('sa_2'), 1])
 
-    a_buffer = tvm.tir.decl_buffer(
-        A.shape,
-        dtype=in_type,
-        name="a_buffer",
-        offset_factor=1,
-        strides=[te.var("sa_1"), te.var("sa_2"), 1],
-    )
+    b_buffer = tvm.tir.decl_buffer(B.shape, dtype=in_type, name="b_buffer",
+                                   offset_factor=1, strides=[te.var('sb_1'), te.var('sb_2'), 1])
 
-    b_buffer = tvm.tir.decl_buffer(
-        B.shape,
-        dtype=in_type,
-        name="b_buffer",
-        offset_factor=1,
-        strides=[te.var("sb_1"), te.var("sb_2"), 1],
-    )
-
-    c_buffer = tvm.tir.decl_buffer(
-        C.shape, dtype=out_type, name="c_buffer", offset_factor=1, strides=[te.var("sc"), 1]
-    )
+    c_buffer = tvm.tir.decl_buffer(C.shape, dtype='int32', name="c_buffer",
+                                   offset_factor=1, strides=[te.var('sc'), 1])
 
     def _intrin_func(ins, outs):
         def _instr():
@@ -588,6 +571,200 @@ def dot_int8_int8_int32(int32_lanes, dtype="uint"):
         default_buffer_params=buffer_params,
     )
 
+
+def select_word(vec, lane, dtype_vec):
+    """
+    Utility function used to select a int8x4 word within a int8x16 vector
+    and replicate 4 times.
+    The pseudo-code for this operation is:
+
+    v = [x0, ..., x15]
+    vsub(i) = v[i:i+3]
+    replicated_v(i) = [vsub(i), vsub(i), vsub(i), vsub(i)]
+
+    Note that i can vary between 0 and 3
+    """
+    # Reinterpret vec_a as 4 int32 words
+    vec_int32 = tvm.tir.call_intrin('int32x4', 'tir.reinterpret', vec)
+    # Broadcast the lane-th word
+    vec_int32_shuffled = tvm.tir.Shuffle([vec_int32], [lane, lane, lane, lane])
+    # Convert back to uint8x16
+    vec_int8_broadcast = tvm.tir.call_intrin(dtype_vec, 'tir.reinterpret', vec_int32_shuffled)
+    return vec_int8_broadcast
+
+def mmla_4x4_int8_int8_int32(dtype):
+    """
+    Int8 4x4 matrix multiplication using sdot/udot instructions
+    This function takes two arrays of int8 datatype -- A[4][4] and
+    B[4][4] and produces a 4x4 matrix which is equal to A*B
+    The pseudo code is as follows.
+
+    .. code-block:: c
+
+        void mmla_4x4_int8_int8_int32(int8 A[4][4], int8 B[4][4], int32 output[4][4]){
+            for (int i = 0; i < 4; i++){
+                for (int j = 0; i < 4; i++){
+                    out[i][j] = 0;
+                    for (int k = 0; k < 4; k++){
+                        out[i][j] += A[i][k] * B[j][k]
+                    }
+            }
+        }
+
+    Notes:
+        * The rows of matrix B are transposed
+        * Matrix A is interleaved
+    This function returns a TensorIntrin that can be used to tensorize a schedule.
+
+    Parameters
+    ----------
+    dtype: str, {"uint8", "int8"}
+        Whether it works on unsigned int or signed int
+
+    Returns
+    -------
+    intrin : TensorIntrin
+        The Arm TensorIntrin that can be used in tensorizing schedule
+    """
+    data = te.placeholder((te.var("rows"), 4), dtype, name='data')
+    kernel = te.placeholder((4, 4), dtype, name='kernel')
+    dtype_vec = dtype + 'x16'
+
+    k = te.reduce_axis((0, 4), name='k')
+    C = te.compute((te.var("rows"), 4),
+                   lambda i, j: te.sum(data[i, k].astype('int32') *
+                                       kernel[j, k].astype('int32'),
+                                       axis=k), name="C")
+
+    aa_buffer = tvm.tir.decl_buffer(data.shape, dtype, name="aa_buffer",
+                                    offset_factor=1,
+                                    strides=[te.var('sa'), 1])
+    bb_buffer = tvm.tir.decl_buffer(kernel.shape, dtype, name="bb_buffer",
+                                    offset_factor=1,
+                                    strides=[te.var('sb'), 1])
+    cc_buffer = tvm.tir.decl_buffer(C.shape, dtype='int32', name="cc_buffer",
+                                    offset_factor=1,
+                                    strides=[te.var('sc'), 1])
+
+    def _intrin_func(ins, outs):
+        def _instr(index):
+            ib = tvm.tir.ir_builder.create()
+            if index == 1:
+                for i in range(0, 4):
+                    ib.emit(outs[0].vstore([i, 0], tvm.tir.const(0, 'int32x4')))
+                return ib.get()
+
+            vec_a = ins[0].vload([0, 0])
+            vec_aa = [select_word(vec_a, i, dtype_vec) for i in range(0, 4)]
+            vec_b = ins[1].vload([0, 0], dtype_vec)
+
+            # Execute the dot product
+            for i in range(0, 4):
+                vec_c = outs[0].vload([i, 0], 'int32x4')
+                vdot = tvm.tir.call_llvm_intrin(
+                    'int32x4',
+                    'llvm.aarch64.neon.sdot',
+                    tvm.tir.const(3, 'uint32'),
+                    vec_c, vec_b, vec_aa[i])
+
+                # Store the result
+                ib.emit(outs[0].vstore([i, 0], vdot))
+
+            return ib.get()
+
+        # body, reset, update
+        return _instr(0), _instr(1), _instr(2)
+
+    buffer_params = {"offset_factor": 1}
+    return te.decl_tensor_intrin(
+        C.op, _intrin_func, binds={data:aa_buffer, kernel:bb_buffer, C:cc_buffer},
+        default_buffer_params=buffer_params)
+
+def mmla_16x4_int8_int8_int32(dtype, rows):
+    """
+    Int8 16x4 matrix multiplication using sdot/udot instructions
+    This function takes two arrays of int8 datatype -- A[rows][4] and
+    B[4][16] and produces a rowsx16 matrix which is equal to A*B
+    The pseudo code is as follows.
+
+    .. code-block:: c
+
+        void mmla_16x4_int8_int8_int32(int8 A[rows][4], int8 B[4][16], int32 output[rows][16]){
+            for (int i = 0; i < rows; i++){
+                for (int j = 0; i < 16; i++){
+                    out[i][j] = 0;
+                    for (int k = 0; k < 4; k++){
+                        out[i][j] += A[i][k] * B[j][k]
+                    }
+            }
+        }
+
+    Notes:
+        * The rows of matrix B are transposed
+        * A is not interleaved, but used in its native form
+    This function returns a TensorIntrin that can be used to tensorize a schedule.
+
+    Parameters
+    ----------
+    dtype: str, {"uint8", "int8"}
+        Whether it works on unsigned int or signed int
+
+    Returns
+    -------
+    intrin : TensorIntrin
+        The Arm TensorIntrin that can be used in tensorizing schedule
+    """
+    data = te.placeholder((rows, 16), dtype, name='data')
+    kernel = te.placeholder((4, 16, 4), dtype, name='kernel')
+    dtype_vec = dtype + 'x16'
+    idxm = tvm.tir.indexmod
+    k = te.reduce_axis((0, 16), name='k')
+    C = te.compute((rows, 16),
+                   lambda i, j: te.sum(data[i, k].astype('int32') *
+                                       kernel[k//4, j, idxm(k, 4)].astype('int32'),
+                                       axis=k), name="C")
+
+    aa_buffer = tvm.tir.decl_buffer(data.shape, dtype, name="aa_buffer",
+                                    offset_factor=1,
+                                    strides=[te.var('sa'), 1])
+    bb_buffer = tvm.tir.decl_buffer(kernel.shape, dtype, name="bb_buffer",
+                                    offset_factor=1,
+                                    strides=[te.var('sb0'), te.var('sb1'), 1])
+    cc_buffer = tvm.tir.decl_buffer(C.shape, dtype='int32', name="cc_buffer",
+                                    offset_factor=1,
+                                    strides=[te.var('sc'), 1])
+
+    def _intrin_func(ins, outs):
+        def _instr(index):
+            ib = tvm.tir.ir_builder.create()
+            if index == 1:
+                for i in range(0, rows):
+                    ib.emit(outs[0].vstore([i, 0], tvm.tir.const(0, 'int32x16')))
+                return ib.get()
+
+            for k in range(0, rows):
+                vec_a = ins[0].vload([k, 0], dtype_vec)
+
+                for j in range(0, 4):
+                    for i in range(0, 4):
+                        vec_aa = select_word(vec_a, i, dtype_vec)
+                        vec_b = ins[1].vload([i, 4*j, 0], dtype_vec)
+                        vec_c = outs[0].vload([k, 4*j], 'int32x4')
+                        vdot = tvm.tir.call_llvm_intrin(
+                            'int32x4',
+                            'llvm.aarch64.neon.sdot',
+                            tvm.tir.const(3, 'uint32'),
+                            vec_c, vec_b, vec_aa)
+                        ib.emit(outs[0].vstore([k, 4*j], vdot))
+            return ib.get()
+
+        # body, reset, update
+        return _instr(0), _instr(1), _instr(2)
+
+    buffer_params = {"offset_factor": 1}
+    return te.decl_tensor_intrin(
+        C.op, _intrin_func, binds={data:aa_buffer, kernel:bb_buffer, C:cc_buffer},
+        default_buffer_params=buffer_params)
 
 def _q_multiply_shift_arm(op):
     """

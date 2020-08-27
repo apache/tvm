@@ -135,20 +135,25 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="conv2d_direct_simd.micro_dev",
                 )
             elif kernel_layout == "HWIO":
-                is_aarch64 = "aarch64" in str(isa.target)
-
+                is_aarch64 = topi.arm_cpu.arm_utils.is_aarch64_arm()
+                has_dot_prod = topi.arm_cpu.arm_utils.is_fast_int8_on_arm()
+                if has_dot_prod and data.dtype in ["int8", "uint8"]:
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_hybrid),
+                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_hybrid),
+                        name="conv2d_NHWC_quantized_hybrid.arm_cpu")
                 if is_aarch64 and data.dtype in ["int8", "uint8"]:
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized),
-                        name="conv2d_NHWC_quantized.arm_cpu",
-                    )
-
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_spatial_pack),
-                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack),
-                    name="conv2d_nhwc_spatial_pack.arm_cpu",
-                )
+                        name="conv2d_NHWC_quantized.arm_cpu")
+                # TODO
+                # This strategy errors out when tuning. Let us comment it out
+                # but not remove.
+                # strategy.add_implementation(
+                #     wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_spatial_pack),
+                #     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack),
+                #     name="conv2d_nhwc_spatial_pack.arm_cpu")
             else:
                 raise RuntimeError(
                     "Unsupported kernel layout {} for conv2d NHWC".format(kernel_layout)
@@ -328,12 +333,17 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
     data = inputs[0]
     strategy = _op.OpStrategy()
 
-    if layout == "NHWC" and data.dtype in ["int8", "uint8"]:
+    interleaved_compute = topi.arm_cpu.compute_conv2d_NHWC_quantized_without_transform
+    hybrid_compute = topi.arm_cpu.compute_conv2d_NHWC_quantized_hybrid_without_transform
+    if layout == "NHWC" and data.dtype in ['int8', 'uint8']:
         strategy.add_implementation(
-            wrap_compute_conv2d_gemm(topi.arm_cpu.compute_conv2d_NHWC_quantized_without_transform),
+            wrap_compute_conv2d_gemm(interleaved_compute),
             wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized),
-            name="conv2d_NHWC_quantized_without_transform.arm_cpu",
-        )
+            name="conv2d_NHWC_quantized_without_transform.arm_cpu")
+        strategy.add_implementation(
+            wrap_compute_conv2d_gemm(hybrid_compute),
+            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_hybrid),
+            name="conv2d_NHWC_quantized_hybrid_without_transform.arm_cpu")
     else:
         raise RuntimeError(
             "Unsupported conv2d_NHWC_quantized_without_transform layout {0}"
