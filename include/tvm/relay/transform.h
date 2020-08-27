@@ -213,7 +213,7 @@ TVM_DLL Pass FastMath();
  *
  * Searches the graph for dynamic ops. If the dynamic inputs to those ops are constants, it replaces
  * them with static ops and re-performs type inference and constant folding. The pass repeats
- * istself until the graph stops changing or we run too many iterations.
+ * itself until the graph stops changing or we run too many iterations.
  *
  * \return The pass.
  */

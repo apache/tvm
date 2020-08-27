@@ -50,6 +50,10 @@ def batch_matmul(cfg, x, y, out_shape=None):
     assert XK == YK, "shapes of x and y is inconsistant"
     B = XB
     K = XK
+    if out_shape is not None:
+        assert out_shape[0] == B, "got invalid output shape"
+        assert out_shape[1] == M, "got invalid output shape"
+        assert out_shape[2] == N, "got invalid output shape"
     if cfg.is_fallback:
         _default_batch_matmul_config(cfg, M, N, K)
 

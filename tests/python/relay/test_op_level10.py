@@ -358,7 +358,7 @@ def verify_dynamic_batch_matmul(x_shape, y_shape, out_shape, dtype="float32"):
     y_np = np.random.uniform(size=y_shape).astype(dtype)
     z_np = tvm.topi.testing.batch_matmul(x_np, y_np)
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         for kind in ["vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
