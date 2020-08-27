@@ -30,7 +30,7 @@ _LOG = logging.getLogger(__name__)
 
 @tvm.error.register_error
 class SessionTerminatedError(Exception):
-  """Raised when a transport read operationd discovers that the remote session is terminated."""
+    """Raised when a transport read operationd discovers that the remote session is terminated."""
 
 
 class Transport(metaclass=abc.ABCMeta):
