@@ -111,6 +111,13 @@ void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::stri
 std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target,
                                                           bool allow_null = false);
 
+/*!
+ * \brief Convert the TVM's LLVM target to string by extracting only relevant fields
+ * \param target The TVM target to be extracted
+ * \return The raw string format for the TVM LLVM target
+ */
+std::string LLVMTargetToString(const Target& target);
+
 }  // namespace codegen
 }  // namespace tvm
 

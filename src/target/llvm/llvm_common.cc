@@ -142,6 +142,30 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target, 
   return std::unique_ptr<llvm::TargetMachine>(tm);
 }
 
+std::string LLVMTargetToString(const Target& target) {
+  std::ostringstream os;
+  os << "llvm";
+  if (Optional<String> mtriple = target->GetAttr<String>("mtriple")) {
+    os << " -mtriple=" << mtriple.value();
+  }
+  if (Optional<String> mcpu = target->GetAttr<String>("mcpu")) {
+    os << " -mcpu=" << mcpu.value();
+  }
+  if (Optional<Array<String>> mattr = target->GetAttr<Array<String>>("mattr")) {
+    bool is_first;
+    os << " -mattr=";
+    for (const String& attr : mattr.value()) {
+      if (is_first) {
+        is_first = false;
+      } else {
+        os << ",";
+      }
+      os << attr;
+    }
+  }
+  return os.str();
+}
+
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_LLVM_VERSION
