@@ -1236,7 +1236,7 @@ def upsampling3d(data,
             scale_h = const(scale_h, "float64")
         if not isinstance(scale_w, Expr):
             scale_w = const(scale_w, "float64")
-        return _dyn_make,upsampling3d(data, scale_d, scale_h, scale_w, layout, method,
+        return _dyn_make.upsampling3d(data, scale_d, scale_h, scale_w, layout, method,
                                       coordinate_transformation_mode)
     return _make.upsampling3d(data, scale_d, scale_h, scale_w, layout, method,
                               coordinate_transformation_mode)

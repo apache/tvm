@@ -145,7 +145,7 @@ bool UpSampling3DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 
     auto oshape = layout_converter.BackwardShape(ncdhw_oshape);
 
-    reporter->Assign(types[5], TensorType(oshape, data->dtype));
+    reporter->Assign(types[4], TensorType(oshape, data->dtype));
     return true;
 }
 
