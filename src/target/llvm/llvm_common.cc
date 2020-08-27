@@ -163,6 +163,9 @@ std::string LLVMTargetToString(const Target& target) {
       os << attr;
     }
   }
+  if (Optional<String> mfloat_abo = target->GetAttr<String>("mfloat-abi")) {
+    os << " -mfloat-abi=" << mfloat_abo.value();
+  }
   return os.str();
 }
 

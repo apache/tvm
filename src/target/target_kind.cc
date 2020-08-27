@@ -106,6 +106,7 @@ TVM_REGISTER_TARGET_KIND("nvptx")
     .add_attr_option<Integer>("max_num_threads", Integer(1024))
     .add_attr_option<Integer>("thread_warp_size", Integer(32))
     .add_attr_option<String>("mcpu")
+    .add_attr_option<String>("mtriple")
     .set_default_keys({"cuda", "gpu"})
     .set_device_type(kDLGPU);
 
