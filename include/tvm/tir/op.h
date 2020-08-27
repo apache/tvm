@@ -464,48 +464,54 @@ TVM_DLL PrimExpr isinf(PrimExpr x);
  * \brief sum of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \param init The value with which to initialize the output.
  * \return The result.
  */
-TVM_DLL PrimExpr sum(PrimExpr source, Array<tir::IterVar> axis);
+TVM_DLL PrimExpr sum(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {});
 
 /*!
  * \brief logical And of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \param init The value with which to initialize the output.
  */
-TVM_DLL PrimExpr all(PrimExpr source, Array<tir::IterVar> axis);
+TVM_DLL PrimExpr all(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {});
 
 /*!
  * \brief logical Or of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \param init The value with which to initialize the output.
  * \return The result.
  */
-TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis);
+TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {});
 
 /*!
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \param init The value with which to initialize the output.
  * \return The result.
  */
-TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis);
+TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {});
 
 /*!
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \param init The value with which to initialize the output.
  * \return The result.
  */
-TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis);
+TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {});
 
 /*!
  * \brief product of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \param init The value with which to initialize the output.
  * \return The result.
  */
-TVM_DLL PrimExpr prod(PrimExpr source, Array<tir::IterVar> axis);
+TVM_DLL PrimExpr prod(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {});
 
 /*!
  * \brief Calculate floor(x)
