@@ -798,3 +798,43 @@ def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0
     """
 
     return cpp.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
+
+def matrix_set_diag(data, diagonal):
+    """
+    Returns a tensor with the diagonal of input tensor replaced with the provided diagonal values.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        Input Tensor.
+    diagonal : relay.Expr
+        Values to be filled in the diagonal.
+
+    Returns
+    -------
+    result : relay.Expr
+        New tensor with given diagonal values.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        data = [[[7, 7, 7, 7],
+                 [7, 7, 7, 7],
+                 [7, 7, 7, 7]],
+                [[7, 7, 7, 7],
+                 [7, 7, 7, 7],
+                 [7, 7, 7, 7]]]
+
+        diagonal = [[1, 2, 3],
+                    [4, 5, 6]]
+
+        relay.matrix_set_diag(input, diagonal) =
+            [[[1, 7, 7, 7],
+              [7, 2, 7, 7],
+              [7, 7, 3, 7]],
+             [[4, 7, 7, 7],
+              [7, 5, 7, 7],
+              [7, 7, 6, 7]]]
+    """
+    return cpp.matrix_set_diag(data, diagonal)

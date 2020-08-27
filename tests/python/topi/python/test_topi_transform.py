@@ -746,6 +746,35 @@ def verify_sparse_to_dense(sparse_indices, sparse_values, default_value, output_
     for device in get_all_backend():
         check_device(device)
 
+def verify_matrix_set_diag(input_shape, dtype):
+    diagonal_shape = list(input_shape[:-2])
+    diagonal_shape.append(min(input_shape[-2], input_shape[-1]))
+    input = te.placeholder(shape=input_shape, name="input", dtype=dtype)
+    diagonal = te.placeholder(shape=diagonal_shape, name="diagonal", dtype=dtype)
+    matrix_set_diag_result = topi.transform.matrix_set_diag(input, diagonal)
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = tvm.topi.testing.get_injective_schedule(device)(matrix_set_diag_result)
+        fn = tvm.build(s, [input, diagonal, matrix_set_diag_result], device, name="matrix_set_diag")
+        input_npy = np.random.randint(-100, 100, size=input_shape).astype(dtype)
+        diagonal_npy = np.random.randint(-100, 100, size=diagonal_shape).astype(dtype)
+        out_npy = tvm.topi.testing.matrix_set_diag(input_npy, diagonal_npy)
+        input_nd = tvm.nd.array(input_npy, ctx)
+        diagonal_nd = tvm.nd.array(diagonal_npy, ctx)
+        out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(matrix_set_diag_result.dtype), ctx)
+        fn(input_nd, diagonal_nd, out_nd)
+        out_topi = out_nd.asnumpy()
+        tvm.testing.assert_allclose(out_topi, out_npy)
+
+    for device in get_all_backend():
+        check_device(device)
+
+
 def test_strided_slice():
     verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1])
@@ -1105,6 +1134,12 @@ def test_sparse_to_dense():
     #sparse_indices should not be > 2d tensor
     #verify_sparse_to_dense([[[[0, 1, 4], [0, 2, 4]]]], [[[3.1, 3.1, 3.1]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
 
+def test_matrix_set_diag():
+    for dtype in ['float32', 'int32']:
+        verify_matrix_set_diag((2, 2), dtype)
+        verify_matrix_set_diag((4, 3, 3), dtype)
+        verify_matrix_set_diag((2, 3, 4), dtype)
+
 if __name__ == "__main__":
     test_strided_slice()
     test_concatenate()
@@ -1130,3 +1165,4 @@ if __name__ == "__main__":
     test_one_hot()
     test_unravel_index()
     test_sparse_to_dense()
+    test_matrix_set_diag()

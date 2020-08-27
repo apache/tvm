@@ -176,5 +176,9 @@ TVM_REGISTER_GLOBAL("topi.one_hot").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = one_hot(args[0], args[1], args[2], depth, axis, dtype);
 });
 
+TVM_REGISTER_GLOBAL("topi.matrix_set_diag").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = matrix_set_diag(args[0], args[1]);
+});
+
 }  // namespace topi
 }  // namespace tvm
