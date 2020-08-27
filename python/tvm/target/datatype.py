@@ -203,11 +203,25 @@ def register_op(lower_func,
 def register_min_func(func, type_name):
     """Register the function that returns the minimum representable value of type_name.
 
+    Operators such as max pooling and argmax require the minimum
+    finite value representable by the datatype the op operating on.
+    Users can use this function to register a function that returns a TIR expression node
+    outputting the minimum representable value of their custom data type.
+
+    Users should use create_min_lower_func to create their lowering function. It
+    should serve most use-cases.
+
+    Note: for special cases when it is known that the custom datatype is representable
+    by a float, the user can create their own lowering func that returns a FloatImm.
+    The benefits are allowing optimizations such as rewrites to work as expected on custom
+    datatypes.
+
     Parameters
     ----------
     func : function
-        Takes in num_bits, returns a value of type custom[type_name]num_bits
-        with the minimum representable value.
+        Input is an integer num_bits, should return a TIR expression node that
+        represents a scalar tensor of type custom[type_name]num_bits with the minimum
+        representable value.
 
     type_name : str
         The name of the custom datatype, e.g. posites2 (but not custom[posites2]32).
@@ -215,12 +229,12 @@ def register_min_func(func, type_name):
     _register_func("tvm.datatype.min." + type_name, func)
 
 def create_min_lower_func(extern_func_map, type_name):
-    """Returns a function which lowers the minimum value operation to a pure extern call.
+    """Returns a lowering function for getting the minimum value of a custom datatype.
 
     Parameters
     ----------
     extern_func_map : map
-        A map from bit lengths to the external function name
+        A map from bit lengths to the name of the extern "C" function to lower to.
 
     type_name : string
         The name of the custom datatype, e.g. posites2 (but not custom[posites2]32).
@@ -309,7 +323,7 @@ def lower_ite(ite_op):
 def lower_call_pure_extern(op):
     """Lowered call pure extern function that calls intrinsic call_pure_extern.
     Unlike a function lowered by create_lower_func, this function
-    calls the tvm intrinsic if_then_else.
+    calls the tvm intrinsic call_pure_extern.
 
     Parameters
     ----------
