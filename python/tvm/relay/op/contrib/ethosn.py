@@ -18,7 +18,9 @@
 """Arm(R) Ethos(TM) -N NPU supported operators."""
 from enum import Enum
 import tvm.ir
+from ...dataflow_pattern import wildcard, is_op, is_constant
 from ... import qnn as _qnn
+from .register import register_pattern_table
 from . import _ethosn as support
 
 
@@ -38,6 +40,30 @@ def ethosn_available():
         return Available.UNAVAILABLE
     hw = tvm.get_global_func("relay.ethos-n.query")()
     return Available.SW_AND_HW if hw else Available.SW_ONLY
+
+
+@register_pattern_table("ethos-n")
+def pattern_table():
+    """Get the Ethos-N compiler pattern table."""
+    def qnn_conv_pattern():
+        pattern = is_op('nn.pad')(wildcard()) | wildcard()
+        pattern = is_op('qnn.conv2d')(
+            pattern, is_constant(), is_constant(), is_constant(), is_constant(), is_constant())
+        pattern = is_op('nn.bias_add')(pattern, is_constant())
+        pattern = is_op('qnn.requantize')(
+            pattern, is_constant(), is_constant(), is_constant(), is_constant())
+        return pattern
+
+    def check_conv2d(extract):
+        """Check if a conv2d is supported by Ethos-N."""
+        if not ethosn_available():
+            return False
+
+        return support.conv2d(extract)
+
+    return [
+        ("ethos-n.qnn_conv2d", qnn_conv_pattern(), check_conv2d),
+    ]
 
 
 @tvm.ir.register_op_attr("qnn.concatenate", "target.ethos-n")
