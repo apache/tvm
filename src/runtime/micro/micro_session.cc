@@ -156,35 +156,35 @@ class MicroTransportChannel : public RPCChannel {
   void HandleMessageReceived(MessageType message_type, Buffer* buf) {
     size_t message_size_bytes;
     switch (message_type) {
-    case MessageType::kStartSessionInit:
-    case MessageType::kStartSessionReply:
-      break;
+      case MessageType::kStartSessionInit:
+      case MessageType::kStartSessionReply:
+        break;
 
-    case MessageType::kTerminateSession:
-      LOG(FATAL) << "SessionTerminatedError: remote side has probably reset";
-      break;
+      case MessageType::kTerminateSession:
+        LOG(FATAL) << "SessionTerminatedError: remote side has probably reset";
+        break;
 
-    case MessageType::kLog:
-      uint8_t message[1024];
-      message_size_bytes = buf->ReadAvailable();
-      if (message_size_bytes == 0) {
+      case MessageType::kLog:
+        uint8_t message[1024];
+        message_size_bytes = buf->ReadAvailable();
+        if (message_size_bytes == 0) {
+          return;
+        } else if (message_size_bytes > sizeof(message) - 1) {
+          LOG(ERROR) << "Remote log message is too long to display: " << message_size_bytes
+                     << " bytes";
+          return;
+        }
+
+        CHECK_EQ(buf->Read(message, sizeof(message) - 1), message_size_bytes);
+        message[message_size_bytes] = 0;
+        LOG(INFO) << "remote: " << message;
+        session_.ClearReceiveBuffer();
         return;
-      } else if (message_size_bytes > sizeof(message) - 1) {
-        LOG(ERROR) << "Remote log message is too long to display: " << message_size_bytes
-                   << " bytes";
-        return;
-      }
 
-      CHECK_EQ(buf->Read(message, sizeof(message) - 1), message_size_bytes);
-      message[message_size_bytes] = 0;
-      LOG(INFO) << "remote: " << message;
-      session_.ClearReceiveBuffer();
-      return;
-
-    case MessageType::kNormal:
-      did_receive_message_ = true;
-      message_buffer_ = buf;
-      break;
+      case MessageType::kNormal:
+        did_receive_message_ = true;
+        message_buffer_ = buf;
+        break;
     }
   }
 

@@ -128,12 +128,16 @@ TEST_F(SessionTest, NormalExchange) {
   tvm_crt_error_t err;
   err = alice_.sess.Initialize();
   EXPECT_EQ(kTvmErrorNoError, err);
-  EXPECT_FRAMED_PACKET(alice_, "\xfe\xff\xfd\x03\0\0\0\0\0\x02" "fw");
+  EXPECT_FRAMED_PACKET(alice_,
+                       "\xfe\xff\xfd\x03\0\0\0\0\0\x02"
+                       "fw");
   alice_.WriteTo(&bob_);
 
   err = bob_.sess.Initialize();
   EXPECT_EQ(kTvmErrorNoError, err);
-  EXPECT_FRAMED_PACKET(bob_, "\xfe\xff\xfd\x03\0\0\0\0\0\x02" "fw");
+  EXPECT_FRAMED_PACKET(bob_,
+                       "\xfe\xff\xfd\x03\0\0\0\0\0\x02"
+                       "fw");
   alice_.WriteTo(&alice_);
 
   bob_.ClearBuffers();
@@ -210,12 +214,16 @@ TEST_F(SessionTest, DoubleStart) {
   tvm_crt_error_t err;
   err = alice_.sess.Initialize();
   EXPECT_EQ(kTvmErrorNoError, err);
-  EXPECT_FRAMED_PACKET(alice_, "\xfe\xff\xfd\x03\0\0\0\0\0\x02" "fw");
+  EXPECT_FRAMED_PACKET(alice_,
+                       "\xfe\xff\xfd\x03\0\0\0\0\0\x02"
+                       "fw");
   alice_.WriteTo(&bob_);
 
   err = bob_.sess.Initialize();
   EXPECT_EQ(kTvmErrorNoError, err);
-  EXPECT_FRAMED_PACKET(bob_, "\xfe\xff\xfd\x03\0\0\0\0\0\x02" "fw");
+  EXPECT_FRAMED_PACKET(bob_,
+                       "\xfe\xff\xfd\x03\0\0\0\0\0\x02"
+                       "fw");
   alice_.WriteTo(&alice_);
 
   bob_.ClearBuffers();

@@ -89,9 +89,7 @@ tvm_crt_error_t Session::StartSession() {
   return to_return;
 }
 
-tvm_crt_error_t Session::Initialize() {
-  return TerminateSession();
-}
+tvm_crt_error_t Session::Initialize() { return TerminateSession(); }
 
 tvm_crt_error_t Session::TerminateSession() {
   SetSessionId(0, 0);

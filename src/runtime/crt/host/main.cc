@@ -83,9 +83,8 @@ uint8_t memory[512 * 1024];
 
 static char** g_argv = NULL;
 
-int testonly_reset_server(TVMValue* args, int* type_codes, int num_args,
-                          TVMValue* out_ret_value, int* out_ret_tcode,
-                          void* resource_handle) {
+int testonly_reset_server(TVMValue* args, int* type_codes, int num_args, TVMValue* out_ret_value,
+                          int* out_ret_tcode, void* resource_handle) {
   execvp(g_argv[0], g_argv);
   perror("utvm runtime: error restarting");
   return -1;
@@ -96,8 +95,7 @@ int main(int argc, char** argv) {
   utvm_rpc_server_t rpc_server =
       utvm_rpc_server_init(memory, sizeof(memory), 8, &utvm_write_func, nullptr);
 
-  if (TVMFuncRegisterGlobal("tvm.testing.reset_server",
-                            (TVMFunctionHandle) &testonly_reset_server,
+  if (TVMFuncRegisterGlobal("tvm.testing.reset_server", (TVMFunctionHandle)&testonly_reset_server,
                             0)) {
     fprintf(stderr, "utvm runtime: internal error registering global packedfunc; exiting\n");
     return 2;
