@@ -255,7 +255,7 @@ class ExprDeviceAnnot(ExprMutator):
         return False
 
 
-class ExprLocater(ExprMutator):
+class ExprLocator(ExprMutator):
     """Visitor to locate op on an AST.
     """
     def __init__(self):
@@ -587,7 +587,7 @@ def graph_pack(expr,
     expr = run_opt_pass(expr, transform.InferType())
 
     if device_annot:
-        expr_locator = ExprLocater()
+        expr_locator = ExprLocator()
         expr_locator.visit(expr)
 
         annot_start = op.op.get(annot_start_name)
