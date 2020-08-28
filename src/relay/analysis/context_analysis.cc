@@ -20,6 +20,33 @@
 /*!
  * \file src/relay/analysis/context_analysis.cc
  * \brief A pass for analyzing device attribute of each IR node.
+ *
+ * We use union-find data structures to analyze the context information of each
+ * sub-expression in a Relay program in this pass. Only the device copy node in
+ * Relay directly contains bidiretional device information. We use it to
+ * bidirectionally propagate the device info of its inputs and outputs.
+ *
+ * However, to support dynamism (e.g dynamic inputs), Relay introduces several
+ * concepts to compute the shape of tensors and operators at runtime, i.e.
+ * shape_of, shape_func, and reshape_tensor. These nodes are also referred to as
+ * VM dialects as we have native VM instructions for them. These dialects are
+ * intrinsically CPU friendly, therefore, they are only designed to be
+ * executed on CPU. We, hence, unify their inputs and outputs to CPU as well.
+ * Note the input of shape_of is a tensor and we only need the tensor shape.
+ * Therefore, the input could be sitting on GPU as well since no real data is
+ * needed. The context of the input would be propagated from its other
+ * consumers or fallback to the default device.
+ *
+ * Another type of dialect is used fo memory allocation, namely, alloc_storage
+ * and alloc_tensor. alloc_storage contains a context field to indicate where
+ * the chunk of memory is allocated. Therefore, we unify the context of
+ * alloc_storage with the context field. Other inputs, such as size and
+ * alignment, are left on CPU.
+ *
+ * Based on the above rules, we keep unifying the connected expressions and
+ * propagating their device information. An error will be raised whenever there
+ * is a unification conflict. All IR nodes that are not propagated with device
+ * context will fallback to the specified device.
  */
 
 #include <tvm/relay/analysis.h>

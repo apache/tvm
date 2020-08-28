@@ -32,7 +32,7 @@ from ..backend import compile_engine
 from ..op.memory import flatten_tuple_type, from_tuple_type, to_tuple_type
 from ...import cpu
 from ..op.memory import alloc_storage
-from ..analysis import context_analysis as _context_analysis
+from ..analysis import context_analysis
 from ..._ffi.runtime_ctypes import TVMContext
 
 def alloc_tensor(storage, shape, dtype='float32', assert_shape=None):
@@ -85,7 +85,7 @@ def is_reshape_only(func):
 class ManifestAllocPass(ExprMutator):
     """A pass for explicitly manifesting all memory allocations in Relay."""
 
-    def __init__(self, target_host, context_analysis):
+    def __init__(self, target_host, context_analysis_map):
         self.invoke_tvm = op.vm.invoke_tvm_op
         self.shape_func = op.vm.shape_func
         self.shape_of = op.vm.shape_of
@@ -94,13 +94,13 @@ class ManifestAllocPass(ExprMutator):
         self.target_host = target_host
         self.default_context = cpu(0)
         self.compute_dtype = "int64"
-        self.context_analysis = context_analysis
+        self.context_analysis_map = context_analysis_map
         super().__init__()
 
     def get_context(self, exp):
         """Get the context of a given expression"""
-        assert exp in self.context_analysis, exp.astext(False)
-        val = self.context_analysis[exp]
+        assert exp in self.context_analysis_map, exp.astext(False)
+        val = self.context_analysis_map[exp]
         # val[0], val[1] are device_type and device_id, respectively.
         # We don't need to unpack after porting this pass to C++.
         assert len(val) == 2
@@ -339,6 +339,7 @@ def mk_analysis_annotator(results):
 @module_pass(opt_level=0)
 class ManifestAlloc:
     """The explicit pass wrapper around ManifestAlloc."""
+    # TODO(zhiics, jroesch) Port this pass to C++.
     def __init__(self, target_host, targets):
         self.target_host = target_host
         self.targets = targets
@@ -356,13 +357,13 @@ class ManifestAlloc:
                 fallback_ctx = nd.context(pass_ctx.config["relay.fallback_device_type"])
             else:
                 fallback_ctx = cpu(0)
-            ca = _context_analysis(mod, TVMContext(fallback_ctx.device_type, 0))
+            ca = context_analysis(mod, TVMContext(fallback_ctx.device_type, 0))
         else:
             if isinstance(self.targets, dict):
                 dev = list(self.targets.keys())[0]
             else:
                 dev, _ = self.targets.items()[0]
-            ca = _context_analysis(mod, nd.context(dev.value))
+            ca = context_analysis(mod, nd.context(dev.value))
 
         # The following code can be used for debugging the module after
         # annotation.
