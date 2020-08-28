@@ -1007,11 +1007,13 @@ def _flatten():
         if len(inputs) > 1:
             end_dim = inputs[2]
 
-        if start_dim != 0 or end_dim != -1:
-            msg = "Only support flatten to 1d tensor"
-            raise NotImplementedError(msg)
+        if start_dim == 0 and end_dim == -1:
+            return _op.transform.reshape(data, (-1,))
+        if start_dim == 1 and end_dim == -1:
+            return _op.nn.batch_flatten(data)
 
-        return _op.transform.reshape(data, (-1,))
+        msg = "Only support 1d flatten or batch flatten"
+        raise NotImplementedError(msg)
 
     return _impl
 
