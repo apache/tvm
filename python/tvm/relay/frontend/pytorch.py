@@ -996,6 +996,7 @@ def _transpose(prelude):
         return _op.transform.transpose(data, axes)
     return _impl
 
+
 def _flatten():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -1012,10 +1013,10 @@ def _flatten():
         if start_dim == 1 and end_dim == -1:
             return _op.nn.batch_flatten(data)
 
-        msg = "Only support 1d flatten or batch flatten"
-        raise NotImplementedError(msg)
+        raise NotImplementedError("Only support 1d flatten or batch flatten")
 
     return _impl
+
 
 def _dense():
     def _impl(inputs, input_types):
