@@ -17,8 +17,6 @@
 """
 Provides support to compile networks both AOT and JIT.
 """
-import argparse
-import json
 import logging
 import os.path
 import tarfile
@@ -27,10 +25,8 @@ from pathlib import Path
 import tvm
 from tvm import autotvm
 from tvm import relay
-from tvm._ffi.runtime_ctypes import TVMContext
 from tvm.contrib import cc
 from tvm.contrib import util
-from tvm.relay.op.contrib import get_pattern_table
 
 from . import common, frontends
 from .main import register_parser
@@ -208,17 +204,17 @@ def compile_relay(
 
     if os.path.exists(str(target)):
         with open(target) as target_file:
-            logging.info(f"using target input from file: {target}")
+            logging.info("using target input from file: %s", target)
             target = "".join(target_file.readlines())
 
     # TODO: We don't have an API to collect a list of supported
     #       targets yet. (@leandron)
-    logging.debug(f"creating target from input: {target}")
+    logging.debug("creating target from input: %s", target)
     tvm_target = tvm.target.create(target)
-    target_host = ""
+    target_host = target_host or ""
 
     if tuning_records:
-        logging.debug(f"tuning records file provided: {tuning_records}")
+        logging.debug("tuning records file provided: %s", tuning_records)
         with autotvm.apply_history_best(tuning_records):
             with tvm.transform.PassContext(opt_level=3):
                 logging.debug("building relay graph with tuning records")
@@ -267,21 +263,21 @@ def save_module(module_path, graph, lib, params, cross=None):
     temp = util.tempdir()
     path_lib = temp.relpath(lib_name)
     if not cross:
-        logging.debug(f"exporting library to {path_lib}")
+        logging.debug("exporting library to %s", path_lib)
         lib.export_library(path_lib)
     else:
-        logging.debug(f"exporting library to {path_lib}, using cross compiler {cross}")
+        logging.debug("exporting library to %s , using cross compiler %s", path_lib, cross)
         lib.export_library(path_lib, cc.cross_compiler(cross))
 
     with open(temp.relpath(graph_name), "w") as graph_file:
-        logging.debug(f"writing graph to file to {graph_file.name}")
+        logging.debug("writing graph to file to %s", graph_file.name)
         graph_file.write(graph)
 
     with open(temp.relpath(param_name), "wb") as params_file:
-        logging.debug(f"writing params to file to {params_file.name}")
+        logging.debug("writing params to file to %s", params_file.name)
         params_file.write(relay.save_param_dict(params))
 
-    logging.debug(f"saving module as tar file to {module_path}")
+    logging.debug("saving module as tar file to %s", module_path)
     with tarfile.open(module_path, "w") as tar:
         tar.add(path_lib, lib_name)
         tar.add(temp.relpath(graph_name), graph_name)

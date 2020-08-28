@@ -378,8 +378,6 @@ def load_model(path, language=None, shapes=None):
         The parameters (weights) for the relay module.
 
     """
-    # pylint: disable=C0415
-    import tvm.error
 
     if language is not None:
         frontend = lookup_frontend(language)
