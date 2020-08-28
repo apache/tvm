@@ -43,11 +43,13 @@
 //
 //
 
+// NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = "tvmai/ci-lint:v0.61"
 ci_gpu = "tvmai/ci-gpu:v0.64"
 ci_cpu = "tvmai/ci-cpu:v0.65"
 ci_wasm = "tvmai/ci-wasm:v0.60"
 ci_i386 = "tvmai/ci-i386:v0.52"
+// <--- End of regex-scanned config.
 
 // tvm libraries
 tvm_runtime = "build/libtvm_runtime.so, build/config.cmake"
