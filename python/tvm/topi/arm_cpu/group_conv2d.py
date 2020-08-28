@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Grouped Spatial Pack Convolution (Group Conv2D) schedule on ARM"""
 
 import tvm
 from tvm import autotvm
@@ -55,30 +56,34 @@ def _get_default_config(cfg, data, kernel, strides, padding, groups, out_dtype,
     data = te.placeholder(static_data_shape, dtype=data.dtype)
 
     wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype,
-                               layout)
+                               layout, asymmetric_pad=True)
     _fallback_schedule(cfg, wkl)
 
 
 def _fallback_schedule(cfg, wkl):
     simd_width = 4 # assume ARM SIMD Width is 4
-    HPAD, WPAD = wkl.hpad, wkl.wpad
-    HSTR, WSTR = wkl.hstride, wkl.wstride
-    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
-    G = wkl.groups
-    KPG = wkl.out_filter // G
-    CPG = wkl.in_filter // G
-    oc_bn = 1
+    pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
+    stride_w = wkl.wstride
+    out_width = (wkl.width + pl + pr - wkl.wkernel) // stride_w + 1
+    groups = wkl.groups
+    kernels_per_group = wkl.out_filter // groups
+    kernel_depth = wkl.in_filter // groups
 
+    oc_bn = 1
     for bn in range(simd_width, 0, -1):
-        if KPG % bn == 0:
+        if kernels_per_group % bn == 0:
             oc_bn = bn
             break
+    if oc_bn > kernels_per_group:
+        oc_bn = kernels_per_group
 
     ic_bn = 1
     for bn in range(oc_bn, 0, -1):
-        if CPG % bn == 0:
+        if kernel_depth % bn == 0:
             ic_bn = bn
             break
+    if ic_bn > kernel_depth:
+        ic_bn = kernel_depth
 
     reg_n = 1
     for n in range(31, 0, -1):
@@ -103,42 +108,45 @@ def group_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding,
 
     assert isinstance(padding, int) or len(padding) == 2 or len(padding) == 4
     if isinstance(padding, int):
-        HPAD, WPAD = padding, padding
+        pt, pl, pb, pr = padding, padding, padding, padding
     elif len(padding) == 2:
         HPAD, WPAD = padding
+        pt, pb = HPAD, HPAD
+        pl, pr = WPAD, WPAD
     else:
-        HPAD, _, WPAD, _ = padding
+        pt, pl, pb, pr = padding
+
+    HPAD = pt + pb
+    WPAD = pl + pr
 
     assert isinstance(strides, int) or len(strides) == 2
     if isinstance(strides, int):
-        HSTR, WSTR = strides, strides
+        stride_h, stride_w = strides, strides
     else:
-        HSTR, WSTR = strides
+        stride_h, stride_w = strides
 
-    N, CI, IH, IW = get_const_tuple(data.shape)
-    CO, CIG, KH, KW = get_const_tuple(kernel.shape)
+    batch_size, in_channel, in_height, in_width = get_const_tuple(data.shape)
+    out_channel, kernel_depth, k_height, k_width = get_const_tuple(kernel.shape)
 
-    pad_height = IH + 2 * HPAD
-    pad_width = IW + 2 * WPAD
+    pad_height = in_height + pt + pb
+    pad_width = in_width + pl + pr
 
-    dilated_kernel_h = (KH - 1) * dilation_h + 1
-    dilated_kernel_w = (KW - 1) * dilation_w + 1
-    OH = (IH + 2 * HPAD - dilated_kernel_h) // HSTR + 1
-    OW = (IW + 2 * WPAD - dilated_kernel_w) // WSTR + 1
+    dilated_kernel_h = (k_height - 1) * dilation_h + 1
+    dilated_kernel_w = (k_width - 1) * dilation_w + 1
+    out_height = (in_height + pt + pb - dilated_kernel_h) // stride_h + 1
+    out_width = (in_width + pl + pr - dilated_kernel_w) // stride_w + 1
 
-    G = groups
-    KPG = CO // G
-    CPG = CI // G
+    kernels_per_group = out_channel // groups
 
-    cfg.define_split("tile_ic", CI, num_outputs=2)
-    cfg.define_split("tile_oc", CO, num_outputs=2)
-    cfg.define_split("tile_ow", OW, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
+    cfg.define_split("tile_ic", in_channel, num_outputs=2)
+    cfg.define_split("tile_oc", out_channel, num_outputs=2)
+    cfg.define_split("tile_ow", out_width, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
     cfg.define_knob("unroll_kw", [True, False])
 
     # If no config was set, we can fallback to default config.
     if cfg.is_fallback:
-        _get_default_config(cfg, te.placeholder((N, CI, IH, IW), dtype=data.dtype),
-                            te.placeholder((N, CI // G, KH, KW),
+        _get_default_config(cfg, te.placeholder((batch_size, in_channel, in_height, in_width), dtype=data.dtype),
+                            te.placeholder((out_channel, in_channel // groups, k_height, k_width),
                                            dtype=kernel.dtype),
                             strides, padding, groups, out_dtype)
 
@@ -147,43 +155,46 @@ def group_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding,
     # pack data
     DOPAD = (HPAD != 0 or WPAD != 0)
     if DOPAD:
-        data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
+        data_pad = pad(data,
+                       (0, 0, pt, pl),
+                       (0, 0, pb, pr),
+                       name="data_pad")
     else:
         data_pad = data
 
-    shape = (G, N, CPG // ic_bn,
+    shape = (groups, batch_size, kernel_depth // ic_bn,
              pad_height, ic_bn, pad_width)
 
     data_vec = te.compute(shape,
                           lambda g, n, C, h, c, w:
-                          data_pad[n, C * ic_bn + c + CPG * g, h, w],
+                          data_pad[n, C * ic_bn + c + kernel_depth * g, h, w],
                           name='data_vec')
 
     # pack kernel
-    shape = (G, KPG//oc_bn, CPG//ic_bn,
-             KH, KW, ic_bn, oc_bn)
+    shape = (groups, kernels_per_group//oc_bn, kernel_depth//ic_bn,
+             k_height, k_width, ic_bn, oc_bn)
     kernel_vec = te.compute(shape,
-                            lambda g, CO, CI, h, w, ci, co:
-                            kernel[(CO * oc_bn + co + g * KPG),
-                                   CI * ic_bn + ci, h, w],
+                            lambda g, out_channel, in_channel, h, w, ci, co:
+                            kernel[(out_channel * oc_bn + co + g * kernels_per_group),
+                                   in_channel * ic_bn + ci, h, w],
                             name='kernel_vec')
 
     # convolution
-    oshape = (G, N, KPG//oc_bn,
-              OH, OW, oc_bn)
-    unpack_shape = (N, CO, OH, OW)
+    oshape = (groups, batch_size, kernels_per_group//oc_bn,
+              out_height, out_width, oc_bn)
+    unpack_shape = (batch_size, out_channel, out_height, out_width)
 
-    ic = te.reduce_axis((0, (CPG)), name='ic')
-    kh = te.reduce_axis((0, KH), name='kh')
-    kw = te.reduce_axis((0, KW), name='kw')
+    ic = te.reduce_axis((0, (kernel_depth)), name='ic')
+    kh = te.reduce_axis((0, k_height), name='kh')
+    kw = te.reduce_axis((0, k_width), name='kw')
     idxmod = tvm.tir.indexmod
     idxdiv = tvm.tir.indexdiv
 
     conv = te.compute(oshape, lambda g, n, oc_chunk, oh, ow, oc_block:
                       te.sum(data_vec[g, n, idxdiv(ic, ic_bn),
-                                      oh*HSTR+kh*dilation_h,
+                                      oh * stride_h + kh * dilation_h,
                                       idxmod(ic, ic_bn),
-                                      ow*WSTR+kw*dilation_w].astype(out_dtype) *
+                                      ow * stride_w + kw * dilation_w].astype(out_dtype) *
                              kernel_vec[g, oc_chunk, idxdiv(ic, ic_bn),
                                         kh, kw, idxmod(ic, ic_bn),
                                         oc_block].astype(out_dtype),
@@ -191,10 +202,10 @@ def group_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding,
 
     unpack = te.compute(unpack_shape,
                         lambda n, c, h, w:
-                        conv[idxdiv(c, KPG), n,
-                             idxmod(idxdiv(c, oc_bn), (KPG // oc_bn)),
+                        conv[idxdiv(c, kernels_per_group), n,
+                             idxmod(idxdiv(c, oc_bn), (kernels_per_group // oc_bn)),
                              h, w,
-                             idxmod(idxmod(c, oc_bn), KPG)]
+                             idxmod(idxmod(c, oc_bn), kernels_per_group)]
                         .astype(out_dtype),
                         name='output_unpack',
                         tag='group_conv2d_nchw')
