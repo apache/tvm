@@ -140,9 +140,9 @@ def upsampling3d(data, scale_d, scale_h, scale_w, layout="NCDHW", method='neares
                             simplify(topi.cast(te.round(output_shape[4]), data.shape[4].dtype)))
     elif layout == "NDHWC":
         if not output_shape: # static case
-            scaled_d = data.shape[1] * scaled_d
-            scaled_h = data.shape[2] * scaled_h
-            scaled_w = data.shape[3] * scaled_w
+            scaled_d = data.shape[1] * scale_d
+            scaled_h = data.shape[2] * scale_h
+            scaled_w = data.shape[3] * scale_w
             resize_shape = (simplify(topi.cast(te.round(scaled_d), data.shape[1].dtype)),
                             simplify(topi.cast(te.round(scaled_h), data.shape[2].dtype)),
                             simplify(topi.cast(te.round(scaled_w), data.shape[3].dtype)))
