@@ -112,10 +112,10 @@ def test_dyn_upsampling3d_run():
                 op_res = intrp.evaluate()(x_data, np.array(scale_d).astype("float32"), np.array(scale_h).astype("float32"), np.array(scale_w).astype("float32"))
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
 
-    verify_upsampling3d((1, 8, 16, 16, 16), 2.0, 2.0, 2.0,"NCDHW", "nearest_neighbor")
-    verify_upsampling3d((1, 8, 16, 16, 16), 2.0, 2.0, 2.0, "NCDHW", "trilinear", "align_corners")
-    verify_upsampling3d((1, 8, 16, 16, 16), 2.0, 2.0, 2.0, "NDHWC", "nearest_neighbor")
-    verify_upsampling3d((1, 8, 16, 16, 16), 2.0, 2.0, 2.0,"NDHWC", "trilinear", "align_corners")
+    verify_upsampling3d((1, 8, 16, 16, 16), 2.0, 3.0, 4.0,"NCDHW", "nearest_neighbor")
+    verify_upsampling3d((1, 8, 16, 16, 16), 2.0, 5.0, 1.0, "NCDHW", "trilinear", "align_corners")
+    verify_upsampling3d((1, 20, 3, 4, 16), 2.0, 2.0, 2.0, "NDHWC", "nearest_neighbor")
+    verify_upsampling3d((1, 8, 4, 16, 15), 2.0, 2.0, 2.0,"NDHWC", "trilinear", "align_corners")
 
 #tests upsampling type inference with scale_h passed in as a constant and scale_w as a variable
 def test_dyn_upsampling3d_infer_type_const():
