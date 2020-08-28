@@ -233,23 +233,6 @@ inline int DetectROCMApiVersion() {
   return 305;
 }
 
-static void UpdateTargetConfig(const String& key, const String& value,
-                               Map<String, ObjectRef>* target_config, bool error_if_inconsistent) {
-  if (target_config->count(key)) {
-    const ObjectRef& obj = (*target_config)[key];
-    CHECK(obj->IsInstance<StringObj>())
-        << "TypeError: In code generation for AMDGPU, expect key \"" << key
-        << "\" to be String, but gets type: " << obj->GetTypeKey();
-    if (error_if_inconsistent) {
-      String old_value = Downcast<String>(obj);
-      CHECK_EQ(old_value, value) << "ValueError: In code generation for AMDGPU, key \"" << key
-                                 << "\" has been set to \"" << old_value
-                                 << "\", and should not be reset to \"" << value << "\"";
-    }
-  }
-  target_config->Set(key, value);
-}
-
 Target UpdateTarget(const Target& original_target) {
   Map<String, ObjectRef> target_config = original_target->Export();
   UpdateTargetConfig("mtriple", "amdgcn-amd-amdhsa-hcc", &target_config, true);

@@ -76,11 +76,10 @@ void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::stri
     std::ostringstream os;
     bool is_first = true;
     for (const String& s : v.value()) {
-      if (is_first) {
-        is_first = false;
-      } else {
+      if (!is_first) {
         os << ',';
       }
+      is_first = false;
       os << s;
     }
     *mattr = os.str();
@@ -152,14 +151,13 @@ std::string LLVMTargetToString(const Target& target) {
     os << " -mcpu=" << mcpu.value();
   }
   if (Optional<Array<String>> mattr = target->GetAttr<Array<String>>("mattr")) {
-    bool is_first;
+    bool is_first = true;
     os << " -mattr=";
     for (const String& attr : mattr.value()) {
-      if (is_first) {
-        is_first = false;
-      } else {
+      if (!is_first) {
         os << ",";
       }
+      is_first = false;
       os << attr;
     }
   }

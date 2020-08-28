@@ -250,22 +250,22 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       std::string msg = std::string(err.getMessage());
       LOG(FATAL) << "Fail to load module: " << msg;
     }
-    std::string target_;
+    std::string target_metadata;
     llvm::Metadata* tvm_target = module_->getModuleFlag("tvm_target");
     if (tvm_target != nullptr) {
       llvm::MDString* pstr = llvm::dyn_cast<llvm::MDString>(tvm_target);
       CHECK(pstr != nullptr);
-      target_ = pstr->getString().str();
-      if (!(target_.length() >= 4 && target_.substr(0, 4) == "llvm")) {
-        target_ = "llvm " + target_;
+      target_metadata = pstr->getString().str();
+      if (!(target_metadata.length() >= 4 && target_metadata.substr(0, 4) == "llvm")) {
+        target_metadata = "llvm " + target_metadata;
       }
     } else {
       std::ostringstream os;
       os << "llvm -mtriple " << module_->getTargetTriple();
-      target_ = os.str();
+      target_metadata = os.str();
     }
     mptr_ = module_.get();
-    tm_ = GetLLVMTargetMachine(Target::Create(target_));
+    tm_ = GetLLVMTargetMachine(Target::Create(target_metadata));
   }
 
   void LoadIR(const std::string& file_name) {
