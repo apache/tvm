@@ -76,7 +76,7 @@ def serialize(obj):
             if hasattr(obj, '__dict__'):
                 return obj.__dict__
             return json.JSONEncoder.default(self, obj)
-    return json.dumps(obj, cls=Encoder)
+    return json.dumps(str(obj), cls=Encoder)
 
 
 def deserialize(json_str):

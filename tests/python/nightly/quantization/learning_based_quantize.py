@@ -46,7 +46,7 @@ def get_val_data(model_name,
     val_data = mx.io.ImageRecordIter(
         path_imgrec         = rec_val,
         preprocess_threads  = num_workers,
-        shuffle             = False,
+        shuffle             = True,
         batch_size          = batch_size,
         resize              = 256,
         data_shape          = (3, img_size, img_size),
@@ -80,8 +80,8 @@ def get_model(model_name, batch_size, qconfig, original=False, simulated=False, 
         space = hago.generate_search_space(graph, hardware)
         # tuner = hago.BatchedGreedySearchTuner(space, 'accuracy')
         tuner = hago.DefaultSetting(space, 'accuracy')
-        ctx = tvm.cpu()
-        target = 'llvm'
+        ctx = tvm.gpu()
+        target = 'cuda'
         strategy, result = hago.search_quantize_strategy(graph, hardware, dataset, tuner, ctx, target)
 
         quantizer = hago.create_quantizer(graph, hardware, strategy)
@@ -92,10 +92,10 @@ def get_model(model_name, batch_size, qconfig, original=False, simulated=False, 
         logging.debug('quantize graph')
         logging.debug(quantized_graph.astext(show_meta_data=False))
         # hago.inspect_graph_statistic(graph, hardware, strategy, dataset, ctx, target)
-        return simulated_graph
+        return quantized_graph
 
 
-def eval_acc(mod, dataset, batch_fn, target='llvm', ctx=tvm.cpu(), log_interval=100):
+def eval_acc(mod, dataset, batch_fn, target='cuda', ctx=tvm.gpu(), log_interval=100):
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(mod, target)
     # create runtime module
@@ -142,21 +142,26 @@ def test_quantize_acc(cfg, rec_val):
     qconfig = hago.qconfig(skip_conv_layers=[0],
                            log_file='temp.log')
 
-    val_data, batch_fn = get_val_data(cfg.model, rec_val=rec_val, batch_size=32)
+    batch_size = 32
+    val_data, batch_fn = get_val_data(cfg.model, rec_val=rec_val, batch_size=batch_size)
     dataset = get_calibration_dataset(val_data, batch_fn)
 
-    mod = get_model(cfg.model, 32, qconfig, dataset=dataset)
-    acc = eval_acc(mod, val_data, batch_fn, target='cuda', ctx=tvm.gpu(1))
+    for orig in [True, False]:
+        mod = get_model(cfg.model, batch_size, qconfig, dataset=dataset, original=orig)
+        acc = eval_acc(mod, val_data, batch_fn, target='cuda', ctx=tvm.gpu())
+        print("Final accuracy", "int8" if orig else "fp32", acc)
     return acc
 
 
 if __name__ == "__main__":
     #TODO(for user): replace the line with the path to imagenet validation dataset
-    rec_val = "~/datasets1/imagenet/rec/val.rec"
+    rec_val = "~/tensorflow_datasets/downloads/manual/imagenet2012/val_rec.rec"
 
     results = []
     configs = [
         Config('resnet18_v1', expected_acc=0.67),
+        # Config('resnet50_v1', expected_acc=0.67),
+        # Config('inceptionv3', expected_acc=0.67),
     ]
     # rec = hago.pick_best(".quantize_strategy_search.log", 'quant_acc')
 

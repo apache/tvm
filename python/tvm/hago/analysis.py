@@ -37,20 +37,25 @@ class Stats(object):
         data: intermediate data * number_of_batches
         """
         self.data = data
+        # FIXME - Add quantile ranges.
+        # Range represents avg min/max
         self.range = []
         self.power_of_two_range = []
         for idx in range(len(data)):
-            arr = np.concatenate(self.data[idx]).reshape(-1)
-            arange = np.amax(np.abs(arr))
-            power_of_two_range = 2**np.math.ceil(np.math.log(arange, 2)) if arange > 0 else 1.0
+            samples = len(self.data[idx])
+            arr = np.concatenate(self.data[idx]).reshape(samples, -1)
+            avg_min = np.average(np.min(arr, axis=1))
+            avg_max = np.average(np.max(arr, axis=1))
+            arange = np.amax([np.abs(avg_min), np.abs(avg_max)])
             self.range.append(arange)
+            power_of_two_range = 2**np.math.ceil(np.math.log(arange, 2)) if arange > 0 else 1.0
             self.power_of_two_range.append(power_of_two_range)
 
     def __len__(self):
         return len(self.data)
 
     def data(self, idx):
-        return self.data[idx] 
+        return self.data[idx]
 
     def mean(self, idx):
         pass

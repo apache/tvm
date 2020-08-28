@@ -119,10 +119,11 @@ def prerequisite_optimize(func, params=None):
     """ Prerequisite optimization passes for quantization. Perform
     "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
     "CanonicalizeOps" optimization before quantization. """
-    optimize = tvm.transform.Sequential([relay.transform.SimplifyInference(),
+
+    optimize = tvm.transform.Sequential([relay.transform.CanonicalizeOps(),
+                                         relay.transform.SimplifyInference(),
                                          relay.transform.FoldConstant(),
                                          relay.transform.FoldScaleAxis(),
-                                         relay.transform.CanonicalizeOps(),
                                          relay.transform.FoldConstant()])
 
     if params:
@@ -291,10 +292,6 @@ class Simulator(tvm.relay.ExprMutator):
                     param = SimulatedQuantizeParams(in_scale, out_scale, clip_min, clip_max,
                                                     in_dtype, out_dtype)
                     print('  {}'.format(param))
-                    in_cond, in_expo = exponent_based_two(param.in_scale)
-                    assert in_cond, "scale={}, expo={}\nparam\{}".format(param.in_scale, in_expo, param)
-                    out_cond, out_expo = exponent_based_two(param.out_scale)
-                    assert out_cond, "scale={}, expo={}\nparam={}".format(param.out_scale, out_expo, param)
                     internal_params.append(param)
                 return
             if isinstance(node, relay.Function):
@@ -414,13 +411,21 @@ class Realizer(tvm.relay.ExprMutator):
                 # pre-casting
                 data = relay.cast(data, out_dtype)
                 dtype = out_dtype
-            data = self._transform_scale(data, in_scale, out_scale, dtype)
-            print('  clip min: {}'.format(clip_min))
-            print('  clip max: {}'.format(clip_max))
-            data = relay.clip(data, clip_min, clip_max)
-            if dtype != out_dtype:
-                data = relay.cast(data, out_dtype)
-            return data
+
+            return relay.qnn.op.requantize(data,
+                                           input_scale=relay.const(in_scale, 'float32'),
+                                           input_zero_point=relay.const(0, 'int32'),
+                                           output_scale=relay.const(out_scale, 'float32'),
+                                           output_zero_point=relay.const(0, 'int32'),
+                                           out_dtype=out_dtype)
+            # TODO - Look if something is missing
+            # print('  clip min: {}'.format(clip_min))
+            # print('  clip max: {}'.format(clip_max))
+            # data = self._transform_scale(data, in_scale, out_scale, dtype)
+            # data = relay.clip(data, clip_min, clip_max)
+            # if dtype != out_dtype:
+            #     data = relay.cast(data, out_dtype)
+            # return data
 
     def _transform_scale(self, data, in_scale, out_scale, dtype):
         """calculate `data * in_scale / out_scale`"""
