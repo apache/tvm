@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,33 +16,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
 
-cleanup()
-{
-  rm -rf /tmp/$$.*
+if [ -z "${BASH_SOURCE[0]}" ]; then
+    echo "NOTE: This script must be source'd from another bash script--it cannot be run directly"
+    exit 2
+fi
+
+INVOCATION_PWD="$(pwd)"
+
+
+GIT_TOPLEVEL=$(cd $(dirname ${BASH_SOURCE[0]}) && git rev-parse --show-toplevel)
+
+
+function run_docker() {
+    image_name="$1"  # Name of the Jenkinsfile var to find
+    shift
+
+    image_spec=$(cat "${GIT_TOPLEVEL}/Jenkinsfile" | \
+                     grep -E "^${image_name} = " | \
+                     sed -E "s/${image_name} = \"([^\"]*)\"/\1/")
+    if [ -z "${image_spec}" ]; then
+        echo "${image_name}: not found in ${GIT_TOPLEVEL}/Jenkinsfile" >&2
+        exit 2
+    fi
+
+    "${GIT_TOPLEVEL}/docker/bash.sh" -i "${image_spec}" "$@"
 }
-trap cleanup 0
-
-
-echo "Check file types..."
-python3 tests/lint/check_file_type.py
-
-echo "Check ASF license header..."
-tests/lint/check_asf_header.sh
-
-echo "Check codestyle of c++ code..."
-tests/lint/cpplint.sh
-
-echo "clang-format check..."
-tests/lint/clang_format.sh
-
-echo "Check codestyle of python code..."
-tests/lint/pylint.sh
-echo "Check codestyle of jni code..."
-tests/lint/jnilint.sh
-
-echo "Check documentations of c++ code..."
-tests/lint/cppdocs.sh
