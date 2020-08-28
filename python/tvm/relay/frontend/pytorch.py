@@ -1000,13 +1000,8 @@ def _transpose(prelude):
 def _flatten():
     def _impl(inputs, input_types):
         data = inputs[0]
-        start_dim = 0
-        end_dim = -1
-
-        if len(inputs) > 0:
-            start_dim = inputs[1]
-        if len(inputs) > 1:
-            end_dim = inputs[2]
+        start_dim = inputs[1] if len(inputs) > 0 else 0
+        end_dim = inputs[2] if len(inputs) > 1 else -1
 
         if start_dim == 0 and end_dim == -1:
             return _op.transform.reshape(data, (-1,))
