@@ -82,11 +82,11 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
         impl #tvm_rt_crate::object::IsObjectRef for #ref_id {
             type Object = #payload_id;
 
-            fn as_object_ptr(&self) -> Option<&ObjectPtr<Self::Object>> {
+            fn as_object_ptr(&self) -> Option<&#tvm_rt_crate::object::ObjectPtr<Self::Object>> {
                 self.0.as_ref()
             }
 
-            fn from_object_ptr(object_ptr: Option<ObjectPtr<Self::Object>>) -> Self {
+            fn from_object_ptr(object_ptr: Option<#tvm_rt_crate::object::ObjectPtr<Self::Object>>) -> Self {
                 #ref_id(object_ptr)
             }
         }
@@ -104,7 +104,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
 
             fn try_from(ret_val: #tvm_rt_crate::RetValue) -> #result<#ref_id> {
                 use std::convert::TryInto;
-                let oref: ObjectRef = ret_val.try_into()?;
+                let oref: #tvm_rt_crate::ObjectRef = ret_val.try_into()?;
                 let ptr = oref.0.ok_or(#tvm_rt_crate::Error::Null)?;
                 let ptr = ptr.downcast::<#payload_id>()?;
                 Ok(#ref_id(Some(ptr)))
