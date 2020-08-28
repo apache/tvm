@@ -211,6 +211,8 @@ def compile_relay(
             logging.info(f"using target input from file: {target}")
             target = "".join(target_file.readlines())
 
+    # TODO: We don't have an API to collect a list of supported
+    #       targets yet. (@leandron)
     logging.debug(f"creating target from input: {target}")
     tvm_target = tvm.target.create(target)
     target_host = ""
@@ -231,8 +233,8 @@ def compile_relay(
     dumps = {}
     for source_type in dump_sources:
         lib = graph_module.get_lib()
-        # TODO lib.get_source call here have inconsistent behavior for unsupported
-        #      formats. This is an open discussion (@leandron).
+        # TODO lib.get_source call have inconsistent behavior for unsupported
+        #      formats (@leandron).
         source = str(mod) if source_type == "relay" else lib.get_source(source_type)
         dumps[source_type] = source
 
