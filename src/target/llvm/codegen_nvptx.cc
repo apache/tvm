@@ -256,8 +256,9 @@ inline int DetectCUDAComputeVersion() {
 
 Target UpdateTarget(const Target& original_target, int compute_ver) {
   Map<String, ObjectRef> target_config = original_target->Export();
-  UpdateTargetConfig("mtriple", "nvptx64-nvidia-cuda", &target_config, true);
-  UpdateTargetConfig("mcpu", "sm_" + std::to_string(compute_ver), &target_config, false);
+  UpdateTargetConfigKeyValueEntry("mtriple", "nvptx64-nvidia-cuda", &target_config, true);
+  UpdateTargetConfigKeyValueEntry("mcpu", "sm_" + std::to_string(compute_ver), &target_config,
+                                  false);
   return Target::FromConfig(target_config);
 }
 

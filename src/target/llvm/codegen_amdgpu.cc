@@ -235,9 +235,10 @@ inline int DetectROCMApiVersion() {
 
 Target UpdateTarget(const Target& original_target) {
   Map<String, ObjectRef> target_config = original_target->Export();
-  UpdateTargetConfig("mtriple", "amdgcn-amd-amdhsa-hcc", &target_config, true);
-  UpdateTargetConfig("mcpu", "gfx" + std::to_string(DetectROCMComputeVersion(original_target)),
-                     &target_config, false);
+  UpdateTargetConfigKeyValueEntry("mtriple", "amdgcn-amd-amdhsa-hcc", &target_config, true);
+  UpdateTargetConfigKeyValueEntry("mcpu",
+                                  "gfx" + std::to_string(DetectROCMComputeVersion(original_target)),
+                                  &target_config, false);
   if (DetectROCMApiVersion() < 305) {
     // before ROCm 3.5 we needed code object v2, starting
     // with 3.5 we need v3 (this argument disables v3)

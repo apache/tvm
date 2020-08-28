@@ -63,8 +63,9 @@ inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
   return fmap;
 }
 
-inline void UpdateTargetConfig(const String& key, const String& value,
-                               Map<String, ObjectRef>* target_config, bool error_if_inconsistent) {
+inline void UpdateTargetConfigKeyValueEntry(const String& key, const String& value,
+                                            Map<String, ObjectRef>* target_config,
+                                            bool error_if_inconsistent) {
   if (target_config->count(key)) {
     const ObjectRef& obj = (*target_config)[key];
     CHECK(obj->IsInstance<StringObj>()) << "TypeError: Expect target key \"" << key
