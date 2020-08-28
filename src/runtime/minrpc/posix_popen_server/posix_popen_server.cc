@@ -37,6 +37,10 @@ class PosixIOHandler {
   explicit PosixIOHandler(int read_fd = 0, int write_fd = 1)
       : read_fd_(read_fd), write_fd_(write_fd) {}
 
+  void MessageStart(uint64_t packet_nbytes) {}
+
+  void MessageDone() {}
+
   ssize_t PosixRead(void* data, size_t size) { return read(read_fd_, data, size); }
 
   ssize_t PosixWrite(const void* data, size_t size) { return write(write_fd_, data, size); }
@@ -63,7 +67,11 @@ int main(int argc, char* argv[]) {
   if (argc != 3) return -1;
   // pass the descriptor via arguments.
   tvm::runtime::PosixIOHandler handler(atoi(argv[1]), atoi(argv[2]));
-  tvm::runtime::PosixMinRPCServer server(handler);
-  server.ServerLoop();
+  tvm::runtime::PosixMinRPCServer server(&handler);
+  bool is_running = true;
+  while (is_running) {
+    is_running = server.ProcessOnePacket();
+  }
+
   return 0;
 }
