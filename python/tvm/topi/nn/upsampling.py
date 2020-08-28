@@ -135,9 +135,6 @@ def upsampling3d(data, scale_d, scale_h, scale_w, layout="NCDHW", method='neares
                             simplify(topi.cast(te.round(scaled_h), data.shape[3].dtype)),
                             simplify(topi.cast(te.round(scaled_w), data.shape[4].dtype)))
         else: # dynamic case -- don't need to scale; already done in shape func
-            print(type(output_shape))
-            print(type(output_shape[2]))
-
             resize_shape = (simplify(topi.cast(te.round(output_shape[2]), data.shape[2].dtype)),
                             simplify(topi.cast(te.round(output_shape[3]), data.shape[3].dtype)),
                             simplify(topi.cast(te.round(output_shape[4]), data.shape[4].dtype)))
@@ -147,8 +144,8 @@ def upsampling3d(data, scale_d, scale_h, scale_w, layout="NCDHW", method='neares
             scaled_h = data.shape[2] * scaled_h
             scaled_w = data.shape[3] * scaled_w
             resize_shape = (simplify(topi.cast(te.round(scaled_d), data.shape[1].dtype)),
-                           simplify(topi.cast(te.round(scaled_h), data.shape[2].dtype)),
-                           simplify(topi.cast(te.round(data.shape[3] * scale_w), data.shape[3].dtype)))
+                            simplify(topi.cast(te.round(scaled_h), data.shape[2].dtype)),
+                            simplify(topi.cast(te.round(data.shape[3] * scale_w), data.shape[3].dtype)))
         else: # dynamic case
             resize_shape = (simplify(topi.cast(te.round(output_shape[1]), data.shape[1].dtype)),
                             simplify(topi.cast(te.round(output_shape[2]), data.shape[2].dtype)),
@@ -156,5 +153,4 @@ def upsampling3d(data, scale_d, scale_h, scale_w, layout="NCDHW", method='neares
     else:
         raise ValueError("not support this layout {} yet".format(layout))
     return topi.image.resize3d(data, resize_shape, layout=layout, method=method,
-                               coordinate_transformation_mode=coordinate_transformation_mode,
-                               output_shape=output_shape)
+                               coordinate_transformation_mode=coordinate_transformation_mode)

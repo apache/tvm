@@ -121,37 +121,36 @@ RELAY_REGISTER_OP("dyn.nn.upsampling")
 // UpSampling3D
 bool UpSampling3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {
-    // types = [data_type, scale_d_type, scale_h_type, scale_w_type, ret_type]
-    CHECK_EQ(types.size(), 5);
-    const auto* data = types[0].as<TensorTypeNode>();
-    if (data == nullptr) return false;
+  // types = [data_type, scale_d_type, scale_h_type, scale_w_type, ret_type]
+  CHECK_EQ(types.size(), 5);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
 
-    static const Layout kNCDHW("NCDHW");
+  static const Layout kNCDHW("NCDHW");
 
-    const UpSampling3DAttrs* param = attrs.as<UpSampling3DAttrs>();
-    CHECK(param != nullptr);
-    const Layout in_layout(param->layout);
+  const UpSampling3DAttrs* param = attrs.as<UpSampling3DAttrs>();
+  CHECK(param != nullptr);
+  const Layout in_layout(param->layout);
 
-    auto layout_converter = tir::BijectiveLayout(in_layout, kNCDHW);
-    CHECK(layout_converter.defined())
-        << "UpSampling3D only support input layouts that are convertible from NCDHW."
-        << " But got " << in_layout;
+  auto layout_converter = tir::BijectiveLayout(in_layout, kNCDHW);
+  CHECK(layout_converter.defined())
+      << "UpSampling3D only support input layouts that are convertible from NCDHW."
+      << " But got " << in_layout;
 
-    auto ncdhw_oshape = layout_converter.ForwardShape(data->shape);
+  auto ncdhw_oshape = layout_converter.ForwardShape(data->shape);
 
-    ncdhw_oshape.Set(2, Any());
-    ncdhw_oshape.Set(3, Any());
-    ncdhw_oshape.Set(4, Any());
+  ncdhw_oshape.Set(2, Any());
+  ncdhw_oshape.Set(3, Any());
+  ncdhw_oshape.Set(4, Any());
 
-    auto oshape = layout_converter.BackwardShape(ncdhw_oshape);
+  auto oshape = layout_converter.BackwardShape(ncdhw_oshape);
 
-    reporter->Assign(types[4], TensorType(oshape, data->dtype));
-    return true;
+  reporter->Assign(types[4], TensorType(oshape, data->dtype));
+  return true;
 }
 
 Expr MakeUpSampling3D(Expr data, Expr scale_d, Expr scale_h, Expr scale_w, String layout,
                       String method, String coordinate_transformation_mode) {
-
   auto attrs = make_object<UpSampling3DAttrs>();
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
@@ -197,10 +196,6 @@ bilinear interpolation.
                                    UpsamplingInferCorrectLayout<UpSampling3DAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
-
 }  // namespace dyn
 }  // namespace relay
 }  // namespace tvm
-
-
-// TODO(electriclilies): make sure upsamplinginfercorrectlayout works for htis! (I think it does.. )

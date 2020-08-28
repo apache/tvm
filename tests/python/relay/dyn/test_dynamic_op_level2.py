@@ -90,7 +90,7 @@ def test_dyn_upsampling3d_run():
         if method == "nearest_neighbor":
             ref_res = tvm.topi.testing.upsampling3d_python(x_data, (scale_d, scale_h, scale_w), layout)
         else:
-            ref_res = tvm.topi.testing.trilinear_resize3d_python(x_data, (int(round(d*scale_d)), 
+            ref_res = tvm.topi.testing.trilinear_resize3d_python(x_data, (int(round(d*scale_d)),
                                                                  int(round(h*scale_h)),
                                                                  int(round(w*scale_w))), layout)
         x = relay.Var("x", relay.TensorType(dshape, "float32"))

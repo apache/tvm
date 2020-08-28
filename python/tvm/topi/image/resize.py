@@ -672,7 +672,7 @@ def crop_and_resize(data, boxes, box_indices, crop_size, layout="NCHW",
 
 
 def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
-             coordinate_transformation_mode="align_corners", out_dtype=None, output_shape=None):
+             coordinate_transformation_mode="align_corners", out_dtype=None):
     """Perform resize operation on the data.
 
     Parameters
@@ -699,10 +699,6 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
 
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
-
-    output_shape: tvm.tir.container.Array, optional
-        Shape to return. If left None will be inferred
-        (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 
     Returns
     -------

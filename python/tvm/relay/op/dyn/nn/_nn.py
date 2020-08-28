@@ -96,7 +96,7 @@ def _upsampling3d_shape_func(dshape, scale_d, scale_h, scale_w,
 
 
 @register_shape_func("dyn.nn.upsampling3d", True)
-def upsampling_shape_func(attrs, inputs, _):
+def upsampling3d_shape_func(attrs, inputs, _):
     """Shape function for upsampling. Supports NCHW and NHWC layouts."""
     layout = attrs.layout
     depth_axis = height_axis = width_axis = 1
