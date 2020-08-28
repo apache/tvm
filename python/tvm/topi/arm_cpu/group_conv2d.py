@@ -19,6 +19,8 @@
 import tvm
 from tvm import autotvm
 from tvm import te
+from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
+
 from ..util import get_const_tuple
 from ..nn.pad import pad
 from .. import tag
@@ -109,16 +111,16 @@ def group_conv2d_nchw_spatial_pack(
 
     assert isinstance(padding, int) or len(padding) == 2 or len(padding) == 4
     if isinstance(padding, int):
-        pt, pl, pb, pr = padding, padding, padding, padding
+        pad_top, pad_left, pad_bottom, pad_right = padding, padding, padding, padding
     elif len(padding) == 2:
-        HPAD, WPAD = padding
-        pt, pb = HPAD, HPAD
-        pl, pr = WPAD, WPAD
+        hpad, wpad = padding
+        pad_top, pad_bottom = hpad, hpad
+        pad_left, pad_right = wpad, wpad
     else:
-        pt, pl, pb, pr = padding
+        pad_top, pad_left, pad_bottom, pad_right = padding
 
-    HPAD = pt + pb
-    WPAD = pl + pr
+    hpad = pad_top + pad_bottom
+    wpad = pad_left + pad_right
 
     assert isinstance(strides, int) or len(strides) == 2
     if isinstance(strides, int):
@@ -129,13 +131,13 @@ def group_conv2d_nchw_spatial_pack(
     batch_size, in_channel, in_height, in_width = get_const_tuple(data.shape)
     out_channel, kernel_depth, k_height, k_width = get_const_tuple(kernel.shape)
 
-    pad_height = in_height + pt + pb
-    pad_width = in_width + pl + pr
+    pad_height = in_height + pad_top + pad_bottom
+    pad_width = in_width + pad_left + pad_right
 
     dilated_kernel_h = (k_height - 1) * dilation_h + 1
     dilated_kernel_w = (k_width - 1) * dilation_w + 1
-    out_height = (in_height + pt + pb - dilated_kernel_h) // stride_h + 1
-    out_width = (in_width + pl + pr - dilated_kernel_w) // stride_w + 1
+    out_height = (in_height + pad_top + pad_bottom - dilated_kernel_h) // stride_h + 1
+    out_width = (in_width + pad_left + pad_right - dilated_kernel_w) // stride_w + 1
 
     kernels_per_group = out_channel // groups
 
@@ -295,7 +297,7 @@ def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, 
         cfg["unroll_kw"].val,
     )
 
-    A, W = data, kernel_vec
+    _, W = data, kernel_vec
     A0, A1 = data_pad, data_vec
 
     # schedule data
