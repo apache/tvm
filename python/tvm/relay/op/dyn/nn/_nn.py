@@ -49,7 +49,7 @@ def compute_upsampling3d(attrs, inputs, out_dtype):
     method = attrs.method
     coordinate_transformation_mode = attrs.coordinate_transformation_mode
     return [topi.nn.upsampling3d(data, scale_d, scale_h, scale_w, layout, method,\
-        coordinate_transformation_mode, out_dtype)]
+        coordinate_transformation_mode, out_dtype.shape)]
 
 register_injective_schedule("dyn.nn.upsampling")
 register_injective_schedule("dyn.nn.upsampling3d")
@@ -84,7 +84,8 @@ def upsampling_shape_func(attrs, inputs, _):
 
 # upsampling3d
 @script
-def _upsampling3d_shape_func(dshape, scale_d, scale_h, scale_w, height_axis, width_axis):
+def _upsampling3d_shape_func(dshape, scale_d, scale_h, scale_w,
+                             depth_axis, height_axis, width_axis):
     out = output_tensor((5,), "int64")
     for i in const_range(5):
         out[i] = int64(dshape[i])
@@ -107,8 +108,9 @@ def upsampling_shape_func(attrs, inputs, _):
         if letter == "W":
             width_axis = i
     return [_upsampling3d_shape_func(inputs[0].shape, inputs[1], inputs[2],
-                                   convert(depth_axis), convert(height_axis),
-                                   convert(width_axis))]
+                                     inputs[3], convert(depth_axis),
+                                     convert(height_axis),
+                                     convert(width_axis))]
 
 # pad
 @script
