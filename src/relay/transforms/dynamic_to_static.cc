@@ -150,6 +150,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
              CHECK_EQ(scale_w->data->ndim, 0);
              const UpSampling3DAttrs* param = call_node->attrs.as<UpSampling3DAttrs>();
              CHECK(param);
+
              return MakeUpSampling3D(call_node->args[0], ToScalar(scale_d->data),
                                      ToScalar(scale_h->data), ToScalar(scale_w->data),
                                      param->layout, param->method,

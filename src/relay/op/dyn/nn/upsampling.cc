@@ -191,7 +191,7 @@ bilinear interpolation.
     .add_argument("scale_h", "double", "The scale for the height.")
     .add_argument("scale_w", "double", "The scale for the width.")
     .set_support_level(2)
-    .add_type_rel("UpSampling3D", UpSampling3DRel)
+    .add_type_rel("DynamicUpSampling3D", UpSampling3DRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                    UpsamplingInferCorrectLayout<UpSampling3DAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kInjective);

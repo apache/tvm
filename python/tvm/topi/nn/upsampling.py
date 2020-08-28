@@ -145,7 +145,7 @@ def upsampling3d(data, scale_d, scale_h, scale_w, layout="NCDHW", method='neares
             scaled_w = data.shape[3] * scaled_w
             resize_shape = (simplify(topi.cast(te.round(scaled_d), data.shape[1].dtype)),
                             simplify(topi.cast(te.round(scaled_h), data.shape[2].dtype)),
-                            simplify(topi.cast(te.round(data.shape[3] * scale_w), data.shape[3].dtype)))
+                            simplify(topi.cast(te.round(scaled_w), data.shape[3].dtype)))
         else: # dynamic case
             resize_shape = (simplify(topi.cast(te.round(output_shape[1]), data.shape[1].dtype)),
                             simplify(topi.cast(te.round(output_shape[2]), data.shape[2].dtype)),
