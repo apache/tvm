@@ -152,14 +152,14 @@ TEST_F(UnframerTest, PacketTooLong) {
   EXPECT_EQ(kTvmErrorNoError, unframer_.Write(escape, sizeof(escape), &bytes_consumed));
   EXPECT_EQ(sizeof(escape), bytes_consumed);
 
-  uint8_t packet_length[4];
-  *((uint32_t*)packet_length) = write_stream_.capacity() + 1;
-  for (char c : packet_length) {
-    ASSERT_NE('\xff', c);
+  uint32_t packet_length = write_stream_.capacity() + 1;
+  uint8_t* packet_length_bytes = reinterpret_cast<uint8_t*>(&packet_length);
+  for (size_t i = 0; i < sizeof(packet_length); i++) {
+    ASSERT_NE('\xff', packet_length_bytes[i]);
   }
-  crc = crc16_compute(packet_length, sizeof(packet_length), &crc);
+  crc = crc16_compute(packet_length_bytes, sizeof(packet_length), &crc);
   EXPECT_EQ(kTvmErrorNoError,
-            unframer_.Write(packet_length, sizeof(packet_length), &bytes_consumed));
+            unframer_.Write(packet_length_bytes, sizeof(packet_length), &bytes_consumed));
   EXPECT_EQ(sizeof(packet_length), bytes_consumed);
 
   uint8_t long_payload[decltype(write_stream_)::capacity() + 1];
