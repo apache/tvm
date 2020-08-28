@@ -147,35 +147,43 @@ if include_libs:
 
 def get_package_data_files():
     # Relay standard libraries
-    return ["relay/std/prelude.rly", "relay/std/core.rly"]
+    return ['relay/std/prelude.rly', 'relay/std/core.rly']
 
 
-setup(
-    name="tvm",
-    version=__version__,
-    description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
-    zip_safe=False,
-    entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
-    install_requires=[
-        "numpy",
-        "scipy",
-        "decorator",
-        "attrs",
-        "psutil",
-        "typed_ast",
-    ],
-    extras_require={
-        "test": ["pillow<7", "matplotlib"],
-        "extra_feature": ["tornado", "psutil", "xgboost>=1.1.0", "mypy", "orderedset"],
-    },
-    packages=find_packages(),
-    package_dir={"tvm": "tvm"},
-    package_data={"tvm": get_package_data_files()},
-    distclass=BinaryDistribution,
-    url="https://github.com/apache/incubator-tvm",
-    ext_modules=config_cython(),
-    **setup_kwargs,
-)
+setup(name='tvm',
+      version=__version__,
+      description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
+      zip_safe=False,
+      entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
+      install_requires=[
+        'numpy',
+        'scipy',
+        'decorator',
+        'attrs',
+        'psutil',
+        'typed_ast',
+        'tensorflow==2.1.0',
+        'tflite==2.1.0',
+        'onnx==1.6.0',
+        'onnxruntime==1.0.0',
+        'torch==1.4.0',
+        'torchvision==0.5.0'
+        ],
+      extras_require={'test': ['pillow<7',
+                               'matplotlib'],
+                      'extra_feature': ['tornado',
+                                        'psutil',
+                                        'xgboost>=1.1.0',
+                                        'mypy',
+                                        'orderedset']},
+
+      packages=find_packages(),
+      package_dir={'tvm': 'tvm'},
+      package_data={'tvm': get_package_data_files()},
+      distclass=BinaryDistribution,
+      url='https://github.com/apache/incubator-tvm',
+      ext_modules=config_cython(),
+      **setup_kwargs)
 
 
 if wheel_include_libs:

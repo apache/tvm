@@ -17,7 +17,75 @@
 """
 Common utility functions shared by TVMC modules.
 """
+import argparse
+import re
+
+from tvm import relay
+from tvm import transform
 
 
 class TVMCException(Exception):
     """TVMC Exception"""
+
+
+def convert_graph_layout(mod, desired_layout):
+    """Alter the layout of the input graph.
+
+    Parameters
+    ----------
+    mod : tvm.relay.Module
+        The relay module to convert.
+    desired_layout : str
+        The layout to convert to.
+
+    Returns
+    -------
+    mod : tvm.relay.Module
+        The converted module.
+    """
+
+    # Assume for the time being that graphs only have
+    # conv2d as heavily-sensitive operators.
+    desired_layouts = {
+        "nn.conv2d": [desired_layout, "default"],
+        "qnn.conv2d": [desired_layout, "default"],
+    }
+
+    # Convert the layout of the graph where possible.
+    seq = transform.Sequential(
+        [
+            relay.transform.RemoveUnusedFunctions(),
+            relay.transform.ConvertLayout(desired_layouts),
+        ]
+    )
+    with transform.PassContext(opt_level=3):
+        return seq(mod)
+
+
+def parse_input_shapes(shapes_str):
+    """ Parsing function for tensor shape syntax. """
+    shapes = []
+    # Split up string into comma seperated sections ignoring commas in ()s
+    match = re.findall(r"(\(.*?\)|.+?),?", shapes_str)
+    if match:
+        for inp in match:
+            # Test for and remove brackets
+            shape = re.match(r"\((.*)\)", inp)
+            if shape and shape.lastindex == 1:
+                # Remove white space and extract numbers
+                strshape = shape[1].replace(" ", "").split(",")
+                try:
+                    shapes.append([int(i) for i in strshape])
+                except ValueError:
+                    raise argparse.ArgumentTypeError(
+                        f"expected numbers in shape '{shape[1]}'"
+                    )
+            else:
+                raise argparse.ArgumentTypeError(
+                    f"missing brackets around shape '{inp}', example '(1,2,3)'"
+                )
+    else:
+        raise argparse.ArgumentTypeError(
+            f"unrecognized shapes '{shapes_str}', example '(1,2,3),(1,4),...'"
+        )
+    return shapes
