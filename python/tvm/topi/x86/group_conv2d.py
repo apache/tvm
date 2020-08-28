@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Grouped Spatial Pack Convolution (Group Conv2D) schedule on x86"""
 
 import tvm
 from tvm import autotvm
@@ -69,19 +70,19 @@ def _fallback_schedule(cfg, wkl):
 
     oc_bn = 1
     for bn in range(simd_width, 0, -1):
-        if KPG % bn == 0:
+        if kernels_per_group % bn == 0:
             oc_bn = bn
             break
-    if oc_bn > KPG:
-        oc_bn = KPG
+    if oc_bn > kernels_per_group:
+        oc_bn = kernels_per_group
 
     ic_bn = 1
     for bn in range(oc_bn, 0, -1):
-        if CPG % bn == 0:
+        if kernel_depth % bn == 0:
             ic_bn = bn
             break
-    if ic_bn > CPG:
-        ic_bn = CPG
+    if ic_bn > kernel_depth:
+        ic_bn = kernel_depth
 
     reg_n = 1
     for n in range(31, 0, -1):
@@ -111,36 +112,39 @@ def group_conv2d_nchw_spatial_pack(
 
     assert isinstance(padding, int) or len(padding) == 2 or len(padding) == 4
     if isinstance(padding, int):
-        HPAD, WPAD = padding, padding
+        pt, pl, pb, pr = padding, padding, padding, padding
     elif len(padding) == 2:
         HPAD, WPAD = padding
+        pt, pb = HPAD, HPAD
+        pl, pr = WPAD, WPAD
     else:
-        HPAD, _, WPAD, _ = padding
+        pt, pl, pb, pr = padding
+
+    HPAD = pt + pb
+    WPAD = pl + pr
 
     assert isinstance(strides, int) or len(strides) == 2
     if isinstance(strides, int):
-        HSTR, WSTR = strides, strides
+        stride_h, stride_w = strides, strides
     else:
-        HSTR, WSTR = strides
+        stride_h, stride_w = strides
 
-    N, CI, IH, IW = get_const_tuple(data.shape)
-    CO, CIG, KH, KW = get_const_tuple(kernel.shape)
+    batch_size, in_channel, in_height, in_width = get_const_tuple(data.shape)
+    out_channel, kernel_depth, k_height, k_width = get_const_tuple(kernel.shape)
 
-    pad_height = IH + 2 * HPAD
-    pad_width = IW + 2 * WPAD
+    pad_height = in_height + pt + pb
+    pad_width = in_width + pl + pr
 
-    dilated_kernel_h = (KH - 1) * dilation_h + 1
-    dilated_kernel_w = (KW - 1) * dilation_w + 1
-    OH = (IH + 2 * HPAD - dilated_kernel_h) // HSTR + 1
-    OW = (IW + 2 * WPAD - dilated_kernel_w) // WSTR + 1
+    dilated_kernel_h = (k_height - 1) * dilation_h + 1
+    dilated_kernel_w = (k_width - 1) * dilation_w + 1
+    out_height = (in_height + pt + pb - dilated_kernel_h) // stride_h + 1
+    out_width = (in_width + pl + pr - dilated_kernel_w) // stride_w + 1
 
-    G = groups
-    KPG = CO // G
-    CPG = CI // G
+    kernels_per_group = out_channel // groups
 
-    cfg.define_split("tile_ic", CI, num_outputs=2)
-    cfg.define_split("tile_oc", CO, num_outputs=2)
-    cfg.define_split("tile_ow", OW, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
+    cfg.define_split("tile_ic", in_channel, num_outputs=2)
+    cfg.define_split("tile_oc", out_channel, num_outputs=2)
+    cfg.define_split("tile_ow", out_width, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
     cfg.define_knob("unroll_kw", [True, False])
 
     # If no config was set, we can fallback to default config.
@@ -292,13 +296,13 @@ def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, 
         cfg["unroll_kw"].val,
     )
 
-    A, W = data, kernel_vec
+    _, W = data, kernel_vec
     A0, A1 = data_pad, data_vec
 
     # schedule data
     if isinstance(data_pad.op, tvm.te.ComputeOp) and "pad" in data_pad.op.tag:
         s[A0].compute_inline()
-    groups, batch, ic_chunk, ih, ic_block, iw = s[A1].op.axis
+    groups, batch, ic_chunk, ih, ic_block, _ = s[A1].op.axis
 
     parallel_axis = s[A1].fuse(batch, ic_chunk, ih)
     s[A1].parallel(parallel_axis)
