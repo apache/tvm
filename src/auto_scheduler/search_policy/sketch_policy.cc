@@ -27,7 +27,6 @@
 #include "sketch_policy.h"
 
 #include <tvm/runtime/registry.h>
-#include <tvm/support/parallel_for.h>
 
 #include <algorithm>
 #include <iomanip>
@@ -262,6 +261,7 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
     *random_states = RandomSampleStates(init_population, &rand_gen, num_random_states * 10);
     return EvolutionarySearch(init_population, num_measure_per_iter_ * 2);
   } else {
+    PruneInvalidState(search_task, &init_population);
     return RandomSampleStates(init_population, &rand_gen, num_measure_per_iter_ * 3);
   }
 }
@@ -337,40 +337,31 @@ Array<State> SketchPolicyNode::GenerateSketches() {
 }
 
 Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches, int out_size) {
-  std::atomic<int> fail_ct(0);
-  std::mutex m;
+  int fail_ct = 0;
   Array<State> out_states;
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
-  support::parallel_for(
-      0, out_size, [this, &out_size, &sketches, &out_states, &fail_ct, &m](int i) {
-        if (fail_ct >= out_size) {
-          return;
-        }
+  while (static_cast<int>(out_states.size()) < out_size && fail_ct < out_size) {
+    // Random choose a starting sketch
+    // TODO(jcf94, merrymercy): Maybe choose sketches in different possibility for they may have
+    // different potential on generating state with better performance
+    State tmp_s = sketches[(rand_gen)() % sketches.size()];
 
-        // Random choose a starting sketch
-        // TODO(jcf94, merrymercy): Maybe choose sketches in different possibility for they may have
-        // different potential on generating state with better performance
-        State tmp_s = sketches[(rand_gen)() % sketches.size()];
-        // Derivation rule based enumeration
-        bool valid = true;
-        for (const auto& rule : init_rules) {
-          // Some rules use the random generator of SketchPolicyNode, so this part has to be
-          // protected
-          std::unique_lock<std::mutex> l(m);
-          if (rule->Apply(this, &tmp_s) == PopulationGenerationRule::ResultKind::kInvalid) {
-            valid = false;
-            break;
-          }
-        }
+    // Derivation rule based enumeration
+    bool valid = true;
+    for (const auto& rule : init_rules) {
+      if (rule->Apply(this, &tmp_s) == PopulationGenerationRule::ResultKind::kInvalid) {
+        valid = false;
+        break;
+      }
+    }
 
-        if (valid) {
-          std::unique_lock<std::mutex> l(m);
-          out_states.push_back(std::move(tmp_s));
-        } else {
-          fail_ct++;
-        }
-      });
+    if (valid) {
+      out_states.push_back(std::move(tmp_s));
+    } else {
+      fail_ct++;
+    }
+  }
 
   double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
                         std::chrono::high_resolution_clock::now() - tic_begin)
