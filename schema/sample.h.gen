@@ -1,0 +1,52 @@
+// tschema: GlobalVarNode
+class GlobalVarNode : public RelayExprNode {
+ public:
+  String name_hint;
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("span", &span);
+    v->Visit("checked_type_", &checked_type_);
+    v->Visit("name_hint", &name_hint);
+  }
+  static constexpr const char* _type_key = "GlobalVar";
+  TVM_DECLARE_BASE_OBJECT_INFO(GlobalVarNode, RelayExprNode);
+  // tschema: custom-begin
+  bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {
+    return equal(name_hint, other->name_hint) && equal.FreeVarEqualImpl(this, other)
+  }
+  bool SHashReduce(SHashReducer hash_reducer) const {
+    hash_reduce(name_hint);
+    hash_reduce.FreeVarHashImpl(this);
+  }
+  // tschema: custom-end
+};
+// tschema: end
+
+// tschema: IntImmNode
+class IntImmNode : public PrimExprNode {
+ public:
+  int64_t value;
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
+    v->Visit("value", &value);
+  }
+  void SEqualReduce(const IntImmNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype) && equal(value, other->value)
+  }
+  void SHashReduce(SHashReducer hash_reducer) const {
+    hash_reducer(dtype);
+    hash_reducer(value);
+  }
+  static constexpr const char* _type_key = "IntImm";
+  TVM_DECLARE_BASE_OBJECT_INFO(IntImmNode, PrimExprNode);
+};
+// tschema: end
+
+// tschema: IntImm
+class IntImm : public PrimExpr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(IntImm, PrimExpr, IntImmNode);
+  // tschema: custom-begin
+  TVM_DLL IntImm(DataType dtype, int64_t value);
+  // tschema: custom-end
+};
+// tschema: end

@@ -1,4 +1,5 @@
 import re
+import subprocess
 from collections import namedtuple
 from .expr import *
 from .registry import lookup
@@ -148,36 +149,55 @@ def generate(expr, language='cpp'):
 
 
 TextGroup = namedtuple("TextGroup", ['lines', 'is_normal'])
+InternalUsed = ['end', 'custom-begin', 'custom-end']
 
 def _process_schema_group(group):
     lines = group.lines
-    property_lines = []
-    properties = {}
-    regex = r"//[\s]*([\D]+):[\s]*([a-zA-Z]+)"
-    for num, line in enumerate(lines):
-        if re.search(regex, line):
-            matches = re.findall(regex, line)
-            for match in matches:
-                properties[match[0]] = match[1]
-            property_lines.append(line)
-    assert 'name' in properties
-    assert 'schema-type' in properties
-    expr = lookup(properties['name'], properties['schema-type'])
+    match = re.match(r"//[\s]*tschema[\s]*:[\s]*([\w]+)", lines[0])
+    key = match[1]
+    print(key)
+    expr = lookup(key)
     content = generate(expr)
     content = content.split('\n')
-    return [lines[0]] + property_lines + content + [lines[-1]]
+
+    # find customized content
+    custom_begin = []
+    custom_end = []
+    for num, line in enumerate(lines):
+        if re.search(r"//[\s]*tschema[\s]*:[\s]*custom-begin", line):
+            custom_begin.append(num)
+        if re.search(r"//[\s]*tschema[\s]*:[\s]*custom-end", line):
+            custom_end.append(num)
+
+    assert(len(custom_begin) == len(custom_end))
+    num_pairs = len(custom_begin)
+    custom_groups = []
+    for begin, end in zip(custom_begin, custom_end):
+        custom_groups.append(lines[begin:end+1])
+
+    code = []
+    code.append(lines[0])
+    code += content[:-1]
+    for group in custom_groups:
+        code += group
+    code.append(content[-1])
+    code.append(lines[-1])
+    return code
 
 
-def process(fname):
+def process(fname, out_fname=None):
     with open(fname, 'r') as fin: 
         text = fin.read()
     lines = text.split('\n')
     begin_num = []
     end_num = []
     for num, line in enumerate(lines):
-        if re.search(r"//[\s]*SCHEMA-BEGIN", line):
-            begin_num.append(num)
-        if re.search(r"//[\s]*SCHEMA-END", line):
+        if re.search(r"//[\s]*tschema[\s]*:[\s]*[-\w]+", line):
+            match = re.findall(r"//[\s]*tschema[\s]*:[\s]*([-\w]+)", line)
+            key = match[0]
+            if key not in InternalUsed:
+                begin_num.append(num)
+        if re.search(r"//[\s]*tschema[\s]*:[\s]*end", line):
             end_num.append(num)
 
     assert(len(begin_num) == len(end_num))
@@ -206,6 +226,11 @@ def process(fname):
         else:
             new_lines += _process_schema_group(group)
 
-    with open(fname, 'w+') as fout:
+    if out_fname is None:
+        out_fname = fname
+    with open(out_fname, 'w+') as fout:
         fout.write('\n'.join(new_lines))
+
+    # format
+    subprocess.call(["clang-format", "-assume-filename=cpp", "-i", out_fname])
     return
