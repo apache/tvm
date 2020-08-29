@@ -24,6 +24,7 @@
 #include "codegen_blob.h"
 
 #include <tvm/runtime/module.h>
+#include <tvm/target/target.h>
 
 #include <cstring>
 
@@ -33,8 +34,8 @@ namespace codegen {
 std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> CodeGenBlob(
     const std::string& data, bool system_lib, const std::string& target_triple) {
   InitializeLLVM();
-  std::string full_target_triple = std::string("-mtriple ") + target_triple;
-  auto tm = GetLLVMTargetMachine(full_target_triple);
+  Target target = Target::Create("llvm -mtriple " + target_triple);
+  auto tm = GetLLVMTargetMachine(target);
   auto triple = tm->getTargetTriple();
   auto ctx = std::make_shared<llvm::LLVMContext>();
   std::string module_name = "devc";
@@ -43,7 +44,7 @@ std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> Cod
   // Store full target string in metadata, because flags such as -mfloat-abi must be preserved for
   // ModulePackImportsToLLVM.
   module->addModuleFlag(llvm::Module::ModFlagBehavior::Override, "tvm_target",
-                        llvm::MDString::get(*ctx, full_target_triple));
+                        llvm::MDString::get(*ctx, LLVMTargetToString(target)));
   module->setDataLayout(tm->createDataLayout());
   auto* blob_value = llvm::ConstantDataArray::getString(*ctx, data, false);
   auto* tvm_dev_mblob = new llvm::GlobalVariable(
