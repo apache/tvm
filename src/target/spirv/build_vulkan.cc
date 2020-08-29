@@ -63,7 +63,7 @@ class SPIRVTools {
   spv_context ctx_;
 };
 
-runtime::Module BuildSPIRV(IRModule mod, std::string target, bool webgpu_restriction) {
+runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction) {
   using tvm::runtime::Registry;
   using tvm::runtime::VulkanShader;
 
@@ -116,11 +116,11 @@ runtime::Module BuildSPIRV(IRModule mod, std::string target, bool webgpu_restric
   return runtime::VulkanModuleCreate(smap, ExtractFuncInfo(mod), code_data.str());
 }
 
-TVM_REGISTER_GLOBAL("target.build.vulkan").set_body_typed([](IRModule mod, std::string target) {
+TVM_REGISTER_GLOBAL("target.build.vulkan").set_body_typed([](IRModule mod, Target target) {
   return BuildSPIRV(mod, target, false);
 });
 
-TVM_REGISTER_GLOBAL("target.build.webgpu").set_body_typed([](IRModule mod, std::string target) {
+TVM_REGISTER_GLOBAL("target.build.webgpu").set_body_typed([](IRModule mod, Target target) {
   return BuildSPIRV(mod, target, true);
 });
 

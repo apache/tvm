@@ -54,6 +54,9 @@ class Target(Object):
     def __exit__(self, ptype, value, trace):
         _ffi_api.ExitTargetScope(self)
 
+    def export(self):
+        return _ffi_api.TargetExport(self)
+
     @staticmethod
     def current(allow_none=True):
         """Returns the current target.

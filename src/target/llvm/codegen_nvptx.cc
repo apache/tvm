@@ -254,14 +254,19 @@ inline int DetectCUDAComputeVersion() {
   }
 }
 
-runtime::Module BuildNVPTX(IRModule mod, std::string target) {
+Target UpdateTarget(const Target& original_target, int compute_ver) {
+  Map<String, ObjectRef> target_config = original_target->Export();
+  UpdateTargetConfigKeyValueEntry("mtriple", "nvptx64-nvidia-cuda", &target_config, true);
+  UpdateTargetConfigKeyValueEntry("mcpu", "sm_" + std::to_string(compute_ver), &target_config,
+                                  false);
+  return Target::FromConfig(target_config);
+}
+
+runtime::Module BuildNVPTX(IRModule mod, Target original_target) {
   InitializeLLVM();
-  CHECK(target.length() >= 5 && target.substr(0, 5) == "nvptx");
   int compute_ver = DetectCUDAComputeVersion();
-  std::ostringstream config;
-  config << "-mtriple=nvptx64-nvidia-cuda -mcpu=sm_" << compute_ver
-         << target.substr(5, target.length() - 5);
-  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
+  Target target = UpdateTarget(original_target, compute_ver);
+  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   // careful: cg will hold a naked pointer reference to ctx, so it should
   // have a shorter lifetime than the ctx.
