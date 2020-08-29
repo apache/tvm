@@ -26,7 +26,7 @@
 
 #include <dmlc/common.h>
 #include <dmlc/memory_io.h>
-#include <tvm/runtime/vm.h>
+#include <tvm/runtime/vm/executable.h>
 
 #include <functional>
 #include <string>

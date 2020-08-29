@@ -17,6 +17,7 @@
 """Target data structure."""
 import os
 import re
+import json
 import warnings
 import tvm._ffi
 
@@ -25,8 +26,8 @@ from . import _ffi_api
 
 
 @tvm._ffi.register_object
-class TargetId(Object):
-    """Id of a compilation target
+class TargetKind(Object):
+    """Kind of a compilation target
     """
 
 
@@ -45,6 +46,7 @@ class Target(Object):
     - :py:func:`tvm.target.mali` create Mali target
     - :py:func:`tvm.target.intel_graphics` create Intel Graphics target
     """
+
     def __enter__(self):
         _ffi_api.EnterTargetScope(self)
         return self
@@ -163,7 +165,8 @@ def intel_graphics(model='unknown', options=None):
     options : str or list of str
         Additional options
     """
-    opts = ["-device=intel_graphics", "-model=%s" % model, "-thread_warp_size=16"]
+    opts = ["-device=intel_graphics", "-model=%s" %
+            model, "-thread_warp_size=16"]
     opts = _merge_opts(opts, options)
     return _ffi_api.TargetCreate("opencl", *opts)
 
@@ -186,7 +189,10 @@ def arm_cpu(model='unknown', options=None):
         "p20":       ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
         "p20pro":    ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
         "rasp3b":    ["-model=bcm2837", "-mtriple=armv7l-linux-gnueabihf", "-mattr=+neon"],
-        "rasp4b":    ["-model=bcm2711", "-mtriple=arm-linux-gnueabihf", "-mattr=+neon"],
+        "rasp4b":    ["-model=bcm2711", "-mtriple=armv8l-linux-gnueabihf", "-mattr=+neon",
+                      "-mcpu=cortex-a72"],
+        "rasp4b64":  ["-model=bcm2711", "-mtriple=aarch64-linux-gnu", "-mattr=+neon",
+                      "-mcpu=cortex-a72"],
         "rk3399":    ["-model=rk3399", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
         "pynq":      ["-model=pynq", "-mtriple=armv7a-linux-eabi", "-mattr=+neon"],
         "ultra96":   ["-model=ultra96", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
@@ -231,7 +237,7 @@ def bifrost(model='unknown', options=None):
     return _ffi_api.TargetCreate("opencl", *opts)
 
 
-def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
+def hexagon(cpu_ver='v66', sim_args=None, llvm_args=None, hvx=128):
     """Returns a Hexagon target.
 
     Parameters
@@ -244,6 +250,8 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
         Otherwise, separate versions are used for codegen and sim. Not
         all allowed cpu strings will be valid, simulator will throw an
         error if invalid. Does not affect codegen.
+    llvm_args : str or list of str
+        User defined compiler arguments.
     hvx : int
         Size of hvx register. Value of 0 indicates disabled hvx.
     """
@@ -269,7 +277,7 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
         # HVX enable
         if hvx:
             mattr = ' -mattr=+hvx' + cpu_ver + ',+hvx-length' + str(hvx) + 'b'
-        return 'llvm' + target + mcpu + mattr
+        return target + mcpu + mattr
 
     # Simulator string
     def create_sim(cpu_ver, sim_args):
@@ -280,7 +288,7 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
                 i = sim_args.index('hvx_length') + len('hvx_length') + 1
                 sim_hvx = sim_args[i:i+3]
                 if sim_hvx != str(codegen_hvx):
-                    print('WARNING: sim hvx {} and codegen hvx {} mismatch!' \
+                    print('WARNING: sim hvx {} and codegen hvx {} mismatch!'
                           .format(sim_hvx, codegen_hvx))
             elif codegen_hvx != 0:
                 # If --hvx_length was not given, add it if HVX is enabled
@@ -313,28 +321,70 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
             # Parse options into correct order
             cpu_attr = {x: str(m.groupdict()[x] or '') for x in m.groupdict()}
             sim_args = cpu_attr['base_version'] +  \
-                       cpu_attr['sub_version']  +  \
-                       cpu_attr['l2_size'] +       \
-                       cpu_attr['rev'] + ' ' +     \
-                       cpu_attr['pre'] + cpu_attr['post']
+                cpu_attr['sub_version'] +  \
+                cpu_attr['l2_size'] +       \
+                cpu_attr['rev'] + ' ' +     \
+                cpu_attr['pre'] + cpu_attr['post']
 
         return sim_cpu + ' ' + validate_hvx_length(hvx, sim_args)
+
+    # LLVM string
+    def create_llvm(llvm_args):
+        # TVM's option parser doesn't allow '=' in values, but '=' can
+        # appear in LLVM flags. Replace it with '@', since it's unlikely
+        # that '@' will be used in another context.
+        if llvm_args is None or len(llvm_args.replace(' ', '')) == 0:
+            return ''
+        args = [s.replace('=', '@') for s in llvm_args.split()]
+        return '--llvm-options=' + ','.join(args)
 
     # Sim args
     os.environ['HEXAGON_SIM_ARGS'] = create_sim(cpu_ver, sim_args)
 
     target_str = create_target(cpu_ver)
-    args_list = target_str.split()
-    return _ffi_api.TargetCreate("hexagon", *args_list)
+    llvm_str = create_llvm(llvm_args)
+    args_list = target_str.split() + llvm_str.split()
+
+    return _ffi_api.TargetCreate('hexagon', *args_list)
 
 
-def create(target_str):
+def create(target):
     """Get a target given target string.
 
     Parameters
     ----------
-    target_str : str
-        The target string.
+    target : str or dict
+        Can be one of a literal target string, a json string describing
+        a configuration, or a dictionary of configuration options.
+        When using a dictionary or json string to configure target, the
+        possible values are:
+
+        kind :  str (required)
+            Which codegen path to use, for example 'llvm' or 'cuda'.
+        keys : List of str (optional)
+            A set of strategies that can be dispatched to. When using
+            "kind=opencl" for example, one could set keys to ["mali", "opencl", "gpu"].
+        device : str (optional)
+            A single key that corresponds to the actual device being run on.
+            This will be effectively appended to the keys.
+        libs : List of str (optional)
+            The set of external libraries to use. For example ['cblas', 'mkl'].
+        system-lib : bool (optional)
+            If True, build a module that contains self registered functions.
+            Useful for environments where dynamic loading like dlopen is banned.
+        mcpu : str (optional)
+            The specific cpu being run on. Serves only as an annotation.
+        model : str (optional)
+            An annotation indicating what model a workload came from.
+        runtime : str (optional)
+            An annotation indicating which runtime to use with a workload.
+        mtriple : str (optional)
+            The llvm triplet describing the target, for example "arm64-linux-android".
+        mattr : List of str (optional)
+            The llvm features to compile with, for example ["+avx512f", "+mmx"].
+        mfloat-abi : str (optional)
+            An llvm setting that is one of 'hard' or 'soft' indicating whether to use
+            hardware or software floating-point operations.
 
     Returns
     -------
@@ -345,9 +395,16 @@ def create(target_str):
     ----
     See the note on :py:mod:`tvm.target` on target string format.
     """
-    if isinstance(target_str, Target):
-        return target_str
-    if not isinstance(target_str, str):
-        raise ValueError("target_str has to be string type")
+    if isinstance(target, Target):
+        return target
+    if isinstance(target, dict):
+        return _ffi_api.TargetFromConfig(target)
+    if isinstance(target, str):
+        # Check if target is a valid json string by trying to load it.
+        # If we cant, then assume it is a non-json target string.
+        try:
+            return _ffi_api.TargetFromConfig(json.loads(target))
+        except json.decoder.JSONDecodeError:
+            return _ffi_api.TargetFromString(target)
 
-    return _ffi_api.TargetFromString(target_str)
+    raise ValueError("target has to be a string or dictionary.")

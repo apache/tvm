@@ -278,8 +278,6 @@ void MemoryManagerCreate(MemoryManager* manager, uint8_t* memory_pool,
   size_t bytes_needed_per_page = page_size_bytes + metadata_bytes_per_page;
   size_t num_pages = memory_pool_size_bytes / bytes_needed_per_page;
 
-  size_t metadata_pages_bytes = ROUND_UP(metadata_bytes_per_page * num_pages, page_size_bytes);
-  size_t metadata_num_pages = metadata_pages_bytes >> page_size_bytes_log2;
   uint8_t* metadata_cursor = memory_pool + (num_pages << page_size_bytes_log2);
 
   manager->ptable.memory_pool = memory_pool;

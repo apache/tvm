@@ -17,7 +17,7 @@
 import tvm
 import numpy as np
 from tvm import te
-from topi.nn.pooling import pool
+from tvm.topi.nn.pooling import pool
 
 def test_tensor():
     m = te.size_var('m')

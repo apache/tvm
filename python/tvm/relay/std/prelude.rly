@@ -16,9 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-v0.0.4
-
-// TODO(weberlo): should we add sugar for scalar types (e.g., `int32` => `Tensor[(), int32]`)?
+#[version = "0.0.5"]
 
 def @id[A](%x: A) -> A {
   %x
@@ -298,7 +296,7 @@ def @size[A](%t: Tree[A]) -> Tensor[(), int32] {
  * Takes a number n and a function f; returns a closure that takes an argument
  * and applies f n times to its argument.
  */
-def @iterate[A](%f: fn(A) -> A, %n: Tensor[(), int32]) -> (fn(A) -> A) {
+def @iterate[A](%f: fn(A) -> A, %n: Tensor[(), int32]) -> fn(A) -> A {
   if (%n == 0) {
     @id
   } else {

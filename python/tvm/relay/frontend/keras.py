@@ -63,7 +63,7 @@ def _convert_recurrent_activation(inexpr, keras_layer):
     return _convert_activation(inexpr, act_type, None)
 
 
-def _convert_activation(inexpr, keras_layer, _):
+def _convert_activation(inexpr, keras_layer, etab):
     if isinstance(keras_layer, str):
         act_type = keras_layer
     else:
@@ -80,7 +80,8 @@ def _convert_activation(inexpr, keras_layer, _):
         beta = _expr.const(beta, dtype='float32')
         return _op.add(_op.multiply(inexpr, alpha), beta)
     if act_type == 'softmax':
-        return _op.nn.softmax(inexpr, axis=1)
+        axis = 1 if etab.data_layout == 'NCHW' else -1
+        return _op.nn.softmax(inexpr, axis)
     if act_type == 'sigmoid':
         return _op.sigmoid(inexpr)
     if act_type == 'tanh':
@@ -123,10 +124,11 @@ def _convert_advanced_activation(inexpr, keras_layer, etab):
         if isinstance(axis, list):
             raise tvm.error.OpAttributeUnImplemented(
                 'Softmax with axes {} is not supported.'.format(axis))
-        if axis == -1:
-            axis = 1
-        else:
-            axis = axis + 1 if axis < dims - 1 else 1
+        if etab.data_layout == 'NCHW':
+            if axis == -1:
+                axis = 1
+            else:
+                axis = axis + 1 if axis < dims - 1 else 1
         return _op.nn.softmax(inexpr, axis=axis)
     if act_type == 'ReLU':
         threshold = _expr.const(keras_layer.threshold, dtype='float32')
@@ -149,8 +151,11 @@ def _convert_advanced_activation(inexpr, keras_layer, etab):
         assert hasattr(keras_layer, 'alpha'), "alpha required for PReLU."
         _check_data_format(keras_layer)
         size = len(keras_layer.alpha.shape)
-        alpha = etab.new_const(keras_layer.get_weights()[0] \
-                               .transpose(np.roll(range(size), 1)))
+        if etab.data_layout == 'NCHW':
+            alpha = etab.new_const(keras_layer.get_weights()[0]
+                                   .transpose(np.roll(range(size), 1)))
+        else:
+            alpha = etab.new_const(keras_layer.get_weights()[0])
         return _op.negative(alpha) * _op.nn.relu(_op.negative(inexpr)) + _op.nn.relu(inexpr)
     if act_type == 'ThresholdedReLU':
         theta = keras_layer.theta if hasattr(keras_layer, 'theta') else 1.
@@ -1073,11 +1078,18 @@ def from_keras(model, shape=None, layout='NCHW'):
                 # The one exception is InputLayer. Changing input variable names after conversion
                 # would confuse users, so we should keep them as far as possible. Fortunately,
                 # they are named uniquely to input_1, input_2, input_3... by default.
-                zip_node = zip(
-                    _as_list(node.node_indices),
-                    _as_list(node.tensor_indices),
-                    _as_list(node.inbound_layers))
-                for n_idx, t_idx, inbound_layer in zip_node:
+                # node_indices attribute removed in tensorflow 2.3, however iterate_inbound() can
+                # be used
+                if hasattr(node, 'node_indices'):
+                    zip_node = zip(
+                        _as_list(node.inbound_layers),
+                        _as_list(node.node_indices),
+                        _as_list(node.tensor_indices),
+                        _as_list(node.input_tensors))
+                    node_attributes = zip_node
+                else:
+                    node_attributes = node.iterate_inbound()
+                for inbound_layer, n_idx, t_idx, _ in node_attributes:
                     if isinstance(inbound_layer, input_layer_class):
                         expr_name = inbound_layer.name
                         _convert_input_layer(inbound_layer)

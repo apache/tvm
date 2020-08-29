@@ -29,7 +29,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/vm.h>
+#include <tvm/runtime/vm/vm.h>
 #include <tvm/support/logging.h>
 #include <tvm/tir/function.h>
 
@@ -112,7 +112,8 @@ class VMCompiler : public runtime::ModuleNode {
   void Codegen();
 
  protected:
-  IRModule OptimizeModule(const IRModule& mod, const TargetsMap& targets);
+  IRModule OptimizeModule(const IRModule& mod, const TargetsMap& targets,
+                          const Target& target_host);
 
   void PopulateGlobalMap();
 

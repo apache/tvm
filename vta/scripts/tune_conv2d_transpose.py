@@ -24,7 +24,7 @@ import os
 import tvm
 from tvm import te
 from tvm import autotvm
-import topi
+from tvm import topi
 import vta
 import vta.testing
 

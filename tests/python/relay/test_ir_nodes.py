@@ -31,10 +31,12 @@ def check_json_roundtrip(node):
 
 # Span
 def test_span():
-    span = relay.Span(None, 1, 1)
-    assert span.source == None
+    span = relay.Span(None, 1, 2, 3, 4)
+    assert span.source_name == None
     assert span.line == 1
-    assert span.column == 1
+    assert span.end_line == 2
+    assert span.column == 3
+    assert span.end_column == 4
     assert span.same_as(span)
     assert span == span
     assert isinstance(span, relay.base.Span)
@@ -43,9 +45,11 @@ def test_span():
     # span is not a node so we can't use graph_equal
     # to test the round trip
     back = tvm.ir.load_json(tvm.ir.save_json(span))
-    assert back.source == span.source
+    assert back.source_name == span.source_name
     assert back.line == span.line
+    assert back.end_line == span.end_line
     assert back.column == span.column
+    assert back.end_column == span.end_column
 
 
 def test_constant():

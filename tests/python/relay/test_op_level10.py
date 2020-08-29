@@ -19,12 +19,12 @@
 import numpy as np
 import tvm
 from tvm import te
-import topi.testing
+import tvm.topi.testing
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import ctx_list, run_infer_type
-import topi
-import topi.testing
+from tvm import topi
+import tvm.topi.testing
 
 
 def test_checkpoint():
@@ -59,9 +59,9 @@ def test_checkpoint_alpha_equal():
         mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
-    df_parsed = relay.parser.fromtext(
+    df_parsed = tvm.parser.parse_expr(
         """
-        v0.0.4
+        #[version = "0.0.5"]
         fn (%x: Tensor[(1), float32], %y: Tensor[(1), float32],
             %z: Tensor[(1), float32], %w: Tensor[(1), float32])
             ->  (Tensor[(1), float32],
@@ -115,9 +115,9 @@ def test_checkpoint_alpha_equal_tuple():
         mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
-    df_parsed = relay.parser.fromtext(
+    df_parsed = tvm.parser.parse_expr(
         """
-        v0.0.4
+        #[version = "0.0.5"]
         fn (%x: Tensor[(1), float32], %y: Tensor[(1), float32],
             %z: Tensor[(1), float32], %w: Tensor[(1), float32])
             -> ((Tensor[(1), float32], Tensor[(1), float32]),
@@ -213,7 +213,7 @@ def test_broadcast_to_like():
     x = relay.Var("x", relay.ty.TensorType(shape , dtype))
     y = relay.Var("y", relay.ty.TensorType(shape_like, dtype))
     z = relay.broadcast_to_like(x, y)
-    
+
     zz = run_infer_type(z)
     assert zz.checked_type == relay.ty.TensorType(shape_like, dtype)
 
@@ -221,7 +221,7 @@ def test_broadcast_to_like():
     x = np.random.uniform(size=shape).astype(dtype)
     y = np.random.uniform(size=shape_like).astype(dtype)
     ref_res = np.broadcast_to(x, shape_like)
-    
+
     for target, ctx in ctx_list():
         for kind in ["graph", "debug"]:
             intrp = relay.create_executor(kind, ctx=ctx, target=target)
@@ -318,7 +318,7 @@ def verify_batch_matmul(x_shape, y_shape, out_shape, dtype="float32"):
     func = relay.Function([x, y], z)
     x_np = np.random.uniform(size=x_shape).astype(dtype)
     y_np = np.random.uniform(size=y_shape).astype(dtype)
-    z_np = topi.testing.batch_matmul(x_np, y_np)
+    z_np = tvm.topi.testing.batch_matmul(x_np, y_np)
 
     for target, ctx in ctx_list():
         for kind in ["graph", "debug"]:
@@ -378,7 +378,7 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout, dtype, opfunc):
     func = relay.Function([x], y)
 
     np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
-    np_out = topi.testing.adaptive_pool(np_data, out_size, pool_type, layout)
+    np_out = tvm.topi.testing.adaptive_pool(np_data, out_size, pool_type, layout)
 
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
@@ -421,7 +421,7 @@ def test_sequence_mask():
         func = relay.Function([data, valid_length], out)
         data_np = np.random.uniform(size=data_shape).astype(dtype)
         valid_length_np = np.random.randint(0, max_length, size=nbatch).astype(itype)
-        gt_out_np = topi.testing.sequence_mask(data_np, valid_length_np, mask_value, axis)
+        gt_out_np = tvm.topi.testing.sequence_mask(data_np, valid_length_np, mask_value, axis)
 
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
@@ -456,7 +456,7 @@ def test_one_hot():
         assert checked.checked_type == relay.ty.TensorType(_get_oshape(indices_shape, depth, axis), dtype)
         func = relay.Function([indices], out)
         indices_np = np.random.randint(0, depth, size=indices_shape).astype("int32")
-        out_np = topi.testing.one_hot(indices_np, on_value, off_value, depth, axis, dtype)
+        out_np = tvm.topi.testing.one_hot(indices_np, on_value, off_value, depth, axis, dtype)
 
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
@@ -471,6 +471,33 @@ def test_one_hot():
     _verify((3, 2, 4, 5), 6, 1, 0, 1, "int32")
     _verify((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
 
+def test_matrix_set_diag():
+    def _verify(input_shape, dtype):
+        diagonal_shape = list(input_shape[:-2])
+        diagonal_shape.append(min(input_shape[-2], input_shape[-1]))
+        input = relay.var("input", relay.TensorType(input_shape, dtype))
+        diagonal = relay.var("diagonal", relay.TensorType(diagonal_shape, dtype))
+        out = relay.matrix_set_diag(input, diagonal)
+
+        in_type = run_infer_type(input)
+        out_type = run_infer_type(out)
+        assert in_type.checked_type == out_type.checked_type
+
+        func = relay.Function([input, diagonal], out)
+        input_np = np.random.randint(-100, 100, size=input_shape).astype(dtype)
+        diagonal_np = np.random.randint(-100, 100, size=diagonal_shape).astype(dtype)
+        out_np = tvm.topi.testing.matrix_set_diag(input_np, diagonal_np)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                out_relay = intrp.evaluate(func)(input_np, diagonal_np)
+                tvm.testing.assert_allclose(out_relay.asnumpy(), out_np)
+
+    _verify((2, 2), 'float32')
+    _verify((4, 3, 3), 'int32')
+    _verify((2, 3, 4), 'float32')
+
 if __name__ == "__main__":
     test_adaptive_pool()
     test_collapse_sum_like()
@@ -483,3 +510,4 @@ if __name__ == "__main__":
     test_sequence_mask()
     test_one_hot()
     test_ndarray_size()
+    test_matrix_set_diag()

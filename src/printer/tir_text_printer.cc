@@ -116,25 +116,7 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& prim_func) {
     std::vector<Doc> buffer_docs;
     for (const auto& it : memo_buf_) {
       const auto& buf = it.first;
-      buffer_docs.push_back(Print(buf) << Doc::Text(": Buffer(") << Print(buf->data) << ", "
-                                       << PrintDType(buf->dtype) << ", " << Print(buf->shape)
-                                       << ", " << Print(buf->strides));
-      if (!is_zero(buf->elem_offset)) {
-        buffer_docs.back() << ", elem_offset=" << Print(buf->elem_offset);
-      }
-      if (buf->scope != "global") {
-        buffer_docs.back() << ", scope=" << Doc::StrLiteral(buf->scope);
-      }
-      if (buf->data_alignment != 128) {
-        buffer_docs.back() << ", align=" << buf->data_alignment;
-      }
-      if (buf->offset_factor != 1) {
-        buffer_docs.back() << ", offset_factor=" << buf->offset_factor;
-      }
-      if (buf->buffer_type != 1) {
-        buffer_docs.back() << ", type=" << Doc::StrLiteral("auto");
-      }
-      buffer_docs.back() << ")";
+      buffer_docs.push_back(BufferNode2Doc(buf.get(), Print(buf)));
     }
     buffer_doc << Doc::NewLine() << "buffers = {";
     buffer_doc << PrintSep(buffer_docs, Doc::Indent(11, Doc::Text(",") << Doc::NewLine()));
@@ -203,8 +185,36 @@ Doc TIRTextPrinter::PrintRange(const RangeNode* op) {
 
 Doc TIRTextPrinter::PrintBuffer(const BufferNode* op) {
   const Buffer& buffer = GetRef<Buffer>(op);
-  CHECK_GT(memo_buf_.count(buffer), 0);
-  return meta_->InMeta(buffer) ? meta_->GetMetaNode(buffer) : memo_buf_[buffer];
+
+  if (meta_->InMeta(buffer)) {
+    return meta_->GetMetaNode(buffer);
+  } else if (memo_buf_.count(buffer)) {
+    return memo_buf_[buffer];
+  } else {
+    memo_buf_[buffer] = AllocBuf(buffer);
+    return BufferNode2Doc(op, memo_buf_[buffer]);
+  }
+}
+
+Doc TIRTextPrinter::BufferNode2Doc(const BufferNode* buf, Doc doc) {
+  doc << Doc::Text(": Buffer(") << Print(buf->data) << ", " << PrintDType(buf->dtype) << ", "
+      << Print(buf->shape) << ", " << Print(buf->strides);
+  if (!is_zero(buf->elem_offset)) {
+    doc << ", elem_offset=" << Print(buf->elem_offset);
+  }
+  if (buf->scope != "global") {
+    doc << ", scope=" << Doc::StrLiteral(buf->scope);
+  }
+  if (buf->data_alignment != 128) {
+    doc << ", align=" << buf->data_alignment;
+  }
+  if (buf->offset_factor != 1) {
+    doc << ", offset_factor=" << buf->offset_factor;
+  }
+  if (buf->buffer_type != 1) {
+    doc << ", type=" << Doc::StrLiteral("auto");
+  }
+  return doc << ")";
 }
 
 Doc TIRTextPrinter::VisitExprDefault_(const Object* op) {
@@ -363,7 +373,7 @@ Doc TIRTextPrinter::VisitExpr_(const ShuffleNode* op) {
 Doc TIRTextPrinter::VisitExpr_(const ReduceNode* op) {
   Doc doc;
   doc << "reduce(" << Print(op->combiner) << ", " << Print(op->source) << ", " << Print(op->axis)
-      << ", " << op->value_index << ")";
+      << ", " << op->value_index << ", " << Print(op->init) << ")";
   return doc;
 }
 

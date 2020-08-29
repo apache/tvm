@@ -19,12 +19,18 @@
 import re
 import logging
 
-import topi
+from tvm import topi
 from ....target import arm_isa
 from .generic import *
 from .. import op as _op
 
 logger = logging.getLogger('strategy')
+
+@schedule_reduce.register("arm_cpu")
+def schedule_reduce_cpu(attrs, outs, target):
+    """schedule reduction ops for arm_cpu"""
+    with target:
+        return topi.x86.schedule_reduce(outs)
 
 @schedule_injective.register(["arm_cpu", "micro_dev"])
 def schedule_injective_arm_cpu(_, outs, target):
@@ -161,11 +167,10 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="depthwise_conv2d_nchw.x86")
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
-            logger.warning("depthwise_conv2d with layout NHWC is not optimized for arm cpu.")
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
-                wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nhwc),
-                name="depthwise_conv2d_nhwc.generic")
+                wrap_compute_conv2d(topi.arm_cpu.compute_depthwise_conv2d_nhwc),
+                wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nhwc),
+                name="depthwise_conv2d_nhwc.arm_cpu")
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {} for arm cpu".
                                format(layout))

@@ -45,7 +45,6 @@ def check_result(args, expected_result, mod=None):
         if "cuda" in target:
             continue
         vm = relay.create_executor('vm', ctx=ctx, target=target, mod=mod)
-
         rts_result = vm.evaluate()(*args)
         tvm.testing.assert_allclose(expected_result, rts_result.asnumpy())
 
@@ -57,8 +56,7 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         assert isinstance(f, tvm.IRModule), "expected expression or module"
         mod = f
     exe = relay.vm.compile(mod, target)
-    vm = runtime.vm.VirtualMachine(exe)
-    vm.init(ctx)
+    vm = runtime.vm.VirtualMachine(exe, ctx)
     return vm.invoke("main", *args)
 
 def vmobj_to_list(o):
@@ -595,10 +593,20 @@ def test_add_op_broadcast():
     mod["main"] = func
     check_result([x_data, y_data], x_data + y_data, mod=mod)
 
-def test_vm_optimize():
-    mod, params = testing.resnet.get_workload(batch_size=1, num_layers=18)
+def test_vm_optimize_dynamic():
+    dtype = 'float32'
+    x = relay.var('x', shape=(relay.Any(), relay.Any()), dtype=dtype)
+    y = relay.var('y', shape=(relay.Any(), relay.Any()), dtype=dtype)
+    mod = tvm.IRModule()
+    mod['main'] = relay.Function([x, y], relay.add(x, y))
     comp = relay.vm.VMCompiler()
-    opt_mod, _ = comp.optimize(mod, "llvm", params)
+    opt_mod, _ = comp.optimize(mod, target="llvm")
+    assert "shape_func" in opt_mod.astext(False)
+
+def test_vm_optimize():
+    mod, params = testing.synthetic.get_workload()
+    comp = relay.vm.VMCompiler()
+    opt_mod, _ = comp.optimize(mod, target="llvm", params=params)
 
 def test_loop_free_var():
     x = relay.var('x', shape=(), dtype='int32')

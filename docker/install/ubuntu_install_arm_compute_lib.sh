@@ -24,7 +24,7 @@ repo_url="https://github.com/ARM-software/ComputeLibrary.git"
 repo_dir="acl"
 install_path="/opt/$repo_dir"
 architecture_type=$(uname -i)
-target_arch="arm64-v8a" # arm64-v8a/armv7a
+target_arch="arm64-v8a" # arm64-v8a / arm64-v8.2-a / armv7a
 build_type="native"
 
 tmpdir=$(mktemp -d)
@@ -41,9 +41,16 @@ apt-get install -y --no-install-recommends \
     git \
     scons \
     bsdmainutils \
-    build-essential \
+    build-essential
+
+# Install cross-compiler when not building natively.
+# Depending on the architecture selected to compile for,
+# you may need to install an alternative cross-compiler.
+if [ "$architecture_type" != "aarch64" ]; then
+  apt-get install -y --no-install-recommends \
     g++-aarch64-linux-gnu \
     gcc-aarch64-linux-gnu
+fi
 
 cd "$tmpdir"
 

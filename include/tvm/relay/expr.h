@@ -88,8 +88,9 @@ class Constant : public Expr {
   /*!
    * \brief The constructor
    * \param data The data of the constant tensor.
+   * \param span The source span of the expression.
    */
-  TVM_DLL explicit Constant(runtime::NDArray data);
+  TVM_DLL explicit Constant(runtime::NDArray data, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, RelayExpr, ConstantNode);
 };
@@ -134,8 +135,9 @@ class Tuple : public Expr {
   /*!
    * \brief The constructor
    * \param fields The fields of a tuple.
+   * \param span The source span of the expression.
    */
-  TVM_DLL explicit Tuple(tvm::Array<relay::Expr> fields);
+  TVM_DLL explicit Tuple(tvm::Array<relay::Expr> fields, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, RelayExpr, TupleNode);
 };
@@ -188,10 +190,6 @@ class VarNode : public ExprNode {
     hash_reduce.FreeVarHashImpl(this);
   }
 
-  TVM_DLL static Var make(String name_hint, Type type_annotation);
-
-  TVM_DLL static Var make(Id vid, Type type_annotation);
-
   static constexpr const char* _type_key = "relay.Var";
   TVM_DECLARE_FINAL_OBJECT_INFO(VarNode, ExprNode);
 };
@@ -202,15 +200,18 @@ class Var : public Expr {
    * \brief The constructor
    * \param name_hint The name hint of a variable.
    * \param type_annotation The type annotation of a variable.
+   * \param span The source span of the expression.
    */
-  TVM_DLL Var(String name_hint, Type type_annotation) : Var(Id(name_hint), type_annotation) {}
+  TVM_DLL Var(String name_hint, Type type_annotation, Span span = Span())
+      : Var(Id(name_hint), type_annotation, span) {}
 
   /*!
    * \brief The constructor
    * \param vid The unique id of a variable.
    * \param type_annotation The type annotation of a variable.
+   * \param span The source span of the expression.
    */
-  TVM_DLL Var(Id vid, Type type_annotation);
+  TVM_DLL Var(Id vid, Type type_annotation, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Var, RelayExpr, VarNode);
 };
@@ -295,9 +296,10 @@ class Call : public Expr {
    * \param args The arguments of the call.
    * \param attrs The attributes of the call node.
    * \param type_args The type arguments passed to a polymorphic function.
+   * \param span The source span of the expression.
    */
   TVM_DLL Call(Expr op, Array<Expr> args, Attrs attrs = Attrs(),
-               Array<Type> type_args = Array<Type>());
+               Array<Type> type_args = Array<Type>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Call, RelayExpr, CallNode);
 };
@@ -356,8 +358,9 @@ class Let : public Expr {
    * \param var The variable that is bound to.
    * \param value The value used to bind to the variable.
    * \param body The body of the let binding.
+   * \param span The source span of the expression.
    */
-  TVM_DLL Let(Var var, Expr value, Expr body);
+  TVM_DLL Let(Var var, Expr value, Expr body, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Let, RelayExpr, LetNode);
 };
@@ -416,8 +419,9 @@ class If : public Expr {
    * \param cond The condition of a if node.
    * \param true_branch The fall through branch
    * \param false_branch The branch for execution when condition is false.
+   * \param span The source span of the expression.
    */
-  TVM_DLL If(Expr cond, Expr true_branch, Expr false_branch);
+  TVM_DLL If(Expr cond, Expr true_branch, Expr false_branch, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(If, RelayExpr, IfNode);
 };
@@ -457,8 +461,9 @@ class TupleGetItem : public Expr {
    * \brief The constructor
    * \param tuple The tuple to get an element from.
    * \param index The index for extracting a value in the tuple.
+   * \param span The source span of the expression.
    */
-  TVM_DLL TupleGetItem(Expr tuple, int index);
+  TVM_DLL TupleGetItem(Expr tuple, int index, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItem, RelayExpr, TupleGetItemNode);
 };
@@ -495,8 +500,9 @@ class RefCreate : public Expr {
   /*!
    * \brief The constructor
    * \param value The initial value of the reference.
+   * \param span The source span of the expression.
    */
-  TVM_DLL explicit RefCreate(Expr value);
+  TVM_DLL explicit RefCreate(Expr value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(RefCreate, RelayExpr, RefCreateNode);
 };
@@ -533,8 +539,9 @@ class RefRead : public Expr {
   /*!
    * \brief The constructor
    * \param ref The reference where to read data.
+   * \param span The source span of the expression.
    */
-  TVM_DLL explicit RefRead(Expr ref);
+  TVM_DLL explicit RefRead(Expr ref, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(RefRead, RelayExpr, RefReadNode);
 };
@@ -565,8 +572,6 @@ class RefWriteNode : public ExprNode {
     hash_reduce(value);
   }
 
-  TVM_DLL static RefWrite make(Expr ref, Expr value);
-
   static constexpr const char* _type_key = "relay.RefWrite";
   TVM_DECLARE_FINAL_OBJECT_INFO(RefWriteNode, ExprNode);
 };
@@ -577,8 +582,9 @@ class RefWrite : public Expr {
    * \brief The constructor
    * \param ref The reference where data is write to.
    * \param value The value to write.
+   * \param span The source span of the expression.
    */
-  TVM_DLL RefWrite(Expr ref, Expr value);
+  TVM_DLL RefWrite(Expr ref, Expr value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(RefWrite, RelayExpr, RefWriteNode);
 };

@@ -23,18 +23,19 @@
  */
 #include "transform.h"
 
-#include <topi/broadcast.h>
-#include <topi/elemwise.h>
-#include <topi/nn.h>
-#include <topi/reduction.h>
-#include <topi/transform.h>
 #include <tvm/ir/error.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
+#include <tvm/topi/broadcast.h>
+#include <tvm/topi/elemwise.h>
+#include <tvm/topi/nn.h>
+#include <tvm/topi/reduction.h>
+#include <tvm/topi/transform.h>
 
 #include <vector>
 
@@ -581,6 +582,36 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     oshape.Set(infer_idx, infer_dim);
   }
 
+  // Verify that the sum of dimensions in the output shape is the sum of
+  // dimensions in the input shape
+  bool found_dynamic = false;
+  int64_t oshape_sum = 1;
+  for (auto& x : oshape) {
+    // Check if we have a dynamic shape. If we do, we can't verify if the
+    // reshape is valid. Dynamic shapes are marker by using Any, but can also
+    // occur from SizeVar's. In the case of SizeVar, the shape expression can
+    // be an AST. We can't easily check if we have an AST because of a ShapeVar
+    // or some other reason, so our check for dynamic shape is just if we can
+    // convert the shape to in integer or not.
+    if (!x->IsInstance<tvm::Integer::ContainerType>()) {
+      found_dynamic = true;
+      break;
+    }
+    oshape_sum *= Downcast<tvm::Integer>(x)->value;
+  }
+  int64_t data_shape_sum = 1;
+  for (auto& x : data_shape) {
+    if (!x->IsInstance<tvm::Integer::ContainerType>()) {
+      found_dynamic = true;
+      break;
+    }
+    data_shape_sum *= Downcast<tvm::Integer>(x)->value;
+  }
+  if (!found_dynamic) {
+    CHECK_EQ(oshape_sum, data_shape_sum)
+        << "Input tensor shape and reshaped shape are not compatible";
+  }
+
   if (param->reverse) {
     reporter->Assign(types[1],
                      TensorType(Array<IndexExpr>(oshape.rbegin(), oshape.rend()), data->dtype));
@@ -855,7 +886,6 @@ RELAY_REGISTER_OP("scatter_add")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_support_level(10);
 
-////
 
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
@@ -963,10 +993,9 @@ TVM_REGISTER_NODE_TYPE(InitOpAttrs);
 
 bool FullRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
              const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
+  CHECK_EQ(types.size(), 2);
   const InitOpAttrs* param = attrs.as<InitOpAttrs>();
   const auto* fill_value = types[0].as<TensorTypeNode>();
-  const auto* fill_shape = types[1].as<TensorTypeNode>();
   if (fill_value == nullptr) {
     return false;
   }
@@ -979,38 +1008,27 @@ bool FullRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK_EQ(fill_value->shape.size(), 0)
       << "Fill value should be a scalar but has dimension " << fill_value->shape.size() << ".";
 
-  const IntImmNode* shape_shape = fill_shape->shape[0].as<IntImmNode>();
-  CHECK(shape_shape) << "Parameter shape must have static shape";
-
   std::vector<IndexExpr> oshape;
-  if (param->shape) {
-    const Array<Integer>& cshape_array = param->shape.value();
-    for (size_t i = 0; i < cshape_array.size(); ++i) {
-      oshape.push_back(cshape_array[i]);
-    }
-  } else {
-    for (int i = 0; i < shape_shape->value; ++i) {
-      oshape.push_back(Any());
-    }
+  const Array<Integer>& cshape_array = param->shape.value();
+  for (size_t i = 0; i < cshape_array.size(); ++i) {
+    oshape.push_back(cshape_array[i]);
   }
-  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  reporter->Assign(types[1], TensorType(oshape, out_dtype));
   return true;
+}
+
+Expr MakeFull(Expr fill_value, Array<Integer> shape, DataType dtype) {
+  auto attrs = make_object<InitOpAttrs>();
+  attrs->dtype = std::move(dtype);
+  attrs->shape = std::move(shape);
+  static const Op& op = Op::Get("full");
+  return Call(op, {fill_value}, Attrs(attrs), {});
 }
 
 Array<te::Tensor> FullCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                               const Type& out_type) {
   const auto* out_ttype = out_type.as<TensorTypeNode>();
   return {topi::full(out_ttype->shape, out_ttype->dtype, inputs[0]())};
-}
-
-Expr MakeFull(Expr fill_value, Expr shape, DataType dtype) {
-  auto attrs = make_object<InitOpAttrs>();
-  if (const auto* cshape = shape.as<ConstantNode>()) {
-    attrs->shape = ToVector(cshape->data);
-  }
-  attrs->dtype = std::move(dtype);
-  static const Op& op = Op::Get("full");
-  return Call(op, {fill_value, shape}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.full").set_body_typed(MakeFull);
@@ -1020,9 +1038,8 @@ RELAY_REGISTER_OP("full")
 
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<InitOpAttrs>()
-    .set_num_inputs(2)
+    .set_num_inputs(1)
     .add_argument("fill_value", "double", "The value to fill.")
-    .add_argument("shape", "Tensor", "Target shape.")
     .set_support_level(3)
     .add_type_rel("Full", FullRel)
     .set_attr<FTVMCompute>("FTVMCompute", FullCompute)
@@ -2740,9 +2757,6 @@ bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   Array<IndexExpr> oshape;
   for (size_t i = 1; i < kdim + 1; ++i) oshape.push_back(indices->shape[i]);
   for (size_t i = mdim->value; i < ndim; ++i) oshape.push_back(data->shape[i]);
-  if (oshape.size() == 0) {
-    oshape.push_back(tir::make_const(DataType::Int(32), 1));
-  }
   reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
@@ -3078,6 +3092,56 @@ RELAY_REGISTER_OP("sparse_to_dense")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute", SparseToDenseCompute);
+
+// relay.matrix_set_diag
+bool MatrixSetDiagRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  // `types` contains: [input, diagonal, result]
+  CHECK_EQ(types.size(), 3);
+
+  const auto* input = types[0].as<TensorTypeNode>();
+  CHECK(input);
+
+  const auto* diagonal = types[1].as<TensorTypeNode>();
+  CHECK(diagonal);
+
+  int d_ndims = diagonal->shape.size();
+  for (int i = 0; i < d_ndims - 1; i++) {
+    reporter->AssertEQ(input->shape[i], diagonal->shape[i]);
+  }
+  auto min_dim = if_then_else(input->shape[d_ndims - 1] >= input->shape[d_ndims],
+                              input->shape[d_ndims], input->shape[d_ndims - 1]);
+  reporter->Assert(diagonal->shape[d_ndims - 1] >= min_dim);
+
+  reporter->Assign(types[2], TensorType(input->shape, input->dtype));
+  return true;
+}
+
+Array<te::Tensor> MatrixSetDiagCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                       const Type& out_type) {
+  return Array<te::Tensor>{topi::matrix_set_diag(inputs[0], inputs[1])};
+}
+
+Expr MakeMatrixSetDiag(Expr input, Expr diagonal) {
+  static const Op& op = Op::Get("matrix_set_diag");
+  return Call(op, {input, diagonal}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.matrix_set_diag").set_body_typed(MakeMatrixSetDiag);
+
+RELAY_REGISTER_OP("matrix_set_diag")
+    .describe(
+        R"code(Returns a tensor with the diagonal of input tensor replaced with the provided diagonal values.
+        **input** Input tensor.
+        **diagonal** Values to be filled in the diagonal.
+    )code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("input", "Tensor", "Input Tensor.")
+    .add_argument("diagonal", "Tensor", "Values to be filled in the diagonal.")
+    .set_support_level(10)
+    .add_type_rel("MatrixSetDiag", MatrixSetDiagRel)
+    .set_attr<FTVMCompute>("FTVMCompute", MatrixSetDiagCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay
 }  // namespace tvm

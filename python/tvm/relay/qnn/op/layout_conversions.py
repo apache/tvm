@@ -20,6 +20,8 @@ from __future__ import absolute_import
 
 from tvm.relay.op import op as reg
 
+from ...op.strategy.generic import is_depthwise_conv2d
+
 
 @reg.register_convert_op_layout("qnn.conv2d")
 def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layouts):
@@ -51,11 +53,20 @@ def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layouts):
     new_attrs = dict(attrs)
     new_attrs['data_layout'] = desired_data_layout
 
+    if desired_kernel_layout != "default":
+        new_attrs['kernel_layout'] = desired_kernel_layout
+        return relay.qnn.op.conv2d(*inputs, **new_attrs)
+
     if desired_data_layout == 'NCHW':
-        if desired_kernel_layout != "default":
-            new_attrs['kernel_layout'] = desired_kernel_layout
+        new_attrs['kernel_layout'] = 'OIHW'
+        return relay.qnn.op.conv2d(*inputs, **new_attrs)
+    if desired_data_layout == 'NHWC':
+        # Check for depthwise convolution.
+        if is_depthwise_conv2d(inputs[0].shape, attrs['data_layout'], inputs[1].shape,
+                               attrs['kernel_layout'], attrs['groups']):
+            new_attrs['kernel_layout'] = 'HWOI'
         else:
-            new_attrs['kernel_layout'] = 'OIHW'
+            new_attrs['kernel_layout'] = 'HWIO'
         return relay.qnn.op.conv2d(*inputs, **new_attrs)
 
     raise ValueError('Layout %s is not yet supported' % desired_data_layout)

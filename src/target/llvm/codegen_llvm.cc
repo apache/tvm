@@ -49,7 +49,8 @@ std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(llvm::TargetMachine* tm) {
 }
 
 void CodeGenLLVM::Init(const std::string& module_name, llvm::TargetMachine* tm,
-                       llvm::LLVMContext* ctx, bool system_lib, bool dynamic_lookup) {
+                       llvm::LLVMContext* ctx, bool system_lib, bool dynamic_lookup,
+                       bool target_c_runtime) {
   InitializeLLVM();
   ctx_ = ctx;
   builder_.reset(new IRBuilder(*ctx_));
@@ -623,7 +624,7 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
   }
 }
 
-llvm::Value* CodeGenLLVM::GetConstString(const std::string& str) {
+llvm::Constant* CodeGenLLVM::GetConstString(const std::string& str) {
   auto it = str_map_.find(str);
   if (it != str_map_.end()) return it->second;
   llvm::Type* type = llvm::ArrayType::get(t_char_, str.length() + 1);
@@ -1018,7 +1019,13 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const SelectNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const LetNode* op) {
-  CHECK(!var_map_.count(op->var.get()));
+  auto it = let_binding_.find(op->var);
+  if (it != let_binding_.end()) {
+    CHECK(deep_equal_(it->second->value, op->value))
+        << "Let cannot bind the same var to two different values";
+  } else {
+    let_binding_[op->var] = op;
+  }
   var_map_[op->var.get()] = MakeValue(op->value);
   analyzer_->Bind(op->var, op->value);
   return MakeValue(op->body);

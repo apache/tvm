@@ -337,11 +337,24 @@ struct AttrInitEntry {
   T* value_;
   // whether the value is missing.
   bool value_missing_{true};
+
+  AttrInitEntry() = default;
+
+  AttrInitEntry(AttrInitEntry&& other) {
+    type_key_ = other.type_key_;
+    key_ = other.key_;
+    value_ = other.value_;
+    value_missing_ = other.value_missing_;
+    // avoid unexpected throw
+    other.value_missing_ = false;
+  }
+
   // If the value is still missing in destruction time throw an error.
   ~AttrInitEntry() DMLC_THROW_EXCEPTION {
     if (value_missing_) {
       std::ostringstream os;
-      os << type_key_ << ": Cannot find required field \'" << key_ << "\' during initialization";
+      os << type_key_ << ": Cannot find required field \'" << key_ << "\' during initialization."
+         << "If the key is defined check that its type matches the declared type.";
       throw AttrError(os.str());
     }
   }
@@ -463,7 +476,11 @@ class AttrInitVisitor {
     } else {
       opt.value_missing_ = true;
     }
-    return opt;
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wpessimizing-move"
+#endif
+    return std::move(opt);
   }
 
  private:

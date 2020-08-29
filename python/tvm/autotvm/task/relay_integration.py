@@ -24,6 +24,7 @@ import threading
 import logging
 
 import tvm
+from tvm.autotvm.task.dispatcher import DispatchContext, FallbackContext
 from .task import create
 from .topi_integration import TaskExtractEnv
 
@@ -117,7 +118,7 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
     """
     # pylint: disable=import-outside-toplevel
     from tvm import relay
-    import topi
+    from tvm import topi
 
     env = TaskExtractEnv.get()
 
@@ -140,6 +141,10 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
             build_thread.start()
             build_thread.join()
             relay.backend.compile_engine.get().clear()
+            # Clear the warning message cache in FallbackContext
+            if isinstance(DispatchContext.current, FallbackContext):
+                DispatchContext.current.memory = {}
+                DispatchContext.warning_messages = set()
 
         logger.disabled = old_state
 

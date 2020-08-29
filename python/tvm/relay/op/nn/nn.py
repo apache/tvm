@@ -19,7 +19,9 @@
 from tvm.relay import expr
 
 from . import _make
+from ..dyn.nn import _make as _dyn_make
 from .util import get_pad_tuple1d, get_pad_tuple2d, get_pad_tuple3d
+from ...expr import const, Expr
 
 
 def conv1d(data,
@@ -1150,10 +1152,10 @@ def upsampling(data,
     data : tvm.relay.Expr
         The input data to the operator.
 
-    scale_h : tvm.relay.Expr
+    scale_h : tvm.relay.Expr or int or float
         The scale factor for height upsampling.
 
-    scale_w : tvm.relay.Expr
+    scale_w : tvm.relay.Expr or int or float
         The scale factor for width upsampling.
 
     layout : str, optional
@@ -1170,6 +1172,12 @@ def upsampling(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(scale_h, Expr) or isinstance(scale_w, Expr):
+        if not isinstance(scale_h, Expr):
+            scale_h = const(scale_h, "float64")
+        if not isinstance(scale_w, Expr):
+            scale_w = const(scale_w, "float64")
+        return _dyn_make.upsampling(data, scale_h, scale_w, layout, method, align_corners)
     return _make.upsampling(data, scale_h, scale_w, layout, method, align_corners)
 
 
@@ -1387,7 +1395,7 @@ def prelu(data, alpha, axis=1):
 
     .. math::
 
-        `y = x > 0 ? x : alpha * x`
+        y = x > 0 ? x : alpha * x
 
     Parameters
     ----------
@@ -1410,7 +1418,7 @@ def prelu(data, alpha, axis=1):
 
 def pad(data,
         pad_width,
-        pad_value=0.0,
+        pad_value=0,
         pad_mode='constant'):
     r"""Padding
 
@@ -1421,10 +1429,10 @@ def pad(data,
     ----------
     data: tvm.relay.Expr
         The input data to the operator
-    pad_width: tuple of <tuple of <int>>, required
+    pad_width: tuple of <tuple of <int>>, or tvm.relay.Expr, required
         Number of values padded to the edges of each axis, in the format
         of ((before_1, after_1), ..., (before_N, after_N))
-    pad_value: float, optional, default=0.0
+    pad_value: float, or tvm.relay.Expr, optional, default=0
         The value used for padding
     pad_mode: 'constant', 'edge', 'reflect'
         'constant' pads with constant_value pad_value
@@ -1435,6 +1443,12 @@ def pad(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if (isinstance(pad_width, Expr) or (isinstance(pad_value, Expr))):
+        if not isinstance(pad_width, Expr):
+            pad_width = const(list(pad_width))
+        if not isinstance(pad_value, Expr):
+            pad_value = const(pad_value)
+        return _dyn_make.pad(data, pad_width, pad_value, pad_mode)
     return _make.pad(data, pad_width, pad_value, pad_mode)
 
 
@@ -2423,14 +2437,14 @@ def bitpack(data,
             bit_axis=2,
             pack_type="uint32",
             name="BitPack"):
-    r"""Tensor packing for bitserial operations.
-    The values along the input tensor's pack_axis are quantized
-    and packed together into the specified pack_type in a new
-    bit axis.
+    """Tensor packing for bitserial operations.
 
-    For example, consider bitpacking with data to be a tensor with shape [1, 64, 128, 128],
+    The values along the input tensor's pack_axis are quantized
+    and packed together into the specified pack_type in a new bit axis.
+
+    For example, consider bitpacking with data to be a tensor with shape `[1, 64, 128, 128]`,
     pack_axis=1, bit_axis=4, pack_type=uint8, and bits=2. The output in this case will
-    be of shape [1, 8, 128, 128, 2]. The dimension of axis 1 has been reduced by a factor
+    be of shape `[1, 8, 128, 128, 2]`. The dimension of axis 1 has been reduced by a factor
     of 8 since each value is packed into an 8-bit uint8. Axis 4 is now two bitplanes
     representing the quantized value of the incoming data. The output tensor is now
     ready to be used in a bitserial operation.

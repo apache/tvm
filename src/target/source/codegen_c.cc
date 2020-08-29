@@ -617,9 +617,13 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       CHECK(op->args.size() == 1 && l);
       os << "((";
       this->PrintType(l->dtype.element_of(), os);
-      os << " *)" << this->GetVarID(l->buffer_var.get()) << " + ";
+      os << " *)" << this->GetVarID(l->buffer_var.get()) << " + "
+         << "(";
       this->PrintExpr(l->index, os);
-      os << ')';
+      if (l->dtype.bits() == 4 || (l->dtype.bits() == 1 && l->dtype.is_int())) {
+        os << " / " << (32 / l->dtype.bits());
+      }
+      os << "))";
     } else if (op->op.same_as(builtin::tvm_struct_get())) {
       CHECK_EQ(op->args.size(), 3U);
       os << GetStructRef(op->dtype, op->args[0], op->args[1], op->args[2].as<IntImmNode>()->value);
@@ -761,8 +765,14 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
 }
 
 void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
+  auto it = let_binding_.find(op->var);
+  if (it != let_binding_.end()) {
+    CHECK(deep_equal_(it->second->value, op->value))
+        << "Let cannot bind the same var to two different values";
+  } else {
+    let_binding_[op->var] = op;
+  }
   std::string value = PrintExpr(op->value);
-  CHECK(!var_idmap_.count(op->var.get()));
   var_idmap_[op->var.get()] = value;
   os << PrintExpr(op->body);
 }

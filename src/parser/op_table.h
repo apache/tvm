@@ -80,16 +80,16 @@ struct OperatorTable {
 
 OperatorTable DefaultOpTable() {
   return OperatorTable(
-      {Rule({TokenType::Star}, Op::Get("multiply"), 12, 2, true),
-       Rule({TokenType::Division}, Op::Get("divide"), 12, 2, true),
-       Rule({TokenType::Plus}, Op::Get("add"), 10, 2, true),
-       Rule({TokenType::Minus}, Op::Get("subtract"), 10, 2, true),
-       Rule({TokenType::LAngle}, Op::Get("less"), 8, 2, true),
-       Rule({TokenType::LAngle, TokenType::Equal}, Op::Get("less_equal"), 8, 2, true),
-       Rule({TokenType::RAngle}, Op::Get("greater"), 8, 2, true),
-       Rule({TokenType::RAngle, TokenType::Equal}, Op::Get("greater_equal"), 8, 2, true),
-       Rule({TokenType::Equal, TokenType::Equal}, Op::Get("equal"), 7, 2, true),
-       Rule({TokenType::Bang, TokenType::Equal}, Op::Get("not_equal"), 7, 2, true)});
+      {Rule({TokenType::kStar}, Op::Get("multiply"), 12, 2, true),
+       Rule({TokenType::kDivision}, Op::Get("divide"), 12, 2, true),
+       Rule({TokenType::kPlus}, Op::Get("add"), 10, 2, true),
+       Rule({TokenType::kMinus}, Op::Get("subtract"), 10, 2, true),
+       Rule({TokenType::kLAngle}, Op::Get("less"), 8, 2, true),
+       Rule({TokenType::kLAngle, TokenType::kEqual}, Op::Get("less_equal"), 8, 2, true),
+       Rule({TokenType::kRAngle}, Op::Get("greater"), 8, 2, true),
+       Rule({TokenType::kRAngle, TokenType::kEqual}, Op::Get("greater_equal"), 8, 2, true),
+       Rule({TokenType::kEqual, TokenType::kEqual}, Op::Get("equal"), 7, 2, true),
+       Rule({TokenType::kBang, TokenType::kEqual}, Op::Get("not_equal"), 7, 2, true)});
 }
 
 }  // namespace parser

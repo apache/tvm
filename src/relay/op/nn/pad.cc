@@ -21,11 +21,11 @@
  * \file pad.cc
  * \brief Implementation of operator pad
  */
-#include <topi/nn.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/op.h>
+#include <tvm/topi/nn.h>
 
 #include <vector>
 
@@ -53,7 +53,7 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
     // split.
 
     // 1) Create a map from axis to param_width using old layout.
-    std::map<std::string, tvm::Array<tvm::PrimExpr>> axis_pad_width;
+    std::map<std::string, tvm::Array<Integer>> axis_pad_width;
     int index_counter = 0;
     CHECK_EQ(new_in_layouts.size(), 1);
     CHECK_EQ(old_in_layouts.size(), 1);
@@ -64,7 +64,7 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
     }
 
     // 2) Create new pad width by walking over the new layout and using the map.
-    tvm::Array<tvm::Array<tvm::PrimExpr>> new_pad_width;
+    tvm::Array<tvm::Array<Integer>> new_pad_width;
     for (auto iter_var : new_in_layouts[0]->axes) {
       const auto& new_layout_axis = LayoutAxis::Get(iter_var);
       auto axis_name = new_layout_axis.name();
@@ -178,7 +178,7 @@ Array<te::Tensor> PadCompute(const Attrs& attrs, const Array<te::Tensor>& inputs
 }
 
 // Handler to create a call to the padding op used by front-end FFI
-Expr MakePad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value, String pad_mode) {
+Expr MakePad(Expr data, Array<Array<Integer>> pad_width, double pad_value, String pad_mode) {
   auto attrs = make_object<PadAttrs>();
   attrs->pad_value = pad_value;
   attrs->pad_width = std::move(pad_width);

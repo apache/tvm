@@ -115,7 +115,7 @@ class ScopeBuilder(object):
             The variable or name of variable.
 
         value: tvm.relay.Expr
-            The value to be binded
+            The value to be bound
         """
         if isinstance(var, (tuple, list)):
             if len(var) > 2:

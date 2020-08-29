@@ -48,9 +48,14 @@ macro(find_rocm use_rocm)
 
   if(__rocm_sdk)
     set(ROCM_INCLUDE_DIRS ${__rocm_sdk}/include)
-    find_library(ROCM_HIPHCC_LIBRARY hip_hcc ${__rocm_sdk}/lib)
+    find_library(ROCM_HIPHCC_LIBRARY amdhip64 ${__rocm_sdk}/lib)
+    # Backward compatible with before ROCm3.7
+    if(NOT ROCM_HIPHCC_LIBRARY)
+      find_library(ROCM_HIPHCC_LIBRARY hip_hcc ${__rocm_sdk}/lib)
+    endif()
     find_library(ROCM_MIOPEN_LIBRARY MIOpen ${__rocm_sdk}/lib)
     find_library(ROCM_ROCBLAS_LIBRARY rocblas ${__rocm_sdk}/lib)
+
     if(ROCM_HIPHCC_LIBRARY)
       set(ROCM_FOUND TRUE)
     endif()

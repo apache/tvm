@@ -51,7 +51,12 @@ impl Parse for External {
         assert!(method.semi_token != None);
         let ident = sig.ident;
         let generics = sig.generics;
-        let inputs = sig.inputs.iter().map(|param| param.clone()).collect();
+        let inputs = sig
+            .inputs
+            .iter()
+            .cloned()
+            .map(|param| param.clone())
+            .collect();
         let ret_type = sig.output;
 
         Ok(External {
@@ -144,7 +149,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let wrapper = quote! {
             pub fn #name<#(#ty_params),*>(#(#args : #tys),*) -> #result_type<#ret_type> {
                 let func_ref: #tvm_rt_crate::Function = #global_name.clone();
-                let func_ref: Box<dyn Fn(#(#tys),*) -> #result_type<#ret_type>> = func_ref.to_boxed_fn();
+                let func_ref: Box<dyn Fn(#(#tys),*) -> #result_type<#ret_type>> = func_ref.into();
                 let res: #ret_type = func_ref(#(#args),*)?;
                 Ok(res)
             }

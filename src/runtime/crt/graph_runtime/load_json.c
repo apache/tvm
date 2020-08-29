@@ -158,60 +158,55 @@ char JSONReader_PeekNextNonSpace(JSONReader* reader) {
 /*!
  * \brief Parse next JSON string.
  * \param out_str the output string.
+ * \param out_str_size Number of bytes available to write starting from out_str. Includes
+ *      terminating \0.
  * \throw dmlc::Error when next token is not string
  */
-int JSONReader_ReadString(JSONReader* reader, char* out_str) {
+int JSONReader_ReadString(JSONReader* reader, char* out_str, size_t out_str_size) {
   int status = 0;
   char ch = reader->NextNonSpace(reader);
-  char output[128];
-  uint32_t output_counter = 0;
-  memset(output, 0, 128);
-  while (1) {
+  size_t output_counter = 0;
+  while (output_counter < out_str_size) {
     ch = reader->NextChar(reader);
     if (ch == '\\') {
       char sch = reader->NextChar(reader);
       switch (sch) {
         case 'r':
-          snprintf(output + strlen(output), sizeof(output), "\r");
+          out_str[output_counter++] = '\r';
           break;
         case 'n':
-          snprintf(output + strlen(output), sizeof(output), "\n");
+          out_str[output_counter++] = '\n';
           break;
         case '\\':
-          snprintf(output + strlen(output), sizeof(output), "\\");
+          out_str[output_counter++] = '\\';
           break;
         case 't':
-          snprintf(output + strlen(output), sizeof(output), "\t");
+          out_str[output_counter++] = '\t';
           break;
         case '\"':
-          snprintf(output + strlen(output), sizeof(output), "\"");
+          out_str[output_counter++] = '\"';
           break;
         default:
           fprintf(stderr, "unknown string escape %c\n", sch);
+          break;
       }
     } else {
       if (ch == '\"') {
         break;
       }
-      if (strlen(output) >= 127) {
-        fprintf(stderr, "Error: detected buffer overflow.\n");
-        status = -1;
-        break;
-      }
-      strncat(output, &ch, 1);
-      output_counter++;
-      if (output_counter >= 127) {
-        fprintf(stderr, "Error: string size greater than 128.\n");
-        status = -1;
-        break;
-      }
+      out_str[output_counter++] = ch;
+    }
+    if (output_counter == out_str_size - 1) {
+      fprintf(stderr, "Error: string size greater than buffer size (%zu).\n", out_str_size);
+      break;
     }
     if (ch == EOF || ch == '\r' || ch == '\n') {
       fprintf(stderr, "Error at line X, Expect \'\"\' but reach end of line\n");
-      status = -1;
+      break;
     }
   }
-  snprintf(out_str, sizeof(output), "%s", output);
+
+  out_str[output_counter] = 0;
   return status;
 }
 
@@ -262,9 +257,10 @@ void JSONReader_BeginObject(JSONReader* reader) {
  *  If this call is successful, user can proceed to call
  *  reader->Read to read in the value.
  * \param out_key the key to the next object.
+ * \param out_key_size number of bytes available to write at out_key, including terminating \0.
  * \return true if the read is successful, false if we are at end of the object.
  */
-uint8_t JSONReader_NextObjectItem(JSONReader* reader, char* out_key) {
+uint8_t JSONReader_NextObjectItem(JSONReader* reader, char* out_key, size_t out_key_size) {
   uint8_t next = 1;
   Seq* scope_counter_ = reader->scope_counter_;
   if (scope_counter_->back(scope_counter_)[0] != 0) {
@@ -290,7 +286,11 @@ uint8_t JSONReader_NextObjectItem(JSONReader* reader, char* out_key) {
     return 0;
   } else {
     scope_counter_->back(scope_counter_)[0] += 1;
-    reader->ReadString(reader, out_key);
+    int err = reader->ReadString(reader, out_key, out_key_size);
+    if (err != 0) {
+      fprintf(stderr, "error reading key");
+      return 0;
+    }
     int ch = reader->NextNonSpace(reader);
     if (ch != ':') {
       fprintf(stderr, "Error at line X, Expect \':\' but get \'%c\'\n", ch);

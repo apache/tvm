@@ -25,13 +25,13 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
-#include "../../file_util.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 
 #ifdef TVM_GRAPH_RUNTIME_ARM_COMPUTE_LIB
 #include <arm_compute/core/Types.h>
 #include <arm_compute/runtime/NEON/functions/NEConvolutionLayer.h>
+#include <arm_compute/runtime/NEON/functions/NEFullyConnectedLayer.h>
 #include <arm_compute/runtime/NEON/functions/NEPoolingLayer.h>
 #include <arm_compute/runtime/NEON/functions/NEReshapeLayer.h>
 
@@ -114,21 +114,8 @@ class ACLRuntime : public JSONRuntimeBase {
    * per engine.
    */
   void BuildEngine() {
-    std::shared_ptr<arm_compute::MemoryManagerOnDemand> mm = MakeMemoryManager();
+    std::shared_ptr<arm_compute::MemoryManagerOnDemand> mm = MakeACLMemoryManager();
     int num_pools = 0;
-
-    for (size_t i = 0; i < input_nodes_.size(); ++i) {
-      uint32_t nid = input_nodes_[i];
-      const auto& node = nodes_[nid];
-      if (node.GetOpType() == "input") {
-        layer_.inputs.push_back(MakeTensor(node));
-      } else if (node.GetOpType() == "const") {
-        uint32_t eid = EntryID(nid, 0);
-        void* data = data_entry_[eid]->data;
-        layer_.const_inputs.push_back(MakeTensor(node, data));
-      }
-    }
-
     bool found_kernel_node = false;
     for (size_t nid = 0; nid < nodes_.size(); ++nid) {
       const auto& node = nodes_[nid];
@@ -139,11 +126,17 @@ class ACLRuntime : public JSONRuntimeBase {
       if (node.GetOpType() == "kernel") {
         found_kernel_node = true;
         auto op_name = node.GetOpName();
-        if ("nn.conv2d" == op_name) {
+        if ("nn.conv2d" == op_name || "qnn.conv2d" == op_name) {
           CreateConvolution2DLayer(&layer_, node, mm);
           num_pools++;
-        } else if ("nn.max_pool2d" == op_name) {
+        } else if ("nn.dense" == op_name || "qnn.dense" == op_name) {
+          CreateFullyConnectedLayer(&layer_, node, mm);
+          num_pools++;
+        } else if ("nn.max_pool2d" == op_name || "nn.avg_pool2d" == op_name ||
+                   "nn.l2_pool2d" == op_name) {
           CreatePoolingLayer(&layer_, node);
+        } else if ("nn.global_max_pool2d" == op_name || "nn.global_avg_pool2d" == op_name) {
+          CreateGlobalPoolingLayer(&layer_, node);
         } else if ("reshape" == op_name) {
           CreateReshapeLayer(&layer_, node);
         } else {
@@ -163,9 +156,51 @@ class ACLRuntime : public JSONRuntimeBase {
   struct CachedLayer {
     std::shared_ptr<arm_compute::IFunction> function;
     std::vector<arm_compute::Tensor> inputs;
-    std::vector<arm_compute::Tensor> const_inputs;
     std::vector<arm_compute::Tensor> outputs;
   };
+
+  /*!
+   * \brief Create an ACL tensor given the JSON representation. If scale
+   * and offset are given, then create a quantized ACL tensor.
+   *
+   * \param tensor The tensor to represent.
+   * \param scale (optional) The scale of the tensor as an input.
+   * \param offset (optional) The offset of the tensor as an input.
+   * \return ACL Tensor.
+   */
+  arm_compute::Tensor MakeACLTensorFromJSONEntry(const JSONGraphNodeEntry& tensor,
+                                                 JSONGraphNodeEntry* scale = nullptr,
+                                                 JSONGraphNodeEntry* offset = nullptr) {
+    JSONGraphNode node = nodes_[tensor.id_];
+    void* node_data = nullptr;
+    if (node.GetOpType() == "const") {
+      node_data = data_entry_[EntryID(tensor)]->data;
+    }
+    return MakeACLTensorFromJSONNode(node, scale, offset, node_data);
+  }
+
+  /*!
+   * \brief Create an ACL tensor given the JSON representation. If scale
+   * and offset are given, then create a quantized ACL tensor.
+   *
+   * \param node The tensor to represent.
+   * \param scale (optional) The scale of the tensor as an input.
+   * \param offset (optional) The offset of the tensor as an input.
+   * \param data (optional) Constant data of input node.
+   * \return ACL Tensor.
+   */
+  arm_compute::Tensor MakeACLTensorFromJSONNode(const JSONGraphNode& node,
+                                                JSONGraphNodeEntry* scale = nullptr,
+                                                JSONGraphNodeEntry* offset = nullptr,
+                                                void* data = nullptr) {
+    const DLTensor* scale_data = nullptr;
+    const DLTensor* offset_data = nullptr;
+    if (scale && offset) {
+      scale_data = data_entry_[EntryID(*scale)];
+      offset_data = data_entry_[EntryID(*offset)];
+    }
+    return MakeACLTensor(node, data, scale_data, offset_data);
+  }
 
   /*!
    * \brief Create a 2D convolution layer.
@@ -174,13 +209,12 @@ class ACLRuntime : public JSONRuntimeBase {
    * \param node The JSON representation of the operator.
    * \param mm The ACL conv2d layer can request auxiliary memory from TVM.
    */
-  static void CreateConvolution2DLayer(
-      CachedLayer* layer, const JSONGraphNode& node,
-      const std::shared_ptr<arm_compute::MemoryManagerOnDemand>& mm) {
+  void CreateConvolution2DLayer(CachedLayer* layer, const JSONGraphNode& node,
+                                const std::shared_ptr<arm_compute::MemoryManagerOnDemand>& mm) {
     std::vector<std::string> padding = node.GetAttr<std::vector<std::string>>("padding");
     std::vector<std::string> strides = node.GetAttr<std::vector<std::string>>("strides");
     std::vector<std::string> dilation = node.GetAttr<std::vector<std::string>>("dilation");
-    arm_compute::PadStrideInfo pad_stride_info = ToACLPadStride(padding, strides);
+    arm_compute::PadStrideInfo pad_stride_info = MakeACLPadStride(padding, strides);
 
     int groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
     CHECK(groups == 1) << "Arm Compute Library NEON convolution only supports group size of 1.";
@@ -198,45 +232,155 @@ class ACLRuntime : public JSONRuntimeBase {
 
     arm_compute::Size2D dilation_2d(std::stoi(dilation[0]), std::stoi(dilation[1]));
 
-    layer->outputs.push_back(MakeOutputTensor(node.GetOpShape()[0]));
+    // Collect inputs and outputs, handling both nn.conv2d and qnn.conv2d cases.
+    std::vector<JSONGraphNodeEntry> inputs = node.GetInputs();
+    size_t num_inputs = inputs.size();
+    bool has_bias;
+    if (node.GetOpName() == "qnn.conv2d") {
+      CHECK(num_inputs >= 8U && num_inputs <= 9U)
+          << "Quantized convolution requires 9 inputs with a bias, 8 inputs without.";
+      has_bias = num_inputs == 9;
+      layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[0], &inputs[4], &inputs[2]));
+      layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[1], &inputs[5], &inputs[3]));
+      if (has_bias) {
+        layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[6]));
+      }
+      layer->outputs.push_back(
+          MakeACLTensorFromJSONNode(node, &inputs[6 + has_bias], &inputs[7 + has_bias]));
+    } else {
+      CHECK(num_inputs >= 2U && num_inputs <= 3U)
+          << "Convolution requires 3 inputs with a bias, 2 inputs without.";
+      has_bias = num_inputs == 3;
+      for (const auto& i : inputs) {
+        layer->inputs.push_back(MakeACLTensorFromJSONEntry(i));
+      }
+      layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
+    }
 
     auto function = std::make_shared<arm_compute::NEConvolutionLayer>(mm);
-    function->configure(&layer->inputs[0], &layer->const_inputs[0],
-                        layer->const_inputs.size() > 1 ? &layer->const_inputs[1] : nullptr,
-                        &layer->outputs[0], pad_stride_info, arm_compute::WeightsInfo(),
-                        dilation_2d, act_info);
+    function->configure(&layer->inputs[0], &layer->inputs[1],
+                        has_bias ? &layer->inputs[2] : nullptr, &layer->outputs[0], pad_stride_info,
+                        arm_compute::WeightsInfo(), dilation_2d, act_info);
+    layer->function = function;
+  }
+
+  /*!
+   * \brief Create a fully connected (dense) layer.
+   *
+   * \param layer The ACL layer to build. Containing inputs, outputs and the ACL function.
+   * \param node The JSON representation of the operator.
+   * \param mm The ACL fully connected layer can request auxiliary memory from TVM.
+   */
+  void CreateFullyConnectedLayer(CachedLayer* layer, const JSONGraphNode& node,
+                                 const std::shared_ptr<arm_compute::MemoryManagerOnDemand>& mm) {
+    arm_compute::FullyConnectedLayerInfo fc_info;
+    fc_info.set_weights_trained_layout(arm_compute::DataLayout::NHWC);
+
+    // Collect inputs and outputs, handling both nn.dense and qnn.dense cases.
+    std::vector<JSONGraphNodeEntry> inputs = node.GetInputs();
+    size_t num_inputs = inputs.size();
+    bool has_bias;
+    if (node.GetOpName() == "qnn.dense") {
+      CHECK(num_inputs >= 8U && num_inputs <= 9U)
+          << "Quantized fully connected (dense) layer requires 9 inputs with a bias, 8 inputs "
+             "without.";
+      has_bias = num_inputs == 9;
+      layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[0], &inputs[4], &inputs[2]));
+      layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[1], &inputs[5], &inputs[3]));
+      if (has_bias) {
+        layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[6]));
+      }
+      layer->outputs.push_back(
+          MakeACLTensorFromJSONNode(node, &inputs[6 + has_bias], &inputs[7 + has_bias]));
+    } else {
+      CHECK(num_inputs >= 2U && num_inputs <= 3U)
+          << "Fully connected (dense) layer requires 3 inputs with a bias, 2 inputs without.";
+      has_bias = num_inputs == 3;
+      for (const auto& i : inputs) {
+        layer->inputs.push_back(MakeACLTensorFromJSONEntry(i));
+      }
+      layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
+    }
+
+    auto function = std::make_shared<arm_compute::NEFullyConnectedLayer>(mm);
+    function->configure(&layer->inputs[0], &layer->inputs[1],
+                        has_bias ? &layer->inputs[2] : nullptr, &layer->outputs[0], fc_info);
     layer->function = function;
   }
 
   /*!
    * \brief Create a pooling layer.
    *
-   * \note Currently only maxpool is supported.
+   * \note Currently max_pool2d, avg_pool2d and L2 pooling are supported.
    *
    * \param layer The ACL layer to build. Containing inputs, outputs and the ACL function.
    * \param node The JSON representation of the operator.
    */
-  static void CreatePoolingLayer(CachedLayer* layer, const JSONGraphNode& node) {
+  void CreatePoolingLayer(CachedLayer* layer, const JSONGraphNode& node) {
     std::vector<std::string> padding = node.GetAttr<std::vector<std::string>>("padding");
     std::vector<std::string> strides = node.GetAttr<std::vector<std::string>>("strides");
-    arm_compute::PadStrideInfo pad_stride_info = ToACLPadStride(padding, strides);
+    bool ceil_mode = std::stoi(node.GetAttr<std::vector<std::string>>("ceil_mode")[0]);
+    arm_compute::PadStrideInfo pad_stride_info = MakeACLPadStride(padding, strides, ceil_mode);
 
     auto attr_pool_size = node.GetAttr<std::vector<std::string>>("pool_size");
     int pool_size_h = std::stoi(attr_pool_size[0]);
     int pool_size_w = std::stoi(attr_pool_size[1]);
 
+    // Only applies to average pool and l2 pool.
+    // ACL exclude pad option is inverse to Relays include pad option.
+    bool exclude_pad = false;
+    if (node.HasAttr("count_include_pad")) {
+      int count_include_pad =
+          std::stoi(node.GetAttr<std::vector<std::string>>("count_include_pad")[0]);
+      exclude_pad = !count_include_pad;
+    }
+
     arm_compute::PoolingType pool_type;
     if (node.GetOpName() == "nn.max_pool2d") {
       pool_type = arm_compute::PoolingType::MAX;
+    } else if (node.GetOpName() == "nn.avg_pool2d") {
+      pool_type = arm_compute::PoolingType::AVG;
+    } else if (node.GetOpName() == "nn.l2_pool2d") {
+      pool_type = arm_compute::PoolingType::L2;
     } else {
       LOG(FATAL) << "Pooling type not supported";
     }
 
     arm_compute::PoolingLayerInfo pool_info =
         arm_compute::PoolingLayerInfo(pool_type, arm_compute::Size2D(pool_size_h, pool_size_w),
-                                      arm_compute::DataLayout::NHWC, pad_stride_info);
+                                      arm_compute::DataLayout::NHWC, pad_stride_info, exclude_pad);
 
-    layer->outputs.push_back(MakeOutputTensor(node.GetOpShape()[0]));
+    layer->inputs.push_back(MakeACLTensorFromJSONEntry(node.GetInputs()[0]));
+    layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
+
+    auto function = std::make_shared<arm_compute::NEPoolingLayer>();
+    function->configure(&layer->inputs[0], &layer->outputs[0], pool_info);
+    layer->function = function;
+  }
+
+  /*!
+   * \brief Create a global pooling layer.
+   *
+   * \note Currently global_max_pool2d and global_avg_pool2d are supported.
+   *
+   * \param layer The ACL layer to build. Containing inputs, outputs and the ACL function.
+   * \param node The JSON representation of the operator.
+   */
+  void CreateGlobalPoolingLayer(CachedLayer* layer, const JSONGraphNode& node) {
+    arm_compute::PoolingType pool_type;
+    if (node.GetOpName() == "nn.global_max_pool2d") {
+      pool_type = arm_compute::PoolingType::MAX;
+    } else if (node.GetOpName() == "nn.global_avg_pool2d") {
+      pool_type = arm_compute::PoolingType::AVG;
+    } else {
+      LOG(FATAL) << "Pooling type not supported";
+    }
+
+    arm_compute::PoolingLayerInfo pool_info =
+        arm_compute::PoolingLayerInfo(pool_type, arm_compute::DataLayout::NHWC);
+
+    layer->inputs.push_back(MakeACLTensorFromJSONEntry(node.GetInputs()[0]));
+    layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
 
     auto function = std::make_shared<arm_compute::NEPoolingLayer>();
     function->configure(&layer->inputs[0], &layer->outputs[0], pool_info);
@@ -249,8 +393,9 @@ class ACLRuntime : public JSONRuntimeBase {
    * \param layer The ACL layer to build. Containing inputs, outputs and the ACL function.
    * \param node The JSON representation of the operator.
    */
-  static void CreateReshapeLayer(CachedLayer* layer, const JSONGraphNode& node) {
-    layer->outputs.push_back(MakeOutputTensor(node.GetOpShape()[0]));
+  void CreateReshapeLayer(CachedLayer* layer, const JSONGraphNode& node) {
+    layer->inputs.push_back(MakeACLTensorFromJSONEntry(node.GetInputs()[0]));
+    layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
     auto function = std::make_shared<arm_compute::NEReshapeLayer>();
     function->configure(&layer->inputs[0], &layer->outputs[0]);
     layer->function = function;

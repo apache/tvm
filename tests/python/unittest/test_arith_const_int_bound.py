@@ -122,6 +122,12 @@ def test_truncdiv_bound():
     assert bd.min_value == bd.NEG_INF
     assert bd.max_value == bd.POS_INF
 
+    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(-4, 12), override=True)
+    bd = analyzer.const_int_bound(tdiv(x, y))
+    assert bd.min_value == -9
+    assert bd.max_value == 9
+
 
 def test_truncmod_bound():
     analyzer = tvm.arith.Analyzer()
@@ -168,6 +174,12 @@ def test_floordiv_bound():
     bd = analyzer.const_int_bound(fld(x, y))
     assert bd.min_value == bd.NEG_INF
     assert bd.max_value == bd.POS_INF
+
+    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(-4, 12), override=True)
+    bd = analyzer.const_int_bound(fld(x, y))
+    assert bd.min_value == -9
+    assert bd.max_value == 9
 
 
 def test_floormod_bound():

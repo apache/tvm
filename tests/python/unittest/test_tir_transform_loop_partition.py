@@ -430,7 +430,7 @@ def test_conv_tiling():
 
 
 def test_multilevel_splitting_with_indivisble_factors():
-    import topi
+    from tvm import topi
     A = te.placeholder((130,), dtype="float32")
     B = topi.nn.relu(A)
     s = te.create_schedule(B.op)

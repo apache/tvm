@@ -116,7 +116,7 @@ cdef inline int make_arg(object arg,
         ptr = arg._tvm_handle
         value[0].v_handle = (<void*>ptr)
         tcode[0] = arg.__class__._tvm_tcode
-    elif isinstance(arg, (int, long)):
+    elif isinstance(arg, Integral):
         value[0].v_int64 = arg
         tcode[0] = kInt
     elif isinstance(arg, float):

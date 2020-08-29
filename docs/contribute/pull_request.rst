@@ -32,8 +32,22 @@ This is a quick guide to submit a pull request, please also refer to the detaile
 
   .. code:: bash
 
-    # Reproduce the lint procedure in the CI.
+    # Run all lint steps.
+    docker/lint.sh
+
+    # To run steps individually, specify their step names on the command-line. An incorrectly
+    # spelled step name causes the tool to print all available steps.
+    docker/lint.sh <step_name> ...
+
+    # While the lint commands used should be identical to those run in CI, this command reproduces
+    # the CI lint procedure exactly (typically helpful for debugging lint script errors).
     docker/bash.sh tvmai/ci-lint ./tests/scripts/task_lint.sh
+
+  When the clang-format lint check fails, run git-clang-format as follows to automatically reformat
+  your code:
+
+  .. code:: bash
+
     # Run clang-format check for all the files that changed since upstream/master
     docker/bash.sh tvmai/ci-lint ./tests/lint/git-clang-format.sh upstream/master
 
@@ -121,7 +135,7 @@ If you want to run a single test:
   make
 
   # let python know where to find tvm related libraries
-  export PYTHONPATH=python:topi/python
+  export PYTHONPATH=python
   rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
   TVM_FFI=ctypes python -m pytest -v tests/python/unittest/test_pass_storage_rewrite.py

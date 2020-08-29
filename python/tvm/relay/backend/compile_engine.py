@@ -181,11 +181,14 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     """
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
 
-    best_plevel_impl = None
-    for impl in all_impls:
-        if best_plevel_impl is None or impl.plevel > best_plevel_impl.plevel:
-            best_plevel_impl = impl
+    best_plevel_impl = max(all_impls, key=lambda x: x.plevel)
     if not use_autotvm:
+        logger.info(
+            "Using %s for %s based on highest priority (%d)",
+            best_plevel_impl.name,
+            op.name,
+            best_plevel_impl.plevel,
+        )
         outs = best_plevel_impl.compute(attrs, inputs, out_type)
         return best_plevel_impl, outs
 
@@ -207,12 +210,21 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         if cfg.is_fallback:
             # Skip fallback config
             continue
+        logger.info(
+            "Implementation %s for %s has cost %.2e", impl.name, op.name, cfg.cost
+        )
         if best_cfg is None or best_cfg.cost > cfg.cost:
             best_autotvm_impl = impl
             best_cfg = cfg
     autotvm.GLOBAL_SCOPE.silent = False
     if best_autotvm_impl:
         # The best autotvm implementation definitely doesn't use fallback config
+        logger.info(
+            "Using %s for %s based on lowest cost (%.2e)",
+            best_autotvm_impl.name,
+            op.name,
+            best_cfg.cost,
+        )
         return best_autotvm_impl, outputs[best_autotvm_impl]
     # Use the implementation with highest plevel
     if workloads[best_plevel_impl] is not None:
@@ -222,6 +234,12 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         if msg not in autotvm.task.DispatchContext.warning_messages:
             autotvm.task.DispatchContext.warning_messages.add(msg)
             autotvm_logger.warning(msg)
+    logger.info(
+        "Using %s for %s based on highest priority (%s)",
+        best_plevel_impl.name,
+        op.name,
+        best_plevel_impl.plevel,
+    )
     return best_plevel_impl, outputs[best_plevel_impl]
 
 
@@ -261,7 +279,6 @@ def lower_call(call, inputs, target):
     if not is_dyn:
         best_impl, outputs = select_implementation(
             op, call.attrs, inputs, ret_type, target)
-        logger.info("Use implementation %s for op %s", best_impl.name, op.name)
     else:
         # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes.
         #   Currently, we just use the implementation with highest plevel

@@ -21,8 +21,8 @@ import tvm
 from tvm import te
 from tvm.te.hybrid import script
 from tvm.runtime import convert
-import topi
-from topi.util import get_const_int, get_const_tuple
+from tvm import topi
+from tvm.topi.util import get_const_int, get_const_tuple
 from . import op as _reg
 from . import strategy
 from .op import OpPattern
@@ -61,6 +61,7 @@ _reg.register_reduce_schedule("collapse_sum_like")
 _reg.register_reduce_schedule("collapse_sum_to")
 _reg.register_injective_schedule("unravel_index")
 _reg.register_injective_schedule("sparse_to_dense")
+_reg.register_injective_schedule("matrix_set_diag")
 
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)
@@ -540,9 +541,10 @@ def transpose_shape_func(attrs, inputs, _):
     if axes is None:
         axes = list(range(inputs[0].shape[0].value))
         axes.reverse()
+    axes = list(axes)
     for i, axis in enumerate(axes):
         if axis < 0:
-            axes[i] = inputs[0].shape[0] - axis
+            axes[i] = inputs[0].shape[0] + axis
     return [_transpose_shape_func(inputs[0], convert(axes))]
 
 @script

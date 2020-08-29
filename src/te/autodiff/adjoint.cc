@@ -30,14 +30,16 @@
  *        (3) and sum them together to get the adjoint of the input itself.
  *        The three steps are computed recursively.
  */
-#include <topi/elemwise.h>
-#include <topi/transform.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/autodiff.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/topi/elemwise.h>
+#include <tvm/topi/transform.h>
 
 #include <memory>
 #include <vector>
+
+#include "ad_util.h"
 
 namespace tvm {
 namespace te {
@@ -63,6 +65,10 @@ Tensor VectorJacobianProduct(const Tensor& output, const Tensor& input, const Te
   Tensor jac = Jacobian(output, input);
   Tensor result = topi::tensordot(head, jac, /*axes=*/output->shape.size(),
                                   output->op->name + "." + input->op->name + ".grad");
+  result = InlineTensorAccess(result, {jac}, false);
+  result = RemoveJacobianAndLiftNonzeroCond(result);
+  // inline tail call
+  result = InlineTailTensorAccess(result);
   return result;
 }
 

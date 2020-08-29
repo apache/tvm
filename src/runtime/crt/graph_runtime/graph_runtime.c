@@ -82,8 +82,12 @@ void TVMGraphRuntimeNode_LoadAttrs(TVMGraphRuntimeNode* node, JSONReader* reader
   memset(key, 0, sizeof(key));
   memset(value, 0, sizeof(value));
   reader->BeginObject(reader);
-  while (reader->NextObjectItem(reader, key)) {
-    reader->ReadString(reader, value);
+  while (reader->NextObjectItem(reader, key, sizeof(key))) {
+    int status = reader->ReadString(reader, value, sizeof(value));
+    if (status != 0) {
+      fprintf(stderr, "error reading value for key: %s\n", key);
+      break;
+    }
     if (!strcmp(key, "func_name")) {
       snprintf(param->func_name, sizeof(value), "%s", value);
       bitmask |= 1;
@@ -110,12 +114,20 @@ int TVMGraphRuntimeNode_Load(TVMGraphRuntimeNode* node, JSONReader* reader) {
   reader->BeginObject(reader);
   int bitmask = 0;
   char key[20];
-  while (reader->NextObjectItem(reader, key)) {
+  while (reader->NextObjectItem(reader, key, sizeof(key))) {
     if (!strcmp(key, "op")) {
-      reader->ReadString(reader, node->op_type);
+      status = reader->ReadString(reader, node->op_type, sizeof(node->op_type));
+      if (status != 0) {
+        fprintf(stderr, "error reading op\n");
+        break;
+      }
       bitmask |= 1;
     } else if (!strcmp(key, "name")) {
-      reader->ReadString(reader, node->name);
+      status = reader->ReadString(reader, node->name, sizeof(node->name));
+      if (status != 0) {
+        fprintf(stderr, "error reading name\n");
+        break;
+      }
       bitmask |= 2;
     } else if (!strcmp(key, "inputs")) {
       size_t count = node->inputs_count;
@@ -200,7 +212,7 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
   uint32_t shape_count = 0;
   uint32_t device_index_count = 0;
   reader->BeginObject(reader);
-  while (reader->NextObjectItem(reader, key)) {
+  while (reader->NextObjectItem(reader, key, sizeof(key))) {
     if (!strcmp(key, "dltype")) {
       reader->BeginArray(reader);
       if (!(reader->NextArrayItem(reader))) {
@@ -208,7 +220,11 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
         status = -1;
         break;
       }
-      reader->ReadString(reader, type);
+      status = reader->ReadString(reader, type, sizeof(type));
+      if (status != 0) {
+        fprintf(stderr, "error reading dltype type\n");
+        break;
+      }
       if (strcmp(type, "list_str")) {
         fprintf(stderr, "Invalid json format\n");
         status = -1;
@@ -222,7 +238,12 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
       reader->BeginArray(reader);
       while (reader->NextArrayItem(reader)) {
         attr->dltype = vrealloc(attr->dltype, TVM_CRT_STRLEN_DLTYPE * (dltype_count + 1));
-        reader->ReadString(reader, attr->dltype + dltype_count * TVM_CRT_STRLEN_DLTYPE);
+        status = reader->ReadString(reader, attr->dltype + dltype_count * TVM_CRT_STRLEN_DLTYPE,
+                                    TVM_CRT_STRLEN_DLTYPE);
+        if (status != 0) {
+          fprintf(stderr, "error reading dltype array item");
+          break;
+        }
         dltype_count++;
       }
       attr->dltype_count = dltype_count;
@@ -240,7 +261,10 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
         status = -1;
         break;
       }
-      reader->ReadString(reader, type);
+      status = reader->ReadString(reader, type, sizeof(type));
+      if (status != 0) {
+        fprintf(stderr, "error reading device_index array item");
+      }
       if (strcmp(type, "list_int")) {
         fprintf(stderr, "Invalid json format\n");
         status = -1;
@@ -270,7 +294,11 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
         status = -1;
         break;
       }
-      reader->ReadString(reader, type);
+      status = reader->ReadString(reader, type, sizeof(type));
+      if (status != 0) {
+        fprintf(stderr, "error reading shape array item\n");
+        break;
+      }
       if (strcmp(type, "list_shape")) {
         fprintf(stderr, "Invalid json format\n");
         status = -1;
@@ -319,7 +347,11 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
         status = -1;
         break;
       }
-      reader->ReadString(reader, type);
+      status = reader->ReadString(reader, type, sizeof(type));
+      if (status != 0) {
+        fprintf(stderr, "error reading device_index array item");
+        break;
+      }
       if (strcmp(type, "list_int")) {
         fprintf(stderr, "Invalid json format\n");
         status = -1;
@@ -348,7 +380,7 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
         status = -1;
         break;
       }
-      reader->ReadString(reader, type);
+      reader->ReadString(reader, type, sizeof(type));
       if (!strcmp(type, "list_int")) {
         if (!(reader->NextArrayItem(reader))) {
           fprintf(stderr, "Invalid json format\n");
@@ -425,7 +457,7 @@ int TVMGraphRuntime_Load(TVMGraphRuntime* runtime, JSONReader* reader) {
   reader->BeginObject(reader);
   int bitmask = 0;
   char key[20];
-  while (reader->NextObjectItem(reader, key)) {
+  while (reader->NextObjectItem(reader, key, sizeof(key))) {
     if (!strcmp(key, "nodes")) {
       reader->BeginArray(reader);
       while (reader->NextArrayItem(reader)) {

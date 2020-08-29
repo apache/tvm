@@ -30,8 +30,8 @@ from tvm import relay
 from tvm import autotvm
 from tvm.contrib import util
 from tvm.contrib.pickle_memoize import memoize
-import topi
-import topi.testing
+from tvm import topi
+import tvm.topi.testing
 import vta
 from vta import program_fpga, reconfig_runtime
 import vta.testing
@@ -134,7 +134,7 @@ def run_conv2d_transpose(env, remote, wl, target,
         w_min, w_max = 0 - (1 << (env.WGT_WIDTH - 1)), (1 << (env.WGT_WIDTH - 1))
         a_np = np.random.randint(a_min, a_max, size=a_shape).astype(data.dtype)
         w_np = np.random.randint(w_min, w_max, size=(wl.in_filter, wl.out_filter, wl.hkernel, wl.wkernel)).astype(kernel.dtype)
-        r_np = topi.testing.conv2d_transpose_nchw_python(
+        r_np = tvm.topi.testing.conv2d_transpose_nchw_python(
             a_np.astype(env.acc_dtype), w_np.astype(env.acc_dtype), (wl.hstride, wl.wstride), wl.hpad, (wl.o_hpad, wl.o_wpad)).astype(env.acc_dtype)
         return a_np, w_np, r_np
 

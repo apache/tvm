@@ -18,8 +18,8 @@
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
-from topi.nn.util import get_pad_tuple
-from topi.util import get_const_tuple
+from tvm.topi.nn.util import get_pad_tuple
+from tvm.topi.util import get_const_tuple
 
 from ..expr import Tuple, TupleGetItem, const
 from . import nn as _nn
@@ -589,16 +589,23 @@ def mean_grad(orig, grad):
 def variance_grad(orig, grad):
     """Note that we take mean as an argument in the variance node"""
     data, data_mean, axis = orig.args[0], orig.args[1], _get_reduce_axis(orig)
+    unbiased = orig.attrs.unbiased
     shape = data.checked_type.concrete_shape
     if axis is None:
         axis = list(range(len(data.checked_type.concrete_shape)))
     if not orig.attrs.keepdims:
         grad = _unreduce_expand(grad, axis)
-    mult = 2.0
+    mult1 = 2.0
+    mult2 = -2.0
+    count = 1
     for a in axis:
-        mult /= shape[a]
-    return [(grad * const(mult, dtype=data.checked_type.dtype)) * data,
-            const(-2, dtype=data.checked_type.dtype) * grad * data_mean]
+        count *= shape[a]
+    if unbiased:
+        mult2 = mult2 * count / (count - 1)
+        count -= 1
+    mult1 /= count
+    return [(grad * const(mult1, dtype=data.checked_type.dtype)) * data,
+            const(mult2, dtype=data.checked_type.dtype) * grad * data_mean]
 
 
 @register_gradient("copy")

@@ -309,8 +309,9 @@ class Match : public Expr {
    * \param data the input being deconstructed.
    * \param clauses The clauses for matching.
    * \param complete Indicate if this match is complete.
+   * \param span The span of the expression.
    */
-  TVM_DLL Match(Expr data, tvm::Array<Clause> clauses, bool complete = true);
+  TVM_DLL Match(Expr data, tvm::Array<Clause> clauses, bool complete = true, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Match, RelayExpr, MatchNode);
 };

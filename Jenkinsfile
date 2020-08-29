@@ -43,11 +43,13 @@
 //
 //
 
+// NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = "tvmai/ci-lint:v0.61"
 ci_gpu = "tvmai/ci-gpu:v0.64"
-ci_cpu = "tvmai/ci-cpu:v0.63"
+ci_cpu = "tvmai/ci-cpu:v0.65"
 ci_wasm = "tvmai/ci-wasm:v0.60"
 ci_i386 = "tvmai/ci-i386:v0.52"
+// <--- End of regex-scanned config.
 
 // tvm libraries
 tvm_runtime = "build/libtvm_runtime.so, build/config.cmake"
@@ -56,7 +58,6 @@ tvm_lib = "build/libtvm.so, " + tvm_runtime
 tvm_multilib = "build/libtvm.so, " +
                "build/libvta_tsim.so, " +
                "build/libvta_fsim.so, " +
-               "build/libtvm_topi.so, " +
                tvm_runtime
 
 // command to start a docker container
@@ -203,8 +204,8 @@ stage('Unit Test') {
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest.sh"
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
         }
       }
     }

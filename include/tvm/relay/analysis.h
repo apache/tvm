@@ -67,6 +67,15 @@ TVM_DLL Kind KindCheck(const Type& t, const IRModule& mod);
 TVM_DLL bool ConstantCheck(const Expr& e);
 
 /*!
+ * \brief Check whether an expression is in the basic block normal form.
+ *
+ * \param e the expression.
+ *
+ * \return whether the expression is in the basic block normal form.
+ */
+TVM_DLL bool BasicBlockNormalFormCheck(const Expr& e);
+
+/*!
  * \brief Check that each Var is only bound once.
  *
  * For example, the expression `let x = 1 in let x = 2 in 3` bound x twice.

@@ -464,48 +464,54 @@ TVM_DLL PrimExpr isinf(PrimExpr x);
  * \brief sum of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \param init The value with which to initialize the output.
  * \return The result.
  */
-TVM_DLL PrimExpr sum(PrimExpr source, Array<tir::IterVar> axis);
+TVM_DLL PrimExpr sum(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {});
 
 /*!
  * \brief logical And of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \param init The value with which to initialize the output.
  */
-TVM_DLL PrimExpr all(PrimExpr source, Array<tir::IterVar> axis);
+TVM_DLL PrimExpr all(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {});
 
 /*!
  * \brief logical Or of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \param init The value with which to initialize the output.
  * \return The result.
  */
-TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis);
+TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {});
 
 /*!
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \param init The value with which to initialize the output.
  * \return The result.
  */
-TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis);
+TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {});
 
 /*!
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \param init The value with which to initialize the output.
  * \return The result.
  */
-TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis);
+TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {});
 
 /*!
  * \brief product of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \param init The value with which to initialize the output.
  * \return The result.
  */
-TVM_DLL PrimExpr prod(PrimExpr source, Array<tir::IterVar> axis);
+TVM_DLL PrimExpr prod(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {});
 
 /*!
  * \brief Calculate floor(x)
@@ -617,6 +623,23 @@ TVM_DECLARE_INTRIN_BINARY(hypot);
 TVM_DECLARE_INTRIN_BINARY(ldexp);
 
 namespace tir {
+
+/*!
+ * \brief Check if type is a pointer to a runtime element type.
+ * \param type The type to be checked.
+ * \param element_type The corresponding element type.
+ * \return The check results
+ */
+inline bool IsPointerType(const Type& type, const DataType& element_type) {
+  if (!type.defined()) return false;
+  if (const auto* ptr_type = type.as<PointerTypeNode>()) {
+    if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
+      return prim_type->dtype == element_type;
+    }
+  }
+  return false;
+}
+
 /*!
  * \brief Make a const value with certain data type.
  * \param t The target type.

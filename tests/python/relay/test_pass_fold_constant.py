@@ -164,6 +164,27 @@ def test_fold_shape_of():
         assert tvm.ir.structural_equal(zz, zexpected)
 
 
+def test_fold_ndarray_size():
+    c_shape = (8, 9, 10)
+    def before(dtype):
+        x = relay.var("x", shape=c_shape, dtype="float32")
+        y = relay.var("y", shape=c_shape, dtype="float32")
+        z = relay.ndarray_size(x + y, dtype)
+        return relay.Function([x, y], z)
+
+    def expected(dtype):
+        x = relay.var("x", shape=c_shape, dtype="float32")
+        y = relay.var("y", shape=c_shape, dtype="float32")
+        z = relay.const(np.size(np.zeros(c_shape)), dtype=dtype)
+        func = relay.Function([x, y], z)
+        return func
+
+    for dtype in ["int32", "float32"]:
+        zz = run_opt_pass(before(dtype), transform.FoldConstant())
+        zexpected = run_opt_pass(expected(dtype), transform.InferType())
+        assert tvm.ir.structural_equal(zz, zexpected)
+
+
 def test_fold_full():
     c_shape = (8, 9, 10)
     def before():
@@ -228,3 +249,4 @@ if __name__ == "__main__":
     test_fold_shape_of()
     test_fold_full()
     test_fold_batch_norm()
+    test_fold_ndarray_size()

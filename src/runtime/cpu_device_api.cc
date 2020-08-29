@@ -80,8 +80,10 @@ class CPUDeviceAPI final : public DeviceAPI {
   void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
 
-  static const std::shared_ptr<CPUDeviceAPI>& Global() {
-    static std::shared_ptr<CPUDeviceAPI> inst = std::make_shared<CPUDeviceAPI>();
+  static CPUDeviceAPI* Global() {
+    // NOTE: explicitly use new to avoid exit-time destruction of global state
+    // Global state will be recycled by OS as the process exits.
+    static auto* inst = new CPUDeviceAPI();
     return inst;
   }
 };
@@ -99,7 +101,7 @@ void CPUDeviceAPI::FreeWorkspace(TVMContext ctx, void* data) {
 }
 
 TVM_REGISTER_GLOBAL("device_api.cpu").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = CPUDeviceAPI::Global().get();
+  DeviceAPI* ptr = CPUDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
 }  // namespace runtime

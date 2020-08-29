@@ -32,6 +32,8 @@
 #include <deque>
 #include <exception>
 #include <future>
+#include <numeric>
+#include <random>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -98,6 +100,38 @@ inline void FindAndDeleteItem(std::vector<T>* array, const T& to_delete) {
   }
 }
 
+/*! \brief Compute the product of all elements in a vector */
+inline int64_t ElementProduct(const std::vector<int>& array) {
+  int64_t ret = 1;
+  for (auto x : array) {
+    ret *= x;
+  }
+  return ret;
+}
+
+/*! \brief Move elements from multiple vectors to one vector */
+template <typename T>
+std::vector<T>& ConcatenateMove(std::vector<T>* out, std::vector<T>* in) {
+  out->insert(out->end(), std::make_move_iterator(in->begin()), std::make_move_iterator(in->end()));
+  return *out;
+}
+
+/*! \brief Move elements from multiple vectors to one vector */
+template <typename T, typename... Args>
+std::vector<T>& ConcatenateMove(std::vector<T>* out, std::vector<T>* first, Args... args) {
+  ConcatenateMove(out, first);
+  ConcatenateMove(out, args...);
+  return *out;
+}
+
+/*! \brief Get a random permutation of integers [0, n-1] */
+template <typename G>
+void RandomPermutation(int n, std::vector<int>* out, G* gen) {
+  out->assign(n, 0);
+  std::iota(out->begin(), out->end(), 0);
+  std::shuffle(out->begin(), out->end(), *gen);
+}
+
 /*! \brief Replace a sub-string to another sub-string in a string */
 inline void StrReplace(std::string* base, const std::string& from, const std::string& to) {
   auto pos = base->find(from);
@@ -107,25 +141,22 @@ inline void StrReplace(std::string* base, const std::string& from, const std::st
   }
 }
 
-/*! \brief Convert a Array<Integer> to std::vector<int>. */
-inline std::vector<int> IntArrayToVector(const ::tvm::Array<::tvm::Integer>& data) {
-  std::vector<int> out;
-  for (const auto& x : data) {
-    CHECK(x.defined());
-    out.push_back(x);
+/*! \brief Return whether two int arrays are elementwise-equal */
+inline bool IntArrayEqual(const Array<PrimExpr>& arr1, const Array<PrimExpr>& arr2) {
+  if (arr1.size() != arr2.size()) {
+    return false;
   }
-  return out;
-}
 
-/*! \brief Convert a Array<Optional<Integer>> to std::vector<int>. */
-inline std::vector<int> IntArrayToVector(
-    const ::tvm::Array<::tvm::Optional<::tvm::Integer>>& data) {
-  std::vector<int> out;
-  for (const auto& x : data) {
-    CHECK(x);
-    out.push_back(x.value());
+  for (size_t i = 0; i < arr1.size(); ++i) {
+    auto int1 = arr1[i].as<IntImmNode>();
+    auto int2 = arr2[i].as<IntImmNode>();
+    CHECK(int1 != nullptr);
+    CHECK(int2 != nullptr);
+    if (int1->value != int2->value) {
+      return false;
+    }
   }
-  return out;
+  return true;
 }
 
 /********** Utilities for TVM Containers / ByteArray **********/
@@ -142,6 +173,18 @@ inline double FloatArrayMean(const Array<PrimExpr>& float_array) {
     sum += floatimm->value;
   }
   return sum / float_array.size();
+}
+
+/*! \brief Return whether a string starts with another substring */
+inline bool StrStartsWith(const String& a, const String& b) {
+  if (b.size() > a.size()) return false;
+  return std::equal(a.c_str(), a.c_str() + b.size(), b.c_str());
+}
+
+/*! \brief Return whether a string ends with another substring */
+inline bool StrEndsWith(const String& a, const String& b) {
+  if (b.size() > a.size()) return false;
+  return std::equal(a.c_str() + a.size() - b.size(), a.c_str() + a.size(), b.c_str());
 }
 
 /********** Other Utilities **********/
@@ -204,13 +247,6 @@ inline std::string Chars(const char& str, int times) {
     ret << str;
   }
   return ret.str();
-}
-
-/*! \brief Print a title */
-inline void PrintTitle(const std::string& title, int verbose) {
-  StdCout(verbose) << Chars('-', 60) << "\n"
-                   << Chars('-', 25) << "  [ " << title << " ]\n"
-                   << Chars('-', 60) << std::endl;
 }
 
 }  // namespace auto_scheduler

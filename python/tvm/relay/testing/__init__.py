@@ -39,6 +39,7 @@ from . import vgg
 from . import densenet
 from . import yolo_detection
 from . import temp_op_attr
+from . import synthetic
 
 from .config import ctx_list
 from .init import create_workload

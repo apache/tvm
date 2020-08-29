@@ -5,7 +5,15 @@ This folder contains the source of TVM documents
 - A hosted version of doc is at https://tvm.apache.org/docs
 - pip install sphinx>=1.5.5 sphinx-gallery sphinx_rtd_theme matplotlib Image recommonmark "Pillow<7"
 - Build tvm first in the root folder.
-- To build locally, you need to enable USE_CUDA, USE_OPENCL, LLVM_CONFIG in config.cmake and then type "make html" in this folder.
+- Run the following command
+```bash
+TVM_TUTORIAL_EXEC_PATTERN=none make html
+```
+
+```TVM_TUTORIAL_EXEC_PATTERN=none``` skips the tutorial execution to make it work on most environment(e.g. Mac book).
+
+See also the instructions below to run a specific tutorial. Note that some of the tutorials need GPU support.
+
 
 Only Execute Specified Tutorials
 --------------------------------
@@ -34,12 +42,12 @@ You can run the following script to reproduce the CI sphinx pre-check stage.
 This script skips the tutorial executions and is useful for quickly check the content.
 
 ```bash
-./tests/scrpts/task_sphinx_precheck.sh
+./tests/scripts/task_sphinx_precheck.sh
 ```
 
 The following script runs the full build which includes tutorial executions.
 You will need a gpu CI environment.
 
 ```bash
-./tests/scrpts/task_python_docs.sh
+./tests/scripts/task_python_docs.sh
 ```

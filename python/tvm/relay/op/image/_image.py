@@ -18,8 +18,11 @@
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
-import topi
-from topi.util import get_const_tuple
+from tvm.te.hybrid import script
+from tvm.runtime import convert
+
+from tvm import topi
+from tvm.topi.util import get_const_tuple
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern
@@ -63,6 +66,34 @@ def compute_crop_and_resize(attrs, inputs, out_type):
                                        extrapolation_value, out_dtype)]
 
 reg.register_injective_schedule("image.crop_and_resize")
+
+@script
+def _crop_and_resize_func(image_shape, boxes_shape, crop_size,
+                          height_axis, width_axis, channel_axis):
+    out = output_tensor((4,), "int64")
+    out[0] = boxes_shape[0]
+    out[height_axis] = int64(crop_size[0])
+    out[width_axis] = int64(crop_size[1])
+    out[channel_axis] = image_shape[channel_axis]
+    return out
+
+@reg.register_shape_func("image.crop_and_resize", False)
+def crop_and_resize_func(attrs, inputs, _):
+    """
+    Shape function for crop_and_resize op.
+    """
+    layout = attrs.layout
+    height_axis = width_axis = channel_axis = 1
+    for i, letter in enumerate(layout):
+        if letter == "H":
+            height_axis = i
+        if letter == "W":
+            width_axis = i
+        if letter == "C":
+            channel_axis = i
+    crop_size = get_const_tuple(attrs.crop_size)
+    return [_crop_and_resize_func(inputs[0], inputs[1], convert(crop_size),
+                                  convert(height_axis), convert(width_axis), convert(channel_axis))]
 
 
 # dilation2d

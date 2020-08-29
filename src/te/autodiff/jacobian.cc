@@ -181,6 +181,8 @@ class JacobianMutator : public ExprMutator {
     PrimExpr expr_with_new_axes = te::CloneReduction(GetRef<PrimExpr>(op));
     const ReduceNode* new_op = expr_with_new_axes.as<ReduceNode>();
 
+    CHECK(new_op->init.empty()) << "Derivative of Reduction with initialization is not implemented";
+
     // New lhs and rhs variables of the new combiner consist of
     // variables representing derivatives (which are later derived from new_op->source)
     // followed by the original variables.
@@ -245,8 +247,8 @@ class JacobianMutator : public ExprMutator {
     CommReducer new_combiner = CommReducer(new_lhs, new_rhs, new_result, new_identity);
     // Also simplify the resulting combiner
     // (mostly to get rid of unused components, e.g., the original expressions)
-    return analyzer_.Simplify(
-        Reduce(new_combiner, new_source, new_op->axis, new_op->condition, new_op->value_index));
+    return analyzer_.Simplify(Reduce(new_combiner, new_source, new_op->axis, new_op->condition,
+                                     new_op->value_index, new_op->init));
   }
 
   PrimExpr VisitExpr_(const CastNode* op) {
@@ -342,7 +344,8 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
   if (const ReduceNode* red = new_body.as<ReduceNode>()) {
     value_index = red->value_index;
     for (size_t idx = 0; idx < red->source.size(); ++idx) {
-      new_bodies.push_back(Reduce(red->combiner, red->source, red->axis, red->condition, idx));
+      new_bodies.push_back(
+          Reduce(red->combiner, red->source, red->axis, red->condition, idx, red->init));
     }
   } else {
     new_bodies.push_back(new_body);
@@ -356,7 +359,9 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
     new_shape.push_back(e);
   }
 
-  return Tensor(new_shape, output->dtype, new_op, value_index);
+  Tensor ret = Tensor(new_shape, output->dtype, new_op, value_index);
+  ret = RemoveJacobianAndLiftNonzeroCond(ret);
+  return ret;
 }
 
 }  // namespace te

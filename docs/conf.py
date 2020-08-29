@@ -40,7 +40,6 @@ import sphinx_gallery
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
 sys.path.insert(0, os.path.join(curr_path, '../python/'))
-sys.path.insert(0, os.path.join(curr_path, '../topi/python'))
 sys.path.insert(0, os.path.join(curr_path, '../vta/python'))
 
 # -- General configuration ------------------------------------------------
@@ -54,6 +53,7 @@ github_doc_root = 'https://github.com/apache/incubator-tvm/tree/master/docs/'
 os.environ['TVM_BUILD_DOC'] = '1'
 # Version information.
 import tvm
+from tvm import topi
 from tvm import te
 version = tvm.__version__
 release = tvm.__version__
@@ -186,7 +186,8 @@ examples_dirs = ["../tutorials/", "../vta/tutorials/"]
 gallery_dirs = ["tutorials", "vta/tutorials"]
 
 subsection_order = ExplicitOrder(
-    ['../tutorials/frontend',
+    ['../tutorials/get_started',
+     '../tutorials/frontend',
      '../tutorials/language',
      '../tutorials/optimize',
      '../tutorials/autotvm',

@@ -99,14 +99,28 @@ class VarUseDefAnalysis : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const LetNode* op) final {
-    this->HandleDef(op->var.get());
+    // Weaker SSA condition
+    // A single var can be binded in multiple lets
+    // but they have to bind to the same value.
+    // This is used to allow cases when we reuse a single let
+    // expression to construct a nested expr.
+    // (let x = 1 in x + 1) * (let x = 1 in x + 1)
+    auto it = let_binding_.find(op->var);
+    PrimExpr value = this->VisitExpr(op->value);
+    if (it != let_binding_.end()) {
+      CHECK(deep_equal_(it->second->value, value))
+          << "Let cannot bind the same var to two different values";
+      return GetRef<PrimExpr>(it->second);
+    } else {
+      this->HandleDef(op->var.get());
+      let_binding_[op->var] = op;
+    }
     PrimExpr body = this->VisitExpr(op->body);
     // eliminate unreferenced let
     if (use_count_.at(op->var.get()) == 0 && SideEffect(op->value) <= CallEffectKind::kReadState &&
         simplify_let_) {
       return body;
     } else {
-      PrimExpr value = this->VisitExpr(op->value);
       if (body.same_as(op->body) && value.same_as(op->value)) {
         return GetRef<PrimExpr>(op);
       } else {
@@ -117,6 +131,13 @@ class VarUseDefAnalysis : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const VarNode* op) final {
     this->HandleUse(GetRef<PrimExpr>(op));
+    return StmtExprMutator::VisitExpr_(op);
+  }
+
+  PrimExpr VisitExpr_(const ReduceNode* op) final {
+    for (const auto& iv : op->axis) {
+      this->HandleDef(iv->var.get());
+    }
     return StmtExprMutator::VisitExpr_(op);
   }
 
@@ -157,6 +178,10 @@ class VarUseDefAnalysis : public StmtExprMutator {
   Array<PrimExpr> thread_extent_;
   std::unordered_map<const VarNode*, int> use_count_;
   std::unordered_map<const VarNode*, int> def_count_;
+
+ private:
+  ExprDeepEqual deep_equal_;
+  std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
 };
 
 Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
@@ -166,6 +191,13 @@ Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
     m.use_count_[arg.get()] = 0;
   }
   m(stmt);
+  return m.undefined_;
+}
+
+Array<Var> UndefinedVars(const PrimExpr& expr) {
+  VarUseDefAnalysis m;
+  m.simplify_let_ = false;
+  m(expr);
   return m.undefined_;
 }
 

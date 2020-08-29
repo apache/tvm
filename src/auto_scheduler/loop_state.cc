@@ -23,14 +23,14 @@
  * see auto_scheduler/loop_state.h for more explanation.
  */
 
-#include "loop_state.h"
-
+#include <tvm/auto_scheduler/compute_dag.h>
+#include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 
 #include <utility>
 
-#include "transform_step.h"
 #include "utils.h"
 
 namespace tvm {
@@ -113,6 +113,7 @@ void AttachMap::UpdateIters(const std::vector<IterKey>& original_iters,
                             const std::vector<IterKey>& new_iters) {
   CHECK_EQ(original_iters.size(), new_iters.size());
   AttachMapNode* pnode = CopyOnWrite();
+  std::unordered_map<IterKey, std::vector<StageKey>> new_iter_to_attached_stages;
   for (size_t i = 0; i < original_iters.size(); ++i) {
     auto entry = pnode->iter_to_attached_stages.find(original_iters[i]);
     // We get <IterKey, std::vector<StageKey>> from this map
@@ -130,7 +131,12 @@ void AttachMap::UpdateIters(const std::vector<IterKey>& original_iters,
     // iterator to it
     std::vector<int> attached_stages = std::move(entry->second);
     pnode->iter_to_attached_stages.erase(entry);
-    pnode->iter_to_attached_stages[new_iters[i]] = std::move(attached_stages);
+    new_iter_to_attached_stages[new_iters[i]] = std::move(attached_stages);
+  }
+
+  // Update new entries
+  for (auto& it : new_iter_to_attached_stages) {
+    pnode->iter_to_attached_stages[it.first] = std::move(it.second);
   }
 }
 
@@ -149,6 +155,36 @@ void AttachMap::DeleteStageEntry(AttachMapNode* pnode, int stage_id) {
     // Delete the stage in `stage_to_attach_iter`
     pnode->stage_to_attach_iter.erase(old_entry);
   }
+}
+
+AttachMap AttachMap::ApplyStageIdOffset(int start_id, int offset) const {
+  AttachMap map = AttachMap(make_object<AttachMapNode>());
+  auto pmap = map.CopyOnWrite();
+  for (const auto& x : operator->()->stage_to_attach_iter) {
+    auto key = x.first;
+    if (key >= start_id) {
+      key += offset;
+    }
+    auto value = x.second;
+    if (value.first >= start_id) {
+      value.first += offset;
+    }
+    pmap->stage_to_attach_iter.insert(std::make_pair(key, value));
+  }
+  for (const auto& x : operator->()->iter_to_attached_stages) {
+    auto key = x.first;
+    if (key.first >= start_id) {
+      key.first += offset;
+    }
+    auto value = x.second;
+    for (auto& i : value) {
+      if (i >= start_id) {
+        i += offset;
+      }
+    }
+    pmap->iter_to_attached_stages.insert(std::make_pair(key, value));
+  }
+  return map;
 }
 
 /********** State **********/
@@ -217,6 +253,13 @@ Iterator State::fuse(int stage_id, const Array<Iterator>& iters) {
   return step->ApplyToState(this);
 }
 
+void State::pragma(int stage_id, const Iterator& it, const String& pragma_type) {
+  const Stage& stage = operator->()->stages[stage_id];
+  PragmaStep step = PragmaStep(stage_id, GetIndex(stage->iters, it), pragma_type);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this);
+}
+
 void State::reorder(int stage_id, const Array<Iterator>& order) {
   const Stage& stage = operator->()->stages[stage_id];
   CHECK_EQ(order.size(), stage->iters.size()) << "The order of all iterators "
@@ -234,6 +277,32 @@ Array<Iterator> State::split(int stage_id, const Iterator& it,
   SplitStep step =
       SplitStep(stage_id, GetIndex(stage->iters, it),
                 it->range.defined() ? it->range->extent : PrimExpr(), lengths, inner_to_outer);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this);
+}
+
+Array<Iterator> State::follow_split(int stage_id, const Iterator& it, int src_step_id,
+                                    int n_split) {
+  const Stage& stage = operator->()->stages[stage_id];
+  FollowSplitStep step =
+      FollowSplitStep(stage_id, GetIndex(stage->iters, it), src_step_id, n_split);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this);
+}
+
+Array<Iterator> State::follow_fused_split(int stage_id, const Iterator& it,
+                                          const Array<Integer>& src_step_ids, int level,
+                                          bool factor_or_nparts) {
+  const Stage& stage = operator->()->stages[stage_id];
+  FollowFusedSplitStep step = FollowFusedSplitStep(stage_id, GetIndex(stage->iters, it),
+                                                   src_step_ids, level, factor_or_nparts);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this);
+}
+
+void State::storage_align(int stage_id, const Iterator& it, int factor, int offset) {
+  const Stage& stage = operator->()->stages[stage_id];
+  StorageAlignStep step = StorageAlignStep(stage_id, GetIndex(stage->iters, it), factor, offset);
   CopyOnWrite()->transform_steps.push_back(step);
   return step->ApplyToState(this);
 }
@@ -258,13 +327,24 @@ void State::compute_root(int stage_id) {
   step->ApplyToState(this);
 }
 
-void State::ApplySteps(const ComputeDAG& dag) {
-  CHECK(operator->()->stages.size()) << "Invalid State with empty operation stages.";
+int State::cache_read(int stage_id, const String& scope_name,
+                      const Array<Integer>& reader_stage_ids, const ComputeDAG& dag) {
+  CacheReadStep step = CacheReadStep(stage_id, scope_name, reader_stage_ids);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this, dag);
+}
 
-  // Call each step's ApplyToState method
-  for (const auto& step : operator->()->transform_steps) {
-    StepApplyToState(step, this, dag);
-  }
+int State::cache_write(int stage_id, const String& scope_name, const ComputeDAG& dag) {
+  CacheWriteStep step = CacheWriteStep(stage_id, scope_name);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this, dag);
+}
+
+int State::rfactor(int stage_id, const Iterator& it, int factor_iter_id, const ComputeDAG& dag) {
+  const Stage& stage = operator->()->stages[stage_id];
+  RfactorStep step = RfactorStep(stage_id, GetIndex(stage->iters, it), factor_iter_id);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return step->ApplyToState(this, dag);
 }
 
 // Print stage to ostream
@@ -398,6 +478,12 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateFuse")
       return Array<ObjectRef>{state, res};
     });
 
+TVM_REGISTER_GLOBAL("auto_scheduler.StatePragma")
+    .set_body_typed([](State state, int stage_id, const Iterator& it, const String& pragma_type) {
+      state.pragma(stage_id, it, pragma_type);
+      return state;
+    });
+
 TVM_REGISTER_GLOBAL("auto_scheduler.StateReorder")
     .set_body_typed([](State state, int stage_id, const Array<Iterator>& order) {
       state.reorder(stage_id, order);
@@ -409,6 +495,27 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateSplit")
                        const Array<Optional<Integer>>& lengths, bool inner_to_outer) {
       const auto& res = state.split(stage_id, it, lengths, inner_to_outer);
       return Array<ObjectRef>{state, res};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateFollowSplit")
+    .set_body_typed([](State state, int stage_id, const Iterator& it, int src_step_id,
+                       int n_split) {
+      const auto& res = state.follow_split(stage_id, it, src_step_id, n_split);
+      return Array<ObjectRef>{state, Array<Iterator>(res)};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateFollowFusedSplit")
+    .set_body_typed([](State state, int stage_id, const Iterator& it,
+                       const Array<Integer>& src_step_ids, int level, bool factor_or_nparts) {
+      const auto& res =
+          state.follow_fused_split(stage_id, it, src_step_ids, level, factor_or_nparts);
+      return Array<ObjectRef>{state, Array<Iterator>(res)};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateStorageAlign")
+    .set_body_typed([](State state, int stage_id, const Iterator& it, int factor, int offset) {
+      state.storage_align(stage_id, it, factor, offset);
+      return state;
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.StateComputeAt")
@@ -428,6 +535,27 @@ TVM_REGISTER_GLOBAL("auto_scheduler.StateComputeRoot")
     .set_body_typed([](State state, int stage_id) {
       state.compute_root(stage_id);
       return state;
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateCacheRead")
+    .set_body_typed([](State state, int stage_id, const String& scope_name,
+                       const Array<Integer>& reader_stage_ids, const ComputeDAG& dag) {
+      int res = state.cache_read(stage_id, scope_name, reader_stage_ids, dag);
+      return Array<ObjectRef>{state, Integer(res)};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateCacheWrite")
+    .set_body_typed([](State state, int stage_id, const String& scope_name,
+                       const ComputeDAG& task_dag) {
+      int res = state.cache_write(stage_id, scope_name, task_dag);
+      return Array<ObjectRef>{state, Integer(res)};
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.StateRfactor")
+    .set_body_typed([](State state, int stage_id, const Iterator& it, int factor_iter_id,
+                       const ComputeDAG& dag) {
+      int res = state.rfactor(stage_id, it, factor_iter_id, dag);
+      return Array<ObjectRef>{state, Integer(res)};
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.StateEqual").set_body_typed([](State state1, State state2) {

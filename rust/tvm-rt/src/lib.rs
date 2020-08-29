@@ -95,9 +95,9 @@ pub mod array;
 pub mod context;
 pub mod errors;
 pub mod function;
+pub mod map;
 pub mod module;
 pub mod ndarray;
-pub mod to_boxed_fn;
 mod to_function;
 pub mod value;
 

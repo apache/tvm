@@ -29,7 +29,6 @@ echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
 echo set\(USE_STANDALONE_CRT ON\) >> config.cmake
 echo set\(USE_GRAPH_RUNTIME_DEBUG ON\) >> config.cmake
 echo set\(USE_VM_PROFILER ON\) >> config.cmake
-echo set\(USE_EXAMPLE_EXT_RUNTIME ON\) >> config.cmake
 echo set\(USE_DNNL_CODEGEN ON\) >> config.cmake
 echo set\(USE_ARM_COMPUTE_LIB ON\) >> config.cmake
 echo set\(USE_LLVM llvm-config-10\) >> config.cmake
@@ -44,3 +43,5 @@ echo set\(USE_VTA_FSIM ON\) >> config.cmake
 echo set\(USE_TFLITE ON\) >> config.cmake
 echo set\(USE_TENSORFLOW_PATH \"/tensorflow\"\) >> config.cmake
 echo set\(USE_FLATBUFFERS_PATH \"/flatbuffers\"\) >> config.cmake
+echo set\(USE_ETHOSN /opt/arm/ethosn-driver\) >> config.cmake
+echo set\(USE_ETHOSN_HW OFF\) >> config.cmake

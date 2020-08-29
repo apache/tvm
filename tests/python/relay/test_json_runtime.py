@@ -71,8 +71,7 @@ def check_result(mod,
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         exe = runtime.vm.Executable.load_exec(code, lib)
-        vm = runtime.vm.VirtualMachine(exe)
-        vm.init(ctx)
+        vm = runtime.vm.VirtualMachine(exe, ctx)
         out = vm.run(**map_inputs)
         tvm.testing.assert_allclose(out.asnumpy(), ref_result, rtol=tol, atol=tol)
 

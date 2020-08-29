@@ -21,9 +21,9 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import autotvm
-import topi
-from topi.util import get_const_tuple
-from topi.nn.util import get_pad_tuple
+from tvm import topi
+from tvm.topi.util import get_const_tuple
+from tvm.topi.nn.util import get_pad_tuple
 
 from ..environment import get_env
 
