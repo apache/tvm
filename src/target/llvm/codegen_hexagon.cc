@@ -658,11 +658,7 @@ void ProcessLLVMOptions(const std::vector<std::string>& llvm_vec) {
 
 }  // namespace
 
-runtime::Module BuildHexagon(IRModule mod, std::string target_str) {
-  if (target_str.empty()) {
-    LOG(FATAL) << "Unknown or invalid target.";
-  }
-
+runtime::Module BuildHexagon(IRModule mod, Target target) {
   // Make sure all targets are registered. InitializeLLVM can be called
   // multiple times, after the first call all subsequent calls are no-ops.
   InitializeLLVM();
@@ -675,21 +671,12 @@ runtime::Module BuildHexagon(IRModule mod, std::string target_str) {
     }
     return vec;
   };
-  auto starts_with = [](const std::string& s, const std::string& p) {
-    return !s.compare(0, p.size(), p);
-  };
-
-  std::vector<std::string> flags = split(target_str);
-  std::string llvm_target_str, llvm_options_str = "llvm";
-
-  for (const auto& s : flags) {
-    if (starts_with(s, "-mattr=") || starts_with(s, "-mtriple=") || starts_with(s, "-mcpu=")) {
-      llvm_target_str += " " + s;
-    } else if (starts_with(s, "-llvm-options=")) {
-      llvm_options_str += "," + s.substr(14 /*length of -llvm-options=*/);
-    }
+  std::string llvm_options_str;
+  if (const Optional<String> llvm_options = target->GetAttr<String>("llvm-options")) {
+    llvm_options_str = "llvm," + llvm_options.value();
+  } else {
+    llvm_options_str = "llvm";
   }
-
   // Postprocess the LLVM options string: replace '@' with '=', and ',' with ' '.
   for (int i = 0, e = llvm_options_str.size(); i != e; ++i) {
     switch (llvm_options_str[i]) {
@@ -716,7 +703,7 @@ runtime::Module BuildHexagon(IRModule mod, std::string target_str) {
   static bool CallOnce = (ProcessLLVMOptions(llvm_options_vec), true);
   (void)CallOnce;
 
-  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target_str);
+  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
   std::unique_ptr<CodeGenHexagon> cg(new CodeGenHexagon());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   cg->Init("TVMHexagonModule", tm.get(), ctx.get(), false, false, false);
@@ -802,9 +789,7 @@ runtime::Module BuildHexagon(IRModule mod, std::string target_str) {
                              export_abi);
 }
 
-TVM_REGISTER_GLOBAL("target.build.hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = BuildHexagon(args[0], args[1]);
-});
+TVM_REGISTER_GLOBAL("target.build.hexagon").set_body_typed(BuildHexagon);
 
 }  // namespace codegen
 }  // namespace tvm
