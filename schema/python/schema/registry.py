@@ -2,10 +2,6 @@ from collections import namedtuple
 from .expr import ObjectDef, ObjectRefDef
 
 REGISTRY_TABLE = {}
-# STR2TYPE = {
-#     'ObjectDef': ObjectDef,
-#     'ObjectRefDef': ObjectRefDef,
-# }
 
 def register(expr):
     assert isinstance(expr, (ObjectDef, ObjectRefDef))

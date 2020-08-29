@@ -1,3 +1,5 @@
+from pprint import pprint
+
 class SchemaExpr(object):
     pass
 
@@ -13,7 +15,6 @@ class ObjectDef(SchemaExpr):
         self.fsequal_reduce = fsequal_reduce
         self.fshash_reduce = fshash_reduce
 
-ObjectBase = ObjectDef("Object", "Object", base=None)
 
 class ObjectRefDef(SchemaExpr):
     def __init__(self, name, base, internal_object):
@@ -21,9 +22,13 @@ class ObjectRefDef(SchemaExpr):
         self.base = base
         self.internal_object = internal_object
 
-ObjectRefBase = ObjectRefDef("ObjectRef", base=None, internal_object=ObjectBase)
-
 class FieldDef(SchemaExpr):
     def __init__(self, name, type_):
         self.name = name
         self.type_ = type_
+
+    def __str__(self):
+        return str(vars(self))
+
+    def __repr__(self):
+        return str(vars(self))
