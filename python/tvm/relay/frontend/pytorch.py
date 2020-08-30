@@ -996,11 +996,22 @@ def _transpose(prelude):
         return _op.transform.transpose(data, axes)
     return _impl
 
+
 def _flatten():
     def _impl(inputs, input_types):
         data = inputs[0]
-        return _op.nn.batch_flatten(data)
+        start_dim = inputs[1] if len(inputs) > 0 else 0
+        end_dim = inputs[2] if len(inputs) > 1 else -1
+
+        if start_dim == 0 and end_dim == -1:
+            return _op.transform.reshape(data, (-1,))
+        if start_dim == 1 and end_dim == -1:
+            return _op.nn.batch_flatten(data)
+
+        raise NotImplementedError("Only support 1d flatten or batch flatten")
+
     return _impl
+
 
 def _dense():
     def _impl(inputs, input_types):
@@ -1509,11 +1520,13 @@ def _to():
         # this happens when converting upsampling with scale factor
         cast_func = {
             6: float,
+            7: float,
             3: int,
             4: int
         }
         cast_func_expr = {
             6: lambda x: _op.cast(x, "float32"),
+            7: lambda x: _op.cast(x, "float64"),
             3: lambda x: _op.cast(x, "int32"),
             4: lambda x: _op.cast(x, "int64"),
         }

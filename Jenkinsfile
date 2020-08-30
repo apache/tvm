@@ -31,7 +31,7 @@
 //
 // - Send PR to upgrade build script in the repo
 // - Build the new docker image
-// - Tag the docker image with a new version and push to tvmai
+// - Tag the docker image with a new version and push to a binary cache.
 // - Update the version in the Jenkinsfile, send a PR
 // - Fix any issues wrt to the new image version in the PR
 // - Merge the PR and now we are in new version
@@ -44,11 +44,11 @@
 //
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = "tvmai/ci-lint:v0.61"
-ci_gpu = "tvmai/ci-gpu:v0.64"
-ci_cpu = "tvmai/ci-cpu:v0.65"
-ci_wasm = "tvmai/ci-wasm:v0.60"
-ci_i386 = "tvmai/ci-i386:v0.52"
+ci_lint = "tlcpack/ci-lint:v0.61"
+ci_gpu = "tlcpack/ci-gpu:v0.64"
+ci_cpu = "tlcpack/ci-cpu:v0.65"
+ci_wasm = "tlcpack/ci-wasm:v0.60"
+ci_i386 = "tlcpack/ci-i386:v0.52"
 // <--- End of regex-scanned config.
 
 // tvm libraries
@@ -288,13 +288,13 @@ stage('Integration Test') {
 stage('Build packages') {
   parallel 'conda CPU': {
     node('CPU') {
-      sh "${docker_run} tvmai/conda-cpu ./conda/build_cpu.sh
+      sh "${docker_run} tlcpack/conda-cpu ./conda/build_cpu.sh
     }
   },
   'conda cuda': {
     node('CPU') {
-      sh "${docker_run} tvmai/conda-cuda90 ./conda/build_cuda.sh
-      sh "${docker_run} tvmai/conda-cuda100 ./conda/build_cuda.sh
+      sh "${docker_run} tlcpack/conda-cuda90 ./conda/build_cuda.sh
+      sh "${docker_run} tlcpack/conda-cuda100 ./conda/build_cuda.sh
     }
   }
   // Here we could upload the packages to anaconda for releases
