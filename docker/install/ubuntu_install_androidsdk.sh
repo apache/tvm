@@ -18,7 +18,6 @@
 
 . /etc/profile
 
-set -x
 set -o errexit -o nounset
 set -o pipefail
 
@@ -76,7 +75,7 @@ EOF
 mkdir /root/.android 2>/dev/null || true
 touch /root/.android/repositories.cfg
 # NOTE: sdkmanager returns exit code 141
-(yes || true) | sdkmanager --licenses --sdk_root="$ANDROID_HOME" | true
+(yes || true) | sdkmanager --licenses --sdk_root="$ANDROID_HOME" || true
 sdkmanager --verbose --package_file=/install/package-list-minimal.txt --sdk_root="$ANDROID_HOME"
 test -d "${ANDROID_HOME}/build-tools/27.0.3"
 test -d "${ANDROID_HOME}/ndk/21.3.6528147"
