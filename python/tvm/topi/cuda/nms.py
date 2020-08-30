@@ -218,14 +218,14 @@ def rearrange_indices_out_ir(data, output, valid_box_count):
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = tx
 
-    neg_one = tvm.tir.const(-1, dtype=output.dtype)    
+    neg_one = tvm.tir.const(-1, dtype=output.dtype)
     valid_box_count[tid] = 0
     with ib.for_range(0, num_anchors) as anchor_ind:
         output[tid * num_anchors + anchor_ind] = neg_one
     with ib.for_range(0, num_anchors) as anchor_ind:
         with ib.if_scope(data[tid * num_anchors + anchor_ind] >= 0):
             output[tid * num_anchors + valid_box_count[tid]] = data[tid * num_anchors + anchor_ind]
-            valid_box_count[tid] = valid_box_count[tid] + 1        
+            valid_box_count[tid] = valid_box_count[tid] + 1
     return ib.get()
 
 
