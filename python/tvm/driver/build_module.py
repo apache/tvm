@@ -181,7 +181,6 @@ def lower(sch,
         tvm.tir.transform.BF16Legalize(),
         tvm.tir.transform.NarrowDataType(32),
         tvm.tir.transform.Simplify(),
-        tvm.tir.transform.HoistIfThenElse("basic"),
     ]
     pass_list += lower_phase1
 

@@ -500,12 +500,13 @@ def VerifyMemory():
     """
     return _ffi_api.VerifyMemory()
 
+#pylint: disable=no-else-return,inconsistent-return-statements
 def HoistIfThenElse(variant=None):
     """Hoist loop-invariant IfThenElse nodes to outside the elligible loops.
 
     Parameters
     ----------
-    variant : str, optional
+    variant : Optional[String]
         The variant of the pass.
         variant can have any one of following values ["basic", None(Default)].
 
@@ -525,4 +526,5 @@ def HoistIfThenElse(variant=None):
     """
     if variant == "basic":
         return _ffi_api.HoistIfThenElseBasic()
-    return _ffi_api.HoistIfThenElse()
+    elif variant is None:
+        return _ffi_api.HoistIfThenElse()
