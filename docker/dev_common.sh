@@ -28,13 +28,23 @@ INVOCATION_PWD="$(pwd)"
 GIT_TOPLEVEL=$(cd $(dirname ${BASH_SOURCE[0]}) && git rev-parse --show-toplevel)
 
 
+function lookup_image_name() {
+    local image_name=$(cat "${GIT_TOPLEVEL}/Jenkinsfile" | \
+                           grep -E "^$1 = " | \
+                           sed -E "s/$1 = \"([^\"]*)\"/\1/")
+    if [ -z "${image_name}" ]; then
+        return 2
+    fi
+
+    echo "${image_name}"
+}
+
+
 function run_docker() {
     image_name="$1"  # Name of the Jenkinsfile var to find
     shift
 
-    image_spec=$(cat "${GIT_TOPLEVEL}/Jenkinsfile" | \
-                     grep -E "^${image_name} = " | \
-                     sed -E "s/${image_name} = \"([^\"]*)\"/\1/")
+    image_spec=$(lookup_image_name "$1" || echo)
     if [ -z "${image_spec}" ]; then
         echo "${image_name}: not found in ${GIT_TOPLEVEL}/Jenkinsfile" >&2
         exit 2
