@@ -20,8 +20,10 @@ from __future__ import absolute_import
 
 import logging
 import tvm
+import numpy as np
 from tvm import te
 from tvm.runtime import Object
+from tvm.support import libinfo
 from ... import target as _target
 from ... import autotvm
 from .. import function as _function
@@ -78,7 +80,14 @@ def get_shape(shape):
     """Convert the shape to correct dtype and vars."""
     ret = []
     for dim in shape:
-        if isinstance(dim, tvm.tir.Any):
+        if isinstance(dim, tvm.tir.IntImm):
+            if (libinfo()["INDEX_DEFAULT_I64"] == "ON"):
+                ret.append(dim)
+            else:
+                val = int(dim)
+                assert val <= np.iinfo(np.int32).max
+                ret.append(tvm.tir.IntImm("int32", val))
+        elif isinstance(dim, tvm.tir.Any):
             ret.append(te.var("any_dim", "int32"))
         else:
             ret.append(dim)
