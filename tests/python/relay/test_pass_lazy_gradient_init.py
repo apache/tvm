@@ -229,6 +229,24 @@ def test_multivar_reverse_ad():
   assert_allclose(grad_x.asnumpy(), y.asnumpy())
   assert_allclose(grad_y.asnumpy(), x.asnumpy())
 
+def test_partial_eval():
+  """Test transformation following reverse mode ad and PartialEval"""
+  mod = tvm.IRModule()
+
+  shape = (10, 10)
+  dtype = 'float32'
+  t = relay.TensorType(shape, dtype)
+
+  func = relay.Function([], relay.const(np.ones(shape, dtype)))
+  func = run_infer_type(func)
+  back_func = transform.gradient(func)
+  back_func = run_infer_type(back_func)
+
+  mod["main"] = back_func
+  back_func = mod["main"]
+
+  transform.PartialEvaluate()(mod)
+
 def test_after_partial_eval():
   """Test transformation following reverse mode ad and PartialEval"""
   mod = tvm.IRModule()

@@ -57,6 +57,8 @@ def _get_expected_codegen(input_shape, output_shape, dtype):
 
 
 def test_reshape():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
@@ -76,12 +78,12 @@ def test_reshape():
                 outputs.append(build_and_run(func, inputs, 1, None, device,
                                              enable_acl=acl)[0])
 
-            params = {
+            config = {
                 "new shape": inputs["a"].shape,
                 "shape": new_shape,
                 "dtype": dtype,
             }
-            verify(outputs, atol=1e-7, rtol=1e-7, params=params)
+            verify(outputs, atol=1e-7, rtol=1e-7, config=config)
 
 
 def test_codegen_reshape():

@@ -112,7 +112,8 @@ class VMCompiler : public runtime::ModuleNode {
   void Codegen();
 
  protected:
-  IRModule OptimizeModule(const IRModule& mod, const TargetsMap& targets);
+  IRModule OptimizeModule(const IRModule& mod, const TargetsMap& targets,
+                          const Target& target_host);
 
   void PopulateGlobalMap();
 

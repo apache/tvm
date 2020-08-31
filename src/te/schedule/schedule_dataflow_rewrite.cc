@@ -76,7 +76,7 @@ class VarReplacer : public tir::StmtExprMutator {
       return new_e;
     } else {
       return tir::Reduce(new_combiner, new_reduce->source, new_reduce->axis, new_reduce->condition,
-                         new_reduce->value_index);
+                         new_reduce->value_index, new_reduce->init);
     }
   }
 
@@ -123,7 +123,8 @@ void ReplaceDataFlow(const Array<Stage>& stages, std::unordered_map<Tensor, Tens
 
 inline bool ReduceEqual(const tir::ReduceNode* a, const tir::ReduceNode* b) {
   return (a->combiner.same_as(b->combiner)) && (a->source.same_as(b->source)) &&
-         (a->axis.same_as(b->axis)) && (a->condition.same_as(b->condition));
+         (a->axis.same_as(b->axis)) && (a->condition.same_as(b->condition)) &&
+         ((a->init.empty() && b->init.empty()) || (a->init.same_as(b->init)));
 }
 
 Tensor Schedule::cache_read(const Tensor& tensor, const std::string& scope,
@@ -301,7 +302,7 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch, const Array<Tensor>& tensor_a
       if (first_reduce != nullptr) {
         CHECK(ReduceEqual(reduce_body, first_reduce));
         body = tir::Reduce(first_reduce->combiner, first_reduce->source, first_reduce->axis,
-                           first_reduce->condition, reduce_body->value_index);
+                           first_reduce->condition, reduce_body->value_index, reduce_body->init);
       } else {
         first_reduce = reduce_body;
       }
@@ -812,7 +813,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor, const IterVar& axis, int f
 
   std::vector<PrimExpr> body;
   for (size_t idx = 0; idx < reduce->source.size(); ++idx) {
-    body.emplace_back(Reduce(reduce->combiner, new_source, n->reduce_axis, new_pred, idx));
+    body.emplace_back(Reduce(reduce->combiner, new_source, n->reduce_axis, new_pred, idx, {}));
   }
   n->body = Array<PrimExpr>(body);
   // refresh relations, keep the un-touched relations.
@@ -865,6 +866,23 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor, const IterVar& axis, int f
           }
           indices.push_back(i[idx]);
         }
+        Array<PrimExpr> new_init = reduce->init;
+        if (!reduce->init.empty()) {
+          std::unordered_map<const VarNode*, PrimExpr> init_vsub;
+          for (const auto& init : reduce->init) {
+            if (init->IsInstance<ProducerLoadNode>()) {
+              CHECK_EQ(compute_op->axis.size(), idx_size)
+                  << "'init' should have the number of dimensions as output when using with "
+                     "rfactor";
+              for (int idx = 0; idx < idx_size; idx++) {
+                init_vsub[compute_op->axis[idx]->var.get()] = i[idx];
+              }
+            }
+          }
+          VarReplacer init_replacer(init_vsub);
+          new_init = tir::UpdateArray(
+              reduce->init, [&init_replacer](const PrimExpr& e) { return init_replacer(e); });
+        }
         if (factor_axis_pos == idx_size) {
           indices.push_back(repl_red_axis->var);
         }
@@ -876,7 +894,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor, const IterVar& axis, int f
         Array<IterVar> axis = {repl_red_axis};
         PrimExpr cond = const_true();
         for (int idx = 0; idx < size; ++idx) {
-          reductions.push_back(Reduce(reduce->combiner, factor_exprs, axis, cond, idx));
+          reductions.push_back(Reduce(reduce->combiner, factor_exprs, axis, cond, idx, new_init));
         }
         return reductions;
       },

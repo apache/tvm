@@ -806,8 +806,8 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
     });
   } else if (name == "optimize") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.num_args, 2);
-      *rv = this->OptimizeModule(args[0], args[1]);
+      CHECK_EQ(args.num_args, 3);
+      *rv = this->OptimizeModule(args[0], args[1], args[2]);
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
@@ -835,7 +835,7 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   target_host_ = target_host;
 
   // Run the optimizations necessary to target the VM.
-  context_.module = OptimizeModule(mod, targets_);
+  context_.module = OptimizeModule(mod, targets_, target_host_);
 
   // Populate the global map.
   //
@@ -923,7 +923,8 @@ transform::Sequential MemoryOpt(tvm::Target host_target) {
   return transform::Sequential(pass_seqs);
 }
 
-IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets) {
+IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets,
+                                    const Target& target_host) {
   Array<Pass> pass_seqs;
   Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
@@ -988,7 +989,7 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
   // external codegen.
   pass_seqs.push_back(transform::Inline());
 
-  pass_seqs.push_back(MemoryOpt(this->target_host_));
+  pass_seqs.push_back(MemoryOpt(target_host));
 
   transform::Sequential seq(pass_seqs);
   transform::PassContext pass_ctx = PassContext::Current();

@@ -56,9 +56,14 @@ TEST(BuildModule, Basic) {
   auto module = build(lowered, target, Target());
 
   auto mali_target = Target::Create("opencl -model=Mali-T860MP4@800Mhz -device=mali");
-  CHECK_EQ(
-      mali_target->str(),
-      "opencl -keys=mali,opencl,gpu -device=mali -max_num_threads=256 -model=Mali-T860MP4@800Mhz");
+  CHECK_EQ(mali_target->kind->name, "opencl");
+  CHECK_EQ(mali_target->keys.size(), 3);
+  CHECK_EQ(mali_target->keys[0], "mali");
+  CHECK_EQ(mali_target->keys[1], "opencl");
+  CHECK_EQ(mali_target->keys[2], "gpu");
+  CHECK_EQ(mali_target->GetAttr<String>("device").value(), "mali");
+  CHECK_EQ(mali_target->GetAttr<String>("model").value(), "Mali-T860MP4@800Mhz");
+  CHECK_EQ(mali_target->GetAttr<Integer>("max_num_threads").value(), 256);
 }
 
 TEST(BuildModule, Heterogeneous) {

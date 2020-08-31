@@ -139,7 +139,7 @@ class VMCompiler(object):
         """Generate the kernel library."""
         self._codegen()
 
-    def optimize(self, mod, target=None, params=None):
+    def optimize(self, mod, target=None, target_host=None, params=None):
         """Helper method that optimizes a Relay module via VM.
 
         Parameters
@@ -148,6 +148,11 @@ class VMCompiler(object):
 
         target : str, :any:`tvm.target.Target`, or dict of str (i.e.
             device/context name) to str/tvm.target.Target, optional
+
+        target_host : str or :any:`tvm.target.Target`, optional
+            The compilation target for host.
+            By default, llvm is used if it is enabled,
+            otherwise a stackvm intepreter is used.
 
         params : dict of str to NDArray
             Input parameters to the graph that do not change
@@ -162,9 +167,10 @@ class VMCompiler(object):
             The parameters of the final module.
         """
         target = self._update_target(target)
+        target_host = self._update_target_host(target, target_host)
         if params:
             self.set_params(params)
-        return self._optimize(mod, target), self.get_params()
+        return self._optimize(mod, target, target_host), self.get_params()
 
     def get_exec(self):
         """Get the VM executable.
