@@ -58,7 +58,7 @@ if [ "$#" -eq 1 ]; then
     if [[ $(uname) == "Darwin" ]]; then
         # Docker's host networking driver isn't supported on macOS.
         # Use default bridge network and expose port for jupyter notebook.
-        CI_DOCKER_EXTRA_PARAMS=( "${CI_DOCKER_EXTRA_PARAMS[@]}" "-p 8888:8888" )
+        CI_DOCKER_EXTRA_PARAMS=( "${CI_DOCKER_EXTRA_PARAMS[@]}" "-p" "8888:8888" )
     else
         CI_DOCKER_EXTRA_PARAMS=( "${CI_DOCKER_EXTRA_PARAMS[@]}" "--net=host" )
     fi
