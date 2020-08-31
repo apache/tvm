@@ -644,7 +644,8 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       return Instruction::AllocClosure(clo_index, num_freevar, free_vars, dst);
     }
     case Opcode::AllocStorage: {
-      DCHECK_GE(instr.fields.size(), 6U);
+      // Number of fields = 7
+      DCHECK_GE(instr.fields.size(), 7U);
       Index allocation_size = instr.fields[0];
       Index alignment = instr.fields[1];
 

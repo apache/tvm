@@ -309,11 +309,13 @@ class VirtualMachine(object):
         """Init context and allocators."""
         ctxs = ctx
         if not isinstance(ctx, (list, tuple)):
-            assert isinstance(ctx, tvm.runtime.TVMContext)
+            if not isinstance(ctx, tvm.runtime.TVMContext):
+                raise TypeError("ctx is expected to be TVMContex")
             ctxs = [ctx]
-            # CPU is required for executing shape functions
-            if ctx.device_type != tvm.cpu(0).device_type:
-                ctxs.append(tvm.cpu())
+
+        # CPU is required for executing shape functions
+        if not any(c.device_type == tvm.cpu().device_type for c in ctxs):
+            ctxs.append(tvm.cpu())
 
         default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
         if memory_cfg is None:
