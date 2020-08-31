@@ -421,7 +421,6 @@ def take(a, indices, axis=None, mode="clip"):
     -------
     ret : tvm.te.Tensor
     """
-    print("type is ", type(mode))
     if axis is None:
         return cpp.take(a, indices, mode)
     return cpp.take(a, indices, int(axis), mode)

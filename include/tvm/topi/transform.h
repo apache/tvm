@@ -1270,8 +1270,8 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, int axes = 2,
   Array<IterVar> iter_vars;
   for (int i = 0; i < axes; ++i)
     iter_vars.push_back(reduce_axis(Range(0, B->shape[i]), "k" + std::to_string(i)));
-  auto func = [&A, &B, &iter_vars, axes](const Array<Var>& input_indices) {
 
+  auto func = [&A, &B, &iter_vars, axes](const Array<Var>& input_indices) {
     Array<PrimExpr> A_indices(input_indices.begin(),
                               input_indices.begin() + (A->shape.size() - axes));
     for (auto& v : iter_vars) A_indices.push_back(v);
@@ -1285,9 +1285,8 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, int axes = 2,
     // Some passes don't like reductions with empty axis, so avoid it here
     if (iter_vars.empty())
       return A(A_indices) * B(B_indices);
-    else {
+    else
       return sum(A(A_indices) * B(B_indices), iter_vars);
-    }
   };
 
   return compute(output_shape, func, name, tag);
@@ -1898,8 +1897,16 @@ inline Array<PrimExpr> NumpyEinsumShape(std::string subscripts, std::vector<Arra
   return oshape;
 }
 
-// inline Tensor einsum(const Array<Tensor> inputs, const std::string& subscripts_str, int optimize = 0,
-//                      std::string name = "T_einsum", std::string tag = kMatMul) {
+/*!
+ * \brief Evaluates the Einstein summation convention on the operands.
+ *
+ * \param subscripts Specifies the subscripts for summation as comma separated list of subscript labels.
+ * \param inputs Arrays for the operation
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The calculation based on the Einstein summation convention.
+ */
 inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inputs,
                      std::string name = "T_einsum", std::string tag = kMatMul) {
   // able to compute op: trace, diag, sum, transpose, matmul, dot, inner, outer, multiply, tensordot

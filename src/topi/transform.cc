@@ -86,8 +86,6 @@ TVM_REGISTER_GLOBAL("topi.layout_transform").set_body([](TVMArgs args, TVMRetVal
 });
 
 TVM_REGISTER_GLOBAL("topi.take").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::printf("%d\n", args[2].type_code());
-
   if (args.size() == 3) {
     std::string mode = args[2];
     *rv = take(args[0], args[1], mode);
@@ -168,8 +166,6 @@ TVM_REGISTER_GLOBAL("topi.tensordot").set_body([](TVMArgs args, TVMRetValue* rv)
 });
 
 TVM_REGISTER_GLOBAL("topi.einsum").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::printf("%d\n", args[0].type_code());
-  std::printf("%d\n", args[1].type_code());
   *rv = einsum(args[0], args[1]);
 });
 
