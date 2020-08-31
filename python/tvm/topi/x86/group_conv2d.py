@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-member
+# pylint: disable=no-value-for-parameter,import-outside-toplevel
 """Grouped Spatial Pack Convolution (Group Conv2D) schedule on x86"""
 
 import tvm
@@ -42,8 +44,8 @@ def schedule_group_conv2d_nchw(outs):
     return schedule_group_conv2d_nchwc(outs)
 
 
-def _get_default_config(cfg, data, kernel, strides, padding, groups, out_dtype,
-                        layout='NCHW'):
+def _get_default_config(cfg, data, kernel, strides, padding, groups,
+                        out_dtype, layout='NCHW'):
     """
     Get default schedule config for the workload
     """
@@ -62,7 +64,7 @@ def _get_default_config(cfg, data, kernel, strides, padding, groups, out_dtype,
 
 def _fallback_schedule(cfg, wkl):
     simd_width = get_fp32_len()
-    pad_top, pad_left, pad_bottom, pad_right = wkl.padt, wkl.padl, wkl.padb, wkl.padr
+    pad_left, pad_right = wkl.padl, wkl.padr
     stride_w = wkl.wstride
     out_width = (wkl.width + pad_left + pad_right - wkl.wkernel) // stride_w + 1
     groups = wkl.groups
@@ -149,7 +151,8 @@ def group_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding,
 
     # If no config was set, we can fallback to default config.
     if cfg.is_fallback:
-        _get_default_config(cfg, te.placeholder((batch_size, in_channel, in_height, in_width), dtype=data.dtype),
+        _get_default_config(cfg, te.placeholder((batch_size, in_channel, in_height, in_width),
+                                                dtype=data.dtype),
                             te.placeholder((out_channel, in_channel // groups, k_height, k_width),
                                            dtype=kernel.dtype),
                             strides, padding, groups, out_dtype)
@@ -157,8 +160,8 @@ def group_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding,
     oc_bn = cfg['tile_oc'].size[-1]
     ic_bn = cfg['tile_ic'].size[-1]
     # pack data
-    do_pad = (hpad != 0 or wpad != 0)
-    if do_pad:
+    DOPAD = (hpad != 0 or wpad != 0)
+    if DOPAD:
         data_pad = pad(data,
                        (0, 0, pad_top, pad_left),
                        (0, 0, pad_bottom, pad_right),
@@ -260,7 +263,7 @@ def schedule_group_conv2d_nchwc(cfg, outs):
 
 
 def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec,
-                  conv_out, output, last):
+                        conv_out, output, last):
     """Schedule GSPC"""
     # fetch schedule
     ic_bn, oc_bn, reg_n, unroll_kw = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
@@ -269,14 +272,16 @@ def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec,
     # no stride and padding info here
     padding = infer_pad(data, data_pad)
     hpad, wpad = padding
-    do_pad = (hpad != 0 or wpad != 0)
+    DOPAD = (hpad != 0 or wpad != 0)
 
     _, W = data, kernel_vec
     A0, A1 = data_pad, data_vec
 
     # schedule data
-    if do_pad:
+    if DOPAD:
         s[A0].compute_inline()
+        # s[A0].compute_at(s[A1])
+
     groups, batch, ic_chunk, ih, ic_block, _ = s[A1].op.axis
 
     parallel_axis = s[A1].fuse(batch, ic_chunk, ih)
@@ -319,7 +324,10 @@ def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec,
                       ow_block, oc_block)
 
     parallel_axis = s[CC].fuse(groups, batch, oc_chunk, oh)
+    # s[A1].compute_at(CC, parallel_axis)
     s[CC].parallel(parallel_axis)
+
+
 
     s[CC].vectorize(oc_block)
 
