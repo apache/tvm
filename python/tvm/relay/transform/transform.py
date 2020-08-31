@@ -736,6 +736,21 @@ def gradient(expr, mod=None, mode='higher_order'):
         return _ffi_api.gradient(expr, mod)
     raise Exception('unknown mode')
 
+def Defunctionalization(expr, mod):
+    """
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression, which is a Function or a GlobalVar.
+
+    mod : tvm.IRModule
+
+    Returns
+    -------
+    expr : tvm.relay.Expr
+      The transformed expression.
+    """
+    return _ffi_api.Defunctionalization(expr, mod)
 
 def to_cps(func, mod=None):
     """
