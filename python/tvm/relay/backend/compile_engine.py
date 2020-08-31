@@ -19,8 +19,8 @@
 from __future__ import absolute_import
 
 import logging
-import tvm
 import numpy as np
+import tvm
 from tvm import te
 from tvm.runtime import Object
 from tvm.support import libinfo
@@ -81,7 +81,7 @@ def get_shape(shape):
     ret = []
     for dim in shape:
         if isinstance(dim, tvm.tir.IntImm):
-            if (libinfo()["INDEX_DEFAULT_I64"] == "ON"):
+            if libinfo()["INDEX_DEFAULT_I64"] == "ON":
                 ret.append(dim)
             else:
                 val = int(dim)
