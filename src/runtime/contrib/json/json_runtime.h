@@ -150,7 +150,7 @@ class JSONRuntimeBase : public ModuleNode {
         << "Found mismatch in the number of provided data entryies and required.";
 
     for (size_t i = 0; i < static_cast<size_t>(args.size()); i++) {
-      auto eid = i < input_var_idx_.size() ? EntryID(input_var_idx_[i], 0)
+      auto eid = i < input_var_idx_.size() ? input_var_idx_[i]
                                            : EntryID(outputs_[i - input_var_idx_.size()]);
       CHECK(args[i].type_code() == kTVMNDArrayHandle || args[i].type_code() == kTVMDLTensorHandle)
           << "Expect NDArray or DLTensor as inputs";
@@ -183,7 +183,10 @@ class JSONRuntimeBase : public ModuleNode {
       uint32_t nid = input_nodes_[i];
       std::string name = nodes_[nid].name_;
       if (nodes_[nid].op_type_ == "input") {
-        input_var_idx_.push_back(nid);
+        CHECK_EQ(nodes_[nid].GetOpShape().size(), nodes_[nid].GetOpDataType().size());
+        for (size_t j = 0; j < nodes_[nid].GetOpShape().size(); ++j) {
+          input_var_idx_.push_back(EntryID(nid, j));
+        }
       } else {
         CHECK_EQ(nodes_[nid].op_type_, "const");
         auto pos = std::find(std::begin(const_names_), std::end(const_names_), name);
