@@ -510,6 +510,99 @@ class Split(OpConverter):
                                            axis=axis)
         model_container.add_nodes([slice_node])
 
+class LayoutTransform(OpConverter):
+    """ Operator converter for Layouttransform
+    """
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        src_layout = attrs.get_str("src_layout")
+        dst_layout = attrs.get_str("dst_layout")
+
+        perm = [src_layout.index(c) for c in dst_layout]
+        return {'perm': tuple(perm)}
+
+    @classmethod
+    def convert(cls, node_entry, model_container, node_dict):
+        attrs = cls.convert_attributes(node_entry['relay_node'].attrs)
+        onnx_node = onnx.helper.make_node("Transpose",
+                                          node_entry['input_names'],
+                                          node_entry['output_names'],
+                                          **attrs)
+        model_container.add_nodes([onnx_node])
+
+class Clip(OpConverter):
+    """ Operator converter for Clip.
+    """
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {
+            'min': attrs.a_min,
+            'max': attrs.a_max
+        }
+
+    @classmethod
+    def convert(cls, node_entry, model_container, node_dict):
+        attrs = cls.convert_attributes(node_entry['relay_node'].attrs)
+
+        name = node_entry['name']
+
+        def _add_input(val, input_name):
+            val_arr = numpy.asarray(val).astype(numpy.float32)
+            input_name = '{}_{}'.format(name, input_name)
+            add_input(val_arr, input_name, model_container)
+            return input_name
+
+        input_names = []
+        input_names.append(_add_input(attrs['min'], 'min'))
+        input_names.append(_add_input(attrs['max'], 'max'))
+
+        input_names = [node_entry['input_names'][0]] + input_names
+
+        node = onnx.helper.make_node(cls.__name__, input_names, node_entry['output_names'])
+        model_container.add_nodes([node])
+
+class Expand(OpConverter):
+    """ Operator converter for Expand_dims.
+    """
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {
+            'axis': attrs.axis,
+            'num_newaxis': attrs.num_newaxis
+        }
+
+    @classmethod
+    def convert(cls, node_entry, model_container, node_dict):
+        attrs = cls.convert_attributes(node_entry['relay_node'].attrs)
+
+        name = node_entry['name']
+
+        def _add_input(val, input_name):
+            val_arr = numpy.asarray(val).astype(numpy.int64)
+            input_name = '{}_{}'.format(name, input_name)
+            add_input(val_arr, input_name, model_container)
+            return input_name
+
+        input_node = node_dict[node_entry['inputs'][0]]
+        assert len(input_node) == 1, "input node_entry can not be a Tuple"
+        input_node = input_node[0]
+        data_shape = input_node['types'][0].shape
+        new_shape = list(data_shape)
+
+        #pylint: disable=unused-variable
+        for i in range(attrs['num_newaxis']):
+            new_shape.insert(attrs['axis'], 1)
+
+        input_names = []
+        input_names.append(_add_input(new_shape, 'shape'))
+
+        input_names = [node_entry['input_names'][0]] + input_names
+
+        node = onnx.helper.make_node(cls.__name__, input_names, node_entry['output_names'])
+        model_container.add_nodes([node])
 
 class ConstantOfShapeZeros(OpConverter):
     """ Operator converter for ConstantOfShape.
@@ -584,7 +677,10 @@ relay_to_onnx_op_mapping = {
     'ones_like': ConstantOfShapeOnes,
     'subtract': rename('Sub'),
     'split': Split,
-    'exp': rename('Exp')
+    'exp': rename('Exp'),
+    'layout_transform': LayoutTransform,
+    'clip': Clip,
+    'expand_dims': Expand
 }
 
 
@@ -670,7 +766,7 @@ class RelayToONNXConverter(ExprVisitor):
                 "input_names": [name],  # input names in case of call nodes else self name
                 "output_names": [name],  # output names in case of call nodes else self name
                 "op": None,  # op name in case of call node else None
-                }
+               }
 
     def convert_to_onnx(self, func):
         """ Traverse Relay graph and generate a ONNX model"""
