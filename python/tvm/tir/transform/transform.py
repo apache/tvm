@@ -500,11 +500,31 @@ def VerifyMemory():
     """
     return _ffi_api.VerifyMemory()
 
-def HoistIfThenElse():
+#pylint: disable=no-else-return,inconsistent-return-statements
+def HoistIfThenElse(variant=None):
     """Hoist loop-invariant IfThenElse nodes to outside the elligible loops.
+
+    Parameters
+    ----------
+    variant : Optional[String]
+        The variant of the pass.
+        variant can have any one of following values ["basic", None(Default)].
+
+        The basic variant supports basic hoisting scenarios where it exepects
+        the For & If Nodes are in place consecutively and does not involve
+        global scope variables or more advanced scenarios.
+
+        Default variant supports all hoisting scenarios,i.e., {"Basic" + "Advanced"}
+        supported with control with PassContext configs like below:
+
+            config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.HoistIfThenElse()
+    if variant == "basic":
+        return _ffi_api.HoistIfThenElseBasic()
+    elif variant is None:
+        return _ffi_api.HoistIfThenElse()
