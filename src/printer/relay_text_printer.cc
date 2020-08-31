@@ -330,6 +330,14 @@ Doc RelayTextPrinter::VisitExpr_(const ConstantNode* op) {
       return ScalarLiteral(dtype, static_cast<const uint8_t*>(op->data->data)[0]);
     }
   }
+  const PackedFunc* fprint = runtime::Registry::Get("relay._constant_text");
+  if (fprint) {
+    TVMRetValue s = (*fprint)(GetRef<Constant>(op));
+    if (s.type_code() == kTVMStr) {
+      return Doc::Text((*fprint)(GetRef<Constant>(op)));
+    }
+    // else fall-back to meta print.
+  }
   // default fall-back, record it as meta node.
   Doc doc;
   return doc << Print(GetRef<ObjectRef>(op), true);
