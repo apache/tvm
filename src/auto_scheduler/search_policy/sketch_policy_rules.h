@@ -26,9 +26,12 @@
 #define TVM_AUTO_SCHEDULER_SEARCH_POLICY_SKETCH_POLICY_RULES_H_
 
 #include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/search_task.h>
 
 #include <utility>
 #include <vector>
+
+#include "utils.h"
 
 namespace tvm {
 namespace auto_scheduler {
@@ -122,7 +125,7 @@ DEFINE_SKETCH_GENERATION_RULE(RuleSpecialComputeLocationGPU);
 /********** Init Population **********/
 
 /*! \brief The base class for derivation rules used in the initial population. */
-class InitPopulationRule {
+class PopulationGenerationRule {
  public:
   /*! \brief Result enumeration of the apply function. */
   enum class ResultKind : int { kValid = 0, kInvalid = 1 };
@@ -138,7 +141,7 @@ class InitPopulationRule {
 };
 
 #define DEFINE_INIT_POPULATION_RULE(rule_name)                            \
-  class rule_name : public InitPopulationRule {                           \
+  class rule_name : public PopulationGenerationRule {                     \
    public:                                                                \
     ResultKind Apply(SketchPolicyNode* policy, State* state) const final; \
   };
@@ -161,6 +164,56 @@ DEFINE_INIT_POPULATION_RULE(InitVectorization);
 
 /*! \brief The rule that annotates thread binding for GPU. */
 DEFINE_INIT_POPULATION_RULE(InitThreadBind);
+
+/********** Mutation **********/
+
+/*! \brief The base class for mutation rules used in the evolutionary search. */
+class PopulationMutationRule : public PopulationGenerationRule {
+ public:
+  /*!
+   * \brief Get the priority level of this mutation rule.
+   * \return The priority level of this mutation rule. Higher the better.
+   */
+  virtual int GetLevel(const SearchTask& task) const = 0;
+};
+
+// A helper to define mutation rules with a constant rule level.
+#define DEFINE_MUTATE_POPULATION_RULE(rule_name, rule_level)                \
+  class rule_name : public PopulationMutationRule {                         \
+   public:                                                                  \
+    ResultKind Apply(SketchPolicyNode* policy, State* state) const final;   \
+    int GetLevel(const SearchTask& task) const final { return rule_level; } \
+  };
+
+/*! \brief The rule that mutates tile size by randomly dividing a tile size by a factor
+    and multipling it to another tile size. */
+DEFINE_MUTATE_POPULATION_RULE(MutateTileSize, 100);
+
+/*! \brief The rule that mutates the fusion iterators annotated by parallel. */
+DEFINE_MUTATE_POPULATION_RULE(MutateParallel, 50);
+
+/*! \brief The rule that mutates the factor of a randomly selected auto max unroll step. */
+class MutateMaxUnrollFactor : public PopulationMutationRule {
+ public:
+  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
+  int GetLevel(const SearchTask& task) const final { return 10; }
+
+  const std::vector<int> cpu_unroll_cands_ = {0, 16, 64, 512, 1024};
+  const std::vector<int> gpu_unroll_cands_ = {0, 16, 64, 512};
+};
+
+/*! \brief The rule that randomly changes the computation location for some stages, which do not
+ * need tiling and are not strictly inlineable(e.g. data padding). */
+class MutateComputeLocation : public PopulationMutationRule {
+ public:
+  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
+  int GetLevel(const SearchTask& task) const final {
+    if (IsGPUTask(task)) {
+      return 0;
+    }
+    return 5;
+  }
+};
 
 }  // namespace auto_scheduler
 }  // namespace tvm

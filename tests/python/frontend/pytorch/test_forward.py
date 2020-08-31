@@ -881,6 +881,21 @@ def test_forward_reshape():
     verify_model(Reshape1().float().eval(), input_data=input_data)
     verify_model(Reshape2().float().eval(), input_data=input_data)
 
+
+def test_flatten():
+    class Flatten(Module):
+        def forward(self, x):
+            return torch.flatten(x)
+
+    class BatchFlatten(Module):
+        def forward(self, x):
+            return torch.flatten(x, start_dim=1)
+
+    inp = torch.rand((5, 2, 2))
+    verify_model(Flatten(), input_data=inp)
+    verify_model(BatchFlatten(), input_data=inp)
+
+
 def test_forward_transpose():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -1311,12 +1326,17 @@ def test_to():
         def forward(self, x):
             return x.long()
 
+    class ToDouble(Module):
+        def forward(self, x):
+            return x.double()
+
     verify_model(ToCPU().eval(), torch.rand((1, 3, 32, 32)))
     verify_model(ToFloat().eval(), torch.zeros((1, 3, 32, 32), dtype=torch.int))
     verify_model(ToFloat().eval(), torch.tensor(2, dtype=torch.int))
     verify_model(ToInt().eval(), torch.zeros((1, 3, 32, 32)))
     verify_model(ToInt().eval(), torch.tensor(0.8))
     verify_model(ToLong().eval(), torch.tensor(0.8))
+    verify_model(ToDouble().eval(), torch.tensor(0.8))
 
 
 def test_adaptive_pool3d():
@@ -2901,6 +2921,7 @@ if __name__ == "__main__":
     test_forward_upsample3d()
     test_forward_nms()
     test_to()
+    test_flatten()
     test_type_as()
     test_forward_functional_pad()
     test_forward_zero_pad2d()

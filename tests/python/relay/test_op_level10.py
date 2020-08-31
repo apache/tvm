@@ -471,6 +471,33 @@ def test_one_hot():
     _verify((3, 2, 4, 5), 6, 1, 0, 1, "int32")
     _verify((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
 
+def test_matrix_set_diag():
+    def _verify(input_shape, dtype):
+        diagonal_shape = list(input_shape[:-2])
+        diagonal_shape.append(min(input_shape[-2], input_shape[-1]))
+        input = relay.var("input", relay.TensorType(input_shape, dtype))
+        diagonal = relay.var("diagonal", relay.TensorType(diagonal_shape, dtype))
+        out = relay.matrix_set_diag(input, diagonal)
+
+        in_type = run_infer_type(input)
+        out_type = run_infer_type(out)
+        assert in_type.checked_type == out_type.checked_type
+
+        func = relay.Function([input, diagonal], out)
+        input_np = np.random.randint(-100, 100, size=input_shape).astype(dtype)
+        diagonal_np = np.random.randint(-100, 100, size=diagonal_shape).astype(dtype)
+        out_np = tvm.topi.testing.matrix_set_diag(input_np, diagonal_np)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                out_relay = intrp.evaluate(func)(input_np, diagonal_np)
+                tvm.testing.assert_allclose(out_relay.asnumpy(), out_np)
+
+    _verify((2, 2), 'float32')
+    _verify((4, 3, 3), 'int32')
+    _verify((2, 3, 4), 'float32')
+
 if __name__ == "__main__":
     test_adaptive_pool()
     test_collapse_sum_like()
@@ -483,3 +510,4 @@ if __name__ == "__main__":
     test_sequence_mask()
     test_one_hot()
     test_ndarray_size()
+    test_matrix_set_diag()

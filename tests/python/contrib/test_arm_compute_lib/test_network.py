@@ -116,7 +116,7 @@ def test_mobilenet():
         return mod, params, inputs
 
     _build_and_run_network(*get_model(), device=device,
-                           tvm_ops=74, acl_partitions=17,
+                           tvm_ops=73, acl_partitions=18,
                            atol=0.002, rtol=0.01)
 
 
@@ -144,7 +144,7 @@ def test_quantized_mobilenet():
         return mod, params, inputs
 
     _build_and_run_network(*get_model(), device=device,
-                           tvm_ops=45, acl_partitions=16,
+                           tvm_ops=42, acl_partitions=17,
                            atol=8, rtol=0)
 
 

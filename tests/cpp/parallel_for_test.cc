@@ -89,6 +89,23 @@ TEST(ParallelFor, NestedWithNormalForLoop) {
   }
 }
 
+TEST(Parallelfor, NestedWithParallelFor) {
+  // Currently do not support using nested parallel_for
+  using tvm::support::parallel_for;
+
+  bool exception = false;
+  try {
+    parallel_for(0, 100, [](int i) {
+      parallel_for(0, 100, [](int j) {
+        // Blank loop
+      });
+    });
+  } catch (const std::exception& e) {
+    exception = true;
+  }
+  CHECK(exception);
+}
+
 TEST(ParallelFor, Exception) {
   using tvm::support::parallel_for;
 
