@@ -31,6 +31,8 @@ def test_multiple_ops():
     The ACL runtime will expect these ops as 2 separate functions for
     the time being.
     """
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
@@ -61,6 +63,8 @@ def test_heterogeneous():
     Test to check if offloading only supported operators works,
     while leaving unsupported operators computed via tvm.
     """
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
@@ -92,6 +96,8 @@ def test_multiple_runs():
     """
     Test that multiple runs of an operator work.
     """
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 

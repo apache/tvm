@@ -79,6 +79,8 @@ def _get_keras_model(keras_model, inputs_dict):
 
 
 def test_vgg16():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
@@ -98,6 +100,8 @@ def test_vgg16():
 
 
 def test_mobilenet():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
@@ -112,11 +116,13 @@ def test_mobilenet():
         return mod, params, inputs
 
     _build_and_run_network(*get_model(), device=device,
-                           tvm_ops=74, acl_partitions=17,
+                           tvm_ops=73, acl_partitions=18,
                            atol=0.002, rtol=0.01)
 
 
 def test_quantized_mobilenet():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
@@ -138,7 +144,7 @@ def test_quantized_mobilenet():
         return mod, params, inputs
 
     _build_and_run_network(*get_model(), device=device,
-                           tvm_ops=45, acl_partitions=16,
+                           tvm_ops=42, acl_partitions=17,
                            atol=8, rtol=0)
 
 

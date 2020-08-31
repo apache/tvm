@@ -192,7 +192,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
         axis.push_back(it->second);
       }
     }
-    return Reduce(op->combiner, op->source, axis, op->condition, op->value_index);
+    return Reduce(op->combiner, op->source, axis, op->condition, op->value_index, op->init);
   }
 
   void Init(const ComputeOpNode* self, const Stage& stage,

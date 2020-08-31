@@ -1026,6 +1026,8 @@ class ReduceNode : public PrimExprNode {
   CommReducer combiner;
   /*! \brief The source operand */
   Array<PrimExpr> source;
+  /*! \brief The init operand */
+  Array<PrimExpr> init;
   /*! \brief The reduction axis */
   Array<IterVar> axis;
   /*!
@@ -1040,6 +1042,7 @@ class ReduceNode : public PrimExprNode {
     v->Visit("dtype", &dtype);
     v->Visit("combiner", &combiner);
     v->Visit("source", &source);
+    v->Visit("init", &init);
     v->Visit("axis", &axis);
     v->Visit("condition", &condition);
     v->Visit("value_index", &value_index);
@@ -1049,7 +1052,8 @@ class ReduceNode : public PrimExprNode {
     // check axis first so IterVars can define the necessary variables.
     return equal(dtype, other->dtype) && equal(axis, other->axis) &&
            equal(combiner, other->combiner) && equal(source, other->source) &&
-           equal(condition, other->condition) && equal(value_index, other->value_index);
+           equal(init, other->init) && equal(condition, other->condition) &&
+           equal(value_index, other->value_index);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -1057,6 +1061,7 @@ class ReduceNode : public PrimExprNode {
     hash_reduce(axis);
     hash_reduce(combiner);
     hash_reduce(source);
+    hash_reduce(init);
     hash_reduce(condition);
     hash_reduce(value_index);
   }
@@ -1072,7 +1077,7 @@ class ReduceNode : public PrimExprNode {
 class Reduce : public PrimExpr {
  public:
   TVM_DLL Reduce(CommReducer combiner, Array<PrimExpr> src, Array<IterVar> rdom, PrimExpr condition,
-                 int value_index);
+                 int value_index, Array<PrimExpr> init);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Reduce, PrimExpr, ReduceNode);
 };

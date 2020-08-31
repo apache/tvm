@@ -378,3 +378,34 @@ impl TryFrom<RetValue> for std::ffi::CString {
             |RetValue::Str(val)| { val.into() })
     }
 }
+
+// Implementations for bool.
+
+impl<'a> From<bool> for ArgValue<'a> {
+    fn from(s: bool) -> Self {
+        (s as i64).into()
+    }
+}
+
+impl From<bool> for RetValue {
+    fn from(s: bool) -> Self {
+        (s as i64).into()
+    }
+}
+
+impl TryFrom<RetValue> for bool {
+    type Error = ValueDowncastError;
+
+    fn try_from(val: RetValue) -> Result<bool, Self::Error> {
+        try_downcast!(val -> bool,
+            |RetValue::Int(val)| { !(val == 0) })
+    }
+}
+
+impl<'a> TryFrom<ArgValue<'a>> for bool {
+    type Error = ValueDowncastError;
+
+    fn try_from(val: ArgValue<'a>) -> Result<bool, Self::Error> {
+        try_downcast!(val -> bool, |ArgValue::Int(val)| { !(val == 0) })
+    }
+}

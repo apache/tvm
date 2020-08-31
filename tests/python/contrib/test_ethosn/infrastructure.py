@@ -94,6 +94,8 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
                 f = relay.build_module.bind_params_by_name(mod["main"], params)
                 mod = tvm.IRModule()
                 mod["main"] = f
+                pattern = get_pattern_table("ethos-n")
+                mod = relay.transform.MergeComposite(pattern)(mod)
                 mod = relay.transform.AnnotateTarget("ethos-n")(mod)
                 mod = relay.transform.MergeCompilerRegions()(mod)
                 mod = relay.transform.PartitionGraph()(mod)

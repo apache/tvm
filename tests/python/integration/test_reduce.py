@@ -70,6 +70,63 @@ def test_reduce_prims():
     test_prim(tvm.te.min, np.amin)
     test_prim(tvm.te.max, np.amax)
 
+def test_init_imm():
+    n = tvm.runtime.convert(1027)
+    A = te.placeholder((n,), name='A')
+    k = te.reduce_axis((0, n))
+    B = te.compute((1,), lambda i: te.sum(A[k], axis=k, init=10.0), name='B')
+    # schedule
+    s = te.create_schedule(B.op)
+    # one line to build the function.
+    def check_target(target="llvm"):
+        if not tvm.runtime.enabled(target):
+            return
+        ctx = tvm.cpu(0)
+        fapi = tvm.lower(s, args=[A, B])
+        fsum = tvm.build(fapi,
+                         target=target,
+                         name="mysum")
+        # launch the kernel.
+        n = 1027
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
+        b  = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
+        fsum(a, b)
+        res = 10.0 + np.sum(a.asnumpy(), axis=0)
+        tvm.testing.assert_allclose(
+            b.asnumpy(), res, rtol=1e-4)
+
+    check_target()
+
+def test_init():
+    n = tvm.runtime.convert(1027)
+    A = te.placeholder((n,n), name='A')
+    C = te.placeholder((n,n), name='C')
+    I = te.placeholder((n,n), name='I')
+    k = te.reduce_axis((0, n))
+    B = te.compute((n,n), lambda i,j: te.sum(A[i,k]*C[k,j], axis=k, init=I[i,j]), name='B')
+
+    # schedule
+    s = te.create_schedule(B.op)
+    # one line to build the function.
+    def check_target(target="llvm"):
+        if not tvm.runtime.enabled(target):
+            return
+        ctx = tvm.cpu(0)
+        fapi = tvm.lower(s, args=[A, C, I, B])
+        print(fapi)
+        mmult = tvm.build(fapi, target=target, name="mmult")
+        # launch the kernel.
+        n = 1027
+        a = tvm.nd.array(np.random.uniform(size=(n,n)).astype(A.dtype), ctx)
+        c = tvm.nd.array(np.random.uniform(size=(n,n)).astype(C.dtype), ctx)
+        ii = tvm.nd.array(np.random.uniform(size=(n,n)).astype(B.dtype), ctx)
+        b  = tvm.nd.array(np.zeros((n,n), dtype=B.dtype), ctx)
+        mmult(a, c, ii, b)
+        res = ii.asnumpy() + np.matmul(a.asnumpy(),c.asnumpy())
+        tvm.testing.assert_allclose(
+            b.asnumpy(), res, rtol=1e-4)
+
+    check_target()
 
 def test_rfactor():
     n = tvm.runtime.convert(1027)
@@ -96,6 +153,40 @@ def test_rfactor():
         b  = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=0)
+        tvm.testing.assert_allclose(
+            b.asnumpy(), res, rtol=1e-4)
+
+    check_target()
+
+def test_rfactor_init():
+    n = tvm.runtime.convert(1027)
+    A = te.placeholder((n,n), name='A')
+    C = te.placeholder((n,n), name='C')
+    I = te.placeholder((n,n), name='I')
+    k = te.reduce_axis((0, n))
+    B = te.compute((n,n), lambda i,j: te.sum(A[i,k]*C[k,j], axis=k, init=I[i,j]), name='B')
+
+    # schedule
+    s = te.create_schedule(B.op)
+    kf, ki = s[B].split(k, nparts=4)
+    BF = s.rfactor(B, kf, 1)
+    s[BF].parallel(BF.op.axis[0])
+    # one line to build the function.
+    def check_target(target="llvm"):
+        if not tvm.runtime.enabled(target):
+            return
+        ctx = tvm.cpu(0)
+        fapi = tvm.lower(s, args=[A, C, I, B])
+        print(fapi)
+        mmult = tvm.build(fapi, target=target, name="mmult")
+        # launch the kernel.
+        n = 1027
+        a = tvm.nd.array(np.random.uniform(size=(n,n)).astype(A.dtype), ctx)
+        c = tvm.nd.array(np.random.uniform(size=(n,n)).astype(C.dtype), ctx)
+        ii = tvm.nd.array(np.random.uniform(size=(n,n)).astype(B.dtype), ctx)
+        b  = tvm.nd.array(np.zeros((n,n), dtype=B.dtype), ctx)
+        mmult(a, c, ii, b)
+        res = ii.asnumpy() + np.matmul(a.asnumpy(),c.asnumpy())
         tvm.testing.assert_allclose(
             b.asnumpy(), res, rtol=1e-4)
 
@@ -454,3 +545,6 @@ if __name__ == "__main__":
     test_rfactor_argmax()
     test_warp_reduction1()
     test_warp_reduction2()
+    test_init()
+    test_init_imm()
+    test_rfactor_init()

@@ -140,8 +140,10 @@ def schedule_conv2d_NHWC_quantized(cfg, outs):
     # Vectorize the output and then inline all the rest
     out = outs[0]
     n, h, w, c = out.op.axis
+    n_h_fused = s[out].fuse(n, h)
     outer, inner = s[out].split(c, 4)
     s[out].vectorize(inner)
+    s[out].parallel(n_h_fused)
 
     def _callback(op):
         """Traverse operators from computation graph"""
