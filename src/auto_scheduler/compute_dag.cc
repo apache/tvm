@@ -812,22 +812,15 @@ State ComputeDAG::InferBound(const State& state) const {
 }
 
 Array<State> ComputeDAG::InferBound(const Array<State>& states) const {
-  Array<State> out_states;
-  out_states.reserve(states.size());
-  std::mutex m;
+  Array<State> out_states(states.size(), State());
 
-  support::parallel_for(0, states.size(), [this, &states, &out_states, &m](int i) {
-    State out_state;
+  support::parallel_for(0, states.size(), [this, &states, &out_states](int i) {
     try {
-      out_state = this->InferBound(states[i]);
+      out_states.Set(i, this->InferBound(states[i]));
     } catch (dmlc::Error& e) {
       LOG(WARNING) << "InferBound fails on the state:\n"
                    << states[i] << "\n"
                    << "with: " << e.what() << std::endl;
-    }
-    if (out_state.defined()) {
-      std::unique_lock<std::mutex> l(m);
-      out_states.push_back(std::move(out_state));
     }
   });
 
