@@ -47,6 +47,7 @@ tvm_option(USE_TF_COMPILE_FLAGS "Build with TensorFlow's compile flags." OFF)
 tvm_option(USE_TF_TVMDSOOP "Build with TensorFlow TVMDSOOp" OFF)
 tvm_option(USE_FALLBACK_STL_MAP "Use TVM's POD compatible Map" OFF)
 tvm_option(USE_ETHOSN "Build with Arm Ethos-N" OFF)
+tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -272,6 +273,10 @@ endif()
 # Package runtime rules
 if(NOT USE_RTTI)
   add_definitions(-DDMLC_ENABLE_RTTI=0)
+endif()
+
+if (INDEX_DEFAULT_I64)
+  add_definitions(-DTVM_INDEX_DEFAULT_I64=1)
 endif()
 
 list(APPEND RUNTIME_SRCS 3rdparty/bfloat16/bfloat16.cc)
