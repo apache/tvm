@@ -2706,8 +2706,6 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude, defau
 
         if operator == "prim::Constant":
             outputs[node_name] = _get_constant(op_node)
-        # elif operator == "prim::ListConstruct" and _is_int_seq(inputs):
-        #     outputs[node_name] = _expr.var(node_name, shape=inputs)
         elif operator == "prim::ListConstruct" and _should_construct_dynamic_list(op_node):
             outputs[node_name] = _convert_to_list_adt(inputs, prelude)
         elif operator == "prim::ListConstruct":
