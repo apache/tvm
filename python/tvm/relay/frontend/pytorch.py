@@ -141,8 +141,7 @@ def _min_max_common(name_elemwise, name_reduce):
             data = _pytorch_promote_types(inputs[:1], input_types[:1])
             dim = inputs[1]
             keepdims = inputs[2] if len(inputs) > 2 else False
-            print(dim, keepdims)
-            # also return empty dummy indices
+            # also return dummy indices
             return get_relay_op(name_reduce)(data[0], axis=dim, keepdims=keepdims), None
         else:
             data0, data1 = _pytorch_promote_types(inputs[:2], input_types[:2])
