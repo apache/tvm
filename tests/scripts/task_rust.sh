@@ -18,8 +18,10 @@
 
 set -e
 set -u
+set -x
 
 export TVM_HOME="$(git rev-parse --show-toplevel)"
+echo "TVM_HOME=${TVM_HOME}"
 
 export LD_LIBRARY_PATH="$TVM_HOME/lib:$TVM_HOME/build:${LD_LIBRARY_PATH:-}"
 export PYTHONPATH="$TVM_HOME/python"
