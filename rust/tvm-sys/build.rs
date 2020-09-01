@@ -25,7 +25,10 @@ use std::env;
 
 fn main() {
     println!("cargo:warning=tvm_home is {:?}", option_env!("TVM_HOME"));
-    println!("cargo:warning=cargo_manifest_dir is {:?}", option_env!("CARGO_MANIFEST_DIR"));
+    println!(
+        "cargo:warning=cargo_manifest_dir is {:?}",
+        option_env!("CARGO_MANIFEST_DIR")
+    );
     let tvm_home = option_env!("TVM_HOME").map(str::to_string).unwrap_or({
         let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .canonicalize()
