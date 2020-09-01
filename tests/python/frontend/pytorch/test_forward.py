@@ -314,6 +314,44 @@ def test_forward_multiply():
     verify_model(Multiply3().float().eval(), input_data=input_data)
     verify_model(Multiply4().float().eval(), input_data=input_data)
 
+
+def test_min_max():
+    class Max(Module):
+        def forward(self, inp):
+            return torch.max(inp)
+
+    class Min(Module):
+        def forward(self, inp):
+            return torch.min(inp)
+
+    class Max2(Module):
+        def forward(self, inp):
+            out, _ = torch.max(inp, 1, keepdim=True)
+            return out
+
+    class Min2(Module):
+        def forward(self, inp):
+            out, _ = torch.min(inp, 0, keepdim=False)
+            return out
+
+    class Max3(Module):
+        def forward(self, lhs, rhs):
+            return torch.max(lhs, rhs)
+
+    class Min3(Module):
+        def forward(self, lhs, rhs):
+            return torch.min(lhs, rhs)
+
+    input_data = [torch.rand((10, 10)), torch.rand((10, 10))]
+
+    verify_model(Max(), input_data=input_data[0])
+    verify_model(Min(), input_data=input_data[0])
+    verify_model(Max2(), input_data=input_data[0])
+    verify_model(Min2(), input_data=input_data[0])
+    verify_model(Max3(), input_data=input_data)
+    verify_model(Min3(), input_data=input_data)
+
+
 def test_forward_reciprocal():
     torch.set_grad_enabled(False)
     input_shape = [2, 1, 10, 1, 10]
@@ -538,8 +576,8 @@ def test_forward_leakyrelu():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.LeakyReLU().eval(), input_data=input_data)
     verify_model(torch.nn.LeakyReLU(negative_slope=0.05).eval(), input_data=input_data)
-    verify_model(torch.nn.LeakyReLU(negative_slope=1.0).eval(), input_data=input_data)
-    verify_model(torch.nn.LeakyReLU(negative_slope=1.25).eval(), input_data=input_data)
+    verify_model(torch.nn.LeakyReLU(negative_slope=1.0, inplace=True).eval(), input_data=input_data)
+    verify_model(torch.nn.LeakyReLU(negative_slope=1.25, inplace=True).eval(), input_data=input_data)
 
 def test_forward_elu():
     torch.set_grad_enabled(False)
@@ -2937,6 +2975,7 @@ if __name__ == "__main__":
     test_conv3d()
     test_conv3d_transpose()
     test_forward_index()
+    test_min_max()
 
     # Model tests
     test_resnet18()
