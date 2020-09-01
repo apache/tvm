@@ -2747,6 +2747,9 @@ def test_logsumexp():
     input_data = torch.rand(input_shape)
 
     verify_model(Logsumexp(0), input_data=input_data)
+    verify_model(Logsumexp(0, keepdim=True), input_data=input_data)
+    # Also test on double
+    verify_model(Logsumexp(1, keepdim=True), input_data=input_data.double())
 
 
 def test_forward_pretrained_bert_base_uncased():
