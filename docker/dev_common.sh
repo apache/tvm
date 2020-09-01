@@ -29,9 +29,10 @@ GIT_TOPLEVEL=$(cd $(dirname ${BASH_SOURCE[0]}) && git rev-parse --show-toplevel)
 
 
 function lookup_image_name() {
+    escaped_image_name=$(echo "$1" | sed -E 's/\//\\\//g')
     local image_name=$(cat "${GIT_TOPLEVEL}/Jenkinsfile" | \
-                           grep -E "^$1 = " | \
-                           sed -E "s/$1 = \"([^\"]*)\"/\1/")
+                           grep -E "^${escaped_image_name} = " | \
+                           sed -E "s/${escaped_image_name} = \"([^\"]*)\"/\1/")
     if [ -z "${image_name}" ]; then
         return 2
     fi
