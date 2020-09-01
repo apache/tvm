@@ -274,6 +274,9 @@ tvm.datatype.register_op(tvm.datatype.create_lower_func("posit16_exp"),
                          "llvm",
                          "posit",
                          intrinsic_name="exp")
+# tvm.datatype.register_op(tvm.datatype.create_lower_func("posit16_max"),
+#                         "Max", "llvm", "posit")
+# //TODO(hypercubestart): after we figure out third-party library, need to add this back in
 
 ######################################################################
 # Note that, to implement the `Max` operator, we needed to rewrite our wrapper library with a new function, `posit16_max`.
