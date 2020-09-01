@@ -29,7 +29,8 @@ fn main() {
     out_dir.push("lib");
 
     if !out_dir.is_dir() {
-        std::fs::create_dir(&out_dir).unwrap();
+        println!("cargo:warning=mkdir out_dir: {:?}", out_dir.to_str());
+        std::fs::create_dir_all(&out_dir).unwrap();
     }
 
     let obj_file = out_dir.join("test.o");

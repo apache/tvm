@@ -162,11 +162,11 @@ stage('Build') {
         make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+#          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
+#          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
+#          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
+#          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
+#          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
         }
       }
