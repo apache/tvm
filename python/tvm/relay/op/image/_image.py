@@ -162,7 +162,7 @@ reg.register_injective_schedule("image.affine_grid")
 @script
 def _affine_grid_func(data, target_shape):
     out = output_tensor((4,), "int64")
-    out[0] = int64(data.shape[0])
+    out[0] = int64(data[0])
     out[1] = int64(2)
     out[2] = int64(target_shape[0])
     out[3] = int64(target_shape[1])
@@ -188,11 +188,12 @@ def compute_grid_sample(attrs, inputs, out_dtype):
 reg.register_injective_schedule("image.grid_sample")
 
 @script
-def _grid_sample_func(grid):
-    ndim = len(grid.shape)
-    out = output_tensor((ndim,), "int64")
-    for i in const_range(ndim):
-        out[i] = int64(grid.shape[i])
+def _grid_sample_func(data, grid):
+    out = output_tensor((4,), "int64")
+    out[0] = int64(data[0])
+    out[1] = int64(data[1])
+    out[2] = int64(grid[2])
+    out[3] = int64(grid[3])
     return out
 
 @reg.register_shape_func("image.grid_sample", False)
@@ -200,4 +201,4 @@ def grid_sample_func(attrs, inputs, _):
     """
     Shape function for grid_sample op.
     """
-    return [_grid_sample_func(inputs[1])]
+    return [_grid_sample_func(inputs[0], inputs[1])]
