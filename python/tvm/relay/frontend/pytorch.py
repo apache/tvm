@@ -132,6 +132,31 @@ def _elemwise(name):
     return _impl
 
 
+def _min_max_common(name_elemwise, name_reduce):
+    def _impl(inputs, input_types):
+        if len(inputs) == 1:
+            data = _pytorch_promote_types(inputs[:1], input_types[:1])
+            return get_relay_op(name_reduce)(data[0])
+        elif len(inputs) >= 2 and isinstance(inputs[1], int):
+            data = _pytorch_promote_types(inputs[:1], input_types[:1])
+            dim = inputs[1]
+            keepdims = inputs[2] if len(inputs) > 2 else False
+            # also return dummy indices
+            return get_relay_op(name_reduce)(data[0], axis=dim, keepdims=keepdims), None
+        else:
+            data0, data1 = _pytorch_promote_types(inputs[:2], input_types[:2])
+            return get_relay_op(name_elemwise)(data0, data1)
+    return _impl
+
+
+def _max():
+    return _min_max_common("maximum", "max")
+
+
+def _min():
+    return _min_max_common("minimum", "min")
+
+
 def _unary(name):
     def _impl(inputs, input_types):
         input_type = input_types[0]
@@ -2007,8 +2032,8 @@ def _get_convert_map(prelude):
         "prim::device"                          : _none(),
         "aten::sub"                             : _elemwise("subtract"),
         "aten::sub_"                            : _elemwise("subtract"),
-        "aten::max"                             : _elemwise("maximum"),
-        "aten::min"                             : _elemwise("minimum"),
+        "aten::max"                             : _max(),
+        "aten::min"                             : _min(),
         "aten::mul"                             : _elemwise("multiply"),
         "aten::mul_"                            : _elemwise("multiply"),
         "aten::pow"                             : _elemwise("power"),
@@ -2044,6 +2069,7 @@ def _get_convert_map(prelude):
         "aten::relu_"                           : _relu(prelude),
         "aten::prelu"                           : _prelu(),
         "aten::leaky_relu"                      : _leaky_relu(),
+        "aten::leaky_relu_"                     : _leaky_relu(),
         "aten::elu"                             : _elu(),
         "aten::elu_"                            : _elu(),
         "aten::celu"                            : _celu(),
