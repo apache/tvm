@@ -1,3 +1,21 @@
+..  Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+..    http://www.apache.org/licenses/LICENSE-2.0
+
+..  Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+
+
 Vitis-AI Integration
 ====================
 
@@ -79,14 +97,14 @@ Hardware setup and docker build
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 1. Clone the Vitis AI repository:
-   ::
-
+   .. code:: bash
 
    git clone --recurse-submodules https://github.com/Xilinx/Vitis-AI
    
 2. Install Docker, and add the user to the docker group. Link the user
    to docker installation instructions from the following docker's
    website:
+   
 
    -  https://docs.docker.com/install/linux/docker-ce/ubuntu/
    -  https://docs.docker.com/install/linux/docker-ce/centos/
@@ -108,9 +126,8 @@ Hardware setup and docker build
    them at once. To do so:
 
    -  Run the following commands:
-   ::
-   
-   
+   .. code:: bash
+      
       cd Vitis-AI/alveo/packages
       sudo su
       ./install.sh
@@ -118,15 +135,16 @@ Hardware setup and docker build
    -  Power cycle the system.
    
 5. Clone tvm repo and pyxir repo
-   ::
+
+   .. code:: bash
    
    
       git clone --recursive https://github.com/apache/incubator-tvm.git
       git clone --recursive https://github.com/Xilinx/pyxir.git
    
 6. Build and start the tvm runtime Vitis-AI Docker Container.
-   ::
 
+   .. code:: bash
 
       bash incubator-tvm/docker/build.sh ci_vai bash
       bash incubator-tvm/docker/bash.sh tvm.ci_vai
@@ -137,16 +155,16 @@ Hardware setup and docker build
       conda activate vitis-ai-tensorflow
       
 7. Install PyXIR
-   ::
 
-
+   .. code:: bash
 
      cd pyxir
      python3 setup.py install --use_vai_rt_dpucadx8g --user
 
    
 8. Build TVM inside the container with Vitis-AI
-   ::
+
+   .. code:: bash
 
 
       cd incubator-tvm
@@ -159,7 +177,9 @@ Hardware setup and docker build
       make -j$(nproc)
    
 9.  Install TVM
-    ::
+
+    .. code:: bash
+
       cd incubator-tvm/python
       pip3 install -e . --user
       
@@ -203,10 +223,12 @@ Host setup and docker build
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 1. Clone tvm repo
-::
+
+.. code:: bash
    git clone --recursive https://github.com/apache/incubator-tvm.git
 2. Build and start the tvm runtime Vitis-AI Docker Container.
-::
+
+.. code:: bash
    cd incubator-tvm 
    bash incubator-tvm/docker/build.sh ci_vai bash
    bash incubator-tvm/docker/bash.sh tvm.ci_vai
@@ -216,7 +238,8 @@ Host setup and docker build
    conda activate vitis-ai-tensorflow
    
 3. Install PyXIR
-::
+
+.. code:: bash
 
 
    git clone --recursive https://github.com/Xilinx/pyxir.git
@@ -225,7 +248,9 @@ Host setup and docker build
    
    
 4. Build TVM inside the container with Vitis-AI.
-::
+
+.. code:: bash
+
    cd incubator-tvm 
    mkdir build
    cp cmake/config.cmake build
@@ -236,7 +261,8 @@ Host setup and docker build
    make -j$(nproc)
    
 5. Install TVM
-::
+
+.. code:: bash
     cd incubator-tvm/python
     pip3 install -e . --user
 
@@ -273,14 +299,13 @@ NOTE: This section provides instructions setting up with the `Pynq <http://www.p
    setup <https://github.com/Xilinx/DPU-PYNQ>`__
 5. Run the following command to download the DPU bitstream:
 
-   ::
-
+   .. code:: bash
 
      python3 -c 'from pynq_dpu import DpuOverlay ; overlay = DpuOverlay("dpu.bit")'
   
 6. Check whether the DPU kernel is alive:
-   ::
 
+   .. code:: bash
 
      dexplorer -w
 
@@ -294,13 +319,15 @@ Building TVM depends on the Xilinx
 interface between TVM and Vitis-AI tools.
 
 1. First install the PyXIR h5py and pydot dependencies:
-::
+
+.. code:: bash:
 
 
    apt-get install libhdf5-dev
    pip3 install pydot h5py
 2. Install PyXIR
-::
+
+.. code:: bash:
 
 
    git clone --recursive https://github.com/Xilinx/pyxir.git
@@ -308,7 +335,8 @@ interface between TVM and Vitis-AI tools.
    sudo python3 setup.py install --use_vai_rt_dpuczdx8g
    
 3. Build TVM with Vitis-AI
-::
+
+.. code:: bash:
 
 
    git clone --recursive https://github.com/apache/incubator-tvm
@@ -321,13 +349,15 @@ interface between TVM and Vitis-AI tools.
    make
    
 4. Install TVM
-::
+
+.. code:: bash:
+
       cd incubator-tvm/python
       pip3 install -e . --user
 
 5. Check whether the setup was successful in the Python shell:
-::
 
+.. code:: bash:
 
    python3 -c 'import pyxir; import tvm'
 
