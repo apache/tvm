@@ -209,6 +209,7 @@ class CUDADeviceAPI final : public DeviceAPI {
 
   static const std::shared_ptr<CUDADeviceAPI>& Global() {
     static std::shared_ptr<CUDADeviceAPI> inst = std::make_shared<CUDADeviceAPI>();
+    if (inst.use_count() == 0) inst = std::make_shared<CUDADeviceAPI>();
     return inst;
   }
 
