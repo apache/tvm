@@ -226,8 +226,8 @@ inline int ParseOutputSubscripts(const char *subscripts, int length,
 
 inline void GetCombinedDimsView(const Tensor& op, int iop,
                                    char *labels,
-                                   Array<PrimExpr> &newshape,
-                                   Array<PrimExpr> &newstride) {
+                                   Array<PrimExpr>* newshape,
+                                   Array<PrimExpr>* newstride) {
   int idim, ndim, icombine, combineoffset;
   int icombinemap[16];
   int newdim;
@@ -235,12 +235,12 @@ inline void GetCombinedDimsView(const Tensor& op, int iop,
   Array<PrimExpr> shape = op->shape;
   Array<PrimExpr> stride = GetStride(shape);
   ndim = op.ndim();
-  newdim = newshape.size();
+  newdim = newshape->size();
 
   /* Initialize the dimensions and strides to zero */
   for (idim = 0; idim < newdim; ++idim) {
-    newshape.Set(idim, 0);
-    newstride.Set(idim, 0);
+    newshape->Set(idim, 0);
+    newstride->Set(idim, 0);
   }
 
   /* Copy the dimensions and strides, except when collapsing */
@@ -264,18 +264,19 @@ inline void GetCombinedDimsView(const Tensor& op, int iop,
     }
     /* If the label is 0, it's an unlabeled broadcast dimension */
     if (label == 0) {
-      newshape.Set(icombine, shape[idim]);
-      newstride.Set(icombine, stride[idim]);
+      newshape->Set(icombine, shape[idim]);
+      newstride->Set(icombine, stride[idim]);
     } else {
       /* Update the combined axis dimensions and strides */
       int i = icombinemap[idim + combineoffset];
-      CHECK(!((combineoffset < 0) && GetConstInt(newshape[i] != 0 && newshape[i] != shape[idim])))
+      CHECK(!((combineoffset < 0) && GetConstInt((*newshape)[i] != 0 &&
+                                         (*newshape)[i] != shape[idim])))
         << "dimensions in operand " << iop
         << " for collapsing index '" << label
-        << "' don't match (" << GetConstInt(newshape[i])
+        << "' don't match (" << GetConstInt((*newshape)[i])
         << " != " << shape[idim] << ")";
-      newshape.Set(i, shape[idim]);
-      newstride.Set(i, newstride[i] + stride[idim]);
+      newshape->Set(i, shape[idim]);
+      newstride->Set(i, (*newstride)[i] + stride[idim]);
     }
 
     /* If the label didn't say to combine axes, increment dest i */
@@ -716,7 +717,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
       Array<PrimExpr> tshape(static_cast<size_t>(ndim - combine), -1);
       Array<PrimExpr> tstride(static_cast<size_t>(ndim - combine), -1);
       GetCombinedDimsView(inputs[iop + back], iop, labels,
-                             tshape, tstride);
+                             &tshape, &tstride);
       opshape[iop] = tshape;
       opstride_true[iop] = tstride;
     } else {
@@ -822,25 +823,6 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     ostride.push_back(otmp);
     rstride.push_back(rtmp);
   }
-
-  // Testing Code for single input
-  for (iop = 0; iop < nop; ++iop) {
-    for(size_t i = 0; i<ostride.size(); i++) {
-      std::printf("ostride[%d][%ld] = %ld\n", iop, i, GetConstInt(ostride[iop][i]));
-    }
-  }
-  for (iop = 0; iop < nop; ++iop) {
-    for(size_t i = 0; i<rstride.size(); i++) {
-      std::printf("rstride[%d][%ld] = %ld\n", iop, i, GetConstInt(rstride[iop][i]));
-    }
-  }
-
-  for (size_t i = 0; i<reduceshape.size(); i++) {
-      std::printf("reduceshape[%ld] = [%ld]\n", i, GetConstInt(reduceshape[i]));
-  }
-
-  
-  // Testing Code End
 
   // func: input indices => return cooresponding value
   auto func = [inputs, oshape, ostride, reduceshape, ndim_iter,
