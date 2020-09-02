@@ -20,10 +20,12 @@ import pytest
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.testing import check_grad, ctx_list, run_infer_type
+from tvm.relay.testing import check_grad, run_infer_type
 from tvm.relay.transform import gradient
+import tvm.testing
 
 
+@tvm.testing.uses_gpu
 def test_clip():
     for dtype in ('float32', 'float64'):
         ref = (lambda x: np.where(x > 10.0, np.zeros_like(x),
@@ -37,7 +39,7 @@ def test_clip():
         fwd_func = run_infer_type(fwd_func)
         bwd_func = run_infer_type(gradient(fwd_func))
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             intrp = relay.create_executor(ctx=ctx, target=target)
             op_res, (op_grad, ) = intrp.evaluate(bwd_func)(data)
             np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)

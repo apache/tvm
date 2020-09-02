@@ -54,6 +54,9 @@ def search_common(workload=matmul_auto_scheduler_test, target="llvm",
         tuning_options = auto_scheduler.TuningOptions(num_measure_trials=num_measure_trials,
                 runner=runner, verbose=1, measure_callbacks=[auto_scheduler.RecordToFile(log_file)])
         sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options)
+        print("*"*80)
+        print(target)
+        print("*"*80)
         inp, res = auto_scheduler.load_best(log_file, workload_key, target)
 
         print("==== Python Code ====")
@@ -78,9 +81,8 @@ def search_common(workload=matmul_auto_scheduler_test, target="llvm",
     print()
 
 
+@tvm.testing.requires_llvm
 def test_workload_registry_search_basic():
-    if not tvm.runtime.enabled("llvm"):
-        return
     # wrap the search in a new thread to avoid the conflict
     # between python's multiprocessing and tvm's thread pool
     t = PropagatingThread(target=search_common, kwargs={'seed': 944563397})
@@ -96,9 +98,8 @@ def test_workload_registry_search_basic():
     t.join()
 
 
+@tvm.testing.requires_llvm
 def test_sketch_search_policy_basic():
-    if not tvm.runtime.enabled("llvm"):
-        return
     # wrap the search in a new thread to avoid the conflict
     # between python's multiprocessing and tvm's thread pool
     t = PropagatingThread(target=search_common,
@@ -107,9 +108,8 @@ def test_sketch_search_policy_basic():
     t.join()
 
 
+@tvm.testing.requires_llvm
 def test_sketch_search_policy_xgbmodel():
-    if not tvm.runtime.enabled("llvm"):
-        return
     # wrap the search in a new thread to avoid the conflict
     # between python's multiprocessing and tvm's thread pool
     t = PropagatingThread(target=search_common,
@@ -119,9 +119,8 @@ def test_sketch_search_policy_xgbmodel():
     t.join()
 
 
+@tvm.testing.requires_cuda
 def test_sketch_search_policy_cuda_rpc_runner():
-    if not tvm.runtime.enabled("cuda"):
-        return
     measure_ctx = auto_scheduler.LocalRPCMeasureContext()
     # wrap the search in a new thread to avoid the conflict
     # between python's multiprocessing and tvm's thread pool

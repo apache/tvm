@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,16 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import tvm.testing
+from pytest import ExitCode
 
-# NOTE: allow unbound variable here
-set +u
+def pytest_configure(config):
+    print("enabled targets:", "; ".join(map(lambda x: x[0], tvm.testing.enabled_targets())))
+    print("pytest marker:", config.option.markexpr)
 
-if [[ ! -z $CI_PYTEST_ADD_OPTIONS ]]; then
-    export PYTEST_ADDOPTS="-v $CI_PYTEST_ADD_OPTIONS $PYTEST_ADDOPTS"
-else
-    export PYTEST_ADDOPTS="-v $PYTEST_ADDOPTS"
-fi
-set -u
-
-export TVM_PATH=`pwd`
-export PYTHONPATH=${TVM_PATH}/python
+def pytest_sessionfinish(session, exitstatus):
+    # Don't exit with an error if we select a subset of tests that doesn't
+    # include anything
+    if session.config.option.markexpr != '':
+        if exitstatus == ExitCode.NO_TESTS_COLLECTED:
+            session.exitstatus = ExitCode.OK

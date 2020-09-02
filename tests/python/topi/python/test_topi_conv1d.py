@@ -23,7 +23,6 @@ from tvm import topi
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
-from common import get_all_backend
 
 
 _conv1d_ncw_implement = {
@@ -74,11 +73,7 @@ def verify_conv1d(batch,
 
     a_np, w_np, b_np = get_ref_data(layout)
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         if layout == "NCW":
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv1d_ncw_implement)
         else:
@@ -95,10 +90,11 @@ def verify_conv1d(batch,
         func(a, w, b)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 
+@tvm.testing.uses_gpu
 def test_conv1d():
     for layout in ["NCW", "NWC"]:
         # Most basic test case

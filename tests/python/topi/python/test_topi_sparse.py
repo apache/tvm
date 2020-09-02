@@ -25,6 +25,7 @@ import tvm.contrib.sparse as tvmsp
 from collections import namedtuple
 import time
 import scipy.sparse as sp
+import tvm.testing
 
 _sparse_dense_implement = {
     "generic": (topi.nn.sparse_dense, topi.generic.schedule_sparse_dense),
@@ -56,7 +57,7 @@ def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -100,7 +101,7 @@ def verify_dynamic_csrmm(batch, in_dim, out_dim, use_bias=True):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -141,7 +142,7 @@ def verify_dense_si(batch, in_dim, out_dim, use_bias=True, dtype='float32'):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -178,7 +179,7 @@ def verify_dense_sw(batch, in_dim, out_dim, use_bias=True, dtype='float32'):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -303,7 +304,7 @@ def verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -325,11 +326,13 @@ def verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu):
     for device in ['llvm', 'cuda']:
         check_device(device)
 
+@tvm.testing.uses_gpu
 def test_sparse_dense_bsr():
     M, N, K, BS_R, BS_C, density = 1, 64, 128, 8, 16, 0.9
     verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu=True)
     verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu=False)
 
+@tvm.testing.uses_gpu
 def test_sparse_dense_bsr_randomized():
     for _ in range(20):
         BS_R = np.random.randint(1, 16)
@@ -351,7 +354,7 @@ def test_sparse_dense_bsr_randomized():
 
         def check_device(device):
             ctx = tvm.context(device, 0)
-            if not ctx.exist:
+            if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 return
             print("Running on target: %s" % device)
@@ -372,14 +375,11 @@ def test_sparse_dense_bsr_randomized():
             check_device(device)
 
 
-def test_sparse_dense():
-    test_sparse_dense_csr()
-    test_sparse_dense_bsr()
-    test_sparse_dense_bsr_randomized()
-
 if __name__ == "__main__":
     test_csrmv()
     test_csrmm()
     test_dense()
-    test_sparse_dense()
+    test_sparse_dense_csr()
+    test_sparse_dense_bsr()
+    test_sparse_dense_bsr_randomized()
     test_sparse_transpose_csr()

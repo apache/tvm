@@ -22,6 +22,7 @@ from tvm import topi
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.contrib.nvcc import have_fp16
+import tvm.testing
 
 def verify_elemwise_sum(num_args, dtype):
     shape = (3,5,4)
@@ -41,7 +42,7 @@ def verify_elemwise_sum(num_args, dtype):
     np_nd = get_ref_data()
 
     def check_device(device):
-        if not tvm.runtime.enabled(device):
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
 
@@ -70,7 +71,7 @@ def verify_full(shape, dtype, fill_value):
     np_nd = get_ref_data()
 
     def check_device(device):
-        if not tvm.runtime.enabled(device):
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
 
@@ -89,7 +90,7 @@ def verify_full(shape, dtype, fill_value):
 
 def verify_vectorization(n, m, dtype):
     def check_device(device):
-        if not tvm.runtime.enabled(device):
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         if dtype == "float16" and device == "cuda" and not have_fp16(tvm.gpu(0).compute_version):
@@ -112,6 +113,8 @@ def verify_vectorization(n, m, dtype):
     for device in ["cuda"]:
         check_device(device)
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_vectorization():
     verify_vectorization(128, 64, "float16")
 

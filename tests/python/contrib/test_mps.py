@@ -19,10 +19,8 @@ from tvm import te
 import numpy as np
 from tvm.contrib import mps
 
+@tvm.testing.requires_metal
 def test_matmul():
-    if not tvm.runtime.enabled("metal"):
-        print("skip because %s is not enabled..." % "metal")
-        return
     n = 1024
     l = 128
     m = 256
@@ -62,10 +60,8 @@ def test_matmul():
             c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()) + 1, rtol=1e-5)
     verify(A, B, D, s)
 
+@tvm.testing.requires_metal
 def test_conv2d():
-    if not tvm.runtime.enabled("metal"):
-        print("skip because %s is not enabled..." % "metal")
-        return
     n = 1
     h = 14
     w = 14

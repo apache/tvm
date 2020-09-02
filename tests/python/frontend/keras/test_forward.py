@@ -19,8 +19,8 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm.contrib import graph_runtime
-from tvm.relay.testing.config import ctx_list
 import keras
+import tvm.testing
 
 try:
     import tensorflow.compat.v1 as tf
@@ -104,7 +104,7 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout='NCHW'):
     xs = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
     keras_out = get_keras_output(xs)
     keras_out = keras_out if isinstance(keras_out, list) else [keras_out]
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         inputs = [to_channels_first(x) for x in xs] if need_transpose else xs
         tvm_out = get_tvm_output(inputs, target, ctx)
         for kout, tout in zip(keras_out, tvm_out):
@@ -113,6 +113,7 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout='NCHW'):
             tvm.testing.assert_allclose(kout, tout, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 class TestKeras:
     scenarios = [using_classic_keras, using_tensorflow_keras]
 

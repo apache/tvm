@@ -82,6 +82,20 @@ Python Code Styles
 - Stick to language features as in ``python 3.5``
 
 
+Writing Python Tests
+--------------------
+We use `pytest <https://docs.pytest.org/en/stable/>`_ for all python testing. ``tests/python`` contains all the tests.
+
+If you want your test to run over a variety of targets, use the :py:func:`tvm.testing.parametrize_targets` decorator. For example:
+
+.. code:: python
+
+  @tvm.testing.parametrize_targets
+  def test_mytest(target, ctx):
+    ...
+
+will run `test_mytest` with `target="llvm"`, `target="cuda"`, and few others. This also ensures that your test is run on the correct hardware by the CI. If you only want to test against a couple targets use `@tvm.testing.parametrize_targets("target_1", "target_2")`. If you want to test on a single target, use the associated decorator from :py:func:`tvm.testing`. For example, CUDA tests use the `@tvm.testing.requires_cuda` decorator.
+
 Handle Integer Constant Expression
 ----------------------------------
 We often need to handle constant integer expressions in TVM. Before we do so, the first question we want to ask is that is it really necessary to get a constant integer. If symbolic expression also works and let the logic flow, we should use symbolic expression as much as possible. So the generated code works for shapes that are not known ahead of time.

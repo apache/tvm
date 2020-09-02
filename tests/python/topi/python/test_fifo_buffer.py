@@ -19,11 +19,11 @@
 import tvm
 from tvm import te
 from tvm import topi
+import tvm.testing
 import tvm.topi.testing
 import numpy as np
 from tvm.contrib.pickle_memoize import memoize
 
-from common import get_all_backend
 
 def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype='float32'):
     buffer = te.placeholder(buffer_shape, name='buffer', dtype=dtype)
@@ -46,11 +46,7 @@ def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype='float32'):
     # Get the test data
     buffer_np, data_np, out_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print('  Skip because %s is not enabled' % device)
-            return
+    def check_device(device, ctx):
         print('  Running on target: {}'.format(device))
 
         with tvm.target.create(device):
@@ -64,8 +60,8 @@ def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype='float32'):
         f(data_tvm, buffer_tvm, out_tvm)
         tvm.testing.assert_allclose(out_tvm.asnumpy(), out_np)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 def verify_conv1d_integration():
     batch_size = 1
@@ -122,11 +118,7 @@ def verify_conv1d_integration():
     # Get the test data
     inc_input_np, input_window_np, kernel_np, context_np, output_window_np = get_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print('  Skip because %s is not enabled' % device)
-            return
+    def check_device(device, ctx):
         print('  Running on target: {}'.format(device))
 
         conv2d_nchw, schedule_conv2d_nchw = tvm.topi.testing.get_conv2d_nchw_implement(device)
@@ -184,9 +176,10 @@ def verify_conv1d_integration():
             tvm.testing.assert_allclose(output_window_tvm.asnumpy(),
                                         output_window_ref_tvm.asnumpy())
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
+@tvm.testing.uses_gpu
 def test_fifo_buffer():
     for ndim in [1, 2, 3, 4, 5, 6]:
         for axis in range(ndim):
@@ -196,6 +189,7 @@ def test_fifo_buffer():
                   .format(buffer_shape, data_shape, axis))
             verify_fifo_buffer(buffer_shape, data_shape, axis)
 
+@tvm.testing.uses_gpu
 def test_conv1d_integration():
     print('Testing FIFO buffer with 1D convolution')
     verify_conv1d_integration()

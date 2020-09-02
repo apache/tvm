@@ -15,6 +15,7 @@
  # specific language governing permissions and limitations
  # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 import numpy as np
 
@@ -47,9 +48,6 @@ def check_value(expr, vx, vy, data, fref):
     C = te.compute((n,), make_binds)
     s = te.create_schedule([C.op])
 
-    if not tvm.runtime.enabled("llvm"):
-        return
-
     f = tvm.build(s, [A, B, C], "llvm")
     a = tvm.nd.array(np.array([x for x, y in data], dtype=expr.dtype))
     b = tvm.nd.array(np.array([y for x, y in data], dtype=expr.dtype))
@@ -69,6 +67,7 @@ def get_ref_data():
     return list(itertools.product(x, y))
 
 
+@tvm.testing.requires_llvm
 def test_lower_floordiv():
     data = get_ref_data()
     for dtype in ["int32", "int64", "int16"]:
@@ -92,6 +91,7 @@ def test_lower_floordiv():
         check_value(res, x, y, [(a, b) for a, b in data if b == 8], lambda a, b: a // b)
 
 
+@tvm.testing.requires_llvm
 def test_lower_floormod():
     data = get_ref_data()
     for dtype in ["int32", "int64", "int16"]:

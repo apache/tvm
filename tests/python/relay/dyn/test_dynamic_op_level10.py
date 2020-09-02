@@ -22,11 +22,13 @@ Support level10 operator test cases.
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.testing import ctx_list, run_infer_type
+from tvm.relay.testing import run_infer_type
 import tvm.topi.testing
 import random
+import tvm.testing
 
 
+@tvm.testing.uses_gpu
 def test_dyn_broadcast_to():
     dtype = 'uint8'
     rank = 3
@@ -44,7 +46,7 @@ def test_dyn_broadcast_to():
     x = np.random.uniform(size=x_shape).astype(dtype)
     dyn_shape = (1, ) * rank
     ref_res = np.broadcast_to(x, dyn_shape)
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         if (target != 'cuda'):  #skip cuda because we don't have dynamic support for GPU
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
@@ -53,6 +55,7 @@ def test_dyn_broadcast_to():
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_dyn_one_hot():
     def _get_oshape(indices_shape, depth, axis):
         oshape = []
@@ -77,7 +80,7 @@ def test_dyn_one_hot():
         func = relay.Function([indices, depth_var], out)
         indices_np = np.random.randint(0, depth, size=indices_shape).astype("int32")
         out_np = tvm.topi.testing.one_hot(indices_np, on_value, off_value, depth, axis, dtype)
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             if (target != 'cuda'):  #skip cuda because we don't have dynamic support for GPU
                 for kind in ["vm", "debug"]:
                     mod = tvm.ir.IRModule.from_expr(func)

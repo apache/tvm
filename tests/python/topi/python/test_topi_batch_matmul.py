@@ -23,7 +23,7 @@ import tvm.topi.testing
 from tvm.topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
 
-from common import get_all_backend
+import tvm.testing
 
 _batch_matmul_implement = {
     "generic": (topi.nn.batch_matmul, topi.generic.schedule_batch_matmul),
@@ -46,11 +46,7 @@ def verify_batch_matmul(batch, M, N, K):
     # get the test data
     a_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _batch_matmul_implement)
@@ -63,9 +59,10 @@ def verify_batch_matmul(batch, M, N, K):
         f(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
+@tvm.testing.uses_gpu
 def test_batch_matmul():
     verify_batch_matmul(1, 16, 16, 32)
     verify_batch_matmul(5, 16, 16, 32)

@@ -278,7 +278,7 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
 
         for device in ["llvm"]:
             ctx = tvm.context(device, 0)
-            if not ctx.exist:
+            if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 continue
 
