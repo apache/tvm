@@ -39,29 +39,6 @@
 /*! Maximum supported string length in function names */
 #define TVM_CRT_STRLEN_NAME 80
 
-/*!
- * \brief Log memory pool size for virtual memory allocation
- *
- * Here is a list of possible choices:
- * * use 16 for 64 KiB memory space
- * * use 17 for 128 KiB memory space
- * * use 18 for 256 KiB memory space
- * * use 19 for 512 KiB memory space
- * * use 20 for 1 MiB memory space
- * * use 21 for 2 MiB memory space
- * * use 22 for 4 MiB memory space
- * * use 23 for 8 MiB memory space
- * * use 24 for 16 MiB memory space
- * * use 25 for 32 MiB memory space
- * * use 26 for 64 MiB memory space
- * * use 27 for 128 MiB memory space
- * * use 28 for 256 MiB memory space
- */
-#define TVM_CRT_LOG_VIRT_MEM_SIZE 24
-
-/*! \brief Page size for virtual memory allocation */
-#define TVM_CRT_PAGE_BYTES_LOG 12
-
 /*! Maximum number of registered modules. */
 #define TVM_CRT_MAX_REGISTERED_MODULES 2
 

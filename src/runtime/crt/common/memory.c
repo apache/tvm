@@ -33,6 +33,7 @@
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/internal/common/memory.h>
+#include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/platform.h>
@@ -306,15 +307,16 @@ void MemoryManagerCreate(MemoryManager* manager, uint8_t* memory_pool,
   manager->free_map.insert = MultiMap_Insert;
 }
 
-void TVMInitializeGlobalMemoryManager(uint8_t* memory_pool, size_t memory_pool_size_bytes,
-                                      size_t page_size_bytes_log2) {
+tvm_crt_error_t TVMInitializeGlobalMemoryManager(uint8_t* memory_pool, size_t memory_pool_size_bytes,
+                                                 size_t page_size_bytes_log2) {
   if (g_memory_manager_initialized) {
-    TVMPlatformAbort(-1);
+    return kTvmErrorPlatformMemoryManagerInitialized;
   }
 
   MemoryManagerCreate(&g_memory_manager, memory_pool, memory_pool_size_bytes, page_size_bytes_log2);
 
   g_memory_manager_initialized = true;
+  return kTvmErrorNoError;
 }
 
 MemoryManager* TVMGetGlobalMemoryManager() {

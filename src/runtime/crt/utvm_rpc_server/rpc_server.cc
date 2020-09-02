@@ -196,8 +196,7 @@ utvm_rpc_server_t utvm_rpc_server_init(uint8_t* memory, size_t memory_size_bytes
   tvm::runtime::g_write_func = write_func;
   tvm::runtime::g_write_func_ctx = write_func_ctx;
 
-  TVMInitializeGlobalMemoryManager(memory, memory_size_bytes, page_size_bytes_log2);
-  tvm_crt_error_t err = TVMInitializeRuntime();
+  tvm_crt_error_t err = TVMInitializeRuntime(memory, memory_size_bytes, page_size_bytes_log2);
   if (err != kTvmErrorNoError) {
     TVMPlatformAbort(err);
   }

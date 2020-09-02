@@ -48,12 +48,6 @@
 /*! \brief Maximum length of a PackedFunc function name. */
 #define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30
 
-/*! \brief Log2 of the page size (bytes) for a virtual memory page. */
-#define TVM_CRT_PAGE_BITS 10  // 1 kB
-
-/*! \brief Number of pages on device. */
-#define TVM_CRT_MAX_PAGES 300
-
 /*! \brief DLDataType for the return value from strlen */
 #define TVM_CRT_STRLEN_DLTYPE 10
 

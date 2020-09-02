@@ -27,6 +27,7 @@
 #define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_MEMORY_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/error_codes.h>
 
 #include "crt_config.h"
 
@@ -140,9 +141,10 @@ void MemoryManagerCreate(MemoryManager* manager, uint8_t* memory_pool,
  * \param memory_pool Pointer to the global memory pool used by the CRT.
  * \param memory_pool_size_bytes Size of `memory_pool`, in bytes.
  * \param page_size_bytes_log2 log2 of the page size, in bytes.
+ * \return An error code indicating the status of the operation.
  */
-void TVMInitializeGlobalMemoryManager(uint8_t* memory_pool, size_t memory_pool_size_bytes,
-                                      size_t page_size_bytes_log2);
+tvm_crt_error_t TVMInitializeGlobalMemoryManager(uint8_t* memory_pool, size_t memory_pool_size_bytes,
+                                                 size_t page_size_bytes_log2);
 
 #ifdef __cplusplus
 }  // extern "C"
