@@ -143,7 +143,8 @@ void MemoryManagerCreate(MemoryManager* manager, uint8_t* memory_pool,
  * \param page_size_bytes_log2 log2 of the page size, in bytes.
  * \return An error code indicating the status of the operation.
  */
-tvm_crt_error_t TVMInitializeGlobalMemoryManager(uint8_t* memory_pool, size_t memory_pool_size_bytes,
+tvm_crt_error_t TVMInitializeGlobalMemoryManager(uint8_t* memory_pool,
+                                                 size_t memory_pool_size_bytes,
                                                  size_t page_size_bytes_log2);
 
 #ifdef __cplusplus

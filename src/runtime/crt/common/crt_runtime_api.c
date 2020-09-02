@@ -312,8 +312,8 @@ tvm_crt_error_t TVMInitializeRuntime(uint8_t* memory_pool, size_t memory_pool_si
   int idx;
   tvm_crt_error_t error;
 
-  error = TVMInitializeGlobalMemoryManager(
-      memory_pool, memory_pool_size_bytes, page_size_bytes_log2);
+  error =
+      TVMInitializeGlobalMemoryManager(memory_pool, memory_pool_size_bytes, page_size_bytes_log2);
   if (error != kTvmErrorNoError) {
     return error;
   }
