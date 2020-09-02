@@ -26,11 +26,11 @@
 
 #include <tvm/te/operation.h>
 #include <tvm/tir/data_layout.h>
+#include <tvm/topi/broadcast.h>
 #include <tvm/topi/detail/constant_utils.h>
 #include <tvm/topi/detail/ravel_unravel.h>
 #include <tvm/topi/detail/tensor_utils.h>
 #include <tvm/topi/tags.h>
-#include <tvm/topi/broadcast.h>
 
 #include <algorithm>
 #include <iterator>
@@ -1537,19 +1537,19 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal,
   size_t ndim = input->shape.size() - 1;
 
   return compute(
-    input->shape,
-    [&](const Array<Var> &iter_vars) {
-      auto get_diag = [&]() {
-        Array<PrimExpr> diagonal_indices;
-        for (size_t i = 0; i < ndim; i++) {
-          diagonal_indices.push_back(iter_vars[i]);
-        }
-        return diagonal(diagonal_indices);
-      };
-      return if_then_else((PrimExpr) iter_vars[ndim] == iter_vars[ndim - 1], get_diag(),
-                          input(iter_vars));
-    },
-    name, tag);
+      input->shape,
+      [&](const Array<Var> &iter_vars) {
+        auto get_diag = [&]() {
+          Array<PrimExpr> diagonal_indices;
+          for (size_t i = 0; i < ndim; i++) {
+            diagonal_indices.push_back(iter_vars[i]);
+          }
+          return diagonal(diagonal_indices);
+        };
+        return if_then_else((PrimExpr) iter_vars[ndim] == iter_vars[ndim - 1], get_diag(),
+                            input(iter_vars));
+      },
+      name, tag);
 }
 
 /*!
@@ -1609,24 +1609,24 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
   }
 
   return compute(
-    oshape,
-    [&](const Array<Var>& iter_var) {
-      Array<PrimExpr> tensor_indices;
-      for (size_t i = 0; i < broadcast_shape.size(); ++i) {
-        tensor_indices.push_back(iter_var[i]);
-      }
+      oshape,
+      [&](const Array<Var>& iter_var) {
+        Array<PrimExpr> tensor_indices;
+        for (size_t i = 0; i < broadcast_shape.size(); ++i) {
+          tensor_indices.push_back(iter_var[i]);
+        }
 
-      Array<PrimExpr> real_indices;
-      for (size_t i = 0; i < bindices.size(); ++i) {
-        real_indices.push_back(bindices[i](tensor_indices));
-      }
-      for (size_t i = broadcast_shape.size(); i < iter_var.size(); ++i) {
-        real_indices.push_back(iter_var[i]);
-      }
+        Array<PrimExpr> real_indices;
+        for (size_t i = 0; i < bindices.size(); ++i) {
+          real_indices.push_back(bindices[i](tensor_indices));
+        }
+        for (size_t i = broadcast_shape.size(); i < iter_var.size(); ++i) {
+          real_indices.push_back(iter_var[i]);
+        }
 
-      return data(real_indices);
-    },
-    name, tag);
+        return data(real_indices);
+      },
+      name, tag);
 }
 
 }  // namespace topi

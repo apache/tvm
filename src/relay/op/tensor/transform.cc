@@ -3232,16 +3232,16 @@ Expr MakeAdvIndex(Expr inputs) {
 TVM_REGISTER_GLOBAL("relay.op._make.adv_index").set_body_typed(MakeAdvIndex);
 
 RELAY_REGISTER_OP("adv_index")
-  .describe(R"code(Numpy style advanced indexing. Index with a list of tensors.
-  )code" TVM_ADD_FILELINE)
-  .set_num_inputs(1)
-  .set_support_level(3)
-  .add_argument("inputs", "Tuple of Tensors", "Input tensor and indices.")
-  .add_type_rel("AdvIndex", AdvIndexRel)
-  .set_attr<TOpIsStateful>("TOpIsStateful", false)
-  .set_attr<TOpPattern>("TOpPattern", kInjective)
-  .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-  .set_attr<FTVMCompute>("FTVMCompute", AdvIndexCompute);
+    .describe(R"code(Numpy style advanced indexing. Index with a list of tensors.
+    )code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_support_level(3)
+    .add_argument("inputs", "Tuple of Tensors", "Input tensor and indices.")
+    .add_type_rel("AdvIndex", AdvIndexRel)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute", AdvIndexCompute);
 
 }  // namespace relay
 }  // namespace tvm

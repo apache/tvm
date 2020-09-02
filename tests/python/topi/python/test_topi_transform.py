@@ -1099,22 +1099,18 @@ def test_sparse_to_dense():
     #sparse_indices should not be > 2d tensor
     #verify_sparse_to_dense([[[[0, 1, 4], [0, 2, 4]]]], [[[3.1, 3.1, 3.1]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
 
-<<<<<<< HEAD
 @tvm.testing.uses_gpu
-=======
-<<<<<<< HEAD
->>>>>>> Add Relay adv_index op
 def test_matrix_set_diag():
     for dtype in ['float32', 'int32']:
         verify_matrix_set_diag((2, 2), dtype)
         verify_matrix_set_diag((4, 3, 3), dtype)
         verify_matrix_set_diag((2, 3, 4), dtype)
-=======
+
+@tvm.testing.uses_gpu
 def test_adv_index():
     verify_adv_index((3, 4, 5), [(2,), (2, ), (1,)])
     verify_adv_index((10, 15, 5), [(1, 1), (2, 7)])
     verify_adv_index((10, 5, 15), [(1, 2, 1), (1, 2, 7)])
->>>>>>> Add Relay adv_index op
 
 if __name__ == "__main__":
     test_strided_slice()
