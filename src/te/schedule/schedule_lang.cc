@@ -55,6 +55,16 @@ size_t FindLeafVar(ArrayNode* all_vars, ArrayNode* leaf_vars, const IterVar& v) 
   return 0;
 }
 
+DataType MatchDataType(std::vector<DataType> dtypes) {
+  int max_bits = -1;
+  for (const auto& dtype : dtypes) {
+    CHECK(dtype.is_int());
+    CHECK(dtype.is_scalar());
+    max_bits = std::max(max_bits, dtype.bits());
+  }
+  return DataType::Int(max_bits);
+}
+
 void SplitHelper(StageNode* self, IterVar parent, PrimExpr factor, PrimExpr nparts,
                  IterVar* p_outer, IterVar* p_inner) {
   // Check if split is valid.
@@ -228,8 +238,9 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
   IterVarType iter_type = outer->iter_type;
   if (inner->iter_type > iter_type) iter_type = inner->iter_type;
   std::string fused_name = outer->var->name_hint + "." + inner->var->name_hint + ".fused";
+  DataType iter_dtype = MatchDataType({inner->var.dtype(), outer->var.dtype()});
 
-  IterVar fused = IterVar(Range(), Var(fused_name, outer->var.dtype()), iter_type);
+  IterVar fused = IterVar(Range(), Var(fused_name, iter_dtype), iter_type);
 
   Array<IterVar>& all_vars = self->all_iter_vars;
   Array<IterVar>& leaf_vars = self->leaf_iter_vars;
