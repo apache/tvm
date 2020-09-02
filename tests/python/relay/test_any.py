@@ -894,19 +894,20 @@ def test_reshape_concat():
 
 def test_any_adv_index():
     data = relay.var("data", shape=(5, relay.Any(), relay.Any()), dtype='float32')
-    index = relay.var("index", shape=(1, relay.Any()), dtype='int64')
-    out = relay.adv_index([data, index])
+    index0 = relay.var("index0", shape=(1, relay.Any()), dtype='int64')
+    index1 = relay.var("index1", shape=(1, relay.Any()), dtype='int64')
+    out = relay.adv_index([data, index0, index1])
     mod = tvm.IRModule()
-    mod['main'] = relay.Function([data, index], out)
+    mod['main'] = relay.Function([data, index0, index1], out)
     np_data_shape = (5, 5, 10)
     np_index_shape = (1, 4)
     np_data = np.random.uniform(size=np_data_shape).astype('float32')
     np_index = np.random.uniform(0, np_data_shape[0], size=np_index_shape).astype('int64')
-    ref_res = np_data[tuple([np_index,])]
+    ref_res = np_data[tuple([np_index, np_index])]
 
     for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(np_data, np_index)
+        result = ex.evaluate()(np_data, np_index, np_index)
         tvm.testing.assert_allclose(result.asnumpy(), ref_res)
 
 

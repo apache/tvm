@@ -1566,8 +1566,8 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
   Array<Tensor> bindices;
   std::vector<int64_t> flatten_shape_lens;
   int64_t num_picked_elems = 1;
+  bool has_dyn_shape = false;
 
-  // Only allows dynamic index tensor shape when just have 1 index tensor.
   if (indices.size() == 1) {
     broadcast_shape = indices[0]->shape;
     bindices = indices;
@@ -1577,11 +1577,13 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
       for (const auto& dim : index->shape) {
         const IntImmNode* axis_len = dim.as<IntImmNode>();
         if (!axis_len) {
-          LOG(FATAL) << "Dynamic shape indexing tensor is not allowed in "
-            "advanced index if more than one index tensor are provided.";
+          broadcast_shape = index->shape;
+          has_dyn_shape = true;
+          break;
         }
         flatten_len *= axis_len->value;
       }
+      if (has_dyn_shape) break;
       flatten_shape_lens.push_back(flatten_len);
       if (flatten_len > num_picked_elems) {
         num_picked_elems = flatten_len;
@@ -1591,7 +1593,7 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
 
     // Do broadcast for indices
     for (size_t i = 0; i < indices.size(); ++i) {
-      if (flatten_shape_lens[i] < num_picked_elems) {
+      if (!has_dyn_shape && flatten_shape_lens[i] < num_picked_elems) {
         bindices.push_back(broadcast_to(indices[i], broadcast_shape));
       } else {
         bindices.push_back(indices[i]);

@@ -3186,14 +3186,18 @@ bool AdvIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       CHECK(index_type->dtype.is_int()) << "indices must be tensor of integers";
 
       int64_t flatten_len = 1;
+      bool has_dyn_shape = false;
       for (const auto& dim : index_type->shape) {
         const IntImmNode* axis_len = dim.as<IntImmNode>();
         if (!axis_len) {
-          LOG(FATAL) << "Dynamic shape indexing tensor is not allowed in "
-            "advanced index if more than one index tensor are provided.";
+          // If dynamic shape appears, just use the first shape
+          broadcast_shape = index_type->shape;
+          has_dyn_shape = true;
+          break;
         }
         flatten_len *= axis_len->value;
       }
+      if (has_dyn_shape) break;
       if (flatten_len > num_picked_elems) {
         num_picked_elems = flatten_len;
         broadcast_shape = index_type->shape;

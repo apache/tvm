@@ -664,16 +664,26 @@ def split_shape_func(attrs, inputs, _):
                               convert(axis)) for i in range(num_out)]
 
 @script
-def _adv_index_shape_func(data_shape, index_shape):
-    index_rank = index_shape.shape[0]
-    data_rank = data_shape.shape[0]
-    out = output_tensor((data_rank + index_rank - 1,), "int64")
+def _adv_index_shape_func(inputs):
+    index_rank = inputs[1].shape[0]
+    data_rank = inputs[0].shape[0]
+    out = output_tensor((data_rank + index_rank - len(inputs) + 1,), "int64")
 
+    max_flatten_len = int64(1)
     for i in const_range(index_rank):
-        out[i] = index_shape[i]
+        max_flatten_len *= inputs[1][i]
+        out[i] = inputs[1][i]
+    for i in const_range(len(inputs) - 2):
+        flatten_len = int64(1)
+        for j in const_range(index_rank):
+            flatten_len *= inputs[i + 2][j]
+        if flatten_len > max_flatten_len:
+            max_flatten_len = flatten_len
+            for k in const_range(index_rank):
+                out[k] = inputs[i + 2][k]
 
-    for i in const_range(data_rank - 1):
-        out[i + index_rank] = data_shape[i + 1]
+    for i in const_range(data_rank - len(inputs) + 1):
+        out[i + index_rank] = inputs[0][i + len(inputs) - 1]
 
     return out
 
@@ -683,4 +693,4 @@ def adv_index_shape_func(attrs, inputs, _):
     Shape func for adv_index.
     Only allow single index tensor.
     """
-    return [_adv_index_shape_func(inputs[0], inputs[1])]
+    return [_adv_index_shape_func(inputs)]
