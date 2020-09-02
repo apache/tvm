@@ -1572,10 +1572,8 @@ inline void get_combined_dims_view(const Tensor& op, int iop,
       newstride.Set(icombine, stride[idim]);
     } else {
       /* Update the combined axis dimensions and strides */
-      int i = icombinemap[idim + combineoffset]; 
-      CHECK(!(
-        (combineoffset < 0) && GetConstInt(newshape[i] != 0 && newshape[i] != shape[idim])
-        ))
+      int i = icombinemap[idim + combineoffset];
+      CHECK(!((combineoffset < 0) && GetConstInt(newshape[i] != 0 && newshape[i] != shape[idim])))
         << "dimensions in operand " << iop
         << " for collapsing index '" << label
         << "' don't match (" << GetConstInt(newshape[i])
@@ -1846,7 +1844,8 @@ inline std::vector<std::string> _parse_einsum_input(
   return ret;
 }
 
-inline Array<PrimExpr> NumpyEinsumShape(std::string subscripts, std::vector<Array<PrimExpr>>& operands) {
+inline Array<PrimExpr> NumpyEinsumShape(std::string subscripts, 
+                                        std::vector<Array<PrimExpr>>& operands) {
   // Parsing
   std::vector<std::string> parsed_subscripts = _parse_einsum_input(subscripts, operands);
 
@@ -2048,11 +2047,12 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
   }
   /* Step 4: Set up the op_axes for the iterator */
   Array<PrimExpr> itershape(static_cast<size_t>(ndim_iter), -1);
-  std::vector<Array<PrimExpr>> iterstride(nop + 1, Array<PrimExpr>(static_cast<size_t>(ndim_iter), 0));
+  std::vector<Array<PrimExpr>> iterstride(nop + 1, 
+                                Array<PrimExpr>(static_cast<size_t>(ndim_iter), 0));
 
   // output_shape
   std::vector<Array<PrimExpr>> operands;
-  for(size_t i = 0; i < inputs.size(); i++) {
+  for (size_t i = 0; i < inputs.size(); i++) {
     operands.push_back(inputs[i]->shape);
   }
   Array<PrimExpr> oshape = NumpyEinsumShape(subscripts_str, operands);
@@ -2088,7 +2088,6 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
   for (iop = 0; iop < nop; iop++) {
     Array<Integer> rsh;
     for (idim = 0; idim < ndim_iter; idim++) {
-
       if (op_axes_arrays[iop][idim] == -1) {
         rsh.push_back(GetConstInt(itershape[idim]));
       } else {
@@ -2096,7 +2095,6 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
           rsh.push_back(GetConstInt(itershape[idim]));
         }
       }
-      
     }
     remainshape[iop] = Array<PrimExpr>(rsh.begin(), rsh.end());
   }
@@ -2131,11 +2129,9 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
 
 
   // func: input indices => return cooresponding value
-  auto func = [inputs, oshape, ostride, reduceshape, ndim_iter, 
+  auto func = [inputs, oshape, ostride, reduceshape, ndim_iter,
                rstride, nop](const Array<Var>& input_indices) -> PrimExpr {
-
-      // input_indices本身就是带纬度的索引
-    for( int rdim = 0; rdim < ndim_iter; ++rdim) {
+    for (int rdim = 0; rdim < ndim_iter; ++rdim) {
       if (GetConstInt(reduceshape[rdim]) == 0) {
         return 0;  //
       }
@@ -2149,10 +2145,10 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
       for (int iop = 0; iop < nop; ++iop) {
         if (iop != -1) {
             PrimExpr k = 0;
-            for(size_t i = 0; i < input_indices.size(); ++i) {
+            for (size_t i = 0; i < input_indices.size(); ++i) {
               k += input_indices[i] * ostride[iop][i];
             }
-            for(size_t i = 0; i < ridx.size(); ++i) {
+            for (size_t i = 0; i < ridx.size(); ++i) {
               k += ridx[i] * rstride[iop][i];
             }
            Array<PrimExpr> temp_indices = UnravelIndex(k, inputs[iop]->shape);
@@ -2162,12 +2158,13 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
       sum += tmp;
       
       ridx.Set(ridx.size() - 1, ridx[ridx.size()-1] + 1);
-      for (int i = static_cast<int>(ridx.size() - 1); (i > 0) && GetConstInt(ridx[i] >= reduceshape[i]); --i){
+      for (int i = static_cast<int>(ridx.size() - 1); (i > 0) &&
+                                  GetConstInt(ridx[i] >= reduceshape[i]); --i) {
         ridx.Set(i, ridx[i] - reduceshape[i]);
         ridx.Set(i-1, ridx[i-1] + 1);
       }
       rec_flag = GetConstInt(ridx[0] < reduceshape[0]);
-    } while(rec_flag);
+    } while (rec_flag);
     return sum;
   };
 
