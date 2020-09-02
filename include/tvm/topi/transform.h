@@ -891,16 +891,22 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
       << " vs " << y->shape.size();
   CHECK_EQ(x->dtype, y->dtype) << "x and y must have the same dtype: " << x->dtype << " vs "
                                << y->dtype;
-  Array<PrimExpr> oshape = x->shape;
-  Tensor out;
 
-  if (condition->shape.size() != 1) {
+  if (x->shape.size() == 0) {
+    return compute(
+        condition->shape,
+        [&](const Array<Var>& indices) {
+          Array<PrimExpr> condition_idx{indices[0]};
+          return tvm::tir::Select(condition(condition_idx) != 0, x(), y());
+        },
+        name, tag);
+  } else if (condition->shape.size() != 1) {
     CHECK_EQ(condition->shape.size(), x->shape.size())
         << "condition array must be either have the same shape as x or to be a "
            "1-D array.Got different number of dimension: "
         << condition->shape.size() << " vs " << x->shape.size();
-    out = compute(
-        oshape,
+    return compute(
+        x->shape,
         [&](const Array<Var>& indices) {
           return tvm::tir::Select(condition(indices) != 0, x(indices), y(indices));
         },
@@ -909,15 +915,14 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
     CHECK_EQ(topi::GetConstInt(condition->shape[0]), topi::GetConstInt(x->shape[0]))
         << "If condition is 1-D, the first dimension must be the same as x: " << condition->shape[0]
         << " vs " << x->shape[0];
-    out = compute(
-        oshape,
+    return compute(
+        x->shape,
         [&](const Array<Var>& indices) {
           Array<PrimExpr> condition_idx{indices[0]};
           return tvm::tir::Select(condition(condition_idx) != 0, x(indices), y(indices));
         },
         name, tag);
   }
-  return out;
 }
 
 /*!

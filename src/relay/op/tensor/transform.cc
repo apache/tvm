@@ -1662,7 +1662,11 @@ bool WhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
           << "condition and x must have the same shape: " << cond_shape << " vs " << x_shape;
     }
   }
-  reporter->Assign(types[3], TensorType(x_shape, x->dtype));
+  if (x_shape.size() == 0) {
+    reporter->Assign(types[3], TensorType(cond_shape, x->dtype));
+  } else {
+    reporter->Assign(types[3], TensorType(x_shape, x->dtype));
+  }
   return true;
 }
 
