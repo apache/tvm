@@ -22,10 +22,12 @@ from tvm.contrib import graph_runtime
 import tvm
 from tvm import te
 import ctypes
+import tvm.testing
 
+@tvm.testing.uses_gpu
 def test_synthetic():
     for device in ["llvm", "cuda"]:
-        if not tvm.runtime.enabled(device):
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled..." % device)
             return
 
@@ -70,10 +72,11 @@ def test_synthetic():
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_cuda_lib():
     ctx = tvm.gpu(0)
     for device in ["llvm", "cuda"]:
-        if not tvm.runtime.enabled(device):
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled..." % device)
             return
     nn = 12
@@ -99,4 +102,4 @@ def test_cuda_lib():
 
 if __name__ == "__main__":
     test_synthetic()
-    #test_system_lib()
+    test_cuda_lib()

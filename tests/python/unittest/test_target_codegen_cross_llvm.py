@@ -23,6 +23,7 @@ from tvm import rpc
 from tvm.contrib import util, cc
 import numpy as np
 
+@tvm.testing.requires_llvm
 def test_llvm_add_pipeline():
     nn = 1024
     n = tvm.runtime.convert(nn)
@@ -43,9 +44,6 @@ def test_llvm_add_pipeline():
             assert struct.unpack(endian + 'h', arr[0x12:0x14])[0] == e_machine
 
     def build_i386():
-        if not tvm.runtime.enabled("llvm"):
-            print("Skip because llvm is not enabled..")
-            return
         temp = util.tempdir()
         target = "llvm -mtriple=i386-pc-linux-gnu"
         f = tvm.build(s, [A, B, C], target)

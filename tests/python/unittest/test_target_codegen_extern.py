@@ -17,7 +17,9 @@
 import tvm
 from tvm import te
 import numpy as np
+import tvm.testing
 
+@tvm.testing.uses_gpu
 def test_add_pipeline():
     nn = 64
     max_threads = 4
@@ -51,7 +53,7 @@ def test_add_pipeline():
     print(tvm.lower(s_gpu, [A, C_gpu], simple_mode=True))
 
     def check_target(target):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             return
         s = s_gpu if target in ['opencl', 'cuda'] else s_cpu
         C = C_gpu if target in ['opencl', 'cuda'] else C_cpu
@@ -86,7 +88,7 @@ def test_pack_buffer_simple():
 
 
     def check_target(target):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             return
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], target)
@@ -116,7 +118,7 @@ def test_pack_buffer_intermediate():
     s = te.create_schedule(C.op)
 
     def check_target(target):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             return
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], target)

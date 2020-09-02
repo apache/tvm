@@ -22,16 +22,16 @@ from tvm import topi
 import unittest
 from tvm.contrib.nvcc import have_fp16, have_int8
 from tvm.contrib import nvcc
+import tvm.testing
 
 tx = te.thread_axis("threadIdx.x")
 bx = te.thread_axis("blockIdx.x")
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_vectorize_add():
     num_thread = 8
     def check_cuda(dtype, n, lanes):
-        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-            print("skip because cuda is not enabled..")
-            return
         if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
@@ -66,12 +66,11 @@ def test_cuda_vectorize_add():
     check_cuda("float16", 64, 6)
     check_cuda("float16", 64, 8)
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_multiply_add():
     num_thread = 8
     def check_cuda(dtype, n, lanes):
-        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-            print("skip because cuda is not enabled..")
-            return
         if dtype == "int8" and not have_int8(tvm.gpu(0).compute_version):
             print("skip because gpu does not support int8")
             return
@@ -98,12 +97,11 @@ def test_cuda_multiply_add():
         tvm.testing.assert_allclose(d.asnumpy(), np_d)
     check_cuda("int8", 64, 4)
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_vectorize_load():
     num_thread = 8
     def check_cuda(dtype, n, lanes):
-        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-            print("skip because cuda is not enabled..")
-            return
         ctx = tvm.gpu(0)
         A = te.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
         B = te.compute((n,), lambda i: A[i], name='B')
@@ -123,11 +121,10 @@ def test_cuda_vectorize_load():
     check_cuda("int8", 64, 8)
     check_cuda("int8", 64, 16)
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_make_int8():
     def check_cuda(n, value, lanes):
-        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-            print("skip because cuda is not enabled..")
-            return
         dtype = 'int8'
         ctx = tvm.gpu(0)
         A = te.compute((n, lanes), lambda i,j: tvm.tir.const(value, dtype=dtype))
@@ -151,6 +148,8 @@ def test_cuda_make_int8():
     check_cuda(64, -3, 2)
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_inf_nan():
     target = 'cuda'
     def check_inf_nan(ctx, n, value, dtype):
@@ -165,10 +164,6 @@ def test_cuda_inf_nan():
         # Only need to test compiling here
         fun(a, c)
 
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-
     ctx = tvm.context(target, 0)
 
     check_inf_nan(ctx, 1, -float('inf'), 'float32')
@@ -179,11 +174,9 @@ def test_cuda_inf_nan():
     check_inf_nan(ctx, 1, float('nan'), 'float64')
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_shuffle():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-
     idxm = tvm.tir.indexmod
     a = te.placeholder((64, ), 'int32')
     b = te.placeholder((64, ), 'int32')
@@ -227,99 +220,82 @@ def test_cuda_shuffle():
         module(nda, ndb, ndc)
         tvm.testing.assert_allclose(ndc.asnumpy(), ref)
 
-def test_crossthread_reduction1():
-    def check(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist or not tvm.runtime.enabled(device):
-            print("skip because", device, "is not enabled..")
-            return
-        n = te.var("n")
-        m = te.var("m")
-        A = te.placeholder((n, m), name='A')
-        k = te.reduce_axis((0, m), "m")
-        B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
+@tvm.testing.parametrize_targets("cuda", "rocm")
+def test_crossthread_reduction1(target, ctx):
+    n = te.var("n")
+    m = te.var("m")
+    A = te.placeholder((n, m), name='A')
+    k = te.reduce_axis((0, m), "m")
+    B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
 
-        def sched(nthd):
-            s = te.create_schedule(B.op)
-            ko, _ = s[B].split(B.op.reduce_axis[0], nparts=nthd)
-            s[B].bind(ko, te.thread_axis("threadIdx.x"))
-            s[B].bind(B.op.axis[0], te.thread_axis("blockIdx.x"))
-            func = tvm.build(s, [A, B], device)
-            return func
+    def sched(nthd):
+        s = te.create_schedule(B.op)
+        ko, _ = s[B].split(B.op.reduce_axis[0], nparts=nthd)
+        s[B].bind(ko, te.thread_axis("threadIdx.x"))
+        s[B].bind(B.op.axis[0], te.thread_axis("blockIdx.x"))
+        func = tvm.build(s, [A, B], target)
+        return func
 
-        def verify(nthd):
-            func = sched(nthd)
-            nn = 3
-            # checks three typical cases
-            vals = [nthd-1, nthd, nthd+1]
-            for kk in [x for x in vals]:
-                size = (nn, kk)
-                a = tvm.nd.array(np.random.uniform(size=size).astype(A.dtype), ctx)
-                b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), ctx)
-                func(a, b)
-                tvm.testing.assert_allclose(b.asnumpy(), \
-                    np.sum(a.asnumpy(), axis=1), rtol=1e-3)
+    def verify(nthd):
+        func = sched(nthd)
+        nn = 3
+        # checks three typical cases
+        vals = [nthd-1, nthd, nthd+1]
+        for kk in [x for x in vals]:
+            size = (nn, kk)
+            a = tvm.nd.array(np.random.uniform(size=size).astype(A.dtype), ctx)
+            b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), ctx)
+            func(a, b)
+            tvm.testing.assert_allclose(b.asnumpy(), \
+                np.sum(a.asnumpy(), axis=1), rtol=1e-3)
 
-        verify(16)
-        verify(32)
-        verify(64)
-
-    check("cuda")
-    check("rocm")
+    verify(16)
+    verify(32)
+    verify(64)
 
 
-def test_crossthread_reduction2():
-    def check(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist or not tvm.runtime.enabled(device):
-            print("skip because", device, "is not enabled..")
-            return
+@tvm.testing.parametrize_targets("cuda", "rocm")
+def test_crossthread_reduction2(target, ctx):
+    n = te.var("n")
+    k0 = te.var("k0")
+    k1 = te.var("k1")
+    A = te.placeholder((n, k0, k1), name='A')
+    k0 = te.reduce_axis((0, k0), "k0")
+    k1 = te.reduce_axis((0, k1), "k1")
+    B = te.compute((n,), lambda i: te.sum(A[i, k0, k1], axis=(k0, k1)), name="B")
 
-        n = te.var("n")
-        k0 = te.var("k0")
-        k1 = te.var("k1")
-        A = te.placeholder((n, k0, k1), name='A')
-        k0 = te.reduce_axis((0, k0), "k0")
-        k1 = te.reduce_axis((0, k1), "k1")
-        B = te.compute((n,), lambda i: te.sum(A[i, k0, k1], axis=(k0, k1)), name="B")
+    def sched(nthdx, nthdy):
+        s = te.create_schedule(B.op)
+        k0o, _ = s[B].split(B.op.reduce_axis[0], nparts=nthdx)
+        k1o, _ = s[B].split(B.op.reduce_axis[1], nparts=nthdy)
+        s[B].bind(k0o, te.thread_axis("threadIdx.x"))
+        s[B].bind(k1o, te.thread_axis("threadIdx.y"))
+        s[B].bind(B.op.axis[0], te.thread_axis("blockIdx.x"))
+        func = tvm.build(s, [A, B], target)
+        return func
 
-        def sched(nthdx, nthdy):
-            s = te.create_schedule(B.op)
-            k0o, _ = s[B].split(B.op.reduce_axis[0], nparts=nthdx)
-            k1o, _ = s[B].split(B.op.reduce_axis[1], nparts=nthdy)
-            s[B].bind(k0o, te.thread_axis("threadIdx.x"))
-            s[B].bind(k1o, te.thread_axis("threadIdx.y"))
-            s[B].bind(B.op.axis[0], te.thread_axis("blockIdx.x"))
-            func = tvm.build(s, [A, B], device)
-            return func
+    def verify(nthdx, nthdy):
+        func = sched(nthdx, nthdy)
+        nn = 3
+        # checks three typical cases
+        vx = [nthdx-1, nthdx, nthdx+1]
+        vy = [nthdy-1, nthdy, nthdy+1]
+        for kk0, kk1 in [(x, y) for x in vx for y in vy]:
+            size = (nn, kk0, kk1)
+            a = tvm.nd.array(np.random.uniform(size=size).astype(A.dtype), ctx)
+            b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), ctx)
+            func(a, b)
+            tvm.testing.assert_allclose(b.asnumpy(), \
+                np.sum(a.asnumpy(), axis=(1, 2)), rtol=1e-3)
 
-        def verify(nthdx, nthdy):
-            func = sched(nthdx, nthdy)
-            nn = 3
-            # checks three typical cases
-            vx = [nthdx-1, nthdx, nthdx+1]
-            vy = [nthdy-1, nthdy, nthdy+1]
-            for kk0, kk1 in [(x, y) for x in vx for y in vy]:
-                size = (nn, kk0, kk1)
-                a = tvm.nd.array(np.random.uniform(size=size).astype(A.dtype), ctx)
-                b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), ctx)
-                func(a, b)
-                tvm.testing.assert_allclose(b.asnumpy(), \
-                    np.sum(a.asnumpy(), axis=(1, 2)), rtol=1e-3)
+    verify(16, 16)
+    verify(32, 32)
+    verify(16, 32)
+    verify(32, 16)
 
-        verify(16, 16)
-        verify(32, 32)
-        verify(16, 32)
-        verify(32, 16)
-
-    check("cuda")
-    check("rocm")
-
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_reduction_binding():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-
     k = te.reduce_axis((0, 32), 'k')
     A = te.placeholder((96, 32), name='A')
     B = te.compute( (96,), lambda m:
@@ -334,46 +310,39 @@ def test_cuda_reduction_binding():
 
     fcuda = tvm.build(s, [A, B], "cuda")
 
-def test_rfactor_predicates():
-    def check(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist or not tvm.runtime.enabled(device):
-            print("skip because", device, "is not enabled..")
-            return
+@tvm.testing.parametrize_targets("cuda", "rocm")
+def test_rfactor_predicates(target, ctx):
+    n = te.reduce_axis((0, 129), 'n')
+    A = te.placeholder((129,), name='A')
+    B = te.compute( (1, ), lambda b:
+                     te.sum(A[n],
+                             axis=n),
+                     name='B'
+    )
 
-        n = te.reduce_axis((0, 129), 'n')
-        A = te.placeholder((129,), name='A')
-        B = te.compute( (1, ), lambda b:
-                         te.sum(A[n],
-                                 axis=n),
-                         name='B'
-        )
+    s = te.create_schedule(B.op)
 
-        s = te.create_schedule(B.op)
+    _, ni = s[B].split(s[B].op.reduce_axis[0], factor=8)
 
-        _, ni = s[B].split(s[B].op.reduce_axis[0], factor=8)
+    BF = s.rfactor(B, ni, 0)
+    s[B].set_store_predicate(tx.var.equal(0))
 
-        BF = s.rfactor(B, ni, 0)
-        s[B].set_store_predicate(tx.var.equal(0))
+    s[B].bind(s[B].op.reduce_axis[0], tx)
+    s[B].bind(s[B].op.axis[0], bx)
 
-        s[B].bind(s[B].op.reduce_axis[0], tx)
-        s[B].bind(s[B].op.axis[0], bx)
+    s[BF].compute_at(s[B], s[B].op.axis[0])
 
-        s[BF].compute_at(s[B], s[B].op.axis[0])
+    _, noi = s[BF].split(s[BF].op.reduce_axis[0], factor=2)
 
-        _, noi = s[BF].split(s[BF].op.reduce_axis[0], factor=2)
+    BF2 = s.rfactor(BF, noi, 0)
 
-        BF2 = s.rfactor(BF, noi, 0)
+    s[BF].bind(s[BF].op.axis[0], tx)
+    s[BF2].compute_at(s[BF], s[BF].op.axis[1])
 
-        s[BF].bind(s[BF].op.axis[0], tx)
-        s[BF2].compute_at(s[BF], s[BF].op.axis[1])
+    fcuda = tvm.build(s, [A, B], target)
 
-        fcuda = tvm.build(s, [A, B], device)
-
-    check("cuda")
-    check("rocm")
-
-@unittest.skipIf(not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"), "skip because cuda is not enabled..")
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_const_float_to_half():
     # This import is required to use nvcc to perform code gen;
     # otherwise it is found that the code gen is done by nvrtc.
@@ -398,16 +367,14 @@ def test_cuda_const_float_to_half():
     func(a, c)
     np.testing.assert_equal(c.asnumpy(), a_np > b.value)
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_reduction():
     def check(device, dtype, m=32, n=32):
+        if not tvm.testing.device_enabled(device):
+            print("Skipping", device)
+            return
         ctx = tvm.context(device, 0)
-        if not ctx.exist or not tvm.runtime.enabled(device):
-            print("skip because", device, "is not enabled..")
-            return
-        if dtype == "float16" and not have_fp16(ctx.compute_version):
-            print("Skip because gpu does not have fp16 support")
-            return
-
         a = te.placeholder((m, n), name="a", dtype=dtype)
         b = te.placeholder((m, n), name="b", dtype=dtype)
         c = a + b
@@ -430,12 +397,14 @@ def test_cuda_reduction():
     check("rocm", "float32")
     check("cuda", "float16")
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_mix_threaded_and_normal_reduction():
     def check(device, dtype, m=32, n=32):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist or not tvm.runtime.enabled(device):
-            print("skip because", device, "is not enabled..")
+        if not tvm.testing.device_enabled(device):
+            print("Skipping", device)
             return
+        ctx = tvm.context(device, 0)
         if dtype == "float16" and not have_fp16(ctx.compute_version):
             print("Skip because gpu does not have fp16 support")
             return
@@ -458,11 +427,9 @@ def test_cuda_mix_threaded_and_normal_reduction():
     check("rocm", "float32")
     check("cuda", "float16")
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_floordiv_with_vectorization():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-
     with tvm.target.cuda():
         # B[i] = A[floordiv(i, k)]
         n = 256
@@ -485,11 +452,9 @@ def test_cuda_floordiv_with_vectorization():
         func(a_nd, b_nd)
         tvm.testing.assert_allclose(b_nd.asnumpy(), b_np, rtol=1e-3)
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_floormod_with_vectorization():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-
     with tvm.target.cuda():
         # B[i] = A[floormod(i, k)]
         n = 256
@@ -512,11 +477,9 @@ def test_cuda_floormod_with_vectorization():
         func(a_nd, b_nd)
         tvm.testing.assert_allclose(b_nd.asnumpy(), b_np, rtol=1e-3)
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_vectorized_casts():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-
     def check(t0, t1):
         if (t0 ==  "float16" or t1 == "float16") and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
@@ -571,6 +534,8 @@ def sched(B):
     s[B].bind(iio, tx)
     return s
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_vectorized_intrin1():
     test_funcs = [
         (tvm.tir.floor, lambda x : np.floor(x)),
@@ -594,9 +559,6 @@ def test_vectorized_intrin1():
         (tvm.tir.sqrt,  lambda x : np.sqrt(x)),
     ]
     def run_test(tvm_intrin, np_func, dtype):
-        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-            print("skip because cuda is not enabled..")
-            return
         if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
@@ -627,6 +589,8 @@ def test_vectorized_intrin1():
         run_test(*func, "float32")
         run_test(*func, "float16")
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_vectorized_intrin2(dtype="float32"):
     c2 = tvm.tir.const(2, dtype=dtype)
     test_funcs = [
@@ -634,10 +598,6 @@ def test_vectorized_intrin2(dtype="float32"):
         (tvm.tir.fmod,  lambda x : np.fmod(x, 2.0))
     ]
     def run_test(tvm_intrin, np_func):
-        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-            print("skip because cuda is not enabled..")
-            return
-
         n = 128
         A = te.placeholder((n,), dtype=dtype, name='A')
         B = te.compute((n,), lambda i: tvm_intrin(A[i], c2), name='B')
@@ -652,6 +612,8 @@ def test_vectorized_intrin2(dtype="float32"):
     for func in test_funcs:
         run_test(*func)
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_vectorized_popcount():
     def ref_popcount(x):
         cnt = 0
@@ -661,10 +623,6 @@ def test_vectorized_popcount():
         return cnt
 
     def run_test(dtype):
-        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-            print("skip because cuda is not enabled..")
-            return
-
         n = 128
         A = te.placeholder((n,), dtype=dtype, name='A')
         B = te.compute((n,), lambda i: tvm.tir.popcount(A[i]), name='B')
@@ -680,11 +638,10 @@ def test_vectorized_popcount():
     run_test("uint32")
     run_test("uint64")
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_vectorize_load_permute_pad():
     def check_cuda(dtype, n, l, padding, lanes):
-        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-            print("skip because cuda is not enabled..")
-            return
         if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
@@ -755,23 +712,21 @@ def vcf_check_common(s, args):
 
     tvm.tir.stmt_functor.ir_transform(stmt['main'].body, pre_visit, post_visit)
 
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("CUDA device not found, skip the verification.")
-        return
-    else:
-        tgt = tvm.target.cuda()
-        mod = tvm.build(s, args, tgt)
-        # To check if every vectorize loop transforms to correct instruction
-        # print(mod.imported_modules[0].get_source())
+    tgt = tvm.target.cuda()
+    mod = tvm.build(s, args, tgt)
+    # To check if every vectorize loop transforms to correct instruction
+    # print(mod.imported_modules[0].get_source())
 
-        ctx = tvm.context("cuda", 0)
-        a = tvm.nd.array(np.random.uniform(size=(512, 512)).astype("float32"), ctx)
-        b = tvm.nd.array(np.random.uniform(size=(512, 512)).astype("float32"), ctx)
-        c = tvm.nd.array(np.zeros((512, 512), dtype="float32"), ctx)
-        mod(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), np.dot(
-            a.asnumpy(), b.asnumpy()), rtol=1e-5)
+    ctx = tvm.context("cuda", 0)
+    a = tvm.nd.array(np.random.uniform(size=(512, 512)).astype("float32"), ctx)
+    b = tvm.nd.array(np.random.uniform(size=(512, 512)).astype("float32"), ctx)
+    c = tvm.nd.array(np.zeros((512, 512), dtype="float32"), ctx)
+    mod(a, b, c)
+    tvm.testing.assert_allclose(c.asnumpy(), np.dot(
+        a.asnumpy(), b.asnumpy()), rtol=1e-5)
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_vectorized_cooperative_fetching_x():
     N = 512
     A = te.placeholder((N, N), name='A', dtype='float32')
@@ -821,6 +776,8 @@ def test_vectorized_cooperative_fetching_x():
 
     vcf_check_common(s, [A, B, C])
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_vectorized_cooperative_fetching_xy():
     N = 512
     A = te.placeholder((N, N), name='A')
@@ -874,11 +831,9 @@ def test_vectorized_cooperative_fetching_xy():
 
     vcf_check_common(s, [A, B, C])
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_unrolled_vectorization():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-
     dtype = 'float32'
     target = 'cuda'
 
