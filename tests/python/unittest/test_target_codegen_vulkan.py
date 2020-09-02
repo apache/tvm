@@ -20,11 +20,8 @@ import re
 import numpy as np
 
 
+@tvm.testing.requires_vulkan
 def test_vector_comparison():
-    if not tvm.runtime.enabled("vulkan"):
-        print("Skipping due to no Vulkan module")
-        return
-
     target = 'vulkan'
 
     def check_correct_assembly(dtype):
@@ -60,12 +57,10 @@ tx = te.thread_axis("threadIdx.x")
 bx = te.thread_axis("blockIdx.x")
 
 
+@tvm.testing.requires_vulkan
 def test_vulkan_copy():
 
     def check_vulkan(dtype, n):
-        if not tvm.vulkan(0).exist or not tvm.runtime.enabled("vulkan"):
-            print("skip because vulkan is not enabled..")
-            return
         A = te.placeholder((n,), name='A', dtype=dtype)
         ctx = tvm.vulkan(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
@@ -81,13 +76,11 @@ def test_vulkan_copy():
         check_vulkan(dtype, int(peturb * (2 ** logN)))
 
 
+@tvm.testing.requires_vulkan
 def test_vulkan_vectorize_add():
     num_thread = 8
 
     def check_vulkan(dtype, n, lanes):
-        if not tvm.vulkan(0).exist or not tvm.runtime.enabled("vulkan"):
-            print("skip because vulkan is not enabled..")
-            return
         A = te.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
         B = te.compute((n,), lambda i: A[i]+tvm.tir.const(1, A.dtype), name='B')
         s = te.create_schedule(B.op)
@@ -106,6 +99,7 @@ def test_vulkan_vectorize_add():
     check_vulkan("float16", 64, 2)
 
 
+@tvm.testing.requires_vulkan
 def test_vulkan_stress():
     """
     Launch a randomized test with multiple kernels per stream, multiple uses of
@@ -118,9 +112,6 @@ def test_vulkan_stress():
 
     def run_stress():
         def worker():
-            if not tvm.vulkan(0).exist or not tvm.runtime.enabled("vulkan"):
-                print("skip because vulkan is not enabled..")
-                return
             A = te.placeholder((n,), name='A', dtype="float32")
             B = te.placeholder((n,), name='B', dtype="float32")
             functions = [

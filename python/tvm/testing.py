@@ -16,14 +16,54 @@
 # under the License.
 
 # pylint: disable=invalid-name,unnecessary-comprehension
-""" TVM testing utilities """
+""" TVM testing utilities
+
+Testing Markers
+***************
+
+We use pytest markers to specify the requirements of test functions. Currently
+there is a single distinction that matters for our testing environment: does
+the test require a gpu. For tests that require just a gpu or just a cpu, we
+have the decorator :py:func:`requires_gpu` that enables the test when a gpu is
+available. To avoid running tests that don't require a gpu on gpu nodes, this
+decorator also sets the pytest marker `gpu` so we can use select the gpu subset
+of tests (using `pytest -m gpu`).
+
+Unfortunately, many tests are written like this:
+
+.. python::
+
+    def test_something():
+        for target in all_targets():
+            do_something()
+
+The test uses both gpu and cpu targets, so the test needs to be run on both cpu
+and gpu nodes. But we still want to only run the cpu targets on the cpu testing
+node. The solution is to mark these tests with the gpu marker so they will be
+run on the gpu nodes. But we also modify all_targets (renamed to
+enabled_targets) so that it only returns gpu targets on gpu nodes and cpu
+targets on cpu nodes (using an environment variable).
+
+Instead of using the all_targets function, future tests that would like to
+test against a variety of targets should use the
+:py:func:`tvm.testing.parametrize_targets` functionality. This allows us
+greater control over which targets are run on which testing nodes.
+
+If in the future we want to add a new type of testing node (for example
+fpgas), we need to add a new marker in `tests/python/pytest.ini` and a new
+function in this module. Then targets using this node should be added to the
+`TVM_TEST_TARGETS` environment variable in the CI.
+"""
 import logging
+import os
+import pytest
 import numpy as np
 import tvm
 import tvm.arith
 import tvm.tir
 import tvm.te
 import tvm._ffi
+from tvm.contrib import nvcc
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
@@ -283,6 +323,347 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
                    constraints_trans.src_to_dst, constraints_trans.dst_to_src)
     _check_forward(constraints_trans.dst, constraints_trans.src,
                    constraints_trans.dst_to_src, constraints_trans.src_to_dst)
+
+
+def _get_targets():
+    target_str = os.environ.get("TVM_TEST_TARGETS", "")
+    if len(target_str) == 0:
+        target_str = DEFAULT_TEST_TARGETS
+    targets = {
+        dev
+        for dev in target_str.split(";")
+        if len(dev) > 0 and tvm.context(dev, 0).exist and tvm.runtime.enabled(dev)
+    }
+    if len(targets) == 0:
+        logging.warning(
+            "None of the following targets are supported by this build of TVM: %s."
+            " Try setting TVM_TEST_TARGETS to a supported target. Defaulting to llvm.",
+            target_str,
+        )
+        return {"llvm"}
+    return targets
+
+
+DEFAULT_TEST_TARGETS = (
+    "llvm;cuda;opencl;metal;rocm;vulkan;nvptx;"
+    "llvm -device=arm_cpu;opencl -device=mali,aocl_sw_emu"
+)
+
+
+def device_enabled(target):
+    """Check if a target should be used when testing.
+
+    It is recommended that you use :py:func:`tvm.testing.parametrize_targets`
+    instead of manually checking if a target is enabled.
+
+    This allows the user to control which devices they are testing against. In
+    tests, this should be used to check if a device should be used when said
+    device is an optional part of the test.
+
+    Parameters
+    ----------
+    target : str
+        Target string to check against
+
+    Returns
+    -------
+    bool
+        Whether or not the device associated with this target is enabled.
+
+    Example
+    -------
+    >>> @tvm.testing.uses_gpu
+    >>> def test_mytest():
+    >>>     for target in ["cuda", "llvm"]:
+    >>>         if device_enabled(target):
+    >>>             test_body...
+
+    Here, `test_body` will only be reached by with `target="cuda"` on gpu test
+    nodes and `target="llvm"` on cpu test nodes.
+    """
+    assert isinstance(target, str), "device_enabled requires a target as a string"
+    target_kind = target.split(" ")[
+        0
+    ]  # only check if device name is found, sometime there are extra flags
+    return any([target_kind in test_target for test_target in _get_targets()])
+
+
+def enabled_targets():
+    """Get all enabled targets with associated contexts.
+
+    In most cases, you should use :py:func:`tvm.testing.parametrize_targets` instead of
+    this function.
+
+    In this context, enabled means that TVM was built with support for this
+    target and the target name appears in the TVM_TEST_TARGETS environment
+    variable. If TVM_TEST_TARGETS is not set, it defaults to variable
+    DEFAULT_TEST_TARGETS in this module.
+
+    If you use this function in a test, you **must** decorate the test with
+    :py:func:`tvm.testing.uses_gpu` (otherwise it will never be run on the gpu).
+
+    Returns
+    -------
+    targets: list
+        A list of pairs of all enabled devices and the associated context
+    """
+    return [(tgt, tvm.context(tgt)) for tgt in _get_targets()]
+
+
+def _compose(args, decs):
+    """Helper to apply multiple markers
+    """
+    if len(args) > 0:
+        f = args[0]
+        for d in reversed(decs):
+            f = d(f)
+        return f
+    return decs
+
+
+def uses_gpu(*args):
+    """Mark to differentiate tests that use the GPU is some capacity.
+
+    These tests will be run on CPU-only test nodes and on test nodes with GPUS.
+    To mark a test that must have a GPU present to run, use
+    :py:func:`tvm.testing.requires_gpu`.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _uses_gpu = [pytest.mark.gpu]
+    return _compose(args, _uses_gpu)
+
+
+def requires_gpu(*args):
+    """Mark a test as requiring a GPU to run.
+
+    Tests with this mark will not be run unless a gpu is present.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_gpu = [
+        pytest.mark.skipif(not tvm.gpu().exist, reason="No GPU present"),
+        *uses_gpu(),
+    ]
+    return _compose(args, _requires_gpu)
+
+
+
+
+def requires_cuda(*args):
+    """Mark a test as requiring the CUDA runtime.
+
+    This also marks the test as requiring a gpu.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_cuda = [
+        pytest.mark.cuda,
+        pytest.mark.skipif(
+            not device_enabled("cuda"), reason="CUDA support not enabled"
+        ),
+        *requires_gpu(),
+    ]
+    return _compose(args, _requires_cuda)
+
+
+
+
+def requires_opencl(*args):
+    """Mark a test as requiring the OpenCL runtime.
+
+    This also marks the test as requiring a gpu.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_opencl = [
+        pytest.mark.opencl,
+        pytest.mark.skipif(
+            not device_enabled("opencl"), reason="OpenCL support not enabled"
+        ),
+        *requires_gpu(),
+    ]
+    return _compose(args, _requires_opencl)
+
+
+
+
+def requires_rocm(*args):
+    """Mark a test as requiring the rocm runtime.
+
+    This also marks the test as requiring a gpu.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_rocm = [
+        pytest.mark.rocm,
+        pytest.mark.skipif(
+            not device_enabled("rocm"), reason="rocm support not enabled"
+        ),
+        *requires_gpu(),
+    ]
+    return _compose(args, _requires_rocm)
+
+
+
+
+def requires_metal(*args):
+    """Mark a test as requiring the metal runtime.
+
+    This also marks the test as requiring a gpu.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_metal = [
+        pytest.mark.metal,
+        pytest.mark.skipif(
+            not device_enabled("metal"), reason="metal support not enabled"
+        ),
+        *requires_gpu(),
+    ]
+    return _compose(args, _requires_metal)
+
+
+
+
+def requires_vulkan(*args):
+    """Mark a test as requiring the vulkan runtime.
+
+    This also marks the test as requiring a gpu.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_vulkan = [
+        pytest.mark.vulkan,
+        pytest.mark.skipif(
+            not device_enabled("vulkan"), reason="vulkan support not enabled"
+        ),
+        *requires_gpu(),
+    ]
+    return _compose(args, _requires_vulkan)
+
+
+
+
+def requires_tensorcore(*args):
+    """Mark a test as requiring a tensorcore to run.
+
+    Tests with this mark will not be run unless a tensorcore is present.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_tensorcore = [
+        pytest.mark.tensorcore,
+        pytest.mark.skipif(
+            not tvm.gpu().exist or not nvcc.have_tensorcore(tvm.gpu(0).compute_version),
+            reason="No tensorcore present",
+        ),
+        *requires_gpu(),
+    ]
+    return _compose(args, _requires_tensorcore)
+
+
+
+
+def requires_llvm(*args):
+    """Mark a test as requiring llvm to run.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_llvm = [
+        pytest.mark.llvm,
+        pytest.mark.skipif(
+            not device_enabled("llvm"), reason="LLVM support not enabled"
+        ),
+    ]
+    return _compose(args, _requires_llvm)
+
+
+def _target_to_requirement(target):
+    # mapping from target to decorator
+    if target.startswith("cuda"):
+        return requires_cuda()
+    if target.startswith("rocm"):
+        return requires_rocm()
+    if target.startswith("vulkan"):
+        return requires_vulkan()
+    if target.startswith("nvptx"):
+        return [*requires_llvm(), *requires_gpu()]
+    if target.startswith("metal"):
+        return requires_metal()
+    if target.startswith("opencl"):
+        return requires_opencl()
+    if target.startswith("llvm"):
+        return requires_llvm()
+    return []
+
+
+def parametrize_targets(*args):
+    """Parametrize a test over all enabled targets.
+
+    Use this decorator when you want your test to be run over a variety of
+    targets and devices (including cpu and gpu devices).
+
+    Parameters
+    ----------
+    f : function
+        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, ctx)`:,
+        where `xxxxxxxxx` is any name.
+    targets : list[str], optional
+        Set of targets to run against. If not supplied,
+        :py:func:`tvm.testing.enabled_targets` will be used.
+
+    Example
+    -------
+    >>> @tvm.testing.parametrize
+    >>> def test_mytest(target, ctx):
+    >>>     ...  # do something
+
+    Or
+
+    >>> @tvm.testing.parametrize("llvm", "cuda")
+    >>> def test_mytest(target, ctx):
+    >>>     ...  # do something
+    """
+    def wrap(targets):
+        def func(f):
+            params = [
+                pytest.param(target, tvm.context(target, 0), marks=_target_to_requirement(target))
+                for target in targets
+            ]
+            return pytest.mark.parametrize("target,ctx", params)(f)
+        return func
+    if len(args) == 1 and callable(args[0]):
+        targets = [t for t, _ in enabled_targets()]
+        return wrap(targets)(args[0])
+    return wrap(args)
 
 
 tvm._ffi._init_api("testing", __name__)
