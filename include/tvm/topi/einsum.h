@@ -44,7 +44,7 @@ namespace topi {
 using namespace tvm::te;
 using namespace topi::detail;
 
-inline Array<PrimExpr> get_stride(const Array<PrimExpr> shape) {
+inline Array<PrimExpr> GetStride(const Array<PrimExpr> shape) {
   size_t ndim = shape.size();
   int prod = 1;
   Array<PrimExpr> stride = Array<PrimExpr>(ndim, -1);
@@ -65,7 +65,7 @@ inline Array<PrimExpr> pad(const Array<PrimExpr> shape, int odim) {
   return ret;
 }
 
-inline int parse_operand_subscripts(const char *subscripts, int length,
+inline int ParseOperandSubscripts(const char *subscripts, int length,
                                     int ndim, int iop, char *op_labels,
                                     char *label_counts, int *min_label, int *max_label) {
   int i;
@@ -156,7 +156,7 @@ inline int parse_operand_subscripts(const char *subscripts, int length,
   return 0;
 }
 
-inline int parse_output_subscripts(const char *subscripts, int length,
+inline int ParseOutputSubscripts(const char *subscripts, int length,
                                    int ndim_broadcast,
                                    const char *label_counts, char *out_labels) {
   int i, bdim;
@@ -233,7 +233,7 @@ inline void GetCombinedDimsView(const Tensor& op, int iop,
   int newdim;
 
   Array<PrimExpr> shape = op->shape;
-  Array<PrimExpr> stride = get_stride(shape);
+  Array<PrimExpr> stride = GetStride(shape);
   ndim = op.ndim();
   newdim = newshape.size();
 
@@ -285,7 +285,7 @@ inline void GetCombinedDimsView(const Tensor& op, int iop,
   }
 }
 
-inline static int prepare_op_axes(int ndim, int iop, char *labels,
+inline static int PrepareOpAxes(int ndim, int iop, char *labels,
                                   int *axes, int ndim_iter, char *iter_labels) {
   int i, label, ibroadcast;
 
@@ -358,7 +358,7 @@ inline std::vector<std::string> split(const std::string& str,
   return ret;
 }
 
-inline std::vector<std::string> _parse_einsum_input(
+inline std::vector<std::string> ParseEinsumInput(
   std::string subscripts,
   const std::vector<Array<PrimExpr>>& operands) {
   const std::string einsum_symbols =
@@ -543,7 +543,7 @@ inline std::vector<std::string> _parse_einsum_input(
 inline Array<PrimExpr> NumpyEinsumShape(const std::string subscripts,
                                         const std::vector<Array<PrimExpr>>& operands) {
   // Parsing
-  std::vector<std::string> parsed_subscripts = _parse_einsum_input(subscripts, operands);
+  std::vector<std::string> parsed_subscripts = ParseEinsumInput(subscripts, operands);
 
   // Build a few useful list and sets
   std::vector<std::string> input_list = split(parsed_subscripts[0], ",");
@@ -622,7 +622,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     CHECK(!(iop < nop-1 && subscripts[length] != ','))
       << "fewer operands provided to einstein sum function "
       << "than specified in the subscripts string";
-    parse_operand_subscripts(subscripts, length,
+    ParseOperandSubscripts(subscripts, length,
                                       inputs[iop + back].ndim(),
                                       iop, op_labels[iop], label_counts,
                                       &min_label, &max_label);
@@ -681,7 +681,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     subscripts += 2;
 
     /* Parse the output subscript string. */
-    ndim_output = parse_output_subscripts(subscripts, strlen(subscripts),
+    ndim_output = ParseOutputSubscripts(subscripts, strlen(subscripts),
                                           ndim_broadcast, label_counts,
                                           output_labels);
     CHECK_GE(ndim_output, 0);
@@ -722,7 +722,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     } else {
       /* No combining needed */
       opshape[iop] = inputs[iop + back]->shape;
-      opstride_true[iop] = get_stride(opshape[iop]);
+      opstride_true[iop] = GetStride(opshape[iop]);
     }
   }
   /*
@@ -752,14 +752,14 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     operands.push_back(inputs[i]->shape);
   }
   Array<PrimExpr> oshape = NumpyEinsumShape(subscripts_str, operands);
-  Array<PrimExpr> ostride_true = get_stride(oshape);
+  Array<PrimExpr> ostride_true = GetStride(oshape);
   Array<PrimExpr> reduceshape;
   std::vector<Array<PrimExpr>> remainshape(nop);
   int op_axes_arrays[16][16];
   int *op_axes[16];
   for (iop = 0; iop < nop; ++iop) {
     op_axes[iop] = op_axes_arrays[iop];
-    CHECK_GE(prepare_op_axes(opshape[iop].size(), iop, op_labels[iop],
+    CHECK_GE(PrepareOpAxes(opshape[iop].size(), iop, op_labels[iop],
              op_axes[iop], ndim_iter, iter_labels), 0);
     for (idim = 0; idim < ndim_iter; idim++) {
       if (op_axes[iop][idim] != -1) {
