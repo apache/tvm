@@ -64,117 +64,6 @@ bool IsHigherOrderFunc(const FuncType& t) {
 }
 
 Array<Type> InferTypeArgs(const CallNode* call, const IRModule& mod) {
-  // struct InferTypeArgsVisitor: public TypeFunctor<void(const Type& n, const Type&b)> {
-  //   std::unordered_map<TypeVar, Type, ObjectHash, ObjectEqual> typearg_map;
-  //   std::unordered_set<TypeVar, ObjectHash, ObjectEqual> type_args;
-  //   std::unordered_set<TypeVar, ObjectHash, ObjectEqual> poly_arg_type_params;
-  //   InferTypeArgsVisitor(const std::unordered_set<TypeVar, ObjectHash, ObjectEqual>& type_args) : type_args(type_args) {}
-  //   void VisitType_(const TypeVarNode* t, const Type& b) {
-  //     if (auto tv = b.as<TypeVarNode>()) {
-  //       if (poly_arg_type_params.count(GetRef<TypeVar>(tv)) > 0) {
-  //         return;
-  //       }
-  //     }
-
-  //     auto tv = GetRef<TypeVar>(t);
-  //     if (type_args.count(tv) > 0) {
-  //       if (typearg_map.count(tv) > 0) {
-  //         std::cout << "L: " << typearg_map[tv] << std::endl;
-  //         std::cout << "R: " << b << std::endl;
-  //         CHECK(StructuralEqual()(typearg_map[tv], b)) << "failed to infer type args";
-  //       }
-  //       typearg_map[tv] = b;
-  //     }
-  //   }
-
-  //   void VisitType_(const TensorTypeNode* t, const Type& b) {}
-  //   void VisitType_(const TypeConstraintNode* t, const Type& b) {}
-  //   void VisitType_(const FuncTypeNode* t, const Type& b) {
-  //     if (auto tv = b.as<TypeVarNode>()) {
-  //       if (poly_arg_type_params.count(GetRef<TypeVar>(tv)) > 0) {
-  //         return;
-  //       }
-  //     }
-
-  //     auto fty = b.as<FuncTypeNode>();
-  //     CHECK(fty) << "expected func type when infering type args";
-  //     CHECK(t->arg_types.size() == fty->arg_types.size()) << "incorrect number of args when infering type args";
-
-  //     if (fty->type_params.size() > 0) {
-  //       for (auto t: fty->type_params) {
-  //         poly_arg_type_params.insert(t);
-  //       }
-  //     }
-
-  //     for (size_t i = 0; i < t->arg_types.size(); i++) {
-  //       this->VisitType(t->arg_types[i], fty->arg_types[i]);
-  //     }
-  //     this->VisitType(t->ret_type, fty->ret_type);
-  //   }
-  //   void VisitType_(const TupleTypeNode* t, const Type& b) {
-  //     if (auto tv = b.as<TypeVarNode>()) {
-  //       if (poly_arg_type_params.count(GetRef<TypeVar>(tv)) > 0) {
-  //         return;
-  //       }
-  //     }
-
-  //     auto ty = b.as<TupleTypeNode>();
-  //     CHECK(ty) << "expected tuple type when infering type args";
-  //     CHECK(t->fields.size() == ty->fields.size()) << "incorrect tuple size when infering type args";
-  //     for (size_t i = 0; i < t->fields.size(); i++) {
-  //       this->VisitType(t->fields[i], ty->fields[i]);
-  //     }
-  //   }
-  //   void VisitType_(const TypeRelationNode* t, const Type& b) {}
-  //   void VisitType_(const IncompleteTypeNode* t, const Type& b) {
-  //     CHECK(false) << "encountered incompletetype when inferring type args";
-  //   }
-  //   void VisitType_(const RelayRefTypeNode* t, const Type& b) {
-  //     if (auto tv = b.as<TypeVarNode>()) {
-  //       if (poly_arg_type_params.count(GetRef<TypeVar>(tv)) > 0) {
-  //         return;
-  //       }
-  //     }
-
-  //     auto ty = b.as<RelayRefTypeNode>();
-  //     CHECK(ty) << "expected ref type when infering type args";
-  //     this->VisitType(t->value, ty->value);
-  //   }
-  //   void VisitType_(const GlobalTypeVarNode* t, const Type& b) {
-  //   }
-  //   void VisitType_(const TypeCallNode* t, const Type& b) {
-  //     if (auto tv = b.as<TypeVarNode>()) {
-  //       if (poly_arg_type_params.count(GetRef<TypeVar>(tv)) > 0) {
-  //         return;
-  //       }
-  //     }
-
-  //     auto ty = b.as<TypeCallNode>();
-  //     CHECK(ty) << "expected tuple type when infering type args";
-  //     CHECK(t->args.size() == ty->args.size()) << "incorrect tuple size when infering type args";
-  //     for (size_t i = 0; i < t->args.size(); i++) {
-  //       this->VisitType(t->args[i], ty->args[i]);
-  //     }
-  //   }
-  //   void VisitType_(const TypeDataNode* t, const Type& b) {}
-  //   void VisitType_(const PrimTypeNode* t, const Type& b) {}
-  //   void VisitType_(const PointerTypeNode* t, const Type& b) {}
-  // };
-
-  // std::unordered_set<TypeVar, ObjectHash, ObjectEqual> type_args;
-  // for (auto tv: f->type_params) { type_args.insert(tv); }
-  // auto itav = InferTypeArgsVisitor(type_args);
-  // for (size_t i = 0; i < f->params.size(); i++) {
-  //   itav.VisitType(f->params[i]->checked_type(), args[i]->checked_type());
-  // }
-
-  // Array<Type> typeargs;
-  // for (auto tv: f->type_params) { typeargs.push_back(itav.typearg_map[tv]); 
-  //   std::cout<< "resolved type" << itav.typearg_map[tv] << std::endl;
-  // } 
-
-  // return typeargs;
-  std::cout << "START" << std::endl;
   ErrorReporter err;
   TypeSolver solver(mod->GetGlobalVar("main"), mod, &err);
   const FuncTypeNode* fn_ty = call->op->checked_type().as<FuncTypeNode>();
@@ -186,54 +75,20 @@ Array<Type> InferTypeArgs(const CallNode* call, const IRModule& mod) {
 
   auto inst_fnty = FuncType(fn_ty->arg_types, fn_ty->ret_type, {}, {});
   auto f_incomplete = Downcast<FuncType>(Bind(inst_fnty, subst_map));
-  std::cout << f_incomplete << std::endl;
-  // Array<Type> arg_types;
 
-  // for (auto t: call->args) {
-  //   auto ty = t->checked_type();
-  //   auto bound = BoundTypeVars(ty, mod);
-  //   for (auto tv: bound) {
-  //     subst_map.Set(tv, IncompleteType(Kind::kType));
-  //   }
-  //   if (auto fn_ty = ty.as<FuncTypeNode>()) {
-  //     arg_types.push_back(TypeSubst(FuncType(fn_ty->arg_types, fn_ty->ret_type, {}, fn_ty->type_constraints), subst_map));
-  //   } else {
-  //     arg_types.push_back(TypeSubst(ty, subst_map));
-  //   }
-  // }
-  std::cout << "REACHED" << std::endl;
-  // CHECK(arg_types.size() == f_incomplete->arg_types.size()) << "num of arguments does not match expected";
+  CHECK(call->args.size() == f_incomplete->arg_types.size()) << "num of arguments does not match expected";
   size_t num_args = f_incomplete->arg_types.size();
-  // for (size_t i = 0; i < num_args; i++) {
-  //   std::cout << "size: " << num_args << "; i: " << i << std::endl;
-  //   // auto t1 = f_incomplete->arg_types[i];
-  //   // auto t2 = call->args[i]->checked_type();
-  //   // std::cout << "l: "<< t1 << std::endl;
-  //   // std::cout << "r: "<<t2 << std::endl;
-  //   // auto t = solver.Unify(t1, t2, GetRef<Call>(call));
-  //   // std::cout << "Univifed: " << t << std::endl; 
-  // }
   for (size_t i = 0; i < num_args; i++) {
-    std::cout << "i: " << i << "; num_args: " << num_args << std::endl;
+    auto t1 = f_incomplete->arg_types[i];
+    auto t2 = call->args[i]->checked_type();
+    auto t = solver.Unify(t1, t2, GetRef<Call>(call));
   }
-
-  // for (size_t i = 0; i < f_incomplete->arg_types.size(); i++) {
-  //   std::cout << "size: " << f_incomplete->arg_types.size() << "; i: " << i << std::endl;
-  //   auto t1 = f_incomplete->arg_types[i];
-  //   auto t2 = arg_types[i];
-  //   std::cout << "l: " << t1 << " r: " << t2 << std::endl; 
-
-  //   try {
-  //     auto t = solver.Unify(t1, t2, GetRef<Call>(call));
-  //     std::cout << "Univifed: " << t << std::endl; 
-  //   } catch (const dmlc::Error& e) {
-  //     CHECK(false) << "Error unifying `" << t1 << "` and `" << t2 << "`: " << e.what();
-  //   }
-  // }
-
-  // for (auto& tv: fn_ty->type_params) {
-  //   std::cout << "Resolved: " << solver.Resolve(subst_map[tv]); 
-  // }
+  Array<Type> ret;
+  for (auto& tv: fn_ty->type_params) {
+    std::cout << "Resolved Type: " << solver.Resolve(subst_map[tv]) << std::endl;
+    ret.push_back(solver.Resolve(subst_map[tv])); 
+  }
+  return ret;
 }
 
 class DefuncMutator : public ExprMutator {
@@ -278,7 +133,6 @@ class DefuncMutator : public ExprMutator {
           args.push_back(op->args[i]);
         }
       }
-      std::cout << "reached here" << std::endl;
       auto new_func = ApplyVars(clone_gv, applyVars);
 
       return Call(new_func, args);
@@ -322,7 +176,7 @@ class DefuncMutator : public ExprMutator {
             }
             return ExprMutator::VisitExpr_(Call(gv, args).as<CallNode>());
           }
-        }
+        } else if (IsHigherOrderFunc(Downcast<FuncType>(op->op->checked_type()))) 
 
         return ExprMutator::VisitExpr_(op);
       }
@@ -345,6 +199,7 @@ class DefuncMutator : public ExprMutator {
     }
     auto applied = Downcast<Function>(ApplyVarMutator(vars, var_map).Mutate(e));
     auto typed = this->VisitExpr(InferType(applied, mod, gv));
+    std::cout << "TYPED: " << typed << std::endl;
     mod->Add(gv, Downcast<Function>(typed), true);
     
     return gv;

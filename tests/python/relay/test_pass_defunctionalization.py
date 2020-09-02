@@ -18,7 +18,7 @@ import pytest
 
 import tvm
 from tvm import relay
-from tvm.relay.transform import Defunctionalization, InferType
+from tvm.relay.transform import Defunctionalization, InferType, LambdaLift
 
 def test_simple():
     code = """
@@ -34,6 +34,7 @@ def @main(%l: float32) -> float32 {
 }
 """
     mod = tvm.parser.fromtext(code)
+    mod = LambdaLift()(mod)
     mod = InferType()(mod)
     expr = Defunctionalization(mod['main'], mod)
 
@@ -58,10 +59,48 @@ def @main(%l: List[float32]) -> List[float32] {
 }
 """
   mod = tvm.parser.fromtext(code)
+  mod = LambdaLift()(mod)
   mod = InferType()(mod)
   expr = Defunctionalization(mod['main'], mod)
 
+def test_sum():
+  code = """
+#[version = "0.0.5"]
+type List[A] {
+  Cons(A, List[A]),
+  Nil,
+}
+def @main(%f: fn(int32) -> int32, %xs: List[int32]) -> int32 {
+  match (%xs) {
+    Cons(%x, %rest) => %0 = fn(%n) {
+      %x + %f(%n)
+    };
+    @main(%0, %rest),
+    Nil => %f(0),
+  }
+}
+"""
+  mod = tvm.parser.fromtext(code)
+  mod = LambdaLift()(mod)
+  mod = InferType()(mod)
+  print(mod)
+
+def test():
+  code = """
+#[version = "0.0.5"]
+def @id[A](%x: A) -> A {
+  %x
+}
+def @main(%f: float32) -> float32 {
+  @id(%f)
+}
+"""
+  mod = tvm.parser.fromtext(code)
+  mod = InferType()(mod)
+  print(mod['main'].body.type_args)
+
 if __name__ == "__main__":
   # pytest.main([__file__])
-    test_simple()
-    test_global_recursion()
+  #   test_simple()
+  #   test_global_recursion()
+    test()
