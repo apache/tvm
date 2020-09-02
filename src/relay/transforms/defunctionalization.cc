@@ -31,6 +31,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/te/operation.h>
 
+#include "../analysis/type_solver.h"
 #include "../transforms/pass_util.h"
 namespace tvm {
 namespace relay {
@@ -62,21 +63,203 @@ bool IsHigherOrderFunc(const FuncType& t) {
   return higher_order |= HasFuncType(t->ret_type);
 }
 
+Array<Type> InferTypeArgs(const CallNode* call, const IRModule& mod) {
+  // struct InferTypeArgsVisitor: public TypeFunctor<void(const Type& n, const Type&b)> {
+  //   std::unordered_map<TypeVar, Type, ObjectHash, ObjectEqual> typearg_map;
+  //   std::unordered_set<TypeVar, ObjectHash, ObjectEqual> type_args;
+  //   std::unordered_set<TypeVar, ObjectHash, ObjectEqual> poly_arg_type_params;
+  //   InferTypeArgsVisitor(const std::unordered_set<TypeVar, ObjectHash, ObjectEqual>& type_args) : type_args(type_args) {}
+  //   void VisitType_(const TypeVarNode* t, const Type& b) {
+  //     if (auto tv = b.as<TypeVarNode>()) {
+  //       if (poly_arg_type_params.count(GetRef<TypeVar>(tv)) > 0) {
+  //         return;
+  //       }
+  //     }
+
+  //     auto tv = GetRef<TypeVar>(t);
+  //     if (type_args.count(tv) > 0) {
+  //       if (typearg_map.count(tv) > 0) {
+  //         std::cout << "L: " << typearg_map[tv] << std::endl;
+  //         std::cout << "R: " << b << std::endl;
+  //         CHECK(StructuralEqual()(typearg_map[tv], b)) << "failed to infer type args";
+  //       }
+  //       typearg_map[tv] = b;
+  //     }
+  //   }
+
+  //   void VisitType_(const TensorTypeNode* t, const Type& b) {}
+  //   void VisitType_(const TypeConstraintNode* t, const Type& b) {}
+  //   void VisitType_(const FuncTypeNode* t, const Type& b) {
+  //     if (auto tv = b.as<TypeVarNode>()) {
+  //       if (poly_arg_type_params.count(GetRef<TypeVar>(tv)) > 0) {
+  //         return;
+  //       }
+  //     }
+
+  //     auto fty = b.as<FuncTypeNode>();
+  //     CHECK(fty) << "expected func type when infering type args";
+  //     CHECK(t->arg_types.size() == fty->arg_types.size()) << "incorrect number of args when infering type args";
+
+  //     if (fty->type_params.size() > 0) {
+  //       for (auto t: fty->type_params) {
+  //         poly_arg_type_params.insert(t);
+  //       }
+  //     }
+
+  //     for (size_t i = 0; i < t->arg_types.size(); i++) {
+  //       this->VisitType(t->arg_types[i], fty->arg_types[i]);
+  //     }
+  //     this->VisitType(t->ret_type, fty->ret_type);
+  //   }
+  //   void VisitType_(const TupleTypeNode* t, const Type& b) {
+  //     if (auto tv = b.as<TypeVarNode>()) {
+  //       if (poly_arg_type_params.count(GetRef<TypeVar>(tv)) > 0) {
+  //         return;
+  //       }
+  //     }
+
+  //     auto ty = b.as<TupleTypeNode>();
+  //     CHECK(ty) << "expected tuple type when infering type args";
+  //     CHECK(t->fields.size() == ty->fields.size()) << "incorrect tuple size when infering type args";
+  //     for (size_t i = 0; i < t->fields.size(); i++) {
+  //       this->VisitType(t->fields[i], ty->fields[i]);
+  //     }
+  //   }
+  //   void VisitType_(const TypeRelationNode* t, const Type& b) {}
+  //   void VisitType_(const IncompleteTypeNode* t, const Type& b) {
+  //     CHECK(false) << "encountered incompletetype when inferring type args";
+  //   }
+  //   void VisitType_(const RelayRefTypeNode* t, const Type& b) {
+  //     if (auto tv = b.as<TypeVarNode>()) {
+  //       if (poly_arg_type_params.count(GetRef<TypeVar>(tv)) > 0) {
+  //         return;
+  //       }
+  //     }
+
+  //     auto ty = b.as<RelayRefTypeNode>();
+  //     CHECK(ty) << "expected ref type when infering type args";
+  //     this->VisitType(t->value, ty->value);
+  //   }
+  //   void VisitType_(const GlobalTypeVarNode* t, const Type& b) {
+  //   }
+  //   void VisitType_(const TypeCallNode* t, const Type& b) {
+  //     if (auto tv = b.as<TypeVarNode>()) {
+  //       if (poly_arg_type_params.count(GetRef<TypeVar>(tv)) > 0) {
+  //         return;
+  //       }
+  //     }
+
+  //     auto ty = b.as<TypeCallNode>();
+  //     CHECK(ty) << "expected tuple type when infering type args";
+  //     CHECK(t->args.size() == ty->args.size()) << "incorrect tuple size when infering type args";
+  //     for (size_t i = 0; i < t->args.size(); i++) {
+  //       this->VisitType(t->args[i], ty->args[i]);
+  //     }
+  //   }
+  //   void VisitType_(const TypeDataNode* t, const Type& b) {}
+  //   void VisitType_(const PrimTypeNode* t, const Type& b) {}
+  //   void VisitType_(const PointerTypeNode* t, const Type& b) {}
+  // };
+
+  // std::unordered_set<TypeVar, ObjectHash, ObjectEqual> type_args;
+  // for (auto tv: f->type_params) { type_args.insert(tv); }
+  // auto itav = InferTypeArgsVisitor(type_args);
+  // for (size_t i = 0; i < f->params.size(); i++) {
+  //   itav.VisitType(f->params[i]->checked_type(), args[i]->checked_type());
+  // }
+
+  // Array<Type> typeargs;
+  // for (auto tv: f->type_params) { typeargs.push_back(itav.typearg_map[tv]); 
+  //   std::cout<< "resolved type" << itav.typearg_map[tv] << std::endl;
+  // } 
+
+  // return typeargs;
+  std::cout << "START" << std::endl;
+  ErrorReporter err;
+  TypeSolver solver(mod->GetGlobalVar("main"), mod, &err);
+  const FuncTypeNode* fn_ty = call->op->checked_type().as<FuncTypeNode>();
+
+  tvm::Map<TypeVar, Type> subst_map;
+  for (auto& tv: fn_ty->type_params) {
+    subst_map.Set(tv, IncompleteType(Kind::kType));
+  }
+
+  auto inst_fnty = FuncType(fn_ty->arg_types, fn_ty->ret_type, {}, {});
+  auto f_incomplete = Downcast<FuncType>(Bind(inst_fnty, subst_map));
+  std::cout << f_incomplete << std::endl;
+  // Array<Type> arg_types;
+
+  // for (auto t: call->args) {
+  //   auto ty = t->checked_type();
+  //   auto bound = BoundTypeVars(ty, mod);
+  //   for (auto tv: bound) {
+  //     subst_map.Set(tv, IncompleteType(Kind::kType));
+  //   }
+  //   if (auto fn_ty = ty.as<FuncTypeNode>()) {
+  //     arg_types.push_back(TypeSubst(FuncType(fn_ty->arg_types, fn_ty->ret_type, {}, fn_ty->type_constraints), subst_map));
+  //   } else {
+  //     arg_types.push_back(TypeSubst(ty, subst_map));
+  //   }
+  // }
+  std::cout << "REACHED" << std::endl;
+  // CHECK(arg_types.size() == f_incomplete->arg_types.size()) << "num of arguments does not match expected";
+  size_t num_args = f_incomplete->arg_types.size();
+  // for (size_t i = 0; i < num_args; i++) {
+  //   std::cout << "size: " << num_args << "; i: " << i << std::endl;
+  //   // auto t1 = f_incomplete->arg_types[i];
+  //   // auto t2 = call->args[i]->checked_type();
+  //   // std::cout << "l: "<< t1 << std::endl;
+  //   // std::cout << "r: "<<t2 << std::endl;
+  //   // auto t = solver.Unify(t1, t2, GetRef<Call>(call));
+  //   // std::cout << "Univifed: " << t << std::endl; 
+  // }
+  for (size_t i = 0; i < num_args; i++) {
+    std::cout << "i: " << i << "; num_args: " << num_args << std::endl;
+  }
+
+  // for (size_t i = 0; i < f_incomplete->arg_types.size(); i++) {
+  //   std::cout << "size: " << f_incomplete->arg_types.size() << "; i: " << i << std::endl;
+  //   auto t1 = f_incomplete->arg_types[i];
+  //   auto t2 = arg_types[i];
+  //   std::cout << "l: " << t1 << " r: " << t2 << std::endl; 
+
+  //   try {
+  //     auto t = solver.Unify(t1, t2, GetRef<Call>(call));
+  //     std::cout << "Univifed: " << t << std::endl; 
+  //   } catch (const dmlc::Error& e) {
+  //     CHECK(false) << "Error unifying `" << t1 << "` and `" << t2 << "`: " << e.what();
+  //   }
+  // }
+
+  // for (auto& tv: fn_ty->type_params) {
+  //   std::cout << "Resolved: " << solver.Resolve(subst_map[tv]); 
+  // }
+}
+
 class DefuncMutator : public ExprMutator {
  public:
-  DefuncMutator(const IRModule& mod) : mod(mod), constructor_name(0) {}
+  DefuncMutator(const IRModule& mod) : mod(mod), constructor_name(0), anon_name(0) {}
 
   Expr VisitExpr_(const CallNode* op) {
     auto op_func = op->op;
-    auto f = op_func.as<FunctionNode>();
-    std::cout << op_func << std::endl;
-    CHECK(f) << "only calls to functions are supported so far";
-    
+    auto f = DeGlobal(mod, op_func).as<FunctionNode>();
+    CHECK(f) << "only calls to functions or globalvars are supported so far";
+    // CHECK(op->type_args.size() == f->type_params.size()) << "all type args must be explicit";
+
     // clone function and specialize if there are higher order functions
-    if (IsHigherOrderFunc(Downcast<FuncType>(f->checked_type()))) {
-      auto f_clone = Downcast<Function>(Clone(f, op->type_args));
+    if (IsHigherOrderFunc(Downcast<FuncType>(f->func_type_annotation()))) {
+      std::cout << "Call Function: " << GetRef<Function>(f) << std::endl;
+
+      std::string name;
+      if (auto gv = op->op.as<GlobalVarNode>()) {
+        name = gv->name_hint;
+      } else {
+        name = "anon" + std::to_string(anon_name++);
+      }
+      auto clone_gv = Clone(name, f, InferTypeArgs(op, mod));
+      auto f_clone = Downcast<Function>(DeGlobal(mod, clone_gv));
       std::cout << f_clone << std::endl;
-      auto f_clone_type = Downcast<FuncType>(f_clone->checked_type());
+      auto f_clone_type = f_clone->func_type_annotation();
       CHECK(FreeTypeVars(f_clone_type, mod).size() == 0)
           << "free type vars in specialized function";
       CHECK(FreeVars(f_clone).size() == FreeVars(GetRef<Function>(f)).size())
@@ -90,17 +273,17 @@ class DefuncMutator : public ExprMutator {
           auto arg = EncodeFunctionArg(op->args[i], f_clone_type->arg_types[i].as<FuncTypeNode>());
           args.push_back(arg);
           applyVars[f_clone->params[i]] = apply_map[f_clone->params[i]->checked_type()];
+        } else {
+          CHECK(!HasFuncType(f_clone_type->arg_types[i])) << "nested function type in parameter not supported yet";
+          args.push_back(op->args[i]);
         }
-
-        CHECK(!HasFuncType(f_clone_type->arg_types[i])) << "nested function type in parameter not supported yet";
-        args.push_back(op->args[i]);
       }
+      std::cout << "reached here" << std::endl;
+      auto new_func = ApplyVars(clone_gv, applyVars);
 
-      auto new_func = ApplyVars(f_clone, applyVars);
-
-      return Call(ExprMutator::VisitExpr(new_func), args);
+      return Call(new_func, args);
     }
-    return ExprMutator::VisitExpr(GetRef<Call>(op));
+    return ExprMutator::VisitExpr_(op);
   }
 
   // Expr VisitExpr_(const LetNode* op) {
@@ -115,10 +298,6 @@ class DefuncMutator : public ExprMutator {
   //   return GetRef<Var>(op);
   // }
 
-  Expr VisitExpr_(const GlobalVarNode* op) { CHECK(false) << "global var not supported yet"; 
-    throw std::runtime_error("GlobalVar not supported");
-  }
-
  private:
   IRModule mod;
   // encode func type to ADT
@@ -126,11 +305,13 @@ class DefuncMutator : public ExprMutator {
   std::unordered_map<Type, GlobalVar, ObjectHash, StructuralEqual> apply_map;
   // use monotonically increasing integer to represent new constructor_name
   unsigned int constructor_name;
+  unsigned int anon_name;
 
-  Expr ApplyVars(Expr body, const std::unordered_map<Var, GlobalVar, ObjectHash, ObjectEqual>& vars) {
+  Expr ApplyVars(GlobalVar gv, const std::unordered_map<Var, GlobalVar, ObjectHash, ObjectEqual>& vars) {
     struct ApplyVarMutator: public ExprMutator {
       std::unordered_map<Var, GlobalVar, ObjectHash, ObjectEqual> vars;
-      ApplyVarMutator(const std::unordered_map<Var, GlobalVar, ObjectHash, ObjectEqual>& vars) : vars(vars) {}
+      std::unordered_map<Var, Var, ObjectHash, ObjectEqual> var_map;
+      ApplyVarMutator(const std::unordered_map<Var, GlobalVar, ObjectHash, ObjectEqual>& vars, const std::unordered_map<Var, Var, ObjectHash, ObjectEqual>& var_map) : vars(vars), var_map(var_map) {}
       Expr VisitExpr_(const CallNode* op) {
         if (auto var_op = op->op.as<VarNode>()) {
           if (vars.count(GetRef<Var>(var_op)) != 0) {
@@ -139,15 +320,34 @@ class DefuncMutator : public ExprMutator {
             for (auto arg: op->args) {
               args.push_back(arg);
             }
-            return Call(gv, args);
+            return ExprMutator::VisitExpr_(Call(gv, args).as<CallNode>());
           }
         }
 
         return ExprMutator::VisitExpr_(op);
       }
-    };
 
-    return ApplyVarMutator(vars).Mutate(body);
+      Expr VisitExpr_(const VarNode* op) {
+        auto var = GetRef<Var>(op);
+        if (var_map.count(var) != 0) {
+          return var_map[var];
+        }
+        return ExprMutator::VisitExpr_(op);
+      }
+    };
+    auto e = Downcast<Function>(mod->Lookup(gv));
+
+    std::unordered_map<Var, Var, ObjectHash, ObjectEqual> var_map;
+    for (auto v : e->params) {
+      if (v->type_annotation.as<FuncTypeNode>()) {
+        var_map[v] = Var(v->name_hint(), IncompleteType(TypeKind::kType));
+      }
+    }
+    auto applied = Downcast<Function>(ApplyVarMutator(vars, var_map).Mutate(e));
+    auto typed = this->VisitExpr(InferType(applied, mod, gv));
+    mod->Add(gv, Downcast<Function>(typed), true);
+    
+    return gv;
   }
 
   void AddConstructor(GlobalTypeVar gtv, Constructor c) {
@@ -161,9 +361,9 @@ class DefuncMutator : public ExprMutator {
     }
   }
 
-  void AddApplyCase(GlobalVar gv, FuncType ft, Constructor c) {
+  void AddApplyCase(GlobalVar gv, FuncType ft, Constructor c, const Expr& expr) {
     if (!mod->ContainGlobalVar(gv->name_hint)) {
-      auto x = Var("x", func_encoding[ft]);
+      auto x = Var("x", TypeCall(c->belong_to, {}));
       auto vars = Array<Var>({x});
       auto args = Array<Expr>();
       for (auto t: ft->arg_types) {
@@ -172,8 +372,7 @@ class DefuncMutator : public ExprMutator {
         args.push_back(y);
       }
 
-
-      auto clauses = Array<Clause>({Clause(PatternConstructor(c, {}), Call(x, args))});
+      auto clauses = Array<Clause>({Clause(PatternConstructor(c, {}), Call(expr, args))});
       auto body = Match(x, clauses);
       auto f = Function(vars, body, ft->ret_type, {});
 
@@ -189,15 +388,16 @@ class DefuncMutator : public ExprMutator {
       for (size_t i = 1; i < f->params.size(); i++) {
         args.push_back(f->params[i]);
       }
-      clauses.push_back(Clause(PatternConstructor(c, {}), Call(x, args)));
+      clauses.push_back(Clause(PatternConstructor(c, {}), Call(expr, args)));
 
       mod->Add(gv, Function(f->params, Match(x, clauses), f->ret_type, f->type_params), true);
     }
   }
 
   Expr EncodeFunctionArg(const Expr& f, const FuncTypeNode* ft) {
+    auto adt_name = "T" + TypeToString(ft);
     if (func_encoding.count(GetRef<FuncType>(ft)) == 0) {
-      func_encoding[GetRef<FuncType>(ft)] = GlobalTypeVar("T" + TypeToString(ft), TypeKind::kAdtHandle);
+      func_encoding[GetRef<FuncType>(ft)] = GlobalTypeVar(adt_name, TypeKind::kAdtHandle);
     }
 
     auto gtv = func_encoding[GetRef<FuncType>(ft)];
@@ -209,27 +409,37 @@ class DefuncMutator : public ExprMutator {
     }
 
     auto gv = apply_map[GetRef<FuncType>(ft)];
-    AddApplyCase(gv, GetRef<FuncType>(ft), c);
+    AddApplyCase(gv, GetRef<FuncType>(ft), c, f);
 
     return Call(c, {});
   }
   
   std::string TypeToString(const TypeNode* t) {
     std::ostringstream s;
-    s << t;
+    s << GetRef<Type>(t);
     return s.str();
   }
 
-  Expr Clone(const FunctionNode* f, const Array<Type> type_args) {
-    return DeDup(Specialize(f, type_args));
+  GlobalVar Clone(std::string name_prefix, const FunctionNode* f, const Array<Type> type_args) {
+    auto spec = Specialize(f, type_args);
+    auto gv_name = name_prefix + TypeToString(spec->func_type_annotation().as<FuncTypeNode>());
+    std::cout << gv_name << std::endl;
+    if (mod->ContainGlobalVar(gv_name)) {
+      return mod->GetGlobalVar(gv_name);
+    }
+    auto gv = GlobalVar(gv_name);
+    mod->Add(gv, Downcast<Function>(DeDup(spec)));
+    return gv;
   }
 
-  Expr Specialize(const FunctionNode* f, const Array<Type> type_args) {
+  Function Specialize(const FunctionNode* f, const Array<Type> type_args) {
     auto map = tvm::Map<TypeVar, Type>();
     for (size_t i = 0; i < type_args.size(); i++) {
       map.Set(f->type_params[i], type_args[i]);
     }
-    return TypeSubst(GetRef<Function>(f), map);
+    // copy with typevars removed
+    auto copy = TypeSubst(Function(f->params, f->body, f->ret_type, {}), map);
+    return Downcast<Function>(copy);
   }
 };
 

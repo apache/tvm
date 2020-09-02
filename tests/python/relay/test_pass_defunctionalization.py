@@ -20,23 +20,48 @@ import tvm
 from tvm import relay
 from tvm.relay.transform import Defunctionalization, InferType
 
-def test_local_simple():
+def test_simple():
     code = """
 #[version = "0.0.5"]
+def @apply[A, B](%f: fn(A) -> B, %xs: A) -> B {
+  %f(%xs)
+}
 def @main(%l: float32) -> float32 {
-  %0 = fn[A, B](%f: fn(A) -> B, %xs: A) -> B {
-    %f(%xs)
-  };
-  %1 = fn[A](%x: A) -> A {
+  %0 = fn[A](%x: A) -> A {
     %x
   };
-  %0(%1, %l)
+  @apply(%0, %l)
 }
 """
     mod = tvm.parser.fromtext(code)
     mod = InferType()(mod)
     expr = Defunctionalization(mod['main'], mod)
 
+def test_global_recursion():
+  code = """
+#[version = "0.0.5"]
+type List[A] {
+  Cons(A, List[A]),
+  Nil,
+}
+def @id[A](%x: A) -> A {
+  %x
+}
+def @map[A, B](%f: fn(A) -> B, %xs: List[A]) -> List[B] {
+  match (%xs) {
+    Cons(%x, %rest) => Cons(%f(%x), @map(%f, %rest)),
+    Nil => Nil,
+  }
+}
+def @main(%l: List[float32]) -> List[float32] {
+  @map(@id, %l)
+}
+"""
+  mod = tvm.parser.fromtext(code)
+  mod = InferType()(mod)
+  expr = Defunctionalization(mod['main'], mod)
+
 if __name__ == "__main__":
   # pytest.main([__file__])
-    test_local_simple()
+    test_simple()
+    test_global_recursion()

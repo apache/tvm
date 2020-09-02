@@ -78,22 +78,6 @@ Type WithGradientType(const Type& t) {
   return FuncType(ty->arg_types, TupleType({ty->ret_type, TupleType(ty->arg_types)}), {}, {});
 }
 
-//! \brief if the expression is a GlobalVar, transform to it's expression.
-Expr DeGlobal(const Optional<IRModule>& mod, const Expr& e) {
-  const auto* x = e.as<GlobalVarNode>();
-
-  if (mod.defined() && x) {
-    BaseFunc base_func = mod.value()->Lookup(GetRef<GlobalVar>(x));
-    if (auto* n = base_func.as<FunctionNode>()) {
-      return GetRef<Function>(n);
-    } else {
-      return e;
-    }
-  } else {
-    return e;
-  }
-}
-
 /*! \brief A fragment of the program being built by the automatic differentation
  *  pass.
  */
