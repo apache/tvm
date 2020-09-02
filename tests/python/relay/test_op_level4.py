@@ -144,6 +144,13 @@ def test_binary_int_broadcast_2():
 
 @tvm.testing.uses_gpu
 def test_where():
+    def run(func, inputs, ref_res):
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(*inputs)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
     shape = (3, 4)
     dtype = "float32"
     cond = relay.var("cond", relay.TensorType(shape, dtype))
@@ -158,11 +165,21 @@ def test_where():
     x = np.random.uniform(size=shape).astype(dtype)
     y = np.random.uniform(size=shape).astype(dtype)
     ref_res = np.where(condition, x, y)
-    for target, ctx in tvm.testing.enabled_targets():
-        for kind in ["graph", "debug"]:
-            intrp = relay.create_executor(kind, ctx=ctx, target=target)
-            op_res = intrp.evaluate(func)(condition, x, y)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    run(func, [condition, x, y], ref_res)
+
+    x = relay.const(1)
+    y = relay.const(-1)
+    shape = (3,)
+    dtype = "float32"
+    cond = relay.var("cond", relay.TensorType(shape, "bool"))
+    z = relay.where(cond, x, y)
+
+    func = relay.Function([cond], z)
+    condition = np.array([1, 0, 1], dtype=np.bool)
+    ref_res = np.where(condition, 1, -1)
+
+    run(func, [condition], ref_res)
 
 
 def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32"):
@@ -232,12 +249,12 @@ def test_reduce_functions():
         if not keepdims:
             x = np.squeeze(x, axis=axis)
         return x
-    
+
     def _unbiased_relay_wrapper(f):
         def _unbiased_func(x, axis=None, keepdims=False, exclude=False):
             return f(x, axis=axis, keepdims=keepdims, exclude=exclude, unbiased=True)
         return _unbiased_func
-    
+
     def _unbiased_np_wrapper(f):
         def _unbiased_func(a, axis=None, dtype=None, keepdims=None):
             return f(a, axis=axis, dtype=dtype, ddof=1, keepdims=keepdims)
