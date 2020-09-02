@@ -249,7 +249,6 @@ impl<T: IsObject> ObjectPtr<T> {
         };
 
         if is_derived {
-            // NB: self gets dropped here causng a dec ref which we need to migtigate with an inc ref before it is dropped.
             Ok(unsafe { self.cast() })
         } else {
             Err(Error::downcast("TODOget_type_key".into(), U::TYPE_KEY))

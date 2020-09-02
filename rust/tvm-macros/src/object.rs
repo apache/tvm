@@ -45,7 +45,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
                 .iter()
                 .find(|&suf| id.len() > suf.len() && id.ends_with(suf))
             {
-                Ident::new(&id[..suf.len() - 4], payload_id.span())
+                Ident::new(&id[..id.len() - suf.len()], payload_id.span())
             } else {
                 panic!(
                     "Either 'ref_name' must be given, or the struct name must end one of {:?}",
