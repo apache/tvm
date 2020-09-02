@@ -541,6 +541,8 @@ def tensordot(a, b, axes):
 def einsum(subscripts, a_tuple):
     # Grab non-einsum kwargs; do not optimize by default.
     # Temporally not implement the optimized einsum
+    if(not isinstance(a_tuple, tuple)):
+        a_tuple = (a_tuple,)
     return cpp.einsum(subscripts, a_tuple)
 
 
