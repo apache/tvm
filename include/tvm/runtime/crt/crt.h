@@ -25,6 +25,7 @@
 #ifndef TVM_RUNTIME_CRT_CRT_H_
 #define TVM_RUNTIME_CRT_CRT_H_
 
+#include <inttypes.h>
 #include <tvm/runtime/crt/error_codes.h>
 
 #ifdef __cplusplus
