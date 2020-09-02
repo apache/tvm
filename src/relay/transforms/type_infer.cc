@@ -369,7 +369,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
     // Build a subsitituion map up from the function type and type arguments.
     // Eventually allow the type vars to be passed in.
-    CHECK(fn_ty->type_params.size() == ty_args.size()) << "number of type parameters does not match expected";
+    CHECK(fn_ty->type_params.size() == ty_args.size())
+        << "number of type parameters does not match expected";
     for (size_t i = 0; i < ty_args.size(); ++i) {
       subst_map.Set(fn_ty->type_params[i], ty_args[i]);
     }
