@@ -26,7 +26,7 @@ fn main() -> Result<()> {
     out_dir.push("lib");
 
     if !out_dir.is_dir() {
-        std::fs::create_dir(&out_dir).context("failed to create directory for WASM outputs")?;
+        std::fs::create_dir_all(&out_dir).context("failed to create directory for WASM outputs")?;
     }
 
     let obj_file = out_dir.join("test.o");

@@ -21,6 +21,7 @@ use std::{env, path::Path, process::Command};
 
 fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
+    std::fs::create_dir_all(&out_dir).unwrap();
 
     let output = Command::new(concat!(
         env!("CARGO_MANIFEST_DIR"),
