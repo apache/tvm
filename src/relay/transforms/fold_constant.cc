@@ -177,20 +177,6 @@ class ConstantFolder : public ExprMutator {
   const Op& cast_op_;
   const Op& ndarray_size_op_;
 
-  // Create an interpreter.
-  FInterpreter GetInterpreter(const IRModule& mod) {
-    using tvm::transform::PassContext;
-    DLContext ctx;
-    ctx.device_type = kDLCPU;
-    ctx.device_id = 0;
-    Target target = Target::Create("llvm");
-    // use a fresh build context
-    // in case we are already in a build context.
-    With<PassContext> fresh_build_ctx(PassContext::Create());
-
-    return CreateInterpreter(mod, ctx, target);
-  }
-
   // Convert value to expression.
   Expr ObjectToExpr(const ObjectRef& value) {
     if (value->IsInstance<runtime::NDArray::ContainerType>()) {
@@ -230,7 +216,17 @@ class ConstantFolder : public ExprMutator {
     auto entry_func = Downcast<Function>(mod->Lookup("main"));
     expr = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
 
-    FInterpreter executor = GetInterpreter(mod);
+    using tvm::transform::PassContext;
+    DLContext ctx;
+    ctx.device_type = kDLCPU;
+    ctx.device_id = 0;
+    Target target = Target::Create("llvm");
+    // use a fresh build context
+    // in case we are already in a build context.
+    // needed for both execution and creation(due to JIT)
+    With<PassContext> fresh_build_ctx(PassContext::Create());
+
+    FInterpreter executor = CreateInterpreter(mod, ctx, target);
     return ObjectToExpr(executor(expr));
   }
 
