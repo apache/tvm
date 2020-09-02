@@ -443,7 +443,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
                                  << "Expected " << fn_ty_node->type_params.size() << "but got "
                                  << type_args.size());
     }
-    if (size_t i = type_args.size(); i < fn_ty_node->type_params.size(); i++) {
+    for (size_t i = type_args.size(); i < fn_ty_node->type_params.size(); i++) {
       type_args.push_back(IncompleteType(TypeKind::kType));
     }
 
