@@ -27,6 +27,11 @@ ifeq ($(CRT_CONFIG),)
 $(error "Must supply path to crt_config.h: CRT_CONFIG=...")
 endif
 
+ifneq ($(wildcard .gitignore),)
+$(error "detected building inside tvm source tree.")
+$(error "build the standalone_crt target, and re-invoke makefile in build/standalone_crt")
+endif
+
 BUILD_DIR ?= build
 PREFIX ?=
 
