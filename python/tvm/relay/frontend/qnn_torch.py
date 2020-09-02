@@ -471,9 +471,9 @@ def _quantized_conv2d(with_relu=False):
         input_zero_point = _expr.const(inputs[9])
 
         strides, padding, dilation = inputs[2], inputs[3], inputs[4]
-        strides = infer_shape(inputs[2])
-        padding = infer_shape(inputs[3])
-        dilation = infer_shape(inputs[4])
+        strides = inputs[2]
+        padding = inputs[3]
+        dilation = inputs[4]
         groups = inputs[5]
 
         weight_shape = infer_shape(weight)
