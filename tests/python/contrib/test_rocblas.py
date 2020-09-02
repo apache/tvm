@@ -19,6 +19,7 @@ from tvm import te
 import numpy as np
 from tvm.contrib import rocblas
 
+@tvm.testing.requires_rocm
 def test_matmul_add():
     n = 1024
     l = 128
@@ -29,9 +30,6 @@ def test_matmul_add():
     s = te.create_schedule(C.op)
 
     def verify(target="rocm"):
-        if not tvm.runtime.enabled(target):
-            print("skip because %s is not enabled..." % target)
-            return
         if not tvm.get_global_func("tvm.contrib.rocblas.matmul", True):
             print("skip because extern function is not available")
             return

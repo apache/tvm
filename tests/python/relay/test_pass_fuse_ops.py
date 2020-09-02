@@ -19,6 +19,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_opt_pass
+import tvm.testing
 
 
 def test_fuse_simple():
@@ -704,6 +705,7 @@ def test_fuse_gather_nd():
     assert tvm.ir.structural_equal(m["main"], after)
 
 
+@tvm.testing.uses_gpu
 def test_fuse_bcast_reduce_scalar():
     """Test fusion case with broadcast and reduction involving scalar"""
 
@@ -726,7 +728,7 @@ def test_fuse_bcast_reduce_scalar():
 
     orig = before()
     m = fuse2(tvm.IRModule.from_expr(orig))
-    for tgt, _ in tvm.relay.testing.config.ctx_list():
+    for tgt, ctx in tvm.testing.enabled_targets():
         relay.build(m, tgt)
     after = run_opt_pass(expected(), transform.InferType())
     assert tvm.ir.structural_equal(m["main"], after)

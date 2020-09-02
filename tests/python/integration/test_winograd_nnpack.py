@@ -25,6 +25,7 @@ from tvm import topi
 import tvm.topi.testing
 from tvm.topi.util import get_const_tuple
 from pytest import skip
+import tvm.testing
 
 
 def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False,
@@ -60,8 +61,8 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            skip("s is not enabled" % device)
+        if not tvm.testing.device_enabled(device):
+            print("Skipping %s becuase it is not enabled" % device)
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             C = topi.nn.conv2d(A, W, stride, padding, dilation, layout='NCHW', out_dtype=dtype)

@@ -23,7 +23,7 @@ import tvm.topi.testing
 from tvm.topi.util import get_const_tuple
 from tvm import te
 from tvm.contrib.pickle_memoize import memoize
-from tvm.contrib import nvcc
+import tvm.testing
 
 
 _dense_implement = {
@@ -53,12 +53,6 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
-        if not nvcc.have_tensorcore(ctx.compute_version):
-            print("skip because gpu does not support Tensor Cores")
-            return
         print("Running on target: %s" % device)
         for fcompute, fschedule in tvm.topi.testing.dispatch(device, _dense_implement):
             with tvm.target.create(device):
@@ -74,10 +68,10 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
             tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-3)
 
 
-    for device in ['cuda']:
-        check_device(device)
+    check_device('cuda')
 
 
+@tvm.testing.requires_tensorcore
 def test_dense_tensorcore():
     """Test cases"""
     verify_dense(8, 16, 32, use_bias=True)

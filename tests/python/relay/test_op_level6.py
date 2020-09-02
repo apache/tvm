@@ -20,8 +20,9 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.testing import ctx_list
+import tvm.testing
 
+@tvm.testing.uses_gpu
 def test_argsort():
     def verify_argsort(shape, axis, is_ascend, dtype):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -33,7 +34,7 @@ def test_argsort():
         else:
             ref_res = np.argsort(-x_data, axis=axis)
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
@@ -44,6 +45,7 @@ def test_argsort():
         verify_argsort((3, 5, 6), axis=-1, is_ascend=False, dtype=dtype)
 
 
+@tvm.testing.uses_gpu
 def test_topk():
     def verify_topk(k, axis, ret_type, is_ascend, dtype):
         shape = (20, 100)
@@ -70,7 +72,7 @@ def test_topk():
                 np_values[i, :] = np_data[i, np_indices[i, :]]
         np_indices = np_indices.astype(dtype)
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(np_data)

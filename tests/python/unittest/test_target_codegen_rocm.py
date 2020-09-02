@@ -24,7 +24,7 @@ ty = te.thread_axis("threadIdx.y")
 bx = te.thread_axis("blockIdx.x")
 by = te.thread_axis("blockIdx.y")
 
-@unittest.skipIf(not tvm.rocm(0).exist or not tvm.runtime.enabled("rocm"), "skip because rocm is not enabled..")
+@tvm.testing.requires_rocm
 def test_rocm_cross_thread_reduction():
     # based on the reduction tutorial
     n = te.size_var("n")
@@ -52,7 +52,7 @@ def test_rocm_cross_thread_reduction():
       b.asnumpy(),  np.sum(a.asnumpy(), axis=1), rtol=1e-4)
 
 
-@unittest.skipIf(not tvm.rocm(0).exist or not tvm.runtime.enabled("rocm"), "skip because rocm is not enabled..")
+@tvm.testing.requires_rocm
 def test_rocm_inf_nan():
     def check_inf_nan(ctx, n, value, dtype):
         A = te.placeholder((n,), name='A', dtype=dtype)
@@ -75,7 +75,7 @@ def test_rocm_inf_nan():
     check_inf_nan(ctx, 1, float('nan'), 'float32')
     check_inf_nan(ctx, 1, float('nan'), 'float64')
 
-@unittest.skipIf(not tvm.rocm(0).exist or not tvm.runtime.enabled("rocm"), "skip because rocm is not enabled..")
+@tvm.testing.requires_rocm
 def test_rocm_reduction_binding():
     k = te.reduce_axis((0, 32), 'k')
     A = te.placeholder((96, 32), name='A')
@@ -89,7 +89,7 @@ def test_rocm_reduction_binding():
     mo, _ = s[B].split(B.op.axis[0], 32)
     s[B].bind(mo, bx)
 
-@unittest.skipIf(not tvm.rocm(0).exist or not tvm.runtime.enabled("rocm"), "skip because rocm is not enabled..")
+@tvm.testing.requires_rocm
 def test_rocm_copy():
 
     def check_rocm(dtype, n):
@@ -107,7 +107,7 @@ def test_rocm_copy():
         peturb = np.random.uniform(low=0.5, high=1.5)
         check_rocm(dtype, int(peturb * (2 ** logN)))
 
-@unittest.skipIf(not tvm.rocm(0).exist or not tvm.runtime.enabled("rocm"), "skip because rocm is not enabled..")
+@tvm.testing.requires_rocm
 def test_rocm_vectorize_add():
     num_thread = 8
 

@@ -26,6 +26,8 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
 from tvm.topi.vision import ssd, non_max_suppression, get_valid_counts
+import pytest
+import tvm.testing
 
 _get_valid_counts_implement = {
     "generic": (topi.vision.get_valid_counts, topi.generic.schedule_get_valid_counts),
@@ -88,7 +90,7 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -114,16 +116,13 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
             tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
             tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
 
-    """ Skip this test as it is intermittent
-        see https://github.com/apache/incubator-tvm/pull/4901#issuecomment-595040094
     for device in ['llvm', 'cuda', 'opencl']:
-        # Disable gpu test for now
-        if device != "llvm":
-            continue
         check_device(device)
-    """
 
 
+@tvm.testing.uses_gpu
+@pytest.mark.skip("Skip this test as it is intermittent."
+                  "See https://github.com/apache/incubator-tvm/pull/4901#issuecomment-595040094")
 def test_get_valid_counts():
     verify_get_valid_counts((1, 1000, 5), 0.5, -1, 0)
     verify_get_valid_counts((1, 2500, 6), 0, 0, 1)
@@ -143,7 +142,7 @@ def verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, n
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -179,7 +178,7 @@ def verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, n
     for device in ['llvm', 'cuda', 'opencl']:
         check_device(device)
 
-
+@tvm.testing.uses_gpu
 def test_non_max_suppression():
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
@@ -247,7 +246,7 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offse
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -267,12 +266,14 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offse
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_multibox_prior():
     verify_multibox_prior((1, 3, 50, 50))
     verify_multibox_prior((1, 3, 224, 224), sizes=(0.5, 0.25, 0.1), ratios=(1, 2, 0.5))
     verify_multibox_prior((1, 32, 32, 32), sizes=(0.5, 0.25), ratios=(1, 2), steps=(2, 2), clip=True)
 
 
+@tvm.testing.uses_gpu
 def test_multibox_detection():
     batch_size = 1
     num_anchors = 3
@@ -292,7 +293,7 @@ def test_multibox_detection():
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -336,7 +337,7 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -359,6 +360,7 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_roi_align():
     verify_roi_align(1, 16, 32, 64, 7, 1.0, -1)
     verify_roi_align(4, 16, 32, 64, 7, 0.5, 2)
@@ -387,7 +389,7 @@ def verify_roi_pool(batch, in_channel, in_size, num_roi, pooled_size, spatial_sc
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -409,6 +411,7 @@ def verify_roi_pool(batch, in_channel, in_size, num_roi, pooled_size, spatial_sc
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_roi_pool():
     verify_roi_pool(1, 4, 16, 32, 7, 1.0)
     verify_roi_pool(4, 4, 16, 32, 7, 0.5)
@@ -421,7 +424,7 @@ def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -441,6 +444,7 @@ def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_proposal():
     attrs = {'scales': (0.5,),'ratios': (0.5,),
         'feature_stride': 16,

@@ -17,7 +17,7 @@
 
 import tvm
 from tvm import te
-from tvm.testing import check_numerical_grads, assert_allclose
+from tvm.testing import assert_allclose
 from tvm import topi
 from tvm.topi.util import get_const_tuple
 import pytest
@@ -30,10 +30,7 @@ def check_grad(out, inputs, args=[], data_range=(-10, 10), desired_grads=None, a
 
     def check_device(device, host="llvm"):
         ctx = tvm.context(device, 0)
-        if not tvm.runtime.enabled(host):
-            return
-        if not ctx.exist:
-            print("skip because %s is not enabled.." % device)
+        if not tvm.testing.device_enabled(host):
             return
 
         sout = te.create_schedule(out.op)
@@ -74,7 +71,7 @@ def check_grad(out, inputs, args=[], data_range=(-10, 10), desired_grads=None, a
                 out_data = tvm.nd.empty(out_shape, out.dtype)
                 mout(out_data, *[tvm.nd.array(d) for d in list(in_data)])
                 return out_data.asnumpy().sum()
-            check_numerical_grads(forward, [d.asnumpy() for d in input_data + arg_vals], g_res)
+            tvm.testing.check_numerical_grads(forward, [d.asnumpy() for d in input_data + arg_vals], g_res)
 
     check_device("cpu")
 

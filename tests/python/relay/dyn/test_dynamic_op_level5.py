@@ -22,8 +22,9 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.testing import ctx_list, run_infer_type
+from tvm.relay.testing import run_infer_type
 import tvm.topi.testing
+import tvm.testing
 
 
 def test_resize_infer_type():
@@ -35,6 +36,7 @@ def test_resize_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, relay.Any(), relay.Any()), "int8")
 
 
+@tvm.testing.uses_gpu
 def test_resize():
     def verify_resize(dshape, scale, method, layout):
         if layout == "NHWC":
@@ -57,7 +59,7 @@ def test_resize():
         zz = run_infer_type(z)
         func = relay.Function([x, size_var], z)
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             if "llvm" not in target: continue
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)

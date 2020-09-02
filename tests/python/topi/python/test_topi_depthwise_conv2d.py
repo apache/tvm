@@ -24,7 +24,7 @@ from tvm.topi.util import get_const_tuple
 from tvm.topi.nn.util import get_pad_tuple
 from tvm.contrib.pickle_memoize import memoize
 
-from common import get_all_backend
+import tvm.testing
 
 _depthwise_conv2d_nchw_implement = {
     "generic": [(topi.nn.depthwise_conv2d_nchw, topi.generic.schedule_depthwise_conv2d_nchw)],
@@ -67,11 +67,7 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
 
     dtype = 'float32'
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
 
         impl_list = tvm.topi.testing.dispatch(device, _depthwise_conv2d_nchw_implement)[:]
@@ -143,9 +139,9 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
             tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
             tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
 
-    for device in get_all_backend():
+    for device, ctx in tvm.testing.enabled_targets():
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
-            check_device(device)
+            check_device(device, ctx)
 
 
 def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding, dilation=1):
@@ -170,11 +166,7 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
 
     dtype = 'float32'
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
 
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _depthwise_conv2d_nhwc_implement)
@@ -243,9 +235,9 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
         tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
 
-    for device in get_all_backend():
+    for device, ctx in tvm.testing.enabled_targets():
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
-            check_device(device)
+            check_device(device, ctx)
 
 def _transform_data(data, bn):
     # NCHW -> NCHW[x]c
@@ -298,7 +290,7 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -360,6 +352,7 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
             check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_depthwise_conv2d():
     # mobilenet workloads
     depthwise_conv2d_with_workload_nchw(1, 32, 112, 1, 3, 1, "SAME")

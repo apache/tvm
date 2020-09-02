@@ -20,6 +20,7 @@ import tvm
 from tvm import relay
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import rand, run_infer_type
+import tvm.testing
 from tvm.testing import assert_allclose
 import pytest
 
