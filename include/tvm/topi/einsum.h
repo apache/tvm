@@ -823,6 +823,24 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     rstride.push_back(rtmp);
   }
 
+  // Testing Code for single input
+  for (iop = 0; iop < nop; ++iop) {
+    for(size_t i = 0; i<ostride.size(); i++) {
+      std::printf("ostride[%d][%ld] = %ld\n", iop, i, GetConstInt(ostride[iop][i]));
+    }
+  }
+  for (iop = 0; iop < nop; ++iop) {
+    for(size_t i = 0; i<rstride.size(); i++) {
+      std::printf("rstride[%d][%ld] = %ld\n", iop, i, GetConstInt(rstride[iop][i]));
+    }
+  }
+
+  for (size_t i = 0; i<reduceshape.size(); i++) {
+      std::printf("reduceshape[%ld] = [%ld]\n", i, GetConstInt(reduceshape[i]));
+  }
+
+  
+  // Testing Code End
 
   // func: input indices => return cooresponding value
   auto func = [inputs, oshape, ostride, reduceshape, ndim_iter,
@@ -841,6 +859,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
       for (int iop = 0; iop < nop; ++iop) {
         if (iop != -1) {
             PrimExpr k = 0;
+            // k = dot(input_indices, ostride) + dot(ridx, rstride)
             for (size_t i = 0; i < input_indices.size(); ++i) {
               k += input_indices[i] * ostride[iop][i];
             }
