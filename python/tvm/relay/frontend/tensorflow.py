@@ -2720,7 +2720,7 @@ class GraphProto(object):
         ordered_prefix = []
         # Sort control flow nodes to move all Exit nodes to the end
         # of corresponding while_loop block.
-        for i, node in enumerate(control_flow_nodes):
+        for node in control_flow_nodes:
             loop_name = find_parent_loop_name(node.name, self._while_loop_name_set)
             if node.op == "Exit":
                 if loop_name not in exit_pos_map:
