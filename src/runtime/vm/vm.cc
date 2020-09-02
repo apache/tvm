@@ -340,7 +340,7 @@ void VirtualMachine::RunLoop() {
     auto const& instr = code_[this->pc_];
     DLOG(INFO) << "Executing(" << pc_ << "): " << instr;
 #if USE_RELAY_DEBUG
-    InstructionPrint(std::cout, instr);
+    LOG(INFO) << instr;
 #endif  // USE_RELAY_DEBUG
 
     switch (instr.op) {
