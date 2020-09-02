@@ -102,6 +102,9 @@ if(USE_MICRO)
         "TVM_INCLUDE_DIR=${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include"
         "CRT_CONFIG=src/runtime/crt/host/crt_config.h"
         "BUILD_DIR=${host_build_dir_abspath}"
+        "EXTRA_CFLAGS=-fPIC"
+        "EXTRA_CXXFLAGS=-fPIC"
+        "EXTRA_LDFLAGS=-fPIC"
         "${make_quiet}")
 
     add_custom_command(
