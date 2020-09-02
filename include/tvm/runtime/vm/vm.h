@@ -277,8 +277,8 @@ class VirtualMachine : public runtime::ModuleNode {
   std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
   /*! \brief The set of TVM contexts the VM is currently executing on. */
   std::vector<TVMContext> ctxs_;
-  /*! \brief The mapping from TVM context to memory allocator. */
-  std::unordered_map<TVMContext, Allocator*> allocators_;
+  /*! \brief The cached memory allocators. */
+  std::vector<Allocator*> allocators_;
   /*!
    * \brief The constant pool for runtime. It caches the device dependent
    * object to avoid rellocation of constants during inference.

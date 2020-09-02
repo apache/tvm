@@ -290,16 +290,15 @@ void VirtualMachine::Init(const std::vector<TVMContext>& ctxs,
                           const std::vector<AllocatorType>& alloc_types) {
   CHECK_EQ(ctxs.size(), alloc_types.size());
   // Cache the context
-  for (const auto& it : ctxs) {
-    auto dev_type = static_cast<size_t>(it.device_type);
+  for (size_t i = 0; i < ctxs.size(); i++) {
+    auto dev_type = static_cast<size_t>(ctxs[i].device_type);
+    auto alloc = MemoryManager::GetOrCreateAllocator(ctxs[i], alloc_types[i]);
     if (ctxs_.size() <= dev_type) {
       ctxs_.resize(dev_type + 1);
+      allocators_.resize(dev_type + 1);
     }
-    ctxs_[dev_type] = it;
-  }
-  for (size_t i = 0; i < ctxs.size(); ++i) {
-    auto alloc = MemoryManager::GetOrCreateAllocator(ctxs[i], alloc_types[i]);
-    allocators_.emplace(ctxs[i], alloc);
+    ctxs_[dev_type] = ctxs[i];
+    allocators_[dev_type] = alloc;
   }
 }
 
@@ -527,11 +526,11 @@ void VirtualMachine::RunLoop() {
                    << ", device_type=" << instr.alloc_storage.device_type;
 
         auto storage_obj = SimpleObjAllocator().make_object<StorageObj>();
-        auto ctx = GetContext(instr.alloc_storage.device_type);
-        auto it = allocators_.find(ctx);
-        CHECK(it != allocators_.end())
-            << "Did you forget to init the VirtualMachine with contexts?";
-        auto alloc = it->second;
+        auto dev_type = instr.alloc_storage.device_type;
+        CHECK_LT(static_cast<size_t>(dev_type), allocators_.size())
+            << "Memory allocator for device " << dev_type << " has not been initialized";
+        auto* alloc = allocators_[dev_type];
+        CHECK(alloc) << "Did you forget to init the VirtualMachine with contexts?";
         storage_obj->buffer = alloc->Alloc(size, alignment, instr.alloc_storage.dtype_hint);
         Storage storage(storage_obj);
         WriteRegister(instr.dst, storage);
