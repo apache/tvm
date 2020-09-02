@@ -226,8 +226,8 @@ inline int ParseOutputSubscripts(const char *subscripts, int length,
 
 inline void GetCombinedDimsView(const Tensor& op, int iop,
                                    char *labels,
-                                   Array<PrimExpr> newshape,
-                                   Array<PrimExpr> newstride) {
+                                   Array<PrimExpr> &newshape,
+                                   Array<PrimExpr> &newstride) {
   int idim, ndim, icombine, combineoffset;
   int icombinemap[16];
   int newdim;
