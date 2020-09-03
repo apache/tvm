@@ -43,16 +43,14 @@ DEBUG = False
 
 TARGET = tvm.target.target.micro('host')
 
-def _make_sess_from_op(op_name, sched, arg_bufs):
+def _make_sess_from_op(workspace, op_name, sched, arg_bufs):
   with tvm.transform.PassContext(opt_level=3, config={'tir.disable_vectorize': True}):
     mod = tvm.build(sched, arg_bufs, TARGET, target_host=TARGET, name=op_name)
 
-  return _make_session(mod)
+  return _make_session(workspace, mod)
 
 
-def _make_session(mod):
-  workspace = tvm.micro.Workspace(debug=True)
-
+def _make_session(workspace, mod):
   compiler = tvm.micro.DefaultCompiler(target=TARGET)
   opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, 'host'))
 
@@ -70,24 +68,26 @@ def _make_session(mod):
   return tvm.micro.Session(binary=micro_binary, flasher=flasher)
 
 
-def _make_add_sess():
+def _make_add_sess(workspace):
   A = tvm.te.placeholder((2,), dtype='int8')
   B = tvm.te.placeholder((1,), dtype='int8')
   C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name='C')
   sched = tvm.te.create_schedule(C.op)
-  return _make_sess_from_op('add', sched, [A, B, C])
+  return _make_sess_from_op(workspace, 'add', sched, [A, B, C])
 
 
-def _make_ident_sess():
+def _make_ident_sess(workspace):
   A = tvm.te.placeholder((2,), dtype='int8')
   B = tvm.te.compute(A.shape, lambda i: A[i], name='B')
   sched = tvm.te.create_schedule(B.op)
-  return _make_sess_from_op('ident', sched, [A, B])
+  return _make_sess_from_op(workspace, 'ident', sched, [A, B])
 
 
 def test_compile_runtime():
   """Test compiling the on-device runtime."""
-  with _make_add_sess() as sess:
+  workspace = tvm.micro.Workspace()
+
+  with _make_add_sess(workspace) as sess:
     A_data = tvm.nd.array(np.array([2, 3], dtype='int8'), ctx=sess.context)
     assert (A_data.asnumpy() == np.array([2, 3])).all()
     B_data = tvm.nd.array(np.array([4], dtype='int8'), ctx=sess.context)
@@ -102,7 +102,9 @@ def test_compile_runtime():
 
 def test_reset():
   """Test when the remote end resets during a session."""
-  with _make_add_sess() as sess:
+  workspace = tvm.micro.Workspace()
+
+  with _make_add_sess(workspace) as sess:
     try:
       sess._rpc.get_function('tvm.testing.reset_server')()
       assert False, 'expected to raise SessionTerminatedError; did not raise'
