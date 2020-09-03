@@ -39,13 +39,13 @@
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/module.h>
 #include <tvm/runtime/crt/platform.h>
+#include <tvm/runtime/crt/rpc_common/buffer.h>
+#include <tvm/runtime/crt/rpc_common/framing.h>
+#include <tvm/runtime/crt/rpc_common/session.h>
 #include <tvm/runtime/crt/utvm_rpc_server.h>
 
 #include "../../minrpc/minrpc_server.h"
-#include "buffer.h"
 #include "crt_config.h"
-#include "framing.h"
-#include "session.h"
 
 namespace tvm {
 namespace runtime {

@@ -22,8 +22,8 @@
 
 #include <inttypes.h>
 
-#include "../../src/runtime/crt/utvm_rpc_server/buffer.h"
-#include "../../src/runtime/crt/utvm_rpc_server/write_stream.h"
+#include <tvm/runtime/crt/rpc_common/buffer.h>
+#include <tvm/runtime/crt/rpc_common/write_stream.h>
 
 using ::tvm::runtime::Buffer;
 using ::tvm::runtime::WriteStream;

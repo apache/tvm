@@ -22,7 +22,7 @@
  * \brief Framing for RPC.
  */
 
-#include "framing.h"
+#include <tvm/runtime/crt/rpc_common/framing.h>
 
 #include <string.h>
 #include <tvm/runtime/crt/logging.h>

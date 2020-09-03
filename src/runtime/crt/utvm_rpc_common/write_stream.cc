@@ -21,7 +21,7 @@
  * \file framing.h
  * \brief Framing for RPC.
  */
-#include "write_stream.h"
+#include <tvm/runtime/crt/rpc_common/write_stream.h>
 
 namespace tvm {
 namespace runtime {

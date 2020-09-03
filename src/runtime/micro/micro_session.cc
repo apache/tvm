@@ -31,10 +31,11 @@
 #include <string>
 #include <utility>
 
+#include <tvm/runtime/crt/rpc_common/framing.h>
+#include <tvm/runtime/crt/rpc_common/session.h>
+
 #include "../../support/str_escape.h"
 #include "../crt/host/crt_config.h"
-#include "../crt/utvm_rpc_server/framing.h"
-#include "../crt/utvm_rpc_server/session.h"
 #include "../rpc/rpc_channel.h"
 #include "../rpc/rpc_endpoint.h"
 #include "../rpc/rpc_session.h"

@@ -28,9 +28,9 @@
 #include <inttypes.h>
 #include <tvm/runtime/crt/error_codes.h>
 
-#include "buffer.h"
-#include "framing.h"
-#include "write_stream.h"
+#include <tvm/runtime/crt/rpc_common/buffer.h>
+#include <tvm/runtime/crt/rpc_common/framing.h>
+#include <tvm/runtime/crt/rpc_common/write_stream.h>
 
 namespace tvm {
 namespace runtime {

@@ -34,7 +34,7 @@ if(USE_MICRO)
     # Build an isolated build directory, separate from the TVM tree.
     set(CRC16_PATH "3rdparty/mbed-os/targets/TARGET_NORDIC/TARGET_NRF5x/TARGET_SDK_11/libraries/crc16")
     list(APPEND CRT_FILE_COPY_JOBS
-         "${CRC16_PATH} *.h -> include *.c -> src/runtime/crt/utvm_rpc_server"
+         "${CRC16_PATH} *.h -> include *.c -> src/runtime/crt/utvm_rpc_common"
          "3rdparty/dlpack/include *.h -> include"
          "3rdparty/dmlc-core/include *.h -> include"
          "include/tvm/runtime c_*_api.h -> include/tvm/runtime"
@@ -44,7 +44,7 @@ if(USE_MICRO)
          "src/runtime/crt/common *.c -> src/runtime/crt/common"
          "src/runtime/crt/graph_runtime *.c -> src/runtime/crt/graph_runtime"
          "src/runtime/crt/host crt_config.h -> src/runtime/crt/host"
-         "src/runtime/crt/utvm_rpc_server *.h -> src/runtime/crt/utvm_rpc_server"
+         "src/runtime/crt/utvm_rpc_common *.cc -> src/runtime/crt/utvm_rpc_common"
          "src/runtime/crt/utvm_rpc_server *.cc -> src/runtime/crt/utvm_rpc_server"
          "src/runtime/minrpc *.h -> src/runtime/minrpc"
          "src/support generic_arena.h -> src/support"
@@ -92,7 +92,7 @@ if(USE_MICRO)
     set(make_quiet )
     endif(${VERBOSE})
 
-    list(APPEND crt_libraries graph_runtime utvm_rpc_server common)  # NOTE: listed in link order.
+    list(APPEND crt_libraries graph_runtime utvm_rpc_server utvm_rpc_common common)  # NOTE: listed in link order.
     foreach(crt_lib_name IN LISTS crt_libraries)
       list(APPEND crt_library_paths "host_standalone_crt/lib${crt_lib_name}.a")
     endforeach()
@@ -160,6 +160,14 @@ if(USE_MICRO)
   endfunction()
 
   tvm_crt_define_targets()
-  list(APPEND TVM_RUNTIME_LINKER_LIBS host_standalone_crt_utvm_rpc_server)
+
+  set(TVM_CRT_LINKER_LIB host_standalone_crt_utvm_rpc_common)
+  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  list(APPEND TVM_RUNTIME_LINKER_LIBS -Wl,--whole-archive ${TVM_CRT_LINKER_LIB} -Wl,--no-whole-archive)
+  elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES ".*Clang")
+  list(APPEND TVM_RUNTIME_LINKER_LIBS -Wl,-force_load $<TARGET_PROPERTY:${TVM_CRT_LINKER_LIB},IMPORTED_LOCATION>)
+  else()
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${TVM_CRT_LINKER_LIB})
+  endif()
 
 endif(USE_MICRO)

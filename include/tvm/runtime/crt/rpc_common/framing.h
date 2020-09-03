@@ -29,8 +29,7 @@
 #include <inttypes.h>
 #include <stddef.h>
 #include <tvm/runtime/crt/error_codes.h>
-
-#include "write_stream.h"
+#include <tvm/runtime/crt/rpc_common/write_stream.h>
 
 namespace tvm {
 namespace runtime {

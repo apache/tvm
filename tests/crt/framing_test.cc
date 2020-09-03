@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "../../src/runtime/crt/utvm_rpc_server/framing.h"
+#include <tvm/runtime/crt/rpc_common/framing.h>
 
 #include <gtest/gtest.h>
 #include <tvm/runtime/crt/memory.h>
@@ -25,7 +25,7 @@
 #include <string>
 #include <vector>
 
-#include "../../src/runtime/crt/utvm_rpc_server/buffer.h"
+#include <tvm/runtime/crt/rpc_common/buffer.h>
 #include "buffer_write_stream.h"
 #include "crt_config.h"
 #include "platform.cc"

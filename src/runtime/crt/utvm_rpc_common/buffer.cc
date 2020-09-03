@@ -22,7 +22,7 @@
  * \brief Buffer
  */
 
-#include "buffer.h"
+#include <tvm/runtime/crt/rpc_common/buffer.h>
 
 #include <stdio.h>
 #include <string.h>
