@@ -6,9 +6,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-#
+# 
 #   http://www.apache.org/licenses/LICENSE-2.0
-#
+# 
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -20,21 +20,10 @@ set -e
 set -u
 set -o pipefail
 
-# install python and pip, don't modify this, modify install_python_package.sh
-apt-get update
-apt-get install -y python-dev
+# install libraries for building Vitis-AI on ubuntu
+apt-get update && apt-get install -y --no-install-recommends \
+    graphviz\
+    gnupg2
 
-# python 3.6
-apt-get install -y software-properties-common
+apt-get update && apt-get install -y gcc-aarch64-linux-gnu
 
-add-apt-repository -y ppa:deadsnakes/ppa
-apt-get update
-apt-get install -y python-pip python-dev python3.6 python3.6-dev
-
-rm -f /usr/bin/python3 && ln -s /usr/bin/python3.6 /usr/bin/python3
-
-# Install pip
-cd /tmp && wget -q https://bootstrap.pypa.io/get-pip.py && python2 get-pip.py && python3.6 get-pip.py
-
-# Pin pip version
-pip3 install pip==19.3.1
