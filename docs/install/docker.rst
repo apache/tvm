@@ -82,4 +82,4 @@ You can find some un-official thirdparty prebuilt images.
 These images are used for test purposes and are NOT of the ASF release.
 
 
-`<https://hub.docker.com/r/tlpack/>`_.
+`<https://hub.docker.com/r/tlcpack/>`_.
