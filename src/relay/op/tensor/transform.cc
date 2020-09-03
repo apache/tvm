@@ -513,7 +513,6 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                  const Type& out_type) {
-
   // Quick path for reshape_like
   if (!attrs.as<ReshapeAttrs>()) {
     return {topi::reshape(inputs[0], inputs[1]->shape)};

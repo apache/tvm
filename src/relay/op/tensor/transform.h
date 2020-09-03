@@ -181,8 +181,8 @@ static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
   return Array<Array<Layout>>{Array<Layout>(old_in_layouts.size(), ret), {ret}};
 }
 
-static inline Array<IndexExpr> infer_newshape(const Array<IndexExpr>& data_shape,
-		                             const Attrs& attrs) {
+static inline Array<IndexExpr> infer_newshape(const Array<IndexExpr>& data_shape, 
+                                              const Attrs& attrs) {
   const auto* param = attrs.as<ReshapeAttrs>();
   Array<IndexExpr> oshape;
   Array<IndexExpr> ishape;
