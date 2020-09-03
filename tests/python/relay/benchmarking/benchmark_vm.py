@@ -79,7 +79,7 @@ def benchmark_execution(mod,
     # random input
     data = np.random.uniform(size=data_shape).astype(dtype)
 
-    for target, ctx in testing.ctx_list():
+    for target, ctx in testing.enabled_targets():
         tvm_out = get_graph_runtime_output(mod, tvm.nd.array(data.astype(dtype)),
                                            params, target, ctx, dtype)
         vm_out = get_vm_output(mod, tvm.nd.array(data.astype(dtype)), params,

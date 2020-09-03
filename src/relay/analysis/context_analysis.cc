@@ -451,7 +451,6 @@ class ContextAnalyzer : public ExprVisitor {
       inps.push_back(fn->params[0]);
       outs.push_back(call->op);
       Expr body = fn->body;
-      // outs.push_back(fn->body);
       CHECK(body->IsInstance<CallNode>() && IsDeviceCopy(body));
       Call call_body = Downcast<Call>(body);
       attrs = call_body->attrs.as<DeviceCopyAttrs>();
@@ -715,10 +714,7 @@ PackedAnalysisResultMap ContextAnalysisPacked(const IRModule& mod,
   return ret;
 }
 
-TVM_REGISTER_GLOBAL("relay.analysis.ContextAnalysis")
-    .set_body_typed([](IRModule mod, TVMContext default_context) {
-      return ContextAnalysisPacked(mod, default_context);
-    });
+TVM_REGISTER_GLOBAL("relay.analysis.ContextAnalysis").set_body_typed(ContextAnalysisPacked);
 
 }  // namespace relay
 }  // namespace tvm

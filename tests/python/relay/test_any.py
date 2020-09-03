@@ -23,7 +23,6 @@ from tvm import relay
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
 import tvm.topi.testing
-from tvm.relay.testing.config import ctx_list
 
 def int32(val):
     return relay.const(val, 'int32')
@@ -37,7 +36,7 @@ def any_dims(ndim):
 def check_result(args, mod, expected, flatten=False, assert_shape=False,
                  only_vm=False):
     for kind in ["debug", "vm"]:
-        for tgt, ctx in ctx_list():
+        for tgt, ctx in tvm.testing.enabled_targets():
             if kind == "debug" and (only_vm or ctx.device_type !=
                                     tvm.cpu().device_type):
                 continue

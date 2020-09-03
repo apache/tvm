@@ -310,7 +310,8 @@ class VirtualMachine(object):
         ctxs = ctx
         if not isinstance(ctx, (list, tuple)):
             if not isinstance(ctx, tvm.runtime.TVMContext):
-                raise TypeError("ctx is expected to be TVMContex")
+                raise TypeError("ctx is expected to be TVMContext or \
+                                List[TVMContext]")
             ctxs = [ctx]
 
         # CPU is required for executing shape functions

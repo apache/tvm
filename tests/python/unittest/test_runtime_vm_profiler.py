@@ -18,14 +18,14 @@ import numpy as np
 
 from tvm.runtime import profiler_vm
 from tvm import relay
-from tvm.relay.testing import resnet, ctx_list
+from tvm.relay.testing import resnet, enabled_targets
 
 def test_basic():
     mod, params = resnet.get_workload()
     if not profiler_vm.enabled():
         return
 
-    for target, ctx in ctx_list():
+    for target, ctx in enabled_targets():
         exe = relay.vm.compile(mod, target, params=params)
         vm = profiler_vm.VirtualMachineProfiler(exe, ctx)
 

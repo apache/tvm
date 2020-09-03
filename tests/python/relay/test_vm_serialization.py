@@ -307,7 +307,7 @@ def test_dynamic_bcast():
     x_data = np.random.uniform(size=(1, 2)).astype(dtype)
     y_data = np.random.uniform(size=(3, 2)).astype(dtype)
     res_np = np.add(x_data, y_data)
-    for target, ctx in testing.ctx_list():
+    for target, ctx in testing.enabled_targets():
         res = get_serialized_output(mod, *(x_data, y_data), target=target,
                                     ctx=ctx)
         tvm.testing.assert_allclose(res.asnumpy(), res_np)

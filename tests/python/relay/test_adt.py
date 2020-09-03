@@ -721,7 +721,7 @@ def test_iterate():
 
 def check_tensor_array(ta_mod, ref_res, *args, dtype="float32", rtol=1e-5):
     for kind in ["debug", "vm"]:
-        for target, ctx in testing.ctx_list():
+        for target, ctx in testing.enabled_targets():
             if kind == "debug" and ctx.device_type != tvm.cpu().device_type:
                 continue
             ex = relay.create_executor(kind, mod=ta_mod, ctx=ctx, target=target)

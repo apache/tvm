@@ -531,14 +531,12 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         const auto& it = targets_.begin();
         target = (*it).second;
       } else {
-        if (expr_device_map_.count(func) == 0 ||
-            targets_.count(expr_device_map_[func].device_type) == 0) {
-          int fallback_dev = GetFallbackDevice();
-          auto dev_name = runtime::DeviceName(fallback_dev);
-          if (expr_device_map_.count(func) == 0) {
-            LOG(WARNING) << "The function is not annotated. Fallback to " << dev_name;
-          }
-          target = CreateDefaultTarget(fallback_dev);
+        CHECK_GT(expr_device_map_.count(func), 0U)
+            << "Found not annotated expression, please make sure "
+               "context analysis has been executed";
+        int dev_type = expr_device_map_[func].device_type;
+        if (targets_.count(dev_type) == 0) {
+          target = CreateDefaultTarget(dev_type);
         } else {
           target = targets_[expr_device_map_[func].device_type];
         }

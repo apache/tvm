@@ -21,12 +21,12 @@ import pytest
 
 import tvm
 from tvm import relay
-from tvm.relay import expr as _expr, transform
+from tvm.relay import expr as _expr
 from tvm.relay.analysis import context_analysis
 
 
 def test_device_copy():
-    if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
         return
 
     mod = tvm.IRModule()
@@ -49,7 +49,7 @@ def test_device_copy():
 
 
 def test_shape_func():
-    if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
         return
 
     mod = tvm.IRModule()
@@ -78,7 +78,7 @@ def test_shape_func():
 
 
 def test_vm_shape_of():
-    if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
         return
 
     mod = tvm.IRModule()
@@ -96,7 +96,7 @@ def test_vm_shape_of():
 
 
 def test_alloc_storage():
-    if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
         return
 
     mod = tvm.IRModule()
@@ -126,7 +126,7 @@ def test_alloc_storage():
 
 
 def test_alloc_tensor():
-    if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
         return
 
     mod = tvm.IRModule()
@@ -155,7 +155,7 @@ def test_alloc_tensor():
 
 
 def test_vm_reshape_tensor():
-    if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
         return
 
     x = relay.var("x", shape=(2, 8), dtype="float32")
@@ -181,7 +181,7 @@ def test_vm_reshape_tensor():
 
 
 def test_dynamic_input():
-    if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
         return
 
     mod = tvm.IRModule()
