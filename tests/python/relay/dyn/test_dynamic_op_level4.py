@@ -19,10 +19,12 @@ from tvm import te
 import numpy as np
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.testing import ctx_list, run_infer_type
+from tvm.relay.testing import run_infer_type
 import tvm.topi.testing
 
 
+# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# @tvm.testing.uses_gpu
 def test_dynamic_strided_slice():
     def verify(dshape, begin, end, strides, output, slice_mode="end",
                test_ref=True, dtype="int32"):
@@ -66,9 +68,7 @@ def test_dynamic_strided_slice():
 
         if not test_ref:
             return
-        for target, ctx in ctx_list():
-            #TODO(mbrookhart): remove once vm supports heterogenous execution
-            if "cuda" in target: continue
+        for target, ctx in tvm.testing.enabled_targets():
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
             op_res = intrp.evaluate()(x_data)

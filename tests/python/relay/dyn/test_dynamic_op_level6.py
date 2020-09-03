@@ -23,7 +23,8 @@ from tvm import te
 from tvm import relay
 import tvm.testing
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# @tvm.testing.uses_gpu
 def test_dynamic_topk():
     def verify_topk(k, axis, ret_type, is_ascend, dtype):
         shape = (20, 100)
@@ -53,7 +54,6 @@ def test_dynamic_topk():
         np_indices = np_indices.astype(dtype)
 
         for target, ctx in tvm.testing.enabled_targets():
-            if "llvm" not in target: continue
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
