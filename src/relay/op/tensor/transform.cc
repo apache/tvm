@@ -3176,7 +3176,6 @@ bool AdvIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   Array<IndexExpr> broadcast_shape;
   int64_t num_picked_elems = 1;
 
-  // Only allows dynamic index tensor shape when just have 1 index tensor.
   if (inputs->fields.size() == 2) {
     broadcast_shape = inputs->fields[1].as<TensorTypeNode>()->shape;
   } else {
