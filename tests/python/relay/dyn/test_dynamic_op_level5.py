@@ -60,7 +60,6 @@ def test_resize():
         func = relay.Function([x, size_var], z)
 
         for target, ctx in tvm.testing.enabled_targets():
-            if "llvm" not in target: continue
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
