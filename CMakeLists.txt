@@ -280,7 +280,6 @@ if (INDEX_DEFAULT_I64)
   add_definitions(-DTVM_INDEX_DEFAULT_I64=1)
 endif()
 
-list(APPEND RUNTIME_SRCS 3rdparty/bfloat16/bfloat16.cc)
 list(APPEND RUNTIME_SRCS 3rdparty/posit/posit-wrapper.cc)
 
 if(USE_RPC)
