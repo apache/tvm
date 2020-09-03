@@ -72,6 +72,12 @@ impl<T: AsRef<[u8]>> From<T> for ByteArray {
     }
 }
 
+impl<'a> From<&'a ByteArray> for ArgValue<'a> {
+    fn from(val: &'a ByteArray) -> ArgValue<'a> {
+        ArgValue::Bytes(&val.array)
+    }
+}
+
 impl TryFrom<ArgValue<'static>> for ByteArray {
     type Error = ValueDowncastError;
 

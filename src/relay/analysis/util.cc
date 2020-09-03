@@ -307,6 +307,35 @@ TVM_REGISTER_GLOBAL("relay.analysis.all_type_vars").set_body([](TVMArgs args, TV
   }
 });
 
+class DtypeCollector : protected ExprVisitor, protected TypeVisitor {
+ public:
+  void VisitExpr(const Expr& expr) final {
+    if (expr->checked_type_.defined()) {
+      TypeVisitor::VisitType(expr->checked_type());
+    }
+    ExprVisitor::VisitExpr(expr);
+  }
+
+  void VisitType_(const TensorTypeNode* op) final { dtypes_.insert(DLDataType2String(op->dtype)); }
+
+  Array<String> All(const Expr& expr) {
+    VisitExpr(expr);
+
+    Array<String> res;
+    for (const auto& dtype : dtypes_) {
+      res.push_back(String(dtype));
+    }
+    return res;
+  }
+
+ private:
+  std::unordered_set<std::string> dtypes_;
+};
+
+tvm::Array<String> AllDtypes(const Expr& expr) { return DtypeCollector().All(expr); }
+
+TVM_REGISTER_GLOBAL("relay.analysis.all_dtypes").set_body_typed(AllDtypes);
+
 /*!
  * \brief Get reference counter of each internal ExprNode in body.
  * \param body The body expression.
@@ -424,7 +453,7 @@ struct IsDynamicVisitor : public TypeVisitor {
   bool is_dyn{false};
   void VisitType_(const TensorTypeNode* tt) {
     for (auto dim : tt->shape) {
-      if (dim.as<AnyNode>()) {
+      if (dim.as<tir::IntImmNode>() == nullptr) {
         is_dyn = true;
         break;
       }

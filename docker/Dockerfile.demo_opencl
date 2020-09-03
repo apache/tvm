@@ -76,6 +76,5 @@ RUN mkdir -p ${TVM_BUILD_DIR} && \
 	make -j6
 
 RUN echo "Building Python package"
-ENV PYTHONPATH=${TVM_HOME}/python:${TVM_HOME}/topi/python:${PYTHONPATH}
+ENV PYTHONPATH=${TVM_HOME}/python:${PYTHONPATH}
 RUN cd ${TVM_HOME}/python && python3 setup.py install --user
-RUN cd ${TVM_HOME}/topi/python && python3 setup.py install --user

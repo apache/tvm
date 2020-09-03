@@ -22,11 +22,12 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm.relay import create_executor, transform
-from tvm.relay.testing import ctx_list, check_grad, run_infer_type
+from tvm.relay.testing import check_grad, run_infer_type
+import tvm.testing
 
 def verify_func(func, data, ref_res):
     assert isinstance(data, list)
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         #TODO(mbrookhart): enable Cuda tests onces the VM supports dynamic shapes
         if "llvm" not in target: continue
         for kind in ["vm", "debug"]:
@@ -36,6 +37,7 @@ def verify_func(func, data, ref_res):
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
             relay.backend.compile_engine.get().clear()
 
+@tvm.testing.uses_gpu
 def test_dyn_reshape():
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -60,6 +62,7 @@ def test_dyn_reshape():
     verify_reshape((2, 3, 4, 5), (-3, -3), (6, 20))
     verify_reshape((2, 3, 4), (0, -3), (2, 12))
 
+@tvm.testing.uses_gpu
 def test_dyn_shape_reshape():
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -76,6 +79,7 @@ def test_dyn_shape_reshape():
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
 
+@tvm.testing.uses_gpu
 def test_dyn_tile():
     def verify_tile(dshape, reps):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
@@ -92,6 +96,7 @@ def test_dyn_tile():
     verify_tile((2, 3), (3, 2, 1))
 
 
+@tvm.testing.uses_gpu
 def test_dyn_zeros_ones():
     def verify_zeros_ones(shape, dtype):
         for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
@@ -103,19 +108,28 @@ def test_dyn_zeros_ones():
 
             func = relay.Function([dyn_shape], y)
             ref_res = ref(shape, dtype)
-            for target, ctx in ctx_list():
-                if (target != 'cuda'): #skip cuda because no dynamic support for GPU 
-                    for kind in ["vm", "debug"]:
-                        mod = tvm.ir.IRModule.from_expr(func)
-                        intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                        op_res = intrp.evaluate(func)(np.array(shape).astype('int64'))
-                        tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+            verify_func(func, [np.array(shape).astype('int64')], ref_res.astype('int64'))
+    verify_zeros_ones((1, 3), 'int64')
+    verify_zeros_ones((8, 9, 1, 2), 'float32')
 
+@tvm.testing.uses_gpu
+def test_dyn_full():
+    def verify_full(fill_value, src_shape, dtype):
+        x = relay.var("x", relay.scalar_type(dtype))
+        rank = len(src_shape)
+        dyn_src_shape = relay.var("dyn_scr_shape", relay.ty.TensorType((rank,), 'int64'))
+        z = relay.full(x, dyn_src_shape, dtype)
+        func = relay.Function([x, dyn_src_shape], z)
+        ref_res = np.full(src_shape, fill_value).astype(dtype)
 
-    verify_zeros_ones((124, 50), 'float64')
+        verify_func(func, [np.array(fill_value).astype(dtype), np.array(src_shape).astype('int64')], ref_res)
+    verify_full(4, (1, 3, 4, 4), 'int32')
+    verify_full(4, (1, 3, 4, 4), 'int64')
+    verify_full(4.0, (2, 50), 'float32')
 
 if __name__ == "__main__":
     test_dyn_reshape()
     test_dyn_shape_reshape()
     test_dyn_tile()
     test_dyn_zeros_ones()
+    test_dyn_full()

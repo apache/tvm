@@ -31,6 +31,7 @@ Candidate schedules are measured against the specific hardware target.
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import LocalBuilder, LocalRunner
+from .search_policy import EmptyPolicy
 from . import _ffi_api
 
 
@@ -57,7 +58,7 @@ class HardwareParams(Object):
 
 @tvm._ffi.register_object("auto_scheduler.SearchTask")
 class SearchTask(Object):
-    """ The computation information and hardware parameters for a specific schedule search task.
+    """ The computation information and hardware parameters for a schedule search task.
 
     Parameters
     ----------
@@ -77,20 +78,6 @@ class SearchTask(Object):
         self.__init_handle_by_constructor__(_ffi_api.SearchTask, dag,
                                             workload_key, target, target_host,
                                             hardware_params)
-
-
-@tvm._ffi.register_object("auto_scheduler.SearchPolicy")
-class SearchPolicy(Object):
-    """ The base class of search policies. """
-
-
-@tvm._ffi.register_object("auto_scheduler.EmptyPolicy")
-class EmptyPolicy(SearchPolicy):
-    """ This is an example empty search policy which will always generate
-    the init state of ComputeDAG.
-    """
-    def __init__(self):
-        self.__init_handle_by_constructor__(_ffi_api.EmptyPolicy)
 
 
 @tvm._ffi.register_object("auto_scheduler.TuningOptions")
@@ -121,16 +108,9 @@ class TuningOptions(Object):
       Callback functions called after each measurement.
       Candidates:
         - auto_scheduler.RecordToFile
-    pre_search_callbacks: Optional[List[SearchCallback]]
-      Callback functions called before the search process.
-      Candidates:
-        - auto_scheduler.PreloadMeasuredStates
-        - auto_scheduler.PreloadCustomSketchRule
-        TODO(jcf94): Add these implementation in later PRs.
     """
     def __init__(self, num_measure_trials=0, early_stopping=None, num_measures_per_round=64,
-                 verbose=1, builder='local', runner='local', measure_callbacks=None,
-                 pre_search_callbacks=None):
+                 verbose=1, builder='local', runner='local', measure_callbacks=None):
         if isinstance(builder, str):
             if builder == 'local':
                 builder = LocalBuilder()
@@ -150,23 +130,20 @@ class TuningOptions(Object):
                              " . TuningOptions expects a ProgramRunner or string.")
 
         self.__init_handle_by_constructor__(
-            _ffi_api.TuningOptions, num_measure_trials, early_stopping if early_stopping else -1,
-            num_measures_per_round, verbose, builder, runner, measure_callbacks,
-            pre_search_callbacks)
+            _ffi_api.TuningOptions, num_measure_trials, early_stopping or -1,
+            num_measures_per_round, verbose, builder, runner, measure_callbacks)
 
 
-def auto_schedule(task, search_policy='default', tuning_options=None):
+def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
     """ Do auto scheduling for a computation declaration.
-
-    The task parameter can be a `string` as workload_key, or directly
-    passing a `SearchTask` as input.
 
     Parameters
     ----------
     task : SearchTask
         The SearchTask for the computation declaration.
-    search_policy : Union[SearchPolicy, str] = 'default'
-        The search policy to be used for schedule search.
+    search_policy : Optional[SearchPolicy]
+        The search policy to be used for schedule search. Use EmptyPolicy as default, which always
+        returns an empty schedule.
     tuning_options : Optional[TuningOptions]
         Tuning and measurement options.
 
@@ -178,17 +155,5 @@ def auto_schedule(task, search_policy='default', tuning_options=None):
         raise ValueError("Invalid task: " + task +
                          " . `auto_scheduler.auto_schedule` expects a SearchTask.")
 
-    if isinstance(search_policy, str):
-        if search_policy == 'default':
-            # TODO(jcf94): This is an example policy for minimum system, will be upgrated to
-            # formal search policy later.
-            search_policy = EmptyPolicy()
-        else:
-            raise ValueError("Invalid search policy: " + search_policy)
-    elif not isinstance(search_policy, SearchPolicy):
-        raise ValueError("Invalid search policy: " + search_policy +
-                         " . `auto_scheduler.auto_schedule` expects a SearchPolicy or a string.")
-
-    sch, tensors = _ffi_api.AutoSchedule(task, search_policy,
-                                         tuning_options if tuning_options else TuningOptions())
+    sch, tensors = _ffi_api.AutoSchedule(search_policy or EmptyPolicy(task), tuning_options)
     return sch, tensors

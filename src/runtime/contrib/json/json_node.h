@@ -28,7 +28,7 @@
 #include <dlpack/dlpack.h>
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/data_type.h>
 
 #include <cstdint>
 #include <cstdio>
@@ -271,6 +271,15 @@ class JSONGraphNode {
   void SetAttr(const std::string& key, const ValueT& value) {
     attrs_[key] = value;
   }
+
+  /*!
+   * \brief Check if node has attribute.
+   *
+   * \param key The key of the attribute.
+   *
+   * \return True if attribute exists, false otherwise.
+   */
+  bool HasAttr(const std::string& key) const { return attrs_.find(key) != attrs_.end(); }
 
   virtual ~JSONGraphNode() {}
 

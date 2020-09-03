@@ -58,7 +58,7 @@ from mxnet.gluon.model_zoo import vision
 import numpy as np
 from PIL import Image
 
-import topi
+from tvm import topi
 import tvm
 from tvm import te
 from tvm import rpc, autotvm, relay

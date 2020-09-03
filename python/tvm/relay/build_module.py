@@ -359,7 +359,7 @@ class GraphExecutor(_interpreter.Executor):
         if expr:
             self.mod["main"] = expr
         ret_type = self.mod["main"].checked_type.ret_type
-        if _ty.type_has_any(ret_type):
+        if _ty.is_dynamic(ret_type):
             raise ValueError("Graph Runtime only supports static graphs, got output type",
                              ret_type)
         num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1

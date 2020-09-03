@@ -17,9 +17,10 @@
 import numpy as np
 import tvm
 from tvm import te
-import topi
-import topi.testing
-from topi.util import get_const_tuple
+from tvm import topi
+import tvm.topi.testing
+from tvm.topi.util import get_const_tuple
+import tvm.testing
 
 
 def test_operator_type_and_tags():
@@ -103,13 +104,13 @@ def verify_tensor_scalar_bop(shape, typ="add"):
         raise NotImplementedError()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        ctx = tvm.context(device, 0)
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.testing.get_elemwise_schedule(device)(B)
+            s = tvm.topi.testing.get_elemwise_schedule(device)(B)
 
         k_ = 2
         foo = tvm.build(s, [A, B, k] + sh, device, name="tensor_scalar_" + typ)
@@ -150,12 +151,12 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.testing.get_broadcast_schedule(device)(C)
+            s = tvm.topi.testing.get_broadcast_schedule(device)(C)
 
         foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + typ)
         lhs_npy = np.random.uniform(size=lhs_shape).astype(A.dtype)
@@ -183,15 +184,16 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, stride, padding, typ="add"):
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
 
-        conv2d_nchw, schedule_conv2d_nchw = topi.testing.get_conv2d_nchw_implement(device)
+        conv2d_nchw, schedule_conv2d_nchw = tvm.topi.testing.get_conv2d_nchw_implement(device)
 
         k = 10.0
         dilation = (1, 1)
@@ -215,7 +217,7 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
 
         a_npy = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
         w_npy = np.random.uniform(size=get_const_tuple(W.shape)).astype(W.dtype)
-        b_npy = topi.testing.conv2d_nchw_python(a_npy, w_npy, stride, padding)
+        b_npy = tvm.topi.testing.conv2d_nchw_python(a_npy, w_npy, stride, padding)
         c_npy = np.random.uniform(size=get_const_tuple(B.shape)).astype(B.dtype)
         if typ == "add":
             c_npy = b_npy + k
@@ -239,6 +241,7 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_tensor_scalar_bop():
     verify_tensor_scalar_bop((1,), typ="add")
     verify_tensor_scalar_bop((3, 5), typ="sub")
@@ -246,6 +249,7 @@ def test_tensor_scalar_bop():
     verify_tensor_scalar_bop((2, 3, 1, 32), typ="div")
 
 
+@tvm.testing.uses_gpu
 def test_broadcast_bop():
     verify_broadcast_bop((2, 3), (), typ="add")
     verify_broadcast_bop((5, 2, 3), (1,), typ="add")
@@ -254,6 +258,7 @@ def test_broadcast_bop():
     verify_broadcast_bop((2, 3, 1, 32), (64, 32), typ="div")
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_scalar_bop():
     verify_conv2d_scalar_bop(1, 16, 4, 4, 3, 1, 1, typ="add")
     verify_conv2d_scalar_bop(1, 32, 2, 1, 3, 1, 1, typ="sub")

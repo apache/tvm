@@ -75,17 +75,13 @@ $(OUTPUTDIR)/libtvm_web_runtime.js: $(OUTPUTDIR)/libtvm_web_runtime.bc
 	emcc $(EMCC_FLAGS) -o $@ $(OUTPUTDIR)/libtvm_web_runtime.bc
 
 # Lint scripts
+# NOTE: lint scripts that are executed in the CI should be in tests/lint. This allows docker/lint.sh
+# to behave similarly to the CI.
 cpplint:
-	python3 3rdparty/dmlc-core/scripts/lint.py vta cpp vta/include vta/src
-	python3 3rdparty/dmlc-core/scripts/lint.py topi cpp topi/include;
-	python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp \
-	 include src \
-	 examples/extension/src examples/graph_executor/src
+	tests/lint/cpplint.sh
 
 pylint:
-	python3 -m pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
-	python3 -m pylint topi/python/topi --rcfile=$(ROOTDIR)/tests/lint/pylintrc
-	python3 -m pylint vta/python/vta --rcfile=$(ROOTDIR)/tests/lint/pylintrc
+	tests/lint/pylint.sh
 
 jnilint:
 	python3 3rdparty/dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src

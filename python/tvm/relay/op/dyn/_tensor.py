@@ -17,7 +17,7 @@
 #pylint: disable=invalid-name, unused-argument, len-as-condition
 """Backend compiler related feature registration for dynamic ops"""
 
-import topi
+from tvm import topi
 
 from ..op import register_shape_func, register_compute
 from ..op import register_broadcast_schedule
@@ -44,3 +44,4 @@ register_pattern("dyn.zeros", OpPattern.ELEMWISE)
 register_shape_func("dyn.broadcast_to", True, full_shape_func)
 register_shape_func("dyn.ones", True, no_data_full_shape_func)
 register_shape_func("dyn.zeros", True, no_data_full_shape_func)
+register_shape_func("dyn.full", True, full_shape_func)

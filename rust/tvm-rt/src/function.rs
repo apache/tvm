@@ -25,7 +25,7 @@
 //!
 //! See the tests and examples repository for more examples.
 
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::{
     ffi::CString,
     os::raw::{c_char, c_int},
@@ -33,8 +33,6 @@ use std::{
 };
 
 use crate::errors::Error;
-
-use super::to_boxed_fn::ToBoxedFn;
 
 pub use super::to_function::{ToFunction, Typed};
 pub use tvm_sys::{ffi, ArgValue, RetValue};
@@ -94,11 +92,13 @@ impl Function {
         }
     }
 
-    pub fn get_boxed<F: ?Sized, S: AsRef<str>>(name: S) -> Option<Box<F>>
+    pub fn get_boxed<F, S>(name: S) -> Option<Box<F>>
     where
-        F: ToBoxedFn,
+        S: AsRef<str>,
+        F: ?Sized,
+        Self: Into<Box<F>>,
     {
-        Self::get(name).map(|f| f.to_boxed_fn::<F>())
+        Self::get(name).map(|f| f.into())
     }
 
     /// Returns the underlying TVM function handle.
@@ -115,7 +115,8 @@ impl Function {
     pub fn invoke<'a>(&self, arg_buf: Vec<ArgValue<'a>>) -> Result<RetValue> {
         let num_args = arg_buf.len();
         let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMArgTypeCode>) =
-            arg_buf.iter().map(|arg| arg.to_tvm_value()).unzip();
+            arg_buf.into_iter().map(|arg| arg.to_tvm_value()).unzip();
+
         let mut ret_val = ffi::TVMValue { v_int64: 0 };
         let mut ret_type_code = 0i32;
 
@@ -128,16 +129,42 @@ impl Function {
             &mut ret_type_code as *mut _
         ));
 
-        Ok(RetValue::from_tvm_value(ret_val, ret_type_code as u32))
-    }
+        let rv = RetValue::from_tvm_value(ret_val, ret_type_code as u32);
+        match rv {
+            RetValue::ObjectHandle(object) => {
+                let optr = crate::object::ObjectPtr::from_raw(object as _).unwrap();
+                // println!("after wrapped call: {}", optr.count());
+                crate::object::ObjectPtr::leak(optr);
+            }
+            _ => {}
+        };
 
-    pub fn to_boxed_fn<F: ?Sized>(self) -> Box<F>
-    where
-        F: ToBoxedFn,
-    {
-        F::to_boxed_fn(self)
+        Ok(rv)
     }
 }
+
+macro_rules! impl_to_fn {
+    () => { impl_to_fn!(@impl); };
+    ($t:ident, $($ts:ident,)*) => { impl_to_fn!(@impl $t, $($ts,)*); impl_to_fn!($($ts,)*); };
+    (@impl $($t:ident,)*) => {
+        impl<Err, Out, $($t,)*> From<Function> for Box<dyn Fn($($t,)*) -> Result<Out>>
+        where
+            Error: From<Err>,
+            Out: TryFrom<RetValue, Error = Err>,
+            $($t: Into<ArgValue<'static>>),*
+        {
+            fn from(func: Function) -> Self {
+                #[allow(non_snake_case)]
+                Box::new(move |$($t : $t),*| {
+                    let args = vec![ $($t.into()),* ];
+                    Ok(func.invoke(args)?.try_into()?)
+                })
+            }
+        }
+    };
+}
+
+impl_to_fn!(T1, T2, T3, T4, T5, T6,);
 
 impl Clone for Function {
     fn clone(&self) -> Function {
@@ -237,7 +264,7 @@ impl<'a> TryFrom<&ArgValue<'a>> for Function {
 ///
 /// register(sum, "mysum".to_owned()).unwrap();
 /// let func = Function::get("mysum").unwrap();
-/// let boxed_fn = func.to_boxed_fn::<dyn Fn(i64, i64, i64) -> Result<i64>>();
+/// let boxed_fn: Box<dyn Fn(i64, i64, i64) -> Result<i64>> = func.into();
 /// let ret = boxed_fn(10, 20, 30).unwrap();
 /// assert_eq!(ret, 60);
 /// ```
@@ -268,6 +295,25 @@ where
         override_ as c_int
     ));
 
+    Ok(())
+}
+
+pub fn register_untyped<S: Into<String>>(
+    f: fn(Vec<ArgValue<'static>>) -> Result<RetValue>,
+    name: S,
+    override_: bool,
+) -> Result<()> {
+    // TODO(@jroesch): can we unify all the code.
+    let func = f.to_function();
+    let name = name.into();
+    // Not sure about this code
+    let handle = func.handle();
+    let name = CString::new(name)?;
+    check_call!(ffi::TVMFuncRegisterGlobal(
+        name.into_raw(),
+        handle,
+        override_ as c_int
+    ));
     Ok(())
 }
 

@@ -50,7 +50,10 @@ pub trait IsObjectRef: Sized {
     }
 
     fn downcast<U: IsObjectRef>(&self) -> Result<U, Error> {
-        let ptr = self.as_object_ptr().map(|ptr| ptr.downcast::<U::Object>());
+        let ptr = self
+            .as_object_ptr()
+            .cloned()
+            .map(|ptr| ptr.downcast::<U::Object>());
         let ptr = ptr.transpose()?;
         Ok(U::from_object_ptr(ptr))
     }
@@ -112,6 +115,10 @@ impl<'a> From<ObjectRef> for ArgValue<'a> {
 external! {
     #[name("ir.DebugPrint")]
     fn debug_print(object: ObjectRef) -> CString;
+    #[name("node.StructuralHash")]
+    fn structural_hash(object: ObjectRef, map_free_vars: bool) -> ObjectRef;
+    #[name("node.StructuralEqual")]
+    fn structural_equal(lhs: ObjectRef, rhs: ObjectRef, assert_mode: bool, map_free_vars: bool) -> ObjectRef;
 }
 
 // external! {

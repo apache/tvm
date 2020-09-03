@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Initializer of parameters."""
+from functools import reduce
 import numpy as np
 
 import tvm
 from tvm import relay
+
 
 class Initializer(object):
     """The base class of an initializer."""
@@ -126,6 +128,14 @@ class Xavier(Initializer):
             arr[:] = np.random.uniform(-scale, scale, size=arr.shape)
         else:
             raise ValueError("Unknown random type")
+
+
+class Constant(Initializer):
+    """ Constant initialization of weights. Sum of weights in the matrix is 1.
+    """
+    def _init_weight(self, name, arr):
+        num_elements = reduce(lambda x, y: x*y, arr.shape)
+        arr[:] = 1./num_elements
 
 
 def create_workload(net, initializer=None, seed=0):

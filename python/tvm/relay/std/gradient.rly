@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-v0.0.4
+
+#[version = "0.0.5"]
 
 /*
  * Store the Gradient Value of a Tensor of type T.

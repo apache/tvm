@@ -259,9 +259,7 @@ int TVMModGetFunction(TVMModuleHandle mod, const char* func_name, int query_impo
 
 int ModuleGetFunction(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_value,
                       int* ret_type_codes) {
-  int function_index;
   TVMModuleHandle mod;
-  int module_index;
   const char* name;
   int to_return;
   int query_imports;

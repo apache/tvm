@@ -277,7 +277,7 @@ def CombineParallelConv2D(min_num_branches=3):
     return _ffi_api.CombineParallelConv2D(min_num_branches)
 
 
-def CombineParallelDense(min_num_branches=3):
+def CombineParallelDense(min_num_branches=3, to_batch=True):
     """Combine multiple dense operators into one. For example:
 
     .. code-block
@@ -295,18 +295,30 @@ def CombineParallelDense(min_num_branches=3):
                 |
             batch_matmul+elemwise/bcast (2,2,2)
 
+    or (if to_batch=False)
+
+    .. code-block
+
+                data
+                |
+            dense+elemwise/bcast (2,2+2)
+
     Parameters
     ----------
     min_num_branches : int
         The minimum number of required parallel branches for performing this
         optimization.
 
+    to_batch_matmul : bool
+        If True, combine parallel dense ops into batch_matmul op.
+        If False, combine parallel dense ops into dense op.
+
     Returns
     -------
     ret: tvm.transform.Pass
         The registered pass that combines parallel dense operators.
     """
-    return _ffi_api.CombineParallelDense(min_num_branches)
+    return _ffi_api.CombineParallelDense(min_num_branches, to_batch)
 
 def CombineParallelBatchMatmul(min_num_branches=3):
     """Combine multiple batch matmul operators into one. For example:
@@ -340,6 +352,21 @@ def CombineParallelBatchMatmul(min_num_branches=3):
         The registered pass that combines parallel dense operators.
     """
     return _ffi_api.CombineParallelBatchMatmul(min_num_branches)
+
+
+def BatchingOps():
+    """Batching parallel operators into one for Conv2D, Dense and BatchMatmul.
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The sequential pass which apply batching for different operator types.
+    """
+    return tvm.transform.Sequential([
+        CombineParallelConv2D(),
+        CombineParallelDense(),
+        CombineParallelBatchMatmul()
+    ])
 
 
 def AlterOpLayout():
@@ -483,10 +510,40 @@ def ToANormalForm():
 
     Returns
     -------
-    ret: Union[tvm.transform.Pass, tvm.relay.Expr]
+    ret : Union[tvm.transform.Pass, tvm.relay.Expr]
         The registered pass that transforms an expression into A Normal Form.
     """
     return _ffi_api.ToANormalForm()
+
+def ToANormalFormExpr(e):
+    """ToANormalForm, but on expression level.
+
+    Parameters
+    ----------
+    e : Expr
+        The graph expression.
+
+    Returns
+    -------
+    ret : Expr
+        The transformed expresion.
+    """
+    return _ffi_api.ToANormalFormExpr(e)
+
+def ToBasicBlockNormalForm():
+    """Turn an expression to Basic Block Normal Form.
+    We define a block as a group of expressions implied by the scope structure.
+    Each graph node can only belong to a single block.
+    For any value that is being used in multiple blocks, it has to be referred
+    by a Var which is defined in a block, whose scope is the least common ancestor
+    of blocks this value is used.
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The registered pass that transforms an expression into Basic Block Normal Form.
+    """
+    return _ffi_api.ToBasicBlockNormalForm()
 
 
 def ToCPS(expr, mod=None):

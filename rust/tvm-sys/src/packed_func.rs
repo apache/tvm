@@ -20,7 +20,7 @@
 use std::{
     convert::TryFrom,
     ffi::{CStr, CString},
-    os::raw::c_void,
+    os::raw::{c_char, c_void},
 };
 
 use crate::{errors::ValueDowncastError, ffi::*};
@@ -75,7 +75,7 @@ macro_rules! TVMPODValue {
             Float(f64),
             Null,
             DataType(DLDataType),
-            String(CString),
+            String(*mut c_char),
             Context(TVMContext),
             Handle(*mut c_void),
             ArrayHandle(TVMArrayHandle),
@@ -121,7 +121,7 @@ macro_rules! TVMPODValue {
                     Context(val) => (TVMValue { v_ctx: val.clone() }, TVMArgTypeCode_kTVMContext),
                     String(val) => {
                         (
-                            TVMValue { v_handle: val.as_ptr() as *mut c_void },
+                            TVMValue { v_handle: *val as *mut c_void },
                             TVMArgTypeCode_kTVMStr,
                         )
                     }
@@ -161,7 +161,7 @@ TVMPODValue! {
     },
     match &self {
         Bytes(val) => {
-            (TVMValue { v_handle: val as *const _ as *mut c_void }, TVMArgTypeCode_kTVMBytes)
+            (TVMValue { v_handle: *val as *const _ as *mut c_void }, TVMArgTypeCode_kTVMBytes)
         }
         Str(val) => { (TVMValue { v_handle: val.as_ptr() as *mut c_void }, TVMArgTypeCode_kTVMStr) }
     }
@@ -267,13 +267,13 @@ impl_pod_value!(Context, TVMContext, [TVMContext]);
 
 impl<'a> From<&'a str> for ArgValue<'a> {
     fn from(s: &'a str) -> Self {
-        Self::String(CString::new(s).unwrap())
+        Self::String(CString::new(s).unwrap().into_raw())
     }
 }
 
 impl<'a> From<String> for ArgValue<'a> {
     fn from(s: String) -> Self {
-        Self::String(CString::new(s).unwrap())
+        Self::String(CString::new(s).unwrap().into_raw())
     }
 }
 
@@ -285,7 +285,7 @@ impl<'a> From<&'a CStr> for ArgValue<'a> {
 
 impl<'a> From<CString> for ArgValue<'a> {
     fn from(s: CString) -> Self {
-        Self::String(s)
+        Self::String(s.into_raw())
     }
 }
 
@@ -340,7 +340,7 @@ impl TryFrom<RetValue> for String {
     fn try_from(val: RetValue) -> Result<String, Self::Error> {
         try_downcast!(
             val -> String,
-            |RetValue::String(s)| { s.into_string().unwrap() },
+            |RetValue::String(s)| { unsafe { CString::from_raw(s).into_string().unwrap() }},
             |RetValue::Str(s)| { s.to_str().unwrap().to_string() }
         )
     }
@@ -348,7 +348,7 @@ impl TryFrom<RetValue> for String {
 
 impl From<String> for RetValue {
     fn from(s: String) -> Self {
-        Self::String(std::ffi::CString::new(s).unwrap())
+        Self::String(std::ffi::CString::new(s).unwrap().into_raw())
     }
 }
 
@@ -376,5 +376,36 @@ impl TryFrom<RetValue> for std::ffi::CString {
     fn try_from(val: RetValue) -> Result<CString, Self::Error> {
         try_downcast!(val -> std::ffi::CString,
             |RetValue::Str(val)| { val.into() })
+    }
+}
+
+// Implementations for bool.
+
+impl<'a> From<bool> for ArgValue<'a> {
+    fn from(s: bool) -> Self {
+        (s as i64).into()
+    }
+}
+
+impl From<bool> for RetValue {
+    fn from(s: bool) -> Self {
+        (s as i64).into()
+    }
+}
+
+impl TryFrom<RetValue> for bool {
+    type Error = ValueDowncastError;
+
+    fn try_from(val: RetValue) -> Result<bool, Self::Error> {
+        try_downcast!(val -> bool,
+            |RetValue::Int(val)| { !(val == 0) })
+    }
+}
+
+impl<'a> TryFrom<ArgValue<'a>> for bool {
+    type Error = ValueDowncastError;
+
+    fn try_from(val: ArgValue<'a>) -> Result<bool, Self::Error> {
+        try_downcast!(val -> bool, |ArgValue::Int(val)| { !(val == 0) })
     }
 }

@@ -21,6 +21,7 @@ import json
 from tvm import rpc
 from tvm.contrib import util, graph_runtime
 
+@tvm.testing.requires_llvm
 def test_graph_simple():
     n = 4
     A = te.placeholder((n,), name='A')
@@ -52,9 +53,6 @@ def test_graph_simple():
     graph = json.dumps(graph)
 
     def check_verify():
-        if not tvm.runtime.enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
         mod = graph_runtime.create(graph, mlib, tvm.cpu(0))
         a = np.random.uniform(size=(n,)).astype(A.dtype)
@@ -63,9 +61,6 @@ def test_graph_simple():
         np.testing.assert_equal(out.asnumpy(), a + 1)
 
     def check_remote():
-        if not tvm.runtime.enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
         server = rpc.Server("localhost")
         remote = rpc.connect(server.host, server.port)
@@ -93,9 +88,6 @@ def test_graph_simple():
         params = {'x': x_in}
         graph, lib, params = relay.build(func, target="llvm", params=params)
 
-        if not tvm.runtime.enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         mod_shared = graph_runtime.create(graph, lib, tvm.cpu(0))
         mod_shared.load_params(relay.save_param_dict(params))
         num_mods = 10

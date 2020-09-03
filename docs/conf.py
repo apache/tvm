@@ -33,17 +33,13 @@ import sys
 import inspect
 import os, subprocess
 import shlex
-import recommonmark
 import sphinx_gallery
-from recommonmark.parser import CommonMarkParser
-from recommonmark.transform import AutoStructify
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
 sys.path.insert(0, os.path.join(curr_path, '../python/'))
-sys.path.insert(0, os.path.join(curr_path, '../topi/python'))
 sys.path.insert(0, os.path.join(curr_path, '../vta/python'))
 
 # -- General configuration ------------------------------------------------
@@ -54,14 +50,10 @@ author = u'Apache Software Foundation'
 copyright = u'2020, %s' % author
 github_doc_root = 'https://github.com/apache/incubator-tvm/tree/master/docs/'
 
-# add markdown parser
-CommonMarkParser.github_doc_root = github_doc_root
-source_parsers = {
-    '.md': CommonMarkParser
-}
 os.environ['TVM_BUILD_DOC'] = '1'
 # Version information.
 import tvm
+from tvm import topi
 from tvm import te
 version = tvm.__version__
 release = tvm.__version__
@@ -194,7 +186,8 @@ examples_dirs = ["../tutorials/", "../vta/tutorials/"]
 gallery_dirs = ["tutorials", "vta/tutorials"]
 
 subsection_order = ExplicitOrder(
-    ['../tutorials/frontend',
+    ['../tutorials/get_started',
+     '../tutorials/frontend',
      '../tutorials/language',
      '../tutorials/optimize',
      '../tutorials/autotvm',
@@ -285,8 +278,3 @@ def process_docstring(app, what, name, obj, options, lines):
 def setup(app):
     app.connect('autodoc-process-docstring', process_docstring)
     app.add_css_file('css/tvm_theme.css')
-    app.add_config_value('recommonmark_config', {
-        'url_resolver': lambda url: github_doc_root + url,
-        'auto_doc_ref': True
-            }, True)
-    app.add_transform(AutoStructify)

@@ -25,6 +25,8 @@ source tests/scripts/setup-pytest-env.sh
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
+export TVM_TEST_TARGETS="llvm"
+
 find . -type f -path "*.pyc" | xargs rm -f
 
 # Rebuild cython
@@ -35,3 +37,6 @@ python3 -m pytest tests/python/frontend/tflite
 
 echo "Running relay Keras frontend test..."
 python3 -m pytest tests/python/frontend/keras
+
+echo "Running relay Caffe frontend test..."
+python3 -m pytest tests/python/frontend/caffe

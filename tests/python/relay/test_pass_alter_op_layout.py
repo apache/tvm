@@ -21,8 +21,9 @@ import tvm
 from tvm import relay
 from tvm.relay import transform, analysis
 from tvm.relay.testing.temp_op_attr import TempOpAttr
-from tvm.relay.testing import ctx_list, run_infer_type
+from tvm.relay.testing import run_infer_type
 import numpy as np
+import tvm.testing
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
@@ -615,6 +616,7 @@ def test_alter_layout_nchw_upsamping_op():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+@tvm.testing.uses_gpu
 def test_alter_layout_strided_slice():
     """Test rewriting strided_slice during alter_iop_layout"""
     def before():
@@ -661,7 +663,7 @@ def test_alter_layout_strided_slice():
     mod_before['main'] = a
     mod_new['main'] = b
     with relay.build_config(opt_level=3):
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug", "vm"]:
                 ex_before = relay.create_executor(kind, mod=mod_before, ctx=ctx, target=target)
                 ex_new = relay.create_executor(kind, mod=mod_new, ctx=ctx, target=target)
@@ -681,7 +683,7 @@ def test_alter_layout_depthwise_conv2d():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    import topi
+    from tvm import topi
     def alter_conv2d(attrs, inputs, tinfos, out_type):
         with tvm.target.create("llvm"):
             return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
@@ -1016,7 +1018,7 @@ def test_alter_layout_sum():
 def test_alter_layout_nhwc_arm():
     """ Check that AlterOplayout does not alter NHWC data layout. """
     def alter_conv2d(attrs, inputs, tinfos, out_type):
-        import topi
+        from tvm import topi
         with tvm.target.create("llvm -device=arm_cpu"):
             return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
 
@@ -1077,7 +1079,7 @@ def test_alter_layout_nhwc_int8_aarch64():
             self.memory[key] = cfg
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
-        import topi
+        from tvm import topi
         with tvm.target.create("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu"):
             with Int8Fallback():
                 tmp =  topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)

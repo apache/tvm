@@ -29,6 +29,7 @@
 # - LLVM_LIBS
 # - LLVM_DEFINITIONS
 # - TVM_LLVM_VERSION
+# - TVM_INFO_LLVM_VERSION
 #
 macro(find_llvm use_llvm)
   set(LLVM_CONFIG ${use_llvm})
@@ -53,6 +54,7 @@ macro(find_llvm use_llvm)
       message(STATUS "Link with static LLVM libraries")
     endif()
     set(TVM_LLVM_VERSION ${LLVM_VERSION_MAJOR}${LLVM_VERSION_MINOR})
+    set(TVM_INFO_LLVM_VERSION "${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}")
   elseif(NOT LLVM_CONFIG STREQUAL "OFF")
     # use llvm config
     message(STATUS "Use llvm-config=" ${LLVM_CONFIG})
@@ -82,6 +84,7 @@ macro(find_llvm use_llvm)
       message(FATAL_ERROR "Fatal error executing: ${use_llvm} --version")
     endif()
     # llvm version
+    set(TVM_INFO_LLVM_VERSION ${__llvm_version})
     string(REGEX REPLACE "^([^.]+)\.([^.])+\.[^.]+.*$" "\\1\\2" TVM_LLVM_VERSION ${__llvm_version})
     # definitions
     string(REGEX MATCHALL "(^| )-D[A-Za-z0-9_]*" LLVM_DEFINITIONS ${__llvm_cxxflags})

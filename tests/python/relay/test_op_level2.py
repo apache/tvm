@@ -22,12 +22,14 @@ from tvm import te
 from tvm import autotvm
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.testing import ctx_list, run_infer_type
+from tvm.relay.testing import run_infer_type
 from tvm.contrib import util
-import topi.testing
-from topi.cuda.conv3d_winograd import _infer_tile_size
+import tvm.topi.testing
+from tvm.topi.cuda.conv3d_winograd import _infer_tile_size
+import tvm.testing
 
 
+@tvm.testing.uses_gpu
 def test_conv1d_infer_type():
     # symbolic in batch dimension
     n, c, w = te.var("n"), 10, 224
@@ -78,6 +80,7 @@ def test_conv1d_infer_type():
         (n, w, 16), "int32")
 
 
+@tvm.testing.uses_gpu
 def test_conv1d_run():
     def run_test_conv1d(dtype, out_dtype, scale, dshape, kshape,
                         padding=(1, 1),
@@ -97,12 +100,13 @@ def test_conv1d_run():
         func = relay.Function([x, w], y)
         data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
         kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
-        ref_res = topi.testing.conv1d_ncw_python(
+        ref_res = tvm.topi.testing.conv1d_ncw_python(
             data.astype(out_dtype), kernel.astype(out_dtype), 1, padding, dilation)
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             if target in except_targets:
                 continue
+            ctx = tvm.context(target, 0)
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(data, kernel)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
@@ -122,6 +126,7 @@ def test_conv1d_run():
                     padding=(1, 1), channels=10, kernel_size=3, dilation=3)
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_infer_type():
     # symbolic in batch dimension
     n, c, h, w = te.size_var("n"), 10, 224, 224
@@ -189,6 +194,7 @@ def test_conv2d_infer_type():
         (n, h, w, 16), "int32")
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_run():
     def run_test_conv2d(dtype, out_dtype, scale, dshape, kshape,
                         padding=(1, 1),
@@ -210,18 +216,19 @@ def test_conv2d_run():
         func = relay.Function([x, w], y)
         data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
         kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
-        dkernel = topi.testing.dilate_python(kernel, (1, 1) + dilation)
+        dkernel = tvm.topi.testing.dilate_python(kernel, (1, 1) + dilation)
         if fref is None:
-            ref_res = topi.testing.conv2d_nchw_python(
+            ref_res = tvm.topi.testing.conv2d_nchw_python(
                 data.astype(out_dtype), dkernel.astype(out_dtype), 1, padding,
                 groups=groups)
         else:
             ref_res = fref(data.astype(out_dtype), dkernel.astype(out_dtype))
 
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             if target in except_targets:
                 continue
+            ctx = tvm.context(target, 0)
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(data, kernel)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-4, atol=1e-4)
@@ -271,7 +278,7 @@ def test_conv2d_run():
     kshape = (32, 1, 3, 3)
     run_test_conv2d("float32", "float32", 1, dshape, kshape,
                     padding=(1, 1), channels=32, groups=32, kernel_size=(3 ,3),
-                    fref=lambda x, w: topi.testing.depthwise_conv2d_python_nchw(
+                    fref=lambda x, w: tvm.topi.testing.depthwise_conv2d_python_nchw(
                         x, w, (1, 1), "SAME"))
 
     # depthwise conv2d for arm_cpu
@@ -314,6 +321,7 @@ def test_conv2d_run():
     run_test_conv2d("float32", "float32", 1, dshape, kshape,
                     padding=(1, 1), channels=10, kernel_size=(3 ,3), dilation=(3, 3))
 
+@tvm.testing.uses_gpu
 def test_conv2d_winograd():
     class WinogradFallback(autotvm.FallbackContext):
         def _query_inside(self, target, workload):
@@ -352,14 +360,15 @@ def test_conv2d_winograd():
 
         data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
         kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
-        ref_res = topi.testing.conv2d_nchw_python(
+        ref_res = tvm.topi.testing.conv2d_nchw_python(
             data.astype(out_dtype), kernel.astype(out_dtype), 1, padding,
             groups=groups)
 
         with WinogradFallback(), tvm.transform.PassContext(opt_level=3):
-            for target, ctx in ctx_list():
+            for target, ctx in tvm.testing.enabled_targets():
                 if target != 'cuda':
                     continue
+                ctx = tvm.context(target, 0)
                 params = {'w': tvm.nd.array(kernel)}
                 graph, lib, params = relay.build_module.build(mod, target=target, params=params)
                 module = tvm.contrib.graph_runtime.create(graph, lib, ctx)
@@ -385,6 +394,7 @@ def test_conv2d_winograd():
                          padding=(2, 2), channels=192, kernel_size=(7, 7))
 
 
+@tvm.testing.uses_gpu
 def test_conv3d_infer_type():
     # symbolic in batch dimension
     n, c, d, h, w = te.size_var("n"), 10, 224, 224, 224
@@ -435,6 +445,7 @@ def test_conv3d_infer_type():
         (n, d, h, w, 16), "int32")
 
 
+@tvm.testing.uses_gpu
 def test_conv3d_run():
     def run_test_conv3d(dtype, out_dtype, scale, dshape, kshape,
                         padding=(1, 1, 1),
@@ -456,18 +467,19 @@ def test_conv3d_run():
         func = relay.Function([x, w], y)
         data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
         kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
-        dkernel = topi.testing.dilate_python(kernel, (1, 1) + dilation)
+        dkernel = tvm.topi.testing.dilate_python(kernel, (1, 1) + dilation)
         if fref is None:
-            ref_res = topi.testing.conv3d_ncdhw_python(
+            ref_res = tvm.topi.testing.conv3d_ncdhw_python(
                 data.astype(out_dtype), dkernel.astype(out_dtype), 1, padding,
                 groups=groups)
         else:
             ref_res = fref(data.astype(out_dtype), dkernel.astype(out_dtype))
 
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             if target in except_targets:
                 continue
+            ctx = tvm.context(target, 0)
 
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(data, kernel)
@@ -479,6 +491,7 @@ def test_conv3d_run():
     run_test_conv3d("float32", "float32", 1, dshape, kshape,
             padding=(1, 1, 1), channels=10, kernel_size=(3, 3 ,3))
 
+@tvm.testing.uses_gpu
 def test_conv3d_ndhwc_run():
     def run_test_conv3d(dtype, out_dtype, scale, dshape, kshape,
                         padding=(1, 1, 1),
@@ -501,17 +514,18 @@ def test_conv3d_ndhwc_run():
         func = relay.Function([x, w], y)
         data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
         kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
-        dkernel = topi.testing.dilate_python(kernel, (1, 1) + dilation)
+        dkernel = tvm.topi.testing.dilate_python(kernel, (1, 1) + dilation)
         if fref is None:
-            ref_res = topi.testing.conv3d_ndhwc_python(
+            ref_res = tvm.topi.testing.conv3d_ndhwc_python(
                 data.astype(out_dtype), dkernel.astype(out_dtype), 1, padding)
         else:
             ref_res = fref(data.astype(out_dtype), dkernel.astype(out_dtype))
 
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             if target in except_targets:
                 continue
+            ctx = tvm.context(target, 0)
 
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(data, kernel)
@@ -523,6 +537,7 @@ def test_conv3d_ndhwc_run():
     run_test_conv3d("float32", "float32", 1, dshape, kshape,
             padding=(1, 1, 1), channels=10, kernel_size=(3, 3 ,3), except_targets=["cuda"])
 
+@tvm.testing.uses_gpu
 def test_conv3d_winograd():
     class WinogradFallback(autotvm.FallbackContext):
         def _query_inside(self, target, workload):
@@ -574,14 +589,15 @@ def test_conv3d_winograd():
 
         data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
         kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
-        ref_res = topi.testing.conv3d_ncdhw_python(
+        ref_res = tvm.topi.testing.conv3d_ncdhw_python(
             data.astype(out_dtype), kernel.astype(out_dtype), 1, padding,
             groups=groups)
 
         with WinogradFallback(), tvm.transform.PassContext(opt_level=3):
-            for target, ctx in ctx_list():
+            for target, ctx in tvm.testing.enabled_targets():
                 if target != 'cuda':
                     continue
+                ctx = tvm.context(target, 0)
                 params = {'w': tvm.nd.array(kernel)}
                 graph, lib, params = relay.build_module.build(mod, target=target, params=params)
                 module = tvm.contrib.graph_runtime.create(graph, lib, ctx)
@@ -612,6 +628,7 @@ def test_conv3d_winograd():
                          padding=(0, 2, 2), channels=120, kernel_size=(1, 5, 5))
 
 
+@tvm.testing.uses_gpu
 def test_conv3d_transpose_infer_type():
     # symbolic in batch dimension
     n, c, d, h, w = te.size_var("n"), 10, 224, 224, 224
@@ -649,6 +666,7 @@ def test_conv3d_transpose_infer_type():
         (n, 12, 226, 226, 226), "int32")
 
 
+@tvm.testing.uses_gpu
 def test_conv3d_transpose_ncdhw_run():
     dshape = (1, 3, 24, 24, 24)
     kshape = (3, 4, 2, 2, 2)
@@ -663,15 +681,15 @@ def test_conv3d_transpose_ncdhw_run():
 
     data = np.random.uniform(size=dshape).astype(dtype)
     kernel = np.random.uniform(size=kshape).astype(dtype)
+    ref_res = tvm.topi.testing.conv3d_transpose_ncdhw_python(data, kernel, 1, 1, 0)
 
-    ref_res = topi.testing.conv3d_transpose_ncdhw_python(data, kernel, 1, 1)
-
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(data, kernel)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_transpose_infer_type():
     # symbolic in batch dimension
     n, c, h, w = te.size_var("n"), 10, 10, 12
@@ -701,6 +719,7 @@ def test_conv2d_transpose_infer_type():
         (n, 15, 15, 11), "float32")
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_transpose_nchw_run():
     dshape = (1, 3, 18, 18)
     kshape = (3, 10, 3, 3)
@@ -714,15 +733,16 @@ def test_conv2d_transpose_nchw_run():
     dtype = "float32"
     data = np.random.uniform(size=dshape).astype(dtype)
     kernel = np.random.uniform(size=kshape).astype(dtype)
-    ref_res = topi.testing.conv2d_transpose_nchw_python(
+    ref_res = tvm.topi.testing.conv2d_transpose_nchw_python(
         data, kernel, 2, 1, (1, 1))
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(data, kernel)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_transpose_nhwc_run():
     dshape_nhwc = (1, 18, 18, 3)
     kshape_hwoi = (3, 3, 10, 3)
@@ -741,15 +761,16 @@ def test_conv2d_transpose_nhwc_run():
     kernel = np.random.uniform(size=kshape_hwoi).astype(dtype)
     # use true kshape layout here - HWOI
 
-    ref_res = topi.testing.conv2d_transpose_nhwc_python(data, kernel, 'HWOI',
+    ref_res = tvm.topi.testing.conv2d_transpose_nhwc_python(data, kernel, 'HWOI',
                                                         2, 1, output_padding=(1, 1))
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(data, kernel)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_conv1d_transpose_ncw_run():
     dshape = (1, 3, 18)
     kshape = (3, 10, 3)
@@ -763,15 +784,16 @@ def test_conv1d_transpose_ncw_run():
     dtype = "float32"
     data = np.random.uniform(size=dshape).astype(dtype)
     kernel = np.random.uniform(size=kshape).astype(dtype)
-    ref_res = topi.testing.conv1d_transpose_ncw_python(
+    ref_res = tvm.topi.testing.conv1d_transpose_ncw_python(
         data, kernel, 2, 1, output_padding=(1,))
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(data, kernel)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_upsampling_infer_type():
     n, c , h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     scale = tvm.tir.const(2.0, "float64")
@@ -788,6 +810,7 @@ def test_upsampling_infer_type():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, 200, 400), "float32")
 
+@tvm.testing.uses_gpu
 def test_upsampling3d_infer_type():
     n, c, d, h, w = te.size_var("n"), te.size_var("c"),\
                     te.size_var("d"), te.size_var("h"), te.size_var("w")
@@ -821,7 +844,7 @@ def _test_pool2d(opfunc, reffunc, pool_size=(2, 2), strides=(2, 2), padding=(0, 
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
     ref_res = reffunc(data.reshape(1, 3, 14, 2, 14, 2), axis=(3, 5))
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
@@ -841,7 +864,7 @@ def _test_pool2d_int(opfunc, reffunc, dtype):
     func = relay.Function([x], y)
     data = np.random.randint(low=-128, high=128, size=dshape)
     ref_res = reffunc(data.reshape(1,3,14,2,14,2), axis=(3,5)).astype(dtype)
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
@@ -866,12 +889,13 @@ def _test_global_pool2d(opfunc, reffunc):
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
     ref_res = reffunc(data, axis=(2,3), keepdims=True)
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_pool2d():
     _test_pool2d(relay.nn.max_pool2d, np.max)
     _test_pool2d(relay.nn.max_pool2d, np.max, pool_size=2, strides=2, padding=0)
@@ -883,6 +907,7 @@ def test_pool2d():
     _test_global_pool2d(relay.nn.global_avg_pool2d, np.mean)
 
 
+@tvm.testing.uses_gpu
 def test_pool1d():
 
     def _test_pool1d(opfunc, pool_size=(2,), strides=(2,), padding=(0, 0)):
@@ -900,9 +925,9 @@ def test_pool1d():
         y = opfunc(x, pool_size=pool_size, strides=strides, padding=padding)
         func = relay.Function([x], y)
         data = np.random.uniform(size=dshape).astype(dtype)
-        ref_res = topi.testing.pool1d_ncw_python(data, (2,), (2,),
+        ref_res = tvm.topi.testing.pool1d_ncw_python(data, (2,), (2,),
                                                  (0, 0), (1, 3, 16), pool_type, False)
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(data)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
@@ -913,6 +938,7 @@ def test_pool1d():
     _test_pool1d(relay.nn.avg_pool1d, pool_size=2, strides=2, padding=0)
 
 
+@tvm.testing.uses_gpu
 def test_pool3d():
 
     def _test_pool3d(opfunc,
@@ -938,9 +964,9 @@ def test_pool3d():
         assert out_shape == f_out_shape, \
             "Output shape mismatch. expected {}, actual {}".format(out_shape, f_out_shape)
         data = np.random.uniform(size=dshape).astype(dtype)
-        ref_res = topi.testing.pool3d_ncdhw_python(data, pool_size, strides,
+        ref_res = tvm.topi.testing.pool3d_ncdhw_python(data, pool_size, strides,
                                                    padding, out_shape, pool_type, False)
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(data)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
@@ -957,6 +983,7 @@ def test_pool3d():
     _test_pool3d(relay.nn.avg_pool3d, pool_size=2, padding=0, strides=2)
 
 
+@tvm.testing.uses_gpu
 def test_avg_pool2d_no_count_pad():
     kh, kw = (4, 4)
     sh, sw = (2, 2)
@@ -986,11 +1013,12 @@ def test_avg_pool2d_no_count_pad():
     ref_res = np.maximum(b_np, 0.0)
     data = a_np
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
+@tvm.testing.uses_gpu
 def test_flatten_infer_type():
     d1, d2, d3, d4 = te.size_var("d1"), te.size_var("d2"), te.size_var("d3"), te.size_var("d4")
     x = relay.var("x", relay.TensorType((d1, d2, d3, d4), "float32"))
@@ -1019,7 +1047,7 @@ def test_flatten_infer_type():
     x_data = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
     ref_res = x_data.flatten().reshape(o_shape)
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(x_data)
@@ -1027,6 +1055,7 @@ def test_flatten_infer_type():
         op_res2 = intrp2.evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
 
+@tvm.testing.uses_gpu
 def test_pad_infer_type():
     # entirely concrete case
     n, c, h, w = 1, 2, 3, 4
@@ -1043,6 +1072,7 @@ def test_pad_infer_type():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n + 2, 6, 9, w + 8), "float32")
 
+@tvm.testing.uses_gpu
 def test_pad_run():
     def _test_run(dtype):
         dshape = (4, 10, 7, 7)
@@ -1051,7 +1081,7 @@ def test_pad_run():
         func = relay.Function([x], y)
         data = np.random.uniform(size=dshape).astype(dtype)
         ref_res = np.pad(data, ((1, 1), (2, 2), (3, 3), (4, 4)), 'constant')
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(data)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
@@ -1059,6 +1089,7 @@ def test_pad_run():
     _test_run('float32')
     _test_run('int32')
 
+@tvm.testing.uses_gpu
 def test_lrn():
     n, c , h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", shape=(n, c , h, w))
@@ -1080,9 +1111,9 @@ def test_lrn():
     assert yy.checked_type == relay.TensorType(shape, dtype)
     func = relay.Function([x], z)
     x_data = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
-    ref_res = topi.testing.lrn_python(x_data, size, axis, bias, alpha, beta)
+    ref_res = tvm.topi.testing.lrn_python(x_data, size, axis, bias, alpha, beta)
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(x_data)
@@ -1090,6 +1121,7 @@ def test_lrn():
         op_res2 = intrp2.evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
 
+@tvm.testing.uses_gpu
 def test_l2_normalize():
     n, c , h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", shape=(n, c , h, w))
@@ -1108,9 +1140,9 @@ def test_l2_normalize():
     assert yy.checked_type == relay.TensorType(shape, dtype)
     func = relay.Function([x], z)
     x_data = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
-    ref_res = topi.testing.l2_normalize_python(x_data, eps, axis)
+    ref_res = tvm.topi.testing.l2_normalize_python(x_data, eps, axis)
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(x_data)
@@ -1127,6 +1159,7 @@ def batch_flatten(data):
     return np.reshape(data, (shape[0], target_dim))
 
 
+@tvm.testing.uses_gpu
 def test_batch_flatten():
     t1 = relay.TensorType((5, 10, 5))
     x = relay.Var("x", t1)
@@ -1134,7 +1167,7 @@ def test_batch_flatten():
 
     data = np.random.rand(5, 10, 5).astype(t1.dtype)
     ref_res = batch_flatten(data)
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp = relay.create_executor("graph", ctx=ctx, target=target)
         op_res = intrp.evaluate(func)(data)
         np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
@@ -1163,16 +1196,17 @@ def _test_upsampling(layout, method, align_corners=False):
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
     if method == "nearest_neighbor":
-        ref = topi.testing.upsampling_python(data, (scale_h, scale_w), layout)
+        ref = tvm.topi.testing.upsampling_python(data, (scale_h, scale_w), layout)
     else:
-        ref = topi.testing.bilinear_resize_python(data, (int(round(h*scale_h)),
+        ref = tvm.topi.testing.bilinear_resize_python(data, (int(round(h*scale_h)),
                                                   int(round(w*scale_w))), layout)
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         executor = relay.create_executor("graph", ctx=ctx, target=target)
         out = executor.evaluate(func)(data)
         tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_upsampling():
     _test_upsampling("NCHW", "nearest_neighbor")
     _test_upsampling("NCHW", "bilinear", True)
@@ -1208,22 +1242,24 @@ def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixe
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
     if method == "nearest_neighbor":
-        ref = topi.testing.upsampling3d_python(data, (scale_d, scale_h, scale_w), layout)
+        ref = tvm.topi.testing.upsampling3d_python(data, (scale_d, scale_h, scale_w), layout)
     else:
-        ref = topi.testing.trilinear_resize3d_python(data, (int(round(d*scale_d)),\
+        ref = tvm.topi.testing.trilinear_resize3d_python(data, (int(round(d*scale_d)),\
                                                      int(round(h*scale_h)),\
                                                      int(round(w*scale_w))), layout)
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         executor = relay.create_executor("graph", ctx=ctx, target=target)
         out = executor.evaluate(func)(data)
         tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5, atol=1e-5)
 
+@tvm.testing.uses_gpu
 def test_upsampling3d():
     _test_upsampling3d("NCDHW", "nearest_neighbor")
     _test_upsampling3d("NCDHW", "trilinear", "align_corners")
     _test_upsampling3d("NDHWC", "nearest_neighbor")
     _test_upsampling3d("NDHWC", "trilinear", "align_corners")
 
+@tvm.testing.uses_gpu
 def test_conv2d_int8_intrinsics():
     def _compile(ic, oc, target, data_layout, kernel_layout, dtypes):
         input_dtype, weight_dtype, output_dtype = dtypes
@@ -1348,6 +1384,7 @@ def test_conv2d_int8_intrinsics():
     assert "vpmulld" in asm and "vpadd" in asm
 
 
+@tvm.testing.uses_gpu
 def test_depthwise_conv2d_int8():
     input_dtype = 'uint8'
     weight_dtype = 'int8'
@@ -1377,6 +1414,7 @@ def test_depthwise_conv2d_int8():
                 graph, lib, params = relay.build(func, target, params=parameters)
 
 
+@tvm.testing.uses_gpu
 def test_bitserial_conv2d_infer_type():
     # Basic shape test with ambiguous batch.
     n, c, h, w = te.size_var("n"), 32, 224, 224
@@ -1389,6 +1427,7 @@ def test_bitserial_conv2d_infer_type():
         (n, 32, 222, 222), "int16")
 
 
+@tvm.testing.uses_gpu
 def test_bitpack_infer_type():
     # Test axis packing shape inference.
     o, i, h, w = 32, 32, 128, 128
@@ -1401,6 +1440,7 @@ def test_bitpack_infer_type():
 # TODO(@jwfromm): Need to add bitserial_conv2d & bitpack run test cases
 
 
+@tvm.testing.uses_gpu
 def test_correlation():
     def _test_correlation(data_shape, kernel_size, max_displacement, stride1, stride2, padding, is_multiply, dtype='float32'):
         data1 = relay.var("data1", relay.ty.TensorType(data_shape, dtype))
@@ -1421,9 +1461,9 @@ def test_correlation():
         func = relay.Function([data1, data2], y)
         data1_np = np.random.uniform(size=data_shape).astype(dtype)
         data2_np = np.random.uniform(size=data_shape).astype(dtype)
-        ref_res = topi.testing.correlation_nchw_python(data1_np, data2_np, kernel_size, max_displacement, stride1, stride2, padding, is_multiply)
+        ref_res = tvm.topi.testing.correlation_nchw_python(data1_np, data2_np, kernel_size, max_displacement, stride1, stride2, padding, is_multiply)
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(data1_np, data2_np)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)

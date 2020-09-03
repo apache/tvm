@@ -23,7 +23,7 @@ from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay import transform
-
+import tvm.testing
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
@@ -309,6 +309,76 @@ def test_conv_network():
     test_visitor_annotation()
 
 
+def test_propogation():
+    R""" The network and device type is as following:
+                  x           1
+                  |
+                 log          1
+                /   \
+              log2 log10      2
+                \   /
+                 add          2
+                  |
+                 tan          1
+    """
+    ctx1 = tvm.context(1)
+    ctx2 = tvm.context(2)
+
+    expected_dev_type = {
+        'log': ctx1,
+        'log2': ctx2,
+        'log10': ctx2,
+        'add': ctx2,
+        'tan': ctx1
+    }
+
+    x = relay.var("x", shape=(3,))
+
+    def annotated():
+        log = relay.log(x)
+        _log = relay.annotation.on_device(log, expected_dev_type['log'])
+        log2 = relay.log2(_log)
+        _log2 = relay.annotation.on_device(log2, expected_dev_type['log2'])
+        log10 = relay.log10(_log)
+        _log10 = relay.annotation.on_device(log10, expected_dev_type['log10'])
+        add = relay.add(_log2, _log10)
+        _add = relay.annotation.on_device(add, expected_dev_type['add'])
+        tan = relay.tan(_add)
+        _tan = relay.annotation.on_device(tan, expected_dev_type['tan'])
+
+        func = run_opt_pass(_tan, transform.RewriteAnnotatedOps(ctx1.device_type))
+        return func
+
+    def expected():
+        log = relay.log(x)
+        _log_left = relay.device_copy(log, ctx1, ctx2)
+        _log_right = relay.device_copy(log, ctx1, ctx2)
+        log2 = relay.log2(_log_left)
+        log10 = relay.log10(_log_right)
+        add = relay.add(log2, log10)
+        _add = relay.device_copy(add, ctx2, ctx1)
+        tan = relay.tan(_add)
+
+        func = run_opt_pass(tan, transform.InferType())
+        return func
+
+    annotated_expr = annotated()
+    expected_expr = expected()
+    assert tvm.ir.structural_equal(annotated_expr, expected_expr)
+
+    smap = relay.backend._backend.GraphPlanMemory(annotated_expr)
+    for expr, storage_dev_type in smap.items():
+        # x is ctx1 as output is ctx1
+        if isinstance(expr, tvm.relay.expr.Var):
+            assert storage_dev_type[1][0] == ctx1.device_type
+        else:
+            # device_copy op should be its dst_dev_type
+            if isinstance(expr.attrs, tvm.relay.op.op_attrs.DeviceCopyAttrs):
+                assert storage_dev_type[1][0] == expr.attrs.dst_dev_type
+            else:
+                assert storage_dev_type[1][0] == expected_dev_type[expr.op.name].device_type
+
+
 def run_fusible_network(dev, tgt):
     R""" The network is as following:
                x     y
@@ -554,22 +624,33 @@ def run_unpropagatable_graph(dev, tgt):
         tvm.testing.assert_allclose(res, ref_res, rtol=1e-5, atol=1e-5)
 
 
-def test_check_run():
-    for dev, tgt in [("opencl", "opencl"), ("cuda", "cuda"),
-                 ("opencl", str(tvm.target.intel_graphics()))]:
-        if not tvm.runtime.enabled(dev):
-            print("Skip test because %s is not enabled." % dev)
-            continue
-        run_fusible_network(dev, tgt)
-        run_unpropagatable_graph(dev, tgt)
+@tvm.testing.requires_opencl
+def test_check_run_opencl():
+    dev = "opencl"
+    tgt = "opencl"
+    run_fusible_network(dev, tgt)
+    run_unpropagatable_graph(dev, tgt)
 
 
+@tvm.testing.requires_opencl
+def test_check_run_opencl_intel():
+    dev = "opencl"
+    tgt = str(tvm.target.intel_graphics())
+    run_fusible_network(dev, tgt)
+    run_unpropagatable_graph(dev, tgt)
+
+
+@tvm.testing.requires_cuda
+def test_check_run_cuda():
+    dev = "cuda"
+    tgt = "cuda"
+    run_fusible_network(dev, tgt)
+    run_unpropagatable_graph(dev, tgt)
+
+
+@tvm.testing.requires_cuda
 def test_tuple_get_item():
     dev = "cuda"
-    if not tvm.runtime.enabled(dev):
-        print("Skip test because %s is not enabled." % dev)
-        return
-
     cpu_ctx = tvm.cpu(0)
     gpu_ctx = tvm.context(dev)
 

@@ -81,7 +81,7 @@ def get_device_ctx(libmod, ctx):
         ctx = [ctx]
     elif not isinstance(ctx, (list, tuple)):
         raise ValueError("ctx has to be the type of TVMContext or a list of "
-                         "TVMCTVMContext")
+                         "TVMContext")
     for cur_ctx in ctx:
         if not isinstance(cur_ctx, TVMContext):
             raise ValueError("ctx has to be the type of TVMContext or a list "
@@ -133,6 +133,7 @@ class GraphModule(object):
         self._get_output = module["get_output"]
         self._get_input = module["get_input"]
         self._get_num_outputs = module["get_num_outputs"]
+        self._get_num_inputs = module["get_num_inputs"]
         self._load_params = module["load_params"]
         self._share_params = module["share_params"]
 
@@ -151,7 +152,10 @@ class GraphModule(object):
            Additional arguments
         """
         if key is not None:
-            self._get_input(key).copyfrom(value)
+            v = self._get_input(key)
+            if v is None:
+                raise RuntimeError("Could not find '%s' in graph's inputs" % key)
+            v.copyfrom(value)
 
         if params:
             # upload big arrays first to avoid memory issue in rpc mode
@@ -186,6 +190,16 @@ class GraphModule(object):
             The number of outputs.
         """
         return self._get_num_outputs()
+
+    def get_num_inputs(self):
+        """Get the number of inputs to the graph
+
+        Returns
+        -------
+        count : int
+            The number of inputs.
+        """
+        return self._get_num_inputs()
 
     def get_input(self, index, out=None):
         """Get index-th input to out

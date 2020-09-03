@@ -31,7 +31,7 @@
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/qnn/transform.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/vm.h>
+#include <tvm/runtime/vm/vm.h>
 #include <tvm/support/logging.h>
 #include <tvm/te/operation.h>
 
@@ -284,6 +284,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       case Opcode::AllocClosure:
       case Opcode::AllocStorage:
       case Opcode::ShapeOf:
+      case Opcode::ReshapeTensor:
       case Opcode::Move:
       case Opcode::InvokeClosure:
         last_register_ = instr.dst;
@@ -601,6 +602,15 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                    this->VisitExpr(args[0]);
                    Emit(Instruction::ShapeOf(last_register_, NewRegister()));
                  })
+          .Match("vm.reshape_tensor",
+                 [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+                   CHECK_EQ(args.size(), 2u);
+                   this->VisitExpr(args[0]);
+                   auto tensor_reg = last_register_;
+                   this->VisitExpr(args[1]);
+                   auto shape_reg = last_register_;
+                   Emit(Instruction::ReshapeTensor(tensor_reg, shape_reg, NewRegister()));
+                 })
           .Match("memory.kill",
                  [](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
                    LOG(FATAL) << "memory.kill is not yet supported";
@@ -796,8 +806,8 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
     });
   } else if (name == "optimize") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.num_args, 2);
-      *rv = this->OptimizeModule(args[0], args[1]);
+      CHECK_EQ(args.num_args, 3);
+      *rv = this->OptimizeModule(args[0], args[1], args[2]);
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
@@ -825,7 +835,7 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   target_host_ = target_host;
 
   // Run the optimizations necessary to target the VM.
-  context_.module = OptimizeModule(mod, targets_);
+  context_.module = OptimizeModule(mod, targets_, target_host_);
 
   // Populate the global map.
   //
@@ -913,10 +923,12 @@ transform::Sequential MemoryOpt(tvm::Target host_target) {
   return transform::Sequential(pass_seqs);
 }
 
-IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets) {
+IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets,
+                                    const Target& target_host) {
   Array<Pass> pass_seqs;
   Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
+  pass_seqs.push_back(transform::ToBasicBlockNormalForm());
   // Run all dialect legalization passes.
   pass_seqs.push_back(relay::qnn::transform::Legalize());
 
@@ -977,7 +989,7 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
   // external codegen.
   pass_seqs.push_back(transform::Inline());
 
-  pass_seqs.push_back(MemoryOpt(this->target_host_));
+  pass_seqs.push_back(MemoryOpt(target_host));
 
   transform::Sequential seq(pass_seqs);
   transform::PassContext pass_ctx = PassContext::Current();

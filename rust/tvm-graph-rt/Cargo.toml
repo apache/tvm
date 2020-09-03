@@ -28,8 +28,9 @@ authors = ["TVM Contributors"]
 edition = "2018"
 
 [dependencies]
-crossbeam = "0.7.3"
-failure = "0.1"
+crossbeam-channel = "0.4"
+thiserror = "1"
+
 itertools = "0.8"
 lazy_static = "1.4"
 ndarray="0.12"

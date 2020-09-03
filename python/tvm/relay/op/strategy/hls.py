@@ -16,7 +16,7 @@
 # under the License.
 """Definition of HLS operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
-import topi
+from tvm import topi
 from .generic import *
 from .. import op as _op
 

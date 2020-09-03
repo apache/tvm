@@ -42,8 +42,10 @@ class HexagonDeviceAPI : public DeviceAPI {
   void* AllocWorkspace(TVMContext ctx, size_t nbytes, DLDataType type_hint = {}) final;
   void FreeWorkspace(TVMContext ctx, void* ptr) final;
 
-  static const std::shared_ptr<HexagonDeviceAPI>& Global() {
-    static std::shared_ptr<HexagonDeviceAPI> inst = std::make_shared<HexagonDeviceAPI>();
+  static HexagonDeviceAPI* Global() {
+    // NOTE: explicitly use new to avoid destruction of global state
+    // Global state will be recycled by OS as the process exits.
+    static HexagonDeviceAPI* inst = new HexagonDeviceAPI();
     return inst;
   }
 };
@@ -121,7 +123,7 @@ inline void HexagonDeviceAPI::FreeWorkspace(TVMContext ctx, void* ptr) {
 }
 
 TVM_REGISTER_GLOBAL("device_api.hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = HexagonDeviceAPI::Global().get();
+  DeviceAPI* ptr = HexagonDeviceAPI::Global();
   *rv = ptr;
 });
 }  // namespace runtime

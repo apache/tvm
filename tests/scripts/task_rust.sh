@@ -22,10 +22,14 @@ set -u
 export TVM_HOME="$(git rev-parse --show-toplevel)"
 
 export LD_LIBRARY_PATH="$TVM_HOME/lib:$TVM_HOME/build:${LD_LIBRARY_PATH:-}"
-export PYTHONPATH="$TVM_HOME/python":"$TVM_HOME/topi/python"
+export PYTHONPATH="$TVM_HOME/python"
 export RUST_DIR="$TVM_HOME/rust"
-export LLVM_CONFIG_PATH=`which llvm-config-10`
-echo "Using $LLVM_CONFIG_PATH"
+
+
+export LLVM_CONFIG_DEFAULT=`which llvm-config-10`
+export LLVM_CONFIG_PATH="${LLVM_CONFIG_PATH:-$LLVM_CONFIG_DEFAULT}"
+
+echo "Using LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH"
 
 # to avoid CI CPU thread throttling.
 export TVM_BIND_THREADS=0
@@ -34,22 +38,31 @@ export OMP_NUM_THREADS=1
 cd $RUST_DIR
 cargo fmt -- --check
 
-# test common
-cd $RUST_DIR/common
+# First we test tvm-sys the core Rust bindings.
+cd $RUST_DIR/tvm-sys
+# First we test w/o the bindings feature on.
 cargo build
 cargo test --tests
 
+# Second we test w/ the bindings feature on.
 cargo build --features bindings
 cargo test --features bindings --tests
 
-# test runtime
-cd $RUST_DIR/runtime
+# Next we test the runtime API.
+cd $RUST_DIR/tvm-rt
 
-# run basic tests
+# Build and run the tests.
+cargo build
+cargo test --tests
+
+# Next we test the graph runtime crate.
+cd $RUST_DIR/tvm-graph-rt
+
+# We first we compile a model using the Python bindings then run the tests.
 python3 tests/build_model.py
 cargo test --tests
 
-# run TVM module test
+# Run some more tests involving the graph runtime API.
 cd tests/test_tvm_basic
 cargo run
 cd -
@@ -69,8 +82,9 @@ cd tests/test_nn
 cargo run
 cd -
 
-# test frontend
-cd $RUST_DIR/frontend
+# Finally we test the TVM crate which provides both runtime
+# and compiler bindings.
+cd $RUST_DIR/tvm
 
 cargo test --tests -- --test-threads=1
 

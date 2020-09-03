@@ -35,7 +35,7 @@ namespace relay {
 
 std::vector<TensorType> FlattenTupleType(const Type& type);
 std::vector<Expr> FromTupleType(const Type& type, const Expr& expr);
-Expr ToTupleType(const Type& t, const Array<Expr>& exprs);
+Expr ToTupleType(const Type& t, const std::vector<Expr>& exprs);
 
 /*!
  * \brief Options for allocating storage.

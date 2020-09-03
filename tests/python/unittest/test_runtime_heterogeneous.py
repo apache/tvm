@@ -22,7 +22,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm.contrib import graph_runtime, util
-import topi
+from tvm import topi
 
 def get_simplex_graph(host_dev_type, device_dev_type):
     r""" Return the hand-crafted json object where only one copy node is

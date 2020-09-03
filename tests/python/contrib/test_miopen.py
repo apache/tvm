@@ -20,6 +20,7 @@ from tvm.contrib import miopen
 import numpy as np
 
 
+@tvm.testing.requires_rocm
 def test_conv2d():
     in_channel = 3
     out_channel = 64
@@ -33,9 +34,6 @@ def test_conv2d():
     dilation_w = 1
 
     xshape = [1, in_channel, 128, 128]
-    if not tvm.runtime.enabled("rocm"):
-        print("skip because rocm is not enabled...")
-        return
     if not tvm.get_global_func("tvm.contrib.miopen.conv2d.setup", True):
         print("skip because miopen is not enabled...")
         return
@@ -55,7 +53,7 @@ def test_conv2d():
                               data_type=1)
 
     yshape = [x.value for x in Y.shape]
-    import topi
+    from tvm import topi
     s = te.create_schedule(Y.op)
 
     def verify():

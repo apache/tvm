@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 import numpy as np
 
 
+@tvm.testing.requires_llvm
 def test_dot():
     nn = 12
     n = tvm.runtime.convert(nn)
@@ -29,9 +31,6 @@ def test_dot():
     s = te.create_schedule(C.op)
 
     def verify(target):
-        if not tvm.runtime.enabled(target):
-            print("Target %s is not enabled" % target)
-            return
         f = tvm.driver.build(s, [A, B, C], target)
         # verify
         ctx = tvm.cpu(0)

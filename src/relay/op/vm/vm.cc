@@ -22,13 +22,13 @@
  * \brief Dialect operators for Relay VM.
  */
 
-#include <topi/elemwise.h>
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/attrs/vm.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/topi/elemwise.h>
 
 #include "../../transforms/infer_layout_util.h"
 #include "../op_common.h"
@@ -37,6 +37,7 @@
 namespace tvm {
 namespace relay {
 
+// vm.shape_func
 TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
 
 RELAY_REGISTER_OP("vm.shape_of")
@@ -133,6 +134,7 @@ RELAY_REGISTER_OP("vm.shape_func")
                              return {topi::identity(inputs[0])};
                            });
 
+// vm.invoke_tvm_op
 bool InvokeTVMOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 4u);
@@ -180,6 +182,41 @@ RELAY_REGISTER_OP("vm.invoke_tvm_op")
                               const Type& out_dtype) -> Array<te::Tensor> {
                              return {topi::identity(inputs[0])};
                            });
+
+// vm.reshape
+TVM_REGISTER_NODE_TYPE(ReshapeTensorAttrs);
+
+bool ReshapeTensorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3u);
+  auto reshape_attrs = attrs.as<ReshapeTensorAttrs>();
+  CHECK(reshape_attrs);
+  auto tt = types[0].as<TensorTypeNode>();
+  CHECK(tt) << "input must be tensor type";
+  reporter->Assign(types[2], TensorType(reshape_attrs->newshape, tt->dtype));
+  return true;
+}
+
+RELAY_REGISTER_OP("vm.reshape_tensor")
+    .describe(R"code(Use VM reshape_tensor instruction to reshape the tensor.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor")
+    .add_argument("shape", "Tensor", "The output shape tensor")
+    .add_type_rel("ReshapeTensor", ReshapeTensorRel)
+    .set_support_level(10)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<TNonComputational>("TNonComputational", true)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
+
+TVM_REGISTER_GLOBAL("relay.op.vm.reshape_tensor")
+    .set_body_typed([](Expr data, Expr shape, Array<PrimExpr> newshape) {
+      static const Op& op = Op::Get("vm.reshape_tensor");
+      auto attrs = make_object<ReshapeTensorAttrs>();
+      attrs->newshape = std::move(newshape);
+      return Call(op, {data, shape}, Attrs(attrs), {});
+    });
 
 }  // namespace relay
 }  // namespace tvm

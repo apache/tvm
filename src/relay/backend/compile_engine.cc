@@ -23,7 +23,6 @@
  */
 #include "compile_engine.h"
 
-#include <topi/tags.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
@@ -37,6 +36,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
+#include <tvm/topi/tags.h>
 
 #include <functional>
 #include <limits>
@@ -78,9 +78,13 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
   for (IndexExpr val : shape) {
     const int64_t* pval = tir::as_const_int(val);
     if (pval != nullptr) {
+#ifndef TVM_INDEX_DEFAULT_I64
       CHECK_LE(pval[0], std::numeric_limits<int32_t>::max());
       CHECK_GE(pval[0], std::numeric_limits<int32_t>::min());
       res.push_back(IntImm(DataType::Int(32), *pval));
+#else
+      res.push_back(val);
+#endif  // TVM_INDEX_DEFAULT_I64
     } else if (val->IsInstance<tir::AnyNode>()) {
       res.push_back(val.as<tir::AnyNode>()->ToVar());
     } else {
@@ -131,7 +135,6 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
       candidate_name = truncated_name.str();
     }
     cache_node->func_name = candidate_name;
-
     CHECK(master_op_.defined());
     // Fusion over tupled results may leave identity relationships
     // between inputs and outputs, and those should not be scheduled.
@@ -770,7 +773,7 @@ class CompileEngineImpl : public CompileEngineNode {
 };
 
 /*! \brief The global compile engine */
-const CompileEngine& CompileEngine::Global() {
+CompileEngine& CompileEngine::Global() {
   // intentionally allocate raw pointer to avoid
   // free during destructuion.
   static CompileEngine* inst = new CompileEngine(make_object<CompileEngineImpl>());

@@ -18,12 +18,12 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm.contrib import graph_runtime
-from tvm.relay.testing.config import ctx_list
 from tvm import relay
 from model_zoo import c2_squeezenet, c2_resnet50, c2_vgg19
 from caffe2.python import workspace, core
 from caffe2.proto import caffe2_pb2
 from collections import namedtuple
+import tvm.testing
 
 
 def get_tvm_output(model,
@@ -84,19 +84,22 @@ def verify_caffe2_forward_impl(model, data_shape, out_shape):
     dtype = 'float32'
     data = np.random.uniform(size=data_shape).astype(dtype)
     c2_out = get_caffe2_output(model, data, dtype)
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, data, target, ctx, out_shape, dtype)
         tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_forward_squeezenet1_1():
     verify_caffe2_forward_impl(c2_squeezenet, (1, 3, 224, 224), (1, 1000, 1, 1))
 
 
+@tvm.testing.uses_gpu
 def test_forward_resnet50():
     verify_caffe2_forward_impl(c2_resnet50, (1, 3, 224, 224), (1, 1000))
 
 
+@tvm.testing.uses_gpu
 def test_forward_vgg19():
     verify_caffe2_forward_impl(c2_vgg19, (1, 3, 224, 224), (1, 1000))
 
@@ -104,6 +107,7 @@ def test_forward_vgg19():
 Model = namedtuple('Model', ['init_net', 'predict_net'])
 
 
+@tvm.testing.uses_gpu
 def test_elementwise_add():
     data_shape = (1, 16, 9, 9)
     init_net = caffe2_pb2.NetDef()
@@ -142,6 +146,7 @@ def test_elementwise_add():
     verify_caffe2_forward_impl(model, data_shape, data_shape)
 
 
+@tvm.testing.uses_gpu
 def test_elementwise_add_with_broadcast():
     data_shape = (1, 16, 9, 9)
     init_net = caffe2_pb2.NetDef()
@@ -181,6 +186,7 @@ def test_elementwise_add_with_broadcast():
     verify_caffe2_forward_impl(model, data_shape, data_shape)
 
 
+@tvm.testing.uses_gpu
 def test_normalize_yuv():
     data_shape = (1, 3, 96, 96)
     init_net = caffe2_pb2.NetDef()

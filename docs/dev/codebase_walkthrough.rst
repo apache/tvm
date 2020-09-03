@@ -30,7 +30,7 @@ At the root of the TVM repository, we have following subdirectories that togethe
 - ``src`` - C++ code for operator compilation and deployment runtimes.
 - ``src/relay`` - Implementation of Relay, a new functional IR for deep learning framework.
 - ``python`` - Python frontend that wraps C++ functions and objects implemented in ``src``.
-- ``topi`` - Compute definitions and backend schedules for standard neural network operators.
+- ``src/topi`` - Compute definitions and backend schedules for standard neural network operators.
 
 Using standard Deep Learning terminology, ``src/relay`` is the component that manages a computational graph, and nodes in a graph are compiled and executed using infrastructure implemented in the rest of ``src``. ``python`` provides python bindings for the C++ API and driver code that users can use to execute compilation. Operators corresponding to each node are registered in ``src/relay/op``. Implementations of operators are in ``topi``, and they are coded in either C++ or Python.
 

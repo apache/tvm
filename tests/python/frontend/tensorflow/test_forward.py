@@ -49,6 +49,8 @@ import tvm.relay.testing.tf as tf_testing
 from tvm.runtime.vm import VirtualMachine
 from packaging import version as package_version
 
+import tvm.testing
+
 #######################################################################
 # Generic run functions for TVM & tensorflow
 # ------------------------------------------
@@ -73,7 +75,7 @@ tf_dtypes = {
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
-        return [o.asnumpy().tolist()]
+        return [o.asnumpy()]
     elif isinstance(o, tvm.runtime.container.ADT):
         result = []
         for f in o:
@@ -135,8 +137,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
     elif mode == 'vm':
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
             vm_exec = relay.vm.compile(mod, target="llvm", params=params)
-        vm = VirtualMachine(vm_exec)
-        vm.init(tvm.cpu())
+        vm = VirtualMachine(vm_exec, tvm.cpu())
         inputs = {}
         for e, i in zip(input_node, input_data):
             inputs[e] = tvm.nd.array(i)
@@ -199,7 +200,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
 
         for device in ["llvm", "cuda"]:
             ctx = tvm.context(device, 0)
-            if not ctx.exist:
+            if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 continue
             if no_gpu and device == 'cuda':
@@ -212,6 +213,8 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
+                if not isinstance(tf_output[i], np.ndarray):
+                    assert len(tvm_output[i].shape) == 0
                 tvm.testing.assert_allclose(
                     tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
 
@@ -261,6 +264,7 @@ def _test_pooling(input_shape, **kwargs):
             _test_pooling_iteration(input_shape, **kwargs)
 
 
+@tvm.testing.uses_gpu
 def test_forward_pooling():
     """ Pooling """
     # TensorFlow only supports NDHWC for max_pool3d on CPU
@@ -407,6 +411,7 @@ def _test_convolution(opname, tensor_in_sizes, filter_in_sizes,
                                 'Placeholder:0', 'DepthwiseConv2dNative:0')
 
 
+@tvm.testing.uses_gpu
 def test_forward_convolution():
     if is_gpu_available():
         _test_convolution('conv', [4, 176, 8, 8], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NCHW')
@@ -525,6 +530,7 @@ def _test_convolution3d(opname, tensor_in_sizes, filter_in_sizes,
             compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
                                 'Placeholder:0', 'Conv3D:0', cuda_layout="NCDHW")
 
+@tvm.testing.uses_gpu
 def test_forward_convolution3d():
     if is_gpu_available():
         _test_convolution3d('conv', [4, 176, 8, 8, 8], [1, 1, 1, 176, 32], [1, 1, 1], [1, 1, 1], 'SAME', 'NCDHW')
@@ -568,6 +574,7 @@ def _test_convolution3d_transpose(data_shape, filter_shape, strides,
         compare_tf_with_tvm(data_array, 'Placeholder:0', 'conv3d_transpose:0', cuda_layout="NDHWC")
 
 
+@tvm.testing.uses_gpu
 def test_forward_convolution3d_transpose():
     if is_gpu_available():
         _test_convolution3d_transpose(data_shape=[1, 10, 8, 8, 8],
@@ -654,6 +661,7 @@ def _test_biasadd(tensor_in_sizes, data_format):
                             'Placeholder:0', 'BiasAdd:0')
 
 
+@tvm.testing.uses_gpu
 def test_forward_biasadd():
     if is_gpu_available():
         _test_biasadd([4, 176, 8, 8], 'NCHW')
@@ -1229,7 +1237,8 @@ def test_forward_variable():
     _test_variable(np.random.uniform(size=(32, 100)).astype('float32'))
 
 
-def test_read_variable_op():
+@tvm.testing.parametrize_targets("llvm", "cuda")
+def test_read_variable_op(target, ctx):
     """ Read Variable op test """
 
     tf.reset_default_graph()
@@ -1269,18 +1278,12 @@ def test_read_variable_op():
             out_node,
         )
 
-        for device in ["llvm", "cuda"]:
-            ctx = tvm.context(device, 0)
-            if not ctx.exist:
-                print("Skip because %s is not enabled" % device)
-                continue
-
-            tvm_output = run_tvm_graph(final_graph_def, in_data, in_node,
-                                       target=device, out_names=out_name,
-                                       num_output=len(out_name))
-            for i in range(len(tf_output)):
-                tvm.testing.assert_allclose(
-                    tf_output[i], tvm_output[i], atol=1e-4, rtol=1e-5)
+        tvm_output = run_tvm_graph(final_graph_def, in_data, in_node,
+                                   target=target, out_names=out_name,
+                                   num_output=len(out_name))
+        for i in range(len(tf_output)):
+            tvm.testing.assert_allclose(
+                tf_output[i], tvm_output[i], atol=1e-4, rtol=1e-5)
 
         sess.close()
 
@@ -2032,12 +2035,31 @@ def _test_forward_nms_v3(bx_shape, score_shape, iou_threshold, score_threshold, 
     compare_tf_with_tvm([boxes, scores, max_output_size], ['in_data_1:0', 'in_data_2:0', 'in_data_3:0'],
                         'nms/NonMaxSuppressionV3:0', mode='debug')
 
-def test_forward_nms_v3():
-    """ NonMaxSuppressionV3 """
-    _test_forward_nms_v3((5, 4), (5,), 0.7, 0.5, 5)
-    _test_forward_nms_v3((20, 4), (20,), 0.5, 0.6, 10)
-    _test_forward_nms_v3((1000, 4), (1000,), 0.3, 0.7, 1000)
-    _test_forward_nms_v3((2000, 4), (2000,), 0.4, 0.6, 7)
+def _test_forward_nms_v4(bx_shape, score_shape, iou_threshold, score_threshold, out_size, dtype="float32"):
+    boxes = np.random.uniform(0, 10, size=bx_shape).astype(dtype)
+    scores = np.random.uniform(size=score_shape).astype(dtype)
+    max_output_size = np.int32(out_size)
+    tf.reset_default_graph()
+    in_data_1 = tf.placeholder(dtype, boxes.shape, name="in_data_1")
+    in_data_2 = tf.placeholder(dtype, scores.shape, name="in_data_2")
+    in_data_3 = tf.placeholder(tf.int32, name="in_data_3")
+    indices_padded, num_valid = tf.image.non_max_suppression_padded(boxes=in_data_1, scores=in_data_2, max_output_size=in_data_3,
+                                 iou_threshold=iou_threshold, score_threshold=score_threshold, name="nms", pad_to_max_output_size=True)
+    num_valid = tf.reshape(num_valid,shape=(-1,))
+    indices_padded = tf.reshape(indices_padded, shape=(-1,))
+    tf.slice(indices_padded, tf.constant([0]), num_valid, name="SlicedIndices")
+    compare_tf_with_tvm([boxes, scores, max_output_size], ['in_data_1:0', 'in_data_2:0', 'in_data_3:0'],
+                        ['nms/NonMaxSuppressionV4:1', "SlicedIndices:0"], mode='vm')
+    compare_tf_with_tvm([boxes, scores, max_output_size], ['in_data_1:0', 'in_data_2:0', 'in_data_3:0'],
+                        ['nms/NonMaxSuppressionV4:1',  "SlicedIndices:0"], mode='debug')
+
+def test_forward_nms():
+    """ NonMaxSuppressionV3,4 """
+    for _test_forward_nms in [_test_forward_nms_v3]:
+        _test_forward_nms((5, 4), (5,), 0.7, 0.5, 5)
+        _test_forward_nms((20, 4), (20,), 0.5, 0.6, 10)
+        _test_forward_nms((1000, 4), (1000,), 0.3, 0.7, 1000)
+        _test_forward_nms((2000, 4), (2000,), 0.4, 0.6, 7)
 
 
 #######################################################################
@@ -2362,6 +2384,7 @@ def test_forward_mobilenet():
 # --------
 
 
+@tvm.testing.requires_gpu
 def test_forward_resnetv2():
     '''test resnet model'''
     if is_gpu_available():
@@ -2379,7 +2402,7 @@ def test_forward_resnetv2():
                     sess, data, 'input_tensor:0', out_node + ':0')
                 for device in ["llvm", "cuda"]:
                     ctx = tvm.context(device, 0)
-                    if not ctx.exist:
+                    if not tvm.testing.device_enabled(device):
                         print("Skip because %s is not enabled" % device)
                         continue
                     tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', len(tf_output),
@@ -2411,7 +2434,7 @@ def _test_ssd_impl():
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
                 ctx = tvm.context(device, 0)
-                if not ctx.exist:
+                if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue
                 tvm_output = run_tvm_graph(graph_def, data, in_node, len(out_node),
@@ -3734,7 +3757,7 @@ def test_forward_dynamic_input_shape():
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
                 ctx = tvm.context(device, 0)
-                if not ctx.exist:
+                if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue
                 tvm_output = run_tvm_graph(graph_def, np_data, ["data"], 1,
@@ -3832,143 +3855,5 @@ def test_forward_dynmaic_rnn_lstmblockcell():
                 tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
 
 
-#######################################################################
-# Main
-# ----
 if __name__ == '__main__':
-    # Transforms
-    test_forward_slice()
-    test_forward_transpose()
-    test_forward_reshape()
-    test_forward_depthtospace()
-    test_forward_spacetodepth()
-    test_forward_squeeze()
-    test_forward_pack()
-    test_forward_size()
-    test_forward_broadcast_to()
-    test_forward_fill()
-    test_forward_crop()
-    test_forward_resize()
-    test_forward_crop_and_resize()
-    test_forward_pad()
-    test_forward_unpack()
-    test_forward_gather()
-    test_forward_gather_nd()
-    test_forward_stridedslice()
-    test_forward_split()
-    test_forward_unstack()
-    test_forward_tile()
-    test_forward_top_k_v2()
-    test_forward_clip_by_value()
-    test_forward_maximum()
-    test_forward_minimum()
-    test_forward_range()
-    test_forward_right_shift()
-    test_forward_left_shift()
-    test_forward_truncatemod()
-    test_forward_one_hot()
-    test_forward_atan2()
-    test_forward_nms_v3()
-
-    # Activations
-    test_forward_sigmoid()
-    test_forward_relu()
-    test_forward_leaky_relu()
-    test_forward_elu()
-    test_forward_selu()
-    test_forward_tanh()
-
-    # Tensor
-    test_forward_round()
-    test_forward_reverse_v2()
-    test_forward_pow_exp()
-    test_forward_sign()
-    test_forward_negative()
-    test_forward_divide()
-    test_forward_abs()
-    test_forward_softplus()
-    test_forward_sqrt()
-    test_forward_rsqrt()
-    test_forward_expand_dims()
-    test_forward_square()
-    test_forward_softmax()
-    test_forward_log_softmax()
-    test_forward_bias_add()
-    test_forward_zeros_like()
-    test_forward_squared_difference()
-    test_forward_add_n()
-    test_forward_floormod()
-    test_forward_isfinite()
-    test_forward_isinf()
-    test_forward_unravel_index()
-    test_forward_unary()
-
-    # Reductions
-    test_forward_argminmax()
-    test_forward_reduce()
-    test_forward_mean()
-
-    # TensorArray
-    test_tensor_array_write_read()
-    test_tensor_array_concat()
-    test_tensor_array_scatter()
-    test_tensor_array_gather()
-    test_tensor_array_size()
-    test_tensor_array_split()
-    test_tensor_array_stack()
-    test_tensor_array_unstack()
-
-    # General
-    test_forward_multi_input()
-    test_forward_multi_output()
-    test_forward_variable()
-    test_placeholder()
-
-    # NN
-    test_forward_convolution()
-    test_forward_convolution3d()
-    test_forward_convolution3d_transpose()
-    test_forward_pooling()
-    test_forward_concat_v2()
-    test_forward_lrn()
-    test_forward_l2_normalize()
-    test_forward_space_to_batch_nd()
-    test_forward_batch_to_space_nd()
-    test_forward_dilation()
-
-    # End to End
-    test_forward_inception_v3()
-    test_forward_inception_v1()
-    test_forward_mobilenet()
-    test_forward_resnetv2()
-    test_forward_ssd()
-    test_forward_placeholder()
-    test_forward_ptb()
-
-    # RNN
-    test_forward_lstm()
-
-    # Elementwise
-    test_forward_ceil()
-    test_forward_floor()
-
-    # Relational ops
-    test_forward_rel_ops()
-    test_forward_logical()
-    test_forward_where()
-    test_forward_matmul()
-    test_forward_batch_matmul()
-
-    # Internal misc. ops
-    test_read_variable_op()
-
-    # Sharing params case using Mean ops
-    test_sharing_node()
-
-    # StatefulPartitionedCall
-    test_forward_spop()
-
-    # Test dynamic input shape
-    test_forward_dynamic_input_shape()
-
-    test_forward_dynmaic_rnn_lstmblockcell()
+    pytest.main([__file__])

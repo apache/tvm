@@ -140,8 +140,8 @@ class MicroDeviceAPI final : public DeviceAPI {
    * \brief obtain a global singleton of MicroDeviceAPI
    * \return global shared pointer to MicroDeviceAPI
    */
-  static const std::shared_ptr<MicroDeviceAPI>& Global() {
-    static std::shared_ptr<MicroDeviceAPI> inst = std::make_shared<MicroDeviceAPI>();
+  static MicroDeviceAPI* Global() {
+    static MicroDeviceAPI* inst = new MicroDeviceAPI();
     return inst;
   }
 
@@ -155,7 +155,7 @@ class MicroDeviceAPI final : public DeviceAPI {
 
 // register device that can be obtained from Python frontend
 TVM_REGISTER_GLOBAL("device_api.micro_dev").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = MicroDeviceAPI::Global().get();
+  DeviceAPI* ptr = MicroDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
 }  // namespace runtime

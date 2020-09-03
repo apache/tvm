@@ -110,7 +110,7 @@ InvokePacked
 Invoke the packed function denoted by ``packed_index``. The ``arity``
 and ``output_size`` are used to inform the VM how many inputs and
 outputs to expect. ``packed_args`` stores the list of argument registers. Note ``Index``
-is an alais of ``int64_t``, and it will be used in other instructions as well.
+is an alias of ``int64_t``, and it will be used in other instructions as well.
 
 AllocTensor
 ^^^^^^^^^^^
@@ -276,11 +276,11 @@ VM.
 Currently, three types of objects, ``NDArray``, ``ADT``, and ``Closure`` objects, are used
 to represent tensor, tuple/list, and closure data, respectively. More details
 for each of them can be found at `include/tvm/runtime/ndarray.h`_,
-`include/tvm/runtime/vm.h`_, and `include/tvm/runtime/container.h`_, respectively.
+`include/tvm/runtime/vm/vm.h`_, and `include/tvm/runtime/container.h`_, respectively.
 
 .. _include/tvm/runtime/ndarray.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/ndarray.h
 
-.. _include/tvm/runtime/vm.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/vm.h
+.. _include/tvm/runtime/vm/vm.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/vm/vm.h
 
 .. _include/tvm/runtime/container.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/container.h
 
@@ -321,7 +321,12 @@ VM Compiler
 
 An important part of this infrastructure is a compiler from Relay's full IR into a sequence of bytecode.
 The VM compiler transforms a ``tvm::relay::Module`` into a ``tvm::relay::vm::Executable``. The executable
-contains a set of compiled functions, the compiled functions are contained in ``tvm::relay::vm::Function``. The functions contain metadata about the function as well as its compiled bytecode. The emitted executable object then can be loaded and run by a ``tvm::relay::vm::VirtualMachine`` object. For full definitions of the data structures, please see `include/tvm/runtime/vm.h`_.
+contains a set of compiled functions, the compiled functions are contained in ``tvm::relay::vm::Function``.
+The functions contain metadata about the function as well as its compiled bytecode. The emitted executable
+object then can be loaded and run by a ``tvm::relay::vm::VirtualMachine`` object. For full definitions of the
+data structures, please see `include/tvm/runtime/vm/executable.h`_ and `include/tvm/runtime/vm/vm.h`_.
+
+.. _include/tvm/runtime/vm/executable.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/vm/executable.h
 
 Optimizations
 ~~~~~~~~~~~~~

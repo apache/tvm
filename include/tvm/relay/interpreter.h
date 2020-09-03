@@ -38,7 +38,6 @@
 #include <tvm/relay/expr.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/vm.h>
 #include <tvm/target/target.h>
 
 namespace tvm {
@@ -67,7 +66,7 @@ runtime::TypedPackedFunc<ObjectRef(Expr)> CreateInterpreter(IRModule mod, DLCont
                                                             Target target);
 
 /*! \brief The container type of Closures used by the interpreter. */
-class InterpreterClosureObj : public runtime::vm::ClosureObj {
+class InterpreterClosureObj : public runtime::ClosureObj {
  public:
   /*! \brief The set of free variables in the closure.
    *
@@ -89,13 +88,13 @@ class InterpreterClosureObj : public runtime::vm::ClosureObj {
   }
 
   static constexpr const char* _type_key = "interpreter.Closure";
-  TVM_DECLARE_FINAL_OBJECT_INFO(InterpreterClosureObj, runtime::vm::ClosureObj);
+  TVM_DECLARE_FINAL_OBJECT_INFO(InterpreterClosureObj, runtime::ClosureObj);
 };
 
-class InterpreterClosure : public runtime::vm::Closure {
+class InterpreterClosure : public runtime::Closure {
  public:
   TVM_DLL InterpreterClosure(tvm::Map<Var, ObjectRef> env, Function func);
-  TVM_DEFINE_OBJECT_REF_METHODS(InterpreterClosure, runtime::vm::Closure, InterpreterClosureObj);
+  TVM_DEFINE_OBJECT_REF_METHODS(InterpreterClosure, runtime::Closure, InterpreterClosureObj);
 };
 
 /*! \brief The container type of RecClosure. */

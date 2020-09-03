@@ -125,6 +125,12 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    */
   int NumOutputs() const;
   /*!
+   * \brief Get the number of inputs
+   *
+   * \return The number of inputs to the graph.
+   */
+  int NumInputs() const;
+  /*!
    * \brief Return NDArray for given input index.
    * \param index The input index.
    *
@@ -210,6 +216,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     std::vector<NodeEntry> inputs;
     // control deps
     std::vector<uint32_t> control_deps;
+
     // JSON Loader
     void LoadAttrs(dmlc::JSONReader* reader, TVMOpParam* param) {
       int bitmask = 0;

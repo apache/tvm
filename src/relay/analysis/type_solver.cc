@@ -175,6 +175,17 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     if (ulhs.same_as(urhs)) {
       return ulhs;
     }
+
+    if (ulhs.as<AnyNode>() && urhs.as<tvm::IntImmNode>()) {
+      solver_->shape_uf_.Set(urhs, ulhs);
+      return urhs;
+    }
+
+    if (ulhs.as<tvm::IntImmNode>() && urhs.as<AnyNode>()) {
+      solver_->shape_uf_.Set(ulhs, urhs);
+      return ulhs;
+    }
+
     if (ulhs.as<AnyNode>() || urhs.as<AnyNode>()) {
       return Any();
     }

@@ -49,7 +49,7 @@ def test_split_uneven_unique_likely():
     sch = te.create_schedule(c.op)
     xo, xi = sch[c].split(x, 5)
     stmt = tvm.lower(sch, [a, b, c])["main"].body
-    assert isinstance(stmt.body.body.body, tvm.tir.stmt.IfThenElse)
+    assert isinstance(stmt.body.body, tvm.tir.stmt.IfThenElse)
 
 
 if __name__ == "__main__":

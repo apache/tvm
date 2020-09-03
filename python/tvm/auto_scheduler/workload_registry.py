@@ -95,7 +95,7 @@ def make_workload_key(func, args):
 
     Returns
     -------
-    workload_key : Str
+    workload_key : str
         The workload key of the function.
     """
     global WORKLOAD_FUNC_REGISTRY

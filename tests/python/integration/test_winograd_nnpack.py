@@ -21,10 +21,11 @@ from tvm import autotvm
 from tvm.autotvm.task.space import FallbackConfigEntity
 from tvm.contrib import nnpack
 from tvm.contrib.pickle_memoize import memoize
-import topi
-import topi.testing
-from topi.util import get_const_tuple
+from tvm import topi
+import tvm.topi.testing
+from tvm.topi.util import get_const_tuple
 from pytest import skip
+import tvm.testing
 
 
 def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False,
@@ -47,8 +48,8 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         a_np = np.random.uniform(size=a_shape).astype(dtype)
         w_np = np.random.uniform(size=w_shape).astype(dtype)
         b_np = np.random.uniform(size=bias_shape).astype(dtype)
-        dw_np = topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
-        c_np = topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding)
+        dw_np = tvm.topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
+        c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding)
         if add_bias:
             b_np = np.random.uniform(size=bias_shape).astype(dtype)
             c_np += b_np
@@ -60,8 +61,8 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            skip("s is not enabled" % device)
+        if not tvm.testing.device_enabled(device):
+            print("Skipping %s becuase it is not enabled" % device)
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             C = topi.nn.conv2d(A, W, stride, padding, dilation, layout='NCHW', out_dtype=dtype)

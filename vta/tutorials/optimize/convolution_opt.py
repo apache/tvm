@@ -123,7 +123,7 @@ elif env.TARGET in ["sim", "tsim"]:
 #        :align: center
 #        :width: 480px
 
-import topi
+from tvm import topi
 
 # 2D convolution layer dimensions taken from ResNet-18 architecture
 # (9th convolutional layer)
@@ -371,7 +371,7 @@ print(vta.lower(s, [data, kernel, res], simple_mode=True))
 # ensure correctness.
 
 # This library facilitates 2D convolution testing
-from topi.testing import conv2d_nchw_python
+from tvm.topi.testing import conv2d_nchw_python
 
 # Compile the TVM module
 my_conv = vta.build(s, [data, kernel, res], "ext_dev", env.target_host, name="my_conv")
