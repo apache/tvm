@@ -33,12 +33,6 @@ find . -type f -path "*.pyc" | xargs rm -f
 # Test TVM
 make cython3
 
-# Test MISRA-C runtime
-cd apps/bundle_deploy
-rm -rf build
-make test_dynamic test_static
-cd ../..
-
 # Test extern package
 cd apps/extension
 rm -rf lib
