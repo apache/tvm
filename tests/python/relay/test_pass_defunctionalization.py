@@ -92,7 +92,7 @@ def @id[A](%x: A) -> A {
   %x
 }
 def @main(%f: float32) -> float32 {
-  @id(%f)
+  @id(@id)(%f)
 }
 """
   mod = tvm.parser.fromtext(code)

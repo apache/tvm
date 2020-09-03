@@ -63,33 +63,33 @@ bool IsHigherOrderFunc(const FuncType& t) {
   return higher_order |= HasFuncType(t->ret_type);
 }
 
-Array<Type> InferTypeArgs(const CallNode* call, const IRModule& mod) {
-  ErrorReporter err;
-  TypeSolver solver(mod->GetGlobalVar("main"), mod, &err);
-  const FuncTypeNode* fn_ty = call->op->checked_type().as<FuncTypeNode>();
+// Array<Type> InferTypeArgs(const CallNode* call, const IRModule& mod) {
+//   ErrorReporter err;
+//   TypeSolver solver(mod->GetGlobalVar("main"), mod, &err);
+//   const FuncTypeNode* fn_ty = call->op->checked_type().as<FuncTypeNode>();
 
-  tvm::Map<TypeVar, Type> subst_map;
-  for (auto& tv: fn_ty->type_params) {
-    subst_map.Set(tv, IncompleteType(Kind::kType));
-  }
+//   tvm::Map<TypeVar, Type> subst_map;
+//   for (auto& tv: fn_ty->type_params) {
+//     subst_map.Set(tv, IncompleteType(Kind::kType));
+//   }
 
-  auto inst_fnty = FuncType(fn_ty->arg_types, fn_ty->ret_type, {}, {});
-  auto f_incomplete = Downcast<FuncType>(Bind(inst_fnty, subst_map));
+//   auto inst_fnty = FuncType(fn_ty->arg_types, fn_ty->ret_type, {}, {});
+//   auto f_incomplete = Downcast<FuncType>(Bind(inst_fnty, subst_map));
 
-  CHECK(call->args.size() == f_incomplete->arg_types.size()) << "num of arguments does not match expected";
-  size_t num_args = f_incomplete->arg_types.size();
-  for (size_t i = 0; i < num_args; i++) {
-    auto t1 = f_incomplete->arg_types[i];
-    auto t2 = call->args[i]->checked_type();
-    auto t = solver.Unify(t1, t2, GetRef<Call>(call));
-  }
-  Array<Type> ret;
-  for (auto& tv: fn_ty->type_params) {
-    std::cout << "Resolved Type: " << solver.Resolve(subst_map[tv]) << std::endl;
-    ret.push_back(solver.Resolve(subst_map[tv])); 
-  }
-  return ret;
-}
+//   CHECK(call->args.size() == f_incomplete->arg_types.size()) << "num of arguments does not match expected";
+//   size_t num_args = f_incomplete->arg_types.size();
+//   for (size_t i = 0; i < num_args; i++) {
+//     auto t1 = f_incomplete->arg_types[i];
+//     auto t2 = call->args[i]->checked_type();
+//     auto t = solver.Unify(t1, t2, GetRef<Call>(call));
+//   }
+//   Array<Type> ret;
+//   for (auto& tv: fn_ty->type_params) {
+//     std::cout << "Resolved Type: " << solver.Resolve(subst_map[tv]) << std::endl;
+//     ret.push_back(solver.Resolve(subst_map[tv])); 
+//   }
+//   return ret;
+// }
 
 class DefuncMutator : public ExprMutator {
  public:
@@ -97,24 +97,26 @@ class DefuncMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* op) {
     auto op_func = op->op;
-    auto f = DeGlobal(mod, op_func).as<FunctionNode>();
-    CHECK(f) << "only calls to functions or globalvars are supported so far";
-    // CHECK(op->type_args.size() == f->type_params.size()) << "all type args must be explicit";
+    CHECK(op->type_args.size() == f->type_params.size()) << "all type args must be explicit";
 
-    // clone function and specialize if there are higher order functions
-    if (IsHigherOrderFunc(Downcast<FuncType>(f->func_type_annotation()))) {
-      std::cout << "Call Function: " << GetRef<Function>(f) << std::endl;
-
+    // clone function and specialize if it is a higher order functions
+    auto op_type = InstFuncType(op_func->checked_type().as<FuncTypeNode>(), op->type_args);
+    if (IsHigherOrderFunc(op_type)) {
       std::string name;
       if (auto gv = op->op.as<GlobalVarNode>()) {
         name = gv->name_hint;
       } else {
         name = "anon" + std::to_string(anon_name++);
       }
-      auto clone_gv = Clone(name, f, InferTypeArgs(op, mod));
-      auto f_clone = Downcast<Function>(DeGlobal(mod, clone_gv));
-      std::cout << f_clone << std::endl;
-      auto f_clone_type = f_clone->func_type_annotation();
+      name += TypeToString(op_type);
+
+      auto f = DeGlobal(mod, op_func).as<FunctionNode>();
+      CHECK(f) << "only calls to functions or globalvars are supported so far";
+      std::cout << "Call Function: " << GetRef<Function>(f) << std::endl;
+      
+      auto gv = Clone(name, f, op->type_args);
+      for (op_type)
+
       CHECK(FreeTypeVars(f_clone_type, mod).size() == 0)
           << "free type vars in specialized function";
       CHECK(FreeVars(f_clone).size() == FreeVars(GetRef<Function>(f)).size())
@@ -275,16 +277,20 @@ class DefuncMutator : public ExprMutator {
     return s.str();
   }
 
-  GlobalVar Clone(std::string name_prefix, const FunctionNode* f, const Array<Type> type_args) {
+  GlobalVar Clone(std::string name, const FunctionNode* f, const Array<Type> type_args) {
     auto spec = Specialize(f, type_args);
-    auto gv_name = name_prefix + TypeToString(spec->func_type_annotation().as<FuncTypeNode>());
-    std::cout << gv_name << std::endl;
-    if (mod->ContainGlobalVar(gv_name)) {
-      return mod->GetGlobalVar(gv_name);
-    }
-    auto gv = GlobalVar(gv_name);
+    auto gv = GlobalVar(name);
     mod->Add(gv, Downcast<Function>(DeDup(spec)));
     return gv;
+  }
+
+  FuncType InstFuncType(const FuncTypeNode* fty, const Array<Type> type_args) {
+    auto map = tvm::Map<TypeVar, Type>();
+    for (size_t i = 0; i < type_args.size(); i++) {
+      map.Set(f->type_params[i], type_args[i]);
+    }
+    // copy with typevars removed
+    return TypeSubst(FuncType(fty->arg_types, fty->ret_type, {}, {}), map);
   }
 
   Function Specialize(const FunctionNode* f, const Array<Type> type_args) {
