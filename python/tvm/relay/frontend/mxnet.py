@@ -544,9 +544,7 @@ def _mx_slice_axis(inputs, attrs):
         else:
             begin.append(ax_beg)
             end.append(ax_end)
-    return _op.strided_slice(inputs[0],
-                             begin,
-                             end)
+    return _op.strided_slice(inputs[0], begin, end)
 
 
 def _mx_crop_like(inputs, attrs):
