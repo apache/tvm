@@ -375,6 +375,10 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       subst_map.Set(fn_ty->type_params[i], ty_args[i]);
     }
 
+    for (size_t i = ty_args.size(); i < fn_ty->type_params.size(); ++i) {
+      subst_map.Set(fn_ty->type_params[i], IncompleteType(Kind::kType));
+    }
+
     Type ret_type = fn_ty->ret_type;
 
     // If the function type is incomplete, place a new IncompleteType
@@ -659,7 +663,6 @@ class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
     }
 
     if (need_update_call) {
-      std::cout << new_e << std::endl;
       new_call->type_args = it->second.type_args;
       for (size_t i = 0; i < new_call->type_args.size(); i++) {
         new_call->type_args.Set(i, solver_->Resolve(new_call->type_args[i]));
