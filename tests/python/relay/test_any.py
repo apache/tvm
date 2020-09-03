@@ -865,5 +865,22 @@ def test_any_consecutive_broadcast():
               ((np_data2 + np_data3) - (np_data2 * np_data3))
     check_result([np_data0, np_data1, np_data2, np_data3], mod, ref_res)
 
+def test_reshape_concat():
+    d0 = relay.var("d0", shape=any_dims(2), dtype='float32')
+    d1 = relay.var("d1", shape=any_dims(3), dtype='float32')
+    out = relay.op.concatenate([relay.op.reshape(d0, [-1]), relay.op.reshape(d1, [-1])], axis=0)
+    mod = tvm.IRModule()
+    mod['main'] = relay.Function([d0, d1], out)
+    relay.create_executor("vm", mod=mod, ctx=tvm.cpu(), target="llvm")
+
+    d0 = relay.var("d0", shape=any_dims(2), dtype='float32')
+    d1 = relay.var("d1", shape=any_dims(2), dtype='float32')
+    s0 = relay.var("s0", shape=any_dims(3), dtype='float32')
+    s1 = relay.var("s1", shape=any_dims(3), dtype='float32')
+    out = relay.op.concatenate([relay.op.reshape_like(d0, s0), relay.op.reshape_like(d1, s1)], axis=0)
+    mod = tvm.IRModule()
+    mod['main'] = relay.Function([d0, d1, s0, s1], out)
+    relay.create_executor("vm", mod=mod, ctx=tvm.cpu(), target="llvm")
+
 if __name__ == "__main__":
     pytest.main([__file__])
