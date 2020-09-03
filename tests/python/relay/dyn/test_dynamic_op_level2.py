@@ -52,7 +52,6 @@ def test_dyn_upsampling_run():
         func = relay.Function([x, scale_h_var, scale_w_var], z)
 
         for target, ctx in tvm.testing.enabled_targets():
-             if "llvm" not in target: continue
              for kind in ["vm", "debug"]:
                  mod = tvm.ir.IRModule.from_expr(func)
                  intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
