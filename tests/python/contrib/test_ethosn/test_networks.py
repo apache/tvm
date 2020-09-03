@@ -17,6 +17,10 @@
 
 """Ethos-N integration end-to-end network tests"""
 
+import pytest
+pytest.importorskip('tflite')
+pytest.importorskip('tensorflow')
+
 from tvm import relay
 from tvm.relay.op.contrib.ethosn import ethosn_available, Available
 from tvm.contrib import download
