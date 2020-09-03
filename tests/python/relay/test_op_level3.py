@@ -1103,10 +1103,10 @@ def test_adv_index():
             inputs.append(relay.var("index_{}".format(i), relay.TensorType(index_shape, "int64")))
         np_out = np_data[tuple(np_indices)]
         np_args = [np_data] + np_indices
-        out = relay.adv_index(inputs)
+        out = relay.op.adv_index(inputs)
 
         func = relay.Function(inputs, out)
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(*np_args)
