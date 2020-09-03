@@ -151,9 +151,9 @@ except tvm.TVMError as e:
 
 tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func(
 {
-    (32, 32): "FloatToPosit32es2",
-    (32, 16): "FloatToPosit16es2",
-    (32, 8): 'FloatToPosit8es2',
+    (32, 32): "FloatToPosit32es2", # cast from float32 to posit32
+    (32, 16): "FloatToPosit16es2", # cast from float32 to posit16
+    (32, 8): 'FloatToPosit8es2', # cast from float32 to posit8
 }), 
 "Cast", "llvm", "float", "posit")
 
@@ -165,8 +165,10 @@ tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func(
 #
 # In the general case, we expect users to implement operations over their custom datatypes using calls to an external library.
 # In our example, our ``posit`` library implements a ``Cast`` from ``float`` to 16-bit ``posit`` in the function ``FloatToPosit16es2``.
-# To provide for the general case, we have made a helper function, ``create_lower_func(...)``, which does just this: given a function name, it replaces the given operation with a ``Call`` to the function name provided.
+# To provide for the general case, we have made a helper function, ``create_lower_func(...)``,
+# which does just this: given a dictionary, it replaces the given operation with a ``Call`` to the appropriate function name provided based on the op and the bit widths.
 # It additionally removes usages of the custom datatype by storing the custom datatype in an opaque ``uint`` of the appropriate width; in our case, a ``uint16_t``.
+# For more information, see `the source code <https://github.com/apache/incubator-tvm/blob/master/python/tvm/target/datatype.py>`_.
 
 # We can now re-try running the program:
 try:
@@ -181,6 +183,10 @@ except tvm.TVMError as e:
 ######################################################################
 # This new error tells us that the ``Add`` lowering function is not found, which is good news, as it's no longer complaining about the ``Cast``!
 # We know what to do from here: we just need to register the lowering functions for the other operations in our program.
+# 
+# Note that for ``Add``, ``create_lower_func`` takes in a dict where the key is an integer.
+# For ``Cast`` operations, we require a 2-tuple to specify the ``src_bit_length`` and the ``dest_bit_length``,
+# while for all other operations, the bit length is the same between the operands so we only require one integer to specify ``bit_length``.
 tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
     32: 'Posit32es2Add',
     16: 'Posit16es2Add',
@@ -321,12 +327,6 @@ tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
     8: 'Posit8es2Sub'
 }), "Sub", "llvm", "posit")
 
-tvm.target.datatype.register_min_func(tvm.target.datatype.create_min_lower_func({
-    32: 'MinPosit32es2',
-    16: 'MinPosit16es2',
-    8: 'MinPosit8es2'
-}, "posit"), "posit")
-
 tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
     32: 'Posit32es2Exp',
     16: 'Posit16es2Exp',
@@ -339,7 +339,21 @@ tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
     8: 'Posit8es2Max'
 }), "Max", "llvm", "posit")
 
+tvm.target.datatype.register_min_func(tvm.target.datatype.create_min_lower_func({
+    32: 'MinPosit32es2',
+    16: 'MinPosit16es2',
+    8: 'MinPosit8es2'
+}, "posit"), "posit")
+
 ######################################################################
+# Note we are making use of two new functions: ``register_min_func`` and ``create_min_lower_func``.
+# 
+# ``register_min_func`` takes in an integer ``num_bits`` for the bit length, and should return an operation
+# representing the minimum finite representable value for the custom data type with the specified bit length.
+#  
+# Similar to ``register_op`` and ``create_lower_func``, the ``create_min_lower_func`` handles the general case
+# where the minimum representable custom datatype value is implemented using calls to an external library.
+#
 # Now we can finally run the model:
 
 # Vectorization is not implemented with custom datatypes.

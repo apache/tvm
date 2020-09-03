@@ -41,7 +41,7 @@ class ChangeDatatype(ExprMutator):
             params = dict((p, tvm.nd.array(params[p].asnumpy().astype(dst))) for p in params)
             return mod, params
 
-        mod, params = change_dtype(mod, params, "float32", "posites2")
+        mod, params = change_dtype(mod, params, "float32", "custom[posites2]32")
 
     Parameters
     ----------
@@ -68,7 +68,6 @@ class ChangeDatatype(ExprMutator):
     def visit_constant(self, const):
         if const.data.dtype == self.src:
             return const.astype(self.dst)
-        # TODO(hypercubestart): should we raise an error in this case, or return const?
         return const
 
     def visit_function(self, fn):
