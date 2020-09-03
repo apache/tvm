@@ -55,11 +55,11 @@ class ExprFunctor;
 
 // functions to be overriden.
 #define EXPR_FUNCTOR_DEFAULT \
-  { return VisitExprDefault_(op, std::forward<Args>(args)...); }
+  { return VisitExprDefault_(op, args...); }
 
-#define RELAY_EXPR_FUNCTOR_DISPATCH(OP)                                                    \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \
-    return self->VisitExpr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
+#define RELAY_EXPR_FUNCTOR_DISPATCH(OP)                                                \
+  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) { \
+    return self->VisitExpr_(static_cast<const OP*>(n.get()), args...);                 \
   });
 
 template <typename R, typename... Args>
@@ -79,7 +79,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
    * \param args Additional arguments.
    * \return The result of the call
    */
-  R operator()(const Expr& n, Args... args) { return VisitExpr(n, std::forward<Args>(args)...); }
+  R operator()(const Expr& n, Args... args) { return VisitExpr(n, args...); }
   /*!
    * \brief The functor call.
    * \param n The expression node.
@@ -89,7 +89,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr(const Expr& n, Args... args) {
     CHECK(n.defined());
     static FType vtable = InitVTable();
-    return vtable(n, this, std::forward<Args>(args)...);
+    return vtable(n, this, args...);
   }
   // Functions that can be overriden by subclass
   virtual R VisitExpr_(const ConstantNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
