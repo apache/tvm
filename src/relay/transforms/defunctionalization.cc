@@ -95,117 +95,83 @@ class DefuncMutator : public ExprMutator {
  public:
   DefuncMutator(const IRModule& mod) : mod(mod), constructor_name(0), anon_name(0) {}
 
-  Expr VisitExpr_(const CallNode* op) {
-    auto op_func = op->op;
-    CHECK(op->type_args.size() == f->type_params.size()) << "all type args must be explicit";
+  Expr VisitExpr_(const CallNode* call) {
+    if (auto op = call->op.as<GlobalVarNode>()) {
+      CHECK(call->type_args.size() == op->checked_type().as<FuncTypeNode>()->type_params.size()) << "all type args must be explicit";
 
-    // clone function and specialize if it is a higher order functions
-    auto op_type = InstFuncType(op_func->checked_type().as<FuncTypeNode>(), op->type_args);
-    if (IsHigherOrderFunc(op_type)) {
-      std::string name;
-      if (auto gv = op->op.as<GlobalVarNode>()) {
-        name = gv->name_hint;
-      } else {
-        name = "anon" + std::to_string(anon_name++);
+      auto op_type = InstFuncType(op->checked_type().as<FuncTypeNode>(), call->type_args);
+
+      CHECK(!HasFuncType(op_type->ret_type)) << "returning functions not supported";
+      if (!IsHigherOrderFunc(op_type)) {
+        return ExprMutator::VisitExpr_(call);
       }
-      name += TypeToString(op_type);
-
-      auto f = DeGlobal(mod, op_func).as<FunctionNode>();
-      CHECK(f) << "only calls to functions or globalvars are supported so far";
-      std::cout << "Call Function: " << GetRef<Function>(f) << std::endl;
-      
-      auto gv = Clone(name, f, op->type_args);
-      for (op_type)
-
-      CHECK(FreeTypeVars(f_clone_type, mod).size() == 0)
-          << "free type vars in specialized function";
-      CHECK(FreeVars(f_clone).size() == FreeVars(GetRef<Function>(f)).size())
-          << "local closures not supported yet";
-      CHECK(!HasFuncType(f_clone_type->ret_type)) << "returning function not supported yet";
+      auto name = op->name_hint + TypeToString(op_type);
+      auto gv = GlobalVar(name);
+      if (mod->ContainGlobalVar(name)) {
+        gv = mod->GetGlobalVar(name);
+      } else {
+        // clone and specialize with specific type
+        auto clone = DeDup(DeGlobal(mod, GetRef<GlobalVar>(op))).as<FunctionNode>();
+        auto specialized_function = Specialize(clone, call->type_args);
+        auto f = Downcast<Function>(this->VisitExpr(FirstifyVars(specialized_function)));
+        mod->Add(gv, f);
+      }
 
       Array<Expr> args;
-      std::unordered_map<Var, GlobalVar, ObjectHash, ObjectEqual> applyVars;
-      for (size_t i = 0; i < f_clone_type->arg_types.size(); i++) {
-        if (f_clone_type->arg_types[i].as<FuncTypeNode>()) {
-          auto arg = EncodeFunctionArg(op->args[i], f_clone_type->arg_types[i].as<FuncTypeNode>());
+      for (size_t i = 0; i < call->args.size(); i++) {
+        auto arg = call->args[i];
+        auto type = op_type->arg_types[i];
+        // we assume arg is either an identifier or a function
+        if (!HasFuncType(type)) {
           args.push_back(arg);
-          applyVars[f_clone->params[i]] = apply_map[f_clone->params[i]->checked_type()];
-        } else {
-          CHECK(!HasFuncType(f_clone_type->arg_types[i])) << "nested function type in parameter not supported yet";
-          args.push_back(op->args[i]);
+          continue;
         }
+
+        CHECK(type.as<FuncTypeNode>()) << "assume no nested functions";
+
+        if (arg.as<VarNode>()) {
+          args.push_back(arg);
+        }
+        if (arg.as<GlobalVarNode>()) {
+          args.push_back(EncodeGlobalVar(Downcast<GlobalVar>(arg), Downcast<FuncType>(type)));
+        }
+        if (arg.as<FunctionNode>()) {
+
+        }
+        CHECK(false) << "assume all first-order-parameters are identifiers or functions";
       }
-      auto new_func = ApplyVars(clone_gv, applyVars);
 
-      return Call(new_func, args);
+    } else if (auto op = call->op.as<FunctionNode>()) {
+      std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> var_binding_map;
+      for (size_t i = 0; i < op->params.size(); i++) {
+        var_binding_map[op->params[i]] = call->args[i];
+      } 
+      auto e = Bind(op->body, var_binding_map);
+      return this->VisitExpr(e);
+    } else if (auto op = call->op.as<VarNode>()) {
+      auto op_type = InstFuncType(var_save_type[GetRef<Var>(op)].as<FuncTypeNode>(), call->type_args);
+      
+      Array<Expr> args = {GetRef<Var>(op)};
+      for (auto arg: call->args) {
+        args.push_back(this->VisitExpr(arg));
+      }
+
+      auto e = Call(apply_map[op_type], args);
+      return e;
     }
-    return ExprMutator::VisitExpr_(op);
+    return ExprMutator::VisitExpr_(call);
   }
-
-  // Expr VisitExpr_(const LetNode* op) {
-  //   var_map[op->var] = this->VisitExpr(op->value);
-  //   return this->VisitExpr(op->body);
-  // }
-
-  // Expr VisitExpr_(const VarNode* op) {
-  //   if (var_map.count(GetRef<Var>(op)) != 0) {
-  //     return var_map[GetRef<Var>(op)];
-  //   }
-  //   return GetRef<Var>(op);
-  // }
 
  private:
   IRModule mod;
   // encode func type to ADT
   std::unordered_map<Type, GlobalTypeVar, ObjectHash, StructuralEqual> func_encoding;
   std::unordered_map<Type, GlobalVar, ObjectHash, StructuralEqual> apply_map;
+  std::unordered_map<Var, Type, ObjectHash, StructuralEqual> var_save_type;
+  std::unordered_map<GlobalVar, std::unordered_map<Type, Constructor, ObjectHash, StructuralEqual>, ObjectHash, ObjectEqual> gv_datatype_map;
   // use monotonically increasing integer to represent new constructor_name
   unsigned int constructor_name;
   unsigned int anon_name;
-
-  Expr ApplyVars(GlobalVar gv, const std::unordered_map<Var, GlobalVar, ObjectHash, ObjectEqual>& vars) {
-    struct ApplyVarMutator: public ExprMutator {
-      std::unordered_map<Var, GlobalVar, ObjectHash, ObjectEqual> vars;
-      std::unordered_map<Var, Var, ObjectHash, ObjectEqual> var_map;
-      ApplyVarMutator(const std::unordered_map<Var, GlobalVar, ObjectHash, ObjectEqual>& vars, const std::unordered_map<Var, Var, ObjectHash, ObjectEqual>& var_map) : vars(vars), var_map(var_map) {}
-      Expr VisitExpr_(const CallNode* op) {
-        if (auto var_op = op->op.as<VarNode>()) {
-          if (vars.count(GetRef<Var>(var_op)) != 0) {
-            auto gv = vars[GetRef<Var>(var_op)];
-            Array<Expr> args = {GetRef<Var>(var_op)};
-            for (auto arg: op->args) {
-              args.push_back(arg);
-            }
-            return ExprMutator::VisitExpr_(Call(gv, args).as<CallNode>());
-          }
-        } else if (IsHigherOrderFunc(Downcast<FuncType>(op->op->checked_type()))) 
-
-        return ExprMutator::VisitExpr_(op);
-      }
-
-      Expr VisitExpr_(const VarNode* op) {
-        auto var = GetRef<Var>(op);
-        if (var_map.count(var) != 0) {
-          return var_map[var];
-        }
-        return ExprMutator::VisitExpr_(op);
-      }
-    };
-    auto e = Downcast<Function>(mod->Lookup(gv));
-
-    std::unordered_map<Var, Var, ObjectHash, ObjectEqual> var_map;
-    for (auto v : e->params) {
-      if (v->type_annotation.as<FuncTypeNode>()) {
-        var_map[v] = Var(v->name_hint(), IncompleteType(TypeKind::kType));
-      }
-    }
-    auto applied = Downcast<Function>(ApplyVarMutator(vars, var_map).Mutate(e));
-    auto typed = this->VisitExpr(InferType(applied, mod, gv));
-    std::cout << "TYPED: " << typed << std::endl;
-    mod->Add(gv, Downcast<Function>(typed), true);
-    
-    return gv;
-  }
 
   void AddConstructor(GlobalTypeVar gtv, Constructor c) {
     if (!mod->ContainGlobalTypeVar(gtv->name_hint)) {
@@ -251,46 +217,44 @@ class DefuncMutator : public ExprMutator {
     }
   }
 
-  Expr EncodeFunctionArg(const Expr& f, const FuncTypeNode* ft) {
-    auto adt_name = "T" + TypeToString(ft);
-    if (func_encoding.count(GetRef<FuncType>(ft)) == 0) {
-      func_encoding[GetRef<FuncType>(ft)] = GlobalTypeVar(adt_name, TypeKind::kAdtHandle);
+  Expr EncodeGlobalVar(const GlobalVar& gv, const FuncType& ft) {
+    auto map = gv_datatype_map[gv];
+    if (map.count(ft) == 0) {
+      auto adt_name = "T" + TypeToString(ft);
+
+      if (func_encoding.count(ft) == 0) {
+        func_encoding[ft] = GlobalTypeVar(adt_name, TypeKind::kAdtHandle);
+      }
+
+      auto gtv = func_encoding[ft];
+      auto c = Constructor(std::to_string(constructor_name++), {}, gtv);
+      AddConstructor(gtv, c);
+
+      if (apply_map.count(ft) == 0) {
+        apply_map[ft] = GlobalVar("apply" + TypeToString(ft));
+      }
+
+      auto gv = apply_map[ft];
+      AddApplyCase(gv, ft, c, gv);
     }
-
-    auto gtv = func_encoding[GetRef<FuncType>(ft)];
-    auto c = Constructor(std::to_string(constructor_name++), {}, gtv);
-    AddConstructor(gtv, c);
-
-    if (apply_map.count(GetRef<FuncType>(ft)) == 0) {
-      apply_map[GetRef<FuncType>(ft)] = GlobalVar("apply" + TypeToString(ft));
-    }
-
-    auto gv = apply_map[GetRef<FuncType>(ft)];
-    AddApplyCase(gv, GetRef<FuncType>(ft), c, f);
-
+    
+    auto c = map[ft];
     return Call(c, {});
   }
   
-  std::string TypeToString(const TypeNode* t) {
+  std::string TypeToString(const Type& t) {
     std::ostringstream s;
-    s << GetRef<Type>(t);
+    s << t;
     return s.str();
-  }
-
-  GlobalVar Clone(std::string name, const FunctionNode* f, const Array<Type> type_args) {
-    auto spec = Specialize(f, type_args);
-    auto gv = GlobalVar(name);
-    mod->Add(gv, Downcast<Function>(DeDup(spec)));
-    return gv;
   }
 
   FuncType InstFuncType(const FuncTypeNode* fty, const Array<Type> type_args) {
     auto map = tvm::Map<TypeVar, Type>();
     for (size_t i = 0; i < type_args.size(); i++) {
-      map.Set(f->type_params[i], type_args[i]);
+      map.Set(fty->type_params[i], type_args[i]);
     }
     // copy with typevars removed
-    return TypeSubst(FuncType(fty->arg_types, fty->ret_type, {}, {}), map);
+    return Downcast<FuncType>(TypeSubst(FuncType(fty->arg_types, fty->ret_type, {}, {}), map));
   }
 
   Function Specialize(const FunctionNode* f, const Array<Type> type_args) {
@@ -302,6 +266,28 @@ class DefuncMutator : public ExprMutator {
     auto copy = TypeSubst(Function(f->params, f->body, f->ret_type, {}), map);
     return Downcast<Function>(copy);
   }
+
+  Function FirstifyVars(const Function& f) {
+    CHECK(f->type_params.size() == 0) << "firstify function has type params";
+
+    std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> var_bind_map;
+    for (auto var: f->params) {
+      if (auto var_type = var->checked_type().as<FuncTypeNode>()) {
+        // first order parameter
+        auto fop_type = GetRef<FuncType>(var_type);
+        if (func_encoding.count(fop_type) == 0) {
+          auto name = "T" + TypeToString(fop_type);
+          func_encoding[fop_type] = GlobalTypeVar(name, TypeKind::kAdtHandle);
+        }
+        auto adt = func_encoding[fop_type];
+        var_bind_map[var] = Var(var->name_hint(), TypeCall(adt, {}));
+      } else {
+        CHECK(!HasFuncType(var->checked_type())) << "nested function type in parameter not supported yet";
+      }
+    }
+
+    return Downcast<Function>(Bind(f, var_bind_map));
+  }
 };
 
 Expr Defunctionalization(const Expr& e, const IRModule& mod) {
@@ -311,6 +297,7 @@ Expr Defunctionalization(const Expr& e, const IRModule& mod) {
   for (const auto& p : f->params) {
     CHECK(!HasFuncType(p)) << "input parameters cannot have func type";
   }
+  CHECK(!HasFuncType(f->ret_type)) << "return type cannot contain function";
 
   return DefuncMutator(mod).VisitExpr(e);
 }

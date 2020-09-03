@@ -59,9 +59,9 @@ def @main(%l: List[float32]) -> List[float32] {
 }
 """
   mod = tvm.parser.fromtext(code)
-  mod = LambdaLift()(mod)
+  # mod = LambdaLift()(mod)
   mod = InferType()(mod)
-  expr = Defunctionalization(mod['main'], mod)
+  # expr = Defunctionalization(mod['main'], mod)
 
 def test_sum():
   code = """
@@ -103,4 +103,4 @@ if __name__ == "__main__":
   # pytest.main([__file__])
   #   test_simple()
   #   test_global_recursion()
-    test()
+    test_global_recursion()
