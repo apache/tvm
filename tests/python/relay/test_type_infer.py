@@ -372,5 +372,19 @@ def test_if():
     ft = run_infer_type(top)
     tvm.ir.assert_structural_equal(ft.ret_type, relay.TensorType([Any(), 1], dtype='float32'))
 
+def test_type_arg_infer():
+  code = """
+#[version = "0.0.5"]
+def @id[A](%x: A) -> A {
+  %x
+}
+def @main(%f: float32) -> float32 {
+  @id(%f)
+}
+"""
+  mod = tvm.parser.fromtext(code)
+  mod = transform.InferType()(mod)
+  tvm.ir.assert_structural_equal(mod['main'].body.type_args, [relay.TensorType((), 'float32')])
+
 if __name__ == "__main__":
     pytest.main([__file__])
