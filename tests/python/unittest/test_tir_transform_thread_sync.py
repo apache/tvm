@@ -16,7 +16,9 @@
 # under the License.
 import tvm
 from tvm import te
+import tvm.testing
 
+@tvm.testing.requires_cuda
 def test_thread_storage_sync():
     m = te.size_var('m')
     l = te.size_var('l')

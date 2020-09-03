@@ -20,6 +20,7 @@ from tvm.relay import testing
 import tvm
 from tvm.contrib import graph_runtime
 from tvm.contrib.debugger import debug_runtime
+import tvm.testing
 
 def input_shape(mod):
     return [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
@@ -42,7 +43,7 @@ def verify(data):
     return out
 
 def test_legacy_compatibility():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         print("Skip because llvm is not enabled")
         return
     mod, params = relay.testing.synthetic.get_workload()
@@ -58,7 +59,7 @@ def test_legacy_compatibility():
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
 def test_cpu():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         print("Skip because llvm is not enabled")
         return
     mod, params = relay.testing.synthetic.get_workload()
@@ -83,10 +84,9 @@ def test_cpu():
     out = gmod.get_output(0).asnumpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
+@tvm.testing.requires_cuda
+@tvm.testing.requires_gpu
 def test_gpu():
-    if not tvm.runtime.enabled("cuda"):
-        print("Skip because cuda is not enabled")
-        return
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
         complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
@@ -110,9 +110,10 @@ def test_gpu():
     out = gmod.get_output(0).asnumpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
+@tvm.testing.uses_gpu
 def test_mod_export():
     def verify_cpu_export(obj_format):
-        if not tvm.runtime.enabled("llvm"):
+        if not tvm.testing.device_enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -150,7 +151,7 @@ def test_mod_export():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_gpu_export(obj_format):
-        if not tvm.runtime.enabled("cuda"):
+        if not tvm.testing.device_enabled("cuda"):
             print("Skip because cuda is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -188,7 +189,7 @@ def test_mod_export():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_rpc_cpu_export(obj_format):
-        if not tvm.runtime.enabled("llvm"):
+        if not tvm.testing.device_enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -230,7 +231,7 @@ def test_mod_export():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_rpc_gpu_export(obj_format):
-        if not tvm.runtime.enabled("cuda"):
+        if not tvm.testing.device_enabled("cuda"):
             print("Skip because cuda is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -278,9 +279,10 @@ def test_mod_export():
         verify_rpc_cpu_export(obj_format)
         verify_rpc_gpu_export(obj_format)
 
+@tvm.testing.uses_gpu
 def test_remove_package_params():
     def verify_cpu_remove_package_params(obj_format):
-        if not tvm.runtime.enabled("llvm"):
+        if not tvm.testing.device_enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -326,7 +328,7 @@ def test_remove_package_params():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_gpu_remove_package_params(obj_format):
-        if not tvm.runtime.enabled("cuda"):
+        if not tvm.testing.device_enabled("cuda"):
             print("Skip because cuda is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -372,7 +374,7 @@ def test_remove_package_params():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_rpc_cpu_remove_package_params(obj_format):
-        if not tvm.runtime.enabled("llvm"):
+        if not tvm.testing.device_enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -423,7 +425,7 @@ def test_remove_package_params():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_rpc_gpu_remove_package_params(obj_format):
-        if not tvm.runtime.enabled("cuda"):
+        if not tvm.testing.device_enabled("cuda"):
             print("Skip because cuda is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -480,7 +482,7 @@ def test_remove_package_params():
         verify_rpc_gpu_remove_package_params(obj_format)
 
 def test_debug_graph_runtime():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         print("Skip because llvm is not enabled")
         return
     mod, params = relay.testing.synthetic.get_workload()

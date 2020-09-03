@@ -25,6 +25,7 @@ from tvm import te
 import tvm.relay as relay
 import tvm.relay.op as op
 from tvm.relay import Prelude
+from tvm.testing import enabled_targets
 
 from . import mlp
 from . import resnet
@@ -41,7 +42,6 @@ from . import yolo_detection
 from . import temp_op_attr
 from . import synthetic
 
-from .config import ctx_list
 from .init import create_workload
 from .nat import add_nat_definitions, count, make_nat_value, make_nat_expr
 from .py_converter import to_python, run_as_python
@@ -125,7 +125,7 @@ def check_grad(func,
     if test_inputs is None:
         test_inputs = inputs
 
-    for target, ctx in ctx_list():
+    for target, ctx in enabled_targets():
         intrp = relay.create_executor(ctx=ctx, target=target)
 
         # Get analytic gradients.

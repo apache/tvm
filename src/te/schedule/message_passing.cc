@@ -207,6 +207,10 @@ void PassUpIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
       if (!is_zero(inner_min)) {
         state[s->inner] = state[s->inner] + inner_min;
       }
+      // s->fused, s->outer and s->inner may be of different dtype,
+      // so we cast the `state` back to its original dtype
+      state[s->outer] = cast(s->outer->var.dtype(), state[s->outer]);
+      state[s->inner] = cast(s->inner->var.dtype(), state[s->inner]);
     } else if (const RebaseNode* s = rel.as<RebaseNode>()) {
       if (!state.count(s->rebased)) {
         CHECK(allow_missing);

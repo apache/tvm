@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file auto_scheduler/search_policy/utils.cc
+ * \file auto_scheduler/search_policy/utils.h
  * \brief Common utilities for search policies.
  */
 
@@ -661,6 +661,20 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
 // Apply tiling structure: space, space, space, ..., with tile sizes from other SplitStep
 State FollowTiling(const State& state, int stage_id, const std::vector<int>& split_step_ids,
                    int n_split);
+
+// Random choose an index according to a prefix sum probability.
+inline int RandomChoose(const std::vector<double>& prefix_sum_probs, std::mt19937* random_gen) {
+  std::uniform_real_distribution<> dis(0.0, 1.0);
+  double x = dis(*random_gen);
+
+  CHECK(!prefix_sum_probs.empty());
+
+  return std::lower_bound(prefix_sum_probs.begin(), prefix_sum_probs.end(), x) -
+         prefix_sum_probs.begin();
+}
+
+// Prune invalid states and return the results in-place.
+void PruneInvalidState(const SearchTask& task, Array<State>* states);
 
 }  // namespace auto_scheduler
 }  // namespace tvm

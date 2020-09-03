@@ -20,6 +20,7 @@ from tvm import te
 from tvm import topi
 import tvm.topi.testing
 from tvm.topi.util import get_const_tuple
+import tvm.testing
 
 
 def test_operator_type_and_tags():
@@ -103,10 +104,10 @@ def verify_tensor_scalar_bop(shape, typ="add"):
         raise NotImplementedError()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        ctx = tvm.context(device, 0)
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = tvm.topi.testing.get_elemwise_schedule(device)(B)
@@ -150,7 +151,7 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -183,10 +184,11 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, stride, padding, typ="add"):
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -239,6 +241,7 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_tensor_scalar_bop():
     verify_tensor_scalar_bop((1,), typ="add")
     verify_tensor_scalar_bop((3, 5), typ="sub")
@@ -246,6 +249,7 @@ def test_tensor_scalar_bop():
     verify_tensor_scalar_bop((2, 3, 1, 32), typ="div")
 
 
+@tvm.testing.uses_gpu
 def test_broadcast_bop():
     verify_broadcast_bop((2, 3), (), typ="add")
     verify_broadcast_bop((5, 2, 3), (1,), typ="add")
@@ -254,6 +258,7 @@ def test_broadcast_bop():
     verify_broadcast_bop((2, 3, 1, 32), (64, 32), typ="div")
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_scalar_bop():
     verify_conv2d_scalar_bop(1, 16, 4, 4, 3, 1, 1, typ="add")
     verify_conv2d_scalar_bop(1, 32, 2, 1, 3, 1, 1, typ="sub")

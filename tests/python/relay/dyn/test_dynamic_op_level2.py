@@ -21,7 +21,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm import te
-from tvm.relay.testing import ctx_list
+from tvm.relay.testing import enabled_targets
 import random
 from test_dynamic_op_level3 import verify_func
 import tvm.topi.testing
@@ -51,7 +51,7 @@ def test_dyn_upsampling_run():
         zz = run_infer_type(z)
         func = relay.Function([x, scale_h_var, scale_w_var], z)
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
              if "llvm" not in target: continue
              for kind in ["vm", "debug"]:
                  mod = tvm.ir.IRModule.from_expr(func)

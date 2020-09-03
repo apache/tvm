@@ -25,7 +25,7 @@ use crate::object::{IsObjectRef, Object, ObjectPtr, ObjectRef};
 use crate::{
     external,
     function::{Function, Result},
-    RetValue,
+    ArgValue, RetValue,
 };
 
 #[repr(C)]
@@ -40,6 +40,8 @@ pub struct Array<T: IsObjectRef> {
 external! {
     #[name("node.ArrayGetItem")]
     fn array_get_item(array: ObjectRef, index: isize) -> ObjectRef;
+    #[name("node.ArraySize")]
+    fn array_size(array: ObjectRef) -> i64;
 }
 
 impl<T: IsObjectRef> Array<T> {
@@ -75,5 +77,46 @@ impl<T: IsObjectRef> Array<T> {
     {
         let oref: ObjectRef = array_get_item(self.object.clone(), index)?;
         oref.downcast()
+    }
+
+    pub fn len(&self) -> i64 {
+        array_size(self.object.clone()).expect("size should never fail")
+    }
+}
+
+impl<T: IsObjectRef> From<Array<T>> for ArgValue<'static> {
+    fn from(array: Array<T>) -> ArgValue<'static> {
+        array.object.into()
+    }
+}
+
+impl<T: IsObjectRef> From<Array<T>> for RetValue {
+    fn from(array: Array<T>) -> RetValue {
+        array.object.into()
+    }
+}
+
+impl<'a, T: IsObjectRef> TryFrom<ArgValue<'a>> for Array<T> {
+    type Error = Error;
+
+    fn try_from(array: ArgValue<'a>) -> Result<Array<T>> {
+        let object_ref: ObjectRef = array.try_into()?;
+        // TODO: type check
+        Ok(Array {
+            object: object_ref,
+            _data: PhantomData,
+        })
+    }
+}
+
+impl<'a, T: IsObjectRef> TryFrom<RetValue> for Array<T> {
+    type Error = Error;
+
+    fn try_from(array: RetValue) -> Result<Array<T>> {
+        let object_ref = array.try_into()?;
+        Ok(Array {
+            object: object_ref,
+            _data: PhantomData,
+        })
     }
 }

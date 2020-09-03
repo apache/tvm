@@ -23,6 +23,7 @@ from tvm.contrib import nnpack
 import pytest
 
 
+@tvm.testing.requires_llvm
 def test_fully_connected_inference():
     n = 1024
     l = 128
@@ -35,8 +36,6 @@ def test_fully_connected_inference():
     s = te.create_schedule(D.op)
 
     def verify(target="llvm"):
-        if not tvm.runtime.enabled(target):
-            pytest.skip("%s is not enabled..." % target)
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             pytest.skip("extern function is not available")
         if not nnpack.is_available():
@@ -82,6 +81,7 @@ def np_conv(na, nw, padding, stride=1):
                 nb[n, f] += out[::stride, ::stride]
     return nb
 
+@tvm.testing.requires_llvm
 def test_convolution_inference():
     BATCH = 8
     IH = 48
@@ -105,8 +105,6 @@ def test_convolution_inference():
     def verify(target="llvm",
                algorithm=nnpack.ConvolutionAlgorithm.AUTO,
                with_bias=True):
-        if not tvm.runtime.enabled(target):
-            pytest.skip("%s is not enabled..." % target)
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             pytest.skip("extern function is not available")
         if not nnpack.is_available():
@@ -144,6 +142,7 @@ def test_convolution_inference():
             verify(algorithm=algorithm, with_bias=with_bias)
 
 
+@tvm.testing.requires_llvm
 def test_convolution_inference_without_weight_transform():
     BATCH = 6
     IH = 48
@@ -167,8 +166,6 @@ def test_convolution_inference_without_weight_transform():
     def verify(target="llvm",
                algorithm=nnpack.ConvolutionAlgorithm.AUTO,
                with_bias=True):
-        if not tvm.runtime.enabled(target):
-            pytest.skip("%s is not enabled..." % target)
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             pytest.skip("extern function is not available")
         if not nnpack.is_available():

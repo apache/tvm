@@ -24,9 +24,9 @@ from tvm import topi
 import tvm.topi.testing
 from tvm import te
 from tvm.contrib.pickle_memoize import memoize
-from tvm.contrib import nvcc
 from tvm.topi.nn.util import get_pad_tuple
 from tvm.topi.util import get_const_tuple
+import tvm.testing
 
 
 _conv2d_nhwc_winograd_tensorcore = {
@@ -78,9 +78,6 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             if bgemm == "direct":
@@ -114,6 +111,8 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
     check_device(devices)
 
 
+@tvm.testing.requires_cuda
+@tvm.testing.requires_gpu
 def test_conv2d_nhwc_winograd_direct():
     """Test the conv2d with winograd for nhwc layout"""
     # resnet 18 workloads
@@ -135,13 +134,11 @@ def test_conv2d_nhwc_winograd_direct():
     verify_conv2d_nhwc(2,  48, 56,  48, 3, 1, "SAME", add_relu=True, add_bias=True)
     verify_conv2d_nhwc(1, 48, 35,  48, 5, 1, "VALID")
 
+
+@tvm.testing.requires_cuda
+@tvm.testing.requires_tensorcore
 def test_conv2d_nhwc_winograd_tensorcore():
     """Test the conv2d with winograd for nhwc layout"""
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-    if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-        return
     verify_conv2d_nhwc(8,  64, 56,  64, 3, 1, 1, bgemm="tensorcore")
     verify_conv2d_nhwc(8, 128, 28, 128, 3, 1, 1, bgemm="tensorcore")
     verify_conv2d_nhwc(8, 256, 14, 256, 3, 1, 1, bgemm="tensorcore")

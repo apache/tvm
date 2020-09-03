@@ -115,6 +115,10 @@ impl<'a> From<ObjectRef> for ArgValue<'a> {
 external! {
     #[name("ir.DebugPrint")]
     fn debug_print(object: ObjectRef) -> CString;
+    #[name("node.StructuralHash")]
+    fn structural_hash(object: ObjectRef, map_free_vars: bool) -> ObjectRef;
+    #[name("node.StructuralEqual")]
+    fn structural_equal(lhs: ObjectRef, rhs: ObjectRef, assert_mode: bool, map_free_vars: bool) -> ObjectRef;
 }
 
 // external! {

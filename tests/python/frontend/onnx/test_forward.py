@@ -26,8 +26,8 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm.contrib import graph_runtime
-from tvm.relay.testing.config import ctx_list
 import scipy
+import tvm.testing
 
 
 def get_input_data_shape_dict(graph_def, input_data):
@@ -117,11 +117,12 @@ def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
     x = np.random.uniform(size=data_shape)
     model = onnx.load_model(graph_file)
     c2_out = get_onnxruntime_output(model, x, dtype)
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, dtype)
         tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_reshape():
     in_shape = (4, 3, 3, 4)
     ref_shape = (6, 2, 4, 3)
@@ -145,13 +146,14 @@ def test_reshape():
 
     model = helper.make_model(graph, producer_name='reshape_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=in_shape).astype('int32')
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'float32')
 
     tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
 
+@tvm.testing.uses_gpu
 def test_expand():
 
     def _test_expand(name, data, shape, ref_data):
@@ -174,7 +176,7 @@ def test_expand():
 
         model = helper.make_model(graph, producer_name=name)
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             tvm_out = get_tvm_output(model, data, target, ctx, ref_data.shape, 'float32')
 
         tvm.testing.assert_allclose(ref_data, tvm_out)
@@ -205,13 +207,14 @@ def verify_depth_to_space(inshape, outshape, mode, blockSize):
 
     model = helper.make_model(graph, producer_name='depth_to_space_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=inshape).astype('float32')
         tvm_out = get_tvm_output(model, x, target, ctx, outshape, 'float32')
         onnx_out = get_onnxruntime_output(model, x, 'float32')
         tvm.testing.assert_allclose(onnx_out, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_depth_to_space():
     # current onnx.checker use OpSet-1 version of DepthToSpace, which doesn't have a mode argument.
     # TO-DO, we can add mode arguement to test CRD mode and DCR mode
@@ -232,17 +235,19 @@ def verify_space_to_depth(inshape, outshape, blockSize):
 
     model = helper.make_model(graph, producer_name='space_to_depth_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=inshape).astype('float32')
         tvm_out = get_tvm_output(model, x, target, ctx, outshape, 'float32')
         onnx_out = get_onnxruntime_output(model, x, 'float32')
         tvm.testing.assert_allclose(onnx_out, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_space_to_depth():
     verify_space_to_depth((1, 1, 4, 6), (1, 4, 2, 3), 2)
 
 
+@tvm.testing.uses_gpu
 def test_shape():
     in_shape = (4, 3, 3, 4)
     ref_shape = (6, 2, 4, 3)
@@ -268,7 +273,7 @@ def test_shape():
 
     model = helper.make_model(graph, producer_name='shape_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=in_shape).astype('int32')
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'int32')
 
@@ -297,17 +302,19 @@ def _test_power_iteration(x_shape, y_shape):
 
     model = helper.make_model(graph, producer_name='power_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, [x, y], target, ctx, np_res.shape)
         tvm.testing.assert_allclose(np_res, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_power():
     _test_power_iteration((1, 3), (1))
     _test_power_iteration((2, 3), (2, 3))
     _test_power_iteration((2, 3), (1, 3))
 
 
+@tvm.testing.uses_gpu
 def test_squeeze():
     in_shape = (1, 3, 1, 3, 1, 1)
     out_shape = (3, 3)
@@ -322,13 +329,14 @@ def test_squeeze():
 
     model = helper.make_model(graph, producer_name='squeeze_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=in_shape).astype('float32')
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, 'float32')
 
     tvm.testing.assert_allclose(out_shape, tvm_out.shape)
 
 
+@tvm.testing.uses_gpu
 def test_flatten():
 
     in_shape = (1, 3, 4, 4)
@@ -346,13 +354,14 @@ def test_flatten():
 
     model = helper.make_model(graph, producer_name='flatten_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=in_shape).astype('int32')
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'float32')
 
     tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
 
+@tvm.testing.uses_gpu
 def test_unsqueeze():
     in_shape = (3, 3)
     axis = (0, 3, 4)
@@ -368,7 +377,7 @@ def test_unsqueeze():
 
     model = helper.make_model(graph, producer_name='squeeze_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=in_shape).astype('float32')
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, 'float32')
 
@@ -392,12 +401,13 @@ def verify_gather(in_shape, indices, axis, dtype):
                                                                      TensorProto.FLOAT, list(out_np.shape))])
     model = helper.make_model(graph, producer_name='gather_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [x, indices], target, ctx, out_np.shape)
         tvm.testing.assert_allclose(out_np, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_gather():
     verify_gather((4,), [1], 0, 'int32')
     verify_gather((1, 4), [0], 0, 'int32')
@@ -427,12 +437,13 @@ def verify_scatter(in_shape, indices, axis):
     model = helper.make_model(graph, producer_name='scatter_test')
     onnx_out = get_onnxruntime_output(model, [x, indices, updates])
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [x, indices, updates], target, ctx, onnx_out[0].shape)
         tvm.testing.assert_allclose(onnx_out[0], tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_scatter():
     verify_scatter((4,), [1], 0)
     verify_scatter((1, 4), [[0]], 0)
@@ -459,7 +470,7 @@ def _test_slice_iteration_v1(indata, outdata, starts, ends, axes=None):
 
     model = helper.make_model(graph, producer_name='slice_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, indata, target, ctx, outdata.shape, 'float32', opset=1)
 
@@ -547,7 +558,7 @@ def _test_slice_iteration_v10(indata, outdata, **attrs):
                               initializer=initializer)
     model = helper.make_model(graph, producer_name='slice_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model,
                                  indata,
                                  target,
@@ -559,6 +570,7 @@ def _test_slice_iteration_v10(indata, outdata, **attrs):
     tvm.testing.assert_allclose(outdata, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_slice():
     x = np.random.randn(20, 10, 5).astype(np.float32)
     _test_slice_iteration_v1(x, x[0:3, 0:10], starts=(0, 0), ends=(3, 10), axes=(0, 1))
@@ -595,22 +607,25 @@ def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
 
     model = helper.make_model(graph, producer_name=opname+'_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, indata, target, ctx, outdata.shape, dtype)
 
     tvm.testing.assert_allclose(outdata, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_floor():
     _test_onnx_op_elementwise((2, 4, 5, 6), np.floor,
                               {}, 'float32', 'Floor', {})
 
 
+@tvm.testing.uses_gpu
 def test_ceil():
     _test_onnx_op_elementwise((2, 4, 5, 6), np.ceil, {}, 'float32', 'Ceil', {})
 
 
+@tvm.testing.uses_gpu
 def test_clip():
     _test_onnx_op_elementwise((2, 4, 5, 6),
                               np.clip,
@@ -620,7 +635,7 @@ def test_clip():
                               {'min': -1.0, 'max': 1.0})
 
 
-
+@tvm.testing.uses_gpu
 def test_round():
     _test_onnx_op_elementwise((2, 4, 5, 6), np.round, {}, 'float32', 'Round', {})
 
@@ -640,17 +655,19 @@ def _test_finite_ops(inshape, outfunc, npargs, dtype, opname, kwargs):
 
     model = helper.make_model(graph, producer_name=opname+'_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, indata, target, ctx, outdata.shape, dtype)
 
     tvm.testing.assert_allclose(outdata, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_isinf():
     _test_finite_ops((2, 4, 5, 6), np.isinf, {}, 'float32', 'IsInf', {})
 
 
+@tvm.testing.uses_gpu
 def test_isnan():
     _test_finite_ops((2, 4, 5, 6), np.isnan, {}, 'float32', 'IsNaN', {})
 
@@ -672,18 +689,20 @@ def verify_gather_nd(in_shape, indices, dtype):
                                                                      TensorProto.FLOAT, list(out_np.shape))])
     model = helper.make_model(graph, producer_name='gather_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [x, indices], target, ctx, out_np.shape)
         tvm.testing.assert_allclose(out_np, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_gather_nd():
     verify_gather_nd((2, 2), [[0,0],[1,1]], 'int32')
     verify_gather_nd((3, 3, 3), [[0,1],[1,0]] , 'float32')
     verify_gather_nd((4, 3, 5, 6), [[2, 1, 0, 0]], 'float32')
 
 
+@tvm.testing.uses_gpu
 def test_onehot():
     indices_shape = [10]
     indices_array = np.random.randint(
@@ -709,12 +728,13 @@ def test_onehot():
 
     model = helper.make_model(graph, producer_name="onehot_test")
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [indices_array], target, ctx, out_np.shape)
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_matmul():
     a_shape = (4, 3)
     b_shape = (3, 4)
@@ -736,7 +756,7 @@ def test_matmul():
 
     model = helper.make_model(graph, producer_name='matmul_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [a_array, b_array], target, ctx, out_np.shape)
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
@@ -759,11 +779,12 @@ def verify_batch_matmul(a_shape, b_shape):
 
     model = helper.make_model(graph, producer_name='matmul_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [a_array, b_array], target, ctx, out_np.shape)
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
+@tvm.testing.uses_gpu
 def test_batch_matmul():
     verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4))
     verify_batch_matmul((2, 4, 3), (3, 4))
@@ -800,7 +821,7 @@ def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
         py_out = in_array / ((bias + (alpha / nsize) * square_sum) ** beta)
         return py_out
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         input_name = model.graph.input[0].name
         py_out = _get_python_lrn()
         tvm_out = get_tvm_output(
@@ -808,6 +829,7 @@ def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
         tvm.testing.assert_allclose(py_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_lrn():
     verify_lrn((5, 5, 5, 5), 3, 'float32')
     verify_lrn((5, 5, 5, 5), 3, 'float32', alpha=0.0002, beta=0.5, bias=2.0)
@@ -845,12 +867,13 @@ def verify_instance_norm(shape, axis=1):
                                       helper.make_tensor_value_info("beta", TensorProto.FLOAT, (shape[1],))],
                               outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(shape))])
     model = helper.make_model(graph, producer_name='instance_norm_test')
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [x, gamma, beta], target, ctx, shape, 'float32')
         tvm.testing.assert_allclose(y, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_instance_norm():
     verify_instance_norm((2, 3, 4, 5))
     verify_instance_norm((32, 64, 80, 64))
@@ -877,7 +900,7 @@ def _test_upsample_nearest():
 
     model = helper.make_model(graph, producer_name='upsample_nearest_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, in_array, target, ctx, out_shape, 'float32')
         tvm.testing.assert_allclose(out_array, tvm_out)
@@ -902,7 +925,7 @@ def _test_upsample3d_nearest():
 
     model = helper.make_model(graph, producer_name='upsample_nearest_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, in_array, target, ctx, out_shape, 'float32')
         tvm.testing.assert_allclose(out_array, tvm_out)
@@ -926,7 +949,7 @@ def _test_upsample_bilinear():
 
     model = helper.make_model(graph, producer_name='upsample_bilinear_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, in_array, target, ctx, out_shape, 'float32')
         tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
@@ -961,7 +984,7 @@ def _test_upsample_bilinear_opset9():
     model = helper.make_model(
         graph, producer_name='upsample_bilinear_opset9_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, in_array, target, ctx, out_shape, 'float32')
         tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
@@ -995,11 +1018,12 @@ def _test_upsample3d_trilinear():
     model = helper.make_model(
         graph, producer_name='upsample_trilinear_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, in_array, target, ctx, out_shape, 'float32')
         tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
 
+@tvm.testing.uses_gpu
 def test_upsample():
     _test_upsample_nearest()
     _test_upsample_bilinear()
@@ -1026,12 +1050,13 @@ def _test_softmax(inshape, axis):
 
     model = helper.make_model(graph, producer_name=opname+'_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, indata, target, ctx, outshape, 'float32')
         tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_softmax():
     _test_softmax((1, 10), None)
     _test_softmax((1, 10), 1)
@@ -1061,12 +1086,13 @@ def verify_min(input_dim):
 
     model = helper.make_model(graph, producer_name='Min_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [a_np1, a_np2, a_np3], target, ctx, b_np.shape)
         tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_forward_min():
     verify_min((1, 3, 20, 20))
     verify_min((20, 20))
@@ -1096,12 +1122,13 @@ def verify_max(input_dim):
 
     model = helper.make_model(graph, producer_name='Max_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [a_np1, a_np2, a_np3], target, ctx, b_np.shape)
         tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_forward_max():
     verify_max((1, 3, 20, 20))
     verify_max((20, 20))
@@ -1131,12 +1158,13 @@ def verify_mean(input_dim):
 
     model = helper.make_model(graph, producer_name='Mean_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [a_np1, a_np2, a_np3], target, ctx, b_np.shape)
         tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_forward_mean():
     verify_mean((1, 3, 20, 20))
     verify_mean((20, 20))
@@ -1161,11 +1189,12 @@ def verify_hardsigmoid(input_dim, alpha, beta):
 
     model = helper.make_model(graph, producer_name='HardSigmoid_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, [a_np1], target, ctx, b_np.shape)
         tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_forward_hardsigmoid():
     verify_hardsigmoid((1, 3, 20, 20), 0.5, 0.6)
     verify_hardsigmoid((20, 20), 0.3, 0.4)
@@ -1212,7 +1241,7 @@ def verify_argmin(input_dim, axis=None, keepdims=None):
 
     model = helper.make_model(graph, producer_name='argmin_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [a_np1], target, ctx, b_np.shape, b_np.dtype)
         tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
@@ -1260,12 +1289,13 @@ def verify_argmax(input_dim, axis=None, keepdims=None):
 
     model = helper.make_model(graph, producer_name='argmax_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [a_np1], target, ctx, b_np.shape, b_np.dtype)
         tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_forward_arg_min_max():
     '''Verify argmin and argmax'''
     verify_argmin([3, 4, 4])
@@ -1309,12 +1339,13 @@ def verify_constantofshape(input_dim, value, dtype):
 
     model = helper.make_model(graph, producer_name='fill_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, [], target, ctx, out.shape)
 
         tvm.testing.assert_allclose(out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_constantofshape():
     verify_constantofshape((2, 3, 4, 5), 10, 'float32')
     verify_constantofshape((3, 3), 0, 'int32')
@@ -1355,7 +1386,7 @@ def verify_pad(indata, pads, mode='constant', value=0.0):
                                                                      TensorProto.FLOAT, list(outdata.shape))])
     model = helper.make_model(graph, producer_name='pad_test')
     #  tvm result
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, indata, target, ctx, outdata.shape, 'float32', opset=2)
     tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
@@ -1411,12 +1442,13 @@ def verify_pad_v11(indata, pads, mode='constant', value=0.0):
                                                                          TensorProto.FLOAT, list(outdata.shape))])
     model = helper.make_model(graph, producer_name='pad_test')
     #  tvm result
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, inputs, target, ctx, outdata.shape, 'float32', opset=11)
     tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_pad():
     verify_pad(np.random.randn(2, 2).astype(
         np.float32), [0, 1, 0, 0], 'constant', 0.0)
@@ -1465,10 +1497,11 @@ def verify_reduce_func(func, data, axis, keepdims):
     model = helper.make_model(graph, producer_name='reduce_test')
 
     onnx_out = get_onnxruntime_output(model, data, 'float32')
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, data, target, ctx, outshape, 'float32')
         tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
+@tvm.testing.uses_gpu
 def test_all_reduce_funcs():
     funcs = ["ReduceMax",
              "ReduceMean",
@@ -1532,7 +1565,7 @@ def verify_split(indata, outdatas, split, axis=0):
                                        ])
     model = helper.make_model(graph, producer_name='split_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         output_shape = [o.shape for o in outdatas]
         output_type = ['float32', 'float32', 'float32']
         tvm_out = get_tvm_output(
@@ -1541,6 +1574,7 @@ def verify_split(indata, outdatas, split, axis=0):
         tvm.testing.assert_allclose(o, t)
 
 
+@tvm.testing.uses_gpu
 def test_split():
     # 1D
     verify_split([1., 2., 3., 4., 5., 6.], [
@@ -1554,6 +1588,7 @@ def test_split():
     verify_split([1, 2, 3], [[1], [2], [3]], False)
 
 
+@tvm.testing.uses_gpu
 def test_binary_ops():
     in_shape = (1, 2, 3, 3)
     dtype = "float32"
@@ -1573,7 +1608,7 @@ def test_binary_ops():
                                   outputs=[helper.make_tensor_value_info("out",
                                                                          TensorProto.FLOAT, list(out_shape))])
         model = helper.make_model(graph, producer_name='_test')
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             tvm_out = get_tvm_output(model, [x, y], target, ctx)
             tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
@@ -1595,6 +1630,7 @@ def test_binary_ops():
     verify_binary_ops("Equal", x, y, x == y, broadcast=True)
 
 
+@tvm.testing.uses_gpu
 def test_single_ops():
     in_shape = (1, 2, 3, 3)
     dtype = "float32"
@@ -1609,7 +1645,7 @@ def test_single_ops():
                                   outputs=[helper.make_tensor_value_info("out",
                                                                          TensorProto.FLOAT, list(out_shape))])
         model = helper.make_model(graph, producer_name='_test')
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             tvm_out = get_tvm_output(model, [x], target, ctx)
             tvm.testing.assert_allclose(out_np, tvm_out, rtol=rtol, atol=atol)
 
@@ -1639,6 +1675,7 @@ def test_single_ops():
     verify_single_ops("SoftPlus", x, np.log(1 + np.exp(x)))
 
 
+@tvm.testing.uses_gpu
 def test_leaky_relu():
     def leaky_relu_x(x, alpha):
         return np.where(x >= 0, x, x * alpha)
@@ -1650,6 +1687,7 @@ def test_leaky_relu():
                               {'alpha': 0.25})
 
 
+@tvm.testing.uses_gpu
 def test_elu():
     def elu_x(x, alpha):
         return np.where(x > 0, x, alpha * (np.exp(x) - 1.0))
@@ -1661,6 +1699,7 @@ def test_elu():
                               {'alpha': 0.25})
 
 
+@tvm.testing.uses_gpu
 def test_selu():
     def selu_x(x, alpha, gamma):
         return gamma * np.where(x > 0, x, alpha * (np.exp(x) - 1.0))
@@ -1672,6 +1711,7 @@ def test_selu():
                               {'alpha': 0.25, 'gamma': 0.3})
 
 
+@tvm.testing.uses_gpu
 def test_prelu():
     def verify_prelu(x_shape, a_shape):
         node = helper.make_node('PRelu',
@@ -1700,6 +1740,7 @@ def test_prelu():
     verify_prelu([2,12,16,16], [1, 12, 1, 1])
 
 
+@tvm.testing.uses_gpu
 def test_ThresholdedRelu():
     def ThresholdedRelu_x(x, alpha):
         out_np = np.clip(x, alpha, np.inf)
@@ -1713,6 +1754,7 @@ def test_ThresholdedRelu():
                               {'alpha': 0.25})
 
 
+@tvm.testing.uses_gpu
 def test_ScaledTanh():
     def ScaledTanh_x(x, alpha, beta):
         return alpha * np.tanh(beta * x)
@@ -1724,6 +1766,7 @@ def test_ScaledTanh():
                               {'alpha': 0.25, 'beta': 0.3})
 
 
+@tvm.testing.uses_gpu
 def test_ParametricSoftplus():
     def ParametricSoftplus_x(x, alpha, beta):
         return alpha * np.log(np.exp(beta * x) + 1)
@@ -1735,6 +1778,7 @@ def test_ParametricSoftplus():
                               {'alpha': 0.25, 'beta': 0.3})
 
 
+@tvm.testing.uses_gpu
 def test_Scale():
     def Scale_x(x, scale):
         return scale * x
@@ -1746,6 +1790,7 @@ def test_Scale():
                               {'scale': 0.25})
 
 
+@tvm.testing.uses_gpu
 def test_LogSoftmax():
     _test_onnx_op_elementwise((1, 4),
                               tvm.topi.testing.log_softmax_python,
@@ -1762,13 +1807,14 @@ def check_torch_conversion(model, input_size):
     torch.onnx.export(model(), dummy_input, file_name,
                       export_params=True, verbose=False)
     onnx_model = onnx.load(file_name)
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         input_data = np.random.uniform(size=input_size).astype('int32')
         c2_out = get_onnxruntime_output(onnx_model, input_data)
         tvm_out = get_tvm_output(onnx_model, input_data, target, ctx)
         tvm.testing.assert_allclose(c2_out, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_resnet():
     check_torch_conversion(torchvision.models.resnet18, (1, 3, 224, 224))
     # check_torch_conversion(torchvision.models.resnet101, (1,3,224,224))
@@ -1787,10 +1833,12 @@ def test_resnet():
 #     check_torch_conversion(torchvision.models.squeezenet1_0, (1,3,224,224))
 
 
+@tvm.testing.uses_gpu
 def test_densenet():
     check_torch_conversion(torchvision.models.densenet161, (1, 3, 224, 224))
 
 
+@tvm.testing.uses_gpu
 def test_inception():
     check_torch_conversion(torchvision.models.inception_v3, (1, 3, 224, 224))
 
@@ -1803,6 +1851,7 @@ def test_inception():
 #     check_torch_conversion(torchvision.models.shufflenetv2, (1,3,224,224))
 
 
+@tvm.testing.uses_gpu
 def test_sign():
     def Sign_x(x):
         return np.sign(x)
@@ -1828,11 +1877,12 @@ def verify_not(indata, dtype):
 
     model = helper.make_model(graph, producer_name='not_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, [x], target, ctx, outdata.shape)
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_not():
     # 2d
     verify_not(indata=(np.random.randn(3, 4) > 0), dtype=bool)
@@ -1857,11 +1907,12 @@ def verify_and(indata, dtype):
 
     model = helper.make_model(graph, producer_name='and_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, [x, y], target, ctx, outdata.shape)
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_and():
     # 2d
     x = (np.random.randn(3, 4) > 0)
@@ -1899,7 +1950,7 @@ def verify_tile_v1(indata, outdata, **kwargs):
 
     model = helper.make_model(graph, producer_name='tile_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [indata], target, ctx, outdata.shape, opset=1)
         tvm.testing.assert_allclose(outdata, tvm_out)
@@ -1929,7 +1980,7 @@ def verify_tile_v6(indata, repeats, outdata):
 
     model = helper.make_model(graph, producer_name='tile_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, [indata],
                                  target,
                                  ctx,
@@ -1938,6 +1989,7 @@ def verify_tile_v6(indata, repeats, outdata):
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_tile():
     x = np.random.rand(2, 3, 4, 5).astype(np.float32)
     repeats = np.random.randint(
@@ -1956,11 +2008,12 @@ def verify_erf(indata, outdata):
                               outputs=[helper.make_tensor_value_info('out', TensorProto.FLOAT, list(outdata.shape))])
     model = helper.make_model(graph, producer_name='erf_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, [indata], target, ctx, outdata.shape)
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_erf():
     x = np.random.rand(2, 3, 4, 6).astype(np.float32)
     z = scipy.special.erf(x)
@@ -1977,11 +2030,12 @@ def verify_where(condition, x, y, dtype, outdata):
                               outputs=[helper.make_tensor_value_info('out', dtype, list(outdata.shape))])
     model = helper.make_model(graph, producer_name='where_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, [condition, x, y], target, ctx, outdata.shape)
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_where():
     condition = np.array([[1, 0], [1, 1]], dtype=np.bool)
     x = np.array([[1, 2], [3, 4]], dtype=np.int64)
@@ -2031,11 +2085,12 @@ def verify_or(indata, dtype):
 
     model = helper.make_model(graph, producer_name='or_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, [x, y], target, ctx, outdata.shape)
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 
+@tvm.testing.uses_gpu
 def test_or():
     # 2d
     x = (np.random.randn(3, 4) > 0)
@@ -2063,6 +2118,7 @@ def test_or():
     verify_or(indata=[x, y], dtype=bool)
 
 
+@tvm.testing.uses_gpu
 def test_batch_norm():
     def verify_batch_norm(in_shape):
         batchnorm = onnx.helper.make_node('BatchNormalization',
@@ -2087,7 +2143,7 @@ def test_batch_norm():
 
         model = helper.make_model(graph, producer_name='batchnorm_test')
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             x = np.random.uniform(size=in_shape).astype('float32')
             scale = np.random.uniform(size=in_shape[1]).astype('float32')
             b = np.random.uniform(size=in_shape[1]).astype('float32')
@@ -2104,6 +2160,7 @@ def test_batch_norm():
     verify_batch_norm([16, 16, 10, 10])
 
 
+@tvm.testing.uses_gpu
 def test_batch_norm_dynamic_subgraph():
     def verify_batch_norm_dynamic_subgraph(in_shape, o_shape):
         batchnorm = onnx.helper.make_node('BatchNormalization',
@@ -2132,7 +2189,7 @@ def test_batch_norm_dynamic_subgraph():
 
         model = helper.make_model(graph, producer_name='batchnorm_test')
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             x = np.random.uniform(size=in_shape).astype('float32')
             inp = np.random.uniform(size=o_shape).astype('float32')
             scale = np.random.uniform(size=in_shape[1]).astype('float32')
@@ -2186,7 +2243,7 @@ def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilat
 
     model = helper.make_model(graph, producer_name='conv_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=x_shape).astype('float32')
         W = np.random.uniform(size=w_shape).astype('float32')
         tvm_out = get_tvm_output(model, [x, W], target, ctx, y_shape)
@@ -2194,6 +2251,7 @@ def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilat
         tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_conv():
     def repeat(N, D):
         return tuple([N for _ in range(D)])
@@ -2276,7 +2334,7 @@ def verify_convtranspose(x_shape, w_shape, y_shape, p):
 
     model = helper.make_model(graph, producer_name='convtranspose_trest')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=x_shape).astype('float32')
         W = np.random.uniform(size=w_shape).astype('float32')
         tvm_out = get_tvm_output(model, [x, W], target, ctx, y_shape)
@@ -2284,6 +2342,7 @@ def verify_convtranspose(x_shape, w_shape, y_shape, p):
         tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_convtranspose():
     # Convolution Transpose with padding
     # (1, 1, 3, 3) input tensor
@@ -2293,6 +2352,7 @@ def test_convtranspose():
     verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2])
 
 
+@tvm.testing.uses_gpu
 def test_unsqueeze_constant():
     from torch.nn import Linear, Sequential, Module
     class Flatten(Module):
@@ -2343,13 +2403,14 @@ def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_p
 
     model = helper.make_model(graph, producer_name='pooling_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         onnx_out = get_onnxruntime_output(model, x_np, 'float32')
         tvm_out = get_tvm_output(
             model, [x_np], target, ctx, out_shape)
         tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_pooling():
     for mode in ['max', 'average']:
         # Pool1D
@@ -2440,12 +2501,13 @@ def verify_mod(x_shape, y_shape, fmod, out_shape, dtype='float32'):
 
     onnx_out = get_onnxruntime_output(model, [x_np, y_np], dtype)[0]
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [x_np, y_np], target, ctx, out_shape)
         tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_mod():
     # Mod
     verify_mod(x_shape=[1, 32, 32], y_shape=[1, 1, 32], fmod=0, out_shape=(1, 32, 32), dtype="int32")
@@ -2481,12 +2543,13 @@ def verify_xor(x_shape, y_shape):
                                                                     onnx_dtype, list(out_shape))])
     model = helper.make_model(graph, producer_name='xor_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [x_np, y_np], target, ctx, out_shape)
         tvm.testing.assert_allclose(np_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_xor():
     # XOR
     verify_xor(x_shape=[1, 32, 32], y_shape=[1, 32, 32])
@@ -2523,12 +2586,13 @@ def verify_max_roi_pool(x_shape, rois_shape, pooled_shape, spatial_scale, out_sh
     model = helper.make_model(graph, producer_name='pool_test')
 
     onnx_out = get_onnxruntime_output(model, [x_np, rois_np], 'float32')[0]
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, [x_np, rois_np], target, ctx, out_shape)
         tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_max_roi_pool():
     verify_max_roi_pool(x_shape=[1, 3, 6, 6],
                         rois_shape=[3, 5],
@@ -2572,13 +2636,14 @@ def verify_lppool(x_shape, kernel_shape, p, strides, pads, out_shape, auto_pad="
 
     model = helper.make_model(graph, producer_name='lppool_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         onnx_out = get_onnxruntime_output(model, x_np, 'float32')
         tvm_out = get_tvm_output(
             model, [x_np], target, ctx, out_shape)
         tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_lppool():
     # Pool1D
     verify_lppool(x_shape=[1, 1, 32], kernel_shape=[3], p=2, strides=[1], pads=[1, 1],
@@ -2728,7 +2793,7 @@ def verify_rnn(seq_length,
 
     model = helper.make_model(graph, producer_name='rnn_test')
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         onnx_out = get_onnxruntime_output(model, input_values, 'float32')
         tvm_out = get_tvm_output(
             model,
@@ -2741,6 +2806,7 @@ def verify_rnn(seq_length,
             tvm.testing.assert_allclose(o_out, t_out, rtol=5e-3, atol=5e-3)
 
 
+@tvm.testing.uses_gpu
 def test_lstm():
     # No bias.
     verify_rnn(
@@ -2845,6 +2911,7 @@ def test_lstm():
         rnn_type='LSTM')
 
 
+@tvm.testing.uses_gpu
 def test_gru():
     # No bias.
     verify_rnn(
@@ -2940,6 +3007,7 @@ def test_gru():
         rnn_type='GRU')
 
 
+@tvm.testing.uses_gpu
 def test_resize():
     def make_constant_node(name, data_type, dims, vals):
         return helper.make_node('Constant',
@@ -2977,7 +3045,7 @@ def test_resize():
 
         model = helper.make_model(graph, producer_name='resize_test')
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             x = np.random.uniform(size=ishape).astype('float32')
             onnx_out = get_onnxruntime_output(model, x, 'float32')
             tvm_out = get_tvm_output(model, x, target, ctx, oshape, 'float32', opset=11)
@@ -2997,6 +3065,7 @@ def test_resize():
     verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
 
 
+@tvm.testing.uses_gpu
 def test_nonzero():
 
     def verify_nonzero(indata, outdata, dtype):
@@ -3025,6 +3094,7 @@ def test_nonzero():
     result = np.array((np.nonzero(input_data)))  # expected output [[0, 1, 2, 2], [0, 1, 0, 1]]
     verify_nonzero(input_data, result, dtype=np.int64)
 
+@tvm.testing.uses_gpu
 def test_topk():
     def verify_topk(input_dims, K, axis=-1):
         output_dims = list(input_dims)
@@ -3063,6 +3133,7 @@ def test_topk():
         verify_topk([n, n, n], 5, 2)
 
 
+@tvm.testing.uses_gpu
 def test_roi_align():
     def verify_roi_align(input_dims, num_roi, output_height, output_width, sampling_ratio=0, spatial_scale=1.0):
         output_dims = [num_roi, input_dims[1], output_height, output_width]

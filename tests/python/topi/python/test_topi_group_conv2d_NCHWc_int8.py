@@ -27,8 +27,6 @@ from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
 import pytest
 
-from common import get_all_backend
-
 def _transform_data(data, bn):
     # NCHW -> NCHW[x]c
     batch_size, channel, height, width = data.shape
@@ -77,7 +75,7 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, groups, in_size, num_filte
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(ctx):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -105,6 +103,7 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, groups, in_size, num_filte
             check_device(device)
     autotvm.GLOBAL_SCOPE.silent = False
 
+@tvm.testing.uses_gpu
 @pytest.mark.skip
 def test_conv2d_NCHWc():
     # ResNet50 workloads

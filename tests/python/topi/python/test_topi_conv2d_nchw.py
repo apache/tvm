@@ -26,7 +26,7 @@ from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.nn.util import get_pad_tuple
 from tvm.topi.util import get_const_tuple
 
-from common import get_all_backend
+import tvm.testing
 
 def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False,\
         use_cudnn=False):
@@ -63,7 +63,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -97,7 +97,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
             func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-4)
 
-    for device in get_all_backend():
+    for device, ctx in tvm.testing.enabled_targets():
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
             check_device(device)
 
@@ -105,6 +105,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         check_device("cuda -model=unknown -libs=cudnn")
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_nchw():
     # ResNet18 workloads
     verify_conv2d_nchw(1,   3, 224,  64, 7, 2, 3)

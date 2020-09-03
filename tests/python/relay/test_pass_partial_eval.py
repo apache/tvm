@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
 import numpy as np
 import tvm
 from tvm import te
@@ -173,10 +174,9 @@ def test_function_invalidate():
 def test_head_cons():
     mod = tvm.IRModule()
     p = Prelude(mod)
-    hd = p.hd
     t = TypeVar("t")
     x = Var("x", t)
-    body = hd(p.cons(x, p.nil()))
+    body = p.hd(p.cons(x, p.nil()))
     f = Function([x], body, None, [t])
     res = dcpe(f, mod)
     assert tvm.ir.structural_equal(res, Function([x], x, t, [t]))
@@ -340,23 +340,4 @@ def test_tuple_match():
 
 
 if __name__ == '__main__':
-    test_nat_update()
-    test_ref()
-    test_tuple()
-    test_empty_ad()
-    test_const_inline()
-    test_ad()
-    test_if_ref()
-    test_function_invalidate()
-    test_head_cons()
-    test_map()
-    test_loop()
-    test_swap_loop()
-    test_abs_diff()
-    test_double()
-    test_nat_id()
-    test_global_match_nat_id()
-    test_match_nat_id()
-    test_concat()
-    test_triangle_number()
-    test_tuple_match()
+    pytest.main([__file__])

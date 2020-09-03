@@ -25,6 +25,7 @@
 #include "llvm_common.h"
 
 #include <dmlc/logging.h>
+#include <tvm/target/target.h>
 
 #include <atomic>
 #include <memory>
@@ -58,53 +59,44 @@ void InitializeLLVM() {
   }
 }
 
-void ParseLLVMTargetOptions(const std::string& target_str, std::string* triple, std::string* mcpu,
+void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::string* mcpu,
                             std::string* mattr, llvm::TargetOptions* options) {
-  // setup target triple
-  size_t start = 0;
-  if (target_str.length() >= 4 && target_str.substr(0, 4) == "llvm") {
-    start = 4;
-  }
   // simple parser
   triple->resize(0);
   mcpu->resize(0);
   mattr->resize(0);
-
   bool soft_float_abi = false;
-  std::string key, value;
-  std::istringstream is(target_str.substr(start, target_str.length() - start));
-  while (is >> key) {
-    if (key == "-system-lib" || key == "-system-lib=0" || key == "-system-lib=1") {
-      continue;
-    }
-    size_t pos = key.find('=');
-    if (pos != std::string::npos) {
-      CHECK_GE(key.length(), pos + 1) << "invalid argument " << key;
-      value = key.substr(pos + 1, key.length() - 1);
-      key = key.substr(0, pos);
-    } else {
-      CHECK(is >> value) << "Unspecified value for option " << key;
-    }
-    if (key == "-mtriple") {
-      *triple = value;
-    } else if (key == "-mcpu") {
-      *mcpu = value;
-    } else if (key == "-mattr") {
-      *mattr = value;
-    } else if (key == "-mfloat-abi") {
-      if (value == "hard") {
-#if TVM_LLVM_VERSION < 60
-        LOG(FATAL) << "-mfloat-abi hard is only supported for LLVM > 6.0";
-#endif
-        soft_float_abi = false;
-      } else if (value == "soft") {
-        soft_float_abi = true;
-      } else {
-        LOG(FATAL) << "invalid -mfloat-abi option " << value;
+  if (const Optional<String>& v = target->GetAttr<String>("mtriple")) {
+    *triple = v.value();
+  }
+  if (const Optional<String>& v = target->GetAttr<String>("mcpu")) {
+    *mcpu = v.value();
+  }
+  if (const Optional<Array<String>>& v = target->GetAttr<Array<String>>("mattr")) {
+    std::ostringstream os;
+    bool is_first = true;
+    for (const String& s : v.value()) {
+      if (!is_first) {
+        os << ',';
       }
+      is_first = false;
+      os << s;
+    }
+    *mattr = os.str();
+  }
+  if (const Optional<String>& v = target->GetAttr<String>("mfloat-abi")) {
+    String value = v.value();
+    if (value == "hard") {
+#if TVM_LLVM_VERSION < 60
+      LOG(FATAL) << "-mfloat-abi hard is only supported for LLVM > 6.0";
+#endif
+      soft_float_abi = false;
+    } else if (value == "soft") {
+      soft_float_abi = true;
+    } else {
+      LOG(FATAL) << "invalid -mfloat-abi option " << value;
     }
   }
-
   if (triple->length() == 0 || *triple == "default") {
     *triple = llvm::sys::getDefaultTargetTriple();
   }
@@ -125,12 +117,11 @@ void ParseLLVMTargetOptions(const std::string& target_str, std::string* triple, 
   }
 }
 
-std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const std::string& target_str,
-                                                          bool allow_null) {
+std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target, bool allow_null) {
   std::string target_triple, mcpu, mattr;
   llvm::TargetOptions opt;
 
-  ParseLLVMTargetOptions(target_str, &target_triple, &mcpu, &mattr, &opt);
+  ParseLLVMTargetOptions(target, &target_triple, &mcpu, &mattr, &opt);
 
   if (target_triple.length() == 0 || target_triple == "default") {
     target_triple = llvm::sys::getDefaultTargetTriple();
@@ -140,14 +131,40 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const std::string& tar
   }
 
   std::string err;
-  const llvm::Target* target = llvm::TargetRegistry::lookupTarget(target_triple, err);
-  if (target == nullptr) {
+  const llvm::Target* llvm_target = llvm::TargetRegistry::lookupTarget(target_triple, err);
+  if (llvm_target == nullptr) {
     CHECK(allow_null) << err << " target_triple=" << target_triple;
     return nullptr;
   }
   llvm::TargetMachine* tm =
-      target->createTargetMachine(target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_);
+      llvm_target->createTargetMachine(target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_);
   return std::unique_ptr<llvm::TargetMachine>(tm);
+}
+
+std::string LLVMTargetToString(const Target& target) {
+  std::ostringstream os;
+  os << "llvm";
+  if (Optional<String> mtriple = target->GetAttr<String>("mtriple")) {
+    os << " -mtriple=" << mtriple.value();
+  }
+  if (Optional<String> mcpu = target->GetAttr<String>("mcpu")) {
+    os << " -mcpu=" << mcpu.value();
+  }
+  if (Optional<Array<String>> mattr = target->GetAttr<Array<String>>("mattr")) {
+    bool is_first = true;
+    os << " -mattr=";
+    for (const String& attr : mattr.value()) {
+      if (!is_first) {
+        os << ",";
+      }
+      is_first = false;
+      os << attr;
+    }
+  }
+  if (Optional<String> mfloat_abo = target->GetAttr<String>("mfloat-abi")) {
+    os << " -mfloat-abi=" << mfloat_abo.value();
+  }
+  return os.str();
 }
 
 }  // namespace codegen
