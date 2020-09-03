@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file buffer.h
- * \brief Buffer
+ * \file tvm/runtime/crt/rpc_common/buffer.h
+ * \brief Defines a buffer implementation for the RPC layers.
  */
 
 #ifndef TVM_RUNTIME_CRT_RPC_COMMON_BUFFER_H_

@@ -56,9 +56,6 @@ class Unframer {
    * This function will return when exactly one packet has been decoded. It may not consume all of
    * `data` in this case, and valid bytes may remain at the end of data.
    *
-   * \param write_func Function called to store payload bytes as they are received and unescaped.
-   *      Payload bytes may be invalid when this function is called, and should be treated as valid
-   *      only after Write returns true.
    * \param data The new data to unframe and send downstream.
    * \param data_size_bytes The number of valid bytes in data.
    * \param bytes_consumed Pointer written with the number of bytes consumed from data.
