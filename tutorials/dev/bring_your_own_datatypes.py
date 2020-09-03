@@ -95,10 +95,11 @@ print("z: {}".format(z_output))
 # Additionally, note the "16" after the datatype: this is the bitwidth of the custom datatype. This tells TVM that each instance of ``posit`` is 16 bits wide.
 
 try:
-    x_posit = relay.cast(x, dtype='custom[posit]16')
-    y_posit = relay.cast(y, dtype='custom[posit]16')
-    z_posit = x_posit + y_posit
-    z = relay.cast(z_posit, dtype='float32')
+    with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
+        x_posit = relay.cast(x, dtype='custom[posit]16')
+        y_posit = relay.cast(y, dtype='custom[posit]16')
+        z_posit = x_posit + y_posit
+        z = relay.cast(z_posit, dtype='float32')
 except tvm.TVMError as e:
     # Print last line of error
     print(str(e).split('\n')[-1])
@@ -129,9 +130,10 @@ print(program)
 ######################################################################
 # Now that we can express our program without errors, let's try running it!
 try:
-    ex = relay.create_executor(mod=module)
-    z_output_posit = ex.evaluate()(x_input, y_input)
-    print("z: {}".format(z_output_posit))
+    with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
+        ex = relay.create_executor('graph', mod=module)
+        z_output_posit = ex.evaluate()(x_input, y_input)
+        print("z: {}".format(z_output_posit))
 except tvm.TVMError as e:
     # Print last line of error
     print(str(e).split('\n')[-1])
@@ -147,9 +149,13 @@ except tvm.TVMError as e:
 #
 # To fix this error, we simply need to specify a lowering function:
 
-tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func("posit16_fromf"), "Cast", "llvm",
-    "float", "posit")
+tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func(
+{
+    (32, 32): "FloatToPosit32es2",
+    (32, 16): "FloatToPosit16es2",
+    (32, 8): 'FloatToPosit8es2',
+}), 
+"Cast", "llvm", "float", "posit")
 
 ######################################################################
 # The ``register_op(...)`` call takes a lowering function, and a number of parameters which specify exactly the operation which should be lowered with the provided lowering function.
@@ -164,9 +170,10 @@ tvm.target.datatype.register_op(
 
 # We can now re-try running the program:
 try:
-    ex = relay.create_executor(mod=module)
-    z_output_posit = ex.evaluate()(x_input, y_input)
-    print("z: {}".format(z_output_posit))
+    with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
+        ex = relay.create_executor('graph', mod=module)
+        z_output_posit = ex.evaluate()(x_input, y_input)
+        print("z: {}".format(z_output_posit))
 except tvm.TVMError as e:
     # Print last line of error
     print(str(e).split('\n')[-1])
@@ -174,17 +181,23 @@ except tvm.TVMError as e:
 ######################################################################
 # This new error tells us that the `Add` lowering function is not found, which is good news, as it's no longer complaining about the `Cast`!
 # We know what to do from here: we just need to register the lowering functions for the other operations in our program.
-
-tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func("posit16_add"), "Add", "llvm",
-    "posit")
-tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func("posit16_tof"), "Cast", "llvm",
-    "posit", "float")
+tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
+    32: 'Posit32es2Add',
+    16: 'Posit16es2Add',
+    8: 'Posit8es2Add'
+}), "Add", "llvm", "posit")
+tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func(
+{
+    (32, 32): "Posit32es2ToFloat",
+    (16, 32): 'Posit16es2ToFloat',
+    (8, 32): 'Posit8es2ToFloat',
+}), 
+"Cast", "llvm", "posit", "float")
 
 # Now, we can run our program without errors.
-compiled = ex.evaluate(program)
-z_output_posit = compiled(x_input, y_input)
+with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
+    compiled = ex.evaluate(program)
+    z_output_posit = compiled(x_input, y_input)
 print("z: {}".format(z_output_posit))
 
 print("x:\t\t{}".format(x_input))
@@ -205,12 +218,13 @@ print("z (posit16):\t{}".format(z_output_posit))
 from tvm.relay.testing.mobilenet import get_workload as get_mobilenet
 
 module, params = get_mobilenet(image_shape=(3, 32, 32), num_classes=10)
+module = tvm.relay.transform.SimplifyInference()(module)
 
 ######################################################################
 # It's easy to execute MobileNet with native TVM:
 
 ex = tvm.relay.create_executor("graph", mod=module)
-input = np.random.rand(1, 3, 32, 32).astype("float32")
+input = tvm.nd.array(np.random.rand(3, 32, 32).astype("float32"))
 result = ex.evaluate()(input, **params)
 print(result)
 
@@ -220,11 +234,10 @@ print(result)
 
 def convert_ndarray(dst_dtype, array):
     """Converts an NDArray into the specified datatype"""
-    ex = relay.create_executor('graph')
     x = relay.var('x', shape=array.shape, dtype=str(array.dtype))
     cast = relay.Function([x], x.astype(dst_dtype))
-    return ex.evaluate(cast)(array)
-
+    with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
+        return relay.create_executor('graph').evaluate(cast)(array)
 
 ######################################################################
 # Now, to actually convert the entire network, we have written [a pass in Relay](https://github.com/gussmith23/tvm/blob/ea174c01c54a2529e19ca71e125f5884e728da6e/python/tvm/relay/frontend/change_datatype.py#L21) which simply converts all nodes within the model to use the new datatype.
@@ -243,10 +256,10 @@ module = tvm.relay.transform.InferType()(module)
 # Change datatype from float to posit and re-infer types
 cdtype = ChangeDatatype(src_dtype, dst_dtype)
 expr = cdtype.visit(module['main'])
-module = tvm.relay.transform.InferType()(tvm.relay.Module.from_expr(expr))
+module = tvm.relay.transform.InferType()(module)
 
 # We also convert the parameters:
-params = dict((p, convert_ndarray(dst_dtype, params[p])) for p in params)
+params = {k: convert_ndarray(dst_dtype, v) for k, v in params.items()}
 
 # We also need to convert our input:
 input = convert_ndarray(dst_dtype, input)
@@ -254,7 +267,7 @@ input = convert_ndarray(dst_dtype, input)
 # Finally, we can try to run the converted model:
 try:
     # Vectorization is not implemented with custom datatypes.
-    with tvm.build_config(disable_vectorize=True):
+    with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
         result_posit = ex.evaluate(expr)(input, **params)
 except tvm.TVMError as e:
     print(str(e).split('\n')[-1])
@@ -265,40 +278,64 @@ except tvm.TVMError as e:
 # Because this is a neural network, many more operations are required.
 # Here, we register all the needed functions:
 
-tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func("posit16_fromf"), "FloatImm", "llvm",
-    "posit")
+tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
+    32: 'FloatToPosit32es2',
+    16: 'FloatToPosit16es2',
+    8: 'FloatToPosit8es2'
+}), "FloatImm", "llvm", "posit")
+
 tvm.target.datatype.register_op(tvm.target.datatype.lower_ite,
-                                "Call",
-                                "llvm",
-                                "posit",
-                                intrinsic_name="tvm_if_then_else")
-tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func("posit16_mul"), "Mul", "llvm",
-    "posit")
-tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func("posit16_div"), "Div", "llvm",
-    "posit")
-tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func("posit16_sqrt"),
-    "Call",
-    "llvm",
-    "posit",
-    intrinsic_name="sqrt")
-tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func("posit16_sub"), "Sub", "llvm",
-    "posit")
-# //TODO(hypercubestart): add notes on this
-tvm.target.datatype.register_min_func(lambda _: -268435456, "posit")
-tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func("posit16_exp"),
-    "Call",
-    "llvm",
-    "posit",
-    intrinsic_name="exp")
-# tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func("posit16_max"),
-#                         "Max", "llvm", "posit")
-# //TODO(hypercubestart): after we figure out third-party library, need to add this back in
+            "Call",
+            "llvm",
+            "posit",
+            intrinsic_name="tir.if_then_else")
+
+tvm.target.datatype.register_op(tvm.target.datatype.lower_call_pure_extern,
+            "Call",
+            "llvm",
+            "posit",
+            intrinsic_name="tir.call_pure_extern")
+
+tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
+    32: 'Posit32es2Mul',
+    16: 'Posit16es2Mul',
+    8: 'Posit8es2Mul'
+}), "Mul", "llvm", "posit")
+tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
+    32: 'Posit32es2Div',
+    16: 'Posit16es2Div',
+    8: 'Posit8es2Div'
+}), "Div", "llvm", "posit")
+
+tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
+    32: 'Posit32es2Sqrt',
+    16: 'Posit16es2Sqrt',
+    8: 'Posit8es2Sqrt'
+}), "Call", "llvm", "posit", intrinsic_name="tir.sqrt")
+
+tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
+    32: 'Posit32es2Sub',
+    16: 'Posit16es2Sub',
+    8: 'Posit8es2Sub'
+}), "Sub", "llvm", "posit")
+
+tvm.target.datatype.register_min_func(tvm.target.datatype.create_min_lower_func({
+    32: 'MinPosit32es2',
+    16: 'MinPosit16es2',
+    8: 'MinPosit8es2'
+}, "posit"), "posit")
+
+tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
+    32: 'Posit32es2Exp',
+    16: 'Posit16es2Exp',
+    8: 'Posit8es2Exp'
+}), "Call", "llvm", "posit", intrinsic_name="tir.exp")
+
+tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
+    32: 'Posit32es2Max',
+    16: 'Posit16es2Max',
+    8: 'Posit8es2Max'
+}), "Max", "llvm", "posit")
 
 ######################################################################
 # Note that, to implement the `Max` operator, we needed to rewrite our wrapper library with a new function, `posit16_max`.
@@ -308,7 +345,7 @@ tvm.target.datatype.register_op(
 # Now we can finally run the model:
 
 # Vectorization is not implemented with custom datatypes.
-with tvm.build_config(disable_vectorize=True):
+with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
     result_posit = ex.evaluate(expr)(input, **params)
     result_posit = convert_ndarray(src_dtype, result_posit)
     print(result_posit)
