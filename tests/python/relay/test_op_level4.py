@@ -373,6 +373,8 @@ def test_strided_slice():
     verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1],
            (2, 2, 3), slice_mode="size", test_ref=True)
 
+#TODO(mbrookhart): enable once vm supports heterogenous execution
+#@tvm.testing.uses_gpu
 def test_dyn_strided_slice():
     def verify(dshape, begin, end, strides, output, slice_mode="end",
                test_ref=True, dtype="int32"):
@@ -406,9 +408,7 @@ def test_dyn_strided_slice():
 
         if not test_ref:
             return
-        for target, ctx in ctx_list():
-            #TODO(mbrookhart): remove once vm supports heterogenous execution
-            if "cuda" in target: continue
+        for target, ctx in tvm.testing.enabled_targets():
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
             op_res = intrp.evaluate()(x_data)
