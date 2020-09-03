@@ -49,52 +49,6 @@ class Workspace:
         return self.tempdir.temp_dir
 
 
-FUNC_RE = re.compile(r'^TVM_DLL int32_t ([^(]+)\(')
-
-
-def _generate_mod_wrapper(src_path):
-    funcs = []
-    with open(src_path) as src_f:
-        for line in src_f:
-            m = FUNC_RE.match(line)
-            if m:
-                funcs.append(m.group(1))
-
-    encoded_funcs = f'\\{len(funcs):03o}' + '\\0'.join(funcs)
-    lines = [
-        '#include <tvm/runtime/c_runtime_api.h>',
-        '#include <tvm/runtime/crt/module.h>',
-        '#include <stdio.h>',
-        '',
-        '#ifdef __cplusplus',
-        'extern "C" {',
-        '#endif',
-        'static TVMBackendPackedCFunc funcs[] = {',
-    ]
-    for f in funcs:
-        lines.append(f'    (TVMBackendPackedCFunc) &{f},')
-        lines += [
-            '};',
-            'static const TVMFuncRegistry system_lib_registry = {',
-            f'       "{encoded_funcs}\\0",',
-            '        funcs,',
-            '};',
-            'static const TVMModule system_lib = {',
-            '    &system_lib_registry,',
-            '};',
-            '',
-            'const TVMModule* TVMSystemLibEntryPoint(void) {',
-            '    return &system_lib;',
-            '}',
-            '#ifdef __cplusplus',
-            '}  // extern "C"',
-            '#endif',
-            '',   # blank line to end the file
-        ]
-        with open(src_path, 'a') as wrapper_f:
-            wrapper_f.write('\n'.join(lines))
-
-
 CRT_RUNTIME_LIB_NAMES = ['utvm_rpc_server', 'common']
 
 
@@ -173,10 +127,7 @@ def build_static_runtime(workspace, compiler, module, lib_opts=None, bin_opts=No
     mod_src_path = os.path.join(mod_src_dir, 'module.c')
     module.save(mod_src_path, 'cc')
 
-    _generate_mod_wrapper(mod_src_path)
-
     libs = []
-
     for lib_src_dir in RUNTIME_LIB_SRC_DIRS:
         lib_name = os.path.basename(lib_src_dir)
         lib_build_dir = workspace.relpath(f'build/{lib_name}')

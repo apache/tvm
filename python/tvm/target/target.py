@@ -188,7 +188,7 @@ def micro(hardware='unknown', options=None):
     trans_table = {
         "host": ["-mcpu=native"],
     }
-    opts = _merge_opts(trans_table[hardware] + ["-runtime=crt"], options)
+    opts = _merge_opts(trans_table[hardware] + ["-runtime=c", "--system-lib"], options)
 
     # NOTE: in the future, the default micro target will be LLVM except when
     # external dependencies are present.

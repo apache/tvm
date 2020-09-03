@@ -193,6 +193,8 @@ class DefaultCompiler(Compiler):
     def __init__(self, target=None):
         super(DefaultCompiler, self).__init__()
         self.target = target
+        if isinstance(target, str):
+            self.target = tvm.target.create(target)
 
     def library(self, output, sources, options=None):
         options = options if options is not None else {}
