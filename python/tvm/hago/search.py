@@ -41,50 +41,8 @@ from collections import namedtuple
 
 def generate_search_space(graph, hardware):
     topology = analyze_topology(graph, hardware)
-    def get_in_bits(hardware, node):
-        in_bits = [None] * len(node.args)
-        int_cstrs = integer_constraints(hardware[node.op])
-        for cstr in int_cstrs:
-            cur_in_bits = [dtype.bits for dtype in cstr.idtypes]
-            in_bits = [max_with_none(v1, v2) for v1, v2 
-                       in zip(in_bits, cur_in_bits)]
-        return in_bits
+    return topology.generate_search_space()
 
-    def get_out_bit(hardware, node):
-        if not isinstance(node, relay.Call):
-            return None
-        int_cstrs = integer_constraints(hardware[node.op])
-        if not int_cstrs:
-            return None
-        out_bit = max([cstr.odtype(0).bits for cstr in int_cstrs])
-        return out_bit
-
-    bits = []
-    node2idx = build_node_index(graph)
-    edge2idx = build_edge_index(graph)
-    def fvisit(node):
-        if isinstance(node, relay.Call):
-            if not topology.node_conds[node2idx[node]]:
-                return 
-
-            cur_in_bits = get_in_bits(hardware, node)
-            for idx, src in enumerate(node.args):
-                eidx = edge2idx[(src, node)]
-                if topology.edge_conds[eidx]:
-                    src_out_bit = get_out_bit(hardware, src)
-                    bit = min_with_none(cur_in_bits[idx], src_out_bit)
-                    bits.append(bit)
-    relay.analysis.post_order_visit(graph, fvisit)
-
-    print('bit limit')
-    edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
-    print_edge_dict(graph, edge2bit)
-
-    choices = [list(reversed(range(4, bit + 1))) for bit in bits]
-    # print('bit choices')
-    # edge2choices = complete_dict(choices, topology.edge2cond)
-    # print_edge_dict(graph, edge2choices)
-    return choices
 
 ############################################################
 # TODO: old search pipeline, need to move to new tuner API
@@ -306,14 +264,14 @@ def generate_search_space(graph, hardware):
 #     return best_strategy, best_acc
 
 
-def _accuracy_as_measure(graph, dataset, simulated_out, ctx=None, target=None):
+def _accuracy_as_measure(func, dataset, outputs, ctx, target):
     # return a MeasureResult
     num_samples = 0
     num_correct = 0
     for idx, batch in enumerate(dataset):
         assert 'label' in batch
         label = batch['label'].asnumpy()
-        sim_out = simulated_out[idx].asnumpy()
+        sim_out = outputs[idx].asnumpy()
         sim_pred = np.argmax(sim_out, axis=1)
         # pre-calculated label in the provided dataset
         num_correct += np.sum(sim_pred == label) 
@@ -335,7 +293,7 @@ def _group_same_graph(graph, hardware, topology, bits_list):
     """group guesses which can share the same graph"""
     constraints = []
     for bits in bits_list:
-        cstrs = qtz.select_constraint(graph, hardware, topology, bits)
+        cstrs = qtz.select_desc(graph, hardware, topology, bits)
         constraints.append((cstrs, bits))
 
     def group_by_key(pairs):
@@ -483,10 +441,23 @@ class BatchedGreedySearchTuner(Tuner):
         self.dim_idx += 1
 
 
+def list_ops(graph):
+    ops = set()
+    def fvisit(node):
+        if isinstance(node, relay.Call):
+            ops.add(node.op.name)
+    relay.analysis.post_order_visit(graph, fvisit)
+    return ops
+
 def search_quantize_strategy(graph, hardware, dataset, tuner, ctx, target):
     assert isinstance(graph, relay.Function)
+    assert isinstance(dataset, qtz.CalibrationDataset)
+    print('ops in graph:')
+    print(list_ops(graph))
     qconfig = current_qconfig()
-    origin_out, origin_acc = eval_acc(graph, dataset, ctx, target)
+    origin_out = evaluate(graph, dataset, ctx, target)[0]
+    origin_acc = calculate_accuracy(dataset, origin_out)
+    # origin_out, origin_acc = eval_acc(graph, dataset, ctx, target)
     print('original acc: {}'.format(origin_acc))
 
     with open(qconfig.log_file, 'w+', buffering=1) as fout:

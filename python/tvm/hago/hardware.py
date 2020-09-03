@@ -27,30 +27,19 @@ from collections import defaultdict
 # rename to OpSpec
 
 class OpDesc(object):
-    def __init__(self,
-                 idtypes=None,
-                 odtypes=None):
+    def __init__(self, in_dtypes=None, out_dtypes=None):
+        self.in_dtypes = self._prepare_dtypes(in_dtypes)
+        self.out_dtypes = self._prepare_dtypes(out_dtypes)
 
-        def prepare_dtypes(dtypes):
-            if dtypes is None:
-                return dtypes
-            assert isinstance(dtypes, list)
-            ret = []
-            for dtype in dtypes:
-                if isinstance(dtype, (str, np.dtype)):
-                    dtype = DataType(dtype)
-                assert isinstance(dtype, DataType)
-                ret.append(dtype)
-            return ret
+    def in_dtype(self, idx):
+        if isinstance(self.in_dtypes, list):
+            return self.in_dtypes[idx]
+        return self.in_dtypes
 
-        self.idtypes = prepare_dtypes(idtypes)
-        self.odtypes = prepare_dtypes(odtypes)
-
-    def idtype(self, idx):
-        return self.idtypes[idx]
-
-    def odtype(self, idx):
-        return self.odtypes[idx]
+    def out_dtype(self, idx):
+        if isinstance(self.out_dtypes, list):
+            return self.out_dtypes[idx]
+        return self.out_dtypes
 
     def ishape(self, idx):
         pass
@@ -65,17 +54,62 @@ class OpDesc(object):
         pass
 
     def __str__(self):
-        return 'OpDesc[idtypes={}, odtypes={}]'.format(self.idtypes, self.odtypes)
+        return 'OpDesc[in_dtypes={}, out_dtypes={}]'.format(self.in_dtypes, self.out_dtypes)
 
     def __repr__(self):
-        return 'OpDesc[idtypes={}, odtypes={}]'.format(self.idtypes, self.odtypes)
+        return 'OpDesc[in_dtypes={}, out_dtypes={}]'.format(self.in_dtypes, self.out_dtypes)
 
+    def _prepare_dtypes(self, dtypes):
+        def convert_dtype(dtype):
+            if isinstance(dtype, (str, np.dtype)):
+                dtype = DataType(dtype)
+            assert isinstance(dtype, DataType)
+            return dtype
+
+        if dtypes is None:
+            return dtypes
+        if isinstance(dtypes, list):
+            ret = []
+            for dtype in dtypes:
+                dtype = convert_dtype(dtype)
+                ret.append(dtype)
+            return ret
+        else:
+            ret = convert_dtype(dtypes)
+            return ret
+
+    def _list_dtypes(self, dtypes):
+        ret = []
+        if isinstance(dtypes, list):
+            ret += dtypes
+        else:
+            ret.append(dtypes)
+        return ret
+
+    def is_integer(self):
+        dtypes = self._list_dtypes(self.in_dtypes) + self._list_dtypes(self.out_dtypes)
+        for dtype in dtypes:
+            if 'float' in str(dtype):
+                return False
+        return True
+    
+    def is_float(self):
+        dtypes = self._list_dtypes(self.in_dtypes) + self._list_dtypes(self.out_dtypes)
+        for dtype in dtypes:
+            if 'int' in str(dtype):
+                return False
+        return True
 
 class Hardware(object):
     def __init__(self):
         self._op_descs = defaultdict(list)
 
-    def __getitem__(self, op_name):
+    def add_op_desc(self, op_name, desc):
+        if isinstance(op_name, tvm.ir.Op):
+            op_name = op_name.name
+        self._op_descs[op_name].append(desc)
+
+    def op_descs(self, op_name):
         if isinstance(op_name, tvm.ir.Op):
             op_name = op_name.name
         return self._op_descs[op_name]
@@ -84,66 +118,40 @@ class Hardware(object):
     def ops(self):
         return self._op_descs.keys()
 
-
-
-def is_integer_instruction(cstr):
-    for dtype in (cstr.idtypes + cstr.odtypes):
-        if 'float' in str(dtype):
-            return False
-    return True
-
-def is_float_instruction(cstr):
-    for dtype in (cstr.idtypes + cstr.odtypes):
-        if 'int' in str(dtype):
-            return False
-    return True
-
-def integer_constraints(constraints):
-    cstrs = []
-    for cstr in constraints:
-        if is_integer_instruction(cstr):
-            cstrs.append(cstr)
-    return cstrs
-
-def float_constraints(constraints):
-    cstrs = []
-    for cstr in constraints:
-        if is_float_instruction(cstr):
-            cstrs.append(cstr)
-    return cstrs
-
-def support_integer_computation(constraints):
-    for cstr in constraints:
-        if is_integer_instruction(cstr):
-            return True
-    return False
-
-def support_float_computation(constraints):
-    for cstr in constraints:
-        if is_float_instruction(cstr):
-            return True
-    return False
-
+    def list_integer_descs(self, op_name):
+        descs = self.op_descs(op_name)
+        ret = []
+        for desc in descs:
+            if desc.is_integer():
+                ret.append(desc)
+        return ret
+    
+    def list_float_descs(self, op_name):
+        descs = self.op_descs(op_name)
+        ret = []
+        for desc in descs:
+            if desc.is_float():
+                ret.append(desc)
+        return ret
 
 
 def create_accelerator_description():
-    desc = Hardware()
-    # desc['add'].append(OpDesc(idtypes=['int8', 'int8'], odtypes=['int16']))
-    # desc['add'].append(OpDesc(idtypes=['int8', 'int8'], odtypes=['int32']))
-    # desc['add'].append(OpDesc(idtypes=['int16', 'int16'], odtypes=['int32']))
-    desc['add'].append(OpDesc(idtypes=['int32', 'int32'], odtypes=['int32']))
-    desc['add'].append(OpDesc(idtypes=['float32', 'float32'], odtypes=['float32']))
-    # TODO(ziheng) enable int32 addition will lead to overflow easily
-    #  - add output_bit constraint to restrict the using for output bit-width
-    # TODO(ziheng) enable int16 conv2d will lead to overflow easily
-    #  - add input_bit constraint to restrict the using for output bit-width
-    # desc['nn.conv2d'].append(OpDesc(idtypes=['int8', 'int8'], odtypes=['int16']))
-    desc['nn.conv2d'].append(OpDesc(idtypes=['int8', 'int8'], odtypes=['int32']))
-    # desc['nn.conv2d'].append(OpDesc(idtypes=['int16', 'int16'], odtypes=['int32']))
+    hardware = Hardware()
+    hardware.add_op_desc('add', OpDesc(in_dtypes='float32', out_dtypes='float32'))
+    # hardware.add_op_desc('add', OpDesc(in_dtypes='int8', out_dtypes='int16'))
+    # hardware.add_op_desc('add', OpDesc(in_dtypes='int16', out_dtypes='int32'))
+    hardware.add_op_desc('add', OpDesc(in_dtypes='int32', out_dtypes='int32'))
+    # hardware.add_op_desc('nn.conv2d', OpDesc(in_dtypes='int8', out_dtypes='int16'))
+    hardware.add_op_desc('nn.conv2d', OpDesc(in_dtypes='int8', out_dtypes='int32'))
+    # hardware.add_op_desc('nn.conv2d', OpDesc(in_dtypes='int16', out_dtypes='int32'))
 
-    desc['nn.relu'].append(OpDesc(idtypes=['int32', 'int32'], odtypes=['int32']))
-    desc['nn.max_pool2d'].append(OpDesc(idtypes=['int32', 'int32'], odtypes=['int32']))
-    desc['nn.batch_flatten'].append(OpDesc(idtypes=['float32'], odtypes=['float32']))
-    desc['nn.dense'].append(OpDesc(idtypes=['float32', 'float32'], odtypes=['float32']))
-    desc['nn.global_avg_pool2d'].append(OpDesc(idtypes=['float32'], odtypes=['float32']))
-    return desc
+    hardware.add_op_desc('concatenate', OpDesc(in_dtypes='float32', out_dtypes='float32'))
+
+    hardware.add_op_desc('nn.relu', OpDesc(in_dtypes='int32', out_dtypes='int32'))
+    hardware.add_op_desc('nn.avg_pool2d', OpDesc(in_dtypes='float32', out_dtypes='float32'))
+    # hardware.add_op_desc('nn.avg_pool2d', OpDesc(in_dtypes='int32', out_dtypes='int32'))
+    hardware.add_op_desc('nn.max_pool2d', OpDesc(in_dtypes='int32', out_dtypes='int32'))
+    hardware.add_op_desc('nn.batch_flatten', OpDesc(in_dtypes='float32', out_dtypes='float32'))
+    hardware.add_op_desc('nn.dense', OpDesc(in_dtypes='float32', out_dtypes='float32'))
+    hardware.add_op_desc('nn.global_avg_pool2d', OpDesc(in_dtypes='float32', out_dtypes='float32'))
+    return hardware

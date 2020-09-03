@@ -23,10 +23,10 @@ from .. import relay
 def threshold_rectify(graph, topology, bits, thresholds):
     # print('bits')
     # print(bits)
-    edge2idx = build_edge_index(graph)
-    node2idx = build_node_index(graph)
-    edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
-    node2edges = build_node2edges(graph)
+    edge2idx = topology.edge2idx()
+    node2idx = topology.node2idx()
+    node2edges = topology.node2edges()
+    edge2bit = topology.build_edge_info(bits)
     # print('num_nodes: {}'.format(num_nodes))
     # print('num_node2edge: {}'.format(len(node2edges)))
     # for node in node2edges:
@@ -39,7 +39,7 @@ def threshold_rectify(graph, topology, bits, thresholds):
 
     def fvisit_rectify(node):
         if isinstance(node, relay.Call):
-            if not topology.node_conds[node2idx[node]]:
+            if not topology.is_quantized_node(node):
                 return
             frectify = node.op.get_attr('FHagoRectify')
             if frectify is not None:

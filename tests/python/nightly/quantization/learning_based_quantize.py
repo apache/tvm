@@ -128,14 +128,14 @@ def eval_acc(mod, dataset, batch_fn, target='cuda', ctx=tvm.gpu(), log_interval=
 
 def get_calibration_dataset(dataset, batch_fn, num_samples=100):
     dataset.reset()
-    ret = []
+    batches = []
     for i, batch in enumerate(dataset):
         if i * dataset.batch_size > num_samples:
             break
         data, label = batch_fn(batch, [mx.cpu(0)])
-        ret.append({'data': tvm.nd.array(data[0].asnumpy()),
-                    'label': tvm.nd.array(label[0].asnumpy())})
-    return ret
+        batches.append({'data': tvm.nd.array(data[0].asnumpy()),
+                        'label': tvm.nd.array(label[0].asnumpy())})
+    return hago.CalibrationDataset(batches)
 
 
 def test_quantize_acc(cfg, rec_val):
@@ -148,20 +148,21 @@ def test_quantize_acc(cfg, rec_val):
 
     for orig in [True, False]:
         mod = get_model(cfg.model, batch_size, qconfig, dataset=dataset, original=orig)
-        acc = eval_acc(mod, val_data, batch_fn, target='cuda', ctx=tvm.gpu())
-        print("Final accuracy", "int8" if orig else "fp32", acc)
+        acc = eval_acc(mod, val_data, batch_fn, target='cuda', ctx=tvm.gpu(2))
+        print("Final accuracy", "fp32" if orig else "int8", acc)
     return acc
 
 
 if __name__ == "__main__":
     #TODO(for user): replace the line with the path to imagenet validation dataset
-    rec_val = "~/tensorflow_datasets/downloads/manual/imagenet2012/val_rec.rec"
+    rec_val = "~/datasets1/imagenet/rec/val.rec"
+    # rec_val = "~/tensorflow_datasets/downloads/manual/imagenet2012/val_rec.rec"
 
     results = []
     configs = [
-        Config('resnet18_v1', expected_acc=0.67),
-        # Config('resnet50_v1', expected_acc=0.67),
-        # Config('inceptionv3', expected_acc=0.67),
+        Config('resnet18_v1', expected_acc=0.69),
+        Config('resnet50_v1', expected_acc=0.75),
+        Config('inceptionv3', expected_acc=0.76),
     ]
     # rec = hago.pick_best(".quantize_strategy_search.log", 'quant_acc')
 
@@ -169,4 +170,4 @@ if __name__ == "__main__":
         acc = test_quantize_acc(config, rec_val)
         results.append((config, acc))
     for res in results:
-        print(res)
+        print("{}\nQuantized Accuracy: {} vs. Expected Accuracy: {}".format(res[0].model, res[1], res[0].expected_acc))

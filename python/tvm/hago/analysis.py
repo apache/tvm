@@ -30,6 +30,7 @@ import numpy as np
 from itertools import islice
 from collections import OrderedDict
 
+# TODO: - Add quantile ranges.
 
 class Stats(object):
     def __init__(self, data):
@@ -37,7 +38,6 @@ class Stats(object):
         data: intermediate data * number_of_batches
         """
         self.data = data
-        # FIXME - Add quantile ranges.
         # Range represents avg min/max
         self.range = []
         self.power_of_two_range = []
@@ -62,24 +62,6 @@ class Stats(object):
 
     def variance(self, idx):
         pass
-
-
-def evaluate(func, dataset, ctx, target):
-    # list of array: (num_outputs, num_batch, arr)
-    with relay.transform.build_config(opt_level=2):
-        graph, lib, params = relay.build_module.build(func, target=target)
-    runtime = graph_runtime.create(graph, lib, ctx)
-    runtime.set_input(**params)
-    num_outputs = runtime.get_num_outputs()
-    outputs = [[] for i in range(num_outputs)]
-
-    for batch_id, batch in enumerate(dataset):
-        runtime.set_input('data', batch['data'])
-        runtime.run()
-        for i in range(num_outputs):
-            output = runtime.get_output(i).asnumpy()
-            outputs[i].append(output)
-    return outputs
 
 
 def collect_stats(graph, dataset, ctx, target):
@@ -111,17 +93,6 @@ def compare(np_x, np_y):
     print('maximum absolute error: {:.4f}({:.2f}%), compare {:.4f} with {:.4f}'
           .format(np.max(abs_err), rel_err[idx] * 100, np_x[idx], np_y[idx]))
     return rel_err[idx]
-
-
-# def construct_subtopology(graph, topology):
-#     node2idx = build_node_index(graph)
-#     edge2idx = build_node_index(graph)
-#     num_nodes = len(node2idx)
-#     num_edges = len(edge2idx)
-#     new_topo = Topology()
-#     new_topo.node_conds = topology.node_conds[:num_nodes]
-#     new_topo.edge_conds = topology.edge_conds[:num_edges]
-#     return new_topo
 
 
 # TODO(ziheng) avoid recompute
@@ -187,19 +158,19 @@ def inspect_graph_statistic(func, hardware, strategy, dataset, ctx, target):
         rel_err = compare(real_out, simulated_out)
         if rel_err > 0.05:
             raise ValueError
-        # print('compare real_out vs. quantized_out')
-        # compare(real_out, quantized_out)
-        # if not np.allclose(simulated_out, quantized_out):
-        #     print('compare simulated_out vs. quantized_out')
-        #     compare(simulated_out, quantized_out)
-        #     is_close = np.isclose(simulated_out, quantized_out)
-        #     indexes = np.where(np.logical_not(is_close))
-        #     print('num of mismatched items: {}'.format(len(indexes[0])))
-        #     print('simulated out:\n{}'.format(simulated_out[indexes]))
-        #     print('quantized out:\n{}'.format(quantized_out[indexes]))
-        #     print('\nsimulated graph')
-        #     print(simulated_graph)
-        #     print('\nquantized graph')
-        #     print(quantized_graph)
-        #     # raise ValueError
+        print('compare real_out vs. quantized_out')
+        compare(real_out, quantized_out)
+        if not np.allclose(simulated_out, quantized_out):
+            print('compare simulated_out vs. quantized_out')
+            compare(simulated_out, quantized_out)
+            is_close = np.isclose(simulated_out, quantized_out)
+            indexes = np.where(np.logical_not(is_close))
+            print('num of mismatched items: {}'.format(len(indexes[0])))
+            print('simulated out:\n{}'.format(simulated_out[indexes]))
+            print('quantized out:\n{}'.format(quantized_out[indexes]))
+            print('\nsimulated graph')
+            print(simulated_graph)
+            print('\nquantized graph')
+            print(quantized_graph)
+            # raise ValueError
         print('\n\n')

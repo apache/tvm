@@ -225,6 +225,7 @@ def identity_scale(input_scales):
 register_infer_scale("add", identity_scale)
 register_infer_scale("nn.relu", identity_scale)
 register_infer_scale("nn.max_pool2d", identity_scale)
+register_infer_scale("nn.avg_pool2d", identity_scale)
 register_infer_scale("nn.global_avg_pool2d", identity_scale)
 register_infer_scale("nn.batch_flatten", identity_scale)
 
@@ -234,7 +235,7 @@ def register_threshold_rectify(op_name, frectify=None, level=10):
     return tvm.ir.register_op_attr(op_name, "FHagoRectify", frectify, level)
 
 @register_threshold_rectify("add")
-def threshold_rectify_for_add(input_bits, output_bits, input_thresholds, output_thresholds):
+def unify_scale(input_bits, output_bits, input_thresholds, output_thresholds):
     sign_bit = 1
     # convert from tvm object to POD
     ibits = [bit.value for bit in input_bits]
