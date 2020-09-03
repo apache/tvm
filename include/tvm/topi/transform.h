@@ -1538,7 +1538,7 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal,
 
   return compute(
       input->shape,
-      [&](const Array<Var> &iter_vars) {
+      [&](const Array<Var>& iter_vars) {
         auto get_diag = [&]() {
           Array<PrimExpr> diagonal_indices;
           for (size_t i = 0; i < ndim; i++) {
@@ -1546,7 +1546,7 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal,
           }
           return diagonal(diagonal_indices);
         };
-        return if_then_else((PrimExpr) iter_vars[ndim] == iter_vars[ndim - 1], get_diag(),
+        return if_then_else((PrimExpr)iter_vars[ndim] == iter_vars[ndim - 1], get_diag(),
                             input(iter_vars));
       },
       name, tag);
