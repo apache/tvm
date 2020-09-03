@@ -238,7 +238,7 @@ bool RelayTextPrinter::AlwaysInline(const Expr& expr) {
 //------------------------------------
 // Overload of Expr printing functions
 //------------------------------------
-Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
+Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bool optional_info) {
   // Exploit memoization to print GNF.
   // The first time we visit an expression, we need to allocate a temp var
   // for it. Every subsequent time we can just use its assigned variable.
@@ -266,7 +266,9 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
     printed_expr = VisitExpr(expr);
   }
 
-  printed_expr << PrintOptionalInfo(expr);
+  if (optional_info) {
+    printed_expr << PrintOptionalInfo(expr);
+  }
 
   // add expr to doc
   if (expr.as<VarNode>()) {
@@ -330,17 +332,11 @@ Doc RelayTextPrinter::VisitExpr_(const ConstantNode* op) {
       return ScalarLiteral(dtype, static_cast<const uint8_t*>(op->data->data)[0]);
     }
   }
-  const PackedFunc* fprint = runtime::Registry::Get("relay._constant_text");
-  if (fprint) {
-    TVMRetValue s = (*fprint)(GetRef<Constant>(op));
-    if (s.type_code() == kTVMStr) {
-      return Doc::Text((*fprint)(GetRef<Constant>(op)));
-    }
-    // else fall-back to meta print.
-  }
   // default fall-back, record it as meta node.
   Doc doc;
-  return doc << Print(GetRef<ObjectRef>(op), true);
+  // Don't append optional_info. Because the entry function is Print,
+  // and it will append the optional_info afterwards.
+  return doc << PrintExpr(GetRef<Expr>(op), true, false, false);
 }
 
 Doc RelayTextPrinter::VisitExpr_(const TupleNode* op) {
