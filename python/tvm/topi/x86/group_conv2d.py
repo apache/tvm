@@ -304,7 +304,6 @@ def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, 
     # schedule data
     if isinstance(data_pad.op, tvm.te.ComputeOp) and "pad" in data_pad.op.tag:
         s[A0].compute_inline()
-        # s[A0].compute_at(s[A1])
 
     groups, batch, ic_chunk, ih, ic_block, _ = s[A1].op.axis
 
@@ -346,10 +345,8 @@ def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, 
         s[CC].reorder(oc_chunk, oh, ow_chunk, ic_chunk, kh, kw, ic_block, ow_block, oc_block)
 
     parallel_axis = s[CC].fuse(groups, batch, oc_chunk, oh)
-    # s[A1].compute_at(CC, parallel_axis)
+
     s[CC].parallel(parallel_axis)
-
-
 
     s[CC].vectorize(oc_block)
 
