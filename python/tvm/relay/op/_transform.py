@@ -634,6 +634,8 @@ def _split_shape_func(data_shape, index, indices_or_sections, axis):
     if len(indices_or_sections) == 1:
         for i in const_range(data_shape.shape[0]):
             if i == axis:
+                assert data_shape[axis] % indices_or_sections[0] == 0, \
+                    "num_sections must be an integer factor of the size of axis"
                 out[i] = ceil_div(data_shape[axis], indices_or_sections[0])
             else:
                 out[i] = data_shape[i]
@@ -658,8 +660,12 @@ def split_shape_func(attrs, inputs, _):
     """
     if isinstance(attrs.indices_or_sections, (int, tvm.tir.IntImm)):
         indices_or_sections = get_const_int(attrs.indices_or_sections)
+        assert indices_or_sections > 0, "Slice count must be > 0"
     else:
-        indices_or_sections = get_const_tuple(attrs.indices_or_sections)
+        indices_or_sections = list(get_const_tuple(attrs.indices_or_sections))
+        assert sorted(indices_or_sections)[0] > 0 and \
+               indices_or_sections == sorted(indices_or_sections), \
+            "split_indices must be sorted"
 
     axis = get_const_int(attrs.axis)
 

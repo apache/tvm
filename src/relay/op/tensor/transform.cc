@@ -886,7 +886,6 @@ RELAY_REGISTER_OP("scatter_add")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_support_level(10);
 
-
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
@@ -2397,7 +2396,10 @@ Array<te::Tensor> SplitCompute(const Attrs& attrs, const Array<te::Tensor>& inpu
     int64_t num_sections = sections->value;
     return Array<te::Tensor>{topi::split_sections(inputs[0], num_sections, param->axis)};
   } else {
-    auto indices = Downcast<Array<Integer>>(param->indices_or_sections);
+    Array<PrimExpr> indices;
+    for (auto i : Downcast<Array<Integer>>(param->indices_or_sections)) {
+      indices.push_back(IntImm(DataType::Int(32), i.as<IntImmNode>()->value));
+    }
     return Array<te::Tensor>{topi::split(inputs[0], indices, param->axis)};
   }
 }

@@ -44,6 +44,16 @@ namespace ethosn {
 
 namespace sl = ::ethosn::support_library;
 
+struct ConvolutionParams {
+  sl::ConvolutionInfo conv_info;
+  sl::TensorInfo activation_info;
+  sl::TensorInfo weights_info;
+  sl::TensorInfo bias_info;
+  void* raw_weights = nullptr;
+  void* raw_bias = nullptr;
+  bool is_depthwise = false;
+};
+
 struct ConcatenateParams {
   sl::QuantizationInfo qInfo;
   sl::ConcatenationInfo concat_info = sl::ConcatenationInfo(1, qInfo);
@@ -115,6 +125,8 @@ class EthosnError {
  */
 class EthosnAPI {
  public:
+  /*! \brief Extract the Support Library convolution params from an ethos-n.qnn_conv2d func */
+  static EthosnError QnnConv2d(const Expr& expr, ConvolutionParams* params);
   /*! \brief Extract the Support Library concatenate params from a Relay qnn.concatenate call */
   static EthosnError Concatenate(const Expr& expr, ConcatenateParams* params);
   /*! \brief Extract the Support Library split params from a Relay split call */
@@ -125,6 +137,16 @@ class EthosnAPI {
   static EthosnError Tvm2Npu(const Array<IndexExpr>& shape, sl::TensorShape* npu_shape);
   /*! \brief Convert a TVM data type to a SL data type */
   static EthosnError Tvm2Npu(const tvm::DataType& dtype, sl::DataType* data_type);
+  /*! \brief Convert TVM 1D padding to SL padding */
+  static EthosnError Tvm2Npu(const Array<IndexExpr>& padding, sl::Padding* npu_padding);
+  /*! \brief Convert TVM 1D striding to SL striding */
+  static EthosnError Tvm2Npu(const Array<IndexExpr>& strides, sl::Stride* npu_stride);
+  /*! \brief Convert TVM data format to SL data format */
+  static EthosnError Tvm2Npu(const std::string& dformat, sl::DataFormat* data_format);
+  /*! \brief Convert TVM quantization info to SL quantization info */
+  static EthosnError Tvm2Npu(int32_t zero_point, float scale, sl::QuantizationInfo* npu_qinfo);
+  /*! \brief Convert TVM 2D padding to SL padding */
+  static EthosnError Tvm2Npu(const Array<Array<Integer>>& padding, sl::Padding* npu_padding);
 
   // Convert an array of IntImmNodes into ValueT
   // IndexT type of Array indexing variable

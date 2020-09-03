@@ -21,8 +21,9 @@ import tvm.topi.testing
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.testing import check_grad, ctx_list, run_infer_type
+from tvm.relay.testing import check_grad, run_infer_type
 from tvm.relay.transform import gradient
+import tvm.testing
 
 
 def verify_max_pool2d_grad(x_shape, pool_size, strides, padding, ceil_mode):
@@ -43,12 +44,13 @@ def verify_max_pool2d_grad(x_shape, pool_size, strides, padding, ceil_mode):
         padding=[ph, pw, ph, pw],
         pool_type='max', ceil_mode=ceil_mode)
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp = relay.create_executor(ctx=ctx, target=target)
         op_res, (op_grad, ) = intrp.evaluate(bwd_func)(data)
         np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
 
 
+@tvm.testing.uses_gpu
 def test_max_pool2d_grad():
     verify_max_pool2d_grad((1, 4, 16, 16), pool_size=(2, 2), strides=(2, 2), padding=(0, 0), ceil_mode=False)
     verify_max_pool2d_grad((1, 4, 16, 16), pool_size=(1, 1), strides=(1, 1), padding=(1, 1), ceil_mode=False)
@@ -72,11 +74,12 @@ def verify_avg_pool2d_grad(x_shape, pool_size, strides, padding, ceil_mode, coun
         padding=[ph, pw, ph, pw],
         pool_type='avg', ceil_mode=ceil_mode)
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp = relay.create_executor(ctx=ctx, target=target)
         op_res, (op_grad, ) = intrp.evaluate(bwd_func)(data)
         np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
 
+@tvm.testing.uses_gpu
 def test_avg_pool2d_grad():
     verify_avg_pool2d_grad((1, 4, 16, 16), pool_size=(2, 2), strides=(2, 2), padding=(0, 0),
                            ceil_mode=False, count_include_pad=True)
@@ -100,11 +103,12 @@ def verify_global_avg_pool2d_grad(x_shape):
         strides=(1, 1), padding=[0, 0, 0, 0], pool_type='avg',
         ceil_mode=False)
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp = relay.create_executor(ctx=ctx, target=target)
         op_res, (op_grad, ) = intrp.evaluate(bwd_func)(data)
         np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
 
+@tvm.testing.uses_gpu
 def test_global_avg_pool2d_grad():
     verify_global_avg_pool2d_grad((1, 4, 16, 16))
     verify_global_avg_pool2d_grad((1, 8, 8, 24))
@@ -139,7 +143,7 @@ def verify_conv2d_grad(dshape, wshape, strides, padding, dilation, groups=1, mod
                            .detach().numpy()
 
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         data = tvm.nd.array(data_pt.detach().numpy(), ctx)
         weight = tvm.nd.array(weight_pt.detach().numpy(), ctx)
         intrp = relay.create_executor(ctx=ctx, target=target)
@@ -148,6 +152,7 @@ def verify_conv2d_grad(dshape, wshape, strides, padding, dilation, groups=1, mod
         np.testing.assert_allclose(grad_weight.asnumpy(), grad_weight_pt, rtol=1e-4, atol=1e-4)
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_grad():
     verify_conv2d_grad((1, 4, 16, 16), (16, 4, 3, 3), [1, 1], [1, 1], [1, 1])
     verify_conv2d_grad((1, 4, 16, 16), (16, 4, 1, 1), [1, 1], [0, 0], [1, 1])

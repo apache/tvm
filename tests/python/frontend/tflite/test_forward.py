@@ -278,7 +278,7 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
 
         for device in ["llvm"]:
             ctx = tvm.context(device, 0)
-            if not ctx.exist:
+            if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 continue
 
@@ -983,10 +983,20 @@ def test_forward_transpose_conv():
     _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 65, 5], [2, 2], 'VALID')
     _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 34, 5], [2, 1], 'VALID')
 
+    # kernel 3x3, padding SAME
+    _test_transpose_conv([4, 32, 32, 16], [3, 3, 5, 16], [4, 32, 32, 5], [1, 1], 'SAME')
+    _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 64, 64, 5], [2, 2], 'SAME')
+    _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 64, 32, 5], [2, 1], 'SAME')
+
     # kernel 2x2, padding VALID
     _test_transpose_conv([4, 32, 32, 16], [2, 2, 5, 16], [4, 33, 33, 5], [1, 1], 'VALID')
     _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 64, 5], [2, 2], 'VALID')
     _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 33, 5], [2, 1], 'VALID')
+
+    # kernel 2x2, padding SAME
+    _test_transpose_conv([4, 32, 32, 16], [2, 2, 5, 16], [4, 32, 32, 5], [1, 1], 'SAME')
+    _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 64, 5], [2, 2], 'SAME')
+    _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 32, 5], [2, 1], 'SAME')
 
     # kernel 1x1, padding VALID
     _test_transpose_conv([4, 32, 32, 16], [1, 1, 5, 16], [4, 32, 32, 5], [1, 1], 'VALID')
@@ -1907,11 +1917,38 @@ def _test_quantize_dequantize(data):
                                 rtol=1e-5, atol=1e-2)
 
 
+def _test_quantize_dequantize_const(data):
+    """ One iteration of quantize and dequantize """
+
+    # Keras model to force TFLite converter to insert 2 TFLite quantize ops.
+    # First TFLite quantize op converts float32 tensor to int8 tensor - Qnn quantize.
+    # Second TFLite quantize op converts int8 tensor to int8 tensor - Qnn requantize.
+    data_in = tf.keras.layers.Input(shape=data.shape[1:])
+    relu = tf.keras.layers.ReLU()(data_in)
+    add = tf.keras.layers.Add()([data, relu])
+    concat = tf.keras.layers.Concatenate(axis=0)([relu, add])
+    keras_model = tf.keras.models.Model(inputs=data_in, outputs=concat)
+    input_name = data_in.name.split(":")[0]
+
+    # To create quantized values with dynamic range of activations, needs representative dataset
+    def representative_data_gen():
+        for i in range(1):
+            yield [data]
+
+    tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen)
+
+    tflite_output = run_tflite_graph(tflite_model_quant, data)
+    tvm_output = run_tvm_graph(tflite_model_quant, data, input_name)
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-5, atol=1e-2)
+
+
 def test_forward_quantize_dequantize():
     """ Quantize Dequantize """
     data = np.random.uniform(0, 1, (1, 4, 4, 3)).astype("float32")
     if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
         _test_quantize_dequantize(data)
+        _test_quantize_dequantize_const(data)
 
 
 #######################################################################

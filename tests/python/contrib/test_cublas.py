@@ -19,6 +19,7 @@ from tvm import te
 import numpy as np
 from tvm.contrib import cublas
 from tvm.contrib import cublaslt
+import tvm.testing
 
 def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
     n = 1024
@@ -30,9 +31,6 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
     s = te.create_schedule(C.op)
 
     def verify(target="cuda"):
-        if not tvm.runtime.enabled(target):
-            print("skip because %s is not enabled..." % target)
-            return
         if not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
             print("skip because extern function is not available")
             return
@@ -64,9 +62,6 @@ def verify_matmul_add_igemm(in_dtype, out_dtype, rtol=1e-5):
     s = te.create_schedule(C.op)
 
     def verify(target="cuda"):
-        if not tvm.runtime.enabled(target):
-            print("skip because %s is not enabled..." % target)
-            return
         if not tvm.get_global_func("tvm.contrib.cublaslt.matmul", True):
             print("skip because extern function is not available")
             return
@@ -115,9 +110,6 @@ def verify_batch_matmul(in_dtype, out_dtype, rtol=1e-5):
     s = te.create_schedule(C.op)
 
     def verify(target="cuda"):
-        if not tvm.runtime.enabled(target):
-            print("skip because %s is not enabled..." % target)
-            return
         if not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
             print("skip because extern function is not available")
             return
@@ -132,15 +124,18 @@ def verify_batch_matmul(in_dtype, out_dtype, rtol=1e-5):
                                    b.asnumpy().astype(C.dtype)).astype(C.dtype), rtol=rtol)
     verify()
 
+@tvm.testing.requires_cuda
 def test_matmul_add():
     verify_matmul_add('float', 'float', rtol=1e-3)
     verify_matmul_add('float16', 'float')
     verify_matmul_add('float16', 'float16', rtol=1e-2)
     verify_matmul_add('int8', 'int32')
 
+@tvm.testing.requires_cuda
 def test_matmul_add_igemm():
     verify_matmul_add_igemm('int8', 'int32')
 
+@tvm.testing.requires_cuda
 def test_batch_matmul():
     verify_batch_matmul('float', 'float')
     verify_batch_matmul('float16', 'float')

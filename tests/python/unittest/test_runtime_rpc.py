@@ -179,6 +179,7 @@ def test_rpc_file_exchange():
     rev = remote.download("dat.bin")
     assert(rev == blob)
 
+@tvm.testing.requires_llvm
 def test_rpc_remote_module():
     if not tvm.runtime.enabled("rpc"):
         return
@@ -197,9 +198,6 @@ def test_rpc_remote_module():
         "rpc.Connect", server1.host, server1.port, "x1"])
 
     def check_remote(remote):
-        if not tvm.runtime.enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         temp = util.tempdir()
         ctx = remote.cpu(0)
         f = tvm.build(s, [A, B], "llvm", name="myadd")
@@ -215,9 +213,6 @@ def test_rpc_remote_module():
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
     def check_minrpc():
-        if not tvm.runtime.enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         if tvm.get_global_func("rpc.PopenSession", allow_missing=True) is None:
             return
         # export to minrpc
@@ -254,10 +249,7 @@ def test_rpc_remote_module():
         runtime initializes. We leave it as an example
         on how to do rpc when we want to do linking on remote.
         """
-        if not tvm.runtime.enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
-        if not tvm.runtime.enabled("opencl"):
+        if not tvm.testing.device_enabled("opencl"):
             print("Skip because opencl is not enabled")
             return
         temp = util.tempdir()

@@ -181,7 +181,6 @@ def lower(sch,
         tvm.tir.transform.BF16Legalize(),
         tvm.tir.transform.NarrowDataType(32),
         tvm.tir.transform.Simplify(),
-        tvm.tir.transform.HoistIfThenElse(),
     ]
     pass_list += lower_phase1
 
@@ -205,6 +204,7 @@ def lower(sch,
     ]
 
     pass_list += [tvm.tir.transform.RewriteUnsafeSelect()]
+    pass_list += [tvm.tir.transform.HoistIfThenElse()]
     pass_list += lower_phase3
 
     # Instrument BoundCheckers

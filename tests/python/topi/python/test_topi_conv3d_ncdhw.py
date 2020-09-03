@@ -21,12 +21,11 @@ import tvm
 from tvm import te
 from tvm import autotvm
 from tvm import topi
+import tvm.testing
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.nn.util import get_pad_tuple3d
 from tvm.topi.util import get_const_tuple
-
-from common import get_all_backend
 
 _conv3d_ncdhw_implement = {
     "generic": (topi.nn.conv3d_ncdhw, topi.generic.schedule_conv3d_ncdhw),
@@ -66,11 +65,7 @@ def verify_conv3d_ncdhw(batch, in_channel, in_size, num_filter, kernel, stride, 
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv3d_ncdhw_implement)
         with tvm.target.create(device):
@@ -94,10 +89,11 @@ def verify_conv3d_ncdhw(batch, in_channel, in_size, num_filter, kernel, stride, 
             func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-4)
 
-    for device in get_all_backend():
+    for device, ctx in tvm.testing.enabled_targets():
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
-            check_device(device)
+            check_device(device, ctx)
 
+@tvm.testing.uses_gpu
 def test_conv3d_ncdhw():
     #3DCNN  workloads
     verify_conv3d_ncdhw(1, 32, 32, 5, 1, 1, 0)

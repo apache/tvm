@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 from tvm import te
+from tvm import relay
 from tvm.tir import const
 
 
@@ -38,6 +39,7 @@ def lower_sch(sch, args, target_bits):
             arg_list.append(buf)
         else:
             raise ValueError("args must be Tensor, Buffer or Var")
+    sch = sch.normalize()
     bounds = te.schedule.InferBound(sch)
     stmt = te.schedule.ScheduleOps(sch, bounds)
 
@@ -189,9 +191,56 @@ def test_slice():
           target_bits=32, target_dtype='int64')
 
 
+def test_relay_basic():
+    engine = relay.backend.compile_engine.get()
+    def check(shapex, shapey, target_bits, target_dtype):
+        x = relay.var('x', shape=shapex)
+        y = relay.var('y', shape=shapey)
+        z = relay.add(x, y)
+        func = relay.Function([x, y], z)
+        mod = tvm.IRModule.from_expr(func)
+        func = mod["main"]
+        z = engine.lower(func, "llvm")
+        stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
+        # outer loop
+        assert stmt.loop_var.dtype == target_dtype
+        # inner loop
+        if len(shapex) > 1 or len(shapey) > 1:
+            assert stmt.body.loop_var.dtype == target_dtype
+
+    check((const(2**16, 'int64'), const(2**15 + 1, 'int64')), (1, const(2**15 + 1, 'int64')),
+          target_bits=32, target_dtype="int64")
+    check((const(2**16, 'int64'), const(2**15, 'int64')), (1, const(2**15, 'int64')),
+          target_bits=32, target_dtype="int32")
+    check((const(2**31, 'int64'),), (const(2**31, 'int64'),),
+          target_bits=32, target_dtype="int32")
+    check((const(2**31 + 1, 'int64'),), (const(2**31 + 1, 'int64'),),
+          target_bits=32, target_dtype="int64")
+
+
+def test_relay_take():
+    engine = relay.backend.compile_engine.get()
+    def check(shape, index, target_bits, target_dtype):
+        x = relay.var("x", shape=shape)
+        y = relay.op.take(x, indices=index)
+        func = relay.Function([x], y)
+        mod = tvm.IRModule.from_expr(func)
+        func = mod["main"]
+        z = engine.lower(func, "llvm")
+        stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
+        assert stmt.value.index.dtype == target_dtype
+
+    check((const(2**16, 'int64'), const(2**15 + 1, 'int64')), relay.const(0, dtype="int64"),
+          target_bits=32, target_dtype="int32")
+    check((const(2**16, 'int64'), const(2**15 + 1, 'int64')), relay.const(2**31, dtype="int64"),
+          target_bits=32, target_dtype="int64")
+
+
 if __name__ == "__main__":
     test_basic()
     test_thread_axis()
     test_multilanes()
     test_reduce()
     test_slice()
+    test_relay_basic()
+    test_relay_take()

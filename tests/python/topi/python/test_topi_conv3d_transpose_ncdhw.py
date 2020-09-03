@@ -19,11 +19,10 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import topi
+import tvm.testing
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
-
-from common import get_all_backend
 
 
 _conv3d_transpose_ncdhw_implement = {
@@ -55,11 +54,7 @@ def verify_conv3d_transpose_ncdhw(batch, in_channel, in_size, num_filter, kernel
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv3d_transpose_ncdhw_implement)
@@ -81,10 +76,11 @@ def verify_conv3d_transpose_ncdhw(batch, in_channel, in_size, num_filter, kernel
         func2(a, w, c)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, atol=1e-4, rtol=1e-4)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, atol=1e-4, rtol=1e-4)
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 
+@tvm.testing.uses_gpu
 def test_conv3d_transpose_ncdhw():
     verify_conv3d_transpose_ncdhw(1, 3, (24, 24, 24), 1,  (1, 1, 1), (1, 1, 1), (0, 0, 0, 0, 0, 0), (0, 0, 0))
     verify_conv3d_transpose_ncdhw(1, 3, (24, 24, 24), 2, (3, 3, 3), (1, 1, 1), (0, 0, 0, 0, 0, 0), (0, 0, 0))

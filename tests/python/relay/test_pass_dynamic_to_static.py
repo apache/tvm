@@ -20,8 +20,9 @@ from tvm import te
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
-from tvm.relay.testing import run_infer_type, create_workload, ctx_list
+from tvm.relay.testing import run_infer_type, create_workload
 import tvm.topi.testing
+import tvm.testing
 
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, tvm.transform.Pass)
@@ -34,7 +35,7 @@ def run_opt_pass(expr, opt_pass):
 
 def verify_func(func, data, ref_res, rtol=1e-5, atol=1e-7):
     assert isinstance(data, list)
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         for kind in ["graph", "vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
@@ -42,6 +43,7 @@ def verify_func(func, data, ref_res, rtol=1e-5, atol=1e-7):
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=rtol, atol=atol)
 
 
+@tvm.testing.uses_gpu
 def test_dynamic_to_static_reshape():
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -66,6 +68,7 @@ def test_dynamic_to_static_reshape():
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
 
 
+@tvm.testing.uses_gpu
 def test_dynamic_to_static_double_reshape():
     def verify_reshape(shape, newshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -90,6 +93,7 @@ def test_dynamic_to_static_double_reshape():
     verify_reshape((4, 7), (2, 7, 2))
 
 
+@tvm.testing.uses_gpu
 def test_dynamic_to_static_quad_reshape():
     def verify_reshape(shape, newshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -116,6 +120,7 @@ def test_dynamic_to_static_quad_reshape():
     verify_reshape((4, 7), (2, 7, 2))
 
 
+@tvm.testing.uses_gpu
 def test_dynamic_to_static_tile():
     def verify_tile(shape, reps, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -139,6 +144,7 @@ def test_dynamic_to_static_tile():
     verify_tile((4, 7), (4, 2), (16, 14))
 
 
+@tvm.testing.uses_gpu
 def test_dynamic_to_static_topk():
     def verify_topk(k, axis, ret_type, is_ascend, dtype):
         shape = (20, 100)
@@ -173,7 +179,7 @@ def test_dynamic_to_static_topk():
         assert isinstance(zz, relay.Call)
         assert zz.op == relay.op.get("topk")
 
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             if "llvm" not in target: continue
             for kind in ["graph", "vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func2)
@@ -195,6 +201,7 @@ def test_dynamic_to_static_topk():
                 verify_topk(k, axis, ret_type, False, "float32")
 
 
+@tvm.testing.uses_gpu
 def test_dynamic_to_static_broadcast_to():
     def verify_broadcast_to(shape, broadcast_shape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -219,6 +226,7 @@ def test_dynamic_to_static_broadcast_to():
     verify_broadcast_to((3, 1), (3, 3))
 
 
+@tvm.testing.uses_gpu
 def test_dynamic_to_static_zeros_ones():
     def verify_ones_zeros(shape, dtype):
         for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
@@ -241,6 +249,7 @@ def test_dynamic_to_static_zeros_ones():
     verify_ones_zeros((9, 8, 3, 4), 'float32')
 
 
+@tvm.testing.uses_gpu
 def test_dynamic_to_static_resize():
     def verify_resize(shape, scale, method, layout):
         if layout == "NHWC":
@@ -275,6 +284,7 @@ def test_dynamic_to_static_resize():
             verify_resize((1, 4, 4, 4), 2, method, layout)
 
 
+@tvm.testing.uses_gpu
 def test_dynamic_to_static_one_hot():
     def _verify(indices_shape, depth, on_value, off_value, axis, dtype):
         indices = relay.var("indices", relay.TensorType(indices_shape, "int32"))
@@ -302,6 +312,7 @@ def test_dynamic_to_static_one_hot():
     _verify((3, 2, 4, 5), 6, 1, 0, 1, "int32")
     _verify((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
 
+@tvm.testing.uses_gpu
 def test_dynamic_to_static_full():
     def verify_full(fill_value, fill_shape, dtype):
         x = relay.var("x", relay.scalar_type(dtype))
@@ -310,7 +321,7 @@ def test_dynamic_to_static_full():
 
         func = run_infer_type(relay.Function([x, y], z))
         func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
-        
+
         zz = func2.body
         assert isinstance(zz, relay.Call)
         assert zz.op == relay.op.get("full")
@@ -318,7 +329,7 @@ def test_dynamic_to_static_full():
         ref_res = np.full(fill_shape, fill_value).astype(dtype)
         y_data = np.random.uniform(low=-1, high=1, size=fill_shape).astype('int64')
         verify_func(func2, [fill_value, y_data], ref_res)
-    
+
     verify_full(4, (1, 2, 3, 4), 'int32')
     verify_full(4.0, (1, 2, 8, 10), 'float32')
 

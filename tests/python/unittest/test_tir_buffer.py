@@ -119,6 +119,7 @@ def test_buffer_index_merge_mult_mod():
     assert_simplified_equal(index_simplified, index_direct)
 
 
+@tvm.testing.requires_llvm
 def test_buffer_broadcast():
     m0, m1, m2 = te.size_var("m0"), te.size_var("m1"), te.size_var("m2")
     n0, n1, n2 = te.size_var("n0"), te.size_var("n1"), te.size_var("n2")
@@ -134,8 +135,6 @@ def test_buffer_broadcast():
     s = te.create_schedule(C.op)
 
     def check():
-        if not tvm.runtime.enabled("llvm"):
-            return
         fadd = tvm.build(s, [A, B, C], target='llvm', name='bcast_add', binds={A:Ab, B:Bb})
         ctx = tvm.cpu(0)
         a = tvm.nd.array(np.random.uniform(size=(2, 4, 3)).astype(A.dtype), ctx)
@@ -147,6 +146,7 @@ def test_buffer_broadcast():
     check()
 
 
+@tvm.testing.requires_llvm
 def test_buffer_broadcast_expr():
     n0, m0, x = te.size_var('n0'), te.size_var('m0'), te.size_var('x')
     n1, m1 = te.size_var('n1'), te.size_var('m1')
@@ -162,8 +162,6 @@ def test_buffer_broadcast_expr():
     s = te.create_schedule(C.op)
 
     def check_stride():
-        if not tvm.runtime.enabled("llvm"):
-            return
         fadd = tvm.build(s, [A, B, C, o1, x], target='llvm', name='bcast_add',
                          binds={A:Ab, B:Bb, C:Cc})
         ctx = tvm.cpu(0)
@@ -174,8 +172,6 @@ def test_buffer_broadcast_expr():
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
     def check_no_stride():
-        if not tvm.runtime.enabled("llvm"):
-            return
         fadd = tvm.build(s, [A, B, C, o1, x], target='llvm', name='bcast_add',
                          binds={A: Ab, B: Bb, C: Cc})
         ctx = tvm.cpu(0)
@@ -186,8 +182,6 @@ def test_buffer_broadcast_expr():
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
     def check_auto_bind():
-        if not tvm.runtime.enabled("llvm"):
-            return
         # Let build bind buffers
         fadd = tvm.build(s, [A, B, C, o1, x], target='llvm', name='bcast_add')
         ctx = tvm.cpu(0)
