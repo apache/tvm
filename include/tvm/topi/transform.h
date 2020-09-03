@@ -1556,6 +1556,8 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal,
  * \brief Numpy style advanced indexing with tensor.
  * \param data is input data.
  * \param indices is list of indexing tensors.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
  * \return Output tensor.
  */
 inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
