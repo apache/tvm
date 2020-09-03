@@ -152,7 +152,8 @@ def group_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding,
 
     # If no config was set, we can fallback to default config.
     if cfg.is_fallback:
-        _get_default_config(cfg, te.placeholder((batch_size, in_channel, in_height, in_width), dtype=data.dtype),
+        _get_default_config(cfg, te.placeholder((batch_size, in_channel, in_height, in_width),
+                                                dtype=data.dtype),
                             te.placeholder((out_channel, in_channel // groups, k_height, k_width),
                                            dtype=kernel.dtype),
                             strides, padding, groups, out_dtype)
@@ -265,7 +266,6 @@ def schedule_group_conv2d_nchwc(cfg, outs):
 def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec,
                         conv_out, output, last):
     """Schedule GSPC"""
-    # fetch schedule
     ic_bn, oc_bn, reg_n, unroll_kw = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
                                       cfg["tile_ow"].size[-1], cfg["unroll_kw"].val)
 

@@ -265,7 +265,6 @@ def schedule_group_conv2d_nchwc(cfg, outs):
 def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec,
                         conv_out, output, last):
     """Schedule GSPC"""
-    # fetch schedule
     ic_bn, oc_bn, reg_n, unroll_kw = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
                                       cfg["tile_ow"].size[-1], cfg["unroll_kw"].val)
 
@@ -280,7 +279,6 @@ def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec,
     # schedule data
     if DOPAD:
         s[A0].compute_inline()
-        # s[A0].compute_at(s[A1])
 
     groups, batch, ic_chunk, ih, ic_block, _ = s[A1].op.axis
 
@@ -324,10 +322,8 @@ def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec,
                       ow_block, oc_block)
 
     parallel_axis = s[CC].fuse(groups, batch, oc_chunk, oh)
-    # s[A1].compute_at(CC, parallel_axis)
+
     s[CC].parallel(parallel_axis)
-
-
 
     s[CC].vectorize(oc_block)
 
