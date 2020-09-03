@@ -91,7 +91,7 @@ print("z: {}".format(z_output))
 #
 # We use the same input variables ``x`` and ``y`` as above, but before adding ``x + y``, we first cast both ``x`` and ``y`` to a custom datatype via the ``relay.cast(...)`` call.
 #
-# Note how we specify the custom datatype: we indicate it using the special ` custom[...]`  syntax.
+# Note how we specify the custom datatype: we indicate it using the special ``custom[...]`` syntax.
 # Additionally, note the "16" after the datatype: this is the bitwidth of the custom datatype. This tells TVM that each instance of ``posit`` is 16 bits wide.
 
 try:
@@ -144,7 +144,7 @@ except tvm.TVMError as e:
 #
 # The error is occurring during the process of lowering the custom datatype code to code that TVM can compile and run.
 # TVM is telling us that it cannot find a *lowering function* for the ``Cast`` operation, when casting from source type 2 (``float``, in TVM), to destination type 150 (our custom datatype).
-# When lowering custom datatypes, if TVM encounters an operation over a custom datatype, it looks for a user-registered **lowering function**, which tells it how to lower the operation to an operation over datatypes it understands.
+# When lowering custom datatypes, if TVM encounters an operation over a custom datatype, it looks for a user-registered *lowering function*, which tells it how to lower the operation to an operation over datatypes it understands.
 # We have not told TVM how to lower ``Cast`` operations for our custom datatypes; thus, the source of this error.
 #
 # To fix this error, we simply need to specify a lowering function:
@@ -159,14 +159,14 @@ tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func(
 
 ######################################################################
 # The ``register_op(...)`` call takes a lowering function, and a number of parameters which specify exactly the operation which should be lowered with the provided lowering function.
-# In this case, the arguments we pass specify that this lowering function is for lowering a `Cast` from `float` to `posit` for target `"llvm"`.
+# In this case, the arguments we pass specify that this lowering function is for lowering a ``Cast`` from ``float`` to ``posit`` for target ``"llvm"``.
 #
 # The lowering function passed into this call is very general: it should take an operation of the specified type (in this case, `Cast`) and return another operation which only uses datatypes which TVM understands.
 #
 # In the general case, we expect users to implement operations over their custom datatypes using calls to an external library.
-# In our example, our `posit` library implements a `Cast` from `float` to 16-bit `posit` in the function `posit16_fromf`.
-# To provide for the general case, we have made a helper function, `create_lower_func(...)`, which does just this: given a function name, it replaces the given operation with a `Call` to the function name provided.
-# It additionally removes usages of the custom datatype by storing the custom datatype in an opaque `uint` of the appropriate width; in our case, a `uint16_t`.
+# In our example, our ``posit`` library implements a ``Cast`` from ``float`` to 16-bit ``posit`` in the function ``FloatToPosit16es2``.
+# To provide for the general case, we have made a helper function, ``create_lower_func(...)``, which does just this: given a function name, it replaces the given operation with a ``Call`` to the function name provided.
+# It additionally removes usages of the custom datatype by storing the custom datatype in an opaque ``uint`` of the appropriate width; in our case, a ``uint16_t``.
 
 # We can now re-try running the program:
 try:
@@ -179,7 +179,7 @@ except tvm.TVMError as e:
     print(str(e).split('\n')[-1])
 
 ######################################################################
-# This new error tells us that the `Add` lowering function is not found, which is good news, as it's no longer complaining about the `Cast`!
+# This new error tells us that the ``Add`` lowering function is not found, which is good news, as it's no longer complaining about the ``Cast``!
 # We know what to do from here: we just need to register the lowering functions for the other operations in our program.
 tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
     32: 'Posit32es2Add',
@@ -205,15 +205,18 @@ print("y:\t\t{}".format(y_input))
 print("z (float32):\t{}".format(z_output))
 print("z (posit16):\t{}".format(z_output_posit))
 
-# Perhaps as expected, the `posit16` results are very close to the `float32` results, but with some loss in precision!
+# Perhaps as expected, the ``posit16`` results are very close to the ``float32`` results, but with some loss in precision!
 
 ######################################################################
 # Running Models With Custom Datatypes
 # ------------------------------------
 #
-# We will first choose the model which we would like to run with posits. In this case we use [Mobilenet](https://arxiv.org/abs/1704.04861). We choose Mobilenet due to its small size. In this alpha state of the Bring Your Own Datatypes framework, we have not implemented any software optimizations for running software emulations of custom datatypes; the result is poor performance due to many calls into our datatype emulation library.
+# We will first choose the model which we would like to run with posits.
+# In this case we use `Mobilenet <https://arxiv.org/abs/1704.04861>`_. 
+# We choose Mobilenet due to its small size. 
+# In this alpha state of the Bring Your Own Datatypes framework, we have not implemented any software optimizations for running software emulations of custom datatypes; the result is poor performance due to many calls into our datatype emulation library.
 #
-# Relay has packaged up many models within its [python/tvm/relay/testing](https://github.com/dmlc/tvm/tree/master/python/tvm/relay/testing) directory. We will go ahead and grab Mobilenet:
+# Relay has packaged up many models within its `python/tvm/relay/testing <https://github.com/dmlc/tvm/tree/master/python/tvm/relay/testing>`_ directory. We will go ahead and grab Mobilenet:
 
 from tvm.relay.testing.mobilenet import get_workload as get_mobilenet
 
@@ -231,7 +234,6 @@ print(result)
 ######################################################################
 # Now, we would like to change the model to use posits internally. To do so, we need to convert the network. To do this, we first define a function which will help us convert tensors:
 
-
 def convert_ndarray(dst_dtype, array):
     """Converts an NDArray into the specified datatype"""
     x = relay.var('x', shape=array.shape, dtype=str(array.dtype))
@@ -240,7 +242,7 @@ def convert_ndarray(dst_dtype, array):
         return relay.create_executor('graph').evaluate(cast)(array)
 
 ######################################################################
-# Now, to actually convert the entire network, we have written [a pass in Relay](https://github.com/gussmith23/tvm/blob/ea174c01c54a2529e19ca71e125f5884e728da6e/python/tvm/relay/frontend/change_datatype.py#L21) which simply converts all nodes within the model to use the new datatype.
+# Now, to actually convert the entire network, we have written `a pass in Relay <https://github.com/gussmith23/tvm/blob/ea174c01c54a2529e19ca71e125f5884e728da6e/python/tvm/relay/frontend/change_datatype.py#L21>`_ which simply converts all nodes within the model to use the new datatype.
 
 from tvm.relay.frontend.change_datatype import ChangeDatatype
 
@@ -338,10 +340,6 @@ tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
 }), "Max", "llvm", "posit")
 
 ######################################################################
-# Note that, to implement the `Max` operator, we needed to rewrite our wrapper library with a new function, `posit16_max`.
-# This is the only function we needed to implement by hand! All other functions we took straight from the posit library.
-#
-#
 # Now we can finally run the model:
 
 # Vectorization is not implemented with custom datatypes.
