@@ -22,8 +22,8 @@
  * \brief Framing for RPC.
  */
 
-#ifndef TVM_RUNTIME_CRT_UTVM_RPC_SERVER_FRAMING_H_
-#define TVM_RUNTIME_CRT_UTVM_RPC_SERVER_FRAMING_H_
+#ifndef TVM_RUNTIME_CRT_RPC_COMMON_FRAMING_H_
+#define TVM_RUNTIME_CRT_RPC_COMMON_FRAMING_H_
 
 #include <crc16.h>
 #include <inttypes.h>
@@ -267,4 +267,4 @@ class Framer {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_CRT_UTVM_RPC_SERVER_FRAMING_H_
+#endif  // TVM_RUNTIME_CRT_RPC_COMMON_FRAMING_H_

@@ -24,15 +24,14 @@
 #include "micro_session.h"
 
 #include <dmlc/logging.h>
+#include <tvm/runtime/crt/rpc_common/framing.h>
+#include <tvm/runtime/crt/rpc_common/session.h>
 #include <tvm/runtime/registry.h>
 
 #include <cstdarg>
 #include <memory>
 #include <string>
 #include <utility>
-
-#include <tvm/runtime/crt/rpc_common/framing.h>
-#include <tvm/runtime/crt/rpc_common/session.h>
 
 #include "../../support/str_escape.h"
 #include "../crt/host/crt_config.h"

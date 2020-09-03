@@ -21,7 +21,6 @@
 #define TESTS_CRT_BUFFER_WRITE_STREAM_H_
 
 #include <inttypes.h>
-
 #include <tvm/runtime/crt/rpc_common/buffer.h>
 #include <tvm/runtime/crt/rpc_common/write_stream.h>
 

@@ -22,12 +22,11 @@
  * \brief RPC Session
  */
 
-#ifndef TVM_RUNTIME_CRT_UTVM_RPC_SERVER_SESSION_H_
-#define TVM_RUNTIME_CRT_UTVM_RPC_SERVER_SESSION_H_
+#ifndef TVM_RUNTIME_CRT_RPC_COMMON_SESSION_H_
+#define TVM_RUNTIME_CRT_RPC_COMMON_SESSION_H_
 
 #include <inttypes.h>
 #include <tvm/runtime/crt/error_codes.h>
-
 #include <tvm/runtime/crt/rpc_common/buffer.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/write_stream.h>
@@ -234,4 +233,4 @@ class Session {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_CRT_UTVM_RPC_SERVER_SESSION_H_
+#endif  // TVM_RUNTIME_CRT_RPC_COMMON_SESSION_H_

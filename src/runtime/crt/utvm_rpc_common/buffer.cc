@@ -22,10 +22,9 @@
  * \brief Buffer
  */
 
-#include <tvm/runtime/crt/rpc_common/buffer.h>
-
 #include <stdio.h>
 #include <string.h>
+#include <tvm/runtime/crt/rpc_common/buffer.h>
 
 namespace tvm {
 namespace runtime {

@@ -22,8 +22,8 @@
  * \brief Buffer
  */
 
-#ifndef TVM_RUNTIME_CRT_UTVM_RPC_SERVER_BUFFER_H_
-#define TVM_RUNTIME_CRT_UTVM_RPC_SERVER_BUFFER_H_
+#ifndef TVM_RUNTIME_CRT_RPC_COMMON_BUFFER_H_
+#define TVM_RUNTIME_CRT_RPC_COMMON_BUFFER_H_
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -67,4 +67,4 @@ class Buffer {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_CRT_UTVM_RPC_SERVER_BUFFER_H_
+#endif  // TVM_RUNTIME_CRT_RPC_COMMON_BUFFER_H_

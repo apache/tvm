@@ -17,15 +17,14 @@
  * under the License.
  */
 
-#include <tvm/runtime/crt/rpc_common/session.h>
-
 #include <gtest/gtest.h>
 #include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/rpc_common/buffer.h>
+#include <tvm/runtime/crt/rpc_common/session.h>
 
 #include <string>
 #include <vector>
 
-#include <tvm/runtime/crt/rpc_common/buffer.h>
 #include "buffer_write_stream.h"
 #include "crt_config.h"
 #include "platform.cc"

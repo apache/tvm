@@ -22,9 +22,8 @@
  * \brief RPC Session
  */
 
-#include <tvm/runtime/crt/rpc_common/session.h>
-
 #include <tvm/runtime/crt/logging.h>
+#include <tvm/runtime/crt/rpc_common/session.h>
 
 #include "crt_config.h"
 
