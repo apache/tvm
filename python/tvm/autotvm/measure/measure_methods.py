@@ -511,10 +511,10 @@ def run_through_rpc(measure_input, build_result,
         if ref_input:
             args = [nd.array(x, ctx=ctx) for x in ref_input]
         else:
-            # create empty arrays on the remote device and copy them once.
-            # This can avoid some memory issues that make the measurement results unreliable.
+            random_fill = remote.get_function("tvm.contrib.random.random_fill")
             args = [nd.empty(x[0], dtype=x[1], ctx=ctx) for x in build_result.arg_info]
-            args = [nd.array(x, ctx=ctx) for x in args]
+            for arg in args:
+                random_fill(arg)
             ctx.sync()
 
         costs = time_f(*args).results

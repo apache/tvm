@@ -165,7 +165,7 @@ def test_record_pragma_storage_align_rfactor():
     record_common(dag, s)
 
 
-def test_measure_local_builder_runner():
+def test_measure_local_builder_runner(enable_cpu_cache_flush=False):
     if not tvm.testing.device_enabled("llvm"):
         return
 
@@ -175,7 +175,8 @@ def test_measure_local_builder_runner():
 
     minp = auto_scheduler.MeasureInput(task, s0)
     local_builder = auto_scheduler.LocalBuilder()
-    local_runner = auto_scheduler.LocalRunner(timeout=60)
+    local_runner = auto_scheduler.LocalRunner(timeout=60,
+                                              enable_cpu_cache_flush=enable_cpu_cache_flush)
 
     bress = local_builder.build([minp])
     assert bress[0].error_no == 0
@@ -183,7 +184,7 @@ def test_measure_local_builder_runner():
     assert mress[0].error_no == 0
 
 
-def test_measure_local_builder_rpc_runner():
+def test_measure_local_builder_rpc_runner(enable_cpu_cache_flush=False):
     if not tvm.testing.device_enabled("llvm"):
         return
 
@@ -193,7 +194,8 @@ def test_measure_local_builder_rpc_runner():
 
     minp = auto_scheduler.MeasureInput(task, s0)
     local_builder = auto_scheduler.LocalBuilder()
-    measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=60)
+    measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=60,
+                                                        enable_cpu_cache_flush=enable_cpu_cache_flush)
     rpc_runner = measure_ctx.runner
 
     bress = local_builder.build([minp])
@@ -207,5 +209,8 @@ if __name__ == "__main__":
     test_record_compute_at_root_inline_cache_read_write()
     test_record_follow_split_follow_fused_split()
     test_record_pragma_storage_align_rfactor()
-    test_measure_local_builder_runner()
-    test_measure_local_builder_rpc_runner()
+    test_measure_local_builder_runner(enable_cpu_cache_flush=True)
+    test_measure_local_builder_runner(enable_cpu_cache_flush=False)
+    test_measure_local_builder_rpc_runner(enable_cpu_cache_flush=True)
+    test_measure_local_builder_rpc_runner(enable_cpu_cache_flush=False)
+
