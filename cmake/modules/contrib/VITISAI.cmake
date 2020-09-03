@@ -37,7 +37,7 @@ if(USE_VITIS_AI)
 
   else()
   message(STATUS "To find Pyxir, Python interpreter is required to be found.")
-  endif()
+endif()
 
 message(STATUS "Build with contrib.vitisai")
 include_directories(${PYXIR_INCLUDE_DIR})  

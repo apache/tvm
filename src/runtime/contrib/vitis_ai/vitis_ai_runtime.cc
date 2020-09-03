@@ -28,8 +28,8 @@
 namespace tvm {
 namespace runtime {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("target_", String);
-TVM_REGISTER_PASS_CONFIG_OPTION("vai_build_dir_", String);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.vitis_ai.options.target", String);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.vitis_ai.options.build_dir", String);
 
 std::shared_ptr<pyxir::graph::XGraph> load_xgraph_model(const std::string& model_path) {
   std::string model_name = model_path + "/" + "dpu_xgraph.json";

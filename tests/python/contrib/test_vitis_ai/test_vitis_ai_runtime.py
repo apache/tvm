@@ -14,14 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, W0611
+# pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, W0611, C0413
 
 """ Vitis-AI runtime test """
 
 import sys
 import numpy as np
 
-import pyxir
+import pytest
+pytest.importorskip('pyxir')
 import pyxir.contrib.target.DPUCADX8G
 
 import tvm
@@ -39,10 +40,7 @@ from tvm.contrib.target import vitis_ai
 
 def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
                  ctx=tvm.cpu(), params=None):
-    """Check the result between reference and generated output with vitis-ai byoc flow"""
-    if sys.platform == "win32":
-        print("Skip test on Windows for now")
-        return
+    """ To check the result between reference and byoc vitis-ai flow"""
 
     def update_lib(lib):
         tmp_path = util.tempdir()
@@ -50,12 +48,12 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path)
         lib = runtime.load_module(lib_path)
-
         return lib
 
     def check_graph_runtime_result():
         compile_engine.get().clear()
-        with tvm.transform.PassContext(opt_level=3, config={'target_' : 'DPUCADX8G'}):
+        with tvm.transform.PassContext(opt_level=3,
+                                       config={'relay.ext.vitis_ai.options.target' : 'DPUCADX8G'}):
             json, lib, param = relay.build(mod, target=target, params=params)
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
@@ -79,7 +77,11 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
 
 def test_extern_vai_resnet18():
     """Test resnet18 model using Vitis-AI byoc flow"""
-    if not tvm.get_global_func("relay.ext.vai", True):
+    if sys.platform == "win32":
+        print("Skip test on Windows for now")
+        return
+
+    if not tvm.get_global_func("relay.ext.vitis_ai", True):
         print("skip because VITIS-AI codegen is not available")
         return
 
@@ -101,4 +103,7 @@ def test_extern_vai_resnet18():
     check_result(mod, {"data": i_data},
                  (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
 if __name__ == "__main__":
-    test_extern_vai_resnet18()
+    if sys.platform == "win32":
+        print("Skip test on Windows for now")
+    else:
+        test_extern_vai_resnet18()

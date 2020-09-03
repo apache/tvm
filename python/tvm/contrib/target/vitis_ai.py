@@ -15,33 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument, import-outside-toplevel
-"""Utility to compile VITISAI models"""
+"""Utility to compile Vitis-AI models"""
 
 import os
 
-from tvm.relay.expr import Tuple, Call
+from tvm.relay.expr import Tuple, Call, TupleGetItem
 import tvm._ffi
 
 import pyxir
 import pyxir.frontend.tvm
 
-from .. import vitis_ai_runtime
 
 class CodegenVitisAI:
     """
-    Traverse subgraphs and build XGraph
+    Traverse Relay expression and convert into PyXIR XGraph format
     """
     def __init__(self, model_name, function):
-
         self.model_name = model_name
         self.function = function
         self.params = {}
 
-
-
     def convert_pyxir(self, target):
         """
-         Convert relay submodule expression to PYXIR(XGRAPH)
+        Convert Relay expression to PyXIR XGraph
         """
         xgraph = pyxir.frontend.tvm.from_relay(self.function,
                                                params=self.params, postprocessing=None)
@@ -50,7 +46,7 @@ class CodegenVitisAI:
 
     def get_output_names(self):
         """
-        Get output names from subgraph
+        Get output names from Relay expression
         """
         func = self.function
         output_relay_ids = []
@@ -60,14 +56,16 @@ class CodegenVitisAI:
                 output_relay_ids.append(hash(field))
         elif isinstance(expr, Call):
             output_relay_ids.append(hash(expr))
+        elif isinstance(expr, TupleGetItem):
+            output_relay_ids.append(hash(expr.tuple_value))
         else:
-            raise ValueError("does not support {}".format(type(expr)))
+            raise ValueError("Vitis-AI codegen does not support {} as output".format(type(expr)))
         return output_relay_ids
 
-@tvm._ffi.register_func("relay.ext.vai")
-def vai_compiler(ref):
+@tvm._ffi.register_func("relay.ext.vitis_ai")
+def vitis_ai_compiler(ref):
     """
-    Create a VAI runtime from a Relay module.
+    Create a Vitis-AI runtime from the provided Relay expression
     """
     assert isinstance(ref, tvm.relay.function.Function)
 
@@ -76,19 +74,24 @@ def vai_compiler(ref):
     name = str(ref.attrs.global_symbol)
 
     pass_context = tvm.get_global_func("transform.GetCurrentPassContext")()
-    target = str(pass_context.config['target_'])
-    vai_build_dir = str(pass_context.config['vai_build_dir_']) \
+    target = str(pass_context.config['relay.ext.vitis_ai.options.target'])
+    vai_build_dir = str(pass_context.config['relay.ext.vitis_ai.options.build_dir']) \
         if 'vai_build_dir_' in pass_context.config else None
     if vai_build_dir and not os.path.exists(vai_build_dir):
         raise ValueError("Provided Vitis-AI build dir: `{}` could not be found"
                          .format(vai_build_dir))
+
+    # If build directory is not passed as a parameter in transform.PassContext,
+    # we will build the Vitis-AI PyXIR runtime from scratch
     if not vai_build_dir:
+        # Convert Relay expression into XGraph and do partitioning inside PyXIR
         builder = CodegenVitisAI(name, ref)
         model_dir = target + "_build/"
         xgraph = builder.convert_pyxir(target)
         output_relay_ids = builder.get_output_names()
         layers = xgraph.get_layers()
-        # get the output tensor names using xgraph and output relay ids
+
+        # Get the output tensor names using XGraph and output Relay ids
         out_tensor_names = []
         for layer in layers:
             if not layer.internal:
@@ -96,7 +99,7 @@ def vai_compiler(ref):
                     out_tensor_names.append(layer.name)
         if len(out_tensor_names) == 0:
             raise ValueError("During codegeneration the loading of subexpression \
-                             failed due to output tensorname mismatch in relay pyxir interface.")
+                             failed due to output tensor name mismatch in Relay PyXIR interface.")
 
         # Save/serialize XGraph
         if not os.path.exists(model_dir):
@@ -106,4 +109,7 @@ def vai_compiler(ref):
     else:
         model_dir = vai_build_dir
 
-    return vitis_ai_runtime.create(name, model_dir, target).module
+    # Create Vitis-AI runtime module
+    runtime_func = "tvm.vitis_ai_runtime.create"
+    fcreate = tvm._ffi.get_global_func(runtime_func)
+    return fcreate(name, model_dir, target)

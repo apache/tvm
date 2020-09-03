@@ -97,6 +97,7 @@ Hardware setup and docker build
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 1. Clone the Vitis AI repository:
+
    .. code:: bash
 
    git clone --recurse-submodules https://github.com/Xilinx/Vitis-AI
@@ -110,7 +111,23 @@ Hardware setup and docker build
    -  https://docs.docker.com/install/linux/docker-ce/centos/
    -  https://docs.docker.com/install/linux/linux-postinstall/
 
-3. Any GPU instructions will have to be separated from Vitis AI.
+3. Download the latest Vitis AI Docker with the following command. This container runs on CPU.
+
+   .. code:: bash
+   
+   
+      docker pull xilinx/vitis-ai:latest
+    
+   To accelerate the quantization, you can optionally use the Vitis-AI GPU docker image. Use the below commands to build the Vitis-AI GPU docker container:
+   
+    
+   .. code:: bash
+    
+    
+    cd Vitis-AI/docker
+    ./docker_build_gpu.sh
+
+
 4. Set up Vitis AI to target Alveo cards. To target Alveo cards with
    Vitis AI for machine learning workloads, you must install the
    following software components:
@@ -146,8 +163,8 @@ Hardware setup and docker build
 
    .. code:: bash
 
-      bash incubator-tvm/docker/build.sh ci_vai bash
-      bash incubator-tvm/docker/bash.sh tvm.ci_vai
+      bash incubator-tvm/docker/build.sh demo_vitis_ai bash
+      bash incubator-tvm/docker/bash.sh tvm.demo_vitis_ai
 	  
       #Setup inside container
       source /opt/xilinx/xrt/setup.sh
@@ -224,47 +241,50 @@ Host setup and docker build
 
 1. Clone tvm repo
 
-.. code:: bash
-   git clone --recursive https://github.com/apache/incubator-tvm.git
+   .. code:: bash
+
+      git clone --recursive https://github.com/apache/incubator-tvm.git
 2. Build and start the tvm runtime Vitis-AI Docker Container.
 
-.. code:: bash
-   cd incubator-tvm 
-   bash incubator-tvm/docker/build.sh ci_vai bash
-   bash incubator-tvm/docker/bash.sh tvm.ci_vai
-  
-   #Setup inside container
-   . $VAI_ROOT/conda/etc/profile.d/conda.sh
-   conda activate vitis-ai-tensorflow
+   .. code:: bash
+
+      cd incubator-tvm 
+      bash incubator-tvm/docker/build.sh demo_vitis_ai bash
+      bash incubator-tvm/docker/bash.sh tvm.demo_vitis_ai
+   
+      #Setup inside container
+      . $VAI_ROOT/conda/etc/profile.d/conda.sh
+      conda activate vitis-ai-tensorflow
    
 3. Install PyXIR
 
-.. code:: bash
+   .. code:: bash
 
 
-   git clone --recursive https://github.com/Xilinx/pyxir.git
-   cd pyxir
-   python3 setup.py install --user
+      git clone --recursive https://github.com/Xilinx/pyxir.git
+      cd pyxir
+      python3 setup.py install --user
    
    
 4. Build TVM inside the container with Vitis-AI.
 
-.. code:: bash
+   .. code:: bash
 
-   cd incubator-tvm 
-   mkdir build
-   cp cmake/config.cmake build
-   cd build
-   echo set\(USE_LLVM ON\) >> config.cmake
-   echo set\(USE_VITIS_AI ON\) >> config.cmake
-   cmake ..
-   make -j$(nproc)
+      cd incubator-tvm 
+      mkdir build
+      cp cmake/config.cmake build
+      cd build
+      echo set\(USE_LLVM ON\) >> config.cmake
+      echo set\(USE_VITIS_AI ON\) >> config.cmake
+      cmake ..
+      make -j$(nproc)
    
 5. Install TVM
 
-.. code:: bash
-    cd incubator-tvm/python
-    pip3 install -e . --user
+   .. code:: bash
+
+      cd incubator-tvm/python
+      pip3 install -e . --user
 
 Edge requirements
 ^^^^^^^^^^^^^^^^^
@@ -285,8 +305,10 @@ platform. The following development boards can be used out-of-the-box:
 
 Edge hardware setup
 ^^^^^^^^^^^^^^^^^^^
++------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| .. note:: This section provides instructions for setting up with the `Pynq <http://www.pynq.io/>`__ platform but Petalinux based flows are also supported. |
++------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
-NOTE: This section provides instructions setting up with the `Pynq <http://www.pynq.io/>`__ platform but Petalinux based flows are also supported.
 
 1. Download the Pynq v2.5 image for your target (use Z1 or Z2 for
    Ultra96 target depending on board version) Link to image:
@@ -312,7 +334,10 @@ NOTE: This section provides instructions setting up with the `Pynq <http://www.p
 Edge TVM setup
 ^^^^^^^^^^^^^^
 
-NOTE: When working on Petalinux instead of Pynq, the following steps might take more manual work (e.g building hdf5 from source). Also, TVM has a scipy dependency which you then might have to build from source or circumvent. We don't depend on scipy in our flow.
++----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| .. note:: When working on Petalinux instead of Pynq, the following steps might take more manual work (e.g building hdf5 from source). Also, TVM has a scipy dependency which you then might have to build from source or circumvent. We don't depend on scipy in our flow. | 
++----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+   
 
 Building TVM depends on the Xilinx
 `PyXIR <https://github.com/Xilinx/pyxir>`__ package. PyXIR acts as an
@@ -320,46 +345,46 @@ interface between TVM and Vitis-AI tools.
 
 1. First install the PyXIR h5py and pydot dependencies:
 
-.. code:: bash:
+   .. code:: bash:
 
 
-   apt-get install libhdf5-dev
-   pip3 install pydot h5py
+      apt-get install libhdf5-dev
+      pip3 install pydot h5py
 2. Install PyXIR
 
-.. code:: bash:
+   .. code:: bash:
 
 
-   git clone --recursive https://github.com/Xilinx/pyxir.git
-   cd pyxir
-   sudo python3 setup.py install --use_vai_rt_dpuczdx8g
+      git clone --recursive https://github.com/Xilinx/pyxir.git
+      cd pyxir
+      sudo python3 setup.py install --use_vai_rt_dpuczdx8g
    
 3. Build TVM with Vitis-AI
 
-.. code:: bash:
+   .. code:: bash:
 
 
-   git clone --recursive https://github.com/apache/incubator-tvm
-   cd incubator-tvm
-   mkdir build
-   cp cmake/config.cmake build
-   cd build
-   echo set\(USE_VITIS_AI ON\) >> config.cmake
-   cmake ..     
-   make
+      git clone --recursive https://github.com/apache/incubator-tvm
+      cd incubator-tvm
+      mkdir build
+      cp cmake/config.cmake build
+      cd build
+      echo set\(USE_VITIS_AI ON\) >> config.cmake
+      cmake ..     
+      make
    
 4. Install TVM
 
-.. code:: bash:
+   .. code:: bash:
 
       cd incubator-tvm/python
       pip3 install -e . --user
 
 5. Check whether the setup was successful in the Python shell:
 
-.. code:: bash:
+   .. code:: bash:
 
-   python3 -c 'import pyxir; import tvm'
+      python3 -c 'import pyxir; import tvm'
 
 
 Getting started
@@ -415,27 +440,27 @@ used by TVM to integrate with the Vitis-AI stack. Additionaly, import
 the typical TVM and Relay modules and the Vitis-AI contrib module inside
 TVM.
 
-::
+.. code:: bash
 
-    import pyxir
-    import pyxir.contrib.target.DPUCADX8G
+   import pyxir
+   import pyxir.contrib.target.DPUCADX8G
 
-    import tvm
-    import tvm.relay as relay
-    from tvm.contrib.target import vitis_ai
-    from tvm.relay.build_module import bind_params_by_name
-    from tvm.relay.op.contrib.vitis_ai import annotation
+   import tvm
+   import tvm.relay as relay
+   from tvm.contrib.target import vitis_ai
+   from tvm.relay.build_module import bind_params_by_name
+   from tvm.relay.op.contrib.vitis_ai import annotation
 
 After importing a convolutional neural network model using the usual
 Relay API's, annotate the Relay expression for the given Vitis-AI DPU
 target and partition the graph.
 
-::
+.. code:: bash
 
-    mod["main"] = bind_params_by_name(mod["main"], params)
-    mod = annotation(mod, params, target)
-    mod = relay.transform.MergeCompilerRegions()(mod)
-    mod = relay.transform.PartitionGraph()(mod)
+   mod["main"] = bind_params_by_name(mod["main"], params)
+   mod = annotation(mod, params, target)
+   mod = relay.transform.MergeCompilerRegions()(mod)
+   mod = relay.transform.PartitionGraph()(mod)
 
 Now, we can build the TVM runtime library for executing the model. The
 TVM target is 'llvm' as the operations that can't be handled by the DPU
@@ -443,13 +468,13 @@ are executed on the CPU. The Vitis-AI target is DPUCADX8G as we are
 targeting the cloud DPU and this target is passed as a config to the TVM
 build call.
 
-::
+.. code:: bash
 
-    tvm_target = 'llvm'
-    target='DPUCADX8G'
+   tvm_target = 'llvm'
+   target='DPUCADX8G'
 
-    with tvm.transform.PassContext(opt_level=3, config= {'target_': target}):   
-        graph, lib, params = relay.build(mod, tvm_target, params=params)
+   with tvm.transform.PassContext(opt_level=3, config= {'relay.ext.vitis_ai.options.target': target}):   
+      graph, lib, params = relay.build(mod, tvm_target, params=params)
 
 As one more step before we can accelerate a model with Vitis-AI in TVM
 we have to quantize and compile the model for execution on the DPU. We
@@ -461,53 +486,53 @@ iterations, computations will be accelerated on the DPU. So now we will
 feed N inputs to the TVM runtime module. Note that these first N inputs
 will take a substantial amount of time.
 
-::
+.. code:: bash:
 
-    module = tvm.contrib.graph_runtime.create(graph, lib, tvm.cpu())
-    module.set_input(**params)
+   module = tvm.contrib.graph_runtime.create(graph, lib, tvm.cpu())
+   module.set_input(**params)
 
-    # First N (default = 128) inputs are used for quantization calibration and will
-    # be executed on the CPU
-    # This config can be changed by setting the 'PX_QUANT_SIZE' (e.g. export PX_QUANT_SIZE=64)
-    for i in range(128):
-        module.set_input(input_name, inputs[i]) 
-        module.run()
+   # First N (default = 128) inputs are used for quantization calibration and will
+   # be executed on the CPU
+   # This config can be changed by setting the 'PX_QUANT_SIZE' (e.g. export PX_QUANT_SIZE=64)
+   for i in range(128):
+      module.set_input(input_name, inputs[i]) 
+      module.run()
 
 Afterwards, inference will be accelerated on the DPU.
 
-::
+.. code:: bash
 
-    module.set_input(name, data)
-    module.run()
+   module.set_input(name, data)
+   module.run()
 
 To save and load the built module, one can use the typical TVM API's:
 
-::
+.. code:: bash
 
-    # save the graph, lib and params into separate files
-    from tvm.contrib import util
+   # save the graph, lib and params into separate files
+   from tvm.contrib import util
 
-    temp = util.tempdir()
-    path_lib = temp.relpath("deploy_lib.so")
-    lib.export_library(path_lib)
-    with open(temp.relpath("deploy_graph.json"), "w") as fo:
-        fo.write(graph)
-    with open(temp.relpath("deploy_param.params"), "wb") as fo:
-        fo.write(relay.save_param_dict(params))
+   temp = util.tempdir()
+   path_lib = temp.relpath("deploy_lib.so")
+   lib.export_library(path_lib)
+   with open(temp.relpath("deploy_graph.json"), "w") as fo:
+      fo.write(graph)
+   with open(temp.relpath("deploy_param.params"), "wb") as fo:
+      fo.write(relay.save_param_dict(params))
 
 Load the module from compiled files and run inference
 
-::
+.. code:: bash
 
-    # load the module into memory
-    loaded_json = open(temp.relpath("deploy_graph.json")).read()
-    loaded_lib = tvm.runtime.load_module(path_lib)
-    loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
+   # load the module into memory
+   loaded_json = open(temp.relpath("deploy_graph.json")).read()
+   loaded_lib = tvm.runtime.load_module(path_lib)
+   loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
 
-    module = tvm.contrib.graph_runtime.create(loaded_json, loaded_lib, ctx)
-    module.load_params(loaded_params)
-    module.set_input(name, data)
-    module.run()
+   module = tvm.contrib.graph_runtime.create(loaded_json, loaded_lib, ctx)
+   module.load_params(loaded_params)
+   module.set_input(name, data)
+   module.run()
 
 Edge usage
 ~~~~~~~~~~
@@ -526,27 +551,27 @@ used by TVM to integrate with the Vitis-AI stack. Additionaly, import
 the typical TVM and Relay modules and the Vitis-AI contrib module inside
 TVM.
 
-::
+.. code:: bash
 
-    import pyxir
-    import pyxir.contrib.target.DPUCZDX8G
+   import pyxir
+   import pyxir.contrib.target.DPUCZDX8G
 
-    import tvm
-    import tvm.relay as relay
-    from tvm.contrib.target import vitis_ai
-    from tvm.relay.build_module import bind_params_by_name
-    from tvm.relay.op.contrib.vitis_ai import annotation
+   import tvm
+   import tvm.relay as relay
+   from tvm.contrib.target import vitis_ai
+   from tvm.relay.build_module import bind_params_by_name
+   from tvm.relay.op.contrib.vitis_ai import annotation
 
 After importing a convolutional neural network model using the usual
 Relay API's, annotate the Relay expression for the given Vitis-AI DPU
 target and partition the graph.
 
-::
+.. code:: bash
 
-    mod["main"] = bind_params_by_name(mod["main"], params)
-    mod = annotation(mod, params, target)
-    mod = relay.transform.MergeCompilerRegions()(mod)
-    mod = relay.transform.PartitionGraph()(mod)
+   mod["main"] = bind_params_by_name(mod["main"], params)
+   mod = annotation(mod, params, target)
+   mod = relay.transform.MergeCompilerRegions()(mod)
+   mod = relay.transform.PartitionGraph()(mod)
 
 Now, we can build the TVM runtime library for executing the model. The
 TVM target is 'llvm' as the operations that can't be handled by the DPU
@@ -556,38 +581,38 @@ on the ZCU104 board and this target is passed as a config to the TVM
 build call. Note that different identifiers can be passed for different
 targets, see `edge targets info <#edge-requirements>`__.
 
-::
+.. code:: bash
 
-    tvm_target = 'llvm'
-    target='DPUCZDX8G-zcu104'
+   tvm_target = 'llvm'
+   target='DPUCZDX8G-zcu104'
 
-    with tvm.transform.PassContext(opt_level=3, config= {'target_': target}):   
-        graph, lib, params = relay.build(mod, tvm_target, params=params)
+   with tvm.transform.PassContext(opt_level=3, config= {'relay.ext.vitis_ai.options.target': target}):   
+      graph, lib, params = relay.build(mod, tvm_target, params=params)
 
 Additionaly, already build the deployment module for the ARM CPU target
 and serialize:
 
-::
+.. code:: bash
 
-    # Export lib for aarch64 target
+   # Export lib for aarch64 target
 
-    tvm_target = tvm.target.arm_cpu('ultra96')
-    lib_kwargs = {
+   tvm_target = tvm.target.arm_cpu('ultra96')
+   lib_kwargs = {
         'fcompile': contrib.cc.create_shared,
         'cc': "/usr/aarch64-linux-gnu/bin/ld"
-    }
+   }
 
-    with tvm.transform.PassContext(opt_level=3,
-                                   config={'target_': target,
-                                           'vai_build_dir_': target + '_build'}):
+   with tvm.transform.PassContext(opt_level=3,
+                                   config={'relay.ext.vitis_ai.options.target': target,
+                                           'relay.ext.vitis_ai.options.build_dir': target + '_build'}):
         graph_arm, lib_arm, params_arm = relay.build(
             mod, tvm_target, params=params)
 
-    lib_dpuv2.export_library('tvm_dpu_arm.so', **lib_kwargs)
-    with open("tvm_dpu_arm.json","w") as f:
-        f.write(graph_dpuv2)
-    with open("tvm_dpu_arm.params", "wb") as f:
-        f.write(relay.save_param_dict(params_dpuv2))
+   lib_dpuv2.export_library('tvm_dpu_arm.so', **lib_kwargs)
+   with open("tvm_dpu_arm.json","w") as f:
+      f.write(graph_dpuv2)
+   with open("tvm_dpu_arm.params", "wb") as f:
+      f.write(relay.save_param_dict(params_dpuv2))
 
 As one more step before we can deploy a model with Vitis-AI in TVM at
 the edge we have to quantize and compile the model for execution on the
@@ -597,17 +622,17 @@ quantize the model on the host using N inputs. After providing N inputs
 we can then move the TVM and Vitis-AI build files to the edge device for
 deployment.
 
-::
+.. code:: bash
 
-    module = tvm.contrib.graph_runtime.create(graph, lib, tvm.cpu())
-    module.set_input(**params)
+   module = tvm.contrib.graph_runtime.create(graph, lib, tvm.cpu())
+   module.set_input(**params)
 
-    # First N (default = 128) inputs are used for quantization calibration and will
-    # be executed on the CPU
-    # This config can be changed by setting the 'PX_QUANT_SIZE' (e.g. export PX_QUANT_SIZE=64)
-    for i in range(128):
-        module.set_input(input_name, inputs[i]) 
-        module.run()
+   # First N (default = 128) inputs are used for quantization calibration and will
+   # be executed on the CPU
+   # This config can be changed by setting the 'PX_QUANT_SIZE' (e.g. export PX_QUANT_SIZE=64)
+   for i in range(128):
+      module.set_input(input_name, inputs[i]) 
+      module.run()
 
 Now, move the TVM build files (tvm\_dpu\_arm.json, tvm\_dpu\_arm.so,
 tvm\_dpu\_arm.params) and the DPU build directory (e.g.
@@ -625,23 +650,21 @@ Move the target build directory to the same folder where the example
 running script is located and explicitly set the path to the build
 directory using the PX\_BUILD\_DIR environment variable.
 
-::
+.. code:: bash
 
     export PX_BUILD_DIR={PATH-TO-DPUCZDX8G-BUILD_DIR}
 
 Then load the TVM runtime module into memory and feed inputs for
 inference.
 
-::
+.. code:: bash
 
-    # load the module into memory
-    loaded_json = open(temp.relpath("tvm_dpu_arm.json")).read()
-    loaded_lib = tvm.runtime.load_module("tvm_dpu_arm.so")
-    loaded_params = bytearray(open(temp.relpath("tvm_dpu_arm.params"), "rb").read())
+   # load the module into memory
+   loaded_json = open(temp.relpath("tvm_dpu_arm.json")).read()
+   loaded_lib = tvm.runtime.load_module("tvm_dpu_arm.so")
+   loaded_params = bytearray(open(temp.relpath("tvm_dpu_arm.params"), "rb").read())
 
-    module = tvm.contrib.graph_runtime.create(loaded_json, loaded_lib, ctx)
-    module.load_params(loaded_params)
-    module.set_input(name, data)
-    module.run()
-
-
+   module = tvm.contrib.graph_runtime.create(loaded_json, loaded_lib, ctx)
+   module.load_params(loaded_params)
+   module.set_input(name, data)
+   module.run()
