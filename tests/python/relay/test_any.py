@@ -882,5 +882,6 @@ def test_reshape_concat():
     mod['main'] = relay.Function([d0, d1, s0, s1], out)
     relay.create_executor("vm", mod=mod, ctx=tvm.cpu(), target="llvm")
 
+
 if __name__ == "__main__":
     pytest.main([__file__])
