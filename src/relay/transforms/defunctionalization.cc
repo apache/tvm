@@ -411,17 +411,15 @@ class DefuncMutator : public ExprMutator {
   }
 };
 
-Expr Defunctionalization(const Expr& e, const IRModule& mod) {
-  // e is the starting point of the program, all types MUST be known
-  auto f = e.as<FunctionNode>();
-  CHECK(f) << "input need to be a function";
+Expr Defunctionalization(const Function& f, const IRModule& mod) {
+  // f is the starting point of the program, all types MUST be known
   CHECK(f->type_params.size() == 0) << "no polymorphism supported for defunctionalization";
   for (const auto& p : f->params) {
-    CHECK(!HasFuncType(p)) << "input parameters cannot have func type";
+    CHECK(!HasFuncType(p)) << "program cannot have func type parameters";
   }
   CHECK(!HasFuncType(f->ret_type)) << "return type cannot contain function";
 
-  return DefuncMutator(mod).VisitExpr(e);
+  return Downcast<Function>(DefuncMutator(mod).VisitExpr(f));
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.Defunctionalization").set_body_typed(Defunctionalization);

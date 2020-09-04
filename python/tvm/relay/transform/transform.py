@@ -736,21 +736,28 @@ def gradient(expr, mod=None, mode='higher_order'):
         return _ffi_api.gradient(expr, mod)
     raise Exception('unknown mode')
 
-def Defunctionalization(expr, mod):
+def Defunctionalization(func, mod):
     """
+    Performs defunctionalization on func,
+    transforming func from a higher-order program to a first-order program.
+
+    At each call site, the function is cloned and type parameters are substituted in.
+    Function arguments are encoded as datatypes
+    and additional apply functions are used for application.
+
     Parameters
     ----------
-    expr : tvm.relay.Expr
-        The input expression, which is a Function or a GlobalVar.
+    func : tvm.relay.Function
+        The input function, which should not be polymorphic or be higher-order.
 
     mod : tvm.IRModule
         The IRModule containing function and type definitions,
-        which is mutated during this pass.
+        which is also mutated during this pass.
 
     Returns
     -------
-    expr : tvm.relay.Expr
-      The transformed expression.
+    expr : tvm.relay.Function
+      The output function.
     """
     return _ffi_api.Defunctionalization(expr, mod)
 
