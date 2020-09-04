@@ -749,6 +749,8 @@ def Defunctionalization(func, mod):
     ----------
     func : tvm.relay.Function
         The input function, which should not be polymorphic or be higher-order.
+        This is because all types must be known and we can't encode function arguments
+        to the program itself.
 
     mod : tvm.IRModule
         The IRModule containing function and type definitions,
@@ -759,7 +761,7 @@ def Defunctionalization(func, mod):
     expr : tvm.relay.Function
       The output function.
     """
-    return _ffi_api.Defunctionalization(expr, mod)
+    return _ffi_api.Defunctionalization(func, mod)
 
 def to_cps(func, mod=None):
     """
