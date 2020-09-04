@@ -354,6 +354,30 @@ def test_dynamic_to_static_upsampling():
     verify_upsampling((1, 16, 32, 32), 2, 2, 'int8')
     verify_upsampling((1, 16, 32, 32), 4, 4, 'int32')
 
+def test_dynamic_to_static_upsampling3d():
+    def verify_upsampling3d(data_shape, scale_d_val, scale_h_val, scale_w_val, dtype):
+        x = relay.var("x", relay.TensorType(data_shape, dtype))
+        scale_d = relay.const(scale_d_val)
+        scale_h = relay.const(scale_h_val)
+        scale_w = relay.const(scale_w_val)
+
+        z = relay.nn.upsampling3d(x, scale_d, scale_h, scale_w)
+
+        func = run_infer_type(relay.Function([x], z))
+        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+
+        zz = func2.body
+        assert isinstance(zz, relay.Call)
+        assert zz.op == relay.op.get("nn.upsampling3d")
+
+        x_data = np.random.uniform(size=data_shape).astype(dtype)
+        ref_res = tvm.topi.testing.upsampling3d_python(x_data, (scale_d_val, scale_h_val, scale_w_val), "NCDHW")
+        verify_func(func2, [x_data], ref_res)
+
+    verify_upsampling3d((1, 1, 1, 1, 1), 2, 3, 4, 'int8')
+    verify_upsampling3d((5, 7, 8, 10, 32), 3, 2, 2, 'int8')
+    verify_upsampling3d((1, 4, 2, 5, 3), 5, 4, 3, 'int32')
+
 def test_dynamic_to_static_pad():
     def verify_pad(data_shape, pad_width, pad_val, dtype):
         x = relay.var("x", relay.TensorType(data_shape, dtype))
