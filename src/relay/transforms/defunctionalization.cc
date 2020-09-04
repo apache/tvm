@@ -211,8 +211,7 @@ class DefuncMutator : public ExprMutator {
         args.push_back(this->VisitExpr(arg));
       }
 
-      auto e = Call(GetApplyFunction(op_type), args);
-      return e;
+      return Call(GetApplyFunction(op_type), args);
     }
     return ExprMutator::VisitExpr_(call);
   }
