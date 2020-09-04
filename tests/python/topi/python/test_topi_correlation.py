@@ -24,9 +24,6 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
 
-from common import get_all_backend
-
-
 _correlation_implement = {
     "generic": (topi.nn.correlation_nchw, topi.generic.schedule_correlation_nchw),
     "cuda": (topi.cuda.correlation_nchw, topi.cuda.schedule_correlation_nchw),
@@ -52,11 +49,7 @@ def verify_correlation_nchw(data_shape, kernel_size, max_displacement, stride1, 
 
     a_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
         fcompute, fschedule = tvm.topi.testing.dispatch(
             device, _correlation_implement)
@@ -72,10 +65,11 @@ def verify_correlation_nchw(data_shape, kernel_size, max_displacement, stride1, 
             func(a, b, c)
             tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 
+@tvm.testing.uses_gpu
 def test_correlation_nchw():
     verify_correlation_nchw((1, 3, 10, 10), kernel_size=1, max_displacement=4,
                         stride1=1, stride2=1, pad_size=4, is_multiply=True)

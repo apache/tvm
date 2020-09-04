@@ -21,6 +21,7 @@ import tvm
 from tvm import te
 from tvm import topi
 import tvm.topi.testing
+import tvm.testing
 
 _argsort_implement = {
     "generic": (topi.argsort, topi.generic.schedule_argsort),
@@ -52,10 +53,10 @@ def verify_argsort(axis, is_ascend):
         np_indices = np_indices[:, :dshape[axis]]
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        ctx = tvm.context(device, 0)
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _argsort_implement)
@@ -97,7 +98,7 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -124,6 +125,7 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_argsort():
     np.random.seed(0)
     for axis in [0, -1, 1]:
@@ -131,6 +133,7 @@ def test_argsort():
         verify_argsort(axis, False)
 
 
+@tvm.testing.uses_gpu
 def test_topk():
     np.random.seed(0)
     for k in [0, 1, 5]:

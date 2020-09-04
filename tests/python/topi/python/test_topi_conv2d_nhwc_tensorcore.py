@@ -26,6 +26,7 @@ from tvm.contrib.pickle_memoize import memoize
 from tvm.contrib import nvcc
 from tvm.topi.nn.util import get_pad_tuple
 from tvm.topi.util import get_const_tuple
+import tvm.testing
 
 
 _conv2d_nhwc_tensorcore_implement = {
@@ -70,7 +71,7 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         if not nvcc.have_tensorcore(ctx.compute_version):
@@ -105,6 +106,8 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
     check_device(devices)
 
 
+@tvm.testing.requires_cuda
+@tvm.testing.requires_gpu
 def test_conv2d_nhwc_tensorcore():
     """Test the conv2d with tensorcore for nhwc layout"""
     verify_conv2d_nhwc(16, 16, 14, 16, 3, 1, 1)

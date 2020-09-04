@@ -22,6 +22,7 @@ import tvm.topi.testing
 from tvm.contrib import cblas
 from tvm.contrib import mkl
 from tvm.contrib import mkldnn
+import tvm.testing
 
 def verify_matmul_add(m, l, n, lib, transa=False, transb=False, dtype="float32"):
     bias = te.var('bias', dtype=dtype)
@@ -41,7 +42,7 @@ def verify_matmul_add(m, l, n, lib, transa=False, transb=False, dtype="float32")
         return np.dot(a, b) + bb
 
     def verify(target="llvm"):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func(lib.__name__ + ".matmul", True):
@@ -107,7 +108,7 @@ def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):
         return np.dot(a, b) + bb
 
     def verify(target="llvm"):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.mkl.matmul_u8s8s32", True):
@@ -153,7 +154,7 @@ def verify_batch_matmul(batch, m, l, n, lib, transa=False, transb=False, iterati
         return tvm.topi.testing.batch_matmul(a, b)
 
     def verify(target="llvm"):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func(lib.__name__ + ".matmul", True):

@@ -32,7 +32,7 @@ _conv2d_hwnc_tensorcore_implement = {
 }
 
 def verify_conv2d_hwnc(batch, in_channel, in_size, num_filter, kernel, stride,
-                       padding, dilation=1, devices='cuda', dtype='int4'):
+                       padding, dilation=1, dtype='int4'):
     """Test the conv2d with tensorcore for hwnc layout"""
     pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel, kernel))
     padding_sum = pad_top + pad_left + pad_bottom + pad_right
@@ -89,7 +89,7 @@ def verify_conv2d_hwnc(batch, in_channel, in_size, num_filter, kernel, stride,
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         if not nvcc.have_tensorcore(ctx.compute_version):
@@ -112,9 +112,10 @@ def verify_conv2d_hwnc(batch, in_channel, in_size, num_filter, kernel, stride,
         rtol = 1e-3
         tvm.testing.assert_allclose(c.asnumpy().transpose((2, 0, 1, 3)), c_np, rtol=rtol)
 
-    check_device(devices)
+    check_device('cuda')
 
 
+@tvm.testing.requires_tensorcore
 def test_conv2d_hwnc_tensorcore():
     """Test the conv2d with tensorcore for hwnc layout"""
     verify_conv2d_hwnc(8, 64, 56, 64, 3, 1, 1, dtype='int8')

@@ -23,7 +23,8 @@ import tvm.topi.testing
 from tvm.topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
 
-from common import get_all_backend, Int8Fallback
+from common import Int8Fallback
+import tvm.testing
 
 _dense_implement = {
     "generic": [(topi.nn.dense, topi.generic.schedule_dense)],
@@ -57,11 +58,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
     # get the test data
     a_np, b_np, c_np, d_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
         for fcompute, fschedule in tvm.topi.testing.dispatch(device, _dense_implement):
             with tvm.target.create(device):
@@ -76,8 +73,8 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
             f(a, b, c, d)
             tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 
 def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
@@ -104,9 +101,6 @@ def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
         if device == "cuda" and not tvm.contrib.nvcc.have_int8(ctx.compute_version):
             print("Skip because int8 intrinsics are not available")
             return
@@ -128,6 +122,7 @@ def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_dense():
     verify_dense(1, 1024, 1000, use_bias=True)
     verify_dense(1, 1024, 1000, use_bias=False)
@@ -136,6 +131,8 @@ def test_dense():
     verify_dense(128, 1024, 1000, use_bias=True)
 
 
+@tvm.testing.requires_cuda
+@tvm.testing.requires_gpu
 def test_dense_int8():
     with Int8Fallback():
         verify_dense_int8(2, 1024, 1000, use_bias=True)

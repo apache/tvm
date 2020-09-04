@@ -44,6 +44,10 @@ def upsampling(data, scale_h, scale_w, layout="NCHW", method='nearest_neighbor',
     method : {"bilinear", "nearest_neighbor", "bicubic"}
         Method to be used for upsampling.
 
+    output_shape: tvm.tir.container.Array, optional
+        Shape to return. If left None will be inferred
+        (If shape is determined dynamically, pass out_dtype.shape as output_shape)
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -79,7 +83,7 @@ def upsampling(data, scale_h, scale_w, layout="NCHW", method='nearest_neighbor',
 
 
 def upsampling3d(data, scale_d, scale_h, scale_w, layout="NCDHW", method='nearest_neighbor',
-                 coordinate_transformation_mode="half_pixel"):
+                 coordinate_transformation_mode="half_pixel", output_shape=None):
     """Perform upsampling on the data.
        Nearest neighbor and bilinear upsampling are supported.
 
@@ -111,6 +115,10 @@ def upsampling3d(data, scale_d, scale_h, scale_w, layout="NCDHW", method='neares
         Refer to the ONNX Resize operator specification for details.
         Available options are "half_pixel", "align_corners" and "asymmetric".
 
+    output_shape: tvm.tir.container.Array, optional
+        Shape to return. If left None will be inferred
+        (If shape is determined dynamically, pass out_dtype.shape as output_shape)
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -119,15 +127,30 @@ def upsampling3d(data, scale_d, scale_h, scale_w, layout="NCDHW", method='neares
     """
     base_layout = layout[0:5]
     if base_layout == "NCDHW":
-        out_shape = (simplify(topi.cast(te.round(data.shape[2] * scale_d), data.shape[2].dtype)),
-                     simplify(topi.cast(te.round(data.shape[3] * scale_h), data.shape[3].dtype)),
-                     simplify(topi.cast(te.round(data.shape[4] * scale_w), data.shape[4].dtype)))
+        if not output_shape: # static case
+            scaled_d = data.shape[2] * scale_d
+            scaled_h = data.shape[3] * scale_h
+            scaled_w = data.shape[4] * scale_w
+            resize_shape = (simplify(topi.cast(te.round(scaled_d), data.shape[2].dtype)),
+                            simplify(topi.cast(te.round(scaled_h), data.shape[3].dtype)),
+                            simplify(topi.cast(te.round(scaled_w), data.shape[4].dtype)))
+        else: # dynamic case -- don't need to scale; already done in shape func
+            resize_shape = (simplify(topi.cast(te.round(output_shape[2]), data.shape[2].dtype)),
+                            simplify(topi.cast(te.round(output_shape[3]), data.shape[3].dtype)),
+                            simplify(topi.cast(te.round(output_shape[4]), data.shape[4].dtype)))
     elif layout == "NDHWC":
-        out_shape = (simplify(topi.cast(te.round(data.shape[1] * scale_d), data.shape[1].dtype)),
-                     simplify(topi.cast(te.round(data.shape[2] * scale_h), data.shape[2].dtype)),
-                     simplify(topi.cast(te.round(data.shape[3] * scale_w), data.shape[3].dtype)))
-
+        if not output_shape: # static case
+            scaled_d = data.shape[1] * scale_d
+            scaled_h = data.shape[2] * scale_h
+            scaled_w = data.shape[3] * scale_w
+            resize_shape = (simplify(topi.cast(te.round(scaled_d), data.shape[1].dtype)),
+                            simplify(topi.cast(te.round(scaled_h), data.shape[2].dtype)),
+                            simplify(topi.cast(te.round(scaled_w), data.shape[3].dtype)))
+        else: # dynamic case
+            resize_shape = (simplify(topi.cast(te.round(output_shape[1]), data.shape[1].dtype)),
+                            simplify(topi.cast(te.round(output_shape[2]), data.shape[2].dtype)),
+                            simplify(topi.cast(te.round(output_shape[3]), data.shape[3].dtype)))
     else:
         raise ValueError("not support this layout {} yet".format(layout))
-    return topi.image.resize3d(data, out_shape, layout=layout, method=method,
+    return topi.image.resize3d(data, resize_shape, layout=layout, method=method,
                                coordinate_transformation_mode=coordinate_transformation_mode)

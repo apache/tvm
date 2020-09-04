@@ -21,6 +21,7 @@ import tvm
 from tvm import topi
 from tvm import te, auto_scheduler
 import tempfile
+import tvm.testing
 
 from test_auto_scheduler_common import matmul_auto_scheduler_test, get_tiled_matmul
 
@@ -46,7 +47,7 @@ def record_common(dag, s):
 
 
 def test_record_split_reorder_fuse_annotation():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
     A = te.placeholder((512, 512), name='A')
@@ -80,7 +81,7 @@ def test_record_split_reorder_fuse_annotation():
 
 
 def test_record_compute_at_root_inline_cache_read_write():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
     A = te.placeholder((512, 512), name='A')
@@ -108,7 +109,7 @@ def test_record_compute_at_root_inline_cache_read_write():
 
 
 def test_record_follow_split_follow_fused_split():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
     A = te.placeholder((512, 512), name='A')
@@ -142,7 +143,7 @@ def test_record_follow_split_follow_fused_split():
 
 
 def test_record_pragma_storage_align_rfactor():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
     A = te.placeholder((512, 512), name='A')
@@ -165,7 +166,7 @@ def test_record_pragma_storage_align_rfactor():
 
 
 def test_measure_local_builder_runner():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
     dag, s0 = get_tiled_matmul()
@@ -183,7 +184,7 @@ def test_measure_local_builder_runner():
 
 
 def test_measure_local_builder_rpc_runner():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
     dag, s0 = get_tiled_matmul()

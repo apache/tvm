@@ -25,6 +25,7 @@ def collect_visit(stmt, f):
     return ret
 
 
+@tvm.testing.requires_llvm
 @pytest.mark.xfail
 def test_out_of_bounds_llvm(index_a, index_b):
     n = te.size_var("n")
@@ -43,6 +44,7 @@ def test_out_of_bounds_llvm(index_a, index_b):
     c = tvm.nd.array(np.zeros(1024, dtype=C.dtype), ctx)
     fadd (a, b, c)
 
+@tvm.testing.requires_llvm
 def test_in_bounds_llvm():
     n = te.size_var("n")
     A = te.placeholder ((n,), name='A')
@@ -59,6 +61,7 @@ def test_in_bounds_llvm():
     c = tvm.nd.array(np.zeros(1024, dtype=C.dtype), ctx)
     fadd (a, b, c)
 
+@tvm.testing.requires_llvm
 @pytest.mark.xfail
 def test_out_of_bounds_vectorize_llvm(nn, index_a, index_b):
     n = tvm.runtime.convert(nn)
@@ -80,6 +83,7 @@ def test_out_of_bounds_vectorize_llvm(nn, index_a, index_b):
     c = tvm.nd.array(np.zeros(n, dtype=c.dtype), ctx)
     f(a, b, c)
 
+@tvm.testing.requires_llvm
 def test_in_bounds_vectorize_llvm():
     n = 512
     lanes = 2
@@ -105,6 +109,7 @@ def test_in_bounds_vectorize_llvm():
     f(a, c)
     tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
 
+@tvm.testing.requires_llvm
 def test_in_bounds_loop_partition_basic_llvm():
     n = te.size_var('n')
     A = te.placeholder((n, ), name='A')
@@ -122,6 +127,7 @@ def test_in_bounds_loop_partition_basic_llvm():
     t = tvm.nd.empty((32,), T.dtype, ctx)
     f(a, b, t)
 
+@tvm.testing.requires_llvm
 @pytest.mark.xfail
 def test_out_of_bounds_loop_partition_basic_llvm(index_a, index_b):
     n = te.size_var('n')
@@ -186,6 +192,7 @@ def test_in_bounds_const_loop_partition_ir():
     assert(len(branch_collector) ==  2)
 
 
+@tvm.testing.requires_llvm
 def test_in_bounds_const_loop_partition_llvm():
     with tvm.transform.PassContext(config={
         "tir.instrument_bound_checkers": True,
@@ -207,6 +214,7 @@ def test_in_bounds_const_loop_partition_llvm():
         t = tvm.nd.empty((n,), T.dtype, ctx)
         f(a, b, t)
 
+@tvm.testing.requires_llvm
 @pytest.mark.xfail
 def test_out_of_bounds_const_loop_partition_llvm(index_a, index_b):
     with tvm.transform.PassContext(config={
@@ -229,6 +237,7 @@ def test_out_of_bounds_const_loop_partition_llvm(index_a, index_b):
         t = tvm.nd.empty((n,), T.dtype, ctx)
         f(a, b, t)
 
+@tvm.testing.requires_llvm
 def test_in_bounds_conv_llvm(loop_tiling=False):
     HSTR = WSTR = 1
     in_channel = 128
@@ -264,6 +273,7 @@ def test_in_bounds_conv_llvm(loop_tiling=False):
     conv_out = tvm.nd.empty ((batch_size, out_channel, out_height, out_width), "float32", ctx)
     f(data_input, kernel_input, conv_out)
 
+@tvm.testing.requires_llvm
 @pytest.mark.xfail
 def test_out_of_bounds_conv_llvm(data_offsets, kernel_offsets, loop_tiling=False):
     HSTR = WSTR = 1
@@ -307,6 +317,7 @@ def test_out_of_bounds_conv_llvm(data_offsets, kernel_offsets, loop_tiling=False
     conv_out = tvm.nd.empty ((batch_size, out_channel, out_height, out_width), "float32", ctx)
     f(data_input, kernel_input, conv_out)
 
+@tvm.testing.requires_llvm
 def test_in_bounds_tensors_with_same_shapes1D_llvm():
     n = te.size_var('n')
     k = te.size_var('k')
@@ -325,6 +336,7 @@ def test_in_bounds_tensors_with_same_shapes1D_llvm():
     t = tvm.nd.empty((32,), T.dtype, ctx)
     f(a, b, t)
 
+@tvm.testing.requires_llvm
 @pytest.mark.xfail
 def test_out_of_bounds_tensors_with_diff_shapes1D_llvm(a_shape, b_shape, c_shape):
     n = te.size_var('n')
@@ -344,6 +356,7 @@ def test_out_of_bounds_tensors_with_diff_shapes1D_llvm(a_shape, b_shape, c_shape
     t = tvm.nd.empty((c_shape,), T.dtype, ctx)
     f(a, b, t)
 
+@tvm.testing.requires_llvm
 def test_in_bounds_tensors_with_same_shapes2D_llvm():
     n = te.size_var('n')
     k = te.size_var('k')
@@ -362,6 +375,7 @@ def test_in_bounds_tensors_with_same_shapes2D_llvm():
     t = tvm.nd.empty((32, 32), T.dtype, ctx)
     f(a, b, t)
 
+@tvm.testing.requires_llvm
 @pytest.mark.xfail
 def test_out_of_bounds_tensors_with_diff_shapes2D_llvm(a_shape, b_shape, c_shape):
     n = te.size_var('n')
@@ -381,6 +395,7 @@ def test_out_of_bounds_tensors_with_diff_shapes2D_llvm(a_shape, b_shape, c_shape
     t = tvm.nd.empty((c_shape[0],c_shape[1]), T.dtype, ctx)
     f(a, b, t)
 
+@tvm.testing.requires_llvm
 def test_in_bounds_tensors_with_same_shapes3D_llvm():
     n = te.size_var('n')
     k = te.size_var('k')
@@ -400,6 +415,7 @@ def test_in_bounds_tensors_with_same_shapes3D_llvm():
     t = tvm.nd.empty((32, 32, 32), T.dtype, ctx)
     f(a, b, t)
 
+@tvm.testing.requires_llvm
 @pytest.mark.xfail
 def test_out_of_bounds_tensors_with_diff_shapes3D_llvm(a_shape, b_shape, c_shape):
     n = te.size_var('n')
@@ -420,10 +436,9 @@ def test_out_of_bounds_tensors_with_diff_shapes3D_llvm(a_shape, b_shape, c_shape
     t = tvm.nd.empty((c_shape[0],c_shape[1],c_shape[2]), T.dtype, ctx)
     f(a, b, t)
 
+@tvm.testing.requires_llvm
 @pytest.mark.xfail
 def test_out_of_bounds_tensors_with_zero_shape_op_with_not_zero_shape_llvm():
-    if not tvm.runtime.enabled("llvm"):
-        return
     n = 64
     A = te.placeholder((n, ), name='A')
     scale = te.placeholder((), name='scale')

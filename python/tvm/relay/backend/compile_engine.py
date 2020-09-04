@@ -23,6 +23,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm.runtime import Object
+from tvm.support import libinfo
 from ... import target as _target
 from ... import autotvm
 from .. import function as _function
@@ -80,9 +81,12 @@ def get_shape(shape):
     ret = []
     for dim in shape:
         if isinstance(dim, tvm.tir.IntImm):
-            val = int(dim)
-            assert val <= np.iinfo(np.int32).max
-            ret.append(tvm.tir.IntImm("int32", val))
+            if libinfo()["INDEX_DEFAULT_I64"] == "ON":
+                ret.append(dim)
+            else:
+                val = int(dim)
+                assert val <= np.iinfo(np.int32).max
+                ret.append(tvm.tir.IntImm("int32", val))
         elif isinstance(dim, tvm.tir.Any):
             ret.append(te.var("any_dim", "int32"))
         else:

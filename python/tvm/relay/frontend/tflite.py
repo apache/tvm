@@ -2696,7 +2696,7 @@ class OperatorConverter(object):
 
         # Input (data) Tensor. NHWC layout
         input_tensor = input_tensors[2]
-        _, _, _, input_c = input_tensor.tensor.ShapeAsNumpy()
+        _, input_h, input_w, input_c = input_tensor.tensor.ShapeAsNumpy()
         # Weights tensor. TFLite uses OHWI layout
         weights_tensor = input_tensors[1]
         out_channels, kernel_h, kernel_w, in_channels = weights_tensor.tensor.ShapeAsNumpy()
@@ -2742,13 +2742,16 @@ class OperatorConverter(object):
         assert out_channels == output_shape_value[3], \
             "Output channel in the filter should match to channel in the output_shape"
 
-        # TF frontend supports 'SAME' padding for kernel 1x1 only. Lets do the same here
         if padding == Padding.SAME:
-            assert (kernel_h, kernel_w) == (1, 1), \
-                "SAME padding is supported for kernel (1,1) only"
+            pad_top, pad_bottom = get_pad_value(input_h, kernel_h, stride_h)
+            pad_left, pad_right = get_pad_value(input_w, kernel_w, stride_w)
+            padding = (pad_top, pad_left, pad_bottom, pad_right)
+        else:
+            padding = (0, 0, 0, 0)
 
         out = _op.nn.conv2d_transpose(in_expr, weight_expr_iohw,
                                       strides=(stride_h, stride_w),
+                                      padding=padding,
                                       channels=int(out_channels),
                                       kernel_size=(int(kernel_h), int(kernel_w)),
                                       data_layout="NHWC",

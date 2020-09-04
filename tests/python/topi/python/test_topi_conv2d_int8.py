@@ -28,7 +28,8 @@ from tvm.topi.nn.util import get_pad_tuple
 from tvm.topi.util import get_const_tuple
 from tvm.topi.arm_cpu.conv2d_gemm import is_aarch64_arm
 
-from common import get_all_backend, Int8Fallback
+from common import Int8Fallback
+import tvm.testing
 
 def compile_conv2d_NHWC_gemm_int8_arm(batch, in_channel, in_size, num_filter, kernel, stride, padding,
                                  dilation=1, add_bias=False, add_relu=False):
@@ -45,7 +46,7 @@ def compile_conv2d_NHWC_gemm_int8_arm(batch, in_channel, in_size, num_filter, ke
     device = "llvm --device arm_cpu --mtriple aarch64-linux-gnu"
 
     ctx = tvm.context(device, 0)
-    if not ctx.exist:
+    if not tvm.testing.device_enabled(device):
         print("Skip because %s is not enabled" % device)
         return
     print("Compiling on arm AArch64 target: %s" % device)
@@ -128,7 +129,7 @@ def verify_conv2d_NHWC_gemm_int8(batch, in_channel, in_size, num_filter, kernel,
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -223,7 +224,7 @@ def verify_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kernel, str
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         if device == "cuda" and not tvm.contrib.nvcc.have_int8(ctx.compute_version):
@@ -293,7 +294,7 @@ def verify_conv2d_nchw_int8(batch, in_channel, in_size, num_filter, kernel, stri
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         if device == "cuda" and not tvm.contrib.nvcc.have_int8(ctx.compute_version):
@@ -327,6 +328,7 @@ def verify_conv2d_nchw_int8(batch, in_channel, in_size, num_filter, kernel, stri
         check_device(device)
 
 
+@tvm.testing.requires_cuda
 def test_conv2d_nchw():
     with Int8Fallback():
         # ResNet18 workloads where channels in / out are multiple of oc_block_factor

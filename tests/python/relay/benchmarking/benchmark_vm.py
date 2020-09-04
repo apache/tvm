@@ -67,8 +67,8 @@ def benchmark_execution(mod,
         if measure:
             print("Evaluate vm inference cost of {} on {}".format(model,
                                                                   repr(ctx)))
-            ftimer = rly_vm.mod.time_evaluator("invoke", ctx, number=number,
-                                               repeat=repeat)
+            ftimer = rly_vm.module.time_evaluator("invoke", ctx, number=number,
+                                                  repeat=repeat)
             # Measure in millisecond.
             prof_res = np.array(ftimer("main", data).results) * 1000
             print("Mean vm inference time (std dev): %.2f ms (%.2f ms)" %
@@ -78,14 +78,13 @@ def benchmark_execution(mod,
 
     # random input
     data = np.random.uniform(size=data_shape).astype(dtype)
-    target = "llvm"
-    ctx = tvm.cpu(0)
 
-    tvm_out = get_graph_runtime_output(mod, tvm.nd.array(data.astype(dtype)),
-                                       params, target, ctx, dtype)
-    vm_out = get_vm_output(mod, tvm.nd.array(data.astype(dtype)), params,
-                           target, ctx, dtype)
-    tvm.testing.assert_allclose(vm_out, tvm_out, rtol=1e-5, atol=1e-5)
+    for target, ctx in testing.enabled_targets():
+        tvm_out = get_graph_runtime_output(mod, tvm.nd.array(data.astype(dtype)),
+                                           params, target, ctx, dtype)
+        vm_out = get_vm_output(mod, tvm.nd.array(data.astype(dtype)), params,
+                               target, ctx, dtype)
+        tvm.testing.assert_allclose(vm_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
 def test_mlp():

@@ -63,7 +63,7 @@ TVM_FFI=ctypes python3 -m pytest apps/dso_plugin_module
 TVM_FFI=ctypes python3 -m pytest tests/python/integration
 TVM_FFI=ctypes python3 -m pytest tests/python/contrib
 
-TVM_FFI=ctypes python3 -m pytest tests/python/relay
+TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" TVM_FFI=ctypes python3 -m pytest tests/python/relay
 
 # Do not enable OpenGL
 # TVM_FFI=cython python -m pytest tests/webgl

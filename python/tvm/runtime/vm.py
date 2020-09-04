@@ -307,8 +307,17 @@ class VirtualMachine(object):
 
     def _setup_ctx(self, ctx, memory_cfg):
         """Init context and allocators."""
-        if isinstance(ctx, tvm.runtime.TVMContext):
-            ctx = [ctx]
+        ctxs = ctx
+        if not isinstance(ctx, (list, tuple)):
+            if not isinstance(ctx, tvm.runtime.TVMContext):
+                raise TypeError("ctx is expected to be TVMContext or \
+                                List[TVMContext]")
+            ctxs = [ctx]
+
+        # CPU is required for executing shape functions
+        if not any(c.device_type == tvm.cpu().device_type for c in ctxs):
+            ctxs.append(tvm.cpu())
+
         default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
         if memory_cfg is None:
             memory_cfg = {}
@@ -321,7 +330,7 @@ class VirtualMachine(object):
             raise TypeError("memory_cfg is expected be string or dictionary, " +
                             "but received {}".format(type(memory_cfg)))
         init_args = []
-        for context in ctx:
+        for context in ctxs:
             init_args.append(context.device_type)
             init_args.append(context.device_id)
             alloc_type = memory_cfg[context] if context in memory_cfg else default_alloc_type

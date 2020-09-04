@@ -23,6 +23,7 @@ from tvm import autotvm
 from tvm import topi
 from tvm.relay.testing import run_infer_type
 from tvm.relay.testing.temp_op_attr import TempOpAttr
+import tvm.testing
 
 
 @autotvm.register_topi_compute("test/conv2d_1")
@@ -161,14 +162,14 @@ def test_compile_engine():
     z3 = engine.lower(get_func(()), "llvm")
     assert z1.same_as(z2)
     assert not z3.same_as(z1)
-    if tvm.context("cuda").exist:
+    if tvm.testing.device_enabled("cuda"):
         z4 = engine.lower(get_func(()), "cuda")
         assert not z3.same_as(z4)
 
     # Test JIT target
     for target in ["llvm"]:
         ctx = tvm.context(target)
-        if ctx.exist:
+        if tvm.testing.device_enabled(target):
             f = engine.jit(get_func((10,)), target)
             x = tvm.nd.array(np.ones(10).astype("float32"), ctx=ctx)
             y = tvm.nd.empty((10,), ctx=ctx)
