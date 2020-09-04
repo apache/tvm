@@ -392,6 +392,7 @@ def test_batchnorm():
     run_batchnorm('float32', 'custom[posites2]16', rtol=0.01, atol=1)
     run_batchnorm('float32', 'custom[posites2]32')
 
+@pytest.mark.skip('skip because mxnet python package not available')
 def test_models():
     # Expected posit8 might be faster, but it's not.
     # run_model(get_mobilenet, (get_cat_image((224, 224)), ), 'float32', 'custom[posit8]8')
