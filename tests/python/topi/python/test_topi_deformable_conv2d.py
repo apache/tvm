@@ -23,7 +23,7 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
 
-from common import get_all_backend
+import tvm.testing
 
 
 _deformable_conv2d_implement = {
@@ -62,7 +62,7 @@ def verify_deformable_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -85,6 +85,7 @@ def verify_deformable_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_deformable_conv2d_nchw():
     verify_deformable_conv2d_nchw(1, 16, 7, 16, 1, 1, 0, deformable_groups=4)
     verify_deformable_conv2d_nchw(1, 16, 7, 16, 3, 1, 1, dilation=2, deformable_groups=4)

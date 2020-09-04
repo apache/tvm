@@ -94,6 +94,10 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
       json_node = CreateCompositeConvJSONNode(cn);
     } else if (name == "arm_compute_lib.dense" || name == "arm_compute_lib.qnn_dense") {
       json_node = CreateCompositeDenseJSONNode(cn);
+    } else if (name == "arm_compute_lib.avg_pool2d") {
+      json_node = CreateCompositeAvgPool2DJSONNode(cn);
+    } else if (name == "arm_compute_lib.l2_pool2d") {
+      json_node = CreateCompositeL2Pool2DJSONNode(cn);
     } else {
       LOG(FATAL) << "Unrecognized Arm Compute Library pattern: " << name;
     }
@@ -265,6 +269,62 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
 
     auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
     SetCallNodeAttribute(json_node, nodes.dense);
+    return json_node;
+  }
+
+  /*!
+   * \brief Create a JSON representation of a composite (global) average pooling operator.
+   *
+   * A composite function is only created when using the uint8 datatype for these operators.
+   *
+   * \param cn The call to be represented.
+   * \return A JSON representation of a specific operator.
+   */
+  std::shared_ptr<JSONGraphNode> CreateCompositeAvgPool2DJSONNode(const CallNode* cn) {
+    const auto* fn = cn->op.as<FunctionNode>();
+    CHECK(fn);
+    const auto* cast = fn->body.as<CallNode>();
+    CHECK(cast);
+    const auto* avg_pool = cast->args[0].as<CallNode>();
+    CHECK(avg_pool);
+    const auto* avg_pool_op = avg_pool->op.as<OpNode>();
+    CHECK(avg_pool_op);
+    const std::string name = avg_pool_op->name;
+
+    std::vector<JSONGraphNodeEntry> inputs;
+    inputs.push_back(VisitExpr(cn->args[0])[0]);
+    auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
+    SetCallNodeAttribute(json_node, avg_pool);
+    return json_node;
+  }
+
+  /*!
+   * \brief Create a JSON representation of a composite L2 pooling operator.
+   *
+   * \note Relay does not have an operator for L2 pooling, instead we can create
+   * an equivalent from power(2) + nn.avg_pool2d + sqrt.
+   *
+   * \param cn The call to be represented.
+   * \return A JSON representation of a specific operator.
+   */
+  std::shared_ptr<JSONGraphNode> CreateCompositeL2Pool2DJSONNode(const CallNode* cn) {
+    const std::string name = "nn.l2_pool2d";
+    const auto* fn = cn->op.as<FunctionNode>();
+    CHECK(fn);
+    const auto* sqrt = fn->body.as<CallNode>();
+    CHECK(sqrt);
+    const auto* avg_pool = sqrt->args[0].as<CallNode>();
+    CHECK(avg_pool);
+    const auto* pow = avg_pool->args[0].as<CallNode>();
+    CHECK(pow);
+    const auto* exponent = pow->args[1].as<ConstantNode>();
+    CHECK(exponent);
+    CHECK_EQ(*static_cast<float*>(exponent->data->data), 2) << "Exponent must be 2 for L2 pooling";
+
+    std::vector<JSONGraphNodeEntry> inputs;
+    inputs.push_back(VisitExpr(cn->args[0])[0]);
+    auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
+    SetCallNodeAttribute(json_node, avg_pool);
     return json_node;
   }
 };

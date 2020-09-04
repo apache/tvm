@@ -20,6 +20,7 @@ from tvm.contrib import cudnn
 from tvm.contrib.nvcc import have_fp16
 import numpy as np
 import tvm.topi.testing
+import tvm.testing
 
 def verify_conv2d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     in_channel = 4
@@ -36,9 +37,6 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     height = 32
     width = 32
 
-    if not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled...")
-        return
     if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
         print("skip because cudnn is not enabled...")
         return
@@ -87,6 +85,7 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     f(x, w, y)
     tvm.testing.assert_allclose(y.asnumpy(), c_np, atol=1e-2, rtol=1e-2)
 
+@tvm.testing.requires_gpu
 def test_conv2d():
     verify_conv2d("float32", "float32", tensor_format=0)
     verify_conv2d("float16", "float32", tensor_format=1)
@@ -118,9 +117,6 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     height = 32
     width = 32
 
-    if not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled...")
-        return
     if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
         print("skip because cudnn is not enabled...")
         return
@@ -161,6 +157,7 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     f(x, w, y)
     tvm.testing.assert_allclose(y.asnumpy(), c_np, atol=3e-5, rtol=1e-4)
 
+@tvm.testing.requires_gpu
 def test_conv3d():
     verify_conv3d("float32", "float32", tensor_format=0)
     verify_conv3d("float32", "float32", tensor_format=0, groups=2)
@@ -195,10 +192,8 @@ def verify_softmax_4d(shape, dtype="float32"):
     f(a, b)
     tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3)
 
+@tvm.testing.requires_gpu
 def test_softmax():
-    if not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled...")
-        return
     if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
         print("skip because cudnn is not enabled...")
         return

@@ -24,7 +24,7 @@ import tvm.topi.testing
 from tvm.topi.util import get_const_tuple
 from tvm.contrib.nvcc import have_fp16
 
-from common import get_all_backend
+import tvm.testing
 
 def verify_relu(m, n, dtype="float32"):
     A = te.placeholder((m, n), name='A', dtype=dtype)
@@ -33,11 +33,7 @@ def verify_relu(m, n, dtype="float32"):
     a_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = a_np * (a_np > 0)
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         if dtype == "float16" and device == "cuda" and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because %s does not have fp16 support" % device)
             return
@@ -51,8 +47,8 @@ def verify_relu(m, n, dtype="float32"):
         foo(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 
 def verify_leaky_relu(m, alpha):
@@ -92,10 +88,12 @@ def verify_prelu(x, w, axis, weight_reshape):
     out_np = _prelu_numpy(x_np, w_np)
     tvm.testing.assert_allclose(b.asnumpy(), out_np, rtol=1e-5)
 
+@tvm.testing.uses_gpu
 def test_relu():
     verify_relu(10, 128, "float32")
     verify_relu(128, 64, "float16")
 
+@tvm.testing.uses_gpu
 def test_schedule_big_array():
     verify_relu(1024 * 100 , 512)
 

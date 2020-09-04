@@ -17,8 +17,10 @@
 import tvm
 from tvm import te
 import numpy as np
+import tvm.testing
 
 
+@tvm.testing.requires_gpu
 def test_reduce_prims():
     def test_prim(reducer, np_reducer):
         # graph
@@ -40,9 +42,7 @@ def test_reduce_prims():
         # one line to build the function.
         def check_device(device, host="llvm"):
             ctx = tvm.context(device, 0)
-            if not tvm.runtime.enabled(host):
-                return
-            if not ctx.exist:
+            if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
             freduce = tvm.build(s,
@@ -70,17 +70,13 @@ def test_reduce_prims():
     test_prim(tvm.te.min, np.amin)
     test_prim(tvm.te.max, np.amax)
 
-
-def test_rfactor():
+def test_init_imm():
     n = tvm.runtime.convert(1027)
     A = te.placeholder((n,), name='A')
     k = te.reduce_axis((0, n))
-    B = te.compute((1,), lambda i: te.sum(A[k], axis=k), name='B')
+    B = te.compute((1,), lambda i: te.sum(A[k], axis=k, init=10.0), name='B')
     # schedule
     s = te.create_schedule(B.op)
-    kf, ki = s[B].split(k, nparts=4)
-    BF = s.rfactor(B, kf)
-    s[BF].parallel(BF.op.axis[0])
     # one line to build the function.
     def check_target(target="llvm"):
         if not tvm.runtime.enabled(target):
@@ -95,7 +91,102 @@ def test_rfactor():
         a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
         b  = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
         fsum(a, b)
+        res = 10.0 + np.sum(a.asnumpy(), axis=0)
+        tvm.testing.assert_allclose(
+            b.asnumpy(), res, rtol=1e-4)
+
+    check_target()
+
+def test_init():
+    n = tvm.runtime.convert(1027)
+    A = te.placeholder((n,n), name='A')
+    C = te.placeholder((n,n), name='C')
+    I = te.placeholder((n,n), name='I')
+    k = te.reduce_axis((0, n))
+    B = te.compute((n,n), lambda i,j: te.sum(A[i,k]*C[k,j], axis=k, init=I[i,j]), name='B')
+
+    # schedule
+    s = te.create_schedule(B.op)
+    # one line to build the function.
+    def check_target(target="llvm"):
+        if not tvm.runtime.enabled(target):
+            return
+        ctx = tvm.cpu(0)
+        fapi = tvm.lower(s, args=[A, C, I, B])
+        print(fapi)
+        mmult = tvm.build(fapi, target=target, name="mmult")
+        # launch the kernel.
+        n = 1027
+        a = tvm.nd.array(np.random.uniform(size=(n,n)).astype(A.dtype), ctx)
+        c = tvm.nd.array(np.random.uniform(size=(n,n)).astype(C.dtype), ctx)
+        ii = tvm.nd.array(np.random.uniform(size=(n,n)).astype(B.dtype), ctx)
+        b  = tvm.nd.array(np.zeros((n,n), dtype=B.dtype), ctx)
+        mmult(a, c, ii, b)
+        res = ii.asnumpy() + np.matmul(a.asnumpy(),c.asnumpy())
+        tvm.testing.assert_allclose(
+            b.asnumpy(), res, rtol=1e-4)
+
+    check_target()
+
+def test_rfactor():
+    n = tvm.runtime.convert(1027)
+    A = te.placeholder((n,), name='A')
+    k = te.reduce_axis((0, n))
+    B = te.compute((1,), lambda i: te.sum(A[k], axis=k), name='B')
+    # schedule
+    s = te.create_schedule(B.op)
+    kf, ki = s[B].split(k, nparts=4)
+    BF = s.rfactor(B, kf)
+    s[BF].parallel(BF.op.axis[0])
+    # one line to build the function.
+    def check_target(target="llvm"):
+        if not tvm.testing.device_enabled(target):
+            return
+        ctx = tvm.cpu(0)
+        fapi = tvm.lower(s, args=[A, B])
+        fsum = tvm.build(fapi,
+                         target=target,
+                         name="mysum")
+        # launch the kernel.
+        n = 1027
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
+        b  = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
+        fsum(a, b)
         res = np.sum(a.asnumpy(), axis=0)
+        tvm.testing.assert_allclose(
+            b.asnumpy(), res, rtol=1e-4)
+
+    check_target()
+
+def test_rfactor_init():
+    n = tvm.runtime.convert(1027)
+    A = te.placeholder((n,n), name='A')
+    C = te.placeholder((n,n), name='C')
+    I = te.placeholder((n,n), name='I')
+    k = te.reduce_axis((0, n))
+    B = te.compute((n,n), lambda i,j: te.sum(A[i,k]*C[k,j], axis=k, init=I[i,j]), name='B')
+
+    # schedule
+    s = te.create_schedule(B.op)
+    kf, ki = s[B].split(k, nparts=4)
+    BF = s.rfactor(B, kf, 1)
+    s[BF].parallel(BF.op.axis[0])
+    # one line to build the function.
+    def check_target(target="llvm"):
+        if not tvm.runtime.enabled(target):
+            return
+        ctx = tvm.cpu(0)
+        fapi = tvm.lower(s, args=[A, C, I, B])
+        print(fapi)
+        mmult = tvm.build(fapi, target=target, name="mmult")
+        # launch the kernel.
+        n = 1027
+        a = tvm.nd.array(np.random.uniform(size=(n,n)).astype(A.dtype), ctx)
+        c = tvm.nd.array(np.random.uniform(size=(n,n)).astype(C.dtype), ctx)
+        ii = tvm.nd.array(np.random.uniform(size=(n,n)).astype(B.dtype), ctx)
+        b  = tvm.nd.array(np.zeros((n,n), dtype=B.dtype), ctx)
+        mmult(a, c, ii, b)
+        res = ii.asnumpy() + np.matmul(a.asnumpy(),c.asnumpy())
         tvm.testing.assert_allclose(
             b.asnumpy(), res, rtol=1e-4)
 
@@ -113,7 +204,7 @@ def test_rfactor_factor_axis():
     s[BF].parallel(BF.op.axis[0])
     # one line to build the function.
     def check_target(target="llvm"):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             return
         ctx = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
@@ -132,6 +223,7 @@ def test_rfactor_factor_axis():
     check_target()
 
 
+@tvm.testing.requires_gpu
 def test_rfactor_threads():
     nn = 1027
     mm = 10
@@ -157,7 +249,7 @@ def test_rfactor_threads():
     # one line to build the function.
     def check_target(device, host="stackvm"):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
 
@@ -182,6 +274,7 @@ def test_rfactor_threads():
     check_target("opencl")
     check_target("rocm")
 
+@tvm.testing.requires_gpu
 def test_rfactor_elemwise_threads():
     n = 1025
     m = 10
@@ -212,7 +305,7 @@ def test_rfactor_elemwise_threads():
     # one line to build the function.
     def check_target(device, host="stackvm"):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         fapi = tvm.lower(s, args=[A, C])
@@ -255,7 +348,7 @@ def test_argmax():
 
     def check_target():
         device = 'cpu'
-        if not tvm.runtime.enabled(device):
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         ctx = tvm.context(device, 0)
@@ -280,6 +373,7 @@ def test_argmax():
     check_target()
 
 
+@tvm.testing.requires_gpu
 def test_rfactor_argmax():
     def fcombine(x, y):
         lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
@@ -318,7 +412,7 @@ def test_rfactor_argmax():
 
     def check_target(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         fapi = tvm.lower(s, args=[A0, A1, B0, B1])
@@ -341,6 +435,7 @@ def test_rfactor_argmax():
     check_target("vulkan")
     check_target("rocm")
 
+@tvm.testing.requires_gpu
 def test_warp_reduction1():
     nthx = 32
     nthy = 4
@@ -350,7 +445,7 @@ def test_warp_reduction1():
 
     def check_target(device, m, n):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
 
@@ -387,6 +482,7 @@ def test_warp_reduction1():
     # This is a bug in normal reduction.
     # check_target("cuda", m=10, n=37)
 
+@tvm.testing.requires_gpu
 def test_warp_reduction2():
     def fcombine(x, y):
         return x[0] + y[0], x[1] * y[1]
@@ -412,7 +508,7 @@ def test_warp_reduction2():
 
     def check_target(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
 
@@ -454,3 +550,6 @@ if __name__ == "__main__":
     test_rfactor_argmax()
     test_warp_reduction1()
     test_warp_reduction2()
+    test_init()
+    test_init_imm()
+    test_rfactor_init()

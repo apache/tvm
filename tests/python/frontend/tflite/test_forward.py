@@ -278,7 +278,7 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
 
         for device in ["llvm"]:
             ctx = tvm.context(device, 0)
-            if not ctx.exist:
+            if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 continue
 
@@ -983,10 +983,20 @@ def test_forward_transpose_conv():
     _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 65, 5], [2, 2], 'VALID')
     _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 34, 5], [2, 1], 'VALID')
 
+    # kernel 3x3, padding SAME
+    _test_transpose_conv([4, 32, 32, 16], [3, 3, 5, 16], [4, 32, 32, 5], [1, 1], 'SAME')
+    _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 64, 64, 5], [2, 2], 'SAME')
+    _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 64, 32, 5], [2, 1], 'SAME')
+
     # kernel 2x2, padding VALID
     _test_transpose_conv([4, 32, 32, 16], [2, 2, 5, 16], [4, 33, 33, 5], [1, 1], 'VALID')
     _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 64, 5], [2, 2], 'VALID')
     _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 33, 5], [2, 1], 'VALID')
+
+    # kernel 2x2, padding SAME
+    _test_transpose_conv([4, 32, 32, 16], [2, 2, 5, 16], [4, 32, 32, 5], [1, 1], 'SAME')
+    _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 64, 5], [2, 2], 'SAME')
+    _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 32, 5], [2, 1], 'SAME')
 
     # kernel 1x1, padding VALID
     _test_transpose_conv([4, 32, 32, 16], [1, 1, 5, 16], [4, 32, 32, 5], [1, 1], 'VALID')
@@ -1907,11 +1917,38 @@ def _test_quantize_dequantize(data):
                                 rtol=1e-5, atol=1e-2)
 
 
+def _test_quantize_dequantize_const(data):
+    """ One iteration of quantize and dequantize """
+
+    # Keras model to force TFLite converter to insert 2 TFLite quantize ops.
+    # First TFLite quantize op converts float32 tensor to int8 tensor - Qnn quantize.
+    # Second TFLite quantize op converts int8 tensor to int8 tensor - Qnn requantize.
+    data_in = tf.keras.layers.Input(shape=data.shape[1:])
+    relu = tf.keras.layers.ReLU()(data_in)
+    add = tf.keras.layers.Add()([data, relu])
+    concat = tf.keras.layers.Concatenate(axis=0)([relu, add])
+    keras_model = tf.keras.models.Model(inputs=data_in, outputs=concat)
+    input_name = data_in.name.split(":")[0]
+
+    # To create quantized values with dynamic range of activations, needs representative dataset
+    def representative_data_gen():
+        for i in range(1):
+            yield [data]
+
+    tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen)
+
+    tflite_output = run_tflite_graph(tflite_model_quant, data)
+    tvm_output = run_tvm_graph(tflite_model_quant, data, input_name)
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-5, atol=1e-2)
+
+
 def test_forward_quantize_dequantize():
     """ Quantize Dequantize """
     data = np.random.uniform(0, 1, (1, 4, 4, 3)).astype("float32")
     if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
         _test_quantize_dequantize(data)
+        _test_quantize_dequantize_const(data)
 
 
 #######################################################################
@@ -2653,6 +2690,77 @@ def test_forward_reverse_v2():
 
 
 #######################################################################
+# MATRIX_SET_DIAG
+# ---------------
+
+def _test_matrix_set_diag(input_shape, input_type, quantized=False):
+    """ One iteration of MATRIX_SET_DIAG """
+    with tf.Graph().as_default():
+        diagonal_shape = list(input_shape[:-2])
+        diagonal_shape.append(min(input_shape[-2], input_shape[-1]))
+
+        if quantized:
+            # ignoring input_type as quantized requires uint8
+            input = np.random.uniform(0, 256, input_shape).astype('uint8')
+            in_input = tf.placeholder(dtype='float32', shape=input.shape, name="input")
+            inq_input = tf.quantization.fake_quant_with_min_max_args(
+                in_input,
+                min=-100,
+                max=100,
+                name="q_input")
+
+            diagonal = np.random.uniform(0, 256, diagonal_shape).astype('uint8')
+            in_diagonal = tf.placeholder(dtype='float32', shape=diagonal.shape, name="diagonal")
+            inq_diagonal = tf.quantization.fake_quant_with_min_max_args(
+                in_diagonal,
+                min=-100,
+                max=100,
+                name="q_diagonal")
+
+            input_range = {'q_input': (-100, 100), 'q_diagonal': (-100, 100)}
+
+            out = array_ops.matrix_set_diag(inq_input, inq_diagonal)
+            out = tf.quantization.fake_quant_with_min_max_args(
+                out,
+                min=-100,
+                max=100,
+                name="out")
+
+            compare_tflite_with_tvm(
+                [input, diagonal],
+                ["q_input", "q_diagonal"],
+                [inq_input, inq_diagonal],
+                [out],
+                quantized=True,
+                input_range=input_range)
+        else:
+            input = np.random.uniform(0, 100, input_shape).astype(input_type)
+            diagonal = np.random.uniform(0, 100, diagonal_shape).astype(input_type)
+
+            in_input = tf.placeholder(dtype=input.dtype, shape=input.shape, name="input")
+            in_diagonal = tf.placeholder(dtype=diagonal.dtype, shape=diagonal.shape, name="diagonal")
+
+            out = array_ops.matrix_set_diag(in_input, in_diagonal)
+
+            compare_tflite_with_tvm(
+                    [input, diagonal],
+                    ["input", "diagonal"],
+                    [in_input, in_diagonal],
+                    [out])
+
+def test_forward_matrix_set_diag():
+    """ MATRIX_SET_DIAG """
+    for dtype in [np.float32, np.int32]:
+        _test_matrix_set_diag((4, 4), dtype)
+        _test_matrix_set_diag((5, 4, 3, 4), dtype)
+        _test_matrix_set_diag((4, 4, 2), dtype)
+
+    _test_matrix_set_diag((4, 4), np.uint8, quantized=True)
+    _test_matrix_set_diag((5, 4, 3, 4), np.uint8, quantized=True)
+    _test_matrix_set_diag((4, 4, 2), np.uint8, quantized=True)
+
+
+#######################################################################
 # Custom Operators
 # ----------------
 
@@ -3131,6 +3239,7 @@ if __name__ == '__main__':
     test_forward_arg_min_max()
     test_forward_expand_dims()
     test_forward_reverse_v2()
+    test_forward_matrix_set_diag()
 
     # NN
     test_forward_convolution()

@@ -373,7 +373,7 @@ Doc TIRTextPrinter::VisitExpr_(const ShuffleNode* op) {
 Doc TIRTextPrinter::VisitExpr_(const ReduceNode* op) {
   Doc doc;
   doc << "reduce(" << Print(op->combiner) << ", " << Print(op->source) << ", " << Print(op->axis)
-      << ", " << op->value_index << ")";
+      << ", " << op->value_index << ", " << Print(op->init) << ")";
   return doc;
 }
 

@@ -24,7 +24,6 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
 
-from common import get_all_backend
 
 _conv3d_ndhwc_implement = {
     "generic": (topi.nn.conv3d_ndhwc, topi.generic.schedule_conv3d_ndhwc),
@@ -58,11 +57,7 @@ def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride, 
         return a_np, w_np, b_np
     a_np, w_np, b_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv3d_ndhwc_implement)
         with tvm.target.create(device):
@@ -76,10 +71,11 @@ def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride, 
         func(a, w, b)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 
+@tvm.testing.uses_gpu
 def test_conv3d_ndhwc():
     verify_conv3d_ndhwc(1, 16, 32, 16, 3, 1, "SAME")
     verify_conv3d_ndhwc(4, 32, 16, 32, 5, 2, "SAME")

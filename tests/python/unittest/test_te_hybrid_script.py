@@ -21,6 +21,8 @@ from tvm.contrib import util
 from tvm.te.hybrid import script
 from tvm.te.hybrid.runtime import HYBRID_GLOBALS
 
+import tvm.testing
+
 @pytest.mark.skip
 def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     def tvm_val_2_py_val(val):
@@ -316,11 +318,9 @@ def test_if():
     run_and_check(func, ins, outs=outs)
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_bind():
-    if not tvm.gpu(0).exist:
-        print('[Warning] No GPU found! Skip bind test!')
-        return
-
     @script
     def vec_add(a, b):
         c = output_tensor((1000, ), 'float32')
@@ -463,6 +463,8 @@ def test_non_zero():
     func, ins, outs = run_and_check(triangle, [a, b])
     run_and_check(func, ins, outs=outs)
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_allocate():
     @te.hybrid.script
     def blur2d(a):
@@ -482,27 +484,24 @@ def test_allocate():
     func, ins, outs = run_and_check(blur2d, [a])
     run_and_check(func, ins, outs=outs)
 
-    if tvm.gpu().exist:
-        @te.hybrid.script
-        def share_vec_add(a, b):
-            c = output_tensor((256, ), 'float32')
-            shared = allocate((256, ), 'float32', 'shared')
-            for i in bind("threadIdx.x", 256):
-                shared[i] = a[i]
-            local = allocate((256, ), 'float32', 'local')
-            for i in bind("threadIdx.x", 256):
-                local[i] = b[i]
-            for i in bind("threadIdx.x", 256):
-                c[i] = shared[i] + local[i]
-            return c
+    @te.hybrid.script
+    def share_vec_add(a, b):
+        c = output_tensor((256, ), 'float32')
+        shared = allocate((256, ), 'float32', 'shared')
+        for i in bind("threadIdx.x", 256):
+            shared[i] = a[i]
+        local = allocate((256, ), 'float32', 'local')
+        for i in bind("threadIdx.x", 256):
+            local[i] = b[i]
+        for i in bind("threadIdx.x", 256):
+            c[i] = shared[i] + local[i]
+        return c
 
-        a = te.placeholder((256, ), dtype='float32', name='a')
-        b = te.placeholder((256, ), dtype='float32', name='b')
-        c = share_vec_add(a, b)
-        func, ins, outs = run_and_check(share_vec_add, [a, b], target='cuda')
-        run_and_check(func, ins, outs=outs, target='cuda')
-    else:
-        print('[Warning] No GPU found! Skip shared mem test!')
+    a = te.placeholder((256, ), dtype='float32', name='a')
+    b = te.placeholder((256, ), dtype='float32', name='b')
+    c = share_vec_add(a, b)
+    func, ins, outs = run_and_check(share_vec_add, [a, b], target='cuda')
+    run_and_check(func, ins, outs=outs, target='cuda')
 
 def test_upstream():
     @te.hybrid.script

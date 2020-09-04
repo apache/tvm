@@ -145,7 +145,7 @@ from tvm.contrib.download import download_testdata
 #
 #   .. code-block:: bash
 #
-#     /opt/android-sdk-linux/ndk-bundle/build/tools/make-standalone-toolchain.sh \
+#     $ANDROID_NDK_HOME/build/tools/make-standalone-toolchain.sh \
 #        --platform=android-24 --use-llvm --arch=arm64 --install-dir=/opt/android-toolchain-arm64
 #     export TVM_NDK_CC=/opt/android-toolchain-arm64/bin/aarch64-linux-android-g++
 #

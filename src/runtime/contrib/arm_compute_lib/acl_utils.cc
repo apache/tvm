@@ -81,9 +81,11 @@ std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeACLMemoryManager() {
 }
 
 arm_compute::PadStrideInfo MakeACLPadStride(const std::vector<std::string>& pad,
-                                            const std::vector<std::string>& stride) {
+                                            const std::vector<std::string>& stride,
+                                            bool ceil_mode) {
   int pad_0 = 0, pad_1 = 0, pad_2 = 0, pad_3 = 0;
   int stride_0 = std::stoi(stride[0]), stride_1 = std::stoi(stride[1]);
+  auto dimensions_rounding = arm_compute::DimensionRoundingType::FLOOR;
   size_t size = pad.size();
   if (size == 1) {
     int pad_v = std::stoi(pad[0]);
@@ -109,8 +111,12 @@ arm_compute::PadStrideInfo MakeACLPadStride(const std::vector<std::string>& pad,
     LOG(FATAL) << "Unsupported padding dimensions";
   }
 
+  if (ceil_mode) {
+    dimensions_rounding = arm_compute::DimensionRoundingType::CEIL;
+  }
+
   return arm_compute::PadStrideInfo(stride_0, stride_1, pad_0, pad_1, pad_2, pad_3,
-                                    arm_compute::DimensionRoundingType::FLOOR);
+                                    dimensions_rounding);
 }
 
 arm_compute::DataType MakeACLDataType(const DLDataType& data_type) {

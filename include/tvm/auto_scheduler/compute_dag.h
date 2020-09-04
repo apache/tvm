@@ -245,7 +245,9 @@ class ComputeDAG : public ObjectRef {
    * This function calls TVM InferBound pass internally to get the bound.
    * The returned state of this function is guaranteed to have complete bound information.
    * \param states The input states.
-   * \return The States with complete bound information
+   * \return The States with complete bound information.
+   * \note The returned array will contains empty State, if there're infer bound failure on some
+   * states.
    */
   Array<State> InferBound(const Array<State>& states) const;
 

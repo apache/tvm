@@ -21,10 +21,10 @@ import tvm
 from tvm import runtime
 from tvm import relay
 from tvm.relay.scope_builder import ScopeBuilder
-from tvm.relay.testing.config import ctx_list
 from tvm.relay.prelude import Prelude
 from tvm.relay.loops import while_loop
 from tvm.relay import testing
+import tvm.testing
 
 def check_result(args, expected_result, mod=None):
     """
@@ -41,7 +41,7 @@ def check_result(args, expected_result, mod=None):
     """
     # TODO(@zhiics, @icemelon9): Disable the gpu test for now until the heterogeneous support
     #   is ready
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         if "cuda" in target:
             continue
         vm = relay.create_executor('vm', ctx=ctx, target=target, mod=mod)
@@ -91,6 +91,7 @@ def test_split_no_fuse():
     res = veval(f, x_data)
     tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
 
+@tvm.testing.uses_gpu
 def test_id():
     x = relay.var('x', shape=(10, 10), dtype='float64')
     f = relay.Function([x], x)
@@ -99,6 +100,7 @@ def test_id():
     mod["main"] = f
     check_result([x_data], x_data, mod=mod)
 
+@tvm.testing.uses_gpu
 def test_op():
     x = relay.var('x', shape=(10, 10))
     f = relay.Function([x], x + x)
@@ -111,6 +113,7 @@ def any(x):
     x = relay.op.nn.batch_flatten(x)
     return relay.op.min(x, axis=[0, 1])
 
+@tvm.testing.uses_gpu
 def test_cond():
     x = relay.var('x', shape=(10, 10))
     y = relay.var('y', shape=(10, 10))
@@ -127,6 +130,7 @@ def test_cond():
     # diff
     check_result([x_data, y_data], False, mod=mod)
 
+@tvm.testing.uses_gpu
 def test_simple_if():
     x = relay.var('x', shape=(10, 10))
     y = relay.var('y', shape=(10, 10))
@@ -162,6 +166,7 @@ def test_multiple_ifs():
     res = vmobj_to_list(vm.evaluate()(False))
     assert(res == [1, 0])
 
+@tvm.testing.uses_gpu
 def test_simple_call():
     mod = tvm.IRModule({})
     sum_up = relay.GlobalVar('sum_up')
@@ -175,6 +180,7 @@ def test_simple_call():
     mod["main"] = relay.Function([iarg], sum_up(iarg))
     check_result([i_data], i_data, mod=mod)
 
+@tvm.testing.uses_gpu
 def test_count_loop():
     mod = tvm.IRModule({})
     sum_up = relay.GlobalVar('sum_up')
@@ -195,6 +201,7 @@ def test_count_loop():
     tvm.testing.assert_allclose(result.asnumpy(), i_data)
     check_result([i_data], i_data, mod=mod)
 
+@tvm.testing.uses_gpu
 def test_sum_loop():
     mod = tvm.IRModule({})
     sum_up = relay.GlobalVar('sum_up')
@@ -217,6 +224,7 @@ def test_sum_loop():
     mod["main"] = relay.Function([iarg, aarg], sum_up(iarg, aarg))
     check_result([i_data, accum_data], sum(range(1, loop_bound + 1)), mod=mod)
 
+@tvm.testing.uses_gpu
 def test_tuple_fst():
     ttype = relay.TupleType([relay.TensorType((1,)), relay.TensorType((10,))])
     tup = relay.var('tup', type_annotation=ttype)
@@ -227,6 +235,7 @@ def test_tuple_fst():
     mod["main"] = f
     check_result([(i_data, j_data)], i_data, mod=mod)
 
+@tvm.testing.uses_gpu
 def test_tuple_second():
     ttype = relay.TupleType([relay.TensorType((1,)), relay.TensorType((10,))])
     tup = relay.var('tup', type_annotation=ttype)
@@ -259,6 +268,7 @@ def test_list_constructor():
     obj = vmobj_to_list(result)
     tvm.testing.assert_allclose(obj, np.array([3,2,1]))
 
+@tvm.testing.uses_gpu
 def test_let_tensor():
     sb = relay.ScopeBuilder()
     shape = (1,)
@@ -277,6 +287,7 @@ def test_let_tensor():
     mod["main"] = f
     check_result([x_data], x_data + 42.0, mod=mod)
 
+@tvm.testing.uses_gpu
 def test_let_scalar():
     sb = relay.ScopeBuilder()
 
@@ -545,6 +556,7 @@ def test_closure():
     res = veval(main)
     tvm.testing.assert_allclose(res.asnumpy(), 3.0)
 
+@tvm.testing.uses_gpu
 def test_add_op_scalar():
     """
     test_add_op_scalar:
@@ -561,6 +573,7 @@ def test_add_op_scalar():
     mod["main"] = func
     check_result([x_data, y_data], x_data + y_data, mod=mod)
 
+@tvm.testing.uses_gpu
 def test_add_op_tensor():
     """
     test_add_op_tensor:
@@ -577,6 +590,7 @@ def test_add_op_tensor():
     mod["main"] = func
     check_result([x_data, y_data], x_data + y_data, mod=mod)
 
+@tvm.testing.uses_gpu
 def test_add_op_broadcast():
     """
     test_add_op_broadcast:
@@ -608,6 +622,7 @@ def test_vm_optimize():
     comp = relay.vm.VMCompiler()
     opt_mod, _ = comp.optimize(mod, target="llvm", params=params)
 
+@tvm.testing.uses_gpu
 def test_loop_free_var():
     x = relay.var('x', shape=(), dtype='int32')
     i = relay.var('i', shape=(), dtype='int32')
@@ -634,6 +649,7 @@ def test_loop_free_var():
         mod["main"] = relay.Function(relay.analysis.free_vars(ret), ret)
         check_result(args, expected, mod=mod)
 
+@tvm.testing.uses_gpu
 def test_vm_reshape_tensor():
     x_np = np.random.uniform(size=(8, 16)).astype("float32")
     x = relay.var("x", shape=(8, 16), dtype="float32")

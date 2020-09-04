@@ -26,6 +26,7 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.nn.util import get_pad_tuple
 from tvm.topi.util import get_const_tuple
+import tvm.testing
 
 
 _conv2d_nchw_winograd_implement = {
@@ -70,7 +71,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -102,6 +103,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_nchw():
     # inception v3 workloads
     verify_conv2d_nchw(1, 128, 17, 192, 7, 1, 3, devices=['cuda'])

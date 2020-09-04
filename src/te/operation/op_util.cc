@@ -112,8 +112,8 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
         }
       }
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
-        nest[i + 1].emplace_back(LetStmt(var, dom->min, no_op));
-        value_map[iv] = dom->min;
+        nest[i + 1].emplace_back(LetStmt(var, cast(var.dtype(), dom->min), no_op));
+        value_map[iv] = cast(var.dtype(), dom->min);
       } else if (is_zero(dom->min)) {
         nest[i + 1].emplace_back(For(var, 0, dom->extent, for_type, DeviceAPI::None, no_op));
         value_map[iv] = var;

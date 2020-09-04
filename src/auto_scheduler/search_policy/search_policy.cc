@@ -58,6 +58,7 @@ void SearchPolicyNode::PreloadMeasuredStates(const String& log_file) {
             res.second[i]->error_no == 0 ? (1.0 / FloatArrayMean(res.second[i]->costs)) : 0.0);
       }
     }
+    // We can assume the recorded states will all be valid after infer bound
     measured_states = search_task->compute_dag.InferBound(measured_states);
     for (size_t i = 0; i < measured_states.size(); i++) {
       auto& state = measured_states[i];

@@ -481,26 +481,29 @@ inline Tensor stack(const Array<Tensor>& inputs, int axis = 0, std::string name 
  *
  * \return A Tensor whose op member is the split operation
  */
-inline Array<Tensor> split(const Tensor& x, Array<Integer> split_indices, int axis,
+inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int axis,
                            std::string name = "T_split", std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(x->shape.size());
   }
   CHECK_LT(axis, x->shape.size()) << "axis out of bounds";
 
-  auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
-  std::vector<int> begin_ids;
+  auto src_axis_size = x->shape[axis];
+  std::vector<PrimExpr> begin_ids;
   begin_ids.push_back(0);
 
-  for (Integer idx : split_indices) {
-    int val = static_cast<int>(idx->value);
-    CHECK_GT(val, begin_ids.back()) << "split_indices must be sorted";
-    begin_ids.push_back(val);
+  for (auto idx : split_indices) {
+    auto idx_node = idx.as<IntImmNode>();
+    auto back_node = begin_ids.back().as<IntImmNode>();
+    if (idx_node && back_node) {
+      CHECK_GT(idx_node->value, back_node->value) << "split_indices must be sorted";
+    }
+    begin_ids.push_back(idx);
   }
 
   Array<Array<PrimExpr> > out_shapes;
   for (size_t i = 0; i < begin_ids.size(); ++i) {
-    int out_axis_size;
+    PrimExpr out_axis_size;
     if (i == begin_ids.size() - 1) {
       out_axis_size = src_axis_size - begin_ids[i];
     } else {
@@ -668,15 +671,18 @@ inline Array<Tensor> split_sections(const Tensor& x, int num_sections, int axis,
   }
   CHECK_LT(axis, x->shape.size()) << "axis out of bounds";
 
-  auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
+  auto src_axis_size = x->shape[axis];
 
   CHECK_GT(num_sections, 0) << "Slice count must be > 0";
-  CHECK_EQ(src_axis_size % num_sections, 0)
-      << "num_sections must be an integer factor of the size of axis " << axis << " ("
-      << src_axis_size << ")";
 
-  Array<Integer> split_indices;
-  auto seg_size = src_axis_size / num_sections;
+  if (auto node = src_axis_size.as<IntImmNode>()) {
+    CHECK_EQ(node->value % num_sections, 0)
+        << "num_sections must be an integer factor of the size of axis " << axis << " ("
+        << node->value << ")";
+  }
+
+  Array<PrimExpr> split_indices;
+  auto seg_size = indexdiv(src_axis_size, num_sections);
   for (int i = 0; i < num_sections; ++i) {
     // region at index 0 is added by split()
     if (i != 0) {
@@ -1507,6 +1513,35 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<Integer>
           }
         }
         return ret;
+      },
+      name, tag);
+}
+
+/*!
+ * \brief Returns a tensor with the diagonal of input tensor replaced with the provided diagonal.
+ * \param input input tensor.
+ * \param diagonal values to be filled in the diagonal.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return new tensor with given diagonal values.
+ */
+inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal,
+                              const std::string name = "T_matrix_set_diag",
+                              const std::string tag = kInjective) {
+  size_t ndim = input->shape.size() - 1;
+
+  return compute(
+      input->shape,
+      [&](const Array<Var>& iter_vars) {
+        auto get_diag = [&]() {
+          Array<PrimExpr> diagonal_indices;
+          for (size_t i = 0; i < ndim; i++) {
+            diagonal_indices.push_back(iter_vars[i]);
+          }
+          return diagonal(diagonal_indices);
+        };
+        return if_then_else((PrimExpr)iter_vars[ndim] == iter_vars[ndim - 1], get_diag(),
+                            input(iter_vars));
       },
       name, tag);
 }

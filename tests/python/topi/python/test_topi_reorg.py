@@ -21,6 +21,7 @@ from tvm.topi.util import get_const_tuple
 import tvm
 from tvm import te
 import tvm.topi.testing
+import tvm.testing
 
 _reorg_schedule = {
     "generic": topi.generic.schedule_reorg,
@@ -47,7 +48,7 @@ def verify_reorg(batch, in_size, in_channel, stride):
     def check_device(device):
         '''Cheching devices is enabled or not'''
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -63,6 +64,7 @@ def verify_reorg(batch, in_size, in_channel, stride):
     for device in ['llvm', 'cuda']:
         check_device(device)
 
+@tvm.testing.uses_gpu
 def test_reorg():
     verify_reorg(1, 20, 8, 2)
 
