@@ -49,7 +49,8 @@ class Workspace:
         return self.tempdir.temp_dir
 
 
-CRT_RUNTIME_LIB_NAMES = ['utvm_rpc_server', 'common']
+# Required C runtime libraries, in link order.
+CRT_RUNTIME_LIB_NAMES = ['utvm_rpc_server', 'utvm_rpc_common', 'common']
 
 
 TVM_ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
