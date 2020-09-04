@@ -223,7 +223,7 @@ std::pair<NodeScopeMap, ExprSet> CalcScope(const DependencyGraph& dg);
 Scope LCA(Scope lhs, Scope rhs);
 
 /*! \brief if the expression is a GlobalVar, transform to it's expression.
-*/
+ */
 Expr DeGlobal(const Optional<IRModule>& mod, const Expr& e);
 
 /* Special care is needed to handle local recursion.

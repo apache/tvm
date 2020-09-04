@@ -744,6 +744,8 @@ def Defunctionalization(expr, mod):
         The input expression, which is a Function or a GlobalVar.
 
     mod : tvm.IRModule
+        The IRModule containing function and type definitions,
+        which is mutated during this pass.
 
     Returns
     -------
