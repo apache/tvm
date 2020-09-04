@@ -2761,6 +2761,33 @@ def test_forward_matrix_set_diag():
 
 
 #######################################################################
+# MATRIX_DIAG
+# -----------
+
+def _test_matrix_diag(diagonal_shape, dtype):
+    """ One iteration of MATRIX_DIAG """
+    with tf.Graph().as_default():
+        diagonal = np.random.uniform(0, 100, diagonal_shape).astype(dtype)
+        in_diagonal = tf.placeholder(dtype=diagonal.dtype, shape=diagonal.shape, name="diagonal")
+
+        out = array_ops.matrix_diag(in_diagonal)
+
+        compare_tflite_with_tvm(
+                [diagonal],
+                ["diagonal"],
+                [in_diagonal],
+                [out],
+                experimental_new_converter=True)
+
+def test_forward_matrix_diag():
+    """ MATRIX_DIAG """
+    for dtype in [np.float32, np.int32]:
+        _test_matrix_diag((4), dtype)
+        _test_matrix_diag((5, 4, 3), dtype)
+        _test_matrix_diag((2, 3), dtype)
+
+
+#######################################################################
 # Custom Operators
 # ----------------
 
@@ -3240,6 +3267,7 @@ if __name__ == '__main__':
     test_forward_expand_dims()
     test_forward_reverse_v2()
     test_forward_matrix_set_diag()
+    test_forward_matrix_diag()
 
     # NN
     test_forward_convolution()
