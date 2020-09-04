@@ -867,8 +867,6 @@ class Upsample(OnnxOpConverter):
 
             if get_name(inputs[1]) in params:
                 scales = params[inputs[1].name_hint].asnumpy()
-            elif dims == 5:
-                scales = infer_value_simulated(inputs[1], params).asnumpy()
             else:
                 scales = inputs[1]
 
@@ -890,9 +888,16 @@ class Upsample(OnnxOpConverter):
             align_corners = True
         # in 3d case, we use the purely static op
         if dims == 5:
-            scale_h = scales[-2]
-            scale_w = scales[-1]
-            scale_d = scales[-3]
+            if isinstance(scales, _expr.Call):
+                scale_h = _op.take(scales, _op.const(3))
+                scale_w = _op.take(scales, _op.const(4))
+                scale_d = _op.take(scales, _op.const(1))
+            else:
+                assert len(scales) == 5
+                scale_h = scales[-2]
+                scale_w = scales[-1]
+                scale_d = scales[-3]
+
             layout = 'NCDHW'
             out = _op.nn.upsampling3d(inputs[0],
                                       scale_d,
