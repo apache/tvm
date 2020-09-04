@@ -56,7 +56,7 @@ fi
 
 DOCKER_IMAGE_NAME=$(lookup_image_name "$1" || echo)
 if [ -z "${DOCKER_IMAGE_NAME}" ]; then
-    if echo "$1" | grep -qv '/'; then
+    if echo "$1" | grep -qvE ':|/'; then
         echo "error: can't find shorthand image $1 in Jenkinsfile"
         exit 2
     else
