@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import numpy as np
 
 import tvm
 from tvm import relay
+from tvm.relay.backend.interpreter import ConstructorValue
 from tvm.relay import transform, ExprVisitor, TypeVisitor
 from tvm.relay.testing import Prelude
 
@@ -77,7 +79,8 @@ def assert_no_higher_order_functions(expr, mod):
 
   assert len(check_fo_visitor.hof) == 0, errmsg
 
-# assert that a program is defunctionalized
+# assert that a program is defunctionalized and returns
+# defunctionalized module
 # assumes program starts from mod['main']
 def defunctionalized(mod):
   mod = transform.InferType()(mod)
@@ -87,13 +90,48 @@ def defunctionalized(mod):
 
   return mod
 
+# adt list to python list
+def to_list(mod, l):
+  list = mod.get_global_type_var('List')
+  list_adt = mod[list]
+  cons = list_adt.constructors[0]
+  nil = list_adt.constructors[1]
+
+  assert isinstance(l, ConstructorValue)
+  val = l
+  ret = []
+  while True:
+      if val.tag == cons.tag:
+          ret.append(val.fields[0].asnumpy())
+          val = val.fields[1]
+      else:
+          assert val.tag == nil.tag
+          break
+  return ret
+
+# list to adt list
+def to_adt_list(mod, arr):
+  expr = mod['main']
+  l = mod.get_global_type_var('List')
+  list_adt = mod[l]
+  cons = list_adt.constructors[0]
+  nil = list_adt.constructors[1]
+
+  li = nil()
+  for a in arr:
+    li = cons(relay.const(a), li)
+  ex = relay.create_executor(mod=mod)
+  adt = ex.evaluate(li)
+  mod['main'] = expr
+  return adt
+
 def test_simple():
   code = """
 #[version = "0.0.5"]
 def @simple[A, B](%f: fn(A) -> B, %xs: A) -> B {
   %f(%xs)
 }
-def @main(%l: float32) -> float32 {
+def @main(%l: Tensor[(5, 5), float32]) -> Tensor[(5, 5), float32] {
   %0 = fn[A](%x: A) -> A {
     %x
   };
@@ -102,6 +140,17 @@ def @main(%l: float32) -> float32 {
 """
   mod = tvm.parser.fromtext(code)
   defunc_mod = defunctionalized(mod)
+
+  input = np.random.rand(5,5).astype('float32')
+
+  ex = relay.create_executor('debug', mod=mod)
+  defunc_ex = relay.create_executor('debug', mod=defunc_mod)
+
+  out = ex.evaluate()(input)
+  defunc_out = defunc_ex.evaluate()(input)
+
+  np.testing.assert_equal(out.asnumpy(), defunc_out.asnumpy())
+  
 
 def test_global_recursion():
   code = """
@@ -125,6 +174,16 @@ def @main(%l: List[float32]) -> List[float32] {
 """
   mod = tvm.parser.fromtext(code)
   defunc_mod = defunctionalized(mod)
+
+  input = np.random.rand(10).astype('float32')
+  
+  ex = relay.create_executor('debug', mod=mod)
+  defunc_ex = relay.create_executor('debug', mod=defunc_mod)
+
+  out = ex.evaluate(mod['main'])(to_adt_list(mod, input))
+  defunc_out = defunc_ex.evaluate()(to_adt_list(defunc_mod, input))
+
+  np.testing.assert_array_equal(to_list(mod, out), to_list(defunc_mod, defunc_out))
 
 def test_recursive_datatype():
   # CPS will create recursive datatype
@@ -152,6 +211,16 @@ def @main(%l: List[int32]) -> int32 {
 """
   mod = tvm.parser.fromtext(code)
   defunc_mod = defunctionalized(mod)
+
+  input = np.random.randint(1, 100, 10)
+
+  ex = relay.create_executor('debug', mod=mod)
+  defunc_ex = relay.create_executor('debug', mod=defunc_mod)
+
+  out = ex.evaluate(mod['main'])(to_adt_list(mod, input))
+  defunc_out = defunc_ex.evaluate()(to_adt_list(defunc_mod, input))
+
+  tvm.testing.assert_allclose(out.asnumpy(), defunc_out.asnumpy())
 
 if __name__ == "__main__":
   pytest.main([__file__])

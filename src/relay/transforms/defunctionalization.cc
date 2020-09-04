@@ -57,6 +57,7 @@
  * - functions cannot return function values
  * - function arguments are in two forms: identifier or a lambda abstraction
  * - no functions stored in datatype
+ * - functions are not let binded
  */
 
 #include <tvm/ir/type_functor.h>
@@ -152,7 +153,8 @@ class DefuncMutator : public ExprMutator {
           auto call_args = Array<Expr>();
           Map<Var, Expr> free_var_bind_map;
           for (auto free_var : free_vars) {
-            // free vars are already encoded
+            // free vars are already encoded, can only exist within
+            // specialized functions
             if (free_var->type_annotation.defined()) {
               arg_types.push_back(free_var->type_annotation);
             } else {
