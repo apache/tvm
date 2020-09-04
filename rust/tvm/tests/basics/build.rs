@@ -18,6 +18,11 @@
  */
 
 fn main() {
+    println!("cargo:warning=tvm_home is {:?}", option_env!("TVM_HOME"));
+    println!(
+        "cargo:warning=cargo_manifest_dir is {:?}",
+        option_env!("CARGO_MANIFEST_DIR")
+    );
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let tvm_mk_add = concat!(env!("CARGO_MANIFEST_DIR"), "/src/tvm_add.py");
 
