@@ -18,25 +18,90 @@ import pytest
 
 import tvm
 from tvm import relay
-from tvm.relay.transform import Defunctionalization, InferType, LambdaLift
+from tvm.relay import transform, ExprVisitor, TypeVisitor
+from tvm.relay.testing import Prelude
+
+# determine if type t is a FuncType or has a nested FuncType
+def has_func_type(t):
+  class FuncTypeVisitor(TypeVisitor):
+    def __init__(self):
+      super().__init__()
+      self.has_func = False
+
+    def visit_func_type(self, ftt):
+      self.has_func = True
+
+  ftvisitor = FuncTypeVisitor()
+  ftvisitor.visit(t)
+  return ftvisitor.has_func
+
+# determine whether a program has any higher order functions
+# a higher order function is defined as one that:
+# - has function type arguments
+# - returns a function
+def assert_no_higher_order_functions(expr, mod):
+  class CheckFirstOrderVisitor(ExprVisitor):
+    def __init__(self, mod):
+      super().__init__()
+      self.mod = mod
+      self.hof = []
+      self.visited_gv = set()
+    
+    def visit_call(self, call):
+      is_higher_order = False
+      # check return type
+      if (has_func_type(call.checked_type)):
+        is_higher_order = True
+      # check argument types
+      for a in call.args:
+        if (has_func_type(a.checked_type)):
+          is_higher_order = True
+      # if it is higher order, save it or debugging later
+      if is_higher_order:
+        self.hof.append(call)
+      super().visit_call(call)
+
+    def visit_global_var(self, gv):
+      # visit global vars to visit entire program
+      if gv not in self.visited_gv:
+        self.visited_gv.add(gv)
+        self.visit(self.mod[gv])
+
+  mod = transform.InferType()(mod)
+  check_fo_visitor = CheckFirstOrderVisitor(mod)
+  check_fo_visitor.visit(expr)
+
+  nl = '\n--------\n'
+  errmsg = f"""found {len(check_fo_visitor.hof)} higher order functions:
+  {nl.join(expr.astext() for expr in check_fo_visitor.hof)}"""
+
+  assert len(check_fo_visitor.hof) == 0, errmsg
+
+# assert that a program is defunctionalized
+# assumes program starts from mod['main']
+def defunctionalized(mod):
+  mod = transform.InferType()(mod)
+  mod['main'] = transform.Defunctionalization(mod['main'], mod)
+  mod = transform.InferType()(mod)
+  assert_no_higher_order_functions(mod['main'], mod)
+
+  return mod
 
 def test_simple():
-    code = """
+  code = """
 #[version = "0.0.5"]
-def @apply[A, B](%f: fn(A) -> B, %xs: A) -> B {
+def @simple[A, B](%f: fn(A) -> B, %xs: A) -> B {
   %f(%xs)
 }
 def @main(%l: float32) -> float32 {
   %0 = fn[A](%x: A) -> A {
     %x
   };
-  @apply(%0, %l)
+  @simple(%0, %l)
 }
 """
-    mod = tvm.parser.fromtext(code)
-    mod = LambdaLift()(mod)
-    mod = InferType()(mod)
-    expr = Defunctionalization(mod['main'], mod)
+  mod = tvm.parser.fromtext(code)
+  defunc_mod = defunctionalized(mod)
 
 def test_global_recursion():
   code = """
@@ -59,48 +124,34 @@ def @main(%l: List[float32]) -> List[float32] {
 }
 """
   mod = tvm.parser.fromtext(code)
-  # mod = LambdaLift()(mod)
-  mod = InferType()(mod)
-  # expr = Defunctionalization(mod['main'], mod)
+  defunc_mod = defunctionalized(mod)
 
-def test_sum():
+def test_recursive_datatype():
+  # CPS will create recursive datatype
   code = """
 #[version = "0.0.5"]
 type List[A] {
   Cons(A, List[A]),
   Nil,
 }
-def @main(%f: fn(int32) -> int32, %xs: List[int32]) -> int32 {
+def @sum(%f: fn(int32) -> int32, %xs: List[int32]) -> int32 {
   match (%xs) {
     Cons(%x, %rest) => %0 = fn(%n) {
       %x + %f(%n)
     };
-    @main(%0, %rest),
+    @sum(%0, %rest),
     Nil => %f(0),
   }
 }
-"""
-  mod = tvm.parser.fromtext(code)
-  mod = LambdaLift()(mod)
-  mod = InferType()(mod)
-  print(mod)
-
-def test():
-  code = """
-#[version = "0.0.5"]
 def @id[A](%x: A) -> A {
   %x
 }
-def @main(%f: float32) -> float32 {
-  @id(@id)(%f)
+def @main(%l: List[int32]) -> int32 {
+  @sum(@id, %l)
 }
 """
   mod = tvm.parser.fromtext(code)
-  mod = InferType()(mod)
-  print(mod['main'].body.type_args)
+  defunc_mod = defunctionalized(mod)
 
 if __name__ == "__main__":
-  # pytest.main([__file__])
-  #   test_simple()
-  #   test_global_recursion()
-    test_global_recursion()
+  pytest.main([__file__])

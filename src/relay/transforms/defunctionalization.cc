@@ -21,7 +21,42 @@
  *
  * \file defunctionalization.cc
  *
- * \brief
+ * \brief Defunctionalization for Relay IR
+ *
+ * This pass transforms a higher-order program into a first-order program with defunctionalization.
+ * This means that all higher order functions (i.e functions that take function arguments or return
+ * functions) should be transformed into a semantically equivalent first order one.
+ *
+ * This pass implements a basic typed defunctionalization method.
+ * All higher order functions are cloned and specialized (so that there are no type params).
+ * Function type arguments are encoded as datatypes and a helper `apply` function is used
+ * to "call" them.
+ *
+ * For example, take the following higher order program:
+ * fun map F y = case y of
+ *          Nil => Nil
+ *          | Cons(x, XS) => Cons(F z, map F XS)
+ * fun addone 1 = map (\x -> \x + 1) 1
+ *
+ * where `addone` is our program.
+ * When we call the `map` function, we see that it is a higher-order function,
+ * but we can clone `map ` function and specialize it with the type_params of the call.
+ * In addition, our function argument `(\x -> \x + 1)` will be encoded as a datatype constructor,
+ * which we will call `incr`, and all calls to `F` in our specialized map function will use the
+ * helper `apply` function.
+ *
+ * After defunctionalization, we get:
+ * fun apply encoding arg =  case encoding of
+ *     “incr” => incr arg
+ * fun map’ F y = case y of
+ *           Nil => Nil
+ *           | Cons(x, xs) => Cons(apply F x, map’ F xs)
+ * fun addone 1 = map’ “incr” 1
+ *
+ * Currently, defunctionalization makes the following assumptions:
+ * - functions cannot return function values
+ * - function arguments are in two forms: identifier or a lambda abstraction
+ * - no functions stored in datatype
  */
 
 #include <tvm/ir/type_functor.h>
@@ -42,137 +77,166 @@ struct FuncTypeVisitor : TypeVisitor {
 
   void VisitType_(const FuncTypeNode* op) { this->has_func_type = true; }
 };
-
+// determine if expr contains a FuncType
 bool HasFuncType(const Expr& e) {
   auto visitor = FuncTypeVisitor();
   visitor.VisitType(e->checked_type());
   return visitor.has_func_type;
 }
-
+// determine if type contains a FuncType
 bool HasFuncType(const Type& t) {
   auto visitor = FuncTypeVisitor();
   visitor.VisitType(t);
   return visitor.has_func_type;
 }
-
+// determine if FuncType is a higher order type
 bool IsHigherOrderFunc(const FuncType& t) {
   bool higher_order = false;
-  for (auto arg: t->arg_types) {
+  for (auto arg : t->arg_types) {
     higher_order |= HasFuncType(arg);
   }
   return higher_order |= HasFuncType(t->ret_type);
 }
 
-// Array<Type> InferTypeArgs(const CallNode* call, const IRModule& mod) {
-//   ErrorReporter err;
-//   TypeSolver solver(mod->GetGlobalVar("main"), mod, &err);
-//   const FuncTypeNode* fn_ty = call->op->checked_type().as<FuncTypeNode>();
-
-//   tvm::Map<TypeVar, Type> subst_map;
-//   for (auto& tv: fn_ty->type_params) {
-//     subst_map.Set(tv, IncompleteType(Kind::kType));
-//   }
-
-//   auto inst_fnty = FuncType(fn_ty->arg_types, fn_ty->ret_type, {}, {});
-//   auto f_incomplete = Downcast<FuncType>(Bind(inst_fnty, subst_map));
-
-//   CHECK(call->args.size() == f_incomplete->arg_types.size()) << "num of arguments does not match expected";
-//   size_t num_args = f_incomplete->arg_types.size();
-//   for (size_t i = 0; i < num_args; i++) {
-//     auto t1 = f_incomplete->arg_types[i];
-//     auto t2 = call->args[i]->checked_type();
-//     auto t = solver.Unify(t1, t2, GetRef<Call>(call));
-//   }
-//   Array<Type> ret;
-//   for (auto& tv: fn_ty->type_params) {
-//     std::cout << "Resolved Type: " << solver.Resolve(subst_map[tv]) << std::endl;
-//     ret.push_back(solver.Resolve(subst_map[tv])); 
-//   }
-//   return ret;
-// }
-
+/*!
+ * \brief apply Defunctionalization transform
+ */
 class DefuncMutator : public ExprMutator {
  public:
-  DefuncMutator(const IRModule& mod) : mod(mod), constructor_name(0), anon_name(0) {}
+  DefuncMutator(const IRModule& mod) : mod(mod), constructor_counter(0) {}
 
   Expr VisitExpr_(const CallNode* call) {
     if (auto op = call->op.as<GlobalVarNode>()) {
-      CHECK(call->type_args.size() == op->checked_type().as<FuncTypeNode>()->type_params.size()) << "all type args must be explicit";
+      CHECK(call->type_args.size() == op->checked_type().as<FuncTypeNode>()->type_params.size())
+          << "all type args must be explicit";
 
       auto op_type = InstFuncType(op->checked_type().as<FuncTypeNode>(), call->type_args);
-
+      CHECK(FreeTypeVars(op_type, mod).size() == 0) << "free type vars in instantiated";
       CHECK(!HasFuncType(op_type->ret_type)) << "returning functions not supported";
+
       if (!IsHigherOrderFunc(op_type)) {
+        // not higher order function
         return ExprMutator::VisitExpr_(call);
       }
-      auto name = op->name_hint + TypeToString(op_type);
-      auto gv = GlobalVar(name);
-      if (mod->ContainGlobalVar(name)) {
-        gv = mod->GetGlobalVar(name);
-      } else {
-        // clone and specialize with specific type
-        auto clone = DeDup(DeGlobal(mod, GetRef<GlobalVar>(op))).as<FunctionNode>();
-        auto specialized_function = Specialize(clone, call->type_args);
-        auto f = Downcast<Function>(this->VisitExpr(FirstifyVars(specialized_function)));
-        mod->Add(gv, f);
-      }
 
+      // first we encode function arguments
       Array<Expr> args;
       for (size_t i = 0; i < call->args.size(); i++) {
         auto arg = call->args[i];
         auto type = op_type->arg_types[i];
-        // we assume arg is either an identifier or a function
         if (!HasFuncType(type)) {
           args.push_back(arg);
           continue;
         }
 
+        // we assume arg is either an identifier (var or globalvar) or a function
         CHECK(type.as<FuncTypeNode>()) << "assume no nested functions";
+        CHECK(arg.as<VarNode>() || arg.as<GlobalVarNode>() || arg.as<FunctionNode>())
+            << "assume all first-order-parameters are identifiers or functions";
 
         if (arg.as<VarNode>()) {
+          // variable with functype will be encoded as datatype in surrounding function
           args.push_back(arg);
         }
         if (arg.as<GlobalVarNode>()) {
           args.push_back(EncodeGlobalVar(Downcast<GlobalVar>(arg), Downcast<FuncType>(type)));
         }
-        if (arg.as<FunctionNode>()) {
+        if (auto fn = arg.as<FunctionNode>()) {
+          // we handle free vars in anonymous functions by adding arguments to
+          // the constructor function
+          auto free_vars = FreeVars(arg);
+          auto ft = Downcast<FuncType>(type);
 
+          auto arg_types = Array<Type>();
+          auto pattern_vars = Array<Pattern>();
+          auto call_args = Array<Expr>();
+          Map<Var, Expr> free_var_bind_map;
+          for (auto free_var : free_vars) {
+            // free vars are already encoded
+            if (free_var->type_annotation.defined()) {
+              arg_types.push_back(free_var->type_annotation);
+            } else {
+              arg_types.push_back(free_var->checked_type());
+            }
+            auto new_var = Var(free_var->name_hint(), free_var->type_annotation);
+            free_var_bind_map.Set(free_var, new_var);
+            pattern_vars.push_back(PatternVar(new_var));
+            call_args.push_back(free_var);
+          }
+          auto gtv = GetFuncEncode(ft);
+          auto c = Constructor(std::to_string(constructor_counter++), arg_types, gtv);
+          AddConstructor(gtv, c);
+
+          auto apply_gv = GetApplyFunction(ft);
+          auto body = this->VisitExpr(Bind(fn->body, free_var_bind_map));
+          AddApplyCase(apply_gv, ft, c, Function(fn->params, body, fn->ret_type, fn->type_params),
+                       pattern_vars);
+
+          args.push_back(Call(c, call_args));
         }
-        CHECK(false) << "assume all first-order-parameters are identifiers or functions";
       }
-
+      auto name = op->name_hint + TypeToString(op_type);
+      auto gv = GlobalVar(name);
+      if (specialized_gv_map.count(name)) {
+        gv = specialized_gv_map[name];
+      } else {
+        specialized_gv_map[name] = gv;
+        // clone and specialize with specific type
+        auto clone = Downcast<Function>(DeDup(DeGlobal(mod, GetRef<GlobalVar>(op))));
+        auto specialized_function = Specialize(clone, call->type_args);
+        // change var types and change all applications to use `apply` method
+        auto f = Downcast<Function>(FirstifyVars(specialized_function));
+        mod->Add(gv, f);
+      }
+      return Call(gv, args);
     } else if (auto op = call->op.as<FunctionNode>()) {
+      // reduction by applying vars
       std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> var_binding_map;
       for (size_t i = 0; i < op->params.size(); i++) {
         var_binding_map[op->params[i]] = call->args[i];
-      } 
+      }
       auto e = Bind(op->body, var_binding_map);
       return this->VisitExpr(e);
     } else if (auto op = call->op.as<VarNode>()) {
-      auto op_type = InstFuncType(var_save_type[GetRef<Var>(op)].as<FuncTypeNode>(), call->type_args);
-      
+      // var node will be encoded as datatype
+      // so we need to use the `apply` helper method
+      auto var_original_type = GetUnencodedType(op->type_annotation).as<FuncTypeNode>();
+      CHECK(var_original_type) << "var original type not saved in var_save_type map";
+      auto op_type = InstFuncType(var_original_type, call->type_args);
+
       Array<Expr> args = {GetRef<Var>(op)};
-      for (auto arg: call->args) {
+      for (auto arg : call->args) {
         args.push_back(this->VisitExpr(arg));
       }
 
-      auto e = Call(apply_map[op_type], args);
+      auto e = Call(GetApplyFunction(op_type), args);
       return e;
     }
     return ExprMutator::VisitExpr_(call);
   }
 
  private:
+  // module
   IRModule mod;
-  // encode func type to ADT
-  std::unordered_map<Type, GlobalTypeVar, ObjectHash, StructuralEqual> func_encoding;
-  std::unordered_map<Type, GlobalVar, ObjectHash, StructuralEqual> apply_map;
-  std::unordered_map<Var, Type, ObjectHash, StructuralEqual> var_save_type;
-  std::unordered_map<GlobalVar, std::unordered_map<Type, Constructor, ObjectHash, StructuralEqual>, ObjectHash, ObjectEqual> gv_datatype_map;
+  // gv + str(type) to specialized clone gv
+  std::unordered_map<std::string, GlobalVar> specialized_gv_map;
+  // str(func_type) to ADT
+  std::unordered_map<std::string, GlobalTypeVar> func_encoding;
+  // str(func_tyoe) to apply gv
+  std::unordered_map<std::string, GlobalVar> apply_map;
+  // encoded ADT handle to FuncType
+  std::unordered_map<GlobalTypeVar, Type, ObjectHash, StructuralEqual> original_func_type_map;
+  // gv to (str(func_type) to constructor encoding)
+  std::unordered_map<GlobalVar, std::unordered_map<std::string, Constructor>, ObjectHash,
+                     ObjectEqual>
+      gv_datatype_map;
   // use monotonically increasing integer to represent new constructor_name
-  unsigned int constructor_name;
-  unsigned int anon_name;
+  unsigned long constructor_counter;
 
+  /*!
+   * \brief add a constructor to the GlobalTypeVar, creating a new TypeDef if GlobalTypeVar does not
+   * exist
+   */
   void AddConstructor(GlobalTypeVar gtv, Constructor c) {
     if (!mod->ContainGlobalTypeVar(gtv->name_hint)) {
       mod->AddTypeDef(gtv, TypeData(gtv, {}, {c}));
@@ -183,25 +247,37 @@ class DefuncMutator : public ExprMutator {
       mod->UpdateTypeDef(gtv, TypeData(typedata->header, typedata->type_vars, constructors));
     }
   }
-
-  void AddApplyCase(GlobalVar gv, FuncType ft, Constructor c, const Expr& expr) {
-    if (!mod->ContainGlobalVar(gv->name_hint)) {
+  /*!
+   * \brief add a case to the apply function, creating the function if it does not exist
+   *
+   * \param apply_gv GlobalVar of the apply function
+   * \param ft is the type functions the apply function handles
+   * \param c constructor to add a case for
+   * \param expr calls this expr with the args to the apply_gv
+   * \param patterns PatterVars to match with the constructor, used for handling free vars in
+   * functions
+   */
+  void AddApplyCase(GlobalVar apply_gv, FuncType ft, Constructor c, const Expr& expr,
+                    const Array<Pattern> patterns) {
+    CHECK(c->inputs.size() == patterns.size())
+        << "constructor function and pattern vars have different sizes";
+    if (!mod->ContainGlobalVar(apply_gv->name_hint)) {
       auto x = Var("x", TypeCall(c->belong_to, {}));
       auto vars = Array<Var>({x});
       auto args = Array<Expr>();
-      for (auto t: ft->arg_types) {
+      for (auto t : ft->arg_types) {
         auto y = Var("y", t);
         vars.push_back(y);
         args.push_back(y);
       }
 
-      auto clauses = Array<Clause>({Clause(PatternConstructor(c, {}), Call(expr, args))});
+      auto clauses = Array<Clause>({Clause(PatternConstructor(c, patterns), Call(expr, args))});
       auto body = Match(x, clauses);
       auto f = Function(vars, body, ft->ret_type, {});
 
-      mod->Add(gv, f);
+      mod->Add(apply_gv, f);
     } else {
-      auto f = Downcast<Function>(mod->Lookup(gv));
+      auto f = Downcast<Function>(mod->Lookup(apply_gv));
       auto body = f->body.as<MatchNode>();
       CHECK(body) << "internal invariant broken; apply function body should be a match node";
 
@@ -211,44 +287,78 @@ class DefuncMutator : public ExprMutator {
       for (size_t i = 1; i < f->params.size(); i++) {
         args.push_back(f->params[i]);
       }
-      clauses.push_back(Clause(PatternConstructor(c, {}), Call(expr, args)));
+      clauses.push_back(Clause(PatternConstructor(c, patterns), Call(expr, args)));
 
-      mod->Add(gv, Function(f->params, Match(x, clauses), f->ret_type, f->type_params), true);
+      mod->Add(apply_gv, Function(f->params, Match(x, clauses), f->ret_type, f->type_params), true);
     }
   }
 
+  /*!
+   * \brief encode a global var with a specialized type with a datatype
+   */
   Expr EncodeGlobalVar(const GlobalVar& gv, const FuncType& ft) {
     auto map = gv_datatype_map[gv];
-    if (map.count(ft) == 0) {
-      auto adt_name = "T" + TypeToString(ft);
-
-      if (func_encoding.count(ft) == 0) {
-        func_encoding[ft] = GlobalTypeVar(adt_name, TypeKind::kAdtHandle);
-      }
-
-      auto gtv = func_encoding[ft];
-      auto c = Constructor(std::to_string(constructor_name++), {}, gtv);
+    auto type_key = TypeToString(ft);
+    if (map.count(type_key) == 0) {
+      auto gtv = GetFuncEncode(ft);
+      auto c = Constructor(std::to_string(constructor_counter++), {}, gtv);
+      map[type_key] = c;
       AddConstructor(gtv, c);
-
-      if (apply_map.count(ft) == 0) {
-        apply_map[ft] = GlobalVar("apply" + TypeToString(ft));
-      }
-
-      auto gv = apply_map[ft];
-      AddApplyCase(gv, ft, c, gv);
+      AddApplyCase(GetApplyFunction(ft), ft, c, gv, {});
     }
-    
-    auto c = map[ft];
-    return Call(c, {});
+    return Call(map[type_key], {});
   }
-  
+
+  /*!
+   * \brief type to string
+   */
   std::string TypeToString(const Type& t) {
     std::ostringstream s;
     s << t;
     return s.str();
   }
 
+  /*!
+   * \brief get ADT handle for encoding type t
+   */
+  GlobalTypeVar GetFuncEncode(const Type& t) {
+    auto adt_name = "T" + TypeToString(t);
+    if (func_encoding.count(adt_name) == 0) {
+      func_encoding[adt_name] = GlobalTypeVar(adt_name, TypeKind::kAdtHandle);
+    }
+    original_func_type_map[func_encoding[adt_name]] = t;
+    return func_encoding[adt_name];
+  }
+
+  /*!
+   * \brief get original function type represented by type t
+   */
+  FuncType GetUnencodedType(const Type& t) {
+    auto tc = t.as<TypeCallNode>();
+    CHECK(tc) << "expected type call when getting original type from encoded type";
+    auto gv = tc->func.as<GlobalTypeVarNode>();
+    CHECK(gv) << "expected global type var in encoded type";
+    auto type = original_func_type_map[GetRef<GlobalTypeVar>(gv)];
+    CHECK(type.defined()) << "reverse mapping from encoded type to original type not found";
+    return Downcast<FuncType>(type);
+  }
+
+  /*!
+   * \brief get the apply function for calling datatypes encoding functions of type t
+   */
+  GlobalVar GetApplyFunction(const Type& t) {
+    auto f_name = "apply" + TypeToString(t);
+    if (apply_map.count(f_name) == 0) {
+      apply_map[f_name] = GlobalVar("apply" + TypeToString(t));
+    }
+    return apply_map[f_name];
+  }
+
+  /*!
+   * \brief specialize a function type
+   */
   FuncType InstFuncType(const FuncTypeNode* fty, const Array<Type> type_args) {
+    CHECK(fty) << "InstFuncType functype is null";
     auto map = tvm::Map<TypeVar, Type>();
     for (size_t i = 0; i < type_args.size(); i++) {
       map.Set(fty->type_params[i], type_args[i]);
@@ -257,7 +367,10 @@ class DefuncMutator : public ExprMutator {
     return Downcast<FuncType>(TypeSubst(FuncType(fty->arg_types, fty->ret_type, {}, {}), map));
   }
 
-  Function Specialize(const FunctionNode* f, const Array<Type> type_args) {
+  /*!
+   * \brief specialize a function expression
+   */
+  Function Specialize(const Function& f, const Array<Type> type_args) {
     auto map = tvm::Map<TypeVar, Type>();
     for (size_t i = 0; i < type_args.size(); i++) {
       map.Set(f->type_params[i], type_args[i]);
@@ -267,30 +380,38 @@ class DefuncMutator : public ExprMutator {
     return Downcast<Function>(copy);
   }
 
+  /*!
+   * \brief transform a function to be first order by transforming arg_types and
+   * using the `apply` function for applications
+   */
   Function FirstifyVars(const Function& f) {
     CHECK(f->type_params.size() == 0) << "firstify function has type params";
 
-    std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> var_bind_map;
-    for (auto var: f->params) {
-      if (auto var_type = var->checked_type().as<FuncTypeNode>()) {
+    tvm::Map<Var, Expr> var_bind_map;
+    Array<Var> params;
+    for (auto var : f->params) {
+      if (auto var_type = var->type_annotation.as<FuncTypeNode>()) {
         // first order parameter
         auto fop_type = GetRef<FuncType>(var_type);
-        if (func_encoding.count(fop_type) == 0) {
-          auto name = "T" + TypeToString(fop_type);
-          func_encoding[fop_type] = GlobalTypeVar(name, TypeKind::kAdtHandle);
-        }
-        auto adt = func_encoding[fop_type];
-        var_bind_map[var] = Var(var->name_hint(), TypeCall(adt, {}));
+        auto adt = GetFuncEncode(fop_type);
+        auto new_var = Var(var->name_hint(), TypeCall(adt, {}));
+        mod->LookupTypeDef(adt);
+        var_bind_map.Set(var, new_var);
+        params.push_back(new_var);
       } else {
-        CHECK(!HasFuncType(var->checked_type())) << "nested function type in parameter not supported yet";
+        CHECK(!HasFuncType(var->type_annotation))
+            << "nested function type in parameter not supported yet";
+        params.push_back(var);
       }
     }
 
-    return Downcast<Function>(Bind(f, var_bind_map));
+    auto bind = Downcast<Function>(Bind(f, var_bind_map));
+    return Function(params, this->VisitExpr(bind->body), bind->ret_type, {});
   }
 };
 
 Expr Defunctionalization(const Expr& e, const IRModule& mod) {
+  // e is the starting point of the program, all types MUST be known
   auto f = e.as<FunctionNode>();
   CHECK(f) << "input need to be a function";
   CHECK(f->type_params.size() == 0) << "no polymorphism supported for defunctionalization";
