@@ -117,9 +117,8 @@ class Reshape(object):
         shape = numpy.asarray([a.value for a in node_entry['relay_node'].attrs.newshape],
                               dtype=numpy.int64)
 
-        input_names = []
-        input_names.append(add_input(shape, name, 'shape', model_container))
-        input_names = [node_entry['input_names'][0]] + input_names
+        input_names = [node_entry['input_names'][0],
+                       add_input(shape, name, 'shape', model_container)]
 
         node = onnx.helper.make_node(cls.__name__, input_names,
                                      node_entry['output_names'])
@@ -356,10 +355,9 @@ class Pad(OpConverter):
         data = numpy.asarray(attrs['pads'], dtype=attrs['pads'][0].dtype).astype(numpy.int64)
         value = numpy.dtype(node_entry['types'][0].dtype).type(attrs['constant_value'])
 
-        input_names = []
-        input_names.append(add_input(data, name, 'pads', model_container))
-        input_names.append(add_input(value, name, 'value', model_container))
-        input_names = [node_entry['input_names'][0]] + input_names
+        input_names = [node_entry['input_names'][0],
+                       add_input(data, name, 'pads', model_container),
+                       add_input(value, name, 'value', model_container)]
 
         node = onnx.helper.make_node(cls.__name__, input_names, node_entry['output_names'])
         model_container.add_nodes([node])
