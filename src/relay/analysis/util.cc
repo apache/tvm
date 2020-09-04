@@ -449,21 +449,6 @@ Expr TypeSubst(const Expr& expr, const tvm::Map<TypeVar, Type>& subst_map) {
   return ret;
 }
 
-Expr DeGlobal(const Optional<IRModule>& mod, const Expr& e) {
-  const auto* x = e.as<GlobalVarNode>();
-
-  if (mod.defined() && x) {
-    BaseFunc base_func = mod.value()->Lookup(GetRef<GlobalVar>(x));
-    if (auto* n = base_func.as<FunctionNode>()) {
-      return GetRef<Function>(n);
-    } else {
-      return e;
-    }
-  } else {
-    return e;
-  }
-}
-
 struct IsDynamicVisitor : public TypeVisitor {
   bool is_dyn{false};
   void VisitType_(const TensorTypeNode* tt) {

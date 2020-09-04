@@ -184,7 +184,7 @@ class DefuncMutator : public ExprMutator {
       } else {
         specialized_gv_map[name] = gv;
         // clone and specialize with specific type
-        auto clone = Downcast<Function>(DeDup(DeGlobal(mod, GetRef<GlobalVar>(op))));
+        auto clone = Downcast<Function>(DeDup(mod->Lookup(GetRef<GlobalVar>(op))));
         auto specialized_function = Specialize(clone, call->type_args);
         // change var types and change all applications to use `apply` method
         auto f = Downcast<Function>(FirstifyVars(specialized_function));
