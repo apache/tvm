@@ -1662,7 +1662,12 @@ bool WhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
           << "condition and x must have the same shape: " << cond_shape << " vs " << x_shape;
     }
   }
-  reporter->Assign(types[3], TensorType(x_shape, x->dtype));
+  if (x_shape.size() == 0) {
+    // if x and y are scalar, the condition shape becomes the output shape
+    reporter->Assign(types[3], TensorType(cond_shape, x->dtype));
+  } else {
+    reporter->Assign(types[3], TensorType(x_shape, x->dtype));
+  }
   return true;
 }
 
@@ -1694,6 +1699,9 @@ size is the same as x’s first dimension size. Each row of the output array
 is from x’s row if the corresponding element from condition is true, and
 from y’s row if false.
 
+When x and y are scalars, condition must be an 1D array. The output shape
+is the same as condition's shape.
+
 Note that all non-zero values are interpreted as True in condition.
 
 Examples::
@@ -1706,6 +1714,9 @@ Examples::
 
   cond = [1, 0]
   where(cond, x, y) = [[1, 2], [7, 8]]
+
+  cond = [0, 1]
+  where(cond, 1, -1) = [-1, 1]
 
 )code" TVM_ADD_FILELINE)
     .add_argument("condition", "Tensor", "Condition array")
