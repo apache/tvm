@@ -38,7 +38,21 @@ def compute_upsampling(attrs, inputs, out_dtype):
     return [topi.nn.upsampling(data, scale_h, scale_w, layout,
                                method, align_corners, out_dtype.shape)]
 
+# upsampling3d
+@register_compute("dyn.nn.upsampling3d")
+def compute_upsampling3d(attrs, inputs, out_dtype):
+    data = inputs[0]
+    scale_d = inputs[1]
+    scale_h = inputs[2]
+    scale_w = inputs[3]
+    layout = attrs.layout
+    method = attrs.method
+    coordinate_transformation_mode = attrs.coordinate_transformation_mode
+    return [topi.nn.upsampling3d(data, scale_d, scale_h, scale_w, layout, method,\
+        coordinate_transformation_mode, out_dtype.shape)]
+
 register_injective_schedule("dyn.nn.upsampling")
+register_injective_schedule("dyn.nn.upsampling3d")
 register_broadcast_schedule("dyn.nn.pad")
 
 #####################
@@ -47,12 +61,12 @@ register_broadcast_schedule("dyn.nn.pad")
 
 # upsampling
 @script
-def _upsampling_shape_func(dshape, scale_h, scale_w, height_axis, width_axis, channel_axis):
+def _upsampling_shape_func(dshape, scale_h, scale_w, height_axis, width_axis):
     out = output_tensor((4,), "int64")
-    out[0] = int64(dshape[0])
+    for i in const_range(4):
+        out[i] = int64(dshape[i])
     out[height_axis] = int64(round(dshape[height_axis] * scale_h[0]))
     out[width_axis] = int64(round(dshape[width_axis] * scale_w[0]))
-    out[channel_axis] = int64(dshape[channel_axis])
     return out
 
 @register_shape_func("dyn.nn.upsampling", True)
@@ -65,11 +79,39 @@ def upsampling_shape_func(attrs, inputs, _):
             height_axis = i
         if letter == "W":
             width_axis = i
-        if letter == "C":
-            channel_axis = i
     return [_upsampling_shape_func(inputs[0].shape, inputs[1], inputs[2],
-                                   convert(height_axis), convert(width_axis),
-                                   convert(channel_axis))]
+                                   convert(height_axis), convert(width_axis))]
+
+# upsampling3d
+@script
+def _upsampling3d_shape_func(dshape, scale_d, scale_h, scale_w,
+                             depth_axis, height_axis, width_axis):
+    out = output_tensor((5,), "int64")
+    for i in const_range(5):
+        out[i] = int64(dshape[i])
+    out[depth_axis] = int64(round(dshape[depth_axis] * scale_d[0]))
+    out[height_axis] = int64(round(dshape[height_axis] * scale_h[0]))
+    out[width_axis] = int64(round(dshape[width_axis] * scale_w[0]))
+    return out
+
+
+@register_shape_func("dyn.nn.upsampling3d", True)
+def upsampling3d_shape_func(attrs, inputs, _):
+    """Shape function for upsampling. Supports NCHW and NHWC layouts."""
+    layout = attrs.layout
+    depth_axis = height_axis = width_axis = 1
+    for i, letter in enumerate(layout):
+        if letter == "D":
+            depth_axis = i
+        if letter == "H":
+            height_axis = i
+        if letter == "W":
+            width_axis = i
+    return [_upsampling3d_shape_func(inputs[0].shape, inputs[1], inputs[2],
+                                     inputs[3], convert(depth_axis),
+                                     convert(height_axis),
+                                     convert(width_axis))]
+
 # pad
 @script
 def _dyn_pad_shape_func(data, pad_width):

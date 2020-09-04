@@ -51,16 +51,16 @@ def test_dyn_upsampling_run():
         zz = run_infer_type(z)
         func = relay.Function([x, scale_h_var, scale_w_var], z)
 
-        for target, ctx in tvm.testing.enabled_targets():
-             for kind in ["vm", "debug"]:
-                 mod = tvm.ir.IRModule.from_expr(func)
-                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                 op_res = intrp.evaluate()(x_data, np.array(scale_h).astype("float32"), np.array(scale_w).astype("float32"))
-                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
+        for target, ctx in enabled_targets():
+            for kind in ["vm", "debug"]:
+                mod = tvm.ir.IRModule.from_expr(func)
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x_data, np.array(scale_h).astype("float32"), np.array(scale_w).astype("float32"))
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
 
-    verify_upsampling((1, 16, 32, 32), 2.0, 2.0,"NCHW", "nearest_neighbor")
-    verify_upsampling((1, 16, 32, 32), 2.0, 2.0, "NCHW", "bilinear", True)
-    verify_upsampling((1, 16, 32, 32), 2.0, 2.0, "NHWC", "nearest_neighbor")
+    verify_upsampling((1, 16, 32, 32), 3, 2.0,"NCHW", "nearest_neighbor")
+    verify_upsampling((1, 16, 32, 32), 5, 2.0, "NCHW", "bilinear", True)
+    verify_upsampling((1, 16, 32, 32), 2.0, 6, "NHWC", "nearest_neighbor")
     verify_upsampling((1, 16, 32, 32), 2.0, 2.0,"NHWC", "bilinear", True)
 
 #tests upsampling type inference with scale_h passed in as a constant and scale_w as a variable
@@ -68,12 +68,63 @@ def test_dyn_upsampling_infer_type_const():
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
 
     data = relay.var("data", relay.TensorType((n, c, h, w), "int8"))
-    scale_h = relay.Var("scale_h", relay.TensorType((), "float32"))
     scale_w = relay.Var("scale_w", relay.TensorType((), "float32"))
 
     z = relay.nn.upsampling(data, 2.0, scale_w)
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, relay.Any(), relay.Any()), "int8")
+
+def test_dyn_upsampling3d_run():
+    def verify_upsampling3d(dshape, scale_d, scale_h, scale_w, layout, method, coord_trans="half_pixel"):
+
+        if layout == "NCDHW":
+            (n, c, d, h, w) = dshape
+            x_data = np.random.uniform(size=(n, c, d, h, w)).astype("float32")
+
+        elif layout == "NDHWC":
+            (n, d, h, w, c) = dshape
+            x_data = np.random.uniform(size=(n, d, h, w, c)).astype("float32")
+
+        if method == "nearest_neighbor":
+            ref_res = tvm.topi.testing.upsampling3d_python(x_data, (scale_d, scale_h, scale_w), layout)
+        else:
+            ref_res = tvm.topi.testing.trilinear_resize3d_python(x_data, (int(round(d*scale_d)),
+                                                                 int(round(h*scale_h)),
+                                                                 int(round(w*scale_w))), layout)
+        x = relay.Var("x", relay.TensorType(dshape, "float32"))
+        scale_d_var = relay.var("scale_d", relay.TensorType((), "float32"))
+        scale_h_var = relay.var("scale_h", relay.TensorType((), "float32"))
+        scale_w_var = relay.var("scale_h", relay.TensorType((), "float32"))
+
+        z = relay.nn.upsampling3d(x, scale_d_var, scale_h_var, scale_w_var, method=method, layout=layout,
+                                coordinate_transformation_mode=coord_trans)
+        zz = run_infer_type(z)
+        func = relay.Function([x, scale_d_var, scale_h_var, scale_w_var], z)
+
+        for target, ctx in enabled_targets():
+            for kind in ["vm", "debug"]:
+                mod = tvm.ir.IRModule.from_expr(func)
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x_data, np.array(scale_d).astype("float32"), np.array(scale_h).astype("float32"), np.array(scale_w).astype("float32"))
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
+
+    verify_upsampling3d((1, 1, 1, 1, 1), 2, 3, 4, "NCDHW", "nearest_neighbor")
+    verify_upsampling3d((1, 8, 16, 16, 16), 2.0, 3.0, 4.0, "NCDHW", "nearest_neighbor")
+    verify_upsampling3d((1, 8, 16, 16, 16), 2.0, 5.0, 1.0, "NCDHW", "trilinear", "align_corners")
+    verify_upsampling3d((1, 20, 3, 4, 16), 2.0, 2.0, 2.0, "NDHWC", "nearest_neighbor")
+    verify_upsampling3d((1, 8, 4, 16, 15), 2.0, 2.0, 2.0,"NDHWC", "trilinear", "align_corners")
+
+#tests upsampling type inference with scale_h passed in as a constant and scale_w as a variable
+def test_dyn_upsampling3d_infer_type_const():
+    n, c, d, h, w = te.size_var("n"), te.size_var("c"), te.size_var("d"), te.size_var("h"), te.size_var("w")
+
+    data = relay.var("data", relay.TensorType((n, c, d, h, w), "int8"))
+    scale_d = relay.Var("scale_h", relay.TensorType((), "float32"))
+    scale_w = relay.Var("scale_w", relay.TensorType((), "float32"))
+
+    z = relay.nn.upsampling3d(data, scale_d, 2.0, scale_w, layout="NCDHW", method="trilinear")
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((n, c, relay.Any(), relay.Any(), relay.Any()), "int8")
 
 def test_dyn_pad():
     def verify_pad(dshape, pad_width, pad_val, dtype):

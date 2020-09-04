@@ -77,6 +77,9 @@ Expr MakeTopK(Expr data, int k, int axis, String ret_type, bool is_ascend, DataT
 Expr MakeUpSampling(Expr data, double scale_h, double scale_w, String layout, String method,
                     bool align_corners);
 
+Expr MakeUpSampling3D(Expr data, double scale_d, double scale_h, double scale_w, String layout,
+                      String method, String coordinate_transformation_mode);
+
 Expr MakeVariance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, bool exclude,
                   bool unbiased);
 
