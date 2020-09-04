@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -159,7 +160,7 @@ void* MetalWorkspace::AllocDataSpace(TVMContext ctx, size_t nbytes, size_t align
   */
   id<MTLBuffer> buf = [dev newBufferWithLength:nbytes options:storage_mode];
   CHECK(buf != nil);
-  return (__bridge void*)([buf retain]);
+  return (void*)(CFBridgingRetain(buf));
 }
 
 void MetalWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
