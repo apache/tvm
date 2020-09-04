@@ -17,17 +17,15 @@
  * under the License.
  */
 
-use std::{path::Path, process::Command};
 use anyhow::{Context, Result};
+use std::{path::Path, process::Command};
 
 fn main() -> Result<()> {
     let output = Command::new("python3")
         .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/src/build_resnet.py"))
         .arg(&format!("--build-dir={}", env!("CARGO_MANIFEST_DIR")))
         .output()
-        .with_context(|| {
-            anyhow::anyhow!("failed to run python3")
-        })?;
+        .with_context(|| anyhow::anyhow!("failed to run python3"))?;
 
     assert!(
         Path::new(&format!("{}/deploy_lib.o", env!("CARGO_MANIFEST_DIR"))).exists(),

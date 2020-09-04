@@ -19,27 +19,36 @@
 
 extern crate bindgen;
 
-use std::path::PathBuf;
 use std::env;
+use std::path::PathBuf;
 
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 
 fn main() -> Result<()> {
     let tvm_home = option_env!("TVM_HOME").map(str::to_string).unwrap_or({
         let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .canonicalize()
             .with_context(|| {
-                format!("failed to cannonicalize() CARGO MANIFEST_DIR={}", env!("CARGO_MANIFEST_DIR"))
+                format!(
+                    "failed to cannonicalize() CARGO MANIFEST_DIR={}",
+                    env!("CARGO_MANIFEST_DIR")
+                )
             })?;
 
         crate_dir
             .parent()
             .with_context(|| {
-                format!("failed to find parent of CARGO MANIFEST_DIR={}", env!("CARGO_MANIFEST_DIR"))
+                format!(
+                    "failed to find parent of CARGO MANIFEST_DIR={}",
+                    env!("CARGO_MANIFEST_DIR")
+                )
             })?
             .parent()
             .with_context(|| {
-                format!("failed to find the parent of the parent of CARGO MANIFEST_DIR={}", env!("CARGO_MANIFEST_DIR"))
+                format!(
+                    "failed to find the parent of the parent of CARGO MANIFEST_DIR={}",
+                    env!("CARGO_MANIFEST_DIR")
+                )
             })?
             .to_str()
             .context("failed to convert to strings")?

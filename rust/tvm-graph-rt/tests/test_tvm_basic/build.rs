@@ -23,8 +23,8 @@ use std::{path::PathBuf, process::Command};
 
 use std::fs::File;
 
-use ar::Builder;
 use anyhow::Result;
+use ar::Builder;
 
 fn main() -> Result<()> {
     let mut out_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -59,9 +59,7 @@ fn main() -> Result<()> {
 
     drop(builder);
 
-    let status = Command::new("ranlib")
-        .arg(&lib_file)
-        .status()?;
+    let status = Command::new("ranlib").arg(&lib_file).status()?;
 
     assert!(status.success());
 

@@ -21,8 +21,8 @@ extern crate ar;
 
 use std::{env, fs::File, path::Path, process::Command};
 
+use anyhow::{Context, Result};
 use ar::Builder;
-use anyhow::{Result, Context};
 
 fn main() -> Result<()> {
     let out_dir = env::var("OUT_DIR")?;
@@ -40,9 +40,7 @@ fn main() -> Result<()> {
     let output = Command::new(&generator)
         .arg(&out_dir)
         .output()
-        .with_context(|| {
-            format!("Failed to execute: {:?}", generator)
-        })?;
+        .with_context(|| format!("Failed to execute: {:?}", generator))?;
 
     assert!(
         graph_path.exists(),
@@ -60,9 +58,7 @@ fn main() -> Result<()> {
     let mut builder = Builder::new(file);
     builder.append_path(graph_path)?;
 
-    let status = Command::new("ranlib")
-        .arg(&lib_file)
-        .status()?;
+    let status = Command::new("ranlib").arg(&lib_file).status()?;
 
     assert!(status.success());
 

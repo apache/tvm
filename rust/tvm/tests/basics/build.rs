@@ -17,7 +17,7 @@
  * under the License.
  */
 
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 
 fn main() -> Result<()> {
     let out_dir = std::env::var("OUT_DIR").unwrap();
@@ -33,9 +33,7 @@ fn main() -> Result<()> {
             &std::env::var("OUT_DIR").unwrap(),
         ])
         .output()
-        .with_context(|| {
-            anyhow::anyhow!(tvm_mk_add)
-        })?;
+        .with_context(|| anyhow::anyhow!(tvm_mk_add))?;
 
     assert!(
         std::path::Path::new(&format!("{}/test_add.so", out_dir)).exists(),
