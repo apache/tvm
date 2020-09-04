@@ -56,9 +56,17 @@ def test_ewise():
         # avoid round check too close to boundary
         if check_round:
             a_np += ((np.abs(np.fmod(a_np, 1)) - 0.5) < 1e-6) * 1e-4
-        b_np = f_numpy(a_np)
+        b_np = f_numpy(a_np).astype(dtype)
 
         def check_device(device, ctx):
+            if dtype == "float16":
+                if device != "cuda":
+                    print("Skip because float16 is only supported for cuda")
+                    return
+                else:
+                    if [int(x) for x in ctx.compute_version.split('.')] < [5, 3]:
+                        print("Skip because fp16 is not supported for cuda compute version %s" % ctx.compute_version)
+                        return
             print("Running on target: %s" % device)
             with tvm.target.Target(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(B)
@@ -157,6 +165,7 @@ def test_ewise():
     test_apply(topi.tan, "tan", np.tan, -2.0 * np.pi, 2.0 * np.pi, dtype="float64")
     test_apply(topi.sin, "sin", np.sin, -2.0 * np.pi, 2.0 * np.pi)
     test_apply(topi.erf, "erf", scipy.special.erf, -0.1, 0.1, dtype="float32")
+    test_apply(topi.erf, "erf", scipy.special.erf, -0.1, 0.1, dtype="float16")
     test_isnan(-100, 100)
     test_infiniteness_ops(topi.isfinite, np.isfinite, "isifinite")
     test_infiniteness_ops(topi.isinf, np.isinf, "isinf")
