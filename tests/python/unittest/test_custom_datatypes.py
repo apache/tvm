@@ -23,12 +23,33 @@ import numpy as np
 import pytest
 from numpy.random import MT19937, RandomState, SeedSequence
 from tvm import relay
-from tvm.relay.testing.inception_v3 import get_workload as get_inception
-from tvm.relay.testing.resnet import get_workload as get_resnet
 from tvm.relay.testing.layers import batch_norm_infer
-from tvm.relay.testing.mobilenet import get_workload as get_mobilenet
 from tvm.target.datatype import register, register_min_func, register_op, create_lower_func, lower_ite, lower_call_pure_extern, create_min_lower_func
 from tvm.tir.op import call_pure_extern
+
+# note: we can't use relay.testing models because params are randomly initialized,
+# which lead the output to have the same values
+# get mobilenet model from Gluon CV
+# because: https://discuss.tvm.apache.org/t/mobilenet-intermediate-values-are-0/7812
+def get_mobilenet():
+    dshape = (1, 3, 224, 224)
+    from mxnet.gluon.model_zoo.vision import get_model
+    block = get_model('mobilenet0.25', pretrained=True)
+    shape_dict = {'data': dshape}
+    return relay.frontend.from_mxnet(block, shape_dict)
+# use real image instead of random data for end-to-end model training
+# or else output would all be around the same value
+def get_cat_image(dimensions):
+    from tvm.contrib.download import download_testdata
+    from PIL import Image
+    url = 'https://gist.githubusercontent.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/fa7ef0e9c9a5daea686d6473a62aacd1a5885849/cat.png'
+    dst = 'cat.png'
+    real_dst = download_testdata(url, dst, module='data')
+    img = Image.open(real_dst).resize(dimensions)
+    # CoreML's standard model image format is BGR
+    img_bgr = np.array(img)[:, :, ::-1]
+    img = np.transpose(img_bgr, (2, 0, 1))[np.newaxis, :]
+    return np.asarray(img, dtype='float32')
 
 # we use a random seed to generate input_data
 # to guarantee stable tests
@@ -55,7 +76,6 @@ def compare(module, input, src_dtype, dst_dtype, rtol, atol, params = {}, target
     ex = relay.create_executor("graph", mod=module)
 
     correct = ex.evaluate()(*input, **params)
-
     module, converted_params = change_dtype(src_dtype, dst_dtype, module, params)
     ex = relay.create_executor("graph", mod=module, target=target)
     # converts all inputs to dst_dtype
@@ -242,19 +262,16 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
     # Note: tvm_if_then_else is tested as part of the mobile_net model
 
 def run_model(get_workload,
-              input_shape,
+              input,
               src_dtype,
               dst_dtype,
-              num_classes,
               rtol=1e-4,
               atol=1e-4):
-    module, params = get_workload(image_shape=input_shape,
-                                  num_classes=num_classes)
+    module, params = get_workload()
 
-    # generate random input with appropriate shape/type
-    input = tvm.nd.array(rs.rand(*input_shape).astype(src_dtype))
-
-    compare(module, (input, ), src_dtype, dst_dtype, rtol, atol, params)
+    # we don't generate random data here
+    # because then the output data would all be around the same value
+    compare(module, input, src_dtype, dst_dtype, rtol, atol, params)
 
 def run_conv2d(src_dtype, dst_dtype, rtol=1e-7, atol=1e-4):
     def run_test_conv2d(src_dtype,
@@ -377,25 +394,23 @@ def test_batchnorm():
 
 def test_models():
     # Expected posit8 might be faster, but it's not.
-    # run_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit8]8')
-    # run_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit32]32')
-    # run_model(get_inception, (3, 299, 299), 'float32', 'custom[posit32]32')
-    # run_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit32]32')
+    # run_model(get_mobilenet, (get_cat_image((224, 224)), ), 'float32', 'custom[posit8]8')
+    # run_model(get_mobilenet, (get_cat_image((224, 224)), ), 'float32', 'custom[posit32]32')
+    # run_model(get_inception, (get_cat_image((229, 229)), ), 'float32', 'custom[posit32]32')
+    # run_model(get_resnet, (get_cat_image((224, 224)), ), 'float32', 'custom[posit32]32')
 
-    # Run cifar-10 sizes to be a little faster...
-    run_model(get_mobilenet, (3, 32, 32),
+    # can't run cifar-10 sizes because dimensions
+    # don't match pretrained weights
+    run_model(get_mobilenet, (get_cat_image((224, 224)), ),
               'float32',
-              'custom[posites2]32',
-              num_classes=10)
+              'custom[posites2]32')
     # runs on the order of minutes...
-    # run_model(get_inception, (3, 299, 299),
+    # run_model(get_inception, (get_cat_image((229, 229)), ),
     #           'float32',
-    #           'custom[posites2]32',
-    #           num_classes=10)
-    # run_model(get_resnet, (3, 32, 32),
+    #           'custom[posites2]32')
+    # run_model(get_resnet, (get_cat_image((224, 224)), ),
     #           'float32',
-    #           'custom[posites2]32',
-    #           num_classes=10)
+    #           'custom[posites2]32')
 
 if __name__ == "__main__":
     pytest.main([__file__])

@@ -222,20 +222,37 @@ print("z (posit16):\t{}".format(z_output_posit))
 # We choose Mobilenet due to its small size. 
 # In this alpha state of the Bring Your Own Datatypes framework, we have not implemented any software optimizations for running software emulations of custom datatypes; the result is poor performance due to many calls into our datatype emulation library.
 #
-# Relay has packaged up many models within its `python/tvm/relay/testing <https://github.com/dmlc/tvm/tree/master/python/tvm/relay/testing>`_ directory. We will go ahead and grab Mobilenet:
+# First let us define two helper functions to get the mobilenet model and a cat image.
 
-from tvm.relay.testing.mobilenet import get_workload as get_mobilenet
+def get_mobilenet():
+    dshape = (1, 3, 224, 224)
+    from mxnet.gluon.model_zoo.vision import get_model
+    block = get_model('mobilenet0.25', pretrained=True)
+    shape_dict = {'data': dshape}
+    return relay.frontend.from_mxnet(block, shape_dict)
 
-module, params = get_mobilenet(image_shape=(3, 32, 32), num_classes=10)
-module = tvm.relay.transform.SimplifyInference()(module)
+def get_cat_image():
+    from tvm.contrib.download import download_testdata
+    from PIL import Image
+    url = 'https://gist.githubusercontent.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/fa7ef0e9c9a5daea686d6473a62aacd1a5885849/cat.png'
+    dst = 'cat.png'
+    real_dst = download_testdata(url, dst, module='data')
+    img = Image.open(real_dst).resize((224, 224))
+    # CoreML's standard model image format is BGR
+    img_bgr = np.array(img)[:, :, ::-1]
+    img = np.transpose(img_bgr, (2, 0, 1))[np.newaxis, :]
+    return np.asarray(img, dtype='float32')
+
+module, params = get_mobilenet()
 
 ######################################################################
 # It's easy to execute MobileNet with native TVM:
 
 ex = tvm.relay.create_executor("graph", mod=module)
-input = tvm.nd.array(np.random.rand(3, 32, 32).astype("float32"))
-result = ex.evaluate()(input, **params)
-print(result)
+input = get_cat_image()
+result = ex.evaluate()(input, **params).asnumpy()
+# print first 10 elements
+print(result.flatten()[:10])
 
 ######################################################################
 # Now, we would like to change the model to use posits internally. To do so, we need to convert the network. To do this, we first define a function which will help us convert tensors:
@@ -359,12 +376,13 @@ tvm.target.datatype.register_min_func(tvm.target.datatype.create_min_lower_func(
 # Vectorization is not implemented with custom datatypes.
 with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
     result_posit = ex.evaluate(expr)(input, **params)
-    result_posit = convert_ndarray(src_dtype, result_posit)
-    print(result_posit)
+    result_posit = convert_ndarray(src_dtype, result_posit).asnumpy()
+    # print first 10 elements
+    print(result_posit.flatten()[:10])
 
 # Again, note that the output using 16-bit posits is understandably different from that of 32-bit floats,
 # but is still within a sane distance:
-np.testing.assert_allclose(result.asnumpy(),
-                           result_posit.asnumpy(),
-                           rtol=1e-6,
-                           atol=1e-5)
+np.testing.assert_allclose(result,
+                           result_posit,
+                           rtol=1e-2,
+                           atol=1e-1)
