@@ -100,11 +100,11 @@ bool IsHigherOrderFunc(const FuncType& t) {
 }
 
 /*!
- * \brief apply Defunctionalization transform
+ * \brief mutator for driving the Defunctionalization transformation
  */
 class DefuncMutator : public ExprMutator {
  public:
-  DefuncMutator(const IRModule& mod) : mod(mod), constructor_counter(0) {}
+  explicit DefuncMutator(const IRModule& mod) : mod(mod), constructor_counter(0) {}
 
   Expr VisitExpr_(const CallNode* call) {
     if (auto op = call->op.as<GlobalVarNode>()) {
@@ -233,7 +233,7 @@ class DefuncMutator : public ExprMutator {
                      ObjectEqual>
       gv_datatype_map;
   // use monotonically increasing integer to represent new constructor_name
-  unsigned long constructor_counter;
+  uint64_t constructor_counter;
 
   /*!
    * \brief add a constructor to the GlobalTypeVar, creating a new TypeDef if GlobalTypeVar does not
