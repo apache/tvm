@@ -1229,6 +1229,15 @@ def upsampling3d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(scale_d, Expr) or isinstance(scale_h, Expr) or isinstance(scale_w, Expr):
+        if not isinstance(scale_d, Expr):
+            scale_d = const(scale_d, "float64")
+        if not isinstance(scale_h, Expr):
+            scale_h = const(scale_h, "float64")
+        if not isinstance(scale_w, Expr):
+            scale_w = const(scale_w, "float64")
+        return _dyn_make.upsampling3d(data, scale_d, scale_h, scale_w, layout, method,
+                                      coordinate_transformation_mode)
     return _make.upsampling3d(data, scale_d, scale_h, scale_w, layout, method,
                               coordinate_transformation_mode)
 

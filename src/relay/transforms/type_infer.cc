@@ -369,12 +369,10 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
     // Build a subsitituion map up from the function type and type arguments.
     // Eventually allow the type vars to be passed in.
+    CHECK(fn_ty->type_params.size() == ty_args.size())
+        << "number of type parameters does not match expected";
     for (size_t i = 0; i < ty_args.size(); ++i) {
       subst_map.Set(fn_ty->type_params[i], ty_args[i]);
-    }
-
-    for (size_t i = ty_args.size(); i < fn_ty->type_params.size(); ++i) {
-      subst_map.Set(fn_ty->type_params[i], IncompleteType(Kind::kType));
     }
 
     Type ret_type = fn_ty->ret_type;
@@ -444,6 +442,9 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
                                  << "Incorrect number of type args in " << call->span << ": "
                                  << "Expected " << fn_ty_node->type_params.size() << "but got "
                                  << type_args.size());
+    }
+    for (size_t i = type_args.size(); i < fn_ty_node->type_params.size(); i++) {
+      type_args.push_back(IncompleteType(TypeKind::kType));
     }
 
     FuncType fn_ty = InstantiateFuncType(fn_ty_node, type_args);
