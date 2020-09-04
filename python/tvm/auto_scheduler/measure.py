@@ -594,6 +594,8 @@ def local_run(inputs, build_results,
             try:
                 args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
                         build_res.args]
+                assert tvm.get_global_func("tvm.contrib.random.random_fill", True), \
+                    "Do you enable USE_RANDOM in the config.cmake?"
                 random_fill = tvm.get_global_func("tvm.contrib.random.random_fill")
                 for arg in args:
                     random_fill(arg)
@@ -694,6 +696,8 @@ def rpc_run_worker(index):
             try:
                 args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
                         build_res.args]
+                assert tvm.get_global_func("tvm.contrib.random.random_fill", True), \
+                    "Do you enable USE_RANDOM in the config.cmake?"
                 random_fill = remote.get_function("tvm.contrib.random.random_fill")
                 for arg in args:
                     random_fill(arg)
