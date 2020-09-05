@@ -665,7 +665,7 @@ def test_clip_min_max_as_inputs():
 
     indata = np.random.uniform(-1, 7, size=input_shape).astype('float32')
     onnx_out = get_onnxruntime_output(model, indata, 'float32')
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(
             model, indata, target, ctx, input_shape, 'float32')
     tvm.testing.assert_allclose(onnx_out, tvm_out)
