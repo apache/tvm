@@ -258,7 +258,7 @@ def convert_list_to_vmobj(py_lst):
     return adt_lst
 
 
-def custom_lstm_test():
+def test_custom_lstm():
     input_name = "input"
     states_name = "states"
     seq_len = 5
