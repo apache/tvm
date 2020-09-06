@@ -337,8 +337,6 @@ class ContextAnalyzer : public MixedModeVisitor {
     for (const auto& it : fn->params) {
       DeviceFor(it);
     }
-    // Disable memoization.
-    visit_counter_.clear();
     MixedModeVisitor::VisitExpr(fn->body);
   }
 
