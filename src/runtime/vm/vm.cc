@@ -351,9 +351,6 @@ void VirtualMachine::RunLoop() {
   main_loop:
     auto const& instr = code_[this->pc_];
     DLOG(INFO) << "Executing(" << pc_ << "): " << instr;
-#if USE_RELAY_DEBUG
-    InstructionPrint(std::cout, instr);
-#endif  // USE_RELAY_DEBUG
 
     switch (instr.op) {
       case Opcode::Move: {
