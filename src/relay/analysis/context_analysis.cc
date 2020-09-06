@@ -164,7 +164,7 @@ class ContextAnalyzer : public MixedModeVisitor {
  public:
   ContextAnalyzer(const IRModule& mod, const GlobalVar& current_func,
                   const TVMContext& default_context)
-      : MixedModeVisitor(2),
+      : MixedModeVisitor(99), // the number repeated visits a node can perform
         mod_(mod),
         current_func_(current_func),
         default_context_(default_context) {
