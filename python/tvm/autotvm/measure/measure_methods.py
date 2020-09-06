@@ -511,9 +511,11 @@ def run_through_rpc(measure_input, build_result,
         if ref_input:
             args = [nd.array(x, ctx=ctx) for x in ref_input]
         else:
-            assert tvm.get_global_func("tvm.contrib.random.random_fill", True), \
-                "Please make sure USE_RANDOM is ON in the config.cmake"
-            random_fill = remote.get_function("tvm.contrib.random.random_fill")
+            try:
+                random_fill = remote.get_function("tvm.contrib.random.random_fill")
+            except AttributeError:
+                raise AttributeError("Please make sure USE_RANDOM is ON in the config.cmake "
+                                     "on the remote devices")
             args = [nd.empty(x[0], dtype=x[1], ctx=ctx) for x in build_result.arg_info]
             for arg in args:
                 random_fill(arg)
