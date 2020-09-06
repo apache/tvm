@@ -66,6 +66,7 @@ def vmobj_to_list(o):
     else:
         raise RuntimeError("Unknown object type: %s" % type(o))
 
+@tvm.testing.uses_gpu
 def test_split():
     x = relay.var('x', shape=(12,))
     y = relay.split(x, 3, axis=0).astuple()
@@ -78,6 +79,7 @@ def test_split():
         for i in range(3):
             tvm.testing.assert_allclose(res[i].asnumpy(), ref_res[i])
 
+@tvm.testing.uses_gpu
 def test_split_no_fuse():
     x = relay.var('x', shape=(12,))
     y = relay.split(x, 3, axis=0).astuple()
@@ -145,6 +147,7 @@ def test_simple_if():
     # diff
     check_result([x_data, y_data], y_data, mod=mod)
 
+@tvm.testing.uses_gpu
 def test_multiple_ifs():
     mod = tvm.IRModule({})
     b = relay.var('b')
@@ -245,6 +248,7 @@ def test_tuple_second():
     mod["main"] = f
     check_result([(i_data, j_data)], j_data, mod=mod)
 
+@tvm.testing.uses_gpu
 def test_list_constructor():
     mod = tvm.IRModule()
     p = Prelude(mod)
@@ -304,6 +308,7 @@ def test_let_scalar():
     mod["main"] = f
     check_result([x_data], x_data + 42.0, mod=mod)
 
+@tvm.testing.uses_gpu
 def test_compose():
     mod = tvm.IRModule()
     p = Prelude(mod)
@@ -338,6 +343,7 @@ def test_compose():
         result = veval(mod, [x_data], ctx=ctx, target=tgt)
         tvm.testing.assert_allclose(result.asnumpy(), x_data + 2.0)
 
+@tvm.testing.uses_gpu
 def test_list_hd():
     mod = tvm.IRModule()
     p = Prelude(mod)
@@ -375,6 +381,7 @@ def test_list_tl_empty_list():
     for tgt, ctx in tvm.testing.enabled_targets():
         result = veval(mod, ctx=ctx, target=tgt)
 
+@tvm.testing.uses_gpu
 def test_list_tl():
     mod = tvm.IRModule()
     p = Prelude(mod)
@@ -396,6 +403,7 @@ def test_list_tl():
         result = veval(mod, ctx=ctx, target=tgt)
         tvm.testing.assert_allclose(vmobj_to_list(result), np.array([2,1]))
 
+@tvm.testing.uses_gpu
 def test_list_nth():
     expected = list(range(10))
 
@@ -416,6 +424,7 @@ def test_list_nth():
             result = veval(mod, ctx=ctx, target=tgt)
             tvm.testing.assert_allclose(result.asnumpy(), expected[i])
 
+@tvm.testing.uses_gpu
 def test_list_update():
     expected = list(range(10))
 
@@ -441,6 +450,7 @@ def test_list_update():
         result = veval(mod, ctx=ctx, target=tgt)
         tvm.testing.assert_allclose(vmobj_to_list(result), np.array(expected))
 
+@tvm.testing.uses_gpu
 def test_list_length():
     expected = list(range(10))
 
@@ -464,6 +474,7 @@ def test_list_length():
         result = veval(mod, ctx=ctx, target=tgt)
         tvm.testing.assert_allclose(result.asnumpy(), 10)
 
+@tvm.testing.uses_gpu
 def test_list_map():
     mod = tvm.IRModule()
     p = Prelude(mod)
@@ -483,6 +494,7 @@ def test_list_map():
         result = veval(mod, ctx=ctx, target=tgt)
         tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 2]))
 
+@tvm.testing.uses_gpu
 def test_list_foldl():
     mod = tvm.IRModule()
     p = Prelude(mod)
@@ -502,6 +514,7 @@ def test_list_foldl():
         result = veval(mod, ctx=ctx, target=tgt)
         tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 3, 2, 2, 1, 1]))
 
+@tvm.testing.uses_gpu
 def test_list_foldr():
     mod = tvm.IRModule()
     p = Prelude(mod)
@@ -521,6 +534,7 @@ def test_list_foldr():
         result = veval(mod, ctx=ctx, target=tgt)
         tvm.testing.assert_allclose(vmobj_to_list(result), np.array([1, 2, 3]))
 
+@tvm.testing.uses_gpu
 def test_list_sum():
     mod = tvm.IRModule()
     p = Prelude(mod)
@@ -536,6 +550,7 @@ def test_list_sum():
         result = veval(mod, ctx=ctx, target=tgt)
         tvm.testing.assert_allclose(result.asnumpy(), 6)
 
+@tvm.testing.uses_gpu
 def test_list_filter():
     mod = tvm.IRModule()
     p = Prelude(mod)
@@ -557,6 +572,7 @@ def test_list_filter():
         result = veval(mod, ctx=ctx, target=tgt)
         tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 5]))
 
+@tvm.testing.uses_gpu
 def test_closure():
     x = relay.var('x', shape=())
     y = relay.var('y', shape=())
