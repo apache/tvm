@@ -98,6 +98,8 @@ inline Schedule schedule_dense(const Target& target, const Array<Tensor>& outs) 
 
   auto _schedule = [&](const Tensor& dense) {
     auto num_thread = 64;
+    // Adapting to device
+    num_thread = std::min((int)target->GetAttr<Integer>("max_num_threads").value(), num_thread);
     auto k = dense->op.as<ComputeOpNode>()->reduce_axis[0];
     IterVar ko, kf;
     s[dense].split(k, num_thread, &ko, &kf);

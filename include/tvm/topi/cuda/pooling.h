@@ -122,6 +122,8 @@ inline Schedule schedule_global_pool(const Target& target, const Array<Tensor>& 
 
   auto _schedule = [&](const Tensor& pool) {
     auto num_thread = 8;
+    // Adapting to device
+    num_thread = std::min((int)std::sqrt((int)target->GetAttr<Integer>("max_num_threads").value()), num_thread);
     auto block_x = tvm::te::thread_axis(Range(), "blockIdx.x");
     auto block_y = tvm::te::thread_axis(Range(), "blockIdx.y");
     auto thread_x = tvm::te::thread_axis(Range(0, num_thread), "threadIdx.x");

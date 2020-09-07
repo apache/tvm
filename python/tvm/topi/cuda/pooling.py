@@ -20,6 +20,7 @@ import tvm
 from tvm import te
 from .. import tag
 from ..util import traverse_inline
+from math import sqrt, floor
 
 
 def schedule_adaptive_pool(outs, layout='NCHW'):
@@ -40,7 +41,12 @@ def schedule_adaptive_pool(outs, layout='NCHW'):
     s = te.create_schedule([x.op for x in outs])
 
     def _schedule(Pool):
-        num_thread = 8
+        #Adapt thread number between default value and maximum number of threads available
+        target = tvm.target.Target.current()
+        if target.max_num_threads is not None:
+            num_thread = min(floor(sqrt(target.max_num_threads)), 8)
+        else:
+            num_thread = 8
         block_x = te.thread_axis("blockIdx.x")
         block_y = te.thread_axis("blockIdx.y")
         thread_x = te.thread_axis((0, num_thread), "threadIdx.x")

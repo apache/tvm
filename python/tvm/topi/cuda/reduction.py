@@ -40,6 +40,11 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
             # without it, CL_INVALID_WORK_GROUP_SIZE occurred when running test_topi_reduce.py
             # don't know why
             num_thread = 16
+        target = tvm.target.Target.current()
+        
+        #Adapt number of threads to device
+        if target.id.max_num_threads is not None:
+            num_thread = min(num_thread, target.id.max_num_threads)
         block_x = te.thread_axis("blockIdx.x")
         thread_x = te.thread_axis((0, num_thread), "threadIdx.x")
         thread_y = te.thread_axis((0, num_thread), "threadIdx.y")

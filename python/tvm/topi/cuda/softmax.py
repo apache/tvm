@@ -115,6 +115,10 @@ def schedule_softmax(outs):
 
     else:
         num_thread = 64
+        # Adapt num_thread to device
+        if tgt.max_num_threads is not None:
+            num_thread = min(tgt.max_num_threads, num_thread)
+
         block_x = te.thread_axis("blockIdx.x")
         thread_x = te.thread_axis((0, num_thread), "threadIdx.x")
 

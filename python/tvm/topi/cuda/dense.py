@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-argument
 """Schedule for dense operator"""
 import logging
+from tvm import target as target_
 from tvm import te
 import tvm.autotvm as autotvm
 from tvm.autotvm.task.space import SplitEntity
@@ -76,11 +77,17 @@ def schedule_dense_small_batch(cfg, outs):
     return s
 
 def _schedule_dense_small_batch(cfg, s, C):
+    target = target_.Target.current()
+    if target.max_num_threads is not None:
+        num_thread = min(target.max_num_threads, 64)
+    else:
+        num_thread = 64
+
     A, _ = C.op.input_tensors
     _, in_dim = get_const_tuple(A.shape)
     cfg.define_split('tile_k', in_dim, num_outputs=2)
     if cfg.is_fallback:
-        cfg["tile_k"] = SplitEntity([-1, 64] if in_dim > 64 else [1, 64])
+        cfg["tile_k"] = SplitEntity([-1, num_thread] if in_dim > num_thread else [1, num_thread])
 
     _, kf = cfg['tile_k'].apply(s, C, C.op.reduce_axis[0])
     CF = s.rfactor(C, kf)
