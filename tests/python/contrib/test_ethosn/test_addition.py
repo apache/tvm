@@ -55,10 +55,15 @@ def test_addition():
     if not ethosn_available():
         return
 
-    num_trials = 5
+    trials = [
+        ((1, 22, 9, 9), 24, 1.057, 253, 0.452),
+        ((1, 27, 21, 16), 79, 0.850, 24, 0.380),
+        ((1, 7, 12, 28), 125, 1.293, 239, 0.320),
+        ((1, 14, 9, 6), 14, 0.942, 227, 1.562),
+        ((1, 13, 16, 22), 15, 0.727, 180, 0.461),
+    ]
     np.random.seed(0)
-    for _ in range(num_trials):
-        shape = (1,) + tuple(np.random.randint(low=1, high=32, size=(3,)))
+    for shape, rhs_zp, rhs_sc, lhs_zp, lhs_sc in trials:
         outputs = []
         inputs = {
             "a": tvm.nd.array(np.random.randint(0, high=255, size=shape,
@@ -66,10 +71,6 @@ def test_addition():
             "b": tvm.nd.array(np.random.randint(0, high=255, size=shape,
                                                 dtype="uint8")),
         }
-        lhs_zp = np.random.randint(0, 255)
-        lhs_sc = np.random.random() * 2
-        rhs_zp = np.random.randint(0, 255)
-        rhs_sc = np.random.random() * 2
         out_zp, out_sc = _get_addition_qnn_params(lhs_zp, lhs_sc, rhs_zp, rhs_sc)
         model = _get_model(shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, "uint8")
         for npu in [False, True]:
