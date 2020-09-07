@@ -1131,10 +1131,13 @@ def _view():
 def _reshape():
     def _impl(inputs, input_types):
         data = inputs[0]
-        if isinstance(inputs[1], list):
+        if _is_int_seq(inputs[1]):
             new_shape = inputs[1]
         else:
-            new_shape = _infer_shape(inputs[1])
+            assert isinstance(inputs[1], list)
+            infer_res = [_infer_value(_wrap_const(size), {}) for size in inputs[1]]
+            new_shape = [np.asscalar(res.asnumpy().astype(np.int))
+                         for res in infer_res]
         return _op.transform.reshape(data, new_shape)
     return _impl
 
