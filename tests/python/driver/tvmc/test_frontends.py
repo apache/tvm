@@ -36,6 +36,9 @@ def test_get_frontends_contains_only_strings():
 
 
 def test_get_frontend_by_name_valid():
+    # some CI environments wont offer TensorFlow/Keras, so skip in case it is not present
+    pytest.importorskip('tensorflow')
+
     sut = tvmc.frontends.get_frontend_by_name("keras")
     assert type(sut) is tvmc.frontends.KerasFrontend
 
@@ -49,6 +52,9 @@ def test_get_frontend_by_name_invalid():
 
 
 def test_guess_frontend_tflite():
+    # some CI environments wont offer TFLite, so skip in case it is not present
+    pytest.importorskip('tflite')
+
     sut = tvmc.frontends.guess_frontend("a_model.tflite")
     assert type(sut) is tvmc.frontends.TFLiteFrontend
 
@@ -70,11 +76,17 @@ def test_guess_frontend_pytorch():
 
 
 def test_guess_frontend_keras():
+    # some CI environments wont offer TensorFlow/Keras, so skip in case it is not present
+    pytest.importorskip('tensorflow')
+
     sut = tvmc.frontends.guess_frontend("a_model.h5")
     assert type(sut) is tvmc.frontends.KerasFrontend
 
 
 def test_guess_frontend_tensorflow():
+    # some CI environments wont offer TensorFlow, so skip in case it is not present
+    pytest.importorskip('tensorflow')
+
     sut = tvmc.frontends.guess_frontend("a_model.pb")
     assert type(sut) is tvmc.frontends.TensorflowFrontend
 
@@ -85,6 +97,9 @@ def test_guess_frontend_invalid():
 
 
 def test_load_model__invalid_path__no_language():
+    # some CI environments wont offer TFLite, so skip in case it is not present
+    pytest.importorskip('tflite')
+
     with pytest.raises(FileNotFoundError):
         tvmc.frontends.load_model("not/a/file.tflite")
 
@@ -98,6 +113,9 @@ def test_load_model__invalid_path__with_language():
 
 
 def test_load_model__tflite(tflite_mobilenet_v1_1_quant):
+    # some CI environments wont offer TFLite, so skip in case it is not present
+    pytest.importorskip('tflite')
+
     mod, params = tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant)
     assert type(mod) is IRModule
     assert type(params) is dict
@@ -106,6 +124,9 @@ def test_load_model__tflite(tflite_mobilenet_v1_1_quant):
 
 
 def test_load_model__keras(keras_resnet50):
+    # some CI environments wont offer TensorFlow/Keras, so skip in case it is not present
+    pytest.importorskip('tensorflow')
+
     mod, params = tvmc.frontends.load_model(keras_resnet50)
     assert type(mod) is IRModule
     assert type(params) is dict
@@ -125,6 +146,9 @@ def test_load_model__onnx(onnx_resnet50):
 
 
 def test_load_model__pb(pb_mobilenet_v1_1_quant):
+    # some CI environments wont offer TensorFlow, so skip in case it is not present
+    pytest.importorskip('tensorflow')
+
     mod, params = tvmc.frontends.load_model(pb_mobilenet_v1_1_quant)
     assert type(mod) is IRModule
     assert type(params) is dict
@@ -133,11 +157,17 @@ def test_load_model__pb(pb_mobilenet_v1_1_quant):
 
 
 def test_load_model___wrong_language__to_keras(tflite_mobilenet_v1_1_quant):
+    # some CI environments wont offer TensorFlow/Keras, so skip in case it is not present
+    pytest.importorskip('tensorflow')
+
     with pytest.raises(OSError):
         tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant, model_format="keras")
 
 
 def test_load_model___wrong_language__to_tflite(keras_resnet50):
+    # some CI environments wont offer TFLite, so skip in case it is not present
+    pytest.importorskip('tflite')
+
     with pytest.raises(TVMCException) as e:
         def f():
             tvmc.frontends.load_model(keras_resnet50, model_format="tflite")
