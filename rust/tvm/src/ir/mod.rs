@@ -26,3 +26,4 @@ pub mod tir;
 pub mod ty;
 
 pub use expr::*;
+pub use module::IRModule;

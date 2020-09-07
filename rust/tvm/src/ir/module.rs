@@ -1,11 +1,13 @@
 use crate::runtime::{external, Object, ObjectRef};
 use crate::runtime::{string::String as TVMString};
+use crate::runtime::function::Result;
+use crate::runtime::array::Array;
 use crate::runtime::map::Map;
 
 use super::expr::GlobalVar;
 use super::function::BaseFunc;
 
-use std::io::Result;
+use std::io::{Result as IOResult};
 use std::path::Path;
 
 use tvm_macros::Object;
@@ -26,11 +28,71 @@ pub struct IRModuleNode {
 
 
 external! {
+    // Parser functions
     #[name("parser.ParseModule")]
     fn parse_module(file_name: TVMString, source: TVMString) -> IRModule;
     #[name("parser.ParseExpr")]
     fn parse_expression(file_name: TVMString, source: TVMString) -> IRModule;
+    // Module methods
+    #[name("ir.Module_AddDef")]
+    fn module_add_def(module: IRModule, type_name: GlobalTypeVar, type_data: TypeData, update: bool) -> ();
+    #[name("ir.Module_GetGlobalVar")]
+    fn module_get_global_var(module: IRModule, name: TVMString) -> GlobalVar;
+    #[name("ir.Module_GetGlobalVars")]
+    fn module_get_global_vars(module: IRModule) -> Array<GlobalVar>;
+    #[name("ir.Module_Lookup")]
+    fn module_lookup(module: IRModule, var: GlobalVar) -> BaseFunc;
+    #[name("ir.Module_Lookup_str")]
+    fn module_lookup_str(module: IRModule, name: TVMString) -> BaseFunc;
 }
+
+// TVM_REGISTER_GLOBAL("ir.Module_GetGlobalTypeVars")
+//     .set_body_method<IRModule>(&IRModuleNode::GetGlobalTypeVars);
+
+// TVM_REGISTER_GLOBAL("ir.Module_ContainGlobalVar")
+//     .set_body_method<IRModule>(&IRModuleNode::ContainGlobalVar);
+
+// TVM_REGISTER_GLOBAL("ir.Module_GetGlobalTypeVar")
+//     .set_body_method<IRModule>(&IRModuleNode::GetGlobalTypeVar);
+
+// TVM_REGISTER_GLOBAL("ir.Module_LookupDef").set_body_typed([](IRModule mod, GlobalTypeVar var) {
+//   return mod->LookupTypeDef(var);
+// });
+
+// TVM_REGISTER_GLOBAL("ir.Module_LookupDef_str").set_body_typed([](IRModule mod, String var) {
+//   return mod->LookupTypeDef(var);
+// });
+
+// TVM_REGISTER_GLOBAL("ir.Module_LookupTag").set_body_typed([](IRModule mod, int32_t tag) {
+//   return mod->LookupTag(tag);
+// });
+
+// TVM_REGISTER_GLOBAL("ir.Module_FromExpr")
+//     .set_body_typed([](RelayExpr e, tvm::Map<GlobalVar, BaseFunc> funcs,
+//                        tvm::Map<GlobalTypeVar, TypeData> type_defs) {
+//       return IRModule::FromExpr(e, funcs, type_defs);
+//     });
+
+// TVM_REGISTER_GLOBAL("ir.Module_Update").set_body_typed([](IRModule mod, IRModule from) {
+//   mod->Update(from);
+// });
+
+// TVM_REGISTER_GLOBAL("ir.Module_UpdateFunction")
+//     .set_body_typed([](IRModule mod, GlobalVar gv, BaseFunc func) { mod->Update(gv, func); });
+
+// TVM_REGISTER_GLOBAL("ir.Module_Import").set_body_typed([](IRModule mod, String path) {
+//   mod->Import(path);
+// });
+
+// TVM_REGISTER_GLOBAL("ir.Module_ImportFromStd").set_body_typed([](IRModule mod, String path) {
+//   mod->ImportFromStd(path);
+// });
+
+// TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+//     .set_dispatch<IRModuleNode>([](const ObjectRef& ref, ReprPrinter* p) {
+//       auto* node = static_cast<const IRModuleNode*>(ref.get());
+//       p->stream << "IRModuleNode( " << node->functions << ")";
+//     });
 
 impl IRModule {
     pub fn parse<N, S>(file_name: N, source: S) -> IRModule
@@ -39,11 +101,32 @@ impl IRModule {
             .expect("failed to call parser")
     }
 
-    pub fn parse_file<P: 'static + AsRef<Path>>(file_path: P) -> Result<IRModule> {
+    pub fn parse_file<P: 'static + AsRef<Path>>(file_path: P) -> IOResult<IRModule> {
         let file_path = file_path.as_ref();
         let file_path_as_str = file_path.to_str().unwrap().to_string();
         let source = std::fs::read_to_string(file_path)?;
         let module = IRModule::parse(file_path_as_str, source);
         Ok(module)
+    }
+
+    pub fn add_def(&mut self, type_name: GlobalTypeVar, type_data: TypeData, update: bool) -> Result<()> {
+        module_add_def(self.clone(), type_name, type_data, update)
+    }
+
+    pub fn get_global_var(&self, name: TVMString) -> Result<GlobalVar> {
+        module_get_global_var(self.clone(), name)
+    }
+
+    pub fn get_global_vars(&self) -> Result<Array<GlobalVar>> {
+        module_get_global_vars(self.clone())
+    }
+
+    pub fn lookup(&self, var: GlobalVar) -> Result<BaseFunc> {
+        module_lookup(self.clone(), var)
+    }
+
+    pub fn lookup_str<S>(&self, name: S) -> Result<BaseFunc>
+    where S: Into<TVMString> {
+        module_lookup_str(self.clone(), name.into())
     }
 }
