@@ -1323,10 +1323,20 @@ def test_forward_slice():
             x1 = torch.tensor(3) + torch.tensor(1)
             return args[0][:, x0:, 1:x1, :]
 
+    class SliceWithStride(torch.nn.Module):
+        def forward(self, x):
+            return x[..., 0::2] + x[..., 1::2]
+
+    class SliceWithStride2(torch.nn.Module):
+        def forward(self, x):
+            return x[0::2, 0::2] + x[1::2, 1::2]
+
     input_data = torch.rand(input_shape).float()
-    verify_model(Slice1().float().eval(), input_data=input_data)
-    verify_model(Slice2().float().eval(), input_data=input_data)
-    verify_model(Slice3().float().eval(), input_data=input_data)
+    verify_model(Slice1(), input_data=input_data)
+    verify_model(Slice2(), input_data=input_data)
+    verify_model(Slice3(), input_data=input_data)
+    verify_model(SliceWithStride(), input_data=torch.randn(1, 4))
+    verify_model(SliceWithStride2(), input_data=torch.randn(4, 4))
 
 
 @tvm.testing.uses_gpu

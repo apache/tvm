@@ -305,7 +305,9 @@ def _slice():
 
             end[dim] = min(end[dim], target_end)
 
-        strides.append(int(inputs[4]))
+        strides = [1] * len(end)
+        strides[dim] = int(inputs[4])
+
         return _op.transform.strided_slice(data,
                                            begin=_expr.const(begin),
                                            end=_expr.const(end),
