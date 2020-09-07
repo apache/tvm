@@ -105,5 +105,5 @@ def test_extern_vai_resnet18():
 if __name__ == "__main__":
     if sys.platform == "win32":
         print("Skip test on Windows for now")
-    else:
-        test_extern_vai_resnet18()
+        sys.exit(0)
+    test_extern_vai_resnet18()

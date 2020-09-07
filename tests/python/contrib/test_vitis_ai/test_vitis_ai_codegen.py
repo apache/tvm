@@ -215,11 +215,12 @@ def test_annotate():
 if __name__ == "__main__":
     if sys.platform == "win32":
         print("Skip test on Windows for now")
-    else:
-        test_annotate()
-        test_add()
-        test_relu()
-        test_conv2d()
-        test_batchnorm()
-        test_global_avg_pool2d()
-        test_avg_pool2d()
+        sys.exit(0)
+
+    test_annotate()
+    test_add()
+    test_relu()
+    test_conv2d()
+    test_batchnorm()
+    test_global_avg_pool2d()
+    test_avg_pool2d()
