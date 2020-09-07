@@ -699,7 +699,7 @@ def rpc_run_worker(index):
                     random_fill = remote.get_function("tvm.contrib.random.random_fill")
                 except AttributeError:
                     raise AttributeError("Please make sure USE_RANDOM is ON in the config.cmake "
-                                          "on the remote devices")
+                                         "on the remote devices")
                 for arg in args:
                     random_fill(arg)
                 ctx.sync()
