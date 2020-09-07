@@ -113,3 +113,4 @@ def vitis_ai_compiler(ref):
     runtime_func = "tvm.vitis_ai_runtime.create"
     fcreate = tvm._ffi.get_global_func(runtime_func)
     return fcreate(name, model_dir, target)
+

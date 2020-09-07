@@ -31,12 +31,10 @@ import pyxir.frontend.tvm
 
 @transform.function_pass(opt_level=0)
 class VitisAIAnnotationPass:
-
     """
     The VitisAIAnnotationPass is responsible for annotating Relay expressions
     in the way that they are supported through Vitis-AI accelerators
     """
-
     def __init__(self, compiler, relay_ids):
         self.compiler = compiler
         self.relay_ids = relay_ids
@@ -45,15 +43,12 @@ class VitisAIAnnotationPass:
         """
         Transform function for annotating Relay module
         """
-
         annotator = self
 
         class Annotator(tvm.relay.ExprMutator):
-
             """
             Annotator for Vitis-AI DPU accelerators
             """
-
             def visit_tuple(self, tup):
                 """
                 Visit the Tuple expression and add compiler_begin and compiler_end annotations

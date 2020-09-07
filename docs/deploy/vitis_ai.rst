@@ -305,10 +305,10 @@ platform. The following development boards can be used out-of-the-box:
 
 Edge hardware setup
 ^^^^^^^^^^^^^^^^^^^
-+------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| .. note:: This section provides instructions for setting up with the `Pynq <http://www.pynq.io/>`__ platform but Petalinux based flows are also supported. |
-+------------------------------------------------------------------------------------------------------------------------------------------------------------+
+.. note:: 
 
+  This section provides instructions for setting up with the `Pynq <http://www.pynq.io/>`__ platform but 
+  Petalinux based flows are also supported. 
 
 1. Download the Pynq v2.5 image for your target (use Z1 or Z2 for
    Ultra96 target depending on board version) Link to image:
@@ -334,10 +334,11 @@ Edge hardware setup
 Edge TVM setup
 ^^^^^^^^^^^^^^
 
-+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| .. note:: When working on Petalinux instead of Pynq, the following steps might take more manual work (e.g building hdf5 from source). Also, TVM has a scipy dependency which you then might have to build from source or circumvent. We don't depend on scipy in our flow. | 
-+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-   
+.. note:: 
+
+  When working on Petalinux instead of Pynq, the following steps might take more manual work (e.g building     
+  hdf5 from source). Also, TVM has a scipy dependency which you then might have to build from source or 
+  circumvent. We don't depend on scipy in our flow.
 
 Building TVM depends on the Xilinx
 `PyXIR <https://github.com/Xilinx/pyxir>`__ package. PyXIR acts as an
