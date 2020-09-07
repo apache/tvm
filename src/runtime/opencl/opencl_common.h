@@ -216,7 +216,8 @@ class OpenCLWorkspace : public DeviceAPI {
   // Initialzie the device.
   void Init(const std::string& type_key, const std::string& device_type,
             const std::string& platform_name = "");
-  virtual void Init() { Init("opencl", "gpu"); }
+  // Find accelerator first, TODO: Make a proper way to chose between device types
+  virtual void Init() { Init("opencl", "accelerator"); }
   // Check whether the context is OpenCL or not.
   virtual bool IsOpenCLDevice(TVMContext ctx) { return ctx.device_type == kDLOpenCL; }
   // get the queue of the context
