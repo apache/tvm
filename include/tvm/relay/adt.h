@@ -190,6 +190,7 @@ class PatternTuple;
 /*! \brief PatternVar container node */
 class PatternTupleNode : public PatternNode {
  public:
+  /* TODO(@jroesch): rename to field_pats */
   /*! Sub-patterns to match against each value of the tuple. */
   tvm::Array<Pattern> patterns;
 
