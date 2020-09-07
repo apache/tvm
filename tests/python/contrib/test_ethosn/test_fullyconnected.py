@@ -63,17 +63,17 @@ def test_fullyconnected():
     if not ethosn_available():
         return
 
-    dtype = "uint8"
+    trials = [
+        ((1, 1024), 71, 0.580, 79, 1.498),
+        ((1, 4096), 166, 1.724, 117, 0.180),
+        ((1, 16384), 101, 1.372, 21, 1.346),
+    ]
     np.random.seed(0)
-    for shape in [(1, 32*32), (1, 64*64), (1, 128*128)]:
+    for shape, input_zp, input_sc, kernel_zp, kernel_sc in trials:
         inputs = {
-            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype=dtype)),
+            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
         }
         outputs = []
-        input_zp = np.random.randint(0, 255)
-        input_sc = np.random.random() * 2
-        kernel_zp = np.random.randint(0, 255)
-        kernel_sc = np.random.random() * 2
         output_zp, output_sc = tei.get_conv2d_qnn_params(input_zp, input_sc,
                                                          kernel_zp, kernel_sc,
                                                          shape[0], shape[1],
@@ -83,7 +83,7 @@ def test_fullyconnected():
                                        input_zp, input_sc,  # input zp, sc
                                        kernel_zp, kernel_sc,  # kernel
                                        output_zp, output_sc,  # output
-                                       dtype)
+                                       "uint8")
             mod = tei.make_module(model, params)
             outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
         tei.verify(outputs, 1)
