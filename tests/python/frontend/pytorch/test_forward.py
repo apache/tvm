@@ -946,6 +946,7 @@ def test_forward_reshape():
     torch.set_grad_enabled(False)
     input_shape = [2, 1, 10, 1, 10]
     new_shape = [2, 1, 10, 10]
+
     class Reshape1(Module):
         def forward(self, *args):
             return args[0].reshape(new_shape)
@@ -954,9 +955,15 @@ def test_forward_reshape():
         def forward(self, *args):
             return args[0].reshape([-1])
 
+    class Reshape3(torch.nn.Module):
+        def forward(self, x):
+            x_shape = x.shape
+            return x.reshape((x_shape[0] * x_shape[1], x_shape[2]))
+
     input_data = torch.rand(input_shape).float()
-    verify_model(Reshape1().float().eval(), input_data=input_data)
-    verify_model(Reshape2().float().eval(), input_data=input_data)
+    verify_model(Reshape1(), input_data=input_data)
+    verify_model(Reshape2(), input_data=input_data)
+    verify_model(Reshape3(), input_data=torch.randn(2, 3, 4))
 
 
 @tvm.testing.uses_gpu
