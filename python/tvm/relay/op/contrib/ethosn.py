@@ -116,7 +116,7 @@ def pattern_table():
     ]
 
 
-def _is_ethos_composite(node):
+def _is_ethosn_composite(node):
     if isinstance(node, tvm.relay.expr.Call) and isinstance(node.op, tvm.relay.Function):
         if "Composite" in node.op.attrs:
             comp_name = node.op.attrs["Composite"]
