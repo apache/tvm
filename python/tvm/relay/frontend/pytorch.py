@@ -685,7 +685,7 @@ def _maxpool_2d():
         data = inputs[0]
 
         pool_size = inputs[1]
-        strides = inputs[2]
+        strides = inputs[2] if inputs[2] else pool_size
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
@@ -708,7 +708,7 @@ def _maxpool_1d():
         data = inputs[0]
 
         pool_size = inputs[1]
-        strides = inputs[2]
+        strides = inputs[2] if inputs[2] else pool_size
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
@@ -725,7 +725,7 @@ def _maxpool_3d():
         data = inputs[0]
 
         pool_size = inputs[1]
-        strides = inputs[2]
+        strides = inputs[2] if inputs[2] else pool_size
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
@@ -1175,14 +1175,8 @@ def _avg_pool2d(prelude):
         data = inputs[0]
 
         pool_size = inputs[1]
-
-        if inputs[2]:
-            strides = inputs[2]
-        else:
-            strides = pool_size
-
+        strides = inputs[2] if inputs[2] else pool_size
         padding = inputs[3]
-
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
 
@@ -1206,14 +1200,8 @@ def _avg_pool3d():
         data = inputs[0]
 
         pool_size = inputs[1]
-
-        if inputs[2]:
-            strides = inputs[2]
-        else:
-            strides = pool_size
-
+        strides = inputs[2] if inputs[2] else pool_size
         padding = inputs[3]
-
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
 

@@ -674,6 +674,13 @@ def test_forward_maxpool2d():
                                     stride=2).eval(),
                  input_data)
 
+    # A functional variant (default strides = None case)
+    class MaxPool2D(Module):
+        def forward(self, *args):
+            return torch.nn.functional.max_pool2d(args[0], kernel_size=[10, 10])
+
+    verify_model(MaxPool2D(), input_data=input_data)
+
     class MaxPool2DWithIndices(Module):
         def __init__(self):
             super(MaxPool2DWithIndices, self).__init__()
@@ -700,6 +707,14 @@ def test_forward_maxpool1d():
                                     stride=2).eval(),
                  input_data)
 
+    # A functional variant (default strides = None case)
+    class MaxPool1D(Module):
+        def forward(self, *args):
+            return torch.nn.functional.max_pool1d(args[0], kernel_size=10)
+
+    verify_model(MaxPool1D(), input_data=input_data)
+
+
 @tvm.testing.uses_gpu
 def test_forward_maxpool3d():
     torch.set_grad_enabled(False)
@@ -714,6 +729,14 @@ def test_forward_maxpool3d():
                                     padding=2,
                                     stride=2).eval(),
                  input_data)
+
+    # A functional variant (default strides = None case)
+    class MaxPool3D(Module):
+        def forward(self, *args):
+            return torch.nn.functional.max_pool3d(args[0], kernel_size=[10, 10, 10])
+
+    verify_model(MaxPool3D(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_split():
