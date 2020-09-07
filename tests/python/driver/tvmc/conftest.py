@@ -20,8 +20,6 @@ import tarfile
 
 import tvm.driver.tvmc.compiler
 
-from tensorflow.keras.applications.resnet50 import ResNet50
-
 from tvm.contrib.download import download_testdata
 
 from tvm.driver.tvmc.common import convert_graph_layout
@@ -78,6 +76,13 @@ def pb_mobilenet_v1_1_quant(tmpdir_factory):
 
 @pytest.fixture(scope="session")
 def keras_resnet50(tmpdir_factory):
+    try:
+        from tensorflow.keras.applications.resnet50 import ResNet50
+    except ImportError:
+        # not all environments provide TensorFlow, so skip this fixture
+        # if that is that case.
+        return ""
+
     model_file_name = "{}/{}".format(tmpdir_factory.mktemp("data"), "resnet50.h5")
     model = ResNet50(include_top=True, weights='imagenet', input_shape=(224, 224, 3), classes=1000)
     model.save(model_file_name)
