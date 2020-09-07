@@ -20,52 +20,93 @@ from os import path
 
 import pytest
 
+import tvm
 from tvm.driver import tvmc
 
 
-def test_parse_input_shapes__list_lengths():
-    shape_string = "(1,224,224,3)"
-    sut = tvmc.common.parse_input_shapes(shape_string)
+def test_compile_tflite_module_nhwc_to_nchw(tflite_mobilenet_v1_1_quant):
+    # some CI environments wont offer TFLite, so skip in case it is not present
+    pytest.importorskip('tflite')
 
-    # output is a list with a list [[1, 224, 224, 3]]
-    assert type(sut) is list
-    assert len(sut) == 1
-    assert type(sut[0]) is list
-    assert len(sut[0]) == 4
+    before, _ = tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant)
 
+    expected_layout="NCHW"
+    after = tvmc.common.convert_graph_layout(before, expected_layout)
 
-def test_parse_input_shapes__lists_match():
-    shape_string = "(1,224,224,3)"
-    sut = tvmc.common.parse_input_shapes(shape_string)
+    layout_transform_calls = []
+    def _is_layout_transform(node):
+        if isinstance(node, tvm.relay.expr.Call):
+            layout_transform_calls.append(
+                node.op.name == "layout_transform" \
+                and node.attrs.src_layout == 'NHWC' \
+                and node.attrs.dst_layout == 'NCHW')
 
-    assert sut[0] == [1, 224, 224, 3]
+    tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
 
-
-def test_parse_input_shapes__spaces_are_ignored():
-    shape_string = "(1,  224, 224,   3)"
-    sut = tvmc.common.parse_input_shapes(shape_string)
-
-    assert type(sut) is list
-    assert len(sut) == 1
-    assert type(sut[0]) is list
-    assert len(sut[0]) == 4
+    assert any(layout_transform_calls), "Expected 'layout_transform NHWC->NCHW' not found"
 
 
-def test_parse_input_shapes__missing():
-    shape_string = "(1,224,,3)"
-    with pytest.raises(argparse.ArgumentTypeError) as e:
-        def f():
-            _ = tvmc.common.parse_input_shapes(shape_string)
-        f()
+def test_compile_onnx_module_nchw_to_nhwc(onnx_resnet50):
+    # some CI environments wont offer ONNX, so skip in case it is not present
+    pytest.importorskip('onnx')
 
-    assert 'expected numbers in shape' in str(e.value)
+    before, _ = tvmc.frontends.load_model(onnx_resnet50)
+
+    expected_layout="NHWC"
+    after = tvmc.common.convert_graph_layout(before, expected_layout)
+
+    layout_transform_calls = []
+    def _is_layout_transform(node):
+        if isinstance(node, tvm.relay.expr.Call):
+            layout_transform_calls.append(
+                node.op.name == "layout_transform" \
+                and node.attrs.src_layout == 'NCHW' \
+                and node.attrs.dst_layout == 'NHWC')
+
+    tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
+
+    assert any(layout_transform_calls), "Expected 'layout_transform NCWH->NHWC' not found"
 
 
-def test_parse_input_shapes_no_brackets():
-    shape_string = "1,224,224,3"
-    with pytest.raises(argparse.ArgumentTypeError) as e:
-        def f():
-            _ = tvmc.common.parse_input_shapes(shape_string)
-        f()
+def test_compile_tflite_module__same_layout__nhwc_to_nhwc(tflite_mobilenet_v1_1_quant):
+    # some CI environments wont offer TFLite, so skip in case it is not present
+    pytest.importorskip('tflite')
 
-    assert 'missing brackets around shape' in str(e.value)
+    before, _ = tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant)
+
+    expected_layout="NHWC"
+    after = tvmc.common.convert_graph_layout(before, expected_layout)
+
+    layout_transform_calls = []
+    def _is_layout_transform(node):
+        if isinstance(node, tvm.relay.expr.Call):
+            layout_transform_calls.append(
+                node.op.name == "layout_transform" \
+                and node.attrs.src_layout == 'NHWC' \
+                and node.attrs.dst_layout == 'NHWC')
+
+    tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
+
+    assert not any(layout_transform_calls), "Unexpected 'layout_transform' call"
+
+
+def test_compile_onnx_module__same_layout__nchw_to_nchw(onnx_resnet50):
+    # some CI environments wont offer ONNX, so skip in case it is not present
+    pytest.importorskip('onnx')
+
+    before, _ = tvmc.frontends.load_model(onnx_resnet50)
+
+    expected_layout="NCHW"
+    after = tvmc.common.convert_graph_layout(before, expected_layout)
+
+    layout_transform_calls = []
+    def _is_layout_transform(node):
+        if isinstance(node, tvm.relay.expr.Call):
+            layout_transform_calls.append(
+                node.op.name == "layout_transform" \
+                and node.attrs.src_layout == 'NCHW' \
+                and node.attrs.dst_layout == 'NCHW')
+
+    tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
+
+    assert not any(layout_transform_calls), "Unexpected 'layout_transform' call"

@@ -17,9 +17,6 @@
 """
 Common utility functions shared by TVMC modules.
 """
-import argparse
-import re
-
 from tvm import relay
 from tvm import transform
 
@@ -58,34 +55,10 @@ def convert_graph_layout(mod, desired_layout):
             relay.transform.ConvertLayout(desired_layouts),
         ]
     )
+
     with transform.PassContext(opt_level=3):
-        return seq(mod)
-
-
-def parse_input_shapes(shapes_str):
-    """ Parsing function for tensor shape syntax. """
-    shapes = []
-    # Split up string into comma seperated sections ignoring commas in ()s
-    match = re.findall(r"(\(.*?\)|.+?),?", shapes_str)
-    if match:
-        for inp in match:
-            # Test for and remove brackets
-            shape = re.match(r"\((.*)\)", inp)
-            if shape and shape.lastindex == 1:
-                # Remove white space and extract numbers
-                strshape = shape[1].replace(" ", "").split(",")
-                try:
-                    shapes.append([int(i) for i in strshape])
-                except ValueError:
-                    raise argparse.ArgumentTypeError(
-                        f"expected numbers in shape '{shape[1]}'"
-                    )
-            else:
-                raise argparse.ArgumentTypeError(
-                    f"missing brackets around shape '{inp}', example '(1,2,3)'"
-                )
-    else:
-        raise argparse.ArgumentTypeError(
-            f"unrecognized shapes '{shapes_str}', example '(1,2,3),(1,4),...'"
-        )
-    return shapes
+        try:
+            return seq(mod)
+        except Exception as err:
+            raise TVMCException(
+                "Error converting layout to {0}: {1}".format(desired_layout, str(err)))

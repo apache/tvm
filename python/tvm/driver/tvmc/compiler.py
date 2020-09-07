@@ -44,6 +44,12 @@ def add_compile_parser(subparsers):
         help="the cross compiler to generate target libraries, e.g. 'aarch64-linux-gnu-gcc'",
     )
     parser.add_argument(
+        "--desired-layout",
+        choices=["NCHW", "NHWC"],
+        default=None,
+        help="change the data layout of the whole graph",
+    )
+    parser.add_argument(
         "--dump-code",
         metavar="FORMAT",
         default="",
@@ -51,14 +57,8 @@ def add_compile_parser(subparsers):
     )
     parser.add_argument(
         "--model-format",
-        choices=frontends.get_frontends(),
+        choices=frontends.get_frontend_names(),
         help="specify input model format",
-    )
-    parser.add_argument(
-        "--input-shape",
-        type=common.parse_input_shapes,
-        metavar="INPUT_SHAPE,[INPUT_SHAPE]...",
-        help="for pytorch, e.g. '(1,3,224,224)'",
     )
     parser.add_argument(
         "-o",
@@ -78,19 +78,28 @@ def add_compile_parser(subparsers):
         help="path to an auto-tuning log file from AutoTVM"
     )
     parser.add_argument(
-        "--desired-layout",
-        choices=["NCHW", "NHWC"],
-        default=None,
-        help="change the data layout of the whole graph",
-    )
-    parser.add_argument(
         "-v", "--verbose", action="count", default=0, help="increase verbosity"
     )
-    parser.add_argument("FILE")
+    #TODO (@leandron) This is a path to a physical file, but
+    #     can be improved in future to add integration with a modelzoo
+    #     or URL, for example.
+    parser.add_argument("FILE", help="path to the input model file")
 
 
 def drive_compile(args):
-    """ Invoke tvmc.compiler module with command line arguments """
+    """ Invoke tvmc.compiler module with command line arguments
+
+    Parameters
+    ----------
+    args: argparse.Namespace
+        Arguments from command line parser.
+
+    Returns
+    --------
+    int
+        Zero if successfully completed
+
+    """
 
     graph, lib, params, dumps = compile_model(
         args.FILE,
@@ -98,7 +107,6 @@ def drive_compile(args):
         args.dump_code,
         "",
         args.model_format,
-        args.input_shape,
         args.tuning_records,
         args.tensor_layout,
     )
@@ -113,10 +121,9 @@ def drive_compile(args):
 def compile_model(
         path,
         target,
-        dump_sources=None,
+        dump_code=None,
         target_host=None,
         model_format=None,
-        shapes=None,
         tuning_records=None,
         alter_layout=None,
 ):
@@ -126,58 +133,21 @@ def compile_model(
     and compiler.compile_relay. The resulting TVM module can be executed using
     the graph runtime.
 
-    Returns
-    -------
-    graph : str
-        A JSON-serialized TVM execution graph.
-    lib : tvm.module.Module
-        A TVM module containing the compiled functions.
-    params : dict
-        The parameters (weights) for the TVM module.
-    dumps : dict
-            Dictionary containing the dumps specified.
-
-    """
-    dump_sources = [x.strip() for x in  dump_sources.split(',')] if dump_sources else None
-    mod, params = frontends.load_model(path, model_format, shapes)
-
-    return compile_relay(
-        mod,
-        params,
-        target,
-        dump_sources=dump_sources,
-        target_host=target_host,
-        tuning_records=tuning_records,
-        alter_layout=alter_layout,
-    )
-
-
-def compile_relay(
-        mod,
-        params,
-        target,
-        dump_sources=None,
-        target_host=None,
-        tuning_records=None,
-        alter_layout=None,
-):
-    """Compile a relay module to a TVM module for the graph runtime.
-
     Parameters
     ----------
-    mod : tvm.relay.Module
-        The relay module to compile.
-    params : dict
-        The parameters (weights) for the relay module.
+    path: str
+        Path to a file
     target : str
         The target for which to compile. Can be a plain string or
         a path.
-    dump_sources : list, optional
+    dump_code : list, optional
         Dump the generated code for the specified source types, on
         the requested target.
-    target_host : Union[str, tvm.target.Target], optional
+    target_host : str, optional
         The target of the host machine if host-side code
         needs to be generated.
+    model_format: str, optional
+        A string representing a name of a frontend to be used
     tuning_records: str, optional
         Name of the file produced by the tuning to be used during
         compilation.
@@ -198,6 +168,8 @@ def compile_relay(
         Dictionary containing the dumps specified.
 
     """
+    dump_code = [x.strip() for x in  dump_code.split(',')] if dump_code else None
+    mod, params = frontends.load_model(path, model_format)
 
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)
@@ -207,13 +179,15 @@ def compile_relay(
             logging.info("using target input from file: %s", target)
             target = "".join(target_file.readlines())
 
-    # TODO: We don't have an API to collect a list of supported
-    #       targets yet. (@leandron)
+    # TODO(@leandron) We don't have an API to collect a list of supported
+    #       targets yet
     logging.debug("creating target from input: %s", target)
     tvm_target = tvm.target.create(target)
     target_host = target_host or ""
 
     if tuning_records:
+        # TODO (@leandron) a new PR will introduce the 'tune' subcommand
+        #      the is used to generate the tuning records file
         logging.debug("tuning records file provided: %s", tuning_records)
         with autotvm.apply_history_best(tuning_records):
             with tvm.transform.PassContext(opt_level=3):
@@ -225,9 +199,9 @@ def compile_relay(
             graph_module = relay.build(mod, tvm_target, params=params, target_host=tvm_target)
 
     # Generate output dump files with sources
-    dump_sources = dump_sources or []
+    dump_code = dump_code or []
     dumps = {}
-    for source_type in dump_sources:
+    for source_type in dump_code:
         lib = graph_module.get_lib()
         # TODO lib.get_source call have inconsistent behavior for unsupported
         #      formats (@leandron).
@@ -253,7 +227,7 @@ def save_module(module_path, graph, lib, params, cross=None):
         A TVM module containing the compiled functions.
     params : dict
         The parameters (weights) for the TVM module.
-    cross : Union[str, Callable[[str, str, Optional[str]], None]]
+    cross : str or callable object, optional
         Function that performs the actual compilation
 
     """
@@ -290,13 +264,14 @@ def save_dumps(module_name, dumps, dump_root="."):
 
     Parameters
     ----------
-    module_name : list(Union[str, tvm.target.Target])
-        file name, referring to the module that generated
+    module_name : str
+        File name, referring to the module that generated
         the dump contents
     dumps : dict
-        the output contents to be saved into the files
-    dump_root : str
-        path in which dump files will be created
+        The output contents to be saved into the files
+    dump_root : str, optional
+        Path in which dump files will be created
+
     """
 
     for dump_format in dumps:

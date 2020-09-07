@@ -27,6 +27,9 @@ from abc import ABC
 from abc import abstractmethod
 from pathlib import Path
 
+import numpy as np
+
+from tvm import relay
 from tvm.driver.tvmc.common import TVMCException
 
 
@@ -44,8 +47,22 @@ class Frontend(ABC):
         """File suffixes (extensions) used by this frontend"""
 
     @abstractmethod
-    def load(self, path, shapes):
-        """Load network"""
+    def load(self, path):
+        """Load a model from a given path.
+
+        Parameters
+        ----------
+        path: str
+            Path to a file
+
+        Returns
+        -------
+        mod : tvm.relay.Module
+            The produced relay module.
+        params : dict
+            The parameters (weights) for the relay module.
+
+        """
 
 
 def import_keras():
@@ -75,18 +92,9 @@ class KerasFrontend(Frontend):
     def suffixes():
         return ["h5"]
 
-    def load(self, path, shapes):
-        # pylint: disable=C0415
-        import numpy as np
-        from tvm import relay
-
+    def load(self, path):
         # pylint: disable=C0103
         tf, keras = import_keras()
-
-        if shapes:
-            raise TVMCException(
-                "--input-shape is not supported for {}".format(self.name())
-            )
 
         # tvm build currently imports keras directly instead of tensorflow.keras
         try:
@@ -146,19 +154,11 @@ class OnnxFrontend(Frontend):
     def suffixes():
         return ["onnx"]
 
-    def load(self, path, shapes):
+    def load(self, path):
         # pylint: disable=C0415
         import onnx
-        from tvm import relay
-
-        if shapes:
-            raise TVMCException(
-                "--input-shape is not supported for {}".format(self.name())
-            )
 
         model = onnx.load(path)
-
-        # Find the name and shape of the first input in the graph
 
         # pylint: disable=E1101
         name = model.graph.input[0].name
@@ -183,16 +183,10 @@ class TensorflowFrontend(Frontend):
     def suffixes():
         return ["pb"]
 
-    def load(self, path, shapes):
+    def load(self, path):
         # pylint: disable=C0415
-        from tvm import relay
         import tensorflow as tf
         import tvm.relay.testing.tf as tf_testing
-
-        if shapes:
-            raise TVMCException(
-                "--input-shape is not supported for {}".format(self.name())
-            )
 
         with tf.io.gfile.GFile(path, "rb") as tf_graph:
             content = tf_graph.read()
@@ -229,15 +223,9 @@ class TFLiteFrontend(Frontend):
     def suffixes():
         return ["tflite"]
 
-    def load(self, path, shapes):
+    def load(self, path):
         # pylint: disable=C0415
         import tflite.Model as model
-        from tvm import relay
-
-        if shapes:
-            raise TVMCException(
-                "--input-shape is not supported for {}".format(self.name())
-            )
 
         with open(path, "rb") as tf_graph:
             content = tf_graph.read()
@@ -306,17 +294,15 @@ class PyTorchFrontend(Frontend):
         # Torch Script is a zip file, but can be named pth
         return ["pth", "zip"]
 
-    def load(self, path, shapes):
+    def load(self, path):
         # pylint: disable=C0415
         import torch
-        from tvm import relay
-
-        if not shapes:
-            raise TVMCException(
-                "--input-shape must be specified for {}".format(self.name())
-            )
 
         traced_model = torch.jit.load(path)
+
+        inputs = list(traced_model.graph.inputs())[1:]
+        input_shapes = [inp.type().sizes() for inp in inputs]
+
         traced_model.eval()  # Switch to inference mode
         input_shapes = [
             ("input{}".format(idx), shape) for idx, shape in enumerate(shapes)
@@ -334,19 +320,61 @@ ALL_FRONTENDS = [
 ]
 
 
-def get_frontends():
-    """Return the names of all supported frontends"""
+def get_frontend_names():
+    """Return the names of all supported frontends
+
+    Returns
+    -------
+    list : list of str
+        A list of frontend names as strings
+
+    """
     return [frontend.name() for frontend in ALL_FRONTENDS]
 
 
-def lookup_frontend(name):
+def get_frontend_by_name(name):
+    """
+    This function will try to get a frontend instance, based
+    on the name provided.
+
+    Parameters
+    ----------
+    name : str
+        the name of a given frontend
+
+    Returns
+    -------
+    frontend : tvm.driver.tvmc.Frontend
+        An instance of the frontend that matches with
+        the file extension provided in `path`.
+
+    """
+
     for frontend in ALL_FRONTENDS:
         if name == frontend.name():
             return frontend()
+
     raise TVMCException("unrecognized frontend")
 
 
-def guess_input_language(path):
+def guess_frontend(path):
+    """
+    This function will try to imply which framework is being used,
+    based on the extension of the file provided in the path parameter.
+
+    Parameters
+    ----------
+    path : str
+        The path to the model file.
+
+    Returns
+    -------
+    frontend : tvm.driver.tvmc.Frontend
+        An instance of the frontend that matches with
+        the file extension provided in `path`.
+
+    """
+
     suffix = Path(path).suffix.lower()
     if suffix.startswith("."):
         suffix = suffix[1:]
@@ -355,10 +383,10 @@ def guess_input_language(path):
         if suffix in frontend.suffixes():
             return frontend()
 
-    raise TVMCException("cannot guess input language")
+    raise TVMCException("cannot guess model format")
 
 
-def load_model(path, language=None, shapes=None):
+def load_model(path, model_format=None):
     """Load a model from a supported framework and convert it
     into an equivalent relay representation.
 
@@ -366,8 +394,8 @@ def load_model(path, language=None, shapes=None):
     ----------
     path : str
         The path to the model file.
-    language : str, optional
-        The language of the model file.
+    model_format : str, optional
+        The underlying framework used to create the model.
         If not specified, this will be inferred from the file type.
 
     Returns
@@ -379,11 +407,11 @@ def load_model(path, language=None, shapes=None):
 
     """
 
-    if language is not None:
-        frontend = lookup_frontend(language)
+    if model_format is not None:
+        frontend = get_frontend_by_name(model_format)
     else:
-        frontend = guess_input_language(path)
+        frontend = guess_frontend(path)
 
-    mod, params = frontend.load(path, shapes)
+    mod, params = frontend.load(path)
 
     return mod, params

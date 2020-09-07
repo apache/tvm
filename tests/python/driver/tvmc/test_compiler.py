@@ -40,10 +40,12 @@ def test_save_dumps(tmpdir_factory):
 
 
 def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
+    pytest.importorskip('tflite')
+
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         tflite_mobilenet_v1_1_quant,
         target="llvm",
-        dump_sources="ll",
+        dump_code="ll",
         alter_layout="NCHW",
     )
 
@@ -58,10 +60,12 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
 @pytest.mark.skipif(not shutil.which("aarch64-linux-gnu-gcc"),
     reason="cross-compilation toolchain not installed")
 def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
+    pytest.importorskip('tflite')
+
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         tflite_mobilenet_v1_1_quant,
         target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
-        dump_sources="asm",
+        dump_code="asm",
     )
 
     # check for output types
@@ -72,8 +76,11 @@ def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
 
 
 def test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
+    # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
+    pytest.importorskip('tensorflow')
+
     graph, lib, params, dumps = tvmc.compiler.compile_model(
-        keras_resnet50, target="llvm", dump_sources="ll"
+        keras_resnet50, target="llvm", dump_code="ll"
     )
 
     expected_temp_dir = tmpdir_factory.mktemp("saved_output")
@@ -88,10 +95,13 @@ def test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
 @pytest.mark.skipif(not shutil.which("aarch64-linux-gnu-gcc"),
     reason="cross-compilation toolchain not installed")
 def test_cross_compile_aarch64_keras_module(keras_resnet50):
+    # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
+    pytest.importorskip('tensorflow')
+
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         keras_resnet50,
         target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
-        dump_sources="asm",
+        dump_code="asm",
     )
 
     # check for output types
@@ -107,7 +117,7 @@ def test_compile_onnx_module(onnx_resnet50):
     pytest.importorskip('onnx')
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
-        onnx_resnet50, target="llvm", dump_sources="ll"
+        onnx_resnet50, target="llvm", dump_code="ll"
     )
 
     # check for output types
@@ -128,7 +138,7 @@ def test_cross_compile_aarch64_onnx_module(onnx_resnet50):
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         onnx_resnet50,
         target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
-        dump_sources="asm",
+        dump_code="asm",
     )
 
     # check for output types
