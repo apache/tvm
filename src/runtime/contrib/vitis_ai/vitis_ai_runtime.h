@@ -80,8 +80,6 @@ void Init(const std::string& model_path, const std::string& target);
  private:
   /*! \brief The only subgraph name for this module. */
   std::string symbol_name_;
-  /*! \brief The graph. */
-  std::string graph_json_;
   /*! \brief The required constant names. */
   Array<String> const_names_;
   std::shared_ptr<pyxir::graph::XGraph> xgraph_;
