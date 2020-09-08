@@ -202,8 +202,6 @@ class LocalBuilder(ProgramBuilder):
 class LocalRunner(ProgramRunner):
     """ LocalRunner that uses local CPU/GPU to measures the time cost of programs.
 
-    TODO(FrozenGene): Add cpu cache flush to this runner.
-
     Parameters
     ----------
     timeout : int = 10
@@ -227,6 +225,12 @@ class LocalRunner(ProgramRunner):
         will be automatically increased.
     cooldown_interval : float = 0.0
         The cool down interval between two measurements.
+    enable_cpu_cache_flush: bool = False
+        Whether to flush cache on CPU between repeated measurements.
+        Flushing cache can make the measured latency of one operator closer to
+        its actual latency during end-to-end inference.
+        To make this option effective, the argument `number` should also be set to 1.
+        This is only has effect on CPU task.
     """
 
     def __init__(self,
@@ -234,9 +238,11 @@ class LocalRunner(ProgramRunner):
                  number=3,
                  repeat=1,
                  min_repeat_ms=0,
-                 cooldown_interval=0.0):
+                 cooldown_interval=0.0,
+                 enable_cpu_cache_flush=False):
         self.__init_handle_by_constructor__(
-            _ffi_api.LocalRunner, timeout, number, repeat, min_repeat_ms, cooldown_interval)
+            _ffi_api.LocalRunner, timeout, number, repeat, min_repeat_ms, cooldown_interval,
+            enable_cpu_cache_flush)
 
 
 @tvm._ffi.register_object("auto_scheduler.RPCRunner")
@@ -244,8 +250,6 @@ class RPCRunner(ProgramRunner):
     """ RPCRunner that uses RPC call to measures the time cost of programs on remote devices.
     Or sometime we may need to use RPC even in local running to insulate the thread environment.
     (e.g. running CUDA programs)
-
-    TODO(FrozenGene): Add cpu cache flush to this runner.
 
     Parameters
     ----------
@@ -280,14 +284,20 @@ class RPCRunner(ProgramRunner):
         will be automatically increased.
     cooldown_interval : float = 0.0
         The cool down interval between two measurements.
+    enable_cpu_cache_flush: bool = False
+        Whether to flush cache on CPU between repeated measurements.
+        Flushing cache can make the measured latency of one operator closer to
+        its actual latency during end-to-end inference.
+        To make this option effective, the argument `number` should also be set to 1.
+        This is only has effect on CPU task.
     """
 
     def __init__(self, key, host, port,
                  priority=1, n_parallel=1, timeout=10, number=3, repeat=1,
-                 min_repeat_ms=0, cooldown_interval=0.0):
+                 min_repeat_ms=0, cooldown_interval=0.0, enable_cpu_cache_flush=False):
         self.__init_handle_by_constructor__(
             _ffi_api.RPCRunner, key, host, port, priority, n_parallel, timeout,
-            number, repeat, min_repeat_ms, cooldown_interval)
+            number, repeat, min_repeat_ms, cooldown_interval, enable_cpu_cache_flush)
 
         if check_remote(key, host, port, priority, timeout):
             print("Get devices for measurement successfully!")
@@ -301,8 +311,6 @@ class RPCRunner(ProgramRunner):
 class LocalRPCMeasureContext:
     """ A context wrapper for running RPCRunner locally.
     This will launch a local RPC Tracker and local RPC Server.
-
-    TODO(FrozenGene): Add cpu cache flush to this RPC context.
 
     Parameters
     ----------
@@ -331,10 +339,16 @@ class LocalRPCMeasureContext:
         will be automatically increased.
     cooldown_interval : float = 0.0
         The cool down interval between two measurements.
+    enable_cpu_cache_flush: bool = False
+        Whether to flush cache on CPU between repeated measurements.
+        Flushing cache can make the measured latency of one operator closer to
+        its actual latency during end-to-end inference.
+        To make this option effective, the argument `number` should also be set to 1.
+        This is only has effect on CPU task.
     """
 
     def __init__(self, priority=1, n_parallel=1, timeout=10, number=3, repeat=1,
-                 min_repeat_ms=0, cooldown_interval=0.0):
+                 min_repeat_ms=0, cooldown_interval=0.0, enable_cpu_cache_flush=False):
         ctx = tvm.context("cuda", 0)
         if ctx.exist:
             cuda_arch = "sm_" + "".join(ctx.compute_version.split('.'))
@@ -347,7 +361,7 @@ class LocalRPCMeasureContext:
                              tracker_addr=(self.tracker.host, self.tracker.port))
         self.runner = RPCRunner(device_key, host, self.tracker.port, priority,
                                 n_parallel, timeout, number, repeat,
-                                min_repeat_ms, cooldown_interval)
+                                min_repeat_ms, cooldown_interval, enable_cpu_cache_flush)
         # Wait for the processes to start
         time.sleep(0.5)
 
@@ -507,7 +521,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func='default', verbo
 @tvm._ffi.register_func("auto_scheduler.local_runner.run")
 def local_run(inputs, build_results,
               timeout=10, number=3, repeat=1, min_repeat_ms=0, cooldown_interval=0,
-              verbose=1):
+              enable_cpu_cache_flush=False, verbose=1):
     """
     Run function of LocalRunner to test the performance of the input BuildResults.
 
@@ -538,6 +552,12 @@ def local_run(inputs, build_results,
         will be automatically increased.
     cooldown_interval : float = 0.0
         The cool down interval between two measurements.
+    enable_cpu_cache_flush: bool = False
+        Whether to flush cache on CPU between repeated measurements.
+        Flushing cache can make the measured latency of one operator closer to
+        its actual latency during end-to-end inference.
+        To make this option effective, the argument `number` should also be set to 1.
+        This is only has effect on CPU task.
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program measuring.
 
@@ -555,9 +575,15 @@ def local_run(inputs, build_results,
         try:
             func = module.load_module(build_res.filename)
             ctx = ndarray.context(str(inp.task.target), 0)
-            # TODO(FrozenGene): Add cpu cache flush to this function.
+            # Limitation:
+            # We can not get PackFunction directly in the remote mode as it is wrapped
+            # under the std::function. We could lift the restriction later once we fold
+            # the PackedFunc as an object. Currently, we pass function name to work
+            # around it.
+            f_prepare = 'cache_flush_cpu_non_first_arg' if enable_cpu_cache_flush else ''
             time_f = func.time_evaluator(
-                func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
+                func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms,
+                f_preproc=f_prepare)
         # pylint: disable=broad-except
         except Exception:
             costs = (max_float,)
@@ -566,9 +592,12 @@ def local_run(inputs, build_results,
 
         if error_no == 0:
             try:
-                # TODO(FrozenGene): Update to ndarray.non-empty.
                 args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
                         build_res.args]
+                random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
+                assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
+                for arg in args:
+                    random_fill(arg)
                 ctx.sync()
                 costs = time_f(*args).results
             # pylint: disable=broad-except
@@ -626,7 +655,8 @@ def rpc_run_worker(index):
     """
     global GLOBAL_RUN_ARGUMENTS
     inputs, build_results, key, host, port, priority, timeout, number, \
-        repeat, min_repeat_ms, cooldown_interval, verbose = GLOBAL_RUN_ARGUMENTS
+        repeat, min_repeat_ms, cooldown_interval, enable_cpu_cache_flush, \
+        verbose = GLOBAL_RUN_ARGUMENTS
 
     max_float = 1e10  # We use 1e10 instead of sys.float_info.max for better readability in log
     inp = inputs[index]
@@ -646,9 +676,15 @@ def rpc_run_worker(index):
             remote.upload(build_res.filename)
             func = remote.load_module(os.path.split(build_res.filename)[1])
             ctx = remote.context(str(inp.task.target), 0)
-            # TODO(FrozenGene): Add cpu cache flush to this function.
+            # Limitation:
+            # We can not get PackFunction directly in the remote mode as it is wrapped
+            # under the std::function. We could lift the restriction later once we fold
+            # the PackedFunc as an object. Currently, we pass function name to work
+            # around it.
+            f_prepare = 'cache_flush_cpu_non_first_arg' if enable_cpu_cache_flush else ''
             time_f = func.time_evaluator(
-                func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
+                func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms,
+                f_preproc=f_prepare)
         # pylint: disable=broad-except
         except Exception:
             costs = (max_float,)
@@ -657,9 +693,15 @@ def rpc_run_worker(index):
 
         if error_no == 0:
             try:
-                # TODO(FrozenGene): Update to ndarray.non-empty.
                 args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
                         build_res.args]
+                try:
+                    random_fill = remote.get_function("tvm.contrib.random.random_fill")
+                except AttributeError:
+                    raise AttributeError("Please make sure USE_RANDOM is ON in the config.cmake "
+                                         "on the remote devices")
+                for arg in args:
+                    random_fill(arg)
                 ctx.sync()
 
                 costs = time_f(*args).results
@@ -698,7 +740,7 @@ def rpc_run_worker(index):
 @tvm._ffi.register_func("auto_scheduler.rpc_runner.run")
 def rpc_runner_run(inputs, build_results, key, host, port,
                    priority=1, n_parallel=1, timeout=10, number=3, repeat=1, min_repeat_ms=0,
-                   cooldown_interval=0.0, verbose=1):
+                   cooldown_interval=0.0, enable_cpu_cache_flush=False, verbose=1):
     """ Run function of RPCRunner to test the performance of the input BuildResults.
 
     Parameters
@@ -738,6 +780,12 @@ def rpc_runner_run(inputs, build_results, key, host, port,
         will be automatically increased.
     cooldown_interval : float = 0.0
         The cool down interval between two measurements.
+    enable_cpu_cache_flush: bool = False
+        Whether to flush cache on CPU between repeated measurements.
+        Flushing cache can make the measured latency of one operator closer to
+        its actual latency during end-to-end inference.
+        To make this option effective, the argument `number` should also be set to 1.
+        This is only has effect on CPU task.
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program measuring.
 
@@ -748,7 +796,8 @@ def rpc_runner_run(inputs, build_results, key, host, port,
     """
     global GLOBAL_RUN_ARGUMENTS
     GLOBAL_RUN_ARGUMENTS = (inputs, build_results, key, host, port, priority, timeout, number,
-                            repeat, min_repeat_ms, cooldown_interval, verbose)
+                            repeat, min_repeat_ms, cooldown_interval, enable_cpu_cache_flush,
+                            verbose)
 
     assert len(inputs) == len(build_results), \
         "Measure input size should be equal to build results"
