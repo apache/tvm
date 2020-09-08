@@ -305,7 +305,9 @@ def _slice():
 
             end[dim] = min(end[dim], target_end)
 
-        strides.append(int(inputs[4]))
+        strides = [1] * len(end)
+        strides[dim] = int(inputs[4])
+
         return _op.transform.strided_slice(data,
                                            begin=_expr.const(begin),
                                            end=_expr.const(end),
@@ -683,7 +685,7 @@ def _maxpool_2d():
         data = inputs[0]
 
         pool_size = inputs[1]
-        strides = inputs[2]
+        strides = inputs[2] if inputs[2] else pool_size
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
@@ -706,7 +708,7 @@ def _maxpool_1d():
         data = inputs[0]
 
         pool_size = inputs[1]
-        strides = inputs[2]
+        strides = inputs[2] if inputs[2] else pool_size
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
@@ -723,7 +725,7 @@ def _maxpool_3d():
         data = inputs[0]
 
         pool_size = inputs[1]
-        strides = inputs[2]
+        strides = inputs[2] if inputs[2] else pool_size
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
@@ -1173,14 +1175,8 @@ def _avg_pool2d(prelude):
         data = inputs[0]
 
         pool_size = inputs[1]
-
-        if inputs[2]:
-            strides = inputs[2]
-        else:
-            strides = pool_size
-
+        strides = inputs[2] if inputs[2] else pool_size
         padding = inputs[3]
-
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
 
@@ -1204,14 +1200,8 @@ def _avg_pool3d():
         data = inputs[0]
 
         pool_size = inputs[1]
-
-        if inputs[2]:
-            strides = inputs[2]
-        else:
-            strides = pool_size
-
+        strides = inputs[2] if inputs[2] else pool_size
         padding = inputs[3]
-
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
 
