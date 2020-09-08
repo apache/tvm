@@ -63,7 +63,7 @@ jobs:
         "-DUSE_GRAPH_RUNTIME=ON"
         "-G \"Visual Studio 16 2019\""
         "-DCMAKE_BUILD_TYPE=Release"
-        "-DCMAKE_CONFIGURATION_TYPES=\"Release\"""
+        "-DCMAKE_CONFIGURATION_TYPES=\"Release\""
         ..
 
     # configuration for Mac
