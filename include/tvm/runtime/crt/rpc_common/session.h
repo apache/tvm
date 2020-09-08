@@ -176,6 +176,9 @@ class Session {
    */
   void ClearReceiveBuffer();
 
+  /*! \brief A version number used to check compatibility of the remote session implementation. */
+  static const constexpr uint8_t kVersion = 0x01;
+
  private:
   class SessionReceiver : public WriteStream {
    public:

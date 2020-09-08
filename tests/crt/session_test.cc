@@ -19,7 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <tvm/runtime/crt/memory.h>
-#include <tvm/runtime/crt/rpc_common/buffer.h>
+#include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/session.h>
 
 #include <string>
@@ -29,13 +29,13 @@
 #include "crt_config.h"
 #include "platform.cc"
 
-using ::tvm::runtime::Framer;
-using ::tvm::runtime::MessageType;
-using ::tvm::runtime::Session;
-using ::tvm::runtime::Unframer;
+using ::tvm::runtime::micro_rpc::Framer;
+using ::tvm::runtime::micro_rpc::MessageType;
+using ::tvm::runtime::micro_rpc::Session;
+using ::tvm::runtime::micro_rpc::Unframer;
 
 extern "C" {
-void TestSessionMessageReceivedThunk(void* context, MessageType message_type, Buffer* buf);
+void TestSessionMessageReceivedThunk(void* context, MessageType message_type, FrameBuffer* buf);
 }
 
 class ReceivedMessage {
@@ -81,7 +81,7 @@ class TestSession {
   BufferWriteStream<300> framer_write_stream;
   Framer framer;
   uint8_t receive_buffer_array[300];
-  Buffer receive_buffer;
+  FrameBuffer receive_buffer;
   Session sess;
   Unframer unframer;
 };
@@ -91,7 +91,7 @@ class TestSession {
             (session).framer_write_stream.BufferContents());
 
 extern "C" {
-void TestSessionMessageReceivedThunk(void* context, MessageType message_type, Buffer* buf) {
+void TestSessionMessageReceivedThunk(void* context, MessageType message_type, FrameBuffer* buf) {
   std::string message;
   if (message_type != MessageType::kStartSessionReply) {
     uint8_t message_buf[300];
@@ -145,13 +145,13 @@ TEST_F(SessionTest, NormalExchange) {
 
   err = alice_.sess.StartSession();
   EXPECT_EQ(err, kTvmErrorNoError);
-  EXPECT_FRAMED_PACKET(alice_, "\xff\xfd\x03\0\0\0\x82\0\0\x1E\x2");
+  EXPECT_FRAMED_PACKET(alice_, "\xff\xfd\x04\0\0\0\x82\0\0\x01{\xE9");
 
   bob_.ClearBuffers();
   alice_.WriteTo(&bob_);
   EXPECT_FRAMED_PACKET(bob_,
-                       "\xff\xfd\x3\0\0\0\x82"
-                       "f\x01\xb3\xb3");
+                       "\xff\xfd\x4\0\0\0\x82"
+                       "f\x01\x01\x81\xf3");
   EXPECT_TRUE(bob_.sess.IsEstablished());
 
   bob_.WriteTo(&alice_);
@@ -208,7 +208,7 @@ TEST_F(SessionTest, LogBeforeSessionStart) {
   EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kLog, "zero"));
 }
 
-static constexpr const char kBobStartPacket[] = "\xff\xfd\x03\0\0\0f\0\0\xef~";
+static constexpr const char kBobStartPacket[] = "\xff\xfd\x04\0\0\0f\0\0\x01`\xa7";
 
 TEST_F(SessionTest, DoubleStart) {
   tvm_crt_error_t err;
@@ -230,7 +230,7 @@ TEST_F(SessionTest, DoubleStart) {
   alice_.ClearBuffers();
 
   EXPECT_EQ(kTvmErrorNoError, alice_.sess.StartSession());
-  EXPECT_FRAMED_PACKET(alice_, "\xff\xfd\x03\0\0\0\x82\0\0\x1E\x2");
+  EXPECT_FRAMED_PACKET(alice_, "\xff\xfd\x04\0\0\0\x82\0\0\x01{\xe9");
   EXPECT_FALSE(alice_.sess.IsEstablished());
 
   EXPECT_EQ(kTvmErrorNoError, bob_.sess.StartSession());
@@ -250,7 +250,7 @@ TEST_F(SessionTest, DoubleStart) {
             alice_.unframer.Write(reinterpret_cast<const uint8_t*>(kBobStartPacket),
                                   sizeof(kBobStartPacket), &bytes_consumed));
   EXPECT_EQ(bytes_consumed, sizeof(kBobStartPacket));
-  EXPECT_FRAMED_PACKET(alice_, "\xFF\xFD\x3\0\0\0fE\x01\xF7\x9c");
+  EXPECT_FRAMED_PACKET(alice_, "\xFF\xFD\x4\0\0\0fE\x01\x01\fb");
   EXPECT_TRUE(alice_.sess.IsEstablished());
 
   bob_.ClearBuffers();

@@ -19,7 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <tvm/runtime/crt/memory.h>
-#include <tvm/runtime/crt/rpc_common/buffer.h>
+#include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
 
 #include <string>
@@ -29,10 +29,10 @@
 #include "crt_config.h"
 #include "platform.cc"
 
-using ::tvm::runtime::Buffer;
-using ::tvm::runtime::Escape;
-using ::tvm::runtime::Framer;
-using ::tvm::runtime::Unframer;
+using ::tvm::runtime::micro_rpc::Escape;
+using ::tvm::runtime::micro_rpc::FrameBuffer;
+using ::tvm::runtime::micro_rpc::Framer;
+using ::tvm::runtime::micro_rpc::Unframer;
 
 class FramerTest : public ::testing::Test {
  protected:

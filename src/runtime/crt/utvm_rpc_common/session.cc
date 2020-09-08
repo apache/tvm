@@ -31,6 +31,10 @@ namespace tvm {
 namespace runtime {
 namespace micro_rpc {
 
+struct utvm_session_start_payload_t {
+  uint8_t version;
+};
+
 void Session::RegenerateNonce() {
   local_nonce_ = (((local_nonce_ << 5) | (local_nonce_ >> 5)) + 1);
 
@@ -81,7 +85,8 @@ tvm_crt_error_t Session::StartSession() {
 
   RegenerateNonce();
   SetSessionId(local_nonce_, 0);
-  tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionInit, nullptr, 0);
+  utvm_session_start_payload_t payload = {Session::kVersion};
+  tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionInit, reinterpret_cast<uint8_t*>(&payload), sizeof(payload));
   if (to_return == 0) {
     state_ = State::kStartSessionSent;
   }
@@ -130,7 +135,6 @@ void Session::SessionReceiver::PacketDone(bool is_valid) {
   if (bytes_read != sizeof(header)) {
     return;
   }
-
   session_->receive_buffer_has_complete_message_ = true;
 
   switch (header.message_type) {
@@ -174,7 +178,8 @@ void Session::ClearReceiveBuffer() {
 void Session::SendSessionStartReply(const SessionHeader& header) {
   RegenerateNonce();
   SetSessionId(InitiatorNonce(header.session_id), local_nonce_);
-  tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionReply, nullptr, 0);
+  utvm_session_start_payload_t payload = {Session::kVersion};
+  tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionReply, reinterpret_cast<uint8_t*>(&payload), sizeof(payload));
   state_ = State::kSessionEstablished;
   CHECK_EQ(to_return, kTvmErrorNoError, "SendSessionStartReply");
   OnSessionEstablishedMessage();
@@ -182,6 +187,12 @@ void Session::SendSessionStartReply(const SessionHeader& header) {
 
 void Session::ProcessStartSessionInit(const SessionHeader& header) {
   if (InitiatorNonce(header.session_id) == kInvalidNonce) {
+    return;
+  }
+
+  utvm_session_start_payload_t payload;
+  int bytes_read = receive_buffer_->Read(reinterpret_cast<uint8_t*>(&payload), sizeof(payload));
+  if (bytes_read != sizeof(payload)) {
     return;
   }
 
@@ -195,7 +206,9 @@ void Session::ProcessStartSessionInit(const SessionHeader& header) {
     case State::kStartSessionSent:
       // When two StartSessionInit packets sent simultaneously: lowest nonce wins; ties retry.
       if (InitiatorNonce(header.session_id) < local_nonce_) {
-        SendSessionStartReply(header);
+        if (payload.version == Session::kVersion) {
+          SendSessionStartReply(header);
+        }
       } else if (InitiatorNonce(header.session_id) == local_nonce_) {
         StartSession();
       }
@@ -217,12 +230,19 @@ void Session::ProcessStartSessionReply(const SessionHeader& header) {
     return;
   }
 
+  utvm_session_start_payload_t payload;
+  int bytes_read = receive_buffer_->Read(reinterpret_cast<uint8_t*>(&payload), sizeof(payload));
+  if (bytes_read != sizeof(payload)) {
+    return;
+  }
+
   switch (state_) {
     case State::kReset:
     case State::kNoSessionEstablished:
       break;
     case State::kStartSessionSent:
-      if (InitiatorNonce(header.session_id) == local_nonce_) {
+      if (InitiatorNonce(header.session_id) == local_nonce_ &&
+          payload.version == Session::kVersion) {
         SetSessionId(local_nonce_, ResponderNonce(header.session_id));
         state_ = State::kSessionEstablished;
         OnSessionEstablishedMessage();
@@ -231,7 +251,12 @@ void Session::ProcessStartSessionReply(const SessionHeader& header) {
     case State::kSessionEstablished:
       if (InitiatorNonce(header.session_id) != kInvalidNonce &&
           ResponderNonce(header.session_id) == kInvalidNonce) {
-        SendSessionStartReply(header);
+        if (payload.version == Session::kVersion) {
+          SendSessionStartReply(header);
+        } else {
+          SetSessionId(local_nonce_, 0);
+          state_ = State::kReset;
+        }
       } else {
         state_ = State::kReset;
       }

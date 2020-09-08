@@ -21,11 +21,11 @@
 #define TESTS_CRT_BUFFER_WRITE_STREAM_H_
 
 #include <inttypes.h>
-#include <tvm/runtime/crt/rpc_common/buffer.h>
+#include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/write_stream.h>
 
-using ::tvm::runtime::Buffer;
-using ::tvm::runtime::WriteStream;
+using ::tvm::runtime::micro_rpc::FrameBuffer;
+using ::tvm::runtime::micro_rpc::WriteStream;
 
 template <unsigned int N>
 class BufferWriteStream : public WriteStream {
@@ -57,7 +57,7 @@ class BufferWriteStream : public WriteStream {
   bool packet_done_{false};
   bool is_valid_{false};
   uint8_t buffer_data_[N];
-  Buffer buffer_{buffer_data_, N};
+  FrameBuffer buffer_{buffer_data_, N};
 };
 
 #endif  // TESTS_CRT_BUFFER_WRITE_STREAM_H_
