@@ -870,8 +870,7 @@ def test_tensor_array_unstack():
     run('int32')
 
 
-# TODO(tvm-team) Stuck during lowering
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_tensor_take():
     def run(dtype):
         mod = tvm.IRModule()
@@ -985,8 +984,7 @@ def test_tensor_array_scatter():
     run('int32')
 
 
-# TODO(tvm-team) Stuck during lowering
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_tensor_array_split():
     def run(dtype):
         mod = tvm.IRModule()

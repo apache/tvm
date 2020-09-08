@@ -164,7 +164,7 @@ class ContextAnalyzer : public MixedModeVisitor {
  public:
   ContextAnalyzer(const IRModule& mod, const GlobalVar& current_func,
                   const TVMContext& default_context)
-      : MixedModeVisitor(99),  // the number repeated visits a node can perform
+      : MixedModeVisitor(19),  // the number repeated visits a node can perform
         mod_(mod),
         current_func_(current_func),
         default_context_(default_context) {
@@ -636,7 +636,7 @@ class ContextAnalyzer : public MixedModeVisitor {
     auto glb_var = it->second;
     CHECK(mod_.defined()) << "Cannot analyze context on a globalvar without module";
     Function func = Downcast<Function>(mod_->Lookup(glb_var));
-    // Unify the underlying function for clousre or currying funcitons.
+    // Unify the underlying function for clousre or currying functions.
     while (IsClosure(func) || IsCurrying(func)) {
       device = Unify(device, DeviceFor(func));
       if (IsClosure(func)) {
@@ -645,7 +645,7 @@ class ContextAnalyzer : public MixedModeVisitor {
         Let let = Downcast<Let>(func->body);
         func = Downcast<Function>(mod_->Lookup(closures_[let->var]));
       } else {
-        LOG(FATAL) << "func is expected to be a closure or a currying funciton";
+        LOG(FATAL) << "func is expected to be a closure or a currying function";
       }
     }
 

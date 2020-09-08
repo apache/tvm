@@ -40,7 +40,6 @@ def check_result(args, mod, expected, flatten=False, assert_shape=False,
             if kind == "debug" and (only_vm or ctx.device_type !=
                                     tvm.cpu().device_type):
                 continue
-            print(tgt)
             ex = relay.create_executor(kind, mod=mod, ctx=ctx, target=tgt)
             result = ex.evaluate()(*args)
             result = result.asnumpy()
