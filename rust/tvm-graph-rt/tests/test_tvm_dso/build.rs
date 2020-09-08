@@ -19,16 +19,22 @@
 
 use std::{env, path::Path, process::Command};
 
+use anyhow::{Result, Context};
+
 fn main() -> Result<()> {
     let out_dir = env::var("OUT_DIR").unwrap();
 
-    let output = Command::new(concat!(
+    let exe = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/build_test_lib.py"
-    ))
+    );
+
+    let output = Command::new(exe)
     .arg(&out_dir)
     .output()
-    .expect("Failed to execute command");
+    .with_context(|| {
+        anyhow::anyhow!("Failed to execute: {} {}", exe, &out_dir)
+    })?;
 
     assert!(
         Path::new(&format!("{}/test.so", out_dir)).exists(),
@@ -40,4 +46,6 @@ fn main() -> Result<()> {
             .last()
             .unwrap_or("")
     );
+
+    Ok(())
 }
