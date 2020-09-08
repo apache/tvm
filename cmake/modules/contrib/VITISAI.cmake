@@ -36,7 +36,7 @@ if(USE_VITIS_AI)
     endif()
 
   else()
-  message(STATUS "To find Pyxir, Python interpreter is required to be found.")
+    message(STATUS "To find Pyxir, Python interpreter is required to be found.")
 endif()
 
 message(STATUS "Build with contrib.vitisai")
