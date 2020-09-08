@@ -116,8 +116,8 @@ PackedFunc VitisAIRuntime::GetFunction(const std::string& name,
         this->initialized_ = true;
         *rv = 0;
       });
-    } else {
-       return PackedFunc(
+    } else if (this->symbol_name_ == name) {
+      return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         DLTensor* inputs = args[0];
         std::vector<ssize_t> in_shape;
@@ -141,7 +141,9 @@ PackedFunc VitisAIRuntime::GetFunction(const std::string& name,
         // Execute the subgraph.
         rt_mod_->execute(in_tensors, out_tensors);
         });
-      }
+      } else {
+	      return PackedFunc();
+     }
   }
 }  // namespace runtime
 }  // namespace tvm
