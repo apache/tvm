@@ -3168,9 +3168,11 @@ bool AdvIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
   CHECK_EQ(num_inputs, 1);
   auto inputs = types[0].as<TupleTypeNode>();
-  CHECK(inputs != nullptr);
   auto data = inputs->fields[0].as<TensorTypeNode>();
-  CHECK(data != nullptr);
+
+  if (inputs == nullptr || data == nullptr) {
+    return false;
+  }
 
   Array<IndexExpr> oshape;
   Array<IndexExpr> broadcast_shape;
@@ -3181,7 +3183,9 @@ bool AdvIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   } else {
     for (size_t i = 1; i < inputs->fields.size(); ++i) {
       auto index_type = inputs->fields[i].as<TensorTypeNode>();
-      CHECK(index_type != nullptr);
+      if (index_type == nullptr) {
+        return false;
+      }
       CHECK(index_type->dtype.is_int()) << "indices must be tensor of integers";
 
       int64_t flatten_len = 1;

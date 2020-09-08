@@ -904,11 +904,7 @@ def test_any_adv_index():
     np_data = np.random.uniform(size=np_data_shape).astype('float32')
     np_index = np.random.uniform(0, np_data_shape[0], size=np_index_shape).astype('int64')
     ref_res = np_data[tuple([np_index, np_index])]
-
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(np_data, np_index, np_index)
-        tvm.testing.assert_allclose(result.asnumpy(), ref_res)
+    check_result([np_data, np_index, np_index], mod, ref_res)
 
 
 if __name__ == "__main__":
