@@ -114,19 +114,15 @@ Hardware setup and docker build
 3. Download the latest Vitis AI Docker with the following command. This container runs on CPU.
 
    .. code:: bash
-   
-   
+      
       docker pull xilinx/vitis-ai:latest
     
    To accelerate the quantization, you can optionally use the Vitis-AI GPU docker image. Use the below commands to build the Vitis-AI GPU docker container:
    
-    
    .. code:: bash
-    
-    
-    cd Vitis-AI/docker
-    ./docker_build_gpu.sh
 
+      cd Vitis-AI/docker
+      ./docker_build_gpu.sh
 
 4. Set up Vitis AI to target Alveo cards. To target Alveo cards with
    Vitis AI for machine learning workloads, you must install the
@@ -154,8 +150,7 @@ Hardware setup and docker build
 5. Clone tvm repo and pyxir repo
 
    .. code:: bash
-   
-   
+     
       git clone --recursive https://github.com/apache/incubator-tvm.git
       git clone --recursive https://github.com/Xilinx/pyxir.git
    
@@ -182,7 +177,6 @@ Hardware setup and docker build
 8. Build TVM inside the container with Vitis-AI
 
    .. code:: bash
-
 
       cd incubator-tvm
       mkdir build
@@ -259,7 +253,6 @@ Host setup and docker build
 3. Install PyXIR
 
    .. code:: bash
-
 
       git clone --recursive https://github.com/Xilinx/pyxir.git
       cd pyxir
@@ -348,13 +341,12 @@ interface between TVM and Vitis-AI tools.
 
    .. code:: bash:
 
-
       apt-get install libhdf5-dev
       pip3 install pydot h5py
+      
 2. Install PyXIR
 
    .. code:: bash:
-
 
       git clone --recursive https://github.com/Xilinx/pyxir.git
       cd pyxir
@@ -363,7 +355,6 @@ interface between TVM and Vitis-AI tools.
 3. Build TVM with Vitis-AI
 
    .. code:: bash:
-
 
       git clone --recursive https://github.com/apache/incubator-tvm
       cd incubator-tvm
@@ -441,7 +432,7 @@ used by TVM to integrate with the Vitis-AI stack. Additionaly, import
 the typical TVM and Relay modules and the Vitis-AI contrib module inside
 TVM.
 
-.. code:: bash
+.. code:: python
 
    import pyxir
    import pyxir.contrib.target.DPUCADX8G
@@ -456,7 +447,7 @@ After importing a convolutional neural network model using the usual
 Relay API's, annotate the Relay expression for the given Vitis-AI DPU
 target and partition the graph.
 
-.. code:: bash
+.. code:: python
 
    mod["main"] = bind_params_by_name(mod["main"], params)
    mod = annotation(mod, params, target)
@@ -469,7 +460,7 @@ are executed on the CPU. The Vitis-AI target is DPUCADX8G as we are
 targeting the cloud DPU and this target is passed as a config to the TVM
 build call.
 
-.. code:: bash
+.. code:: python
 
    tvm_target = 'llvm'
    target='DPUCADX8G'
@@ -487,7 +478,7 @@ iterations, computations will be accelerated on the DPU. So now we will
 feed N inputs to the TVM runtime module. Note that these first N inputs
 will take a substantial amount of time.
 
-.. code:: bash:
+.. code:: python
 
    module = tvm.contrib.graph_runtime.create(graph, lib, tvm.cpu())
    module.set_input(**params)
@@ -501,14 +492,14 @@ will take a substantial amount of time.
 
 Afterwards, inference will be accelerated on the DPU.
 
-.. code:: bash
+.. code:: python
 
    module.set_input(name, data)
    module.run()
 
 To save and load the built module, one can use the typical TVM API's:
 
-.. code:: bash
+.. code:: python
 
    # save the graph, lib and params into separate files
    from tvm.contrib import util
@@ -523,7 +514,7 @@ To save and load the built module, one can use the typical TVM API's:
 
 Load the module from compiled files and run inference
 
-.. code:: bash
+.. code:: python
 
    # load the module into memory
    loaded_json = open(temp.relpath("deploy_graph.json")).read()
@@ -552,7 +543,7 @@ used by TVM to integrate with the Vitis-AI stack. Additionaly, import
 the typical TVM and Relay modules and the Vitis-AI contrib module inside
 TVM.
 
-.. code:: bash
+.. code:: python
 
    import pyxir
    import pyxir.contrib.target.DPUCZDX8G
@@ -567,7 +558,7 @@ After importing a convolutional neural network model using the usual
 Relay API's, annotate the Relay expression for the given Vitis-AI DPU
 target and partition the graph.
 
-.. code:: bash
+.. code:: python
 
    mod["main"] = bind_params_by_name(mod["main"], params)
    mod = annotation(mod, params, target)
@@ -582,7 +573,7 @@ on the ZCU104 board and this target is passed as a config to the TVM
 build call. Note that different identifiers can be passed for different
 targets, see `edge targets info <#edge-requirements>`__.
 
-.. code:: bash
+.. code:: python
 
    tvm_target = 'llvm'
    target='DPUCZDX8G-zcu104'
@@ -593,10 +584,9 @@ targets, see `edge targets info <#edge-requirements>`__.
 Additionaly, already build the deployment module for the ARM CPU target
 and serialize:
 
-.. code:: bash
+.. code:: python
 
    # Export lib for aarch64 target
-
    tvm_target = tvm.target.arm_cpu('ultra96')
    lib_kwargs = {
         'fcompile': contrib.cc.create_shared,
@@ -623,7 +613,7 @@ quantize the model on the host using N inputs. After providing N inputs
 we can then move the TVM and Vitis-AI build files to the edge device for
 deployment.
 
-.. code:: bash
+.. code:: python
 
    module = tvm.contrib.graph_runtime.create(graph, lib, tvm.cpu())
    module.set_input(**params)
@@ -658,7 +648,7 @@ directory using the PX\_BUILD\_DIR environment variable.
 Then load the TVM runtime module into memory and feed inputs for
 inference.
 
-.. code:: bash
+.. code:: python
 
    # load the module into memory
    loaded_json = open(temp.relpath("tvm_dpu_arm.json")).read()
