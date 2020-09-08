@@ -276,6 +276,8 @@ class ProgramRunnerNode : public Object {
   int min_repeat_ms;
   /*! \brief The cool down interval between two measurements. */
   double cooldown_interval;
+  /*! \brief Whether to flush cache on CPU between repeated measurements. */
+  bool enable_cpu_cache_flush;
 
   /*!
    * \brief Run measurement and return results.
@@ -358,8 +360,10 @@ class LocalRunner : public ProgramRunner {
    * \param repeat The number of times to repeat the measurement.
    * \param min_repeat_ms The minimum duration of one repeat in milliseconds.
    * \param cooldown_interval The cool down interval between two measurements.
+   * \param enable_cpu_cache_flush Whether to flush cache on CPU between repeated measurements.
    */
-  LocalRunner(int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval);
+  LocalRunner(int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval,
+              bool enable_cpu_cache_flush);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LocalRunner, ProgramRunner, LocalRunnerNode);
 };
@@ -408,9 +412,11 @@ class RPCRunner : public ProgramRunner {
    * \param repeat The number of times to repeat the measurement.
    * \param min_repeat_ms The minimum duration of one repeat in milliseconds.
    * \param cooldown_interval The cool down interval between two measurements.
+   * \param enable_cpu_cache_flush Whether to flush cache on CPU between repeated measurements.
    */
   RPCRunner(const String& key, const String& host, int port, int priority, int n_parallel,
-            int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval);
+            int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval,
+            bool enable_cpu_cache_flush);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RPCRunner, ProgramRunner, RPCRunnerNode);
 };
