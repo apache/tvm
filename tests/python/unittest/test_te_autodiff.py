@@ -171,6 +171,10 @@ def test_basic_operation():
     check_grad(Y, X)
 
 
+    X = te.placeholder((3,3), name='X')
+    Y = topi.einsum("ii->i", (X))
+    check_grad(Y, X)
+
 def test_topi():
     X = te.placeholder((1, 2, 4, 4), name="X")
     W = te.placeholder((5, 2, 3, 3), name="W")

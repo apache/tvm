@@ -32,11 +32,11 @@
 #include <tvm/topi/tags.h>
 
 #include <algorithm>
+#include <bitset>
 #include <iterator>
 #include <string>
 #include <unordered_set>
 #include <vector>
-#include <bitset>
 
 namespace tvm {
 namespace topi {
@@ -44,6 +44,13 @@ namespace topi {
 using namespace tvm::te;
 using namespace topi::detail;
 
+/*!
+ * \brief Compute the stride of the given shape.
+ *
+ * \param shape for the operation.
+ *
+ * \return the stride of the shape.
+ */
 inline Array<PrimExpr> GetStride(const Array<PrimExpr> shape) {
   size_t ndim = shape.size();
   int prod = 1;
@@ -55,7 +62,15 @@ inline Array<PrimExpr> GetStride(const Array<PrimExpr> shape) {
   return stride;
 }
 
-inline Array<PrimExpr> pad(const Array<PrimExpr> shape, int odim) {
+/*!
+ * \brief Pad the shape with 1.
+ *
+ * \param shape the input shape to be padded
+ * \param odim the padding size of the objective shape.
+ *
+ * \return the padded shape.
+ */
+inline Array<PrimExpr> Pad(const Array<PrimExpr> shape, int odim) {
   int ndim = shape.size();
   CHECK_GE(odim, ndim);
   Array<PrimExpr> ret(static_cast<size_t>(odim), 1);
@@ -65,9 +80,26 @@ inline Array<PrimExpr> pad(const Array<PrimExpr> shape, int odim) {
   return ret;
 }
 
-inline int ParseOperandSubscripts(const char *subscripts, int length,
-                                    int ndim, int iop, char *op_labels,
-                                    char *label_counts, int *min_label, int *max_label) {
+/*!
+ * \brief Parse the subscripts for one operand into an output of 'ndim' labels.
+ *
+ * \param subscripts the subscripts for to be parsed.
+ * \param length subscripts[0: length] represents the current operand.
+ * \param ndim the ndim of current operand.
+ * \param iop the index of the operand.
+ * \param op_labels the parsing result.
+ *        For Example:
+ *           subscripts="abbcbc",  ndim=6 -> op_labels=[97, 98, -1, 99, -3, -2].
+ *           subscripts="ab...bc", ndim=6 -> op_labels=[97, 98, 0, 0, -3, 99].
+ * \param label_counts Count the number the label appears.
+ * \param min_label Save the minimal label according to ASCII.
+ * \param max_label Save the maximal label according to ASCII.
+ *
+ * \return 0.
+ */
+inline int ParseOperandSubscripts(const char* subscripts, int length, int ndim, int iop,
+                                  char* op_labels, char* label_counts, int* min_label,
+                                  int* max_label) {
   int i;
   int idim = 0;
   int ellipsis = -1;
@@ -79,10 +111,8 @@ inline int ParseOperandSubscripts(const char *subscripts, int length,
     /* A proper label for an axis. */
     if (label > 0 && isalpha(label)) {
       /* Check we don't exceed the operator dimensions. */
-      CHECK(idim < ndim)
-        << "einstein sum subscripts string contains "
-        << "too many subscripts for operand "
-        << iop;
+      CHECK(idim < ndim) << "einstein sum subscripts string contains "
+                         << "too many subscripts for operand " << iop;
 
       op_labels[idim++] = label;
       if (label < *min_label) {
@@ -95,29 +125,26 @@ inline int ParseOperandSubscripts(const char *subscripts, int length,
     } else if (label == '.') {
       /* The beginning of the ellipsis. */
       /* Check it's a proper ellipsis. */
-      CHECK(!(ellipsis != -1 || i + 2 >= length
-              || subscripts[++i] != '.' || subscripts[++i] != '.'))
-        << "einstein sum subscripts string contains a "
-        << "'.' that is not part of an ellipsis ('...') "
-        << "in operand "
-        << iop;
+      CHECK(
+          !(ellipsis != -1 || i + 2 >= length || subscripts[++i] != '.' || subscripts[++i] != '.'))
+          << "einstein sum subscripts string contains a "
+          << "'.' that is not part of an ellipsis ('...') "
+          << "in operand " << iop;
 
       ellipsis = idim;
     } else {
-        CHECK(label == ' ')
-          << "invalid subscript '" << static_cast<char>(label)
-          << "' in einstein sum "
-          << "subscripts string, subscripts must "
-          << "be letters";
+      CHECK(label == ' ') << "invalid subscript '" << static_cast<char>(label)
+                          << "' in einstein sum "
+                          << "subscripts string, subscripts must "
+                          << "be letters";
     }
   }
 
   /* No ellipsis found, labels must match dimensions exactly. */
   if (ellipsis == -1) {
-    CHECK(idim == ndim)
-      << "operand has more dimensions than subscripts "
-      << "given in einstein sum, but no '...' ellipsis "
-      << "provided to broadcast the extra dimensions.";
+    CHECK(idim == ndim) << "operand has more dimensions than subscripts "
+                        << "given in einstein sum, but no '...' ellipsis "
+                        << "provided to broadcast the extra dimensions.";
   } else if (idim < ndim) {
     /* Ellipsis found, may have to add broadcast dimensions. */
     /* Move labels after ellipsis to the end. */
@@ -143,7 +170,7 @@ inline int ParseOperandSubscripts(const char *subscripts, int length,
     /* If it is a proper label, find any duplicates of it. */
     if (label > 0) {
       /* Search for the next matching label. */
-      char *next = reinterpret_cast<char*>(memchr(op_labels + idim + 1, label, ndim - idim - 1));
+      char* next = reinterpret_cast<char*>(memchr(op_labels + idim + 1, label, ndim - idim - 1));
 
       while (next != nullptr) {
         /* The offset from next to op_labels[idim] (negative). */
@@ -156,9 +183,21 @@ inline int ParseOperandSubscripts(const char *subscripts, int length,
   return 0;
 }
 
-inline int ParseOutputSubscripts(const char *subscripts, int length,
-                                   int ndim_broadcast,
-                                   const char *label_counts, char *out_labels) {
+/*!
+ * \brief Parse the subscripts for the output into an output that includes 'ndim_broadcast'
+ *        unlabeled dimensions.
+ *
+ * \param subscripts the subscripts for to be parsed.
+ * \param length subscripts[0: length] represents the output operand.
+ * \param ndim_broadcast the broadcast dimension number.
+ * \param label_counts Count the number the label appears.
+ * \param out_labels similar to the op_labels in ParseOperandSubscripts, for each
+ *        dimension, the ASCII code of the corresponding label. zero for the broadcasting dim.
+ *
+ * \return the total number of output dimensions or -1 if there is an error.
+ */
+inline int ParseOutputSubscripts(const char* subscripts, int length, int ndim_broadcast,
+                                 const char* label_counts, char* out_labels) {
   int i, bdim;
   int ndim = 0;
   int ellipsis = 0;
@@ -171,63 +210,68 @@ inline int ParseOutputSubscripts(const char *subscripts, int length,
     if (label > 0 && isalpha(label)) {
       /* Check that it doesn't occur again. */
       CHECK(memchr(subscripts + i + 1, label, length - i - 1) == nullptr)
-        << "einstein sum subscripts string includes "
-        << "output subscript '" << static_cast<char>(label)
-        << "' multiple times";
+          << "einstein sum subscripts string includes "
+          << "output subscript '" << static_cast<char>(label) << "' multiple times";
 
       /* Check that it was used in the inputs. */
       CHECK(label_counts[label] != 0)
-        << "einstein sum subscripts string included "
-        << "output subscript '" << static_cast<char>(label)
-        << "' which never appeared "
-        << "in an input";
+          << "einstein sum subscripts string included "
+          << "output subscript '" << static_cast<char>(label) << "' which never appeared "
+          << "in an input";
 
       /* Check that there is room in out_labels for this label. */
-      CHECK(ndim < 16)
-        << "einstein sum subscripts string contains "
-        << "too many subscripts in the output";
+      CHECK(ndim < 16) << "einstein sum subscripts string contains "
+                       << "too many subscripts in the output";
 
       out_labels[ndim++] = label;
     } else if (label == '.') {
       /* The beginning of the ellipsis. */
       /* Check it is a proper ellipsis. */
-      CHECK(!(ellipsis || i + 2 >= length
-              || subscripts[++i] != '.' || subscripts[++i] != '.'))
-        << "einstein sum subscripts string "
-        << "contains a '.' that is not part of "
-        << "an ellipsis ('...') in the output";
+      CHECK(!(ellipsis || i + 2 >= length || subscripts[++i] != '.' || subscripts[++i] != '.'))
+          << "einstein sum subscripts string "
+          << "contains a '.' that is not part of "
+          << "an ellipsis ('...') in the output";
 
       /* Check there is room in out_labels for broadcast dims. */
-      CHECK(ndim + ndim_broadcast <= 16)
-        << "einstein sum subscripts string contains "
-        << "too many subscripts in the output";
+      CHECK(ndim + ndim_broadcast <= 16) << "einstein sum subscripts string contains "
+                                         << "too many subscripts in the output";
 
       ellipsis = 1;
       for (bdim = 0; bdim < ndim_broadcast; ++bdim) {
         out_labels[ndim++] = 0;
       }
     } else {
-      CHECK(label == ' ')
-        << "invalid subscript '" << static_cast<char>(label)
-        << "' in einstein sum "
-        << "subscripts string, subscripts must "
-        << "be letters";
+      CHECK(label == ' ') << "invalid subscript '" << static_cast<char>(label)
+                          << "' in einstein sum "
+                          << "subscripts string, subscripts must "
+                          << "be letters";
     }
   }
 
   /* If no ellipsis was found there should be no broadcast dimensions. */
-  CHECK(!(!ellipsis && ndim_broadcast > 0))
-    << "output has more dimensions than subscripts "
-    << "given in einstein sum, but no '...' ellipsis "
-    << "provided to broadcast the extra dimensions.";
+  CHECK(!(!ellipsis && ndim_broadcast > 0)) << "output has more dimensions than subscripts "
+                                            << "given in einstein sum, but no '...' ellipsis "
+                                            << "provided to broadcast the extra dimensions.";
 
   return ndim;
 }
 
-inline void GetCombinedDimsView(const Tensor& op, int iop,
-                                   char *labels,
-                                   Array<PrimExpr>* newshape,
-                                   Array<PrimExpr>* newstride) {
+/*!
+ * \brief If any dimensions are combined, create a view that combines them.
+ *        Shows in newshape and newstride.
+ *
+ * \param op the operand tensor.
+ * \param iop the index of the operand.
+ * \param labels the op_labels fot the operand. Like [97, 98, -2] for "aba".
+ * \param newshape The combined shape.
+ * \param newstride The combined stride.
+ *
+ * For example:
+ *  "aba -> ab",              shape = [2,3,2] stride = [6,2,1]
+ *  op_labels = [97, 98, -2], newshape = [2,3], newstride = [7,2]
+ */
+inline void GetCombinedDimsView(const Tensor& op, int iop, char* labels, Array<PrimExpr>* newshape,
+                                Array<PrimExpr>* newstride) {
   int idim, ndim, icombine, combineoffset;
   int icombinemap[16];
   int newdim;
@@ -254,7 +298,7 @@ inline void GetCombinedDimsView(const Tensor& op, int iop,
     /* If this label says to merge axes, get the actual label */
     if (label < 0) {
       combineoffset = label;
-      label = labels[idim+label];
+      label = labels[idim + label];
     } else {
       combineoffset = 0;
       if (icombine != idim) {
@@ -269,12 +313,10 @@ inline void GetCombinedDimsView(const Tensor& op, int iop,
     } else {
       /* Update the combined axis dimensions and strides */
       int i = icombinemap[idim + combineoffset];
-      CHECK(!((combineoffset < 0) && GetConstInt((*newshape)[i] != 0 &&
-                                         (*newshape)[i] != shape[idim])))
-        << "dimensions in operand " << iop
-        << " for collapsing index '" << label
-        << "' don't match (" << GetConstInt((*newshape)[i])
-        << " != " << shape[idim] << ")";
+      CHECK(!((combineoffset < 0) &&
+              GetConstInt((*newshape)[i] != 0 && (*newshape)[i] != shape[idim])))
+          << "dimensions in operand " << iop << " for collapsing index '" << label
+          << "' don't match (" << GetConstInt((*newshape)[i]) << " != " << shape[idim] << ")";
       newshape->Set(i, shape[idim]);
       newstride->Set(i, (*newstride)[i] + stride[idim]);
     }
@@ -286,12 +328,22 @@ inline void GetCombinedDimsView(const Tensor& op, int iop,
   }
 }
 
-inline static int PrepareOpAxes(int ndim, int iop, char *labels,
-                                  int *axes, int ndim_iter, char *iter_labels) {
+/*!
+ * \brief Prepare the operand axes to match each stride or shape pair.
+ *
+ * \param ndim the ndim of the operand tensor.
+ * \param iop the index of the operand.
+ * \param labels the op_labels fot the operand. [97, 98, -1, 99, -3, -2] for "abbcbc".
+ * \param axes The matched axes to be calculated.
+ * \param ndim_iter the dimension of iterating. Subscripts "ab, bc -> ac" ndim_iter = 3.
+ * \param iter_labels output_labels with the iterating label. ['a', 'c', 'b'] for the case above.
+ */
+inline static int PrepareOpAxes(int ndim, int iop, char* labels, int* axes, int ndim_iter,
+                                char* iter_labels) {
   int i, label, ibroadcast;
 
-  ibroadcast = ndim-1;
-  for (i = ndim_iter-1; i >= 0; --i) {
+  ibroadcast = ndim - 1;
+  for (i = ndim_iter - 1; i >= 0; --i) {
     label = iter_labels[i];
     /*
      * If it's an unlabeled broadcast dimension, choose
@@ -314,7 +366,7 @@ inline static int PrepareOpAxes(int ndim, int iop, char *labels,
       }
     } else {
       /* It's a labeled dimension, find the matching one */
-      char *match = reinterpret_cast<char*>(memchr(labels, label, ndim));
+      char* match = reinterpret_cast<char*>(memchr(labels, label, ndim));
       /* If the op doesn't have the label, broadcast it */
       if (match == nullptr) {
         axes[i] = -1;
@@ -327,8 +379,14 @@ inline static int PrepareOpAxes(int ndim, int iop, char *labels,
   return 0;
 }
 
-inline int _count_substring(const std::string& str,
-                            const std::string& sub) {
+/*!
+ * \brief Count SubString.
+ * \param str the object string
+ * \param sub the pattern string
+ *
+ * \return number of substring
+ */
+inline int CountSubstring(const std::string& str, const std::string& sub) {
   int count = 0;
   std::string::size_type pos = 0;
   while ((pos = str.find(sub, pos)) != std::string::npos) {
@@ -338,7 +396,13 @@ inline int _count_substring(const std::string& str,
   return count;
 }
 
-inline std::bitset<128> str2set(const std::string& str) {
+/*!
+ * \brief Transfer string to.
+ * \param str input string.
+ *
+ * \return bitset.
+ */
+inline std::bitset<128> Str2Set(const std::string& str) {
   std::bitset<128> ret;
   for (const char& c : str) {
     ret.set(static_cast<int>(c));
@@ -346,8 +410,14 @@ inline std::bitset<128> str2set(const std::string& str) {
   return ret;
 }
 
-inline std::vector<std::string> split(const std::string& str,
-                                      const std::string& sub) {
+/*!
+ * \brief Split str according to substring.
+ * \param str input string.
+ * \param sub the split pattern string.
+ *
+ * \return vector contains the splited substring.
+ */
+inline std::vector<std::string> Split(const std::string& str, const std::string& sub) {
   std::string::size_type pos = 0;
   std::string::size_type start = 0;
   std::vector<std::string> ret;
@@ -359,18 +429,24 @@ inline std::vector<std::string> split(const std::string& str,
   return ret;
 }
 
-inline std::vector<std::string> ParseEinsumInput(
-  std::string subscripts,
-  const std::vector<Array<PrimExpr>>& operands) {
-  const std::string einsum_symbols =
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+/*!
+ * \brief Parse the input subscripts into a vector of strings.
+ * \param subscripts input subscripts.
+ * \param operands operand tensors.
+ *
+ * \return vector of strings, vector[0] represents the input part, vector[1] represents the ouput.
+ * if no output, the vector[1] is NULL.
+ * "ab, bc -> ac" => ["ab,bc", "ac"]
+ */
+inline std::vector<std::string> ParseEinsumInput(std::string subscripts,
+                                                 const std::vector<Array<PrimExpr>>& operands) {
+  const std::string einsum_symbols = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
   std::bitset<128> einsum_symbols_set;
   for (const char& c : einsum_symbols) {
     einsum_symbols_set.set(c);
   }
 
-  CHECK_NE(operands.size(), 0U)
-    << "No input operands";
+  CHECK_NE(operands.size(), 0U) << "No input operands";
 
   auto end_pos = std::remove(subscripts.begin(), subscripts.end(), ' ');
   subscripts.erase(end_pos, subscripts.end());
@@ -380,32 +456,26 @@ inline std::vector<std::string> ParseEinsumInput(
     if (c == '.' || c == ',' || c == '-' || c == '>') {
       continue;
     }
-    CHECK(einsum_symbols_set.test(c))
-      << "Character " << c
-      << " is not a valid symbol.";
+    CHECK(einsum_symbols_set.test(c)) << "Character " << c << " is not a valid symbol.";
   }
 
   // Check for proper "->"
-  if (subscripts.find('-') != std::string::npos ||
-      subscripts.find('>') != std::string::npos) {
+  if (subscripts.find('-') != std::string::npos || subscripts.find('>') != std::string::npos) {
     bool invalid = (std::count(subscripts.begin(), subscripts.end(), '-') > 1 ||
                     std::count(subscripts.begin(), subscripts.end(), '>') > 1);
-    CHECK(!invalid && _count_substring(subscripts, "->") == 1)
-      << "Subscripts can only contain one '->'.";
+    CHECK(!invalid && CountSubstring(subscripts, "->") == 1)
+        << "Subscripts can only contain one '->'.";
   }
 
   // Parse ellipses
   if (subscripts.find('.') != std::string::npos) {
     std::string used = subscripts;
-    used.erase(std::remove_if(used.begin(),
-                              used.end(),
-                              [](const char& c){return c == '.' ||
-                                                       c == ',' ||
-                                                       c == '-' ||
-                                                       c == '>';}),
-               used.end());
+    used.erase(
+        std::remove_if(used.begin(), used.end(),
+                       [](const char& c) { return c == '.' || c == ',' || c == '-' || c == '>'; }),
+        used.end());
 
-    std::bitset<128> used_set = str2set(used);
+    std::bitset<128> used_set = Str2Set(used);
     std::string ellipse_inds = "";
     for (const char& c : einsum_symbols) {
       if (!used_set.test(static_cast<int>(c))) {
@@ -418,13 +488,13 @@ inline std::vector<std::string> ParseEinsumInput(
     bool out_sub;
 
     if (subscripts.find("->") != std::string::npos) {
-      std::vector<std::string> tmp = split(subscripts, "->");
+      std::vector<std::string> tmp = Split(subscripts, "->");
       input_tmp = tmp[0];
       output_sub = tmp[1];
-      split_subscripts = split(input_tmp, ",");
+      split_subscripts = Split(input_tmp, ",");
       out_sub = true;
     } else {
-      split_subscripts = split(subscripts, ",");
+      split_subscripts = Split(subscripts, ",");
       out_sub = false;
     }
 
@@ -433,10 +503,8 @@ inline std::vector<std::string> ParseEinsumInput(
     for (size_t i = 0; i < size_split_subscripts; ++i) {
       const std::string& sub = split_subscripts[i];
       if (sub.find('.') != std::string::npos) {
-        CHECK_EQ(std::count(sub.begin(), sub.end(), '.'), 3)
-          << "Invalid Ellipses";
-        CHECK_EQ(_count_substring(sub, "..."), 1)
-          << "Invalid Ellipses";
+        CHECK_EQ(std::count(sub.begin(), sub.end(), '.'), 3) << "Invalid Ellipses";
+        CHECK_EQ(CountSubstring(sub, "..."), 1) << "Invalid Ellipses";
 
         // Take into account numerical values
         int ellipse_count = 0;
@@ -451,8 +519,7 @@ inline std::vector<std::string> ParseEinsumInput(
           longest = ellipse_count;
         }
 
-        CHECK_GE(ellipse_count, 0)
-          << "Ellipses lengths do not match.";
+        CHECK_GE(ellipse_count, 0) << "Ellipses lengths do not match.";
         if (ellipse_count == 0) {
           split_subscripts[i].erase(sub.find("..."), 3);
         } else {
@@ -477,7 +544,7 @@ inline std::vector<std::string> ParseEinsumInput(
       subscripts += "->" + output_sub;
     } else {
       // Special care for outputless ellipses
-      std::bitset<128> out_ellipse_set = str2set(out_ellipse);
+      std::bitset<128> out_ellipse_set = Str2Set(out_ellipse);
       std::string tmp_subscripts = subscripts, output_subscript = "";
       size_t len_tmp_subscripts = tmp_subscripts.length();
       std::sort(tmp_subscripts.begin(), tmp_subscripts.end());
@@ -486,9 +553,7 @@ inline std::vector<std::string> ParseEinsumInput(
         if (c == ',') {
           continue;
         }
-        CHECK(einsum_symbols_set.test(c))
-          << "Character " << c
-          << " is not a valid symbol.";
+        CHECK(einsum_symbols_set.test(c)) << "Character " << c << " is not a valid symbol.";
         if ((i == 0 || tmp_subscripts[i - 1] != c) &&
             (i == len_tmp_subscripts - 1 || tmp_subscripts[i + 1] != c) &&
             !out_ellipse_set.test(c)) {
@@ -502,7 +567,7 @@ inline std::vector<std::string> ParseEinsumInput(
   // Build output string if does not exist
   std::vector<std::string> ret(2);
   if (subscripts.find("->") != std::string::npos) {
-    ret = split(subscripts, "->");
+    ret = Split(subscripts, "->");
   } else {
     ret[0] = subscripts;
     ret[1] = "";
@@ -515,9 +580,7 @@ inline std::vector<std::string> ParseEinsumInput(
       if (c == ',') {
         continue;
       }
-      CHECK(einsum_symbols_set.test(c))
-        << "Character " << c
-        << " is not a valid symbol.";
+      CHECK(einsum_symbols_set.test(c)) << "Character " << c << " is not a valid symbol.";
       if ((i == 0 || tmp_subscripts[i - 1] != c) &&
           (i == len_tmp_subscripts - 1 || tmp_subscripts[i + 1] != c)) {
         ret[1].append(1, c);
@@ -526,28 +589,34 @@ inline std::vector<std::string> ParseEinsumInput(
   }
 
   // Make sure output subscripts are in the input
-  std::bitset<128> input_subscripts_set = str2set(ret[0]);
+  std::bitset<128> input_subscripts_set = Str2Set(ret[0]);
   for (const char& c : ret[1]) {
     CHECK(input_subscripts_set.test(c))
-      << "Output character " << c
-      << " did not appear in the input";
+        << "Output character " << c << " did not appear in the input";
   }
 
   // Make sure number operands is equivalent to the number of terms
   CHECK_EQ(std::count(ret[0].begin(), ret[0].end(), ',') + 1, operands.size())
-    << "Number of einsum subscripts must be equal to the "
-    << "number of operands.";
+      << "Number of einsum subscripts must be equal to the "
+      << "number of operands.";
 
   return ret;
 }
 
+/*!
+ * \brief Compute the shape of the output.
+ * \param subscripts input subscripts.
+ * \param operands operand tensors.
+ *
+ * \return the shape of the output.
+ */
 inline Array<PrimExpr> NumpyEinsumShape(const std::string subscripts,
                                         const std::vector<Array<PrimExpr>>& operands) {
   // Parsing
   std::vector<std::string> parsed_subscripts = ParseEinsumInput(subscripts, operands);
 
   // Build a few useful list and sets
-  std::vector<std::string> input_list = split(parsed_subscripts[0], ",");
+  std::vector<std::string> input_list = Split(parsed_subscripts[0], ",");
   size_t isize = input_list.size();
 
   // Get length of each unique dimension and ensure all dimensions are correct
@@ -557,9 +626,8 @@ inline Array<PrimExpr> NumpyEinsumShape(const std::string subscripts,
     const std::string& term = input_list[i];
     const Array<PrimExpr>& sh = operands[i];
     CHECK_EQ(sh.size(), term.length())
-      << "Einstein sum subscript " << input_list[i]
-      << " does not contain the "
-      << "correct number of indices for operand " << i << ".";
+        << "Einstein sum subscript " << input_list[i] << " does not contain the "
+        << "correct number of indices for operand " << i << ".";
     size_t len_term = term.length();
     for (size_t j = 0; j < len_term; ++j) {
       int64_t dim = GetConstInt(sh[j]);
@@ -571,11 +639,9 @@ inline Array<PrimExpr> NumpyEinsumShape(const std::string subscripts,
           dimension_dict[static_cast<int>(c)] = dim;
         }
         CHECK(dim == 1 || dim == dimension_dict[static_cast<int>(c)])
-          << "Size of label '" << c
-          << "' for operand  " << i
-          << " (" << dimension_dict[static_cast<int>(c)]
-          << ") does not match previous terms ("
-          << dim << ").";
+            << "Size of label '" << c << "' for operand  " << i << " ("
+            << dimension_dict[static_cast<int>(c)] << ") does not match previous terms (" << dim
+            << ").";
       } else {
         dimension_dict[static_cast<int>(c)] = dim;
       }
@@ -596,10 +662,9 @@ inline Array<PrimExpr> NumpyEinsumShape(const std::string subscripts,
 /*!
  * \brief Evaluates the Einstein summation convention on the operands.
  *
- * \param subscripts Specifies the subscripts for summation as comma separated list of subscript labels.
- * \param inputs Arrays for the operation
- * \param name The name of the operation
- * \param tag The tag to mark the operation
+ * \param subscripts_str Specifies the subscripts for summation as comma separated list of subscript
+ * labels. \param inputs Arrays for the operation. \param name The name of the operation. \param tag
+ * The tag to mark the operation.
  *
  * \return The calculation based on the Einstein summation convention.
  */
@@ -618,15 +683,13 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     int length = static_cast<int>(strcspn(subscripts, ",-"));
 
     CHECK(!(iop == nop - 1 && subscripts[length] == ','))
-      << "more operands provided to einstein sum function "
-      << "than specified in the subscripts string";
-    CHECK(!(iop < nop-1 && subscripts[length] != ','))
-      << "fewer operands provided to einstein sum function "
-      << "than specified in the subscripts string";
-    ParseOperandSubscripts(subscripts, length,
-                                      inputs[iop + back].ndim(),
-                                      iop, op_labels[iop], label_counts,
-                                      &min_label, &max_label);
+        << "more operands provided to einstein sum function "
+        << "than specified in the subscripts string";
+    CHECK(!(iop < nop - 1 && subscripts[length] != ','))
+        << "fewer operands provided to einstein sum function "
+        << "than specified in the subscripts string";
+    ParseOperandSubscripts(subscripts, length, inputs[iop + back].ndim(), iop, op_labels[iop],
+                           label_counts, &min_label, &max_label);
 
     /* Move subscripts to the start of the labels for the next op */
     subscripts += length;
@@ -642,7 +705,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
   for (iop = 0; iop < nop; ++iop) {
     int count_zeros = 0;
     int ndim;
-    char *labels = op_labels[iop];
+    char* labels = op_labels[iop];
 
     ndim = inputs[iop + back].ndim();
     for (idim = 0; idim < ndim; ++idim) {
@@ -669,22 +732,19 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     }
     for (label = min_label; label <= max_label; ++label) {
       if (label_counts[label] == 1) {
-        CHECK(ndim_output < 16)
-          << "einstein sum subscript string has too many "
-          << "distinct labels";
+        CHECK(ndim_output < 16) << "einstein sum subscript string has too many "
+                                << "distinct labels";
         output_labels[ndim_output++] = label;
       }
     }
   } else {
-    CHECK(subscripts[0] == '-' && subscripts[1] == '>')
-      << "einstein sum subscript string does not "
-      << "contain proper '->' output specified";
+    CHECK(subscripts[0] == '-' && subscripts[1] == '>') << "einstein sum subscript string does not "
+                                                        << "contain proper '->' output specified";
     subscripts += 2;
 
     /* Parse the output subscript string. */
-    ndim_output = ParseOutputSubscripts(subscripts, strlen(subscripts),
-                                          ndim_broadcast, label_counts,
-                                          output_labels);
+    ndim_output = ParseOutputSubscripts(subscripts, strlen(subscripts), ndim_broadcast,
+                                        label_counts, output_labels);
     CHECK_GE(ndim_output, 0);
   }
 
@@ -695,7 +755,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
    */
   std::vector<Array<PrimExpr>> opshape(nop), opstride_true(nop);
   for (iop = 0; iop < nop; ++iop) {
-    char *labels = op_labels[iop];
+    char* labels = op_labels[iop];
     int combine, ndim;
 
     ndim = inputs[iop + back].ndim();
@@ -716,8 +776,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     if (combine) {
       Array<PrimExpr> tshape(static_cast<size_t>(ndim - combine), -1);
       Array<PrimExpr> tstride(static_cast<size_t>(ndim - combine), -1);
-      GetCombinedDimsView(inputs[iop + back], iop, labels,
-                             &tshape, &tstride);
+      GetCombinedDimsView(inputs[iop + back], iop, labels, &tshape, &tstride);
       opshape[iop] = tshape;
       opstride_true[iop] = tstride;
     } else {
@@ -732,20 +791,18 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
    * Can just share the output_labels memory, because iter_labels
    * is output_labels with some more labels appended.
    */
-  char *iter_labels = output_labels;
+  char* iter_labels = output_labels;
   int ndim_iter = ndim_output;
   for (label = min_label; label <= max_label; ++label) {
-    if (label_counts[label] > 0 &&
-        memchr(output_labels, label, ndim_output) == nullptr) {
-      CHECK(ndim_iter < 16)
-        << "too many subscripts in einsum";
+    if (label_counts[label] > 0 && memchr(output_labels, label, ndim_output) == nullptr) {
+      CHECK(ndim_iter < 16) << "too many subscripts in einsum";
       iter_labels[ndim_iter++] = label;
     }
   }
   /* Step 4: Set up the op_axes for the iterator */
   Array<PrimExpr> itershape(static_cast<size_t>(ndim_iter), -1);
   std::vector<Array<PrimExpr>> iterstride(nop + 1,
-                                Array<PrimExpr>(static_cast<size_t>(ndim_iter), 0));
+                                          Array<PrimExpr>(static_cast<size_t>(ndim_iter), 0));
 
   // output_shape
   std::vector<Array<PrimExpr>> operands;
@@ -757,11 +814,12 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
   Array<PrimExpr> reduceshape;
   std::vector<Array<PrimExpr>> remainshape(nop);
   int op_axes_arrays[16][16];
-  int *op_axes[16];
+  int* op_axes[16];
   for (iop = 0; iop < nop; ++iop) {
     op_axes[iop] = op_axes_arrays[iop];
-    CHECK_GE(PrepareOpAxes(opshape[iop].size(), iop, op_labels[iop],
-             op_axes[iop], ndim_iter, iter_labels), 0);
+    CHECK_GE(PrepareOpAxes(opshape[iop].size(), iop, op_labels[iop], op_axes[iop], ndim_iter,
+                           iter_labels),
+             0);
     for (idim = 0; idim < ndim_iter; idim++) {
       if (op_axes[iop][idim] != -1) {
         iterstride[iop].Set(idim, opstride_true[iop][op_axes[iop][idim]]);
@@ -799,15 +857,15 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
   if (ndim_iter == 0) {
     ndim_iter = 1;
   }
-  itershape = pad(itershape, ndim_iter);
+  itershape = Pad(itershape, ndim_iter);
   for (iop = 0; iop <= nop; ++iop) {
-    iterstride[iop] = pad(iterstride[iop], ndim_iter);
+    iterstride[iop] = Pad(iterstride[iop], ndim_iter);
   }
-  // oshape = pad(oshape, ndim_iter);
-  reduceshape = pad(reduceshape, ndim_iter);
+  // oshape = Pad(oshape, ndim_iter);
+  reduceshape = Pad(reduceshape, ndim_iter);
   for (iop = 0; iop < nop; ++iop) {
-    opshape[iop] = pad(opshape[iop], ndim_iter);
-    remainshape[iop] = pad(remainshape[iop], ndim_iter);
+    opshape[iop] = Pad(opshape[iop], ndim_iter);
+    remainshape[iop] = Pad(remainshape[iop], ndim_iter);
   }
   // ostride and rstride
   Array<Array<PrimExpr>> ostride;
@@ -818,15 +876,15 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     Array<PrimExpr> rtmp(static_cast<size_t>(ndim_iter), 0);
     for (idim = 0; idim < ndim_iter; ++idim) {
       otmp.Set(idim, idim < ndim_output ? iterstride[iop][idim] : 1);
-      rtmp.Set(idim, idim < ndim_iter - ndim_output ? iterstride[iop][idim+ndim_output] : 1);
+      rtmp.Set(idim, idim < ndim_iter - ndim_output ? iterstride[iop][idim + ndim_output] : 1);
     }
     ostride.push_back(otmp);
     rstride.push_back(rtmp);
   }
 
   // func: input indices => return cooresponding value
-  auto func = [inputs, oshape, ostride, reduceshape, ndim_iter,
-               rstride, nop](const Array<Var>& input_indices) -> PrimExpr {
+  auto func = [inputs, oshape, ostride, reduceshape, ndim_iter, rstride,
+               nop](const Array<Var>& input_indices) -> PrimExpr {
     for (int rdim = 0; rdim < ndim_iter; ++rdim) {
       if (GetConstInt(reduceshape[rdim]) == 0) {
         return 0;  //
@@ -840,24 +898,24 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
       PrimExpr tmp = 1;
       for (int iop = 0; iop < nop; ++iop) {
         if (iop != -1) {
-            PrimExpr k = 0;
-            // k = dot(input_indices, ostride) + dot(ridx, rstride)
-            for (size_t i = 0; i < input_indices.size(); ++i) {
-              k += input_indices[i] * ostride[iop][i];
-            }
-            for (size_t i = 0; i < ridx.size(); ++i) {
-              k += ridx[i] * rstride[iop][i];
-            }
-           Array<PrimExpr> temp_indices = UnravelIndex(k, inputs[iop]->shape);
-           tmp = tmp * inputs[iop](temp_indices);
+          PrimExpr k = 0;
+          // k = dot(input_indices, ostride) + dot(ridx, rstride)
+          for (size_t i = 0; i < input_indices.size(); ++i) {
+            k += input_indices[i] * ostride[iop][i];
+          }
+          for (size_t i = 0; i < ridx.size(); ++i) {
+            k += ridx[i] * rstride[iop][i];
+          }
+          Array<PrimExpr> temp_indices = UnravelIndex(k, inputs[iop]->shape);
+          tmp = tmp * inputs[iop](temp_indices);
         }
       }
       sum += tmp;
-      ridx.Set(ridx.size() - 1, ridx[ridx.size()-1] + 1);
-      for (int i = static_cast<int>(ridx.size() - 1); (i > 0) &&
-                                  GetConstInt(ridx[i] >= reduceshape[i]); --i) {
+      ridx.Set(ridx.size() - 1, ridx[ridx.size() - 1] + 1);
+      for (int i = static_cast<int>(ridx.size() - 1);
+           (i > 0) && GetConstInt(ridx[i] >= reduceshape[i]); --i) {
         ridx.Set(i, ridx[i] - reduceshape[i]);
-        ridx.Set(i-1, ridx[i-1] + 1);
+        ridx.Set(i - 1, ridx[i - 1] + 1);
       }
       rec_flag = GetConstInt(ridx[0] < reduceshape[0]);
     } while (rec_flag);

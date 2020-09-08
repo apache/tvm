@@ -23,8 +23,8 @@
  */
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/topi/transform.h>
 #include <tvm/topi/einsum.h>
+#include <tvm/topi/transform.h>
 #include <tvm/topi/utils.h>
 
 namespace tvm {

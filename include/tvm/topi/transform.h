@@ -38,7 +38,6 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
-#include <bitset>
 
 #include "detail/broadcast.h"
 
