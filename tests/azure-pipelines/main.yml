@@ -42,9 +42,9 @@ jobs:
         solution: 'build.common/ALL_BUILD.vcxproj'
         maximumCpuCount: true
         configuration: 'Debug'
-  - job: Windows_VS2019_x64
+  - job: Windows_VS2017_x64
     pool:
-      vmImage: 'windows-2019'
+      vmImage: 'vs2017-win2016'
     steps:
     - script: git submodule update --recursive --init
       displayName: Initialize submodules
