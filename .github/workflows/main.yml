@@ -58,8 +58,8 @@ jobs:
       working-directory: build.common
       run: >-
         cmake
-        -DUSE_SORT=ON"
-        -DUSE_RPC=ON"
+        -DUSE_SORT=ON
+        -DUSE_RPC=ON
         -DUSE_GRAPH_RUNTIME=ON
         -G "Visual Studio 16 2019"
         -DCMAKE_BUILD_TYPE=Release
