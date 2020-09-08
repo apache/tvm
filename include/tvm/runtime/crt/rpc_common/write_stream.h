@@ -32,6 +32,7 @@
 
 namespace tvm {
 namespace runtime {
+namespace micro_rpc {
 
 class WriteStream {
  public:
@@ -42,6 +43,7 @@ class WriteStream {
   tvm_crt_error_t WriteAll(uint8_t* data, size_t data_size_bytes, size_t* bytes_consumed);
 };
 
+}  // namespace micro_rpc
 }  // namespace runtime
 }  // namespace tvm
 

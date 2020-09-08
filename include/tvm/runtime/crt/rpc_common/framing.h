@@ -33,6 +33,7 @@
 
 namespace tvm {
 namespace runtime {
+namespace micro_rpc {
 
 enum class Escape : uint8_t { kEscapeStart = 0xff, kEscapeNop = 0xfe, kPacketStart = 0xfd };
 
@@ -80,7 +81,7 @@ class Unframer {
   tvm_crt_error_t FindPacketCrc();
   tvm_crt_error_t FindCrcEnd();
 
-  inline bool is_buffer_full(size_t buffer_full_bytes) {
+  bool IsBufferFull(size_t buffer_full_bytes) {
     return num_buffer_bytes_valid_ >= buffer_full_bytes;
   }
 
@@ -261,6 +262,7 @@ class Framer {
   uint16_t crc_;
 };
 
+}  // namespace micro_rpc
 }  // namespace runtime
 }  // namespace tvm
 

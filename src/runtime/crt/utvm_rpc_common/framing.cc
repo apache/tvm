@@ -42,6 +42,7 @@
 
 namespace tvm {
 namespace runtime {
+namespace micro_rpc {
 
 template <typename E>
 static constexpr uint8_t to_integral(E e) {
@@ -95,7 +96,7 @@ tvm_crt_error_t Unframer::Write(const uint8_t* data, size_t data_size_bytes,
 
 tvm_crt_error_t Unframer::FindPacketStart() {
   size_t i;
-  for (i = 0; i < input_size_bytes_; i++) {
+  for (i = 0; i < input_size_bytes_; ++i) {
     if (input_[i] == to_integral(Escape::kEscapeStart)) {
       saw_escape_start_ = true;
     } else if (input_[i] == to_integral(Escape::kPacketStart) && saw_escape_start_) {
@@ -121,7 +122,7 @@ tvm_crt_error_t Unframer::ConsumeInput(uint8_t* buffer, size_t buffer_size_bytes
   CHECK(*bytes_filled < buffer_size_bytes);
   tvm_crt_error_t to_return = kTvmErrorNoError;
   size_t i;
-  for (i = 0; i < input_size_bytes_; i++) {
+  for (i = 0; i < input_size_bytes_; ++i) {
     uint8_t c = input_[i];
     if (saw_escape_start_) {
       saw_escape_start_ = false;
@@ -170,7 +171,7 @@ tvm_crt_error_t Unframer::ConsumeInput(uint8_t* buffer, size_t buffer_size_bytes
 }
 
 tvm_crt_error_t Unframer::AddToBuffer(size_t buffer_full_bytes, bool update_crc) {
-  CHECK(!is_buffer_full(buffer_full_bytes));
+  CHECK(!IsBufferFull(buffer_full_bytes));
   return ConsumeInput(buffer_, buffer_full_bytes, &num_buffer_bytes_valid_, update_crc);
 }
 
@@ -182,7 +183,7 @@ tvm_crt_error_t Unframer::FindPacketLength() {
     return to_return;
   }
 
-  if (!is_buffer_full(PacketFieldSizeBytes::kPayloadLength)) {
+  if (!IsBufferFull(PacketFieldSizeBytes::kPayloadLength)) {
     return to_return;
   }
 
@@ -225,7 +226,7 @@ tvm_crt_error_t Unframer::FindPacketCrc() {
         // rewind input, skipping escape bytes.
         size_t buffer_bytes_consumed;
         const uint8_t* input = input_ - (prev_input_size_bytes - input_size_bytes_);
-        for (buffer_bytes_consumed = 0; bytes_consumed > 0; buffer_bytes_consumed++) {
+        for (buffer_bytes_consumed = 0; bytes_consumed > 0; ++buffer_bytes_consumed) {
           if (input[buffer_bytes_consumed] != uint8_t(Escape::kEscapeStart)) {
             bytes_consumed--;
           }
@@ -258,7 +259,7 @@ tvm_crt_error_t Unframer::FindCrcEnd() {
     return to_return;
   }
 
-  if (!is_buffer_full(PacketFieldSizeBytes::kCrc)) {
+  if (!IsBufferFull(PacketFieldSizeBytes::kCrc)) {
     return kTvmErrorNoError;
   }
 
@@ -331,7 +332,7 @@ tvm_crt_error_t Framer::WriteAndCrc(const uint8_t* data, size_t data_size_bytes,
     uint8_t buffer[kMaxStackBufferSizeBytes];
     size_t buffer_ptr = 0;
     size_t i;
-    for (i = 0; i < data_size_bytes && buffer_ptr != kMaxStackBufferSizeBytes; i++) {
+    for (i = 0; i < data_size_bytes && buffer_ptr != kMaxStackBufferSizeBytes; ++i) {
       uint8_t c = data[i];
       if (!escape || c != to_integral(Escape::kEscapeStart)) {
         buffer[buffer_ptr] = c;
@@ -405,5 +406,6 @@ tvm_crt_error_t Framer::FinishPacket() {
   return to_return;
 }
 
+}  // namespace micro_rpc
 }  // namespace runtime
 }  // namespace tvm

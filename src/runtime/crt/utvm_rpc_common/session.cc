@@ -29,6 +29,7 @@
 
 namespace tvm {
 namespace runtime {
+namespace micro_rpc {
 
 void Session::RegenerateNonce() {
   local_nonce_ = (((local_nonce_ << 5) | (local_nonce_ >> 5)) + 1);
@@ -172,7 +173,7 @@ void Session::ClearReceiveBuffer() {
 
 void Session::SendSessionStartReply(const SessionHeader& header) {
   RegenerateNonce();
-  SetSessionId(initiator_nonce(header.session_id), local_nonce_);
+  SetSessionId(InitiatorNonce(header.session_id), local_nonce_);
   tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionReply, nullptr, 0);
   state_ = State::kSessionEstablished;
   CHECK_EQ(to_return, kTvmErrorNoError, "SendSessionStartReply");
@@ -180,7 +181,7 @@ void Session::SendSessionStartReply(const SessionHeader& header) {
 }
 
 void Session::ProcessStartSessionInit(const SessionHeader& header) {
-  if (initiator_nonce(header.session_id) == kInvalidNonce) {
+  if (InitiatorNonce(header.session_id) == kInvalidNonce) {
     return;
   }
 
@@ -193,9 +194,9 @@ void Session::ProcessStartSessionInit(const SessionHeader& header) {
 
     case State::kStartSessionSent:
       // When two StartSessionInit packets sent simultaneously: lowest nonce wins; ties retry.
-      if (initiator_nonce(header.session_id) < local_nonce_) {
+      if (InitiatorNonce(header.session_id) < local_nonce_) {
         SendSessionStartReply(header);
-      } else if (initiator_nonce(header.session_id) == local_nonce_) {
+      } else if (InitiatorNonce(header.session_id) == local_nonce_) {
         StartSession();
       }
 
@@ -212,7 +213,7 @@ void Session::ProcessStartSessionInit(const SessionHeader& header) {
 }
 
 void Session::ProcessStartSessionReply(const SessionHeader& header) {
-  if (responder_nonce(header.session_id) == kInvalidNonce) {
+  if (ResponderNonce(header.session_id) == kInvalidNonce) {
     return;
   }
 
@@ -221,15 +222,15 @@ void Session::ProcessStartSessionReply(const SessionHeader& header) {
     case State::kNoSessionEstablished:
       break;
     case State::kStartSessionSent:
-      if (initiator_nonce(header.session_id) == local_nonce_) {
-        SetSessionId(local_nonce_, responder_nonce(header.session_id));
+      if (InitiatorNonce(header.session_id) == local_nonce_) {
+        SetSessionId(local_nonce_, ResponderNonce(header.session_id));
         state_ = State::kSessionEstablished;
         OnSessionEstablishedMessage();
       }
       break;
     case State::kSessionEstablished:
-      if (initiator_nonce(header.session_id) != kInvalidNonce &&
-          responder_nonce(header.session_id) == kInvalidNonce) {
+      if (InitiatorNonce(header.session_id) != kInvalidNonce &&
+          ResponderNonce(header.session_id) == kInvalidNonce) {
         SendSessionStartReply(header);
       } else {
         state_ = State::kReset;
@@ -246,5 +247,6 @@ void Session::OnSessionTerminatedMessage() {
   message_received_func_(message_received_func_context_, MessageType::kTerminateSession, NULL);
 }
 
+}  // namespace micro_rpc
 }  // namespace runtime
 }  // namespace tvm

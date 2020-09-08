@@ -39,7 +39,7 @@
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/module.h>
 #include <tvm/runtime/crt/platform.h>
-#include <tvm/runtime/crt/rpc_common/buffer.h>
+#include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/session.h>
 #include <tvm/runtime/crt/utvm_rpc_server.h>
@@ -49,10 +49,11 @@
 
 namespace tvm {
 namespace runtime {
+namespace micro_rpc {
 
 class MicroIOHandler {
  public:
-  MicroIOHandler(Session* session, Buffer* receive_buffer)
+  MicroIOHandler(Session* session, FrameBuffer* receive_buffer)
       : session_{session}, receive_buffer_{receive_buffer} {}
 
   void MessageStart(size_t message_size_bytes) {
@@ -82,7 +83,7 @@ class MicroIOHandler {
 
  private:
   Session* session_;
-  Buffer* receive_buffer_;
+  FrameBuffer* receive_buffer_;
 };
 
 namespace {
@@ -155,7 +156,7 @@ class MicroRPCServer {
   }
 
  private:
-  Buffer receive_buffer_;
+  FrameBuffer receive_buffer_;
   SerialWriteStream send_stream_;
   Framer framer_;
   Session session_;
@@ -167,7 +168,7 @@ class MicroRPCServer {
   uint8_t pending_byte_;
   bool is_running_;
 
-  void HandleCompleteMessage(MessageType message_type, Buffer* buf) {
+  void HandleCompleteMessage(MessageType message_type, FrameBuffer* buf) {
     if (message_type != MessageType::kNormal) {
       return;
     }
@@ -176,11 +177,12 @@ class MicroRPCServer {
     session_.ClearReceiveBuffer();
   }
 
-  static void HandleCompleteMessageCb(void* context, MessageType message_type, Buffer* buf) {
+  static void HandleCompleteMessageCb(void* context, MessageType message_type, FrameBuffer* buf) {
     static_cast<MicroRPCServer*>(context)->HandleCompleteMessage(message_type, buf);
   }
 };
 
+}  // namespace micro_rpc
 }  // namespace runtime
 }  // namespace tvm
 
@@ -190,11 +192,11 @@ extern "C" {
 
 static utvm_rpc_server_t g_rpc_server = nullptr;
 
-utvm_rpc_server_t utvm_rpc_server_init(uint8_t* memory, size_t memory_size_bytes,
-                                       size_t page_size_bytes_log2,
-                                       utvm_rpc_channel_write_t write_func, void* write_func_ctx) {
-  tvm::runtime::g_write_func = write_func;
-  tvm::runtime::g_write_func_ctx = write_func_ctx;
+utvm_rpc_server_t UTvmRpcServerInit(uint8_t* memory, size_t memory_size_bytes,
+                                    size_t page_size_bytes_log2,
+                                    utvm_rpc_channel_write_t write_func, void* write_func_ctx) {
+  tvm::runtime::micro_rpc::g_write_func = write_func;
+  tvm::runtime::micro_rpc::g_write_func_ctx = write_func_ctx;
 
   tvm_crt_error_t err = TVMInitializeRuntime(memory, memory_size_bytes, page_size_bytes_log2);
   if (err != kTvmErrorNoError) {
@@ -204,7 +206,7 @@ utvm_rpc_server_t utvm_rpc_server_init(uint8_t* memory, size_t memory_size_bytes
   auto receive_buffer =
       new (vmalloc(TVM_CRT_MAX_PACKET_SIZE_BYTES)) uint8_t[TVM_CRT_MAX_PACKET_SIZE_BYTES];
   auto rpc_server =
-      new (vmalloc(sizeof(tvm::runtime::MicroRPCServer))) tvm::runtime::MicroRPCServer(
+    new (vmalloc(sizeof(tvm::runtime::micro_rpc::MicroRPCServer))) tvm::runtime::micro_rpc::MicroRPCServer(
           receive_buffer, TVM_CRT_MAX_PACKET_SIZE_BYTES, write_func, write_func_ctx);
   g_rpc_server = static_cast<utvm_rpc_server_t>(rpc_server);
   rpc_server->Initialize();
@@ -226,30 +228,30 @@ void TVMLogf(const char* format, ...) {
   }
 
   if (g_rpc_server != nullptr) {
-    static_cast<tvm::runtime::MicroRPCServer*>(g_rpc_server)
+    static_cast<tvm::runtime::micro_rpc::MicroRPCServer*>(g_rpc_server)
         ->Log(reinterpret_cast<uint8_t*>(log_buffer), num_bytes_logged);
   } else {
-    tvm::runtime::SerialWriteStream write_stream;
-    tvm::runtime::Framer framer{&write_stream};
-    tvm::runtime::Session session{0xa5, &framer, nullptr, nullptr, nullptr};
+    tvm::runtime::micro_rpc::SerialWriteStream write_stream;
+    tvm::runtime::micro_rpc::Framer framer{&write_stream};
+    tvm::runtime::micro_rpc::Session session{0xa5, &framer, nullptr, nullptr, nullptr};
     tvm_crt_error_t err = session.SendMessage(
-        tvm::runtime::MessageType::kLog, reinterpret_cast<uint8_t*>(log_buffer), num_bytes_logged);
+        tvm::runtime::micro_rpc::MessageType::kLog, reinterpret_cast<uint8_t*>(log_buffer), num_bytes_logged);
     if (err != kTvmErrorNoError) {
       TVMPlatformAbort(err);
     }
   }
 }
 
-size_t utvm_rpc_server_receive_byte(utvm_rpc_server_t server_ptr, uint8_t byte) {
+size_t UTvmRpcServerReceiveByte(utvm_rpc_server_t server_ptr, uint8_t byte) {
   // NOTE(areusch): In the future, this function is intended to work from an IRQ context. That's not
   // needed at present.
-  tvm::runtime::MicroRPCServer* server = static_cast<tvm::runtime::MicroRPCServer*>(server_ptr);
+  tvm::runtime::micro_rpc::MicroRPCServer* server = static_cast<tvm::runtime::micro_rpc::MicroRPCServer*>(server_ptr);
   server->HandleReceivedByte(byte);
   return 1;
 }
 
-bool utvm_rpc_server_loop(utvm_rpc_server_t server_ptr) {
-  tvm::runtime::MicroRPCServer* server = static_cast<tvm::runtime::MicroRPCServer*>(server_ptr);
+bool UTvmRpcServerLoop(utvm_rpc_server_t server_ptr) {
+  tvm::runtime::micro_rpc::MicroRPCServer* server = static_cast<tvm::runtime::micro_rpc::MicroRPCServer*>(server_ptr);
   return server->Loop();
 }
 

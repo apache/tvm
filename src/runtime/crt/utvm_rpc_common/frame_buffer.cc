@@ -18,18 +18,19 @@
  */
 
 /*!
- * \file buffer.h
- * \brief Buffer
+ * \file frame_buffer.cc
+ * \brief Defines a buffer for use by the RPC framing layer.
  */
 
 #include <stdio.h>
 #include <string.h>
-#include <tvm/runtime/crt/rpc_common/buffer.h>
+#include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 
 namespace tvm {
 namespace runtime {
+namespace micro_rpc {
 
-size_t Buffer::Write(const uint8_t* data, size_t data_size_bytes) {
+size_t FrameBuffer::Write(const uint8_t* data, size_t data_size_bytes) {
   size_t num_bytes_available = capacity_ - num_valid_bytes_;
   size_t num_bytes_to_copy = data_size_bytes;
   if (num_bytes_available < num_bytes_to_copy) {
@@ -41,7 +42,7 @@ size_t Buffer::Write(const uint8_t* data, size_t data_size_bytes) {
   return num_bytes_to_copy;
 }
 
-size_t Buffer::Read(uint8_t* data, size_t data_size_bytes) {
+size_t FrameBuffer::Read(uint8_t* data, size_t data_size_bytes) {
   size_t num_bytes_to_copy = data_size_bytes;
   size_t num_bytes_available = num_valid_bytes_ - read_cursor_;
   if (num_bytes_available < num_bytes_to_copy) {
@@ -53,10 +54,11 @@ size_t Buffer::Read(uint8_t* data, size_t data_size_bytes) {
   return num_bytes_to_copy;
 }
 
-void Buffer::Clear() {
+void FrameBuffer::Clear() {
   num_valid_bytes_ = 0;
   read_cursor_ = 0;
 }
 
+}  // namespace micro_rpc
 }  // namespace runtime
 }  // namespace tvm

@@ -25,6 +25,7 @@
 
 namespace tvm {
 namespace runtime {
+namespace micro_rpc {
 
 WriteStream::~WriteStream() {}
 
@@ -49,5 +50,6 @@ tvm_crt_error_t WriteStream::WriteAll(uint8_t* data, size_t data_size_bytes,
   return kTvmErrorNoError;
 }
 
+}  // namespace micro_rpc
 }  // namespace runtime
 }  // namespace tvm

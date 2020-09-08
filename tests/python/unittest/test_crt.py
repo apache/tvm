@@ -37,10 +37,6 @@ from tvm.topi.testing import conv2d_nchw_python
 BUILD = True
 DEBUG = False
 
-# TODO(weberlo) fix bug with sessions not being reusable
-# ADD_SESS = None
-# IDENT_SESS = None
-
 TARGET = tvm.target.target.micro('host')
 
 def _make_sess_from_op(workspace, op_name, sched, arg_bufs):

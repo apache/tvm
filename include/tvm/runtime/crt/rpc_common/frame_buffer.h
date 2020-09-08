@@ -18,22 +18,23 @@
  */
 
 /*!
- * \file tvm/runtime/crt/rpc_common/buffer.h
- * \brief Defines a buffer implementation for the RPC layers.
+ * \file tvm/runtime/crt/rpc_common/frame_buffer.h
+ * \brief Defines a buffer for use by the RPC framing layer.
  */
 
-#ifndef TVM_RUNTIME_CRT_RPC_COMMON_BUFFER_H_
-#define TVM_RUNTIME_CRT_RPC_COMMON_BUFFER_H_
+#ifndef TVM_RUNTIME_CRT_RPC_COMMON_FRAME_BUFFER_H_
+#define TVM_RUNTIME_CRT_RPC_COMMON_FRAME_BUFFER_H_
 
 #include <inttypes.h>
 #include <stdlib.h>
 
 namespace tvm {
 namespace runtime {
+namespace micro_rpc {
 
-class Buffer {
+class FrameBuffer {
  public:
-  Buffer(uint8_t* data, size_t data_size_bytes)
+  FrameBuffer(uint8_t* data, size_t data_size_bytes)
       : data_{data}, capacity_{data_size_bytes}, num_valid_bytes_{0}, read_cursor_{0} {}
 
   size_t Write(const uint8_t* data, size_t data_size_bytes);
@@ -44,9 +45,9 @@ class Buffer {
 
   void Clear();
 
-  inline size_t ReadAvailable() const { return num_valid_bytes_ - read_cursor_; }
+  size_t ReadAvailable() const { return num_valid_bytes_ - read_cursor_; }
 
-  inline size_t Size() const { return num_valid_bytes_; }
+  size_t Size() const { return num_valid_bytes_; }
 
  private:
   /*! \brief pointer to data buffer. */
@@ -64,7 +65,8 @@ class Buffer {
   size_t read_cursor_;
 };
 
+}  // namespace micro_rpc
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_CRT_RPC_COMMON_BUFFER_H_
+#endif  // TVM_RUNTIME_CRT_RPC_COMMON_FRAME_BUFFER_H_

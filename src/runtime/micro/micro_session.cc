@@ -41,6 +41,7 @@
 
 namespace tvm {
 namespace runtime {
+namespace micro_rpc {
 
 class CallbackWriteStream : public WriteStream {
  public:
@@ -139,7 +140,7 @@ class MicroTransportChannel : public RPCChannel {
     return num_bytes_recv;
   }
 
-  Buffer* GetReceivedMessage() {
+  FrameBuffer* GetReceivedMessage() {
     if (did_receive_message_) {
       did_receive_message_ = false;
       return message_buffer_;
@@ -149,11 +150,11 @@ class MicroTransportChannel : public RPCChannel {
   }
 
  private:
-  static void HandleMessageReceivedCb(void* context, MessageType message_type, Buffer* buf) {
+  static void HandleMessageReceivedCb(void* context, MessageType message_type, FrameBuffer* buf) {
     static_cast<MicroTransportChannel*>(context)->HandleMessageReceived(message_type, buf);
   }
 
-  void HandleMessageReceived(MessageType message_type, Buffer* buf) {
+  void HandleMessageReceived(MessageType message_type, FrameBuffer* buf) {
     size_t message_size_bytes;
     switch (message_type) {
       case MessageType::kStartSessionInit:
@@ -190,12 +191,12 @@ class MicroTransportChannel : public RPCChannel {
 
   CallbackWriteStream write_stream_;
   Framer framer_;
-  Buffer receive_buffer_;
+  FrameBuffer receive_buffer_;
   Session session_;
   Unframer unframer_;
   bool did_receive_message_;
   PackedFunc frecv_;
-  Buffer* message_buffer_;
+  FrameBuffer* message_buffer_;
   std::string pending_chunk_;
 };
 
@@ -208,6 +209,7 @@ TVM_REGISTER_GLOBAL("micro._rpc_connect").set_body([](TVMArgs args, TVMRetValue*
   *rv = CreateRPCSessionModule(sess);
 });
 
+}  // namespace micro_rpc
 }  // namespace runtime
 }  // namespace tvm
 

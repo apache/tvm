@@ -27,12 +27,13 @@
 
 #include <inttypes.h>
 #include <tvm/runtime/crt/error_codes.h>
-#include <tvm/runtime/crt/rpc_common/buffer.h>
+#include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/write_stream.h>
 
 namespace tvm {
 namespace runtime {
+namespace micro_rpc {
 
 enum class MessageType : uint8_t {
   kStartSessionInit = 0x00,
@@ -69,15 +70,15 @@ class Session {
    * \param context The value of `message_received_func_context` passed to the constructor.
    * \param message_type The type of session message received. Currently, this is always
    *      either kNormal or kLog.
-   * \param buf When message_type is not kStartSessionMessage, a Buffer whose read cursor is at the
-   *      first byte of the message payload. Otherwise, NULL.
+   * \param buf When message_type is not kStartSessionMessage, a FrameBuffer whose read cursor is
+   *      at the first byte of the message payload. Otherwise, NULL.
    */
-  typedef void (*MessageReceivedFunc)(void* context, MessageType message_type, Buffer* buf);
+  typedef void (*MessageReceivedFunc)(void* context, MessageType message_type, FrameBuffer* buf);
 
   /*! \brief An invalid nonce value that typically indicates an unknown nonce. */
   static constexpr const uint8_t kInvalidNonce = 0;
 
-  Session(uint8_t initial_session_nonce, Framer* framer, Buffer* receive_buffer,
+  Session(uint8_t initial_session_nonce, Framer* framer, FrameBuffer* receive_buffer,
           MessageReceivedFunc message_received_func, void* message_received_func_context)
       : local_nonce_{initial_session_nonce},
         session_id_{0},
@@ -211,25 +212,26 @@ class Session {
 
   void OnSessionTerminatedMessage();
 
-  inline void SetSessionId(uint8_t initiator_nonce, uint8_t responder_nonce) {
+  void SetSessionId(uint8_t initiator_nonce, uint8_t responder_nonce) {
     session_id_ = initiator_nonce | (((uint16_t)responder_nonce) << 8);
   }
 
-  inline uint8_t initiator_nonce(uint16_t session_id) { return session_id & 0xff; }
+  uint8_t InitiatorNonce(uint16_t session_id) { return session_id & 0xff; }
 
-  inline uint8_t responder_nonce(uint16_t session_id) { return (session_id >> 8) & 0xff; }
+  uint8_t ResponderNonce(uint16_t session_id) { return (session_id >> 8) & 0xff; }
 
   uint8_t local_nonce_;
   uint16_t session_id_;
   State state_;
   SessionReceiver receiver_;
   Framer* framer_;
-  Buffer* receive_buffer_;
+  FrameBuffer* receive_buffer_;
   bool receive_buffer_has_complete_message_;
   MessageReceivedFunc message_received_func_;
   void* message_received_func_context_;
 };
 
+}  // namespace micro_rpc
 }  // namespace runtime
 }  // namespace tvm
 

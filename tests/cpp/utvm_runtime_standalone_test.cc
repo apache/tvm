@@ -45,12 +45,12 @@
 #include <tvm/topi/generic/injective.h>
 
 TVM_REGISTER_GLOBAL("test.sch").set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
-  *rv = topi::generic::schedule_injective(args[0], args[1]);
+  *rv = ::tvm::topi::generic::schedule_injective(args[0], args[1]);
 });
 
 TEST(MicroStandaloneRuntime, BuildModule) {
   using namespace tvm;
-  auto tensor_type = relay::TensorType({2, 3}, ::tvm::Float(32));
+  auto tensor_type = relay::TensorType({2, 3}, ::tvm::runtime::DataType::Float(32));
   auto a = relay::Var("a", tensor_type);
   auto b = relay::Var("b", tensor_type);
   auto add_op = relay::Op::Get("add");
