@@ -329,11 +329,13 @@ def _get_targets():
     target_str = os.environ.get("TVM_TEST_TARGETS", "")
     if len(target_str) == 0:
         target_str = DEFAULT_TEST_TARGETS
-    targets = {
-        dev
-        for dev in target_str.split(";")
-        if len(dev) > 0 and tvm.context(dev, 0).exist and tvm.runtime.enabled(dev)
-    }
+    targets = set()
+    for dev in target_str.split(";"):
+        if len(dev) == 0:
+            continue
+        target_kind = dev.split()[0]
+        if tvm.runtime.enabled(target_kind) and tvm.context(target_kind, 0).exist:
+            targets.add(dev)
     if len(targets) == 0:
         logging.warning(
             "None of the following targets are supported by this build of TVM: %s."
