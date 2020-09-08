@@ -141,7 +141,7 @@ def reshape(attrs, args):
     if not ethosn_available():
         return False
 
-    if not _is_ethos_composite(args[0]):
+    if not _is_ethosn_composite(args[0]):
         return False
 
     rs = tvm.relay.op.reshape(*args, attrs["newshape"])
