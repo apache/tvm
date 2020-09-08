@@ -61,6 +61,8 @@ jobs:
         "-DUSE_SORT=ON"
         "-DUSE_RPC=ON"
         "-DUSE_GRAPH_RUNTIME=ON"
+        "-DCMAKE_BUILD_TYPE=Release"
+        "-DCMAKE_CONFIGURATION_TYPES=Release"
         ..
 
     # configuration for Mac
