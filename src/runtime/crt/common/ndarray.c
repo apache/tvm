@@ -29,7 +29,7 @@
 
 #include "crt_config.h"
 
-TVMNDArray TVMNDArray_Create(uint32_t ndim, const tvm_index_t* shape, DLDataType dtype,
+TVMNDArray TVMNDArray_Create(int32_t ndim, const tvm_index_t* shape, DLDataType dtype,
                              DLContext ctx) {
   TVMNDArray ret;
   memset(&ret, 0, sizeof(TVMNDArray));
@@ -42,12 +42,12 @@ TVMNDArray TVMNDArray_Create(uint32_t ndim, const tvm_index_t* shape, DLDataType
   return ret;
 }
 
-TVMNDArray TVMNDArray_Empty(uint32_t ndim, const tvm_index_t* shape, DLDataType dtype,
+TVMNDArray TVMNDArray_Empty(int32_t ndim, const tvm_index_t* shape, DLDataType dtype,
                             DLContext ctx) {
   TVMNDArray ret = TVMNDArray_Create(ndim, shape, dtype, ctx);
   int64_t num_elems = 1;
   int elem_bytes = (dtype.bits + 7) / 8;
-  uint32_t idx;
+  int32_t idx;
   for (idx = 0; idx < ret.dl_tensor.ndim; ++idx) {
     num_elems *= shape[idx];
   }
@@ -68,11 +68,11 @@ int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
   reserved = ((uint64_t*)*strm)[0];  // NOLINT(*)
   *strm += sizeof(reserved);
   DLContext ctx;
-  uint32_t ndim;
+  int ndim;  // sizeof ndim should match dlpack
   DLDataType dtype;
   ctx = ((DLContext*)*strm)[0];  // NOLINT(*)
   *strm += sizeof(ctx);
-  ndim = ((uint32_t*)*strm)[0];  // NOLINT(*)
+  ndim = ((int*)*strm)[0];  // NOLINT(*)
   *strm += sizeof(ndim);
   dtype = ((DLDataType*)*strm)[0];  // NOLINT(*)
   *strm += sizeof(dtype);
@@ -85,7 +85,7 @@ int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
     status = -1;
   }
   int64_t shape[TVM_CRT_MAX_NDIM] = {0};
-  uint32_t idx;
+  int32_t idx;
   if (ndim != 0) {
     for (idx = 0; idx < ndim; idx++) {
       shape[idx] = ((int64_t*)*strm)[0];  // NOLINT(*)
@@ -114,7 +114,7 @@ int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
   return status;
 }
 
-TVMNDArray TVMNDArray_CreateView(TVMNDArray* arr, const tvm_index_t* shape, uint32_t ndim,
+TVMNDArray TVMNDArray_CreateView(TVMNDArray* arr, const tvm_index_t* shape, int32_t ndim,
                                  DLDataType dtype) {
   TVMNDArray ret = TVMNDArray_Create(ndim, shape, dtype, arr->dl_tensor.ctx);
   ret.dl_tensor.data = arr->dl_tensor.data;
