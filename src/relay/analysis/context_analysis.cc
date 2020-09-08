@@ -164,7 +164,7 @@ class ContextAnalyzer : public MixedModeVisitor {
  public:
   ContextAnalyzer(const IRModule& mod, const GlobalVar& current_func,
                   const TVMContext& default_context)
-      : MixedModeVisitor(19),  // the number repeated visits a node can perform
+      : MixedModeVisitor(9),  // the number of repeated visits a node can perform
         mod_(mod),
         current_func_(current_func),
         default_context_(default_context) {
@@ -371,7 +371,6 @@ class ContextAnalyzer : public MixedModeVisitor {
     MixedModeVisitor::VisitLeaf(mn->data);
     for (const Clause& c : mn->clauses) {
       this->VisitClause(c);
-      this->VisitExpr(c->rhs);
       MixedModeVisitor::VisitLeaf(c->rhs);
     }
   }

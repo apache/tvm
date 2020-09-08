@@ -103,7 +103,7 @@ void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_l
 
 MixedModeVisitor::MixedModeVisitor(int visit_limit) {
   CHECK(visit_limit > 0) << "Dataflow visit limit must be greater than 0";
-  CHECK(visit_limit < 20) << "Dataflow visit limit must be less than 20";
+  CHECK(visit_limit < 10) << "Dataflow visit limit must be less than 10";
   visit_limit_ = visit_limit;
 }
 
