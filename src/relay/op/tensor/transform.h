@@ -187,8 +187,7 @@ static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
  * \param attrs The attributes.
  * \return Output shape.
  */
-Array<IndexExpr> infer_newshape(const Array<IndexExpr>& data_shape,
-                                const Attrs& attrs);
+Array<IndexExpr> infer_newshape(const Array<IndexExpr>& data_shape, const Attrs& attrs);
 
 }  // namespace relay
 }  // namespace tvm
