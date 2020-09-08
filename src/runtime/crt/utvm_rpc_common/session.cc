@@ -86,7 +86,8 @@ tvm_crt_error_t Session::StartSession() {
   RegenerateNonce();
   SetSessionId(local_nonce_, 0);
   utvm_session_start_payload_t payload = {Session::kVersion};
-  tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionInit, reinterpret_cast<uint8_t*>(&payload), sizeof(payload));
+  tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionInit,
+                                           reinterpret_cast<uint8_t*>(&payload), sizeof(payload));
   if (to_return == 0) {
     state_ = State::kStartSessionSent;
   }
@@ -179,7 +180,8 @@ void Session::SendSessionStartReply(const SessionHeader& header) {
   RegenerateNonce();
   SetSessionId(InitiatorNonce(header.session_id), local_nonce_);
   utvm_session_start_payload_t payload = {Session::kVersion};
-  tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionReply, reinterpret_cast<uint8_t*>(&payload), sizeof(payload));
+  tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionReply,
+                                           reinterpret_cast<uint8_t*>(&payload), sizeof(payload));
   state_ = State::kSessionEstablished;
   CHECK_EQ(to_return, kTvmErrorNoError, "SendSessionStartReply");
   OnSessionEstablishedMessage();
