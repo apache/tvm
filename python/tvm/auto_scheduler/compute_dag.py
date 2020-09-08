@@ -82,7 +82,8 @@ class ComputeDAG(Object):
             The state from which we get transform steps.
 
         layout_rewrite: Bool
-            Rewrite the layout of placeholder.
+            Rewrite the layout of placeholder to make it
+            most frendly for the generated schedule to read from.
 
         Returns
         -------

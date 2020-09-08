@@ -782,10 +782,10 @@ std::string get_new_layout(Array<PrimExpr>* new_shape, const State& state, const
   std::vector<Iterator> iters;
   for (size_t i = 0; i < stage_iters.size(); ++i) {
     const auto& iter = stage_iters[i];
-    if (iter->ori_iters.empty()) {
+    if (iter->orig_iters.empty()) {
       iters.push_back(iter);
     } else {
-      for (const Iterator& ori_iter : iter->ori_iters) {
+      for (const Iterator& ori_iter : iter->orig_iters) {
         iters.push_back(ori_iter);
       }
     }
@@ -799,7 +799,7 @@ std::string get_new_layout(Array<PrimExpr>* new_shape, const State& state, const
   for (const Iterator& iter : iters) {
     std::set<std::string> ori_iter_names;
     ExtractOriginalIterators(iter->name, &ori_iter_names);
-    // fused iters have been replaced with iter->ori_iters.
+    // fused iters have been replaced with iter->orig_iters.
     // So there should be only one ori iter name extracted from iter->name.
     CHECK_EQ(ori_iter_names.size(), 1);
     auto ori_iter_name = AxisBaseName(*ori_iter_names.begin());
@@ -1108,7 +1108,7 @@ State ComputeDAG::InferBound(const State& state) const {
       auto find_res = bounds.find(axis);
       if (find_res != bounds.end()) {
         new_iters.push_back(Iterator(iter->name, (*find_res).second, iter->iter_kind,
-                                     iter->annotation, &iter->ori_iters));
+                                     iter->annotation, &iter->orig_iters));
       } else {
         LOG(FATAL) << "Infer bound fails";
       }

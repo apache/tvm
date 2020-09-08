@@ -124,7 +124,7 @@ class IteratorNode : public Object {
   /*! \brief The annotation type of this iterator. */
   IteratorAnnotation annotation;
   /*! The original iterators before fusion. */
-  std::vector<Iterator> ori_iters;
+  std::vector<Iterator> orig_iters;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
@@ -149,10 +149,10 @@ class Iterator : public ObjectRef {
    * \param range The range of this iterator.
    * \param iter_kind The iterator type of this iterator.
    * \param annotation The annotation type of this iterator.
-   * \param ori_iters The original iterators before fusion
+   * \param orig_iters The original iterators before fusion
    */
   Iterator(String name, Range range, IteratorKind iter_kind, IteratorAnnotation annotation,
-           const std::vector<Iterator>* ori_iters = nullptr);
+           const std::vector<Iterator>* orig_iters = nullptr);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Iterator, ObjectRef, IteratorNode);
 };
