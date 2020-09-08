@@ -182,12 +182,12 @@ class VarNode : public ExprNode {
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
-    return equal(type_annotation, other->type_annotation) && equal.FreeVarEqualImpl(this, other);
+    return equal(type_annotation, other->type_annotation) && equal(vid, other->vid);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(type_annotation);
-    hash_reduce.FreeVarHashImpl(this);
+    hash_reduce(vid);
   }
 
   static constexpr const char* _type_key = "relay.Var";
