@@ -17,10 +17,10 @@ class ObjectDef(SchemaExpr):
 
 
 class ObjectRefDef(SchemaExpr):
-    def __init__(self, name, base, internal_object):
+    def __init__(self, name, base, internal):
         self.name = name 
         self.base = base
-        self.internal_object = internal_object
+        self.internal = internal
 
 class FieldDef(SchemaExpr):
     def __init__(self, name, type_):

@@ -131,7 +131,7 @@ class CodeGenCPP(ExprFunctor):
         "  TVM_DEFINE_OBJECT_REF_METHODS({name}, {base_name}, {obj_name});\n" \
         "}};"
         base_name = objref.base.name
-        obj_name = objref.internal_object.name
+        obj_name = objref.internal.name
         src = template.format(name=objref.name,
                               base_name=base_name,
                               obj_name=obj_name)

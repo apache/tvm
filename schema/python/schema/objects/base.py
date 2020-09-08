@@ -1,62 +1,59 @@
 from .. import typing as ty
 from ..parser import declare, Object, ObjectRef
 
+
 @declare
 class BaseExprNode(Object): 
     type_key = "BaseExpr"
+    default_visit_attrs = False
+    default_sequal_reduce = False
+    default_shash_reduce = False
 
 @declare
 class BaseExpr(ObjectRef):
-    internal_object = BaseExprNode
+    internal = BaseExprNode
 
 @declare
 class PrimExprNode(BaseExprNode):
     type_key = "PrimExpr"
-    def __init__(self, dtype: ty.DataType):
-        pass
+    default_visit_attrs = False
+    default_sequal_reduce = False
+    default_shash_reduce = False
+    dtype: ty.DataType
     
 @declare
 class PrimExpr(BaseExpr):
-    internal_object = PrimExprNode
+    internal = PrimExprNode
 
 @declare
 class RelayExprNode(BaseExprNode):
     type_key = "RelayExpr"
-    def __init__(self, span: ty.Span, checked_type_: ty.Type):
-        pass
+    default_visit_attrs = False
+    default_sequal_reduce = False
+    default_shash_reduce = False
+    span: ty.Span
+    checked_type_: ty.Type
 
 @declare
 class RelayExpr(BaseExpr):
-    internal_object = RelayExprNode
+    internal = RelayExprNode
 
 @declare
 class GlobalVarNode(RelayExprNode):
     type_key = "GlobalVar"
-    def __init__(self, name_hint: ty.String):
-        pass
-
-    def VisitAttrs(self):
-        pass
+    default_sequal_reduce = False
+    default_shash_reduce = False
+    name_hint: ty.String
 
 @declare
 class GlobalVar(RelayExpr):
-    internal_object = GlobalVarNode
+    internal = GlobalVarNode
 
 @declare
 class IntImmNode(PrimExprNode):
     type_key = "IntImm"
-    def __init__(self, value: ty.int64_t):
-        pass
-
-    def VisitAttrs(self):
-        pass
-
-    def SEqualReduce(self):
-        pass
-
-    def SHashReduce(self):
-        pass
+    value: ty.int64_t
 
 @declare
 class IntImm(PrimExpr):
-    internal_object = IntImmNode
+    internal = IntImmNode
