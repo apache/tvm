@@ -23,8 +23,7 @@ from tvm.relay.testing import run_infer_type
 import tvm.topi.testing
 
 
-# TODO(mbrookhart): Enable when VM supports heterogenus execution
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_dynamic_strided_slice():
     def verify(dshape, begin, end, strides, output, slice_mode="end", test_ref=True, dtype="int32"):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
