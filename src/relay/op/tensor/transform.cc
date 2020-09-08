@@ -886,7 +886,6 @@ RELAY_REGISTER_OP("scatter_add")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_support_level(10);
 
-
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
@@ -1663,7 +1662,12 @@ bool WhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
           << "condition and x must have the same shape: " << cond_shape << " vs " << x_shape;
     }
   }
-  reporter->Assign(types[3], TensorType(x_shape, x->dtype));
+  if (x_shape.size() == 0) {
+    // if x and y are scalar, the condition shape becomes the output shape
+    reporter->Assign(types[3], TensorType(cond_shape, x->dtype));
+  } else {
+    reporter->Assign(types[3], TensorType(x_shape, x->dtype));
+  }
   return true;
 }
 
@@ -1695,6 +1699,9 @@ size is the same as x’s first dimension size. Each row of the output array
 is from x’s row if the corresponding element from condition is true, and
 from y’s row if false.
 
+When x and y are scalars, condition must be an 1D array. The output shape
+is the same as condition's shape.
+
 Note that all non-zero values are interpreted as True in condition.
 
 Examples::
@@ -1707,6 +1714,9 @@ Examples::
 
   cond = [1, 0]
   where(cond, x, y) = [[1, 2], [7, 8]]
+
+  cond = [0, 1]
+  where(cond, 1, -1) = [-1, 1]
 
 )code" TVM_ADD_FILELINE)
     .add_argument("condition", "Tensor", "Condition array")
@@ -2397,7 +2407,10 @@ Array<te::Tensor> SplitCompute(const Attrs& attrs, const Array<te::Tensor>& inpu
     int64_t num_sections = sections->value;
     return Array<te::Tensor>{topi::split_sections(inputs[0], num_sections, param->axis)};
   } else {
-    auto indices = Downcast<Array<Integer>>(param->indices_or_sections);
+    Array<PrimExpr> indices;
+    for (auto i : Downcast<Array<Integer>>(param->indices_or_sections)) {
+      indices.push_back(IntImm(DataType::Int(32), i.as<IntImmNode>()->value));
+    }
     return Array<te::Tensor>{topi::split(inputs[0], indices, param->axis)};
   }
 }

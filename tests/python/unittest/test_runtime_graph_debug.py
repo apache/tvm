@@ -23,6 +23,7 @@ from tvm import rpc
 from tvm.contrib import util
 from tvm.contrib.debugger import debug_runtime as graph_runtime
 
+@tvm.testing.requires_llvm
 def test_graph_simple():
     n = 4
     A = te.placeholder((n,), name='A')
@@ -54,9 +55,6 @@ def test_graph_simple():
     graph = json.dumps(graph)
 
     def check_verify():
-        if not tvm.runtime.enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
         try:
             mod = graph_runtime.create(graph, mlib, tvm.cpu(0))
@@ -115,9 +113,6 @@ def test_graph_simple():
         assert(not os.path.exists(directory))
 
     def check_remote():
-        if not tvm.runtime.enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
         server = rpc.Server("localhost")
         remote = rpc.connect(server.host, server.port)

@@ -34,6 +34,7 @@ from ..expr import If, Tuple, TupleGetItem
 from ..expr import RefCreate, RefRead, RefWrite
 from ..expr_functor import ExprFunctor
 from ..adt import Match, Clause
+from ..op.tensor import minimum as _minimum, maximum as _maximum
 
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels
@@ -1881,6 +1882,30 @@ class RoiAlign(OnnxOpConverter):
         return _vision.roi_align(x, rois, [output_height, output_width],
                                  spatial_scale, sampling_ratio)
 
+class Clip(OnnxOpConverter):
+    """Operator converter for Clip.
+    """
+    @staticmethod
+    def convert_attributes(inputs, attr, params):
+        convert = AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'})
+        return convert(inputs, attr, params)
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return Clip.convert_attributes(inputs, attr, params)
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        if 'min' in attr and 'max' in attr:
+            return Clip.convert_attributes(inputs, attr, params)
+
+        assert len(inputs) <= 3, "Clip-11 takes up to 3 inputs, input, min, max"
+        result = inputs[0]
+        for i, op in enumerate([_maximum, _minimum]):
+            if i < len(inputs) - 1:
+                result = op(result, inputs[i+1])
+        return result
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1962,7 +1987,7 @@ def _get_convert_map(opset):
         'Min': Minimum.get_converter(opset),
         'Sum': Sum.get_converter(opset),
         'Mean': Mean.get_converter(opset),
-        'Clip': AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'}),
+        'Clip': Clip.get_converter(opset),
         # softmax default axis is different in onnx
         'Softmax': Softmax.get_converter(opset),
         'LogSoftmax': AttrCvt('log_softmax', {'axis': ('axis', 1)}),

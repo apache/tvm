@@ -26,6 +26,7 @@ from tvm.contrib.pickle_memoize import memoize
 from tvm.contrib import nvcc
 from tvm.topi.nn.util import get_pad_tuple3d
 from tvm.topi.util import get_const_tuple
+import tvm.testing
 
 
 _conv3d_ndhwc_tensorcore_implement = {
@@ -71,12 +72,6 @@ def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride,
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
-        if not nvcc.have_tensorcore(ctx.compute_version):
-            print("skip because gpu does not support Tensor Cores")
-            return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv3d_ndhwc_tensorcore_implement)
@@ -106,6 +101,8 @@ def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride,
     check_device(devices)
 
 
+@tvm.testing.requires_tensorcore
+@tvm.testing.requires_cuda
 def test_conv3d_ndhwc_tensorcore():
     """Test the conv3d with tensorcore for ndhwc layout"""
     verify_conv3d_ndhwc(16, 16, 14, 16, 3, 1, 1)

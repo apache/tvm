@@ -17,11 +17,10 @@
  * under the License.
  */
 
-use std::ffi::{CString, NulError};
-use std::os::raw::c_char;
+use std::cmp::{Ordering, PartialEq};
+use std::hash::{Hash, Hasher};
 
-use super::errors::Error;
-use super::{Object, ObjectPtr, ObjectRef};
+use super::Object;
 
 use tvm_macros::Object;
 
@@ -31,41 +30,93 @@ use tvm_macros::Object;
 #[type_key = "runtime.String"]
 pub struct StringObj {
     base: Object,
-    data: *const c_char,
+    data: *const u8,
     size: u64,
 }
 
+impl From<std::string::String> for String {
+    fn from(s: std::string::String) -> Self {
+        let size = s.len() as u64;
+        let data = Box::into_raw(s.into_boxed_str()).cast();
+        let base = Object::base_object::<StringObj>();
+        StringObj { base, data, size }.into()
+    }
+}
+
+impl From<&'static str> for String {
+    fn from(s: &'static str) -> Self {
+        let size = s.len() as u64;
+        let data = s.as_bytes().as_ptr();
+        let base = Object::base_object::<StringObj>();
+        StringObj { base, data, size }.into()
+    }
+}
+
+impl AsRef<[u8]> for String {
+    fn as_ref(&self) -> &[u8] {
+        self.as_bytes()
+    }
+}
+
+impl std::fmt::Display for String {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.to_string_lossy().fmt(f)
+    }
+}
+
 impl String {
-    pub fn new(string: std::string::String) -> Result<String, Error> {
-        let cstring = CString::new(string)?;
-
-        // The string is being corrupted.
-        // why is this wrong
-        let length = cstring.as_bytes().len();
-
-        let string_obj = StringObj {
-            base: Object::base_object::<StringObj>(),
-            data: cstring.into_raw(),
-            size: length as u64,
-        };
-
-        let object_ptr = ObjectPtr::new(string_obj);
-        Ok(String(Some(object_ptr)))
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
-    pub fn to_cstring(&self) -> Result<std::ffi::CString, NulError> {
-        use std::slice;
-        let ptr = self.0.as_ref().unwrap().data;
-        let size = self.0.as_ref().unwrap().size;
-        unsafe {
-            let slice: &[u8] = slice::from_raw_parts(ptr as *const u8, size as usize);
-            CString::new(slice)
-        }
+    pub fn len(&self) -> usize {
+        self.size as usize
     }
 
-    pub fn to_string(&self) -> Result<std::string::String, Error> {
-        let string = self.to_cstring()?.into_string()?;
-        Ok(string)
+    pub fn as_bytes(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.data, self.len()) }
+    }
+
+    pub fn as_str(&self) -> Result<&str, std::str::Utf8Error> {
+        std::str::from_utf8(self.as_bytes())
+    }
+
+    pub fn to_string_lossy(&self) -> std::borrow::Cow<str> {
+        std::string::String::from_utf8_lossy(self.as_bytes())
+    }
+}
+
+impl<T: AsRef<[u8]>> PartialEq<T> for String {
+    fn eq(&self, other: &T) -> bool {
+        self.as_bytes() == other.as_ref()
+    }
+}
+
+impl<T: AsRef<[u8]>> PartialOrd<T> for String {
+    fn partial_cmp(&self, other: &T) -> Option<Ordering> {
+        self.as_bytes().partial_cmp(other.as_ref())
+    }
+}
+
+impl Eq for String {}
+
+impl Ord for String {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.as_bytes().cmp(other.as_bytes())
+    }
+}
+
+impl Hash for String {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_bytes().hash(state);
+    }
+}
+
+impl std::fmt::Debug for String {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO(@mwillsey): remove this clone?
+        let string: String = self.clone().into();
+        formatter.write_fmt(format_args!("{:?}", string))
     }
 }
 
@@ -78,8 +129,8 @@ mod tests {
 
     #[test]
     fn test_string_debug() -> Result<()> {
-        let s = String::new("foo".to_string()).unwrap();
-        let object_ref = s.to_object_ref();
+        let s = String::from("foo");
+        let object_ref = s.upcast();
         println!("about to call");
         let string = debug_print(object_ref)?;
         println!("after call");

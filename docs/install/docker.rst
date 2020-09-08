@@ -37,8 +37,7 @@ We can then use the following command to launch a docker image.
 
     /path/to/tvm/docker/bash.sh <image-name>
 
-Here the image-name can be a local docker image name, e.g. `tvm.ci_cpu` after you have done
-the local build. Or a pre-built third party image (`tvmai/demo-cpu` or `tvmai/ci-gpu`).
+Here the image-name can be a local docker image name, e.g. `tvm.ci_cpu` after you have done the local build.
 
 This auxiliary script does the following things:
 
@@ -65,10 +64,22 @@ Note that on macOS, because we use bridge network, jupyter notebook will be repo
 at an URL like ``http://{container_hostname}:8888/?token=...``. You should replace the ``container_hostname``
 with ``localhost`` when pasting it into browser.
 
-You can find some un-official prebuilt images in `<https://hub.docker.com/r/tvmai/>`_.
-Note that these are convenience images and are not part of the ASF release.
 
 Docker Source
 -------------
 Check out `The docker source <https://github.com/apache/incubator-tvm/tree/master/docker>`_ if you are interested in
 building your own docker images.
+
+
+Run the following command to build the docker image.
+
+.. code:: bash
+
+    /path/to/tvm/docker/build.sh <image-name>
+
+
+You can find some un-official thirdparty prebuilt images.
+These images are used for test purposes and are NOT of the ASF release.
+
+
+`<https://hub.docker.com/r/tlcpack/>`_.

@@ -17,6 +17,7 @@
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition
 
 import tvm
+import tvm.testing
 from tvm import te
 import numpy as np
 from tvm.topi.x86.tensor_intrin import dot_16x1x16_uint8_int8_int32_cascadelake
@@ -24,6 +25,7 @@ from tvm.topi.x86.tensor_intrin import dot_16x1x16_uint8_int8_int32
 import pytest
 
 
+@tvm.testing.requires_llvm
 @pytest.mark.skip("skip because feature not enabled")
 def test_fc_int8_acc32():
     m = 1024
@@ -42,7 +44,7 @@ def test_fc_int8_acc32():
     # (ignoring processor)" error with the following setting. After LLVM 8.0 is enabled in the
     # test, we should use cascadelake setting.
     def verify(target="llvm -mcpu=cascadelake"):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             print("skip because %s is not enabled..." % target)
             return
 

@@ -52,9 +52,10 @@ class TargetNode : public Object {
   Array<String> keys;
   /*! \brief Collection of attributes */
   Map<String, ObjectRef> attrs;
-
   /*! \return the full device string to pass to codegen::Build */
   TVM_DLL const std::string& str() const;
+  /*! \return Export target to JSON-like configuration */
+  TVM_DLL Map<String, ObjectRef> Export() const;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("kind", &kind);
