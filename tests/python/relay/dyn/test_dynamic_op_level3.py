@@ -35,7 +35,8 @@ def verify_func(func, data, ref_res):
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
             relay.backend.compile_engine.get().clear()
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# @tvm.testing.uses_gpu
 def test_dyn_reshape():
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -60,7 +61,8 @@ def test_dyn_reshape():
     verify_reshape((2, 3, 4, 5), (-3, -3), (6, 20))
     verify_reshape((2, 3, 4), (0, -3), (2, 12))
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# @tvm.testing.uses_gpu
 def test_dyn_shape_reshape():
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -77,7 +79,8 @@ def test_dyn_shape_reshape():
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# @tvm.testing.uses_gpu
 def test_dyn_tile():
     def verify_tile(dshape, reps):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
@@ -94,7 +97,8 @@ def test_dyn_tile():
     verify_tile((2, 3), (3, 2, 1))
 
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# @tvm.testing.uses_gpu
 def test_dyn_zeros_ones():
     def verify_zeros_ones(shape, dtype):
         for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
@@ -110,7 +114,8 @@ def test_dyn_zeros_ones():
     verify_zeros_ones((1, 3), 'int64')
     verify_zeros_ones((8, 9, 1, 2), 'float32')
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# @tvm.testing.uses_gpu
 def test_dyn_full():
     def verify_full(fill_value, src_shape, dtype):
         x = relay.var("x", relay.scalar_type(dtype))

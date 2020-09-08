@@ -27,6 +27,7 @@ _reg.register_injective_schedule("dyn.reshape")
 _reg.register_broadcast_schedule("dyn.tile")
 _reg.register_injective_schedule("dyn.one_hot")
 _reg.register_injective_schedule("dyn.full")
+_reg.register_injective_schedule("dyn.strided_slice")
 
 @script
 def _reshape_shape_func_input_data(data, newshape, ndim):
@@ -145,3 +146,53 @@ def one_hot_shape_func(attrs, inputs, _):
     """
     axis = len(inputs[0].shape) if attrs.axis == -1 else attrs.axis
     return [_onehot_shape_func(inputs[0].shape, inputs[3], convert(axis))]
+
+
+@script
+def _strided_slice_shape_func_input_data(data, begin, end, strides,
+                                         slice_mode):
+    ndim = len(data.shape)
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        cbegin = int64(0)
+        cend = int64(data.shape[i])
+        cstride = int64(1)
+        if strides.shape[0] > i:
+            cstride = int64(strides[i])
+        if begin.shape[0] > i:
+            cbegin = int64(begin[i])
+            if cbegin < 0:
+                cbegin += int64(data.shape[i])
+        if end.shape[0] <= i:
+            cend = int64(data.shape[i])
+        elif slice_mode != 0:
+            cstride = int64(1)
+            if end[i] < 0:
+                cend = int64(data.shape[i])
+            else:
+                cend = cbegin + int64(end[i])
+        else:
+            if end[i] > data.shape[i]:
+                cend = int64(data.shape[i])
+            else:
+                cend = int64(end[i])
+                if cend < 0:
+                    cend += int64(data.shape[i])
+        assert cstride != 0, "Strides can't be zero."
+        if cstride < 0:
+            slice_range = cbegin - cend
+            step = -cstride
+        else:
+            slice_range = cend - cbegin
+            step = cstride
+
+        out[i] = int64(ceil_div(slice_range, step))
+    return out
+
+@_reg.register_shape_func("dyn.strided_slice", True)
+def strided_slice_shape_func(attrs, inputs, _):
+    """
+    Shape func for strided_slice
+    """
+    slice_mode = convert(0 if attrs.slice_mode == "end" else 1)
+    return [_strided_slice_shape_func_input_data(*inputs, slice_mode)]
