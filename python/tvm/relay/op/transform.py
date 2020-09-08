@@ -20,6 +20,7 @@
 
 from . import _make
 from .dyn import _make as _dyn_make
+from .tensor import shape_of
 from ..expr import TupleWrapper, const, Expr, Tuple
 from ...tir import expr as _expr
 
@@ -827,13 +828,17 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
     ret : relay.Expr
         The computed result.
     """
-    strides = strides or const([1], dtype="int32")
-    if isinstance(begin, (tuple, list)):
-        begin = const(list(begin))
-    if isinstance(end, (tuple, list)):
-        end = const(list(end))
-    if isinstance(strides, (tuple, list)):
-        strides = const(list(strides))
+    strides = strides or [1]
+    if (isinstance(begin, Expr) or isinstance(end, Expr) or isinstance(strides, Expr)):
+        if isinstance(begin, (tuple, list)):
+            begin = const(list(begin))
+        if isinstance(end, (tuple, list)):
+            end = const(list(end))
+        if isinstance(strides, (tuple, list)):
+            strides = const(list(strides))
+        normalized_begin = _make.where(begin < cast_like(const(0), begin),
+                                       begin + cast_like(shape_of(data), begin), begin)
+        return _dyn_make.strided_slice(data, normalized_begin, end, strides, slice_mode)
     return _make.strided_slice(data, begin, end, strides, slice_mode)
 
 

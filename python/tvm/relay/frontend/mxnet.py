@@ -500,11 +500,11 @@ def _mx_slice(inputs, attrs):
     for i, ed in enumerate(end):
         if ed is None:
             end[i] = input_shape[i]
-    new_attrs = {'begin': _expr.const(list(begin), dtype="int32"),
-                 'end': _expr.const(list(end), dtype="int32")}
+    new_attrs = {'begin': list(begin),
+                 'end': list(end)}
     if stride is not None:
         stride = (x if x is not None else 1 for x in stride)
-        new_attrs['strides'] = _expr.const(list(stride), dtype="int32")
+        new_attrs['strides'] = list(stride)
     return _op.strided_slice(inputs[0], **new_attrs)
 
 
@@ -544,9 +544,7 @@ def _mx_slice_axis(inputs, attrs):
         else:
             begin.append(ax_beg)
             end.append(ax_end)
-    return _op.strided_slice(inputs[0],
-                             _expr.const(begin, dtype="int32"),
-                             _expr.const(end, dtype="int32"))
+    return _op.strided_slice(inputs[0], begin, end)
 
 
 def _mx_crop_like(inputs, attrs):
@@ -566,9 +564,9 @@ def _mx_crop_like(inputs, attrs):
         return _op.slice_like(*inputs, **new_attrs)
     expr = _infer_type(inputs[1])
     like_shape = expr.checked_type.shape
-    new_attrs['begin'] = _expr.const([0, 0, offset[0], offset[1]], dtype="int32")
-    new_attrs['end'] = _expr.const([like_shape[0], like_shape[1], offset[0]+like_shape[2],
-                                    offset[1]+like_shape[3]], dtype="int32")
+    new_attrs['begin'] = [0, 0, offset[0], offset[1]]
+    new_attrs['end'] = [like_shape[0], like_shape[1], offset[0]+like_shape[2],
+                        offset[1]+like_shape[3]]
     return _op.strided_slice(inputs[0], **new_attrs)
 
 

@@ -27,6 +27,8 @@ from test_dynamic_op_level3 import verify_func
 import tvm.topi.testing
 from tvm.relay.testing import run_infer_type
 
+# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# @tvm.testing.uses_gpu
 def test_dyn_upsampling_run():
     def verify_upsampling(dshape, scale_h, scale_w, layout, method, align_corners=False):
 
@@ -51,19 +53,21 @@ def test_dyn_upsampling_run():
         zz = run_infer_type(z)
         func = relay.Function([x, scale_h_var, scale_w_var], z)
 
-        for target, ctx in enabled_targets():
-            for kind in ["vm", "debug"]:
-                mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate()(x_data, np.array(scale_h).astype("float32"), np.array(scale_w).astype("float32"))
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
+        for target, ctx in tvm.testing.enabled_targets():
+             for kind in ["vm", "debug"]:
+                 mod = tvm.ir.IRModule.from_expr(func)
+                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                 op_res = intrp.evaluate()(x_data, np.array(scale_h).astype("float32"), np.array(scale_w).astype("float32"))
+                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
 
-    verify_upsampling((1, 16, 32, 32), 3, 2.0,"NCHW", "nearest_neighbor")
+    verify_upsampling((1, 16, 32, 32), 3, 2.0, "NCHW", "nearest_neighbor")
     verify_upsampling((1, 16, 32, 32), 5, 2.0, "NCHW", "bilinear", True)
     verify_upsampling((1, 16, 32, 32), 2.0, 6, "NHWC", "nearest_neighbor")
     verify_upsampling((1, 16, 32, 32), 2.0, 2.0,"NHWC", "bilinear", True)
 
 #tests upsampling type inference with scale_h passed in as a constant and scale_w as a variable
+# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# @tvm.testing.uses_gpu
 def test_dyn_upsampling_infer_type_const():
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
 
@@ -74,6 +78,8 @@ def test_dyn_upsampling_infer_type_const():
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, relay.Any(), relay.Any()), "int8")
 
+# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# @tvm.testing.uses_gpu
 def test_dyn_upsampling3d_run():
     def verify_upsampling3d(dshape, scale_d, scale_h, scale_w, layout, method, coord_trans="half_pixel"):
 
@@ -126,6 +132,9 @@ def test_dyn_upsampling3d_infer_type_const():
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, relay.Any(), relay.Any(), relay.Any()), "int8")
 
+
+# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# @tvm.testing.uses_gpu
 def test_dyn_pad():
     def verify_pad(dshape, pad_width, pad_val, dtype):
         x = relay.var("x", relay.TensorType(dshape, dtype))

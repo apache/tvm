@@ -50,20 +50,20 @@ def test_combine_parallel_conv2d():
         w = relay.concatenate((w1, w2, w4), axis=0)
         y = relay.nn.conv2d(x, w, channels=channels1 + channels2 + channels4)
         y1 = relay.strided_slice(y,
-                                 begin=relay.const([0, 0], "int64"),
-                                 end=relay.const([-1, channels1], "int64"),
-                                 strides=relay.const([1, 1], 'int64'),
+                                 begin=[0, 0],
+                                 end=[-1, channels1],
+                                 strides=[1, 1],
                                  slice_mode="size")
         y2 = relay.strided_slice(y,
-                                 begin=relay.const([0, channels1], "int64"),
-                                 end=relay.const([-1, channels2], "int64"),
-                                 strides=relay.const([1, 1], 'int64'),
+                                 begin=[0, channels1],
+                                 end=[-1, channels2],
+                                 strides=[1, 1],
                                  slice_mode="size")
         y3 = relay.nn.conv2d(x, w3)
         y4 = relay.strided_slice(y,
-                                 begin=relay.const([0, channels1 + channels2], "int64"),
-                                 end=relay.const([-1, channels4], "int64"),
-                                 strides=relay.const([1, 1], 'int64'),
+                                 begin=[0, channels1 + channels2],
+                                 end=[-1, channels4],
+                                 strides=[1, 1],
                                  slice_mode="size")
         y5 = relay.nn.max_pool2d(x)
         y = relay.Tuple((y1, y2, y3, y4, y5))
@@ -110,14 +110,14 @@ def test_combine_parallel_conv2d_scale_relu():
         y = relay.multiply(y, scale)
         y = relay.nn.relu(y)
         y1 = relay.strided_slice(y,
-                                 begin=relay.const([0, 0], "int64"),
-                                 end=relay.const([-1, channels1], "int64"),
-                                 strides=relay.const([1, 1], "int64"),
+                                 begin=[0, 0],
+                                 end=[-1, channels1],
+                                 strides=[1, 1],
                                  slice_mode="size")
         y2 = relay.strided_slice(y,
-                                 begin=relay.const([0, channels1], "int64"),
-                                 end=relay.const([-1, channels2], "int64"),
-                                 strides=relay.const([1, 1], "int64"),
+                                 begin=[0, channels1],
+                                 end=[-1, channels2],
+                                 strides=[1, 1],
                                  slice_mode="size")
         y2 = relay.add(y2, bias)
         y = relay.Tuple((y1, y2))
@@ -157,14 +157,14 @@ def test_combine_parallel_conv2d_scale():
         w = relay.concatenate((w1, w2), axis=0)
         y = relay.nn.conv2d(x, w, channels=channels1 + channels2)
         y1 = relay.strided_slice(y,
-                                 begin=relay.const([0, 0], "int64"),
-                                 end=relay.const([-1, channels1], "int64"),
-                                 strides=relay.const([1, 1], "int64"),
+                                 begin=[0, 0],
+                                 end=[-1, channels1],
+                                 strides=[1, 1],
                                  slice_mode="size")
         y2 = relay.strided_slice(y,
-                                 begin=relay.const([0, channels1], "int64"),
-                                 end=relay.const([-1, channels2], "int64"),
-                                 strides=relay.const([1, 1], "int64"),
+                                 begin=[0, channels1],
+                                 end=[-1, channels2],
+                                 strides=[1, 1],
                                  slice_mode="size")
         y1 = relay.multiply(y1, scale1)
         y2 = relay.multiply(y2, scale2)
@@ -205,14 +205,14 @@ def test_combine_parallel_conv2d_multiple_blocks():
             w_concat = relay.concatenate((w, w), axis=0)
             y = relay.nn.conv2d(y, w_concat, channels=channels*2)
             y1 = relay.strided_slice(y,
-                                     begin=relay.const([0, 0], "int64"),
-                                     end=relay.const([-1, channels], "int64"),
-                                     strides=relay.const([1, 1], "int64"),
+                                     begin=[0, 0],
+                                     end=[-1, channels],
+                                     strides=[1, 1],
                                      slice_mode="size")
             y2 = relay.strided_slice(y,
-                                     begin=relay.const([0, channels], "int64"),
-                                     end=relay.const([-1, channels], "int64"),
-                                     strides=relay.const([1, 1], "int64"),
+                                     begin=[0, channels],
+                                     end=[-1, channels],
+                                     strides=[1, 1],
                                      slice_mode="size")
             y = relay.concatenate((y1, y2), axis=1)
         return relay.Function(args, y)
