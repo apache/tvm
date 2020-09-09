@@ -177,7 +177,11 @@ TVM_REGISTER_GLOBAL("topi.one_hot").set_body([](TVMArgs args, TVMRetValue* rv) {
 });
 
 TVM_REGISTER_GLOBAL("topi.matrix_set_diag").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = matrix_set_diag(args[0], args[1]);
+  int k1 = args[2];
+  int k2 = args[3];
+  bool super_diag_right_align = args[4];
+  bool sub_diag_right_align = args[5];
+  *rv = matrix_set_diag(args[0], args[1], k1, k2, super_diag_right_align, sub_diag_right_align);
 });
 
 TVM_REGISTER_GLOBAL("topi.adv_index").set_body([](TVMArgs args, TVMRetValue* rv) {
