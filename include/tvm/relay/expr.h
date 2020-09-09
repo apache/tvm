@@ -182,10 +182,12 @@ class VarNode : public ExprNode {
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
     return equal(type_annotation, other->type_annotation) && equal(vid, other->vid);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
     hash_reduce(type_annotation);
     hash_reduce(vid);
   }

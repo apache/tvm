@@ -706,12 +706,14 @@ def test_fn_attribute():
 
 
 def test_fn_vid_map():
-    def get_fn():
+    def get_fn(with_vid):
         x = relay.var("x", shape=(10,), dtype="float32")
-        f = relay.Function([x], x).with_attr("dict", {x.vid: 1})
+        f = relay.Function([x], x).with_attr(
+            "dict", {x.vid: 1} if with_vid else {x : 1})
         return f
 
-    assert consistent_equal(get_fn(), get_fn())
+    assert consistent_equal(get_fn(True), get_fn(True))
+    assert consistent_equal(get_fn(False), get_fn(False))
 
 
 if __name__ == "__main__":
