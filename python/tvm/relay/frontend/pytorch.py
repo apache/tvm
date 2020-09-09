@@ -1762,9 +1762,13 @@ def _tensor_array_stack(prelude):
 def _stack(prelude):
     def _impl(inputs, input_types):
         if isinstance(inputs[0], list):
+            # a static python list of tensors
             dim = inputs[1]
             return _op.stack(inputs[0], dim)
         else:
+            # List ADT case
+            # TODO: is there a better way to check if an input is a List ADT?
+            assert isinstance(inputs[0], _expr.Expr)
             return _tensor_array_stack(prelude)(inputs, input_types)
     return _impl
 

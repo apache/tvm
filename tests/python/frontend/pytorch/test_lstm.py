@@ -26,6 +26,7 @@ from typing import List, Tuple
 from torch import Tensor
 
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.relay.frontend.pytorch import from_pytorch
 from tvm.relay.prelude import Prelude
