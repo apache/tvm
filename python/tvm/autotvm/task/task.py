@@ -23,7 +23,7 @@ registers the standard task.
 """
 import numpy as np
 
-from tvm import target as _target
+from tvm.target import Target
 from tvm import runtime
 from tvm.ir import container
 from tvm.tir import expr
@@ -33,6 +33,7 @@ from tvm.te import tensor, placeholder
 from ..util import get_const_int, get_const_tuple
 from .dispatcher import DispatchContext, ApplyConfig
 from .space import ConfigSpace
+
 
 def _raise_error(*args, **kwargs):  # pylint: disable=unused-argument
     raise RuntimeError("The function of this task is not found. Possibly the function "
@@ -115,6 +116,7 @@ class Task(object):
     args: Tuple
         Positional argument of func
     """
+
     def __init__(self, name, args):
         self.name = name
         self.args = args
@@ -187,7 +189,9 @@ class Task(object):
             self.name, self.args, self.kwargs, self.workload
         )
 
+
 TASK_TABLE = {}
+
 
 class TaskTemplate(object):
     """
@@ -201,6 +205,7 @@ class TaskTemplate(object):
     Note that when customized func is registered, compute and schedule function
     will be ignored
     """
+
     def __init__(self):
         self.fcompute = None
         self.fschedule = None
@@ -230,10 +235,12 @@ class TaskTemplate(object):
             if isinstance(t.op, tensor.PlaceholderOp):
                 inputs.append(t)
             else:
-                input_tensors = [t for t in t.op.input_tensors if t not in hash_set]
+                input_tensors = [
+                    t for t in t.op.input_tensors if t not in hash_set]
                 queue.extend(input_tensors)
                 hash_set.update(input_tensors)
         return inputs
+
 
 def _register_task_compute(name, func=None):
     """Register compute function to autotvm task
@@ -257,12 +264,14 @@ def _register_task_compute(name, func=None):
             TASK_TABLE[name] = TaskTemplate()
         tmpl = TASK_TABLE[name]
         if tmpl.fcompute is not None:
-            raise ValueError("Compute is already registered in autoTVM task %s" % name)
+            raise ValueError(
+                "Compute is already registered in autoTVM task %s" % name)
         tmpl.fcompute = f
         return f
     if func:
         return _do_reg(func)
     return _do_reg
+
 
 def _register_task_schedule(name, func=None):
     """Register schedule function to autotvm task
@@ -286,12 +295,14 @@ def _register_task_schedule(name, func=None):
             TASK_TABLE[name] = TaskTemplate()
         tmpl = TASK_TABLE[name]
         if tmpl.fschedule is not None:
-            raise ValueError("Schedule is already registered in autoTVM task %s" % name)
+            raise ValueError(
+                "Schedule is already registered in autoTVM task %s" % name)
         tmpl.fschedule = f
         return f
     if func:
         return _do_reg(func)
     return _do_reg
+
 
 def _register_customized_task(name, func=None):
     """Register a customized function to AutoTVM task.
@@ -315,7 +326,8 @@ def _register_customized_task(name, func=None):
             TASK_TABLE[name] = TaskTemplate()
         tmpl = TASK_TABLE[name]
         if tmpl.fcustomized is not None:
-            raise ValueError("Customized func is already registered in autoTVM task %s" % name)
+            raise ValueError(
+                "Customized func is already registered in autoTVM task %s" % name)
         tmpl.fcustomized = f
         return f
     if func:
@@ -378,7 +390,7 @@ def template(task_name, func=None):
         def wrapper(*args, **kwargs):
             assert not kwargs, "Do not support kwargs in template function call"
             workload = args_to_workload(args, task_name)
-            tgt = _target.Target.current()
+            tgt = Target.current()
             cfg = DispatchContext.current.query(tgt, workload)
             with ApplyConfig(cfg):
                 return f(*args, **kwargs)
@@ -414,7 +426,7 @@ def create(task_name, args, target, target_host=None):
     ret = Task(task_name, args)
 
     if isinstance(target, str):
-        target = _target.create(target)
+        target = Target(target)
 
     # init config space
     ret.config_space = ConfigSpace()
@@ -431,6 +443,7 @@ def create(task_name, args, target, target_host=None):
 
     return ret
 
+
 def get_config():
     """Get current config object
 
@@ -439,8 +452,9 @@ def get_config():
     cfg: ConfigSpace or ConfigEntity
         The current config
     """
-    tgt = _target.Target.current(allow_none=True)
+    tgt = Target.current(allow_none=True)
     return DispatchContext.current.query(tgt, None)
+
 
 class FlopCalculationError(RuntimeError):
     """Error happens when estimating FLOP for a compute op"""
@@ -462,7 +476,8 @@ def compute_flop(sch):
     def _prod_length(axes):
         """compute product of the lengths of a list of axes"""
         try:
-            num_iter = int(np.prod([get_const_int(axis.dom.extent) for axis in axes]))
+            num_iter = int(
+                np.prod([get_const_int(axis.dom.extent) for axis in axes]))
         except ValueError:
             raise FlopCalculationError("The length of axis is not constant. ")
         return num_iter
@@ -474,9 +489,11 @@ def compute_flop(sch):
             combiner = exp.combiner.result
             source = exp.source
             if len(combiner) != 1:
-                raise FlopCalculationError("Found multiple output in the combiner of reduce op")
+                raise FlopCalculationError(
+                    "Found multiple output in the combiner of reduce op")
             if len(source) != 1:
-                raise FlopCalculationError("Found multiple output in the source of reduce op")
+                raise FlopCalculationError(
+                    "Found multiple output in the source of reduce op")
             return num_iter * (_count_flop(combiner[0]) + _count_flop(source[0]))
         if isinstance(exp, (expr.FloatImm, expr.IntImm)):
             return 0
@@ -506,7 +523,8 @@ def compute_flop(sch):
         if isinstance(exp, expr.Call):
             return sum([_count_flop(x) for x in exp.args])
 
-        raise FlopCalculationError("Found unsupported operator in the compute expr")
+        raise FlopCalculationError(
+            "Found unsupported operator in the compute expr")
 
     def traverse(ops):
         """accumulate flops"""
@@ -517,7 +535,8 @@ def compute_flop(sch):
 
                 body = op.body
                 if len(body) != 1:
-                    raise FlopCalculationError("Found multiple output in the compute")
+                    raise FlopCalculationError(
+                        "Found multiple output in the compute")
                 exp = body[0]
 
                 ret += num_element * _count_flop(exp)
@@ -534,8 +553,9 @@ def compute_flop(sch):
         ret = traverse(sch.outputs)
     except FlopCalculationError as exc:
         raise RuntimeError("FLOP estimator fails for this operator. Error msg: "
-                           + str(exc) + ". Please use `cfg.add_flop` to manually set "
-                                        "FLOP for this operator")
+                           + str(exc) +
+                           ". Please use `cfg.add_flop` to manually set "
+                           "FLOP for this operator")
 
     if ret == 0:
         raise RuntimeError("Cannot find float number operation in this operator. "

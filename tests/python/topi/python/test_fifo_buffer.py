@@ -49,7 +49,7 @@ def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype='float32'):
     def check_device(device, ctx):
         print('  Running on target: {}'.format(device))
 
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             out = topi.nn.fifo_buffer(data, buffer, axis=axis)
             s = tvm.topi.testing.get_injective_schedule(device)([out])
 
@@ -123,7 +123,7 @@ def verify_conv1d_integration():
 
         conv2d_nchw, schedule_conv2d_nchw = tvm.topi.testing.get_conv2d_nchw_implement(device)
 
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             out = topi.nn.fifo_buffer(inc_input, context, axis=buffer_axis)
             s = tvm.topi.testing.get_injective_schedule(device)([out])
             update_context = tvm.build(s, [inc_input, context, out], device, name='update_context')

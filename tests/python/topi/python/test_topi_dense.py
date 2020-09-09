@@ -61,7 +61,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
     def check_device(device, ctx):
         print("Running on target: %s" % device)
         for fcompute, fschedule in tvm.topi.testing.dispatch(device, _dense_implement):
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 D = fcompute(A, B, C if use_bias else None)
                 D = topi.nn.relu(D)
                 s = fschedule([D])
@@ -106,7 +106,7 @@ def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
             return
 
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             D = topi.cuda.dense_int8(A, B, C if use_bias else None, out_dtype)
             D = topi.nn.relu(D)
             s = topi.cuda.schedule_dense_int8([D])

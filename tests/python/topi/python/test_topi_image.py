@@ -48,7 +48,7 @@ def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width,
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_injective_schedule(device)(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
@@ -112,7 +112,7 @@ def verify_resize3d(batch, in_channel, in_depth, in_height, in_width, out_depth,
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_injective_schedule(device)(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
@@ -170,7 +170,7 @@ def test_crop_and_resize():
                                                           extrapolation_value)
         def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(out)
             tvm_images = tvm.nd.array(np_images, ctx)
             tvm_boxes = tvm.nd.array(np_boxes, ctx)
@@ -217,7 +217,7 @@ def test_affine_grid():
 
         def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(out)
             tvm_data = tvm.nd.array(data_np, ctx)
             tvm_out = tvm.nd.empty(out_np.shape, dtype, ctx)
@@ -254,7 +254,7 @@ def test_grid_sample():
 
         def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(out)
             tvm_data = tvm.nd.array(data_np, ctx)
             tvm_grid = tvm.nd.array(grid_np, ctx)

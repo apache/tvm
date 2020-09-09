@@ -60,7 +60,7 @@ def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride, 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv3d_ndhwc_implement)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             B = fcompute(A, W, stride, padding, dilation, dtype)
             s = fschedule([B])
         ctx = tvm.context(device, 0)

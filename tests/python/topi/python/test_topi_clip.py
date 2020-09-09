@@ -40,7 +40,7 @@ def verify_clip(N, a_min, a_max, dtype):
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_injective_schedule(device)(B)
 
         a = tvm.nd.array(a_np, ctx)

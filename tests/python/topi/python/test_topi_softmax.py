@@ -35,7 +35,7 @@ _softmax_schedule = {
 
 def check_device(A, B, a_np, b_np, device, ctx, name):
     print("Running on target: %s" % device)
-    with tvm.target.create(device):
+    with tvm.target.Target(device):
         s_func = tvm.topi.testing.dispatch(device, _softmax_schedule)
         s = s_func(B)
 

@@ -35,7 +35,8 @@ import numpy as np
 
 import tvm._ffi
 import tvm.ir.transform
-from tvm import nd, rpc as _rpc, target as _target
+from tvm import nd, rpc as _rpc
+from tvm.target import Target
 from tvm.error import TVMError
 from tvm.driver import build
 from tvm.contrib import nvcc, ndk, tar
@@ -48,6 +49,7 @@ from .measure import MeasureResult, MeasureErrorNo, Builder, Runner
 from .local_executor import LocalExecutor
 
 logger = logging.getLogger('autotvm')
+
 
 class BuildResult(namedtuple("BuildResult", ('filename', 'arg_info', 'error', 'time_cost'))):
     """
@@ -65,6 +67,7 @@ class BuildResult(namedtuple("BuildResult", ('filename', 'arg_info', 'error', 't
         The time cost of building
     """
 
+
 class LocalBuilder(Builder):
     """Run compilation on local machine
 
@@ -79,6 +82,7 @@ class LocalBuilder(Builder):
         If is 'ndk', use function for android ndk
         If is callable, use it as custom build function, expect lib_format field.
     """
+
     def __init__(self, timeout=10, n_parallel=None, build_func='default'):
         super(LocalBuilder, self).__init__(timeout, n_parallel)
 
@@ -187,6 +191,7 @@ class RPCRunner(Runner):
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
     """
+
     def __init__(self,
                  key, host, port, priority=1,
                  timeout=10, n_parallel=None,
@@ -226,7 +231,7 @@ class RPCRunner(Runner):
         if self.check_correctness:
             # use llvm cpu to generate a reference input/output
             # this option works for tuning topi, but might not work for you custom op
-            with _target.create("llvm"):
+            with Target("llvm"):
                 s, arg_bufs = task.instantiate(task.config_space.get(0))
             self.ref_input = [np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype)
                               for x in arg_bufs]
@@ -251,15 +256,18 @@ class RPCRunner(Runner):
             }
 
             if 'cuda' in self.task.target.keys:
-                kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split('.'))
+                kwargs["cuda_arch"] = "sm_" + \
+                    "".join(ctx.compute_version.split('.'))
         if self.task.target.device_name == 'micro_dev':
-            kwargs.setdefault('build_option', {})['tir.disable_vectorize'] = True
+            kwargs.setdefault('build_option', {})[
+                'tir.disable_vectorize'] = True
 
         return kwargs
 
     def run(self, measure_inputs, build_results):
         results = []
-        remote_args = (self.key, self.host, self.port, self.priority, self.timeout)
+        remote_args = (self.key, self.host, self.port,
+                       self.priority, self.timeout)
 
         for i in range(0, len(measure_inputs), self.n_parallel):
             futures = []
@@ -287,6 +295,7 @@ class RPCRunner(Runner):
                     results.append(res)
 
         return results
+
 
 class LocalRunner(RPCRunner):
     """Run generated code on local devices.
@@ -328,6 +337,7 @@ class LocalRunner(RPCRunner):
     This is a "fake" local mode. We start a silent rpc tracker and rpc server
     for the user. In this way we reuse timeout/isolation mechanism in RPC infrastructure.
     """
+
     def __init__(self,
                  timeout=10,
                  number=4, repeat=3, min_repeat_ms=0, cooldown_interval=0.1,
@@ -380,7 +390,7 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
 
         # if target is vta, we need to use vta build
         if hasattr(measure_input.target, 'device_name') and \
-            measure_input.target.device_name == 'vta':
+                measure_input.target.device_name == 'vta':
             # pylint: disable=import-outside-toplevel
             import vta
             func = vta.build(s, args, target_host=task.target_host)
@@ -407,9 +417,11 @@ class _WrappedBuildFunc():
     wrapped_build_func : callable
         The wrapped build function
     """
+
     def __init__(self, build_func):
         if not hasattr(build_func, "output_format"):
-            raise AttributeError("Expect build_func to have the attribute output_format.")
+            raise AttributeError(
+                "Expect build_func to have the attribute output_format.")
         self.build_func = build_func
 
     def __call__(self, measure_input, tmp_dir, **kwargs):
@@ -434,6 +446,7 @@ class _WrappedBuildFunc():
         except Exception as e:  # pylint: disable=broad-except
             return BuildResult(None, None, e, time.time() - tic)
         return BuildResult(filename, arg_info, None, time.time() - tic)
+
 
 def run_through_rpc(measure_input, build_result,
                     number, repeat, min_repeat_ms, cooldown_interval,
@@ -488,7 +501,7 @@ def run_through_rpc(measure_input, build_result,
         remote = request_remote(*remote_args)
         # Program the FPGA every single time when targeting VTA
         if hasattr(measure_input.target, 'device_name') and \
-            measure_input.target.device_name == 'vta':
+                measure_input.target.device_name == 'vta':
             # pylint: disable=import-outside-toplevel
             from vta import program_fpga, reconfig_runtime
             program_fpga(remote, None)
@@ -630,7 +643,8 @@ def tvm_callback_cuda_compile(code):
     #   "-gencode", "arch=compute_70,code=sm_70"
     # ]
     target = "fatbin" if isinstance(curr_cuda_target_arch, list) else "ptx"
-    ptx = nvcc.compile_cuda(code, target=target, arch=AutotvmGlobalScope.current.cuda_target_arch)
+    ptx = nvcc.compile_cuda(code, target=target,
+                            arch=AutotvmGlobalScope.current.cuda_target_arch)
     return ptx
 
 

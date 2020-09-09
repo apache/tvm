@@ -94,7 +94,7 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _get_valid_counts_implement)
             data = te.placeholder(dshape, name="data", dtype=dtype)
             outs = fcompute(data, score_threshold, id_index, score_index)
@@ -146,7 +146,7 @@ def verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, n
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _nms_implement)
             out = fcompute(data, valid_count, indices, max_output_size, iou_threshold, force_suppress,
                            top_k, coord_start=coord_start, score_index=score_index, id_index=id_index,
@@ -252,7 +252,7 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offse
         print("Running on target: %s" % device)
 
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _multibox_prior_implement)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             out = fcompute(data, sizes, ratios, steps, offsets, clip)
             s = fschedule(out)
 
@@ -299,7 +299,7 @@ def test_multibox_detection():
         print("Running on target: %s" % device)
 
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _multibox_detection_implement)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             out = fcompute(cls_prob, loc_preds, anchors)
             s = fschedule(out)
 
@@ -342,7 +342,7 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
             return
         print("Running on target: %s" % device)
 
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _roi_align_implement)
             b = fcompute(a, rois, pooled_size=pooled_size,
                          spatial_scale=spatial_scale,
@@ -394,7 +394,7 @@ def verify_roi_pool(batch, in_channel, in_size, num_roi, pooled_size, spatial_sc
             return
         print("Running on target: %s" % device)
 
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             b = topi.vision.rcnn.roi_pool_nchw(a, rois, pooled_size=pooled_size,
                                                 spatial_scale=spatial_scale)
             s_func = tvm.topi.testing.dispatch(device, _roi_pool_schedule)
@@ -428,7 +428,7 @@ def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _proposal_implement)
             out = fcompute(cls_prob, bbox_pred, im_info, **attrs)
             s = fschedule(out)

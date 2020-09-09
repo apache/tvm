@@ -67,7 +67,7 @@ def verify_deformable_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel
             return
         print("Running on target: %s" % device)
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _deformable_conv2d_implement)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             C = fcompute(A, Offset, W, stride, padding, dilation,
                          deformable_groups, groups, dtype)
             s = fschedule([C])

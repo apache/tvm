@@ -222,7 +222,7 @@ class ConstantFolder : public ExprMutator {
     DLContext ctx;
     ctx.device_type = kDLCPU;
     ctx.device_id = 0;
-    Target target = Target::Create("llvm");
+    Target target = Target("llvm");
     // use a fresh build context
     // in case we are already in a build context.
     // needed for both execution and creation(due to JIT)

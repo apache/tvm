@@ -29,12 +29,13 @@ from tvm.autotvm.task import get_config
 from tvm.autotvm.record import encode, load_from_file
 from tvm.autotvm.measure import MeasureResult, MeasureInput
 
-from ... import target as _target
+from ...target import Target
 from .utils import is_boundary_node, get_in_nodes, get_out_nodes, has_multiple_inputs, \
     bind_inputs, expr2graph
 from ._base import INVALID_LAYOUT_TIME
 
 from ._base import OPT_OUT_OP
+
 
 def get_infer_layout(task_name):
     if task_name.startswith("conv2d"):
@@ -42,6 +43,7 @@ def get_infer_layout(task_name):
     if task_name.startswith("depthwise_conv2d"):
         return topi.nn.depthwise_conv2d_infer_layout
     raise ValueError("Cannot find infer layout for task %s" % task_name)
+
 
 @autotvm.template("layout_transform")
 def layout_transform(*args):
@@ -61,6 +63,7 @@ class BaseGraphTuner(object):
     Before creating a Graph Executor instance, schedule candidates for all kernels in
     graph should be provided through tensor-level tuning.
     """
+
     def __init__(self, graph, input_shapes, records, target_ops,
                  target, max_sch_num=20, dtype="float32", verbose=True,
                  log_file="graph_tuner.log", log_level=logging.DEBUG,
@@ -111,7 +114,7 @@ class BaseGraphTuner(object):
         self._records = records
         self._dtype = dtype
         if isinstance(target, str):
-            target = _target.create(target)
+            target = Target(target)
         self._target = target
         self._optimal_record_dict = {}
 
@@ -126,7 +129,8 @@ class BaseGraphTuner(object):
                 need_console_handler = False
         self._log_level = log_level
         self._log_file = log_file
-        self._formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+        self._formatter = logging.Formatter(
+            '%(asctime)s %(levelname)s %(message)s')
         self._logger.setLevel(log_level)
         if need_file_handler:
             file_handler = logging.FileHandler(log_file)
@@ -151,7 +155,8 @@ class BaseGraphTuner(object):
             raise RuntimeError("Unsupported graph type: %s" % str(type(graph)))
 
         self._graph = graph
-        self._in_nodes_dict = get_in_nodes(self._node_list, self._target_ops, input_shapes.keys())
+        self._in_nodes_dict = get_in_nodes(
+            self._node_list, self._target_ops, input_shapes.keys())
         if len(self._in_nodes_dict) == 0:
             raise RuntimeError("Could not find any input nodes with whose "
                                "operator is one of %s" % self._target_ops)
@@ -180,16 +185,17 @@ class BaseGraphTuner(object):
                         input_workload = input_node["workloads"][0]
                         first_tensor = input_workload[1]
                         dtype = first_tensor[-1]
-                        new_shape = tuple([val.value for val in node_entry["types"][0].shape])
+                        new_shape = tuple(
+                            [val.value for val in node_entry["types"][0].shape])
                         actual_workload = (input_workload[0],) + \
-                                          (("TENSOR", new_shape, dtype),) + input_workload[2:]
+                                          (("TENSOR", new_shape, dtype),) + \
+                            input_workload[2:]
                         node_entry["workloads"].append(actual_workload)
                         if "record_candidates" not in node_entry:
                             node_entry["record_candidates"] = input_node["record_candidates"]
                     else:
                         node_entry["topi_op"].append(None)
                         node_entry["workloads"].append(None)
-
 
     def _fetch_cfg(self):
         """Read and pre-process input schedules."""
@@ -267,7 +273,8 @@ class BaseGraphTuner(object):
 
                 if node_entry["op"] in self._target_ops:
                     o_idx = key
-                    o_infer_layout_func = get_infer_layout(node_entry["topi_op"][0])
+                    o_infer_layout_func = get_infer_layout(
+                        node_entry["topi_op"][0])
                     o_wkl = node_entry["workloads"][0]
                     i_topi_op = in_node_entry["topi_op"][0]
                     i_wkl = in_node_entry["workloads"][0]
@@ -281,9 +288,11 @@ class BaseGraphTuner(object):
                     o_idx = target_input_idx
                     if i <= target_input_pos:
                         continue
-                    o_infer_layout_func = get_infer_layout(node_entry["topi_op"][0])
+                    o_infer_layout_func = get_infer_layout(
+                        node_entry["topi_op"][0])
                     o_wkl = node_entry["workloads"][target_input_pos]
-                    i_infer_layout_func = get_infer_layout(node_entry["topi_op"][i])
+                    i_infer_layout_func = get_infer_layout(
+                        node_entry["topi_op"][i])
                     i_wkl = node_entry["workloads"][i]
 
                 if (i_idx, o_idx) in pair_tracker:
@@ -294,8 +303,10 @@ class BaseGraphTuner(object):
                     for n, o_record in enumerate(node_entry["record_candidates"]):
                         i_cfg, o_cfg = i_record[0].config, o_record[0].config
                         with self._target:
-                            i_input_info, i_output_info = i_infer_layout_func(i_wkl, i_cfg)
-                            o_input_info, o_output_info = o_infer_layout_func(o_wkl, o_cfg)
+                            i_input_info, i_output_info = i_infer_layout_func(
+                                i_wkl, i_cfg)
+                            o_input_info, o_output_info = o_infer_layout_func(
+                                o_wkl, o_cfg)
                         if len(i_input_info) > 1 or len(i_output_info) > 1 or \
                                 len(o_input_info) > 1 or len(o_output_info) > 1:
                             raise RuntimeError("Graph tuner only supports target operator "
@@ -311,7 +322,6 @@ class BaseGraphTuner(object):
                                                           dtype=self._dtype)
                         args = [data_placeholder, in_layout, out_layout]
                         callback(i_idx, o_idx, m, n, args)
-
 
     def _create_matrix_callback(self, from_node_idx, to_node_idx, from_sch_idx,
                                 to_sch_idx, args):
@@ -403,12 +413,14 @@ class BaseGraphTuner(object):
         """
         self._logger.info("Start to benchmark layout transformation...")
         if layout_records is None and infer_layout:
-            raise RuntimeError("Requires some records to infer layout transformation time.")
+            raise RuntimeError(
+                "Requires some records to infer layout transformation time.")
 
         if isinstance(layout_records, str):
             layout_records = load_from_file(layout_records)
             if not layout_records and infer_layout:
-                raise RuntimeError("Records must be non-empty to infer layout transformation time.")
+                raise RuntimeError(
+                    "Records must be non-empty to infer layout transformation time.")
 
         if isinstance(layout_records, str):
             layout_records = load_from_file(layout_records)
@@ -424,6 +436,7 @@ class BaseGraphTuner(object):
         avg_time = total_time / num_flops if num_flops > 0 else 0
 
         args_list = []
+
         def _fetch_args_callback(from_node_idx, to_node_idx, from_sch_idx,
                                  to_sch_idx, args):
             """Callback function to fetch layout transform args"""
@@ -440,18 +453,22 @@ class BaseGraphTuner(object):
                 record_list.append((inputs[0], results[0]))
             return _callback
 
-        builder = autotvm.LocalBuilder(n_parallel=n_parallel, build_func=build_func)
-        runner = autotvm.LocalRunner(number=min_exec_num, repeat=1, timeout=timeout)
+        builder = autotvm.LocalBuilder(
+            n_parallel=n_parallel, build_func=build_func)
+        runner = autotvm.LocalRunner(
+            number=min_exec_num, repeat=1, timeout=timeout)
         if use_rpc:
             if device_key is None:
-                raise RuntimeError("device_key need to be set to use rpc tracker mode.")
+                raise RuntimeError(
+                    "device_key need to be set to use rpc tracker mode.")
             runner = autotvm.measure.RPCRunner(device_key, host, port, n_parallel=n_parallel,
                                                number=min_exec_num, repeat=1,
                                                timeout=timeout)
         measure_option = autotvm.measure_option(builder=builder, runner=runner)
         for args in args_list:
             data, in_layout, out_layout = args
-            ltf_workload = autotvm.task.args_to_workload(args, 'layout_transform')
+            ltf_workload = autotvm.task.args_to_workload(
+                args, 'layout_transform')
             if ltf_workload in self._layout_transform_perf_records:
                 continue
 
@@ -472,10 +489,12 @@ class BaseGraphTuner(object):
                 else:
                     inferred_time = flops * avg_time
 
-                record_input = MeasureInput(target=self._target, task=None, config=None)
+                record_input = MeasureInput(
+                    target=self._target, task=None, config=None)
                 record_output = MeasureResult(costs=(inferred_time,), error_no=0,
                                               all_cost=-1, timestamp=-1)
-                self._layout_transform_perf_records[ltf_workload] = (record_input, record_output)
+                self._layout_transform_perf_records[ltf_workload] = (
+                    record_input, record_output)
                 continue
 
             records = []
@@ -485,7 +504,8 @@ class BaseGraphTuner(object):
             tuner.tune(n_trial=1, measure_option=measure_option,
                        callbacks=[_log_to_list(records)])
             if not isinstance(records[0][1].costs[0], float):
-                records[0] = (records[0][0], records[0][1]._replace(costs=(INVALID_LAYOUT_TIME,)))
+                records[0] = (records[0][0], records[0]
+                              [1]._replace(costs=(INVALID_LAYOUT_TIME,)))
             self._layout_transform_perf_records[ltf_workload] = records[0]
 
         self._iterate_layout_transform(self._create_matrix_callback)
@@ -502,7 +522,6 @@ class BaseGraphTuner(object):
         """
         return self._layout_transform_perf_records
 
-
     def get_optimal_records(self):
         """Convert optimal record dictionary to a list of records
         with ascending order of node index in graph.
@@ -518,7 +537,8 @@ class BaseGraphTuner(object):
             node_entry = self._node_list[index]
             if node_entry["op"] not in self._target_ops:
                 continue
-            ret.append(node_entry["record_candidates"][self._optimal_record_dict[index]])
+            ret.append(node_entry["record_candidates"]
+                       [self._optimal_record_dict[index]])
         return ret
 
     def write_opt_sch2record_file(self, record_file="graph_opt_schedule.log"):

@@ -46,6 +46,7 @@ def test_task_tuner_without_measurement():
         tuner.tune(n_trial=10, measure_option=measure_option)
         assert tuner.best_flops > 1
 
+
 def test_check_correctness():
     task, target = get_sample_task()
 
@@ -64,8 +65,9 @@ def test_check_correctness():
 
     # a bad template
     n = 128
-    target = tvm.target.create("llvm -device=bad_device")
-    task = autotvm.task.create("testing/bad_matmul", args=(n, n, n, 'float32'), target=target)
+    target = tvm.target.Target("llvm -device=bad_device")
+    task = autotvm.task.create(
+        "testing/bad_matmul", args=(n, n, n, 'float32'), target=target)
 
     def _callback_wrong(tuner, measure_inputs, measure_results):
         for _, res in zip(measure_inputs, measure_results):

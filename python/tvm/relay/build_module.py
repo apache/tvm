@@ -24,7 +24,8 @@ import numpy as np
 from tvm.ir import IRModule
 
 from tvm.tir import expr as tvm_expr
-from .. import nd as _nd, target as _target, autotvm
+from .. import nd as _nd, autotvm
+from ..target import Target
 from ..contrib import graph_runtime as _graph_rt
 from . import _build_module
 from . import ty as _ty
@@ -34,19 +35,21 @@ from .backend import graph_runtime_factory as _graph_runtime_factory
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
+
 def _update_target(target):
-    target = target if target else _target.Target.current()
+    target = target if target else Target.current()
     if target is None:
         raise ValueError("Target is not set in env or passed as argument.")
 
     tgts = {}
-    if isinstance(target, (str, _target.Target)):
-        dev_type = tvm_expr.IntImm("int32", _nd.context(str(target)).device_type)
-        tgts[dev_type] = _target.create(target)
+    if isinstance(target, (str, Target)):
+        dev_type = tvm_expr.IntImm(
+            "int32", _nd.context(str(target)).device_type)
+        tgts[dev_type] = Target(target)
     elif isinstance(target, dict):
         for dev, tgt in target.items():
             dev_type = tvm_expr.IntImm("int32", _nd.context(dev).device_type)
-            tgts[dev_type] = _target.create(tgt)
+            tgts[dev_type] = Target(tgt)
     else:
         raise TypeError("target is expected to be str or " +
                         "tvm.target.Target, but received " +
@@ -67,6 +70,7 @@ class BuildModule(object):
     """Build an IR module to run on TVM graph runtime. This class is used
     to expose the `RelayBuildModule` APIs implemented in C++.
     """
+
     def __init__(self):
         self.mod = _build_module._BuildModule()
         self._get_graph_json = self.mod["get_graph_json"]
@@ -161,7 +165,6 @@ class BuildModule(object):
 
         return mod, params
 
-
     def _set_params(self, params):
         self._set_params_func(_convert_param_map(params))
 
@@ -237,8 +240,8 @@ def build(mod, target=None, target_host=None, params=None, mod_name='default'):
 
     target = _update_target(target)
 
-    if isinstance(target_host, (str, _target.Target)):
-        target_host = _target.create(target_host)
+    if isinstance(target_host, (str, Target)):
+        target_host = Target(target_host)
     elif target_host:
         raise ValueError("target host must be the type of str, " +
                          "tvm.target.Target, or None")
@@ -252,8 +255,10 @@ def build(mod, target=None, target_host=None, params=None, mod_name='default'):
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, mod, params = bld_mod.build(mod, target, target_host, params)
-        mod = _graph_runtime_factory.GraphRuntimeFactoryModule(graph_json, mod, mod_name, params)
+        graph_json, mod, params = bld_mod.build(
+            mod, target, target_host, params)
+        mod = _graph_runtime_factory.GraphRuntimeFactoryModule(
+            graph_json, mod, mod_name, params)
         return mod
 
 
@@ -362,7 +367,8 @@ class GraphExecutor(_interpreter.Executor):
         if _ty.is_dynamic(ret_type):
             raise ValueError("Graph Runtime only supports static graphs, got output type",
                              ret_type)
-        num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
+        num_outputs = len(ret_type.fields) if isinstance(
+            ret_type, _ty.TupleType) else 1
         mod = build(self.mod, target=self.target)
         gmodule = _graph_rt.GraphModule(mod['default'](self.ctx))
 
@@ -412,7 +418,7 @@ def create_executor(kind="debug",
         ctx = _nd.context(str(target), 0)
 
     if isinstance(target, str):
-        target = _target.create(target)
+        target = Target(target)
     if kind == "debug":
         return _interpreter.Interpreter(mod, ctx, target)
     if kind == "graph":

@@ -44,10 +44,11 @@ def test_cpu_matmul():
     s.parallel(C, jo)
     s.unroll(C, k)
 
-    target = tvm.target.create('llvm')
+    target = tvm.target.Target('llvm')
     task = auto_scheduler.SearchTask(dag, "test", target)
     names = auto_scheduler.feature.get_per_store_feature_names()
-    fea = auto_scheduler.feature.get_per_store_features_from_states([s], task)[0]
+    fea = auto_scheduler.feature.get_per_store_features_from_states([s], task)[
+        0]
 
     stage_0 = fea[0]
     assert len(stage_0) == len(names), "%d vs %d" % (len(stage_0), len(names))
@@ -78,9 +79,11 @@ def test_cpu_matmul():
 
     # check touched memory in bytes, touched unique memory in bytes, reuse distance, etc.
     assert fequal(fea_dict[c_name + ".bytes"], math.log2(512 ** 3 * 4 + 1))
-    assert fequal(fea_dict[b_name + ".unique_bytes"], math.log2(512 ** 2 * 4 + 1))
+    assert fequal(fea_dict[b_name + ".unique_bytes"],
+                  math.log2(512 ** 2 * 4 + 1))
     assert fequal(fea_dict[c_name + ".reuse_dis_iter"], math.log2(8 * 16 + 1))
-    assert fequal(fea_dict[c_name + ".reuse_dis_bytes"], math.log2((8 * 16 + 8 + 16) * 4 + 1))
+    assert fequal(fea_dict[c_name + ".reuse_dis_bytes"],
+                  math.log2((8 * 16 + 8 + 16) * 4 + 1))
     assert fequal(fea_dict[c_name + ".reuse_ct"], math.log2(512 + 1))
 
     # check annotations
@@ -88,7 +91,8 @@ def test_cpu_matmul():
     # assert fequal(fea_dict["unroll_type.kPosInnerReduce"], 1.0)
     assert fequal(fea_dict["vec_num"], math.log2(1 + 1))
     assert fequal(fea_dict["parallel_num"], math.log2(2 + 1))
-    assert fequal(fea_dict["parallel_prod"], math.log2((512 * 512 / 16 / 8) + 1))
+    assert fequal(fea_dict["parallel_prod"],
+                  math.log2((512 * 512 / 16 / 8) + 1))
 
 
 def test_cpu_fusion():
@@ -102,10 +106,11 @@ def test_cpu_fusion():
     s = dag.get_init_state()
     s.compute_at(1, 2, s.stages[2].iters[1])
 
-    target = tvm.target.create('llvm')
+    target = tvm.target.Target('llvm')
     task = auto_scheduler.SearchTask(dag, "test", target)
     names = auto_scheduler.feature.get_per_store_feature_names()
-    fea = auto_scheduler.feature.get_per_store_features_from_states([s], task)[0]
+    fea = auto_scheduler.feature.get_per_store_features_from_states([s], task)[
+        0]
 
     """
     lowered IR:
@@ -124,8 +129,10 @@ def test_cpu_fusion():
     for stage_fea in fea:
         for i, (name, value) in enumerate(zip(names, stage_fea)):
             if 'reuse_type.kSerialMultipleReadWrite' in name and value > 0.5:
-                assert fequal(stage_fea[i + 2], 1.0)   # reuse distance in #iter
-                assert fequal(stage_fea[i + 3], math.log2(16 + 1))  # reuse distance in bytes
+                # reuse distance in #iter
+                assert fequal(stage_fea[i + 2], 1.0)
+                # reuse distance in bytes
+                assert fequal(stage_fea[i + 3], math.log2(16 + 1))
                 found = True
     assert found
 
@@ -144,10 +151,12 @@ def test_gpu_feature():
 
         inp = inputs[0]
         dag = auto_scheduler.ComputeDAG(inp.task.workload_key)
-        task = auto_scheduler.SearchTask(dag, inp.task.workload_key, inp.task.target, None, auto_scheduler.HardwareParams(100000, 16, 64))
+        task = auto_scheduler.SearchTask(
+            dag, inp.task.workload_key, inp.task.target, None, auto_scheduler.HardwareParams(100000, 16, 64))
 
         state = dag.infer_bound_from_state(inputs[0].state)
-        fea = auto_scheduler.feature.get_per_store_features_from_states([state], task)[0]
+        fea = auto_scheduler.feature.get_per_store_features_from_states([state], task)[
+            0]
         names = auto_scheduler.feature.get_per_store_feature_names()
 
         # build feature dict
