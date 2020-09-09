@@ -121,6 +121,9 @@ def get_valid_implementations(op, attrs, inputs, out_type, target):
     assert fstrategy is not None, "%s doesn't have FTVMStrategy registered" % op.name
     with target:
         strategy = fstrategy(attrs, inputs, out_type, target)
+    print('strategy.specializations: ', strategy.specializations)
+    for spec in strategy.specializations:
+        print(spec.implementations[0].name)
     analyzer = tvm.arith.Analyzer()
     ret = []
     for spec in strategy.specializations:
@@ -179,6 +182,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     ret : tuple(relay.op.OpImplementation, List[tvm.te.Tensor])
         The best op implementation and the corresponding output tensors.
     """
+    print('target: ', target)
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
 
     best_plevel_impl = max(all_impls, key=lambda x: x.plevel)
