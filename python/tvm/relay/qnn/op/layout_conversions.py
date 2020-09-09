@@ -62,8 +62,10 @@ def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layouts):
         return relay.qnn.op.conv2d(*inputs, **new_attrs)
     if desired_data_layout == 'NHWC':
         # Check for depthwise convolution.
-        if is_depthwise_conv2d(inputs[0].shape, attrs['data_layout'], inputs[1].shape,
-                               attrs['kernel_layout'], attrs['groups']):
+        data_info, weight_info = tinfos
+        if is_depthwise_conv2d(data_info.shape, attrs['data_layout'],
+                               weight_info.shape, attrs['kernel_layout'],
+                               attrs['groups']):
             new_attrs['kernel_layout'] = 'HWOI'
         else:
             new_attrs['kernel_layout'] = 'HWIO'

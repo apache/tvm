@@ -157,8 +157,10 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
         return relay.nn.conv2d(data, weight, **new_attrs)
     elif desired_data_layout == 'NHWC':
         # Check for depthwise convolution.
-        if is_depthwise_conv2d(data.shape, attrs['data_layout'], weight.shape,
-                               attrs['kernel_layout'], attrs['groups']):
+        data_info, weight_info = tinfos
+        if is_depthwise_conv2d(data_info.shape, attrs['data_layout'],
+                               weight_info.shape, attrs['kernel_layout'],
+                               attrs['groups']):
             new_attrs['kernel_layout'] = 'HWOI'
         else:
             new_attrs['kernel_layout'] = 'HWIO'
