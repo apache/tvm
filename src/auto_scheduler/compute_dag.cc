@@ -725,8 +725,8 @@ class IndexRewriter : public StmtExprMutator {
   std::vector<std::string> new_names_;
 };
 
-std::string get_orig_layout(std::set<std::string>* placeholder_axis_names, const te::Operation& op,
-                            const te::Tensor& placeholder) {
+std::string GetOrigLayout(std::set<std::string>* placeholder_axis_names, const te::Operation& op,
+                          const te::Tensor& placeholder) {
   ReadAccessExtractor extractor;
   for (const auto& exp : op.as<te::ComputeOpNode>()->body) {
     extractor.Extract(exp);
@@ -759,10 +759,9 @@ std::string get_orig_layout(std::set<std::string>* placeholder_axis_names, const
   return orig_layout;
 }
 
-std::string get_new_layout(Array<PrimExpr>* new_shape, const State& state, const int stage_id,
-                           const Stage& stage, const te::Operation& op,
-                           const te::Tensor& placeholder,
-                           const std::set<std::string>& placeholder_axis_names) {
+std::string GetNewLayout(Array<PrimExpr>* new_shape, const State& state, const int stage_id,
+                         const Stage& stage, const te::Operation& op, const te::Tensor& placeholder,
+                         const std::set<std::string>& placeholder_axis_names) {
   std::ostringstream os;
   Array<Iterator> stage_iters;
 
@@ -868,11 +867,11 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
       }
 
       std::set<std::string> placeholder_axis_names;
-      get_orig_layout(&placeholder_axis_names, op, placeholder);
+      GetOrigLayout(&placeholder_axis_names, op, placeholder);
 
       Array<PrimExpr> new_shape;
-      std::string new_layout = get_new_layout(&new_shape, state, stage_id, stage, op, placeholder,
-                                              placeholder_axis_names);
+      std::string new_layout =
+          GetNewLayout(&new_shape, state, stage_id, stage, op, placeholder, placeholder_axis_names);
 
       handled_ops.insert(placeholder_op);
 

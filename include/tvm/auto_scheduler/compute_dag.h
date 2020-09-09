@@ -219,7 +219,8 @@ class ComputeDAG : public ObjectRef {
    * Pass a valid pointer if this information needs to be used outside this function.
    * \param stage_to_axes The map that stores all axes for one stage.
    * Pass a valid pointer if this information needs to be used outside this function.
-   * \param layout_rewrite Rewrite the layout of placeholder.
+   * \param layout_rewrite Rewrite the layout of placeholders specified by
+   * attr `layout_free_placeholders`
    * \return A `te.schedule` and the an Array of `te.Tensor` to be used in `tvm.lower`
    * or `tvm.build`.
    */
