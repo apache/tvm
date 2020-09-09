@@ -31,7 +31,7 @@ def matmul_auto_scheduler_test(N, M, K):
     A = te.placeholder((N, K), name='A')
     B = te.placeholder((K, M), name='B')
     k = te.reduce_axis((0, K), name='k')
-    C = te.compute((N, M), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+    C = te.compute((N, M), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C', attrs={"layout_free_placeholders":[B]})
     return [A, B, C]
 
 

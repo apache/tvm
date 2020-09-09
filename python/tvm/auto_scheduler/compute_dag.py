@@ -72,7 +72,7 @@ class ComputeDAG(Object):
         """
         return State(self.init_state, self)
 
-    def apply_steps_from_state(self, state):
+    def apply_steps_from_state(self, state, layout_rewrite=False):
         """
         Apply the history transform steps from a State to get a TVM schedule.
 
@@ -81,12 +81,16 @@ class ComputeDAG(Object):
         state : Union[State, StateObject]
             The state from which we get transform steps.
 
+        layout_rewrite: Bool
+            Rewrite the layout of placeholders specified by "layout_free_placeholders" attr
+            to make it most friendly for the generated schedule to read from.
+
         Returns
         -------
             A `te.schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
         """
         state_obj = state if isinstance(state, StateObject) else state.state_object
-        return _ffi_api.ComputeDAGApplyStepsFromState(self, state_obj)
+        return _ffi_api.ComputeDAGApplyStepsFromState(self, state_obj, layout_rewrite)
 
     def print_python_code_from_state(self, state):
         """
