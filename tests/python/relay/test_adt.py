@@ -152,11 +152,13 @@ def get_scalar(tv):
     return tv.asnumpy().item()
 
 
+@tvm.testing.uses_gpu
 def test_nat_value():
     assert count(make_nat_value(p, 10)) == 10
     assert count(intrp.evaluate(s(s(z())))) == 2
 
 
+@tvm.testing.uses_gpu
 def test_nat_constructor():
     func = relay.Function([], z())
     test_z = relay.GlobalVar("test_z")
@@ -168,24 +170,29 @@ def test_nat_constructor():
     assert mod[test_sz].body.checked_type == nat()
 
 
+@tvm.testing.uses_gpu
 def test_double():
     assert mod[double].checked_type == relay.FuncType([nat()], nat())
     res = intrp.evaluate(double(s(z())))
     assert count(res) == 2
 
 
+@tvm.testing.uses_gpu
 def test_add():
     assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
     res = intrp.evaluate(add(s(z()), s(z())))
     assert count(res) == 2
 
 
+@tvm.testing.uses_gpu
 def test_list_constructor():
     test_consz = relay.GlobalVar("test_consz")
     func = relay.Function([], cons(z(), nil()))
     mod[test_consz] = func
     assert mod[test_consz].body.checked_type == l(nat())
 
+
+@tvm.testing.uses_gpu
 def test_hd_tl():
     expected = list(range(10))
     l = nil()
@@ -199,6 +206,8 @@ def test_hd_tl():
 
     assert got == expected
 
+
+@tvm.testing.uses_gpu
 def test_nth():
     expected = list(range(10))
     l = nil()
@@ -210,6 +219,7 @@ def test_nth():
         assert get_scalar(item) == i
 
 
+@tvm.testing.uses_gpu
 def test_update():
     expected = list(range(10))
     l = nil()
@@ -227,6 +237,8 @@ def test_update():
 
     assert got == expected
 
+
+@tvm.testing.uses_gpu
 def test_length():
     a = relay.TypeVar("a")
     assert mod[length].checked_type == relay.FuncType([l(a)], relay.scalar_type('int32'), [a])
@@ -234,6 +246,7 @@ def test_length():
     assert get_scalar(res) == 3
 
 
+@tvm.testing.uses_gpu
 def test_map():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
@@ -249,6 +262,7 @@ def test_map():
     assert count(ones[0]) == 1 and count(ones[1]) == 1
 
 
+@tvm.testing.uses_gpu
 def test_foldl():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
@@ -270,6 +284,7 @@ def test_foldl():
     assert count(reversed[4]) == 1 and count(reversed[5]) == 1
 
 
+@tvm.testing.uses_gpu
 def test_foldr():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
@@ -289,6 +304,7 @@ def test_foldr():
     assert count(same[0]) == 1 and count(same[1]) == 2 and count(same[2]) == 3
 
 
+@tvm.testing.uses_gpu
 def test_foldr1():
     a = relay.TypeVar("a")
     lhs = mod[p.foldr1].checked_type
@@ -306,12 +322,14 @@ def test_foldr1():
     assert count(res) == 6
 
 
+@tvm.testing.uses_gpu
 def test_sum():
     assert mod[sum].checked_type == relay.FuncType([l(relay.scalar_type('int32'))], relay.scalar_type('int32'))
     res = intrp.evaluate(sum(cons(relay.const(1), cons(relay.const(2), nil()))))
     assert get_scalar(res) == 3
 
 
+@tvm.testing.uses_gpu
 def test_concat():
     a = relay.TypeVar("a")
     assert mod[concat].checked_type == relay.FuncType([l(a), l(a)], l(a), [a])
@@ -328,6 +346,7 @@ def test_concat():
     assert count(catted[3]) == 4
 
 
+@tvm.testing.uses_gpu
 def test_filter():
     a = relay.TypeVar("a")
     expected_type = relay.FuncType([
@@ -362,6 +381,7 @@ def test_filter():
     assert count(filtered[1]) == 5
 
 
+@tvm.testing.uses_gpu
 def test_zip():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
@@ -403,6 +423,7 @@ def test_zip():
     assert len(to_list(singleton[0][1])) == 0
 
 
+@tvm.testing.uses_gpu
 def test_rev():
     a = relay.TypeVar("a")
     assert mod[rev].checked_type == relay.FuncType([l(a)], l(a), [a])
@@ -418,6 +439,7 @@ def test_rev():
     assert count(reversed[2]) == 1
 
 
+@tvm.testing.uses_gpu
 def test_unfoldr():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
@@ -445,6 +467,7 @@ def test_unfoldr():
     assert count(unfolded[2]) == 1
 
 
+@tvm.testing.uses_gpu
 def test_unfoldl():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
@@ -472,6 +495,7 @@ def test_unfoldl():
     assert count(unfolded[2]) == 3
 
 
+@tvm.testing.uses_gpu
 def test_map_accumr():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
@@ -501,6 +525,7 @@ def test_map_accumr():
     assert count(new_vals[2]) == 3
 
 
+@tvm.testing.uses_gpu
 def test_map_accuml():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
@@ -529,6 +554,7 @@ def test_map_accuml():
     assert count(new_vals[2]) == 1
 
 
+@tvm.testing.uses_gpu
 def test_optional_matching():
     x = relay.Var('x')
     y = relay.Var('y')
@@ -550,6 +576,7 @@ def test_optional_matching():
     assert count(reduced[1]) == 1
 
 
+@tvm.testing.uses_gpu
 def test_tmap():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
@@ -573,6 +600,7 @@ def test_tmap():
         assert len(subtree['children']) == 0
 
 
+@tvm.testing.uses_gpu
 def test_size():
     a = relay.TypeVar("a")
     lhs = mod[size].checked_type
@@ -587,6 +615,7 @@ def test_size():
     assert get_scalar(res) == 10
 
 
+@tvm.testing.uses_gpu
 def test_wildcard_match_solo():
     x = relay.Var('x', nat())
     copy = relay.Function([x],
@@ -597,6 +626,7 @@ def test_wildcard_match_solo():
     assert count(res) == 3
 
 
+@tvm.testing.uses_gpu
 def test_wildcard_match_order():
     x = relay.Var('x', l(nat()))
     y = relay.Var('y')
@@ -618,6 +648,7 @@ def test_wildcard_match_order():
     assert count(res) == 0
 
 
+@tvm.testing.uses_gpu
 def test_nested_matches():
     a = relay.TypeVar('a')
     x = relay.Var('x')
@@ -659,6 +690,7 @@ def test_nested_matches():
         assert count(flat[i]) == i + 1
 
 
+@tvm.testing.uses_gpu
 def test_match_full_var():
     x = relay.Var('x')
     v = relay.Var('v')
@@ -679,6 +711,7 @@ def test_match_full_var():
     assert count(zeroes[1]) == 0
 
 
+@tvm.testing.uses_gpu
 def test_nested_pattern_match():
     x = relay.Var('x', l(nat()))
     h1 = relay.Var('h1')
@@ -705,6 +738,7 @@ def test_nested_pattern_match():
     assert count(res) == 2
 
 
+@tvm.testing.uses_gpu
 def test_compose():
     n = relay.Var('n')
     inc = relay.Function([n], s(n))
@@ -713,6 +747,7 @@ def test_compose():
     assert count(res) == 5
 
 
+@tvm.testing.uses_gpu
 def test_iterate():
     expr = relay.Call(iterate(double, relay.const(2)), [make_nat_expr(3)])
     res = intrp.evaluate(relay.Function([], expr)())
@@ -730,6 +765,7 @@ def check_tensor_array(ta_mod, ref_res, *args, dtype="float32", rtol=1e-5):
             tvm.testing.assert_allclose(ref_res, got, rtol=rtol, atol=rtol)
 
 
+@tvm.testing.uses_gpu
 def test_tensor_expand_dims():
     def run(dtype):
         x = relay.var('x')
@@ -745,6 +781,7 @@ def test_tensor_expand_dims():
     run('int32')
 
 
+@tvm.testing.uses_gpu
 def test_tensor_array_constructor():
     def run(dtype):
         x = relay.var('x')
@@ -758,6 +795,7 @@ def test_tensor_array_constructor():
     run('int32')
 
 
+@tvm.testing.uses_gpu
 def test_tensor_array_read():
     def run(dtype):
         mod = tvm.IRModule()
@@ -774,6 +812,7 @@ def test_tensor_array_read():
     run('int32')
 
 
+@tvm.testing.uses_gpu
 def test_tensor_array_write():
     def run(dtype):
         mod = tvm.IRModule()
@@ -794,6 +833,7 @@ def test_tensor_array_write():
     run('int32')
 
 
+@tvm.testing.uses_gpu
 def test_tensor_array_stack():
     def run(dtype):
         mod = tvm.IRModule()
@@ -816,6 +856,7 @@ def test_tensor_array_stack():
     run('int32')
 
 
+@tvm.testing.uses_gpu
 def test_tensor_array_unstack():
     def run(dtype):
         mod = tvm.IRModule()
@@ -829,6 +870,7 @@ def test_tensor_array_unstack():
     run('int32')
 
 
+@tvm.testing.uses_gpu
 def test_tensor_take():
     def run(dtype):
         mod = tvm.IRModule()
@@ -848,6 +890,7 @@ def test_tensor_take():
     run('int32')
 
 
+@tvm.testing.uses_gpu
 def test_tensor_concatenate():
     def run(dtype):
         mod = tvm.IRModule()
@@ -866,6 +909,7 @@ def test_tensor_concatenate():
     run('int32')
 
 
+@tvm.testing.uses_gpu
 def test_tensor_array_concat():
     def run(dtype):
         mod = tvm.IRModule()
@@ -889,6 +933,7 @@ def test_tensor_array_concat():
     run('int32')
 
 
+@tvm.testing.uses_gpu
 def test_tensor_array_scatter():
     def run(dtype):
         mod = tvm.IRModule()
@@ -939,6 +984,7 @@ def test_tensor_array_scatter():
     run('int32')
 
 
+@tvm.testing.uses_gpu
 def test_tensor_array_split():
     def run(dtype):
         mod = tvm.IRModule()
@@ -982,6 +1028,8 @@ def test_tensor_array_split():
     run('float32')
     run('int32')
 
+
+@tvm.testing.uses_gpu
 def test_static_tensor_take():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -1004,6 +1052,7 @@ def test_static_tensor_take():
     run('int32', [15, 11])
 
 
+@tvm.testing.uses_gpu
 def test_static_tensor_concatenate():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -1025,6 +1074,7 @@ def test_static_tensor_concatenate():
     run('int32', [2, 3])
 
 
+@tvm.testing.uses_gpu
 def test_static_tensor_expand_dims():
     def run(dtype, shape):
         x = relay.var('x')
@@ -1043,6 +1093,7 @@ def test_static_tensor_expand_dims():
     run('int32', [2,])
 
 
+@tvm.testing.uses_gpu
 def test_static_tensor_array_constructor():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -1054,6 +1105,7 @@ def test_static_tensor_array_constructor():
     run('float32', [1, 1])
 
 
+@tvm.testing.uses_gpu
 def test_static_tensor_array_read():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -1093,6 +1145,7 @@ def test_static_tensor_array_read():
     run('int32', [2, 3])
 
 
+@tvm.testing.uses_gpu
 def test_static_tensor_array_write():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -1119,6 +1172,7 @@ def test_static_tensor_array_write():
     run('int32', [2, 3])
 
 
+@tvm.testing.uses_gpu
 def test_static_tensor_array_unstack():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -1136,6 +1190,7 @@ def test_static_tensor_array_unstack():
     run('int32', [2, 3])
 
 
+@tvm.testing.uses_gpu
 def test_static_tensor_array_scatter():
     def run(dtype, shape, indices_shape=None):
         mod = tvm.IRModule()
@@ -1191,6 +1246,7 @@ def test_static_tensor_array_scatter():
     run('float32', [2, 3], [2,])
 
 
+@tvm.testing.uses_gpu
 def test_static_tensor_array_split():
     def run(dtype, shape, value_shape=None, lengths_shape=None):
         mod = tvm.IRModule()
@@ -1254,6 +1310,7 @@ def test_static_tensor_array_split():
     run('int32', [relay.Any(), 3], [4, 3], [2,])
 
 
+@tvm.testing.uses_gpu
 def test_static_tensor_array_concat():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -1280,6 +1337,7 @@ def test_static_tensor_array_concat():
     run('int32', [relay.Any(), 3])
 
 
+@tvm.testing.uses_gpu
 def test_static_tensor_array_gather():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -1307,6 +1365,7 @@ def test_static_tensor_array_gather():
     run('int32', [2, 3])
 
 
+@tvm.testing.uses_gpu
 def test_static_tensor_array_stack():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -1332,6 +1391,7 @@ def test_static_tensor_array_stack():
     run('int32', [2, 3])
 
 
+@tvm.testing.uses_gpu
 def test_static_tensor_get_data():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -1372,51 +1432,4 @@ def test_static_tensor_get_data():
     run('int32', [2, 3])
 
 if __name__ == "__main__":
-    test_nat_constructor()
-    test_double()
-    test_add()
-    test_list_constructor()
-    test_length()
-    test_map()
-    test_foldl()
-    test_foldr()
-    test_foldr1()
-    test_concat()
-    test_filter()
-    test_zip()
-    test_rev()
-    test_unfoldl()
-    test_unfoldr()
-    test_map_accumr()
-    test_map_accuml()
-    test_sum()
-    test_tmap()
-    test_size()
-    test_compose()
-    test_iterate()
-
-    test_tensor_expand_dims()
-    test_tensor_array_constructor()
-    test_tensor_array_read()
-    test_tensor_array_write()
-    test_tensor_array_stack()
-    test_tensor_array_unstack()
-    test_tensor_take()
-    test_tensor_concatenate()
-    test_tensor_array_concat()
-    test_tensor_array_scatter()
-    test_tensor_array_split()
-
-    test_static_tensor_take()
-    test_static_tensor_concatenate()
-    test_static_tensor_expand_dims()
-    test_static_tensor_array_constructor()
-    test_static_tensor_array_read()
-    test_static_tensor_array_write()
-    test_static_tensor_array_unstack()
-    test_static_tensor_array_scatter()
-    test_static_tensor_array_split()
-    test_static_tensor_array_concat()
-    test_static_tensor_array_stack()
-    test_static_tensor_array_gather()
-    test_static_tensor_get_data()
+    pytest.main([__file__])
