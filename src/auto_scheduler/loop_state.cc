@@ -42,13 +42,16 @@ TVM_REGISTER_NODE_TYPE(StateNode);
 TVM_REGISTER_NODE_TYPE(IteratorNode);
 
 /********** Iterator **********/
-Iterator::Iterator(String name, Range range, IteratorKind iter_kind,
-                   IteratorAnnotation annotation) {
+Iterator::Iterator(String name, Range range, IteratorKind iter_kind, IteratorAnnotation annotation,
+                   const std::vector<Iterator>* orig_iters) {
   auto node = make_object<IteratorNode>();
   node->name = std::move(name);
   node->range = std::move(range);
   node->iter_kind = iter_kind;
   node->annotation = annotation;
+  if (orig_iters != nullptr) {
+    node->orig_iters = *orig_iters;
+  }
   data_ = std::move(node);
 }
 
