@@ -87,6 +87,11 @@ def _test_image_network(model_url, model_sub_path, input_dict, compile_hash, out
 
 
 def test_mobilenet_v1():
+    # If this test is failing due to a hash mismatch, please notify @mbaret and
+    # @Leo-blonk. The hash is there to catch any changes in the behaviour of the
+    # codegen, which could come about from either a change in Support Library
+    # version or a change in the Ethos-N codegen. To update this requires running
+    # on hardware that isn't available in CI.
     hw = ethosn_available()
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/" \
@@ -102,6 +107,11 @@ def test_mobilenet_v1():
 
 
 def test_inception_v3():
+    # If this test is failing due to a hash mismatch, please notify @mbaret and
+    # @Leo-blonk. The hash is there to catch any changes in the behaviour of the
+    # codegen, which could come about from either a change in Support Library
+    # version or a change in the Ethos-N codegen. To update this requires running
+    # on hardware that isn't available in CI.
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/" \
                   "models/tflite_11_05_08/inception_v3_quant.tgz",
@@ -116,6 +126,11 @@ def test_inception_v3():
 
 
 def test_inception_v4():
+    # If this test is failing due to a hash mismatch, please notify @mbaret and
+    # @Leo-blonk. The hash is there to catch any changes in the behaviour of the
+    # codegen, which could come about from either a change in Support Library
+    # version or a change in the Ethos-N codegen. To update this requires running
+    # on hardware that isn't available in CI.
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/" \
                   "models/inception_v4_299_quant_20181026.tgz",
@@ -130,6 +145,11 @@ def test_inception_v4():
 
 
 def test_ssd_mobilenet_v1():
+    # If this test is failing due to a hash mismatch, please notify @mbaret and
+    # @Leo-blonk. The hash is there to catch any changes in the behaviour of the
+    # codegen, which could come about from either a change in Support Library
+    # version or a change in the Ethos-N codegen. To update this requires running
+    # on hardware that isn't available in CI.
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/" \
                   "models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip",
