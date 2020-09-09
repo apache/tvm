@@ -323,7 +323,7 @@ include(cmake/modules/contrib/TF_TVMDSOOP.cmake)
 include(cmake/modules/contrib/CoreML.cmake)
 include(cmake/modules/contrib/ONNX.cmake)
 include(cmake/modules/contrib/ArmComputeLib.cmake)
-include(cmake/modules/contrib/VITISAI.cmake) 
+include(cmake/modules/contrib/VitisAI.cmake) 
 include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 
