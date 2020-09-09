@@ -27,6 +27,7 @@
 #include <tvm/auto_scheduler/measure.h>
 #include <tvm/auto_scheduler/measure_record.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/parallel_for.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule_pass.h>
 #include <tvm/tir/analysis.h>
@@ -1337,9 +1338,11 @@ void GetPerStoreFeaturesFromStates(const Array<State>& states, const SearchTask&
 
   std::atomic<int> error_ct(0);
 
-  for (size_t i = skip_first_n_feature_extraction; i < states.size(); ++i) {
-    GetPerStoreFeaturesWorkerFunc(task, states[i], max_n_bufs, &(*features)[i], &error_ct);
-  }
+  support::parallel_for(skip_first_n_feature_extraction, states.size(),
+                        [&task, &states, &max_n_bufs, &features, &error_ct](int i) {
+                          GetPerStoreFeaturesWorkerFunc(task, states[i], max_n_bufs,
+                                                        &(*features)[i], &error_ct);
+                        });
 
   if (error_ct > 0) {
     std::cerr << "Encountered " << error_ct
@@ -1355,9 +1358,11 @@ void GetPerStoreFeaturesFromStates(const Array<State>& states, const std::vector
 
   std::atomic<int> error_ct(0);
 
-  for (size_t i = skip_first_n_feature_extraction; i < states.size(); ++i) {
-    GetPerStoreFeaturesWorkerFunc(tasks[i], states[i], max_n_bufs, &(*features)[i], &error_ct);
-  }
+  support::parallel_for(skip_first_n_feature_extraction, states.size(),
+                        [&tasks, &states, &max_n_bufs, &features, &error_ct](int i) {
+                          GetPerStoreFeaturesWorkerFunc(tasks[i], states[i], max_n_bufs,
+                                                        &(*features)[i], &error_ct);
+                        });
 
   if (error_ct > 0) {
     std::cerr << "Encountered " << error_ct

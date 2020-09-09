@@ -23,7 +23,7 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
 
-from common import get_all_backend
+import tvm.testing
 
 
 _conv2d_transpose_nchw_implement = {
@@ -57,11 +57,7 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv2d_transpose_nchw_implement)
@@ -83,10 +79,11 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
         func2(a, w, c)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_transpose_nchw():
     verify_conv2d_transpose_nchw(1, 3, (224, 224),  1, (1, 1), (1, 1), (0, 0, 0, 0), (0, 0))
     verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (1, 1), (0, 0, 0, 0), (0, 0))

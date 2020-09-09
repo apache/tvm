@@ -70,8 +70,8 @@ where
         let (lower_bound, upper_bound) = iter.size_hint();
         let mut buffer: Vec<ArgValue> = Vec::with_capacity(upper_bound.unwrap_or(lower_bound) * 2);
         for (k, v) in iter {
-            buffer.push(k.to_object_ref().into());
-            buffer.push(v.to_object_ref().into())
+            buffer.push(k.into());
+            buffer.push(v.into())
         }
         Self::from_data(buffer).expect("failed to convert from data")
     }
@@ -96,7 +96,7 @@ where
         );
 
         Ok(Map {
-            object: ObjectRef(Some(map_data)),
+            object: map_data.into(),
             _data: PhantomData,
         })
     }
@@ -105,7 +105,8 @@ where
     where
         V: TryFrom<RetValue, Error = Error>,
     {
-        let oref: ObjectRef = map_get_item(self.object.clone(), key.to_object_ref())?;
+        let key = key.clone();
+        let oref: ObjectRef = map_get_item(self.object.clone(), key.upcast())?;
         oref.downcast()
     }
 }

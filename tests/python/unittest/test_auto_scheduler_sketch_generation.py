@@ -18,6 +18,7 @@
 """ Test sketch generation. """
 
 import tvm
+import tvm.testing
 from tvm import te, auto_scheduler
 from tvm.auto_scheduler import _ffi_api
 from tvm.auto_scheduler.loop_state import Stage
@@ -233,10 +234,8 @@ def test_cpu_conv2d_winograd_sketch():
     assert sketches[1] != sketches[2]
 
 
+@tvm.testing.requires_cuda
 def test_cuda_matmul_sketch():
-    if not tvm.context("cuda", 0).exist:
-        return
-
     sketches = generate_sketches(matmul_auto_scheduler_test, (512, 512, 512), 'cuda')
     ''' 1 multi-level tiling sketch '''
     assert len(sketches) == 1
@@ -265,10 +264,8 @@ def test_cuda_matmul_sketch():
     assert_is_tiled(sketches[1].stages[5])
 
 
+@tvm.testing.requires_cuda
 def test_cuda_conv2d_bn_relu_sketch():
-    if not tvm.context("cuda", 0).exist:
-        return
-
     sketches = generate_sketches(conv2d_nchw_bn_relu_auto_scheduler_test,
                                  (1, 56, 56, 512, 512, 3, 1, 1), 'cuda')
     ''' 1 multi-level tiling sketch '''
@@ -286,20 +283,16 @@ def test_cuda_conv2d_bn_relu_sketch():
     assert_is_tiled(sketches[0].stages[12])
 
 
+@tvm.testing.requires_cuda
 def test_cuda_max_pool2d_sketch():
-    if not tvm.context("cuda", 0).exist:
-        return
-
     sketches = generate_sketches(max_pool2d_auto_scheduler_test, (1, 56, 56, 512, 0), 'cuda')
     ''' 1 default sketch '''
     assert len(sketches) == 1
     assert len(sketches[0].transform_steps) == 0
 
 
+@tvm.testing.requires_cuda
 def test_cuda_min_sketch():
-    if not tvm.context("cuda", 0).exist:
-        return
-
     sketches = generate_sketches(min_nm_auto_scheduler_test, (10, 1024), 'cuda')
     ''' 1 cross thread reuction sketch + 1 default sketch '''
     assert len(sketches) == 2
@@ -309,10 +302,8 @@ def test_cuda_min_sketch():
     assert len(sketches[1].transform_steps) == 0
 
 
+@tvm.testing.requires_cuda
 def test_cuda_softmax_sketch():
-    if not tvm.context("cuda", 0).exist:
-        return
-
     sketches = generate_sketches(softmax_nm_auto_scheduler_test, (2, 1024), 'cuda')
     ''' (1 cross thread reuction sketch + 1 default sketch) * (1 cross thread reuction sketch + 1 default sketch) '''
     assert len(sketches) == (2 * 2)
@@ -346,10 +337,8 @@ def test_cuda_softmax_sketch():
     assert_compute_at_condition(sketches[3].stages[2], "inlined")
 
 
+@tvm.testing.requires_cuda
 def test_cuda_conv2d_winograd_sketch():
-    if not tvm.context("cuda", 0).exist:
-        return
-
     sketches = generate_sketches(conv2d_winograd_nhwc_auto_scheduler_test,
                                  (1, 28, 28, 128, 128, 3, 1, 1), 'cuda')
     ''' 1 multi-level tiling sketch '''

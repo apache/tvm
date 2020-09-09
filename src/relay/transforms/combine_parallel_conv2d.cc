@@ -168,24 +168,17 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     for (const auto& branch : branches) {
       const CallNode* conv2d = branch[0];
       int64_t channels = GetConv2DSuperChannelsDim(conv2d);
-      std::vector<int64_t> begin;
-      std::vector<int64_t> end;
+      Array<Integer> begin;
+      Array<Integer> end;
       for (size_t i = 0; i < channel_pos_; i++) {
         begin.push_back(0);
         end.push_back(-1);
       }
       begin.push_back(index);
       index += channels;
-      end.push_back(index);
-      std::vector<int64_t> strides(begin.size(), 1);
-      for (size_t i = 0; i < begin.size(); ++i) {
-        end[i] -= begin[i];
-      }
-      std::vector<int64_t> ndarray_shape = {static_cast<int64_t>(begin.size())};
-      Constant begin_const = MakeConstantTensor(DataType::Int(64), ndarray_shape, begin);
-      Constant end_const = MakeConstantTensor(DataType::Int(64), ndarray_shape, end);
-      Constant strides_const = MakeConstantTensor(DataType::Int(64), ndarray_shape, strides);
-      auto slice = MakeStridedSlice(data, begin_const, end_const, strides_const, "size");
+      end.push_back(channels);
+      Array<Integer> strides(begin.size(), 1);
+      auto slice = MakeStridedSlice(data, begin, end, strides, "size");
       subst_map->insert({GetRef<Expr>(branch[depth]), slice});
     }
   }

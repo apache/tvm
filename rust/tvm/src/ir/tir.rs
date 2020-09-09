@@ -17,7 +17,7 @@
  * under the License.
  */
 
-use crate::runtime::{Object, ObjectPtr, String as TVMString};
+use crate::runtime::String as TVMString;
 use crate::DataType;
 
 use super::*;
@@ -37,17 +37,7 @@ macro_rules! define_node {
             pub fn new(datatype: DataType, $($id : $t,)*) -> $name {
                 let base = PrimExprNode::base::<$node>(datatype);
                 let node = $node { base, $($id),* };
-                $name(Some(ObjectPtr::new(node)))
-            }
-        }
-
-        impl From<$name> for PrimExpr {
-            // TODO(@jroesch): Remove we with subtyping traits.
-            fn from(x: $name) -> PrimExpr {
-                x.downcast().expect(concat!(
-                    "Failed to downcast `",
-                    stringify!($name),
-                    "` to PrimExpr"))
+                node.into()
             }
         }
     }

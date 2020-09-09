@@ -17,6 +17,7 @@
 """Test gpu code verifier"""
 import tvm
 from tvm import te
+import tvm.testing
 
 def get_verify_pass(valid, **kwargs):
     def _fverify(f, *_):
@@ -25,6 +26,7 @@ def get_verify_pass(valid, **kwargs):
     return tvm.tir.transform.prim_func_pass(_fverify, opt_level=0)
 
 
+@tvm.testing.requires_gpu
 def test_shared_memory():
     def check_shared_memory(dtype):
         N = 1024
@@ -47,7 +49,7 @@ def test_shared_memory():
         # thread usage: M
 
         for target in ['opencl', 'cuda']:
-            if not tvm.context(target).exist:
+            if not tvm.testing.device_enabled(target):
                 continue
             valid = [None]
             with tvm.transform.PassContext(config={"tir.add_lower_pass": [
@@ -66,6 +68,7 @@ def test_shared_memory():
     check_shared_memory('float32')
     check_shared_memory('int8x4')
 
+@tvm.testing.requires_gpu
 def test_local_memory():
     N = 1024
     M = 128
@@ -83,7 +86,7 @@ def test_local_memory():
     # thread usage: M
 
     for target in ['opencl', 'cuda']:
-        if not tvm.context(target).exist:
+        if not tvm.testing.device_enabled(target):
             continue
 
         valid = [None]
@@ -101,6 +104,7 @@ def test_local_memory():
             tvm.build(s, [A, B], target)
         assert valid[0]
 
+@tvm.testing.requires_gpu
 def test_num_thread():
     N = 1024
     M = 128
@@ -118,7 +122,7 @@ def test_num_thread():
     # thread usage: N
 
     for target in ['opencl', 'cuda']:
-        if not tvm.context(target).exist:
+        if not tvm.testing.device_enabled(target):
             continue
 
         valid = [None]
@@ -152,6 +156,7 @@ def test_num_thread():
             tvm.build(s, [A, B], target)
         assert valid[0]
 
+@tvm.testing.requires_gpu
 def test_multiple_kernels():
     N = 1024
 
@@ -168,7 +173,7 @@ def test_multiple_kernels():
     # thread usage: N
 
     for target in ['opencl', 'cuda']:
-        if not tvm.context(target).exist:
+        if not tvm.testing.device_enabled(target):
             continue
 
         valid = [None]
@@ -186,6 +191,7 @@ def test_multiple_kernels():
             tvm.build(s, [A, C], target)
         assert valid[0]
 
+@tvm.testing.requires_gpu
 def test_wrong_bind():
     N = 1024
 
@@ -199,7 +205,7 @@ def test_wrong_bind():
     s[B].bind(s[B].op.axis[1], te.thread_axis("threadIdx.x"))
 
     for target in ['opencl', 'cuda']:
-        if not tvm.context(target).exist:
+        if not tvm.testing.device_enabled(target):
             continue
 
         valid = [None]
@@ -208,6 +214,7 @@ def test_wrong_bind():
             tvm.build(s, [A, B], target)
         assert not valid[0]
 
+@tvm.testing.requires_gpu
 def test_vectorize():
     N = 1024
 
@@ -224,7 +231,7 @@ def test_vectorize():
     s[B].vectorize(ji)
 
     for target in ['opencl', 'cuda']:
-        if not tvm.context(target).exist:
+        if not tvm.testing.device_enabled(target):
             continue
 
         valid = [None]
@@ -233,6 +240,7 @@ def test_vectorize():
             tvm.lower(s, [A, B])
         assert not valid[0]
 
+@tvm.testing.requires_gpu
 def test_vthread():
     N = 1024
 
@@ -245,7 +253,7 @@ def test_vthread():
     s[B].bind(s[B].op.axis[1], te.thread_axis("vthread"))
 
     for target in ['opencl', 'cuda']:
-        if not tvm.context(target).exist:
+        if not tvm.testing.device_enabled(target):
             continue
 
         valid = [None]

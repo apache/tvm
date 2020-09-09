@@ -108,7 +108,7 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   //------------------------------------
   // Overload of Expr printing functions
   //------------------------------------
-  Doc PrintExpr(const Expr& expr, bool meta, bool try_inline);
+  Doc PrintExpr(const Expr& expr, bool meta, bool try_inline, bool optional_info = true);
   // Should only be triggered when op is a free variable being visited for the
   // first time.
   Doc VisitExpr_(const VarNode* op) final;

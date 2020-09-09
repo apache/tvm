@@ -19,7 +19,9 @@ from tvm import te
 from tvm.contrib import nvcc
 import numpy as np
 import time
+import tvm.testing
 
+@tvm.testing.requires_gpu
 def test_exp():
     # graph
     n = tvm.runtime.convert(1024)
@@ -34,11 +36,9 @@ def test_exp():
 
     # one line to build the function.
     def check_device(device, host="stackvm"):
-        if not tvm.runtime.enabled(host):
+        if not tvm.testing.device_enabled(host):
             return
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            return
         fexp = tvm.build(s, [A, B],
                          device, host,
                          name="myexp")
@@ -55,6 +55,7 @@ def test_exp():
     check_device("cuda", "llvm")
     check_device("vulkan")
 
+@tvm.testing.requires_gpu
 def test_fmod():
     # graph
     def run(dtype):
@@ -69,7 +70,7 @@ def test_fmod():
 
         def check_device(device):
             ctx = tvm.context(device, 0)
-            if not ctx.exist:
+            if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
             target = tvm.target.create(device)
@@ -102,6 +103,7 @@ def test_fmod():
 
     run("float32")
 
+@tvm.testing.requires_gpu
 def test_multiple_cache_write():
     # graph
     n = tvm.runtime.convert(1024)
@@ -123,10 +125,10 @@ def test_multiple_cache_write():
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
     # one line to build the function.
     def check_device(device, host="stackvm"):
-        if not tvm.runtime.enabled(host):
+        if not tvm.testing.device_enabled(host):
             return
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             return
         func = tvm.build(s, [A0, A1, C],
                          device, host,
@@ -155,7 +157,7 @@ def test_log_pow_llvm():
     # create iter var and assign them tags.
     bx, tx = s[B].split(B.op.axis[0], factor=32)
     # one line to build the function.
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
     flog = tvm.build(s, [A, B],
@@ -173,6 +175,7 @@ def test_log_pow_llvm():
         b.asnumpy(), np.power(np.log(a.asnumpy()), 2.0), rtol=1e-5)
 
 
+@tvm.testing.uses_gpu
 def test_popcount():
     def run(dtype):
         # graph
@@ -186,7 +189,7 @@ def test_popcount():
 
         def check_device(device):
             ctx = tvm.context(device, 0)
-            if not ctx.exist:
+            if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
             target = tvm.target.create(device)
@@ -212,6 +215,7 @@ def test_popcount():
     run('uint64')
 
 
+@tvm.testing.requires_gpu
 def test_add():
     def run(dtype):
         # graph
@@ -235,7 +239,7 @@ def test_add():
         # one line to build the function.
         def check_device(device):
             ctx = tvm.context(device, 0)
-            if not ctx.exist:
+            if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
             fadd = tvm.build(s, [A, B, C],
@@ -264,6 +268,7 @@ def test_add():
     run("uint64")
 
 
+@tvm.testing.requires_gpu
 def try_warp_memory():
     """skip this in default test because it require higher arch"""
     m = 128
@@ -289,7 +294,7 @@ def try_warp_memory():
     # one line to build the function.
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         f = tvm.build(s, [A, B], device)

@@ -28,3 +28,21 @@ pub fn get_tvm_rt_crate() -> TokenStream {
         quote!(tvm_rt)
     }
 }
+
+pub(crate) fn get_attr<'a>(
+    derive_input: &'a syn::DeriveInput,
+    name: &str,
+) -> Option<&'a syn::Attribute> {
+    derive_input.attrs.iter().find(|a| a.path.is_ident(name))
+}
+
+pub(crate) fn attr_to_str(attr: &syn::Attribute) -> syn::LitStr {
+    match attr.parse_meta() {
+        Ok(syn::Meta::NameValue(syn::MetaNameValue {
+            lit: syn::Lit::Str(s),
+            ..
+        })) => s,
+        Ok(m) => panic!("Expected a string literal, got {:?}", m),
+        Err(e) => panic!(e),
+    }
+}

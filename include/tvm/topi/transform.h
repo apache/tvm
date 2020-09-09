@@ -481,26 +481,29 @@ inline Tensor stack(const Array<Tensor>& inputs, int axis = 0, std::string name 
  *
  * \return A Tensor whose op member is the split operation
  */
-inline Array<Tensor> split(const Tensor& x, Array<Integer> split_indices, int axis,
+inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int axis,
                            std::string name = "T_split", std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(x->shape.size());
   }
   CHECK_LT(axis, x->shape.size()) << "axis out of bounds";
 
-  auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
-  std::vector<int> begin_ids;
+  auto src_axis_size = x->shape[axis];
+  std::vector<PrimExpr> begin_ids;
   begin_ids.push_back(0);
 
-  for (Integer idx : split_indices) {
-    int val = static_cast<int>(idx->value);
-    CHECK_GT(val, begin_ids.back()) << "split_indices must be sorted";
-    begin_ids.push_back(val);
+  for (auto idx : split_indices) {
+    auto idx_node = idx.as<IntImmNode>();
+    auto back_node = begin_ids.back().as<IntImmNode>();
+    if (idx_node && back_node) {
+      CHECK_GT(idx_node->value, back_node->value) << "split_indices must be sorted";
+    }
+    begin_ids.push_back(idx);
   }
 
   Array<Array<PrimExpr> > out_shapes;
   for (size_t i = 0; i < begin_ids.size(); ++i) {
-    int out_axis_size;
+    PrimExpr out_axis_size;
     if (i == begin_ids.size() - 1) {
       out_axis_size = src_axis_size - begin_ids[i];
     } else {
@@ -668,15 +671,18 @@ inline Array<Tensor> split_sections(const Tensor& x, int num_sections, int axis,
   }
   CHECK_LT(axis, x->shape.size()) << "axis out of bounds";
 
-  auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
+  auto src_axis_size = x->shape[axis];
 
   CHECK_GT(num_sections, 0) << "Slice count must be > 0";
-  CHECK_EQ(src_axis_size % num_sections, 0)
-      << "num_sections must be an integer factor of the size of axis " << axis << " ("
-      << src_axis_size << ")";
 
-  Array<Integer> split_indices;
-  auto seg_size = src_axis_size / num_sections;
+  if (auto node = src_axis_size.as<IntImmNode>()) {
+    CHECK_EQ(node->value % num_sections, 0)
+        << "num_sections must be an integer factor of the size of axis " << axis << " ("
+        << node->value << ")";
+  }
+
+  Array<PrimExpr> split_indices;
+  auto seg_size = indexdiv(src_axis_size, num_sections);
   for (int i = 0; i < num_sections; ++i) {
     // region at index 0 is added by split()
     if (i != 0) {
@@ -885,16 +891,22 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
       << " vs " << y->shape.size();
   CHECK_EQ(x->dtype, y->dtype) << "x and y must have the same dtype: " << x->dtype << " vs "
                                << y->dtype;
-  Array<PrimExpr> oshape = x->shape;
-  Tensor out;
 
-  if (condition->shape.size() != 1) {
+  if (x->shape.size() == 0) {
+    return compute(
+        condition->shape,
+        [&](const Array<Var>& indices) {
+          Array<PrimExpr> condition_idx{indices[0]};
+          return tvm::tir::Select(condition(condition_idx) != 0, x(), y());
+        },
+        name, tag);
+  } else if (condition->shape.size() != 1) {
     CHECK_EQ(condition->shape.size(), x->shape.size())
         << "condition array must be either have the same shape as x or to be a "
            "1-D array.Got different number of dimension: "
         << condition->shape.size() << " vs " << x->shape.size();
-    out = compute(
-        oshape,
+    return compute(
+        x->shape,
         [&](const Array<Var>& indices) {
           return tvm::tir::Select(condition(indices) != 0, x(indices), y(indices));
         },
@@ -903,15 +915,14 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
     CHECK_EQ(topi::GetConstInt(condition->shape[0]), topi::GetConstInt(x->shape[0]))
         << "If condition is 1-D, the first dimension must be the same as x: " << condition->shape[0]
         << " vs " << x->shape[0];
-    out = compute(
-        oshape,
+    return compute(
+        x->shape,
         [&](const Array<Var>& indices) {
           Array<PrimExpr> condition_idx{indices[0]};
           return tvm::tir::Select(condition(condition_idx) != 0, x(indices), y(indices));
         },
         name, tag);
   }
-  return out;
 }
 
 /*!

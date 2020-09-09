@@ -263,6 +263,17 @@ TVM_DLL IRModule GetCalibrateModule(IRModule mod);
  */
 TVM_DLL Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& mod);
 
+/*!
+ * \brief Analyze the device context of each IR node in a given relay module.
+ *
+ * \param mod The module for analysis.
+ * \param default_context The default context used by unassigned IR nodes.
+ *
+ * \return The mapping between an IR node and its associated context.
+ */
+TVM_DLL std::unordered_map<Expr, TVMContext, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>
+ContextAnalysis(const IRModule& mod, const TVMContext& default_context);
+
 }  // namespace relay
 }  // namespace tvm
 

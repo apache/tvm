@@ -179,7 +179,9 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
 
       // Infer bound. This is necessary for computing the correct ToStr() for redundancy check
       best_states = search_task->compute_dag.InferBound(best_states);
+      PruneInvalidState(search_task, &best_states);
       random_states = search_task->compute_dag.InferBound(random_states);
+      PruneInvalidState(search_task, &random_states);
 
       // Pick `num_measure_per_iter` states to measure, check hash to remove already measured state
       // Also pick some random states to do eps-greedy
@@ -261,6 +263,7 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
     *random_states = RandomSampleStates(init_population, &rand_gen, num_random_states * 10);
     return EvolutionarySearch(init_population, num_measure_per_iter_ * 2);
   } else {
+    PruneInvalidState(search_task, &init_population);
     return RandomSampleStates(init_population, &rand_gen, num_measure_per_iter_ * 3);
   }
 }
@@ -340,8 +343,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
   Array<State> out_states;
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
-  // TODO(jcf94, merrymercy): Use parallel_for to run this loop in parallel
-  while (static_cast<int>(out_states.size()) < out_size && fail_ct < static_cast<int>(out_size)) {
+  while (static_cast<int>(out_states.size()) < out_size && fail_ct < out_size) {
     // Random choose a starting sketch
     // TODO(jcf94, merrymercy): Maybe choose sketches in different possibility for they may have
     // different potential on generating state with better performance
