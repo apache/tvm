@@ -23,8 +23,6 @@ import tvm.topi.testing
 import math
 from tvm.topi.util import nchw_pack_layout
 
-from common import get_all_backend
-
 def verify_upsampling(batch, in_channel, in_height, in_width, scale_h, scale_w,
                       layout='NCHW', method="nearest_neighbor",
                       in_batch_block = 0, in_channel_block = 0):
@@ -58,11 +56,7 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale_h, scale_w,
     else:
         b_np = tvm.topi.testing.upsampling_python(a_np, (scale_h, scale_w), layout)
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = tvm.topi.testing.get_injective_schedule(device)(B)
@@ -73,9 +67,10 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale_h, scale_w,
 
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
+@tvm.testing.uses_gpu
 def test_upsampling():
     # nearest_neighbor - NCHW
     verify_upsampling(8, 16, 32, 32, 2.0, 2.0)
@@ -141,11 +136,7 @@ def verify_upsampling3d(batch, in_channel, in_depth, in_height, in_width, scale_
     else:
         b_np = tvm.topi.testing.upsampling3d_python(a_np, (scale_d, scale_h, scale_w), layout)
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = tvm.topi.testing.get_injective_schedule(device)(B)
@@ -156,9 +147,10 @@ def verify_upsampling3d(batch, in_channel, in_depth, in_height, in_width, scale_
 
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
+@tvm.testing.uses_gpu
 def test_upsampling3d():
     # nearest_neighbor - NCDHW
     verify_upsampling3d(8, 8, 16, 16, 16, 2.0, 2.0, 2.0)

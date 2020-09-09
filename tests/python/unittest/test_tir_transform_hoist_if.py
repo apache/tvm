@@ -19,7 +19,7 @@ from tvm import te
 from tvm import relay
 import numpy as np
 import pytest
-from tvm.relay.testing import ctx_list
+from tvm.testing import enabled_targets
 
 var_list = []
 
@@ -711,7 +711,7 @@ def test_hoisting_op_conv():
     kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
 
     params = {'w': tvm.nd.array(kernel)}
-    for target, ctx in ctx_list():
+    for target, ctx in enabled_targets():
         with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build_module.build(mod, target=target, params=params)
             m = tvm.contrib.graph_runtime.create(graph, lib, ctx)

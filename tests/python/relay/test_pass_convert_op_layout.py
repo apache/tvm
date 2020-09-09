@@ -90,6 +90,41 @@ def test_conv_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_conv_transpose_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var('weight', shape=(3, 3, 64, 64))
+        y = relay.nn.conv2d_transpose(x, weight,
+                            channels=64,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout='NHWC',
+                            kernel_layout='HWIO')
+        y = relay.nn.relu(y)
+        y = relay.Function([x, weight], y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var('weight', shape=(3, 3, 64, 64))
+        x = relay.layout_transform(x, 'NHWC', 'NCHW')
+        weight = relay.layout_transform(weight, 'HWIO', 'OIHW')
+        y = relay.nn.conv2d_transpose(x, weight,
+                            channels=64,
+                            kernel_size=(3, 3),
+                            padding=(1, 1))
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, 'NCHW', 'NHWC')
+        y = relay.Function(relay.analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({'nn.conv2d_transpose': ['NCHW', 'OIHW']}))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_conv_bias_pool_convert_layout():
     def before():
         x = relay.var("x", shape=(1, 56, 56, 64))
@@ -680,6 +715,7 @@ def test_different_ops_convert_layout():
         x = relay.var("x", shape=(1, 64, 56, 56))
         weight1 = relay.var("weight1", shape=(64, 3, 3, 64))
         weight2 = relay.var("weight2", shape=(64, 3, 3, 64), dtype='int8')
+        weight3 = relay.var("weight3", shape=(64, 3, 3, 64))
         out = relay.nn.conv2d(x, weight1,
                               channels=64,
                               kernel_size=(3, 3),
@@ -697,6 +733,13 @@ def test_different_ops_convert_layout():
                                   padding=(1, 1),
                                   data_layout='NCHW',
                                   kernel_layout='OHWI')
+        out = relay.cast(out, 'float32')
+        out = relay.nn.conv2d_transpose(out, weight3,
+                              channels=64,
+                              kernel_size=(3, 3),
+                              padding=(1, 1),
+                              data_layout='NCHW',
+                              kernel_layout='OHWI')
         out = relay.Function(analysis.free_vars(out), out)
         return out
 
@@ -704,6 +747,7 @@ def test_different_ops_convert_layout():
         x = relay.var("x", shape=(1, 64, 56, 56))
         weight1 = relay.var("weight1", shape=(64, 3, 3, 64))
         weight2 = relay.var("weight2", shape=(64, 3, 3, 64), dtype='int8')
+        weight3 = relay.var("weight3", shape=(64, 3, 3, 64))
         x = relay.layout_transform(x, 'NCHW', 'NHWC')
         weight1 = relay.layout_transform(weight1, 'OHWI', 'HWIO')
         out = relay.nn.conv2d(x, weight1,
@@ -725,12 +769,23 @@ def test_different_ops_convert_layout():
                                   padding=(1, 1),
                                   data_layout='NCHW',
                                   kernel_layout='OIHW')
+        out = relay.cast(out, 'float32')
+        out = relay.layout_transform(out, 'NCHW', 'NHWC')
+        weight3 = relay.layout_transform(weight3, 'OHWI', 'HWIO')
+        out = relay.nn.conv2d_transpose(out, weight3,
+                              channels=64,
+                              kernel_size=(3, 3),
+                              padding=(1, 1),
+                              data_layout='NHWC',
+                              kernel_layout='HWIO')
+        out = relay.layout_transform(out, 'NHWC', 'NCHW')
         out = relay.Function(analysis.free_vars(out), out)
         return out
 
     a = before()
     desired_layouts = {'nn.conv2d': ['NHWC', 'HWIO'],
-                       'qnn.conv2d': ['NCHW', 'OIHW']}
+                       'qnn.conv2d': ['NCHW', 'OIHW'],
+                       'nn.conv2d_transpose': ['NHWC', 'HWIO'],}
     a = run_opt_pass(a, transform.ConvertLayout(desired_layouts))
     b = run_opt_pass(expected(), transform.InferType())
 
@@ -751,5 +806,6 @@ if __name__ == "__main__":
     test_qnn_conv_concat_convert_layout()
     test_qnn_conv_add_convert_layout()
     test_conv_convert_kernel_layout()
+    test_conv_transpose_convert_layout()
     test_default_keyword()
     test_different_ops_convert_layout()

@@ -17,6 +17,7 @@
 import tvm
 from tvm import te
 import numpy as np
+import tvm.testing
 
 def test_for():
     ib = tvm.tir.ir_builder.create()
@@ -90,7 +91,7 @@ def test_cpu():
                    name="vector_add", dtype=dtype)
     s = te.create_schedule(C.op)
     def check_target(target):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             return
         # build and invoke the kernel.
         fadd = tvm.build(s, [A, B, C], target)
@@ -103,6 +104,7 @@ def test_cpu():
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
     check_target("llvm")
 
+@tvm.testing.requires_gpu
 def test_gpu():
     n = te.size_var('n')
     dtype = "float32"
@@ -133,7 +135,7 @@ def test_gpu():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     def check_target(target):
         n = 1024
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             return
         # build and invoke the kernel.
         fadd = tvm.build(s, [A, B, C], target)

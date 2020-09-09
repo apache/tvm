@@ -26,6 +26,8 @@ from tvm import te
 from tvm import autotvm
 from tvm.autotvm.tuner import RandomTuner
 
+import tvm.testing
+
 @autotvm.template("testing/conv2d_no_batching")
 def conv2d_no_batching(N, H, W, CI, CO, KH, KW):
     """An example template for testing"""
@@ -120,26 +122,18 @@ def get_sample_task(target=tvm.target.cuda(), target_host=None):
                                target=target, target_host=target_host)
     return task, target
 
-def test_tuning():
-    def check(target, target_host):
-        ctx = tvm.context(target, 0)
-        if not ctx.exist:
-            logging.info("Skip test because %s is not available" % target)
-            return
+@tvm.testing.parametrize_targets("cuda", "opencl")
+def test_tuning(target, ctx):
+    # init task
+    task, target = get_sample_task(target, None)
+    logging.info("%s", task.config_space)
 
-        # init task
-        task, target = get_sample_task(target, target_host)
-        logging.info("%s", task.config_space)
+    measure_option = autotvm.measure_option(
+        autotvm.LocalBuilder(),
+        autotvm.LocalRunner())
 
-        measure_option = autotvm.measure_option(
-            autotvm.LocalBuilder(),
-            autotvm.LocalRunner())
-
-        tuner = RandomTuner(task)
-        tuner.tune(n_trial=20, measure_option=measure_option)
-
-    check("cuda", None)
-    check("opencl", None)
+    tuner = RandomTuner(task)
+    tuner.tune(n_trial=20, measure_option=measure_option)
 
 if __name__ == "__main__":
     # only print log when invoked from main

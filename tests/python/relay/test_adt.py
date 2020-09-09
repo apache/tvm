@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 from tvm import relay
+from tvm.relay import testing
 from tvm.relay.backend.interpreter import ConstructorValue
 from tvm.relay import create_executor
 from tvm.relay.prelude import Prelude, StaticTensorArrayOps
@@ -719,13 +719,15 @@ def test_iterate():
     assert count(res) == 12
 
 
-def check_tensor_array(ta_mod, ref_res, *args, dtype="float32",
-                       ta_ctx=tvm.cpu(), target="llvm", rtol=1e-5):
+def check_tensor_array(ta_mod, ref_res, *args, dtype="float32", rtol=1e-5):
     for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=ta_mod, ctx=ta_ctx, target=target)
-        result = ex.evaluate()(*args)
-        got = vmobj_to_list(result, dtype)
-        tvm.testing.assert_allclose(ref_res, got, rtol=rtol, atol=rtol)
+        for target, ctx in testing.enabled_targets():
+            if kind == "debug" and ctx.device_type != tvm.cpu().device_type:
+                continue
+            ex = relay.create_executor(kind, mod=ta_mod, ctx=ctx, target=target)
+            result = ex.evaluate()(*args)
+            got = vmobj_to_list(result, dtype)
+            tvm.testing.assert_allclose(ref_res, got, rtol=rtol, atol=rtol)
 
 
 def test_tensor_expand_dims():

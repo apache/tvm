@@ -49,6 +49,8 @@ import tvm.relay.testing.tf as tf_testing
 from tvm.runtime.vm import VirtualMachine
 from packaging import version as package_version
 
+import tvm.testing
+
 #######################################################################
 # Generic run functions for TVM & tensorflow
 # ------------------------------------------
@@ -198,7 +200,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
 
         for device in ["llvm", "cuda"]:
             ctx = tvm.context(device, 0)
-            if not ctx.exist:
+            if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 continue
             if no_gpu and device == 'cuda':
@@ -262,6 +264,7 @@ def _test_pooling(input_shape, **kwargs):
             _test_pooling_iteration(input_shape, **kwargs)
 
 
+@tvm.testing.uses_gpu
 def test_forward_pooling():
     """ Pooling """
     # TensorFlow only supports NDHWC for max_pool3d on CPU
@@ -408,6 +411,7 @@ def _test_convolution(opname, tensor_in_sizes, filter_in_sizes,
                                 'Placeholder:0', 'DepthwiseConv2dNative:0')
 
 
+@tvm.testing.uses_gpu
 def test_forward_convolution():
     if is_gpu_available():
         _test_convolution('conv', [4, 176, 8, 8], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NCHW')
@@ -526,6 +530,7 @@ def _test_convolution3d(opname, tensor_in_sizes, filter_in_sizes,
             compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
                                 'Placeholder:0', 'Conv3D:0', cuda_layout="NCDHW")
 
+@tvm.testing.uses_gpu
 def test_forward_convolution3d():
     if is_gpu_available():
         _test_convolution3d('conv', [4, 176, 8, 8, 8], [1, 1, 1, 176, 32], [1, 1, 1], [1, 1, 1], 'SAME', 'NCDHW')
@@ -569,6 +574,7 @@ def _test_convolution3d_transpose(data_shape, filter_shape, strides,
         compare_tf_with_tvm(data_array, 'Placeholder:0', 'conv3d_transpose:0', cuda_layout="NDHWC")
 
 
+@tvm.testing.uses_gpu
 def test_forward_convolution3d_transpose():
     if is_gpu_available():
         _test_convolution3d_transpose(data_shape=[1, 10, 8, 8, 8],
@@ -655,6 +661,7 @@ def _test_biasadd(tensor_in_sizes, data_format):
                             'Placeholder:0', 'BiasAdd:0')
 
 
+@tvm.testing.uses_gpu
 def test_forward_biasadd():
     if is_gpu_available():
         _test_biasadd([4, 176, 8, 8], 'NCHW')
@@ -1230,7 +1237,8 @@ def test_forward_variable():
     _test_variable(np.random.uniform(size=(32, 100)).astype('float32'))
 
 
-def test_read_variable_op():
+@tvm.testing.parametrize_targets("llvm", "cuda")
+def test_read_variable_op(target, ctx):
     """ Read Variable op test """
 
     tf.reset_default_graph()
@@ -1270,18 +1278,12 @@ def test_read_variable_op():
             out_node,
         )
 
-        for device in ["llvm", "cuda"]:
-            ctx = tvm.context(device, 0)
-            if not ctx.exist:
-                print("Skip because %s is not enabled" % device)
-                continue
-
-            tvm_output = run_tvm_graph(final_graph_def, in_data, in_node,
-                                       target=device, out_names=out_name,
-                                       num_output=len(out_name))
-            for i in range(len(tf_output)):
-                tvm.testing.assert_allclose(
-                    tf_output[i], tvm_output[i], atol=1e-4, rtol=1e-5)
+        tvm_output = run_tvm_graph(final_graph_def, in_data, in_node,
+                                   target=target, out_names=out_name,
+                                   num_output=len(out_name))
+        for i in range(len(tf_output)):
+            tvm.testing.assert_allclose(
+                tf_output[i], tvm_output[i], atol=1e-4, rtol=1e-5)
 
         sess.close()
 
@@ -2382,6 +2384,7 @@ def test_forward_mobilenet():
 # --------
 
 
+@tvm.testing.requires_gpu
 def test_forward_resnetv2():
     '''test resnet model'''
     if is_gpu_available():
@@ -2399,7 +2402,7 @@ def test_forward_resnetv2():
                     sess, data, 'input_tensor:0', out_node + ':0')
                 for device in ["llvm", "cuda"]:
                     ctx = tvm.context(device, 0)
-                    if not ctx.exist:
+                    if not tvm.testing.device_enabled(device):
                         print("Skip because %s is not enabled" % device)
                         continue
                     tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', len(tf_output),
@@ -2431,7 +2434,7 @@ def _test_ssd_impl():
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
                 ctx = tvm.context(device, 0)
-                if not ctx.exist:
+                if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue
                 tvm_output = run_tvm_graph(graph_def, data, in_node, len(out_node),
@@ -3754,7 +3757,7 @@ def test_forward_dynamic_input_shape():
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
                 ctx = tvm.context(device, 0)
-                if not ctx.exist:
+                if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue
                 tvm_output = run_tvm_graph(graph_def, np_data, ["data"], 1,

@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 import numpy as np
 
 def run_jit(fapi, check):
     for target in ["llvm", "stackvm"]:
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             continue
         f = tvm.driver.build(fapi, target=target)
         s = f.get_source()

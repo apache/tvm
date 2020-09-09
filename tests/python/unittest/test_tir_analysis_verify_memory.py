@@ -17,6 +17,7 @@
 import tvm
 import pytest
 from tvm import te
+import tvm.testing
 
 # The following DLDeviceType/TVMDeviceExtType values
 # are originally defined in dlpack.h and c_runtime_api.h.
@@ -27,6 +28,7 @@ other_devices = ["llvm", "ext_dev"]
 # All computations are bound.
 # So VerifyMemory pass is expected to succeed.
 #
+@tvm.testing.uses_gpu
 def test_verify_memory_all_bind():
   n = te.var("n")
   A = te.placeholder((n,), name='A')
@@ -41,15 +43,17 @@ def test_verify_memory_all_bind():
   mod = tvm.lower(s, [A, B])
 
   for dev_type in gpu_devices + other_devices:
-      binded_mod = tvm.tir.transform.Apply(
-          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      tvm.tir.transform.VerifyMemory()(binded_mod)
+      if tvm.testing.device_enabled(dev_type):
+          binded_mod = tvm.tir.transform.Apply(
+              lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
+          tvm.tir.transform.VerifyMemory()(binded_mod)
 
 
 
 # Computations are not bound.
 # So VerifyMemory pass fails when device type is GPU.
 #
+@tvm.testing.uses_gpu
 def test_verify_memory_not_bind():
   n = te.var("n")
   A = te.placeholder((n,), name='A')
@@ -61,20 +65,23 @@ def test_verify_memory_not_bind():
   mod = tvm.lower(s, [A, B])
 
   for dev_type in gpu_devices:
-      binded_mod = tvm.tir.transform.Apply(
-          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      with pytest.raises(RuntimeError):
-          tvm.tir.transform.VerifyMemory()(binded_mod)
+      if tvm.testing.device_enabled(dev_type):
+          binded_mod = tvm.tir.transform.Apply(
+              lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
+          with pytest.raises(RuntimeError):
+              tvm.tir.transform.VerifyMemory()(binded_mod)
 
   for dev_type in other_devices:
-      binded_mod = tvm.tir.transform.Apply(
-          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      tvm.tir.transform.VerifyMemory()(binded_mod)
+      if tvm.testing.device_enabled(dev_type):
+          binded_mod = tvm.tir.transform.Apply(
+              lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
+          tvm.tir.transform.VerifyMemory()(binded_mod)
 
 
 # Computations are partially bound.
 # So VerifyMemory pass fails when device type is GPU.
 #
+@tvm.testing.uses_gpu
 def test_verify_memory_partially_bind():
   n = te.var("n")
   A = te.placeholder((n,), name='A')
@@ -91,15 +98,17 @@ def test_verify_memory_partially_bind():
   mod = tvm. lower(s, [A, B, C, D])
 
   for dev_type in gpu_devices:
-      binded_mod = tvm.tir.transform.Apply(
-          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      with pytest.raises(RuntimeError):
-          tvm.tir.transform.VerifyMemory()(binded_mod)
+      if tvm.testing.device_enabled(dev_type):
+          binded_mod = tvm.tir.transform.Apply(
+              lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
+          with pytest.raises(RuntimeError):
+              tvm.tir.transform.VerifyMemory()(binded_mod)
 
   for dev_type in other_devices:
-      binded_mod = tvm.tir.transform.Apply(
-          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      tvm.tir.transform.VerifyMemory()(binded_mod)
+      if tvm.testing.device_enabled(dev_type):
+          binded_mod = tvm.tir.transform.Apply(
+              lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
+          tvm.tir.transform.VerifyMemory()(binded_mod)
 
 
 

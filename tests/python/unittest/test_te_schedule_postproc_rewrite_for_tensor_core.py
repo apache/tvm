@@ -18,7 +18,7 @@ import tvm
 from tvm import te
 from tvm import topi
 import numpy as np
-from tvm.contrib import nvcc
+import tvm.testing
 
 def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
     A = te.placeholder((n, l), name='A', dtype='float16')
@@ -204,26 +204,14 @@ def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
       c_np[bs, :, :] = np.dot(a_np[bs, :, :], b_np[bs, :, :])
     np.testing.assert_allclose(c_np, c.asnumpy(), rtol=1e-3)
 
+@tvm.testing.requires_tensorcore
 def test_tensor_core_matmul():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-    if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-        print("skip because gpu does not support tensor core")
-        return
-
     tensor_core_matmul(16) #test with warp_tile 16x16x16
     tensor_core_matmul(8) #test with warp_tile 8x32x16
     tensor_core_matmul(32) #test with warp_tile 32x8x16
 
+@tvm.testing.requires_tensorcore
 def test_tensor_core_batch_matmul():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-    if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-        print("skip because gpu does not support tensor core")
-        return
-
     tensor_core_batch_matmul()
 
 if __name__ == '__main__':

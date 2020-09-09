@@ -21,8 +21,9 @@ import tvm
 from tvm import relay
 from tvm.relay import transform, analysis
 from tvm.relay.testing.temp_op_attr import TempOpAttr
-from tvm.relay.testing import ctx_list, run_infer_type
+from tvm.relay.testing import run_infer_type
 import numpy as np
+import tvm.testing
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
@@ -615,6 +616,7 @@ def test_alter_layout_nchw_upsamping_op():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+@tvm.testing.uses_gpu
 def test_alter_layout_strided_slice():
     """Test rewriting strided_slice during alter_iop_layout"""
     def before():
@@ -622,9 +624,9 @@ def test_alter_layout_strided_slice():
         weight = relay.var('weight', shape=(32, 32, 3, 3))
         y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1))
         y = relay.strided_slice(y,
-                                begin=relay.const([0, 16], "int32"),
-                                end=relay.const([1, 33], "int32"),
-                                strides=relay.const([1, 1], "int32"))
+                                begin=[0, 16],
+                                end=[1, 33],
+                                strides=[1, 1])
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
@@ -643,9 +645,9 @@ def test_alter_layout_strided_slice():
                                              data_layout="NCHW4c")
 
         y = relay.strided_slice(y,
-                                begin=relay.const([0, 4], "int32"),
-                                end=relay.const([1, 21], "int32"),
-                                strides=relay.const([1, 1], "int32"))
+                                begin=[0, 4],
+                                end=[1, 21],
+                                strides=[1, 1])
 
         y = relay.layout_transform(y, "NCHW4c", "NCHW")
         y = relay.Function(analysis.free_vars(y), y)
@@ -661,7 +663,7 @@ def test_alter_layout_strided_slice():
     mod_before['main'] = a
     mod_new['main'] = b
     with relay.build_config(opt_level=3):
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug", "vm"]:
                 ex_before = relay.create_executor(kind, mod=mod_before, ctx=ctx, target=target)
                 ex_new = relay.create_executor(kind, mod=mod_new, ctx=ctx, target=target)

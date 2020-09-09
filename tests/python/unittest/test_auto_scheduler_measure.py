@@ -21,6 +21,7 @@ import tvm
 from tvm import topi
 from tvm import te, auto_scheduler
 import tempfile
+import tvm.testing
 
 from test_auto_scheduler_common import matmul_auto_scheduler_test, get_tiled_matmul
 
@@ -46,7 +47,7 @@ def record_common(dag, s):
 
 
 def test_record_split_reorder_fuse_annotation():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
     A = te.placeholder((512, 512), name='A')
@@ -80,7 +81,7 @@ def test_record_split_reorder_fuse_annotation():
 
 
 def test_record_compute_at_root_inline_cache_read_write():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
     A = te.placeholder((512, 512), name='A')
@@ -108,7 +109,7 @@ def test_record_compute_at_root_inline_cache_read_write():
 
 
 def test_record_follow_split_follow_fused_split():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
     A = te.placeholder((512, 512), name='A')
@@ -142,7 +143,7 @@ def test_record_follow_split_follow_fused_split():
 
 
 def test_record_pragma_storage_align_rfactor():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
     A = te.placeholder((512, 512), name='A')
@@ -164,8 +165,8 @@ def test_record_pragma_storage_align_rfactor():
     record_common(dag, s)
 
 
-def test_measure_local_builder_runner():
-    if not tvm.runtime.enabled("llvm"):
+def test_measure_local_builder_runner(enable_cpu_cache_flush=False):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
     dag, s0 = get_tiled_matmul()
@@ -174,7 +175,8 @@ def test_measure_local_builder_runner():
 
     minp = auto_scheduler.MeasureInput(task, s0)
     local_builder = auto_scheduler.LocalBuilder()
-    local_runner = auto_scheduler.LocalRunner(timeout=60)
+    local_runner = auto_scheduler.LocalRunner(timeout=60,
+                                              enable_cpu_cache_flush=enable_cpu_cache_flush)
 
     bress = local_builder.build([minp])
     assert bress[0].error_no == 0
@@ -182,8 +184,8 @@ def test_measure_local_builder_runner():
     assert mress[0].error_no == 0
 
 
-def test_measure_local_builder_rpc_runner():
-    if not tvm.runtime.enabled("llvm"):
+def test_measure_local_builder_rpc_runner(enable_cpu_cache_flush=False):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
     dag, s0 = get_tiled_matmul()
@@ -192,7 +194,8 @@ def test_measure_local_builder_rpc_runner():
 
     minp = auto_scheduler.MeasureInput(task, s0)
     local_builder = auto_scheduler.LocalBuilder()
-    measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=60)
+    measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=60,
+                                                        enable_cpu_cache_flush=enable_cpu_cache_flush)
     rpc_runner = measure_ctx.runner
 
     bress = local_builder.build([minp])
@@ -206,5 +209,8 @@ if __name__ == "__main__":
     test_record_compute_at_root_inline_cache_read_write()
     test_record_follow_split_follow_fused_split()
     test_record_pragma_storage_align_rfactor()
-    test_measure_local_builder_runner()
-    test_measure_local_builder_rpc_runner()
+    test_measure_local_builder_runner(enable_cpu_cache_flush=True)
+    test_measure_local_builder_runner(enable_cpu_cache_flush=False)
+    test_measure_local_builder_rpc_runner(enable_cpu_cache_flush=True)
+    test_measure_local_builder_rpc_runner(enable_cpu_cache_flush=False)
+

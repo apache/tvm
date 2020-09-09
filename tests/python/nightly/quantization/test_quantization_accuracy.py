@@ -23,6 +23,7 @@ import mxnet as mx
 from mxnet import gluon
 import logging
 import os
+import tvm.testing
 
 logging.basicConfig(level=logging.INFO)
 
@@ -112,6 +113,7 @@ def eval_acc(model, dataset, batch_fn, target=tvm.target.cuda(), ctx=tvm.gpu(), 
     logging.info('[final] validation: acc-top1=%f acc-top5=%f', top1, top5)
     return top1
 
+@tvm.testing.requires_gpu
 def test_quantize_acc(cfg, rec_val):
     qconfig = qtz.qconfig(skip_conv_layers=[0],
                           nbit_input=cfg.nbit_input,

@@ -22,7 +22,6 @@ from tvm import te
 from tvm import topi
 import tvm.topi.testing
 from tvm.topi import util
-from common import get_all_backend
 
 
 def test_util():
@@ -31,6 +30,7 @@ def test_util():
     assert util.get_const_tuple((x, x)) == (100, 100)
 
 
+@tvm.testing.uses_gpu
 def test_ewise():
     def test_apply(
         func,
@@ -57,11 +57,7 @@ def test_ewise():
             a_np += ((np.abs(np.fmod(a_np, 1)) - 0.5) < 1e-6) * 1e-4
         b_np = f_numpy(a_np)
 
-        def check_device(device):
-            ctx = tvm.context(device, 0)
-            if not ctx.exist:
-                print("Skip because %s is not enabled" % device)
-                return
+        def check_device(device, ctx):
             print("Running on target: %s" % device)
             with tvm.target.create(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(B)
@@ -71,8 +67,8 @@ def test_ewise():
             foo(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-        for target in get_all_backend():
-            check_device(target)
+        for target, ctx in tvm.testing.enabled_targets():
+            check_device(target, ctx)
 
     def test_isnan(
         low,
@@ -97,11 +93,7 @@ def test_ewise():
             a_np += ((np.abs(np.fmod(a_np, 1)) - 0.5) < 1e-6) * 1e-5
         b_np = np.isnan(a_np)
 
-        def check_device(device):
-            ctx = tvm.context(device, 0)
-            if not ctx.exist:
-                print("Skip because %s is not enabled" % device)
-                return
+        def check_device(device, ctx):
             print("Running on target: %s" % device)
             with tvm.target.create(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(B)
@@ -111,8 +103,8 @@ def test_ewise():
             foo(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-        for target in get_all_backend():
-            check_device(target)
+        for target, ctx in tvm.testing.enabled_targets():
+            check_device(target, ctx)
 
     def test_infiniteness_ops(topi_op, ref_op, name):
         for dtype in ['float32', 'float64', 'int32', 'int16']:
@@ -128,11 +120,7 @@ def test_ewise():
                 a_np.ravel()[np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)] = np.nan
             b_np = ref_op(a_np)
 
-            def check_device(device):
-                ctx = tvm.context(device, 0)
-                if not ctx.exist:
-                    print("Skip because %s is not enabled" % device)
-                    return
+            def check_device(device, ctx):
                 with tvm.target.create(device):
                     s = tvm.topi.testing.get_injective_schedule(device)(B)
                 foo = tvm.build(s, [A, B], device, name=name)
@@ -141,8 +129,8 @@ def test_ewise():
                 foo(a, b)
                 tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-            for target in get_all_backend():
-                check_device(target)
+            for target, ctx in tvm.testing.enabled_targets():
+                check_device(target, ctx)
 
     test_apply(topi.floor, "floor", np.floor, -100, 100)
     test_apply(topi.ceil, "ceil", np.ceil, -100, 100)
@@ -167,6 +155,7 @@ def test_ewise():
     test_infiniteness_ops(topi.isinf, np.isinf, 'isinf')
 
 
+@tvm.testing.uses_gpu
 def test_cast():
     def verify(from_dtype, to_dtype, low=-100, high=100):
         shape = (5, 4)
@@ -181,11 +170,7 @@ def test_cast():
             a_np = a_np - a_np[2, 3]
         b_np = a_np.astype(to_dtype)
 
-        for device in get_all_backend():
-            ctx = tvm.context(device, 0)
-            if not ctx.exist:
-                print("Skip because %s is not enabled" % device)
-                continue
+        for device, ctx in tvm.testing.enabled_targets():
             print("Running on target: %s" % device)
             with tvm.target.create(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(B)
@@ -223,7 +208,7 @@ def test_fastmath():
 
         def check_device(device):
             ctx = tvm.context(device, 0)
-            if not ctx.exist:
+            if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 return
             with tvm.target.create(device):

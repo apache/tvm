@@ -47,19 +47,19 @@ def test_combine_parallel_batch_matmul():
         w = relay.concatenate((w1, w2, w3), axis=1)
         y = relay.nn.batch_matmul(x, w)
         y1 = relay.strided_slice(y,
-                                 begin=relay.const([0, 0, 0], "int64"),
-                                 end=relay.const([-1, -1, s1], "int64"),
-                                 strides=relay.const([1, 1, 1], 'int64'),
+                                 begin=[0, 0, 0],
+                                 end=[-1, -1, s1],
+                                 strides=[1, 1, 1],
                                  slice_mode="size")
         y2 = relay.strided_slice(y,
-                                 begin=relay.const([0, 0, s1], "int64"),
-                                 end=relay.const([-1, -1, s2], "int64"),
-                                 strides=relay.const([1, 1, 1], 'int64'),
+                                 begin=[0, 0, s1],
+                                 end=[-1, -1, s2],
+                                 strides=[1, 1, 1],
                                  slice_mode="size")
         y3 = relay.strided_slice(y,
-                                 begin=relay.const([0, 0, s1+s2], "int64"),
-                                 end=relay.const([-1, -1, s3], "int64"),
-                                 strides=relay.const([1, 1, 1], 'int64'),
+                                 begin=[0, 0, s1+s2],
+                                 end=[-1, -1, s3],
+                                 strides=[1, 1, 1],
                                  slice_mode="size")
         y = relay.Tuple((y1, y2, y3))
         return relay.Function(args, y)
@@ -104,19 +104,19 @@ def test_combine_parallel_batch_matmul_biasadd():
         y = relay.nn.batch_matmul(x, w)
         y = relay.add(y, b)
         y1 = relay.strided_slice(y,
-                                 begin=relay.const([0, 0, 0], "int64"),
-                                 end=relay.const([-1, -1, s1], "int64"),
-                                 strides=relay.const([1, 1, 1], 'int64'),
+                                 begin=[0, 0, 0],
+                                 end=[-1, -1, s1],
+                                 strides=[1, 1, 1],
                                  slice_mode="size")
         y2 = relay.strided_slice(y,
-                                 begin=relay.const([0, 0, s1], "int64"),
-                                 end=relay.const([-1, -1, s2], "int64"),
-                                 strides=relay.const([1, 1, 1], 'int64'),
+                                 begin=[0, 0, s1],
+                                 end=[-1, -1, s2],
+                                 strides=[1, 1, 1],
                                  slice_mode="size")
         y3 = relay.strided_slice(y,
-                                 begin=relay.const([0, 0, s1+s2], "int64"),
-                                 end=relay.const([-1, -1, s3], "int64"),
-                                 strides=relay.const([1, 1, 1], 'int64'),
+                                 begin=[0, 0, s1+s2],
+                                 end=[-1, -1, s3],
+                                 strides=[1, 1, 1],
                                  slice_mode="size")
         y = relay.Tuple((y1, y2, y3))
         return relay.Function(args, y)

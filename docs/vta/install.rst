@@ -114,8 +114,8 @@ Setup your Pynq board based on the `Pynq board getting started tutorial <http://
 
 You should follow the instructions up to and including the *Turning On the PYNQ-Z1* step (no need to pursue the tutorial beyond this point).
 
-* Make sure that you've downloaded the latest Pynq image, `PYNQ-Z1 v2.4 <http://www.pynq.io/board.html>`_ (released February 22rd 2019), and have imaged your SD card with it (we recommend the free `Etcher <https://etcher.io/>`_ program).
-* For this test setup, follow the `"Connect to a Computer" <http://pynq.readthedocs.io/en/latest/getting_started.html#connect-to-a-computer>`_ Ethernet setup instructions. To be able to talk to the board, make sure to `assign your computer a static IP address <http://pynq.readthedocs.io/en/latest/appendix.html#assign-your-computer-a-static-ip>`_
+* Make sure that you've downloaded the latest Pynq image, `PYNQ-Z1 v2.5 <http://www.pynq.io/board.html>`_, and have imaged your SD card with it (we recommend the free `Etcher <https://etcher.io/>`_ program).
+* For this test setup, follow the `"Connect to a Computer" <https://pynq.readthedocs.io/en/latest/getting_started/pynq_z1_setup.html>`_ Ethernet setup instructions. To be able to talk to the board, make sure to `assign your computer a static IP address <https://pynq.readthedocs.io/en/latest/appendix.html#assign-your-computer-a-static-ip>`_
 
 Once the board is powered on and connected to your development machine, try connecting to it to make sure you've properly set up your Pynq board:
 
@@ -156,6 +156,8 @@ The build process should take roughly 5 minutes.
    cd build
    cmake ..
    make runtime vta -j2
+   # FIXME (tmoreau89): remove this step by fixing the cmake build
+   make clean; make runtime vta -j2
    # Build VTA RPC server (takes 1 min)
    cd ..
    sudo ./apps/vta_rpc/start_rpc_server.sh # pw is 'xilinx'
@@ -310,33 +312,33 @@ If you're interested in generating the Xilinx FPGA bitstream on your own instead
 Xilinx Toolchain Installation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-We recommend using Vivado 2018.3 since our scripts have been tested to work on this version of the Xilinx toolchains.
+We recommend using Vivado 2020.1 since our scripts have been tested to work on this version of the Xilinx toolchains.
 Our guide is written for Linux (Ubuntu) installation.
 
-You’ll need to install Xilinx’ FPGA compilation toolchain, `Vivado HL WebPACK 2018.3 <https://www.xilinx.com/products/design-tools/vivado.html>`_, which a license-free version of the Vivado HLx toolchain.
+You’ll need to install Xilinx’ FPGA compilation toolchain, `Vivado HL WebPACK 2020.1 <https://www.xilinx.com/products/design-tools/vivado.html>`_, which a license-free version of the Vivado HLx toolchain.
 
 Obtaining and Launching the Vivado GUI Installer
 """"""""""""""""""""""""""""""""""""""""""""""""
 
-1. Go to the `download webpage <https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2018-3.html>`_, and download the Linux Self Extracting Web Installer for Vivado HLx 2018.3: WebPACK and Editions.
+1. Go to the `download webpage <https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2020-1.html>`_, and download the Linux Self Extracting Web Installer for Vivado HLx 2020.1: WebPACK and Editions.
 2. You’ll have to sign in with a Xilinx account. This requires a Xilinx account creation that will take 2 minutes.
-3. Complete the Name and Address Verification by clicking “Next”, and you will get the opportunity to download a binary file, called ``Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin``.
+3. Complete the Name and Address Verification by clicking “Next”, and you will get the opportunity to download a binary file, called ``Xilinx_Unified_2020.1_0602_1208_Lin64.bin``.
 4. Now that the file is downloaded, go to your ``Downloads`` directory, and change the file permissions so it can be executed:
 
 .. code:: bash
 
-   chmod u+x Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin
+   chmod u+x Xilinx_Unified_2020.1_0602_1208_Lin64.bin
 
 5. Now you can execute the binary:
 
 .. code:: bash
 
-   ./Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin
+   ./Xilinx_Unified_2020.1_0602_1208_Lin64.bin
 
 Xilinx Vivado GUI Installer Steps
 """""""""""""""""""""""""""""""""
 
-At this point you've launched the Vivado 2018.3 Installer GUI program.
+At this point you've launched the Vivado 2020.1 Installer GUI program.
 
 1. Click “Next” on the "Welcome" screen.
 2. On the "Select Install Type" screen, enter your Xilinx user credentials under the “User Authentication” box and select the “Download and Install Now” option before clicking “Next”.
@@ -361,8 +363,8 @@ The last step is to update your ``~/.bashrc`` with the following lines. This wil
 
 .. code:: bash
 
-   # Xilinx Vivado 2018.3 environment
-   export XILINX_VIVADO=${XILINX_PATH}/Vivado/2018.3
+   # Xilinx Vivado 2020.1 environment
+   export XILINX_VIVADO=${XILINX_PATH}/Vivado/2020.1
    export PATH=${XILINX_VIVADO}/bin:${PATH}
 
 HLS-based Custom VTA Bitstream Compilation for Pynq

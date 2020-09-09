@@ -19,7 +19,9 @@ from tvm import te
 from tvm.contrib.nvcc import have_fp16
 
 import numpy as np
+import tvm.testing
 
+@tvm.testing.requires_cuda
 def test_lower_warp_memory_local_scope():
     m = 128
     A = te.placeholder((m,), name='A')
@@ -47,6 +49,7 @@ def test_lower_warp_memory_local_scope():
     assert(fdevice.body.body.value.value == "local")
     assert(fdevice.body.body.body.extents[0].value == 2)
 
+@tvm.testing.requires_cuda
 def test_lower_warp_memory_correct_indices():
     n = 32
     A = te.placeholder((2, n, n), name='A', dtype="float32")
@@ -83,11 +86,10 @@ def test_lower_warp_memory_correct_indices():
     assert "threadIdx.x" in idx_names
     assert "threadIdx.y" not in idx_names
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_lower_warp_memory_cuda_end_to_end():
     def check_cuda(dtype):
-        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-            print("skip because cuda is not enabled..")
-            return
         if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
@@ -127,11 +129,10 @@ def test_lower_warp_memory_cuda_end_to_end():
     check_cuda("float32")
     check_cuda("float16")
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_lower_warp_memory_cuda_half_a_warp():
     def check_cuda(dtype):
-        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-            print("skip because cuda is not enabled..")
-            return
         if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
@@ -170,11 +171,10 @@ def test_lower_warp_memory_cuda_half_a_warp():
     check_cuda("float32")
     check_cuda("float16")
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_lower_warp_memory_cuda_2_buffers():
     def check_cuda(dtype):
-        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-            print("skip because cuda is not enabled..")
-            return
         if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
@@ -218,6 +218,7 @@ def test_lower_warp_memory_cuda_2_buffers():
     check_cuda("float32")
     check_cuda("float16")
 
+@tvm.testing.requires_gpu
 def test_lower_warp_memory_roundup():
     def check(device, m):
         A = te.placeholder((m,), name='A')
@@ -246,7 +247,7 @@ def test_lower_warp_memory_roundup():
             tvm.testing.assert_allclose(B_nd.asnumpy(), B_np)
 
     for device in ['cuda', 'rocm']:
-        if not tvm.context(device, 0).exist or not tvm.runtime.enabled(device):
+        if not tvm.testing.device_enabled(device):
             print("skip because", device,"is not enabled..")
             continue
         check(device, m=31)

@@ -27,12 +27,16 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/topi/broadcast.h>
 #include <tvm/topi/elemwise.h>
 #include <tvm/topi/transform.h>
 
+#include <string>
 #include <utility>
 #include <vector>
+
+#include "../../../transforms/infer_layout_util.h"
 
 namespace tvm {
 namespace relay {
@@ -429,6 +433,115 @@ RELAY_REGISTER_OP("dyn.full")
     .add_type_rel("DynamicFull", FullRel)
     .set_attr<FTVMCompute>("FTVMCompute", FullCompute)
     .set_attr<TOpPattern>("TOpPattern", kElemWise);
+
+bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  // [data, begin, end, strides, out]
+  CHECK_EQ(types.size(), 5);
+  const StridedSliceAttrs* param = attrs.as<StridedSliceAttrs>();
+  if (param == nullptr) {
+    return false;
+  }
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    return false;
+  }
+  auto dshape = data->shape;
+  int64_t num_axis = dshape.size();
+
+  // calculate output shape
+  std::vector<IndexExpr> oshape(num_axis);
+  for (int64_t i = 0; i < num_axis; ++i) {
+    oshape[i] = Any();
+  }
+
+  reporter->Assign(types[4], TensorType(oshape, data->dtype));
+  return true;
+}
+
+inline te::Tensor DynamicStridedSlice(const te::Tensor& input, const te::Tensor& begin,
+                                      const te::Tensor& end, const te::Tensor& strides,
+                                      std::string name = "T_strided_slice_dynamic",
+                                      std::string tag = topi::kInjective) {
+  int64_t src_tensor_dim = input->shape.size();
+  Array<IndexExpr> out_shape;
+  for (int64_t i = 0; i < src_tensor_dim; ++i) {
+    out_shape.push_back(tvm::tir::Var("dim"));
+  }
+  // TODO(yongwww): move the compute into topi
+  return te::compute(
+      out_shape,
+      [&](const Array<tvm::tir::Var>& indices) {
+        Array<IndexExpr> real_indices;
+        for (int32_t i = 0; i < src_tensor_dim; ++i) {
+          real_indices.push_back(indices[i] * strides(i) + begin(i));
+        }
+        return input(real_indices);
+      },
+      name, tag);
+}
+
+Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                      const Type& out_type) {
+  te::Tensor data = inputs[0];
+  te::Tensor begin = inputs[1];
+  te::Tensor end = inputs[2];
+  te::Tensor strides = inputs[3];
+  // Dynamic computation
+  int64_t data_rank = data->shape.size();
+  CHECK(begin->shape[0].as<IntImmNode>()->value == data_rank &&
+        end->shape[0].as<IntImmNode>()->value == data_rank &&
+        strides->shape[0].as<IntImmNode>()->value == data_rank)
+      << "begin, end, and strides are required to have the same length"
+      << " if they are dynamic variables.";
+  return Array<te::Tensor>{DynamicStridedSlice(data, begin, end, strides)};
+}
+
+Expr MakeStridedSlice(Expr data, Expr begin, Expr end, Expr strides, String slice_mode) {
+  auto attrs = make_object<StridedSliceAttrs>();
+  attrs->slice_mode = slice_mode;
+  static const Op& op = Op::Get("dyn.strided_slice");
+  return Call(op, {data, begin, end, strides}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.strided_slice").set_body_typed(MakeStridedSlice);
+
+RELAY_REGISTER_OP("dyn.strided_slice")
+    .describe(R"code(Strided slice of an array.
+
+Examples::
+
+  x = [[  1.,   4.,   7.,  10.],
+       [  2.,   5.,   8.,  11.],
+       [  3.,   6.,   9.,  12.]]
+
+  strided_slice(x, begin=[0, 1], end=[2, 4], stride=[1, 1]) = [[ 4.,  7.,  10.],
+                                                               [ 5.,  8.,  11.]]
+
+  x = [[[ 1.,  2.],
+        [ 3.,  4.]],
+
+       [[ 5.,  6.],
+        [ 7.,  8.]]]
+
+  strided_slice(x, begin=[0, 0], end=[2, 2]) = [[[ 1.,  2.],
+                                                 [ 3.,  4.]],
+
+                                                [[ 5.,  6.],
+                                                 [ 7.,  8.]]]
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(4)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("begin", "Tensor", "The indices to begin with in the slicing.")
+    .add_argument("end", "Tensor", "Indices indicating end of the slice.")
+    .add_argument("strides", "Tensor", "The stride values.")
+    .add_argument("slice_mode", "Tensor", "The slice mode.")
+    .set_support_level(4)
+    .set_attrs_type<StridedSliceAttrs>()
+    .add_type_rel("DynStridedSlice", StridedSliceRel)
+    .set_attr<FTVMCompute>("FTVMCompute", StridedSliceCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<AnyCodegenStrategy>("AnyCodegenStrategy", kVariableDimensions);
 
 }  // namespace dyn
 }  // namespace relay
