@@ -78,4 +78,4 @@ jobs:
         ..
 
     - name: Build
-      run: cmake --build build.common -j3
+      run: cmake --build build.common --config Release -j3
