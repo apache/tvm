@@ -35,6 +35,7 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
@@ -734,7 +735,7 @@ std::string GetOrigLayout(std::set<std::string>* placeholder_axis_names, const t
   }
 
   std::ostringstream os;
-  uint i = 0;
+  uint32_t i = 0;
   const auto& placeholder_op = placeholder->op;
   CHECK_GT(extractor.read_access.count(placeholder_op), 0);
   for (const auto& ev : extractor.read_access[placeholder_op]) {
