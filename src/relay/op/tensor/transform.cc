@@ -295,8 +295,9 @@ bool StackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   // Sanity check: axis
   int axis = param->axis;
-  CHECK(-ndim <= axis && axis < ndim) << "stack only accepts `axis` in [-ndim, ndim)"
-                                      << ", but got axis = " << axis << ", and ndim = " << ndim;
+  CHECK(-(ndim + 1) <= axis && axis < ndim + 1)
+      << "stack only accepts `axis` in [-(ndim+1), ndim+1)"
+      << ", but got axis = " << axis << ", and ndim = " << ndim;
   axis = axis < 0 ? ndim + axis + 1 : axis;
 
   // Sanity check: ndim and dtype.
