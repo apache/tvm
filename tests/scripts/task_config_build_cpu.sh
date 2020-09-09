@@ -45,3 +45,5 @@ echo set\(USE_TENSORFLOW_PATH \"/tensorflow\"\) >> config.cmake
 echo set\(USE_FLATBUFFERS_PATH \"/flatbuffers\"\) >> config.cmake
 echo set\(USE_ETHOSN /opt/arm/ethosn-driver\) >> config.cmake
 echo set\(USE_ETHOSN_HW OFF\) >> config.cmake
+# XXX DO NOT SUBMIT
+echo set\(CMAKE_VERBOSE_MAKEFILE ON\) >> config.cmake
