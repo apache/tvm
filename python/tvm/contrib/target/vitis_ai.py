@@ -76,7 +76,7 @@ def vitis_ai_compiler(ref):
     pass_context = tvm.get_global_func("transform.GetCurrentPassContext")()
     target = str(pass_context.config['relay.ext.vitis_ai.options.target'])
     vai_build_dir = str(pass_context.config['relay.ext.vitis_ai.options.build_dir']) \
-        if 'vai_build_dir_' in pass_context.config else None
+        if 'relay.ext.vitis_ai.options.build_dir' in pass_context.config else None
     if vai_build_dir and not os.path.exists(vai_build_dir):
         raise ValueError("Provided Vitis-AI build dir: `{}` could not be found"
                          .format(vai_build_dir))
