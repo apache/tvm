@@ -112,7 +112,7 @@ if(USE_MICRO)
           COMMAND make ARGS ${make_common_args} clean
           COMMAND make ARGS ${make_common_args} all
           WORKING_DIRECTORY "${standalone_crt_base}"
-          DEPENDS standalone_crt)
+          DEPENDS standalone_crt ${host_isolated_build_deps})
 
     add_custom_target(host_standalone_crt DEPENDS ${crt_library_paths})
 
@@ -120,10 +120,11 @@ if(USE_MICRO)
       set(cmake_crt_lib_name host_standalone_crt_${crt_lib})
       list(APPEND cmake_crt_libraries ${cmake_crt_lib_name})
       add_library(${cmake_crt_lib_name} STATIC IMPORTED GLOBAL)
-      add_dependencies(${cmake_crt_lib_name} host_standalone_crt)
+      set(cmake_crt_lib_path "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/lib${crt_lib}.a")
+      add_dependencies(${cmake_crt_lib_name} host_standalone_crt "${cmake_crt_lib_path}")
       set_target_properties(${cmake_crt_lib_name} PROPERTIES
-          IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/lib${crt_lib}.a"
-          IMPORTED_OBJECTS "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/lib${crt_lib}.a"
+          IMPORTED_LOCATION "${cmake_crt_lib_path}"
+          IMPORTED_OBJECTS "${cmake_crt_lib_path}"
           PUBLIC_HEADER "${crt_headers}")
     endforeach()
 
