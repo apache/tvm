@@ -1767,8 +1767,9 @@ def _stack(prelude):
             return _op.stack(inputs[0], dim)
         else:
             # List ADT case
-            # TODO: is there a better way to check if an input is a List ADT?
-            assert isinstance(inputs[0], _expr.Expr)
+            ty = _infer_type_with_prelude(inputs[0], prelude)
+            list_ty = prelude.mod.get_global_type_var("List")
+            assert ty.func == list_ty, "The input list is expected to be List ADT"
             return _tensor_array_stack(prelude)(inputs, input_types)
     return _impl
 
