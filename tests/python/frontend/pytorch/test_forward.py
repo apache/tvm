@@ -3198,9 +3198,9 @@ if __name__ == "__main__":
     test_simple_rnn()
 
     # More complex recurrent models
-    from lstm_test import custom_lstm_test
+    from lstm_test import test_custom_lstm
 
-    custom_lstm_test()
+    test_custom_lstm()
 
     # Test bert model
     test_forward_pretrained_bert_base_uncased()

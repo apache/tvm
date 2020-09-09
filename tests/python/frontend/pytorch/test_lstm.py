@@ -215,8 +215,8 @@ def assert_equal(tvm_result, torch_result):
                                     rtol=1e-4, atol=1e-4)
 
 
-def run_and_compare(mod, params, pt_result):
-    executor = relay.create_executor("vm", mod=mod, ctx=tvm.cpu(0), target="llvm")
+def run_and_compare(mod, params, pt_result, target, ctx):
+    executor = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
     evaluator = executor.evaluate()
     exec_res = evaluator(**params)
 
@@ -258,7 +258,8 @@ def convert_list_to_vmobj(py_lst):
     return adt_lst
 
 
-def custom_lstm_test():
+@tvm.testing.uses_gpu
+def test_custom_lstm():
     input_name = "input"
     states_name = "states"
     seq_len = 5
@@ -332,4 +333,5 @@ def custom_lstm_test():
         else:
             params[states_name] = states_np
 
-        run_and_compare(mod, params, pt_result)
+        for tgt, ctx in tvm.testing.enabled_targets():
+            run_and_compare(mod, params, pt_result, target=tgt, ctx=ctx)
