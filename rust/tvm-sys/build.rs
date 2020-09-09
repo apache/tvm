@@ -25,35 +25,37 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 
 fn main() -> Result<()> {
-    let tvm_home = option_env!("TVM_HOME").map(str::to_string).unwrap_or_else(|| {
-        let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .canonicalize()
-            .with_context(|| {
-                format!(
-                    "failed to cannonicalize() CARGO_MANIFEST_DIR={}",
-                    env!("CARGO_MANIFEST_DIR")
-                )
-            })?;
+    let tvm_home = option_env!("TVM_HOME")
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .canonicalize()
+                .with_context(|| {
+                    format!(
+                        "failed to cannonicalize() CARGO_MANIFEST_DIR={}",
+                        env!("CARGO_MANIFEST_DIR")
+                    )
+                })?;
 
-        crate_dir
-            .parent()
-            .with_context(|| {
-                format!(
-                    "failed to find parent of CARGO_MANIFEST_DIR={}",
-                    env!("CARGO_MANIFEST_DIR")
-                )
-            })?
-            .parent()
-            .with_context(|| {
-                format!(
-                    "failed to find the parent of the parent of CARGO MANIFEST_DIR={}",
-                    env!("CARGO_MANIFEST_DIR")
-                )
-            })?
-            .to_str()
-            .context("failed to convert to strings")?
-            .to_string()
-    });
+            crate_dir
+                .parent()
+                .with_context(|| {
+                    format!(
+                        "failed to find parent of CARGO_MANIFEST_DIR={}",
+                        env!("CARGO_MANIFEST_DIR")
+                    )
+                })?
+                .parent()
+                .with_context(|| {
+                    format!(
+                        "failed to find the parent of the parent of CARGO MANIFEST_DIR={}",
+                        env!("CARGO_MANIFEST_DIR")
+                    )
+                })?
+                .to_str()
+                .context("failed to convert to strings")?
+                .to_string()
+        });
 
     if cfg!(feature = "bindings") {
         println!("cargo:rerun-if-env-changed=TVM_HOME");
