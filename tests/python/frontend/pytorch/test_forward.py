@@ -2948,6 +2948,7 @@ def test_stack_dynamic():
             for i in range(x.size(0)):
                 # this is a workaround to avoid generating impure aten::append op
                 tensor_list += [x[i]]
+            # relay tensor array only supports stacking on the first axis
             return torch.stack(tensor_list, dim=0)
 
     verify_script_model(Stack(), [(8, 8, 8)], _get_default_vm_targets())
