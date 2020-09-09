@@ -88,7 +88,7 @@ def _test_image_network(model_url, model_sub_path, input_dict, compile_hash, out
 
 def test_mobilenet_v1():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
-    # @Leo-blonk. The hash is there to catch any changes in the behaviour of the
+    # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
@@ -108,7 +108,7 @@ def test_mobilenet_v1():
 
 def test_inception_v3():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
-    # @Leo-blonk. The hash is there to catch any changes in the behaviour of the
+    # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
@@ -127,7 +127,7 @@ def test_inception_v3():
 
 def test_inception_v4():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
-    # @Leo-blonk. The hash is there to catch any changes in the behaviour of the
+    # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
@@ -146,7 +146,7 @@ def test_inception_v4():
 
 def test_ssd_mobilenet_v1():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
-    # @Leo-blonk. The hash is there to catch any changes in the behaviour of the
+    # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
