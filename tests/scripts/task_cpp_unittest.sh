@@ -30,8 +30,8 @@ export OMP_NUM_THREADS=1
 # Remove existing testcases
 rm -f build/*_test
 
-#make cpptest -j2
-make crttest -j2
+make cpptest -j2
+make crttest  # NOTE: don't parallelize, due to issue with build deps.
 for test in build/*_test; do
     ./$test
 done
