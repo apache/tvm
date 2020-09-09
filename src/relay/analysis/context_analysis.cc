@@ -160,11 +160,14 @@ DeviceDomainPtr Join(const DeviceDomainPtr& lhs, const DeviceDomainPtr& rhs) {
  * \brief Compute on which device each sub-expression will execute. A union find
  * algorithm is used to assign and merge the context domains.
  */
-class ContextAnalyzer : public ExprVisitor {
+class ContextAnalyzer : public MixedModeVisitor {
  public:
   ContextAnalyzer(const IRModule& mod, const GlobalVar& current_func,
                   const TVMContext& default_context)
-      : mod_(mod), current_func_(current_func), default_context_(default_context) {
+      : MixedModeVisitor(9),  // the number of repeated visits a node can perform
+        mod_(mod),
+        current_func_(current_func),
+        default_context_(default_context) {
     cpu_ctx_.device_type = kDLCPU;
     cpu_ctx_.device_id = 0;
   }
@@ -295,7 +298,7 @@ class ContextAnalyzer : public ExprVisitor {
       UnifyVarCall(cn);
     } else {
       UnifyCall(call, cn->args, {call}, Bottom());
-      ExprVisitor::VisitExpr_(cn);
+      MixedModeVisitor::VisitExpr_(cn);
     }
   }
 
@@ -315,20 +318,18 @@ class ContextAnalyzer : public ExprVisitor {
       // Unify let var, value, and body
       Unify(DeviceFor(let->var), DeviceFor(let->value));
       UnifyExpr(let, let->body);
-      ExprVisitor::VisitExpr(let->value);
+      MixedModeVisitor::VisitExpr(let->value);
       expr = let->body;
     }
     // Visit the last body
-    ExprVisitor::VisitExpr(expr);
+    MixedModeVisitor::VisitExpr(expr);
   }
 
   void VisitExpr_(const FunctionNode* fn) final {
     auto func = GetRef<Function>(fn);
-    auto it = visited_.find(func);
     // No need to step into fused primitive functions as they are handled as
     // a whole.
-    if (fn->HasNonzeroAttr(attr::kPrimitive) ||
-        (it != visited_.end() && !DeviceFor(func)->IsEmptyDomain())) {
+    if (fn->HasNonzeroAttr(attr::kPrimitive)) {
       return;
     }
 
@@ -336,8 +337,7 @@ class ContextAnalyzer : public ExprVisitor {
     for (const auto& it : fn->params) {
       DeviceFor(it);
     }
-    ExprVisitor::VisitExpr(fn->body);
-    visited_.insert(func);
+    MixedModeVisitor::VisitExpr(fn->body);
   }
 
   void VisitExpr_(const TupleNode* tn) final {
@@ -350,7 +350,7 @@ class ContextAnalyzer : public ExprVisitor {
       }
       Unify(device, DeviceFor(tup));
     }
-    ExprVisitor::VisitExpr_(tn);
+    MixedModeVisitor::VisitExpr_(tn);
   }
 
   void VisitExpr_(const TupleGetItemNode* tn) final {
@@ -358,7 +358,7 @@ class ContextAnalyzer : public ExprVisitor {
 
     Unify(DeviceFor(item), DeviceFor(item->tuple));
 
-    ExprVisitor::VisitExpr_(tn);
+    MixedModeVisitor::VisitExpr_(tn);
   }
 
   void VisitExpr_(const MatchNode* mn) final {
@@ -368,7 +368,11 @@ class ContextAnalyzer : public ExprVisitor {
     for (const auto& c : m->clauses) {
       device = Unify(device, DeviceFor(c->rhs));
     }
-    ExprVisitor::VisitExpr_(mn);
+    MixedModeVisitor::VisitLeaf(mn->data);
+    for (const Clause& c : mn->clauses) {
+      this->VisitClause(c);
+      MixedModeVisitor::VisitLeaf(c->rhs);
+    }
   }
 
   void VisitExpr_(const GlobalVarNode* gvn) final { DeviceFor(GetRef<GlobalVar>(gvn)); }
@@ -465,7 +469,7 @@ class ContextAnalyzer : public ExprVisitor {
     //  same device to the source device type of the device copy op.
     //  The call itself has the same device type to the destination.
     UnifyDeviceCopy(inps, outs, src_dev_type, dst_dev_type);
-    ExprVisitor::VisitExpr_(call);
+    MixedModeVisitor::VisitExpr_(call);
   }
 
   void UnifyAllocStorageCall(const CallNode* call) {
@@ -475,7 +479,7 @@ class ContextAnalyzer : public ExprVisitor {
     // The arguments of alloc storage should be on CPU.
     for (int i = 0; i < 2; i++) {
       Unify(DeviceFor(call->args[i]), DeviceType(cpu_ctx_));
-      ExprVisitor::VisitExpr(call->args[i]);
+      MixedModeVisitor::VisitExpr(call->args[i]);
     }
     TVMContext ctx;
     const auto* attrs = call->attrs.as<AllocStorageAttrs>();
@@ -494,7 +498,7 @@ class ContextAnalyzer : public ExprVisitor {
 
     // The shape for alloc_tensor should be on CPU.
     Unify(DeviceFor(shape), DeviceType(cpu_ctx_));
-    ExprVisitor::VisitExpr(shape);
+    MixedModeVisitor::VisitExpr(shape);
   }
 
   void UnifyShapeFuncCall(const CallNode* call) {
@@ -509,11 +513,11 @@ class ContextAnalyzer : public ExprVisitor {
     Tuple outputs = Downcast<Tuple>(call->args[2]);
     UnifyCall(GetRef<Call>(call), inps->fields, outputs->fields, shape_func_domain);
     for (const auto& it : inps->fields) {
-      ExprVisitor::VisitExpr(it);
+      MixedModeVisitor::VisitExpr(it);
     }
 
     for (const auto& it : outputs->fields) {
-      ExprVisitor::VisitExpr(it);
+      MixedModeVisitor::VisitExpr(it);
     }
   }
 
@@ -523,13 +527,13 @@ class ContextAnalyzer : public ExprVisitor {
     Tuple inps = Downcast<Tuple>(call->args[1]);
     Tuple outputs = Downcast<Tuple>(call->args[2]);
     UnifyCall(call->args[0], inps->fields, outputs->fields, Bottom());
-    ExprVisitor::VisitExpr_(call);
+    MixedModeVisitor::VisitExpr_(call);
   }
 
   void UnifyShapeOfCall(const CallNode* call) {
     // vm shape_of is always on the CPU.
     CHECK_EQ(call->args.size(), 1U);
-    ExprVisitor::VisitExpr(call->args[0]);
+    MixedModeVisitor::VisitExpr(call->args[0]);
     // Note we don't unify the input of a shape_of with the cpu domain. This is
     // because vm.shape_of has a native instruction to compute the shape of
     // a tensor regardless its device type.
@@ -547,8 +551,8 @@ class ContextAnalyzer : public ExprVisitor {
 
     // The shape field of reshape_tensor is always on the CPU.
     Unify(DeviceFor(shape), DeviceType(cpu_ctx_));
-    ExprVisitor::VisitExpr(data);
-    ExprVisitor::VisitExpr(shape);
+    MixedModeVisitor::VisitExpr(data);
+    MixedModeVisitor::VisitExpr(shape);
   }
 
   void UnifyFunctionCall(const CallNode* call) {
@@ -556,7 +560,7 @@ class ContextAnalyzer : public ExprVisitor {
     // Unify the arguments of the caller.
     for (const auto& arg : call->args) {
       device = Unify(device, DeviceFor(arg));
-      ExprVisitor::VisitExpr(arg);
+      MixedModeVisitor::VisitExpr(arg);
     }
 
     // Unify the parameters of the callee.
@@ -564,7 +568,7 @@ class ContextAnalyzer : public ExprVisitor {
     Function func = Downcast<Function>(call->op);
     for (const auto& param : func->params) {
       device = Unify(device, DeviceFor(param));
-      ExprVisitor::VisitExpr(param);
+      MixedModeVisitor::VisitExpr(param);
     }
 
     // Unify the function expression and its body
@@ -573,7 +577,7 @@ class ContextAnalyzer : public ExprVisitor {
 
     // Step into the callee. It will be skipped if the callee if a primitive
     // function
-    ExprVisitor::VisitExpr(call->op);
+    MixedModeVisitor::VisitExpr(call->op);
   }
 
   // Invoke a global function.
@@ -588,7 +592,7 @@ class ContextAnalyzer : public ExprVisitor {
     for (size_t i = 0; i < call->args.size(); i++) {
       Expr arg = call->args[i];
       Expr param = func->params[i];
-      ExprVisitor::VisitExpr(arg);
+      MixedModeVisitor::VisitExpr(arg);
 
       // Save the the arg to function mapping for closures as it will
       // be invoked/unified later.
@@ -616,8 +620,7 @@ class ContextAnalyzer : public ExprVisitor {
     auto cur_func = current_func_;
     current_func_ = gv;
     if (cur_func->name_hint != gv->name_hint) {
-      ExprVisitor::VisitExpr(func);
-      visited_.insert(func);
+      MixedModeVisitor::VisitExpr(func);
     }
     // Exit the frame.
     current_func_ = cur_func;
@@ -632,7 +635,7 @@ class ContextAnalyzer : public ExprVisitor {
     auto glb_var = it->second;
     CHECK(mod_.defined()) << "Cannot analyze context on a globalvar without module";
     Function func = Downcast<Function>(mod_->Lookup(glb_var));
-    // Unify the underlying function for clousre or currying funcitons.
+    // Unify the underlying function for clousre or currying functions.
     while (IsClosure(func) || IsCurrying(func)) {
       device = Unify(device, DeviceFor(func));
       if (IsClosure(func)) {
@@ -641,14 +644,14 @@ class ContextAnalyzer : public ExprVisitor {
         Let let = Downcast<Let>(func->body);
         func = Downcast<Function>(mod_->Lookup(closures_[let->var]));
       } else {
-        LOG(FATAL) << "func is expected to be a closure or a currying funciton";
+        LOG(FATAL) << "func is expected to be a closure or a currying function";
       }
     }
 
     CHECK_EQ(call->args.size(), func->params.size());
     for (size_t i = 0; i < call->args.size(); i++) {
       Unify(DeviceFor(call->args[i]), DeviceFor(func->params[i]));
-      ExprVisitor::VisitExpr(call->args[i]);
+      MixedModeVisitor::VisitExpr(call->args[i]);
     }
     device = Unify(device, DeviceFor(call->op));
     device = Unify(device, DeviceFor(glb_var));
@@ -658,8 +661,7 @@ class ContextAnalyzer : public ExprVisitor {
     auto cur_func = current_func_;
     current_func_ = glb_var;
     if (cur_func->name_hint != glb_var->name_hint) {
-      ExprVisitor::VisitExpr(func);
-      visited_.insert(func);
+      MixedModeVisitor::VisitExpr(func);
     }
     current_func_ = cur_func;
   }
@@ -684,8 +686,6 @@ class ContextAnalyzer : public ExprVisitor {
    * will be invoked lazily.
    */
   std::unordered_map<Expr, GlobalVar, runtime::ObjectPtrHash, runtime::ObjectPtrEqual> closures_;
-  /* \brief Cache the visited functions. */
-  std::unordered_set<Expr, runtime::ObjectPtrHash, runtime::ObjectPtrEqual> visited_;
 };
 
 }  // namespace analysis
