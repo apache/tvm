@@ -72,20 +72,15 @@
 namespace tvm {
 namespace relay {
 
-struct FuncTypeVisitor : TypeVisitor {
-  bool has_func_type;
-  FuncTypeVisitor() : has_func_type(false) {}
-
-  void VisitType_(const FuncTypeNode* op) { this->has_func_type = true; }
-};
-// determine if expr contains a FuncType
-bool HasFuncType(const Expr& e) {
-  auto visitor = FuncTypeVisitor();
-  visitor.VisitType(e->checked_type());
-  return visitor.has_func_type;
-}
 // determine if type contains a FuncType
 bool HasFuncType(const Type& t) {
+  struct FuncTypeVisitor : TypeVisitor {
+    bool has_func_type;
+    FuncTypeVisitor() : has_func_type(false) {}
+
+    void VisitType_(const FuncTypeNode* op) { this->has_func_type = true; }
+  };
+
   auto visitor = FuncTypeVisitor();
   visitor.VisitType(t);
   return visitor.has_func_type;
@@ -108,11 +103,11 @@ class DefuncMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) {
     if (auto op = call->op.as<GlobalVarNode>()) {
-      CHECK(call->type_args.size() == op->checked_type().as<FuncTypeNode>()->type_params.size())
+      CHECK_EQ(call->type_args.size(), op->checked_type().as<FuncTypeNode>()->type_params.size())
           << "all type args must be explicit";
 
       auto op_type = InstFuncType(op->checked_type().as<FuncTypeNode>(), call->type_args);
-      CHECK(FreeTypeVars(op_type, mod).size() == 0) << "free type vars in instantiated";
+      CHECK_EQ(FreeTypeVars(op_type, mod).size(), 0) << "free type vars in instantiated";
       CHECK(!HasFuncType(op_type->ret_type)) << "returning functions not supported";
 
       if (!IsHigherOrderFunc(op_type)) {
@@ -130,52 +125,7 @@ class DefuncMutator : public ExprMutator {
           continue;
         }
 
-        // we assume arg is either an identifier (var or globalvar) or a function
-        CHECK(type.as<FuncTypeNode>()) << "assume no nested functions";
-        CHECK(arg.as<VarNode>() || arg.as<GlobalVarNode>() || arg.as<FunctionNode>())
-            << "assume all first-order-parameters are identifiers or functions";
-
-        if (arg.as<VarNode>()) {
-          // variable with functype will be encoded as datatype in surrounding function
-          args.push_back(arg);
-        }
-        if (arg.as<GlobalVarNode>()) {
-          args.push_back(EncodeGlobalVar(Downcast<GlobalVar>(arg), Downcast<FuncType>(type)));
-        }
-        if (auto fn = arg.as<FunctionNode>()) {
-          // we handle free vars in anonymous functions by adding arguments to
-          // the constructor function
-          auto free_vars = FreeVars(arg);
-          auto ft = Downcast<FuncType>(type);
-
-          auto arg_types = Array<Type>();
-          auto pattern_vars = Array<Pattern>();
-          auto call_args = Array<Expr>();
-          Map<Var, Expr> free_var_bind_map;
-          for (auto free_var : free_vars) {
-            // free vars are already encoded, can only exist within
-            // specialized functions
-            if (free_var->type_annotation.defined()) {
-              arg_types.push_back(free_var->type_annotation);
-            } else {
-              arg_types.push_back(free_var->checked_type());
-            }
-            auto new_var = Var(free_var->name_hint(), free_var->type_annotation);
-            free_var_bind_map.Set(free_var, new_var);
-            pattern_vars.push_back(PatternVar(new_var));
-            call_args.push_back(free_var);
-          }
-          auto gtv = GetFuncEncode(ft);
-          auto c = Constructor(std::to_string(constructor_counter++), arg_types, gtv);
-          AddConstructor(gtv, c);
-
-          auto apply_gv = GetApplyFunction(ft);
-          auto body = this->VisitExpr(Bind(fn->body, free_var_bind_map));
-          AddApplyCase(apply_gv, ft, c, Function(fn->params, body, fn->ret_type, fn->type_params),
-                       pattern_vars);
-
-          args.push_back(Call(c, call_args));
-        }
+        args.push_back(EncodeArg(arg, type));
       }
       auto name = op->name_hint + TypeToString(op_type);
       auto gv = GlobalVar(name);
@@ -294,6 +244,55 @@ class DefuncMutator : public ExprMutator {
     }
   }
 
+  Expr EncodeArg(const Expr& arg, const Type& type) {
+    // we assume arg is either an identifier (var or globalvar) or a function
+    CHECK(type.as<FuncTypeNode>()) << "assume no nested functions";
+    CHECK(arg.as<VarNode>() || arg.as<GlobalVarNode>() || arg.as<FunctionNode>())
+        << "assume all first-order-parameters are identifiers or functions";
+
+    if (arg.as<VarNode>()) {
+      // variable with functype will be encoded as datatype in surrounding function
+      return arg;
+    } else if (arg.as<GlobalVarNode>()) {
+      return EncodeGlobalVar(Downcast<GlobalVar>(arg), Downcast<FuncType>(type));
+    } else if (auto fn = arg.as<FunctionNode>()) {
+      // we handle free vars in anonymous functions by adding arguments to
+      // the constructor function
+      auto free_vars = FreeVars(arg);
+      auto ft = Downcast<FuncType>(type);
+
+      auto arg_types = Array<Type>();
+      auto pattern_vars = Array<Pattern>();
+      auto call_args = Array<Expr>();
+      Map<Var, Expr> free_var_bind_map;
+      for (auto free_var : free_vars) {
+        // free vars are already encoded, can only exist within
+        // specialized functions
+        if (free_var->type_annotation.defined()) {
+          arg_types.push_back(free_var->type_annotation);
+        } else {
+          arg_types.push_back(free_var->checked_type());
+        }
+        auto new_var = Var(free_var->name_hint(), free_var->type_annotation);
+        free_var_bind_map.Set(free_var, new_var);
+        pattern_vars.push_back(PatternVar(new_var));
+        call_args.push_back(free_var);
+      }
+      auto gtv = GetFuncEncode(ft);
+      auto c = Constructor(std::to_string(++constructor_counter), arg_types, gtv);
+      AddConstructor(gtv, c);
+
+      auto apply_gv = GetApplyFunction(ft);
+      auto body = this->VisitExpr(Bind(fn->body, free_var_bind_map));
+      AddApplyCase(apply_gv, ft, c, Function(fn->params, body, fn->ret_type, fn->type_params),
+                   pattern_vars);
+
+      return Call(c, call_args);
+    }
+
+    throw std::runtime_error("EncodeArg failed to cast arg into identifier node or function node");
+  }
+
   /*!
    * \brief encode a global var with a specialized type with a datatype
    */
@@ -323,7 +322,7 @@ class DefuncMutator : public ExprMutator {
    * \brief get ADT handle for encoding type t
    */
   GlobalTypeVar GetFuncEncode(const Type& t) {
-    auto adt_name = "T" + TypeToString(t);
+    auto adt_name = "Defunc" + TypeToString(t);
     if (func_encoding.count(adt_name) == 0) {
       func_encoding[adt_name] = GlobalTypeVar(adt_name, TypeKind::kAdtHandle);
     }
@@ -360,6 +359,8 @@ class DefuncMutator : public ExprMutator {
    */
   FuncType InstFuncType(const FuncTypeNode* fty, const Array<Type> type_args) {
     CHECK(fty) << "InstFuncType functype is null";
+    CHECK_EQ(fty->type_params.size(), type_args.size())
+        << "size mismatch between function type params and type args";
     auto map = tvm::Map<TypeVar, Type>();
     for (size_t i = 0; i < type_args.size(); i++) {
       map.Set(fty->type_params[i], type_args[i]);
@@ -372,6 +373,9 @@ class DefuncMutator : public ExprMutator {
    * \brief specialize a function expression
    */
   Function Specialize(const Function& f, const Array<Type> type_args) {
+    CHECK_EQ(f->type_params.size(), type_args.size())
+        << "cannot specialize function with size mismatch between function type params and type "
+           "args";
     auto map = tvm::Map<TypeVar, Type>();
     for (size_t i = 0; i < type_args.size(); i++) {
       map.Set(f->type_params[i], type_args[i]);
@@ -415,7 +419,7 @@ Expr Defunctionalization(const Function& f, const IRModule& mod) {
   // f is the starting point of the program, all types MUST be known
   CHECK(f->type_params.size() == 0) << "no polymorphism supported for defunctionalization";
   for (const auto& p : f->params) {
-    CHECK(!HasFuncType(p)) << "program cannot have func type parameters";
+    CHECK(!HasFuncType(p->checked_type())) << "program cannot have func type parameters";
   }
   CHECK(!HasFuncType(f->ret_type)) << "return type cannot contain function";
 

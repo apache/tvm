@@ -58,7 +58,7 @@ def assert_no_higher_order_functions(expr, mod):
       for a in call.args:
         if (has_func_type(a.checked_type)):
           is_higher_order = True
-      # if it is higher order, save it or debugging later
+      # if it is higher order, save it for debugging later
       if is_higher_order:
         self.hof.append(call)
       super().visit_call(call)
@@ -193,8 +193,8 @@ type List[A] {
   Cons(A, List[A]),
   Nil,
 }
-def @sum(%f: fn(int32) -> int32, %xs: List[int32]) -> int32 {
-  match (%xs) {
+def @sum(%f: fn(int32) -> int32, %k: List[int32]) -> int32 {
+  match (%k) {
     Cons(%x, %rest) => %0 = fn(%n) {
       %x + %f(%n)
     };
