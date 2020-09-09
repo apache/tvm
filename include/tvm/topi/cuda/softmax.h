@@ -29,6 +29,7 @@
 #include <tvm/te/schedule_pass.h>
 #include <tvm/topi/detail/fuse.h>
 #include <tvm/topi/tags.h>
+#include <algorithm>
 
 namespace tvm {
 namespace topi {
@@ -73,7 +74,8 @@ inline Schedule schedule_softmax(const Target& target, const Array<Tensor>& outs
 
   int num_thread = 64;
   // Adapting to device
-  num_thread = std::min((int)target->GetAttr<Integer>("max_num_threads").value(), num_thread);
+  int max_device_threads = target->GetAttr<Integer>("max_num_threads").value();
+  num_thread = std::min(max_device_threads, num_thread);
   auto block_x = tvm::te::thread_axis(Range(), "blockIdx.x");
   auto thread_x = tvm::te::thread_axis(Range(0, num_thread), "threadIdx.x");
 
