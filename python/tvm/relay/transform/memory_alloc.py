@@ -40,18 +40,25 @@ def is_primitive(call):
 
 
 class CheckReshapeOnly(ExprVisitor):
-    """A pass to check if the fused op contains only reshape ops."""
+    """
+    A pass to check if the fused op contains only reshape ops.
+    TODO(@Jared) this is capturing the case where there is no any ops at all.
+    I had put a quick hack and require that it must have >= 1 reshape, but this must be masking some bigger problem.
+    Please fix - if you want to collapse reshape on reshape, perhaps you should do fusion as such.
+    """
     def __init__(self):
         super().__init__()
         self._reshape_ops = [op.get("reshape"), op.get("contrib_reverse_reshape"),
                              op.get("dyn.reshape")]
         self.reshape_only = True
+        self.has_reshape = False
 
     def visit_call(self, call):
         if not self.reshape_only:
             return
         if call.op not in self._reshape_ops:
             self.reshape_only = False
+        self.has_reshape = True
         for arg in call.args:
             self.visit(arg)
 
@@ -60,7 +67,7 @@ def is_reshape_only(func):
     """Check if the primitive function contains only reshape ops."""
     check = CheckReshapeOnly()
     check.visit(func)
-    return check.reshape_only
+    return check.reshape_only and check.has_reshape
 
 
 class ManifestAllocPass(ExprMutator):
