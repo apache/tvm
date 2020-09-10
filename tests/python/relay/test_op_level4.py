@@ -144,6 +144,13 @@ def test_binary_int_broadcast_2():
 
 @tvm.testing.uses_gpu
 def test_where():
+    def run(func, inputs, ref_res):
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(*inputs)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
     shape = (3, 4)
     dtype = "float32"
     cond = relay.var("cond", relay.TensorType(shape, dtype))
@@ -158,11 +165,21 @@ def test_where():
     x = np.random.uniform(size=shape).astype(dtype)
     y = np.random.uniform(size=shape).astype(dtype)
     ref_res = np.where(condition, x, y)
-    for target, ctx in tvm.testing.enabled_targets():
-        for kind in ["graph", "debug"]:
-            intrp = relay.create_executor(kind, ctx=ctx, target=target)
-            op_res = intrp.evaluate(func)(condition, x, y)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    run(func, [condition, x, y], ref_res)
+
+    x = relay.const(1)
+    y = relay.const(-1)
+    shape = (3,)
+    dtype = "float32"
+    cond = relay.var("cond", relay.TensorType(shape, "bool"))
+    z = relay.where(cond, x, y)
+
+    func = relay.Function([cond], z)
+    condition = np.array([1, 0, 1], dtype=np.bool)
+    ref_res = np.where(condition, 1, -1)
+
+    run(func, [condition], ref_res)
 
 
 def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32"):
@@ -232,12 +249,12 @@ def test_reduce_functions():
         if not keepdims:
             x = np.squeeze(x, axis=axis)
         return x
-    
+
     def _unbiased_relay_wrapper(f):
         def _unbiased_func(x, axis=None, keepdims=False, exclude=False):
             return f(x, axis=axis, keepdims=keepdims, exclude=exclude, unbiased=True)
         return _unbiased_func
-    
+
     def _unbiased_np_wrapper(f):
         def _unbiased_func(a, axis=None, dtype=None, keepdims=None):
             return f(a, axis=axis, dtype=dtype, ddof=1, keepdims=keepdims)
@@ -318,7 +335,7 @@ def test_mean_var_std():
 @tvm.testing.uses_gpu
 def test_strided_slice():
     def verify(dshape, begin, end, strides, output, slice_mode="end",
-               attr_const=True, test_ref=True, dtype="int32"):
+               test_ref=True, dtype="int32"):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         ndim = len(dshape)
         begin = begin if begin else [0] * ndim
@@ -329,13 +346,7 @@ def test_strided_slice():
         ref_res = tvm.topi.testing.strided_slice_python(
             x_data, begin, end, strides, slice_mode)
 
-        if attr_const:
-            begin = relay.const(begin, dtype=dtype)
-            end = relay.const(end, dtype=dtype)
-
         if strides:
-            if attr_const:
-                strides = relay.const(strides, dtype=dtype)
             z = relay.strided_slice(x,
                                     begin=begin,
                                     end=end,
@@ -368,7 +379,6 @@ def test_strided_slice():
            [1, 1, 1, 1], (1, 120, 120, 3), dtype="int64")
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3), dtype="int16")
     verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
-    verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2), attr_const=False)
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 1000, 3], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 4], None, (2, 3, 3))
@@ -379,6 +389,65 @@ def test_strided_slice():
            (2, 4, 3), slice_mode="size", test_ref=False)
     verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1],
            (2, 2, 3), slice_mode="size", test_ref=True)
+
+#TODO(mbrookhart): enable once vm supports heterogenous execution
+#@tvm.testing.uses_gpu
+def test_dyn_strided_slice():
+    def verify(dshape, begin, end, strides, output, slice_mode="end",
+               test_ref=True, dtype="int32"):
+        ndim = len(dshape)
+        begin = begin if begin else [0] * ndim
+        end = end if end else list(dshape)
+
+        # target numpy result
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        ref_res = tvm.topi.testing.strided_slice_python(
+            x_data, begin, end, strides, slice_mode)
+
+        x = relay.var("x", relay.TensorType((relay.Any(), ) * ndim, "float32"))
+        if strides:
+            z = relay.strided_slice(x,
+                                    begin=begin,
+                                    end=end,
+                                    strides=strides,
+                                    slice_mode=slice_mode)
+        else:
+            z = relay.strided_slice(x,
+                                    begin=begin,
+                                    end=end,
+                                    slice_mode=slice_mode)
+        func = relay.Function([x], z)
+
+        func = run_infer_type(func)
+        text = func.astext()
+        assert "begin=" in text
+        assert "end=" in text
+
+        if not test_ref:
+            return
+        for target, ctx in tvm.testing.enabled_targets():
+            mod = tvm.ir.IRModule.from_expr(func)
+            intrp = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
+            op_res = intrp.evaluate()(x_data)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+
+    verify((1, 3, 10, 10), [0, 0, 0, 0], [-1, 3, 10, 10], [1], (0, 3, 10, 10), dtype="int64")
+    verify((1, 224, 224, 3), [0, 20, 20, 0], [1, 140, 140, 3],
+           [1, 1, 1, 1], (1, 120, 120, 3), dtype="int64")
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3), dtype="int16")
+    verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
+    verify((3, 4, 3), [1, 1, 0], [4, 1000, 3], None, (2, 3, 3))
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 4], None, (2, 3, 3))
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
+    #TODO(mbrookhart): fix static strided_slice with dynamic input and negative begin
+    #verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
+    #verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
+    verify((3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1],
+           (2, 4, 3), slice_mode="size", test_ref=False)
+    verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1],
+           (2, 2, 3), slice_mode="size", test_ref=True)
+
 
 @tvm.testing.uses_gpu
 def test_strided_set():

@@ -52,7 +52,7 @@ def verify_reorg(batch, in_size, in_channel, stride):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s_func = tvm.topi.testing.dispatch(device, _reorg_schedule)
             s = s_func([B])
         a = tvm.nd.array(a_np, ctx)

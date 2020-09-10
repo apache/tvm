@@ -48,7 +48,7 @@ args = parser.parse_args()
 build_dir = args.build_dir
 batch_size = args.batch_size
 opt_level = args.opt_level
-target = tvm.target.create(args.target)
+target = tvm.target.Target(args.target)
 image_shape = tuple(map(int, args.image_shape.split(",")))
 data_shape = (batch_size,) + image_shape
 

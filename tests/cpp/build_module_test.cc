@@ -50,12 +50,12 @@ TEST(BuildModule, Basic) {
   auto args = Array<Tensor>({A, B, C});
   std::unordered_map<Tensor, Buffer> binds;
 
-  auto target = target::llvm();
+  auto target = Target("llvm");
 
   auto lowered = lower(s, args, "func", binds);
   auto module = build(lowered, target, Target());
 
-  auto mali_target = Target::Create("opencl -model=Mali-T860MP4@800Mhz -device=mali");
+  auto mali_target = Target("opencl -model=Mali-T860MP4@800Mhz -device=mali");
   CHECK_EQ(mali_target->kind->name, "opencl");
   CHECK_EQ(mali_target->keys.size(), 3);
   CHECK_EQ(mali_target->keys[0], "mali");
@@ -88,8 +88,8 @@ TEST(BuildModule, Heterogeneous) {
     return;
   }
 
-  auto target_llvm = target::llvm();
-  auto target_cuda = target::cuda();
+  auto target_llvm = Target("llvm");
+  auto target_cuda = Target("cuda");
 
   // The shape of input tensors.
   const int n = 4;

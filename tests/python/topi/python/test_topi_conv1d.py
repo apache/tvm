@@ -78,7 +78,7 @@ def verify_conv1d(batch,
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv1d_ncw_implement)
         else:
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv1d_nwc_implement)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             B = fcompute(A, W, stride, padding, dilation, 'float32')
             s = fschedule([B])
 

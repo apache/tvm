@@ -17,14 +17,16 @@
  * under the License.
  */
 
+use anyhow::{Context, Result};
 use std::{path::Path, process::Command};
 
-fn main() {
+fn main() -> Result<()> {
     let output = Command::new("python3")
         .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/src/build_resnet.py"))
         .arg(&format!("--build-dir={}", env!("CARGO_MANIFEST_DIR")))
         .output()
-        .expect("Failed to execute command");
+        .with_context(|| anyhow::anyhow!("failed to run python3"))?;
+
     assert!(
         Path::new(&format!("{}/deploy_lib.o", env!("CARGO_MANIFEST_DIR"))).exists(),
         "Could not prepare demo: {}",
@@ -35,8 +37,11 @@ fn main() {
             .last()
             .unwrap_or("")
     );
+
     println!(
         "cargo:rustc-link-search=native={}",
         env!("CARGO_MANIFEST_DIR")
     );
+
+    Ok(())
 }

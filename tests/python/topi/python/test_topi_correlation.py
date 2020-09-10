@@ -53,7 +53,7 @@ def verify_correlation_nchw(data_shape, kernel_size, max_displacement, stride1, 
         print("Running on target: %s" % device)
         fcompute, fschedule = tvm.topi.testing.dispatch(
             device, _correlation_implement)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             C = fcompute(A, B, kernel_size, max_displacement, stride1, stride2, pad_size, is_multiply)
             s = fschedule([C])
 

@@ -59,7 +59,7 @@ def test_ewise():
 
         def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(B)
             foo = tvm.build(s, [A, B], device, name=name)
             a = tvm.nd.array(a_np, ctx)
@@ -95,7 +95,7 @@ def test_ewise():
 
         def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(B)
             foo = tvm.build(s, [A, B], device, name="isnan")
             a = tvm.nd.array(a_np, ctx)
@@ -121,7 +121,7 @@ def test_ewise():
             b_np = ref_op(a_np)
 
             def check_device(device, ctx):
-                with tvm.target.create(device):
+                with tvm.target.Target(device):
                     s = tvm.topi.testing.get_injective_schedule(device)(B)
                 foo = tvm.build(s, [A, B], device, name=name)
                 a = tvm.nd.array(a_np, ctx)
@@ -172,7 +172,7 @@ def test_cast():
 
         for device, ctx in tvm.testing.enabled_targets():
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(B)
             foo = tvm.build(s, [A, B], device)
             a = tvm.nd.array(a_np, ctx)
@@ -211,7 +211,7 @@ def test_fastmath():
             if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 return
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = topi.generic.schedule_injective(B)
             func = tvm.build(s, [A, B], device, name=name)
             a = tvm.nd.array(a_np, ctx)

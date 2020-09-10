@@ -73,7 +73,7 @@ def test_fmod():
             if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
-            target = tvm.target.create(device)
+            target = tvm.target.Target(device)
             if "cpu" not in target.keys:
                 s[C].bind(bx, te.thread_axis("blockIdx.x"))
                 s[C].bind(tx, te.thread_axis("threadIdx.x"))
@@ -192,7 +192,7 @@ def test_popcount():
             if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
-            target = tvm.target.create(device)
+            target = tvm.target.Target(device)
             if "cpu" not in target.keys:
                 s[B].bind(bx, te.thread_axis("blockIdx.x"))
                 s[B].bind(tx, te.thread_axis("threadIdx.x"))

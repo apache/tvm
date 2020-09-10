@@ -24,22 +24,20 @@
 #ifndef TVM_TARGET_TARGET_H_
 #define TVM_TARGET_TARGET_H_
 
-#include <tvm/ir/expr.h>
-#include <tvm/ir/transform.h>
-#include <tvm/node/container.h>
+#include <tvm/node/node.h>
 #include <tvm/support/with.h>
 #include <tvm/target/target_kind.h>
 
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
-#include <utility>
 #include <vector>
 
 namespace tvm {
+
+class TargetInternal;
+
 /*!
  * \brief Compilation target.
- * \note Use target::llvm, target::cuda etc functions.
  * \sa Target
  */
 class TargetNode : public Object {
@@ -52,7 +50,11 @@ class TargetNode : public Object {
   Array<String> keys;
   /*! \brief Collection of attributes */
   Map<String, ObjectRef> attrs;
-  /*! \return the full device string to pass to codegen::Build */
+  /*!
+   * \brief The raw string representation of the target
+   * \return the full device string to pass to codegen::Build
+   * \note It will be deprecated after the Target RFC is fully landed.
+   */
   TVM_DLL const std::string& str() const;
   /*! \return Export target to JSON-like configuration */
   TVM_DLL Map<String, ObjectRef> Export() const;
@@ -106,27 +108,8 @@ class TargetNode : public Object {
  private:
   /*! \brief Internal string repr. */
   mutable std::string str_repr_;
-  /*!
-   * \brief Parsing TargetNode::attrs from a list of raw strings
-   * \param obj The attribute to be parsed
-   * \param info The runtime type information for parsing
-   * \return The attribute parsed
-   */
-  ObjectRef ParseAttr(const ObjectRef& obj, const TargetKindNode::ValueTypeInfo& info) const;
-  /*!
-   * \brief Parsing TargetNode::attrs from a list of raw strings
-   * \param options The raw string of fields to be parsed
-   * \return The attributes parsed
-   */
-  Map<String, ObjectRef> ParseAttrsFromRaw(const std::vector<std::string>& options) const;
-  /*!
-   * \brief Serialize the attributes of a target to raw string
-   * \param attrs The attributes to be converted to string
-   * \return The string converted, NullOpt if attrs is empty
-   */
-  Optional<String> StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) const;
 
-  friend class Target;
+  friend class TargetInternal;
 };
 
 /*!
@@ -135,31 +118,18 @@ class TargetNode : public Object {
  */
 class Target : public ObjectRef {
  public:
-  Target() {}
-  /*! \brief Constructor from ObjectPtr */
-  explicit Target(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*! \brief Construct a null Target */
+  TVM_DLL explicit Target(std::nullptr_t) { data_ = nullptr; }
   /*!
-   * \brief Create a Target using a JSON-like configuration
+   * \brief Construct a Target given a string
+   * \param tag_or_config_or_target_str the string to parse
+   */
+  TVM_DLL explicit Target(const String& tag_or_config_or_target_str);
+  /*!
+   * \brief Construct a Target using a JSON-like configuration
    * \param config The JSON-like configuration
-   * \return The target created
    */
-  TVM_DLL static Target FromConfig(const Map<String, ObjectRef>& config);
-  /*!
-   * \brief Create a Target given a string
-   * \param target_str the string to parse
-   * \return The target created
-   */
-  TVM_DLL static Target Create(const String& target_str);
-  /*!
-   * \brief Construct a Target node from the given name and options.
-   * \param name The major target name. Should be one of
-   * {"aocl", "aocl_sw_emu", "c", "cuda", "ext_dev", "hexagon", "hybrid", "llvm",
-   *  "metal", "nvptx", "opencl", "rocm", "sdaccel", "stackvm", "vulkan"}
-   * \param options Additional options appended to the target
-   * \return The constructed Target
-   */
-  TVM_DLL static Target CreateTarget(const std::string& name,
-                                     const std::vector<std::string>& options);
+  TVM_DLL explicit Target(const Map<String, ObjectRef>& config);
   /*!
    * \brief Get the current target context from thread local storage.
    * \param allow_not_defined If the context stack is empty and this is set to true, an
@@ -170,14 +140,11 @@ class Target : public ObjectRef {
    */
   TVM_DLL static tvm::Target Current(bool allow_not_defined = true);
 
-  const TargetNode* operator->() const { return static_cast<const TargetNode*>(get()); }
-
-  using ContainerType = TargetNode;
-  class Internal;
+  TVM_DEFINE_OBJECT_REF_METHODS(Target, ObjectRef, TargetNode);
 
  private:
   // enable with syntax.
-  friend class Internal;
+  friend class TargetInternal;
   friend class With<Target>;
   /*!
    * \brief Push a new target context onto the thread local stack.
@@ -191,43 +158,6 @@ class Target : public ObjectRef {
    */
   TVM_DLL void ExitWithScope();
 };
-
-/*! \brief This namespace provides functions to construct Target instances */
-namespace target {
-
-/*! \return A target for LLVM */
-TVM_DLL Target llvm(const std::vector<std::string>& options = std::vector<std::string>());
-
-/*! \return A target for CUDA */
-TVM_DLL Target cuda(const std::vector<std::string>& options = std::vector<std::string>());
-
-/*! \return A target for ROCm */
-TVM_DLL Target rocm(const std::vector<std::string>& options = std::vector<std::string>());
-
-/*! \return A target for OpenCL */
-TVM_DLL Target opencl(const std::vector<std::string>& options = std::vector<std::string>());
-
-/*! \return A target for Metal */
-TVM_DLL Target metal(const std::vector<std::string>& options = std::vector<std::string>());
-
-/*! \return A target for rasp */
-TVM_DLL Target rasp(const std::vector<std::string>& options = std::vector<std::string>());
-
-/*! \return A target for Mali */
-TVM_DLL Target mali(const std::vector<std::string>& options = std::vector<std::string>());
-
-/*! \return A target for Intel Graphics */
-TVM_DLL Target intel_graphics(const std::vector<std::string>& options = std::vector<std::string>());
-
-/*! \return A target for stackvm */
-TVM_DLL Target stackvm(const std::vector<std::string>& options = std::vector<std::string>());
-
-/*! \return A target for external device */
-TVM_DLL Target ext_dev(const std::vector<std::string>& options = std::vector<std::string>());
-
-/*! \return A target for hexagon */
-TVM_DLL Target hexagon(const std::vector<std::string>& options = std::vector<std::string>());
-}  // namespace target
 
 }  // namespace tvm
 #endif  // TVM_TARGET_TARGET_H_

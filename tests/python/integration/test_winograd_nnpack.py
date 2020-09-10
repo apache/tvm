@@ -64,7 +64,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         if not tvm.testing.device_enabled(device):
             print("Skipping %s becuase it is not enabled" % device)
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             C = topi.nn.conv2d(A, W, stride, padding, dilation, layout='NCHW', out_dtype=dtype)
             if add_bias:
                 C = topi.add(C, bias)

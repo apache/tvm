@@ -624,9 +624,9 @@ def test_alter_layout_strided_slice():
         weight = relay.var('weight', shape=(32, 32, 3, 3))
         y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1))
         y = relay.strided_slice(y,
-                                begin=relay.const([0, 16], "int32"),
-                                end=relay.const([1, 33], "int32"),
-                                strides=relay.const([1, 1], "int32"))
+                                begin=[0, 16],
+                                end=[1, 33],
+                                strides=[1, 1])
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
@@ -645,9 +645,9 @@ def test_alter_layout_strided_slice():
                                              data_layout="NCHW4c")
 
         y = relay.strided_slice(y,
-                                begin=relay.const([0, 4], "int32"),
-                                end=relay.const([1, 21], "int32"),
-                                strides=relay.const([1, 1], "int32"))
+                                begin=[0, 4],
+                                end=[1, 21],
+                                strides=[1, 1])
 
         y = relay.layout_transform(y, "NCHW4c", "NCHW")
         y = relay.Function(analysis.free_vars(y), y)
@@ -685,7 +685,7 @@ def test_alter_layout_depthwise_conv2d():
 
     from tvm import topi
     def alter_conv2d(attrs, inputs, tinfos, out_type):
-        with tvm.target.create("llvm"):
+        with tvm.target.Target("llvm"):
             return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
 
 
@@ -1019,7 +1019,7 @@ def test_alter_layout_nhwc_arm():
     """ Check that AlterOplayout does not alter NHWC data layout. """
     def alter_conv2d(attrs, inputs, tinfos, out_type):
         from tvm import topi
-        with tvm.target.create("llvm -device=arm_cpu"):
+        with tvm.target.Target("llvm -device=arm_cpu"):
             return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
 
     # Check NHWC conversion.
@@ -1080,7 +1080,7 @@ def test_alter_layout_nhwc_int8_aarch64():
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
         from tvm import topi
-        with tvm.target.create("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu"):
+        with tvm.target.Target("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu"):
             with Int8Fallback():
                 tmp =  topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
                 return tmp

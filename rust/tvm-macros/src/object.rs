@@ -23,56 +23,67 @@ use quote::quote;
 use syn::DeriveInput;
 use syn::Ident;
 
-use crate::util::get_tvm_rt_crate;
+use crate::util::*;
 
 pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
     let tvm_rt_crate = get_tvm_rt_crate();
     let result = quote! { #tvm_rt_crate::function::Result };
     let error = quote! { #tvm_rt_crate::errors::Error };
     let derive_input = syn::parse_macro_input!(input as DeriveInput);
-    let payload_id = derive_input.ident;
+    let payload_id = derive_input.ident.clone();
 
-    let mut type_key = None;
-    let mut ref_name = None;
-    let base = Some(Ident::new("base", Span::call_site()));
+    let type_key = get_attr(&derive_input, "type_key")
+        .map(attr_to_str)
+        .expect("Failed to get type_key");
 
-    for attr in derive_input.attrs {
-        if attr.path.is_ident("type_key") {
-            type_key = Some(attr.parse_meta().expect("foo"))
-        }
+    let ref_id = get_attr(&derive_input, "ref_name")
+        .map(|a| Ident::new(attr_to_str(a).value().as_str(), Span::call_site()))
+        .unwrap_or_else(|| {
+            let id = payload_id.to_string();
+            let suffixes = ["Node", "Obj"];
+            if let Some(suf) = suffixes
+                .iter()
+                .find(|&suf| id.len() > suf.len() && id.ends_with(suf))
+            {
+                Ident::new(&id[..id.len() - suf.len()], payload_id.span())
+            } else {
+                panic!(
+                    "Either 'ref_name' must be given, or the struct name must end one of {:?}",
+                    suffixes
+                )
+            }
+        });
 
-        if attr.path.is_ident("ref_name") {
-            ref_name = Some(attr.parse_meta().expect("foo"))
-        }
-    }
-
-    let type_key = if let Some(syn::Meta::NameValue(name_value)) = type_key {
-        match name_value.lit {
-            syn::Lit::Str(type_key) => type_key,
-            _ => panic!("foo"),
-        }
-    } else {
-        panic!("bar");
+    let base_tokens = match &derive_input.data {
+        syn::Data::Struct(s) => s.fields.iter().next().and_then(|f| {
+            let (base_id, base_ty) = (f.ident.clone()?, f.ty.clone());
+            if base_id == "base" {
+                // The transitive case of subtyping
+                Some(quote! {
+                    impl<O> AsRef<O> for #payload_id
+                        where #base_ty: AsRef<O>
+                    {
+                        fn as_ref(&self) -> &O {
+                            self.#base_id.as_ref()
+                        }
+                    }
+                })
+            } else {
+                None
+            }
+        }),
+        _ => panic!("derive only works for structs"),
     };
 
-    let ref_name = if let Some(syn::Meta::NameValue(name_value)) = ref_name {
-        match name_value.lit {
-            syn::Lit::Str(ref_name) => ref_name,
-            _ => panic!("foo"),
-        }
-    } else {
-        panic!("bar");
-    };
-
-    let ref_id = Ident::new(&ref_name.value(), Span::call_site());
-    let base = base.expect("should be present");
-
-    let expanded = quote! {
+    let mut expanded = quote! {
         unsafe impl #tvm_rt_crate::object::IsObject for #payload_id {
             const TYPE_KEY: &'static str = #type_key;
+        }
 
-            fn as_object<'s>(&'s self) -> &'s Object {
-                &self.#base.as_object()
+        // a silly AsRef impl is necessary for subtyping to work
+        impl AsRef<#payload_id> for #payload_id {
+            fn as_ref(&self) -> &Self {
+                self
             }
         }
 
@@ -82,11 +93,15 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
         impl #tvm_rt_crate::object::IsObjectRef for #ref_id {
             type Object = #payload_id;
 
-            fn as_object_ptr(&self) -> Option<&#tvm_rt_crate::object::ObjectPtr<Self::Object>> {
+            fn as_ptr(&self) -> Option<&#tvm_rt_crate::object::ObjectPtr<Self::Object>> {
                 self.0.as_ref()
             }
 
-            fn from_object_ptr(object_ptr: Option<#tvm_rt_crate::object::ObjectPtr<Self::Object>>) -> Self {
+            fn into_ptr(self) -> Option<#tvm_rt_crate::object::ObjectPtr<Self::Object>> {
+                self.0
+            }
+
+            fn from_ptr(object_ptr: Option<#tvm_rt_crate::object::ObjectPtr<Self::Object>>) -> Self {
                 #ref_id(object_ptr)
             }
         }
@@ -99,15 +114,26 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
             }
         }
 
+        impl std::convert::From<#payload_id> for #ref_id {
+            fn from(payload: #payload_id) -> Self {
+                let ptr = #tvm_rt_crate::object::ObjectPtr::new(payload);
+                #tvm_rt_crate::object::IsObjectRef::from_ptr(Some(ptr))
+            }
+        }
+
+        impl std::convert::From<#tvm_rt_crate::object::ObjectPtr<#payload_id>> for #ref_id {
+            fn from(ptr: #tvm_rt_crate::object::ObjectPtr<#payload_id>) -> Self {
+                #tvm_rt_crate::object::IsObjectRef::from_ptr(Some(ptr))
+            }
+        }
+
         impl std::convert::TryFrom<#tvm_rt_crate::RetValue> for #ref_id {
             type Error = #error;
 
             fn try_from(ret_val: #tvm_rt_crate::RetValue) -> #result<#ref_id> {
                 use std::convert::TryInto;
-                let oref: #tvm_rt_crate::ObjectRef = ret_val.try_into()?;
-                let ptr = oref.0.ok_or(#tvm_rt_crate::Error::Null)?;
-                let ptr = ptr.downcast::<#payload_id>()?;
-                Ok(#ref_id(Some(ptr)))
+                let ptr: #tvm_rt_crate::object::ObjectPtr<#payload_id> = ret_val.try_into()?;
+                Ok(ptr.into())
             }
         }
 
@@ -155,8 +181,9 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
                 }
             }
         }
-
     };
+
+    expanded.extend(base_tokens);
 
     TokenStream::from(expanded)
 }

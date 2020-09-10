@@ -207,7 +207,7 @@ def test_dense():
             "dtype": dtype,
             "composite operators (bias)": composite
         }
-        verify(outputs, atol=0.001, rtol=0.01, params=config)
+        verify(outputs, atol=0.001, rtol=0.01, config=config)
 
 
 def test_codegen_dense():
@@ -281,7 +281,7 @@ def test_qnn_dense():
             "output scale": output_sc,
             "output zero point": output_zp
         }
-        verify(outputs, atol=1, rtol=0, params=config, verify_saturation=True)
+        verify(outputs, atol=1, rtol=0, config=config, verify_saturation=True)
 
 
 def test_codegen_qnn_dense():

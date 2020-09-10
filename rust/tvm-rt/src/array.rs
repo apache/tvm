@@ -46,10 +46,7 @@ external! {
 
 impl<T: IsObjectRef> Array<T> {
     pub fn from_vec(data: Vec<T>) -> Result<Array<T>> {
-        let iter = data
-            .iter()
-            .map(|element| element.to_object_ref().into())
-            .collect();
+        let iter = data.into_iter().map(T::into_arg_value).collect();
 
         let func = Function::get("node.Array").expect(
             "node.Array function is not registered, this is most likely a build or linking error",
@@ -66,7 +63,7 @@ impl<T: IsObjectRef> Array<T> {
         );
 
         Ok(Array {
-            object: ObjectRef(Some(array_data)),
+            object: array_data.into(),
             _data: PhantomData,
         })
     }

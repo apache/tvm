@@ -107,6 +107,7 @@ class OperatorConverter(object):
             'LOGICAL_NOT': self.convert_logical_not,
             'LOGICAL_OR': self.convert_logical_or,
             'LOGISTIC': self.convert_logistic,
+            'MATRIX_DIAG': self.convert_matrix_diag,
             'MATRIX_SET_DIAG': self.convert_matrix_set_diag,
             'MAX_POOL_2D': self.convert_max_pool2d,
             'MAXIMUM': self.convert_maximum,
@@ -3016,6 +3017,30 @@ class OperatorConverter(object):
 
         input_expr = self.get_tensor_expr(input_tensors[0])
         diagonal_expr = self.get_tensor_expr(input_tensors[1])
+
+        out = _op.matrix_set_diag(input_expr, diagonal_expr)
+        return out
+
+    def convert_matrix_diag(self, op):
+        """Convert TFLite MATRIX_DIAG"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensor's length should be 1"
+
+        diagonal = input_tensors[0]
+
+        if diagonal.qnn_params:
+            # Check that diagonal and output tensor have same qnn params.
+            output_tensors = self.get_output_tensors(op)
+            assert self.has_same_qnn_params(diagonal, output_tensors[0]), \
+                "TFLite MATRIX_DIAG requires diagonal and output tensors' \
+                    scale and zero points to be equal"
+
+        shape = diagonal.tensor.ShapeAsNumpy()
+        shape = np.append(shape, shape[-1])
+        dtype = self.get_tensor_type_str(diagonal.tensor.Type())
+
+        input_expr = _op.zeros(tuple(shape), dtype)
+        diagonal_expr = self.get_tensor_expr(diagonal)
 
         out = _op.matrix_set_diag(input_expr, diagonal_expr)
         return out

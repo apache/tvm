@@ -79,7 +79,7 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
     def check_device(device):
         ctx = tvm.context(device, 0)
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             if bgemm == "direct":
                 fcompute, fschedule = tvm.topi.testing.dispatch(device,
                                                             _conv2d_nhwc_winograd_direct)

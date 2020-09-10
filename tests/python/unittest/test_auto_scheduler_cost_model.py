@@ -30,9 +30,10 @@ from test_auto_scheduler_common import matmul_auto_scheduler_test
 def get_sample_records(number):
     """Generate random a list of random MeasureInput and MeasureResult pairs"""
     N = 128
-    workload_key = auto_scheduler.make_workload_key(matmul_auto_scheduler_test, (N, N, N))
+    workload_key = auto_scheduler.make_workload_key(
+        matmul_auto_scheduler_test, (N, N, N))
     dag = auto_scheduler.ComputeDAG(workload_key)
-    target = tvm.target.create('llvm')
+    target = tvm.target.Target('llvm')
     task = auto_scheduler.SearchTask(dag, workload_key, target)
     policy = auto_scheduler.SketchPolicy(task, verbose=0)
     states = policy.sample_initial_population(number)
@@ -64,7 +65,8 @@ def test_xgb_model():
     costs = [np.mean([x.value for x in res.costs]) for res in results]
     throughputs = np.min(costs) / costs
 
-    rmse = np.sqrt(np.mean([np.square(pred - label) for pred, label in zip(preds, throughputs)]))
+    rmse = np.sqrt(np.mean([np.square(pred - label)
+                            for pred, label in zip(preds, throughputs)]))
     assert rmse <= 0.3
 
     with tempfile.NamedTemporaryFile() as fp:

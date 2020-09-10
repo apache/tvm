@@ -79,7 +79,7 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, groups, in_size, num_filte
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             C = topi.x86.conv2d_NCHWc(A, W, (stride, stride), (padding, padding),
                                       (dilation, dilation),
                                       'NCHW%dc'%ic_block,

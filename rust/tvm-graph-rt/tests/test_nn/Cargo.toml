@@ -30,3 +30,4 @@ tvm-graph-rt = { path = "../../" }
 
 [build-dependencies]
 ar = "0.6"
+anyhow = "^1.0"

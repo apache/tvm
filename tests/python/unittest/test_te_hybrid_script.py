@@ -382,7 +382,7 @@ def test_bind():
         return b
 
     a = te.placeholder((10000, ), 'float32')
-    with tvm.target.create('cuda'):
+    with tvm.target.Target('cuda'):
         func, ins, outs = run_and_check(max_threads, [a], target='cuda')
         run_and_check(func, ins, outs=outs, target='cuda')
 

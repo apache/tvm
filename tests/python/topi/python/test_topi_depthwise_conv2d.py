@@ -75,7 +75,7 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
             impl_list.append((topi.x86.depthwise_conv2d_nchw, topi.x86.schedule_depthwise_conv2d_nchw))
 
         for fcompute, fschedule in impl_list:
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 # declare
                 DepthwiseConv2d = fcompute(Input, Filter, (stride_h, stride_w),
                                            padding_args, dilation, dtype)
@@ -170,7 +170,7 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         print("Running on target: %s" % device)
 
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _depthwise_conv2d_nhwc_implement)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             # declare
             DepthwiseConv2d = fcompute(Input, Filter,
                 (stride_h, stride_w), padding_args, dilation, dtype)
@@ -294,7 +294,7 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             # declare
             DepthwiseConv2d = topi.x86.depthwise_conv2d_NCHWc(Input, Filter,
                                                               (stride_h, stride_w),

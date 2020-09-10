@@ -396,11 +396,10 @@ static inline long double ToScalar(const runtime::NDArray& array, size_t i = 0) 
       return reinterpret_cast<uint64_t*>(array->data)[i];
     }
   } else if (array->dtype.code == kDLFloat) {
-#if (__ARM_FP16_FORMAT_IEEE == 1)
     if (array->dtype.bits == 16) {
-      return reinterpret_cast<__fp16*>(array->data)[i];
+      return __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
+          reinterpret_cast<uint16_t*>(array->data)[i]);
     }
-#endif
     if (array->dtype.bits == 32) {
       return reinterpret_cast<float*>(array->data)[i];
     } else if (array->dtype.bits == 64) {
