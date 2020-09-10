@@ -27,7 +27,7 @@ from tvm.tir.stmt import For
 
 from .util import _internal_assert
 
-# pylint: disable=redefined-builtin
+# pylint: disable=redefined-builtin,invalid-name
 
 LOOP_INTRIN = {
     'range'       : For.Serial,
@@ -152,6 +152,7 @@ def likely(func_id, args):
 
 
 def max_num_threads(func_id, args):
+    """Set the maximum number of threads."""
     _internal_assert(func_id == "max_num_threads", "This function cannot be directly invoked!")
     _internal_assert(args.__len__() <= 1, "At most one argument accepted!")
     if args.__len__() == 0:

@@ -610,6 +610,8 @@ def schedule_conv3d_ncdhw_winograd(cfg, outs):
 @autotvm.register_topi_compute("conv3d_ncdhw_winograd_without_weight_transform.cuda")
 def conv3d_ncdhw_winograd_without_weight_transform(cfg, data, kernel, strides, padding, dilation,
                                                    out_dtype):
+):
+    """Conv3d NCDHW winograd without weight transform."""
     A, B, C, _, _ = get_const_tuple(kernel.shape)
     # Check if we can transform depth.
     if A == B == C:

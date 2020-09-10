@@ -128,6 +128,8 @@ def compute_conv2d_NHWC_quantized(cfg, data, kernel, strides, padding, dilation,
 def compute_conv2d_NHWC_quantized_without_transform(cfg, data, B, strides, padding,
                                                     dilation, out_dtype, kernel_size=None,
                                                     output_channels=None):
+):
+    """Compute for conv2d_NHWC_quantized without weight transform."""
     return  compute_conv2d_gemm_without_weight_transform(cfg, data, B, strides, padding,
                                                          dilation, out_dtype, kernel_size,
                                                          output_channels)

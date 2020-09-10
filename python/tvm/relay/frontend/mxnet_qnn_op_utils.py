@@ -277,6 +277,8 @@ def quantize_conv_weights_bias_channel_mkldnn_from_var(weights_var,
 def get_mkldnn_requantize_scale_outDtype(min_output_range,
                                          max_output_range,
                                          out_dtype):
+    """Get the MKLDNN requantized scale."""
+    quantized_out_range = (
     quantized_out_range = zero_centered_int8_quantized_range if out_dtype == 'int8' \
         else zero_centered_uint8_quantized_range
     out_range = np.max([np.abs(np.float32(min_output_range)),

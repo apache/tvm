@@ -494,20 +494,34 @@ image load_image_color(char *filename, int w, int h);
 float *network_predict_image(network *net, image im);
 float *network_predict(network *net, float *input);
 network *make_network(int n);
-layer make_convolutional_layer(int batch, int h, int w, int c, int n, int groups, int size, int stride, int padding, ACTIVATION activation, int batch_normalize, int binary, int xnor, int adam);
-layer make_connected_layer(int batch, int inputs, int outputs, ACTIVATION activation, int batch_normalize, int adam);
+layer make_convolutional_layer(
+    int batch,
+    int h, int w, int c, int n,
+    int groups, int size, int stride, int padding,
+    ACTIVATION activation, int batch_normalize, int binary, int xnor, int adam);
+layer make_connected_layer(int batch, int inputs, int outputs,
+    ACTIVATION activation, int batch_normalize, int adam);
 layer make_maxpool_layer(int batch, int h, int w, int c, int size, int stride, int padding);
 layer make_avgpool_layer(int batch, int w, int h, int c);
 layer make_shortcut_layer(int batch, int index, int w, int h, int c, int w2, int h2, int c2);
 layer make_batchnorm_layer(int batch, int w, int h, int c);
-layer make_reorg_layer(int batch, int w, int h, int c, int stride, int reverse, int flatten, int extra);
+layer make_reorg_layer(
+    int batch, int w, int h, int c,
+    int stride, int reverse, int flatten, int extra);
 layer make_region_layer(int batch, int w, int h, int n, int classes, int coords);
 layer make_softmax_layer(int batch, int inputs, int groups);
-layer make_rnn_layer(int batch, int inputs, int outputs, int steps, ACTIVATION activation, int batch_normalize, int adam);
+layer make_rnn_layer(int batch, int inputs, int outputs,
+    int steps, ACTIVATION activation, int batch_normalize, int adam);
 layer make_yolo_layer(int batch, int w, int h, int n, int total, int *mask, int classes);
-layer make_crnn_layer(int batch, int h, int w, int c, int hidden_filters, int output_filters, int steps, ACTIVATION activation, int batch_normalize);
-layer make_lstm_layer(int batch, int inputs, int outputs, int steps, int batch_normalize, int adam);
-layer make_gru_layer(int batch, int inputs, int outputs, int steps, int batch_normalize, int adam);
+layer make_crnn_layer(
+    int batch, int h, int w, int c,
+    int hidden_filters, int output_filters, int steps,
+    ACTIVATION activation, int batch_normalize);
+layer make_lstm_layer(
+    int batch, int inputs, int outputs, int steps,
+    int batch_normalize, int adam);
+layer make_gru_layer(int batch, int inputs,
+    int outputs, int steps, int batch_normalize, int adam);
 layer make_upsample_layer(int batch, int w, int h, int c, int stride);
 layer make_l2norm_layer(int batch, int inputs);
 void free_network(network *net);

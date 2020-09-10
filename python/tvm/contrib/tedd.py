@@ -179,6 +179,7 @@ def stage_label(stage):
 
 
 def legend_label():
+    """Generate legend labels."""
     label = '<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">'
     for iter_type in ITERVAR_TYPE_STRING_MAP:
         name, color = ITERVAR_TYPE_STRING_MAP[iter_type]

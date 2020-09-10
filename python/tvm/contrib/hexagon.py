@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-'''Utility for Hexagon backend'''
+# pylint: disable=invalid-name
+"""Utility for Hexagon backend"""
 
 import functools as ft
 import os
@@ -51,8 +51,8 @@ def register_linker(f):
 def hexagon_link():
     """Return path to the Hexagon linker."""
     return hexagon_link_master
-
 @register_func('tvm.contrib.hexagon.link_shared')
+
 def link_shared(so_name, objs, **kwargs):
     """Link shared library on Hexagon using the registered Hexagon linker.
 
@@ -117,8 +117,8 @@ def mem_info_vtcm():
                             max_num_bits = vtcm_size*8,
                             max_simd_bits = 128*8,
                             head_address = tvm.runtime.const(100, 'uint32'))
-
 def lower_vtcm_(get_alloc, get_free, def_align, func, mod, ctx):  # pylint: disable=unused-argument
+
     """Generic VTCM allocation
 
     Parameters

@@ -26,8 +26,10 @@ from ..util import traverse_inline
 @autotvm.register_topi_compute("deformable_conv2d_nchw.cuda")
 def deformable_conv2d_nchw(cfg, data, offset, kernel, strides, padding, dilation,
                            deformable_groups, groups, out_dtype):
+    """Deformable Conv2d."""
     return nn.deformable_conv2d_nchw(data, offset, kernel, strides, padding, dilation,
                                      deformable_groups, groups, out_dtype)
+
 
 @autotvm.register_topi_schedule("deformable_conv2d_nchw.cuda")
 def schedule_deformable_conv2d_nchw(cfg, outs):
