@@ -21,15 +21,17 @@ extern crate ar;
 
 use std::{path::PathBuf, process::Command};
 
-use ar::Builder;
 use std::fs::File;
 
-fn main() {
+use anyhow::Result;
+use ar::Builder;
+
+fn main() -> Result<()> {
     let mut out_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     out_dir.push("lib");
 
     if !out_dir.is_dir() {
-        std::fs::create_dir(&out_dir).unwrap();
+        std::fs::create_dir(&out_dir)?;
     }
 
     let obj_file = out_dir.join("test.o");
@@ -40,30 +42,29 @@ fn main() {
         "/src/build_test_lib.py"
     ))
     .arg(&out_dir)
-    .output()
-    .expect("Failed to execute command");
+    .output()?;
+
     assert!(
         obj_file.exists(),
         "Could not build tvm lib: {}",
-        String::from_utf8(output.stderr)
-            .unwrap()
+        String::from_utf8(output.stderr)?
             .trim()
             .split("\n")
             .last()
             .unwrap_or("")
     );
 
-    let mut builder = Builder::new(File::create(&lib_file).unwrap());
-    builder.append_path(&obj_file).unwrap();
+    let mut builder = Builder::new(File::create(&lib_file)?);
+    builder.append_path(&obj_file)?;
+
     drop(builder);
 
-    let status = Command::new("ranlib")
-        .arg(&lib_file)
-        .status()
-        .expect("fdjlksafjdsa");
+    let status = Command::new("ranlib").arg(&lib_file).status()?;
 
     assert!(status.success());
 
     println!("cargo:rustc-link-lib=static=test_basic");
     println!("cargo:rustc-link-search=native={}", out_dir.display());
+
+    Ok(())
 }
