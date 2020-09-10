@@ -629,6 +629,33 @@ def test_kernel_size_1x1():
         verify(ref_func, qnn_func, data_shape, data_dtype,
                 kernel_shape, kernel_dtype)
 
+def test_kernel_size_1x1_strides_2():
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
+
+        # uint8 input
+        data_shape = (2, 4, 2, 4)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 4, 1, 1)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=5,
+                                       kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(1, 1),
+                                       padding=(0, 0),
+                                       strides=(2, 2),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        assert 'avg_pool2d' not in qnn_func.astext()
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
+
 def test_tflite_large_irregular():
     with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 
@@ -937,6 +964,7 @@ if __name__ == "__main__":
     test_dilation()
     test_const_folding()
     test_kernel_size_1x1()
+    test_kernel_size_1x1_strides_2()
     test_tflite_large_irregular()
     test_broadcast_layout()
     test_tflite_output_multiplier_greater_than_one()
