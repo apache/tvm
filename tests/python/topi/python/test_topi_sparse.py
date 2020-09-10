@@ -309,7 +309,7 @@ def verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu):
             return
         print("Running on target: %s" % device)
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _sparse_dense_implement)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             Y = fcompute(X, W_data, W_indices, W_indptr)
             if use_relu:
                 Y = topi.nn.relu(Y)
@@ -359,7 +359,7 @@ def test_sparse_dense_bsr_randomized():
                 return
             print("Running on target: %s" % device)
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _sparse_dense_implement)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 Y = fcompute(X, W_data, W_indices, W_indptr)
                 s = fschedule([Y])
                 func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])

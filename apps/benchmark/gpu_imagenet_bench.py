@@ -78,7 +78,7 @@ if __name__ == "__main__":
     else:
         networks = [args.network]
 
-    target = tvm.target.create('%s -device=%s -model=%s' % (args.target, args.device, args.model))
+    target = tvm.target.Target('%s -device=%s -model=%s' % (args.target, args.device, args.model))
 
     print("--------------------------------------------------")
     print("%-20s %-20s" % ("Network Name", "Mean Inference Time (std dev)"))

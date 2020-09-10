@@ -50,7 +50,7 @@ def compile_conv2d_NHWC_gemm_int8_arm(batch, in_channel, in_size, num_filter, ke
         print("Skip because %s is not enabled" % device)
         return
     print("Compiling on arm AArch64 target: %s" % device)
-    with tvm.target.create(device):
+    with tvm.target.Target(device):
         assert is_aarch64_arm(), "AArch64 target not recognized"
 
         C = topi.arm_cpu.compute_conv2d_NHWC_quantized(A, W, (stride, stride), padding,
@@ -133,7 +133,7 @@ def verify_conv2d_NHWC_gemm_int8(batch, in_channel, in_size, num_filter, kernel,
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             C = topi.arm_cpu.compute_conv2d_NHWC_quantized(A, W, (stride, stride), padding,
                                                            (dilation, dilation), dtype)
             if add_bias:
@@ -232,7 +232,7 @@ def verify_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kernel, str
             return
 
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             C = topi.cuda.conv2d_NCHWc_int8(A, W, (stride, stride), padding, (dilation, dilation),
                                             'NCHW', dtype)
             if add_bias:
@@ -302,7 +302,7 @@ def verify_conv2d_nchw_int8(batch, in_channel, in_size, num_filter, kernel, stri
             return
 
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             C = topi.cuda.conv2d_nchw_int8(A, W, (stride, stride), padding, (dilation, dilation),
                                            dtype)
             if add_bias:

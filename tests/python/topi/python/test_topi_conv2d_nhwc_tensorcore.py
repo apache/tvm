@@ -78,7 +78,7 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
             print("skip because gpu does not support Tensor Cores")
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv2d_nhwc_tensorcore_implement)
             C = fcompute(A, W, stride, padding, dilation, 'float32')
             if add_bias:

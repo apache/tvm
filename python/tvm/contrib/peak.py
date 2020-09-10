@@ -23,6 +23,7 @@ from tvm import te
 from . import util
 from .. import rpc
 
+
 def _convert_to_remote(func, remote):
     """ convert module function to remote rpc function"""
     temp = util.tempdir()
@@ -32,6 +33,7 @@ def _convert_to_remote(func, remote):
     remote.upload(path_dso)
     func = remote.load_module("tmp_func.tar")
     return func
+
 
 def measure_bandwidth_sum(total_item, item_per_thread, stride,
                           base_type, bits, lanes,
@@ -83,7 +85,8 @@ def measure_bandwidth_sum(total_item, item_per_thread, stride,
     k = te.reduce_axis((0, m), name="k")
 
     x = te.placeholder((n,), dtype=dtype, name="x")
-    op = te.comm_reducer(lambda x, y: x*y, lambda t: tvm.tir.const(1, dtype=t), name="sum")
+    op = te.comm_reducer(
+        lambda x, y: x*y, lambda t: tvm.tir.const(1, dtype=t), name="sum")
     y = te.compute((n // m,),
                    lambda i: op(x[i // stride * stride * m + i % stride + k * stride], axis=k))
     s = te.create_schedule(y.op)
@@ -107,6 +110,7 @@ def measure_bandwidth_sum(total_item, item_per_thread, stride,
         return -1
 
     return 1.0 * (total_item * bits / 8) / 1e9 / time
+
 
 def measure_bandwidth_all_types(total_item, item_per_thread, n_times,
                                 target, target_host, remote, ctx, verbose=True):
@@ -152,8 +156,10 @@ def measure_bandwidth_all_types(total_item, item_per_thread, n_times,
                 type_name = base_type + str(bits)
                 result.append(["%sx%d" % (type_name, lanes), max_speed])
                 if verbose:
-                    logging.info("\t%-10s %.2f GBPS", result[-1][0], result[-1][1])
+                    logging.info("\t%-10s %.2f GBPS",
+                                 result[-1][0], result[-1][1])
     return result
+
 
 def measure_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
                         target, target_host, remote, ctx, n_times):
@@ -225,9 +231,11 @@ def measure_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
         b[0] = outs[0].vload(idx, dtype)
 
         if base_type.find('float') != -1:
-            mad_func = lambda x, y: (x * x + y)
+            def mad_func(x, y):
+                return x * x + y
         else:
-            mad_func = lambda x, y: y * y + x
+            def mad_func(x, y):
+                return y * y + x
 
         for _ in range(item_per_thread // 4 // lanes):
             a[0] = mad_func(a[0], b[0])
@@ -250,6 +258,7 @@ def measure_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
         return -1
 
     return 1.0 * (n * item_per_thread) / 1e9 / time
+
 
 def measure_compute_all_types(total_item, item_per_thread, n_times,
                               target, target_host, remote, ctx, verbose=True):
@@ -298,7 +307,8 @@ def measure_compute_all_types(total_item, item_per_thread, n_times,
                 unit = "GFLOPS" if base_type == "float" else "GIOPS"
 
                 if verbose:
-                    logging.info("\t%-10s %.2f %s", result[-1][0], result[-1][1], unit)
+                    logging.info("\t%-10s %.2f %s",
+                                 result[-1][0], result[-1][1], unit)
 
     return result
 
@@ -314,7 +324,7 @@ def measure_peak_all(target, target_host, host, port):
     port: int
     """
 
-    target = tvm.target.create(target)
+    target = tvm.target.Target(target)
     remote = rpc.connect(host, port)
     n_times = 20
 

@@ -33,7 +33,7 @@ def test_makeapi():
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
     mod = tvm.tir.transform.Apply(
         lambda f: f.with_attr({
-            "target": tvm.target.create("llvm"),
+            "target": tvm.target.Target("llvm"),
             "global_symbol": "main",
         }))(mod)
 

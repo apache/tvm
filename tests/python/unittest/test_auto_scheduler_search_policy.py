@@ -26,6 +26,7 @@ from tvm import auto_scheduler
 
 from test_auto_scheduler_common import matmul_auto_scheduler_test, PropagatingThread
 
+
 def search_common(workload=matmul_auto_scheduler_test, target="llvm",
                   search_policy='empty', seed=random.randint(1, 1 << 30), runner='local',
                   cost_model=auto_scheduler.RandomModel(), num_measure_trials=2,
@@ -36,24 +37,26 @@ def search_common(workload=matmul_auto_scheduler_test, target="llvm",
     N = 128
     workload_key = auto_scheduler.make_workload_key(workload, (N, N, N))
     dag = auto_scheduler.ComputeDAG(workload_key)
-    target = tvm.target.create(target)
+    target = tvm.target.Target(target)
     task = auto_scheduler.SearchTask(dag, workload_key, target)
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
 
         init_search_callbacks = init_search_callbacks or []
-        init_search_callbacks.append(auto_scheduler.PreloadMeasuredStates(log_file))
+        init_search_callbacks.append(
+            auto_scheduler.PreloadMeasuredStates(log_file))
 
         if search_policy == 'empty':
             search_policy = auto_scheduler.EmptyPolicy(task)
         elif search_policy == 'sketch':
             search_policy = auto_scheduler.SketchPolicy(task, schedule_cost_model=cost_model,
-                    init_search_callbacks=init_search_callbacks)
+                                                        init_search_callbacks=init_search_callbacks)
 
         tuning_options = auto_scheduler.TuningOptions(num_measure_trials=num_measure_trials,
-                runner=runner, verbose=1, measure_callbacks=[auto_scheduler.RecordToFile(log_file)])
-        sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options)
+                                                      runner=runner, verbose=1, measure_callbacks=[auto_scheduler.RecordToFile(log_file)])
+        sch, args = auto_scheduler.auto_schedule(
+            task, search_policy, tuning_options)
         print("*"*80)
         print(target)
         print("*"*80)

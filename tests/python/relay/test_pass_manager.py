@@ -495,7 +495,7 @@ def test_sequential_with_scoping():
 
     mod = tvm.IRModule({"main": before()})
     with tvm.transform.PassContext(opt_level=3):
-        with tvm.target.create("llvm"):
+        with tvm.target.Target("llvm"):
             mod = seq(mod)
 
     zz = mod["main"]

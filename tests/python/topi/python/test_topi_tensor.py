@@ -96,7 +96,7 @@ def verify_vectorization(n, m, dtype):
         if dtype == "float16" and device == "cuda" and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             ctx = tvm.context(device, 0)
             A = te.placeholder((n, m), name='A', dtype=dtype)
             B = te.compute((n, m), lambda i, j:

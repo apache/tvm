@@ -94,7 +94,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s_func = tvm.topi.testing.dispatch(device, _pool_schedule)
             s = s_func(B, layout)
 
@@ -146,7 +146,7 @@ def verify_pool_grad(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_inc
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s_func = tvm.topi.testing.dispatch(device, _pool_grad_schedule)
             s = s_func(PoolGrad)
 
@@ -219,7 +219,7 @@ def verify_global_pool(dshape, pool_type, layout='NCHW'):
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s_func = tvm.topi.testing.dispatch(device, _adaptive_pool_schedule)
             if device == "cuda":
                 s = s_func(B, layout)
@@ -262,7 +262,7 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s_func = tvm.topi.testing.dispatch(device, _adaptive_pool_schedule)
             if device == "cuda":
                 s = s_func(out, layout)
@@ -320,7 +320,7 @@ def verify_pool3d(n, ic, ih, kh, sh, padding, pool_type,
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s_func = tvm.topi.testing.dispatch(device, _pool_schedule)
             s = s_func(B, layout)
 
@@ -372,7 +372,7 @@ def verify_pool1d(n, ic, iw, kw, sw, padding, pool_type,
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s_func = tvm.topi.testing.dispatch(device, _pool_schedule)
             s = s_func(B, layout)
 

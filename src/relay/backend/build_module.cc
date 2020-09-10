@@ -339,9 +339,9 @@ class RelayBuildModule : public runtime::ModuleNode {
    */
   Target CreateDefaultTarget(int device_type) {
     std::string name = runtime::DeviceName(device_type);
-    if (name == "cpu") return Target::Create("llvm");
-    if (name == "gpu") return Target::Create("cuda");
-    return Target::Create(name);
+    if (name == "cpu") return Target("llvm");
+    if (name == "gpu") return Target("cuda");
+    return Target(name);
   }
 
   /*!
@@ -443,7 +443,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       // llvm if "codegen.LLVMModuleCreate" is accessible.
       const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
       if (!target_host.defined())
-        target_host = (pf != nullptr) ? target::llvm() : target::stackvm();
+        target_host = (pf != nullptr) ? Target("llvm") : Target("stackvm");
 
       if (target_host.defined() && target_host->kind->name == "llvm") {
         // If we can decide the target is LLVM, we then create an empty LLVM module.

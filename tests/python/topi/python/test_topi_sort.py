@@ -58,7 +58,7 @@ def verify_argsort(axis, is_ascend):
             return
         ctx = tvm.context(device, 0)
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _argsort_implement)
             out = fcompute(data, axis=axis, is_ascend=is_ascend)
             s = fschedule(out)
@@ -102,7 +102,7 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _topk_implement)
             outs = fcompute(data, k, axis, ret_type, is_ascend, dtype)
             outs = outs if isinstance(outs, list) else [outs]

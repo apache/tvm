@@ -62,7 +62,7 @@ A = te.placeholder((in_size, in_size, in_channel, batch), name='A')
 W = te.placeholder((kernel, kernel, in_channel, num_filter), name='W')
 B = te.placeholder((1, num_filter, 1), name='bias')
 
-with tvm.target.create("llvm"):
+with tvm.target.Target("llvm"):
     t_conv = topi.nn.conv2d_hwcn(A, W, stride, padding, dilation)
     t_bias = topi.add(t_conv, B)
     t_relu = topi.nn.relu(t_bias)

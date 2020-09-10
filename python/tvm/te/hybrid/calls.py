@@ -20,7 +20,7 @@ semantic support."""
 from tvm.runtime import const, convert
 import tvm.te
 from tvm.ir.container import Array
-from tvm import target as _tgt
+from tvm.target import Target
 from tvm.tir import expr as _expr
 from tvm.tir import call_intrin
 from tvm.tir.stmt import For
@@ -155,8 +155,8 @@ def max_num_threads(func_id, args):
     _internal_assert(func_id == "max_num_threads", "This function cannot be directly invoked!")
     _internal_assert(args.__len__() <= 1, "At most one argument accepted!")
     if args.__len__() == 0:
-        res = _tgt.Target.current().max_num_threads
+        res = Target.current().max_num_threads
     else:
         _internal_assert(isinstance(args[0], _expr.IntImm), "In tvm bool should be uint")
-        res = _tgt.Target.current(args[0].value).max_num_threads
+        res = Target.current(args[0].value).max_num_threads
     return convert(res)

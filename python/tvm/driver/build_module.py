@@ -29,7 +29,7 @@ from tvm.ir.transform import PassContext
 from tvm.target import codegen
 from tvm.te import tensor
 from tvm.te import schedule
-from tvm import target as _target
+from tvm.target import Target
 
 
 def get_binds(args, compact=False, binds=None):
@@ -239,8 +239,8 @@ def _build_for_device(input_mod, target, target_host):
     mdev : tvm.module
         A module that contains device code.
     """
-    target = _target.create(target)
-    target_host = _target.create(target_host)
+    target = Target(target)
+    target_host = Target(target_host)
     device_type = ndarray.context(target.kind.name, 0).device_type
 
     mod_mixed = input_mod
@@ -391,23 +391,23 @@ def build(inputs,
             "inputs must be Schedule, IRModule or dict of target to IRModule")
 
     if not isinstance(inputs, (dict, container.Map)):
-        target = _target.Target.current() if target is None else target
+        target = Target.current() if target is None else target
         target = target if target else "llvm"
         target_input_mod = {target: input_mod}
     else:
         target_input_mod = inputs
 
     for tar, mod in target_input_mod.items():
-        if not isinstance(tar, (str, _target.Target)):
+        if not isinstance(tar, (str, Target)):
             raise ValueError("The key of inputs must be str or "
-                             "_target.Target when inputs is dict.")
+                             "Target when inputs is dict.")
         if not isinstance(mod, tvm.IRModule):
             raise ValueError("inputs must be Schedule, IRModule,"
                              "or dict of str to IRModule.")
 
     if not target_host:
         for tar, _ in target_input_mod.items():
-            tar = _target.create(tar)
+            tar = Target(tar)
             device_type = ndarray.context(tar.kind.name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
                 target_host = tar

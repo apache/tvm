@@ -33,7 +33,7 @@ def verify_bitserial_conv2d_nchw(batch, in_size, in_channel, num_filter, kernel,
     input_dtype = 'uint32'
     out_dtype = 'int32'
 
-    with tvm.target.create('llvm'):
+    with tvm.target.Target('llvm'):
         A = te.placeholder((batch, in_channel, in_height, in_width), dtype=input_dtype, name='A')
         W = te.placeholder((num_filter, in_channel, kernel, kernel), dtype=input_dtype, name='W')
         B = topi.x86.bitserial_conv2d_nchw(A, W, stride, padding, activation_bits, weight_bits,
@@ -71,7 +71,7 @@ def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel,
     input_dtype='uint32'
     out_dtype='int32'
 
-    with tvm.target.create('llvm'):
+    with tvm.target.Target('llvm'):
         A = te.placeholder((batch, in_height, in_width, in_channel), dtype=input_dtype, name='A')
         W = te.placeholder((kernel, kernel, in_channel, num_filter), dtype=input_dtype, name='W')
         B = topi.x86.bitserial_conv2d_nhwc(A, W, stride, padding, activation_bits, weight_bits,

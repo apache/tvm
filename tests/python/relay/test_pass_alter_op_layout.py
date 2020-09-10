@@ -685,7 +685,7 @@ def test_alter_layout_depthwise_conv2d():
 
     from tvm import topi
     def alter_conv2d(attrs, inputs, tinfos, out_type):
-        with tvm.target.create("llvm"):
+        with tvm.target.Target("llvm"):
             return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
 
 
@@ -1019,7 +1019,7 @@ def test_alter_layout_nhwc_arm():
     """ Check that AlterOplayout does not alter NHWC data layout. """
     def alter_conv2d(attrs, inputs, tinfos, out_type):
         from tvm import topi
-        with tvm.target.create("llvm -device=arm_cpu"):
+        with tvm.target.Target("llvm -device=arm_cpu"):
             return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
 
     # Check NHWC conversion.
@@ -1080,7 +1080,7 @@ def test_alter_layout_nhwc_int8_aarch64():
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
         from tvm import topi
-        with tvm.target.create("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu"):
+        with tvm.target.Target("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu"):
             with Int8Fallback():
                 tmp =  topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
                 return tmp

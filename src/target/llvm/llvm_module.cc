@@ -265,7 +265,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       target_metadata = os.str();
     }
     mptr_ = module_.get();
-    tm_ = GetLLVMTargetMachine(Target::Create(target_metadata));
+    tm_ = GetLLVMTargetMachine(Target(target_metadata));
   }
 
   void LoadIR(const std::string& file_name) {
@@ -287,7 +287,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       return;
     }
     if (!target_.defined()) {
-      target_ = Target::Create("llvm");
+      target_ = Target("llvm");
     }
     llvm::EngineBuilder builder(std::move(module_));
     std::string triple, mcpu, mattr;
@@ -304,7 +304,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     }
     builder.setTargetOptions(opt);
     auto tm = std::unique_ptr<llvm::TargetMachine>(builder.selectTarget());
-    std::unique_ptr<llvm::TargetMachine> tm_sys = GetLLVMTargetMachine(Target::Create("llvm"));
+    std::unique_ptr<llvm::TargetMachine> tm_sys = GetLLVMTargetMachine(Target("llvm"));
     if (tm_sys->getTargetTriple().getArch() != tm->getTargetTriple().getArch()) {
       LOG(FATAL) << "Cannot run module, architecture mismatch "
                  << " module=" << tm->getTargetTriple().str()
@@ -369,7 +369,7 @@ TVM_REGISTER_GLOBAL("target.build.llvm")
 
 TVM_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
     .set_body_typed([](std::string target_str, std::string module_name) -> runtime::Module {
-      Target target = Target::Create(target_str);
+      Target target = Target(target_str);
       auto n = make_object<LLVMModuleNode>();
       // Generate a LLVM module from an input target string
       InitializeLLVM();
@@ -403,7 +403,7 @@ TVM_REGISTER_GLOBAL("runtime.module.loadfile_ll")
 TVM_REGISTER_GLOBAL("codegen.llvm_target_enabled")
     .set_body_typed([](std::string target_str) -> bool {
       InitializeLLVM();
-      Target target = Target::Create(target_str);
+      Target target = Target(target_str);
       return (GetLLVMTargetMachine(target, true) != nullptr);
     });
 
