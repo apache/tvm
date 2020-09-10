@@ -26,7 +26,7 @@ use anyhow::{Context, Result};
 
 fn main() -> Result<()> {
     let tvm_home = option_env!("TVM_HOME")
-        .map(str::to_string)
+        .map::<Result<String>, _>(|s: &str| Ok(str::to_string(s)))
         .unwrap_or_else(|| {
             let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .canonicalize()
@@ -37,7 +37,7 @@ fn main() -> Result<()> {
                     )
                 })?;
 
-            crate_dir
+            Ok(crate_dir
                 .parent()
                 .with_context(|| {
                     format!(
@@ -54,8 +54,8 @@ fn main() -> Result<()> {
                 })?
                 .to_str()
                 .context("failed to convert to strings")?
-                .to_string()
-        });
+                .to_string())
+        })?;
 
     if cfg!(feature = "bindings") {
         println!("cargo:rerun-if-env-changed=TVM_HOME");
