@@ -25,3 +25,7 @@ edition = "2018"
 [dependencies]
 ndarray="0.12"
 tvm-graph-rt = { path = "../../" }
+
+[build-dependencies]
+ar = "0.6"
+anyhow = "^1.0"
