@@ -240,7 +240,7 @@ def micro(hardware='unknown', options=None):
 
     # NOTE: in the future, the default micro target will be LLVM except when
     # external dependencies are present.
-    return _ffi_api.TargetCreate("c", *opts)
+    return Target(" ".join(["c"] + opts))
 
 
 def arm_cpu(model='unknown', options=None):
