@@ -255,7 +255,7 @@ void MetalWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
 
 MetalThreadEntry::~MetalThreadEntry() {
   for (auto x : temp_buffer_) {
-    if (x != nil){
+    if (x != nil) {
       [(id<MTLBuffer>)x setPurgeableState:MTLPurgeableStateEmpty];
       [x release];
     }
