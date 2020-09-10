@@ -713,6 +713,36 @@ def test_conv_convert_kernel_layout():
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
+def test_roi_align_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        rois = relay.var('rois', shape=(32, 5))
+        y = relay.vision.roi_align(x, rois,
+                            pooled_size=(14, 14),
+                            spatial_scale=0.0625,
+                            sample_ratio=2,
+                            layout='NCHW')
+        y = relay.Function([x, rois], y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        rois = relay.var('rois', shape=(32, 5))
+        x = relay.layout_transform(x, 'NCHW', 'NHWC')
+        y = relay.vision.roi_align(x, rois,
+                            pooled_size=(14, 14),
+                            spatial_scale=0.0625,
+                            sample_ratio=2,
+                            layout='NHWC')
+        y = relay.layout_transform(y, 'NHWC', 'NCHW')
+        y = relay.Function(relay.analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({'vision.roi_align': ['NHWC', 'default']}))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 def test_default_keyword():
     """ Check that the default keyword selects correct TVM default layout. """
@@ -845,5 +875,6 @@ if __name__ == "__main__":
     test_qnn_conv_add_convert_layout()
     test_conv_convert_kernel_layout()
     test_conv_transpose_convert_layout()
+    test_roi_align_convert_layout()
     test_default_keyword()
     test_different_ops_convert_layout()
