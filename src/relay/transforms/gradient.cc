@@ -338,7 +338,7 @@ Expr FirstOrderGradient(const Expr& re, const Optional<IRModule>& mod) {
 
 TVM_REGISTER_GLOBAL("relay._transform.first_order_gradient").set_body_typed(FirstOrderGradient);
 
-Type bpt = RelayRefType(FuncType({}, TupleType(Array<Type>()), {}, {}));
+static Type bpt = RelayRefType(FuncType({}, TupleType(Array<Type>()), {}, {}));
 
 struct ReverseADType : TypeMutator {
   Type VisitType_(const TensorTypeNode* ttn) final {

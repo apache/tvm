@@ -37,7 +37,7 @@
 namespace tvm {
 
 /*!
- * \breif Implementation of registry with attributes.
+ * \brief Implementation of registry with attributes.
  *
  * \tparam EntryType The type of the registry entry.
  * \tparam KeyType The actual key that is used to lookup the attributes.

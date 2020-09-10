@@ -139,7 +139,7 @@ DiagnosticBuilder Diagnostic::Help(Span span) {
 }
 
 /*! \brief A diagnostic context for recording errors against a source file.
- * TODO(@jroesch): convert source map and improve in follow up PR, the parser
+ * TODO(jroesch): convert source map and improve in follow up PR, the parser
  * assumes a single global file for now.
  */
 struct DiagnosticContext {
@@ -160,7 +160,7 @@ struct DiagnosticContext {
     Render(std::cout);
   }
 
-  // TODO(@jroesch): eventually modularize the rendering interface to provide control of how to
+  // TODO(jroesch): eventually modularize the rendering interface to provide control of how to
   // format errors.
   void Render(std::ostream& ostream) {
     for (auto diagnostic : diagnostics) {
