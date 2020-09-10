@@ -1,3 +1,4 @@
+#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,20 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Support infra of TVM."""
-import tvm._ffi
 
 
-def libinfo():
-    """Returns a dictionary containing compile-time info, including cmake flags and git commit hash
-
-    Returns
-    -------
-    info: Dict[str, str]
-        The dictionary of compile-time info.
-    """
-    return {k: v for k, v in GetLibInfo().items()}  # pylint: disable=unnecessary-comprehension
-    }
-
-
-tvm._ffi._init_api("support", __name__)
+./tests/lint/git-black.sh HEAD~1
+./tests/lint/git-black.sh origin/master
