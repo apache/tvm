@@ -43,8 +43,8 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
         target = tvm.target.Target.current()
 
         #Adapt number of threads to device
-        if target.id.max_num_threads is not None:
-            num_thread = min(num_thread, target.id.max_num_threads)
+        if target.max_num_threads is not None:
+            num_thread = min(num_thread, target.max_num_threads)
         block_x = te.thread_axis("blockIdx.x")
         thread_x = te.thread_axis((0, num_thread), "threadIdx.x")
         thread_y = te.thread_axis((0, num_thread), "threadIdx.y")

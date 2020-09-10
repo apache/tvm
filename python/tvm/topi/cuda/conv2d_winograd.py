@@ -129,8 +129,8 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     """Schedule winograd template"""
     # get number of threads available from target
     target = tvm.target.Target.current()
-    if target.id.max_num_threads is not None:
-        num_thread = min(target.kind.max_num_threads, 128)
+    if target.max_num_threads is not None:
+        num_thread = min(target.max_num_threads, 128)
     else:
         num_thread = 128
 
