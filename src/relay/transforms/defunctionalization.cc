@@ -122,10 +122,9 @@ class DefuncMutator : public ExprMutator {
         auto type = op_type->arg_types[i];
         if (!HasFuncType(type)) {
           args.push_back(arg);
-          continue;
+        } else {
+          args.push_back(EncodeArg(arg, type));
         }
-
-        args.push_back(EncodeArg(arg, type));
       }
       auto name = op->name_hint + TypeToString(op_type);
       auto gv = GlobalVar(name);
