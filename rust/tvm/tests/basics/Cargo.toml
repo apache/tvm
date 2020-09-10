@@ -27,6 +27,9 @@ edition = "2018"
 ndarray = "0.12"
 tvm = { path = "../../" }
 
+[build-dependencies]
+anyhow = "^1.0"
+
 [features]
 default = ["cpu"]
 cpu = []

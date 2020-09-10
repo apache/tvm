@@ -27,10 +27,12 @@ import tvm.testing
 tx = te.thread_axis("threadIdx.x")
 bx = te.thread_axis("blockIdx.x")
 
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_cuda_vectorize_add():
     num_thread = 8
+
     def check_cuda(dtype, n, lanes):
         if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
@@ -39,7 +41,8 @@ def test_cuda_vectorize_add():
             print("skip because gpu does not support int8")
             return
         A = te.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
-        B = te.compute((n,), lambda i: A[i] + tvm.tir.const(1, A.dtype), name='B')
+        B = te.compute((n,), lambda i: A[i] +
+                       tvm.tir.const(1, A.dtype), name='B')
         s = te.create_schedule(B.op)
         xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
         s[B].bind(xo, bx)
@@ -66,10 +69,12 @@ def test_cuda_vectorize_add():
     check_cuda("float16", 64, 6)
     check_cuda("float16", 64, 8)
 
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_cuda_multiply_add():
     num_thread = 8
+
     def check_cuda(dtype, n, lanes):
         if dtype == "int8" and not have_int8(tvm.gpu(0).compute_version):
             print("skip because gpu does not support int8")
@@ -78,14 +83,14 @@ def test_cuda_multiply_add():
         B = te.placeholder((n,), name='B', dtype="%sx%d" % (dtype, lanes))
         C = te.placeholder((n,), name='C', dtype="int32")
         D = te.compute((n,),
-                        lambda i: tvm.tir.call_pure_extern("int32", "__dp4a", A[i], B[i], C[i]), name='D')
+                       lambda i: tvm.tir.call_pure_extern("int32", "__dp4a", A[i], B[i], C[i]), name='D')
         s = te.create_schedule(D.op)
         xo, xi = s[D].split(D.op.axis[0], factor=num_thread)
         s[D].bind(xo, bx)
         s[D].bind(xi, tx)
         fun = tvm.build(s, [A, B, C, D], "cuda")
-        np_a = np.random.randint(low=-128, high=127, size=(n,lanes))
-        np_b = np.random.randint(low=-128, high=127, size=(n,lanes))
+        np_a = np.random.randint(low=-128, high=127, size=(n, lanes))
+        np_b = np.random.randint(low=-128, high=127, size=(n, lanes))
         np_c = np.random.randint(low=0, high=127, size=(n,))
         np_d = [sum(x * y) + z for x, y, z in zip(np_a, np_b, np_c)]
         ctx = tvm.gpu(0)
@@ -97,10 +102,12 @@ def test_cuda_multiply_add():
         tvm.testing.assert_allclose(d.asnumpy(), np_d)
     check_cuda("int8", 64, 4)
 
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_cuda_vectorize_load():
     num_thread = 8
+
     def check_cuda(dtype, n, lanes):
         ctx = tvm.gpu(0)
         A = te.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
@@ -110,10 +117,10 @@ def test_cuda_vectorize_load():
         s[B].bind(block, bx)
         s[B].bind(thread, tx)
         fun = tvm.build(s, [A, B], "cuda", name="vector_load")
-        np_a = np.random.randint(low=-128, high=127, size=(n,lanes))
+        np_a = np.random.randint(low=-128, high=127, size=(n, lanes))
         a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(np_a)
         b = tvm.nd.empty((n,), B.dtype, ctx)
-        fun(a,b)
+        fun(a, b)
         tvm.testing.assert_allclose(a.asnumpy(), b.asnumpy())
     check_cuda("int8", 64, 2)
     check_cuda("int8", 64, 3)
@@ -121,13 +128,15 @@ def test_cuda_vectorize_load():
     check_cuda("int8", 64, 8)
     check_cuda("int8", 64, 16)
 
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_cuda_make_int8():
     def check_cuda(n, value, lanes):
         dtype = 'int8'
         ctx = tvm.gpu(0)
-        A = te.compute((n, lanes), lambda i,j: tvm.tir.const(value, dtype=dtype))
+        A = te.compute((n, lanes), lambda i,
+                       j: tvm.tir.const(value, dtype=dtype))
         s = te.create_schedule(A.op)
         y, x = s[A].op.axis
         s[A].vectorize(x)
@@ -152,6 +161,7 @@ def test_cuda_make_int8():
 @tvm.testing.requires_cuda
 def test_cuda_inf_nan():
     target = 'cuda'
+
     def check_inf_nan(ctx, n, value, dtype):
         A = te.placeholder((n,), name='A', dtype=dtype)
         inf_value = tvm.tir.const(value, dtype=dtype)
@@ -180,7 +190,8 @@ def test_cuda_shuffle():
     idxm = tvm.tir.indexmod
     a = te.placeholder((64, ), 'int32')
     b = te.placeholder((64, ), 'int32')
-    c = te.compute((64, ), lambda x: a[x] + b[x - idxm(x, 4) + (3 - idxm(x, 4))])
+    c = te.compute((64, ), lambda x: a[x] +
+                   b[x - idxm(x, 4) + (3 - idxm(x, 4))])
     sch = te.create_schedule(c.op)
     x = c.op.axis[0]
     xo, xi = sch[c].split(x, 4)
@@ -192,14 +203,17 @@ def test_cuda_shuffle():
         def vectorizer(op):
             if op.for_type == tvm.tir.For.Vectorized:
                 four = tvm.tir.const(4, 'int32')
-                idx = tvm.tir.Ramp(thrx.var * four, tvm.tir.const(1, 'int32'), 4)
+                idx = tvm.tir.Ramp(
+                    thrx.var * four, tvm.tir.const(1, 'int32'), 4)
                 all_ones = tvm.tir.const(1, 'int32x4')
                 store = op.body
                 value = store.value
-                new_a = tvm.tir.Load('int32x4', value.a.buffer_var, idx, all_ones)
+                new_a = tvm.tir.Load(
+                    'int32x4', value.a.buffer_var, idx, all_ones)
                 bs, ids = [], []
                 for i in range(4):
-                    bs.append(tvm.tir.Load('int32', value.b.buffer_var, thrx.var * four + tvm.tir.const(i, 'int32')))
+                    bs.append(tvm.tir.Load('int32', value.b.buffer_var,
+                                           thrx.var * four + tvm.tir.const(i, 'int32')))
                     ids.append(tvm.tir.const(3 - i, 'int32'))
                 new_b = tvm.tir.Shuffle(bs, ids)
                 return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
@@ -215,10 +229,11 @@ def test_cuda_shuffle():
         a_ = np.array(list(range(64)), dtype='int32')
         b_ = np.array((list(range(4))[::-1]) * 16, dtype='int32')
         c_ = np.zeros((64, ), dtype='int32')
-        ref = a_ +  np.array((list(range(4))) * 16, dtype='int32')
+        ref = a_ + np.array((list(range(4))) * 16, dtype='int32')
         nda, ndb, ndc = [tvm.nd.array(i, tvm.gpu(0)) for i in [a_, b_, c_]]
         module(nda, ndb, ndc)
         tvm.testing.assert_allclose(ndc.asnumpy(), ref)
+
 
 @tvm.testing.parametrize_targets("cuda", "rocm")
 def test_crossthread_reduction1(target, ctx):
@@ -246,8 +261,8 @@ def test_crossthread_reduction1(target, ctx):
             a = tvm.nd.array(np.random.uniform(size=size).astype(A.dtype), ctx)
             b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), ctx)
             func(a, b)
-            tvm.testing.assert_allclose(b.asnumpy(), \
-                np.sum(a.asnumpy(), axis=1), rtol=1e-3)
+            tvm.testing.assert_allclose(b.asnumpy(),
+                                        np.sum(a.asnumpy(), axis=1), rtol=1e-3)
 
     verify(16)
     verify(32)
@@ -262,7 +277,8 @@ def test_crossthread_reduction2(target, ctx):
     A = te.placeholder((n, k0, k1), name='A')
     k0 = te.reduce_axis((0, k0), "k0")
     k1 = te.reduce_axis((0, k1), "k1")
-    B = te.compute((n,), lambda i: te.sum(A[i, k0, k1], axis=(k0, k1)), name="B")
+    B = te.compute((n,), lambda i: te.sum(
+        A[i, k0, k1], axis=(k0, k1)), name="B")
 
     def sched(nthdx, nthdy):
         s = te.create_schedule(B.op)
@@ -285,22 +301,23 @@ def test_crossthread_reduction2(target, ctx):
             a = tvm.nd.array(np.random.uniform(size=size).astype(A.dtype), ctx)
             b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), ctx)
             func(a, b)
-            tvm.testing.assert_allclose(b.asnumpy(), \
-                np.sum(a.asnumpy(), axis=(1, 2)), rtol=1e-3)
+            tvm.testing.assert_allclose(b.asnumpy(),
+                                        np.sum(a.asnumpy(), axis=(1, 2)), rtol=1e-3)
 
     verify(16, 16)
     verify(32, 32)
     verify(16, 32)
     verify(32, 16)
 
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_cuda_reduction_binding():
     k = te.reduce_axis((0, 32), 'k')
     A = te.placeholder((96, 32), name='A')
-    B = te.compute( (96,), lambda m:
-                     te.sum(A[m, k], axis=k),
-                     name='B')
+    B = te.compute((96,), lambda m:
+                   te.sum(A[m, k], axis=k),
+                   name='B')
     s = te.create_schedule(B.op)
 
     s[B].reorder(B.op.reduce_axis[0], B.op.axis[0])
@@ -310,15 +327,16 @@ def test_cuda_reduction_binding():
 
     fcuda = tvm.build(s, [A, B], "cuda")
 
+
 @tvm.testing.parametrize_targets("cuda", "rocm")
 def test_rfactor_predicates(target, ctx):
     n = te.reduce_axis((0, 129), 'n')
     A = te.placeholder((129,), name='A')
-    B = te.compute( (1, ), lambda b:
-                     te.sum(A[n],
-                             axis=n),
-                     name='B'
-    )
+    B = te.compute((1, ), lambda b:
+                   te.sum(A[n],
+                          axis=n),
+                   name='B'
+                   )
 
     s = te.create_schedule(B.op)
 
@@ -340,6 +358,7 @@ def test_rfactor_predicates(target, ctx):
     s[BF2].compute_at(s[BF], s[BF].op.axis[1])
 
     fcuda = tvm.build(s, [A, B], target)
+
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
@@ -367,6 +386,7 @@ def test_cuda_const_float_to_half():
     func(a, c)
     np.testing.assert_equal(c.asnumpy(), a_np > b.value)
 
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_cuda_reduction():
@@ -381,7 +401,7 @@ def test_cuda_reduction():
         d = a * b
         e = topi.elemwise_sum([c, d])
         g = topi.sum(e)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             sg = topi.cuda.schedule_reduce(g)
             func = tvm.build(sg, [a, b, g], device)
             a_np = np.random.uniform(size=(m, n)).astype(a.dtype)
@@ -397,6 +417,7 @@ def test_cuda_reduction():
     check("rocm", "float32")
     check("cuda", "float16")
 
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_cuda_mix_threaded_and_normal_reduction():
@@ -411,7 +432,7 @@ def test_cuda_mix_threaded_and_normal_reduction():
 
         a = tvm.te.placeholder((m, n), name="a", dtype=dtype)
         b = topi.sum(a)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             sb = tvm.te.create_schedule(b.op)
             i, _ = b.op.reduce_axis
             sb[b].bind(i, tvm.te.thread_axis("threadIdx.x"))
@@ -426,6 +447,7 @@ def test_cuda_mix_threaded_and_normal_reduction():
     check("cuda", "float32")
     check("rocm", "float32")
     check("cuda", "float16")
+
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
@@ -452,6 +474,7 @@ def test_cuda_floordiv_with_vectorization():
         func(a_nd, b_nd)
         tvm.testing.assert_allclose(b_nd.asnumpy(), b_np, rtol=1e-3)
 
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_cuda_floormod_with_vectorization():
@@ -477,11 +500,12 @@ def test_cuda_floormod_with_vectorization():
         func(a_nd, b_nd)
         tvm.testing.assert_allclose(b_nd.asnumpy(), b_np, rtol=1e-3)
 
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_vectorized_casts():
     def check(t0, t1):
-        if (t0 ==  "float16" or t1 == "float16") and not have_fp16(tvm.gpu(0).compute_version):
+        if (t0 == "float16" or t1 == "float16") and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
 
@@ -489,7 +513,8 @@ def test_vectorized_casts():
         n = 128
         A = te.placeholder((n,), dtype=t0, name='A')
         B = te.placeholder((n,), dtype=t1, name='B')
-        C = te.compute((n,), lambda i: A[i] + topi.cast(B[i], A.dtype), name='C')
+        C = te.compute((n,), lambda i: A[i] +
+                       topi.cast(B[i], A.dtype), name='C')
 
         # schedule
         s = tvm.te.create_schedule(C.op)
@@ -501,7 +526,8 @@ def test_vectorized_casts():
 
         # correctness
         ctx = tvm.gpu(0)
-        low, high = (0, 20) if t0.startswith('u') or t1.startswith('u') else (-10, 10)
+        low, high = (0, 20) if t0.startswith(
+            'u') or t1.startswith('u') else (-10, 10)
         a_np = np.random.randint(low, high, size=n).astype(A.dtype)
         b_np = np.random.randint(low, high, size=n).astype(B.dtype)
         c_np = (a_np + b_np).astype(A.dtype)
@@ -520,9 +546,11 @@ def test_vectorized_casts():
             return True
         return False
 
-    types = ["float16", "float32", "int8", "uint8", "int16", "uint16", "int32", "uint32"]
+    types = ["float16", "float32", "int8", "uint8",
+             "int16", "uint16", "int32", "uint32"]
     for t0, t1 in [(x, y) for x in types for y in types if not skip(x, y)]:
         check(t0, t1)
+
 
 def sched(B):
     s = te.create_schedule(B.op)
@@ -534,30 +562,32 @@ def sched(B):
     s[B].bind(iio, tx)
     return s
 
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_vectorized_intrin1():
     test_funcs = [
-        (tvm.tir.floor, lambda x : np.floor(x)),
-        (tvm.tir.ceil,  lambda x : np.ceil(x)),
-        (tvm.tir.trunc, lambda x : np.trunc(x)),
-        (tvm.tir.abs,   lambda x : np.fabs(x)),
-        (tvm.tir.round, lambda x : np.round(x)),
-        (tvm.tir.exp,   lambda x : np.exp(x)),
-        (tvm.tir.exp2,  lambda x : np.exp2(x)),
-        (tvm.tir.exp10, lambda x : np.power(10,x)),
-        (tvm.tir.log,   lambda x : np.log(x)),
-        (tvm.tir.log2,  lambda x : np.log2(x)),
-        (tvm.tir.log10, lambda x : np.log10(x)),
-        (tvm.tir.tan,   lambda x : np.tan(x)),
-        (tvm.tir.cos,   lambda x : np.cos(x)),
-        (tvm.tir.cosh,  lambda x : np.cosh(x)),
-        (tvm.tir.sin,   lambda x : np.sin(x)),
-        (tvm.tir.sinh,  lambda x : np.sinh(x)),
-        (tvm.tir.atan,  lambda x : np.arctan(x)),
-        (tvm.tir.tanh,  lambda x : np.tanh(x)),
-        (tvm.tir.sqrt,  lambda x : np.sqrt(x)),
+        (tvm.tir.floor, lambda x: np.floor(x)),
+        (tvm.tir.ceil, lambda x: np.ceil(x)),
+        (tvm.tir.trunc, lambda x: np.trunc(x)),
+        (tvm.tir.abs, lambda x: np.fabs(x)),
+        (tvm.tir.round, lambda x: np.round(x)),
+        (tvm.tir.exp, lambda x: np.exp(x)),
+        (tvm.tir.exp2, lambda x: np.exp2(x)),
+        (tvm.tir.exp10, lambda x: np.power(10, x)),
+        (tvm.tir.log, lambda x: np.log(x)),
+        (tvm.tir.log2, lambda x: np.log2(x)),
+        (tvm.tir.log10, lambda x: np.log10(x)),
+        (tvm.tir.tan, lambda x: np.tan(x)),
+        (tvm.tir.cos, lambda x: np.cos(x)),
+        (tvm.tir.cosh, lambda x: np.cosh(x)),
+        (tvm.tir.sin, lambda x: np.sin(x)),
+        (tvm.tir.sinh, lambda x: np.sinh(x)),
+        (tvm.tir.atan, lambda x: np.arctan(x)),
+        (tvm.tir.tanh, lambda x: np.tanh(x)),
+        (tvm.tir.sqrt, lambda x: np.sqrt(x)),
     ]
+
     def run_test(tvm_intrin, np_func, dtype):
         if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
@@ -571,7 +601,8 @@ def test_vectorized_intrin1():
                     tvm.tir.cosh,
                     tvm.tir.sinh}
         if dtype == "float16" and tvm_intrin in skip_set:
-            print("Skip because '{0}' does not support fp16 yet".format(tvm_intrin.__name__))
+            print("Skip because '{0}' does not support fp16 yet".format(
+                tvm_intrin.__name__))
             return
 
         n = 128
@@ -583,20 +614,23 @@ def test_vectorized_intrin1():
         a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(shape=(n,)).astype(A.dtype), ctx)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), np_func(a.asnumpy()), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(b.asnumpy(), np_func(
+            a.asnumpy()), atol=1e-3, rtol=1e-3)
 
     for func in test_funcs:
         run_test(*func, "float32")
         run_test(*func, "float16")
+
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_vectorized_intrin2(dtype="float32"):
     c2 = tvm.tir.const(2, dtype=dtype)
     test_funcs = [
-        (tvm.tir.power, lambda x : np.power(x, 2.0)),
-        (tvm.tir.fmod,  lambda x : np.fmod(x, 2.0))
+        (tvm.tir.power, lambda x: np.power(x, 2.0)),
+        (tvm.tir.fmod, lambda x: np.fmod(x, 2.0))
     ]
+
     def run_test(tvm_intrin, np_func):
         n = 128
         A = te.placeholder((n,), dtype=dtype, name='A')
@@ -607,10 +641,12 @@ def test_vectorized_intrin2(dtype="float32"):
         a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(shape=(n,)).astype(A.dtype), ctx)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), np_func(a.asnumpy()), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(b.asnumpy(), np_func(
+            a.asnumpy()), atol=1e-3, rtol=1e-3)
 
     for func in test_funcs:
         run_test(*func)
+
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
@@ -629,7 +665,8 @@ def test_vectorized_popcount():
         s = sched(B)
         f = tvm.build(s, [A, B], "cuda")
         ctx = tvm.gpu(0)
-        a = tvm.nd.array(np.random.randint(0, 100000, size=n).astype(A.dtype), ctx)
+        a = tvm.nd.array(np.random.randint(
+            0, 100000, size=n).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(shape=(n,)).astype(B.dtype), ctx)
         f(a, b)
         ref = np.vectorize(ref_popcount)(a.asnumpy())
@@ -637,6 +674,7 @@ def test_vectorized_popcount():
 
     run_test("uint32")
     run_test("uint64")
+
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
@@ -677,6 +715,7 @@ def test_cuda_vectorize_load_permute_pad():
     check_cuda("float16", 64, 16, 3, 4)
     check_cuda("float32", 64, 16, 3, 4)
 
+
 def vcf_check_common(s, args):
     N = 512
 
@@ -694,7 +733,8 @@ def vcf_check_common(s, args):
         if isinstance(stmt, tvm.tir.Broadcast):
             inside_broadcast[0] = True
             # Check Broadcast[Imm numbers] or Broadcast[Load] patterns
-            assert isinstance(stmt.value, (tvm.tir.IntImm, tvm.tir.FloatImm, tvm.tir.Load))
+            assert isinstance(stmt.value, (tvm.tir.IntImm,
+                                           tvm.tir.FloatImm, tvm.tir.Load))
         if isinstance(stmt, tvm.tir.Store):
             # Check Store[Ramp] pattern
             assert isinstance(stmt.index, tvm.tir.Ramp)
@@ -724,6 +764,7 @@ def vcf_check_common(s, args):
     mod(a, b, c)
     tvm.testing.assert_allclose(c.asnumpy(), np.dot(
         a.asnumpy(), b.asnumpy()), rtol=1e-5)
+
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
@@ -775,6 +816,7 @@ def test_vectorized_cooperative_fetching_x():
     s[BB].vectorize(bb2)
 
     vcf_check_common(s, [A, B, C])
+
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
@@ -831,20 +873,22 @@ def test_vectorized_cooperative_fetching_xy():
 
     vcf_check_common(s, [A, B, C])
 
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_unrolled_vectorization():
     dtype = 'float32'
     target = 'cuda'
 
-    ## Compute declaration
+    # Compute declaration
     N = 128
     A = te.placeholder((N, N), name='A')
     B = te.placeholder((N, N), name='B')
     k = te.reduce_axis((0, N), name='k')
-    C = te.compute((N, N), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+    C = te.compute((N, N), lambda i, j: te.sum(
+        A[i][k] * B[k][j], axis=[k]), name='C')
 
-    ## Schedule
+    # Schedule
     s = te.create_schedule([C.op])
     CC = s.cache_write(C, "local")
     i, j = s[C].op.axis
@@ -859,7 +903,7 @@ def test_unrolled_vectorization():
     s[CC].unroll(ki)
     s[CC].vectorize(j)
 
-    ## Check correctness
+    # Check correctness
     ctx = tvm.context(target)
     a_tvm = tvm.nd.array(np.ones((N, N)).astype(dtype), ctx=ctx)
     b_tvm = tvm.nd.array(np.ones((N, N)).astype(dtype), ctx=ctx)
@@ -868,6 +912,7 @@ def test_unrolled_vectorization():
     func_tvm(a_tvm, b_tvm, c_tvm)
     c_np = c_tvm.asnumpy()
     tvm.testing.assert_allclose(c_np, N * np.ones((N, N)))
+
 
 if __name__ == "__main__":
     test_cuda_vectorize_add()
@@ -893,4 +938,3 @@ if __name__ == "__main__":
     test_vectorized_cooperative_fetching_x()
     test_vectorized_cooperative_fetching_xy()
     test_unrolled_vectorization()
-

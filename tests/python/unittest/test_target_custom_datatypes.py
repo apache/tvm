@@ -51,7 +51,7 @@ def lower_datatypes_and_build(schedule, args):
     process, we won't need to do this manually.
     TODO(gus) integrate datatype lowering into build process; change this test"""
     mod = tvm.lower(schedule, args)
-    target = tvm.target.create(tgt)
+    target = tvm.target.Target(tgt)
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod)
     mod = tvm.tir.transform.LowerCustomDatatypes()(mod)
     return tvm.build(mod, target=tgt)

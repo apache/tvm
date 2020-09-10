@@ -312,7 +312,7 @@ tuner.tune(n_trial=10,
 
 # apply history best from log file
 with autotvm.apply_history_best('matmul.log'):
-    with tvm.target.create("llvm"):
+    with tvm.target.Target("llvm"):
         s, arg_bufs = matmul(N, L, M, 'float32')
         func = tvm.build(s, arg_bufs)
 

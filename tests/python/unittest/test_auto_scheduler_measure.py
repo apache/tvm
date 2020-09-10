@@ -25,8 +25,9 @@ import tvm.testing
 
 from test_auto_scheduler_common import matmul_auto_scheduler_test, get_tiled_matmul
 
+
 def record_common(dag, s):
-    target = tvm.target.create("llvm")
+    target = tvm.target.Target("llvm")
     task = auto_scheduler.SearchTask(dag, "test", target)
 
     inp = auto_scheduler.measure.MeasureInput(task, s)
@@ -53,7 +54,8 @@ def test_record_split_reorder_fuse_annotation():
     A = te.placeholder((512, 512), name='A')
     B = te.placeholder((512, 512), name='B')
     k = te.reduce_axis((0, 512), name='k')
-    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+    C = te.compute((512, 512), lambda i, j: te.sum(
+        A[i][k] * B[k][j], axis=[k]), name='C')
 
     dag = auto_scheduler.ComputeDAG([A, B, C])
     s = dag.get_init_state()
@@ -88,7 +90,8 @@ def test_record_compute_at_root_inline_cache_read_write():
     AA = topi.nn.relu(A)
     B = te.placeholder((512, 512), name='B')
     k = te.reduce_axis((0, 512), name='k')
-    C = te.compute((512, 512), lambda i, j: te.sum(AA[i][k] * B[k][j], axis=[k]), name='C')
+    C = te.compute((512, 512), lambda i, j: te.sum(
+        AA[i][k] * B[k][j], axis=[k]), name='C')
 
     dag = auto_scheduler.ComputeDAG([A, B, C])
     s = dag.get_init_state()
@@ -115,7 +118,8 @@ def test_record_follow_split_follow_fused_split():
     A = te.placeholder((512, 512), name='A')
     B = te.placeholder((512, 512), name='B')
     k = te.reduce_axis((0, 512), name='k')
-    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+    C = te.compute((512, 512), lambda i, j: te.sum(
+        A[i][k] * B[k][j], axis=[k]), name='C')
     D = topi.nn.relu(C)
     E = topi.nn.relu(D)
 
@@ -149,7 +153,8 @@ def test_record_pragma_storage_align_rfactor():
     A = te.placeholder((512, 512), name='A')
     B = te.placeholder((512, 512), name='B')
     k = te.reduce_axis((0, 512), name='k')
-    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+    C = te.compute((512, 512), lambda i, j: te.sum(
+        A[i][k] * B[k][j], axis=[k]), name='C')
 
     dag = auto_scheduler.ComputeDAG([A, B, C])
     s = dag.get_init_state()
@@ -170,7 +175,7 @@ def test_measure_local_builder_runner(enable_cpu_cache_flush=False):
         return
 
     dag, s0 = get_tiled_matmul()
-    tgt = tvm.target.create("llvm")
+    tgt = tvm.target.Target("llvm")
     task = auto_scheduler.SearchTask(dag, "test", tgt)
 
     minp = auto_scheduler.MeasureInput(task, s0)
@@ -189,7 +194,7 @@ def test_measure_local_builder_rpc_runner(enable_cpu_cache_flush=False):
         return
 
     dag, s0 = get_tiled_matmul()
-    tgt = tvm.target.create("llvm")
+    tgt = tvm.target.Target("llvm")
     task = auto_scheduler.SearchTask(dag, "test", tgt)
 
     minp = auto_scheduler.MeasureInput(task, s0)

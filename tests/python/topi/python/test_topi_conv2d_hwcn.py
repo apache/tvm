@@ -63,7 +63,7 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv2d_hwcn_implement)
             t_conv = fcompute(A, W, stride, padding, dilation)
             t_bias = topi.add(t_conv, B)

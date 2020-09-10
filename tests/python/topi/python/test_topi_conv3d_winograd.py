@@ -83,7 +83,7 @@ def verify_conv3d_ncdhw(batch,
             return
         print("Running on target: %s" % device)
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv3d_ncdhw_implement)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             C = fcompute(A, W, (stride, stride, stride), padding, (dilation, dilation, dilation),
                          dtype)
             if add_bias:

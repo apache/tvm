@@ -56,7 +56,7 @@ def verify_conv3d_transpose_ncdhw(batch, in_channel, in_size, num_filter, kernel
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv3d_transpose_ncdhw_implement)
             B = fcompute(A, W,
                          [stride_depth, stride_height, stride_width],

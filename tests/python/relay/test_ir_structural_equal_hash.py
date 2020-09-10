@@ -705,7 +705,19 @@ def test_fn_attribute():
     assert not consistent_equal(add_fn, add_1_fn)
 
 
+def test_fn_vid_map():
+    def get_fn(with_vid):
+        x = relay.var("x", shape=(10,), dtype="float32")
+        f = relay.Function([x], x).with_attr(
+            "dict", {x.vid: 1} if with_vid else {x : 1})
+        return f
+
+    assert consistent_equal(get_fn(True), get_fn(True))
+    assert consistent_equal(get_fn(False), get_fn(False))
+
+
 if __name__ == "__main__":
+    test_fn_vid_map()
     test_tensor_type_sequal()
     test_incomplete_type_sequal()
     test_constant_sequal()

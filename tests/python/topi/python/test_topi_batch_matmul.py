@@ -48,7 +48,7 @@ def verify_batch_matmul(batch, M, N, K):
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _batch_matmul_implement)
             out = fcompute(x, y)
             s = fschedule([out])

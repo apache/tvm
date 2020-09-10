@@ -56,7 +56,7 @@ def verify_conv2d_1x1_nhwc_pack_int8(batch, in_channel, in_size, num_filter, ker
             return
         print("Running on target: %s" % device)
 
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             B = topi.nn.conv2d(A, W, stride, padding, dilation, layout='NHWC', out_dtype="int32")
             s = topi.x86.schedule_conv2d_nhwc_pack_int8([B])
         a = tvm.nd.array(a_np, ctx)
