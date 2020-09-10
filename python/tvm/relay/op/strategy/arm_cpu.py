@@ -147,13 +147,14 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized),
                         name="conv2d_NHWC_quantized.arm_cpu")
-                # TODO
-                # This strategy errors out when tuning. Let us comment it out
-                # but not remove.
-                # strategy.add_implementation(
-                #     wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_spatial_pack),
-                #     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack),
-                #     name="conv2d_nhwc_spatial_pack.arm_cpu")
+                if (not is_aarch64) or (data.dtype not in ["int8", "uint8"]):
+                    # TODO
+                    # This strategy errors out for quantized data types when tuning.
+                    # Let's use this only for non-aarch64 or non-quantized cases
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_spatial_pack),
+                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack),
+                        name="conv2d_nhwc_spatial_pack.arm_cpu")
             else:
                 raise RuntimeError(
                     "Unsupported kernel layout {} for conv2d NHWC".format(kernel_layout)
