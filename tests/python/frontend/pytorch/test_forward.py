@@ -3167,6 +3167,7 @@ def test_forward_pretrained_bert_base_uncased():
 
 
 if __name__ == "__main__":
+    """
     # some structural tests
     test_forward_traced_function()
     test_forward_dtypes()
@@ -3312,6 +3313,7 @@ if __name__ == "__main__":
     # Test simple conditionals and loop
     test_control_flow()
     test_simple_rnn()
+    """
 
     # More complex recurrent models
     from lstm_test import test_custom_lstm
