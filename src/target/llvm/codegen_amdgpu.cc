@@ -191,75 +191,13 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 };
 
-inline int DetectROCMComputeVersion(const Target& target) {
-  if (const Optional<String> mcpu = target->GetAttr<String>("mcpu")) {
-    std::string gfx = mcpu.value();
-    if (gfx.length() >= 3 && gfx.substr(0, 3) == "gfx") {
-      int version;
-      std::stringstream is(gfx.substr(3));
-      if (is >> version) {
-        return version;
-      }
-    }
-    LOG(FATAL) << "ValueError: Unrecognized -mcpu value: " << mcpu;
-  }
-  TVMContext tvm_ctx;
-  tvm_ctx.device_type = kDLROCM;
-  tvm_ctx.device_id = 0;
-  tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_ctx, true);
-  if (api != nullptr) {
-    TVMRetValue val;
-    api->GetAttr(tvm_ctx, tvm::runtime::kExist, &val);
-    if (val.operator int() == 1) {
-      tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kGcnArch, &val);
-      return val.operator int();
-    }
-  }
-  LOG(WARNING) << "Cannot find -mcpu to specify rocm compute version assume gfx900";
-  return 900;
-}
-
-inline int DetectROCMApiVersion() {
-  TVMContext tvm_ctx;
-  tvm_ctx.device_type = kDLROCM;
-  tvm_ctx.device_id = 0;
-  tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_ctx, true);
-  if (api != nullptr) {
-    TVMRetValue val;
-    api->GetAttr(tvm_ctx, tvm::runtime::kApiVersion, &val);
-    return val.operator int();
-  }
-  LOG(WARNING) << "Cannot detect ROCm version, assume >= 3.5";
-  return 305;
-}
-
-Target UpdateTarget(const Target& original_target) {
-  Map<String, ObjectRef> target_config = original_target->Export();
-  UpdateTargetConfigKeyValueEntry("mtriple", "amdgcn-amd-amdhsa-hcc", &target_config, true);
-  UpdateTargetConfigKeyValueEntry("mcpu",
-                                  "gfx" + std::to_string(DetectROCMComputeVersion(original_target)),
-                                  &target_config, false);
-  if (DetectROCMApiVersion() < 305) {
-    // before ROCm 3.5 we needed code object v2, starting
-    // with 3.5 we need v3 (this argument disables v3)
-    Array<String> mattr;
-    if (target_config.count("mattr")) {
-      mattr = Downcast<Array<String>>(target_config["mattr"]);
-    }
-    mattr.push_back("-code-object-v3");
-    target_config.Set("mattr", mattr);
-  }
-  return Target::FromConfig(target_config);
-}
-
-runtime::Module BuildAMDGPU(IRModule mod, Target original_target) {
+runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 #if TVM_LLVM_VERSION < 90
   LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
   // Lower versions will crash when loading the bitcode, see
   // issue #4087 for a discussion
 #endif
   InitializeLLVM();
-  Target target = UpdateTarget(original_target);
   std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   // careful: cg will hold a naked pointer reference to ctx, so it should

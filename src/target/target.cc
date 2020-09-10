@@ -21,8 +21,8 @@
  * \file src/target/target.cc
  */
 #include <dmlc/thread_local.h>
-#include <tvm/node/repr_printer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/target/tag.h>
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
 #include <tvm/tir/expr.h>
@@ -34,11 +34,26 @@
 
 namespace tvm {
 
-using runtime::PackedFunc;
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
-
 TVM_REGISTER_NODE_TYPE(TargetNode);
+
+class TargetInternal {
+ public:
+  static void EnterScope(Target target) { target.EnterWithScope(); }
+  static void ExitScope(Target target) { target.ExitWithScope(); }
+  static Map<String, ObjectRef> Export(Target target) { return target->Export(); }
+  static const TargetKindNode::ValueTypeInfo& FindTypeInfo(const TargetKind& kind,
+                                                           const std::string& key);
+  static Optional<String> StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs);
+  static ObjectRef ParseType(const std::string& str, const TargetKindNode::ValueTypeInfo& info);
+  static ObjectRef ParseType(const ObjectRef& obj, const TargetKindNode::ValueTypeInfo& info);
+  static ObjectPtr<Object> FromString(const String& tag_or_config_or_target_str);
+  static ObjectPtr<Object> FromConfigString(const String& config_str);
+  static ObjectPtr<Object> FromRawString(const String& target_str);
+  static ObjectPtr<Object> FromConfig(std::unordered_map<String, ObjectRef> config);
+  static void ConstructorDispatcher(TVMArgs args, TVMRetValue* rv);
+};
+
+/**********  Helper functions  **********/
 
 static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
   std::vector<String> new_keys;
@@ -57,130 +72,46 @@ static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
   return new_keys;
 }
 
-static inline std::string RemovePrefixDashes(const std::string& s) {
-  size_t n_dashes = 0;
-  for (; n_dashes < s.length() && s[n_dashes] == '-'; ++n_dashes) {
+template <class TObj>
+static const TObj* ObjTypeCheck(const ObjectRef& obj, const std::string& expected_type) {
+  const TObj* ptr = obj.as<TObj>();
+  if (ptr == nullptr) {
+    std::ostringstream os;
+    os << ": Expects type \"" << expected_type << "\", but gets \"" << obj->GetTypeKey()
+       << "\" for object: " << obj;
+    throw dmlc::Error(os.str());
   }
-  CHECK(0 < n_dashes && n_dashes < s.size()) << "ValueError: Not an attribute key \"" << s << "\"";
+  return ptr;
+}
+
+static TargetKind GetTargetKind(const String& name) {
+  Optional<TargetKind> kind = TargetKind::Get(name);
+  if (!kind.defined()) {
+    throw dmlc::Error(": Target kind \"" + name + "\" is not defined");
+  }
+  return kind.value();
+}
+
+static std::string RemovePrefixDashes(const std::string& s) {
+  int n_dashes = 0;
+  int len = s.length();
+  for (; n_dashes < len && s[n_dashes] == '-'; ++n_dashes) {
+  }
+  if (n_dashes == 0) {
+    throw dmlc::Error(": Attribute keys should start with '-', not an attribute key: " + s);
+  }
+  if (n_dashes >= len) {
+    throw dmlc::Error(": Not an attribute key: " + s);
+  }
   return s.substr(n_dashes);
 }
 
-static inline int FindUniqueSubstr(const std::string& str, const std::string& substr) {
+static int FindFirstSubstr(const std::string& str, const std::string& substr) {
   size_t pos = str.find_first_of(substr);
-  if (pos == std::string::npos) {
-    return -1;
-  }
-  size_t next_pos = pos + substr.size();
-  CHECK(next_pos >= str.size() || str.find_first_of(substr, next_pos) == std::string::npos)
-      << "ValueError: At most one \"" << substr << "\" is allowed in "
-      << "the the given string \"" << str << "\"";
-  return pos;
+  return pos == std::string::npos ? -1 : pos;
 }
 
-static inline ObjectRef ParseAtomicType(uint32_t type_index, const std::string& str) {
-  std::istringstream is(str);
-  if (type_index == Integer::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-    int v;
-    is >> v;
-    return is.fail() ? ObjectRef(nullptr) : Integer(v);
-  } else if (type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-    std::string v;
-    is >> v;
-    return is.fail() ? ObjectRef(nullptr) : String(v);
-  }
-  return ObjectRef(nullptr);
-}
-
-Map<String, ObjectRef> TargetNode::ParseAttrsFromRaw(
-    const std::vector<std::string>& options) const {
-  std::unordered_map<String, ObjectRef> attrs;
-  for (size_t iter = 0, end = options.size(); iter < end;) {
-    // remove the prefix dashes
-    std::string s = RemovePrefixDashes(options[iter++]);
-    // parse name-obj pair
-    std::string name;
-    std::string obj;
-    int pos;
-    if ((pos = FindUniqueSubstr(s, "=")) != -1) {
-      // case 1. --key=value
-      name = s.substr(0, pos);
-      obj = s.substr(pos + 1);
-      CHECK(!name.empty()) << "ValueError: Empty attribute key in \"" << options[iter - 1] << "\"";
-      CHECK(!obj.empty()) << "ValueError: Empty attribute in \"" << options[iter - 1] << "\"";
-    } else if (iter < end && options[iter][0] != '-') {
-      // case 2. --key value
-      name = s;
-      obj = options[iter++];
-    } else {
-      // case 3. --boolean-key
-      name = s;
-      obj = "1";
-    }
-    // check if `name` is invalid
-    auto it = this->kind->key2vtype_.find(name);
-    if (it == this->kind->key2vtype_.end()) {
-      std::ostringstream os;
-      os << "AttributeError: Invalid config option, cannot recognize \'" << name
-         << "\'. Candidates are:";
-      for (const auto& kv : this->kind->key2vtype_) {
-        os << "\n  " << kv.first;
-      }
-      LOG(FATAL) << os.str();
-    }
-    // check if `name` has been set once
-    CHECK(!attrs.count(name)) << "AttributeError: key \"" << name
-                              << "\" appears more than once in the target string";
-    // then `name` is valid, let's parse them
-    // only several types are supported when parsing raw string
-    const auto& info = it->second;
-    ObjectRef parsed_obj(nullptr);
-    if (info.type_index != ArrayNode::_type_index) {
-      parsed_obj = ParseAtomicType(info.type_index, obj);
-    } else {
-      Array<ObjectRef> array;
-      std::string item;
-      bool failed = false;
-      uint32_t type_index = info.key->type_index;
-      for (std::istringstream is(obj); std::getline(is, item, ',');) {
-        ObjectRef parsed_obj = ParseAtomicType(type_index, item);
-        if (parsed_obj.defined()) {
-          array.push_back(parsed_obj);
-        } else {
-          failed = true;
-          break;
-        }
-      }
-      if (!failed) {
-        parsed_obj = std::move(array);
-      }
-    }
-    if (!parsed_obj.defined()) {
-      LOG(FATAL) << "ValueError: Cannot parse type \"" << info.type_key << "\""
-                 << ", where attribute key is \"" << name << "\""
-                 << ", and attribute is \"" << obj << "\"";
-    }
-    attrs[name] = std::move(parsed_obj);
-  }
-  // set default attribute values if they do not exist
-  for (const auto& kv : this->kind->key2default_) {
-    if (!attrs.count(kv.first)) {
-      attrs[kv.first] = kv.second;
-    }
-  }
-  return attrs;
-}
-
-static inline Optional<String> StringifyAtomicType(const ObjectRef& obj) {
-  if (const auto* p = obj.as<IntImmNode>()) {
-    return String(std::to_string(p->value));
-  }
-  if (const auto* p = obj.as<StringObj>()) {
-    return GetRef<String>(p);
-  }
-  return NullOpt;
-}
-
-static inline Optional<String> JoinString(const std::vector<String>& array, char separator) {
+static Optional<String> JoinString(const std::vector<String>& array, char separator) {
   if (array.empty()) {
     return NullOpt;
   }
@@ -192,7 +123,176 @@ static inline Optional<String> JoinString(const std::vector<String>& array, char
   return String(os.str());
 }
 
-Optional<String> TargetNode::StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) const {
+static int ParseKVPair(const std::string& s, const std::string& s_next, std::string* key,
+                       std::string* value) {
+  int pos;
+  std::string& result_k = *key;
+  std::string& result_v = *value;
+  if ((pos = FindFirstSubstr(s, "=")) != -1) {
+    // case 1. --key=value
+    result_k = s.substr(0, pos);
+    result_v = s.substr(pos + 1);
+    if (result_k.empty() || result_v.empty()) {
+      throw dmlc::Error(": Empty attribute key or value in \"" + s + "\"");
+    }
+    return 1;
+  } else if (!s_next.empty() && s_next[0] != '-') {
+    // case 2. --key value
+    result_k = s;
+    result_v = s_next;
+    return 2;
+  }
+  // case 3. --boolean-key
+  result_k = s;
+  result_v = "1";
+  return 1;
+}
+
+const TargetKindNode::ValueTypeInfo& TargetInternal::FindTypeInfo(const TargetKind& kind,
+                                                                  const std::string& key) {
+  auto it = kind->key2vtype_.find(key);
+  if (it == kind->key2vtype_.end()) {
+    std::ostringstream os;
+    os << ": Cannot recognize \'" << key << "\'. Candidates are: ";
+    bool is_first = true;
+    for (const auto& kv : kind->key2vtype_) {
+      if (is_first) {
+        is_first = false;
+      } else {
+        os << ", ";
+      }
+      os << kv.first;
+    }
+    throw dmlc::Error(os.str());
+  }
+  return it->second;
+}
+
+/**********  Parsing  **********/
+
+ObjectRef TargetInternal::ParseType(const std::string& str,
+                                    const TargetKindNode::ValueTypeInfo& info) {
+  std::istringstream is(str);
+  if (info.type_index == Integer::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+    // Parsing integer
+    int v;
+    if (!(is >> v)) {
+      throw dmlc::Error(": Cannot parse into type \"Integer\" from string: " + str);
+    }
+    return Integer(v);
+  } else if (info.type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+    // Parsing string
+    std::string v;
+    if (!(is >> v)) {
+      throw dmlc::Error(": Cannot parse into type \"String\" from string: " + str);
+    }
+    return String(v);
+  } else if (info.type_index == Target::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+    // Parsing target
+    return Target(TargetInternal::FromString(str));
+  } else if (info.type_index == ArrayNode::_GetOrAllocRuntimeTypeIndex()) {
+    // Parsing array
+    std::vector<ObjectRef> result;
+    for (std::string substr; std::getline(is, substr, ',');) {
+      try {
+        ObjectRef parsed = TargetInternal::ParseType(substr, *info.key);
+        result.push_back(parsed);
+      } catch (const dmlc::Error& e) {
+        std::string index = "[" + std::to_string(result.size()) + "]";
+        throw dmlc::Error(index + e.what());
+      }
+    }
+    return Array<ObjectRef>(result);
+  }
+  throw dmlc::Error(": Unsupported type \"" + info.type_key + "\" for parsing from string: " + str);
+}
+
+ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
+                                    const TargetKindNode::ValueTypeInfo& info) {
+  if (info.type_index == Integer::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+    // Parsing integer
+    return GetRef<Integer>(ObjTypeCheck<IntImmNode>(obj, "Integer"));
+  } else if (info.type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+    // Parsing string
+    return GetRef<String>(ObjTypeCheck<StringObj>(obj, "String"));
+  } else if (info.type_index == Target::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+    // Parsing target
+    if (const auto* ptr = obj.as<TargetNode>()) {
+      return GetRef<Target>(ptr);
+    } else if (const auto* ptr = obj.as<StringObj>()) {
+      return Target(TargetInternal::FromString(GetRef<String>(ptr)));
+    } else if (const auto* ptr = obj.as<MapNode>()) {
+      for (const auto& kv : *ptr) {
+        if (!kv.first->IsInstance<StringObj>()) {
+          throw dmlc::Error(": Target object requires key of dict to be str, but get: " +
+                            kv.first->GetTypeKey());
+        }
+      }
+      Map<String, ObjectRef> config = GetRef<Map<String, ObjectRef>>(ptr);
+      return Target(TargetInternal::FromConfig({config.begin(), config.end()}));
+    }
+    throw dmlc::Error(": Expect type 'dict' or 'str' to construct Target, but get: " +
+                      obj->GetTypeKey());
+  } else if (info.type_index == ArrayNode::_GetOrAllocRuntimeTypeIndex()) {
+    // Parsing array
+    const auto* array = ObjTypeCheck<ArrayNode>(obj, "Array");
+    std::vector<ObjectRef> result;
+    for (const ObjectRef& e : *array) {
+      try {
+        result.push_back(TargetInternal::ParseType(e, *info.key));
+      } catch (const dmlc::Error& e) {
+        std::string index = '[' + std::to_string(result.size()) + ']';
+        throw dmlc::Error(index + e.what());
+      }
+    }
+    return Array<ObjectRef>(result);
+  } else if (info.type_index == MapNode::_GetOrAllocRuntimeTypeIndex()) {
+    // Parsing map
+    const auto* map = ObjTypeCheck<MapNode>(obj, "Map");
+    std::unordered_map<ObjectRef, ObjectRef, ObjectHash, ObjectEqual> result;
+    for (const auto& kv : *map) {
+      ObjectRef key, val;
+      try {
+        key = TargetInternal::ParseType(kv.first, *info.key);
+      } catch (const dmlc::Error& e) {
+        std::ostringstream os;
+        os << "'s key \"" << key << "\"" << e.what();
+        throw dmlc::Error(os.str());
+      }
+      try {
+        val = TargetInternal::ParseType(kv.second, *info.val);
+      } catch (const dmlc::Error& e) {
+        std::ostringstream os;
+        os << "[\"" << key << "\"]" << e.what();
+        throw dmlc::Error(os.str());
+      }
+      result[key] = val;
+    }
+    return Map<ObjectRef, ObjectRef>(result);
+  }
+  if (info.type_index != obj->type_index()) {
+    std::ostringstream os;
+    os << ": Parsing type \"" << info.type_key
+       << "\" is not supported for the given object of type \"" << obj->GetTypeKey()
+       << "\". The object is: " << obj;
+    throw dmlc::Error(os.str());
+  }
+  return obj;
+}
+
+/**********  Stringifying  **********/
+
+static inline Optional<String> StringifyAtomicType(const ObjectRef& obj) {
+  if (const auto* p = obj.as<IntImmNode>()) {
+    return String(std::to_string(p->value));
+  }
+  if (const auto* p = obj.as<StringObj>()) {
+    return GetRef<String>(p);
+  }
+  return NullOpt;
+}
+
+Optional<String> TargetInternal::StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) {
   std::ostringstream os;
   std::vector<String> keys;
   for (const auto& kv : attrs) {
@@ -225,35 +325,52 @@ Optional<String> TargetNode::StringifyAttrsToRaw(const Map<String, ObjectRef>& a
   return JoinString(result, ' ');
 }
 
-Target Target::CreateTarget(const std::string& name, const std::vector<std::string>& options) {
-  TargetKind kind = TargetKind::Get(name);
-  ObjectPtr<TargetNode> target = make_object<TargetNode>();
-  target->kind = kind;
-  // tag is always empty
-  target->tag = "";
-  // parse attrs
-  target->attrs = target->ParseAttrsFromRaw(options);
-  String device_name = target->GetAttr<String>("device", "").value();
-  // set up keys
-  {
-    std::vector<String> keys;
-    // user provided keys
-    if (Optional<Array<String>> user_keys = target->GetAttr<Array<String>>("keys")) {
-      keys = std::vector<String>(user_keys.value().begin(), user_keys.value().end());
-      target->attrs.erase("keys");
+const std::string& TargetNode::str() const {
+  if (str_repr_.empty()) {
+    std::ostringstream os;
+    os << kind->name;
+    if (!this->keys.empty()) {
+      os << " -keys=";
+      bool is_first = true;
+      for (const String& s : keys) {
+        if (is_first) {
+          is_first = false;
+        } else {
+          os << ',';
+        }
+        os << s;
+      }
     }
-    // add `device_name`
-    if (!device_name.empty()) {
-      keys.push_back(device_name);
+    if (Optional<String> attrs_str = TargetInternal::StringifyAttrsToRaw(attrs)) {
+      os << ' ' << attrs_str.value();
     }
-    // add default keys
-    for (const auto& key : target->kind->default_keys) {
-      keys.push_back(key);
-    }
-    // de-duplicate keys
-    target->keys = DeduplicateKeys(keys);
+    str_repr_ = os.str();
   }
-  return Target(target);
+  return str_repr_;
+}
+
+/**********  Small member methods  **********/
+
+Target::Target(const String& tag_or_config_or_target_str) {
+  ObjectPtr<Object> target;
+  try {
+    target = TargetInternal::FromString(tag_or_config_or_target_str);
+  } catch (const dmlc::Error& e) {
+    LOG(FATAL) << "ValueError" << e.what()
+               << ". Target creation from string failed: " << tag_or_config_or_target_str;
+  }
+  data_ = std::move(target);
+}
+
+Target::Target(const Map<String, ObjectRef>& config) {
+  ObjectPtr<Object> target;
+  try {
+    target = TargetInternal::FromConfig({config.begin(), config.end()});
+  } catch (const dmlc::Error& e) {
+    LOG(FATAL) << "ValueError" << e.what()
+               << ". Target creation from config dict failed: " << config;
+  }
+  data_ = std::move(target);
 }
 
 std::vector<std::string> TargetNode::GetKeys() const {
@@ -288,202 +405,10 @@ Map<String, ObjectRef> TargetNode::Export() const {
   return result;
 }
 
-const std::string& TargetNode::str() const {
-  if (str_repr_.empty()) {
-    std::ostringstream os;
-    os << kind->name;
-    if (!this->keys.empty()) {
-      os << " -keys=";
-      bool is_first = true;
-      for (const String& s : keys) {
-        if (is_first) {
-          is_first = false;
-        } else {
-          os << ',';
-        }
-        os << s;
-      }
-    }
-    if (Optional<String> attrs_str = this->StringifyAttrsToRaw(attrs)) {
-      os << ' ' << attrs_str.value();
-    }
-    str_repr_ = os.str();
-  }
-  return str_repr_;
-}
-
-bool StartsWith(const std::string& str, const std::string& pattern) {
-  return str.compare(0, pattern.length(), pattern) == 0;
-}
-
-Target Target::Create(const String& target_str) {
-  std::vector<std::string> splits;
-  std::istringstream is(target_str);
-  for (std::string s; is >> s; splits.push_back(s)) {
-  }
-  CHECK(!splits.empty()) << "ValueError: Cannot parse empty target string: \"" << target_str
-                         << "\"";
-  return CreateTarget(splits[0], {splits.begin() + 1, splits.end()});
-}
-
-ObjectRef TargetNode::ParseAttr(const ObjectRef& obj,
-                                const TargetKindNode::ValueTypeInfo& info) const {
-  if (info.type_index == Integer::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-    const auto* v = obj.as<IntImmNode>();
-    CHECK(v != nullptr) << "Expect type 'int', but get: " << obj->GetTypeKey();
-    return GetRef<Integer>(v);
-  }
-  if (info.type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-    const auto* v = obj.as<StringObj>();
-    CHECK(v != nullptr) << "Expect type 'str', but get: " << obj->GetTypeKey();
-    return GetRef<String>(v);
-  }
-  if (info.type_index == Target::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-    CHECK(obj->IsInstance<MapNode>())
-        << "Expect type 'dict' to construct Target, but get: " << obj->GetTypeKey();
-    return Target::FromConfig(Downcast<Map<String, ObjectRef>>(obj));
-  }
-  if (info.type_index == ArrayNode::_GetOrAllocRuntimeTypeIndex()) {
-    CHECK(obj->IsInstance<ArrayNode>()) << "Expect type 'list', but get: " << obj->GetTypeKey();
-    Array<ObjectRef> array = Downcast<Array<ObjectRef>>(obj);
-    std::vector<ObjectRef> result;
-    int i = 0;
-    for (const ObjectRef& e : array) {
-      ++i;
-      try {
-        result.push_back(TargetNode::ParseAttr(e, *info.key));
-      } catch (const dmlc::Error& e) {
-        LOG(FATAL) << "Error occurred when parsing element " << i << " of the array: " << array
-                   << ". Details:\n"
-                   << e.what();
-      }
-    }
-    return Array<ObjectRef>(result);
-  }
-  if (info.type_index == MapNode::_GetOrAllocRuntimeTypeIndex()) {
-    CHECK(obj->IsInstance<MapNode>()) << "Expect type 'dict', but get: " << obj->GetTypeKey();
-    std::unordered_map<ObjectRef, ObjectRef, ObjectHash, ObjectEqual> result;
-    for (const auto& kv : Downcast<Map<ObjectRef, ObjectRef>>(obj)) {
-      ObjectRef key, val;
-      try {
-        key = TargetNode::ParseAttr(kv.first, *info.key);
-      } catch (const tvm::Error& e) {
-        LOG(FATAL) << "Error occurred when parsing a key of the dict: " << kv.first
-                   << ". Details:\n"
-                   << e.what();
-      }
-      try {
-        val = TargetNode::ParseAttr(kv.second, *info.val);
-      } catch (const tvm::Error& e) {
-        LOG(FATAL) << "Error occurred when parsing a value of the dict: " << kv.second
-                   << ". Details:\n"
-                   << e.what();
-      }
-      result[key] = val;
-    }
-    return Map<ObjectRef, ObjectRef>(result);
-  }
-  LOG(FATAL) << "Unsupported type registered: \"" << info.type_key
-             << "\", and the type given is: " << obj->GetTypeKey();
-  throw;
-}
-
-Target Target::FromConfig(const Map<String, ObjectRef>& config_dict) {
-  const String kKind = "kind";
-  const String kTag = "tag";
-  const String kKeys = "keys";
-  const String kDeviceName = "device";
-  std::unordered_map<std::string, ObjectRef> config(config_dict.begin(), config_dict.end());
-  ObjectPtr<TargetNode> target = make_object<TargetNode>();
-  // parse 'kind'
-  if (config.count(kKind)) {
-    const auto* kind = config[kKind].as<StringObj>();
-    CHECK(kind != nullptr) << "AttributeError: Expect type of field 'kind' is string, but get: "
-                           << config[kKind]->GetTypeKey();
-    target->kind = TargetKind::Get(GetRef<String>(kind));
-    config.erase(kKind);
-  } else {
-    LOG(FATAL) << "AttributeError: Field 'kind' is not found";
-  }
-  // parse "tag"
-  if (config.count(kTag)) {
-    const auto* tag = config[kTag].as<StringObj>();
-    CHECK(tag != nullptr) << "AttributeError: Expect type of field 'tag' is string, but get: "
-                          << config[kTag]->GetTypeKey();
-    target->tag = GetRef<String>(tag);
-    config.erase(kTag);
-  } else {
-    target->tag = "";
-  }
-  // parse "keys"
-  if (config.count(kKeys)) {
-    std::vector<String> keys;
-    // user provided keys
-    const auto* cfg_keys = config[kKeys].as<ArrayNode>();
-    CHECK(cfg_keys != nullptr)
-        << "AttributeError: Expect type of field 'keys' is an Array, but get: "
-        << config[kKeys]->GetTypeKey();
-    for (const ObjectRef& e : *cfg_keys) {
-      const auto* key = e.as<StringObj>();
-      CHECK(key != nullptr) << "AttributeError: Expect 'keys' to be an array of strings, but it "
-                               "contains an element of type: "
-                            << e->GetTypeKey();
-      keys.push_back(GetRef<String>(key));
-    }
-    // add device name
-    if (config_dict.count(kDeviceName)) {
-      if (const auto* device = config_dict.at(kDeviceName).as<StringObj>()) {
-        keys.push_back(GetRef<String>(device));
-      }
-    }
-    // add default keys
-    for (const auto& key : target->kind->default_keys) {
-      keys.push_back(key);
-    }
-    // de-duplicate keys
-    target->keys = DeduplicateKeys(keys);
-    config.erase(kKeys);
-  } else {
-    target->keys = {};
-  }
-  // parse attrs
-  std::unordered_map<String, ObjectRef> attrs;
-  const auto& key2vtype = target->kind->key2vtype_;
-  for (const auto& cfg_kv : config) {
-    const String& name = cfg_kv.first;
-    const ObjectRef& obj = cfg_kv.second;
-    if (!key2vtype.count(name)) {
-      std::ostringstream os;
-      os << "AttributeError: Unrecognized config option: \"" << name << "\". Candidates are:";
-      for (const auto& kv : key2vtype) {
-        os << " " << kv.first;
-      }
-      LOG(FATAL) << os.str();
-    }
-    ObjectRef val;
-    try {
-      val = target->ParseAttr(obj, key2vtype.at(name));
-    } catch (const dmlc::Error& e) {
-      LOG(FATAL) << "AttributeError: Error occurred in parsing the config key \"" << name
-                 << "\". Details:\n"
-                 << e.what();
-    }
-    attrs[name] = val;
-  }
-  // set default attribute values if they do not exist
-  for (const auto& kv : target->kind->key2default_) {
-    if (!attrs.count(kv.first)) {
-      attrs[kv.first] = kv.second;
-    }
-  }
-  target->attrs = attrs;
-  return Target(target);
-}
-
 /*! \brief Entry to hold the Target context stack. */
 struct TVMTargetThreadLocalEntry {
   /*! \brief The current target context */
-  std::stack<tvm::Target> context_stack;
+  std::stack<Target> context_stack;
 };
 
 /*! \brief Thread local store to hold the Target context stack. */
@@ -501,7 +426,7 @@ void Target::ExitWithScope() {
   entry->context_stack.pop();
 }
 
-tvm::Target Target::Current(bool allow_not_defined) {
+Target Target::Current(bool allow_not_defined) {
   TVMTargetThreadLocalEntry* entry = TVMTargetThreadLocalStore::Get();
   if (entry->context_stack.size() > 0) {
     return entry->context_stack.top();
@@ -512,89 +437,194 @@ tvm::Target Target::Current(bool allow_not_defined) {
   return Target();
 }
 
-class Target::Internal {
- public:
-  static void EnterScope(Target target) { target.EnterWithScope(); }
-  static void ExitScope(Target target) { target.ExitWithScope(); }
-};
+/**********  Creation  **********/
 
-TVM_REGISTER_GLOBAL("target.TargetCreate").set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string name = args[0];
-  std::vector<std::string> options;
-  for (int i = 1; i < args.num_args; ++i) {
-    std::string arg = args[i];
-    options.push_back(arg);
+void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
+  if (args.num_args == 1) {
+    const auto& arg = args[0];
+    if (arg.IsObjectRef<Target>()) {
+      *rv = Target(arg.AsObjectRef<Target>());
+    } else if (String::CanConvertFrom(arg)) {
+      *rv = Target(arg.operator String());
+    } else if (arg.IsObjectRef<Map<String, ObjectRef>>()) {
+      *rv = Target(arg.operator Map<String, ObjectRef>());
+    } else if (arg.type_code() == kTVMObjectHandle) {
+      ObjectRef obj = arg;
+      LOG(FATAL) << "TypeError: Cannot create target with type: " << obj->GetTypeKey();
+    } else {
+      LOG(FATAL) << "TypeError: Cannot create target with type: "
+                 << runtime::ArgTypeCode2Str(arg.type_code());
+    }
+    return;
   }
+  LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1, but gets: " << args.num_args;
+}
 
-  *ret = Target::CreateTarget(name, options);
-});
+ObjectPtr<Object> TargetInternal::FromString(const String& tag_or_config_or_target_str) {
+  if (Optional<Target> target = TargetTag::Get(tag_or_config_or_target_str)) {
+    Target value = target.value();
+    return runtime::ObjectInternal::MoveObjectPtr(&value);
+  }
+  if (!tag_or_config_or_target_str.empty() && tag_or_config_or_target_str.data()[0] == '{') {
+    return TargetInternal::FromConfigString(tag_or_config_or_target_str);
+  }
+  return TargetInternal::FromRawString(tag_or_config_or_target_str);
+}
 
-TVM_REGISTER_GLOBAL("target.EnterTargetScope").set_body_typed(Target::Internal::EnterScope);
+ObjectPtr<Object> TargetInternal::FromConfigString(const String& config_str) {
+  const auto* loader = tvm::runtime::Registry::Get("target._load_config_dict");
+  CHECK(loader) << "AttributeError: \"target._load_config_dict\" is not registered. Please check "
+                   "if the python module is properly loaded";
+  Optional<Map<String, ObjectRef>> config = (*loader)(config_str);
+  if (!config.defined()) {
+    throw dmlc::Error(": Cannot load config dict with python JSON loader");
+  }
+  return TargetInternal::FromConfig({config.value().begin(), config.value().end()});
+}
 
-TVM_REGISTER_GLOBAL("target.ExitTargetScope").set_body_typed(Target::Internal::ExitScope);
+ObjectPtr<Object> TargetInternal::FromRawString(const String& target_str) {
+  // Split the string by empty spaces
+  std::string name;
+  std::vector<std::string> options;
+  std::string str;
+  for (std::istringstream is(target_str); is >> str;) {
+    if (name.empty()) {
+      name = str;
+    } else {
+      options.push_back(str);
+    }
+  }
+  if (name.empty()) {
+    throw dmlc::Error(": Cannot parse empty target string");
+  }
+  // Create the target config
+  std::unordered_map<String, ObjectRef> config = {{"kind", String(name)}};
+  TargetKind kind = GetTargetKind(name);
+  for (size_t iter = 0, end = options.size(); iter < end;) {
+    std::string key, value;
+    try {
+      // Parse key-value pair
+      std::string s_next = (iter + 1 < options.size()) ? options[iter + 1] : "";
+      iter += ParseKVPair(RemovePrefixDashes(options[iter]), s_next, &key, &value);
+    } catch (const dmlc::Error& e) {
+      throw dmlc::Error(": Error when parsing target" + std::string(e.what()));
+    }
+    try {
+      // check if `key` has been used
+      if (config.count(key)) {
+        throw dmlc::Error(": The key \"" + key + "\" appears more than once");
+      }
+      config[key] = TargetInternal::ParseType(value, TargetInternal::FindTypeInfo(kind, key));
+    } catch (const dmlc::Error& e) {
+      throw dmlc::Error(": Error when parsing target[\"" + key + "\"]" + e.what());
+    }
+  }
+  return TargetInternal::FromConfig(config);
+}
 
-TVM_REGISTER_GLOBAL("target.GetCurrentTarget").set_body_typed(Target::Current);
+ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRef> config) {
+  const String kKind = "kind";
+  const String kTag = "tag";
+  const String kKeys = "keys";
+  const String kDeviceName = "device";
+  ObjectPtr<TargetNode> target = make_object<TargetNode>();
+  // parse 'kind'
+  if (config.count(kKind)) {
+    if (const auto* kind = config[kKind].as<StringObj>()) {
+      target->kind = GetTargetKind(GetRef<String>(kind));
+      config.erase(kKind);
+    } else {
+      throw dmlc::Error(": Expect type of field \"kind\" is String, but get type: " +
+                        config[kKind]->GetTypeKey());
+    }
+  } else {
+    throw dmlc::Error(": Field \"kind\" is not found");
+  }
+  // parse "tag"
+  if (config.count(kTag)) {
+    if (const auto* tag = config[kTag].as<StringObj>()) {
+      target->tag = GetRef<String>(tag);
+      config.erase(kTag);
+    } else {
+      throw dmlc::Error(": Expect type of field \"tag\" is String, but get type: " +
+                        config[kTag]->GetTypeKey());
+    }
+  } else {
+    target->tag = "";
+  }
+  // parse "keys"
+  {
+    std::vector<String> keys;
+    if (config.count(kKeys)) {
+      // user provided keys
+      if (const auto* cfg_keys = config[kKeys].as<ArrayNode>()) {
+        for (const ObjectRef& e : *cfg_keys) {
+          if (const auto* key = e.as<StringObj>()) {
+            keys.push_back(GetRef<String>(key));
+          } else {
+            throw dmlc::Error(
+                ": Expect 'keys' to be an array of strings, but it "
+                "contains an element of type: " +
+                e->GetTypeKey());
+          }
+        }
+      } else {
+        throw dmlc::Error(": Expect type of field \"keys\" is Array, but get type: " +
+                          config[kKeys]->GetTypeKey());
+      }
+    }
+    // add device name
+    if (config.count(kDeviceName)) {
+      if (const auto* device = config.at(kDeviceName).as<StringObj>()) {
+        keys.push_back(GetRef<String>(device));
+      }
+    }
+    // add default keys
+    for (const auto& key : target->kind->default_keys) {
+      keys.push_back(key);
+    }
+    // de-duplicate keys
+    target->keys = DeduplicateKeys(keys);
+    config.erase(kKeys);
+  }
+  // parse attrs
+  std::unordered_map<String, ObjectRef> attrs;
+  for (const auto& cfg_kv : config) {
+    const String& key = cfg_kv.first;
+    const ObjectRef& value = cfg_kv.second;
+    try {
+      const TargetKindNode::ValueTypeInfo& info = TargetInternal::FindTypeInfo(target->kind, key);
+      attrs[key] = TargetInternal::ParseType(value, info);
+    } catch (const dmlc::Error& e) {
+      throw dmlc::Error(": Error when parsing target[\"" + key + "\"]" + e.what());
+    }
+  }
+  // set default attribute values if they do not exist
+  for (const auto& kv : target->kind->key2default_) {
+    if (!attrs.count(kv.first)) {
+      attrs[kv.first] = kv.second;
+    }
+  }
+  // do extra pre-processing
+  if (target->kind->preprocessor != nullptr) {
+    target->attrs = target->kind->preprocessor(Map<String, ObjectRef>(attrs));
+  } else {
+    target->attrs = attrs;
+  }
+  return target;
+}
 
-TVM_REGISTER_GLOBAL("target.TargetFromString").set_body_typed(Target::Create);
+/**********  Registry  **********/
 
-TVM_REGISTER_GLOBAL("target.TargetFromConfig").set_body_typed(Target::FromConfig);
-
-TVM_REGISTER_GLOBAL("target.TargetExport")
-    .set_body_typed([](Target target) -> Map<String, ObjectRef> { return target->Export(); });
+TVM_REGISTER_GLOBAL("target.Target").set_body(TargetInternal::ConstructorDispatcher);
+TVM_REGISTER_GLOBAL("target.TargetEnterScope").set_body_typed(TargetInternal::EnterScope);
+TVM_REGISTER_GLOBAL("target.TargetExitScope").set_body_typed(TargetInternal::ExitScope);
+TVM_REGISTER_GLOBAL("target.TargetCurrent").set_body_typed(Target::Current);
+TVM_REGISTER_GLOBAL("target.TargetExport").set_body_typed(TargetInternal::Export);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<TargetNode>([](const ObjectRef& node, ReprPrinter* p) {
-      const auto* target = node.as<TargetNode>();
-      CHECK(target);
-      p->stream << target->str();
+    .set_dispatch<TargetNode>([](const ObjectRef& obj, ReprPrinter* p) {
+      p->stream << Downcast<Target>(obj)->str();
     });
 
-namespace target {
-std::vector<std::string> MergeOptions(std::vector<std::string> opts,
-                                      const std::vector<std::string>& new_opts) {
-  opts.insert(opts.end(), new_opts.begin(), new_opts.end());
-  return opts;
-}
-
-Target llvm(const std::vector<std::string>& options) {
-  return Target::CreateTarget("llvm", options);
-}
-
-Target cuda(const std::vector<std::string>& options) {
-  return Target::CreateTarget("cuda", options);
-}
-
-Target rocm(const std::vector<std::string>& options) {
-  return Target::CreateTarget("rocm", options);
-}
-
-Target opencl(const std::vector<std::string>& options) {
-  return Target::CreateTarget("opencl", options);
-}
-
-Target metal(const std::vector<std::string>& options) {
-  return Target::CreateTarget("metal", options);
-}
-
-Target mali(const std::vector<std::string>& options) {
-  return Target::CreateTarget("opencl", MergeOptions(options, {"-device=mali"}));
-}
-
-Target intel_graphics(const std::vector<std::string>& options) {
-  return Target::CreateTarget(
-      "opencl", MergeOptions(options, {"-device=intel_graphics", "-thread_warp_size=16"}));
-}
-
-Target stackvm(const std::vector<std::string>& options) {
-  return Target::CreateTarget("stackvm", options);
-}
-
-Target ext_dev(const std::vector<std::string>& options) {
-  return Target::CreateTarget("ext_dev", options);
-}
-
-Target hexagon(const std::vector<std::string>& options) {
-  return Target::CreateTarget("hexagon", options);
-}
-}  // namespace target
 }  // namespace tvm

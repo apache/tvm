@@ -63,22 +63,6 @@ inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
   return fmap;
 }
 
-inline void UpdateTargetConfigKeyValueEntry(const String& key, const String& value,
-                                            Map<String, ObjectRef>* target_config,
-                                            bool error_if_inconsistent) {
-  if (target_config->count(key)) {
-    const ObjectRef& obj = (*target_config)[key];
-    CHECK(obj->IsInstance<StringObj>()) << "TypeError: Expect target key \"" << key
-                                        << "\" to be String, but gets type: " << obj->GetTypeKey();
-    if (error_if_inconsistent) {
-      String old_value = Downcast<String>(obj);
-      CHECK_EQ(old_value, value) << "ValueError: Target key \"" << key << "\" has been set to \""
-                                 << old_value << "\", and cannot be reset to \"" << value << "\"";
-    }
-  }
-  target_config->Set(key, value);
-}
-
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_TARGET_BUILD_COMMON_H_
