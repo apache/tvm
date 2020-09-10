@@ -2925,6 +2925,35 @@ def test_logsumexp():
     verify_model(Logsumexp(1, keepdim=True), input_data=input_data.double())
 
 
+def test_stack():
+    class Stack(torch.nn.Module):
+        def __init__(self, axis=0):
+            super().__init__()
+            self.axis = axis
+
+        def forward(self, x):
+            return torch.stack((x, x), dim=self.axis)
+
+    inp = torch.randn(8, 8, 8)
+    verify_model(Stack(), input_data=inp)
+    verify_model(Stack(axis=-1), input_data=inp)
+    verify_model(Stack(axis=3), input_data=inp)
+    verify_model(Stack(axis=-4), input_data=inp)
+
+
+def test_stack_dynamic():
+    class Stack(torch.nn.Module):
+        def forward(self, x):
+            tensor_list = []
+            for i in range(x.size(0)):
+                # this is a workaround to avoid generating impure aten::append op
+                tensor_list += [x[i]]
+            # relay tensor array only supports stacking on the first axis
+            return torch.stack(tensor_list, dim=0)
+
+    verify_script_model(Stack(), [(8, 8, 8)], _get_default_vm_targets())
+
+
 def test_forward_pretrained_bert_base_uncased():
     ######################################################################
     # This is an example how to run BERT models using TVM
@@ -3169,6 +3198,8 @@ if __name__ == "__main__":
     test_forward_index()
     test_min_max()
     test_logsumexp()
+    test_stack()
+    test_stack_dynamic()
 
     # Model tests
     test_resnet18()

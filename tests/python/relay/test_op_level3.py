@@ -714,6 +714,7 @@ def test_stack():
     verify_stack([(2,), (2,), (2,)], 0)
     verify_stack([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1)
     verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1)
+    verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], 4)
 
 
 @tvm.testing.uses_gpu
@@ -998,7 +999,7 @@ def test_isfinite():
 def test_isinf():
     _verify_infiniteness_ops(relay.isinf, np.isinf)
 
-    
+
 @tvm.testing.uses_gpu
 def test_unravel_index():
     def verify_unravel_index(indices, shape, dtype):
