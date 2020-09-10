@@ -27,24 +27,28 @@ _argwhere_schedule = {
     "gpu": topi.cuda.schedule_argwhere,
 }
 
+_argwhere_compute = {
+    "llvm": topi.argwhere,
+    "cuda": topi.cuda.argwhere
+}
+
 def verify_argwhere(data_shape):
     dtype = "int32"
-    np_data = np.random.randint(5, size=data_shape).astype(dtype)
-    np_out = np.argwhere(np_data > 0)
+    np_data = np.random.choice([0, 1, 2, 3], size=data_shape).astype(dtype)
+    np_out = np.argwhere(np_data)
     out_shape = np_out.shape[0]
     np_shape = np.ones(shape=(out_shape, len(data_shape)), dtype=dtype)
 
     out_shape = te.placeholder(shape=(out_shape, len(data_shape)),
                                name="out_shape", dtype=dtype)
     condition = te.placeholder(shape=data_shape, name="condition", dtype=dtype)
-    out = topi.argwhere(out_shape, condition)
 
     def check_device(device, ctx):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
+        if not ctx.exist or device not in _argwhere_compute:
             return
 
+        out = _argwhere_compute[device](out_shape, condition)
         with tvm.target.create(device):
             s_func = tvm.topi.testing.dispatch(device, _argwhere_schedule)
             sch = s_func(out)
@@ -65,9 +69,11 @@ def verify_argwhere(data_shape):
 @tvm.testing.uses_gpu
 def test_argwhere():
     verify_argwhere((1,))
-    verify_argwhere((5,))
+    verify_argwhere((100,))
     verify_argwhere((5, 3))
+    verify_argwhere((100, 100))
     verify_argwhere((6, 5, 3))
+    verify_argwhere((32, 32, 16))
     verify_argwhere((6, 4, 5, 3))
     verify_argwhere((6, 4, 5, 3, 7))
 
