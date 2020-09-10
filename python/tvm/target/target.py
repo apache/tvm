@@ -22,6 +22,7 @@ import warnings
 import tvm._ffi
 
 from tvm.runtime import Object
+from tvm._ffi import register_func as _register_func
 from . import _ffi_api
 
 
@@ -37,9 +38,8 @@ class Target(Object):
 
     Note
     ----
-    Do not use class constructor, you can create target using the following functions
+    You can create target using the constructor or the following functions
 
-    - :py:func:`tvm.target.create` create target from string
     - :py:func:`tvm.target.arm_cpu` create arm_cpu target
     - :py:func:`tvm.target.cuda` create CUDA target
     - :py:func:`tvm.target.rocm` create ROCM target
@@ -47,12 +47,58 @@ class Target(Object):
     - :py:func:`tvm.target.intel_graphics` create Intel Graphics target
     """
 
+    def __init__(self, tag_or_str_or_dict):
+        """Construct a TVM target object from
+        1) Raw target string
+        2) Target config dict
+        3) Target tag
+
+        Parameters
+        ----------
+        tag_or_str_or_dict : Union[str, Dict[str, Any]]
+            Can be one of a literal target string, a json string describing
+            a configuration, or a dictionary of configuration options.
+            When using a dictionary or json string to configure target, the
+            possible values are:
+
+            kind :  str (required)
+                Which codegen path to use, for example 'llvm' or 'cuda'.
+            keys : List of str (optional)
+                A set of strategies that can be dispatched to. When using
+                "kind=opencl" for example, one could set keys to ["mali", "opencl", "gpu"].
+            device : str (optional)
+                A single key that corresponds to the actual device being run on.
+                This will be effectively appended to the keys.
+            libs : List of str (optional)
+                The set of external libraries to use. For example ['cblas', 'mkl'].
+            system-lib : bool (optional)
+                If True, build a module that contains self registered functions.
+                Useful for environments where dynamic loading like dlopen is banned.
+            mcpu : str (optional)
+                The specific cpu being run on. Serves only as an annotation.
+            model : str (optional)
+                An annotation indicating what model a workload came from.
+            runtime : str (optional)
+                An annotation indicating which runtime to use with a workload.
+            mtriple : str (optional)
+                The llvm triplet describing the target, for example "arm64-linux-android".
+            mattr : List of str (optional)
+                The llvm features to compile with, for example ["+avx512f", "+mmx"].
+            mfloat-abi : str (optional)
+                An llvm setting that is one of 'hard' or 'soft' indicating whether to use
+                hardware or software floating-point operations.
+        """
+        if not isinstance(tag_or_str_or_dict, (dict, str, Target)):
+            raise ValueError("target has to be a string or dictionary.")
+        self.__init_handle_by_constructor__(
+            _ffi_api.Target, tag_or_str_or_dict)
+
     def __enter__(self):
-        _ffi_api.EnterTargetScope(self)
+        _ffi_api.TargetEnterScope(self)
         return self
 
     def __exit__(self, ptype, value, trace):
-        _ffi_api.ExitTargetScope(self)
+        _ffi_api.TargetExitScope(self)
 
     def export(self):
         return _ffi_api.TargetExport(self)
@@ -70,7 +116,7 @@ class Target(Object):
         ------
         ValueError if current target is not set.
         """
-        return _ffi_api.GetCurrentTarget(allow_none)
+        return _ffi_api.TargetCurrent(allow_none)
 
     @property
     def max_num_threads(self):
@@ -104,6 +150,8 @@ class Target(Object):
         return list(self.attrs.get("libs", []))
 
 
+# TODO(@tvm-team): Deprecate the helper functions below. Encourage the usage of config dict instead.
+
 def _merge_opts(opts, new_opts):
     """Helper function to merge options"""
     if isinstance(new_opts, str):
@@ -126,7 +174,7 @@ def cuda(model='unknown', options=None):
         Additional options
     """
     opts = _merge_opts(['-model=%s' % model], options)
-    return _ffi_api.TargetCreate("cuda", *opts)
+    return Target(" ".join(["cuda"] + opts))
 
 
 def rocm(model='unknown', options=None):
@@ -140,7 +188,7 @@ def rocm(model='unknown', options=None):
         Additional options
     """
     opts = _merge_opts(["-model=%s" % model], options)
-    return _ffi_api.TargetCreate("rocm", *opts)
+    return Target(" ".join(["rocm"] + opts))
 
 
 def mali(model='unknown', options=None):
@@ -155,7 +203,7 @@ def mali(model='unknown', options=None):
     """
     opts = ["-device=mali", '-model=%s' % model]
     opts = _merge_opts(opts, options)
-    return _ffi_api.TargetCreate("opencl", *opts)
+    return Target(" ".join(["opencl"] + opts))
 
 
 def intel_graphics(model='unknown', options=None):
@@ -171,7 +219,7 @@ def intel_graphics(model='unknown', options=None):
     opts = ["-device=intel_graphics", "-model=%s" %
             model, "-thread_warp_size=16"]
     opts = _merge_opts(opts, options)
-    return _ffi_api.TargetCreate("opencl", *opts)
+    return Target(" ".join(["opencl"] + opts))
 
 
 def arm_cpu(model='unknown', options=None):
@@ -204,7 +252,7 @@ def arm_cpu(model='unknown', options=None):
 
     opts = ["-device=arm_cpu"] + pre_defined_opt
     opts = _merge_opts(opts, options)
-    return _ffi_api.TargetCreate("llvm", *opts)
+    return Target(" ".join(["llvm"] + opts))
 
 
 def rasp(options=None):
@@ -223,8 +271,7 @@ def rasp(options=None):
 def vta(model='unknown', options=None):
     opts = ["-device=vta", '-keys=vta,cpu', '-model=%s' % model]
     opts = _merge_opts(opts, options)
-    ret = _ffi_api.TargetCreate("ext_dev", *opts)
-    return ret
+    return Target(" ".join(["ext_dev"] + opts))
 
 
 def bifrost(model='unknown', options=None):
@@ -237,7 +284,7 @@ def bifrost(model='unknown', options=None):
     """
     opts = ["-device=bifrost", '-model=%s' % model]
     opts = _merge_opts(opts, options)
-    return _ffi_api.TargetCreate("opencl", *opts)
+    return Target(" ".join(["opencl"] + opts))
 
 
 def hexagon(cpu_ver='v66', sim_args=None, llvm_args=None, hvx=128):
@@ -348,66 +395,26 @@ def hexagon(cpu_ver='v66', sim_args=None, llvm_args=None, hvx=128):
     llvm_str = create_llvm(llvm_args)
     args_list = target_str.split() + llvm_str.split()
 
-    return _ffi_api.TargetCreate('hexagon', *args_list)
+    return Target(" ".join(["hexagon"] + args_list))
 
 
 def create(target):
-    """Get a target given target string.
-
-    Parameters
-    ----------
-    target : str or dict
-        Can be one of a literal target string, a json string describing
-        a configuration, or a dictionary of configuration options.
-        When using a dictionary or json string to configure target, the
-        possible values are:
-
-        kind :  str (required)
-            Which codegen path to use, for example 'llvm' or 'cuda'.
-        keys : List of str (optional)
-            A set of strategies that can be dispatched to. When using
-            "kind=opencl" for example, one could set keys to ["mali", "opencl", "gpu"].
-        device : str (optional)
-            A single key that corresponds to the actual device being run on.
-            This will be effectively appended to the keys.
-        libs : List of str (optional)
-            The set of external libraries to use. For example ['cblas', 'mkl'].
-        system-lib : bool (optional)
-            If True, build a module that contains self registered functions.
-            Useful for environments where dynamic loading like dlopen is banned.
-        mcpu : str (optional)
-            The specific cpu being run on. Serves only as an annotation.
-        model : str (optional)
-            An annotation indicating what model a workload came from.
-        runtime : str (optional)
-            An annotation indicating which runtime to use with a workload.
-        mtriple : str (optional)
-            The llvm triplet describing the target, for example "arm64-linux-android".
-        mattr : List of str (optional)
-            The llvm features to compile with, for example ["+avx512f", "+mmx"].
-        mfloat-abi : str (optional)
-            An llvm setting that is one of 'hard' or 'soft' indicating whether to use
-            hardware or software floating-point operations.
-
-    Returns
-    -------
-    target : Target
-        The target object
-
-    Note
-    ----
-    See the note on :py:mod:`tvm.target` on target string format.
+    """Deprecated. Use the constructor of :py:mod:`tvm.target.Target` directly.
     """
-    if isinstance(target, Target):
-        return target
-    if isinstance(target, dict):
-        return _ffi_api.TargetFromConfig(target)
-    if isinstance(target, str):
-        # Check if target is a valid json string by trying to load it.
-        # If we cant, then assume it is a non-json target string.
-        try:
-            return _ffi_api.TargetFromConfig(json.loads(target))
-        except json.decoder.JSONDecodeError:
-            return _ffi_api.TargetFromString(target)
+    warnings.warn(
+        'tvm.target.create() is being deprecated. Please use tvm.target.Target() instead')
+    return Target(target)
 
-    raise ValueError("target has to be a string or dictionary.")
+
+@_register_func("target._load_config_dict")
+def _load_config_dict(config_dict_str):
+    try:
+        config = json.loads(config_dict_str)
+    except json.decoder.JSONDecodeError:
+        return None
+    if not isinstance(config, dict):
+        return None
+    for key in config.keys():
+        if not isinstance(key, str):
+            return None
+    return config
