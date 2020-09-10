@@ -1767,9 +1767,11 @@ def _stack(prelude):
             return _op.stack(inputs[0], dim)
         else:
             # List ADT case
+            assert isinstance(inputs[0], _expr.Expr)
             ty = _infer_type_with_prelude(inputs[0], prelude)
             list_ty = prelude.mod.get_global_type_var("List")
-            assert ty.func == list_ty, "The input list is expected to be List ADT"
+            msg = "The input list is expected to be List ADT"
+            assert isinstance(ty, tvm.ir.TypeCall) and ty.func == list_ty, msg
             return _tensor_array_stack(prelude)(inputs, input_types)
     return _impl
 
