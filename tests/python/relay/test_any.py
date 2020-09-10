@@ -837,5 +837,33 @@ def test_any_ndarray_size():
     verify_any_ndarray_size((2, 2))
     verify_any_ndarray_size((1, 2, 3, 4))
 
+def test_any_consecutive_broadcast():
+    dtype = 'float32'
+    data0 = relay.var("data0", shape=any_dims(2), dtype=dtype)
+    data1 = relay.var("data1", shape=any_dims(2), dtype=dtype)
+    data2 = relay.var("data2", shape=any_dims(2), dtype=dtype)
+    data3 = relay.var("data3", shape=any_dims(2), dtype=dtype)
+
+    out0 = data0 + data1
+    out1 = data0 * data1
+    out2 = out0 - out1
+
+    out3 = data2 + data3
+    out4 = data2 * data3
+    out5 = out3 - out4
+
+    out6 = out2 * out5
+
+    mod = tvm.IRModule()
+    mod['main'] = relay.Function([data0, data1, data2, data3], out6)
+
+    np_data0 = np.random.uniform(size=(1, 4)).astype(dtype)
+    np_data1 = np.random.uniform(size=(2, 4)).astype(dtype)
+    np_data2 = np.random.uniform(size=(1, 4)).astype(dtype)
+    np_data3 = np.random.uniform(size=(2, 4)).astype(dtype)
+    ref_res = ((np_data0 + np_data1) - (np_data0 * np_data1)) * \
+              ((np_data2 + np_data3) - (np_data2 * np_data3))
+    check_result([np_data0, np_data1, np_data2, np_data3], mod, ref_res)
+
 if __name__ == "__main__":
     pytest.main([__file__])
