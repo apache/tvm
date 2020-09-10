@@ -435,7 +435,7 @@ def local_build_worker(index):
 
         try:
             sch, args = task.compute_dag.apply_steps_from_state(
-                inp.state)
+                inp.state, layout_rewrite=True)
         # pylint: disable=broad-except
         except Exception:
             error_no = MeasureErrorNo.INSTANTIATION_ERROR

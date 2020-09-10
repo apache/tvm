@@ -206,18 +206,28 @@ class ComputeDAG : public ObjectRef {
   TVM_DLL explicit ComputeDAG(Array<te::Tensor> tensors);
 
   /*!
+   * \brief Rewrite the layout of placeholder specified by attr `layout_free_placeholders`
+   * according to the loop nest derived with `transform_steps`.
+   * \param transform_steps Transform steps of a state.
+   */
+  void RewriteLayout(const Array<Step>& transform_steps);
+
+  /*!
    * \brief Apply the history transform steps to get a TVM schedule.
    * \param transform_steps Transform steps of a state.
    * \param stages The list of stages after applying the steps.
    * Pass a valid pointer if this information needs to be used outside this function.
    * \param stage_to_axes The map that stores all axes for one stage.
    * Pass a valid pointer if this information needs to be used outside this function.
+   * \param layout_rewrite Rewrite the layout of placeholders specified by
+   * attr `layout_free_placeholders`
    * \return A `te.schedule` and the an Array of `te.Tensor` to be used in `tvm.lower`
    * or `tvm.build`.
    */
-  std::pair<te::Schedule, Array<te::Tensor>> ApplySteps(
-      const Array<Step>& transform_steps, Array<te::Stage>* stages = nullptr,
-      StageToAxesMap* stage_to_axes = nullptr) const;
+  std::pair<te::Schedule, Array<te::Tensor>> ApplySteps(const Array<Step>& transform_steps,
+                                                        Array<te::Stage>* stages = nullptr,
+                                                        StageToAxesMap* stage_to_axes = nullptr,
+                                                        bool layout_rewrite = false) const;
 
   /*!
    * \brief Print transform steps as equivalent python schedule API.
@@ -261,6 +271,8 @@ class ComputeDAG : public ObjectRef {
    * \return The up-to-date ComputeDAG.
    */
   ComputeDAG ReplayAndGetDAG(const Array<Step>& steps) const;
+
+  static constexpr const char* layout_free_placeholders_key = "layout_free_placeholders";
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeDAG, ObjectRef, ComputeDAGNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeDAGNode);
