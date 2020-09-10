@@ -24,6 +24,7 @@ from tvm import te
 from tvm.contrib import graph_runtime, util
 from tvm import topi
 
+
 def get_simplex_graph(host_dev_type, device_dev_type):
     r""" Return the hand-crafted json object where only one copy node is
     inserted. This node copies data from the target device to cpu.
@@ -136,7 +137,7 @@ def test_simplex_data_transferring():
         tensor_a = te.placeholder(shape, name="A")
         tensor_b = te.placeholder(shape, name="B")
         elemwise_add = te.compute(shape, lambda *i: tensor_a(*i)
-                                   + tensor_b(*i), name="elemwise_add")
+                                  + tensor_b(*i), name="elemwise_add")
         target = topi.cpp.TEST_create_target(device)
         schedule_add = topi.cpp.cuda.schedule_injective(target, [elemwise_add])
         lower_add = tvm.lower(schedule_add, [tensor_a, tensor_b, elemwise_add],
@@ -150,7 +151,7 @@ def test_simplex_data_transferring():
         # Create module for sub whose target is the host.
         tensor_c = te.placeholder(shape, name="C")
         elemwise_sub = te.compute(shape, lambda *i: tensor_copy(*i)
-                                   - tensor_c(*i), name="elemwise_sub")
+                                  - tensor_c(*i), name="elemwise_sub")
         schedule_sub = te.create_schedule(elemwise_sub.op)
         lower_sub = tvm.lower(schedule_sub, [tensor_copy, tensor_c,
                                              elemwise_sub],
@@ -175,7 +176,7 @@ def test_simplex_data_transferring():
 
     dev_tar = {"cuda": "cuda", "opencl": "opencl"}
     for device, target in dev_tar.items():
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             check_device(device, target)
 
 
@@ -331,9 +332,9 @@ def test_duplex_data_transferring():
         tensor_b = te.placeholder(shape, name="B")
         tensor_d = te.placeholder(shape, name="D")
         elemwise_add0 = te.compute(shape, lambda *i: tensor_a(*i)
-                                    + tensor_b(*i), name="elemwise_add0")
+                                   + tensor_b(*i), name="elemwise_add0")
         elemwise_add1 = te.compute(shape, lambda *i: copy_sub_add(*i)
-                                    + tensor_d(*i), name="elemwise_add1")
+                                   + tensor_d(*i), name="elemwise_add1")
         target = topi.cpp.TEST_create_target(device)
         add_schedule0 = topi.cpp.cuda.schedule_injective(
             target, [elemwise_add0])
@@ -348,7 +349,7 @@ def test_duplex_data_transferring():
         # Create module for sub whose target is the host.
         tensor_c = te.placeholder(shape, name="C")
         elemwise_sub = te.compute(shape, lambda *i: copy_add_sub(*i)
-                                   - tensor_c(*i), name="elemwise_sub")
+                                  - tensor_c(*i), name="elemwise_sub")
         sub_schedule = te.create_schedule(elemwise_sub.op)
         lower_sub = tvm.lower(sub_schedule, [copy_add_sub, tensor_c,
                                              elemwise_sub],
@@ -397,8 +398,9 @@ def test_duplex_data_transferring():
 
     dev_tar = {"cuda": "cuda", "opencl": "opencl"}
     for device, target in dev_tar.items():
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             check_device(device, target)
+
 
 if __name__ == "__main__":
     test_simplex_data_transferring()

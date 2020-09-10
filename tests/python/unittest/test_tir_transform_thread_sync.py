@@ -18,6 +18,7 @@ import tvm
 from tvm import te
 import tvm.testing
 
+
 @tvm.testing.requires_cuda
 def test_thread_storage_sync():
     m = te.size_var('m')
@@ -41,18 +42,18 @@ def test_thread_storage_sync():
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.StorageFlatten(64)(mod._move())
 
-    cuda_target = tvm.target.create("cuda")
+    cuda_target = tvm.target.Target("cuda")
 
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr({
-            "global_symbol": "test", "target": cuda_target}))(mod._move())
+        "global_symbol": "test", "target": cuda_target}))(mod._move())
 
     fdevice = tvm.tir.transform.SplitHostDevice()(mod)["test_kernel0"]
     mod = tvm.IRModule.from_expr(fdevice)
-    cuda_target = tvm.target.create("cuda")
+    cuda_target = tvm.target.Target("cuda")
     f = tvm.tir.transform.ThreadSync("shared")(mod)["test_kernel0"]
     body_list = tvm.tir.stmt_list(f.body.body.body.body)
-    assert(body_list[1].value.op.same_as(tvm.ir.Op.get("tir.tvm_storage_sync")))
-
+    assert(body_list[1].value.op.same_as(
+        tvm.ir.Op.get("tir.tvm_storage_sync")))
 
 
 if __name__ == "__main__":

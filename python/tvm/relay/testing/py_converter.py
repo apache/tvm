@@ -582,7 +582,7 @@ class PythonConverter(ExprFunctor):
         pass
 
 
-def to_python(expr: Expr, mod=None, target=tvm.target.create('llvm')):
+def to_python(expr: Expr, mod=None, target=tvm.target.Target('llvm')):
     """Converts the given Relay expression into a Python script (as a Python AST object).
     For easiest debugging, import the astor package and use to_source()."""
     mod = mod if mod is not None else tvm.IRModule()
@@ -590,7 +590,7 @@ def to_python(expr: Expr, mod=None, target=tvm.target.create('llvm')):
     return converter.convert(expr)
 
 
-def run_as_python(expr: Expr, mod=None, target=tvm.target.create('llvm')):
+def run_as_python(expr: Expr, mod=None, target=tvm.target.Target('llvm')):
     """Converts the given Relay expression into a Python script and
     executes it."""
     mod = mod if mod is not None else tvm.IRModule()

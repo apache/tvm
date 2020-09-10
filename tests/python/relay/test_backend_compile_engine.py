@@ -81,7 +81,7 @@ def _create_record(task_name, dshape, wshape, target, cost):
     return (inp, result)
 
 def test_get_valid_implementations():
-    target = tvm.target.create("llvm")
+    target = tvm.target.Target("llvm")
 
     def _get_impls(dshape, wshape):
         data = relay.var("data", shape=dshape)
@@ -102,7 +102,7 @@ def test_get_valid_implementations():
         assert len(impls) == 3
 
 def test_select_implementation():
-    target = tvm.target.create("llvm")
+    target = tvm.target.Target("llvm")
 
     def _select_impl(dshape, wshape, use_autotvm=False):
         data = relay.var("data", shape=dshape)

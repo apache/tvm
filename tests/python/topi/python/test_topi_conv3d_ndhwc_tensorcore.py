@@ -73,7 +73,7 @@ def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride,
     def check_device(device):
         ctx = tvm.context(device, 0)
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv3d_ndhwc_tensorcore_implement)
             C = fcompute(A, W, stride, padding, dilation, 'float32')
             if add_bias:

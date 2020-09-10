@@ -173,11 +173,11 @@ data_shape = (batch_size,) + image_shape
 local_demo = True
 
 if local_demo:
-    target = tvm.target.create('llvm')
+    target = tvm.target.Target('llvm')
 else:
     target = tvm.target.arm_cpu('rasp3b')
     # The above line is a simple form of
-    # target = tvm.target.create('llvm -device=arm_cpu -model=bcm2837 -mtriple=armv7l-linux-gnueabihf -mattr=+neon')
+    # target = tvm.target.Target('llvm -device=arm_cpu -model=bcm2837 -mtriple=armv7l-linux-gnueabihf -mattr=+neon')
 
 with tvm.transform.PassContext(opt_level=3):
     lib = relay.build(func, target, params=params)

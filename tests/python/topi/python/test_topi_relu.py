@@ -38,7 +38,7 @@ def verify_relu(m, n, dtype="float32"):
             print("Skip because %s does not have fp16 support" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_elemwise_schedule(device)(B)
 
         a = tvm.nd.array(a_np, ctx)

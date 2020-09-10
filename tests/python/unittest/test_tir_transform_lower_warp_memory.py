@@ -21,6 +21,7 @@ from tvm.contrib.nvcc import have_fp16
 import numpy as np
 import tvm.testing
 
+
 @tvm.testing.requires_cuda
 def test_lower_warp_memory_local_scope():
     m = 128
@@ -38,16 +39,18 @@ def test_lower_warp_memory_local_scope():
     xo, xi = s[AA].split(s[AA].op.axis[0], 32)
     s[AA].bind(xi, tx)
 
-    cuda_target = tvm.target.create("cuda")
+    cuda_target = tvm.target.Target("cuda")
     assert cuda_target.thread_warp_size == 32
     mod = tvm.lower(s, [A, B], name="f")
 
-    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
+    mod = tvm.tir.transform.Apply(
+        lambda f: f.with_attr("target", cuda_target))(mod)
     fdevice = tvm.tir.transform.SplitHostDevice()(mod)["f_kernel0"]
     mod = tvm.IRModule.from_expr(fdevice)
     fdevice = tvm.tir.transform.LowerWarpMemory()(mod)["f_kernel0"]
     assert(fdevice.body.body.value.value == "local")
     assert(fdevice.body.body.body.extents[0].value == 2)
+
 
 @tvm.testing.requires_cuda
 def test_lower_warp_memory_correct_indices():
@@ -82,9 +85,10 @@ def test_lower_warp_memory_correct_indices():
     #    assessing different buffers, so there is no need to distinguish from elements,
     #    and therefore threadIdx.y is NOT a index.
     idx_names = map(lambda x: x.name,
-            filter(lambda x: type(x) is tvm.tir.expr.Var, indices))
+                    filter(lambda x: type(x) is tvm.tir.expr.Var, indices))
     assert "threadIdx.x" in idx_names
     assert "threadIdx.y" not in idx_names
+
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
@@ -96,9 +100,10 @@ def test_lower_warp_memory_cuda_end_to_end():
 
         m = 128
         A = te.placeholder((m,), name='A', dtype=dtype)
-        B = te.compute((m,), lambda i: A[i // 32 * 32 + (i + 1) % 32], name='B')
+        B = te.compute(
+            (m,), lambda i: A[i // 32 * 32 + (i + 1) % 32], name='B')
 
-        cuda_target = tvm.target.create("cuda")
+        cuda_target = tvm.target.Target("cuda")
         assert cuda_target.thread_warp_size == 32
         with cuda_target:
             s = te.create_schedule(B.op)
@@ -116,11 +121,11 @@ def test_lower_warp_memory_cuda_end_to_end():
             func = tvm.build(s, [A, B], "cuda")
             A_np = np.array(list(range(m)), dtype=dtype)
             B_np = np.array(
-                    list(range(1, 32)) + [0] +
-                    list(range(33, 64)) + [32] +
-                    list(range(65, 96)) + [64] +
-                    list(range(97, 128)) + [96],
-                    dtype=dtype)
+                list(range(1, 32)) + [0] +
+                list(range(33, 64)) + [32] +
+                list(range(65, 96)) + [64] +
+                list(range(97, 128)) + [96],
+                dtype=dtype)
             A_nd = tvm.nd.array(A_np, ctx)
             B_nd = tvm.nd.array(np.zeros(B_np.shape, dtype=B_np.dtype), ctx)
             func(A_nd, B_nd)
@@ -128,6 +133,7 @@ def test_lower_warp_memory_cuda_end_to_end():
 
     check_cuda("float32")
     check_cuda("float16")
+
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
@@ -141,7 +147,7 @@ def test_lower_warp_memory_cuda_half_a_warp():
         A = te.placeholder((n, m,), name='A', dtype=dtype)
         B = te.compute((n, m,), lambda j, i: A[j, (i + 1) % m], name='B')
 
-        cuda_target = tvm.target.create("cuda")
+        cuda_target = tvm.target.Target("cuda")
         assert cuda_target.thread_warp_size == 2 * m
         with cuda_target:
             s = te.create_schedule(B.op)
@@ -161,8 +167,10 @@ def test_lower_warp_memory_cuda_half_a_warp():
 
             ctx = tvm.gpu(0)
             func = tvm.build(s, [A, B], "cuda")
-            A_np = np.array([list(range(i, m + i)) for i in range(n)], dtype=dtype)
-            B_np = np.array([list(range(1 + i, m + i)) + [i] for i in range(n)], dtype=dtype)
+            A_np = np.array([list(range(i, m + i))
+                             for i in range(n)], dtype=dtype)
+            B_np = np.array([list(range(1 + i, m + i)) + [i]
+                             for i in range(n)], dtype=dtype)
             A_nd = tvm.nd.array(A_np, ctx)
             B_nd = tvm.nd.array(np.zeros(B_np.shape, dtype=B_np.dtype), ctx)
             func(A_nd, B_nd)
@@ -170,6 +178,7 @@ def test_lower_warp_memory_cuda_half_a_warp():
 
     check_cuda("float32")
     check_cuda("float16")
+
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
@@ -182,9 +191,10 @@ def test_lower_warp_memory_cuda_2_buffers():
         m = 32
         A = te.placeholder((m,), name='A', dtype=dtype)
         B = te.placeholder((m,), name='B', dtype=dtype)
-        C = te.compute((m,), lambda i: A[(i + 1) % m] + B[(i + 1) % m], name='C')
+        C = te.compute((m,), lambda i: A[(i + 1) %
+                                         m] + B[(i + 1) % m], name='C')
 
-        cuda_target = tvm.target.create("cuda")
+        cuda_target = tvm.target.Target("cuda")
         assert m <= cuda_target.thread_warp_size
         with cuda_target:
             s = te.create_schedule(C.op)
@@ -218,13 +228,14 @@ def test_lower_warp_memory_cuda_2_buffers():
     check_cuda("float32")
     check_cuda("float16")
 
+
 @tvm.testing.requires_gpu
 def test_lower_warp_memory_roundup():
     def check(device, m):
         A = te.placeholder((m,), name='A')
         B = te.compute((m,), lambda i: A[i] + 1, name='B')
 
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = te.create_schedule(B.op)
             xo, xi = s[B].split(B.op.axis[0], factor=32)
             tx = te.thread_axis("threadIdx.x")
@@ -248,7 +259,7 @@ def test_lower_warp_memory_roundup():
 
     for device in ['cuda', 'rocm']:
         if not tvm.testing.device_enabled(device):
-            print("skip because", device,"is not enabled..")
+            print("skip because", device, "is not enabled..")
             continue
         check(device, m=31)
         check(device, m=32)
@@ -256,6 +267,7 @@ def test_lower_warp_memory_roundup():
         check(device, m=63)
         check(device, m=64)
         check(device, m=65)
+
 
 if __name__ == "__main__":
     test_lower_warp_memory_local_scope()

@@ -77,7 +77,7 @@ def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, str
             return
 
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _group_conv2d_nchw_implement)
             C = fcompute(A, W, stride, padding, dilation, groups, dtype)
             if add_bias:
@@ -157,7 +157,7 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kerne
             return
 
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             C = topi.cuda.group_conv2d_NCHWc_int8(A, W, stride, padding, dilation, groups, dtype)
             if add_bias:
                 C = topi.add(C, bias)

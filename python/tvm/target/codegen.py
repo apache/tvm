@@ -17,7 +17,7 @@
 # under the License.
 """Code generation related functions."""
 from . import _ffi_api
-from . import target as _tgt
+from .target import Target
 
 
 def build_module(mod, target):
@@ -36,7 +36,7 @@ def build_module(mod, target):
     module : runtime.Module
         The corressponding module.
     """
-    target = _tgt.create(target) if isinstance(target, str) else target
+    target = Target(target) if isinstance(target, str) else target
     return _ffi_api.Build(mod, target)
 
 
