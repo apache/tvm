@@ -16,11 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument
 """Schedule for pooling operators"""
+from math import sqrt, floor
 import tvm
 from tvm import te
 from .. import tag
 from ..util import traverse_inline
-from math import sqrt, floor
 
 
 def schedule_adaptive_pool(outs, layout='NCHW'):

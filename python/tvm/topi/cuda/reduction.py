@@ -41,7 +41,7 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
             # don't know why
             num_thread = 16
         target = tvm.target.Target.current()
-        
+
         #Adapt number of threads to device
         if target.id.max_num_threads is not None:
             num_thread = min(num_thread, target.id.max_num_threads)
