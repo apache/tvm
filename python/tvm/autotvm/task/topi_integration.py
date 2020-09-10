@@ -27,7 +27,7 @@ we will serialize it to a hashable tuple.
 See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
 """
 import tvm.te._ffi_api
-from tvm import target as _target
+from tvm.target import Target
 from tvm.te import tensor
 
 from .task import args_to_workload, serialize_args, DispatchContext, \
@@ -150,7 +150,7 @@ def register_topi_compute(task_name, func=None):
             if task_env is not None and task_env.tracing:
                 task_env.add_task(task_name, args)
             workload = args_to_workload(args, task_name)
-            tgt = _target.Target.current()
+            tgt = Target.current()
             cfg = DispatchContext.current.query(tgt, workload)
             node = topi_compute(cfg, *args)
 
@@ -217,8 +217,9 @@ def register_topi_schedule(task_name, func=None):
             """wrapper function for topi schedule"""
             workload = get_workload(outs)
             if workload is None:
-                raise RuntimeError("Cannot find workload in attribute of this schedule")
-            tgt = _target.Target.current()
+                raise RuntimeError(
+                    "Cannot find workload in attribute of this schedule")
+            tgt = Target.current()
             cfg = DispatchContext.current.query(tgt, workload)
             return topi_schedule(cfg, outs, *args, **kwargs)
         return wrapper

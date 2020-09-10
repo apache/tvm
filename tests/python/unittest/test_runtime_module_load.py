@@ -22,6 +22,7 @@ import os
 import sys
 import numpy as np
 import subprocess
+import tvm.testing
 
 runtime_py = """
 import os
@@ -42,7 +43,7 @@ print("Finish runtime checking...")
 """
 
 def test_dso_module_load():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
     dtype = 'int64'
     temp = util.tempdir()
@@ -90,6 +91,7 @@ def test_dso_module_load():
         shell=True)
 
 
+@tvm.testing.requires_gpu
 def test_device_module_dump():
     # graph
     n = tvm.runtime.convert(1024)
@@ -104,7 +106,7 @@ def test_device_module_dump():
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         temp = util.tempdir()
@@ -132,7 +134,7 @@ def test_device_module_dump():
 
     def check_stackvm(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         temp = util.tempdir()
@@ -161,7 +163,7 @@ def test_combine_module_llvm():
 
     def check_llvm():
         ctx = tvm.cpu(0)
-        if not tvm.runtime.enabled("llvm"):
+        if not tvm.testing.device_enabled("llvm"):
             print("Skip because llvm is not enabled" )
             return
         temp = util.tempdir()
@@ -186,7 +188,7 @@ def test_combine_module_llvm():
 
     def check_system_lib():
         ctx = tvm.cpu(0)
-        if not tvm.runtime.enabled("llvm"):
+        if not tvm.testing.device_enabled("llvm"):
             print("Skip because llvm is not enabled" )
             return
         temp = util.tempdir()

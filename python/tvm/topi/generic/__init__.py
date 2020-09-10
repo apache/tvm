@@ -27,7 +27,7 @@ Example
 .. code-block:: python
 
   # create schedule that dispatches to topi.cuda.schedule_injective
-  with tvm.target.create("cuda"):
+  with tvm.target.Target("cuda"):
     s = tvm.tir.generic.schedule_injective(outs)
 """
 from __future__ import absolute_import as _abs

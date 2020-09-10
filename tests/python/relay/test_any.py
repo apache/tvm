@@ -33,8 +33,26 @@ def any_dims(ndim):
         shape.append(relay.Any())
     return tuple(shape)
 
-# TODO(@wweic): because vm doesn't support heterogeneous exec, we can only test
-# shape function on CPU.
+def check_result(args, mod, expected, flatten=False, assert_shape=False,
+                 only_vm=False):
+    for kind in ["debug", "vm"]:
+        for tgt, ctx in tvm.testing.enabled_targets():
+            if kind == "debug" and (only_vm or ctx.device_type !=
+                                    tvm.cpu().device_type):
+                continue
+            ex = relay.create_executor(kind, mod=mod, ctx=ctx, target=tgt)
+            result = ex.evaluate()(*args)
+            result = result.asnumpy()
+            if assert_shape:
+                assert result.shape == expected, \
+                        "Shape mismatch: expect %s but got %s." \
+                        % (str(expected), str(result.shape))
+                return
+
+            if flatten:
+                result = result.flatten()
+                expected = expected.flatten()
+            tvm.testing.assert_allclose(result, expected)
 
 def verify_any_broadcast(x_shape, y_shape, x_np_shape, y_np_shape, op, np_op):
     dtype = 'float32'
@@ -45,11 +63,9 @@ def verify_any_broadcast(x_shape, y_shape, x_np_shape, y_np_shape, op, np_op):
     x_np = np.random.uniform(size=x_np_shape).astype(dtype)
     y_np = np.random.uniform(size=y_np_shape).astype(dtype)
     res_np = np_op(x_np, y_np)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(x_np, y_np)
-        tvm.testing.assert_allclose(result.asnumpy(), res_np)
+    check_result([x_np, y_np], mod, res_np)
 
+@tvm.testing.uses_gpu
 def test_any_broadcast():
     # Test broadcast with 1s
     verify_any_broadcast((relay.Any(),), (3, 2), (1,), (3, 2), relay.add, np.add)
@@ -69,16 +85,15 @@ def verify_any_elemwise(x_shape, x_np_shape, op, np_op):
     mod["main"] = relay.Function([x], op(x))
     x_np = np.random.uniform(size=x_np_shape).astype(dtype)
     res_np = np_op(x_np)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(x_np)
-        tvm.testing.assert_allclose(result.asnumpy(), res_np)
+    check_result([x_np], mod, res_np)
 
+@tvm.testing.uses_gpu
 def test_any_elemwise():
     verify_any_elemwise((relay.Any(),), (3,), relay.sqrt, np.sqrt)
     verify_any_elemwise((relay.Any(), 2), (5, 2), relay.negative, np.negative)
     verify_any_elemwise((relay.Any(), relay.Any()), (5, 4), relay.exp, np.exp)
 
+@tvm.testing.uses_gpu
 def test_any_broadcast_fail():
     # Test broadcast with incompatible values at runtime
     def check_fail(x_shape, y_shape, x_np_shape, y_np_shape, op, np_op):
@@ -103,11 +118,9 @@ def verify_any_full_like(x_shape, x_np_shape, relay_op, np_op, dtype='float32'):
     mod['main'] = relay.Function([x], relay_op(x))
     x_np = np.random.uniform(size=x_np_shape).astype(dtype)
     res_np = np_op(x_np)
-    for kind in ['debug', 'vm']:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target='llvm')
-        result = ex.evaluate()(x_np).asnumpy()
-        tvm.testing.assert_allclose(result, res_np)
+    check_result([x_np], mod, res_np)
 
+@tvm.testing.uses_gpu
 def test_any_full_like():
     # zeros_like, ones_like
     verify_any_full_like(any_dims(3), (2, 3, 5), relay.zeros_like, np.zeros_like, "float32")
@@ -124,11 +137,9 @@ def verify_any_full(x_np_shape, relay_op, np_op, dtype='float32', value=None):
     mod['main'] = relay.Function([x], out)
     res_np = np_op(x_np_shape) if value is None else np_op(x_np_shape, value)
     x_np = np.array(x_np_shape).astype("int32")
-    for kind in ['debug', 'vm']:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target='llvm')
-        result = ex.evaluate()(x_np).asnumpy()
-        tvm.testing.assert_allclose(result, res_np)
+    check_result([x_np], mod, res_np)
 
+@tvm.testing.uses_gpu
 def test_any_full():
     # zeros, ones, full
     verify_any_full((2, 3, 5), relay.zeros, np.zeros, "float32")
@@ -140,6 +151,7 @@ def test_any_full():
     verify_any_full((10, 11, 12, 13, 14), relay.full, np.full, "float32", 2.0)
     verify_any_full((1, 2, 3, 4), relay.full, np.full, "int32", -2)
 
+@tvm.testing.uses_gpu
 def test_any_concat():
     x = relay.var('x', shape=(relay.Any(), 2), dtype="float32")
     y = relay.var('y', shape=(1, 2), dtype="float32")
@@ -151,10 +163,7 @@ def test_any_concat():
     x_np = np.random.uniform(size=(3, 2)).astype('float32')
     y_np = np.random.uniform(size=(1, 2)).astype('float32')
     ref = np.concatenate([x_np - 3.0, y_np * 5.0], axis=0)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(x_np, y_np)
-        tvm.testing.assert_allclose(result.asnumpy(), ref)
+    check_result([x_np, y_np], mod, ref)
 
 def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newshape=False):
     x = relay.var('x', shape=x_shape, dtype="float32")
@@ -172,13 +181,9 @@ def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newsha
     y = relay.reshape(relu_x, newshape=newshape)
     mod = tvm.IRModule()
     mod["main"] = relay.Function(params, y)
+    check_result(args, mod, data, flatten=True)
 
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(*args).asnumpy()
-        assert result.shape == out_shape
-        tvm.testing.assert_allclose(result.flatten(), data.flatten())
-
+@tvm.testing.uses_gpu
 def test_any_reshape():
     for variable_newshape in [False, True]:
         # Variable newshape only supports that output rank is the same as newshape
@@ -201,6 +206,10 @@ def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
         assert result.shape == expected.shape
         tvm.testing.assert_allclose(result.flatten(), expected.flatten())
 
+    # TODO(@zhiics) argwhere gpu schedule is currently not avaiable
+    # check_result([data], mod, expected, flatten=True)
+
+@tvm.testing.uses_gpu
 def test_any_argwhere():
     verify_any_argwhere(any_dims(1), (5,))
     verify_any_argwhere(any_dims(2), (5, 5))
@@ -231,11 +240,9 @@ def verify_any_take(data_shape, indices_shape, axis, data_np_shape, indices_np_s
         max_index = data_np.shape[axis]
     indices_np = np.random.randint(max_index, size=indices_np_shape).astype('int32')
     ref = np.take(data_np, indices_np, axis=axis)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np, indices_np)
-        tvm.testing.assert_allclose(result.asnumpy(), ref)
+    check_result([data_np, indices_np], mod, ref)
 
+@tvm.testing.uses_gpu
 def test_any_take():
     verify_any_take(any_dims(2), (1,), 0, (4, 5), (1,))
     verify_any_take(any_dims(2), (), 0, (4, 5), ())
@@ -251,28 +258,23 @@ def verify_any_tile(dshape, reps, np_dshape, np_reps):
     mod["main"] = relay.Function([x], y)
     x_data = np.random.uniform(size=np_dshape).astype("float32")
     ref_res = np.tile(x_data, reps=np_reps)
+    check_result([x_data], mod, ref_res)
 
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        res = ex.evaluate()(x_data)
-        tvm.testing.assert_allclose(res.asnumpy(), ref_res, rtol=1e-5)
-
+@tvm.testing.uses_gpu
 def test_any_tile():
     verify_any_tile(any_dims(3), (3, 2, 1), (2, 3, 4), (3, 2, 1))
     verify_any_tile(any_dims(3), (1, 2), (2, 3, 4), (1, 2))
     verify_any_tile(any_dims(2), (3, 2, 1), (2, 3), (3, 2, 1))
     verify_any_tile(any_dims(3), (1,), (2, 3, 4), (1,))
 
+@tvm.testing.uses_gpu
 def test_any_shape_of():
     x = relay.var('x', shape=any_dims(2), dtype='float32')
     y = relay.shape_of(x)
     mod = tvm.IRModule()
     mod["main"] = relay.Function([x], y)
     data = np.random.uniform(size=(3, 4)).astype('float32')
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data)
-        tvm.testing.assert_allclose(result.asnumpy(), np.array([3,4]).astype("int64"))
+    check_result([data], mod, np.array([3,4]).astype("int64"))
 
     x = relay.var('x', shape=any_dims(3), dtype='float32')
     y0 = relay.shape_of(x)
@@ -280,10 +282,7 @@ def test_any_shape_of():
     mod = tvm.IRModule()
     mod["main"] = relay.Function([x], y1)
     data = np.random.uniform(size=(2, 3, 4)).astype('float32')
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data)
-        tvm.testing.assert_allclose(result.asnumpy(), np.array(3).astype("int64"))
+    check_result([data], mod, np.array(3).astype("int64"))
 
 def verify_any_reduce(reduce_op, data_shape, axis, exclude, keepdims,
                       static_data_shape, ref_out_shape):
@@ -293,12 +292,9 @@ def verify_any_reduce(reduce_op, data_shape, axis, exclude, keepdims,
     y = reduce_op(data, axis, keepdims, exclude)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
-        assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
 
+@tvm.testing.uses_gpu
 def test_any_reduce():
     verify_any_reduce(relay.argmax, any_dims(3), None, False, False, (3, 4, 5), ())
     verify_any_reduce(relay.argmin, any_dims(4), 1, False, True, (3, 4, 5, 6), (3, 1, 5, 6))
@@ -316,12 +312,9 @@ def verify_any_layout_transform(data_shape, src_layout, dst_layout, static_data_
     y = relay.layout_transform(data, src_layout, dst_layout)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
-        assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
 
+@tvm.testing.uses_gpu
 def test_any_layout_transform():
     verify_any_layout_transform(any_dims(4), "NCHW", "NHWC", (3, 4, 5, 6), (3, 5, 6, 4))
     verify_any_layout_transform(any_dims(5), "NCHW16c", "NCHW2c", (1, 2, 8, 8, 16), (1, 16, 8, 8, 2))
@@ -336,12 +329,9 @@ def verify_any_expand_dims(data_shape, axis, num_newaxis, static_data_shape, ref
     y = relay.expand_dims(data, axis=axis, num_newaxis=num_newaxis)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
-        assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
 
+@tvm.testing.uses_gpu
 def test_any_expand_dims():
     verify_any_expand_dims(any_dims(3), 1, 2, (1, 2, 3), (1, 1, 1, 2, 3))
     verify_any_expand_dims(any_dims(3), -1, 2, (1, 2, 3), (1, 2, 3, 1, 1))
@@ -354,11 +344,9 @@ def verify_any_transpose(data_shape, axes, static_data_shape):
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     ref_out = np.transpose(data_np, axes)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
-        tvm.testing.assert_allclose(result.asnumpy(), ref_out)
+    check_result([data_np], mod, ref_out)
 
+@tvm.testing.uses_gpu
 def test_any_transpose():
     verify_any_transpose(any_dims(3), (1, 0, 2), (10, 3, 2))
     verify_any_transpose(any_dims(3), None, (2, 3, 4))
@@ -373,15 +361,14 @@ def verify_any_squeeze(data_shape, axis, static_data_shape):
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     ref_out = np.squeeze(data_np, axis)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
-        tvm.testing.assert_allclose(result.asnumpy(), ref_out)
+    check_result([data_np], mod, ref_out)
 
+@tvm.testing.uses_gpu
 def test_any_squeeze():
     verify_any_squeeze((1, relay.Any(), relay.Any()), (0,), (1, 9, 8))
     verify_any_squeeze((1, relay.Any(), relay.Any(), 1, relay.Any(), relay.Any()), (0, 3), (1, 12, 2, 1, 9, 17))
 
+@tvm.testing.uses_gpu
 def test_any_reshape_like():
     mod = tvm.IRModule()
     dtype = "float32"
@@ -391,11 +378,7 @@ def test_any_reshape_like():
     mod["main"] = relay.Function([data, shape_like], y)
     data_np = np.random.uniform(size=(3, 3, 10)).astype(dtype)
     shape_like_np = np.random.uniform(size=(3, 5, 6)).astype(dtype)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np, shape_like_np)
-        assert result.asnumpy().shape == shape_like_np.shape, \
-            "Shape mismatch: expect %s but got %s." % (str(shape_like_np.shape), str(result.asnumpy().shape))
+    check_result([data_np, shape_like_np], mod, shape_like_np.shape, assert_shape=True)
 
 def verify_any_conv2d_NCHWc(data_shape, kernel_shape, strides, padding, dilation,
                             data_layout, kernel_layout, out_layout,
@@ -412,11 +395,7 @@ def verify_any_conv2d_NCHWc(data_shape, kernel_shape, strides, padding, dilation
     mod["main"] = relay.Function([data, kernel], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np, kernel_np)
-        assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
 
 # TODO(@kevinthesun): Need to fix the compute in conv2d_NCHWc to support any
 @pytest.mark.skip
@@ -435,12 +414,9 @@ def verify_any_pool2d(pool_type, data_shape, pool_size, strides, padding,
     y = pool_func(data, pool_size, strides, padding, layout)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
-        assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
 
+@tvm.testing.uses_gpu
 def test_any_pool2d():
     verify_any_pool2d("max", (relay.Any(), 3, relay.Any(), relay.Any()),
                       (3, 3), (1, 1), (1, 1), "NCHW", (2, 3, 220, 220), (2, 3, 220, 220))
@@ -457,12 +433,9 @@ def verify_any_global_pool2d(pool_type, data_shape, layout, static_data_shape, r
     y = pool_func(data, layout)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
-        assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
 
+@tvm.testing.uses_gpu
 def test_any_global_pool2d():
     verify_any_global_pool2d("max", (relay.Any(), 3, relay.Any(), relay.Any()),
                       "NCHW", (2, 3, 220, 220), (2, 3, 1, 1))
@@ -485,12 +458,14 @@ def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, r
             assert ret.asnumpy().shape == ref_ret, \
                 "Shape mismatch: expect %s but got %s." % (str(ref_ret), str(ret.asnumpy().shape))
 
+@tvm.testing.uses_gpu
 def test_any_split():
     verify_any_split((relay.Any(), 4), 2, 1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), relay.Any()), 2, 1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), 12), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
     verify_any_split((relay.Any(), relay.Any()), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
 
+@tvm.testing.uses_gpu
 def test_any_batch_flatten():
     mod = tvm.IRModule()
     dtype = "float32"
@@ -499,11 +474,7 @@ def test_any_batch_flatten():
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=(3, 3, 10)).astype(dtype)
     ref_out_shape = (3, 30)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
-        assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
 
 def verify_any_dense(data_shape, weight_shape, units, static_data_shape,
                      static_weight_shape, ref_out_shape):
@@ -515,16 +486,15 @@ def verify_any_dense(data_shape, weight_shape, units, static_data_shape,
     mod["main"] = relay.Function([data, weight], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     weight_np = np.random.uniform(size=static_weight_shape).astype(dtype)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np, weight_np)
-        assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+    check_result([data_np, weight_np], mod, ref_out_shape, assert_shape=True)
 
+# TODO(tvm-team) Fix dense schedule
+# @tvm.testing.uses_gpu
 def test_any_dense():
     verify_any_dense(any_dims(2), any_dims(2), None, (4, 16), (8, 16), (4, 8))
     verify_any_dense(any_dims(2), (50, relay.Any()), 50, (4, 40), (50, 40), (4, 50))
 
+@tvm.testing.uses_gpu
 def verify_any_pad(data_shape, pad_width, static_data_shape):
     mod = tvm.IRModule()
     dtype = "float32"
@@ -533,11 +503,9 @@ def verify_any_pad(data_shape, pad_width, static_data_shape):
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     ref_out = np.pad(data_np, pad_width)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
-        tvm.testing.assert_allclose(result.asnumpy(), ref_out)
+    check_result([data_np], mod, ref_out)
 
+@tvm.testing.uses_gpu
 def test_any_pad():
     verify_any_pad(any_dims(3), ((0, 0), (1, 1), (2, 2)), (1, 2, 3))
     verify_any_pad(any_dims(4), ((1, 0), (1, 3), (0, 2), (9, 0)), (13, 11, 3, 1))
@@ -554,12 +522,9 @@ def verify_any_dilate(data_shape, strides, static_data_shape):
                       for i in range(len(static_data_shape)))
     ref_out = np.zeros(shape=ref_shape, dtype=dtype)
     ref_out[tuple(slice(None, None, strides[i]) for i in range(len(data_shape)))] = data_np
+    check_result([data_np], mod, ref_out)
 
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
-        tvm.testing.assert_allclose(result.asnumpy(), ref_out)
-
+@tvm.testing.uses_gpu
 def test_any_dilate():
     verify_any_dilate(any_dims(1), (1,), (1,))
     verify_any_dilate(any_dims(1), (1,), (5,))
@@ -577,12 +542,9 @@ def verify_any_softmax(data_shape, axis, static_data_shape, ref_out_shape):
     y = relay.nn.softmax(data, axis)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
-        assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
 
+@tvm.testing.uses_gpu
 def test_any_softmax():
     verify_any_softmax(any_dims(3), -1, (1, 2, 3), (1, 2, 3))
     verify_any_softmax(any_dims(4), 2, (13, 11, 3, 1), (13, 11, 3, 1))
@@ -613,11 +575,15 @@ def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
         result = ex.evaluate()(*in_vals)
         tvm.testing.assert_allclose(result.asnumpy(), ref_out)
 
+    # TODO(@zhiics) Fix topk cuda schedule for dynamic inputs
+    # check_result(in_vals, mod, ref_out)
+
 def test_any_topk():
     verify_any_topk(any_dims(1), 5, (10,), "float32")
     verify_any_topk(any_dims(2), 2, (6, 3), "int32")
     verify_any_topk(any_dims(2), 3, (6, 3), "float32", True)
 
+@tvm.testing.uses_gpu
 def test_fused_ops():
     x = relay.var('x', shape=(relay.Any(), relay.Any()), dtype='float32')
     y0 = x + relay.const(1.0, 'float32')
@@ -625,11 +591,9 @@ def test_fused_ops():
     mod = tvm.IRModule()
     mod["main"] = relay.Function([x], y1)
     data = np.random.uniform(size=(5, 4)).astype('float32')
-    for kind in ["vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data)
-        tvm.testing.assert_allclose(result.asnumpy(), (data + 1) * 2)
+    check_result([data], mod, (data + 1) * 2)
 
+@tvm.testing.uses_gpu
 def test_arange_with_dynamic_shape():
     # m, n, k = relay.ShapeVar('m'), relay.ShapeVar('n'), relay.ShapeVar('k')
     m, n, k = relay.Any(), relay.Any(), relay.Any()
@@ -641,10 +605,7 @@ def test_arange_with_dynamic_shape():
     data = np.random.rand(10, 5, 3).astype('float32')
     mod = tvm.IRModule()
     mod["main"] = relay.Function([x], y3)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data)
-        tvm.testing.assert_allclose(result.asnumpy(), np.array(range(10)).astype("int32")+1)
+    check_result([data], mod, np.array(range(10)).astype("int32")+1)
 
 def verify_any_strided_slice(data_shape, begin_shape, end_shape, strides_shape,
                              data_np_shape, slice_mode="end", const_attrs=False):
@@ -677,12 +638,9 @@ def verify_any_strided_slice(data_shape, begin_shape, end_shape, strides_shape,
                             strides=strides, slice_mode=slice_mode)
     mod["main"] = relay.Function(args, y)
 
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(*np_inputs)
-        tvm.testing.assert_allclose(result.asnumpy(), ref_res)
+    check_result(np_inputs, mod, ref_res)
 
-
+@tvm.testing.uses_gpu
 def test_any_strided_slice():
     verify_any_strided_slice(any_dims(2), (2,), (2,), (2,), (15, 21))
     verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (15, 17, 21))
@@ -691,7 +649,7 @@ def test_any_strided_slice():
     verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (15, 17, 21), slice_mode="size")
     verify_any_strided_slice(any_dims(2), (2,), (2,), (2,), (15, 21), const_attrs=True)
 
-
+@tvm.testing.uses_gpu
 def test_recursive_concat():
     """
     fn @concat_loop(%i: int32, %st: (any, 1)) -> (any, 1) {
@@ -724,11 +682,9 @@ def test_recursive_concat():
     mod["main"] = func
     data = np.array(0.0, dtype='int32')
     ref = np.array([0] + list(range(10))).reshape((11, 1)).astype("int32")
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data)
-        np.testing.assert_allclose(result.asnumpy(), ref)
+    check_result([data], mod, ref)
 
+@tvm.testing.uses_gpu
 def test_recursive_concat_with_wrong_annotation():
     """
     v0.0.1
@@ -776,6 +732,7 @@ def test_recursive_concat_with_wrong_annotation():
     except Exception as e:
         assert "in particular dimension 0 conflicts 2 does not match 1" in str(e)
 
+@tvm.testing.uses_gpu
 def test_tuple_get_item():
     mod = tvm.IRModule()
     dtype = "float32"
@@ -789,12 +746,9 @@ def test_tuple_get_item():
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     ref_out_shape = (9, 2)
-    for kind in ["vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
-        assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(ret.asnumpy().shape))
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
 
+@tvm.testing.uses_gpu
 def test_mixed_input_type():
     mod = tvm.IRModule()
     dtype = "float32"
@@ -811,11 +765,8 @@ def test_mixed_input_type():
     data_np0 = np.random.uniform(size=static_data_shape).astype(dtype)
     data_np1 = np.random.uniform(size=static_data_shape).astype(dtype)
     ref_out_shape = (9, 4)
-    for kind in ["vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()([[data_np0, data_np0], data_np0], data_np1)
-        assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+    check_result([[[data_np0, data_np0], data_np0], data_np1], mod,
+                 ref_out_shape, assert_shape=True, only_vm=True)
 
 def verify_any_crop_and_resize(data_shape, boxes_shape, box_indices_shape, crop_size,
                                layout, static_boxes, static_box_indices_shape, ref_out_shape):
@@ -829,12 +780,10 @@ def verify_any_crop_and_resize(data_shape, boxes_shape, box_indices_shape, crop_
     mod["main"] = relay.Function([data, boxes, box_indices], y)
     data_np = np.random.uniform(size=data_shape).astype(dtype)
     boxes_np = np.random.uniform(size=static_boxes).astype(dtype)
-    box_indices_np = np.random.uniform(size=static_box_indices_shape).astype(indices_dtype)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np, boxes_np, box_indices_np)
-        tvm.testing.assert_allclose(result.asnumpy().shape, ref_out_shape)
+    box_indices_np = np.random.uniform(size=static_box_indices_shape).astype(indices_dtype)    
+    check_result([data_np, boxes_np, box_indices_np], mod, ref_out_shape, assert_shape=True)
 
+@tvm.testing.uses_gpu
 def test_any_crop_and_resize():
     verify_any_crop_and_resize(
         data_shape=(1, 234, 234, 256),
@@ -863,11 +812,9 @@ def verify_any_mirror_pad(data_shape, pad_width, static_data_shape, ref_out_shap
     y = relay.nn.mirror_pad(data, pad_width)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
-        tvm.testing.assert_allclose(result.asnumpy().shape, ref_out_shape)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
 
+@tvm.testing.uses_gpu
 def test_any_mirror_pad():
     verify_any_mirror_pad(
         data_shape=(1, 256, 232, 232),
@@ -882,51 +829,13 @@ def verify_any_ndarray_size(data_np_shape):
     mod['main'] = relay.Function([v], n)
     np_data = np.zeros(data_np_shape, dtype='float32')
     ref_res = np.size(np_data)
+    check_result([np_data], mod, ref_res)
 
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(np_data)
-        tvm.testing.assert_allclose(result.asnumpy(), ref_res)
-
+@tvm.testing.uses_gpu
 def test_any_ndarray_size():
     verify_any_ndarray_size((2,))
     verify_any_ndarray_size((2, 2))
     verify_any_ndarray_size((1, 2, 3, 4))
 
 if __name__ == "__main__":
-    test_any_full()
-    test_any_full_like()
-    test_any_broadcast()
-    test_any_elemwise()
-    test_any_broadcast_fail()
-    test_any_concat()
-    test_any_reshape()
-    test_any_take()
-    test_any_tile()
-    test_any_split()
-    test_any_shape_of()
-    test_any_reduce()
-    test_any_layout_transform()
-    test_any_expand_dims()
-    test_any_transpose()
-    test_any_squeeze()
-    test_any_reshape_like()
-    test_any_conv2d_NCHWc()
-    test_any_pool2d()
-    test_any_global_pool2d()
-    test_any_batch_flatten()
-    test_any_dense()
-    test_any_pad()
-    test_any_softmax()
-    test_any_topk()
-    test_fused_ops()
-    test_any_argwhere()
-    test_arange_with_dynamic_shape()
-    test_any_strided_slice()
-    test_recursive_concat()
-    test_recursive_concat_with_wrong_annotation()
-    test_tuple_get_item()
-    test_mixed_input_type()
-    test_any_crop_and_resize()
-    test_any_mirror_pad()
-    test_any_ndarray_size()
+    pytest.main([__file__])

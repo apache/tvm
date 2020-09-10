@@ -17,7 +17,7 @@
 import numpy as np
 import tvm
 from tvm import te
-from tvm.testing import check_numerical_grads
+import tvm.testing
 
 def test_check_numerical_grads():
     # Functions and their derivatives
@@ -46,7 +46,7 @@ def test_check_numerical_grads():
         func_forw = lambda x: np.sum(func(x)[0])
         grads = [func(x_input)[1]]
 
-        check_numerical_grads(func_forw, [x_input], grads)
+        tvm.testing.check_numerical_grads(func_forw, [x_input], grads)
 
     # Check functions with multiple arguments
     for f1 in functions:
@@ -57,13 +57,13 @@ def test_check_numerical_grads():
             func_forw = lambda x, y: np.sum(f1(x)[0] + f2(y)[0])
             grads = [f1(x_input)[1], f2(y_input)[1]]
 
-            check_numerical_grads(func_forw, [x_input, y_input], grads)
+            tvm.testing.check_numerical_grads(func_forw, [x_input, y_input], grads)
 
             # Same thing but with keyword arguments
             func_forw = lambda x, y: np.sum(f1(x)[0] + f2(y)[0])
             grads = {'x': f1(x_input)[1], 'y': f2(y_input)[1]}
 
-            check_numerical_grads(func_forw, {'x': x_input, 'y': y_input}, grads)
+            tvm.testing.check_numerical_grads(func_forw, {'x': x_input, 'y': y_input}, grads)
 
     def _noise1(x, atol=1e-2, rtol=0.1):
         # We go in random direction using twice the original tolerance to be sure this
@@ -93,23 +93,23 @@ def test_check_numerical_grads():
             grads = [_noise1(f1(x_input)[1]), _noise1(f2(y_input)[1])]
 
             try:
-                check_numerical_grads(func_forw, [x_input, y_input], grads)
+                tvm.testing.check_numerical_grads(func_forw, [x_input, y_input], grads)
             except AssertionError as e:
                 pass
             else:
-                raise AssertionError("check_numerical_grads didn't raise an exception")
+                raise AssertionError("tvm.testing.check_numerical_grads didn't raise an exception")
 
             func_forw = lambda x, y: np.sum(f1(x)[0] + f2(y)[0])
             grads = {'x': _noise2(f1(x_input)[1]), 'y': _noise2(f2(y_input)[1])}
 
             try:
-                check_numerical_grads(func_forw, {'x': x_input, 'y': y_input}, grads)
+                tvm.testing.check_numerical_grads(func_forw, {'x': x_input, 'y': y_input}, grads)
             except AssertionError as e:
                 pass
             else:
-                raise AssertionError("check_numerical_grads didn't raise an exception")
+                raise AssertionError("tvm.testing.check_numerical_grads didn't raise an exception")
 
 
 if __name__ == "__main__":
-    test_check_numerical_grads()
+    test_tvm.testing.check_numerical_grads()
 

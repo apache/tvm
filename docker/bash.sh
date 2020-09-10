@@ -88,6 +88,28 @@ else
     CI_PY_ENV=""
 fi
 
+# If the Vitis-AI docker image is selected, expose the Xilinx FPGA devices and required volumes containing e.g. DSA's and overlays
+if [[ "${DOCKER_IMAGE_NAME}" == *"demo_vitis_ai"* && -d "/dev/shm" && -d "/opt/xilinx/dsa" && -d "/opt/xilinx/overlaybins" ]]; then
+    WORKSPACE_VOLUMES="-v /dev/shm:/dev/shm -v /opt/xilinx/dsa:/opt/xilinx/dsa -v /opt/xilinx/overlaybins:/opt/xilinx/overlaybins"
+    XCLMGMT_DRIVER="$(find /dev -name xclmgmt\*)"
+    DOCKER_DEVICES=""
+    for i in ${XCLMGMT_DRIVER} ;
+    do
+       DOCKER_DEVICES+="--device=$i "
+    done
+
+    RENDER_DRIVER="$(find /dev/dri -name renderD\*)"
+    for i in ${RENDER_DRIVER} ;
+    do
+        DOCKER_DEVICES+="--device=$i "
+    done
+
+else
+    DOCKER_DEVICES=""
+    WORKSPACE_VOLUMES=""
+fi
+
+
 # Print arguments.
 echo "WORKSPACE: ${WORKSPACE}"
 echo "DOCKER CONTAINER NAME: ${DOCKER_IMAGE_NAME}"
@@ -108,6 +130,8 @@ fi
 # and share the PID namespace (--pid=host) so the process inside does not have
 # pid 1 and SIGKILL is propagated to the process inside (jenkins can kill it).
 ${DOCKER_BINARY} run --rm --pid=host\
+    ${DOCKER_DEVICES}\
+    ${WORKSPACE_VOLUMES}\
     -v ${WORKSPACE}:/workspace \
     -v ${SCRIPT_DIR}:/docker \
     "${EXTRA_MOUNTS[@]}" \

@@ -17,6 +17,7 @@
 import tvm_ext
 import tvm
 import tvm._ffi.registry
+import tvm.testing
 from tvm import te
 import numpy as np
 
@@ -32,7 +33,7 @@ def test_ext_dev():
     B = te.compute((n,), lambda *i: A(*i) + 1.0, name='B')
     s = te.create_schedule(B.op)
     def check_llvm():
-        if not tvm.runtime.enabled("llvm"):
+        if not tvm.testing.device_enabled("llvm"):
             return
         f = tvm.build(s, [A, B], "ext_dev", "llvm")
         ctx = tvm.ext_dev(0)
@@ -77,7 +78,7 @@ def test_extern_call():
     s = te.create_schedule(B.op)
 
     def check_llvm():
-        if not tvm.runtime.enabled("llvm"):
+        if not tvm.testing.device_enabled("llvm"):
             return
         f = tvm.build(s, [A, B], "llvm")
         ctx = tvm.cpu(0)

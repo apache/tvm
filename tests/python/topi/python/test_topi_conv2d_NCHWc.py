@@ -21,12 +21,11 @@ import tvm
 from tvm import te
 from tvm import autotvm
 from tvm import topi
+import tvm.testing
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.nn.util import get_pad_tuple
 from tvm.topi.util import get_const_tuple
-
-from common import get_all_backend
 
 def _transform_data(data, bn):
     # NCHW -> NCHW[x]c
@@ -94,11 +93,11 @@ def verify_conv2d_NCHWc(batch, in_channel, in_size, num_filter, kernel, stride,
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             C = topi.x86.conv2d_NCHWc(A, W, (stride, stride), padding,
                                       (dilation, dilation),
                                       'NCHW%dc'%ic_block,

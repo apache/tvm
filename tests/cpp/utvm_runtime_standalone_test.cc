@@ -89,7 +89,7 @@ TEST(MicroStandaloneRuntime, BuildModule) {
   auto mod_f = build_mod.GetFunction("get_module", false);
   Map<tvm::Integer, tvm::Target> targets;
 
-  Target llvm_tgt = Target::Create("llvm");
+  Target llvm_tgt = Target("llvm");
   targets.Set(0, llvm_tgt);
   build_f(func, targets, llvm_tgt);
   std::string json = json_f();

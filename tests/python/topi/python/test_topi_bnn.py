@@ -33,7 +33,7 @@ def verify_binary_dense(batch, in_dim, out_dim):
     bnn_B1 = te.placeholder(bnn_B.shape, dtype=bnn_B.dtype)
     bnn_C = topi.nn.binary_dense(bnn_A1, bnn_B1)
     # schedule
-    with tvm.target.create('llvm'):
+    with tvm.target.Target('llvm'):
         s1 = topi.x86.schedule_binarize_pack(bnn_A)
         s2 = topi.x86.schedule_binarize_pack(bnn_B)
         s3 = topi.x86.schedule_binary_dense(bnn_C)

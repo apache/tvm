@@ -204,18 +204,18 @@ def test_combine_parallel_dense_flat():
         args = [x, w1, w2, w3]
         w_stacked = relay.concatenate((w1, w2, w3), axis=0)
         y = relay.nn.dense(x, w_stacked, units=6 * j)
-        strides = relay.const([1, 1], 'int64')
+        strides = [1, 1]
         y1 = relay.strided_slice(y,
-                                 begin=relay.const([0, 0], "int64"),
-                                 end=relay.const([-1, j], "int64"),
+                                 begin=[0, 0],
+                                 end=[-1, j],
                                  strides=strides, slice_mode="size")
         y2 = relay.strided_slice(y,
-                                 begin=relay.const([0, j], "int64"),
-                                 end=relay.const([-1, 2 * j], "int64"),
+                                 begin=[0, j],
+                                 end=[-1, 2 * j],
                                  strides=strides, slice_mode="size")
         y3 = relay.strided_slice(y,
-                                 begin=relay.const([0, 3 * j], "int64"),
-                                 end=relay.const([-1, 3 * j], "int64"),
+                                 begin=[0, 3 * j],
+                                 end=[-1, 3 * j],
                                  strides=strides, slice_mode="size")
         y = relay.Tuple((y1, y2, y3))
         return relay.Function(args, y)
@@ -268,14 +268,14 @@ def test_combine_parallel_dense_flat_biasadd():
         end = [-1 for _ in range(n_out_dims - 1)]
         strides = [1 for _ in range(n_out_dims)]
         y1 = relay.strided_slice(y,
-                                 begin=relay.const(begin + [0], "int64"),
-                                 end=relay.const(end + [j], "int64"),
-                                 strides=relay.const(strides, "int64"),
+                                 begin=begin + [0],
+                                 end=end + [j],
+                                 strides=strides,
                                  slice_mode="size")
         y2 = relay.strided_slice(y,
-                                 begin=relay.const(begin + [j], "int64"),
-                                 end=relay.const(end + [2 * j], "int64"),
-                                 strides=relay.const(strides, "int64"),
+                                 begin=begin + [j],
+                                 end=end + [2 * j],
+                                 strides=strides,
                                  slice_mode="size")
         return relay.Function(args, relay.Tuple((y1, y2)))
 
@@ -335,14 +335,14 @@ def test_combine_parallel_dense_flat_biasadd_scale_reshape():
         scale2 = relay.repeat(scale2, 2 * j, 0)
         scale = relay.concatenate((scale1, scale2), axis=0)
         y = relay.multiply(y, scale)
-        strides = relay.const([1, 1], 'int64')
+        strides = [1, 1]
         y1 = relay.strided_slice(y,
-                                 begin=relay.const([0, 0], "int64"),
-                                 end=relay.const([-1, j], "int64"),
+                                 begin=[0, 0],
+                                 end=[-1, j],
                                  strides=strides, slice_mode="size")
         y2 = relay.strided_slice(y,
-                                 begin=relay.const([0, j], "int64"),
-                                 end=relay.const([-1, 2 * j], "int64"),
+                                 begin=[0, j],
+                                 end=[-1, 2 * j],
                                  strides=strides, slice_mode="size")
         y1 = relay.reshape(y1, newshape=newshape1)
         y2 = relay.reshape(y2, newshape=newshape2)

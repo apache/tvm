@@ -663,7 +663,7 @@ class CompileEngineImpl : public CompileEngineNode {
       const auto name_node = key->source_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
       CHECK(name_node.defined()) << "External function has not been attached a name yet.";
       cache_node->func_name = std::string(name_node.value());
-      cache_node->target = tvm::target::ext_dev();
+      cache_node->target = Target("ext_dev");
       cache_node->funcs->Add(GlobalVar(cache_node->func_name), key->source_func);
       value->cached_func = CachedFunc(cache_node);
       return value;

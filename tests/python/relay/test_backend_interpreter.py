@@ -30,7 +30,7 @@ def check_eval(expr, args, expected_result, mod=None, rtol=1e-07):
     # TODO(tqchen) add more types once the schedule register is fixed.
     for target in ["llvm"]:
         ctx = tvm.context(target, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(target):
             return
         intrp = create_executor(mod=mod, ctx=ctx, target=target)
         result = intrp.evaluate(expr)(*args)
@@ -219,7 +219,7 @@ def test_tuple_passing():
     mod = relay.transform.InferType()(mod)
 
     ctx = tvm.cpu()
-    target = tvm.target.create('llvm')
+    target = tvm.target.Target('llvm')
     exec = relay.create_executor(mod=mod, ctx=ctx, target=target)
     f = exec.evaluate(gv)
     # First use a Python tuple.

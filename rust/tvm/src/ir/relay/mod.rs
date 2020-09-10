@@ -18,7 +18,7 @@
  */
 
 use crate::runtime::array::Array;
-use crate::runtime::{IsObject, Object, ObjectPtr, ObjectRef, String as TString};
+use crate::runtime::{object::*, String as TString};
 use crate::DataType;
 use tvm_macros::Object;
 

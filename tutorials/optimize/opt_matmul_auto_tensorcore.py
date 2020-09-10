@@ -237,13 +237,11 @@ def test_gemm(N, L, M, dtype, layout):
 
 # check whether the gpu has tensorcore
 if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-  print("skip because cuda is not enabled..")
-  sys.exit(0)
+  raise Exception("skip building this tutorial because cuda is not enabled..")
 
 ctx = tvm.gpu()
 if not nvcc.have_tensorcore(ctx.compute_version):
-  print('the gpu has no tensorcore, skipping...')
-  sys.exit(0)
+  raise Exception("the gpu has no tensorcore, skipping...")
 
 M, N, L = 512, 32, 512
 dtype = 'float16'
@@ -286,7 +284,7 @@ def tune_and_evaluate(M, N, L, dtype, layout):
   print("\nBest config:")
   print(best_config)
   with autotvm.apply_history_best('matmul.log'):
-    with tvm.target.create("cuda"):
+    with tvm.target.Target("cuda"):
           s, arg_bufs = test_gemm(N, L, M, dtype, layout)
           print(tvm.lower(s, arg_bufs, simple_mode=True))
           func = tvm.build(s, arg_bufs)

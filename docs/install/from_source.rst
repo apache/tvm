@@ -134,7 +134,13 @@ In order to generate the VS solution file using cmake, make sure you have a rece
   cd build
   cmake -G "Visual Studio 14 2015 Win64" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CONFIGURATION_TYPES="Release" ..
 
-This will generate the VS project using the MSVC 14 64 bit generator.
+Starting with Visual Studio 2019 the architecture is specified differently so use this command
+
+.. code:: bash
+
+  cmake -G "Visual Studio 16 2019" -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_CONFIGURATION_TYPES="Release" ..
+
+This will generate the VS project using the MSVC 64 bit generator.
 Open the .sln file in the build directory and build with Visual Studio.
 In order to build with LLVM in windows, you will need to build LLVM from source.
 

@@ -24,6 +24,7 @@ from tvm.auto_scheduler.cost_model.cost_model import PythonBasedModel
 
 class MockCostModel(PythonBasedModel):
     """A mock cost model that rates 1 only for the states with tile_k=2."""
+
     def predict(self, task, states):
         scores = []
         found = False
@@ -35,6 +36,7 @@ class MockCostModel(PythonBasedModel):
             scores.append(1 if found else 0)
         return scores
 
+
 def test_evo_search():
     """Test evolutionary search. Since we cannot mock random number generator,
     we mocked the cost model to manually guide the evo search. If evo search works
@@ -42,10 +44,13 @@ def test_evo_search():
     This unit test has been tested with 1,000 runs with no failures, meaning that
     the failure rate is less than 0.1%.
     """
-    workload_key = auto_scheduler.make_workload_key(matmul_auto_scheduler_test, (10, 10, 4))
+    workload_key = auto_scheduler.make_workload_key(
+        matmul_auto_scheduler_test, (10, 10, 4))
     dag = auto_scheduler.ComputeDAG(workload_key)
-    task = auto_scheduler.SearchTask(dag, workload_key, tvm.target.create('llvm'))
-    policy = auto_scheduler.SketchPolicy(task, schedule_cost_model=MockCostModel(), verbose=0)
+    task = auto_scheduler.SearchTask(
+        dag, workload_key, tvm.target.Target('llvm'))
+    policy = auto_scheduler.SketchPolicy(
+        task, schedule_cost_model=MockCostModel(), verbose=0)
     states = policy.sample_initial_population(50)
     pruned_states = []
     for state in states:

@@ -448,6 +448,38 @@ def test_tuple_types():
     verify_tuple_types((5, 5, 2, 2), [1, 3, 4], axis=0)
     verify_tuple_types((5, 5, 2, 2), [1, 3, 4], axis=1)
 
+def test_layout_transform():
+    def verify_layout_transform(dshape, src_layout, dst_layout, dtype="float32"):
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        y = relay.layout_transform(x, src_layout, dst_layout)
+        func = relay.Function([x], y)
+        x_data = np.random.uniform(size=dshape).astype(dtype)
+        verify_results(func, [x_data], 'test_layout_transform', rtol=1e-5, atol=1e-5)
+
+    verify_layout_transform((1, 3, 8, 8), 'NCHW', 'NHWC')
+    verify_layout_transform((1, 8, 8, 3), 'NHWC', 'NCHW')
+
+def test_clip():
+    def verify_clip(dshape, a_min, a_max, dtype="float32"):
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        y = relay.clip(x, a_min, a_max)
+        func = relay.Function([x], y)
+        x_data = np.random.uniform(size=dshape).astype(dtype)
+        verify_results(func, [x_data], 'test_clip', rtol=1e-5, atol=1e-5)
+
+    verify_clip((5, 5, 2, 5), 0, 0.2)
+    verify_clip((5, 5, 2, 5), 0.2, 0.5)
+
+def test_expand_dims():
+    def verify_expand_dims(dshape, axis, num_newaxis, dtype="float32"):
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        y = relay.expand_dims(x, axis, num_newaxis)
+        func = relay.Function([x], y)
+        x_data = np.random.uniform(size=dshape).astype(dtype)
+        verify_results(func, [x_data], 'test_expand_dims', rtol=1e-5, atol=1e-5)
+
+    verify_expand_dims((1, 1001), 0, 2)
+    verify_expand_dims((1, 1, 1001), 2, 2)
 
 if __name__ == '__main__':
     test_add()
@@ -469,3 +501,6 @@ if __name__ == '__main__':
     test_cmp_type()
     test_binary_op()
     test_tuple_types()
+    test_layout_transform()
+    test_clip()
+    test_expand_dims()

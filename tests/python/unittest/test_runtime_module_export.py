@@ -19,6 +19,8 @@ from tvm.relay import testing
 import tvm
 from tvm import te
 
+import tvm.testing
+
 from tvm.contrib import util
 header_file_dir_path = util.tempdir()
 
@@ -59,10 +61,11 @@ def generate_engine_module():
     return csource_module
 
 
+@tvm.testing.uses_gpu
 def test_mod_export():
     def verify_gpu_mod_export(obj_format):
         for device in ["llvm", "cuda"]:
-            if not tvm.runtime.enabled(device):
+            if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled..." % device)
                 return
 
@@ -89,7 +92,7 @@ def test_mod_export():
 
     def verify_multi_dso_mod_export(obj_format):
         for device in ["llvm"]:
-            if not tvm.runtime.enabled(device):
+            if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled..." % device)
                 return
 
@@ -117,7 +120,7 @@ def test_mod_export():
 
     def verify_json_import_dso(obj_format):
         for device in ["llvm"]:
-            if not tvm.runtime.enabled(device):
+            if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled..." % device)
                 return
 
@@ -173,7 +176,7 @@ def test_mod_export():
             print("Skip test because gcc is not available.")
 
         for device in ["llvm"]:
-            if not tvm.runtime.enabled(device):
+            if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled..." % device)
                 return
 

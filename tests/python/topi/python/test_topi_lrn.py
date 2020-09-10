@@ -21,6 +21,7 @@ from tvm import te
 from tvm import topi
 from tvm.topi.util import get_const_tuple
 import tvm.topi.testing
+import tvm.testing
 
 _lrn_schedule = {
     "generic": topi.generic.schedule_lrn,
@@ -41,11 +42,11 @@ def verify_lrn(shape, size, axis, bias, alpha, beta):
     b_np = tvm.topi.testing.lrn_python(a_np, size, axis, bias, alpha, beta)
 
     def check_device(device):
-        if not tvm.runtime.enabled(device):
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s_func = tvm.topi.testing.dispatch(device, _lrn_schedule)
             s = s_func([B])
         ctx = tvm.context(device, 0)
@@ -58,6 +59,7 @@ def verify_lrn(shape, size, axis, bias, alpha, beta):
     for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
         check_device(device)
 
+@tvm.testing.uses_gpu
 def test_lrn():
     verify_lrn((1, 3, 5, 5), 3, 1, 1.0, 1.0, 0.5)
     verify_lrn((1, 3, 5, 5), 3, 3, 1.0, 1.0, 0.5)

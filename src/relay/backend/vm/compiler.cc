@@ -26,6 +26,8 @@
 
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/error.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
@@ -56,10 +58,10 @@ namespace transform {
 Pass LambdaLift();
 Pass InlinePrimitives();
 
-Pass ManifestAlloc(Target target_host) {
+Pass ManifestAlloc(Target target_host, vm::TargetsMap targets) {
   auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
   CHECK(f != nullptr) << "unable to load allocation manifestation pass";
-  return (*f)(target_host);
+  return (*f)(target_host, targets);
 }
 
 Pass MemoryPlan() {
@@ -228,15 +230,41 @@ std::vector<int64_t> ToAllocTensorShape(NDArray shape) {
   return raw_shape;
 }
 
+/*!
+ * \brief Create a default type.
+ * \param device_type The device type index.
+ * \return the default target for the device.
+ */
+Target CreateDefaultTarget(int device_type) {
+  std::string name = runtime::DeviceName(device_type);
+  if (name == "cpu") return Target("llvm");
+  if (name == "gpu") return Target("cuda");
+  return Target(name);
+}
+
+int GetFallbackDevice() {
+  transform::PassContext pass_ctx = PassContext::Current();
+  Optional<Integer> opt_fallback_dev =
+      pass_ctx->GetConfig("relay.fallback_device_type", Integer(static_cast<int>(kDLCPU)));
+  auto fallback_dev = opt_fallback_dev.value();
+  CHECK_GT(fallback_dev->value, 0U);
+  return fallback_dev->value;
+}
+
 class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
  public:
-  VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host)
+  VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host,
+                     ExprDeviceMap expr_device_map)
       : last_register_(0),
         registers_num_(0),
         engine_(CompileEngine::Global()),
         context_(context),
-        targets_(targets),
-        target_host_(target_host) {}
+        target_host_(target_host),
+        expr_device_map_(std::move(expr_device_map)) {
+    for (const auto& it : targets) {
+      targets_[it.first->value] = it.second;
+    }
+  }
 
   VMFunction Compile(const GlobalVar& var, const Function& func) {
     size_t i = 0;
@@ -263,7 +291,19 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       this->VisitExpr(func->body);
     }
     instructions_.push_back(Instruction::Ret(last_register_));
-    return VMFunction(var->name_hint, params_, instructions_, registers_num_);
+
+    std::vector<Index> params_device_type;
+    for (const auto& it : func->params) {
+      if (!expr_device_map_.empty()) {
+        CHECK_GT(expr_device_map_.count(it), 0U);
+        params_device_type.push_back(expr_device_map_[it].device_type);
+      } else {
+        CHECK_EQ(targets_.size(), 1U);
+        params_device_type.push_back((targets_.begin())->first);
+      }
+    }
+
+    return VMFunction(var->name_hint, params_, instructions_, registers_num_, params_device_type);
   }
 
  protected:
@@ -287,6 +327,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       case Opcode::ReshapeTensor:
       case Opcode::Move:
       case Opcode::InvokeClosure:
+      case Opcode::DeviceCopy:
         last_register_ = instr.dst;
         break;
       case Opcode::InvokePacked:
@@ -310,6 +351,13 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       }
     }
     size_t konst_idx = context_->constants.size();
+    if (expr_device_map_.empty()) {
+      context_->const_device_type.push_back(targets_.begin()->first);
+    } else {
+      auto con = GetRef<Constant>(const_node);
+      CHECK_GT(expr_device_map_.count(con), 0U);
+      context_->const_device_type.push_back(expr_device_map_[con].device_type);
+    }
     context_->constants.push_back(const_node->data);
     Emit(Instruction::LoadConst(konst_idx, NewRegister()));
   }
@@ -474,16 +522,24 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     Target target;
 
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
-      target = tvm::target::ext_dev();
+      target = Target("ext_dev");
     } else {
       // Next generate the invoke instruction.
-      if (targets_.size() == 1) {
+      if (expr_device_map_.empty()) {
         // homogeneous execution.
+        CHECK_EQ(targets_.size(), 1U);
         const auto& it = targets_.begin();
         target = (*it).second;
       } else {
-        // heterogeneous execution.
-        LOG(FATAL) << "Currently VM compiler doesn't support heterogeneous compilation";
+        CHECK_GT(expr_device_map_.count(func), 0U)
+            << "Found not annotated expression, please make sure "
+               "context analysis has been executed";
+        int dev_type = expr_device_map_[func].device_type;
+        if (targets_.count(dev_type) == 0) {
+          target = CreateDefaultTarget(dev_type);
+        } else {
+          target = targets_[expr_device_map_[func].device_type];
+        }
       }
     }
 
@@ -561,7 +617,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                    }
                  })
           .Match("memory.alloc_storage",
-                 [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+                 [this, call_node](const Array<Expr>& args, const Attrs& attrs,
+                                   const Array<Type>& type_arg) {
                    CHECK_EQ(args.size(), 2);
                    // Compute the size of the allocation.
                    this->VisitExpr(args[0]);
@@ -577,10 +634,23 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
                    // Get the dtype hint from the attributes.
                    auto alloc_attrs = attrs.as<AllocStorageAttrs>();
-                   CHECK(alloc_attrs != nullptr) << "must be the alloc tensor attrs";
+                   CHECK(alloc_attrs != nullptr) << "must be the AllocStorage attrs";
                    auto dtype = alloc_attrs->dtype;
 
-                   Emit(Instruction::AllocStorage(size_register, alignment, dtype, NewRegister()));
+                   Index device_type;
+                   if (expr_device_map_.empty()) {
+                     // TODO(zhiics) There is bug if all expressions are annotated with the device
+                     // that is different the first one in the target list.
+                     auto& kv = *(targets_.begin());
+                     device_type = kv.first;
+                   } else {
+                     CHECK_GT(expr_device_map_.count(GetRef<Call>(call_node)), 0U)
+                         << " The alloc_storage node is not annotated";
+                     device_type = expr_device_map_[GetRef<Call>(call_node)].device_type;
+                   }
+
+                   Emit(Instruction::AllocStorage(size_register, alignment, dtype, device_type,
+                                                  NewRegister()));
                  })
           .Match("vm.shape_func",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
@@ -610,6 +680,19 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                    this->VisitExpr(args[1]);
                    auto shape_reg = last_register_;
                    Emit(Instruction::ReshapeTensor(tensor_reg, shape_reg, NewRegister()));
+                 })
+          .Match("device_copy",
+                 [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+                   CHECK_EQ(args.size(), 1U);
+                   this->VisitExpr(args[0]);
+                   auto src_reg = last_register_;
+
+                   auto device_copy_attrs = attrs.as<DeviceCopyAttrs>();
+                   CHECK(device_copy_attrs != nullptr) << "Must be the device copy attrs";
+                   Index src_device_type = device_copy_attrs->src_dev_type;
+                   Index dst_device_type = device_copy_attrs->dst_dev_type;
+                   Emit(Instruction::DeviceCopy(src_reg, src_device_type, dst_device_type,
+                                                NewRegister()));
                  })
           .Match("memory.kill",
                  [](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
@@ -769,9 +852,11 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   /*! \brief Global shared meta data */
   VMCompilerContext* context_;
   /*! \brief Target devices. */
-  TargetsMap targets_;
+  std::unordered_map<int, tvm::Target> targets_;
   /*! \brief Host target. */
   Target target_host_;
+  /*! \brief Map from Relay expr to device type. */
+  ExprDeviceMap expr_device_map_;
 };
 
 PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
@@ -820,7 +905,6 @@ void VMCompiler::SetParam(const std::string& name, runtime::NDArray data_in) {
 }
 
 void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host) {
-  CHECK_EQ(targets.size(), 1) << "Currently VM compiler doesn't support heterogeneous compilation";
   if (params_.size()) {
     BaseFunc base_func = mod->Lookup("main");
     CHECK(base_func->IsInstance<FunctionNode>())
@@ -847,11 +931,15 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   // the global state.
   exec_->functions.resize(context_.module->functions.size());
 
+  // Collect the annotated device information.
+  // This indicates which device each Relay expr should be executed on.
+  ExprDeviceMap expr_device_map = AnalyzeContext();
+
   for (auto named_func : context_.module->functions) {
     auto gvar = named_func.first;
     if (auto* n = named_func.second.as<FunctionNode>()) {
       auto func = GetRef<Function>(n);
-      VMFunctionCompiler func_compiler(&context_, targets_, target_host_);
+      VMFunctionCompiler func_compiler(&context_, targets_, target_host_, expr_device_map);
       auto vm_func = func_compiler.Compile(gvar, func);
 
       size_t func_index = context_.global_map.at(gvar);
@@ -871,6 +959,10 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
     exec_->constants.push_back(data);
   }
 
+  for (auto i : context_.const_device_type) {
+    exec_->const_device_type.push_back(i);
+  }
+
   // update global function map
   for (auto gv : context_.global_map) {
     exec_->global_map.insert({gv.first->name_hint, gv.second});
@@ -883,10 +975,10 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   }
 }
 
-transform::Sequential MemoryOpt(tvm::Target host_target) {
+transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
   Array<Pass> pass_seqs;
   // Manifest the allocations.
-  pass_seqs.push_back(transform::ManifestAlloc(host_target));
+  pass_seqs.push_back(transform::ManifestAlloc(host_target, targets));
 
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
@@ -895,7 +987,7 @@ transform::Sequential MemoryOpt(tvm::Target host_target) {
   pass_seqs.push_back(transform::FuseOps());
 
   // Manifest the allocations needed for the shape functions.
-  pass_seqs.push_back(transform::ManifestAlloc(host_target));
+  pass_seqs.push_back(transform::ManifestAlloc(host_target, targets));
 
   // Fuse the shape functions.
   pass_seqs.push_back(transform::FuseOps());
@@ -910,7 +1002,7 @@ transform::Sequential MemoryOpt(tvm::Target host_target) {
   pass_seqs.push_back(transform::FuseOps());
 
   // Create allocations for math introduced by dynamic region math.
-  pass_seqs.push_back(transform::ManifestAlloc(host_target));
+  pass_seqs.push_back(transform::ManifestAlloc(host_target, targets));
 
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
@@ -977,6 +1069,12 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
   pass_seqs.push_back(transform::FastMath());
   pass_seqs.push_back(transform::FoldConstant());
 
+  if (targets_.size() > 1) {
+    // Handle heterogeneous compilation.
+    int fallback_dev = GetFallbackDevice();
+    pass_seqs.push_back(transform::RewriteAnnotatedOps(fallback_dev));
+  }
+
   pass_seqs.push_back(transform::FuseOps());
   pass_seqs.push_back(transform::ToANormalForm());
   pass_seqs.push_back(transform::LambdaLift());
@@ -989,11 +1087,10 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
   // external codegen.
   pass_seqs.push_back(transform::Inline());
 
-  pass_seqs.push_back(MemoryOpt(target_host));
+  pass_seqs.push_back(MemoryOpt(target_host, targets));
 
   transform::Sequential seq(pass_seqs);
   transform::PassContext pass_ctx = PassContext::Current();
-  // TODO(wweic): Support heterogenous execution
   tvm::With<relay::transform::PassContext> ctx(pass_ctx);
   if (targets.size() == 1) {
     const auto& it = targets.begin();
@@ -1059,6 +1156,25 @@ void VMCompiler::Codegen() {
   if (!ext_mods.empty()) {
     exec_->lib = codegen::CreateMetadataModule(params_, exec_->lib, ext_mods);
   }
+}
+
+ExprDeviceMap VMCompiler::AnalyzeContext() const {
+  TVMContext default_device;
+  ExprDeviceMap expr_device_map;
+  if (targets_.size() > 1) {
+    int fallback_dev = GetFallbackDevice();
+    default_device.device_type = static_cast<DLDeviceType>(fallback_dev);
+    default_device.device_id = 0;
+    expr_device_map = ContextAnalysis(context_.module, default_device);
+  } else {
+    const auto& tgt = targets_.begin();
+    default_device.device_type = static_cast<DLDeviceType>((*tgt).first->value);
+    if (default_device.device_type != kDLCPU) {
+      default_device.device_id = 0;
+      expr_device_map = ContextAnalysis(context_.module, default_device);
+    }
+  }
+  return expr_device_map;
 }
 
 runtime::Module CreateVMCompiler() {

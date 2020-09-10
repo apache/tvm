@@ -110,7 +110,7 @@ def run_inference(data_dtype, kernel_dtype, out_dtype, im_height, im_width, in_f
     c_sch = tvm.nd.array(np.zeros(o_shape, dtype=out_dtype), CTX)
 
 
-    with tvm.target.create(TARGET_NAME):
+    with tvm.target.Target(TARGET_NAME):
         if out_dtype == "float32":
             conv = topi.nn.conv2d_NCHWc(data, kernel, stride=hstride,
                                         padding=hpad, dilation=(1, 1),

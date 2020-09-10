@@ -37,13 +37,15 @@ class DummyRunner(Runner):
     def get_build_kwargs(self):
         return {}
 
+
 @autotvm.template("testing/matmul")
 def matmul(N, L, M, dtype):
     A = te.placeholder((N, L), name='A', dtype=dtype)
     B = te.placeholder((L, M), name='B', dtype=dtype)
 
     k = te.reduce_axis((0, L), name='k')
-    C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name='C')
+    C = te.compute((N, M), lambda i, j: te.sum(
+        A[i, k] * B[k, j], axis=k), name='C')
     s = te.create_schedule(C.op)
 
     # schedule
@@ -64,6 +66,7 @@ def matmul(N, L, M, dtype):
 
     return s, [A, B, C]
 
+
 @autotvm.template("testing/bad_matmul")
 def bad_matmul(N, L, M, dtype):
     if 'bad_device' in tvm.target.Target.current().keys:
@@ -71,7 +74,8 @@ def bad_matmul(N, L, M, dtype):
         B = te.placeholder((L, M), name='B', dtype=dtype)
 
         k = te.reduce_axis((0, L-1), name='k')
-        C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name='C')
+        C = te.compute((N, M), lambda i, j: te.sum(
+            A[i, k] * B[k, j], axis=k), name='C')
         s = te.create_schedule(C.op)
 
         # schedule
@@ -83,11 +87,14 @@ def bad_matmul(N, L, M, dtype):
 
     return matmul(N, L, M, dtype)
 
+
 def get_sample_task(n=128):
     """return a sample task for testing"""
-    target = tvm.target.create("llvm")
-    task = autotvm.task.create("testing/matmul", args=(n, n, n, 'float32'), target=target)
+    target = tvm.target.Target("llvm")
+    task = autotvm.task.create(
+        "testing/matmul", args=(n, n, n, 'float32'), target=target)
     return task, target
+
 
 def get_sample_records(n):
     """get sample records for testing"""

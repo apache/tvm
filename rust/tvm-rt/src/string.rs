@@ -20,7 +20,7 @@
 use std::cmp::{Ordering, PartialEq};
 use std::hash::{Hash, Hasher};
 
-use super::{Object, ObjectPtr};
+use super::Object;
 
 use tvm_macros::Object;
 
@@ -37,27 +37,18 @@ pub struct StringObj {
 impl From<std::string::String> for String {
     fn from(s: std::string::String) -> Self {
         let size = s.len() as u64;
-        let obj = StringObj {
-            base: Object::base_object::<StringObj>(),
-            data: s.as_bytes().as_ptr(),
-            size,
-        };
-        std::mem::forget(s);
-        let obj_ptr = ObjectPtr::new(obj);
-        String(Some(obj_ptr))
+        let data = Box::into_raw(s.into_boxed_str()).cast();
+        let base = Object::base_object::<StringObj>();
+        StringObj { base, data, size }.into()
     }
 }
 
 impl From<&'static str> for String {
     fn from(s: &'static str) -> Self {
         let size = s.len() as u64;
-        let obj = StringObj {
-            base: Object::base_object::<StringObj>(),
-            data: s.as_bytes().as_ptr(),
-            size,
-        };
-        let obj_ptr = ObjectPtr::new(obj);
-        String(Some(obj_ptr))
+        let data = s.as_bytes().as_ptr();
+        let base = Object::base_object::<StringObj>();
+        StringObj { base, data, size }.into()
     }
 }
 
@@ -139,7 +130,7 @@ mod tests {
     #[test]
     fn test_string_debug() -> Result<()> {
         let s = String::from("foo");
-        let object_ref = s.to_object_ref();
+        let object_ref = s.upcast();
         println!("about to call");
         let string = debug_print(object_ref)?;
         println!("after call");
