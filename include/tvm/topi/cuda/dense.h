@@ -32,6 +32,7 @@
 #include <tvm/topi/generic/extern.h>
 #include <tvm/topi/nn/dense.h>
 #include <tvm/topi/tags.h>
+
 #include <algorithm>
 
 namespace tvm {

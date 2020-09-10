@@ -30,6 +30,7 @@
 #include <tvm/topi/detail/array_utils.h>
 #include <tvm/topi/detail/fuse.h>
 #include <tvm/topi/tags.h>
+
 #include <algorithm>
 
 namespace tvm {
