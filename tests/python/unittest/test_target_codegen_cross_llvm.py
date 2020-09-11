@@ -16,6 +16,7 @@
 # under the License.
 """Test cross compilation"""
 import tvm
+import tvm.testing
 from tvm import te
 import os
 import struct
