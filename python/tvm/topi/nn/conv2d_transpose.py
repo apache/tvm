@@ -96,11 +96,11 @@ def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype,
     # convolution stage
     out_c = simplify(out_c)
 
-    out_h = simplify(in_h - filter_h + 1 + output_padding[0])
-    out_w = simplify(in_w - filter_w + 1 + output_padding[1])
-    dc = tvm.te.reduce_axis((0, in_c), name='dc')
-    dh = tvm.te.reduce_axis((0, filter_h), name='dh')
-    dw = tvm.te.reduce_axis((0, filter_w), name='dw')
+    out_h = simplify(in_h - filter_h + 1)
+    out_w = simplify(in_w - filter_w + 1)
+    dc = te.reduce_axis((0, in_c), name='dc')
+    dh = te.reduce_axis((0, filter_h), name='dh')
+    dw = te.reduce_axis((0, filter_w), name='dw')
 
     Output = te.compute(
         (batch, out_c, out_h, out_w),
