@@ -98,7 +98,6 @@ pub mod function;
 pub mod map;
 pub mod module;
 pub mod ndarray;
-pub mod ndarray2;
 mod to_function;
 pub mod value;
 
