@@ -70,7 +70,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_reduce_schedule(device)(B)
 
         foo = tvm.build(s, [A, B], device, name=type)

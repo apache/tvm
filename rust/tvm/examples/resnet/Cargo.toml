@@ -28,3 +28,6 @@ ndarray = "0.12"
 tvm = { path = "../../" }
 image = "0.20"
 csv = "1.1"
+
+[build-dependencies]
+anyhow = "^1.0"

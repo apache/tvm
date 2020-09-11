@@ -17,7 +17,9 @@
  * under the License.
  */
 
-fn main() {
+use anyhow::{Context, Result};
+
+fn main() -> Result<()> {
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let tvm_mk_add = concat!(env!("CARGO_MANIFEST_DIR"), "/src/tvm_add.py");
 
@@ -31,13 +33,13 @@ fn main() {
             &std::env::var("OUT_DIR").unwrap(),
         ])
         .output()
-        .expect("Failed to execute command");
+        .with_context(|| anyhow::anyhow!(tvm_mk_add))?;
 
     assert!(
         std::path::Path::new(&format!("{}/test_add.so", out_dir)).exists(),
         "Could not build tvm lib: {}",
         String::from_utf8(output.stderr)
-            .unwrap()
+            .context("utf-8 conversion failed")?
             .trim()
             .split("\n")
             .last()
@@ -45,4 +47,6 @@ fn main() {
     );
 
     println!("cargo:rustc-link-search=native={}", out_dir);
+
+    Ok(())
 }

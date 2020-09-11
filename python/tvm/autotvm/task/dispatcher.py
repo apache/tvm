@@ -160,6 +160,7 @@ class ApplyConfig(DispatchContext):
     config : ConfigSpace or ConfigEntity
         The specific configuration we care about.
     """
+
     def __init__(self, config):
         super(ApplyConfig, self).__init__()
         self._config = config
@@ -187,6 +188,7 @@ class ApplyHistoryBest(DispatchContext):
         If is str, then it should be the filename of a records log file.
         Each row of this file is an encoded record pair. Otherwise, it is an iterator.
     """
+
     def __init__(self, records):
         super(ApplyHistoryBest, self).__init__()
 
@@ -253,7 +255,7 @@ class ApplyHistoryBest(DispatchContext):
     def _query_inside(self, target, workload):
         if target is None:
             raise RuntimeError("Need a target context to find the history best. "
-                               "Hint: If your target is llvm, use `with tvm.target.create('llvm'):`"
+                               "Hint: If your target is llvm, use `with tvm.target.Target('llvm'):`"
                                " above the dispatcher call. So does other target. ")
 
         # first try matching by model
@@ -306,7 +308,8 @@ class FallbackContext(DispatchContext):
 
         if not _env.GLOBAL_SCOPE.silent:
             msg = "Cannot find config for target=%s, workload=%s. A fallback configuration "\
-                  "is used, which may bring great performance regression." % (target, workload)
+                  "is used, which may bring great performance regression." % (
+                      target, workload)
             if msg not in DispatchContext.warning_messages:
                 DispatchContext.warning_messages.add(msg)
                 logger.warning(msg)
@@ -370,6 +373,7 @@ class ApplyGraphBest(DispatchContext):
     This context maintains an internal counter to indicate the current
     node index.
     """
+
     def __init__(self, records):
         """
         Parameters

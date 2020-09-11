@@ -51,7 +51,7 @@ def verify_conv1d_transpose_ncw(batch, in_channel, in_size, num_filter, kernel, 
 
     def check_device(device, ctx):
         ctx = tvm.context(device, 0)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv1d_transpose_ncw_implement)
             B = fcompute(A, W, stride, padding, A.dtype, output_padding)
             C = topi.nn.relu(B)

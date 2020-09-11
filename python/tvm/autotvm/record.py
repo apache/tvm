@@ -30,7 +30,8 @@ import itertools
 from collections import OrderedDict
 import numpy as np
 
-from .. import build, lower, target as _target
+from .. import build, lower
+from ..target import Target
 from .. import __version__
 from . import task
 from .task import ConfigEntity, ApplyHistoryBest
@@ -142,16 +143,18 @@ def decode(row, protocol='json'):
         row = json.loads(row)
         if 'v' in row and row['v'] == 0.1:
             if _old_version_warning:
-                logger.warning("AutoTVM log version 0.1 is no longer supported.")
+                logger.warning(
+                    "AutoTVM log version 0.1 is no longer supported.")
                 _old_version_warning = False
             return None
 
         tgt, task_name, task_args, task_kwargs = row["input"]
         tgt = str(tgt)
         if "-target" in tgt:
-            logger.warning("\"-target\" is deprecated, use \"-mtriple\" instead.")
+            logger.warning(
+                "\"-target\" is deprecated, use \"-mtriple\" instead.")
             tgt = tgt.replace("-target", "-mtriple")
-        tgt = _target.create(str(tgt))
+        tgt = Target(str(tgt))
 
         def clean_json_to_python(x):
             """1. Convert all list in x to tuple (hashable)
@@ -165,10 +168,12 @@ def decode(row, protocol='json'):
                 return int(x)
             return x
 
-        tsk = task.Task(clean_json_to_python(task_name), clean_json_to_python(task_args))
+        tsk = task.Task(clean_json_to_python(task_name),
+                        clean_json_to_python(task_args))
         config = ConfigEntity.from_json_dict(row["config"])
         inp = MeasureInput(tgt, tsk, config)
-        result = MeasureResult(*[tuple(x) if isinstance(x, list) else x for x in row["result"]])
+        result = MeasureResult(
+            *[tuple(x) if isinstance(x, list) else x for x in row["result"]])
         config.cost = np.mean(result.costs)
 
         return inp, result
@@ -176,13 +181,15 @@ def decode(row, protocol='json'):
         items = row.split("\t")
         if len(items) == 4:
             if _old_version_warning:
-                logger.warning("AutoTVM log version 0.1 is no longer supported.")
+                logger.warning(
+                    "AutoTVM log version 0.1 is no longer supported.")
                 _old_version_warning = False
             return None
-        tgt = _target.create(items[0])
+        tgt = Target(items[0])
         task_tuple = pickle.loads(base64.b64decode(items[1].encode()))
         config = pickle.loads(base64.b64decode(items[2].encode()))
-        result = MeasureResult(*pickle.loads(base64.b64decode(items[3].encode())))
+        result = MeasureResult(
+            *pickle.loads(base64.b64decode(items[3].encode())))
         config.cost = np.mean(result.costs)
 
         tsk = task.Task(task_tuple[0], task_tuple[1])
@@ -251,7 +258,8 @@ def split_workload(in_file, clean=True):
                 cleaned.append([inp, res])
 
             # write to file
-            logger.info("Key: %s\tValid: %d\tDup: %d\t", k, len(cleaned), len(v) - len(cleaned))
+            logger.info("Key: %s\tValid: %d\tDup: %d\t", k,
+                        len(cleaned), len(v) - len(cleaned))
             with open(args.i + ".%03d.wkl" % i, 'w') as fout:
                 for inp, res in cleaned:
                     fout.write(encode(inp, res) + '\n')
@@ -261,6 +269,7 @@ def split_workload(in_file, clean=True):
             with open(args.i + ".%03d.wkl" % i, 'w') as fout:
                 for inp, res in v:
                     fout.write(encode(inp, res) + '\n')
+
 
 def pick_best(in_file, out_file):
     """
@@ -298,6 +307,7 @@ def pick_best(in_file, out_file):
             fout.write(encode(inp, res) + "\n")
             best_set.remove(measure_str_key(inp))
 
+
 """
 Usage:
 This record executable module has three modes.
@@ -313,7 +323,8 @@ e.g. python -m tvm.autotvm.record --mode split --i collect.log
 """
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=['read', 'pick', 'split'], default='read')
+    parser.add_argument(
+        "--mode", choices=['read', 'pick', 'split'], default='read')
     parser.add_argument("--i", type=str, help="input file")
     parser.add_argument("--o", type=str, default=None, help='output file')
     parser.add_argument("--begin", type=int, default=0)

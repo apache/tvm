@@ -33,7 +33,7 @@ def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_broadcast_schedule(device)(B)
         foo = tvm.build(s, [A, B], device, name="broadcast_to")
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
@@ -81,7 +81,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_broadcast_schedule(device)(C)
         foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + ftopi.__name__)
 
@@ -252,7 +252,7 @@ def test_logical_single_ele():
 
         def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_broadcast_schedule(device)(B)
             foo = tvm.build(s, [A, B], device, name=name)
 
@@ -290,7 +290,7 @@ def test_bitwise_not():
 
         def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_broadcast_schedule(device)(B)
             foo = tvm.build(s, [A, B], device, name=name)
 
@@ -329,7 +329,7 @@ def test_logical_binary_ele():
 
         def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_broadcast_schedule(device)(C)
             foo = tvm.build(s, [A, B, C], device, name=name)
 

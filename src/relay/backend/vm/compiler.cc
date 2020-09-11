@@ -237,9 +237,9 @@ std::vector<int64_t> ToAllocTensorShape(NDArray shape) {
  */
 Target CreateDefaultTarget(int device_type) {
   std::string name = runtime::DeviceName(device_type);
-  if (name == "cpu") return Target::Create("llvm");
-  if (name == "gpu") return Target::Create("cuda");
-  return Target::Create(name);
+  if (name == "cpu") return Target("llvm");
+  if (name == "gpu") return Target("cuda");
+  return Target(name);
 }
 
 int GetFallbackDevice() {
@@ -522,7 +522,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     Target target;
 
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
-      target = tvm::target::ext_dev();
+      target = Target("ext_dev");
     } else {
       // Next generate the invoke instruction.
       if (expr_device_map_.empty()) {

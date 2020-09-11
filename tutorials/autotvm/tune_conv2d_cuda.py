@@ -213,7 +213,7 @@ print(best_config)
 
 # apply history best from log file
 with autotvm.apply_history_best('conv2d.log'):
-    with tvm.target.create("cuda"):
+    with tvm.target.Target("cuda"):
         s, arg_bufs = conv2d_no_batching(N, H, W, CO, CI, KH, KW, strides, padding)
         func = tvm.build(s, arg_bufs)
 

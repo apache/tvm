@@ -96,7 +96,7 @@ def _should_construct_dynamic_list(list_construct_node):
 
     op_names = map(inplace_add_to_add, set(use.user.kind() for use in uses))
 
-    list_ops = set(["aten::add", "aten::__getitem__", "aten::stack"])
+    list_ops = set(["aten::add", "aten::__getitem__"])
     intersect = list_ops.intersection(op_names)
 
     if len(intersect) > 0 and intersect != set(["aten::add"]):
@@ -1744,6 +1744,8 @@ def _add(prelude):
 
 def _tensor_array_stack(prelude):
     def _impl(inputs, input_types):
+        dim = inputs[1]
+        assert dim == 0, "stacking on a dynamic tensor list only supported on a first axis"
         tensor_array, shape = _convert_to_tensor_array(inputs[0], prelude)
 
         stacked_shape = (Any(),) + shape
@@ -1754,6 +1756,23 @@ def _tensor_array_stack(prelude):
         static_tensor_array_ops.register()
         get_tensor = prelude.get_var_static('tensor_get_data', "float32", stacked_shape)
         return get_tensor(stacked)
+    return _impl
+
+
+def _stack(prelude):
+    def _impl(inputs, input_types):
+        if isinstance(inputs[0], list):
+            # a static python list of tensors
+            dim = inputs[1]
+            return _op.stack(inputs[0], dim)
+        else:
+            # List ADT case
+            assert isinstance(inputs[0], _expr.Expr)
+            ty = _infer_type_with_prelude(inputs[0], prelude)
+            list_ty = prelude.mod.get_global_type_var("List")
+            msg = "The input list is expected to be List ADT"
+            assert isinstance(ty, tvm.ir.TypeCall) and ty.func == list_ty, msg
+            return _tensor_array_stack(prelude)(inputs, input_types)
     return _impl
 
 
@@ -2193,10 +2212,9 @@ def _get_convert_map(prelude, default_dtype):
         "aten::embedding"                       : _embedding(),
         "aten::one_hot"                         : _one_hot(),
         "aten::mm"                              : _matmul(prelude),
-        "relay::tensor_array_stack"             : _tensor_array_stack(prelude),
         "aten::add"                             : _add(prelude),
         "aten::add_"                            : _add(prelude),
-        "aten::stack"                           : _tensor_array_stack(prelude),
+        "aten::stack"                           : _stack(prelude),
         "aten::__getitem__"                     : _list_getitem(prelude),
         "aten::len"                             : _list_len(prelude),
         "aten::type_as"                         : _type_as(),

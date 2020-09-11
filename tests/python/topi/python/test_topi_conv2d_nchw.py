@@ -73,7 +73,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         else:
             fcompute, fschedule = tvm.topi.testing.get_conv2d_nchw_implement(device)
 
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             if "cudnn" in device:
                 C = fcompute(A, W, (stride, stride), padding, (dilation, dilation), 1, "NCHW", dtype)
             else:

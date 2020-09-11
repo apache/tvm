@@ -146,6 +146,9 @@ def get_cuda_version(cuda_path):
         The cuda version
     """
     version_file_path = os.path.join(cuda_path, "version.txt")
+    if not os.path.exists(version_file_path):
+        # Debian/Ubuntu repackaged CUDA path
+        version_file_path = os.path.join(cuda_path, "lib", "cuda", "version.txt")
     try:
         with open(version_file_path) as f:
             version_str = f.readline().replace('\n', '').replace('\r', '')
@@ -170,10 +173,13 @@ def find_libdevice_path(arch):
     """
     cuda_path = find_cuda_path()
     lib_path = os.path.join(cuda_path, "nvvm/libdevice")
+    if not os.path.exists(lib_path):
+        # Debian/Ubuntu repackaged CUDA path
+        lib_path = os.path.join(cuda_path, "lib/nvidia-cuda-toolkit/libdevice")
     selected_ver = 0
     selected_path = None
     cuda_ver = get_cuda_version(cuda_path)
-    if cuda_ver in (9.0, 9.1, 10.0, 11.0):
+    if cuda_ver in (9.0, 9.1, 10.0, 10.1, 10.2, 11.0):
         path = os.path.join(lib_path, "libdevice.10.bc")
     else:
         for fn in os.listdir(lib_path):

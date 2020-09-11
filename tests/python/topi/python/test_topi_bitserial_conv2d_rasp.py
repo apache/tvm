@@ -37,7 +37,7 @@ def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel,
     out_dtype = 'int16'
 
     device = 'llvm -device=arm_cpu -model=bcm2837 -mtriple=armv7l-linux-gnueabihf -mattr=+neon'
-    with tvm.target.create(device):
+    with tvm.target.Target(device):
         A = te.placeholder((batch, in_height, in_width, in_channel), dtype=input_type, name='A')
         W = te.placeholder((kernel, kernel, in_channel, num_filter), dtype=input_type, name='W')
         B = topi.arm_cpu.bitserial_conv2d_nhwc(A, W, stride, padding, activation_bits, weight_bits,
