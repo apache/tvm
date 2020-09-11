@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 import tvm.contrib.sparse as tvmsp
 import tvm.runtime.ndarray as _nd

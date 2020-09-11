@@ -18,6 +18,7 @@ import numpy as np
 import scipy
 from scipy import special
 import tvm
+import tvm.testing
 import tvm.relay as relay
 from tvm import topi
 from tvm import te

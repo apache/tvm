@@ -17,6 +17,7 @@
 
 import numpy as np
 import tvm
+import tvm.testing
 import pickle
 from tvm import te
 from tvm import nd, relay

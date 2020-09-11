@@ -17,6 +17,7 @@
 """Test code for binary neural network operators."""
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import te
 from tvm import topi
 from tvm.topi.util import get_const_tuple

@@ -56,6 +56,7 @@ Intel i7-4770HQ CPU. The cache line size should be 64 bytes for all the x86 CPUs
 # Then we write a baseline implementation, the simplest way to write a matrix multiplication in TVM.
 
 import tvm
+import tvm.testing
 from tvm import te
 import numpy
 import timeit

@@ -19,6 +19,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import topi
+import tvm.testing
 import tvm.topi.testing
 import math
 from tvm.topi.util import nchw_pack_layout

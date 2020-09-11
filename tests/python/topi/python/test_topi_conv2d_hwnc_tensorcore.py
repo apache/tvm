@@ -20,6 +20,7 @@
 import numpy as np
 import tvm
 import os
+import tvm.testing
 import tvm.topi.testing
 from tvm import te, autotvm, topi
 from tvm.contrib.pickle_memoize import memoize

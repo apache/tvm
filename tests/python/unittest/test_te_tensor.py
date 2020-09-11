@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 import numpy as np
 from tvm import te
 from tvm.topi.nn.pooling import pool

@@ -17,6 +17,7 @@
 import json
 import os
 import tvm
+import tvm.testing
 from tvm import te
 import numpy as np
 from tvm import rpc
