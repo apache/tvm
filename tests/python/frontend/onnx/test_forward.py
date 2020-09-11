@@ -438,11 +438,8 @@ def test_gather():
 def verify_gatherelements(in_shape, indices, axis):
     x = np.random.uniform(size=in_shape).astype("float32")
     indices = np.array(indices, dtype="int32")
-    print(x.shape)
-    print(indices.shape)
 
     y = helper.make_node("GatherElements", ['data', 'indices'], ['output'], axis=axis)
-
     graph = helper.make_graph([y],
                               'gather_elements_test',
                               inputs=[helper.make_tensor_value_info("data",
