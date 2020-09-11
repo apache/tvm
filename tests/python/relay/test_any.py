@@ -865,5 +865,32 @@ def test_any_consecutive_broadcast():
               ((np_data2 + np_data3) - (np_data2 * np_data3))
     check_result([np_data0, np_data1, np_data2, np_data3], mod, ref_res)
 
+def test_reshape_concat():
+    dtype = "float32"
+    d0 = relay.var("d0", shape=any_dims(2), dtype=dtype)
+    d1 = relay.var("d1", shape=any_dims(3), dtype=dtype)
+    out = relay.op.concatenate([relay.op.reshape(d0, [-1]), relay.op.reshape(d1, [-1])], axis=0)
+    mod = tvm.IRModule()
+    mod['main'] = relay.Function([d0, d1], out)
+    np_data0 = np.random.uniform(size=(4, 5)).astype(dtype)
+    np_data1 = np.random.uniform(size=(2, 5, 2)).astype(dtype)
+    ref_res = np.concatenate([np.reshape(np_data0, [-1]), np.reshape(np_data1, [-1])], axis=0)
+    check_result([np_data0, np_data1], mod, ref_res)
+
+    d0 = relay.var("d0", shape=any_dims(2), dtype=dtype)
+    d1 = relay.var("d1", shape=any_dims(2), dtype=dtype)
+    s0 = relay.var("s0", shape=any_dims(3), dtype=dtype)
+    s1 = relay.var("s1", shape=any_dims(3), dtype=dtype)
+    out = relay.op.concatenate([relay.op.reshape_like(d0, s0), relay.op.reshape_like(d1, s1)], axis=0)
+    mod = tvm.IRModule()
+    mod['main'] = relay.Function([d0, d1, s0, s1], out)
+    np_data0 = np.random.uniform(size=(4, 5)).astype(dtype)
+    np_data1 = np.random.uniform(size=(8, 5)).astype(dtype)
+    np_shape_like0 = np.random.uniform(size=(2, 2, 5)).astype(dtype)
+    np_shape_like1 = np.random.uniform(size=(4, 2, 5)).astype(dtype)
+    ref_res = np.concatenate([np.reshape(np_data0, np_shape_like0.shape),
+                              np.reshape(np_data1, np_shape_like1.shape)], axis=0)
+    check_result([np_data0, np_data1, np_shape_like0, np_shape_like1], mod, ref_res)
+
 if __name__ == "__main__":
     pytest.main([__file__])
