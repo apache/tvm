@@ -1091,6 +1091,31 @@ def test_sparse_to_dense():
     #sparse_indices should not be > 2d tensor
     #verify_sparse_to_dense([[[[0, 1, 4], [0, 2, 4]]]], [[[[3.1, 3.1, 3.1]]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
 
+def test_adv_index():
+    def verify_adv_index(data_shape, index_shapes):
+        dtype = "float32"
+        inputs = [relay.var("data", relay.TensorType(data_shape, dtype))]
+        np_data = np.random.uniform(size=data_shape).astype(dtype)
+        np_indices = []
+        for i, index_shape in enumerate(index_shapes):
+            limit = data_shape[i]
+            np_indices.append(np.random.uniform(0, limit - 1, size=index_shape).astype("int64"))
+            inputs.append(relay.var("index_{}".format(i), relay.TensorType(index_shape, "int64")))
+        np_out = np_data[tuple(np_indices)]
+        np_args = [np_data] + np_indices
+        out = relay.op.adv_index(inputs)
+
+        func = relay.Function(inputs, out)
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(*np_args)
+                tvm.testing.assert_allclose(op_res.asnumpy(), np_out, rtol=1e-5)
+
+    verify_adv_index((10, 5), [(3, 4), (3, 1)])
+    verify_adv_index((10, 5), [(2,),])
+    verify_adv_index((10, 5, 15), [(1, 2, 1), (1, 2, 7)])
+
 if __name__ == "__main__":
     test_cast()
     test_zeros_ones()
@@ -1127,3 +1152,4 @@ if __name__ == "__main__":
     test_unravel_index()
     test_sparse_to_dense()
     test_fixed_point_multiply()
+    test_adv_index()
