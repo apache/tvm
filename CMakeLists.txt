@@ -123,8 +123,6 @@ if(MSVC)
   add_compile_options(/wd4180)
   # DLL interface warning in c++
   add_compile_options(/wd4251)
-  # unicode in data_layout.h, need to revisit
-  add_compile_options(/wd4819)
 else(MSVC)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     message(STATUS "Build in Debug mode")
