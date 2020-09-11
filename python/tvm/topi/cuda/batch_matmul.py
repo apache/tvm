@@ -24,6 +24,7 @@ from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from .. import nn
 from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
 
+
 @autotvm.register_topi_compute("batch_matmul.cuda")
 def batch_matmul(cfg, x, y):
     """Compute conv2d with NCHW layout"""
@@ -62,14 +63,14 @@ def schedule_batch_matmul(cfg, outs):
             C = s.outputs[0].output(0)
 
         b, y, x = s[C].op.axis
-        k, = s[CC].op.reduce_axis
+        (k,) = s[CC].op.reduce_axis
 
         cfg.define_split("tile_y", y, num_outputs=3)
         cfg.define_split("tile_x", x, num_outputs=3)
         cfg.define_split("tile_k", k, num_outputs=2)
         cfg.define_knob("auto_unroll_max_step", [8, 16, 32, 64])
         target = tvm.target.Target.current()
-        if target.kind.name in ['nvptx', 'rocm']:
+        if target.kind.name in ["nvptx", "rocm"]:
             # llvm-based backends cannot do non-explicit unrolling
             cfg.define_knob("unroll_explicit", [1])
         else:
@@ -80,10 +81,10 @@ def schedule_batch_matmul(cfg, outs):
             x_bn = get_max_power2_factor(N, 64)
             y_nthreads = min(y_bn, 8)
             x_nthreads = min(x_bn, 8)
-            cfg['tile_x'] = SplitEntity([-1, x_nthreads, x_bn // x_nthreads])
-            cfg['tile_y'] = SplitEntity([-1, y_nthreads, y_bn // y_nthreads])
-            cfg['tile_k'] = SplitEntity([-1, 8])
-            cfg['auto_unroll_max_step'] = OtherOptionEntity(16)
+            cfg["tile_x"] = SplitEntity([-1, x_nthreads, x_bn // x_nthreads])
+            cfg["tile_y"] = SplitEntity([-1, y_nthreads, y_bn // y_nthreads])
+            cfg["tile_k"] = SplitEntity([-1, 8])
+            cfg["auto_unroll_max_step"] = OtherOptionEntity(16)
 
         by, ty, yi = cfg["tile_y"].apply(s, C, y)
         bx, tx, xi = cfg["tile_x"].apply(s, C, x)
@@ -97,15 +98,15 @@ def schedule_batch_matmul(cfg, outs):
         s[C].bind(bx, te.thread_axis("blockIdx.x"))
         s[C].bind(ty, thread_y)
         s[C].bind(tx, thread_x)
-        s[C].pragma(yi, "auto_unroll_max_step", cfg['auto_unroll_max_step'].val)
-        s[C].pragma(yi, 'unroll_explicit', cfg['unroll_explicit'].val)
+        s[C].pragma(yi, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+        s[C].pragma(yi, "unroll_explicit", cfg["unroll_explicit"].val)
 
         s[CC].compute_at(s[C], tx)
         _, yi, xi = s[CC].op.axis
         ko, ki = cfg["tile_k"].apply(s, CC, k)
         s[CC].reorder(ko, ki, yi, xi)
-        s[CC].pragma(ki, "auto_unroll_max_step", cfg['auto_unroll_max_step'].val)
-        s[CC].pragma(ki, 'unroll_explicit', cfg['unroll_explicit'].val)
+        s[CC].pragma(ki, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+        s[CC].pragma(ki, "unroll_explicit", cfg["unroll_explicit"].val)
 
         s[AA].compute_at(s[CC], ko)
         s[AL].compute_at(s[CC], ki)
@@ -117,8 +118,8 @@ def schedule_batch_matmul(cfg, outs):
         s[AA].reorder(ty, tx, yi, ki)
         s[AA].bind(ty, thread_y)
         s[AA].bind(tx, thread_x)
-        s[AA].pragma(yi, "auto_unroll_max_step", cfg['auto_unroll_max_step'].val)
-        s[AA].pragma(yi, 'unroll_explicit', cfg['unroll_explicit'].val)
+        s[AA].pragma(yi, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+        s[AA].pragma(yi, "unroll_explicit", cfg["unroll_explicit"].val)
 
         _, x, k = s[BB].op.axis
         ty, xi = s[BB].split(x, nparts=cfg["tile_y"].size[1])
@@ -126,8 +127,8 @@ def schedule_batch_matmul(cfg, outs):
         s[BB].bind(ty, thread_y)
         s[BB].bind(tx, thread_x)
         s[BB].reorder(ty, tx, xi, ki)
-        s[BB].pragma(xi, "auto_unroll_max_step", cfg['auto_unroll_max_step'].val)
-        s[BB].pragma(xi, 'unroll_explicit', cfg['unroll_explicit'].val)
+        s[BB].pragma(xi, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+        s[BB].pragma(xi, "unroll_explicit", cfg["unroll_explicit"].val)
 
     def _callback(op):
         if "batch_matmul" in op.tag:
@@ -135,6 +136,7 @@ def schedule_batch_matmul(cfg, outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
 
 def batch_matmul_cublas(x, y):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are

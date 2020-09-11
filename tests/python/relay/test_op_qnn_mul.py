@@ -44,13 +44,16 @@ def test_tflite_same_io_qnn_params():
 
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
-    z = relay.qnn.op.mul(lhs=x, rhs=y,
-                         lhs_scale=relay.const(lhs_scale, 'float32'),
-                         lhs_zero_point=relay.const(lhs_zero_point, 'int32'),
-                         rhs_scale=relay.const(rhs_scale, 'float32'),
-                         rhs_zero_point=relay.const(rhs_zero_point, 'int32'),
-                         output_scale=relay.const(output_scale, 'float32'),
-                         output_zero_point=relay.const(output_zero_point, 'int32'))
+    z = relay.qnn.op.mul(
+        lhs=x,
+        rhs=y,
+        lhs_scale=relay.const(lhs_scale, "float32"),
+        lhs_zero_point=relay.const(lhs_zero_point, "int32"),
+        rhs_scale=relay.const(rhs_scale, "float32"),
+        rhs_zero_point=relay.const(rhs_zero_point, "int32"),
+        output_scale=relay.const(output_scale, "float32"),
+        output_zero_point=relay.const(output_zero_point, "int32"),
+    )
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
@@ -74,8 +77,7 @@ def test_tflite_same_io_qnn_params():
 
         x_rec = recover(x_data, lhs_scale, lhs_zero_point)
         y_rec = recover(y_data, rhs_scale, rhs_zero_point)
-        golden = generate_golden_output(x_rec, y_rec, output_scale,
-            output_zero_point)
+        golden = generate_golden_output(x_rec, y_rec, output_scale, output_zero_point)
 
         intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
         op_res = intrp.evaluate(func)(x_data, y_data)
@@ -95,13 +97,16 @@ def test_tflite_different_io_qnn_params():
 
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
-    z = relay.qnn.op.mul(lhs=x, rhs=y,
-                         lhs_scale=relay.const(lhs_scale, 'float32'),
-                         lhs_zero_point=relay.const(lhs_zero_point, 'int32'),
-                         rhs_scale=relay.const(rhs_scale, 'float32'),
-                         rhs_zero_point=relay.const(rhs_zero_point, 'int32'),
-                         output_scale=relay.const(output_scale, 'float32'),
-                         output_zero_point=relay.const(output_zero_point, 'int32'))
+    z = relay.qnn.op.mul(
+        lhs=x,
+        rhs=y,
+        lhs_scale=relay.const(lhs_scale, "float32"),
+        lhs_zero_point=relay.const(lhs_zero_point, "int32"),
+        rhs_scale=relay.const(rhs_scale, "float32"),
+        rhs_zero_point=relay.const(rhs_zero_point, "int32"),
+        output_scale=relay.const(output_scale, "float32"),
+        output_zero_point=relay.const(output_zero_point, "int32"),
+    )
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
@@ -125,8 +130,7 @@ def test_tflite_different_io_qnn_params():
 
         x_rec = recover(x_data, lhs_scale, lhs_zero_point)
         y_rec = recover(y_data, rhs_scale, rhs_zero_point)
-        golden = generate_golden_output(x_rec, y_rec, output_scale,
-            output_zero_point)
+        golden = generate_golden_output(x_rec, y_rec, output_scale, output_zero_point)
 
         intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
         op_res = intrp.evaluate(func)(x_data, y_data)
@@ -141,13 +145,16 @@ def test_saturation():
 
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
-    z = relay.qnn.op.mul(lhs=x, rhs=y,
-                         lhs_scale=relay.const(lhs_scale, 'float32'),
-                         lhs_zero_point=relay.const(lhs_zero_point, 'int32'),
-                         rhs_scale=relay.const(rhs_scale, 'float32'),
-                         rhs_zero_point=relay.const(rhs_zero_point, 'int32'),
-                         output_scale=relay.const(output_scale, 'float32'),
-                         output_zero_point=relay.const(output_zero_point, 'int32'))
+    z = relay.qnn.op.mul(
+        lhs=x,
+        rhs=y,
+        lhs_scale=relay.const(lhs_scale, "float32"),
+        lhs_zero_point=relay.const(lhs_zero_point, "int32"),
+        rhs_scale=relay.const(rhs_scale, "float32"),
+        rhs_zero_point=relay.const(rhs_zero_point, "int32"),
+        output_scale=relay.const(output_scale, "float32"),
+        output_zero_point=relay.const(output_zero_point, "int32"),
+    )
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
@@ -160,8 +167,7 @@ def test_saturation():
     x_rec = recover(x_data, lhs_scale, lhs_zero_point)
     y_rec = recover(y_data, rhs_scale, rhs_zero_point)
 
-    golden = generate_golden_output(x_rec, y_rec, output_scale,
-        output_zero_point)
+    golden = generate_golden_output(x_rec, y_rec, output_scale, output_zero_point)
 
     intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
@@ -172,13 +178,16 @@ def test_saturation():
     lhs_scale = rhs_scale = 0.125
     output_scale = 0.25
 
-    z = relay.qnn.op.mul(lhs=x, rhs=y,
-                         lhs_scale=relay.const(lhs_scale, 'float32'),
-                         lhs_zero_point=relay.const(lhs_zero_point, 'int32'),
-                         rhs_scale=relay.const(rhs_scale, 'float32'),
-                         rhs_zero_point=relay.const(rhs_zero_point, 'int32'),
-                         output_scale=relay.const(output_scale, 'float32'),
-                         output_zero_point=relay.const(output_zero_point, 'int32'))
+    z = relay.qnn.op.mul(
+        lhs=x,
+        rhs=y,
+        lhs_scale=relay.const(lhs_scale, "float32"),
+        lhs_zero_point=relay.const(lhs_zero_point, "int32"),
+        rhs_scale=relay.const(rhs_scale, "float32"),
+        rhs_zero_point=relay.const(rhs_zero_point, "int32"),
+        output_scale=relay.const(output_scale, "float32"),
+        output_zero_point=relay.const(output_zero_point, "int32"),
+    )
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
@@ -191,8 +200,7 @@ def test_saturation():
     x_rec = recover(x_data, lhs_scale, lhs_zero_point)
     y_rec = recover(y_data, rhs_scale, rhs_zero_point)
 
-    golden = generate_golden_output(x_rec, y_rec, output_scale,
-        output_zero_point)
+    golden = generate_golden_output(x_rec, y_rec, output_scale, output_zero_point)
 
     intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
@@ -204,13 +212,16 @@ def test_saturation():
     rhs_scale = 0.25
     output_scale = 0.125
 
-    z = relay.qnn.op.mul(lhs=x, rhs=y,
-                         lhs_scale=relay.const(lhs_scale, 'float32'),
-                         lhs_zero_point=relay.const(lhs_zero_point, 'int32'),
-                         rhs_scale=relay.const(rhs_scale, 'float32'),
-                         rhs_zero_point=relay.const(rhs_zero_point, 'int32'),
-                         output_scale=relay.const(output_scale, 'float32'),
-                         output_zero_point=relay.const(output_zero_point, 'int32'))
+    z = relay.qnn.op.mul(
+        lhs=x,
+        rhs=y,
+        lhs_scale=relay.const(lhs_scale, "float32"),
+        lhs_zero_point=relay.const(lhs_zero_point, "int32"),
+        rhs_scale=relay.const(rhs_scale, "float32"),
+        rhs_zero_point=relay.const(rhs_zero_point, "int32"),
+        output_scale=relay.const(output_scale, "float32"),
+        output_zero_point=relay.const(output_zero_point, "int32"),
+    )
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
@@ -223,8 +234,7 @@ def test_saturation():
     x_rec = recover(x_data, lhs_scale, lhs_zero_point)
     y_rec = recover(y_data, rhs_scale, rhs_zero_point)
 
-    golden = generate_golden_output(x_rec, y_rec, output_scale,
-        output_zero_point)
+    golden = generate_golden_output(x_rec, y_rec, output_scale, output_zero_point)
 
     intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)

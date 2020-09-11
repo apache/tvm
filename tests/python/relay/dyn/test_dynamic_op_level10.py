@@ -30,21 +30,21 @@ import tvm.testing
 # TODO(mbrookhart): Enable when VM supports heterogenus execution
 # @tvm.testing.uses_gpu
 def test_dyn_broadcast_to():
-    dtype = 'uint8'
+    dtype = "uint8"
     rank = 3
-    shape_type = 'int64'
-    dyn_shape = relay.Var("shape", relay.ty.TensorType((rank, ), shape_type))
-    x_shape = (1, )
+    shape_type = "int64"
+    dyn_shape = relay.Var("shape", relay.ty.TensorType((rank,), shape_type))
+    x_shape = (1,)
     x = relay.Var("x", relay.ty.TensorType(x_shape, dtype))
     z = relay.broadcast_to(x, dyn_shape)
     zz = run_infer_type(z)
 
-    assert zz.checked_type == relay.ty.TensorType((relay.Any(), ) * rank, dtype)
+    assert zz.checked_type == relay.ty.TensorType((relay.Any(),) * rank, dtype)
 
     func = relay.Function([x, dyn_shape], z)
 
     x = np.random.uniform(size=x_shape).astype(dtype)
-    dyn_shape = (1, ) * rank
+    dyn_shape = (1,) * rank
     ref_res = np.broadcast_to(x, dyn_shape)
     for target, ctx in tvm.testing.enabled_targets():
         for kind in ["vm", "debug"]:
@@ -52,6 +52,7 @@ def test_dyn_broadcast_to():
             intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
             op_res = intrp.evaluate(func)(x, np.array(dyn_shape).astype(shape_type))
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
 
 # TODO(mbrookhart): Enable when VM supports heterogenus execution
 # @tvm.testing.uses_gpu
@@ -86,8 +87,8 @@ def test_dyn_one_hot():
                 out_relay = intrp.evaluate()(indices_np, np.array(depth).astype("int32"))
                 tvm.testing.assert_allclose(out_relay.asnumpy(), out_np)
 
-    _verify((3, ), 3, 1, 0, -1, "int32")
-    _verify((3, ), 3, 1.0, 0.0, -1, "float32")
+    _verify((3,), 3, 1, 0, -1, "int32")
+    _verify((3,), 3, 1.0, 0.0, -1, "float32")
     _verify((2, 2), 5, 2, -2, 0, "int32")
     _verify((2, 2), 5, 0.5, -0.5, 1, "float32")
     _verify((3, 2, 4, 5), 6, 1, 0, 1, "int32")

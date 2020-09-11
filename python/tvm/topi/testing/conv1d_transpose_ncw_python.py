@@ -21,6 +21,7 @@ import scipy
 import tvm.topi.testing
 from tvm.topi.nn.util import get_pad_tuple1d
 
+
 def conv1d_transpose_ncw_python(a_np, w_np, stride, padding, output_padding):
     """Transposed 1D convolution operator in NCW layout.
 
@@ -64,15 +65,14 @@ def conv1d_transpose_ncw_python(a_np, w_np, stride, padding, output_padding):
     # padding stage
     bpad_left = filter_w - 1 - fpad_left
     bpad_right = filter_w - 1 - fpad_right + opad
-    padded_a_np = np.zeros((batch, in_c, dilated_a_np.shape[2]+bpad_left+bpad_right))
-    padded_a_np[:, :, bpad_left:dilated_a_np.shape[2]+bpad_left] = dilated_a_np
+    padded_a_np = np.zeros((batch, in_c, dilated_a_np.shape[2] + bpad_left + bpad_right))
+    padded_a_np[:, :, bpad_left : dilated_a_np.shape[2] + bpad_left] = dilated_a_np
     # convolution stage
     out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w + opad
     b_np = np.zeros((batch, out_c, out_w))
     for n in range(batch):
         for f in range(out_c):
             for c in range(in_c):
-                out = scipy.signal.convolve(
-                    padded_a_np[n, c], w_np[c, f], mode='valid')
+                out = scipy.signal.convolve(padded_a_np[n, c], w_np[c, f], mode="valid")
                 b_np[n, f] += out
     return b_np

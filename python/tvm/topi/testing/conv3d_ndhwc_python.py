@@ -52,8 +52,9 @@ def conv3d_ndhwc_python(a_np, w_np, stride, padding):
     else:
         stride_d, stride_h, stride_w = stride
 
-    pad_front, pad_top, pad_left, pad_back, pad_bottom, pad_right = \
-        get_pad_tuple3d(padding, (kernel_d, kernel_h, kernel_w))
+    pad_front, pad_top, pad_left, pad_back, pad_bottom, pad_right = get_pad_tuple3d(
+        padding, (kernel_d, kernel_h, kernel_w)
+    )
     pad_d = pad_front + pad_back
     pad_h = pad_top + pad_bottom
     pad_w = pad_left + pad_right
@@ -72,11 +73,13 @@ def conv3d_ndhwc_python(a_np, w_np, stride, padding):
             for c in range(in_channel):
                 if pad_d > 0 or pad_h > 0 or pad_w > 0:
                     apad = np.zeros((in_depth + pad_d, in_height + pad_h, in_width + pad_w))
-                    apad[pad_front:pad_front + in_depth, pad_top:pad_top + in_height,\
-                         pad_left:pad_left + in_width] = at[n, c]
+                    apad[
+                        pad_front : pad_front + in_depth,
+                        pad_top : pad_top + in_height,
+                        pad_left : pad_left + in_width,
+                    ] = at[n, c]
                 else:
                     apad = at[n, c]
-                out = scipy.signal.convolve(
-                    apad, np.flip(wt[f, c]), mode='valid')
+                out = scipy.signal.convolve(apad, np.flip(wt[f, c]), mode="valid")
                 bt[n, f] += out[::stride_d, ::stride_h, ::stride_w]
     return bt.transpose((0, 2, 3, 4, 1))

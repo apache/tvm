@@ -25,9 +25,20 @@ from ..nn.pad import pad
 from ..nn.util import get_pad_tuple
 from ..nn.bitserial_util import bitpack, binary_op_multiplier
 
+
 @autotvm.register_topi_compute("bitserial_conv2d_nchw.x86")
-def bitserial_conv2d_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bits,
-                          pack_dtype='uint32', out_dtype='int16', unipolar=True):
+def bitserial_conv2d_nchw(
+    cfg,
+    data,
+    kernel,
+    stride,
+    padding,
+    in_bits,
+    weight_bits,
+    pack_dtype="uint32",
+    out_dtype="int16",
+    unipolar=True,
+):
     """ Compute convolution with pack on spatial axes. """
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
     data_q = bitpack(data, in_bits, pack_axis=1, bit_axis=0, pack_type=pack_dtype)
@@ -54,7 +65,7 @@ def bitserial_conv2d_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bi
         HSTR, WSTR = stride
     else:
         HSTR, WSTR = stride, stride
-    HCAT, WCAT = KH-1, KW-1
+    HCAT, WCAT = KH - 1, KW - 1
 
     TH = H + TPAD + DPAD
     TW = W + LPAD + RPAD
@@ -66,17 +77,17 @@ def bitserial_conv2d_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bi
     ci, kh, kw = cfg.reduce_axis(CI), cfg.reduce_axis(KH), cfg.reduce_axis(KW)
     ib, kb = cfg.reduce_axis(in_bits), cfg.reduce_axis(weight_bits)
 
-    co, vc = cfg.define_split('tile_co', co, num_outputs=2,
-                              filter=lambda x: max(x.size[1:]) <= 16)
-    oh, vh = cfg.define_split('tile_oh', oh, num_outputs=2,
-                              filter=lambda x: max(x.size[1:]) <= 16)
-    ow, vw = cfg.define_split('tile_ow', ow, num_outputs=2,
-                              filter=lambda x: max(x.size[1:]) <= 16)
-    cfg.define_annotate('ann_reduce', [ib, kb, kh, kw], policy='try_unroll')
+    co, vc = cfg.define_split("tile_co", co, num_outputs=2, filter=lambda x: max(x.size[1:]) <= 16)
+    oh, vh = cfg.define_split("tile_oh", oh, num_outputs=2, filter=lambda x: max(x.size[1:]) <= 16)
+    ow, vw = cfg.define_split("tile_ow", ow, num_outputs=2, filter=lambda x: max(x.size[1:]) <= 16)
+    cfg.define_annotate("ann_reduce", [ib, kb, kh, kw], policy="try_unroll")
 
-    cfg.define_reorder("reorder_0",
-                       [n, co, oh, ow, vc, vh, vw, kh, kw, kb, ib, ci],
-                       policy='interval_all', interval=(6, 11))
+    cfg.define_reorder(
+        "reorder_0",
+        [n, co, oh, ow, vc, vh, vw, kh, kw, kb, ib, ci],
+        policy="interval_all",
+        interval=(6, 11),
+    )
     # binary ops
     cfg.add_flop(2 * N * OH * OW * CO * CI * KH * KW * binary_op_multiplier(pack_dtype))
     # ====================
@@ -85,59 +96,91 @@ def bitserial_conv2d_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bi
     VH = cfg["tile_oh"].size[-1]
     VW = cfg["tile_ow"].size[-1]
 
-    dvshape = (1, TH//(VH*HSTR), TW//(VW*WSTR), CI, VH*HSTR+HCAT, VW*WSTR+WCAT, IB)
-    kvshape = (CO//VC, CI, KH, KW, KB, VC)
-    ovshape = (1, CO//VC, OH//VH, OW//VW, VH, VW, VC)
+    dvshape = (1, TH // (VH * HSTR), TW // (VW * WSTR), CI, VH * HSTR + HCAT, VW * WSTR + WCAT, IB)
+    kvshape = (CO // VC, CI, KH, KW, KB, VC)
+    ovshape = (1, CO // VC, OH // VH, OW // VW, VH, VW, VC)
     oshape = (1, CO, OH, OW)
 
-    if (TPAD != 0 and RPAD != 0):
+    if TPAD != 0 and RPAD != 0:
         data_pad = pad(data_q, pad_before, pad_after, name="data_pad")
     else:
         data_pad = data_q
 
-    data_vec = te.compute(dvshape, lambda n, h, w, ci, vh, vw, b: \
-                          data_pad[b][n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw], name='data_vec')
+    data_vec = te.compute(
+        dvshape,
+        lambda n, h, w, ci, vh, vw, b: data_pad[b][n][ci][h * VH * HSTR + vh][w * VW * WSTR + vw],
+        name="data_vec",
+    )
 
     if len(kernel.shape) == 4:
-        kernel_vec = te.compute(kvshape, lambda co, ci, dh, dw, b, vc: \
-                                kernel_q[b][co*VC+vc][ci][dh][dw], name='kernel_vec')
+        kernel_vec = te.compute(
+            kvshape,
+            lambda co, ci, dh, dw, b, vc: kernel_q[b][co * VC + vc][ci][dh][dw],
+            name="kernel_vec",
+        )
 
-    ci = te.reduce_axis((0, CI), name='ci')
-    dh = te.reduce_axis((0, KH), name='dh')
-    dw = te.reduce_axis((0, KW), name='dw')
-    b1 = te.reduce_axis((0, IB), name='ib')
-    b2 = te.reduce_axis((0, KB), name='kb')
+    ci = te.reduce_axis((0, CI), name="ci")
+    dh = te.reduce_axis((0, KH), name="dh")
+    dw = te.reduce_axis((0, KW), name="dw")
+    b1 = te.reduce_axis((0, IB), name="ib")
+    b2 = te.reduce_axis((0, KB), name="kb")
 
     def _conv(n, co, h, w, vh, vw, vc):
-        b1b2 = (b1+b2).astype(out_dtype)
+        b1b2 = (b1 + b2).astype(out_dtype)
         if unipolar:
-            return te.sum((tvm.tir.popcount(
-                data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1].astype(out_dtype) &
-                kernel_vec[co, ci, dh, dw, b2, vc].astype(out_dtype))  -
-                           tvm.tir.popcount(
-                               data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1].astype(out_dtype)
-                               & ~kernel_vec[co, ci, dh, dw, b2, vc]).astype(out_dtype)) << b1b2,
-                          axis=[ci, dh, dw, b1, b2])
+            return te.sum(
+                (
+                    tvm.tir.popcount(
+                        data_vec[n, h, w, ci, vh * HSTR + dh, vw * WSTR + dw, b1].astype(out_dtype)
+                        & kernel_vec[co, ci, dh, dw, b2, vc].astype(out_dtype)
+                    )
+                    - tvm.tir.popcount(
+                        data_vec[n, h, w, ci, vh * HSTR + dh, vw * WSTR + dw, b1].astype(out_dtype)
+                        & ~kernel_vec[co, ci, dh, dw, b2, vc]
+                    ).astype(out_dtype)
+                )
+                << b1b2,
+                axis=[ci, dh, dw, b1, b2],
+            )
 
-        return te.sum((tvm.tir.popcount(
-            data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
-            kernel_vec[co, ci, dh, dw, b2, vc])).astype(out_dtype) << b1b2,
-                      axis=[ci, dh, dw, b1, b2])
+        return te.sum(
+            (
+                tvm.tir.popcount(
+                    data_vec[n, h, w, ci, vh * HSTR + dh, vw * WSTR + dw, b1]
+                    & kernel_vec[co, ci, dh, dw, b2, vc]
+                )
+            ).astype(out_dtype)
+            << b1b2,
+            axis=[ci, dh, dw, b1, b2],
+        )
 
-    conv = te.compute(ovshape, _conv, name='conv_out')
+    conv = te.compute(ovshape, _conv, name="conv_out")
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
 
     return te.compute(
-        oshape, lambda n, co, h, w:
-        conv[n,
-             idxd(co, VC), idxd(h, VH), idxd(w, VW),
-             idxm(h, VH), idxm(w, VW), idxm(co, VC)],
-        name='conv_vec', tag='spatial_bitserial_conv_nchw')
+        oshape,
+        lambda n, co, h, w: conv[
+            n, idxd(co, VC), idxd(h, VH), idxd(w, VW), idxm(h, VH), idxm(w, VW), idxm(co, VC)
+        ],
+        name="conv_vec",
+        tag="spatial_bitserial_conv_nchw",
+    )
+
 
 @autotvm.register_topi_compute("bitserial_conv2d_nhwc.x86")
-def bitserial_conv2d_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bits,
-                          pack_dtype='uint32', out_dtype='int16', unipolar=True):
+def bitserial_conv2d_nhwc(
+    cfg,
+    data,
+    kernel,
+    stride,
+    padding,
+    in_bits,
+    weight_bits,
+    pack_dtype="uint32",
+    out_dtype="int16",
+    unipolar=True,
+):
     """ Compute convolution with pack on spatial axes. """
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
     data_q = bitpack(data, in_bits, pack_axis=3, bit_axis=4, pack_type=pack_dtype)
@@ -162,7 +205,7 @@ def bitserial_conv2d_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bi
         HSTR, WSTR = stride
     else:
         HSTR, WSTR = stride, stride
-    HCAT, WCAT = KH-1, KW-1
+    HCAT, WCAT = KH - 1, KW - 1
 
     PAD_H = H + (TPAD + DPAD)
     PAD_W = W + (LPAD + RPAD)
@@ -175,16 +218,16 @@ def bitserial_conv2d_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bi
     ci, kh, kw = cfg.reduce_axis(CI), cfg.reduce_axis(KH), cfg.reduce_axis(KW)
     ib, kb = cfg.reduce_axis(in_bits), cfg.reduce_axis(weight_bits)
 
-    co, vc = cfg.define_split('tile_co', co, num_outputs=2,
-                              filter=lambda x: max(x.size[1:]) <= 16)
-    oh, vh = cfg.define_split('tile_oh', oh, num_outputs=2,
-                              filter=lambda x: max(x.size[1:]) <= 16)
-    ow, vw = cfg.define_split('tile_ow', ow, num_outputs=2,
-                              filter=lambda x: max(x.size[1:]) <= 16)
-    cfg.define_annotate('ann_reduce', [ib, kb, kh, kw], policy='try_unroll')
-    cfg.define_reorder("reorder_0",
-                       [n, oh, ow, co, vh, vw, kh, kw, kb, ib, vc, ci],
-                       policy='interval_all', interval=(3, 7))
+    co, vc = cfg.define_split("tile_co", co, num_outputs=2, filter=lambda x: max(x.size[1:]) <= 16)
+    oh, vh = cfg.define_split("tile_oh", oh, num_outputs=2, filter=lambda x: max(x.size[1:]) <= 16)
+    ow, vw = cfg.define_split("tile_ow", ow, num_outputs=2, filter=lambda x: max(x.size[1:]) <= 16)
+    cfg.define_annotate("ann_reduce", [ib, kb, kh, kw], policy="try_unroll")
+    cfg.define_reorder(
+        "reorder_0",
+        [n, oh, ow, co, vh, vw, kh, kw, kb, ib, vc, ci],
+        policy="interval_all",
+        interval=(3, 7),
+    )
     # binary ops
     cfg.add_flop(2 * N * OH * OW * CO * CI * KH * KW * binary_op_multiplier(pack_dtype))
     # ====================
@@ -193,61 +236,94 @@ def bitserial_conv2d_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bi
     VH = cfg["tile_oh"].size[-1]
     VW = cfg["tile_ow"].size[-1]
 
-    dvshape = (1, PAD_H//(VH*HSTR), PAD_W//(VW*WSTR), VH*HSTR+HCAT, VW*WSTR+WCAT, CI, IB)
+    dvshape = (
+        1,
+        PAD_H // (VH * HSTR),
+        PAD_W // (VW * WSTR),
+        VH * HSTR + HCAT,
+        VW * WSTR + WCAT,
+        CI,
+        IB,
+    )
     kvshape = (CO, KH, KW, CI, VC, KB)
     ovshape = (1, OH, OW, CO, VH, VW, VC)
     oshape = (1, OH, OW, CO)
 
-    if (DPAD != 0 and RPAD != 0):
+    if DPAD != 0 and RPAD != 0:
         data_pad = pad(data_q, pad_before, pad_after, name="data_pad")
     else:
         data_pad = data_q
 
-    data_vec = te.compute(dvshape, lambda n, h, w, vh, vw, ci, b: \
-                          data_pad[n][h*VH*HSTR+vh][w*VW*WSTR+vw][ci][b], name='data_vec')
+    data_vec = te.compute(
+        dvshape,
+        lambda n, h, w, vh, vw, ci, b: data_pad[n][h * VH * HSTR + vh][w * VW * WSTR + vw][ci][b],
+        name="data_vec",
+    )
 
-    kernel_vec = te.compute(kvshape, lambda co, dh, dw, ci, vc, b: \
-                            kernel_q[dh][dw][ci][co*VC+vc][b], name='kernel_vec')
+    kernel_vec = te.compute(
+        kvshape,
+        lambda co, dh, dw, ci, vc, b: kernel_q[dh][dw][ci][co * VC + vc][b],
+        name="kernel_vec",
+    )
 
-    ci = te.reduce_axis((0, CI), name='ci')
-    dh = te.reduce_axis((0, KH), name='dh')
-    dw = te.reduce_axis((0, KW), name='dw')
-    b1 = te.reduce_axis((0, IB), name='ib')
-    b2 = te.reduce_axis((0, KB), name='kb')
+    ci = te.reduce_axis((0, CI), name="ci")
+    dh = te.reduce_axis((0, KH), name="dh")
+    dw = te.reduce_axis((0, KW), name="dw")
+    b1 = te.reduce_axis((0, IB), name="ib")
+    b2 = te.reduce_axis((0, KB), name="kb")
 
     def _conv(n, h, w, co, vh, vw, vc):
-        b1b2 = (b1+b2).astype(out_dtype)
+        b1b2 = (b1 + b2).astype(out_dtype)
         if unipolar:
             return te.sum(
-                ((tvm.tir.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
-                                   kernel_vec[co, dh, dw, ci, vc, b2]).astype(out_dtype) -
-                  tvm.tir.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1]&
-                                   ~kernel_vec[co, dh, dw, ci, vc, b2]).astype(out_dtype)) << b1b2),
-                axis=[dh, dw, ci, b1, b2])
+                (
+                    (
+                        tvm.tir.popcount(
+                            data_vec[n, h, w, vh * HSTR + dh, vw * WSTR + dw, ci, b1]
+                            & kernel_vec[co, dh, dw, ci, vc, b2]
+                        ).astype(out_dtype)
+                        - tvm.tir.popcount(
+                            data_vec[n, h, w, vh * HSTR + dh, vw * WSTR + dw, ci, b1]
+                            & ~kernel_vec[co, dh, dw, ci, vc, b2]
+                        ).astype(out_dtype)
+                    )
+                    << b1b2
+                ),
+                axis=[dh, dw, ci, b1, b2],
+            )
 
-        return te.sum(tvm.tir.popcount(
-            data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
-            kernel_vec[co, dh, dw, ci, vc, b2]).astype(out_dtype) << b1b2,
-                      axis=[dh, dw, ci, b1, b2])
+        return te.sum(
+            tvm.tir.popcount(
+                data_vec[n, h, w, vh * HSTR + dh, vw * WSTR + dw, ci, b1]
+                & kernel_vec[co, dh, dw, ci, vc, b2]
+            ).astype(out_dtype)
+            << b1b2,
+            axis=[dh, dw, ci, b1, b2],
+        )
 
-    conv = te.compute(ovshape, _conv, name='conv')
+    conv = te.compute(ovshape, _conv, name="conv")
 
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
     return te.compute(
-        oshape, lambda n, h, w, co:
-        conv[n,
-             idxd(h, VH), idxd(w, VW), idxd(co, VC),
-             idxm(h, VH), idxm(w, VW), idxm(co, VC)],
-        name='output_unpack', tag='spatial_bitserial_conv_nhwc')
+        oshape,
+        lambda n, h, w, co: conv[
+            n, idxd(h, VH), idxd(w, VW), idxd(co, VC), idxm(h, VH), idxm(w, VW), idxm(co, VC)
+        ],
+        name="output_unpack",
+        tag="spatial_bitserial_conv_nhwc",
+    )
+
 
 @autotvm.register_topi_schedule("bitserial_conv2d_nchw.x86")
 def schedule_bitserial_conv2d_nchw(cfg, outs):
     return _schedule_bitserial_conv2d(cfg, outs)
 
+
 @autotvm.register_topi_schedule("bitserial_conv2d_nhwc.x86")
 def schedule_bitserial_conv2d_nhwc(cfg, outs):
     return _schedule_bitserial_conv2d(cfg, outs)
+
 
 def _schedule_bitserial_conv2d(cfg, outs):
     """CPU schedule for bitserial convolutions NCHW and NHWC"""
@@ -258,7 +334,7 @@ def _schedule_bitserial_conv2d(cfg, outs):
         """Traverse operators from computation graph"""
         output = op.output(0)
         # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_broadcast(op.tag) or 'elemwise' in op.tag:
+        if tag.is_broadcast(op.tag) or "elemwise" in op.tag:
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
@@ -266,7 +342,7 @@ def _schedule_bitserial_conv2d(cfg, outs):
                     if isinstance(tensor.op, tvm.te.ComputeOp):
                         traverse(tensor.op)
 
-        elif 'spatial_bitserial_conv_nchw' in op.tag or 'spatial_bitserial_conv_nhwc' in op.tag:
+        elif "spatial_bitserial_conv_nchw" in op.tag or "spatial_bitserial_conv_nhwc" in op.tag:
             conv_out = op.input_tensors[0]
             kernel_vec = conv_out.op.input_tensors[1]
             kernel_q = kernel_vec.op.input_tensors[0]
@@ -283,22 +359,41 @@ def _schedule_bitserial_conv2d(cfg, outs):
                 # Need to go up 1 further, from the combine in bitpack
                 data = data.op.input_tensors[0]
 
-            if 'spatial_bitserial_conv_nchw' in op.tag:
-                _schedule_bitserial_conv2d_nchw(cfg, s, data_q, data_pad, data_vec,
-                                                kernel_q, kernel_vec,
-                                                conv_out, output, outs[0])
-            elif 'spatial_bitserial_conv_nhwc' in op.tag:
-                _schedule_bitserial_conv2d_nhwc(cfg, s, data_q, data_pad, data_vec,
-                                                kernel_q, kernel_vec,
-                                                conv_out, output, outs[0])
+            if "spatial_bitserial_conv_nchw" in op.tag:
+                _schedule_bitserial_conv2d_nchw(
+                    cfg,
+                    s,
+                    data_q,
+                    data_pad,
+                    data_vec,
+                    kernel_q,
+                    kernel_vec,
+                    conv_out,
+                    output,
+                    outs[0],
+                )
+            elif "spatial_bitserial_conv_nhwc" in op.tag:
+                _schedule_bitserial_conv2d_nhwc(
+                    cfg,
+                    s,
+                    data_q,
+                    data_pad,
+                    data_vec,
+                    kernel_q,
+                    kernel_vec,
+                    conv_out,
+                    output,
+                    outs[0],
+                )
         scheduled_ops.append(op)
 
     traverse(outs[0].op)
     return s
 
-def _schedule_bitserial_conv2d_nchw(cfg, s, data_q, data_pad, data_vec,
-                                    kernel_q, kernel_vec,
-                                    conv_out, output, last):
+
+def _schedule_bitserial_conv2d_nchw(
+    cfg, s, data_q, data_pad, data_vec, kernel_q, kernel_vec, conv_out, output, last
+):
     IB, _, CI, IH, IW = data_q.shape
     KB, CO, _, KH, KW = kernel_q.shape
     _, _, OH, OW = output.shape
@@ -340,7 +435,6 @@ def _schedule_bitserial_conv2d_nchw(cfg, s, data_q, data_pad, data_vec,
     s[data_vec].pragma(paxis, "parallel_stride_pattern")
     s[data_vec].pragma(oaxis, "parallel_barrier_when_finish")
 
-
     ##### Schedule Kenerl bitpacking
     co, _, _, _, _, _ = s[kernel_vec].op.axis
     cfg.define_split("tile_bco", cfg.axis(co), num_outputs=2, max_factor=32)
@@ -357,20 +451,25 @@ def _schedule_bitserial_conv2d_nchw(cfg, s, data_q, data_pad, data_vec,
     s[kernel_vec].pragma(paxis, "parallel_stride_pattern")
     s[kernel_vec].pragma(oaxis, "parallel_barrier_when_finish")
 
-
-   ##### Schedule Convolution
+    ##### Schedule Convolution
     n, co, oh, ow, vh, vw, vc = s[conv_out].op.axis
     ci, dh, dw, ib, kb = s[conv_out].op.reduce_axis
 
     # s[conv_out].reorder(n, oh, ow, co, vh, vw, dh, dw, ci, vc, b1, b2)
     cfg["reorder_0"].apply(s, conv_out, [n, co, oh, ow, vc, vh, vw, dh, dw, kb, ib, ci])
-    cfg["ann_reduce"].apply(s, conv_out, [kb, ib, dh, dw],
-                            axis_lens=[get_const_int(kb.dom.extent),
-                                       get_const_int(ib.dom.extent),
-                                       get_const_int(dh.dom.extent),
-                                       get_const_int(dw.dom.extent)],
-                            max_unroll=16,
-                            cfg=cfg)
+    cfg["ann_reduce"].apply(
+        s,
+        conv_out,
+        [kb, ib, dh, dw],
+        axis_lens=[
+            get_const_int(kb.dom.extent),
+            get_const_int(ib.dom.extent),
+            get_const_int(dh.dom.extent),
+            get_const_int(dw.dom.extent),
+        ],
+        max_unroll=16,
+        cfg=cfg,
+    )
 
     s[conv_out].vectorize(vc)
 
@@ -395,9 +494,10 @@ def _schedule_bitserial_conv2d_nchw(cfg, s, data_q, data_pad, data_vec,
     s[last].parallel(oco)
     return s
 
-def _schedule_bitserial_conv2d_nhwc(cfg, s, data_q, data_pad, data_vec,
-                                    kernel_q, kernel_vec,
-                                    conv_out, output, last):
+
+def _schedule_bitserial_conv2d_nhwc(
+    cfg, s, data_q, data_pad, data_vec, kernel_q, kernel_vec, conv_out, output, last
+):
     # no stride and padding info here
     _, IH, IW, CI, IB = data_q.shape
     KH, KW, _, CO, KB = kernel_q.shape
@@ -428,13 +528,19 @@ def _schedule_bitserial_conv2d_nhwc(cfg, s, data_q, data_pad, data_vec,
 
     # s[conv_out].reorder(n, oh, ow, co, vh, vw, dh, dw, ci, vc, b1, b2)
     cfg["reorder_0"].apply(s, conv_out, [n, oh, ow, co, vh, vw, dh, dw, ci, vc, b1, b2])
-    cfg["ann_reduce"].apply(s, conv_out, [b1, b2, dh, dw],
-                            axis_lens=[get_const_int(b1.dom.extent),
-                                       get_const_int(b2.dom.extent),
-                                       get_const_int(dh.dom.extent),
-                                       get_const_int(dw.dom.extent)],
-                            max_unroll=16,
-                            cfg=cfg)
+    cfg["ann_reduce"].apply(
+        s,
+        conv_out,
+        [b1, b2, dh, dw],
+        axis_lens=[
+            get_const_int(b1.dom.extent),
+            get_const_int(b2.dom.extent),
+            get_const_int(dh.dom.extent),
+            get_const_int(dw.dom.extent),
+        ],
+        max_unroll=16,
+        cfg=cfg,
+    )
 
     s[conv_out].unroll(b1)
     s[conv_out].unroll(b2)

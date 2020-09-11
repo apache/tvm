@@ -20,6 +20,7 @@ import socket
 import errno
 from tornado import ioloop
 
+
 class TCPHandler(object):
     """TCP socket handler backed tornado event loop.
 
@@ -28,17 +29,20 @@ class TCPHandler(object):
     sock : Socket
         The TCP socket, will set it to non-blocking mode.
     """
+
     def __init__(self, sock):
         self._sock = sock
         self._ioloop = ioloop.IOLoop.current()
         self._sock.setblocking(0)
         self._pending_write = []
         self._signal_close = False
+
         def _event_handler(_, events):
             self._event_handler(events)
+
         self._ioloop.add_handler(
-            self._sock.fileno(), _event_handler,
-            self._ioloop.READ | self._ioloop.ERROR)
+            self._sock.fileno(), _event_handler, self._ioloop.READ | self._ioloop.ERROR
+        )
 
     def signal_close(self):
         """Signal the handler to close.
@@ -96,13 +100,15 @@ class TCPHandler(object):
 
         if self._pending_write:
             self._ioloop.update_handler(
-                self._sock.fileno(), self._ioloop.READ | self._ioloop.ERROR | self._ioloop.WRITE)
+                self._sock.fileno(), self._ioloop.READ | self._ioloop.ERROR | self._ioloop.WRITE
+            )
         else:
             if self._signal_close:
                 self.close()
             else:
                 self._ioloop.update_handler(
-                    self._sock.fileno(), self._ioloop.READ | self._ioloop.ERROR)
+                    self._sock.fileno(), self._ioloop.READ | self._ioloop.ERROR
+                )
 
     def _update_read(self):
         """Update state when there is read event"""

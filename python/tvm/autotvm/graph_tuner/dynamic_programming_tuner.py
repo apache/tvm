@@ -29,6 +29,7 @@ if sys.version_info[0] == 3:
 else:
     import Queue as queue
 
+
 class DPTuner(BaseGraphTuner):
     """Tuner which uses dynamic programming to solve MDP problem.
 
@@ -37,9 +38,9 @@ class DPTuner(BaseGraphTuner):
     models, such as networks with many element-wise sum operators. In this case, switch
     to heuristic algorithm such as PBQP tuner.
     """
+
     def __init__(self, *args, **kwargs):
-        """Create a dynamic programming tuner.
-        """
+        """Create a dynamic programming tuner."""
         super(DPTuner, self).__init__(*args, **kwargs)
         self._num_states = self._max_num_states = None
         self._stage_dict = {}
@@ -55,7 +56,7 @@ class DPTuner(BaseGraphTuner):
             "dep_dict": self._dep_dict,
             "node_list": self._node_list,
             "input_shapes": self._input_shapes,
-            "layout_transform_interlayer_cost": self._layout_transform_interlayer_cost
+            "layout_transform_interlayer_cost": self._layout_transform_interlayer_cost,
         }
 
     def _check_num_states(self, num_states):
@@ -63,24 +64,23 @@ class DPTuner(BaseGraphTuner):
         self._num_states += num_states
         if self._max_num_states is not None:
             if self._num_states > self._max_num_states:
-                raise RuntimeError("Too many states detected while running dynamic "
-                                   "programming: got %d states but upper limit is %d." %
-                                   (self._num_states, self._max_num_states))
+                raise RuntimeError(
+                    "Too many states detected while running dynamic "
+                    "programming: got %d states but upper limit is %d."
+                    % (self._num_states, self._max_num_states)
+                )
 
     def _forward(self):
-        """Forward pass in DP to generate states for all stages.
-        """
+        """Forward pass in DP to generate states for all stages."""
         self._logger.info("Start forward pass...")
         for node_idx in sorted(self._in_nodes_dict.keys()):
-            stage = DPStage(idx=node_idx, target_ops=self._target_ops,
-                            **self._global_data_dict)
+            stage = DPStage(idx=node_idx, target_ops=self._target_ops, **self._global_data_dict)
             self._check_num_states(stage.full_states.size)
             self._stage_dict[node_idx] = stage
         self._logger.info("Finished forward pass.")
 
     def _backward(self):
-        """Backward pass in DP to generate optimal solution.
-        """
+        """Backward pass in DP to generate optimal solution."""
         self._logger.info("Start backward pass...")
         input_names = self._input_shapes.keys()
         optimal_record_dict = {}
@@ -92,17 +92,20 @@ class DPTuner(BaseGraphTuner):
 
         # Restrict number of output nodes to avoid numpy reshape error
         if len(output_idx_list) > MAX_OUTPUT_NODES:
-            msg = "The number of outputs in graph is larger than upper " \
-                  "limit: %s vs %s. Usually this is caused by too many " \
-                  "LAYOUT_FIXED_OP in graph. Switch to greedily select schedule." \
-                  "No action required at this moment. We will continuously improve graph tuner" \
-                  % (len(output_idx_list), MAX_OUTPUT_NODES)
+            msg = (
+                "The number of outputs in graph is larger than upper "
+                "limit: %s vs %s. Usually this is caused by too many "
+                "LAYOUT_FIXED_OP in graph. Switch to greedily select schedule."
+                "No action required at this moment. We will continuously improve graph tuner"
+                % (len(output_idx_list), MAX_OUTPUT_NODES)
+            )
             self._logger.warning(msg)
-            self._optimal_record_dict = {key : 0 for key in self._in_nodes_dict}
+            self._optimal_record_dict = {key: 0 for key in self._in_nodes_dict}
             return
 
-        states_list, aligned_node_list = DPStage.align_states(output_idx_list, self._stage_dict,
-                                                              self._node_list)
+        states_list, aligned_node_list = DPStage.align_states(
+            output_idx_list, self._stage_dict, self._node_list
+        )
         num_states = states_list[0][3].size
         self._check_num_states(num_states * len(output_idx_list))
         aligned_node_shape = states_list[0][3].shape
@@ -120,16 +123,18 @@ class DPTuner(BaseGraphTuner):
                 min_pos = i
         for i, states in enumerate(states_list):
             current_major_axis = states[1]
-            current_sch_idx = (min_pos % (states[2] *
-                                          aligned_node_shape[current_major_axis])) // states[2]
+            current_sch_idx = (
+                min_pos % (states[2] * aligned_node_shape[current_major_axis])
+            ) // states[2]
             optimal_record_dict[aligned_node_list[i]] = current_sch_idx
         # Pick optimal schedule for dependencies of output nodes
         for i in range(len(states_list), len(aligned_node_list)):
             multiplier = 1
             for j in range(i + 1, len(aligned_node_list)):
                 multiplier *= aligned_node_shape[j]
-            optimal_record_dict[aligned_node_list[i]] = \
+            optimal_record_dict[aligned_node_list[i]] = (
                 min_pos // multiplier % aligned_node_shape[i]
+            )
 
         # Backward pass to get optimal schedules for other nodes
         bfs_q = queue.Queue()
@@ -193,8 +198,7 @@ class DPTuner(BaseGraphTuner):
         self._logger.info("Finished backward pass...")
 
     def run(self, **kwargs):
-        """Run dynamic programming solver.
-        """
+        """Run dynamic programming solver."""
         max_num_states = None if "max_num_states" not in kwargs else kwargs["max_num_states"]
         self._num_states = 0
         self._max_num_states = max_num_states

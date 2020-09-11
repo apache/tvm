@@ -65,9 +65,7 @@ def strided_slice_python(data, begin, end, strides, slice_mode="end"):
         else:
             new_end = end[i]
 
-        slices.append(slice(new_begin,
-                            new_end,
-                            new_stride))
+        slices.append(slice(new_begin, new_end, new_stride))
     return data[tuple(slices)]
 
 
@@ -100,9 +98,12 @@ def strided_set_python(data, v, begin, end, strides):
     slices = []
     res = data.copy()
     for i in range(len(data.shape)):
-        slices.append(slice(
-            begin[i] if i < len(begin) else None,
-            end[i] if i < len(end) else None,
-            strides[i] if i < len(strides) else None))
+        slices.append(
+            slice(
+                begin[i] if i < len(begin) else None,
+                end[i] if i < len(end) else None,
+                strides[i] if i < len(strides) else None,
+            )
+        )
     res[tuple(slices)] = v
     return res

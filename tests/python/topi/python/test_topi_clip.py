@@ -26,16 +26,17 @@ from tvm.contrib.pickle_memoize import memoize
 
 
 def verify_clip(N, a_min, a_max, dtype):
-    A = te.placeholder((N, N), dtype=dtype, name='A')
+    A = te.placeholder((N, N), dtype=dtype, name="A")
     B = topi.clip(A, a_min, a_max)
     s = te.create_schedule([B.op])
 
     # use memoize to pickle the test data for next time use
     @memoize("topi.tests.test_topi_clip")
     def get_ref_data():
-        a_np = np.random.uniform(a_min*2, a_max*2, size=(N, N)).astype(dtype)
+        a_np = np.random.uniform(a_min * 2, a_max * 2, size=(N, N)).astype(dtype)
         b_np = np.clip(a_np, a_min, a_max)
         return a_np, b_np
+
     a_np, b_np = get_ref_data()
 
     def check_device(device, ctx):
@@ -52,11 +53,12 @@ def verify_clip(N, a_min, a_max, dtype):
     for device, ctx in tvm.testing.enabled_targets():
         check_device(device, ctx)
 
+
 @tvm.testing.uses_gpu
 def test_clip():
-    verify_clip(1024, -127, 127, 'float32')
-    verify_clip(1024, -127, 127, 'int16')
-    verify_clip(1024, -127, 127, 'int8')
+    verify_clip(1024, -127, 127, "float32")
+    verify_clip(1024, -127, 127, "int16")
+    verify_clip(1024, -127, 127, "int8")
 
 
 if __name__ == "__main__":

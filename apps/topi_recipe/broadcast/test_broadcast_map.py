@@ -50,8 +50,12 @@ def tvm_callback_cuda_postproc(code):
 
 def test_broadcast_to(in_shape, out_shape):
     global TASK
-    TASK = "bcast_to_i" + "_".join([str(ele) for ele in in_shape])\
-           + "o" + "_".join([str(ele) for ele in out_shape])
+    TASK = (
+        "bcast_to_i"
+        + "_".join([str(ele) for ele in in_shape])
+        + "o"
+        + "_".join([str(ele) for ele in out_shape])
+    )
     # Build the logic and compile the function
     A = te.placeholder(shape=in_shape, name="A")
     B = topi.broadcast_to(A, out_shape)
@@ -70,9 +74,14 @@ def test_broadcast_to(in_shape, out_shape):
 
 def test_broadcast_binary_op(lhs_shape, rhs_shape, typ="add"):
     global TASK
-    TASK = "bcast_binary_" + typ + "_lhs" +\
-           "_".join([str(ele) for ele in lhs_shape]) +\
-           "rhs" + "_".join([str(ele) for ele in rhs_shape])
+    TASK = (
+        "bcast_binary_"
+        + typ
+        + "_lhs"
+        + "_".join([str(ele) for ele in lhs_shape])
+        + "rhs"
+        + "_".join([str(ele) for ele in rhs_shape])
+    )
     A = te.placeholder(shape=lhs_shape, name="A")
     B = te.placeholder(shape=rhs_shape, name="B")
     if typ == "add":
@@ -117,8 +126,8 @@ def test_broadcast_binary_op(lhs_shape, rhs_shape, typ="add"):
 
 if __name__ == "__main__":
     test_broadcast_to((1,), (10,))
-    test_broadcast_to((1, 1, 5, 4),  (3, 4, 4, 4, 5, 4))
-    test_broadcast_to((1, 128, 1, 32),  (64, 128, 64, 32))
+    test_broadcast_to((1, 1, 5, 4), (3, 4, 4, 4, 5, 4))
+    test_broadcast_to((1, 128, 1, 32), (64, 128, 64, 32))
     test_broadcast_binary_op((5, 2, 3), (2, 1), typ="add")
     test_broadcast_binary_op((5, 64, 128), (2, 5, 64, 1), typ="mul")
     test_broadcast_binary_op((2, 3, 1, 32), (64, 32), typ="div")

@@ -22,12 +22,14 @@ from tvm import autotvm
 from .. import nn
 from ..util import traverse_inline
 
-@autotvm.register_topi_compute('dense.biforst')
+
+@autotvm.register_topi_compute("dense.biforst")
 def dense(_, data, weight, bias=None, out_dtype=None):
     """Dense operator on Biforst"""
     return nn.dense(data, weight, bias, out_dtype)
 
-@autotvm.register_topi_schedule('dense.bifrost')
+
+@autotvm.register_topi_schedule("dense.bifrost")
 def schedule_dense(cfg, outs):
     """Schedule for dense operator.
 
@@ -48,7 +50,7 @@ def schedule_dense(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == 'dense':
+        if op.tag == "dense":
             vec_size = [1, 2, 4, 8, 16]
             max_unroll = 32
 
@@ -59,46 +61,46 @@ def schedule_dense(cfg, outs):
             c = s[dense_out].op.reduce_axis[0]
 
             ##### space definition begin #####
-            cfg.define_split('tile_y', y, num_outputs=3)
-            cfg.define_split('tile_x', x, num_outputs=3)
-            cfg.define_split('c_unroll', c, num_outputs=2, max_factor=64)
+            cfg.define_split("tile_y", y, num_outputs=3)
+            cfg.define_split("tile_x", x, num_outputs=3)
+            cfg.define_split("c_unroll", c, num_outputs=2, max_factor=64)
 
             # fallback support
             if cfg.is_fallback:
-                ref_log = autotvm.tophub.load_reference_log(
-                    'mali', 'rk3399', 'dense.bifrost')
+                ref_log = autotvm.tophub.load_reference_log("mali", "rk3399", "dense.bifrost")
                 cfg.fallback_with_reference_log(ref_log)
             ##### space definition end #####
 
             if dense_out.op in s.outputs:
-                dense_out = s.cache_write(output, 'local')
+                dense_out = s.cache_write(output, "local")
 
-            by, ty, yi = cfg['tile_y'].apply(s, output, y)
-            bx, tx, xi = cfg['tile_x'].apply(s, output, x)
+            by, ty, yi = cfg["tile_y"].apply(s, output, y)
+            bx, tx, xi = cfg["tile_x"].apply(s, output, x)
 
-            s[output].bind(by, te.thread_axis('blockIdx.y'))
-            s[output].bind(bx, te.thread_axis('blockIdx.x'))
-            s[output].bind(ty, te.thread_axis('threadIdx.y'))
-            s[output].bind(tx, te.thread_axis('threadIdx.x'))
+            s[output].bind(by, te.thread_axis("blockIdx.y"))
+            s[output].bind(bx, te.thread_axis("blockIdx.x"))
+            s[output].bind(ty, te.thread_axis("threadIdx.y"))
+            s[output].bind(tx, te.thread_axis("threadIdx.x"))
 
-            if cfg['tile_y'].size[-1] < max_unroll:
+            if cfg["tile_y"].size[-1] < max_unroll:
                 s[output].unroll(yi)
-            if cfg['tile_x'].size[-1] in vec_size:
+            if cfg["tile_x"].size[-1] in vec_size:
                 s[output].vectorize(xi)
             s[dense_out].compute_at(s[output], tx)
 
             k = s[dense_out].op.reduce_axis[0]
             y, x = s[dense_out].op.axis
-            k, k_unroll = cfg['c_unroll'].apply(s, dense_out, k)
+            k, k_unroll = cfg["c_unroll"].apply(s, dense_out, k)
             s[dense_out].reorder(k, k_unroll, y, x)
             s[dense_out].unroll(k_unroll)
-            if cfg['tile_y'].size[-1] < max_unroll:
+            if cfg["tile_y"].size[-1] < max_unroll:
                 s[dense_out].unroll(y)
-            if cfg['tile_x'].size[-1] in vec_size:
+            if cfg["tile_x"].size[-1] in vec_size:
                 s[dense_out].vectorize(x)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
 
 def fuse_and_bind(s, tensor, axis=None, num_thread=None):
     """ fuse all the axis and bind to GPU threads """

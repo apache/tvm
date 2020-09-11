@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-'''Utility for Hexagon backend'''
+# pylint: disable=invalid-name
+"""Utility for Hexagon backend"""
 
 import functools as ft
 import os
@@ -39,20 +39,24 @@ from .._ffi.registry import register_func
 #
 # Subsequent calls to 'link_shared' will use the newly registered linker.
 
-hexagon_toolchain_root = os.environ.get('HEXAGON_TOOLCHAIN') or ''  # pylint: disable=invalid-name
-hexagon_link_master = os.path.join(                                 # pylint: disable=invalid-name
-    hexagon_toolchain_root, 'bin', 'hexagon-link')
+hexagon_toolchain_root = os.environ.get("HEXAGON_TOOLCHAIN") or ""  # pylint: disable=invalid-name
+hexagon_link_master = os.path.join(  # pylint: disable=invalid-name
+    hexagon_toolchain_root, "bin", "hexagon-link"
+)
+
 
 def register_linker(f):
     """Register a function that will return the path to the Hexagon linker."""
-    return register_func('tvm.contrib.hexagon.hexagon_link', f, True)
+    return register_func("tvm.contrib.hexagon.hexagon_link", f, True)
 
-@register_func('tvm.contrib.hexagon.hexagon_link')
+
+@register_func("tvm.contrib.hexagon.hexagon_link")
 def hexagon_link():
     """Return path to the Hexagon linker."""
     return hexagon_link_master
 
-@register_func('tvm.contrib.hexagon.link_shared')
+
+@register_func("tvm.contrib.hexagon.link_shared")
 def link_shared(so_name, objs, **kwargs):
     """Link shared library on Hexagon using the registered Hexagon linker.
 
@@ -76,49 +80,67 @@ def link_shared(so_name, objs, **kwargs):
             return s.value
         assert isinstance(s, str), 'argument "' + str(s) + '" should be a string or StrImm'
         return s
+
     objs = [to_str(s) for s in objs]
 
-    linker = tvm.get_global_func('tvm.contrib.hexagon.hexagon_link')()
-    if kwargs.get('verbose'):
-        print('tvm.contrib.hexagon.link_shared:')
-        print('  Using linker:', linker)
-        print('  Library name:', so_name)
-        print('  Object files:', objs)
+    linker = tvm.get_global_func("tvm.contrib.hexagon.hexagon_link")()
+    if kwargs.get("verbose"):
+        print("tvm.contrib.hexagon.link_shared:")
+        print("  Using linker:", linker)
+        print("  Library name:", so_name)
+        print("  Object files:", objs)
     if not os.access(linker, os.X_OK):
         message = 'The linker "' + linker + '" does not exist or is not executable.'
-        if not os.environ.get('HEXAGON_TOOLCHAIN'):
-            message += ' The environment variable HEXAGON_TOOLCHAIN is unset. Please export ' + \
-                'HEXAGON_TOOLCHAIN in your environment, so that ${HEXAGON_TOOLCHAIN}/bin/' + \
-                'hexagon-link exists.'
+        if not os.environ.get("HEXAGON_TOOLCHAIN"):
+            message += (
+                " The environment variable HEXAGON_TOOLCHAIN is unset. Please export "
+                + "HEXAGON_TOOLCHAIN in your environment, so that ${HEXAGON_TOOLCHAIN}/bin/"
+                + "hexagon-link exists."
+            )
         else:
-            message += ' Please verify the value of the HEXAGON_LINKER environment variable ' + \
-                '(currently set to "' + hexagon_toolchain_root + '").'
+            message += (
+                " Please verify the value of the HEXAGON_LINKER environment variable "
+                + '(currently set to "'
+                + hexagon_toolchain_root
+                + '").'
+            )
         raise Exception(message)
 
-    libpath = os.path.join(
-        hexagon_toolchain_root, 'target', 'hexagon', 'lib', 'v66', 'G0')
+    libpath = os.path.join(hexagon_toolchain_root, "target", "hexagon", "lib", "v66", "G0")
     cc.create_shared(
-        so_name, objs,
+        so_name,
+        objs,
         # pylint: disable=bad-whitespace
-        options = ['-Bdynamic', '-shared', '-export-dynamic',
-                   os.path.join(libpath, 'pic', 'libgcc.so')],
-        cc = linker)
+        options=[
+            "-Bdynamic",
+            "-shared",
+            "-export-dynamic",
+            os.path.join(libpath, "pic", "libgcc.so"),
+        ],
+        cc=linker,
+    )
     return 0
 
 
 ### VTCM
 
-vtcm_size = 4*1024*1024  # pylint: disable=invalid-name
-@register_func('tvm.info.mem.local.vtcm')
+vtcm_size = 4 * 1024 * 1024  # pylint: disable=invalid-name
+
+
+@register_func("tvm.info.mem.local.vtcm")
 def mem_info_vtcm():
     # pylint: disable=bad-whitespace
-    return tvm.ir.make_node('MemoryInfo',
-                            unit_bits = 8,
-                            max_num_bits = vtcm_size*8,
-                            max_simd_bits = 128*8,
-                            head_address = tvm.runtime.const(100, 'uint32'))
+    return tvm.ir.make_node(
+        "MemoryInfo",
+        unit_bits=8,
+        max_num_bits=vtcm_size * 8,
+        max_simd_bits=128 * 8,
+        head_address=tvm.runtime.const(100, "uint32"),
+    )
+
 
 def lower_vtcm_(get_alloc, get_free, def_align, func, mod, ctx):  # pylint: disable=unused-argument
+
     """Generic VTCM allocation
 
     Parameters
@@ -154,9 +176,9 @@ def lower_vtcm_(get_alloc, get_free, def_align, func, mod, ctx):  # pylint: disa
     def visit(stmt):
         """Collect information about VTCM buffers and their alignments."""
         if isinstance(stmt, tvm.tir.AttrStmt):
-            if stmt.attr_key == 'storage_scope' and stmt.value == 'local.vtcm':
+            if stmt.attr_key == "storage_scope" and stmt.value == "local.vtcm":
                 vtcm_buffers.append(stmt.node)
-            elif stmt.attr_key == 'storage_alignment':
+            elif stmt.attr_key == "storage_alignment":
                 if not stmt.node in alignments:
                     alignments[stmt.node] = []
                 alignments[stmt.node].append(stmt.value)
@@ -164,27 +186,33 @@ def lower_vtcm_(get_alloc, get_free, def_align, func, mod, ctx):  # pylint: disa
     def mutate(stmt):
         """Insert calls to VTCM allocation and deallocation routines."""
         if isinstance(stmt, tvm.tir.AttrStmt):
-            if stmt.attr_key == 'storage_scope' and stmt.value == 'local.vtcm':
+            if stmt.attr_key == "storage_scope" and stmt.value == "local.vtcm":
                 vtcm_buffers.pop()
-            elif stmt.attr_key == 'storage_alignment':
+            elif stmt.attr_key == "storage_alignment":
                 alignments[stmt.node].pop()
             return stmt
         if isinstance(stmt, tvm.tir.Allocate):
             var = stmt.buffer_var
             if var in vtcm_buffers:
-                is_null = tvm.tir.call_intrin('bool', tvm.ir.Op.get('tir.isnullptr'), var)
-                throw_error = \
-                    tvm.tir.call_intrin('int32', tvm.ir.Op.get('tir.tvm_throw_last_error'))
+                is_null = tvm.tir.call_intrin("bool", tvm.ir.Op.get("tir.isnullptr"), var)
+                throw_error = tvm.tir.call_intrin(
+                    "int32", tvm.ir.Op.get("tir.tvm_throw_last_error")
+                )
                 body_w_free = tvm.tir.SeqStmt([stmt.body, tvm.tir.Evaluate(get_free(var))])
-                body_w_check = \
-                    tvm.tir.IfThenElse(is_null, tvm.tir.Evaluate(throw_error), body_w_free)
-                return tvm.tir.LetStmt(stmt.buffer_var, get_alloc(stmt, buf_align(var)),
-                                       body_w_check)
+                body_w_check = tvm.tir.IfThenElse(
+                    is_null, tvm.tir.Evaluate(throw_error), body_w_free
+                )
+                return tvm.tir.LetStmt(
+                    stmt.buffer_var, get_alloc(stmt, buf_align(var)), body_w_check
+                )
             return stmt
         raise ValueError("Wrong argument type (" + type(stmt) + ") to 'mutate'")
 
-    f = func.with_body(tvm.tir.stmt_functor.ir_transform(func.body, visit, mutate,
-                                                         ['tir.Allocate', 'tir.AttrStmt']))
+    f = func.with_body(
+        tvm.tir.stmt_functor.ir_transform(
+            func.body, visit, mutate, ["tir.Allocate", "tir.AttrStmt"]
+        )
+    )
     return f
 
 
@@ -193,19 +221,26 @@ def ir_lower_vtcm():
 
     VTCM memory has to be allocated using special functions.
     """
+
     def get_alloc(stmt, align):
         assert isinstance(stmt, tvm.tir.Allocate)
-        return tvm.tir.call_extern('handle', 'HexagonBackendAllocateVTCM',
-                                   ft.reduce(lambda x, y: x*y, stmt.extents, 1), align)
+        return tvm.tir.call_extern(
+            "handle",
+            "HexagonBackendAllocateVTCM",
+            ft.reduce(lambda x, y: x * y, stmt.extents, 1),
+            align,
+        )
+
     def get_free(var):
-        return tvm.tir.call_extern('handle', 'HexagonBackendFreeVTCM', var)
+        return tvm.tir.call_extern("handle", "HexagonBackendFreeVTCM", var)
 
     # pylint: disable=bad-whitespace
-    @tvm.tir.transform.prim_func_pass(opt_level = 0, name = "Lower VTCM pass")
+    @tvm.tir.transform.prim_func_pass(opt_level=0, name="Lower VTCM pass")
     def transform(func, mod, ctx):
         return lower_vtcm_(get_alloc, get_free, 2048, func, mod, ctx)
 
     return transform
+
 
 def ir_lower_vtcm_pass():
     return [(3, ir_lower_vtcm())]

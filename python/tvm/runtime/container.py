@@ -54,8 +54,7 @@ def getitem_helper(obj, elem_getter, length, idx):
         return [elem_getter(obj, i) for i in range(start, stop, step)]
 
     if idx < -length or idx >= length:
-        raise IndexError("Index out of range. size: {}, got index {}"
-                         .format(length, idx))
+        raise IndexError("Index out of range. size: {}, got index {}".format(length, idx))
     if idx < 0:
         idx += length
     return elem_getter(obj, idx)
@@ -73,20 +72,20 @@ class ADT(Object):
     fields : list[Object] or tuple[Object]
         The source tuple.
     """
+
     def __init__(self, tag, fields):
         for f in fields:
-            assert isinstance(f, ObjectTypes), "Expect object or " \
-            "tvm NDArray type, but received : {0}".format(type(f))
-        self.__init_handle_by_constructor__(_ffi_api.ADT, tag,
-                                            *fields)
+            assert isinstance(
+                f, ObjectTypes
+            ), "Expect object or " "tvm NDArray type, but received : {0}".format(type(f))
+        self.__init_handle_by_constructor__(_ffi_api.ADT, tag, *fields)
 
     @property
     def tag(self):
         return _ffi_api.GetADTTag(self)
 
     def __getitem__(self, idx):
-        return getitem_helper(
-            self, _ffi_api.GetADTFields, len(self), idx)
+        return getitem_helper(self, _ffi_api.GetADTFields, len(self), idx)
 
     def __len__(self):
         return _ffi_api.GetADTSize(self)
@@ -107,8 +106,9 @@ def tuple_object(fields=None):
     """
     fields = fields if fields else []
     for f in fields:
-        assert isinstance(f, ObjectTypes), "Expect object or tvm " \
-        "NDArray type, but received : {0}".format(type(f))
+        assert isinstance(
+            f, ObjectTypes
+        ), "Expect object or tvm " "NDArray type, but received : {0}".format(type(f))
     return _ffi_api.Tuple(*fields)
 
 
@@ -121,6 +121,7 @@ class String(str, PyNativeObject):
     content : str
         The content string used to construct the object.
     """
+
     __slots__ = ["__tvm_object__"]
 
     def __new__(cls, content):

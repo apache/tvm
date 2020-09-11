@@ -17,13 +17,14 @@
 # pylint: disable=invalid-name
 """Primitive operators in the TVM IR."""
 import tvm._ffi
-from . expr import RelayExpr
+from .expr import RelayExpr
 from . import _ffi_api
 
 
 @tvm._ffi.register_object("Op")
 class Op(RelayExpr):
     """Primitive operator in the IR."""
+
     def __init__(self):
         raise RuntimeError("Cannot create op, use get instead")
 
@@ -107,8 +108,10 @@ def register_op_attr(op_name, attr_key, value=None, level=10):
     fregister : function
         Register function if value is not specified.
     """
+
     def _register(v):
         """internal register function"""
         _ffi_api.RegisterOpAttr(op_name, attr_key, v, level)
         return v
+
     return _register(value) if value is not None else _register

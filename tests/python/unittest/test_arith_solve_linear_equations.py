@@ -23,8 +23,10 @@ from tvm import te, arith, ir, tir, testing
 
 def test_solution_consistency():
     seed = random.randrange(sys.maxsize)
-    print("\nThis test is intentionally non-deterministic, "
-          "if it fails please report it in github issue together with this seed {}\n".format(seed))
+    print(
+        "\nThis test is intentionally non-deterministic, "
+        "if it fails please report it in github issue together with this seed {}\n".format(seed)
+    )
     random.seed(seed)
 
     def _check(num_vars, num_formulas, coef=(-5, 5), bounds=(-20, 20)):
@@ -32,9 +34,9 @@ def test_solution_consistency():
 
         relations = []
         for i in range(num_formulas):
-            s1 = sum([v*random.randint(coef[0], coef[1]) for v in variables])
+            s1 = sum([v * random.randint(coef[0], coef[1]) for v in variables])
             s1 += random.randint(coef[0], coef[1])
-            s2 = sum([v*random.randint(coef[0], coef[1]) for v in variables])
+            s2 = sum([v * random.randint(coef[0], coef[1]) for v in variables])
             s2 += random.randint(coef[0], coef[1])
             if random.random() < 0.7:
                 op = tvm.tir.EQ
@@ -99,10 +101,13 @@ def test_empty_var_to_solve():
 def test_unique_solution():
     x, y = te.var("x"), te.var("y")
 
-    solution = arith.solve_linear_equations([
-        tvm.tir.EQ(x + y, 20),
-        tvm.tir.EQ(x - y, 10),
-    ], [x, y])
+    solution = arith.solve_linear_equations(
+        [
+            tvm.tir.EQ(x + y, 20),
+            tvm.tir.EQ(x - y, 10),
+        ],
+        [x, y],
+    )
     assert list(solution.dst.variables) == []
     assert ir.structural_equal(solution.src_to_dst[x], 15)
     assert ir.structural_equal(solution.src_to_dst[y], 5)
@@ -112,10 +117,14 @@ def test_low_rank():
     x, y, z = te.var("x"), te.var("y"), te.var("z")
     ranges = {}
 
-    solution = arith.solve_linear_equations([
-        tvm.tir.EQ(x + y + z, 15),
-        tvm.tir.EQ(x + y, 10),
-    ], [x, y, z], ranges)
+    solution = arith.solve_linear_equations(
+        [
+            tvm.tir.EQ(x + y + z, 15),
+            tvm.tir.EQ(x + y, 10),
+        ],
+        [x, y, z],
+        ranges,
+    )
     [n0] = solution.dst.variables
     assert ir.structural_equal(solution.src_to_dst[x], n0 + 10)
     assert ir.structural_equal(solution.src_to_dst[y], -n0)
@@ -129,9 +138,13 @@ def test_infer_range():
         y: tvm.ir.Range.from_min_extent(0, 10),
     }
 
-    solution = arith.solve_linear_equations([
-        tvm.tir.EQ(x + y, 0),
-    ], [x, y], ranges)
+    solution = arith.solve_linear_equations(
+        [
+            tvm.tir.EQ(x + y, 0),
+        ],
+        [x, y],
+        ranges,
+    )
     [n0] = solution.dst.variables
     assert ir.structural_equal(solution.src_to_dst[x], n0)
     assert ir.structural_equal(solution.src_to_dst[y], -n0)
@@ -148,11 +161,15 @@ def test_infer_range():
 def test_ill_formed():
     x, y = te.var("x"), te.var("y")
 
-    solution = arith.solve_linear_equations([
-        tvm.tir.EQ(x + y, 0),
-        tvm.tir.EQ(x - y, 0),
-        tvm.tir.EQ(x, 5),
-    ], [x, y], {})
+    solution = arith.solve_linear_equations(
+        [
+            tvm.tir.EQ(x + y, 0),
+            tvm.tir.EQ(x - y, 0),
+            tvm.tir.EQ(x, 5),
+        ],
+        [x, y],
+        {},
+    )
     assert list(solution.dst.variables) == []
     [rel] = solution.dst.relations
     assert ir.structural_equal(rel, False)

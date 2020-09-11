@@ -31,9 +31,15 @@ reg.register_pattern("vision.roi_align", OpPattern.OUT_ELEMWISE_FUSABLE)
 def compute_roi_pool(attrs, inputs, _):
     """Compute definition of roi_pool"""
     assert attrs.layout == "NCHW"
-    return [topi.vision.rcnn.roi_pool_nchw(
-        inputs[0], inputs[1], pooled_size=get_const_tuple(attrs.pooled_size),
-        spatial_scale=attrs.spatial_scale)]
+    return [
+        topi.vision.rcnn.roi_pool_nchw(
+            inputs[0],
+            inputs[1],
+            pooled_size=get_const_tuple(attrs.pooled_size),
+            spatial_scale=attrs.spatial_scale,
+        )
+    ]
+
 
 reg.register_schedule("vision.roi_pool", strategy.schedule_roi_pool)
 reg.register_pattern("vision.roi_pool", OpPattern.OUT_ELEMWISE_FUSABLE)

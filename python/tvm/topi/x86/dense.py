@@ -29,12 +29,13 @@ from .util import get_fp32_len
 from .. import generic, tag
 from ..util import traverse_inline, get_const_tuple
 
+
 def _schedule_dense_pack_template(cfg, s, C):
     A, packedB = s[C].op.input_tensors
 
     CC = s.cache_write(C, "global")
     y, x = s[C].op.axis
-    k, = s[CC].op.reduce_axis
+    (k,) = s[CC].op.reduce_axis
 
     yt, yo, yi = cfg["tile_y"].apply(s, C, y)
     xt, xo, xi = cfg["tile_x"].apply(s, C, x)
@@ -61,7 +62,7 @@ def _schedule_dense_pack_template(cfg, s, C):
 
 def _schedule_dense_nopack_template(cfg, s, C):
     y, x = s[C].op.axis
-    kk, = s[C].op.reduce_axis
+    (kk,) = s[C].op.reduce_axis
     yo, yi = cfg["tile_y"].apply(s, C, y)
     xo, xi = cfg["tile_x"].apply(s, C, x)
     s[C].reorder(yo, xo, yi, xi)
@@ -69,10 +70,10 @@ def _schedule_dense_nopack_template(cfg, s, C):
     s[C].parallel(xyo)
     s[C].unroll(kk)
 
-    CC, = s[C].op.input_tensors
+    (CC,) = s[C].op.input_tensors
     s[CC].compute_at(s[C], xyo)
     z, y, x = s[CC].op.axis
-    k, = s[CC].op.reduce_axis
+    (k,) = s[CC].op.reduce_axis
     yz = s[CC].fuse(z, y)
     s[CC].reorder(k, yz, x)
     s[CC].unroll(yz)
@@ -91,7 +92,7 @@ def _default_dense_pack_config(cfg, M, N, K):
 
     vec_width = get_fp32_len()
     tilex_ii = 1
-    for bn in range(vec_width*2, 0, -1):
+    for bn in range(vec_width * 2, 0, -1):
         if N % bn == 0:
             tilex_ii = bn
             break
@@ -128,13 +129,14 @@ def _default_dense_nopack_config(cfg, M, N, K):
 
     vec_width = get_fp32_len()
     tilek_bn = 1
-    for bn in range(vec_width*2, 0, -1):
+    for bn in range(vec_width * 2, 0, -1):
         if K % bn == 0:
             tilek_bn = bn
             break
     cfg["tile_k"] = SplitEntity([K // tilek_bn, tilek_bn])
     cfg["tile_x"] = SplitEntity([N, 1])
     cfg["tile_y"] = SplitEntity([1, M])
+
 
 @autotvm.register_topi_compute("dense_nopack.x86")
 def dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
@@ -152,18 +154,18 @@ def dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
 
     vec = cfg["tile_k"].size[-1]
     k = te.reduce_axis((0, K // vec), "k")
-    CC = te.compute((M, N, vec),
-                    lambda z, y, x: te.sum(
-                        data[z, k * vec + x].astype(out_dtype) *
-                        weight[y, k * vec + x].astype(out_dtype), axis=k))
+    CC = te.compute(
+        (M, N, vec),
+        lambda z, y, x: te.sum(
+            data[z, k * vec + x].astype(out_dtype) * weight[y, k * vec + x].astype(out_dtype),
+            axis=k,
+        ),
+    )
 
     kk = te.reduce_axis((0, vec), "kk")
-    C = te.compute((M, N),
-                   lambda y, x: te.sum(CC[y, x, kk], axis=kk),
-                   tag="dense_nopack")
+    C = te.compute((M, N), lambda y, x: te.sum(CC[y, x, kk], axis=kk), tag="dense_nopack")
     if bias is not None:
-        C = te.compute((M, N), lambda i, j: C[i, j] + bias[j].astype(out_dtype),
-                       tag=tag.BROADCAST)
+        C = te.compute((M, N), lambda i, j: C[i, j] + bias[j].astype(out_dtype), tag=tag.BROADCAST)
     return C
 
 
@@ -173,18 +175,20 @@ def schedule_dense_nopack(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if 'dense_nopack' in op.tag:
+        if "dense_nopack" in op.tag:
             _schedule_dense_nopack_template(cfg, s, op.output(0))
+
     traverse_inline(s, outs[0].op, _callback)
     return s
+
 
 @autotvm.register_topi_compute("dense_pack.x86")
 def dense_pack(cfg, data, weight, bias=None, out_dtype=None):
     """Compute dense with packing"""
     if out_dtype is None:
         out_dtype = data.dtype
-    M, K = get_const_tuple(data.shape) # batch, in_dim
-    N, _ = get_const_tuple(weight.shape) # out_dim
+    M, K = get_const_tuple(data.shape)  # batch, in_dim
+    N, _ = get_const_tuple(weight.shape)  # out_dim
     # create tuning space
     cfg.define_split("tile_y", M, num_outputs=3)
     cfg.define_split("tile_x", N, num_outputs=3)
@@ -194,22 +198,26 @@ def dense_pack(cfg, data, weight, bias=None, out_dtype=None):
 
     packw_bn = cfg["tile_x"].size[-1]
     packw_shape = (N // packw_bn, K, packw_bn)
-    packw = te.compute(packw_shape,
-                       lambda z, y, x: weight[z * packw_bn + x, y], name="packed_weight")
+    packw = te.compute(
+        packw_shape, lambda z, y, x: weight[z * packw_bn + x, y], name="packed_weight"
+    )
 
     idxdiv = tvm.tir.indexdiv
     idxmod = tvm.tir.indexmod
     k = te.reduce_axis((0, K), name="k")
-    C = te.compute((M, N),
-                   lambda y, x: te.sum(
-                       data[y, k].astype(out_dtype) *
-                       packw[idxdiv(x, packw_bn), k, idxmod(x, packw_bn)].astype(out_dtype),
-                       axis=k),
-                   tag="dense_pack")
+    C = te.compute(
+        (M, N),
+        lambda y, x: te.sum(
+            data[y, k].astype(out_dtype)
+            * packw[idxdiv(x, packw_bn), k, idxmod(x, packw_bn)].astype(out_dtype),
+            axis=k,
+        ),
+        tag="dense_pack",
+    )
     if bias is not None:
-        C = te.compute((M, N), lambda i, j: C[i, j] + bias[j].astype(out_dtype),
-                       tag=tag.BROADCAST)
+        C = te.compute((M, N), lambda i, j: C[i, j] + bias[j].astype(out_dtype), tag=tag.BROADCAST)
     return C
+
 
 @autotvm.register_topi_schedule("dense_pack.x86")
 def schedule_dense_pack(cfg, outs):
@@ -219,8 +227,10 @@ def schedule_dense_pack(cfg, outs):
     def _callback(op):
         if "dense_pack" in op.tag:
             _schedule_dense_pack_template(cfg, s, op.output(0))
+
     traverse_inline(s, outs[0].op, _callback)
     return s
+
 
 def dense_blas_common(cfg, data, weight, bias, out_dtype, lib):
     """Compute dense using a BLAS library"""
@@ -234,42 +244,45 @@ def dense_blas_common(cfg, data, weight, bias, out_dtype, lib):
                 "(matmulu8s8s32 not imlemented)"
             )
         C = lib.matmul_u8s8s32(data, weight, False, True, dtype=out_dtype)
-    elif data.dtype == 'float32' or data.dtype == 'float64':
+    elif data.dtype == "float32" or data.dtype == "float64":
         C = lib.matmul(data, weight, False, True)
     else:
-        raise NotImplementedError(
-            f"Dense with {lib.__name__} for {data.dtype} is not supported"
-        )
+        raise NotImplementedError(f"Dense with {lib.__name__} for {data.dtype} is not supported")
 
     if bias is not None:
-        C = te.compute(C.shape, lambda i, j: C[i, j] + bias[j].astype(out_dtype),
-                       tag=tag.BROADCAST)
+        C = te.compute(C.shape, lambda i, j: C[i, j] + bias[j].astype(out_dtype), tag=tag.BROADCAST)
     return C
+
 
 @autotvm.register_topi_compute("dense_cblas.x86")
 def dense_cblas(cfg, data, weight, bias=None, out_dtype=None):
     """Compute dense using a cblas"""
     return dense_blas_common(cfg, data, weight, bias, out_dtype, cblas)
 
+
 @autotvm.register_topi_schedule("dense_cblas.x86")
 def schedule_dense_cblas(_, outs):
     """Create schedule for dense_cblas"""
     return generic.schedule_extern(outs)
+
 
 @autotvm.register_topi_compute("dense_mkl.x86")
 def dense_mkl(cfg, data, weight, bias=None, out_dtype=None):
     """Compute dense using mkl"""
     return dense_blas_common(cfg, data, weight, bias, out_dtype, mkl)
 
+
 @autotvm.register_topi_schedule("dense_mkl.x86")
 def schedule_dense_mkl(_, outs):
     """Create schedule for dense_mkl"""
     return generic.schedule_extern(outs)
 
+
 @autotvm.register_topi_compute("dense_mkldnn.x86")
 def dense_mkldnn(cfg, data, weight, bias=None, out_dtype=None):
     """Compute dense using mkldnn"""
     return dense_blas_common(cfg, data, weight, bias, out_dtype, mkldnn)
+
 
 @autotvm.register_topi_schedule("dense_mkldnn.x86")
 def schedule_dense_mkldnn(_, outs):

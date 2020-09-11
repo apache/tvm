@@ -22,7 +22,7 @@ from tvm.contrib import nvcc
 import numpy as np
 
 # Quick knobs
-TASK="lstm"
+TASK = "lstm"
 USE_MANUAL_CODE = False
 PERSIST_KERNEL = True
 DETECT_GLOBAL_BARRIER = PERSIST_KERNEL
@@ -33,7 +33,7 @@ UNROLL_WLOAD = True
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
     """Use nvcc compiler for better perf."""
-    ptx =  nvcc.compile_cuda(code, target="ptx")
+    ptx = nvcc.compile_cuda(code, target="ptx")
     return ptx
 
 
@@ -59,7 +59,7 @@ def lstm():
     num_thread_x = 16 * 3 // 2
     num_sm = 24
     n_num_step = 128
-    num_step = te.var('num_step')
+    num_step = te.var("num_step")
     num_hidden = 1152 // 2
     batch_size = 1
     # Global transition matrix
@@ -70,30 +70,35 @@ def lstm():
     # h: output hidden state, c: cell state.
     s_state_h = te.placeholder((num_step, batch_size, num_hidden))
     s_state_c = te.placeholder((num_step, batch_size, num_hidden))
-    s_init_c = te.compute((1, batch_size, num_hidden),
-                           lambda *i: 0.0, name="init_c")
-    s_init_h = te.compute((1, batch_size, num_hidden),
-                           lambda *i: 0.0, name="init_h")
+    s_init_c = te.compute((1, batch_size, num_hidden), lambda *i: 0.0, name="init_c")
+    s_init_h = te.compute((1, batch_size, num_hidden), lambda *i: 0.0, name="init_h")
     # LSTM transition
     k = te.reduce_axis((0, num_hidden), name="ki2h")
     s_h2h = te.compute(
         (num_step, batch_size, 4, num_hidden),
         lambda t, i, x, j: te.sum(s_state_h[t - 1, i, k] * Wh2h[x, j, k], axis=k),
-        name="s_h2h")
+        name="s_h2h",
+    )
     # Gate rules
-    gates = te.compute(Xi2h.shape, lambda *i:
-                        Xi2h(*i) + s_h2h(*i), name="gates")
+    gates = te.compute(Xi2h.shape, lambda *i: Xi2h(*i) + s_h2h(*i), name="gates")
     gshape = (num_step, batch_size, num_hidden)
     in_gate = te.compute(gshape, lambda t, i, j: te.sigmoid(gates[t, i, 0, j]), name="in_gate")
-    in_transform = te.compute(gshape, lambda t, i, j: te.tanh(gates[t, i, 1, j]), name="in_transform")
-    forget_gate = te.compute(gshape, lambda t, i, j: te.sigmoid(gates[t, i, 2, j]), name="forget_gate")
+    in_transform = te.compute(
+        gshape, lambda t, i, j: te.tanh(gates[t, i, 1, j]), name="in_transform"
+    )
+    forget_gate = te.compute(
+        gshape, lambda t, i, j: te.sigmoid(gates[t, i, 2, j]), name="forget_gate"
+    )
     out_gate = te.compute(gshape, lambda t, i, j: te.sigmoid(gates[t, i, 3, j]), name="out_gate")
-    next_c = te.compute(gshape,
-                         lambda t, i, j:
-                         forget_gate[t, i, j] * s_state_c[t - 1, i, j] +
-                         in_gate[t, i, j] * in_transform[t, i, j], name="next_c")
-    next_h = te.compute(gshape,
-                         lambda t, i, j: out_gate[t, i, j] * te.tanh(next_c[t, i, j]), name="next_h")
+    next_c = te.compute(
+        gshape,
+        lambda t, i, j: forget_gate[t, i, j] * s_state_c[t - 1, i, j]
+        + in_gate[t, i, j] * in_transform[t, i, j],
+        name="next_c",
+    )
+    next_h = te.compute(
+        gshape, lambda t, i, j: out_gate[t, i, j] * te.tanh(next_c[t, i, j]), name="next_h"
+    )
     update_c = te.compute(gshape, lambda *i: next_c(*i), name="update_c")
     update_h = te.compute(gshape, lambda *i: next_h(*i), name="update_h")
     # schedule
@@ -102,7 +107,8 @@ def lstm():
         [update_h, update_c],
         [s_state_h, s_state_c],
         inputs=[Xi2h],
-        name="lstm_scan")
+        name="lstm_scan",
+    )
     # schedule
     s = te.create_schedule(scan_h.op)
     # Inline gate computations
@@ -164,18 +170,13 @@ def lstm():
     # verify we can lower correctly
     def check_device(target):
         num_step = n_num_step
-        flstm = tvm.build(s, [Xi2h, Wh2h, scan_h, scan_c],
-                          target)
+        flstm = tvm.build(s, [Xi2h, Wh2h, scan_h, scan_c], target)
         ctx = tvm.gpu(0) if target == "cuda" else tvm.cl(0)
         # launch the kernel.
-        scan_h_np = np.zeros(
-            (num_step, batch_size, num_hidden)).astype("float32")
-        scan_c_np = np.zeros(
-            (num_step, batch_size, num_hidden)).astype("float32")
-        Xi2h_np = np.random.normal(
-            size=(num_step, batch_size, 4, num_hidden)).astype("float32")
-        Wh2h_np = np.random.normal(
-            size=(4, num_hidden, num_hidden)).astype("float32")
+        scan_h_np = np.zeros((num_step, batch_size, num_hidden)).astype("float32")
+        scan_c_np = np.zeros((num_step, batch_size, num_hidden)).astype("float32")
+        Xi2h_np = np.random.normal(size=(num_step, batch_size, 4, num_hidden)).astype("float32")
+        Wh2h_np = np.random.normal(size=(4, num_hidden, num_hidden)).astype("float32")
         scan_h_a = tvm.nd.array(scan_h_np, ctx)
         scan_c_a = tvm.nd.array(scan_c_np, ctx)
         Xi2h_a = tvm.nd.array(Xi2h_np, ctx)
@@ -188,13 +189,16 @@ def lstm():
         print("Time cost=%g" % eval_result.mean)
 
     # set unroll_explicit for more readable code.
-    with tvm.transform.PassContext(config={
-        "tir.UnrollLoop": {
-            "auto_max_step": 128,
-        },
-        "tir.detect_global_barrier": DETECT_GLOBAL_BARRIER
-    }):
+    with tvm.transform.PassContext(
+        config={
+            "tir.UnrollLoop": {
+                "auto_max_step": 128,
+            },
+            "tir.detect_global_barrier": DETECT_GLOBAL_BARRIER,
+        }
+    ):
         check_device("cuda")
+
 
 if __name__ == "__main__":
     lstm()

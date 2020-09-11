@@ -39,7 +39,7 @@ WORKLOAD_FUNC_REGISTRY = {}
 
 
 def register_workload(func_name, f=None, override=False):
-    """ Register a function that generates a certain workload.
+    """Register a function that generates a certain workload.
 
     The input function should take hashable and jsonable arguments
     (int, float, tuple of int, tvm.tensor.Tensor, ...) and return a list of tvm.tensor.Tensor.
@@ -74,16 +74,17 @@ def register_workload(func_name, f=None, override=False):
     def register(myf):
         """internal register function"""
         if func_name in WORKLOAD_FUNC_REGISTRY and not override:
-            raise RuntimeError('%s has been registered already' % func_name)
+            raise RuntimeError("%s has been registered already" % func_name)
         WORKLOAD_FUNC_REGISTRY[func_name] = myf
         return myf
+
     if f:
         return register(f)
     return register
 
 
 def make_workload_key(func, args):
-    """ Make a workload key by function and arguments.
+    """Make a workload key by function and arguments.
 
     Parameters
     ----------
@@ -105,12 +106,17 @@ def make_workload_key(func, args):
     elif isinstance(func, str):
         func_name = func
     else:
-        raise ValueError("Invalid function: " + str(func) +
-                         " . `make_workload_key` expects a callable function or its function name")
+        raise ValueError(
+            "Invalid function: "
+            + str(func)
+            + " . `make_workload_key` expects a callable function or its function name"
+        )
 
     if not func_name in WORKLOAD_FUNC_REGISTRY:
-        raise ValueError("%s is not registered. "  % func,
-                         "Please register it with @auto_scheduler.register_workload")
+        raise ValueError(
+            "%s is not registered. " % func,
+            "Please register it with @auto_scheduler.register_workload",
+        )
 
     args = serialize_args(args)
 
@@ -118,7 +124,7 @@ def make_workload_key(func, args):
 
 
 def decode_workload_key_to_func_args(workload_key):
-    """ Decode a workload key to the registerd function name and its corresponding args.
+    """Decode a workload key to the registerd function name and its corresponding args.
 
     Parameters
     ----------
@@ -136,14 +142,16 @@ def decode_workload_key_to_func_args(workload_key):
 
     workload = json.loads(workload_key)
     if not workload[0] in WORKLOAD_FUNC_REGISTRY:
-        raise ValueError("%s is not registered. " % workload[0] +
-                         "Please register it with @auto_scheduler.register_workload")
+        raise ValueError(
+            "%s is not registered. " % workload[0]
+            + "Please register it with @auto_scheduler.register_workload"
+        )
     return workload[0], deserialize_args(workload[1:])
 
 
 @tvm._ffi.register_func("auto_scheduler.workload_key_to_tensors")
 def workload_key_to_tensors(workload_key):
-    """ Get the input/output tensors from the workload key.
+    """Get the input/output tensors from the workload key.
 
     This method is usually used to create a ComputeDAG by workload key.
 
@@ -166,7 +174,7 @@ def workload_key_to_tensors(workload_key):
 
 
 def save_workload_func_registry(filename):
-    """ Dump workload function registry to a pickle binary file.
+    """Dump workload function registry to a pickle binary file.
 
     Parameters
     ----------
@@ -175,11 +183,11 @@ def save_workload_func_registry(filename):
     """
     global WORKLOAD_FUNC_REGISTRY
 
-    pickle.dump(WORKLOAD_FUNC_REGISTRY, open(filename, 'wb'))
+    pickle.dump(WORKLOAD_FUNC_REGISTRY, open(filename, "wb"))
 
 
 def load_workload_func_registry(filename):
-    """ Load workload function registry from a pickle binary file.
+    """Load workload function registry from a pickle binary file.
 
     Parameters
     ----------
@@ -188,4 +196,4 @@ def load_workload_func_registry(filename):
     """
     global WORKLOAD_FUNC_REGISTRY
 
-    WORKLOAD_FUNC_REGISTRY = pickle.load(open(filename, 'rb'))
+    WORKLOAD_FUNC_REGISTRY = pickle.load(open(filename, "rb"))

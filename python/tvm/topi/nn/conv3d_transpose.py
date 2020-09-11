@@ -53,45 +53,51 @@ def conv3d_transpose_ncdhw(Input, Filter, strides, padding, out_dtype, output_pa
     Output : tvm.te.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
-    return declaration_conv3d_transpose_impl(Input, Filter, strides, padding,
-                                             out_dtype, output_padding)
+    return declaration_conv3d_transpose_impl(
+        Input, Filter, strides, padding, out_dtype, output_padding
+    )
 
 
 def conv3d_transpose_ncdhw_preprocess(data, kernel, strides, padding, out_dtype, output_padding):
     """Preprocess data and kernel to make the compute pattern
-       of conv3d_transpose the same as conv3d"""
+    of conv3d_transpose the same as conv3d"""
     batch, in_c, in_d, in_h, in_w = data.shape
     _, out_c, filter_d, filter_h, filter_w = kernel.shape
     stride_d, stride_h, stride_w = strides
     opad_d, opad_h, opad_w = output_padding
     assert opad_d < stride_d and opad_h < stride_h and opad_w < stride_w
     # dilate data
-    data_dilate = dilate(data, [1, 1, stride_d, stride_h, stride_w], name='data_dilate')
+    data_dilate = dilate(data, [1, 1, stride_d, stride_h, stride_w], name="data_dilate")
     # pad data
     fpad_front, fpad_top, fpad_left, fpad_back, fpad_bottom, fpad_right = get_pad_tuple3d(
-        padding, (filter_d, filter_h, filter_w))
+        padding, (filter_d, filter_h, filter_w)
+    )
     bpad_front = filter_d - 1 - fpad_front
     bpad_back = filter_d - 1 - fpad_back + opad_d
     bpad_top = filter_h - 1 - fpad_top
     bpad_bottom = filter_h - 1 - fpad_bottom + opad_h
     bpad_left = filter_w - 1 - fpad_left
     bpad_right = filter_w - 1 - fpad_right + opad_w
-    data_pad = pad(data_dilate, \
-                   [0, 0, bpad_front, bpad_top, bpad_left], \
-                   [0, 0, bpad_back, bpad_bottom, bpad_right], \
-                   name='data_pad')
+    data_pad = pad(
+        data_dilate,
+        [0, 0, bpad_front, bpad_top, bpad_left],
+        [0, 0, bpad_back, bpad_bottom, bpad_right],
+        name="data_pad",
+    )
     # transform kernel layout from IODHW to OIDHW, and rotate kernel by 180 degrees
-    kernel_transform = te.compute((out_c, in_c, filter_d, filter_h, filter_w), \
-                                  lambda o, i, d, h, w: kernel[i][o][filter_d-1-d] \
-                                        [filter_h-1-h][filter_w-1-w], \
-                                  name='kernel_transform')
+    kernel_transform = te.compute(
+        (out_c, in_c, filter_d, filter_h, filter_w),
+        lambda o, i, d, h, w: kernel[i][o][filter_d - 1 - d][filter_h - 1 - h][filter_w - 1 - w],
+        name="kernel_transform",
+    )
     return data_pad, kernel_transform
 
 
 def declaration_conv3d_transpose_impl(data, kernel, strides, padding, out_dtype, output_padding):
     """Implementation of conv3d transpose"""
-    data_pad, kernel_transform = \
-        conv3d_transpose_ncdhw_preprocess(data, kernel, strides, padding, out_dtype, output_padding)
+    data_pad, kernel_transform = conv3d_transpose_ncdhw_preprocess(
+        data, kernel, strides, padding, out_dtype, output_padding
+    )
     batch, in_c, in_d, in_h, in_w = data_pad.shape
     out_c, _, filter_d, filter_h, filter_w = kernel_transform.shape
     stride_d, stride_h, stride_w = strides
@@ -101,17 +107,20 @@ def declaration_conv3d_transpose_impl(data, kernel, strides, padding, out_dtype,
     out_d = simplify(in_d - filter_d + 1)
     out_h = simplify(in_h - filter_h + 1)
     out_w = simplify(in_w - filter_w + 1)
-    dc = te.reduce_axis((0, in_c), name='dc')
-    dd = te.reduce_axis((0, filter_d), name='dd')
-    dh = te.reduce_axis((0, filter_h), name='dh')
-    dw = te.reduce_axis((0, filter_w), name='dw')
+    dc = te.reduce_axis((0, in_c), name="dc")
+    dd = te.reduce_axis((0, filter_d), name="dd")
+    dh = te.reduce_axis((0, filter_h), name="dh")
+    dw = te.reduce_axis((0, filter_w), name="dw")
 
     Output = te.compute(
         (batch, out_c, out_d, out_h, out_w),
         lambda b, c, d, h, w: te.sum(
-            data_pad[b, dc, d+dd, h+dh, w+dw].astype(out_dtype) *
-            kernel_transform[c, dc, dd, dh, dw].astype(out_dtype),
-            axis=[dc, dd, dh, dw]), tag="conv3d_transpose_ncdhw")
+            data_pad[b, dc, d + dd, h + dh, w + dw].astype(out_dtype)
+            * kernel_transform[c, dc, dd, dh, dw].astype(out_dtype),
+            axis=[dc, dd, dh, dw],
+        ),
+        tag="conv3d_transpose_ncdhw",
+    )
 
     return Output
 
@@ -134,24 +143,24 @@ def conv3d_transpose_legalize(attrs, inputs, types):
     result : tvm.relay.Expr
         The legalized expr
     """
-    if attrs['data_layout'] == 'NDHWC':
+    if attrs["data_layout"] == "NDHWC":
         data, kernel = inputs
-        kernel_layout = attrs['kernel_layout']
+        kernel_layout = attrs["kernel_layout"]
         # Convert Kernel layout to IODHW
         # kernel_layout is different from input kernel layout - IO is swapped
-        if kernel_layout == 'DHWIO':
+        if kernel_layout == "DHWIO":
             # input kernel layout is swapped to DHWOI
             # output kernel layout will be IODHW
             kernel = relay.transpose(kernel, axes=(4, 3, 0, 1, 2))
-        elif kernel_layout == 'DHWOI':
+        elif kernel_layout == "DHWOI":
             # input kernel layout is swapped to DHWIO
             # output kernel layout will be IODHW
             kernel = relay.transpose(kernel, axes=(3, 4, 0, 1, 2))
-        elif kernel_layout == 'IODHW':
+        elif kernel_layout == "IODHW":
             # input kernel layout is swapped to OIDHW
             # output kernel layout will be IODHW
             kernel = relay.transpose(kernel, axes=(1, 0, 2, 3, 4))
-        elif kernel_layout == 'OIDHW':
+        elif kernel_layout == "OIDHW":
             # input kernel layout is swapped to IODHW
             # output kernel layout will be IODHW
             pass
@@ -161,9 +170,9 @@ def conv3d_transpose_legalize(attrs, inputs, types):
 
         # Set new attrs for conv3d_transpose.
         new_attrs = {k: attrs[k] for k in attrs.keys()}
-        new_attrs['data_layout'] = 'NCDHW'
+        new_attrs["data_layout"] = "NCDHW"
         # layout of kernel should be IODHW, but kernel_layout should be swapped - OIDHW
-        new_attrs['kernel_layout'] = 'OIDHW'
+        new_attrs["kernel_layout"] = "OIDHW"
 
         # Convert data to NCDHW.
         data = relay.transpose(data, axes=(0, 4, 1, 2, 3))

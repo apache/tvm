@@ -20,6 +20,7 @@ from tvm._ffi.base import string_types
 from tvm._ffi.registry import get_global_func
 from tvm.runtime import ndarray
 
+
 class GraphRuntimeFactoryModule(object):
     """Graph runtime factory module.
     This is a module of graph runtime factory
@@ -74,7 +75,9 @@ class GraphRuntimeFactoryModule(object):
         warnings.warn(
             "legacy graph runtime behaviour of producing json / lib / params will be "
             "removed in the next release ",
-            DeprecationWarning, 2)
+            DeprecationWarning,
+            2,
+        )
         return self
 
     def __next__(self):

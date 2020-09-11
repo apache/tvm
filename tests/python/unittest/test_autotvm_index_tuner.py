@@ -63,6 +63,6 @@ def test_random_tuner():
         assert 8 <= idx <= 15
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_gridsearch_tuner()
     test_random_tuner()

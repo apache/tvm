@@ -21,8 +21,10 @@ from tvm import topi
 
 def verify_get_shape(src_shape, src_layout, dst_layout, expect_shape):
     dst_shape = topi.util.get_shape(src_shape, src_layout, dst_layout)
-    assert dst_shape == expect_shape, \
-        "Shape mismatch: expecting %s but got %s" % (expect_shape, dst_shape)
+    assert dst_shape == expect_shape, "Shape mismatch: expecting %s but got %s" % (
+        expect_shape,
+        dst_shape,
+    )
 
 
 def test_get_shape():
@@ -30,6 +32,7 @@ def test_get_shape():
     verify_get_shape((1, 3, 224, 224), "NCHW", "NHWC", (1, 224, 224, 3))
     verify_get_shape((3, 2, 32, 48, 16), "NCHW16c", "NC16cWH", (3, 2, 16, 48, 32))
     verify_get_shape((2, 3, 32, 32, 16, 8), "OIHW16i8o", "HWO8oI16i", (32, 32, 2, 8, 3, 16))
+
 
 if __name__ == "__main__":
     test_get_shape()

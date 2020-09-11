@@ -27,7 +27,8 @@ from tvm.micro import create_micro_mod
 # # Use the host emulated micro device.
 DEV_CONFIG_A = micro.device.host.generate_config()
 DEV_CONFIG_B = micro.device.host.generate_config()
-TARGET = 'c --runtime=c'
+TARGET = "c --runtime=c"
+
 
 def relay_micro_build(func, dev_config, params=None):
     """Create a graph runtime module with a micro device context from a Relay function.
@@ -48,9 +49,9 @@ def relay_micro_build(func, dev_config, params=None):
     mod : tvm.runtime.Module
         graph runtime module for the target device
     """
-    with tvm.transform.PassContext(disabled_pass={'FuseOps'}, config={
-        "tir.disable_vectorize": True
-    }):
+    with tvm.transform.PassContext(
+        disabled_pass={"FuseOps"}, config={"tir.disable_vectorize": True}
+    ):
         graph, c_mod, params = relay.build(func, target=TARGET, params=params)
     micro_mod = micro.create_micro_mod(c_mod, dev_config)
     ctx = tvm.micro_dev(0)
@@ -68,11 +69,11 @@ break UTVMDone
 
 
 def reset_gdbinit():
-    if 'server_port' not in DEV_CONFIG_A:
+    if "server_port" not in DEV_CONFIG_A:
         return
-    gdb_init_dir = os.environ['MICRO_GDB_INIT_DIR']
-    with open(f'{gdb_init_dir}/.gdbinit', 'w') as f:
-        gdb_port = DEV_CONFIG_A['server_port'] - 3333
+    gdb_init_dir = os.environ["MICRO_GDB_INIT_DIR"]
+    with open(f"{gdb_init_dir}/.gdbinit", "w") as f:
+        gdb_port = DEV_CONFIG_A["server_port"] - 3333
         f.write(GDB_INIT_TEMPLATE.format(gdb_port=gdb_port))
 
 
@@ -121,13 +122,10 @@ def test_add():
         micro_func(a, b, c)
 
         # ensure inputs weren't corrupted
-        tvm.testing.assert_allclose(
-                a.asnumpy(), a_np)
-        tvm.testing.assert_allclose(
-                b.asnumpy(), b_np)
+        tvm.testing.assert_allclose(a.asnumpy(), a_np)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np)
         # ensure output is correct
-        tvm.testing.assert_allclose(
-                c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
 
 def test_workspace_add():
@@ -160,11 +158,9 @@ def test_workspace_add():
         micro_func(a, c)
 
         # ensure input wasn't corrupted
-        tvm.testing.assert_allclose(
-                a.asnumpy(), a_np)
+        tvm.testing.assert_allclose(a.asnumpy(), a_np)
         # ensure output is correct
-        tvm.testing.assert_allclose(
-                c.asnumpy(), a.asnumpy() + 2.0)
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 2.0)
 
 
 def test_graph_runtime():
@@ -187,10 +183,8 @@ def test_graph_runtime():
         mod.run(x=x_in)
         result = mod.get_output(0).asnumpy()
 
-        tvm.testing.assert_allclose(
-                mod.get_input(0).asnumpy(), x_in)
-        tvm.testing.assert_allclose(
-                result, x_in * x_in + 1.0)
+        tvm.testing.assert_allclose(mod.get_input(0).asnumpy(), x_in)
+        tvm.testing.assert_allclose(result, x_in * x_in + 1.0)
 
 
 def test_conv2d():
@@ -201,29 +195,23 @@ def test_conv2d():
     from tvm.relay import transform
 
     dshape = (1, 4, 16, 16)
-    dtype = 'int8'
-    func_name = 'fused_nn_conv2d'
+    dtype = "int8"
+    func_name = "fused_nn_conv2d"
 
     reset_gdbinit()
 
     # Construct Relay program.
     x = relay.var("x", shape=dshape, dtype=dtype)
-    conv_expr = relay.nn.conv2d(
-            x, relay.var("w"),
-            kernel_size=(3, 3),
-            padding=(1, 1),
-            channels=4)
+    conv_expr = relay.nn.conv2d(x, relay.var("w"), kernel_size=(3, 3), padding=(1, 1), channels=4)
     func = relay.Function(relay.analysis.free_vars(conv_expr), conv_expr)
     mod = tvm.IRModule.from_expr(func)
     mod = transform.InferType()(mod)
 
-    x_shape = list(map(lambda x: x.value, mod['main'].params[0].checked_type.shape))
-    w_shape = list(map(lambda x: x.value, mod['main'].params[1].checked_type.shape))
-    out_shape = list(map(lambda x: x.value, mod['main'].ret_type.shape))
+    x_shape = list(map(lambda x: x.value, mod["main"].params[0].checked_type.shape))
+    w_shape = list(map(lambda x: x.value, mod["main"].params[1].checked_type.shape))
+    out_shape = list(map(lambda x: x.value, mod["main"].ret_type.shape))
 
-    with tvm.transform.PassContext(config={
-        "tir.disable_vectorize": True
-    }):
+    with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
         graph, c_mod, params = relay.build(mod, target="c")
 
     with micro.Session(DEV_CONFIG_A):
@@ -234,7 +222,7 @@ def test_conv2d():
                 micro_func = micro_mod[candidate_func_name]
                 break
             except tvm.TVMError as e:
-                candidate_func_name = f'{func_name}_{i}'
+                candidate_func_name = f"{func_name}_{i}"
         else:
             assert False
         ctx = tvm.micro_dev(0)
@@ -245,9 +233,9 @@ def test_conv2d():
         micro_func(x_data, w_data, result)
 
         out_data = np.zeros(out_shape, dtype=dtype)
-        params = { 'x': x_data.asnumpy(), 'w': w_data.asnumpy() }
-        intrp = create_executor('debug')
-        expected_result = intrp.evaluate(mod['main'])(x_data, w_data)
+        params = {"x": x_data.asnumpy(), "w": w_data.asnumpy()}
+        intrp = create_executor("debug")
+        expected_result = intrp.evaluate(mod["main"])(x_data, w_data)
 
         tvm.testing.assert_allclose(result.asnumpy(), expected_result.asnumpy())
 
@@ -276,14 +264,12 @@ def test_interleave_sessions():
         add_const_mod = relay_micro_build(add_const_func, DEV_CONFIG_A)
         add_const_mod.run(x=micro_tensor_a)
         add_result = add_const_mod.get_output(0).asnumpy()
-        tvm.testing.assert_allclose(
-                add_result, np_tensor_a + 1.0)
+        tvm.testing.assert_allclose(add_result, np_tensor_a + 1.0)
     with sess_b:
         add_const_mod = relay_micro_build(add_const_func, DEV_CONFIG_B)
         add_const_mod.run(x=micro_tensor_b)
         add_result = add_const_mod.get_output(0).asnumpy()
-        tvm.testing.assert_allclose(
-                add_result, np_tensor_b + 1.0)
+        tvm.testing.assert_allclose(add_result, np_tensor_b + 1.0)
 
 
 def test_nested_sessions():
@@ -309,8 +295,7 @@ def test_nested_sessions():
         add_const_mod = relay_micro_build(add_const_func, DEV_CONFIG_A)
         add_const_mod.run(x=micro_tensor_a)
         add_result = add_const_mod.get_output(0).asnumpy()
-        tvm.testing.assert_allclose(
-                add_result, np_tensor_a + 1.0)
+        tvm.testing.assert_allclose(add_result, np_tensor_a + 1.0)
 
 
 def test_inactive_session_use():
@@ -336,8 +321,7 @@ def test_inactive_session_use():
         # These objects belong to `sess_a`.
         add_const_mod.run(x=micro_tensor_a)
         add_result = add_const_mod.get_output(0).asnumpy()
-        tvm.testing.assert_allclose(
-                add_result, np_tensor_a + 1.0)
+        tvm.testing.assert_allclose(add_result, np_tensor_a + 1.0)
 
 
 # TODO add workspace alloc/free stress test
@@ -345,33 +329,33 @@ def test_inactive_session_use():
 if __name__ == "__main__":
     test_alloc()
     print()
-    print('finished alloc test')
-    input('[press enter to continue]')
+    print("finished alloc test")
+    input("[press enter to continue]")
     test_add()
     print()
-    print('finished add test')
-    input('[press enter to continue]')
+    print("finished add test")
+    input("[press enter to continue]")
     test_workspace_add()
     print()
-    print('finished workspace add test')
-    input('[press enter to continue]')
+    print("finished workspace add test")
+    input("[press enter to continue]")
     test_graph_runtime()
     print()
-    print('finished graph runtime test')
-    input('[press enter to continue]')
+    print("finished graph runtime test")
+    input("[press enter to continue]")
     test_conv2d()
     print()
-    print('finished conv2d test')
-    input('[press enter to continue]')
+    print("finished conv2d test")
+    input("[press enter to continue]")
     test_interleave_sessions()
     print()
-    print('finished interleaved sessions test')
-    input('[press enter to continue]')
+    print("finished interleaved sessions test")
+    input("[press enter to continue]")
     test_nested_sessions()
     print()
-    print('finished nested sessions test')
-    input('[press enter to continue]')
+    print("finished nested sessions test")
+    input("[press enter to continue]")
     test_inactive_session_use()
     print()
-    print('finished use inactive session test')
-    input('[press enter to continue]')
+    print("finished use inactive session test")
+    input("[press enter to continue]")

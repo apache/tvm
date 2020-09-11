@@ -24,6 +24,7 @@ class Registry(object):
     """Registration map
     All these maps are static
     """
+
     intrin = dict()
     with_scope = dict()
     for_scope = dict()
@@ -93,7 +94,7 @@ def func_wrapper(func_name, func_to_register, arg_list, need_parser_and_node, ne
 
         for i, arg_info in enumerate(arg_list):
             if len(arg_info) == 1:
-                arg_name, = arg_info
+                (arg_name,) = arg_info
                 if need_body and arg_name == "body":
                     internal_args.append(body)
                 else:
@@ -130,25 +131,28 @@ def get_arg_list(origin_func, need_parser_and_node):
 
     if full_arg_spec.varargs is not None:
         raise RuntimeError(
-            "TVM Hybrid Script register error : variable argument is not supported now")
+            "TVM Hybrid Script register error : variable argument is not supported now"
+        )
     if full_arg_spec.varkw is not None:
         raise RuntimeError(
-            "TVM Hybrid Script register error : variable keyword argument is not supported now")
+            "TVM Hybrid Script register error : variable keyword argument is not supported now"
+        )
     if not len(full_arg_spec.kwonlyargs) == 0:
         raise RuntimeError(
-            "TVM Hybrid Script register error : keyword only argument is not supported now")
+            "TVM Hybrid Script register error : keyword only argument is not supported now"
+        )
 
     arg_list = list()
     for arg in args[: len(args) - len(defaults)]:
         arg_list.append((arg,))
-    for default, arg in zip(defaults, args[len(args) - len(defaults):]):
+    for default, arg in zip(defaults, args[len(args) - len(defaults) :]):
         arg_list.append((arg, default))
 
     return arg_list
 
 
 def register_intrin(origin_func):
-    """ Decorator to register function under category intrin
+    """Decorator to register function under category intrin
 
     Example
     ------
@@ -160,9 +164,14 @@ def register_intrin(origin_func):
         return tvm.tir.Broadcast(value, lanes)
     """
     func_name = origin_func.__qualname__
-    Registry.intrin[func_name] = \
-        func_wrapper(func_name, origin_func, get_arg_list(origin_func, False),
-                     need_parser_and_node=False, need_body=False, concise=False)
+    Registry.intrin[func_name] = func_wrapper(
+        func_name,
+        origin_func,
+        get_arg_list(origin_func, False),
+        need_parser_and_node=False,
+        need_body=False,
+        concise=False,
+    )
     return origin_func
 
 
@@ -187,9 +196,14 @@ def register_with_scope(concise=False):
     def decorate(origin_func):
         """Register function under category with_scope"""
         func_name = origin_func.__qualname__
-        Registry.with_scope[func_name] = \
-            func_wrapper(func_name, origin_func, get_arg_list(origin_func, True),
-                         need_parser_and_node=True, need_body=True, concise=concise)
+        Registry.with_scope[func_name] = func_wrapper(
+            func_name,
+            origin_func,
+            get_arg_list(origin_func, True),
+            need_parser_and_node=True,
+            need_body=True,
+            concise=concise,
+        )
         return origin_func
 
     return decorate
@@ -197,19 +211,25 @@ def register_with_scope(concise=False):
 
 def register_for_scope():
     """Decorator to register function under for scope handler"""
+
     def decorate(origin_func):
         """Register function under category for_scope"""
         func_name = origin_func.__qualname__
-        Registry.for_scope[func_name] = \
-            func_wrapper(func_name, origin_func, get_arg_list(origin_func, True),
-                         need_parser_and_node=True, need_body=True, concise=False)
+        Registry.for_scope[func_name] = func_wrapper(
+            func_name,
+            origin_func,
+            get_arg_list(origin_func, True),
+            need_parser_and_node=True,
+            need_body=True,
+            concise=False,
+        )
         return origin_func
 
     return decorate
 
 
 def register_special_stmt(origin_func):
-    """ Decorator to register function under category special_stmt
+    """Decorator to register function under category special_stmt
 
     Example
     -------
@@ -225,7 +245,12 @@ def register_special_stmt(origin_func):
     """
 
     func_name = origin_func.__qualname__
-    Registry.special_stmt[func_name] = \
-        func_wrapper(func_name, origin_func, get_arg_list(origin_func, True),
-                     need_parser_and_node=True, need_body=False, concise=False)
+    Registry.special_stmt[func_name] = func_wrapper(
+        func_name,
+        origin_func,
+        get_arg_list(origin_func, True),
+        need_parser_and_node=True,
+        need_body=False,
+        concise=False,
+    )
     return origin_func

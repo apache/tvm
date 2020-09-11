@@ -30,16 +30,21 @@ def get_feature(internal_layer, layers, filters, batch_norm=False):
     for i, num in enumerate(layers):
         for j in range(num):
             internal_layer = wrapper.conv2d(
-                data=internal_layer, kernel_size=(3, 3), padding=(1, 1),
-                channels=filters[i], name="conv%s_%s" % (i + 1, j + 1))
+                data=internal_layer,
+                kernel_size=(3, 3),
+                padding=(1, 1),
+                channels=filters[i],
+                name="conv%s_%s" % (i + 1, j + 1),
+            )
             internal_layer = relay.nn.bias_add(
-                internal_layer, relay.var("conv%s_%s_bias" % (i + 1, j + 1)))
+                internal_layer, relay.var("conv%s_%s_bias" % (i + 1, j + 1))
+            )
             if batch_norm:
                 internal_layer = wrapper.batch_norm_infer(
-                    data=internal_layer, name="bn%s_%s" %(i + 1, j + 1))
+                    data=internal_layer, name="bn%s_%s" % (i + 1, j + 1)
+                )
             internal_layer = relay.nn.relu(data=internal_layer)
-        internal_layer = relay.nn.max_pool2d(
-            data=internal_layer, pool_size=(2, 2), strides=(2, 2))
+        internal_layer = relay.nn.max_pool2d(data=internal_layer, pool_size=(2, 2), strides=(2, 2))
     return internal_layer
 
 
@@ -78,10 +83,12 @@ def get_net(batch_size, image_shape, num_classes, dtype, num_layers=11, batch_no
     batch_norm : bool, default False
         Use batch normalization.
     """
-    vgg_spec = {11: ([1, 1, 2, 2, 2], [64, 128, 256, 512, 512]),
-                13: ([2, 2, 2, 2, 2], [64, 128, 256, 512, 512]),
-                16: ([2, 2, 3, 3, 3], [64, 128, 256, 512, 512]),
-                19: ([2, 2, 4, 4, 4], [64, 128, 256, 512, 512])}
+    vgg_spec = {
+        11: ([1, 1, 2, 2, 2], [64, 128, 256, 512, 512]),
+        13: ([2, 2, 2, 2, 2], [64, 128, 256, 512, 512]),
+        16: ([2, 2, 3, 3, 3], [64, 128, 256, 512, 512]),
+        19: ([2, 2, 4, 4, 4], [64, 128, 256, 512, 512]),
+    }
     if num_layers not in vgg_spec:
         raise ValueError("Invalide num_layers {}. Choices are 11,13,16,19.".format(num_layers))
     layers, filters = vgg_spec[num_layers]
@@ -94,12 +101,14 @@ def get_net(batch_size, image_shape, num_classes, dtype, num_layers=11, batch_no
     return relay.Function(args, symbol)
 
 
-def get_workload(batch_size,
-                 num_classes=1000,
-                 image_shape=(3, 224, 224),
-                 dtype="float32",
-                 num_layers=11,
-                 batch_norm=False):
+def get_workload(
+    batch_size,
+    num_classes=1000,
+    image_shape=(3, 224, 224),
+    dtype="float32",
+    num_layers=11,
+    batch_norm=False,
+):
     """Get benchmark workload for VGG nets.
 
     Parameters

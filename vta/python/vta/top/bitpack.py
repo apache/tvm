@@ -26,6 +26,7 @@ from tvm.topi import util
 from tvm.relay.op.op import register_compute, register_injective_schedule
 from tvm.relay.op.op import register_pattern, OpPattern
 
+
 def bitpack(data, bits, pack_type="int8", name="bitpack"):
     """Packs lowest dimension into format needed by VTA
 
@@ -42,11 +43,11 @@ def bitpack(data, bits, pack_type="int8", name="bitpack"):
         The packed tensor.
     """
     shape_vec = list(data.shape)
-    if pack_type == 'int8':
+    if pack_type == "int8":
         data_width = 8
-    elif pack_type == 'int16':
+    elif pack_type == "int16":
         data_width = 16
-    elif pack_type == 'int32':
+    elif pack_type == "int32":
         data_width = 32
     else:
         raise RuntimeError("Unknown pack type %s" % pack_type)
@@ -72,8 +73,7 @@ def bitpack(data, bits, pack_type="int8", name="bitpack"):
                 ret = ret | val
         return ret
 
-    return te.compute(
-        oshape, _bitpack, name=name, tag='bitpack')
+    return te.compute(oshape, _bitpack, name=name, tag="bitpack")
 
 
 @register_compute("bitpack", level=15)
@@ -85,6 +85,7 @@ def compute_bitpack(attrs, inputs):
     assert width % lanes == 0
     bits = 8 // lanes
     return bitpack(inputs[0], bits, dtype)
+
 
 register_injective_schedule("bitpack")
 register_pattern("bitpack", OpPattern.INJECTIVE)

@@ -35,6 +35,7 @@ class IRModule(Node):
     functions: Optional[dict].
         Map of global var to BaseFunc
     """
+
     def __init__(self, functions=None, type_definitions=None):
         if functions is None:
             functions = {}

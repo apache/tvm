@@ -21,21 +21,19 @@ from tvm import relay
 
 def get_recursive_count_loop():
     mod = tvm.IRModule({})
-    sum_up = relay.GlobalVar('sum_up')
-    i = relay.var('i', shape=[], dtype='int32')
+    sum_up = relay.GlobalVar("sum_up")
+    i = relay.var("i", shape=[], dtype="int32")
     sb = relay.ScopeBuilder()
-    with sb.if_scope(relay.equal(i, relay.const(0, dtype='int32'))):
+    with sb.if_scope(relay.equal(i, relay.const(0, dtype="int32"))):
         sb.ret(i)
     with sb.else_scope():
-        one_less = relay.subtract(i, relay.const(1, dtype='int32'))
+        one_less = relay.subtract(i, relay.const(1, dtype="int32"))
         rec_call = relay.Call(sum_up, [one_less])
         sb.ret(relay.add(rec_call, i))
-    func = relay.Function([i],
-                          sb.get(),
-                          ret_type=relay.TensorType([], 'int32'))
+    func = relay.Function([i], sb.get(), ret_type=relay.TensorType([], "int32"))
     func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
     mod[sum_up] = func
-    iarg = relay.var('i', shape=[], dtype='int32')
+    iarg = relay.var("i", shape=[], dtype="int32")
     mod["main"] = relay.Function([iarg], sum_up(iarg))
     return mod, sum_up
 
@@ -273,14 +271,14 @@ def test_recursive_call_with_global():
     def get_mod():
         mod = tvm.IRModule({})
 
-        x = relay.var('x', shape=[], dtype='int32')
+        x = relay.var("x", shape=[], dtype="int32")
         fn0 = relay.Function([x], x)
         fn0 = fn0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         gx = relay.GlobalVar("gx")
         mod[gx] = fn0
 
-        sum_up = relay.GlobalVar('sum_up')
-        i = relay.var('i', shape=[], dtype='int32')
+        sum_up = relay.GlobalVar("sum_up")
+        i = relay.var("i", shape=[], dtype="int32")
         sb = relay.ScopeBuilder()
         with sb.if_scope(relay.equal(i, relay.const(0, dtype="int32"))):
             sb.ret(i)
@@ -289,33 +287,29 @@ def test_recursive_call_with_global():
             global_call = gx(i)
             rec_call = relay.Call(sum_up, [one_less]) + global_call
             sb.ret(relay.add(rec_call, i))
-        func = relay.Function([i],
-                              sb.get(),
-                              ret_type=relay.TensorType([], "int32"))
+        func = relay.Function([i], sb.get(), ret_type=relay.TensorType([], "int32"))
         func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         mod[sum_up] = func
-        iarg = relay.var("i", shape=[], dtype='int32')
+        iarg = relay.var("i", shape=[], dtype="int32")
         mod["main"] = relay.Function([iarg], sum_up(iarg))
         return mod
 
     def expected():
         mod = tvm.IRModule({})
 
-        sum_up = relay.GlobalVar('sum_up')
-        i = relay.var('i', shape=[], dtype='int32')
+        sum_up = relay.GlobalVar("sum_up")
+        i = relay.var("i", shape=[], dtype="int32")
         sb = relay.ScopeBuilder()
-        with sb.if_scope(relay.equal(i, relay.const(0, dtype='int32'))):
+        with sb.if_scope(relay.equal(i, relay.const(0, dtype="int32"))):
             sb.ret(i)
         with sb.else_scope():
-            one_less = relay.subtract(i, relay.const(1, dtype='int32'))
+            one_less = relay.subtract(i, relay.const(1, dtype="int32"))
             rec_call = relay.Call(sum_up, [one_less]) + i
             sb.ret(relay.add(rec_call, i))
-        func = relay.Function([i],
-                              sb.get(),
-                              ret_type=relay.TensorType([], 'int32'))
+        func = relay.Function([i], sb.get(), ret_type=relay.TensorType([], "int32"))
         func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         mod[sum_up] = func
-        iarg = relay.var('i', shape=[], dtype='int32')
+        iarg = relay.var("i", shape=[], dtype="int32")
         mod["main"] = relay.Function([iarg], sum_up(iarg))
         return mod
 
@@ -326,7 +320,7 @@ def test_recursive_call_with_global():
 
 def test_recursive_called():
     mod, sum_up = get_recursive_count_loop()
-    iarg = relay.var('i', shape=[], dtype='int32')
+    iarg = relay.var("i", shape=[], dtype="int32")
     mod["main"] = relay.Function([iarg], sum_up(iarg))
     ref_mod = mod
     mod = relay.transform.Inline()(mod)
@@ -510,12 +504,12 @@ def test_inline_globalvar_without_args():
         fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         fn2 = relay.Function([], relay.const(2))
         fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        g1 = relay.GlobalVar('g1')
-        g2 = relay.GlobalVar('g2')
+        g1 = relay.GlobalVar("g1")
+        g2 = relay.GlobalVar("g2")
         mod[g1] = fn1
         mod[g2] = fn2
-        p = relay.var('p', 'bool')
-        mod['main'] = relay.Function([p], relay.Call(relay.If(p, g1, g2), []))
+        p = relay.var("p", "bool")
+        mod["main"] = relay.Function([p], relay.Call(relay.If(p, g1, g2), []))
         return mod
 
     def expected():
@@ -524,9 +518,8 @@ def test_inline_globalvar_without_args():
         fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         fn2 = relay.Function([], relay.const(2))
         fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        p = relay.var('p', 'bool')
-        mod['main'] = relay.Function([p], relay.Call(
-            relay.If(p, fn1, fn2), []))
+        p = relay.var("p", "bool")
+        mod["main"] = relay.Function([p], relay.Call(relay.If(p, fn1, fn2), []))
         return mod
 
     mod = get_mod()
@@ -543,12 +536,12 @@ def test_inline_globalvar_without_args_extern_compiler():
         fn2 = relay.Function([], relay.const(2))
         fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         fn2 = fn2.with_attr("Compiler", "b")
-        g1 = relay.GlobalVar('g1')
-        g2 = relay.GlobalVar('g2')
+        g1 = relay.GlobalVar("g1")
+        g2 = relay.GlobalVar("g2")
         mod[g1] = fn1
         mod[g2] = fn2
-        p = relay.var('p', 'bool')
-        mod['main'] = relay.Function([p], relay.Call(relay.If(p, g1, g2), []))
+        p = relay.var("p", "bool")
+        mod["main"] = relay.Function([p], relay.Call(relay.If(p, g1, g2), []))
         return mod
 
     def expected():
@@ -559,9 +552,8 @@ def test_inline_globalvar_without_args_extern_compiler():
         fn2 = relay.Function([], relay.const(2))
         fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         fn2 = fn2.with_attr("Compiler", "b")
-        p = relay.var('p', 'bool')
-        mod['main'] = relay.Function([p], relay.Call(
-            relay.If(p, fn1, fn2), []))
+        p = relay.var("p", "bool")
+        mod["main"] = relay.Function([p], relay.Call(relay.If(p, fn1, fn2), []))
         return mod
 
     mod = get_mod()
@@ -833,5 +825,5 @@ def test_callee_not_inline_leaf_inline_extern_compiler():
     assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main()

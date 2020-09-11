@@ -35,9 +35,7 @@ from tvm.te import schedule
 from tvm.driver import build_module
 
 
-def ana_lower(sch, args,
-              binds=None,
-              simple_mode=True):
+def ana_lower(sch, args, binds=None, simple_mode=True):
     """Do lower while keeping all axes in IR
     i.e. Do not eliminate loop with extent of 1, do not vectorize, unroll or inject virtual threads
     """
@@ -56,16 +54,20 @@ def ana_lower(sch, args,
 
 try:
     _get_buffer_curve_sample_flatten = tvm._ffi.get_global_func(
-        "autotvm.feature.GetCurveSampleFeatureFlatten")
-    _get_itervar_feature = tvm._ffi.get_global_func(
-        "autotvm.feature.GetItervarFeature")
+        "autotvm.feature.GetCurveSampleFeatureFlatten"
+    )
+    _get_itervar_feature = tvm._ffi.get_global_func("autotvm.feature.GetItervarFeature")
     _get_itervar_feature_flatten = tvm._ffi.get_global_func(
-        "autotvm.feature.GetItervarFeatureFlatten")
+        "autotvm.feature.GetItervarFeatureFlatten"
+    )
 except ValueError as e:
+
     def raise_error(*args, **kwargs):  # pylint: disable=unused-argument
         raise RuntimeError("Cannot load autotvm c++ API")
-    _get_buffer_curve_sample_flatten = _get_itervar_feature = _get_itervar_feature_flatten = \
-        raise_error
+
+    _get_buffer_curve_sample_flatten = (
+        _get_itervar_feature
+    ) = _get_itervar_feature_flatten = raise_error
 
 
 def get_itervar_feature(sch, args, take_log=False):
@@ -136,12 +138,12 @@ def get_itervar_feature_flatten(sch, args, take_log=True):
     """
     stmt = ana_lower(sch, args, simple_mode=True)
     feas = _get_itervar_feature_flatten(stmt, take_log)
-    feas = struct.unpack('%df' % (len(feas)//4), feas)
+    feas = struct.unpack("%df" % (len(feas) // 4), feas)
     return feas
 
 
 def get_flatten_name(fea):
-    """ Get names of feature after flatten.
+    """Get names of feature after flatten.
 
     Parameters
     ----------
@@ -154,8 +156,8 @@ def get_flatten_name(fea):
     """
 
     feature_name = {
-        "_attr_": ["length", "nest_level", "topdown", "bottomup"] +
-                  ["ann_%d" % i for i in range(20)],
+        "_attr_": ["length", "nest_level", "topdown", "bottomup"]
+        + ["ann_%d" % i for i in range(20)],
         "_arith_": ["add", "mul", "div"],
         "buf_touch": ["stride", "mod", "count", "reuse", "T_count", "T_reuse"],
     }
@@ -163,6 +165,7 @@ def get_flatten_name(fea):
     if isinstance(fea, str):
         # pylint: disable=import-outside-toplevel
         from .record import decode
+
         # flatten line to feature
         line = fea
         ret = decode(line)
@@ -186,8 +189,7 @@ def get_flatten_name(fea):
                 name_list = feature_name["buf_touch"]
 
             for i in range(len((pair[1:]))):
-                names.append(
-                    ".".join(["f%d" % ct, var_name, key, name_list[i]]))
+                names.append(".".join(["f%d" % ct, var_name, key, name_list[i]]))
                 ct += 1
     return names
 
@@ -211,5 +213,5 @@ def get_buffer_curve_sample_flatten(sch, args, sample_n=30):
     """
     stmt = ana_lower(sch, args, simple_mode=True)
     feas = _get_buffer_curve_sample_flatten(stmt, sample_n, False)
-    feas = struct.unpack('%df' % (len(feas)//4), feas)
+    feas = struct.unpack("%df" % (len(feas) // 4), feas)
     return feas

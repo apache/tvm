@@ -26,6 +26,7 @@ from tvm import topi
 from .util import is_packed_layout
 from ..environment import get_env
 
+
 @autotvm.register_topi_compute("conv2d_packed.vta")
 def conv2d_packed(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
     """ Packed conv2d function."""
@@ -45,23 +46,33 @@ def conv2d_packed(cfg, data, kernel, strides, padding, dilation, layout, out_dty
 
     ishape = topi.util.get_const_tuple(data.shape)
     kshape = topi.util.get_const_tuple(kernel.shape)
-    d_i = te.reduce_axis((0, kshape[2]), name='d_i')
-    d_j = te.reduce_axis((0, kshape[3]), name='d_j')
-    k_o = te.reduce_axis((0, ishape[1]), name='k_o')
-    k_i = te.reduce_axis((0, ishape[-1]), name='k_i')
+    d_i = te.reduce_axis((0, kshape[2]), name="d_i")
+    d_j = te.reduce_axis((0, kshape[3]), name="d_j")
+    k_o = te.reduce_axis((0, ishape[1]), name="k_o")
+    k_i = te.reduce_axis((0, ishape[-1]), name="k_i")
     hstride, wstride = strides
     res = te.compute(
         oshape,
         lambda b_o, c_o, i, j, b_i, c_i: te.sum(
-            pad_data[b_o, k_o, i*hstride+d_i, j*wstride+d_j, b_i, k_i].astype(out_dtype) *
-            kernel[c_o, k_o, d_i, d_j, c_i, k_i].astype(out_dtype),
-            axis=[k_o, d_i, d_j, k_i]),
-        name="res", tag="conv2d_dense")
+            pad_data[b_o, k_o, i * hstride + d_i, j * wstride + d_j, b_i, k_i].astype(out_dtype)
+            * kernel[c_o, k_o, d_i, d_j, c_i, k_i].astype(out_dtype),
+            axis=[k_o, d_i, d_j, k_i],
+        ),
+        name="res",
+        tag="conv2d_dense",
+    )
 
-    cfg.add_flop(2 * np.prod(topi.util.get_const_tuple(oshape)) *
-                 kshape[2] * kshape[3] * ishape[1] * ishape[-1])
+    cfg.add_flop(
+        2
+        * np.prod(topi.util.get_const_tuple(oshape))
+        * kshape[2]
+        * kshape[3]
+        * ishape[1]
+        * ishape[-1]
+    )
 
     return res
+
 
 @autotvm.register_topi_schedule("conv2d_packed.vta")
 def schedule_conv2d_packed(cfg, outs):
@@ -98,13 +109,13 @@ def schedule_conv2d_packed(cfg, outs):
     ##### space definition begin #####
     b, c_o, x_i, x_j, _, _ = s[conv2d_stage].op.axis
     c_i, _, _, _ = s[conv2d_stage].op.reduce_axis
-    cfg.define_split('tile_b', b, num_outputs=2)
-    cfg.define_split('tile_h', x_i, num_outputs=2)
-    cfg.define_split('tile_w', x_j, num_outputs=2)
-    cfg.define_split('tile_ci', c_i, num_outputs=2)
-    cfg.define_split('tile_co', c_o, num_outputs=2)
-    cfg.define_knob('oc_nthread', [1, 2])
-    cfg.define_knob('h_nthread', [1, 2])
+    cfg.define_split("tile_b", b, num_outputs=2)
+    cfg.define_split("tile_h", x_i, num_outputs=2)
+    cfg.define_split("tile_w", x_j, num_outputs=2)
+    cfg.define_split("tile_ci", c_i, num_outputs=2)
+    cfg.define_split("tile_co", c_o, num_outputs=2)
+    cfg.define_knob("oc_nthread", [1, 2])
+    cfg.define_knob("h_nthread", [1, 2])
     ###### space definition end ######
 
     data, kernel = conv2d_stage.op.input_tensors
@@ -129,8 +140,7 @@ def schedule_conv2d_packed(cfg, outs):
     # cache read input
     cache_read_ewise = []
     for consumer, tensor in ewise_inputs:
-        cache_read_ewise.append(
-            s.cache_read(tensor, env.acc_scope, [consumer]))
+        cache_read_ewise.append(s.cache_read(tensor, env.acc_scope, [consumer]))
 
     # set ewise scope
     for op in ewise_ops:
@@ -142,9 +152,9 @@ def schedule_conv2d_packed(cfg, outs):
 
     # tile
     x_bo, x_co, x_i, x_j, x_bi, x_ci = s[output].op.axis
-    x_co0, x_co1 = cfg['tile_co'].apply(s, output, x_co)
-    x_i0, x_i1 = cfg['tile_h'].apply(s, output, x_i)
-    x_j0, x_j1 = cfg['tile_w'].apply(s, output, x_j)
+    x_co0, x_co1 = cfg["tile_co"].apply(s, output, x_co)
+    x_i0, x_i1 = cfg["tile_h"].apply(s, output, x_i)
+    x_j0, x_j1 = cfg["tile_w"].apply(s, output, x_j)
     s[output].reorder(x_bo, x_i0, x_co0, x_j0, x_co1, x_i1, x_j1, x_bi, x_ci)
     store_pt = x_j0
 
@@ -158,14 +168,14 @@ def schedule_conv2d_packed(cfg, outs):
         s[tensor].pragma(s[tensor].op.axis[0], env.dma_copy)
 
     # virtual threading along output channel axes
-    if cfg['oc_nthread'].val > 1:
-        _, v_t = s[output].split(x_co0, factor=cfg['oc_nthread'].val)
+    if cfg["oc_nthread"].val > 1:
+        _, v_t = s[output].split(x_co0, factor=cfg["oc_nthread"].val)
         s[output].reorder(v_t, x_bo)
         s[output].bind(v_t, te.thread_axis("cthread"))
 
     # virtual threading along spatial rows
-    if cfg['h_nthread'].val > 1:
-        _, v_t = s[output].split(x_i0, factor=cfg['h_nthread'].val)
+    if cfg["h_nthread"].val > 1:
+        _, v_t = s[output].split(x_i0, factor=cfg["h_nthread"].val)
         s[output].reorder(v_t, x_bo)
         s[output].bind(v_t, te.thread_axis("cthread"))
 
@@ -173,7 +183,7 @@ def schedule_conv2d_packed(cfg, outs):
     k_o, d_i, d_j, k_i = s[conv2d_stage].op.reduce_axis
     s[conv2d_stage].reorder(x_bo, k_o, x_j, d_j, d_i, x_co, x_i, x_bi, x_ci, k_i)
 
-    k_o, _ = cfg['tile_ci'].apply(s, conv2d_stage, k_o)
+    k_o, _ = cfg["tile_ci"].apply(s, conv2d_stage, k_o)
     s[cdata].compute_at(s[conv2d_stage], k_o)
     s[ckernel].compute_at(s[conv2d_stage], k_o)
 
