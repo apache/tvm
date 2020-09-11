@@ -499,3 +499,9 @@ if(MSVC)
   target_compile_definitions(tvm_objs PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime_objs PRIVATE -DTVM_EXPORTS)
 endif()
+
+add_custom_target(style
+  COMMENT "Applying clang-format style"
+  COMMAND tests/lint/git-clang-format.sh -i -f HEAD~1
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+)
