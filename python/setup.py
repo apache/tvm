@@ -164,7 +164,7 @@ setup(name='tvm',
         'typed_ast',
         'tensorflow==2.1.0',
         'tflite==2.1.0',
-        'onnx==1.6.0',
+        'onnx==1.7.0',
         'onnxruntime==1.0.0',
         'torch==1.4.0',
         'torchvision==0.5.0'

@@ -25,11 +25,6 @@ from tvm.driver import tvmc
 from tvm.driver.tvmc.common import TVMCException
 
 
-def test_get_frontend_names_is_list():
-    sut = tvmc.frontends.get_frontend_names()
-    assert type(sut) is list
-
-
 def test_get_frontends_contains_only_strings():
     sut = tvmc.frontends.get_frontend_names()
     assert all([type(x) is str for x in sut]) is True
@@ -44,12 +39,8 @@ def test_get_frontend_by_name_valid():
 
 
 def test_get_frontend_by_name_invalid():
-    with pytest.raises(TVMCException) as e:
-        def f():
-            tvmc.frontends.get_frontend_by_name("unsupported_thing")
-        f()
-    assert 'unrecognized frontend' in str(e.value)
-
+    with pytest.raises(TVMCException):
+        tvmc.frontends.get_frontend_by_name("unsupported_thing")
 
 def test_guess_frontend_tflite():
     # some CI environments wont offer TFLite, so skip in case it is not present
@@ -168,11 +159,8 @@ def test_load_model___wrong_language__to_tflite(keras_resnet50):
     # some CI environments wont offer TFLite, so skip in case it is not present
     pytest.importorskip('tflite')
 
-    with pytest.raises(TVMCException) as e:
-        def f():
-            tvmc.frontends.load_model(keras_resnet50, model_format="tflite")
-        f()
-    assert 'input file not tflite' in str(e.value)
+    with pytest.raises(TVMCException):
+        tvmc.frontends.load_model(keras_resnet50, model_format="tflite")
 
 
 def test_load_model___wrong_language__to_onnx(tflite_mobilenet_v1_1_quant):
@@ -190,7 +178,4 @@ def test_load_model___wrong_language__to_pytorch(tflite_mobilenet_v1_1_quant):
     pytest.importorskip('torch')
 
     with pytest.raises(RuntimeError) as e:
-        def f():
-            tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant, model_format="pytorch")
-        f()
-    assert 'PytorchStreamReader' in str(e.value)
+        tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant, model_format="pytorch")

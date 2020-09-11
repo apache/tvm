@@ -34,7 +34,10 @@ from tvm.driver.tvmc.common import TVMCException
 
 
 class Frontend(ABC):
-    """Abstract class for frontend"""
+    """Abstract class for command line driver frontend.
+
+    Provide a unified way to import models (as files), and deal
+    with any required preprocessing to create a TVM module from it."""
 
     @staticmethod
     @abstractmethod
@@ -354,7 +357,8 @@ def get_frontend_by_name(name):
         if name == frontend.name():
             return frontend()
 
-    raise TVMCException("unrecognized frontend")
+    raise TVMCException(
+        "unrecognized frontend '{0}'. Choose from: {1}".format(name, get_frontend_names()))
 
 
 def guess_frontend(path):

@@ -75,7 +75,8 @@ def add_compile_parser(subparsers):
         "--tuning-records",
         metavar="PATH",
         default="",
-        help="path to an auto-tuning log file by AutoTVM. If not presented, the fallback/tophub configs will be used"
+        help="path to an auto-tuning log file by AutoTVM. If not presented, " \
+             "the fallback/tophub configs will be used"
     )
     parser.add_argument(
         "-v", "--verbose", action="count", default=0, help="increase verbosity"
@@ -149,7 +150,7 @@ def compile_model(
     model_format: str, optional
         A string representing a name of a frontend to be used
     tuning_records: str, optional
-        Name of the file produced by the tuning to be used during
+        Path to the file produced by the tuning to be used during
         compilation.
     alter_layout: str, optional
         The layout to convert the graph to. Note, the convert layout
@@ -174,7 +175,8 @@ def compile_model(
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)
 
-    if os.path.exists(str(target)):
+    # Handle the case in which target is a path to a JSON file.
+    if os.path.exists(target):
         with open(target) as target_file:
             logging.info("using target input from file: %s", target)
             target = "".join(target_file.readlines())
@@ -182,10 +184,10 @@ def compile_model(
     # TODO(@leandron) We don't have an API to collect a list of supported
     #       targets yet
     logging.debug("creating target from input: %s", target)
-    tvm_target = tvm.target.Target(target)
+    tvm_target = tvm.target.create(target)
     target_host = target_host or ""
 
-    if tuning_records:
+    if tuning_records and os.path.exists(tuning_records):
         # TODO (@leandron) a new PR will introduce the 'tune' subcommand
         #      the is used to generate the tuning records file
         logging.debug("tuning records file provided: %s", tuning_records)
