@@ -18,7 +18,7 @@
 [tool.black]
 line-length = 100
 target-version = ['py36']
-include = '(\.pyi?$|
+include = '(\.pyi?$)'
 exclude = '''
 
 (
