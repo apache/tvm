@@ -297,8 +297,7 @@ def _slice():
             if isinstance(dim, tvm.tir.Any):
                 end = _op.shape_of(data)
                 break
-            else:
-                end.append(int(dim))
+            end.append(int(dim))
 
         begin = [0] * ndim
         dim = int(inputs[1])
@@ -348,8 +347,8 @@ def _slice():
                 end[dim] = target_end
             else:
                 all_static = True
-                for i in range(len(dshape)):
-                    if i != dim and isinstance(dshape[i], tvm.tir.Any):
+                for i, shape_dim in enumerate(dshape):
+                    if i != dim and isinstance(shape_dim, tvm.tir.Any):
                         all_static = False
 
                 if all_static:
@@ -1192,7 +1191,7 @@ def _flatten():
             new_shape.append(0)
         out = _op.reshape(data, new_shape)
         if squeeze_axes:
-            out =  _op.squeeze(out, axis=squeeze_axes)
+            out = _op.squeeze(out, axis=squeeze_axes)
         return out
     return _impl
 
