@@ -20,6 +20,7 @@ from scipy import special
 import tvm
 from tvm import te
 from tvm import topi
+import tvm.testing
 import tvm.topi.testing
 from tvm.topi import util
 
