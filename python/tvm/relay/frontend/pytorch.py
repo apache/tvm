@@ -2166,8 +2166,13 @@ def _roi_align(prelude):
 
         output_size = (inputs[3], inputs[4])
         spatial_scale = inputs[2]
+        sample_ratio = inputs[5]
+        aligned = inputs[6]
 
-        return _op.vision.roi_align(data, boxes, output_size, spatial_scale)
+        if aligned:
+            data -= _expr.const(0.5)
+
+        return _op.vision.roi_align(data, boxes, output_size, spatial_scale, sample_ratio)
     return _impl
 
 def _unbind():
@@ -2216,12 +2221,15 @@ def _logical_and():
         return _op.logical_and(lhs, rhs)
     return _impl
 
-def _nonzero():
+def _nonzero(is_numpy_style):
     def _impl(inputs, input_types):
         data = inputs[0]
         ret = _op.transform.argwhere(data)
-        if len(inputs) > 1 and inputs[1]:
-            ret = _unbind()([ret, 0], None)
+
+        if is_numpy_style or (len(inputs) > 1 and inputs[1]):
+            # TODO(kevinthesun): Support this by adding unbind op
+            # ret = _unbind()([ret, 0], None)
+            raise RuntimeError("as_tuple is not supported yet for nonzero.")
         return ret
     return _impl
 
