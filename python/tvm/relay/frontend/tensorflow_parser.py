@@ -44,6 +44,7 @@ class TFParser(object):
 
     def __init__(self, model_dir, outputs=None):
         from tensorflow.core.framework import graph_pb2
+
         self._tmp_dir = util.tempdir()
         self._model_dir = model_dir
         self._graph = graph_pb2.GraphDef()
@@ -67,15 +68,17 @@ class TFParser(object):
     def _get_tag_set(self):
         """Return the tag set of saved model, multiple metagraphs are not supported"""
         try:
-            from tensorflow.contrib.saved_model.python.saved_model.reader \
-                import get_saved_model_tag_sets
+            from tensorflow.contrib.saved_model.python.saved_model.reader import (
+                get_saved_model_tag_sets,
+            )
         except ImportError:
             try:
                 from tensorflow.python.tools.saved_model_utils import get_saved_model_tag_sets
             except ImportError:
                 raise ImportError(
                     "InputConfiguration: Unable to import get_saved_model_tag_sets which is "
-                    "required to get tag set from saved model.")
+                    "required to get tag set from saved model."
+                )
         tag_sets = get_saved_model_tag_sets(self._model_dir)
         return tag_sets[0]
 
@@ -86,13 +89,12 @@ class TFParser(object):
         except ImportError:
             raise ImportError(
                 "InputConfiguration: Unable to import tensorflow which is "
-                "required to restore from saved model.")
+                "required to restore from saved model."
+            )
         tags = self._get_tag_set()
         output_names = set()
         with tf.Session() as sess:
-            meta_graph_def = tf.saved_model.loader.load(sess,
-                                                        tags,
-                                                        self._model_dir)
+            meta_graph_def = tf.saved_model.loader.load(sess, tags, self._model_dir)
             for sig_def in meta_graph_def.signature_def.values():
                 for output_tensor in sig_def.outputs.values():
                     output_names.add(output_tensor.name.replace(":0", ""))
@@ -109,7 +111,8 @@ class TFParser(object):
         except ImportError:
             raise ImportError(
                 "InputConfiguration: Unable to import tensorflow which is "
-                "required to restore from saved model.")
+                "required to restore from saved model."
+            )
 
         saved_model_dir = self._model_dir
         output_graph_filename = self._tmp_dir.relpath("tf_frozen_model.pb")
@@ -126,25 +129,38 @@ class TFParser(object):
         input_graph_filename = None
         saved_model_tags = ",".join(self._get_tag_set())
 
-        freeze_graph.freeze_graph(input_graph_filename, input_saver_def_path,
-                                  input_binary, checkpoint_path, output_node_names,
-                                  restore_op_name, filename_tensor_name,
-                                  output_graph_filename, clear_devices, "", "", "",
-                                  input_meta_graph, input_saved_model_dir,
-                                  saved_model_tags)
+        freeze_graph.freeze_graph(
+            input_graph_filename,
+            input_saver_def_path,
+            input_binary,
+            checkpoint_path,
+            output_node_names,
+            restore_op_name,
+            filename_tensor_name,
+            output_graph_filename,
+            clear_devices,
+            "",
+            "",
+            "",
+            input_meta_graph,
+            input_saved_model_dir,
+            saved_model_tags,
+        )
 
         with ops.Graph().as_default():
             output_graph_def = graph_pb2.GraphDef()
             with open(output_graph_filename, "rb") as f:
                 output_graph_def.ParseFromString(f.read())
-            output_graph_def = graph_util.remove_training_nodes(output_graph_def,
-                                                                protected_nodes=self._outputs)
+            output_graph_def = graph_util.remove_training_nodes(
+                output_graph_def, protected_nodes=self._outputs
+            )
             return output_graph_def
 
     def _load_ckpt(self):
         """TODO: Load checkpoint model."""
-        raise RuntimeError("InputConfiguration: Loading tf checkpoint model is "
-                           "not supported yet.")
+        raise RuntimeError(
+            "InputConfiguration: Loading tf checkpoint model is " "not supported yet."
+        )
 
     def parse(self):
         """
@@ -167,8 +183,7 @@ class TFParser(object):
                 graph = self._load_ckpt()
         elif os.path.isfile(self._model_dir):
             # Only .pb or .pbtxt is a valid suffix name.
-            if self._model_dir.endswith(".pb") or \
-               self._model_dir.endswith(".pbtxt"):
+            if self._model_dir.endswith(".pb") or self._model_dir.endswith(".pbtxt"):
                 cur_dir = os.path.dirname(self._model_dir)
             else:
                 raise RuntimeError("InputConfiguration: Invalid model format.")
@@ -181,8 +196,7 @@ class TFParser(object):
             else:
                 graph = self._load_pb_file()
         else:
-            raise RuntimeError("InputConfiguration: Unrecognized model "
-                               "file or path.")
+            raise RuntimeError("InputConfiguration: Unrecognized model " "file or path.")
 
         self._set_graph(graph)
         return graph

@@ -32,14 +32,16 @@ def get_sample_records(number):
     N = 128
     workload_key = auto_scheduler.make_workload_key(matmul_auto_scheduler_test, (N, N, N))
     dag = auto_scheduler.ComputeDAG(workload_key)
-    target = tvm.target.create('llvm')
+    target = tvm.target.Target("llvm")
     task = auto_scheduler.SearchTask(dag, workload_key, target)
     policy = auto_scheduler.SketchPolicy(task, verbose=0)
     states = policy.sample_initial_population(number)
 
     inputs = [auto_scheduler.MeasureInput(task, s) for s in states]
-    results = [auto_scheduler.MeasureResult([np.random.uniform(0.5, 1.0)], 0, "", 0.1, 0)
-               for _ in range(len(inputs))]
+    results = [
+        auto_scheduler.MeasureResult([np.random.uniform(0.5, 1.0)], 0, "", 0.1, 0)
+        for _ in range(len(inputs))
+    ]
 
     return task, dag, inputs, results
 

@@ -41,9 +41,9 @@ def check_eval(expr, args, expected_result, mod=None, rtol=1e-07):
 
 
 def test_implicit_share():
-    x = relay.Var('x')
-    y = relay.Var('y')
-    z = relay.Var('z')
+    x = relay.Var("x")
+    y = relay.Var("y")
+    z = relay.Var("z")
     body = relay.Let(z, op.add(y, y), op.add(z, z))
     body = relay.Let(y, op.add(x, x), body)
     f = relay.Function([], relay.Let(x, relay.const(1), body))
@@ -55,9 +55,9 @@ def test_implicit_share():
 
 
 def test_round_trip():
-    x = relay.Var('x')
-    y = relay.Var('y')
-    z = relay.Var('z')
+    x = relay.Var("x")
+    y = relay.Var("y")
+    z = relay.Var("z")
     body = relay.Let(z, op.add(y, y), op.add(z, z))
     body = relay.Let(y, op.add(x, x), body)
     f = relay.Function([], relay.Let(x, relay.const(1), body))
@@ -69,6 +69,7 @@ def test_round_trip():
     check_eval(g, [], 8.0)
     check_eval(h, [], 8.0)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test_implicit_share()
     test_round_trip()

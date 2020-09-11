@@ -32,17 +32,29 @@ def setup_module():
     tvm.target.datatype.register("bfloat", 129)
 
     tvm.target.datatype.register_op(
-        tvm.target.datatype.create_lower_func("FloatToBFloat16_wrapper"), "Cast",
-        "llvm", "bfloat", "float")
+        tvm.target.datatype.create_lower_func("FloatToBFloat16_wrapper"),
+        "Cast",
+        "llvm",
+        "bfloat",
+        "float",
+    )
     tvm.target.datatype.register_op(
-        tvm.target.datatype.create_lower_func("BFloat16ToFloat_wrapper"), "Cast",
-        "llvm", "float", "bfloat")
+        tvm.target.datatype.create_lower_func("BFloat16ToFloat_wrapper"),
+        "Cast",
+        "llvm",
+        "float",
+        "bfloat",
+    )
     tvm.target.datatype.register_op(
-        tvm.target.datatype.create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
-        "bfloat")
+        tvm.target.datatype.create_lower_func("BFloat16Add_wrapper"), "Add", "llvm", "bfloat"
+    )
     tvm.target.datatype.register_op(
-        tvm.target.datatype.create_lower_func("FloatToBFloat16_wrapper"), "FloatImm",
-        "llvm", "bfloat")
+        tvm.target.datatype.create_lower_func("FloatToBFloat16_wrapper"),
+        "FloatImm",
+        "llvm",
+        "bfloat",
+    )
+
 
 def lower_datatypes_and_build(schedule, args):
     """Create schedule and lower, manually lowering datatypes.
@@ -51,22 +63,22 @@ def lower_datatypes_and_build(schedule, args):
     process, we won't need to do this manually.
     TODO(gus) integrate datatype lowering into build process; change this test"""
     mod = tvm.lower(schedule, args)
-    target = tvm.target.create(tgt)
+    target = tvm.target.Target(tgt)
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod)
     mod = tvm.tir.transform.LowerCustomDatatypes()(mod)
     return tvm.build(mod, target=tgt)
 
 
 def test_bfloat_add_and_cast_1():
-    X = te.placeholder((3, ), name="X")
-    Y = te.placeholder((3, ), name="Y")
+    X = te.placeholder((3,), name="X")
+    Y = te.placeholder((3,), name="Y")
     Z = topi.cast(
-        topi.cast(X, dtype="custom[bfloat]16") +
-        topi.cast(Y, dtype="custom[bfloat]16"),
-        dtype="float")
+        topi.cast(X, dtype="custom[bfloat]16") + topi.cast(Y, dtype="custom[bfloat]16"),
+        dtype="float",
+    )
 
     s = te.create_schedule([Z.op])
-    built_cast = lower_datatypes_and_build(s, [X,Y,Z])
+    built_cast = lower_datatypes_and_build(s, [X, Y, Z])
 
     ctx = tvm.context(tgt, 0)
 
@@ -74,13 +86,9 @@ def test_bfloat_add_and_cast_1():
     # with at most 7-bit mantissas which, when added, produce a result with at
     # most 7-bit mantissas. This is to ensure there are no errors due to
     # float32->bfloat16 conversions.
-    x = tvm.nd.array(
-        np.array([4.4103796E-32, 14942208.0, 1.78125]).astype("float32"),
-        ctx=ctx)
-    y = tvm.nd.array(
-        np.array([-3.330669E-14, 19660800.0, 2.25]).astype("float32"), ctx=ctx)
-    z_expected = np.array([-3.330669E-14, 34603008.0,
-                           4.03125]).astype("float32")
+    x = tvm.nd.array(np.array([4.4103796e-32, 14942208.0, 1.78125]).astype("float32"), ctx=ctx)
+    y = tvm.nd.array(np.array([-3.330669e-14, 19660800.0, 2.25]).astype("float32"), ctx=ctx)
+    z_expected = np.array([-3.330669e-14, 34603008.0, 4.03125]).astype("float32")
     z = tvm.nd.empty(Z.shape, dtype=Z.dtype, ctx=ctx)
 
     built_cast(x, y, z)
@@ -89,15 +97,15 @@ def test_bfloat_add_and_cast_1():
 
 
 def test_bfloat_add_and_cast_2():
-    X = te.placeholder((3, ), name="X")
-    Y = te.placeholder((3, ), name="Y")
+    X = te.placeholder((3,), name="X")
+    Y = te.placeholder((3,), name="Y")
     Z = topi.cast(
-        topi.cast(X, dtype="custom[bfloat]16") +
-        topi.cast(Y, dtype="custom[bfloat]16"),
-        dtype="float")
+        topi.cast(X, dtype="custom[bfloat]16") + topi.cast(Y, dtype="custom[bfloat]16"),
+        dtype="float",
+    )
 
     s = te.create_schedule([Z.op])
-    built_cast = lower_datatypes_and_build(s, [X,Y,Z])
+    built_cast = lower_datatypes_and_build(s, [X, Y, Z])
 
     ctx = tvm.context(tgt, 0)
 
@@ -108,14 +116,9 @@ def test_bfloat_add_and_cast_2():
     # numbers. To simulate bfloat16 add implemented in mybfloat, I cut off all
     # but 7 bits of the result's mantissa. I then copied that value into
     # z_expected.
-    x = tvm.nd.array(
-        np.array([1.2348297, -1.0298302E25, 1.2034023E-30]).astype("float32"),
-        ctx=ctx)
-    y = tvm.nd.array(
-        np.array([-2.4992788, -9.888288E19, 9.342338E-29]).astype("float32"),
-        ctx=ctx)
-    z_expected = np.array([-1.25, -1.027587E25,
-                           9.426888E-29]).astype("float32")
+    x = tvm.nd.array(np.array([1.2348297, -1.0298302e25, 1.2034023e-30]).astype("float32"), ctx=ctx)
+    y = tvm.nd.array(np.array([-2.4992788, -9.888288e19, 9.342338e-29]).astype("float32"), ctx=ctx)
+    z_expected = np.array([-1.25, -1.027587e25, 9.426888e-29]).astype("float32")
     z = tvm.nd.empty(Z.shape, dtype=Z.dtype, ctx=ctx)
 
     built_cast(x, y, z)
@@ -124,15 +127,14 @@ def test_bfloat_add_and_cast_2():
 
 
 def test_bfloat_add_and_cast_FloatImm():
-    X = te.placeholder((3, ), name="X")
+    X = te.placeholder((3,), name="X")
     Z = topi.cast(
-        topi.add(
-            topi.cast(X, dtype="custom[bfloat]16"),
-            tvm.tir.FloatImm("custom[bfloat]16", 1.5)),
-        dtype="float")
+        topi.add(topi.cast(X, dtype="custom[bfloat]16"), tvm.tir.FloatImm("custom[bfloat]16", 1.5)),
+        dtype="float",
+    )
 
     s = te.create_schedule([Z.op])
-    built_cast = lower_datatypes_and_build(s, [X,Z])
+    built_cast = lower_datatypes_and_build(s, [X, Z])
 
     ctx = tvm.context(tgt, 0)
 

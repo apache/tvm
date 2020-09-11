@@ -44,7 +44,7 @@ def test_cpu_matmul():
     s.parallel(C, jo)
     s.unroll(C, k)
 
-    target = tvm.target.create('llvm')
+    target = tvm.target.Target("llvm")
     task = auto_scheduler.SearchTask(dag, "test", target)
     names = auto_scheduler.feature.get_per_store_feature_names()
     fea = auto_scheduler.feature.get_per_store_features_from_states([s], task)[0]
@@ -93,16 +93,16 @@ def test_cpu_matmul():
 
 def test_cpu_fusion():
     def fusion_test(N, M):
-        A = te.placeholder((N, M), name='A')
-        B = te.compute((N, M), lambda i, j: A[i][j], name='B')
-        C = te.compute((N, M), lambda i, j: B[i][j], name='C')
+        A = te.placeholder((N, M), name="A")
+        B = te.compute((N, M), lambda i, j: A[i][j], name="B")
+        C = te.compute((N, M), lambda i, j: B[i][j], name="C")
         return [A, B, C]
 
     dag = auto_scheduler.ComputeDAG(fusion_test(64, 32))
     s = dag.get_init_state()
     s.compute_at(1, 2, s.stages[2].iters[1])
 
-    target = tvm.target.create('llvm')
+    target = tvm.target.Target("llvm")
     task = auto_scheduler.SearchTask(dag, "test", target)
     names = auto_scheduler.feature.get_per_store_feature_names()
     fea = auto_scheduler.feature.get_per_store_features_from_states([s], task)[0]
@@ -123,28 +123,38 @@ def test_cpu_fusion():
     found = False
     for stage_fea in fea:
         for i, (name, value) in enumerate(zip(names, stage_fea)):
-            if 'reuse_type.kSerialMultipleReadWrite' in name and value > 0.5:
-                assert fequal(stage_fea[i + 2], 1.0)   # reuse distance in #iter
-                assert fequal(stage_fea[i + 3], math.log2(16 + 1))  # reuse distance in bytes
+            if "reuse_type.kSerialMultipleReadWrite" in name and value > 0.5:
+                # reuse distance in #iter
+                assert fequal(stage_fea[i + 2], 1.0)
+                # reuse distance in bytes
+                assert fequal(stage_fea[i + 3], math.log2(16 + 1))
                 found = True
     assert found
 
 
 def test_gpu_feature():
     # Use records to build a complicated GPU program
-    json_records = "\n".join((
-        """{"i": [["[\\"matmul_auto_scheduler_test\\", 512, 512, 512]", "cuda"], [[], [["CHW", 2, "local"], ["SP", 2, 0, 512, [1, 16, 32, 1], 1], ["SP", 2, 5, 512, [4, 1, 1, 16], 1], ["SP", 2, 10, 512, [1, 2], 1], ["RE", 2, [0, 5, 1, 6, 2, 7, 10, 11, 3, 8, 12, 4, 9]], ["FSP", 3, 0, 1, 3], ["FSP", 3, 4, 2, 3], ["RE", 3, [0, 4, 1, 5, 2, 6, 3, 7]], ["FU", 2, [0, 1]], ["FU", 3, [0, 1]], ["FU", 2, [1, 2]], ["FU", 3, [1, 2]], ["FU", 2, [2, 3]], ["FU", 3, [2, 3]], ["CA", 2, 3, 2], ["CHR", 1, "shared", [2]], ["CA", 2, 3, 3], ["FU", 2, [0, 1]], ["FFSP", 2, 0, [1, 2], 1, 1], ["AN", 2, 1, 6], ["CHR", 0, "shared", [3]], ["CA", 1, 4, 3], ["FU", 1, [0, 1]], ["FFSP", 1, 0, [1, 2], 1, 1], ["AN", 1, 1, 6], ["AN", 5, 0, 5], ["AN", 5, 1, 4], ["AN", 5, 2, 6], ["PR", 4, 0, "auto_unroll_max_step$1024"]]]], "r": [[0.00536798], 0, 2.49277, 1585564852], "v": "v0.1"}""",
-    ))
+    json_records = "\n".join(
+        (
+            """{"i": [["[\\"matmul_auto_scheduler_test\\", 512, 512, 512]", "cuda"], [[], [["CHW", 2, "local"], ["SP", 2, 0, 512, [1, 16, 32, 1], 1], ["SP", 2, 5, 512, [4, 1, 1, 16], 1], ["SP", 2, 10, 512, [1, 2], 1], ["RE", 2, [0, 5, 1, 6, 2, 7, 10, 11, 3, 8, 12, 4, 9]], ["FSP", 3, 0, 1, 3], ["FSP", 3, 4, 2, 3], ["RE", 3, [0, 4, 1, 5, 2, 6, 3, 7]], ["FU", 2, [0, 1]], ["FU", 3, [0, 1]], ["FU", 2, [1, 2]], ["FU", 3, [1, 2]], ["FU", 2, [2, 3]], ["FU", 3, [2, 3]], ["CA", 2, 3, 2], ["CHR", 1, "shared", [2]], ["CA", 2, 3, 3], ["FU", 2, [0, 1]], ["FFSP", 2, 0, [1, 2], 1, 1], ["AN", 2, 1, 6], ["CHR", 0, "shared", [3]], ["CA", 1, 4, 3], ["FU", 1, [0, 1]], ["FFSP", 1, 0, [1, 2], 1, 1], ["AN", 1, 1, 6], ["AN", 5, 0, 5], ["AN", 5, 1, 4], ["AN", 5, 2, 6], ["PR", 4, 0, "auto_unroll_max_step$1024"]]]], "r": [[0.00536798], 0, 2.49277, 1585564852], "v": "v0.1"}""",
+        )
+    )
 
     # load states
-    with tempfile.NamedTemporaryFile(mode='w') as f:
+    with tempfile.NamedTemporaryFile(mode="w") as f:
         f.write(json_records)
         f.flush()
         inputs, results = auto_scheduler.RecordReader(f.name).read_lines()
 
         inp = inputs[0]
         dag = auto_scheduler.ComputeDAG(inp.task.workload_key)
-        task = auto_scheduler.SearchTask(dag, inp.task.workload_key, inp.task.target, None, auto_scheduler.HardwareParams(100000, 16, 64))
+        task = auto_scheduler.SearchTask(
+            dag,
+            inp.task.workload_key,
+            inp.task.target,
+            None,
+            auto_scheduler.HardwareParams(100000, 16, 64),
+        )
 
         state = dag.infer_bound_from_state(inputs[0].state)
         fea = auto_scheduler.feature.get_per_store_features_from_states([state], task)[0]
@@ -183,12 +193,12 @@ def test_gpu_feature():
         """
 
         # check gpu-related features
-        assert fequal(fea_dicts[0]['blockIdx_x_len'], math.log2(8 + 1))
-        assert fequal(fea_dicts[0]['vthread_len'], math.log2(4 + 1))
-        assert fequal(fea_dicts[1]['threadIdx_x_len'], math.log2(16 + 1))
-        assert fequal(fea_dicts[0]['threadIdx_y_len'], math.log2(1 + 1))
-        assert fequal(fea_dicts[2]['blockIdx_z_len'], math.log2(1 + 1))
-        assert fequal(fea_dicts[0]['is_gpu'], 1.0)
+        assert fequal(fea_dicts[0]["blockIdx_x_len"], math.log2(8 + 1))
+        assert fequal(fea_dicts[0]["vthread_len"], math.log2(4 + 1))
+        assert fequal(fea_dicts[1]["threadIdx_x_len"], math.log2(16 + 1))
+        assert fequal(fea_dicts[0]["threadIdx_y_len"], math.log2(1 + 1))
+        assert fequal(fea_dicts[2]["blockIdx_z_len"], math.log2(1 + 1))
+        assert fequal(fea_dicts[0]["is_gpu"], 1.0)
 
 
 if __name__ == "__main__":

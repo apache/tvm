@@ -21,6 +21,7 @@ from tvm import te
 from tvm import autotvm
 from ..util import get_const_tuple
 
+
 def schedule_direct_conv3d_cuda(cfg, s, conv, layout, workload_name):
     """schedule optimized for batch size = 1"""
 
@@ -43,35 +44,34 @@ def schedule_direct_conv3d_cuda(cfg, s, conv, layout, workload_name):
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
 
     target = tvm.target.Target.current()
-    if target.kind.name in ['nvptx', 'rocm']:
+    if target.kind.name in ["nvptx", "rocm"]:
         cfg.define_knob("unroll_explicit", [1])
     else:
         cfg.define_knob("unroll_explicit", [0, 1])
 
     # fallback support
     if cfg.is_fallback:
-        ref_log = autotvm.tophub.load_reference_log(
-            target.kind.name, target.model, workload_name)
+        ref_log = autotvm.tophub.load_reference_log(target.kind.name, target.model, workload_name)
         cfg.fallback_with_reference_log(ref_log)
     ##### space definition end #####
 
     pad_data, kernel = s[conv].op.input_tensors
 
     s[pad_data].compute_inline()
-    if isinstance(kernel.op, tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
+    if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
         s[kernel].compute_inline()
 
     if conv.op in s.outputs:
         output = conv
-        OL = s.cache_write(conv, 'local')
+        OL = s.cache_write(conv, "local")
     else:
         output = s.outputs[0].output(0)
-        s[conv].set_scope('local')
+        s[conv].set_scope("local")
         OL = conv
 
     # create cache stage
-    AA = s.cache_read(pad_data, 'shared', [OL])
-    WW = s.cache_read(kernel, 'shared', [OL])
+    AA = s.cache_read(pad_data, "shared", [OL])
+    WW = s.cache_read(kernel, "shared", [OL])
 
     # tile and bind spatial axes
     n, f, d, y, x = s[output].op.axis
@@ -100,10 +100,10 @@ def schedule_direct_conv3d_cuda(cfg, s, conv, layout, workload_name):
     # tile reduction axes
     n, f, d, y, x = s[OL].op.axis
     rc, rd, ry, rx = s[OL].op.reduce_axis
-    rco, rci = cfg['tile_rc'].apply(s, OL, rc)
-    rdo, rdi = cfg['tile_rd'].apply(s, OL, rd)
-    ryo, ryi = cfg['tile_ry'].apply(s, OL, ry)
-    rxo, rxi = cfg['tile_rx'].apply(s, OL, rx)
+    rco, rci = cfg["tile_rc"].apply(s, OL, rc)
+    rdo, rdi = cfg["tile_rd"].apply(s, OL, rd)
+    ryo, ryi = cfg["tile_ry"].apply(s, OL, ry)
+    rxo, rxi = cfg["tile_rx"].apply(s, OL, rx)
     s[OL].reorder(rco, rdo, ryo, rxo, rci, rdi, ryi, rxi, n, f, d, y, x)
 
     s[AA].compute_at(s[OL], rxo)
@@ -122,8 +122,8 @@ def schedule_direct_conv3d_cuda(cfg, s, conv, layout, workload_name):
         s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
     # unroll
-    s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
-    s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
+    s[output].pragma(kernel_scope, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+    s[output].pragma(kernel_scope, "unroll_explicit", cfg["unroll_explicit"].val)
 
     N, CO, OD, OH, OW = get_const_tuple(output.shape)
     _, KD, KH, KW, CI = get_const_tuple(kernel.shape)

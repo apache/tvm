@@ -46,14 +46,9 @@ import dgl
 import networkx as nx
 from dgl.nn.pytorch import GraphConv
 
+
 class GCN(nn.Module):
-    def __init__(self,
-                 g,
-                 n_infeat,
-                 n_hidden,
-                 n_classes,
-                 n_layers,
-                 activation):
+    def __init__(self, g, n_infeat, n_hidden, n_classes, n_layers, activation):
         super(GCN, self).__init__()
         self.g = g
         self.layers = nn.ModuleList()
@@ -66,7 +61,7 @@ class GCN(nn.Module):
         h = features
         for i, layer in enumerate(self.layers):
             # handle api changes for differnt DGL version
-            if dgl.__version__ > '0.3':
+            if dgl.__version__ > "0.3":
                 h = layer(self.g, h)
             else:
                 h = layer(h, self.g)
@@ -79,6 +74,7 @@ class GCN(nn.Module):
 # You may substitute this part with your own dataset, here we load data from DGL
 from dgl.data import load_data
 from collections import namedtuple
+
 
 def load_dataset(dataset="cora"):
     args = namedtuple("args", ["dataset"])
@@ -93,7 +89,7 @@ def load_dataset(dataset="cora"):
 
 
 def evaluate(data, logits):
-    test_mask = data.test_mask # the test set which isn't included in the training phase
+    test_mask = data.test_mask  # the test set which isn't included in the training phase
 
     pred = logits.argmax(axis=1)
     acc = ((pred == data.labels) * test_mask).sum() / test_mask.sum()
@@ -142,16 +138,11 @@ from dgl import DGLGraph
 features = torch.FloatTensor(data.features)
 dgl_g = DGLGraph(g)
 
-torch_model = GCN(dgl_g,
-                  infeat_dim,
-                  num_hidden,
-                  num_classes,
-                  num_layers,
-                  F.relu)
+torch_model = GCN(dgl_g, infeat_dim, num_hidden, num_classes, num_layers, F.relu)
 
 # Download the pretrained weights
-model_url = "https://homes.cs.washington.edu/~cyulin/media/gnn_model/gcn_%s.torch"%(dataset)
-model_path = download_testdata(model_url, "gcn_%s.pickle"%(dataset), module='gcn_model')
+model_url = "https://homes.cs.washington.edu/~cyulin/media/gnn_model/gcn_%s.torch" % (dataset)
+model_path = download_testdata(model_url, "gcn_%s.pickle" % (dataset), module="gcn_model")
 
 # Load the weights into the model
 torch_model.load_state_dict(torch.load(model_path))
@@ -188,14 +179,8 @@ from tvm.contrib import graph_runtime
 import tvm
 from tvm import te
 
-def GraphConv(layer_name,
-              input_dim,
-              output_dim,
-              adj,
-              input,
-              norm=None,
-              bias=True,
-              activation=None):
+
+def GraphConv(layer_name, input_dim, output_dim, adj, input, norm=None, bias=True, activation=None):
     """
     Parameters
     ----------
@@ -246,6 +231,7 @@ def GraphConv(layer_name,
         output_t = activation(output_t)
     return output_t
 
+
 ######################################################################
 # Prepare the parameters needed in the GraphConv layers
 # -----------------------------------------------------
@@ -253,29 +239,33 @@ def GraphConv(layer_name,
 import numpy as np
 import networkx as nx
 
+
 def prepare_params(g, data):
     params = {}
-    params['infeats'] = data.features.astype('float32') # Only support float32 as feature for now
+    params["infeats"] = data.features.astype("float32")  # Only support float32 as feature for now
 
     # Generate adjacency matrix
     adjacency = nx.to_scipy_sparse_matrix(g)
-    params['g_data'] = adjacency.data.astype('float32')
-    params['indices'] = adjacency.indices.astype('int32')
-    params['indptr'] = adjacency.indptr.astype('int32')
+    params["g_data"] = adjacency.data.astype("float32")
+    params["indices"] = adjacency.indices.astype("int32")
+    params["indptr"] = adjacency.indptr.astype("int32")
 
     # Normalization w.r.t. node degrees
     degs = [g.in_degree[i] for i in range(g.number_of_nodes())]
-    params['norm'] = np.power(degs, -0.5).astype('float32')
-    params['norm'] = params['norm'].reshape((params['norm'].shape[0], 1))
+    params["norm"] = np.power(degs, -0.5).astype("float32")
+    params["norm"] = params["norm"].reshape((params["norm"].shape[0], 1))
 
     return params
+
 
 params = prepare_params(g, data)
 
 # Check shape of features and the validity of adjacency matrix
-assert len(params['infeats'].shape) == 2
-assert params['g_data'] is not None and params['indices'] is not None and params['indptr'] is not None
-assert params['infeats'].shape[0] == params['indptr'].shape[0] - 1
+assert len(params["infeats"].shape) == 2
+assert (
+    params["g_data"] is not None and params["indices"] is not None and params["indptr"] is not None
+)
+assert params["infeats"].shape[0] == params["indptr"].shape[0] - 1
 
 ######################################################################
 # Put layers together
@@ -283,34 +273,38 @@ assert params['infeats'].shape[0] == params['indptr'].shape[0] - 1
 
 # Define input features, norms, adjacency matrix in Relay
 infeats = relay.var("infeats", shape=data.features.shape)
-norm = relay.Constant(tvm.nd.array(params['norm']))
-g_data = relay.Constant(tvm.nd.array(params['g_data']))
-indices = relay.Constant(tvm.nd.array(params['indices']))
-indptr = relay.Constant(tvm.nd.array(params['indptr']))
+norm = relay.Constant(tvm.nd.array(params["norm"]))
+g_data = relay.Constant(tvm.nd.array(params["g_data"]))
+indices = relay.Constant(tvm.nd.array(params["indices"]))
+indptr = relay.Constant(tvm.nd.array(params["indptr"]))
 
-Adjacency = namedtuple('Adjacency', ['data', 'indices', 'indptr'])
+Adjacency = namedtuple("Adjacency", ["data", "indices", "indptr"])
 adj = Adjacency(g_data, indices, indptr)
 
 # Construct the 2-layer GCN
 layers = []
-layers.append(GraphConv(
-    layer_name="layers.0",
-    input_dim=infeat_dim,
-    output_dim=num_hidden,
-    adj=adj,
-    input=infeats,
-    norm=norm,
-    activation=relay.nn.relu
-))
-layers.append(GraphConv(
-    layer_name="layers.1",
-    input_dim=num_hidden,
-    output_dim=num_classes,
-    adj=adj,
-    input=layers[-1],
-    norm=norm,
-    activation=None
-))
+layers.append(
+    GraphConv(
+        layer_name="layers.0",
+        input_dim=infeat_dim,
+        output_dim=num_hidden,
+        adj=adj,
+        input=infeats,
+        norm=norm,
+        activation=relay.nn.relu,
+    )
+)
+layers.append(
+    GraphConv(
+        layer_name="layers.1",
+        input_dim=num_hidden,
+        output_dim=num_classes,
+        adj=adj,
+        input=layers[-1],
+        norm=norm,
+        activation=None,
+    )
+)
 
 # Analyze free variables and generate Relay function
 output = layers[-1]
@@ -324,24 +318,24 @@ model_params = {}
 for param_tensor in torch_model.state_dict():
     model_params[param_tensor] = torch_model.state_dict()[param_tensor].numpy()
 
-for i in range(num_layers+1):
-    params["layers.%d.weight"%(i)] = model_params["layers.%d.weight"%(i)]
-    params["layers.%d.bias"%(i)] = model_params["layers.%d.bias"%(i)]
+for i in range(num_layers + 1):
+    params["layers.%d.weight" % (i)] = model_params["layers.%d.weight" % (i)]
+    params["layers.%d.bias" % (i)] = model_params["layers.%d.bias" % (i)]
 
 # Set the TVM build target
-target = 'llvm' # Currently only support `llvm` as target
+target = "llvm"  # Currently only support `llvm` as target
 
 func = relay.Function(relay.analysis.free_vars(output), output)
 func = relay.build_module.bind_params_by_name(func, params)
 mod = tvm.IRModule()
 mod["main"] = func
 # Build with Relay
-with tvm.transform.PassContext(opt_level=0): # Currently only support opt_level=0
+with tvm.transform.PassContext(opt_level=0):  # Currently only support opt_level=0
     lib = relay.build(mod, target, params=params)
 
 # Generate graph runtime
 ctx = tvm.context(target, 0)
-m = graph_runtime.GraphModule(lib['default'](ctx))
+m = graph_runtime.GraphModule(lib["default"](ctx))
 
 ######################################################################
 # Run the TVM model, test for accuracy and verify with DGL

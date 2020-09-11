@@ -34,33 +34,38 @@ def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype="float32"):
     num_blocks = int(nnz / (BS_R * BS_C)) + 1
     candidate_blocks = np.asarray(list(itertools.product(range(0, M, BS_R), range(0, N, BS_C))))
     assert candidate_blocks.shape[0] == M // BS_R * N // BS_C
-    chosen_blocks = candidate_blocks[np.random.choice(candidate_blocks.shape[0], size=num_blocks, replace=False)]
+    chosen_blocks = candidate_blocks[
+        np.random.choice(candidate_blocks.shape[0], size=num_blocks, replace=False)
+    ]
     for i in range(len(chosen_blocks)):
         r, c = chosen_blocks[i]
-        Y[r:r+BS_R,c:c+BS_C] = np.random.randn(BS_R, BS_C)
+        Y[r : r + BS_R, c : c + BS_C] = np.random.randn(BS_R, BS_C)
     s = sp.bsr_matrix(Y, blocksize=(BS_R, BS_C))
     assert s.data.shape == (num_blocks, BS_R, BS_C)
     assert s.data.size >= nnz
-    assert s.indices.shape == (num_blocks, )
-    assert s.indptr.shape == (M // BS_R + 1, )
+    assert s.indices.shape == (num_blocks,)
+    assert s.indptr.shape == (M // BS_R + 1,)
     return s
+
 
 def run_func(func, params, x):
     with tvm.transform.PassContext(opt_level=3):
         graph, lib, new_params = relay.build(func, "llvm", params=params)
 
     from tvm.contrib import graph_runtime
+
     ctx = tvm.cpu(0)
-    dtype = 'float32'
+    dtype = "float32"
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
-    m.set_input('data', tvm.nd.array(x.astype(dtype)))
+    m.set_input("data", tvm.nd.array(x.astype(dtype)))
     m.set_input(**new_params)
     # execute
     m.run()
     # get outputs
     tvm_output = m.get_output(0)
     return tvm_output.asnumpy()
+
 
 def test_bsr_sparse_dense():
     data = relay.var("data", shape=(1, 128), dtype="float32")
@@ -70,9 +75,7 @@ def test_bsr_sparse_dense():
     z = relay.nn.relu(y)
     func = relay.Function(relay.analysis.free_vars(z), z)
 
-    params = {
-        "weight": tvm.nd.array(random_bsr_matrix(768, 128, 32, 1, 0.1).todense())
-    }
+    params = {"weight": tvm.nd.array(random_bsr_matrix(768, 128, 32, 1, 0.1).todense())}
 
     x_np = np.random.randn(1, 128).astype("float32")
     # dense output
@@ -81,6 +84,7 @@ def test_bsr_sparse_dense():
     sparse_func, params = relay.data_dep_optimization.bsr_dense.convert(func, params, (32, 1), 0.2)
     sparse_output = run_func(sparse_func, params, x_np)
     np.testing.assert_allclose(sparse_output, dense_output, atol=1e-5, rtol=1e-5)
+
 
 if __name__ == "__main__":
     test_bsr_sparse_dense()

@@ -86,10 +86,10 @@ def get_host_op_count(mod):
 
 def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
     relay.backend.compile_engine.get().clear()
-    with tvm.transform.PassContext(opt_level=3, config={
-            "relay.ext.ethos-n.options": {"variant": 0}
-    }):
-        with tvm.target.create("llvm"):
+    with tvm.transform.PassContext(
+        opt_level=3, config={"relay.ext.ethos-n.options": {"variant": 0}}
+    ):
+        with tvm.target.Target("llvm"):
             if npu:
                 f = relay.build_module.bind_params_by_name(mod["main"], params)
                 mod = tvm.IRModule()
@@ -100,15 +100,17 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
                 mod = relay.transform.MergeCompilerRegions()(mod)
                 mod = relay.transform.PartitionGraph()(mod)
                 host_op_count = get_host_op_count(mod)
-                assert host_op_count == expected_host_ops, \
-                    "Got {} host operators, expected {}".format(host_op_count, expected_host_ops)
+                assert (
+                    host_op_count == expected_host_ops
+                ), "Got {} host operators, expected {}".format(host_op_count, expected_host_ops)
                 partition_count = 0
                 for global_var in mod.get_global_vars():
                     if "ethos-n" in global_var.name_hint:
                         partition_count += 1
 
-                assert npu_partitions == partition_count, \
-                    "Got {} ethos-n partitions, expected {}".format(partition_count, npu_partitions)
+                assert (
+                    npu_partitions == partition_count
+                ), "Got {} ethos-n partitions, expected {}".format(partition_count, npu_partitions)
 
             return relay.build(mod, params=params)
 
@@ -130,7 +132,9 @@ def run(graph, lib, params, inputs, outputs, npu=True):
     return out
 
 
-def build_and_run(mod, inputs, outputs, params, ctx=tvm.cpu(), npu=True, expected_host_ops=0, npu_partitions=1):
+def build_and_run(
+    mod, inputs, outputs, params, ctx=tvm.cpu(), npu=True, expected_host_ops=0, npu_partitions=1
+):
     graph, lib, params = build(mod, params, npu, expected_host_ops, npu_partitions)
     return run(graph, lib, params, inputs, outputs, npu)
 
@@ -138,26 +142,24 @@ def build_and_run(mod, inputs, outputs, params, ctx=tvm.cpu(), npu=True, expecte
 def verify(answers, atol, rtol=1e-07, verify_saturation=True):
     """Compare the array of answers. Each entry is a list of outputs"""
     if len(answers) < 2:
-        print("No results to compare: expected at least two, found ",
-              len(answers))
+        print("No results to compare: expected at least two, found ", len(answers))
     for answer in zip_longest(*answers):
         for outs in combinations(answer, 2):
             if verify_saturation:
-                assert np.count_nonzero(outs[0].asnumpy() == 255) < 0.25 * outs[0].asnumpy().size, \
-                    "Output is saturated: {}".format(outs[0])
-                assert np.count_nonzero(outs[0].asnumpy() == 0) < 0.25 * outs[0].asnumpy().size, \
-                    "Output is saturated: {}".format(outs[0])
-            tvm.testing.assert_allclose(
-                outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol
-            )
+                assert (
+                    np.count_nonzero(outs[0].asnumpy() == 255) < 0.25 * outs[0].asnumpy().size
+                ), "Output is saturated: {}".format(outs[0])
+                assert (
+                    np.count_nonzero(outs[0].asnumpy() == 0) < 0.25 * outs[0].asnumpy().size
+                ), "Output is saturated: {}".format(outs[0])
+            tvm.testing.assert_allclose(outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol)
 
 
 def inference_result(checksum, outputs):
     """Set the expected results of an Ethos inference, if the testing
     infrastructure is available. This assumes that the entire graph
     was offloaded to the neural processor."""
-    if tvm.get_global_func(
-            "relay.ethos-n.test.infra.inference_result", True):
+    if tvm.get_global_func("relay.ethos-n.test.infra.inference_result", True):
         return _infrastructure.inference_result(checksum, *outputs)
     return False
 
@@ -165,7 +167,7 @@ def inference_result(checksum, outputs):
 def test_error(mod, params, err_msg):
     caught = None
     with tvm.transform.PassContext(opt_level=3):
-        with tvm.target.create("llvm"):
+        with tvm.target.Target("llvm"):
             try:
                 relay.build(mod, params)
             except tvm.error.TVMError as e:

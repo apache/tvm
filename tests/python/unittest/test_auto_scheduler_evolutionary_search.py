@@ -24,16 +24,18 @@ from tvm.auto_scheduler.cost_model.cost_model import PythonBasedModel
 
 class MockCostModel(PythonBasedModel):
     """A mock cost model that rates 1 only for the states with tile_k=2."""
+
     def predict(self, task, states):
         scores = []
         found = False
         for state in states:
-            for line in str(state).split('\n'):
-                if line.find('k.1') != -1 and line.find('(0,2)') != -1:
+            for line in str(state).split("\n"):
+                if line.find("k.1") != -1 and line.find("(0,2)") != -1:
                     found = True
                     break
             scores.append(1 if found else 0)
         return scores
+
 
 def test_evo_search():
     """Test evolutionary search. Since we cannot mock random number generator,
@@ -44,15 +46,15 @@ def test_evo_search():
     """
     workload_key = auto_scheduler.make_workload_key(matmul_auto_scheduler_test, (10, 10, 4))
     dag = auto_scheduler.ComputeDAG(workload_key)
-    task = auto_scheduler.SearchTask(dag, workload_key, tvm.target.create('llvm'))
+    task = auto_scheduler.SearchTask(dag, workload_key, tvm.target.Target("llvm"))
     policy = auto_scheduler.SketchPolicy(task, schedule_cost_model=MockCostModel(), verbose=0)
     states = policy.sample_initial_population(50)
     pruned_states = []
     for state in states:
         found = False
-        for line in str(state).split('\n'):
+        for line in str(state).split("\n"):
             # Remove all tile_k=2 states and expect evo search will fine them.
-            if line.find('k.1') != -1 and line.find('(0,2)') != -1:
+            if line.find("k.1") != -1 and line.find("(0,2)") != -1:
                 found = True
                 break
         if not found:
@@ -61,9 +63,9 @@ def test_evo_search():
     new_states = policy.evolutionary_search(pruned_states, 50)
     found = False
     for state in new_states:
-        for line in str(state).split('\n'):
+        for line in str(state).split("\n"):
             # Check if evo search found at least one state with tile_k=2.
-            if line.find('k.1') != -1 and line.find('(0,2)') != -1:
+            if line.find("k.1") != -1 and line.find("(0,2)") != -1:
                 found = True
                 break
         if found:

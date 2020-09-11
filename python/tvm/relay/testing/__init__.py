@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=invalid-name
+# pylint: disable=invalid-name
 """Utilities for testing and benchmarks"""
 from __future__ import absolute_import as _abs
 import collections
@@ -66,14 +66,9 @@ def _np_randn_from_type(t, scale=1, mean=0):
     return (mean + (scale * np.random.randn(*(int(d) for d in t.shape)))).astype(t.dtype)
 
 
-def check_grad(func,
-               inputs=None,
-               test_inputs=None,
-               eps=1e-6,
-               atol=1e-5,
-               rtol=1e-3,
-               scale=None,
-               mean=0):
+def check_grad(
+    func, inputs=None, test_inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, mean=0
+):
     """Perform numerical gradient checking given a relay function.
 
     Compare analytical gradients to numerical gradients derived from two-sided approximation. Note
@@ -167,10 +162,12 @@ def rand(dtype, *shape):
 
 def count_ops(expr):
     """count number of times a given op is called in the graph"""
+
     class OpCounter(tvm.relay.ExprVisitor):
         """OpCounter"""
+
         def visit_call(self, call):
-            if hasattr(call, 'op'):
+            if hasattr(call, "op"):
                 self.node_counter[call.op.name] += 1
             return super().visit_call(call)
 

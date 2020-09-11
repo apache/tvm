@@ -20,6 +20,7 @@ from tvm.runtime import profiler_vm
 from tvm import relay
 from tvm.relay.testing import resnet, enabled_targets
 
+
 def test_basic():
     mod, params = resnet.get_workload()
     if not profiler_vm.enabled():
@@ -29,10 +30,11 @@ def test_basic():
         exe = relay.vm.compile(mod, target, params=params)
         vm = profiler_vm.VirtualMachineProfiler(exe, ctx)
 
-        data = np.random.rand(1, 3, 224, 224).astype('float32')
+        data = np.random.rand(1, 3, 224, 224).astype("float32")
         res = vm.invoke("main", [data])
         print("\n{}".format(vm.get_stat()))
         print("\n{}".format(vm.get_stat(False)))
+
 
 if __name__ == "__main__":
     test_basic()

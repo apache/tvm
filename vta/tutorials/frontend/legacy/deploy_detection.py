@@ -62,6 +62,7 @@ from tvm.contrib import graph_runtime, graph_runtime, util
 from tvm.contrib.download import download_testdata
 from vta.testing import simulator
 from vta.top import graph_pack
+
 # Make sure that TVM was compiled with RPC=1
 assert tvm.runtime.enabled("rpc")
 
@@ -69,39 +70,42 @@ assert tvm.runtime.enabled("rpc")
 # Download yolo net configure file, weight file, darknet library file based on
 # Model Name
 # ----------------------------------------------------------------------------
-MODEL_NAME = 'yolov3-tiny'
-REPO_URL = 'https://github.com/dmlc/web-data/blob/master/darknet/'
+MODEL_NAME = "yolov3-tiny"
+REPO_URL = "https://github.com/dmlc/web-data/blob/master/darknet/"
 
-cfg_path = download_testdata('https://github.com/pjreddie/darknet/blob/master/cfg/'
-                             + MODEL_NAME + '.cfg' + '?raw=true',
-                             MODEL_NAME + '.cfg',
-                             module="darknet")
-weights_path = download_testdata('https://pjreddie.com/media/files/'
-                                 + MODEL_NAME + '.weights' + '?raw=true',
-                                 MODEL_NAME + '.weights',
-                                 module="darknet")
+cfg_path = download_testdata(
+    "https://github.com/pjreddie/darknet/blob/master/cfg/" + MODEL_NAME + ".cfg" + "?raw=true",
+    MODEL_NAME + ".cfg",
+    module="darknet",
+)
+weights_path = download_testdata(
+    "https://pjreddie.com/media/files/" + MODEL_NAME + ".weights" + "?raw=true",
+    MODEL_NAME + ".weights",
+    module="darknet",
+)
 
-if sys.platform in ['linux', 'linux2']:
-    darknet_lib_path = download_testdata(REPO_URL + 'lib/' + 'libdarknet2.0.so' + '?raw=true',
-                                         'libdarknet2.0.so',
-                                         module="darknet")
-elif sys.platform == 'darwin':
-    darknet_lib_path = download_testdata(REPO_URL+'lib_osx/'+'libdarknet_mac2.0.so'+'?raw=true',
-                                         'libdarknet_mac2.0.so',
-                                         module="darknet")
+if sys.platform in ["linux", "linux2"]:
+    darknet_lib_path = download_testdata(
+        REPO_URL + "lib/" + "libdarknet2.0.so" + "?raw=true", "libdarknet2.0.so", module="darknet"
+    )
+elif sys.platform == "darwin":
+    darknet_lib_path = download_testdata(
+        REPO_URL + "lib_osx/" + "libdarknet_mac2.0.so" + "?raw=true",
+        "libdarknet_mac2.0.so",
+        module="darknet",
+    )
 else:
-    raise NotImplementedError("Darknet lib is not supported on {} platform"
-                              .format(sys.platform))
+    raise NotImplementedError("Darknet lib is not supported on {} platform".format(sys.platform))
 
 ##################################################
 # Download yolo categories and illustration front.
 # ------------------------------------------------
-coco_path = download_testdata(REPO_URL + 'data/' + 'coco.names' + '?raw=true',
-                              'coco.names',
-                              module='data')
-font_path = download_testdata(REPO_URL + 'data/' + 'arial.ttf' + '?raw=true',
-                              'arial.ttf',
-                              module='data')
+coco_path = download_testdata(
+    REPO_URL + "data/" + "coco.names" + "?raw=true", "coco.names", module="data"
+)
+font_path = download_testdata(
+    REPO_URL + "data/" + "arial.ttf" + "?raw=true", "arial.ttf", module="data"
+)
 with open(coco_path) as f:
     content = f.readlines()
 names = [x.strip() for x in content]
@@ -154,10 +158,9 @@ if env.TARGET not in ["sim", "tsim"]:
     if not tracker_host or not tracker_port:
         remote = rpc.connect(device_host, int(device_port))
     else:
-        remote = autotvm.measure.request_remote(env.TARGET,
-                                                tracker_host,
-                                                int(tracker_port),
-                                                timeout=10000)
+        remote = autotvm.measure.request_remote(
+            env.TARGET, tracker_host, int(tracker_port), timeout=10000
+        )
     # Reconfigure the JIT runtime and FPGA.
     # You can program the FPGA with your own custom bitstream
     # by passing the path to the bitstream file instead of None.
@@ -192,11 +195,11 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 
 # Load pre-configured AutoTVM schedules
 with autotvm.tophub.context(target):
-    net = __darknetffi__.dlopen(darknet_lib_path).load_network(cfg_path.encode('utf-8'),
-                                                               weights_path.encode('utf-8'),
-                                                               0)
+    net = __darknetffi__.dlopen(darknet_lib_path).load_network(
+        cfg_path.encode("utf-8"), weights_path.encode("utf-8"), 0
+    )
     dshape = (env.BATCH, net.c, net.h, net.w)
-    dtype = 'float32'
+    dtype = "float32"
 
     # Measure build start time
     build_start = time.time()
@@ -205,13 +208,15 @@ with autotvm.tophub.context(target):
     mod, params = relay.frontend.from_darknet(net, dtype=dtype, shape=dshape)
 
     if target.device_name == "vta":
-    # Perform quantization in Relay
-    # Note: We set opt_level to 3 in order to fold batch norm
+        # Perform quantization in Relay
+        # Note: We set opt_level to 3 in order to fold batch norm
         with tvm.transform.PassContext(opt_level=3):
-            with relay.quantize.qconfig(global_scale=33.0,
-                                        skip_conv_layers=[0],
-                                        store_lowbit_output=True,
-                                        round_for_shift=True):
+            with relay.quantize.qconfig(
+                global_scale=33.0,
+                skip_conv_layers=[0],
+                store_lowbit_output=True,
+                round_for_shift=True,
+            ):
                 mod = relay.quantize.quantize(mod, params=params)
             # Perform graph packing and constant folding for VTA target
             mod = graph_pack(
@@ -222,17 +227,16 @@ with autotvm.tophub.context(target):
                 start_name=pack_dict[MODEL_NAME][0],
                 stop_name=pack_dict[MODEL_NAME][1],
                 start_name_idx=pack_dict[MODEL_NAME][2],
-                stop_name_idx=pack_dict[MODEL_NAME][3])
+                stop_name_idx=pack_dict[MODEL_NAME][3],
+            )
     else:
         mod = mod["main"]
 
     # Compile Relay program with AlterOpLayout disabled
     with vta.build_config(disabled_pass={"AlterOpLayout"}):
         graph, lib, params = relay.build(
-            mod,
-            target=target,
-            params=params,
-            target_host=env.target_host)
+            mod, target=target, params=params, target_host=env.target_host
+        )
 
     # Measure Relay build time
     build_time = time.time() - build_start
@@ -253,8 +257,8 @@ with autotvm.tophub.context(target):
 # We run detect on an downloaded image
 # Download test image
 [neth, netw] = dshape[2:]
-test_image = 'person.jpg'
-img_url = REPO_URL + 'data/' + test_image + '?raw=true'
+test_image = "person.jpg"
+img_url = REPO_URL + "data/" + test_image + "?raw=true"
 img_path = download_testdata(img_url, test_image, "data")
 data = darknet.load_image(img_path, neth, netw).transpose(1, 2, 0)
 
@@ -266,13 +270,13 @@ data = data[np.newaxis, :]
 data = np.repeat(data, env.BATCH, axis=0)
 
 # Set the network parameters and inputs
-m.set_input('data', data)
+m.set_input("data", data)
 m.set_input(**params)
 
 # Perform inference and gather execution statistics
 # More on: :py:method:`tvm.runtime.Module.time_evaluator`
-num = 4 # number of times we run module for a single measurement
-rep = 3 # number of measurements (we derive std dev from this)
+num = 4  # number of times we run module for a single measurement
+rep = 3  # number of measurements (we derive std dev from this)
 timer = m.module.time_evaluator("run", ctx, number=num, repeat=rep)
 
 if env.TARGET in ["sim", "tsim"]:
@@ -290,7 +294,7 @@ else:
     std = np.std(tcost.results) * 1000
     mean = tcost.mean * 1000
     print("\nPerformed inference in %.2fms (std = %.2f) for %d samples" % (mean, std, env.BATCH))
-    print("Average per sample inference time: %.2fms" % (mean/env.BATCH))
+    print("Average per sample inference time: %.2fms" % (mean / env.BATCH))
 
 # Get detection results from out
 thresh = 0.5
@@ -298,33 +302,23 @@ nms_thresh = 0.45
 tvm_out = []
 for i in range(2):
     layer_out = {}
-    layer_out['type'] = 'Yolo'
+    layer_out["type"] = "Yolo"
     # Get the yolo layer attributes (n, out_c, out_h, out_w, classes, total)
-    layer_attr = m.get_output(i*4+3).asnumpy()
-    layer_out['biases'] = m.get_output(i*4+2).asnumpy()
-    layer_out['mask'] = m.get_output(i*4+1).asnumpy()
-    out_shape = (layer_attr[0], layer_attr[1]//layer_attr[0],
-                 layer_attr[2], layer_attr[3])
-    layer_out['output'] = m.get_output(i*4).asnumpy().reshape(out_shape)
-    layer_out['classes'] = layer_attr[4]
+    layer_attr = m.get_output(i * 4 + 3).asnumpy()
+    layer_out["biases"] = m.get_output(i * 4 + 2).asnumpy()
+    layer_out["mask"] = m.get_output(i * 4 + 1).asnumpy()
+    out_shape = (layer_attr[0], layer_attr[1] // layer_attr[0], layer_attr[2], layer_attr[3])
+    layer_out["output"] = m.get_output(i * 4).asnumpy().reshape(out_shape)
+    layer_out["classes"] = layer_attr[4]
     tvm_out.append(layer_out)
     thresh = 0.560
 
 # Show detection results
 img = darknet.load_image_color(img_path)
 _, im_h, im_w = img.shape
-dets = yolo_detection.fill_network_boxes((netw, neth),
-                                         (im_w, im_h),
-                                         thresh,
-                                         1,
-                                         tvm_out)
+dets = yolo_detection.fill_network_boxes((netw, neth), (im_w, im_h), thresh, 1, tvm_out)
 last_layer = net.layers[net.n - 1]
 yolo_detection.do_nms_sort(dets, last_layer.classes, nms_thresh)
-yolo_detection.draw_detections(font_path,
-                               img,
-                               dets,
-                               thresh,
-                               names,
-                               last_layer.classes)
+yolo_detection.draw_detections(font_path, img, dets, thresh, names, last_layer.classes)
 plt.imshow(img.transpose(1, 2, 0))
 plt.show()

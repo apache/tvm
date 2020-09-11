@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument, not-context-manager
+# pylint: disable=unused-argument, not-context-manager
 """Automatic quantization toolkit."""
 import tvm.ir
 import tvm
@@ -30,6 +30,7 @@ from .. import transform as _transform
 class QAnnotateKind(object):
     """Denote the kind of annotation field, corresponding
     to different nbit configure."""
+
     IDENTITY = 0
     INPUT = 1
     WEIGHT = 2
@@ -42,7 +43,7 @@ def kind2str(kind):
         QAnnotateKind.INPUT: "input",
         QAnnotateKind.WEIGHT: "weight",
         QAnnotateKind.ACTIVATION: "activation",
-        QAnnotateKind.IDENTITY: "identity"
+        QAnnotateKind.IDENTITY: "identity",
     }
     assert kind in str_map
     return str_map[kind]
@@ -50,8 +51,7 @@ def kind2str(kind):
 
 def _forward_op(ref_call, args):
     """forward the operator of ref_call with provided arguments"""
-    return _expr.Call(
-        ref_call.op, args, ref_call.attrs, ref_call.type_args)
+    return _expr.Call(ref_call.op, args, ref_call.attrs, ref_call.type_args)
 
 
 @tvm._ffi.register_object("relay.quantize.QConfig")
@@ -112,11 +112,11 @@ class QConfig(Object):
 
     def get_nbit_by_kind(self, kind):
         name = kind2str(kind)
-        return getattr(self, 'nbit_' + name)
+        return getattr(self, "nbit_" + name)
 
     def get_dtype_by_kind(self, kind):
         name = kind2str(kind)
-        return getattr(self, 'dtype_' + name)
+        return getattr(self, "dtype_" + name)
 
     def __enter__(self):
         # pylint: disable=protected-access
@@ -128,8 +128,7 @@ class QConfig(Object):
 
     def __setattr__(self, name, value):
         if name in QConfig._node_defaults:
-            raise AttributeError(
-                "'%s' object cannot set attribute '%s'" % (str(type(self)), name))
+            raise AttributeError("'%s' object cannot set attribute '%s'" % (str(type(self)), name))
         return super(QConfig, self).__setattr__(name, value)
 
 
@@ -197,14 +196,14 @@ def qconfig(**kwargs):
     config: QConfig
         The quantization configuration
     """
-    node_args = {k: v if k not in kwargs else kwargs[k]
-                 for k, v in QConfig._node_defaults.items()}
+    node_args = {k: v if k not in kwargs else kwargs[k] for k, v in QConfig._node_defaults.items()}
     return tvm.ir.make_node("relay.quantize.QConfig", **node_args)
 
 
 class QuantizeContext(object):
     """An internal used global context object for annotation,
     for putting some state variables like `conv2d_counter`."""
+
     Current = None
 
     def __init__(self):
@@ -222,10 +221,10 @@ class QuantizeContext(object):
             # check skip conv layers
             skipped_indices = [int(x) for x in current_qconfig().skip_conv_layers]
             if self._conv2d_counter in skipped_indices:
-                if ref_call.op.name == 'nn.conv2d':
+                if ref_call.op.name == "nn.conv2d":
                     self._conv2d_counter += 1
                 return True
-            if ref_call.op.name == 'nn.conv2d':
+            if ref_call.op.name == "nn.conv2d":
                 self._conv2d_counter += 1
 
         return False
@@ -292,8 +291,7 @@ def realize():
 
 
 def _bind_params(func, params):
-    """Bind the params to the expression.
-    """
+    """Bind the params to the expression."""
     name_dict = {}
     for arg in func.params:
         name = arg.name_hint
@@ -313,25 +311,28 @@ def _bind_params(func, params):
 
 
 def prerequisite_optimize(mod, params=None):
-    """ Prerequisite optimization passes for quantization. Perform
+    """Prerequisite optimization passes for quantization. Perform
     "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
-    "CanonicalizeOps" optimization before quantization. """
+    "CanonicalizeOps" optimization before quantization."""
     optimize = tvm.transform.Sequential(
-        [_transform.SimplifyInference(),
-         _transform.FoldConstant(),
-         _transform.FoldScaleAxis(),
-         _transform.CanonicalizeOps(),
-         _transform.FoldConstant()])
+        [
+            _transform.SimplifyInference(),
+            _transform.FoldConstant(),
+            _transform.FoldScaleAxis(),
+            _transform.CanonicalizeOps(),
+            _transform.FoldConstant(),
+        ]
+    )
 
     if params:
-        mod['main'] = _bind_params(mod['main'], params)
+        mod["main"] = _bind_params(mod["main"], params)
 
     mod = optimize(mod)
     return mod
 
 
 def quantize(mod, params=None, dataset=None):
-    """ The quantization procedure. Before running the three main
+    """The quantization procedure. Before running the three main
     procedure of quantization, "annotate", "calibrate" and "realize"
     , we need to do "SimplifyInference", "FoldScaleAxis", "FoldConstant"
     first for optimizing.
@@ -356,27 +357,24 @@ def quantize(mod, params=None, dataset=None):
     mod = prerequisite_optimize(mod, params)
 
     calibrate_pass = tvm.transform.module_pass(
-        calibrate(dataset), opt_level=1,
-        name="QuantizeCalibrate")
-    quant_passes = [partition(),
-                    annotate(),
-                    calibrate_pass]
+        calibrate(dataset), opt_level=1, name="QuantizeCalibrate"
+    )
+    quant_passes = [partition(), annotate(), calibrate_pass]
     if not current_qconfig().do_simulation:
         quant_passes.append(realize())
     quant_passes.append(_transform.FoldConstant())
     quantize_seq = tvm.transform.Sequential(quant_passes)
-    with tvm.transform.PassContext(opt_level=3,
-                                   required_pass=["QuantizeAnnotate",
-                                                  "QuantizeCalibrate",
-                                                  "QuantizeRealize"]):
+    with tvm.transform.PassContext(
+        opt_level=3, required_pass=["QuantizeAnnotate", "QuantizeCalibrate", "QuantizeRealize"]
+    ):
         with quantize_context():
             mod = quantize_seq(mod)
 
     q_cfg = current_qconfig()
-    assert q_cfg.partition_conversions in ['disabled', 'enabled', 'fully_integral']
-    if q_cfg.partition_conversions != 'disabled':
+    assert q_cfg.partition_conversions in ["disabled", "enabled", "fully_integral"]
+    if q_cfg.partition_conversions != "disabled":
         quantized_dtypes = {q_cfg.dtype_input, q_cfg.dtype_weight, q_cfg.dtype_activation}
-        ensure_fully_integral = q_cfg.partition_conversions == 'fully_integral'
+        ensure_fully_integral = q_cfg.partition_conversions == "fully_integral"
         return partition_conversions(mod, quantized_dtypes, ensure_fully_integral)
 
     return mod

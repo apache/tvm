@@ -31,14 +31,18 @@ def consistent_equal(x, y, map_free_vars=False):
     if struct_equal0 != struct_equal1:
         raise ValueError(
             "Non-communicative {} vs {}, sequal0={}, sequal1={}".format(
-                x, y, struct_equal0, struct_equal1))
+                x, y, struct_equal0, struct_equal1
+            )
+        )
 
     # NOTE: hash colision can happen but should be rare.
     # we can confirm that hash colison doesn't happen for our testcases
     if struct_equal0 != (xhash == yhash):
         raise ValueError(
             "Inconsistent {} vs {}, sequal={}, xhash={}, yhash={}".format(
-                x, y, struct_equal0, xhash, yhash))
+                x, y, struct_equal0, xhash, yhash
+            )
+        )
     return struct_equal0
 
 
@@ -74,18 +78,24 @@ def test_type_param_sequal():
     # only pointer equality and eq_map allow equal params
     assert t1 == t1
     assert t2 == t2
-    assert t1 != t2 # different kind
-    assert t1 != t3 # not in eq_map
+    assert t1 != t2  # different kind
+    assert t1 != t3  # not in eq_map
 
     # function types are the only way to put type params
     # in eq map
-    ft1 = relay.FuncType(tvm.runtime.convert([]), t1, tvm.runtime.convert([t1]), tvm.runtime.convert([]))
-    ft2 = relay.FuncType(tvm.runtime.convert([]), t3, tvm.runtime.convert([t3]), tvm.runtime.convert([]))
+    ft1 = relay.FuncType(
+        tvm.runtime.convert([]), t1, tvm.runtime.convert([t1]), tvm.runtime.convert([])
+    )
+    ft2 = relay.FuncType(
+        tvm.runtime.convert([]), t3, tvm.runtime.convert([t3]), tvm.runtime.convert([])
+    )
     # actually an invalid type because t2 is wrong kind
-    ft3 = relay.FuncType(tvm.runtime.convert([]), t2, tvm.runtime.convert([t2]), tvm.runtime.convert([]))
+    ft3 = relay.FuncType(
+        tvm.runtime.convert([]), t2, tvm.runtime.convert([t2]), tvm.runtime.convert([])
+    )
 
     assert ft1 == ft2
-    assert ft1 != ft3 # kinds still do not match
+    assert ft1 != ft3  # kinds still do not match
 
 
 def test_func_type_sequal():
@@ -104,47 +114,68 @@ def test_func_type_sequal():
     tr2 = relay.TypeRelation(broadcast, tvm.runtime.convert([tp2, tp4]), 1, None)
     tr3 = relay.TypeRelation(identity, tvm.runtime.convert([tp1, tp3]), 1, None)
 
-    ft = relay.FuncType(tvm.runtime.convert([t1, t2]), tp1,
-                         tvm.runtime.convert([tp1, tp3]),
-                         tvm.runtime.convert([tr1]))
-    translate_vars = relay.FuncType(tvm.runtime.convert([t1, t2]), tp2,
-                         tvm.runtime.convert([tp2, tp4]),
-                         tvm.runtime.convert([tr2]))
+    ft = relay.FuncType(
+        tvm.runtime.convert([t1, t2]),
+        tp1,
+        tvm.runtime.convert([tp1, tp3]),
+        tvm.runtime.convert([tr1]),
+    )
+    translate_vars = relay.FuncType(
+        tvm.runtime.convert([t1, t2]),
+        tp2,
+        tvm.runtime.convert([tp2, tp4]),
+        tvm.runtime.convert([tr2]),
+    )
     assert ft == translate_vars
 
-    different_args = relay.FuncType(tvm.runtime.convert([t1]), tp1,
-                         tvm.runtime.convert([tp1, tp3]),
-                         tvm.runtime.convert([tr1]))
+    different_args = relay.FuncType(
+        tvm.runtime.convert([t1]), tp1, tvm.runtime.convert([tp1, tp3]), tvm.runtime.convert([tr1])
+    )
     assert ft != different_args
 
-    different_order = relay.FuncType(tvm.runtime.convert([t2, t1]), tp1,
-                         tvm.runtime.convert([tp1, tp3]),
-                         tvm.runtime.convert([tr1]))
+    different_order = relay.FuncType(
+        tvm.runtime.convert([t2, t1]),
+        tp1,
+        tvm.runtime.convert([tp1, tp3]),
+        tvm.runtime.convert([tr1]),
+    )
     assert ft != different_order
 
-    no_rel = relay.FuncType(tvm.runtime.convert([t1, t2]), tp1,
-                         tvm.runtime.convert([tp1, tp3]),
-                         tvm.runtime.convert([]))
+    no_rel = relay.FuncType(
+        tvm.runtime.convert([t1, t2]), tp1, tvm.runtime.convert([tp1, tp3]), tvm.runtime.convert([])
+    )
     assert ft != no_rel
 
-    more_vars = relay.FuncType(tvm.runtime.convert([t1, t2]), tp2,
-                         tvm.runtime.convert([tp1, tp2, tp3]),
-                         tvm.runtime.convert([tr1]))
+    more_vars = relay.FuncType(
+        tvm.runtime.convert([t1, t2]),
+        tp2,
+        tvm.runtime.convert([tp1, tp2, tp3]),
+        tvm.runtime.convert([tr1]),
+    )
     assert ft != more_vars
 
-    all_the_vars = relay.FuncType(tvm.runtime.convert([t1, t2]), tp1,
-                         tvm.runtime.convert([tp1, tp2, tp3, tp4]),
-                         tvm.runtime.convert([tr1, tr2]))
+    all_the_vars = relay.FuncType(
+        tvm.runtime.convert([t1, t2]),
+        tp1,
+        tvm.runtime.convert([tp1, tp2, tp3, tp4]),
+        tvm.runtime.convert([tr1, tr2]),
+    )
     assert ft != all_the_vars
 
-    different_rel = relay.FuncType(tvm.runtime.convert([t1, t2]), tp1,
-                                   tvm.runtime.convert([tp1, tp3]),
-                                   tvm.runtime.convert([tr3]))
+    different_rel = relay.FuncType(
+        tvm.runtime.convert([t1, t2]),
+        tp1,
+        tvm.runtime.convert([tp1, tp3]),
+        tvm.runtime.convert([tr3]),
+    )
     assert ft != different_rel
 
-    more_rels = relay.FuncType(tvm.runtime.convert([t1, t2]), tp1,
-                                   tvm.runtime.convert([tp1, tp3]),
-                                   tvm.runtime.convert([tr1, tr3]))
+    more_rels = relay.FuncType(
+        tvm.runtime.convert([t1, t2]),
+        tp1,
+        tvm.runtime.convert([tp1, tp3]),
+        tvm.runtime.convert([tr1, tr3]),
+    )
     assert ft != more_rels
 
 
@@ -176,9 +207,9 @@ def test_type_relation_sequal():
     broadcast = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Broadcast")
     identity = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Identity")
 
-    attr1 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr1_same = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr2 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4,4))
+    attr1 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3, 4))
+    attr1_same = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3, 4))
+    attr2 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3, 4, 4))
 
     tr = relay.TypeRelation(broadcast, tvm.runtime.convert([t1, t2]), 1, attr1)
     same = relay.TypeRelation(broadcast, tvm.runtime.convert([t1, t2]), 1, attr1)
@@ -201,6 +232,7 @@ def test_type_relation_sequal():
     assert tr != bigger
 
     assert bigger != diff_num_inputs
+
 
 def test_type_call_sequal():
     h1 = relay.GlobalTypeVar("h1")
@@ -233,24 +265,28 @@ def test_constant_sequal():
     assert not consistent_equal(x, y)
     assert consistent_equal(x, relay.const(1))
 
+
 def test_type_node_sequal():
-    v1 = relay.TypeVar('v1', 6)
-    v2 = relay.TypeVar('v2', 6)
+    v1 = relay.TypeVar("v1", 6)
+    v2 = relay.TypeVar("v2", 6)
     assert not consistent_equal(v1, v2)
 
-    v1 = relay.TypeVar('v1', 0)
-    v2 = relay.TypeVar('v2', 6)
+    v1 = relay.TypeVar("v1", 0)
+    v2 = relay.TypeVar("v2", 6)
     assert not consistent_equal(v1, v2)
+
 
 def test_type_node_incompatible_sequal():
-    v1 = relay.TypeVar('v1', 6)
+    v1 = relay.TypeVar("v1", 6)
     v2 = relay.Var("v2")
     assert not consistent_equal(v1, v2)
+
 
 def test_expr_node_incompatible_sequal():
     v1 = relay.Var("v1")
     v2 = relay.PatternVar(relay.Var("v2"))
     assert not consistent_equal(v1, v2)
+
 
 def test_var_sequal():
     v1 = relay.Var("v1")
@@ -312,56 +348,58 @@ def test_tuple_sequal():
 
     # use the eq_map
 
-
     let_tup = relay.Let(v1, tup, v1)
-    let_mapped = relay.Let(v2, relay.Tuple([v0, relay.const(2), relay.const(3),
-                                            relay.Tuple([relay.const(4)])]),
-                           v2)
+    let_mapped = relay.Let(
+        v2, relay.Tuple([v0, relay.const(2), relay.const(3), relay.Tuple([relay.const(4)])]), v2
+    )
 
     assert consistent_equal(let_tup, let_mapped)
 
-    more_fields = relay.Tuple([v1, relay.const(2), relay.const(3), relay.Tuple([relay.const(4)]), v2])
+    more_fields = relay.Tuple(
+        [v1, relay.const(2), relay.const(3), relay.Tuple([relay.const(4)]), v2]
+    )
     assert not consistent_equal(tup, more_fields)
 
     fewer_fields = relay.Tuple([v1, relay.const(2), relay.const(3)])
     assert not consistent_equal(tup, fewer_fields)
 
-    different_end = relay.Tuple([v1, relay.const(2), relay.const(3),
-                           relay.Tuple([relay.const(5)])])
+    different_end = relay.Tuple([v1, relay.const(2), relay.const(3), relay.Tuple([relay.const(5)])])
     assert not consistent_equal(tup, different_end)
 
-    different_start = relay.Tuple([v2, relay.const(2), relay.const(3),
-                                 relay.Tuple([relay.const(4)])])
+    different_start = relay.Tuple(
+        [v2, relay.const(2), relay.const(3), relay.Tuple([relay.const(4)])]
+    )
     assert not consistent_equal(tup, different_start)
 
-    longer_at_end = relay.Tuple([v1, relay.const(2), relay.const(3),
-                                 relay.Tuple([relay.const(4), relay.const(5)])])
+    longer_at_end = relay.Tuple(
+        [v1, relay.const(2), relay.const(3), relay.Tuple([relay.const(4), relay.const(5)])]
+    )
     assert not consistent_equal(tup, longer_at_end)
 
 
 def test_tuple_get_item_sequal():
-    x = relay.Var('x')
-    y = relay.Var('y')
+    x = relay.Var("x")
+    y = relay.Var("y")
     assert not consistent_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(y, 1))
     assert not consistent_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 2))
     assert consistent_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 1))
 
 
 def test_function_attr():
-    x0 = relay.var('x0', shape=(10, 10))
-    w00 = relay.var('w00', shape=(10, 10))
-    w01 = relay.var('w01', shape=(10, 10))
-    w02 = relay.var('w02', shape=(10, 10))
+    x0 = relay.var("x0", shape=(10, 10))
+    w00 = relay.var("w00", shape=(10, 10))
+    w01 = relay.var("w01", shape=(10, 10))
+    w02 = relay.var("w02", shape=(10, 10))
     z00 = relay.add(x0, w00)
     p00 = relay.subtract(z00, w01)
     q00 = relay.multiply(p00, w02)
     func0 = relay.Function([x0, w00, w01, w02], q00)
     func0 = func0.with_attr("FuncName", "a")
 
-    x1 = relay.var('x1', shape=(10, 10))
-    w10 = relay.var('w10', shape=(10, 10))
-    w11 = relay.var('w11', shape=(10, 10))
-    w12 = relay.var('w12', shape=(10, 10))
+    x1 = relay.var("x1", shape=(10, 10))
+    w10 = relay.var("w10", shape=(10, 10))
+    w11 = relay.var("w11", shape=(10, 10))
+    w12 = relay.var("w12", shape=(10, 10))
     z10 = relay.add(x1, w10)
     p10 = relay.subtract(z10, w11)
     q10 = relay.multiply(p10, w12)
@@ -389,25 +427,22 @@ def test_function_sequal():
     basic_args = [relay.Var("v3", tt1), relay.Var("v4", tt2)]
     basic_tps = [tp1, tp2]
 
-    func = relay.Function([v1, v2], v1,
-                          tt2, basic_tps)
+    func = relay.Function([v1, v2], v1, tt2, basic_tps)
     mapped = relay.Function(basic_args, basic_args[0], tt2, basic_tps)
     assert consistent_equal(func, mapped)
 
     fewer_params = relay.Function([relay.Var("v4", tt2)], v4, tt2, basic_tps)
     assert not consistent_equal(func, fewer_params)
 
-    more_params = relay.Function([relay.Var("v3", tt1),
-                                  relay.Var("v4", tt2),
-                                  relay.Var("v2", tt2)], v4, tt2, basic_tps)
+    more_params = relay.Function(
+        [relay.Var("v3", tt1), relay.Var("v4", tt2), relay.Var("v2", tt2)], v4, tt2, basic_tps
+    )
     assert not consistent_equal(func, more_params)
 
-    params_unordered = relay.Function([v2, v1], v1,
-                                      tt2, basic_tps)
+    params_unordered = relay.Function([v2, v1], v1, tt2, basic_tps)
     assert not consistent_equal(func, params_unordered)
 
-    params_mismatch = relay.Function([v1, v3], v1,
-                                     tt2, basic_tps)
+    params_mismatch = relay.Function([v1, v3], v1, tt2, basic_tps)
     assert not consistent_equal(func, params_mismatch)
 
     # also would not typecheck
@@ -447,9 +482,9 @@ def test_call_sequal():
     v1 = relay.Var("v1")
     v2 = relay.Var("v2")
 
-    attr1 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr1_same = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr2 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4,4))
+    attr1 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3, 4))
+    attr1_same = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3, 4))
+    attr2 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3, 4, 4))
 
     tt1 = relay.TensorType((1, 2, 3), "float32")
     tt2 = relay.TensorType((), "int8")
@@ -458,8 +493,7 @@ def test_call_sequal():
 
     # manually writing out args to ensure that args does not rely on
     # pointer equality
-    call = relay.Call(v1, [relay.const(1), relay.const(2), v2, relay.Tuple([])],
-                      attr1, [tt1])
+    call = relay.Call(v1, [relay.const(1), relay.const(2), v2, relay.Tuple([])], attr1, [tt1])
     same = relay.Call(v1, basic_args, attr1, [tt1])
     assert consistent_equal(call, same)
 
@@ -469,16 +503,20 @@ def test_call_sequal():
     fewer_args = relay.Call(v1, [relay.const(1), relay.const(2), v2], attr1, [tt1])
     assert not consistent_equal(call, fewer_args)
 
-    reordered_args = relay.Call(v1, [relay.const(2), relay.const(1),
-                                     relay.Tuple([]), v2], attr1, [tt1])
+    reordered_args = relay.Call(
+        v1, [relay.const(2), relay.const(1), relay.Tuple([]), v2], attr1, [tt1]
+    )
     assert not consistent_equal(call, reordered_args)
 
-    different_args = relay.Call(v1, [relay.const(1), relay.const(2), relay.const(3)],
-                                attr1, [tt1])
+    different_args = relay.Call(v1, [relay.const(1), relay.const(2), relay.const(3)], attr1, [tt1])
     assert not consistent_equal(call, different_args)
 
-    more_args = relay.Call(v1, [relay.const(1), relay.const(2), v2, relay.Tuple([]),
-                                relay.const(3), relay.const(4)], attr1, [tt1])
+    more_args = relay.Call(
+        v1,
+        [relay.const(1), relay.const(2), v2, relay.Tuple([]), relay.const(3), relay.const(4)],
+        attr1,
+        [tt1],
+    )
     assert not consistent_equal(call, more_args)
 
     different_attrs = relay.Call(v1, basic_args, attr2, [tt1])
@@ -561,20 +599,18 @@ def test_match_sequal():
     mod = tvm.IRModule()
     p = relay.prelude.Prelude(mod)
 
-    x = relay.Var('x')
-    y = relay.Var('y')
+    x = relay.Var("x")
+    y = relay.Var("y")
     nil_case = relay.Clause(relay.PatternConstructor(p.nil), p.nil())
-    cons_case = relay.Clause(relay.PatternConstructor(p.cons,
-                                                      [relay.PatternVar(x),
-                                                       relay.PatternVar(y)]),
-                       p.cons(x, y))
+    cons_case = relay.Clause(
+        relay.PatternConstructor(p.cons, [relay.PatternVar(x), relay.PatternVar(y)]), p.cons(x, y)
+    )
 
-    z = relay.Var('z')
-    a = relay.Var('a')
-    equivalent_cons = relay.Clause(relay.PatternConstructor(p.cons,
-                                                            [relay.PatternVar(z),
-                                                             relay.PatternVar(a)]),
-                                   p.cons(z, a))
+    z = relay.Var("z")
+    a = relay.Var("a")
+    equivalent_cons = relay.Clause(
+        relay.PatternConstructor(p.cons, [relay.PatternVar(z), relay.PatternVar(a)]), p.cons(z, a)
+    )
 
     data = p.cons(relay.const(1), p.cons(relay.const(2), p.nil()))
 
@@ -585,27 +621,33 @@ def test_match_sequal():
     no_nil = relay.Match(data, [cons_case])
     different_data = relay.Match(p.nil(), [nil_case, cons_case])
     different_order = relay.Match(data, [cons_case, nil_case])
-    different_nil = relay.Match(data, [
-        relay.Clause(relay.PatternConstructor(p.nil), p.cons(p.nil(), p.nil())),
-        cons_case
-    ])
-    different_cons = relay.Match(data, [
-        nil_case,
-        relay.Clause(relay.PatternConstructor(p.cons,
-                                              [relay.PatternWildcard(),
-                                               relay.PatternWildcard()]),
-                     p.nil())
-    ])
-    another_case = relay.Match(data, [
-        nil_case,
-        cons_case,
-        relay.Clause(relay.PatternWildcard(), p.nil())
-    ])
-    wrong_constructors = relay.Match(data, [
-        relay.Clause(relay.PatternConstructor(p.none), p.nil()),
-        relay.Clause(relay.PatternConstructor(p.some, [relay.PatternVar(x)]),
-                     p.cons(x, p.nil()))
-    ])
+    different_nil = relay.Match(
+        data, [relay.Clause(relay.PatternConstructor(p.nil), p.cons(p.nil(), p.nil())), cons_case]
+    )
+    different_cons = relay.Match(
+        data,
+        [
+            nil_case,
+            relay.Clause(
+                relay.PatternConstructor(
+                    p.cons, [relay.PatternWildcard(), relay.PatternWildcard()]
+                ),
+                p.nil(),
+            ),
+        ],
+    )
+    another_case = relay.Match(
+        data, [nil_case, cons_case, relay.Clause(relay.PatternWildcard(), p.nil())]
+    )
+    wrong_constructors = relay.Match(
+        data,
+        [
+            relay.Clause(relay.PatternConstructor(p.none), p.nil()),
+            relay.Clause(
+                relay.PatternConstructor(p.some, [relay.PatternVar(x)]), p.cons(x, p.nil())
+            ),
+        ],
+    )
 
     tvm.ir.assert_structural_equal(match, match)
     assert consistent_equal(match, match)
@@ -651,6 +693,7 @@ def test_graph_equal():
     # Check the difference in the text format.
     assert not consistent_equal(z0, z3)
 
+
 def test_hash_unequal():
     x1 = relay.var("x1", shape=(10, 10), dtype="float32")
     y1 = relay.var("y1", shape=(10, 10), dtype="float32")
@@ -671,7 +714,6 @@ def test_hash_unequal():
     assert not consistent_equal(func1, func3)
 
 
-
 def test_tuple_match():
     a = relay.Var("a")
     b = relay.Var("b")
@@ -687,15 +729,15 @@ def test_tuple_match():
 
 def test_fn_attribute():
     # create function that performs add
-    a = relay.var('a', shape=(10, 10))
-    b = relay.var('b', shape=(10, 10))
+    a = relay.var("a", shape=(10, 10))
+    b = relay.var("b", shape=(10, 10))
     add = relay.add(a, b)
     add_fn = relay.Function([a, b], add)
     add_fn = run_opt_pass(add_fn, relay.transform.InferType())
 
     # create function that performs add with test attribute
-    c = relay.var('c', shape=(10, 10))
-    d = relay.var('d', shape=(10, 10))
+    c = relay.var("c", shape=(10, 10))
+    d = relay.var("d", shape=(10, 10))
     add_1 = relay.add(c, d)
     add_1_fn = relay.Function([c, d], add_1)
     add_1_fn = add_1_fn.with_attr("TestAttribute", "test")
@@ -705,7 +747,18 @@ def test_fn_attribute():
     assert not consistent_equal(add_fn, add_1_fn)
 
 
+def test_fn_vid_map():
+    def get_fn(with_vid):
+        x = relay.var("x", shape=(10,), dtype="float32")
+        f = relay.Function([x], x).with_attr("dict", {x.vid: 1} if with_vid else {x: 1})
+        return f
+
+    assert consistent_equal(get_fn(True), get_fn(True))
+    assert consistent_equal(get_fn(False), get_fn(False))
+
+
 if __name__ == "__main__":
+    test_fn_vid_map()
     test_tensor_type_sequal()
     test_incomplete_type_sequal()
     test_constant_sequal()

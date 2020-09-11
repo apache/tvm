@@ -42,12 +42,14 @@ def _get_model(shapes, dtype, axis):
 
     zeroi = relay.const(1, "int32")
     zerof = relay.const(0.5, "float32")
-    con = relay.qnn.op.concatenate(tup,
-                                   input_scales=[zerof]*len(shapes),
-                                   input_zero_points=[zeroi]*len(shapes),
-                                   output_scale=zerof,
-                                   output_zero_point=zeroi,
-                                   axis=axis)
+    con = relay.qnn.op.concatenate(
+        tup,
+        input_scales=[zerof] * len(shapes),
+        input_zero_points=[zeroi] * len(shapes),
+        output_scale=zerof,
+        output_zero_point=zeroi,
+        axis=axis,
+    )
     return con
 
 
@@ -58,7 +60,7 @@ def test_concatenate():
     trials = [
         ([(1, 4), (1, 6)], 1),
         ([(1, 16, 4), (1, 16, 4)], 1),
-        ([(1, 25, 4, 16)]*3, 3),
+        ([(1, 25, 4, 16)] * 3, 3),
         ([(1, 25, 4, 16), (1, 25, 5, 16), (1, 25, 6, 16)], 2),
     ]
 
@@ -79,10 +81,30 @@ def test_concatenate_failure():
 
     trials = [
         ([(1, 4, 4, 4, 4), (1, 4, 4, 4, 4)], "uint8", 1, "dimensions=5, dimensions must be <= 4;"),
-        ([(1, 4, 4, 4), (1, 4, 4, 4)], "uint8", 3, "Concatenation along the channels dimension (axis 3) requires input tensors with a multiple of 16 channels;"),
-        ([(1, 4, 4, 4), (1, 4, 4, 4)], "int8", 2, "dtype='int8', dtype must be either uint8 or int32; dtype='int8', dtype must be either uint8 or int32;"),
-        ([(2, 4, 4, 4), (2, 4, 4, 4)], "uint8", 2, "batch size=2, batch size must = 1; batch size=2, batch size must = 1;"),
-        ([(1, 4, 4, 4), (1, 4, 4, 4)], "uint8", 0, "Concatenation cannot be performed along batch axis (axis 0);"),
+        (
+            [(1, 4, 4, 4), (1, 4, 4, 4)],
+            "uint8",
+            3,
+            "Concatenation along the channels dimension (axis 3) requires input tensors with a multiple of 16 channels;",
+        ),
+        (
+            [(1, 4, 4, 4), (1, 4, 4, 4)],
+            "int8",
+            2,
+            "dtype='int8', dtype must be either uint8 or int32; dtype='int8', dtype must be either uint8 or int32;",
+        ),
+        (
+            [(2, 4, 4, 4), (2, 4, 4, 4)],
+            "uint8",
+            2,
+            "batch size=2, batch size must = 1; batch size=2, batch size must = 1;",
+        ),
+        (
+            [(1, 4, 4, 4), (1, 4, 4, 4)],
+            "uint8",
+            0,
+            "Concatenation cannot be performed along batch axis (axis 0);",
+        ),
     ]
 
     for shapes, dtype, axis, err_msg in trials:

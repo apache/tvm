@@ -18,6 +18,7 @@
 import sys
 import os
 
+
 def split_env_var(env_var, split):
     """Splits environment variable string.
 
@@ -66,17 +67,17 @@ def find_lib_path(name=None, search_path=None, optional=False):
 
     dll_path = []
 
-    if os.environ.get('TVM_LIBRARY_PATH', None):
-        dll_path.append(os.environ['TVM_LIBRARY_PATH'])
+    if os.environ.get("TVM_LIBRARY_PATH", None):
+        dll_path.append(os.environ["TVM_LIBRARY_PATH"])
 
-    if sys.platform.startswith('linux'):
-        dll_path.extend(split_env_var('LD_LIBRARY_PATH', ':'))
-        dll_path.extend(split_env_var('PATH', ':'))
-    elif sys.platform.startswith('darwin'):
-        dll_path.extend(split_env_var('DYLD_LIBRARY_PATH', ':'))
-        dll_path.extend(split_env_var('PATH', ':'))
-    elif sys.platform.startswith('win32'):
-        dll_path.extend(split_env_var('PATH', ';'))
+    if sys.platform.startswith("linux"):
+        dll_path.extend(split_env_var("LD_LIBRARY_PATH", ":"))
+        dll_path.extend(split_env_var("PATH", ":"))
+    elif sys.platform.startswith("darwin"):
+        dll_path.extend(split_env_var("DYLD_LIBRARY_PATH", ":"))
+        dll_path.extend(split_env_var("PATH", ":"))
+    elif sys.platform.startswith("win32"):
+        dll_path.extend(split_env_var("PATH", ";"))
 
     # Pip lib directory
     dll_path.append(os.path.join(ffi_dir, ".."))
@@ -107,17 +108,19 @@ def find_lib_path(name=None, search_path=None, optional=False):
             lib_dll_path = [os.path.join(p, name) for p in dll_path]
         runtime_dll_path = []
     else:
-        if sys.platform.startswith('win32'):
-            lib_dll_path = [os.path.join(p, 'libtvm.dll') for p in dll_path] +\
-                           [os.path.join(p, 'tvm.dll') for p in dll_path]
-            runtime_dll_path = [os.path.join(p, 'libtvm_runtime.dll') for p in dll_path] +\
-                               [os.path.join(p, 'tvm_runtime.dll') for p in dll_path]
-        elif sys.platform.startswith('darwin'):
-            lib_dll_path = [os.path.join(p, 'libtvm.dylib') for p in dll_path]
-            runtime_dll_path = [os.path.join(p, 'libtvm_runtime.dylib') for p in dll_path]
+        if sys.platform.startswith("win32"):
+            lib_dll_path = [os.path.join(p, "libtvm.dll") for p in dll_path] + [
+                os.path.join(p, "tvm.dll") for p in dll_path
+            ]
+            runtime_dll_path = [os.path.join(p, "libtvm_runtime.dll") for p in dll_path] + [
+                os.path.join(p, "tvm_runtime.dll") for p in dll_path
+            ]
+        elif sys.platform.startswith("darwin"):
+            lib_dll_path = [os.path.join(p, "libtvm.dylib") for p in dll_path]
+            runtime_dll_path = [os.path.join(p, "libtvm_runtime.dylib") for p in dll_path]
         else:
-            lib_dll_path = [os.path.join(p, 'libtvm.so') for p in dll_path]
-            runtime_dll_path = [os.path.join(p, 'libtvm_runtime.so') for p in dll_path]
+            lib_dll_path = [os.path.join(p, "libtvm.so") for p in dll_path]
+            runtime_dll_path = [os.path.join(p, "libtvm_runtime.so") for p in dll_path]
 
     if not use_runtime:
         # try to find lib_dll_path
@@ -129,9 +132,11 @@ def find_lib_path(name=None, search_path=None, optional=False):
         lib_found = [p for p in runtime_dll_path if os.path.exists(p) and os.path.isfile(p)]
 
     if not lib_found:
-        message = ('Cannot find the files.\n' +
-                   'List of candidates:\n' +
-                   str('\n'.join(lib_dll_path + runtime_dll_path)))
+        message = (
+            "Cannot find the files.\n"
+            + "List of candidates:\n"
+            + str("\n".join(lib_dll_path + runtime_dll_path))
+        )
         if not optional:
             raise RuntimeError(message)
         return None
@@ -163,8 +168,8 @@ def find_include_path(name=None, search_path=None, optional=False):
 
     header_path = []
 
-    if os.environ.get('TVM_INCLUDE_PATH', None):
-        header_path.append(os.environ['TVM_INCLUDE_PATH'])
+    if os.environ.get("TVM_INCLUDE_PATH", None):
+        header_path.append(os.environ["TVM_INCLUDE_PATH"])
 
     header_path.append(install_include_dir)
     header_path.append(source_dir)
@@ -186,23 +191,21 @@ def find_include_path(name=None, search_path=None, optional=False):
         dlpack_include_path = []
         dmlc_include_path = []
     else:
-        tvm_include_path = [os.path.join(p, 'include') for p in header_path]
-        dlpack_include_path = [os.path.join(p, 'dlpack/include') for p in
-                               header_path]
-        dmlc_include_path = [os.path.join(p, 'dmlc-core/include') for p in
-                             header_path]
+        tvm_include_path = [os.path.join(p, "include") for p in header_path]
+        dlpack_include_path = [os.path.join(p, "dlpack/include") for p in header_path]
+        dmlc_include_path = [os.path.join(p, "dmlc-core/include") for p in header_path]
 
         # try to find include path
         include_found = [p for p in tvm_include_path if os.path.exists(p) and os.path.isdir(p)]
-        include_found += [p for p in dlpack_include_path if os.path.exists(p)
-                          and os.path.isdir(p)]
-        include_found += [p for p in dmlc_include_path if os.path.exists(p)
-                          and os.path.isdir(p)]
+        include_found += [p for p in dlpack_include_path if os.path.exists(p) and os.path.isdir(p)]
+        include_found += [p for p in dmlc_include_path if os.path.exists(p) and os.path.isdir(p)]
 
     if not include_found:
-        message = ('Cannot find the files.\n' +
-                   'List of candidates:\n' +
-                   str('\n'.join(tvm_include_path + dlpack_include_path)))
+        message = (
+            "Cannot find the files.\n"
+            + "List of candidates:\n"
+            + str("\n".join(tvm_include_path + dlpack_include_path))
+        )
         if not optional:
             raise RuntimeError(message)
         return None

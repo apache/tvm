@@ -58,9 +58,11 @@ jobs:
       working-directory: build.common
       run: >-
         cmake
-        "-DUSE_SORT=ON"
-        "-DUSE_RPC=ON"
-        "-DUSE_GRAPH_RUNTIME=ON"
+        -DUSE_SORT=ON
+        -DUSE_RPC=ON
+        -DUSE_GRAPH_RUNTIME=ON
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_CONFIGURATION_TYPES="Release"
         ..
 
     # configuration for Mac
@@ -76,4 +78,4 @@ jobs:
         ..
 
     - name: Build
-      run: cmake --build build.common -j3
+      run: cmake --build build.common --config Release -j3

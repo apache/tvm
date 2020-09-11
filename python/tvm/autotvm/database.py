@@ -28,6 +28,7 @@ class Database(object):
     """
     Base class for a record database object.
     """
+
     def load(self, inp, get_all=False):
         """
         Load a result based on an input's string key
@@ -92,13 +93,15 @@ def filter_inputs(db, measure_inputs, retry=False):
             partial_results.append(res)
     return partial_results, unsaved
 
+
 class RedisDatabase(Database):
     """
     Redis version of record database
     """
+
     REDIS_PROD = 15
     REDIS_LOCA = 14
-    REDIS_TEST = 13        # for unit test
+    REDIS_TEST = 13  # for unit test
     REDIS_NIGHT_TEMP = 12  # for nightly report (will be flushed after every workload)
 
     MAGIC_SPLIT = "$"
@@ -108,9 +111,9 @@ class RedisDatabase(Database):
         import redis
 
         if db_index == RedisDatabase.REDIS_TEST:
-            host = 'localhost'
+            host = "localhost"
         else:
-            host = os.environ.get('TVM_FLEET_HOST')
+            host = os.environ.get("TVM_FLEET_HOST")
         self.db = redis.StrictRedis(host=host, port=6379, db=db_index)
         self.db_index = db_index
 
@@ -134,12 +137,12 @@ class RedisDatabase(Database):
     def save(self, inp, res, extend=False):
         current = self.get(measure_str_key(inp))
         if not extend or current is None:
-            self.set(measure_str_key(inp),
-                     RedisDatabase.MAGIC_SPLIT.join([encode(inp, res)]))
+            self.set(measure_str_key(inp), RedisDatabase.MAGIC_SPLIT.join([encode(inp, res)]))
         else:
             current = current.split(RedisDatabase.MAGIC_SPLIT)
-            self.set(measure_str_key(inp),
-                     RedisDatabase.MAGIC_SPLIT.join(current + [encode(inp, res)]))
+            self.set(
+                measure_str_key(inp), RedisDatabase.MAGIC_SPLIT.join(current + [encode(inp, res)])
+            )
 
     def filter(self, func):
         """
@@ -168,7 +171,7 @@ class RedisDatabase(Database):
             try:
                 records = [decode(x) for x in current.split(RedisDatabase.MAGIC_SPLIT)]
                 records = [rec for rec in records if rec is not None]
-            except TypeError: # got a badly formatted/old format record
+            except TypeError:  # got a badly formatted/old format record
                 continue
 
             if not records:
@@ -183,6 +186,7 @@ class RedisDatabase(Database):
 
     def flush(self):
         self.db.flushdb()
+
 
 class DummyDatabase(RedisDatabase):
     """

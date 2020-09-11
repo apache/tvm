@@ -20,21 +20,21 @@ semantic support."""
 from tvm.runtime import const, convert
 import tvm.te
 from tvm.ir.container import Array
-from tvm import target as _tgt
+from tvm.target import Target
 from tvm.tir import expr as _expr
 from tvm.tir import call_intrin
 from tvm.tir.stmt import For
 
 from .util import _internal_assert
 
-# pylint: disable=redefined-builtin
+# pylint: disable=redefined-builtin,invalid-name
 
 LOOP_INTRIN = {
-    'range'       : For.Serial,
-    'unroll'      : For.Unrolled,
-    'parallel'    : For.Parallel,
-    'vectorize'   : For.Vectorized,
-    'const_range' : (For.Unrolled, ),
+    "range": For.Serial,
+    "unroll": For.Unrolled,
+    "parallel": For.Parallel,
+    "vectorize": For.Vectorized,
+    "const_range": (For.Unrolled,),
 }
 
 
@@ -42,26 +42,25 @@ def _range(annotation, args):
     """Handling TVM loop types"""
     n = args.__len__()
     if n == 1:
-        low, ext = const(0, dtype='int32'), args[0]
+        low, ext = const(0, dtype="int32"), args[0]
     else:
         _internal_assert(n == 2, "A loop intrinsic should only have 1 or 2 arguments!")
         low, ext = args[0], args[1]
-    if not tvm.tir.analysis.expr_deep_equal(low, const(0, dtype='int32')):
+    if not tvm.tir.analysis.expr_deep_equal(low, const(0, dtype="int32")):
         ext = ext - low
     for_type = LOOP_INTRIN[annotation]
     iter_var = None
     return iter_var, low, ext, for_type
 
 
-range = unroll = vectorize = parallel = const_range = _range #pylint: disable=invalid-name
+range = unroll = vectorize = parallel = const_range = _range  # pylint: disable=invalid-name
 
 
 def bind(func_id, args):
     """Handling TVM thread binding"""
     _internal_assert(func_id == "bind", "This function cannot be directly invoked!")
     _internal_assert(args.__len__() == 2, "A loop bind should only have 2 arguments!")
-    _internal_assert(isinstance(args[0], str), \
-                     "A loop bind's first argument should be a string!")
+    _internal_assert(isinstance(args[0], str), "A loop bind's first argument should be a string!")
     low, ext = const(0, "int32"), args[1]
     iter_var = tvm.te.thread_axis((low, ext), args[0])
     for_type = None
@@ -71,9 +70,13 @@ def bind(func_id, args):
 def _math_intrin(func_id, args):
     # pylint: disable=import-outside-toplevel
     from tvm.tir import op
+
     return getattr(op, func_id)(*args)
 
-sqrt = log = exp = tanh = sigmoid = power = popcount = round = _math_intrin #pylint: disable=invalid-name
+
+sqrt = (
+    log
+) = exp = tanh = sigmoid = power = popcount = round = _math_intrin  # pylint: disable=invalid-name
 
 
 def _min_max(func_id, args):
@@ -81,37 +84,38 @@ def _min_max(func_id, args):
     return getattr(_expr, func_id.title())(args[0], args[1])
 
 
-min = max = _min_max #pylint: disable=invalid-name
+min = max = _min_max  # pylint: disable=invalid-name
 
 
 def _allocate_tensor(func_id, args):
     """Handling TVM tensor allocation.
     You may refer hybrid.intrin.allocate for more details."""
     n = args.__len__()
-    _internal_assert(isinstance(convert(args[0]), Array), \
-                     "allocate's first argument should be a tuple of shape!")
+    _internal_assert(
+        isinstance(convert(args[0]), Array), "allocate's first argument should be a tuple of shape!"
+    )
     shape = args[0]
     for i in shape:
         _internal_assert(isinstance(i, _expr.PrimExpr), "The shape should be an expression")
     if n > 1:
-        _internal_assert(isinstance(args[1], str),
-                         "The data type should be an str")
-        _internal_assert(args[1].startswith('int') or args[1].startswith('float'), \
-                         "The data type should be either int or float!")
+        _internal_assert(isinstance(args[1], str), "The data type should be an str")
+        _internal_assert(
+            args[1].startswith("int") or args[1].startswith("float"),
+            "The data type should be either int or float!",
+        )
         dtype = args[1]
     else:
-        dtype = 'float32'
+        dtype = "float32"
     if n > 2:
-        _internal_assert(isinstance(args[2], str), \
-                         "The data scope should be an string")
-        _internal_assert(func_id != 'output_tensor', "Output tensor cannot specify scope")
+        _internal_assert(isinstance(args[2], str), "The data scope should be an string")
+        _internal_assert(func_id != "output_tensor", "Output tensor cannot specify scope")
         scope = args[2]
     else:
-        scope = 'global' if func_id != 'output_tensor' else 'output'
+        scope = "global" if func_id != "output_tensor" else "output"
     return (shape, dtype, scope)
 
 
-output_tensor = allocate = _allocate_tensor #pylint: disable=invalid-name
+output_tensor = allocate = _allocate_tensor  # pylint: disable=invalid-name
 
 
 def len(func_id, args):
@@ -120,19 +124,22 @@ def len(func_id, args):
     _internal_assert(func_id == "len", "This function cannot be directly invoked!")
     try:
         return convert(args[0].__len__())
-    except: #pylint: disable=bare-except
+    except:  # pylint: disable=bare-except
         _internal_assert(args[0].shape.__len__() == 1, "Only one-dimension array can get len")
         return convert(args[0].shape[0])
 
 
 def _cast(func_id, args):
-    _internal_assert(args.__len__() == 1 and isinstance(args[0], _expr.PrimExpr), \
-                     "Only one expression can be cast")
+    _internal_assert(
+        args.__len__() == 1 and isinstance(args[0], _expr.PrimExpr),
+        "Only one expression can be cast",
+    )
     return _expr.Cast(func_id, args[0])
 
-float16 = float32 = float64 = _cast #pylint: disable=invalid-name
-int8 = int16 = int32 = int64 = _cast #pylint: disable=invalid-name
-uint8 = uint16 = uint32 = uint64 = _cast #pylint: disable=invalid-name
+
+float16 = float32 = float64 = _cast  # pylint: disable=invalid-name
+int8 = int16 = int32 = int64 = _cast  # pylint: disable=invalid-name
+uint8 = uint16 = uint32 = uint64 = _cast  # pylint: disable=invalid-name
 
 
 def ceil_div(func_id, args):
@@ -145,18 +152,18 @@ def ceil_div(func_id, args):
 
 
 def likely(func_id, args):
-    _internal_assert(args.__len__() == 1, \
-                     "Only one expression can be likely")
+    _internal_assert(args.__len__() == 1, "Only one expression can be likely")
     _internal_assert(func_id == "likely", "This function cannot be directly invoked!")
-    return call_intrin(args[0].dtype, 'tir.likely', *args)
+    return call_intrin(args[0].dtype, "tir.likely", *args)
 
 
 def max_num_threads(func_id, args):
+    """Set the maximum number of threads."""
     _internal_assert(func_id == "max_num_threads", "This function cannot be directly invoked!")
     _internal_assert(args.__len__() <= 1, "At most one argument accepted!")
     if args.__len__() == 0:
-        res = _tgt.Target.current().max_num_threads
+        res = Target.current().max_num_threads
     else:
         _internal_assert(isinstance(args[0], _expr.IntImm), "In tvm bool should be uint")
-        res = _tgt.Target.current(args[0].value).max_num_threads
+        res = Target.current(args[0].value).max_num_threads
     return convert(res)

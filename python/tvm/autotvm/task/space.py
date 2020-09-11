@@ -36,7 +36,7 @@ from tvm.te import schedule, thread_axis
 from tvm.tir import expr
 from tvm.autotvm.util import get_const_int
 
-Axis = namedtuple('Axis', ['space', 'index'])
+Axis = namedtuple("Axis", ["space", "index"])
 
 try:
     _long = long
@@ -46,8 +46,8 @@ except NameError:
 
 class InstantiationError(ValueError):
     """Actively detected error in instantiating a template with a config,
-     raised by cfg.raise_error
-     e.g. too many unrolling, too many threads in a block
+    raised by cfg.raise_error
+    e.g. too many unrolling, too many threads in a block
     """
 
 
@@ -69,6 +69,7 @@ class TransformSpace(object):
     We call the set of all possible values as XXXSpace. (XXX can be Split, Reorder, Config ...)
     We call a specific entity in a space as XXXEntity.
     """
+
     def __init__(self):
         self.ins = []
         self.num_output = 0
@@ -114,6 +115,7 @@ class VirtualAxis(TransformSpace):
 
     name: str
     """
+
     name_ct = 0
 
     def __init__(self, var, name=None):
@@ -121,7 +123,7 @@ class VirtualAxis(TransformSpace):
         self.num_output = 1
 
         if name is None:
-            name = 'axis_%d' % VirtualAxis.name_ct
+            name = "axis_%d" % VirtualAxis.name_ct
             VirtualAxis.name_ct += 1
 
         self.name = name
@@ -160,12 +162,17 @@ def get_factors(n):
         List of all factors
     """
     step = 2 if n % 2 else 1
-    ret = list(set(
-        functools.reduce(
-            list.__add__, ([i, n//i] for i in range(1, int(math.sqrt(n)) + 1, step)
-                           if n % i == 0))))
+    ret = list(
+        set(
+            functools.reduce(
+                list.__add__,
+                ([i, n // i] for i in range(1, int(math.sqrt(n)) + 1, step) if n % i == 0),
+            )
+        )
+    )
     ret.sort()
     return ret
+
 
 def get_pow2s(n):
     """return all power-of-two numbers that are less or equal than the integer
@@ -180,10 +187,12 @@ def get_pow2s(n):
     factors: list
         List of all power-of-two numbers
     """
-    return [2**x for x in range(math.floor(math.log2(n)) + 1)]
+    return [2 ** x for x in range(math.floor(math.log2(n)) + 1)]
+
 
 class SplitSpace(TransformSpace):
     """Split an axis for several times"""
+
     def __init__(self, axes, policy, **kwargs):
         super(SplitSpace, self).__init__()
         axis = axes[0]
@@ -197,27 +206,27 @@ class SplitSpace(TransformSpace):
         self.num_output = kwargs.get("num_outputs", 0)
         assert self.num_output > 0
 
-        if policy == 'candidate':
+        if policy == "candidate":
             for size in kwargs["candidate"]:
                 assert len(size) == self.num_output
                 self.entities.append(SplitEntity(size))
         else:
-            if policy == 'verbose':
+            if policy == "verbose":
                 # Include factors and power-of-twos. May generate tails.
                 divisibles = get_factors(self.product)
                 pow2s = get_pow2s(self.product)
                 factors = [x for x in list(set(divisibles) | set(pow2s)) if x <= max_factor]
-            elif policy == 'factors':
+            elif policy == "factors":
                 # Include divisible factors. Guarantee no tails.
                 factors = [x for x in get_factors(self.product) if x <= max_factor]
-            elif policy == 'power2':
+            elif policy == "power2":
                 # Include less, equal, and round-up power-of-two numbers. May generate tails.
                 factors = [x for x in get_pow2s(self.product) if x <= max_factor]
             else:
                 raise RuntimeError("Invalid policy: %s" % policy)
 
             # Enforce the product of all split factors equals to the axis length
-            no_tail = kwargs.get("no_tail", policy == 'factors')
+            no_tail = kwargs.get("no_tail", policy == "factors")
 
             # Generate split entity by enumerating candidate factors.
             self.factors = factors
@@ -243,8 +252,12 @@ class SplitSpace(TransformSpace):
         return kwargs["num_outputs"]
 
     def __repr__(self):
-        return ("Split(policy=%s, product=%d, num_outputs=%d) len=%d" %
-                (self.policy, self.product, self.num_output, len(self)))
+        return "Split(policy=%s, product=%d, num_outputs=%d) len=%d" % (
+            self.policy,
+            self.product,
+            self.num_output,
+            len(self),
+        )
 
 
 class SplitEntity(object):
@@ -259,6 +272,7 @@ class SplitEntity(object):
         e.g. an axis of extent 128, we split it into 3 axes, a possible
         size is [4, 4, 8] (4x4x8 = 128).
     """
+
     def __init__(self, size):
         self.size = size
 
@@ -292,29 +306,29 @@ class SplitEntity(object):
 
 class ReorderSpace(TransformSpace):
     """The parameter space for ordering an array of axes"""
+
     def __init__(self, axes, policy, **kwargs):
         super(ReorderSpace, self).__init__()
         self.ins = axes
         self.policy = policy
         self.num_output = len(axes)
 
-        if policy == 'identity':
+        if policy == "identity":
             self.entities = [ReorderEntity(range(len(axes)))]
-        elif policy == 'all':
-            self.entities = [
-                ReorderEntity(x) for x in itertools.permutations(range(len(axes)))]
-        elif policy == 'interval_all':
-            begin, end = kwargs['interval']
+        elif policy == "all":
+            self.entities = [ReorderEntity(x) for x in itertools.permutations(range(len(axes)))]
+        elif policy == "interval_all":
+            begin, end = kwargs["interval"]
             sub_space = list(itertools.permutations(range(begin, end)))
             prefix, suffix = tuple(range(begin)), tuple(range(end, len(axes)))
             self.entities = [ReorderEntity(prefix + x + suffix) for x in sub_space]
-        elif policy == 'candidate':
+        elif policy == "candidate":
             candidate = kwargs["candidate"]
             for can in candidate:
                 perm = [axes.index(x) for x in can]
                 self.entities.append(ReorderEntity(perm))
-        elif policy == 'interleave':
-            spatial, reduce = kwargs['spatial'], kwargs['reduce']
+        elif policy == "interleave":
+            spatial, reduce = kwargs["spatial"], kwargs["reduce"]
 
             spatial = [[axes.index(x) for x in ch] for ch in spatial]
             reduce = [[axes.index(x) for x in ch] for ch in reduce]
@@ -325,8 +339,8 @@ class ReorderSpace(TransformSpace):
             for o in outer_merged:
                 for i in inner_merged:
                     self.entities.append(ReorderEntity(o + i))
-        elif policy == 'interleave_cuda':
-            spatial, reduce = kwargs['spatial'], kwargs['reduce']
+        elif policy == "interleave_cuda":
+            spatial, reduce = kwargs["spatial"], kwargs["reduce"]
 
             spatial = [[axes.index(x) for x in ch] for ch in spatial]
             reduce = [[axes.index(x) for x in ch] for ch in reduce]
@@ -366,8 +380,9 @@ class ReorderSpace(TransformSpace):
         for i in range(len(chains)):
             # use i == np.argmax(....) here to take spatial order into consideration
             # if we don't want to consider spatial order, we can use tmp_pt[i] == np.max(....)
-            if (tmp_pt[i] < len(chains[i]) and
-                    (i == np.argmax([len(chains[x]) - tmp_pt[x] for x in range(len(chains))]))):
+            if tmp_pt[i] < len(chains[i]) and (
+                i == np.argmax([len(chains[x]) - tmp_pt[x] for x in range(len(chains))])
+            ):
                 tmp_stack.append(chains[i][tmp_pt[i]])
                 tmp_pt[i] += 1
                 self._merge_dfs(chains, size, tmp_pt, tmp_stack, merged)
@@ -383,6 +398,7 @@ class ReorderEntity(object):
     perm: Array of int
         define the permutation
     """
+
     def __init__(self, perm):
         self.perm = perm
 
@@ -416,6 +432,7 @@ class ReorderEntity(object):
 
 class AnnotateSpace(TransformSpace):
     """The parameter space for annotating an array of axes"""
+
     def __init__(self, axes, policy, **kwargs):
         super(AnnotateSpace, self).__init__()
 
@@ -423,54 +440,86 @@ class AnnotateSpace(TransformSpace):
         self.policy = policy
         self.num_output = len(axes)
 
-        if policy == 'bind_gpu':
+        if policy == "bind_gpu":
             self.num_axis = len(axes)
             if self.num_axis >= 6:
-                self.entities.append(AnnotateEntity(
-                    ['fuse'] * (self.num_axis - 6) +
-                    ['blockIdx.z', 'blockIdx.y', 'blockIdx.x',
-                     'threadIdx.z', 'threadIdx.y', 'threadIdx.x']))
+                self.entities.append(
+                    AnnotateEntity(
+                        ["fuse"] * (self.num_axis - 6)
+                        + [
+                            "blockIdx.z",
+                            "blockIdx.y",
+                            "blockIdx.x",
+                            "threadIdx.z",
+                            "threadIdx.y",
+                            "threadIdx.x",
+                        ]
+                    )
+                )
             elif self.num_axis >= 4:
-                self.entities.append(AnnotateEntity(
-                    ['fuse'] * (self.num_axis - 4) +
-                    ['blockIdx.y', 'blockIdx.x',
-                     'threadIdx.y', 'threadIdx.x']))
+                self.entities.append(
+                    AnnotateEntity(
+                        ["fuse"] * (self.num_axis - 4)
+                        + ["blockIdx.y", "blockIdx.x", "threadIdx.y", "threadIdx.x"]
+                    )
+                )
             elif self.num_axis >= 2:
-                self.entities.append(AnnotateEntity(
-                    ['fuse'] * (self.num_axis - 2) +
-                    ['blockIdx.x', 'threadIdx.x']))
+                self.entities.append(
+                    AnnotateEntity(["fuse"] * (self.num_axis - 2) + ["blockIdx.x", "threadIdx.x"])
+                )
             else:
                 raise RuntimeError("Unhandled case in bind_gpu")
-        elif policy == 'bind_gpu_virtual':
+        elif policy == "bind_gpu_virtual":
             self.num_axis = len(axes)
             if self.num_axis >= 9:
-                self.entities.append(AnnotateEntity(
-                    ['fuse'] * (self.num_axis - 9) +
-                    ['blockIdx.z', 'blockIdx.y', 'blockIdx.x',
-                     'vthread', 'vthread', 'vthread',
-                     'threadIdx.z', 'threadIdx.y', 'threadIdx.x']))
+                self.entities.append(
+                    AnnotateEntity(
+                        ["fuse"] * (self.num_axis - 9)
+                        + [
+                            "blockIdx.z",
+                            "blockIdx.y",
+                            "blockIdx.x",
+                            "vthread",
+                            "vthread",
+                            "vthread",
+                            "threadIdx.z",
+                            "threadIdx.y",
+                            "threadIdx.x",
+                        ]
+                    )
+                )
             elif self.num_axis >= 6:
-                self.entities.append(AnnotateEntity(
-                    ['fuse'] * (self.num_axis - 6) +
-                    ['blockIdx.y', 'blockIdx.x',
-                     'vthread', 'vthread',
-                     'threadIdx.y', 'threadIdx.x']))
+                self.entities.append(
+                    AnnotateEntity(
+                        ["fuse"] * (self.num_axis - 6)
+                        + [
+                            "blockIdx.y",
+                            "blockIdx.x",
+                            "vthread",
+                            "vthread",
+                            "threadIdx.y",
+                            "threadIdx.x",
+                        ]
+                    )
+                )
             elif self.num_axis >= 3:
-                self.entities.append(AnnotateEntity(
-                    ['fuse'] * (self.num_axis - 3) +
-                    ['blockIdx.x', 'vthread', 'threadIdx.x']))
+                self.entities.append(
+                    AnnotateEntity(
+                        ["fuse"] * (self.num_axis - 3) + ["blockIdx.x", "vthread", "threadIdx.x"]
+                    )
+                )
             else:
                 raise RuntimeError("Unhandled case in bind_gpu")
-        elif policy == 'locate_cache':
+        elif policy == "locate_cache":
             self.num_axis = len(axes)
             num_anchor = kwargs["num_anchor"]
             self.anns = list(itertools.combinations(range(self.num_axis), num_anchor))
             self.entities = [AnnotateEntity(x) for x in self.anns]
         else:  # none, vec, unroll, try_vec, try_unroll, try_vec_unroll, ...
-            anns = policy.replace('try', 'none').split('_')
+            anns = policy.replace("try", "none").split("_")
 
             for ann in anns:
-                if ann not in ['none', 'unroll', 'vec']:
+                if ann not in ["none", "unroll", "vec"]:
                     raise RuntimeError("Invalid policy: " + policy)
 
             self.num_axis = len(axes)
@@ -481,7 +530,7 @@ class AnnotateSpace(TransformSpace):
         """Generate space by DFS"""
         if now == self.num_axis:
             # only vectorize inner most dimension
-            vec_ct = tmp_stack.count('vec')
+            vec_ct = tmp_stack.count("vec")
             if vec_ct in (0, 1):
                 self.entities.append(AnnotateEntity(list(tmp_stack)))
         else:
@@ -505,11 +554,13 @@ class AnnotateEntity(object):
     anns: Array of string
         The annotations of axes
     """
+
     def __init__(self, anns):
         self.anns = anns
 
-    def apply(self, sch, op, axes, axis_lens=None,
-              max_unroll=None, vec_size=None, cfg=None, source=None):
+    def apply(
+        self, sch, op, axes, axis_lens=None, max_unroll=None, vec_size=None, cfg=None, source=None
+    ):
         """Apply annotation to an array of axes
 
         Parameters
@@ -542,33 +593,33 @@ class AnnotateEntity(object):
                     sch[t].compute_at(sch[op], axes[to])
         else:  # other cases
             for i, ann in enumerate(self.anns):
-                if ann == 'none':
+                if ann == "none":
                     pass
-                elif ann == 'unroll':
+                elif ann == "unroll":
                     if max_unroll and axis_lens[i] > max_unroll:
                         cfg.raise_error("Too large factor for unrolling")
                     sch[op].unroll(axes[i])
-                elif ann == 'vec':
+                elif ann == "vec":
                     if vec_size and axis_lens[i] not in vec_size:
                         cfg.raise_error("Wrong size of lanes in vectorization")
                     sch[op].vectorize(axes[i])
-                elif ann == 'blockIdx.x':
-                    sch[op].bind(axes[i], thread_axis('blockIdx.x'))
-                elif ann == 'blockIdx.y':
-                    sch[op].bind(axes[i], thread_axis('blockIdx.y'))
-                elif ann == 'blockIdx.z':
-                    sch[op].bind(axes[i], thread_axis('blockIdx.z'))
-                elif ann == 'threadIdx.x':
-                    sch[op].bind(axes[i], thread_axis('threadIdx.x'))
-                elif ann == 'threadIdx.y':
-                    sch[op].bind(axes[i], thread_axis('threadIdx.y'))
-                elif ann == 'threadIdx.z':
-                    sch[op].bind(axes[i], thread_axis('threadIdx.z'))
-                elif ann == 'vthread':
+                elif ann == "blockIdx.x":
+                    sch[op].bind(axes[i], thread_axis("blockIdx.x"))
+                elif ann == "blockIdx.y":
+                    sch[op].bind(axes[i], thread_axis("blockIdx.y"))
+                elif ann == "blockIdx.z":
+                    sch[op].bind(axes[i], thread_axis("blockIdx.z"))
+                elif ann == "threadIdx.x":
+                    sch[op].bind(axes[i], thread_axis("threadIdx.x"))
+                elif ann == "threadIdx.y":
+                    sch[op].bind(axes[i], thread_axis("threadIdx.y"))
+                elif ann == "threadIdx.z":
+                    sch[op].bind(axes[i], thread_axis("threadIdx.z"))
+                elif ann == "vthread":
                     sch[op].bind(axes[i], thread_axis("vthread"))
-                elif ann == 'fuse':
+                elif ann == "fuse":
                     assert i < len(axes) - 1
-                    axes[i+1] = sch[op].fuse(axes[i], axes[i+1])
+                    axes[i + 1] = sch[op].fuse(axes[i], axes[i + 1])
                 else:
                     raise RuntimeError("Invalid annotation " + ann)
         return axes
@@ -579,6 +630,7 @@ class AnnotateEntity(object):
 
 class OtherOptionSpace(TransformSpace):
     """The parameter space for general option"""
+
     def __init__(self, axes, policy, **kwargs):
         super(OtherOptionSpace, self).__init__()
 
@@ -595,6 +647,7 @@ class OtherOptionSpace(TransformSpace):
 
 class OtherOptionEntity(object):
     """The parameter entity for general option, with a detailed value"""
+
     def __init__(self, val):
         self.val = val
 
@@ -604,11 +657,12 @@ class OtherOptionEntity(object):
 
 class ConfigSpace(object):
     """The configuration space of a schedule. Pass it as config in template to
-       collect transformation space and build transform graph of axes
+    collect transformation space and build transform graph of axes
     """
+
     def __init__(self):
         # private dict to provide sugar
-        self.space_map = OrderedDict()    # name -> space
+        self.space_map = OrderedDict()  # name -> space
         self._collect = True
         self._length = None
         self._entity_map = OrderedDict()  # name -> entity
@@ -634,7 +688,7 @@ class ConfigSpace(object):
 
     reduce_axis = axis
 
-    def define_split(self, name, axis, policy='factors', **kwargs):
+    def define_split(self, name, axis, policy="factors", **kwargs):
         """Define a new tunable knob which splits an axis into a list of axes
 
         Parameters
@@ -824,11 +878,19 @@ class ConfigSpace(object):
 
 
 _ann_to_number = {
-    'none': 0, 'vec': 1, 'unroll': 2,
-    'blockIdx.x': 3, 'blockIdx.y': 4, 'blockIdx.z': 5,
-    'threadIdx.x': 6, 'threadIdx.y': 7, 'threadIdx.z': 8,
-    'vthread': 9, 'fuse': 10
+    "none": 0,
+    "vec": 1,
+    "unroll": 2,
+    "blockIdx.x": 3,
+    "blockIdx.y": 4,
+    "blockIdx.z": 5,
+    "threadIdx.x": 6,
+    "threadIdx.y": 7,
+    "threadIdx.z": 8,
+    "vthread": 9,
+    "fuse": 10,
 }
+
 
 class ConfigEntity(ConfigSpace):
     """A configuration with detailed parameters
@@ -844,6 +906,7 @@ class ConfigEntity(ConfigSpace):
     constraints : list
         List of constraints
     """
+
     def __init__(self, index, code_hash, entity_map, constraints):
         super(ConfigEntity, self).__init__()
         self.index = index
@@ -854,7 +917,7 @@ class ConfigEntity(ConfigSpace):
         self.code_hash = code_hash
 
     def get_flatten_feature(self):
-        """ flatten entities to a numerical one-dimensional feature vector
+        """flatten entities to a numerical one-dimensional feature vector
 
         Returns
         -------
@@ -896,21 +959,21 @@ class ConfigEntity(ConfigSpace):
             a json serializable dictionary
         """
         ret = {}
-        ret['index'] = int(self.index)
-        ret['code_hash'] = self.code_hash
+        ret["index"] = int(self.index)
+        ret["code_hash"] = self.code_hash
         entity_map = []
         for k, v in self._entity_map.items():
             if isinstance(v, SplitEntity):
-                entity_map.append((k, 'sp', v.size))
+                entity_map.append((k, "sp", v.size))
             elif isinstance(v, ReorderEntity):
-                entity_map.append((k, 're', v.perm))
+                entity_map.append((k, "re", v.perm))
             elif isinstance(v, AnnotateEntity):
-                entity_map.append((k, 'an', v.anns))
+                entity_map.append((k, "an", v.anns))
             elif isinstance(v, OtherOptionEntity):
-                entity_map.append((k, 'ot', v.val))
+                entity_map.append((k, "ot", v.val))
             else:
                 raise RuntimeError("Invalid entity instance: " + v)
-        ret['entity'] = entity_map
+        ret["entity"] = entity_map
         return ret
 
     @staticmethod
@@ -936,13 +999,13 @@ class ConfigEntity(ConfigSpace):
 
         for item in json_dict["entity"]:
             key, knob_type, knob_args = item
-            if knob_type == 'sp':
+            if knob_type == "sp":
                 entity = SplitEntity(knob_args)
-            elif knob_type == 're':
+            elif knob_type == "re":
                 entity = ReorderEntity(knob_args)
-            elif knob_type == 'an':
+            elif knob_type == "an":
                 entity = AnnotateEntity(knob_args)
-            elif knob_type == 'ot':
+            elif knob_type == "ot":
                 entity = OtherOptionEntity(knob_args)
             else:
                 raise RuntimeError("Invalid config knob type: " + knob_type)
@@ -1018,8 +1081,7 @@ class FallbackConfigEntity(ConfigSpace):
         ref_log: List of (MeasureInput, MeasureResult)
             The reference log
         """
-        knob_names = [x for x in self.space_map.keys() if
-                      isinstance(self.space_map[x], SplitSpace)]
+        knob_names = [x for x in self.space_map.keys() if isinstance(self.space_map[x], SplitSpace)]
 
         # find best match config in reference data by matching tiling factors
         factor_list = []
@@ -1032,8 +1094,9 @@ class FallbackConfigEntity(ConfigSpace):
             match_score = 0
             for i, knob_name in enumerate(knob_names):
                 factors = get_factors(int(np.prod(inp.config[knob_name].size)))
-                match_score += (float(len(set(factor_list[i]).intersection(factors))) /
-                                len(factor_list[i]))
+                match_score += float(len(set(factor_list[i]).intersection(factors))) / len(
+                    factor_list[i]
+                )
 
                 if match_score > best_match_score:
                     best_match_score, best_match_cfg = match_score, inp.config

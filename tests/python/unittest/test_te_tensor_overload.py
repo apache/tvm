@@ -25,11 +25,11 @@ import tvm.testing
 
 def test_operator_type_and_tags():
     k = 1
-    n = te.var('n')
-    A = te.placeholder((), name='A')
-    B = te.placeholder((10, 5), name='B')
+    n = te.var("n")
+    A = te.placeholder((), name="A")
+    B = te.placeholder((10, 5), name="B")
     B1 = B[0]
-    B2 = B[0,0]
+    B2 = B[0, 0]
 
     assert isinstance(k + n, tvm.tir.PrimExpr)
     assert isinstance(n + n, tvm.tir.PrimExpr)
@@ -70,10 +70,10 @@ def test_combination():
     k = 3
     n = 5
     m = 10
-    x = te.var('x')
-    A = te.placeholder((n, m), name='A')
-    B = te.placeholder((n, m), name='B')
-    C = te.placeholder((n, m), name='C')
+    x = te.var("x")
+    A = te.placeholder((n, m), name="A")
+    B = te.placeholder((n, m), name="B")
+    C = te.placeholder((n, m), name="C")
     D = k + A - B * C + x
     s = te.create_schedule(D.op)
     foo = tvm.build(s, [x, A, B, C, D], "llvm")
@@ -89,9 +89,9 @@ def test_combination():
 
 def verify_tensor_scalar_bop(shape, typ="add"):
     """Verify non-constant Tensor and scalar binary operations."""
-    sh = [te.size_var('n%d' % i) for i in range(0, len(shape))]
-    k = te.var('k')
-    A = te.placeholder(sh, name='A')
+    sh = [te.size_var("n%d" % i) for i in range(0, len(shape))]
+    k = te.var("k")
+    A = te.placeholder(sh, name="A")
     if typ == "add":
         B = A + k
     elif typ == "sub":
@@ -109,7 +109,7 @@ def verify_tensor_scalar_bop(shape, typ="add"):
             return
         ctx = tvm.context(device, 0)
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_elemwise_schedule(device)(B)
 
         k_ = 2
@@ -131,7 +131,7 @@ def verify_tensor_scalar_bop(shape, typ="add"):
         foo(a_nd, b_nd, k_, *shape)
         tvm.testing.assert_allclose(b_nd.asnumpy(), b_npy, rtol=1e-5)
 
-    for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
+    for device in ["llvm", "cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)
 
 
@@ -155,7 +155,7 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_broadcast_schedule(device)(C)
 
         foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + typ)
@@ -178,14 +178,16 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), ctx)
         for _ in range(1):
             foo(lhs_nd, rhs_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1e-4, atol=1e-4)
 
-    for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
+    for device in ["llvm", "cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)
 
 
 @tvm.testing.uses_gpu
-def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, stride, padding, typ="add"):
+def verify_conv2d_scalar_bop(
+    batch, in_size, in_channel, num_filter, kernel, stride, padding, typ="add"
+):
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not tvm.testing.device_enabled(device):
@@ -197,9 +199,9 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
 
         k = 10.0
         dilation = (1, 1)
-        with tvm.target.create(device):
-            A = te.placeholder((batch, in_channel, in_size, in_size), name='A')
-            W = te.placeholder((num_filter, in_channel, kernel, kernel), name='W')
+        with tvm.target.Target(device):
+            A = te.placeholder((batch, in_channel, in_size, in_size), name="A")
+            W = te.placeholder((num_filter, in_channel, kernel, kernel), name="W")
             B = conv2d_nchw(A, W, stride, padding, dilation, A.dtype)
             if typ == "add":
                 C = B + k
@@ -235,9 +237,9 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
         b_nd = tvm.nd.array(np.empty(b_npy.shape).astype(B.dtype), ctx)
         c_nd = tvm.nd.array(np.empty(c_npy.shape).astype(C.dtype), ctx)
         foo(a_nd, w_nd, b_nd, c_nd)
-        tvm.testing.assert_allclose(c_nd.asnumpy(), c_npy, rtol=1E-4, atol=1E-4)
+        tvm.testing.assert_allclose(c_nd.asnumpy(), c_npy, rtol=1e-4, atol=1e-4)
 
-    for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
+    for device in ["llvm", "cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)
 
 

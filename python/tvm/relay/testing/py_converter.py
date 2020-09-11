@@ -27,7 +27,7 @@ from tvm.relay.expr import Expr, GlobalVar, Var
 from tvm.relay.function import Function
 from tvm.relay.expr_functor import ExprFunctor
 
-OUTPUT_VAR_NAME = '_py_out'
+OUTPUT_VAR_NAME = "_py_out"
 
 # corresponds to:
 #     import numpy
@@ -37,17 +37,18 @@ OUTPUT_VAR_NAME = '_py_out'
 #     from tvm.runtime import import container as _container
 #     from tvm.relay.backend.interpreter import RefValue, ConstructorValue
 PROLOGUE = [
-    ast.Import([alias('numpy', None)]),
-    ast.Import([alias('tvm', None)]),
-    ast.ImportFrom('tvm', [alias('relay', None)], 0),
-    ast.ImportFrom('tvm', [alias('nd', None)], 0),
-    ast.ImportFrom('tvm.runtime', [alias('container', '_container')],
-                   0),
-    ast.ImportFrom('tvm.relay.backend.interpreter',
-                   [alias('RefValue', None),
-                    alias('ConstructorValue', None)],
-                   0),
+    ast.Import([alias("numpy", None)]),
+    ast.Import([alias("tvm", None)]),
+    ast.ImportFrom("tvm", [alias("relay", None)], 0),
+    ast.ImportFrom("tvm", [alias("nd", None)], 0),
+    ast.ImportFrom("tvm.runtime", [alias("container", "_container")], 0),
+    ast.ImportFrom(
+        "tvm.relay.backend.interpreter",
+        [alias("RefValue", None), alias("ConstructorValue", None)],
+        0,
+    ),
 ]
+
 
 class PythonConverter(ExprFunctor):
     """Functor for translating Relay programs into Python ASTs."""
@@ -60,7 +61,6 @@ class PythonConverter(ExprFunctor):
         self.fun_no = 0
         self.var_no = 0
         self.var_map = {}
-
 
     def convert(self, prog: Expr):
         """This method converts the passed Relay expression into a Python
@@ -85,7 +85,6 @@ class PythonConverter(ExprFunctor):
 
         return ast.fix_missing_locations(ast.Module(body=body))
 
-
     def optimize(self, prog: Expr):
         """Performs optimizations necessary to be able to generate code for prog."""
         # unwrap tuple wrappers (some op calls produce them)
@@ -95,33 +94,30 @@ class PythonConverter(ExprFunctor):
 
         # necessary pass: SimplifyInference (otherwise we can't generate code for some operators)
         # and fusion (to get primitive functions)
-        opts = tvm.transform.Sequential([relay.transform.SimplifyInference(),
-                                         relay.transform.FuseOps(fuse_opt_level=0)])
+        opts = tvm.transform.Sequential(
+            [relay.transform.SimplifyInference(), relay.transform.FuseOps(fuse_opt_level=0)]
+        )
         mod = opts(mod)
-        optimized = mod['main']
+        optimized = mod["main"]
         return optimized if isinstance(unwrapped, Function) else optimized.body
-
 
     def sanitize(self, name: str) -> str:
         """Removes any invalid characters (only underscores, numbers, and letters permitted)
         from the given name. Since we append a number and underscore to var names anyway,
         it doesn't matter if the name is the empty string."""
-        return re.sub(r'\W', '', name)
-
+        return re.sub(r"\W", "", name)
 
     def generate_var_name(self, name_hint: str) -> str:
         """Generates a unique variable name starting from the hint."""
-        name = '{}_var_{}'.format(self.sanitize(name_hint), self.var_no)
+        name = "{}_var_{}".format(self.sanitize(name_hint), self.var_no)
         self.var_no += 1
         return name
 
-
     def generate_function_name(self, name_hint: str) -> str:
         """Generates a unique function name starting from the hint."""
-        name = '{}_fun_{}'.format(self.sanitize(name_hint), self.fun_no)
+        name = "{}_fun_{}".format(self.sanitize(name_hint), self.fun_no)
         self.fun_no += 1
         return name
-
 
     def get_var_name(self, var: Expr) -> str:
         """Returns the var name for the given Realy variable."""
@@ -131,23 +127,20 @@ class PythonConverter(ExprFunctor):
         self.var_map[var] = name
         return name
 
-
     def include_var(self, var: Expr, assign=False):
         """Returns a variable AST node for the given Relay var depending on
         whether it must appear in an assignment or not."""
         name = self.get_var_name(var)
         return Name(name, Store() if assign else Load())
 
-
     def parse_name(self, name: str):
         """Given the name of a Python method with dots (e.g., 'relay.var'),
         returns an appropriate AST object corresponding to that name."""
-        attributes = name.split('.')
+        attributes = name.split(".")
         ret = Name(attributes[0], Load())
         for i in range(len(attributes) - 1):
-            ret = ast.Attribute(ret, attributes[i+1], Load())
+            ret = ast.Attribute(ret, attributes[i + 1], Load())
         return ret
-
 
     def parse_numpy_array(self, arr):
         """Given a Numpy array, produces an appropriate Python array
@@ -163,7 +156,6 @@ class PythonConverter(ExprFunctor):
             elts.append(self.parse_numpy_array(row))
         return ast.List(elts, Load())
 
-
     def convert_fields(self, fields: [Expr]):
         """Given a list of call args or tuple fields, converts
         each and returns their ASTs and their defs lists (in order)."""
@@ -175,7 +167,6 @@ class PythonConverter(ExprFunctor):
             defs += member_defs
         return (bodies, defs)
 
-
     def convert_to_thunk(self, name_hint: str, expr: Expr):
         """Wraps the passed expression in a thunk."""
         body, defs = self.visit(expr)
@@ -183,12 +174,11 @@ class PythonConverter(ExprFunctor):
         thunk = self.create_def(thunk_name, [], defs + [Return(body)])
         return (thunk, thunk_name)
 
-
     def convert_func_node(self, func: Function, name_var=None):
         """Converts the given Relay function into a Python function, with
         special for named functions (locally or globally)"""
         if name_var is None:
-            func_name = self.generate_function_name('_anon_func')
+            func_name = self.generate_function_name("_anon_func")
         if isinstance(name_var, GlobalVar):
             func_name = str(name_var.name_hint)
         if isinstance(name_var, Var):
@@ -198,7 +188,6 @@ class PythonConverter(ExprFunctor):
         body, defs = self.visit(func.body)
         ret = self.create_def(func_name, var_names, defs + [Return(body)])
         return (ret, func_name)
-
 
     def convert_module(self):
         """Converts all the global functions defined in the module and returns
@@ -215,21 +204,21 @@ class PythonConverter(ExprFunctor):
                 pass
         return defs
 
-
     def create_call(self, func_name: str, arguments):
         """Creates a simple function call."""
         return ast.Call(self.parse_name(func_name), arguments, [])
-
 
     def create_def(self, func_name: str, arguments: [str], body):
         """Wrapper over function definition AST node, whose constructor is inconvenient."""
         return ast.FunctionDef(
             func_name,
-            ast.arguments([ast.arg(argument, None)
-                           for argument in arguments],
-                          None, [], [], None, []),
-            body, [], None)
-
+            ast.arguments(
+                [ast.arg(argument, None) for argument in arguments], None, [], [], None, []
+            ),
+            body,
+            [],
+            None,
+        )
 
     def create_op_call(self, op: Function, relay_args, py_args):
         """Lowers the passed primitive function, registers it in TVM's
@@ -239,14 +228,14 @@ class PythonConverter(ExprFunctor):
         # compile the function and register globally
         cc_key = compile_engine.CCacheKey(op, self.tgt)
         func_hash = tvm.ir.structural_hash(op)
-        op_name = '_lowered_op_{}'.format(func_hash)
+        op_name = "_lowered_op_{}".format(func_hash)
         if not tvm.get_global_func(op_name, allow_missing=True):
             jitted = self.engine.jit(cc_key, self.tgt)
             tvm.register_func(op_name, jitted)
 
         def convert_input(py_input, arg_type):
             """Use the types of the function arguments to determine whether we expect
-               a tensor or tuple (returns list of inputs to the lowered op call)"""
+            a tensor or tuple (returns list of inputs to the lowered op call)"""
             # equivalent: input.data
             if isinstance(arg_type, relay.TensorType):
                 return [py_input]
@@ -255,10 +244,8 @@ class PythonConverter(ExprFunctor):
             ret = []
             for i in range(len(arg_type.fields)):
                 ret += convert_input(
-                    ast.Subscript(
-                        py_input,
-                        ast.Index(Num(i)), Load()),
-                    arg_type.fields[i])
+                    ast.Subscript(py_input, ast.Index(Num(i)), Load()), arg_type.fields[i]
+                )
             return ret
 
         def convert_output(ret_type):
@@ -266,15 +253,16 @@ class PythonConverter(ExprFunctor):
             Returns ([assignments of output vars], [extra arguments to pass to op call],
             expression collecting output)"""
             if isinstance(ret_type, relay.TensorType):
-                output_var_name = self.generate_var_name('_out')
+                output_var_name = self.generate_var_name("_out")
                 output_var = Name(output_var_name, Load())
                 shape = ast.Tuple([Num(dim) for dim in ret_type.concrete_shape], Load())
                 # create a new NDArray of the right shape and dtype
                 assign_output = Assign(
                     [Name(output_var_name, Store())],
-                    self.create_call('nd.array', [
-                        self.create_call('numpy.empty', [shape, Str(ret_type.dtype)])
-                    ]))
+                    self.create_call(
+                        "nd.array", [self.create_call("numpy.empty", [shape, Str(ret_type.dtype)])]
+                    ),
+                )
                 return ([assign_output], [output_var], output_var)
             assert isinstance(ret_type, relay.TupleType)
             assignments = []
@@ -286,28 +274,26 @@ class PythonConverter(ExprFunctor):
                 extra_args += inner_args
                 fields.append(inner_output)
             fields = [ast.List(fields, Load())]
-            return (assignments, extra_args, self.create_call('_container.tuple_object', fields))
+            return (assignments, extra_args, self.create_call("_container.tuple_object", fields))
 
         # create a function to wrap the call of the lowered op and return
         # a call to that function
-        wrap_name = self.generate_function_name('_{}_wrapper'.format(op_name))
-        wrap_args = [self.generate_var_name('_arg_{}'.format(i)) for i in range(len(py_args))]
+        wrap_name = self.generate_function_name("_{}_wrapper".format(op_name))
+        wrap_args = [self.generate_var_name("_arg_{}".format(i)) for i in range(len(py_args))]
 
         inner_call_args = []
         for i in range(len(py_args)):
-            inner_call_args += convert_input(Name(wrap_args[i], Load()),
-                                             relay_args[i].checked_type)
+            inner_call_args += convert_input(Name(wrap_args[i], Load()), relay_args[i].checked_type)
         output_assignments, aux_args, output = convert_output(op.checked_type.ret_type)
         # equiv: _op = tvm.get_global_func(op_name)
-        op_var = self.generate_var_name('_op')
-        op_call = self.create_call('tvm.get_global_func', [Str(op_name)])
+        op_var = self.generate_var_name("_op")
+        op_call = self.create_call("tvm.get_global_func", [Str(op_name)])
         op_assign = Assign([Name(op_var, Store())], op_call)
         # equiv: _op(args)
         inner_call = self.create_call(op_var, inner_call_args + aux_args)
         body = output_assignments + [op_assign, ast.Expr(inner_call), Return(output)]
         wrap_def = self.create_def(wrap_name, wrap_args, body)
         return wrap_def, self.create_call(wrap_name, py_args)
-
 
     def create_match_check(self, pattern: Pattern, data):
         """Given an ADT match pattern and a (Python) expression pointing to
@@ -325,9 +311,13 @@ class PythonConverter(ExprFunctor):
             # and also the matches of any nested patterns
 
             # equiv: (arg.tag == patern_constructor.tag)
-            conds.append(ast.Compare(ast.Attribute(data, 'tag', Load()),
-                                     [ast.Eq()],
-                                     [ast.Num(pattern.constructor.tag)]))
+            conds.append(
+                ast.Compare(
+                    ast.Attribute(data, "tag", Load()),
+                    [ast.Eq()],
+                    [ast.Num(pattern.constructor.tag)],
+                )
+            )
 
         assert isinstance(pattern, (relay.PatternConstructor, relay.PatternTuple))
         # now check for any nested patterns
@@ -339,8 +329,9 @@ class PythonConverter(ExprFunctor):
                 continue
 
             # index into the value corresponding to the subpattern
-            field_index = ast.Subscript(ast.Attribute(data, 'fields', Load()),
-                                        ast.Index(Num(i)), Load())
+            field_index = ast.Subscript(
+                ast.Attribute(data, "fields", Load()), ast.Index(Num(i)), Load()
+            )
             conds.append(self.create_match_check(nested_pat, field_index))
 
         # if we do not need to check nested pattern, just return the single check
@@ -348,7 +339,6 @@ class PythonConverter(ExprFunctor):
             return conds[0]
         # otherwise AND together any nested checks
         return ast.BoolOp(ast.And(), conds)
-
 
     def create_match_clause_body(self, pattern: Pattern, body: Expr):
         """Given a match clause pattern and a clause body,
@@ -377,21 +367,22 @@ class PythonConverter(ExprFunctor):
             assignments = []
             for i in range(len(pat.patterns)):
                 # we want the assignments for val.fields[i]
-                field = ast.Subscript(ast.Attribute(val, 'fields', Load()),
-                                      ast.Index(Num(i)), Load())
+                field = ast.Subscript(
+                    ast.Attribute(val, "fields", Load()), ast.Index(Num(i)), Load()
+                )
                 assignments += collect_var_assignments(pat.patterns[i], field)
             return assignments
 
-        func_name = self.generate_function_name('_match_clause_body')
-        arg_name = self.generate_var_name('_match_clause_body')
+        func_name = self.generate_function_name("_match_clause_body")
+        arg_name = self.generate_var_name("_match_clause_body")
 
         clause_body, defs = self.visit(body)
         assignments = collect_var_assignments(pattern, Name(arg_name, Load()))
 
-        func_def = self.create_def(func_name, [arg_name],
-                                   defs + assignments + [Return(clause_body)])
+        func_def = self.create_def(
+            func_name, [arg_name], defs + assignments + [Return(clause_body)]
+        )
         return (func_def, func_name)
-
 
     # Convention for the expr visitor: Each visit function returns a tuple of two members.
     #
@@ -407,12 +398,10 @@ class PythonConverter(ExprFunctor):
     def visit_var(self, var: Expr):
         return (self.include_var(var, assign=False), [])
 
-
     def visit_global_var(self, gvar: Expr):
         # we don't need to add numbers to global var names because
         # the *names* are checked for uniqueness in the mod
         return (Name(str(gvar.name_hint), Load()), [])
-
 
     def visit_let(self, letexp: Expr):
         # To properly account for scoping and ensure that the entire node produces an expression,
@@ -427,9 +416,10 @@ class PythonConverter(ExprFunctor):
         """
         bind_body, bind_defs = self.visit(letexp.body)
 
-        func_name = self.generate_function_name('_let_func')
-        binding_func = self.create_def(func_name, [self.get_var_name(letexp.var)],
-                                       bind_defs + [Return(bind_body)])
+        func_name = self.generate_function_name("_let_func")
+        binding_func = self.create_def(
+            func_name, [self.get_var_name(letexp.var)], bind_defs + [Return(bind_body)]
+        )
 
         # we call the binding func with the intended value for the bound variable
 
@@ -437,26 +427,25 @@ class PythonConverter(ExprFunctor):
         # recursive by naming it after the var
         if isinstance(letexp.value, Function):
             value_def, value_name = self.convert_func_node(letexp.value, letexp.var)
-            return (self.create_call(func_name, [Name(value_name, Load())]),
-                    [value_def, binding_func])
+            return (
+                self.create_call(func_name, [Name(value_name, Load())]),
+                [value_def, binding_func],
+            )
 
         value_body, value_defs = self.visit(letexp.value)
         value_defs.append(binding_func)
         binding_call = self.create_call(func_name, [value_body])
         return (binding_call, value_defs)
 
-
     def visit_tuple(self, tup: Expr):
         fields, ret_defs = self.convert_fields(tup.fields)
         fields = [ast.List(fields, Load())]
-        return (self.create_call('_container.tuple_object', fields), ret_defs)
-
+        return (self.create_call("_container.tuple_object", fields), ret_defs)
 
     def visit_tuple_getitem(self, tgi: Expr):
         tup, tup_defs = self.visit(tgi.tuple_value)
         ret = ast.Subscript(tup, ast.Index(Num(tgi.index)), Load())
         return (ret, tup_defs)
-
 
     def visit_if(self, if_block: Expr):
         cond_body, cond_defs = self.visit(if_block.cond)
@@ -465,27 +454,26 @@ class PythonConverter(ExprFunctor):
 
         # need to get the value out of a NDArray to check the condition
         # equvialent to: val.asnumpy()
-        cond_check = ast.Call(ast.Attribute(cond_body, 'asnumpy', Load()), [], [])
+        cond_check = ast.Call(ast.Attribute(cond_body, "asnumpy", Load()), [], [])
         ret = ast.IfExp(cond_check, true_body, false_body)
         return (ret, cond_defs + true_defs + false_defs)
-
 
     def visit_constant(self, constant: Expr):
         """Proceeds by converting constant value to a numpy array
         and converting it to the appropriate value in the generated
         code (whether it be a Python scalar or a Numpy array)"""
         value = constant.data.asnumpy()
-        const_expr = ast.Call(ast.Attribute(Name('numpy', Load()), 'array', Load()),
-                              [self.parse_numpy_array(value)],
-                              [ast.keyword('dtype', Str(constant.checked_type.dtype))])
-        return (self.create_call('nd.array', [const_expr]), [])
-
+        const_expr = ast.Call(
+            ast.Attribute(Name("numpy", Load()), "array", Load()),
+            [self.parse_numpy_array(value)],
+            [ast.keyword("dtype", Str(constant.checked_type.dtype))],
+        )
+        return (self.create_call("nd.array", [const_expr]), [])
 
     def visit_function(self, func: Expr):
         # Python's lambdas are very restrictive, so we do "name" inline functions
         converted_func, func_name = self.convert_func_node(func)
         return (Name(func_name, Load()), [converted_func])
-
 
     def visit_call(self, call: Expr):
         """For calls, we must distinguish between ordinary functions,
@@ -494,15 +482,17 @@ class PythonConverter(ExprFunctor):
         fields, field_defs = self.convert_fields(call.args)
 
         if isinstance(func, tvm.ir.Op):
-            raise Exception('Operators should have been lowered and eliminated')
+            raise Exception("Operators should have been lowered and eliminated")
 
         if isinstance(func, relay.Constructor):
             # produce a constructor value
-            return (self.create_call('ConstructorValue',
-                                     [ast.Num(func.tag),
-                                      ast.List(fields, Load()),
-                                      NameConstant(None)]),
-                    field_defs)
+            return (
+                self.create_call(
+                    "ConstructorValue",
+                    [ast.Num(func.tag), ast.List(fields, Load()), NameConstant(None)],
+                ),
+                field_defs,
+            )
 
         # lowered operator: generate a call to a function that gets the PackedFunc
         # from TVM's registry
@@ -515,16 +505,13 @@ class PythonConverter(ExprFunctor):
         defs += field_defs
         return (ast.Call(converted_func, fields, []), defs)
 
-
     def visit_ref_create(self, ref: Expr):
         val, defs = self.visit(ref.value)
-        return (self.create_call('RefValue', [val]), defs)
-
+        return (self.create_call("RefValue", [val]), defs)
 
     def visit_ref_read(self, read: Expr):
         ref, defs = self.visit(read.ref)
-        return (ast.Attribute(ref, 'value', Load()), defs)
-
+        return (ast.Attribute(ref, "value", Load()), defs)
 
     def visit_ref_write(self, write: Expr):
         """For writing refs, we wrap the update in a thunk
@@ -534,15 +521,18 @@ class PythonConverter(ExprFunctor):
         in Python but expressions in Relay"""
         ref, ref_defs = self.visit(write.ref)
         val, val_defs = self.visit(write.value)
-        thunk_name = self.generate_function_name('_ref_write_thunk')
+        thunk_name = self.generate_function_name("_ref_write_thunk")
         thunk = self.create_def(
-            thunk_name, [],
-            ref_defs + val_defs + [
-                Assign([ast.Attribute(ref, 'value', Store())], val),
-                Return(self.create_call('_container.tuple_object', []))
-            ])
+            thunk_name,
+            [],
+            ref_defs
+            + val_defs
+            + [
+                Assign([ast.Attribute(ref, "value", Store())], val),
+                Return(self.create_call("_container.tuple_object", [])),
+            ],
+        )
         return (self.create_call(thunk_name, []), [thunk])
-
 
     def visit_match(self, match: Expr):
         """For matches, we wrap the entire expression in a thunk
@@ -551,7 +541,7 @@ class PythonConverter(ExprFunctor):
         pattern matches. If yes, we call a function that assigns
         the variables appropriately and invokes the clause body."""
         data, defs = self.visit(match.data)
-        data_var = self.generate_var_name('_match_data')
+        data_var = self.generate_var_name("_match_data")
 
         # must ensure the data clause is executed exactly once
         thunk_body = [Assign([Name(data_var, Store())], data)]
@@ -561,28 +551,28 @@ class PythonConverter(ExprFunctor):
             defs.append(body_def)
 
             # equiv: if check(data): return body(data)
-            thunk_body.append(ast.If(
-                check_expr,
-                [Return(self.create_call(body_name, [Name(data_var, Load())]))],
-                []
-            ))
+            thunk_body.append(
+                ast.If(
+                    check_expr, [Return(self.create_call(body_name, [Name(data_var, Load())]))], []
+                )
+            )
 
         # finally if nothing matches we have a failed assert (should never happen)
-        thunk_body.append(ast.Assert(NameConstant(False), Str('Match was not exhaustive')))
+        thunk_body.append(ast.Assert(NameConstant(False), Str("Match was not exhaustive")))
 
-        thunk_name = self.generate_function_name('_match_thunk')
+        thunk_name = self.generate_function_name("_match_thunk")
         thunk_def = self.create_def(thunk_name, [], defs + thunk_body)
         return (self.create_call(thunk_name, []), [thunk_def])
-
 
     # these are both handled in the "call" case
     def visit_constructor(self, _):
         pass
+
     def visit_op(self, _):
         pass
 
 
-def to_python(expr: Expr, mod=None, target=tvm.target.create('llvm')):
+def to_python(expr: Expr, mod=None, target=tvm.target.Target("llvm")):
     """Converts the given Relay expression into a Python script (as a Python AST object).
     For easiest debugging, import the astor package and use to_source()."""
     mod = mod if mod is not None else tvm.IRModule()
@@ -590,15 +580,13 @@ def to_python(expr: Expr, mod=None, target=tvm.target.create('llvm')):
     return converter.convert(expr)
 
 
-def run_as_python(expr: Expr, mod=None, target=tvm.target.create('llvm')):
+def run_as_python(expr: Expr, mod=None, target=tvm.target.Target("llvm")):
     """Converts the given Relay expression into a Python script and
     executes it."""
     mod = mod if mod is not None else tvm.IRModule()
     py_ast = to_python(expr, mod, target)
-    code = compile(py_ast, '<string>', 'exec')
-    var_map = {
-        OUTPUT_VAR_NAME : None
-    }
-    #pylint: disable=exec-used
+    code = compile(py_ast, "<string>", "exec")
+    var_map = {OUTPUT_VAR_NAME: None}
+    # pylint: disable=exec-used
     exec(code, var_map, var_map)
     return var_map[OUTPUT_VAR_NAME]

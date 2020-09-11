@@ -236,36 +236,16 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
   return CodeGenLLVM::CreateIntrinsic(op);
 }
 
-inline int DetectCUDAComputeVersion() {
-  TVMContext tvm_ctx;
-  tvm_ctx.device_type = kDLGPU;
-  tvm_ctx.device_id = 0;
-  TVMRetValue val;
-  tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kExist, &val);
-  if (val.operator int() == 1) {
-    tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kComputeVersion, &val);
-    std::string version = val;
-    std::istringstream is(version);
-    double ver;
-    is >> ver;
-    return static_cast<int>(ver * 10);
-  } else {
-    return 20;
-  }
+int GetCUDAComputeVersion(const Target& target) {
+  Optional<String> mcpu = target->GetAttr<String>("mcpu");
+  CHECK(mcpu.defined()) << "InternalError: \"-mcpu\" is undefined in the NVPTX target";
+  std::string sm_version = mcpu.value();
+  return std::stoi(sm_version.substr(3));
 }
 
-Target UpdateTarget(const Target& original_target, int compute_ver) {
-  Map<String, ObjectRef> target_config = original_target->Export();
-  UpdateTargetConfigKeyValueEntry("mtriple", "nvptx64-nvidia-cuda", &target_config, true);
-  UpdateTargetConfigKeyValueEntry("mcpu", "sm_" + std::to_string(compute_ver), &target_config,
-                                  false);
-  return Target::FromConfig(target_config);
-}
-
-runtime::Module BuildNVPTX(IRModule mod, Target original_target) {
+runtime::Module BuildNVPTX(IRModule mod, Target target) {
   InitializeLLVM();
-  int compute_ver = DetectCUDAComputeVersion();
-  Target target = UpdateTarget(original_target, compute_ver);
+  int compute_ver = GetCUDAComputeVersion(target);
   std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   // careful: cg will hold a naked pointer reference to ctx, so it should

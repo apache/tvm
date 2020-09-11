@@ -64,6 +64,7 @@ def visit_list_to_block(visit, lst):
 
 class Symbol(Enum):
     """Enumerates types in the symbol table"""
+
     Callable = 0
     Input = 1
     OutputBuffer = 2
@@ -92,34 +93,27 @@ def _floormod(x, y):
 class HybridParser(ast.NodeVisitor):
     """Python AST visitor pass which finally lowers it to HalideIR"""
 
-
     _binop_maker = {
-        ast.Add     : operator.add,
-        ast.Sub     : operator.sub,
-        ast.Mult    : operator.mul,
-        ast.Div     : operator.div if sys.version_info[0] == 2 else operator.truediv,
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.div if sys.version_info[0] == 2 else operator.truediv,
         ast.FloorDiv: _floordiv,
-        ast.Mod     : _floormod,
-        ast.BitOr   : operator.or_,
-        ast.BitAnd  : operator.and_,
-        ast.BitXor  : operator.xor,
-        ast.Gt      : operator.gt,
-        ast.GtE     : operator.ge,
-        ast.Lt      : operator.lt,
-        ast.LtE     : operator.le,
-        ast.Eq      : operator.eq,
-        ast.NotEq   : operator.ne,
-        ast.And     : _all,
-        ast.Or      : _any,
+        ast.Mod: _floormod,
+        ast.BitOr: operator.or_,
+        ast.BitAnd: operator.and_,
+        ast.BitXor: operator.xor,
+        ast.Gt: operator.gt,
+        ast.GtE: operator.ge,
+        ast.Lt: operator.lt,
+        ast.LtE: operator.le,
+        ast.Eq: operator.eq,
+        ast.NotEq: operator.ne,
+        ast.And: _all,
+        ast.Or: _any,
     }
 
-
-    _unaryop_maker = {
-        ast.USub   : operator.neg,
-        ast.Invert : operator.invert,
-        ast.Not    : operator.not_
-    }
-
+    _unaryop_maker = {ast.USub: operator.neg, ast.Invert: operator.invert, ast.Not: operator.not_}
 
     def __init__(self, args, usage, symbols, closure_vars, func_name=None):
         """
@@ -146,31 +140,31 @@ class HybridParser(ast.NodeVisitor):
         self.args = list(args)
         self.usage = usage.copy()
 
-        self.symbols = {} # Symbol table
+        self.symbols = {}  # Symbol table
         for k, v in symbols.items():
             if isinstance(v, types.FunctionType):
                 self.add_symbol(k, Symbol.Callable, v)
 
         self.closure_vars = closure_vars
 
-        self.binds = {} # Thread binds
-        self.device = 0 # Is it generating device
+        self.binds = {}  # Thread binds
+        self.device = 0  # Is it generating device
 
-        self.func_name = func_name # The name of the function to be lowered
-        self.outputs = [] # Output tensors' name
-        self.side_effect = set() # Tensors with side effects
-        self.parsed_body = None # The parsed HalideIR body
+        self.func_name = func_name  # The name of the function to be lowered
+        self.outputs = []  # Output tensors' name
+        self.side_effect = set()  # Tensors with side effects
+        self.parsed_body = None  # The parsed HalideIR body
         self.analyzer = tvm.arith.Analyzer()
-        self.returned = False # If this function has a valid return
+        self.returned = False  # If this function has a valid return
 
-
-    def add_symbol(self, key, ty, val): #pylint: disable=invalid-name
+    def add_symbol(self, key, ty, val):  # pylint: disable=invalid-name
         """Add value to the symbol table context"""
         if key in self.symbols.keys():
             old = str(self.symbols[key])
             new = str((ty, val))
-            _internal_assert(False,
-                             "Name conflict in symbol table! [%s] %s -> %s" % (key, old, new))
+            _internal_assert(
+                False, "Name conflict in symbol table! [%s] %s -> %s" % (key, old, new)
+            )
 
         self.symbols[key] = ty, val
 
@@ -179,10 +173,11 @@ class HybridParser(ast.NodeVisitor):
                 self.binds[val.var.name] = val
                 return
             val_ = self.binds[val.var.name]
-            _internal_assert(tvm.tir.analysis.expr_deep_equal(val_.dom.extent, val.dom.extent),
-                             "Thread extents should be uniform!")
+            _internal_assert(
+                tvm.tir.analysis.expr_deep_equal(val_.dom.extent, val.dom.extent),
+                "Thread extents should be uniform!",
+            )
             self.symbols[key] = ty, val_
-
 
     def wrap_up_realize(self, node, body):
         """Wrap up all the variables which will no longer be used"""
@@ -196,67 +191,65 @@ class HybridParser(ast.NodeVisitor):
                 continue
             _internal_assert(key in self.symbols.keys(), "Unknown symbol %s!" % key)
 
-            ty, entry = self.symbols[key] #pylint: disable=invalid-name
+            ty, entry = self.symbols[key]  # pylint: disable=invalid-name
             if ty in [Symbol.Input, Symbol.OutputBuffer]:
                 continue
-            if 'Buffer' in ty.name:
+            if "Buffer" in ty.name:
                 _buf = entry
-                _scope = 'global' if ty is Symbol.BufferVar else ty.name[:-6].lower()
+                _scope = "global" if ty is Symbol.BufferVar else ty.name[:-6].lower()
                 to_pop.append(key)
             else:
                 continue
 
-            if _scope == 'global':
+            if _scope == "global":
                 body = self.wrap_up_binds(body)
 
             _domain = [Range.from_min_extent(0, i) for i in _buf.shape]
             _dtype = _buf.dtype
             _true = tvm.runtime.convert(True)
             body = tvm.tir.ProducerRealize(_buf, _domain, _true, body)
-            body = tvm.tir.AttrStmt(_buf.op, 'realize_scope', tvm.runtime.convert(_scope), body)
+            body = tvm.tir.AttrStmt(_buf.op, "realize_scope", tvm.runtime.convert(_scope), body)
 
         for elem in to_pop:
             self.symbols.pop(elem)
 
         return body
 
-
     def wrap_up_binds(self, body):
         for _, iter_var in self.binds.items():
             ext = iter_var.dom.extent
-            body = tvm.tir.AttrStmt(iter_var, 'thread_extent', ext, body)
+            body = tvm.tir.AttrStmt(iter_var, "thread_extent", ext, body)
         self.binds = {}
         return body
 
-
-    #pylint: disable=invalid-name, missing-docstring
+    # pylint: disable=invalid-name, missing-docstring
     def visit_Module(self, node):
-        _internal_assert(len(node.body) == 1, \
-                         "Only one-function source code will be fed to this parser!")
+        _internal_assert(
+            len(node.body) == 1, "Only one-function source code will be fed to this parser!"
+        )
         return self.visit(node.body[0])
 
-
     def visit_FunctionDef(self, node):
-        _internal_assert(len(node.args.args) == len(self.args), \
-                         "The number of arguments passed to the \
-                         function should be the same as it is defined!")
+        _internal_assert(
+            len(node.args.args) == len(self.args),
+            "The number of arguments passed to the \
+                         function should be the same as it is defined!",
+        )
         if self.func_name is None:
             self.func_name = node.name
         for idx, arg in enumerate(node.args.args):
-            _attr = 'id' if sys.version_info[0] < 3 else 'arg' # To make py2 and 3 compatible
+            _attr = "id" if sys.version_info[0] < 3 else "arg"  # To make py2 and 3 compatible
             self.add_symbol(getattr(arg, _attr), Symbol.Input, self.args[idx])
         res = visit_list_to_block(self.visit, node.body)
         res = self.wrap_up_realize(node, res)
         return self.wrap_up_binds(res)
 
-
     def visit_Expr(self, node):
         return self.visit(node.value)
 
-
     def visit_Name(self, node):
         name = node.id
-        if sys.version_info[0] == 2 and name in ['True', 'False']:
+        if sys.version_info[0] == 2 and name in ["True", "False"]:
             return tvm.runtime.convert(ast.literal_eval(name))
 
         if name in self.closure_vars:
@@ -272,11 +265,10 @@ class HybridParser(ast.NodeVisitor):
             return entry if isinstance(node.ctx, ast.Load) else None
         if ty is Symbol.BufferVar:
             if isinstance(node.ctx, ast.Load):
-                return tvm.tir.ProducerLoad(entry, [tvm.runtime.const(0, 'int32')])
-            return entry, [tvm.runtime.const(0, 'int32')]
+                return tvm.tir.ProducerLoad(entry, [tvm.runtime.const(0, "int32")])
+            return entry, [tvm.runtime.const(0, "int32")]
         # Do I need any assertion here?
         return entry
-
 
     def visit_Num(self, node):
         if isinstance(node.n, numbers.Integral):
@@ -284,15 +276,14 @@ class HybridParser(ast.NodeVisitor):
         elif isinstance(node.n, float):
             dtype = "float32"
         else:
-            _internal_assert(isinstance(node.n, bool),
-                             "The data type should be one of (int, float, bool)")
+            _internal_assert(
+                isinstance(node.n, bool), "The data type should be one of (int, float, bool)"
+            )
             dtype = "bool"
         return tvm.runtime.const(node.n, dtype)
 
-
     def visit_NameConstant(self, node):
         return tvm.runtime.convert(node.value)
-
 
     def visit_AugAssign(self, node):
         buf = self.visit(node.target)
@@ -301,7 +292,7 @@ class HybridParser(ast.NodeVisitor):
             _internal_assert(len(buf) == 2, "LHS is supposed to be (buf, args)!")
             buf, args = buf
         else:
-            args = [tvm.runtime.const(0, 'int32')]
+            args = [tvm.runtime.const(0, "int32")]
         _internal_assert(isinstance(buf, Tensor), "LHS is supposed to be Tensor!")
 
         read = tvm.tir.ProducerLoad(buf, args)
@@ -309,16 +300,18 @@ class HybridParser(ast.NodeVisitor):
 
         return tvm.tir.ProducerStore(buf, value, args)
 
-
     def visit_Assign(self, node):
         rhs = self.visit(node.value)
         if isinstance(rhs, Operation):
             rmap = {}
-            _internal_assert(len(node.targets) == rhs.num_outputs, \
-                             "Unable to detuple the outs to targets")
+            _internal_assert(
+                len(node.targets) == rhs.num_outputs, "Unable to detuple the outs to targets"
+            )
             for i in range(rhs.num_outputs):
-                _internal_assert(isinstance(node.targets[i], ast.Name),
-                                 "You should bind a pure name to the tensors")
+                _internal_assert(
+                    isinstance(node.targets[i], ast.Name),
+                    "You should bind a pure name to the tensors",
+                )
                 self.add_symbol(node.targets[i].id, Symbol.GlobalBuffer, rhs.output(i))
                 rmap[rhs.outputs[i].op] = rhs.output(i)
             return util.replace_io(rhs.body, rmap)
@@ -328,32 +321,35 @@ class HybridParser(ast.NodeVisitor):
         if isinstance(rhs, _expr.PrimExpr):
             rhs = self.analyzer.simplify(rhs)
         if isinstance(lhs, ast.Name):
-            #TODO: support defined intermediate buffer later
+            # TODO: support defined intermediate buffer later
             lhs_ = lhs
             lhs = lhs.id
             if lhs in self.symbols.keys():
                 ty, _ = self.symbols[lhs]
-                _internal_assert(ty != Symbol.LoopVar, \
-                                 "Loop variable cannot be overwritten!")
+                _internal_assert(ty != Symbol.LoopVar, "Loop variable cannot be overwritten!")
             decl, _, rw = self.usage[lhs]
             if decl == lhs_:
-                _internal_assert(lhs not in self.symbols.keys(),
-                                 "This value should not be defined before this point!")
+                _internal_assert(
+                    lhs not in self.symbols.keys(),
+                    "This value should not be defined before this point!",
+                )
                 if isinstance(rhs, tuple):
                     shape, dtype, scope = rhs
                     ph = tvm.te.placeholder(shape, dtype=dtype, name=lhs)
                     self.add_symbol(lhs, getattr(Symbol, scope.title() + "Buffer"), ph)
-                    if scope == 'output':
+                    if scope == "output":
                         self.outputs.append(lhs)
                     return util.make_nop()
                 if isinstance(rhs, util.halide_imm_types) and ast.Store not in rw:
                     self.add_symbol(lhs, Symbol.ConstVar, rhs)
                 else:
-                    _internal_assert(self.device == 0,
-                                     "Single variable not supported in devices' side!\n" + \
-                                     "If you are using GPU, please allocate a 'local' spad " + \
-                                     "outside the bind body")
-                    ph = tvm.te.placeholder((1, ), dtype=rhs.dtype, name=lhs)
+                    _internal_assert(
+                        self.device == 0,
+                        "Single variable not supported in devices' side!\n"
+                        + "If you are using GPU, please allocate a 'local' spad "
+                        + "outside the bind body",
+                    )
+                    ph = tvm.te.placeholder((1,), dtype=rhs.dtype, name=lhs)
                     self.add_symbol(lhs, Symbol.BufferVar, ph)
             lhs = self.visit(lhs_)
             if lhs is not None:
@@ -362,17 +358,16 @@ class HybridParser(ast.NodeVisitor):
             return util.make_nop()
 
         lhs, args = self.visit(lhs)
-        _internal_assert(isinstance(lhs, Tensor), \
-                         "An array access's LHS is expected to be a expr.Call!")
+        _internal_assert(
+            isinstance(lhs, Tensor), "An array access's LHS is expected to be a expr.Call!"
+        )
         res = tvm.tir.ProducerStore(lhs, rhs, args)
         return res
-
 
     def visit_Index(self, node):
         if isinstance(node.value, ast.Tuple):
             return self.visit(node.value)
         return [self.visit(node.value)]
-
 
     def visit_Attribute(self, node):
         buf = self.visit(node.value)
@@ -386,8 +381,9 @@ class HybridParser(ast.NodeVisitor):
                 if isinstance(i, numbers.Integral):
                     arr = arr[i]
                 else:
-                    _internal_assert(isinstance(i, (_expr.IntImm,)), \
-                                     "All indices are supposed to be constants")
+                    _internal_assert(
+                        isinstance(i, (_expr.IntImm,)), "All indices are supposed to be constants"
+                    )
                     arr = arr[i.value]
             return arr
         if isinstance(node.ctx, ast.Load):
@@ -406,7 +402,6 @@ class HybridParser(ast.NodeVisitor):
         _internal_assert(isinstance(option, ast.Name), "The object after 'as' must be an id!")
         self.annotation[option.id] = context.func.id
         return visit_list_to_block(self.visit, node.body)
-
 
     def visit_If(self, node):
         cond = self.analyzer.simplify(self.visit(node.test))
@@ -427,17 +422,14 @@ class HybridParser(ast.NodeVisitor):
             else_body = None
         return tvm.tir.IfThenElse(cond, if_body, else_body)
 
-
     def visit_IfExp(self, node):
         cond = self.visit(node.test)
         if_body = self.visit(node.body)
         else_body = self.visit(node.orelse)
         return tvm.tir.Select(cond, if_body, else_body)
 
-
     def visit_Compare(self, node):
-        _internal_assert(len(node.ops) == len(node.comparators),
-                         "#compare ops != #comparators")
+        _internal_assert(len(node.ops) == len(node.comparators), "#compare ops != #comparators")
         ops = [self.visit(node.left)]
         ops += [self.visit(i) for i in node.comparators]
         res = []
@@ -447,34 +439,29 @@ class HybridParser(ast.NodeVisitor):
             res.append(HybridParser._binop_maker[type(node.ops[i])](lhs, rhs))
         return _all(*res)
 
-
     def visit_BoolOp(self, node):
         n = len(node.values)
         if n == 1:
-            _internal_assert(isinstance(node.op, ast.Not), \
-                             "Unary is supposed to be not!")
+            _internal_assert(isinstance(node.op, ast.Not), "Unary is supposed to be not!")
             return operator.not_(self.visit(node.values[0]))
-        _internal_assert(isinstance(node.op, (ast.And, ast.Or)), \
-                         "Binary is supposed to be and/or!")
+        _internal_assert(isinstance(node.op, (ast.And, ast.Or)), "Binary is supposed to be and/or!")
         values = [self.visit(i) for i in node.values]
         return HybridParser._binop_maker[type(node.op)](*values)
-
 
     def visit_UnaryOp(self, node):
         operand = self.visit(node.operand)
         return HybridParser._unaryop_maker[type(node.op)](operand)
-
 
     def visit_BinOp(self, node):
         lhs = self.visit(node.left)
         rhs = self.visit(node.right)
         return HybridParser._binop_maker[type(node.op)](lhs, rhs)
 
-
     def visit_Call(self, node):
         # Yet, no function pointer supported
-        _internal_assert(isinstance(node.func, ast.Name), \
-                         "Only id-function function call is supported so far!")
+        _internal_assert(
+            isinstance(node.func, ast.Name), "Only id-function function call is supported so far!"
+        )
 
         func_id = node.func.id
         args = [self.visit(i) for i in node.args]
@@ -482,35 +469,37 @@ class HybridParser(ast.NodeVisitor):
         if hasattr(calls, func_id):
             return getattr(calls, func_id)(func_id, args)
         # Contexts'
-        _internal_assert(func_id in self.symbols.keys(), \
-                         "The function called (%s) is not in the context either!" % func_id)
+        _internal_assert(
+            func_id in self.symbols.keys(),
+            "The function called (%s) is not in the context either!" % func_id,
+        )
         ty, entry = self.symbols[func_id]
-        _internal_assert(ty is Symbol.Callable, \
-                         "Are you sure what you call is a function?!")
+        _internal_assert(ty is Symbol.Callable, "Are you sure what you call is a function?!")
         outs = entry(*args)
         op = outs.op if isinstance(outs, Tensor) else outs[0].op
         return op
 
-
     def visit_For(self, node):
         iter_var, low, ext, for_type = self.visit(node.iter)
-        _internal_assert(isinstance(node.target, ast.Name), \
-                         "The loop iterator should be a variable!")
+        _internal_assert(
+            isinstance(node.target, ast.Name), "The loop iterator should be a variable!"
+        )
 
         _name = node.target.id
 
         if isinstance(for_type, tuple):
             low = self.analyzer.simplify(low)
             ext = self.analyzer.simplify(ext)
-            _internal_assert(isinstance(low, _expr.ConstExpr) and
-                             isinstance(ext, _expr.ConstExpr), \
-                             "Const range should start from a const " + \
-                             "and iterate const times")
+            _internal_assert(
+                isinstance(low, _expr.ConstExpr) and isinstance(ext, _expr.ConstExpr),
+                "Const range should start from a const " + "and iterate const times",
+            )
 
             low, ext = low.value, ext.value
             if ext > 114514:
-                logging.log(logging.CRITICAL, \
-                            '[Warning] Are you sure to unroll a large loop in Python?')
+                logging.log(
+                    logging.CRITICAL, "[Warning] Are you sure to unroll a large loop in Python?"
+                )
 
             bodies = []
             for i in range(low, low + ext):
@@ -524,7 +513,7 @@ class HybridParser(ast.NodeVisitor):
         if iter_var is None:
             _internal_assert(for_type is not None, "The loop iterating function parse error!")
             offset = iter_var = tvm.te.var(_name)
-            if not tvm.tir.analysis.expr_deep_equal(low, tvm.runtime.const(0, 'int32')):
+            if not tvm.tir.analysis.expr_deep_equal(low, tvm.runtime.const(0, "int32")):
                 offset = iter_var + low
             self.add_symbol(_name, Symbol.LoopVar, offset)
             _body = visit_list_to_block(self.visit, node.body)
@@ -540,41 +529,43 @@ class HybridParser(ast.NodeVisitor):
         if for_type is None:
             res = _body
         else:
-            _internal_assert(not isinstance(for_type, tuple), \
-                            "Micro expansion should be handled before!")
-            res = tvm.tir.For(iter_var, tvm.runtime.const(0, 'int32'), ext, for_type, 0, _body)
+            _internal_assert(
+                not isinstance(for_type, tuple), "Micro expansion should be handled before!"
+            )
+            res = tvm.tir.For(iter_var, tvm.runtime.const(0, "int32"), ext, for_type, 0, _body)
 
         self.symbols.pop(_name)
         return res
 
-
     def visit_Return(self, node):
-        _internal_assert(all(ty != Symbol.LoopVar for ty, _ in self.symbols.values()), \
-                         "Return should not be in a loop body!")
+        _internal_assert(
+            all(ty != Symbol.LoopVar for ty, _ in self.symbols.values()),
+            "Return should not be in a loop body!",
+        )
         ids = []
         if isinstance(node.value, ast.Name):
             ids = [node.value.id]
         else:
-            _internal_assert(isinstance(node.value, ast.Tuple), \
-                             "You should return either a single tensor or a tuple")
-            _internal_assert(all(isinstance(i, ast.Name) for i in node.value.elts), \
-                             "What do you return?")
+            _internal_assert(
+                isinstance(node.value, ast.Tuple),
+                "You should return either a single tensor or a tuple",
+            )
+            _internal_assert(
+                all(isinstance(i, ast.Name) for i in node.value.elts), "What do you return?"
+            )
             ids = [i.id for i in node.value.elts]
         _internal_assert(len(set(ids)) == len(ids), "Duplicated tensors in the return tuples")
         if len(ids) < len(self.outputs):
-            logging.log(logging.CRITICAL, '[Warning] Not all the output buffers returned!')
+            logging.log(logging.CRITICAL, "[Warning] Not all the output buffers returned!")
         self.outputs = [self.symbols[i][1] for i in ids]
         self.returned = True
         return util.make_nop()
 
-
     def visit_Tuple(self, node):
         return tuple(self.visit(i) for i in node.elts)
 
-
     def visit_Str(self, node):
         return node.s
-
 
     def visit_Assert(self, node):
         test = self.visit(node.test)
@@ -612,7 +603,7 @@ def parse_python(src, args, symbols, closure_vars):
     var_usage = determine_variable_usage(root, args, symbols, closure_vars)
     parser = HybridParser(args, var_usage, symbols, closure_vars)
     parser.parsed_body = parser.visit(root)
-    _internal_assert(parser.returned, 'No valid return found in the function body!')
+    _internal_assert(parser.returned, "No valid return found in the function body!")
     return parser
 
 
@@ -644,6 +635,7 @@ def source_to_op(src, args, symbols, closure_vars):
     parser = parse_python(src, args, symbols, closure_vars)
 
     input_tensors = []
+
     def get_input_tensors(arg):
         if isinstance(arg, Tensor):
             input_tensors.append(arg)
@@ -653,7 +645,8 @@ def source_to_op(src, args, symbols, closure_vars):
 
     for i in args:
         get_input_tensors(i)
-    op = tvm.te._ffi_api.HybridOp(parser.func_name, "HybridOp", None, input_tensors,
-                                  parser.outputs, parser.parsed_body)
+    op = tvm.te._ffi_api.HybridOp(
+        parser.func_name, "HybridOp", None, input_tensors, parser.outputs, parser.parsed_body
+    )
     res = [op.output(i) for i in range(len(parser.outputs))]
     return res[0] if len(res) == 1 else res

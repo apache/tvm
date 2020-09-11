@@ -50,6 +50,7 @@ class ComputeDAG(Object):
     compute : Union[List[Tensor], str]
         `Tensor`s or workload key for a compute declaration.
     """
+
     def __init__(self, compute):
         if isinstance(compute, str):
             compute = workload_key_to_tensors(compute)
@@ -58,12 +59,13 @@ class ComputeDAG(Object):
                 if not isinstance(item, tvm.te.Tensor):
                     raise ValueError("The input of ComputeDAG should be a list of Tensor")
         else:
-            raise ValueError("Invalid compute: " + compute +
-                             " . ComputeDAG expects a string or list of Tensor")
+            raise ValueError(
+                "Invalid compute: " + compute + " . ComputeDAG expects a string or list of Tensor"
+            )
         self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, compute)
 
     def get_init_state(self):
-        """ Get the init state of this ComputeDAG.
+        """Get the init state of this ComputeDAG.
 
         Returns
         -------
@@ -72,7 +74,7 @@ class ComputeDAG(Object):
         """
         return State(self.init_state, self)
 
-    def apply_steps_from_state(self, state):
+    def apply_steps_from_state(self, state, layout_rewrite=False):
         """
         Apply the history transform steps from a State to get a TVM schedule.
 
@@ -81,12 +83,16 @@ class ComputeDAG(Object):
         state : Union[State, StateObject]
             The state from which we get transform steps.
 
+        layout_rewrite: Bool
+            Rewrite the layout of placeholders specified by "layout_free_placeholders" attr
+            to make it most friendly for the generated schedule to read from.
+
         Returns
         -------
             A `te.schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
         """
         state_obj = state if isinstance(state, StateObject) else state.state_object
-        return _ffi_api.ComputeDAGApplyStepsFromState(self, state_obj)
+        return _ffi_api.ComputeDAGApplyStepsFromState(self, state_obj, layout_rewrite)
 
     def print_python_code_from_state(self, state):
         """
@@ -141,19 +147,19 @@ class ComputeDAG(Object):
     def __hash__(self):
         # TODO(merrymercy): Implement this more carefully and move this to c++ as a member function
         # of ComputeDAG
-        str_key = ''
+        str_key = ""
         for op in self.ops:
             t = op.output(0)
             if isinstance(op, PlaceholderOp):
-                str_key += 'placeholder,'
-                str_key += str(get_const_tuple(t.shape)) + ','
-                str_key += t.dtype + ';'
+                str_key += "placeholder,"
+                str_key += str(get_const_tuple(t.shape)) + ","
+                str_key += t.dtype + ";"
             elif isinstance(op, ComputeOp):
-                str_key += str(t.op.body) + ','
-                str_key += str(get_const_tuple(t.shape)) + ','
-                str_key += t.dtype + ';'
+                str_key += str(t.op.body) + ","
+                str_key += str(get_const_tuple(t.shape)) + ","
+                str_key += t.dtype + ";"
             else:
                 raise ValueError("Invalid op: " + op)
 
-        str_key = str_key.encode(encoding='utf-8')
+        str_key = str_key.encode(encoding="utf-8")
         return hashlib.md5(str_key).hexdigest()

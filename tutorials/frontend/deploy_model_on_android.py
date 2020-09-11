@@ -189,42 +189,53 @@ from tvm.contrib.download import download_testdata
 # ---------------------------
 # We load a pretrained MobileNetV2(alpha=0.5) classification model provided by keras.
 keras.backend.clear_session()  # Destroys the current TF graph and creates a new one.
-weights_url = ''.join(['https://github.com/JonathanCMitchell/',
-                       'mobilenet_v2_keras/releases/download/v1.1/',
-                       'mobilenet_v2_weights_tf_dim_ordering_tf_kernels_0.5_224.h5'])
-weights_file = 'mobilenet_v2_weights.h5'
-weights_path = download_testdata(weights_url, weights_file, module='keras')
-keras_mobilenet_v2 = MobileNetV2(alpha=0.5, include_top=True, weights=None,
-                                input_shape=(224, 224, 3), classes=1000)
+weights_url = "".join(
+    [
+        "https://github.com/JonathanCMitchell/",
+        "mobilenet_v2_keras/releases/download/v1.1/",
+        "mobilenet_v2_weights_tf_dim_ordering_tf_kernels_0.5_224.h5",
+    ]
+)
+weights_file = "mobilenet_v2_weights.h5"
+weights_path = download_testdata(weights_url, weights_file, module="keras")
+keras_mobilenet_v2 = MobileNetV2(
+    alpha=0.5, include_top=True, weights=None, input_shape=(224, 224, 3), classes=1000
+)
 keras_mobilenet_v2.load_weights(weights_path)
 
 ######################################################################
 # In order to test our model, here we download an image of cat and
 # transform its format.
-img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-img_name = 'cat.png'
-img_path = download_testdata(img_url, img_name, module='data')
+img_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
+img_name = "cat.png"
+img_path = download_testdata(img_url, img_name, module="data")
 image = Image.open(img_path).resize((224, 224))
-dtype = 'float32'
+dtype = "float32"
+
 
 def transform_image(image):
-    image = np.array(image) - np.array([123., 117., 104.])
+    image = np.array(image) - np.array([123.0, 117.0, 104.0])
     image /= np.array([58.395, 57.12, 57.375])
     image = image.transpose((2, 0, 1))
     image = image[np.newaxis, :]
     return image
+
 
 x = transform_image(image)
 
 ######################################################################
 # synset is used to transform the label from number of ImageNet class to
 # the word human can understand.
-synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
-                      '4d0b62f3d01426887599d4f7ede23ee5/raw/',
-                      '596b27d23537e5a1b5751d2b0481ef172f58b539/',
-                      'imagenet1000_clsid_to_human.txt'])
-synset_name = 'imagenet1000_clsid_to_human.txt'
-synset_path = download_testdata(synset_url, synset_name, module='data')
+synset_url = "".join(
+    [
+        "https://gist.githubusercontent.com/zhreshold/",
+        "4d0b62f3d01426887599d4f7ede23ee5/raw/",
+        "596b27d23537e5a1b5751d2b0481ef172f58b539/",
+        "imagenet1000_clsid_to_human.txt",
+    ]
+)
+synset_name = "imagenet1000_clsid_to_human.txt"
+synset_path = download_testdata(synset_url, synset_name, module="data")
 with open(synset_path) as f:
     synset = eval(f.read())
 
@@ -241,31 +252,30 @@ local_demo = True
 
 # by default on CPU target will execute.
 # select 'cpu', 'opencl' and 'vulkan'
-test_target = 'cpu'
+test_target = "cpu"
 
 # Change target configuration.
 # Run `adb shell cat /proc/cpuinfo` to find the arch.
-arch = 'arm64'
-target = 'llvm -mtriple=%s-linux-android' % arch
+arch = "arm64"
+target = "llvm -mtriple=%s-linux-android" % arch
 target_host = None
 
 if local_demo:
     target_host = None
-    target = 'llvm'
-elif test_target == 'opencl':
+    target = "llvm"
+elif test_target == "opencl":
     target_host = target
-    target = 'opencl'
-elif test_target == 'vulkan':
+    target = "opencl"
+elif test_target == "vulkan":
     target_host = target
-    target = 'vulkan'
+    target = "vulkan"
 
-input_name = 'input_1'
+input_name = "input_1"
 shape_dict = {input_name: x.shape}
 mod, params = relay.frontend.from_keras(keras_mobilenet_v2, shape_dict)
 
 with tvm.transform.PassContext(opt_level=3):
-    lib = relay.build(mod, target=target,
-                      target_host=target_host, params=params)
+    lib = relay.build(mod, target=target, target_host=target_host, params=params)
 
 # After `relay.build`, you will get three return values: graph,
 # library and the new parameter, since we do some optimization that will
@@ -273,7 +283,7 @@ with tvm.transform.PassContext(opt_level=3):
 
 # Save the library at local temporary directory.
 tmp = util.tempdir()
-lib_fname = tmp.relpath('net.so')
+lib_fname = tmp.relpath("net.so")
 fcompile = ndk.create_shared if not local_demo else None
 lib.export_library(lib_fname, fcompile)
 
@@ -283,33 +293,32 @@ lib.export_library(lib_fname, fcompile)
 # With RPC, you can deploy the model remotely from your host machine
 # to the remote android device.
 
-tracker_host = os.environ.get('TVM_TRACKER_HOST', '0.0.0.0')
-tracker_port = int(os.environ.get('TVM_TRACKER_PORT', 9190))
-key = 'android'
+tracker_host = os.environ.get("TVM_TRACKER_HOST", "0.0.0.0")
+tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
+key = "android"
 
 if local_demo:
     remote = rpc.LocalSession()
 else:
     tracker = rpc.connect_tracker(tracker_host, tracker_port)
     # When running a heavy model, we should increase the `session_timeout`
-    remote = tracker.request(key, priority=0,
-                             session_timeout=60)
+    remote = tracker.request(key, priority=0, session_timeout=60)
 
 if local_demo:
     ctx = remote.cpu(0)
-elif test_target == 'opencl':
+elif test_target == "opencl":
     ctx = remote.cl(0)
-elif test_target == 'vulkan':
+elif test_target == "vulkan":
     ctx = remote.vulkan(0)
 else:
     ctx = remote.cpu(0)
 
 # upload the library to remote device and load it
 remote.upload(lib_fname)
-rlib = remote.load_module('net.so')
+rlib = remote.load_module("net.so")
 
 # create the remote runtime module
-module = runtime.GraphModule(rlib['default'](ctx))
+module = runtime.GraphModule(rlib["default"](ctx))
 
 ######################################################################
 # Execute on TVM
@@ -324,13 +333,12 @@ out = module.get_output(0)
 
 # get top1 result
 top1 = np.argmax(out.asnumpy())
-print('TVM prediction top-1: {}'.format(synset[top1]))
+print("TVM prediction top-1: {}".format(synset[top1]))
 
-print('Evaluate inference time cost...')
-ftimer = module.module.time_evaluator('run', ctx, number=1, repeat=10)
+print("Evaluate inference time cost...")
+ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=10)
 prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
-print('Mean inference time (std dev): %.2f ms (%.2f ms)' % (np.mean(prof_res),
-                                                            np.std(prof_res)))
+print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res)))
 
 ######################################################################
 # Sample Output

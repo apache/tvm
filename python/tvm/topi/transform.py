@@ -83,8 +83,11 @@ def expand_like(a, shape_like, axis):
         if len(a.shape) == 1 and len(axis) == len(shape_like.shape):
             # A special case: `a` is a scalar represented as a 1-dim tensor
             return te.compute(shape_like.shape, lambda *idxs: a(0))
-        raise ValueError("shape inconsistent when expand_like ({}, {}, {})".format(
-            len(axis), len(a.shape), len(shape_like.shape)))
+        raise ValueError(
+            "shape inconsistent when expand_like ({}, {}, {})".format(
+                len(axis), len(a.shape), len(shape_like.shape)
+            )
+        )
 
     real_axis = topi.reduction._get_real_axis(len(shape_like.shape), axis)
     real_axis = sorted(real_axis)
@@ -97,6 +100,7 @@ def expand_like(a, shape_like, axis):
                 indices.append(idxs[i])
                 axis_index += 1
         return a(*indices)
+
     return te.compute(shape_like.shape, _compute)
 
 
@@ -200,7 +204,8 @@ def strided_slice(a, begin, end, strides=None, slice_mode="end"):
         strides = []
     return cpp.strided_slice(a, begin, end, strides, slice_mode)
 
-@tvm.te.tag_scope(tag=tag.INJECTIVE+",strided_set")
+
+@tvm.te.tag_scope(tag=tag.INJECTIVE + ",strided_set")
 def strided_set(a, v, begin, end, strides=None):
     """Set slice of an array.
 
@@ -231,59 +236,57 @@ def strided_set(a, v, begin, end, strides=None):
 
     if len(begin.shape) != 1:
         raise ValueError("begin should be a vector")
-    if not begin.dtype == 'int32':
+    if not begin.dtype == "int32":
         raise TypeError("begin should be int32")
     if len(end.shape) != 1:
         raise ValueError("end should be a vector")
-    if not end.dtype == 'int32':
+    if not end.dtype == "int32":
         raise TypeError("end should be int32")
     if strides is not None:
         if len(strides.shape) != 1:
             raise ValueError("strides should be a vector")
-        if not strides.dtype == 'int32':
+        if not strides.dtype == "int32":
             raise TypeError("strides should be int32")
 
     def _max(a, b):
         return tvm.tir.Select(a > b, a, b)
 
     if strides is None:
-        strides = [tvm.tir.const(1, 'int32')] * n
+        strides = [tvm.tir.const(1, "int32")] * n
     else:
-        strides = [tvm.tir.if_then_else(strides.shape[0] > i,
-                                        strides[i],
-                                        tvm.tir.const(1, 'int32'))
-                   for i in range(n)]
+        strides = [
+            tvm.tir.if_then_else(strides.shape[0] > i, strides[i], tvm.tir.const(1, "int32"))
+            for i in range(n)
+        ]
 
-    begin = [tvm.tir.if_then_else(begin.shape[0] > i,
-                                  begin[i],
-                                  tvm.tir.Select(strides[i] > 0,
-                                                 tvm.tir.const(0, 'int32'),
-                                                 a.shape[i]))
-             for i in range(n)]
-    end = [tvm.tir.if_then_else(end.shape[0] > i,
-                                end[i],
-                                tvm.tir.Select(strides[i] > 0,
-                                               a.shape[i] + 1,
-                                               -(a.shape[i] + 1)))
-           for i in range(n)]
-
+    begin = [
+        tvm.tir.if_then_else(
+            begin.shape[0] > i,
+            begin[i],
+            tvm.tir.Select(strides[i] > 0, tvm.tir.const(0, "int32"), a.shape[i]),
+        )
+        for i in range(n)
+    ]
+    end = [
+        tvm.tir.if_then_else(
+            end.shape[0] > i,
+            end[i],
+            tvm.tir.Select(strides[i] > 0, a.shape[i] + 1, -(a.shape[i] + 1)),
+        )
+        for i in range(n)
+    ]
 
     # Convert negative indexes
     for i in range(n):
-        begin[i] = tvm.tir.if_then_else(begin[i] < 0,
-                                        begin[i] + a.shape[i],
-                                        begin[i])
-        end[i] = tvm.tir.if_then_else(end[i] < 0,
-                                      end[i] + a.shape[i],
-                                      end[i])
+        begin[i] = tvm.tir.if_then_else(begin[i] < 0, begin[i] + a.shape[i], begin[i])
+        end[i] = tvm.tir.if_then_else(end[i] < 0, end[i] + a.shape[i], end[i])
 
     def _select(*indices):
         from_val = []
         index_tuple = []
         for i in range(n):
             from_val.append(within_index(begin[i], end[i], strides[i], indices[i]))
-            index_tuple.append(
-                make_idx(begin[i], end[i], strides[i], a.shape[i], indices[i]))
+            index_tuple.append(make_idx(begin[i], end[i], strides[i], a.shape[i], indices[i]))
         return tvm.tir.if_then_else(tvm.tir.all(*from_val), v(*index_tuple), a(*indices))
 
     return te.compute(a.shape, _select, name="strided_set")
@@ -657,8 +660,9 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
         depending on the value of `axis`.
     """
 
-    assert len(data.shape) >= 2,\
-        "only support data.ndim >= 2, received data.shape = {}".format(data.shape)
+    assert len(data.shape) >= 2, "only support data.ndim >= 2, received data.shape = {}".format(
+        data.shape
+    )
     assert axis in (0, 1), "only support axis = 0, 1, received axis = {}".format(axis)
     return cpp.sequence_mask(data, valid_length, mask_value, axis)
 
@@ -702,6 +706,7 @@ def where(condition, x, y):
         A Tensor selected from x or y depending on condition.
     """
     return cpp.where(condition, x, y)
+
 
 def one_hot(indices, on_value, off_value, depth, axis, dtype):
     """
@@ -751,24 +756,25 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
 def unravel_index(indices, shape):
     """Convert a flat index or array of flat indices into a tuple of coordinate arrays.
 
-       Example::
-       -   unravel_index([22, 41, 37], [7, 6]) = [[3, 6, 6], [4, 5, 1]]
+    Example::
+    -   unravel_index([22, 41, 37], [7, 6]) = [[3, 6, 6], [4, 5, 1]]
 
-       Parameters
-       ----------
-       indices : relay.Expr
-           An integer array containing indices.
+    Parameters
+    ----------
+    indices : relay.Expr
+        An integer array containing indices.
 
-       shape : relay.Expr
-           The shape of the array.
+    shape : relay.Expr
+        The shape of the array.
 
-       Returns
-       -------
-       result : relay.Expr
-           The tuple of coordinate arrays.
+    Returns
+    -------
+    result : relay.Expr
+        The tuple of coordinate arrays.
     """
 
     return cpp.unravel_index(indices, shape)
+
 
 def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0):
     """Converts a sparse representation into a dense tensor.
@@ -798,6 +804,7 @@ def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0
     """
 
     return cpp.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
+
 
 def matrix_set_diag(data, diagonal):
     """
@@ -838,3 +845,22 @@ def matrix_set_diag(data, diagonal):
               [7, 7, 6, 7]]]
     """
     return cpp.matrix_set_diag(data, diagonal)
+
+
+def adv_index(data, indices):
+    """Numpy style indexing with tensors.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        Input data.
+
+    indices : A list of tvm.te.Tensor
+        Tensor index.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        Output tensor
+    """
+    return cpp.adv_index(data, indices)

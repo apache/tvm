@@ -39,7 +39,7 @@ import numpy as np
 #
 n = te.var("n")
 m = te.var("m")
-A = te.placeholder((n, m), name='A')
+A = te.placeholder((n, m), name="A")
 k = te.reduce_axis((0, m), "k")
 B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
 s = te.create_schedule(B.op)
@@ -97,7 +97,7 @@ print(sg.stages)
 ######################################################################
 # We can test the correctness by comparing with :code:`numpy` result as follows
 #
-func = tvm.build(sg, [a, b, g], 'cuda')
+func = tvm.build(sg, [a, b, g], "cuda")
 ctx = tvm.gpu(0)
 a_np = np.random.uniform(size=(x, y, y)).astype(a.dtype)
 b_np = np.random.uniform(size=(y, y)).astype(b.dtype)
@@ -113,7 +113,7 @@ tvm.testing.assert_allclose(g_nd.asnumpy(), g_np, rtol=1e-5)
 #
 tarray = te.placeholder((512, 512), name="tarray")
 softmax_topi = topi.nn.softmax(tarray)
-with tvm.target.create("cuda"):
+with tvm.target.Target("cuda"):
     sst = topi.cuda.schedule_softmax(softmax_topi)
     print(tvm.lower(sst, [tarray], simple_mode=True))
 
@@ -133,7 +133,7 @@ with tvm.target.create("cuda"):
 data = te.placeholder((1, 3, 224, 224))
 kernel = te.placeholder((10, 3, 5, 5))
 
-with tvm.target.create("cuda"):
+with tvm.target.Target("cuda"):
     conv = topi.cuda.conv2d_nchw(data, kernel, 1, 2, 1)
     out = topi.nn.relu(conv)
     sconv = topi.cuda.schedule_conv2d_nchw([out])

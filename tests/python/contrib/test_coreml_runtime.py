@@ -28,7 +28,8 @@ proxy_port = os.environ.get("TVM_IOS_RPC_PROXY_PORT", 9090)
 destination = os.environ.get("TVM_IOS_RPC_DESTINATION", "")
 key = "iphone"
 
-@pytest.mark.skip('skip because coremltools is not available in CI')
+
+@pytest.mark.skip("skip because coremltools is not available in CI")
 def test_coreml_runtime():
 
     import coremltools
@@ -39,23 +40,20 @@ def test_coreml_runtime():
         alpha = 2
 
         inputs = [
-            ('input0', coremltools.models.datatypes.Array(*shape)),
-            ('input1', coremltools.models.datatypes.Array(*shape))
+            ("input0", coremltools.models.datatypes.Array(*shape)),
+            ("input1", coremltools.models.datatypes.Array(*shape)),
         ]
         outputs = [
-            ('output0', coremltools.models.datatypes.Array(*shape)),
-            ('output1', coremltools.models.datatypes.Array(*shape)),
+            ("output0", coremltools.models.datatypes.Array(*shape)),
+            ("output1", coremltools.models.datatypes.Array(*shape)),
         ]
         builder = NeuralNetworkBuilder(inputs, outputs)
-        builder.add_elementwise(name='Add',
-                                input_names=['input0', 'input1'],
-                                output_name='output0',
-                                mode='ADD')
-        builder.add_elementwise(name='Mul',
-                                alpha=alpha,
-                                input_names=['input0'],
-                                output_name='output1',
-                                mode='MULTIPLY')
+        builder.add_elementwise(
+            name="Add", input_names=["input0", "input1"], output_name="output0", mode="ADD"
+        )
+        builder.add_elementwise(
+            name="Mul", alpha=alpha, input_names=["input0"], output_name="output1", mode="MULTIPLY"
+        )
         return coremltools.models.MLModel(builder.spec)
 
     def verify(coreml_model, model_path, ctx):
@@ -74,7 +72,7 @@ def test_coreml_runtime():
         coreml_outputs = [coreml_model.predict(inputs)[name] for name in out_names]
 
         # inference via tvm coreml runtime
-        runtime = coreml_runtime.create('main', model_path, ctx)
+        runtime = coreml_runtime.create("main", model_path, ctx)
         for name in inputs:
             runtime.set_input(name, tvm.nd.array(inputs[name], ctx))
         runtime.invoke()
@@ -86,8 +84,9 @@ def test_coreml_runtime():
     def check_remote(coreml_model):
         temp = util.tempdir()
         compiled_model = xcode.compile_coreml(coreml_model, out_dir=temp.temp_dir)
-        xcode.popen_test_rpc(proxy_host, proxy_port, key, destination=destination,
-                             libs=[compiled_model])
+        xcode.popen_test_rpc(
+            proxy_host, proxy_port, key, destination=destination, libs=[compiled_model]
+        )
         compiled_model = os.path.basename(compiled_model)
         remote = rpc.connect(proxy_host, proxy_port, key=key)
         ctx = remote.cpu(0)

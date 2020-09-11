@@ -23,20 +23,27 @@ from .conv2d import conv2d_nchw, schedule_conv2d_nchw
 
 
 def conv2d_transpose_nchw(data, kernel, strides, padding, out_dtype, output_padding):
-    data_pad, kernel_transform = \
-        nn.conv2d_transpose_nchw_preprocess(data, kernel, strides, padding,
-                                            out_dtype, output_padding)
+    data_pad, kernel_transform = nn.conv2d_transpose_nchw_preprocess(
+        data, kernel, strides, padding, out_dtype, output_padding
+    )
     # reuse conv2d_nchw implementation
-    return conv2d_nchw(data_pad, kernel_transform, strides=(1, 1),
-                       padding=(0, 0), dilation=(1, 1), out_dtype=out_dtype)
+    return conv2d_nchw(
+        data_pad,
+        kernel_transform,
+        strides=(1, 1),
+        padding=(0, 0),
+        dilation=(1, 1),
+        out_dtype=out_dtype,
+    )
 
 
 def schedule_conv2d_transpose_nchw(outs):
     """Create schedule for tensors"""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = schedule_conv2d_nchw(outs)
+
     def _callback(op):
-        if 'unpack_nchwc' in op.tag:
+        if "unpack_nchwc" in op.tag:
             conv_out = op.input_tensors[0]
             # retrieve data
             data_vec = conv_out.op.input_tensors[0]

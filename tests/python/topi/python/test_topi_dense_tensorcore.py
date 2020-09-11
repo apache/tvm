@@ -26,15 +26,14 @@ from tvm.contrib.pickle_memoize import memoize
 import tvm.testing
 
 
-_dense_implement = {
-    "gpu": [(topi.cuda.dense_tensorcore, topi.cuda.schedule_dense_tensorcore)]
-}
+_dense_implement = {"gpu": [(topi.cuda.dense_tensorcore, topi.cuda.schedule_dense_tensorcore)]}
+
 
 def verify_dense(batch, in_dim, out_dim, use_bias=True):
     """Dense tensorcore verify function"""
-    A = te.placeholder((batch, in_dim), name='A')
-    B = te.placeholder((out_dim, in_dim), name='B')
-    C = te.placeholder((out_dim,), name='C')
+    A = te.placeholder((batch, in_dim), name="A")
+    B = te.placeholder((out_dim, in_dim), name="B")
+    C = te.placeholder((out_dim,), name="C")
     dtype = A.dtype
 
     # use memoize to pickle the test data for next time use
@@ -48,6 +47,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
         else:
             d_np = np.maximum(np.dot(a_np, b_np.T), 0.0)
         return (a_np, b_np, c_np, d_np)
+
     # get the test data
     a_np, b_np, c_np, d_np = get_ref_data()
 
@@ -55,7 +55,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
         ctx = tvm.context(device, 0)
         print("Running on target: %s" % device)
         for fcompute, fschedule in tvm.topi.testing.dispatch(device, _dense_implement):
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 D = fcompute(A, B, C if use_bias else None)
                 D = topi.nn.relu(D)
                 s = fschedule([D])
@@ -67,8 +67,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
             f(a, b, c, d)
             tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-3)
 
-
-    check_device('cuda')
+    check_device("cuda")
 
 
 @tvm.testing.requires_tensorcore

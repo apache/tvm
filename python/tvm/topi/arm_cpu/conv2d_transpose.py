@@ -27,10 +27,8 @@ from ..util import get_const_tuple, traverse_inline
 from .conv2d_spatial_pack import schedule_conv2d_spatial_pack_nchw
 
 
-
 @autotvm.register_topi_compute("conv2d_transpose_nchw.arm_cpu")
-def conv2d_transpose_nchw(cfg, Input, Filter, strides, padding, out_dtype,
-                          output_padding):
+def conv2d_transpose_nchw(cfg, Input, Filter, strides, padding, out_dtype, output_padding):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -58,11 +56,14 @@ def conv2d_transpose_nchw(cfg, Input, Filter, strides, padding, out_dtype,
     Output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return _decl_spatial_pack(cfg, Input, Filter, strides, padding, "NCHW", out_dtype, 2,
-                              output_padding)
+    return _decl_spatial_pack(
+        cfg, Input, Filter, strides, padding, "NCHW", out_dtype, 2, output_padding
+    )
 
-def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile,
-                       output_padding):
+
+def _decl_spatial_pack(
+    cfg, data, kernel, strides, padding, layout, out_dtype, num_tile, output_padding
+):
     assert layout == "NCHW", "Only support NCHW"
     out_dtype = out_dtype or data.dtype
 
@@ -86,61 +87,83 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, n
     n, co, oh, ow = cfg.axis(N), cfg.axis(CO), cfg.axis(OH), cfg.axis(OW)
     ci, kh, kw = cfg.reduce_axis(CI), cfg.reduce_axis(KH), cfg.reduce_axis(KW)
 
-    if num_tile == 2:     # for arm cpu
-        co, vc = cfg.define_split('tile_co', co, num_outputs=2)
-        oh, vh = cfg.define_split('tile_oh', oh, num_outputs=2)
-        ow, vw = cfg.define_split('tile_ow', ow, num_outputs=2)
-    elif num_tile == 3:   # for mali gpu
-        co, _, vc = cfg.define_split('tile_co', co, num_outputs=3)
-        oh, _, vh = cfg.define_split('tile_oh', oh, num_outputs=3)
-        ow, _, vw = cfg.define_split('tile_ow', ow, num_outputs=3)
+    if num_tile == 2:  # for arm cpu
+        co, vc = cfg.define_split("tile_co", co, num_outputs=2)
+        oh, vh = cfg.define_split("tile_oh", oh, num_outputs=2)
+        ow, vw = cfg.define_split("tile_ow", ow, num_outputs=2)
+    elif num_tile == 3:  # for mali gpu
+        co, _, vc = cfg.define_split("tile_co", co, num_outputs=3)
+        oh, _, vh = cfg.define_split("tile_oh", oh, num_outputs=3)
+        ow, _, vw = cfg.define_split("tile_ow", ow, num_outputs=3)
     else:
         raise RuntimeError("Invalid num_tile")
 
-    cfg.define_reorder("reorder_0",
-                       [n, co, oh, ow, ci, kh, kw, vh, vw, vc],
-                       policy='candidate', candidate=[
-                           [n, co, oh, ow, ci, kh, kw, vh, vw, vc],
-                           [n, co, oh, ow, ci, kh, kw, vc, vh, vw]])
+    cfg.define_reorder(
+        "reorder_0",
+        [n, co, oh, ow, ci, kh, kw, vh, vw, vc],
+        policy="candidate",
+        candidate=[
+            [n, co, oh, ow, ci, kh, kw, vh, vw, vc],
+            [n, co, oh, ow, ci, kh, kw, vc, vh, vw],
+        ],
+    )
 
-    cfg.define_annotate("ann_reduce", [kh, kw], policy='try_unroll')
-    cfg.define_annotate("ann_spatial", [vh, vw, vc], policy='try_unroll_vec')
+    cfg.define_annotate("ann_reduce", [kh, kw], policy="try_unroll")
+    cfg.define_annotate("ann_spatial", [vh, vw, vc], policy="try_unroll_vec")
     # ====================================================================
 
     VC = cfg["tile_co"].size[-1]
     VH = cfg["tile_oh"].size[-1]
     VW = cfg["tile_ow"].size[-1]
 
-    dvshape = (N, OH // VH, OW // VW, CI, VH + KH-1, VW + KW-1)
+    dvshape = (N, OH // VH, OW // VW, CI, VH + KH - 1, VW + KW - 1)
     kvshape = (CO // VC, CI, KH, KW, VC)
     ovshape = (N, CO // VC, OH // VH, OW // VW, VH, VW, VC)
     oshape = (N, CO, OH, OW)
 
-    data_vec = te.compute(dvshape, lambda n, h, w, ci, vh, vw:
-                          data_pad[n][ci][h*VH + vh][w*VW + vw],
-                          name='data_vec')
+    data_vec = te.compute(
+        dvshape,
+        lambda n, h, w, ci, vh, vw: data_pad[n][ci][h * VH + vh][w * VW + vw],
+        name="data_vec",
+    )
 
-    kernel_vec = te.compute(kvshape, lambda co, ci, kh, kw, vc:
-                            kernel[ci][co*VC+vc][kh][kw],
-                            name='kernel_vec_conv2d_transpose')
+    kernel_vec = te.compute(
+        kvshape,
+        lambda co, ci, kh, kw, vc: kernel[ci][co * VC + vc][kh][kw],
+        name="kernel_vec_conv2d_transpose",
+    )
 
-    ci = te.reduce_axis((0, CI), name='ci')
-    kh = te.reduce_axis((0, KH), name='kh')
-    kw = te.reduce_axis((0, KW), name='kw')
+    ci = te.reduce_axis((0, CI), name="ci")
+    kh = te.reduce_axis((0, KH), name="kh")
+    kw = te.reduce_axis((0, KW), name="kw")
 
-    conv = te.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
-                      te.sum(data_vec[n, h, w, ci, vh + kh, vw + kw].astype(out_dtype) *
-                             kernel_vec[co, ci, KH - 1 - kh, KW - 1 - kw, vc].astype(out_dtype),
-                             axis=[ci, kh, kw]), name='conv')
+    conv = te.compute(
+        ovshape,
+        lambda n, co, h, w, vh, vw, vc: te.sum(
+            data_vec[n, h, w, ci, vh + kh, vw + kw].astype(out_dtype)
+            * kernel_vec[co, ci, KH - 1 - kh, KW - 1 - kw, vc].astype(out_dtype),
+            axis=[ci, kh, kw],
+        ),
+        name="conv",
+    )
 
     idxdiv = tvm.tir.indexdiv
     idxmod = tvm.tir.indexmod
 
-    output = te.compute(oshape, lambda n, co, h, w:
-                        conv[n,
-                             idxdiv(co, VC), idxdiv(h, VH), idxdiv(w, VW),
-                             idxmod(h, VH), idxmod(w, VW), idxmod(co, VC)],
-                        name='output_unpack', tag='spatial_conv2d_transpose_output')
+    output = te.compute(
+        oshape,
+        lambda n, co, h, w: conv[
+            n,
+            idxdiv(co, VC),
+            idxdiv(h, VH),
+            idxdiv(w, VW),
+            idxmod(h, VH),
+            idxmod(w, VW),
+            idxmod(co, VC),
+        ],
+        name="output_unpack",
+        tag="spatial_conv2d_transpose_output",
+    )
     return output
 
 
@@ -151,7 +174,7 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if 'spatial_conv2d_transpose_output' in op.tag:
+        if "spatial_conv2d_transpose_output" in op.tag:
             output = op.output(0)
             conv = op.input_tensors[0]
 
@@ -162,15 +185,14 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
             s[dilated_input].compute_inline()
 
             kernel_vec = conv.op.input_tensors[1]
-            if kernel_vec.op.name == 'kernel_vec':
+            if kernel_vec.op.name == "kernel_vec":
                 kernel = kernel_vec.op.input_tensors[0]
             else:
                 kernel = kernel_vec
             if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
-            schedule_conv2d_spatial_pack_nchw(cfg, s, data_vec, kernel_vec,
-                                              conv, output, outs[0])
+            schedule_conv2d_spatial_pack_nchw(cfg, s, data_vec, kernel_vec, conv, output, outs[0])
 
     traverse_inline(s, outs[0].op, _callback)
     return s

@@ -18,14 +18,14 @@ from tvm.ir import IRModule, structural_equal
 from tvm import relay as rly
 from tvm.relay.transform import SimplifyInference
 
-def test_simplify_batchnorm(dtype='float32'):
-    def simple_bn(x, gamma, beta, moving_mean, moving_var,
-                  axis=1, epsilon=1e-5, shape=None):
+
+def test_simplify_batchnorm(dtype="float32"):
+    def simple_bn(x, gamma, beta, moving_mean, moving_var, axis=1, epsilon=1e-5, shape=None):
         # expect = (x - moving_mean) / sqrt(moving_var + eps) * gamma + beta
-        scale = rly.multiply(rly.const(1, dtype) /
-                rly.sqrt(moving_var + rly.const(epsilon, dtype)), gamma)
-        shift = rly.add(
-            rly.multiply(rly.negative(moving_mean), scale), beta)
+        scale = rly.multiply(
+            rly.const(1, dtype) / rly.sqrt(moving_var + rly.const(epsilon, dtype)), gamma
+        )
+        shift = rly.add(rly.multiply(rly.negative(moving_mean), scale), beta)
         num_newaxis = len(shape) - (axis + 1)
         if num_newaxis:
             scale = rly.expand_dims(scale, axis=1, num_newaxis=num_newaxis)
@@ -44,12 +44,26 @@ def test_simplify_batchnorm(dtype='float32'):
         y1, y2 = x, x
 
         for _ in range(nstep):
-            y1, _, _ = rly.nn.batch_norm(y1 + rly.const(1, dtype),
-                gamma, beta, moving_mean, moving_var, epsilon=eps, axis=axis)
+            y1, _, _ = rly.nn.batch_norm(
+                y1 + rly.const(1, dtype),
+                gamma,
+                beta,
+                moving_mean,
+                moving_var,
+                epsilon=eps,
+                axis=axis,
+            )
             y1 = rly.nn.dropout(y1)
-            y2 = simple_bn(y2 + rly.const(1, dtype),
-                           gamma, beta, moving_mean, moving_var,
-                           epsilon=eps, axis=axis, shape=ttype1.shape)
+            y2 = simple_bn(
+                y2 + rly.const(1, dtype),
+                gamma,
+                beta,
+                moving_mean,
+                moving_var,
+                epsilon=eps,
+                axis=axis,
+                shape=ttype1.shape,
+            )
 
         mod = IRModule.from_expr(y1)
         simplify = SimplifyInference()
@@ -64,5 +78,5 @@ def test_simplify_batchnorm(dtype='float32'):
 
 
 if __name__ == "__main__":
-    test_simplify_batchnorm(dtype='float32')
-    test_simplify_batchnorm(dtype='float16')
+    test_simplify_batchnorm(dtype="float32")
+    test_simplify_batchnorm(dtype="float16")

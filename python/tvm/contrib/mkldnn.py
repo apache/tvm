@@ -48,5 +48,5 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
             "tvm.contrib.mkl.matmul", ins[0], ins[1], outs[0], transa, transb
         ),
         name="C",
-        **kwargs
+        **kwargs,
     )
