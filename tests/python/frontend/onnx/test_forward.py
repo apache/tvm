@@ -439,21 +439,21 @@ def verify_gatherelements(in_shape, indices, axis):
     x = np.random.uniform(size=in_shape).astype("float32")
     indices = np.array(indices, dtype="int32")
 
-    y = helper.make_node("GatherElements", ['data', 'indices'], ['output'], axis=axis)
-    graph = helper.make_graph([y],
-                              'gather_elements_test',
-                              inputs=[helper.make_tensor_value_info("data",
-                                                                    TensorProto.FLOAT, list(in_shape)),
-                                      helper.make_tensor_value_info("indices",
-                                                                    TensorProto.INT32, list(indices.shape))],
-                              outputs=[helper.make_tensor_value_info("output",
-                                                                     TensorProto.FLOAT, list(in_shape))])
-    model = helper.make_model(graph, producer_name='gather_elements_test')
+    y = helper.make_node("GatherElements", ["data", "indices"], ["output"], axis=axis)
+    graph = helper.make_graph(
+        [y],
+        "gather_elements_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, list(in_shape)),
+            helper.make_tensor_value_info("indices", TensorProto.INT32, list(indices.shape)),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, list(in_shape))],
+    )
+    model = helper.make_model(graph, producer_name="gather_elements_test")
     onnx_out = get_onnxruntime_output(model, [x, indices])
 
     for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(
-            model, [x, indices], target, ctx, onnx_out[0].shape)
+        tvm_out = get_tvm_output(model, [x, indices], target, ctx, onnx_out[0].shape)
         tvm.testing.assert_allclose(onnx_out[0], tvm_out)
 
 
@@ -464,9 +464,11 @@ def test_gatherelements():
     verify_gatherelements((2, 2), [[0, 0], [1, 0]], 1)
     verify_gatherelements((2, 2), [[1, 0], [0, 1]], 1)
 
-    indices = [[[1, 0, 0], [1, 0, 1], [0, 1, 1]],
-               [[1, 1, 1], [1, 2, 1], [1, 0, 1]],
-               [[1, 2, 1], [1, 2, 1], [1, 2, 1]]]
+    indices = [
+        [[1, 0, 0], [1, 0, 1], [0, 1, 1]],
+        [[1, 1, 1], [1, 2, 1], [1, 0, 1]],
+        [[1, 2, 1], [1, 2, 1], [1, 2, 1]],
+    ]
 
     verify_gatherelements((3, 3, 3), indices, 2)
 

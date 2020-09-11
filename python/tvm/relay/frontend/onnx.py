@@ -1051,13 +1051,13 @@ class Gather(OnnxOpConverter):
 
 
 class GatherElements(OnnxOpConverter):
-    """ Operator converter for GatherElements.
-    """
+    """Operator converter for GatherElements."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         data = inputs[0]
         indices = inputs[1]
-        axis = attr.get('axis', 0)
+        axis = attr.get("axis", 0)
         return _op.gather(data, axis, indices)
 
 
