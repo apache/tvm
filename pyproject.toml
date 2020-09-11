@@ -18,7 +18,7 @@
 [tool.black]
 line-length = 100
 target-version = ['py36']
-include = '\.pyi?$'
+include = '(\.pyi?$|
 exclude = '''
 
 (
@@ -28,9 +28,12 @@ exclude = '''
     | \.tvm_test_data
     | \.vscode
     | \.venv
+    | 3rdparty\/
+    | build\/
     | cmake\/
     | conda\/
     | docker\/
+    | docs\/
     | golang\/
     | include\/
     | jvm\/
@@ -38,7 +41,6 @@ exclude = '''
     | nnvm\/
     | rust\/
     | src\/
-    | tests\/
     | vta\/
     | web\/
   )/|tests/lint/add_asf_header.py|tests/lint/check_file_type.py|python/tvm/topi/testing/pool3d_python.py|python/topi/python/test_topi_pooling.py
