@@ -858,7 +858,7 @@ def test_matmul():
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-def verify_batch_matmul(a_shape, b_shape):
+def verify_batch_matmul(a_shape, b_shape, target, ctx):
     a_array = np.random.uniform(size=a_shape).astype("float32")
     b_array = np.random.uniform(size=b_shape).astype("float32")
     out_np = np.matmul(a_array, b_array)
@@ -877,17 +877,16 @@ def verify_batch_matmul(a_shape, b_shape):
 
     model = helper.make_model(graph, producer_name="matmul_test")
 
-    for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output_with_vm(model, [a_array, b_array], target, ctx)
-        tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
+    tvm_out = get_tvm_output_with_vm(model, [a_array, b_array], target, ctx)
+    tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
 # TODO(mbrookhart): enable cuda once VM supports heterogenous execution
 @tvm.testing.parametrize_targets("llvm")
-def test_batch_matmul():
-    verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4))
-    verify_batch_matmul((2, 4, 3), (3, 4))
-    verify_batch_matmul((2, 3, 4, 3), (3, 4))
+def test_batch_matmul(target, ctx):
+    verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4), target, ctx)
+    verify_batch_matmul((2, 4, 3), (3, 4), target, ctx)
+    verify_batch_matmul((2, 3, 4, 3), (3, 4), target, ctx)
 
 
 def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
