@@ -297,6 +297,7 @@ def get_conv_mkldnn_requantized_scale_outDtype(min_output_range, max_output_rang
 
 def quantize_conv_bias_mkldnn_from_var(bias_var,
                                        bias_scale):
+    """Quantized conv2d bias"""
     zero_point = 0
     quantized_bias = quantize(data=bias_var,
                               output_scale=relay.const(bias_scale),
