@@ -440,7 +440,7 @@ def _take():
 def _topk():
     def _impl(inputs, input_types):
         data = inputs[0]
-        if isinstance(k, _expr.Expr):
+        if isinstance(inputs[0], _expr.Expr):
             try:
                 k = _infer_value(inputs[1], {}).asnumpy().tolist()
                 k = _expr.const(k)
@@ -2640,7 +2640,8 @@ def _get_convert_map(prelude, default_dtype):
         "aten::unbind" : _unbind(),
         "aten::__and__": _logical_and(),
         "aten::_shape_as_tensor" : _shape_as_tensor(prelude),
-        "aten::nonzero" : _nonzero(),
+        "aten::nonzero" : _nonzero(False),
+        "aten::nonzero_numpy" : _nonzero(True),
         "aten::scatter" : _scatter(),
         "aten::scalar_tensor" : _scalar_tensor(),
         "aten::__interpolate" : _interpolate(),
@@ -2792,7 +2793,7 @@ def _get_constant(node):
                 # TODO(t-vi): When is this needed?
                 return tensor.item()
             return _wrap_const(tensor.numpy())
-        elif ty == "DeviceObjType" or ty == "StringType":
+        elif ty in ["DeviceObjType", "StringType"]:
             return node.s(attr_name)
         elif ty == "FunctionType":
             return None
