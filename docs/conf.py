@@ -55,6 +55,7 @@ os.environ["TVM_BUILD_DOC"] = "1"
 import tvm
 from tvm import topi
 from tvm import te
+from tvm import testing
 
 version = tvm.__version__
 release = tvm.__version__
