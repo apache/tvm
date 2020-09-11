@@ -17,6 +17,7 @@
 import tvm
 from tvm import te
 from tvm import topi
+import tvm.testing
 import tvm.topi.testing
 import numpy as np
 
