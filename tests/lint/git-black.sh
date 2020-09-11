@@ -29,20 +29,13 @@ fi
 if [[ "$#" -lt 1 ]]; then
     echo "Usage: tests/lint/git-black.sh [-i] <commit>"
     echo ""
-    echo "Run black-format on files that changed since <commit>"
+    echo "Run black on Python files that changed since <commit>"
     echo "Examples:"
     echo "- Compare last one commit: tests/lint/git-black.sh HEAD~1"
     echo "- Compare against upstream/master: tests/lint/git-black.sh upstream/master"
-    echo "You can also add -i option to do inplace format"
+    echo "The -i will use black to format files in-place instead of checking them."
     exit 1
 fi
-
-cleanup()
-{
-  rm -rf /tmp/$$.black-format.txt
-}
-trap cleanup 0
-
 
 if [ -x "$(command -v black)" ]; then
     BLACK=black
@@ -52,10 +45,9 @@ else
 fi
 
 # Print out specific version
+echo "Version Information: $(black --version)"
 
-echo "Version Information: $(${BLACK} --version)"
-
-
+# Compute Python files which changed to compare.
 IFS=$'\n' read -a FILES -d'\n' < <(git diff --name-only HEAD $1 -- "*.py" "*.pyi") || true
 echo "read returned $?"
 echo "Files: $FILES"
@@ -65,8 +57,7 @@ if [[ ${INPLACE_FORMAT} -eq 1 ]]; then
     CMD=( "black" "${FILES[@]}" )
     echo "${CMD[@]}"
     "${CMD[@]}"
-    exit 0
+else
+    echo "Running black in checking mode"
+    black --diff --check
 fi
-
-echo "Running black in checking mode"
-black --diff --check
