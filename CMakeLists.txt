@@ -485,3 +485,11 @@ if(MSVC)
   target_compile_definitions(tvm_objs PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime_objs PRIVATE -DTVM_EXPORTS)
 endif()
+
+if(UNIX)
+  add_custom_target(style
+    COMMENT "Applying clang-format style"
+    COMMAND ${CMAKE_COMMAND} -P ${PROJECT_SOURCE_DIR}/cmake/util/Style.cmake
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  )
+endif(UNIX)
