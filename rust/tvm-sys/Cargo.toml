@@ -33,3 +33,4 @@ enumn = "^0.1"
 
 [build-dependencies]
 bindgen = { version="0.51", default-features=false }
+anyhow = "^1.0"

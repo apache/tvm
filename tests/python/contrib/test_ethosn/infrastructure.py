@@ -89,11 +89,13 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
     with tvm.transform.PassContext(opt_level=3, config={
             "relay.ext.ethos-n.options": {"variant": 0}
     }):
-        with tvm.target.create("llvm"):
+        with tvm.target.Target("llvm"):
             if npu:
                 f = relay.build_module.bind_params_by_name(mod["main"], params)
                 mod = tvm.IRModule()
                 mod["main"] = f
+                pattern = get_pattern_table("ethos-n")
+                mod = relay.transform.MergeComposite(pattern)(mod)
                 mod = relay.transform.AnnotateTarget("ethos-n")(mod)
                 mod = relay.transform.MergeCompilerRegions()(mod)
                 mod = relay.transform.PartitionGraph()(mod)
@@ -163,7 +165,7 @@ def inference_result(checksum, outputs):
 def test_error(mod, params, err_msg):
     caught = None
     with tvm.transform.PassContext(opt_level=3):
-        with tvm.target.create("llvm"):
+        with tvm.target.Target("llvm"):
             try:
                 relay.build(mod, params)
             except tvm.error.TVMError as e:

@@ -18,7 +18,7 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm.topi.testing import conv2d_nhwc_python
-from tvm.contrib import nvcc
+import tvm.testing
 
 VERIFY = True
 
@@ -103,14 +103,8 @@ def intrin_wmma_store_matrix(shape):
     return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
 
 
+@tvm.testing.requires_tensorcore
 def test_tensor_core_batch_matmal():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-    if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-        print("skip because gpu does not support tensor core")
-        return
-
     batch_size = 4
     n = 512
     m, l = n, n
@@ -216,14 +210,8 @@ def test_tensor_core_batch_matmal():
 
 
 
+@tvm.testing.requires_tensorcore
 def test_tensor_core_batch_conv():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-    if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-        print("skip because gpu does not support tensor core")
-        return
-
     # The sizes of inputs and filters
     batch_size = 32
     height = 14

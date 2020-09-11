@@ -143,7 +143,7 @@ if __name__ == '__main__':
         print(config)
 
     with dispatch_context:
-        with tvm.target.create('cuda'):
+        with tvm.target.Target('cuda'):
             s, arg_bufs = gemm_int8(n, m, l)
             f = tvm.build(s, arg_bufs, 'cuda', name='gemm_int8')
 

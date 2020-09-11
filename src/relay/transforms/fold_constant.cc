@@ -79,6 +79,7 @@ class ConstantFolder : public ExprMutator {
  public:
   explicit ConstantFolder(IRModule module)
       : module_(module),
+        device_copy_op_(Op::Get("device_copy")),
         shape_of_op_(Op::Get("shape_of")),
         vm_shape_of_op_(Op::Get("vm.shape_of")),
         invoke_tvm_op_(Op::Get("vm.invoke_tvm_op")),
@@ -134,7 +135,7 @@ class ConstantFolder : public ExprMutator {
 
     // We should think about potentially constant evaluation over these ops too.
     if (call->op == invoke_tvm_op_ || call->op == shape_func_op_ || call->op == alloc_tensor_op_ ||
-        call->op == alloc_storage_op_) {
+        call->op == alloc_storage_op_ || call->op == device_copy_op_) {
       return GetRef<Call>(call);
     }
 
@@ -168,6 +169,7 @@ class ConstantFolder : public ExprMutator {
   IRModule module_;
 
   // Cache the following ops for equivalence checking in this pass.
+  const Op& device_copy_op_;
   const Op& shape_of_op_;
   const Op& vm_shape_of_op_;
   const Op& invoke_tvm_op_;
@@ -176,20 +178,6 @@ class ConstantFolder : public ExprMutator {
   const Op& alloc_storage_op_;
   const Op& cast_op_;
   const Op& ndarray_size_op_;
-
-  // Create an interpreter.
-  FInterpreter GetInterpreter(const IRModule& mod) {
-    using tvm::transform::PassContext;
-    DLContext ctx;
-    ctx.device_type = kDLCPU;
-    ctx.device_id = 0;
-    Target target = Target::Create("llvm");
-    // use a fresh build context
-    // in case we are already in a build context.
-    With<PassContext> fresh_build_ctx(PassContext::Create());
-
-    return CreateInterpreter(mod, ctx, target);
-  }
 
   // Convert value to expression.
   Expr ObjectToExpr(const ObjectRef& value) {
@@ -230,7 +218,17 @@ class ConstantFolder : public ExprMutator {
     auto entry_func = Downcast<Function>(mod->Lookup("main"));
     expr = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
 
-    FInterpreter executor = GetInterpreter(mod);
+    using tvm::transform::PassContext;
+    DLContext ctx;
+    ctx.device_type = kDLCPU;
+    ctx.device_id = 0;
+    Target target = Target("llvm");
+    // use a fresh build context
+    // in case we are already in a build context.
+    // needed for both execution and creation(due to JIT)
+    With<PassContext> fresh_build_ctx(PassContext::Create());
+
+    FInterpreter executor = CreateInterpreter(mod, ctx, target);
     return ObjectToExpr(executor(expr));
   }
 

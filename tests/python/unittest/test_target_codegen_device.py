@@ -18,7 +18,9 @@ import tvm
 from tvm import te
 from tvm.contrib import util
 import numpy as np
+import tvm.testing
 
+@tvm.testing.requires_gpu
 def test_large_uint_imm():
     value =  (1 << 63) + 123
     other = tvm.tir.const(3, "uint64")
@@ -32,9 +34,9 @@ def test_large_uint_imm():
     s[A].bind(xo, te.thread_axis("blockIdx.x"))
 
     def check_target(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             return
+        ctx = tvm.context(device, 0)
         f = tvm.build(s, [A], device)
         # launch the kernel.
         a = tvm.nd.empty((n, ), dtype=A.dtype, ctx=ctx)
@@ -45,6 +47,7 @@ def test_large_uint_imm():
     check_target("vulkan")
 
 
+@tvm.testing.requires_gpu
 def test_add_pipeline():
     n = te.size_var('n')
     A = te.placeholder((n,), name='A')
@@ -64,11 +67,9 @@ def test_add_pipeline():
     s[D].bind(xo, te.thread_axis("blockIdx.x"))
 
     def check_target(device, host="stackvm"):
+        if not tvm.testing.device_enabled(device) or not tvm.testing.device_enabled(host):
+            return
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            return
-        if not tvm.runtime.enabled(host):
-            return
         mhost = tvm.driver.build(s, [A, B, D], target=device, target_host=host)
         f = mhost.entry_func
         # launch the kernel.

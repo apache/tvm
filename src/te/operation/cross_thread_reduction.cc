@@ -97,6 +97,7 @@ Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
   for (size_t i = 0; i < size; ++i) {
     const ReduceNode* reduce = self->body[i].as<ReduceNode>();
     CHECK(reduce);
+    CHECK(reduce->init.empty()) << "Cannot perform cross_thread_reduction for reductions with init";
     reduces[i] = reduce;
   }
 

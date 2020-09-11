@@ -110,7 +110,7 @@ InvokePacked
 Invoke the packed function denoted by ``packed_index``. The ``arity``
 and ``output_size`` are used to inform the VM how many inputs and
 outputs to expect. ``packed_args`` stores the list of argument registers. Note ``Index``
-is an alais of ``int64_t``, and it will be used in other instructions as well.
+is an alias of ``int64_t``, and it will be used in other instructions as well.
 
 AllocTensor
 ^^^^^^^^^^^

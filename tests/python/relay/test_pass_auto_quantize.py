@@ -88,7 +88,7 @@ def test_calibrate_target(create_target):
     dataset = get_calibration_dataset(mod, "data")
     with relay.quantize.qconfig(calibrate_mode="kl_divergence"):
         if create_target:
-            with tvm.target.create("llvm"):
+            with tvm.target.Target("llvm"):
                 relay.quantize.quantize(mod, params, dataset)
         else:
             # current_target = None

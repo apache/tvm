@@ -20,6 +20,7 @@
 
 from . import _make
 from .dyn import _make as _dyn_make
+from .tensor import shape_of
 from ..expr import TupleWrapper, const, Expr, Tuple
 from ...tir import expr as _expr
 
@@ -827,13 +828,17 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
     ret : relay.Expr
         The computed result.
     """
-    strides = strides or const([1], dtype="int32")
-    if isinstance(begin, (tuple, list)):
-        begin = const(list(begin))
-    if isinstance(end, (tuple, list)):
-        end = const(list(end))
-    if isinstance(strides, (tuple, list)):
-        strides = const(list(strides))
+    strides = strides or [1]
+    if (isinstance(begin, Expr) or isinstance(end, Expr) or isinstance(strides, Expr)):
+        if isinstance(begin, (tuple, list)):
+            begin = const(list(begin))
+        if isinstance(end, (tuple, list)):
+            end = const(list(end))
+        if isinstance(strides, (tuple, list)):
+            strides = const(list(strides))
+        normalized_begin = _make.where(begin < cast_like(const(0), begin),
+                                       begin + cast_like(shape_of(data), begin), begin)
+        return _dyn_make.strided_slice(data, normalized_begin, end, strides, slice_mode)
     return _make.strided_slice(data, begin, end, strides, slice_mode)
 
 
@@ -1167,3 +1172,62 @@ def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0
     if default_value == 0:
         default_value = const(0)
     return _make.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
+
+
+def matrix_set_diag(data, diagonal):
+    """
+    Returns a tensor with the diagonal of input tensor replaced with the provided diagonal values.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        Input Tensor.
+    diagonal : relay.Expr
+        Values to be filled in the diagonal.
+
+    Returns
+    -------
+    result : relay.Expr
+        New tensor with given diagonal values.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        data = [[[7, 7, 7, 7],
+                 [7, 7, 7, 7],
+                 [7, 7, 7, 7]],
+                [[7, 7, 7, 7],
+                 [7, 7, 7, 7],
+                 [7, 7, 7, 7]]]
+
+        diagonal = [[1, 2, 3],
+                    [4, 5, 6]]
+
+        relay.matrix_set_diag(input, diagonal) =
+            [[[1, 7, 7, 7],
+              [7, 2, 7, 7],
+              [7, 7, 3, 7]],
+             [[4, 7, 7, 7],
+              [7, 5, 7, 7],
+              [7, 7, 6, 7]]]
+    """
+    return _make.matrix_set_diag(data, diagonal)
+
+
+def adv_index(inputs):
+    """
+    Numpy style advanced indexing. Index with a list of tensors.
+
+    Parameters
+    ----------
+    inputs : Union(List[relay.Expr], Tuple[relay.Expr])
+        Input tensor and indices.
+        The first tensor is input data and rests are indices.
+
+    Returns
+    -------
+    result: relay.Expr
+        Output tensor.
+    """
+    return _make.adv_index(Tuple(inputs))

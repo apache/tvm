@@ -68,7 +68,7 @@ def script(pyfunc):
 
 
 def build(sch, inputs, outputs, name="hybrid_func"):
-    """Dump the corrent schedule to hybrid module
+    """Dump the current schedule to hybrid module
 
     Parameters
     ----------

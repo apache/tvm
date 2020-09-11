@@ -191,7 +191,7 @@ print(mod4)
 
 seq1 = tvm.transform.Sequential([relay.transform.AlterOpLayout()])
 with tvm.transform.PassContext(opt_level=3):
-    with tvm.target.create("llvm"):
+    with tvm.target.Target("llvm"):
         mod5 = seq1(mod)
 print(mod5)
 
@@ -264,7 +264,7 @@ def print_ir(mod, info, is_before):
         print(mod)
 
 with tvm.transform.PassContext(opt_level=3, trace=print_ir):
-    with tvm.target.create("llvm"):
+    with tvm.target.Target("llvm"):
         # Perform the optimizations.
         mod = seq(mod)
 print(mod)

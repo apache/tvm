@@ -33,7 +33,7 @@
 namespace tvm {
 namespace codegen {
 
-runtime::Module BuildAOCL(IRModule mod, std::string target_str, bool emulation) {
+runtime::Module BuildAOCL(IRModule mod, Target target, bool emulation) {
   // Get code.
   using tvm::runtime::Registry;
   bool output_ssa = false;
@@ -61,7 +61,6 @@ runtime::Module BuildAOCL(IRModule mod, std::string target_str, bool emulation) 
   std::string cmd = "aoc aocl.cl";
   // AOCL supports fp64.
   cmd += " -Dcl_khr_fp64";
-  Target target = Target::Create(target_str);
   Optional<String> device = target->GetAttr<String>("device");
   if (device.defined()) {
     cmd += " -board=" + device.value();
@@ -80,13 +79,15 @@ runtime::Module BuildAOCL(IRModule mod, std::string target_str, bool emulation) 
   return AOCLModuleCreate(aocxbin, "aocx", ExtractFuncInfo(mod), code);
 }
 
-TVM_REGISTER_GLOBAL("target.build.aocl").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = BuildAOCL(args[0], args[1], false);
-});
+TVM_REGISTER_GLOBAL("target.build.aocl")
+    .set_body_typed([](IRModule mod, Target target) -> runtime::Module {
+      return BuildAOCL(mod, target, false);
+    });
 
-TVM_REGISTER_GLOBAL("target.build.build.aocl_sw_emu").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = BuildAOCL(args[0], args[1], true);
-});
+TVM_REGISTER_GLOBAL("target.build.build.aocl_sw_emu")
+    .set_body_typed([](IRModule mod, Target target) -> runtime::Module {
+      return BuildAOCL(mod, target, true);
+    });
 
 }  // namespace codegen
 }  // namespace tvm

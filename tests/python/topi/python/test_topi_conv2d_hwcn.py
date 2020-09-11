@@ -23,6 +23,7 @@ from tvm import topi
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
+import tvm.testing
 
 
 _conv2d_hwcn_implement = {
@@ -58,11 +59,11 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv2d_hwcn_implement)
             t_conv = fcompute(A, W, stride, padding, dilation)
             t_bias = topi.add(t_conv, B)
@@ -94,6 +95,7 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
         check_device(device)
 
 
+@tvm.testing.requires_gpu
 def test_conv2d_hwcn():
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME")
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME")

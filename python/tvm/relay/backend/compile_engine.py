@@ -23,7 +23,8 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm.runtime import Object
-from ... import target as _target
+from tvm.support import libinfo
+from ...target import Target
 from ... import autotvm
 from .. import function as _function
 from .. import ty as _ty
@@ -32,9 +33,11 @@ from . import _backend
 logger = logging.getLogger('compile_engine')
 autotvm_logger = logging.getLogger('autotvm')
 
+
 @tvm._ffi.register_object("relay.LoweredOutput")
 class LoweredOutput(Object):
     """Lowered output"""
+
     def __init__(self, outputs, implement):
         self.__init_handle_by_constructor__(
             _backend._make_LoweredOutput, outputs, implement)
@@ -52,6 +55,7 @@ class CCacheKey(Object):
     target : tvm.Target
         The target we want to run the function on.
     """
+
     def __init__(self, source_func, target):
         self.__init_handle_by_constructor__(
             _backend._make_CCacheKey, source_func, target)
@@ -66,7 +70,7 @@ class CCacheValue(Object):
 def _get_cache_key(source_func, target):
     if isinstance(source_func, _function.Function):
         if isinstance(target, str):
-            target = _target.create(target)
+            target = Target(target)
             if not target:
                 raise ValueError("Need target when source_func is a Function")
         return CCacheKey(source_func, target)
@@ -80,9 +84,12 @@ def get_shape(shape):
     ret = []
     for dim in shape:
         if isinstance(dim, tvm.tir.IntImm):
-            val = int(dim)
-            assert val <= np.iinfo(np.int32).max
-            ret.append(tvm.tir.IntImm("int32", val))
+            if libinfo()["INDEX_DEFAULT_I64"] == "ON":
+                ret.append(dim)
+            else:
+                val = int(dim)
+                assert val <= np.iinfo(np.int32).max
+                ret.append(tvm.tir.IntImm("int32", val))
         elif isinstance(dim, tvm.tir.Any):
             ret.append(te.var("any_dim", "int32"))
         else:
@@ -259,7 +266,8 @@ def lower_call(call, inputs, target):
         new_fields = []
         for field in ret_type.fields:
             if isinstance(field, _ty.TensorType):
-                new_fields.append(_ty.TensorType(get_shape(field.shape), field.dtype))
+                new_fields.append(_ty.TensorType(
+                    get_shape(field.shape), field.dtype))
             else:
                 new_fields.append(field)
         ret_type = _ty.TupleType(new_fields)
@@ -295,6 +303,7 @@ def lower_call(call, inputs, target):
 class CompileEngine(Object):
     """CompileEngine to get lowered code.
     """
+
     def __init__(self):
         raise RuntimeError("Cannot construct a CompileEngine")
 

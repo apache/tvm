@@ -506,6 +506,9 @@ Array<te::Tensor> MeanCompute(const Attrs& attrs, const Array<te::Tensor>& input
   for (int64_t i : GetReduceAxes(inputs[0]->shape.size(), param->axis, param->exclude)) {
     count *= inputs[0]->shape[i];
   }
+  // Although count is created as inputs[0]->dtype,
+  // its type may be changed (promoted) during multiplication
+  count = cast(inputs[0]->dtype, count);
   auto res = ReduceCompute(attrs, inputs, out_type, topi::sum);
   return {topi::divide(res[0], count)};
 }

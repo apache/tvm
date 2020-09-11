@@ -20,6 +20,7 @@ from tvm import te
 from tvm import topi
 import tvm.topi.testing
 from tvm.topi.util import get_const_tuple
+import tvm.testing
 
 
 def test_operator_type_and_tags():
@@ -28,7 +29,7 @@ def test_operator_type_and_tags():
     A = te.placeholder((), name='A')
     B = te.placeholder((10, 5), name='B')
     B1 = B[0]
-    B2 = B[0,0]
+    B2 = B[0, 0]
 
     assert isinstance(k + n, tvm.tir.PrimExpr)
     assert isinstance(n + n, tvm.tir.PrimExpr)
@@ -83,7 +84,8 @@ def test_combination():
     c = tvm.nd.array(np.random.uniform(size=(n, m)).astype(C.dtype), ctx)
     d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
     foo(x, a, b, c, d)
-    tvm.testing.assert_allclose(d.asnumpy(), k + a.asnumpy() - b.asnumpy() * c.asnumpy() + x)
+    tvm.testing.assert_allclose(
+        d.asnumpy(), k + a.asnumpy() - b.asnumpy() * c.asnumpy() + x)
 
 
 def verify_tensor_scalar_bop(shape, typ="add"):
@@ -103,12 +105,12 @@ def verify_tensor_scalar_bop(shape, typ="add"):
         raise NotImplementedError()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        ctx = tvm.context(device, 0)
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_elemwise_schedule(device)(B)
 
         k_ = 2
@@ -150,14 +152,15 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_broadcast_schedule(device)(C)
 
-        foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + typ)
+        foo = tvm.build(s, [A, B, C], device,
+                        name="broadcast_binary" + "_" + typ)
         lhs_npy = np.random.uniform(size=lhs_shape).astype(A.dtype)
         rhs_npy = np.random.uniform(size=rhs_shape).astype(A.dtype)
         if typ == "add":
@@ -177,27 +180,31 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), ctx)
         for _ in range(1):
             foo(lhs_nd, rhs_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
+        tvm.testing.assert_allclose(
+            out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
 
     for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, stride, padding, typ="add"):
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
 
-        conv2d_nchw, schedule_conv2d_nchw = tvm.topi.testing.get_conv2d_nchw_implement(device)
+        conv2d_nchw, schedule_conv2d_nchw = tvm.topi.testing.get_conv2d_nchw_implement(
+            device)
 
         k = 10.0
         dilation = (1, 1)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             A = te.placeholder((batch, in_channel, in_size, in_size), name='A')
-            W = te.placeholder((num_filter, in_channel, kernel, kernel), name='W')
+            W = te.placeholder(
+                (num_filter, in_channel, kernel, kernel), name='W')
             B = conv2d_nchw(A, W, stride, padding, dilation, A.dtype)
             if typ == "add":
                 C = B + k
@@ -213,10 +220,14 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
 
         foo = tvm.build(s, [A, W, B, C], device, name="conv2d_scalar_" + typ)
 
-        a_npy = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
-        w_npy = np.random.uniform(size=get_const_tuple(W.shape)).astype(W.dtype)
-        b_npy = tvm.topi.testing.conv2d_nchw_python(a_npy, w_npy, stride, padding)
-        c_npy = np.random.uniform(size=get_const_tuple(B.shape)).astype(B.dtype)
+        a_npy = np.random.uniform(
+            size=get_const_tuple(A.shape)).astype(A.dtype)
+        w_npy = np.random.uniform(
+            size=get_const_tuple(W.shape)).astype(W.dtype)
+        b_npy = tvm.topi.testing.conv2d_nchw_python(
+            a_npy, w_npy, stride, padding)
+        c_npy = np.random.uniform(
+            size=get_const_tuple(B.shape)).astype(B.dtype)
         if typ == "add":
             c_npy = b_npy + k
         elif typ == "sub":
@@ -233,12 +244,14 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
         b_nd = tvm.nd.array(np.empty(b_npy.shape).astype(B.dtype), ctx)
         c_nd = tvm.nd.array(np.empty(c_npy.shape).astype(C.dtype), ctx)
         foo(a_nd, w_nd, b_nd, c_nd)
-        tvm.testing.assert_allclose(c_nd.asnumpy(), c_npy, rtol=1E-4, atol=1E-4)
+        tvm.testing.assert_allclose(
+            c_nd.asnumpy(), c_npy, rtol=1E-4, atol=1E-4)
 
     for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_tensor_scalar_bop():
     verify_tensor_scalar_bop((1,), typ="add")
     verify_tensor_scalar_bop((3, 5), typ="sub")
@@ -246,6 +259,7 @@ def test_tensor_scalar_bop():
     verify_tensor_scalar_bop((2, 3, 1, 32), typ="div")
 
 
+@tvm.testing.uses_gpu
 def test_broadcast_bop():
     verify_broadcast_bop((2, 3), (), typ="add")
     verify_broadcast_bop((5, 2, 3), (1,), typ="add")
@@ -254,6 +268,7 @@ def test_broadcast_bop():
     verify_broadcast_bop((2, 3, 1, 32), (64, 32), typ="div")
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_scalar_bop():
     verify_conv2d_scalar_bop(1, 16, 4, 4, 3, 1, 1, typ="add")
     verify_conv2d_scalar_bop(1, 32, 2, 1, 3, 1, 1, typ="sub")

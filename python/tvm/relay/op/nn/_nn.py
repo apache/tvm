@@ -157,8 +157,10 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
         return relay.nn.conv2d(data, weight, **new_attrs)
     elif desired_data_layout == 'NHWC':
         # Check for depthwise convolution.
-        if is_depthwise_conv2d(data.shape, attrs['data_layout'], weight.shape,
-                               attrs['kernel_layout'], attrs['groups']):
+        data_info, weight_info = tinfos
+        if is_depthwise_conv2d(data_info.shape, attrs['data_layout'],
+                               weight_info.shape, attrs['kernel_layout'],
+                               attrs['groups']):
             new_attrs['kernel_layout'] = 'HWOI'
         else:
             new_attrs['kernel_layout'] = 'HWIO'
@@ -192,6 +194,49 @@ def legalize_conv2d_transpose(attrs, inputs, types):
     """
     return topi.nn.conv2d_transpose_legalize(attrs, inputs, types)
 
+@reg.register_convert_op_layout("nn.conv2d_transpose")
+def convert_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for conv2d_transpose op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs respectively.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    # pylint: disable=import-outside-toplevel
+    from tvm import relay
+    data, weight = inputs
+    new_attrs = dict(attrs)
+    assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv2d's inputs"
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    new_attrs['data_layout'] = desired_data_layout
+
+    if desired_kernel_layout != "default":
+        new_attrs['kernel_layout'] = desired_kernel_layout
+        return relay.nn.conv2d_transpose(data, weight, **new_attrs)
+
+    # Handle default kernel layouts
+    if desired_data_layout == 'NCHW':
+        new_attrs['kernel_layout'] = 'OIHW'
+        return relay.nn.conv2d_transpose(data, weight, **new_attrs)
+    elif desired_data_layout == 'NHWC':
+        new_attrs['kernel_layout'] = 'HWIO'
+        return relay.nn.conv2d_transpose(data, weight, **new_attrs)
+
+    raise ValueError("Layout %s is not yet supported." % desired_data_layout)
 
 # conv3d_transpose
 reg.register_strategy("nn.conv3d_transpose", strategy.conv3d_transpose_strategy)

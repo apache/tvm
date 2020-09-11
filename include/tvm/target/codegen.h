@@ -45,7 +45,7 @@ using runtime::TVMRetValue;
  * \param target The target to be built.
  * \return The result runtime::Module.
  */
-runtime::Module Build(IRModule mod, const Target& target);
+runtime::Module Build(IRModule mod, Target target);
 
 /*!
  * \brief Pack imported device library to a C file.

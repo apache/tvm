@@ -52,6 +52,7 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <iterator>
 #include <memory>
 #include <utility>
 
@@ -805,9 +806,9 @@ PrimExpr SimplifyReductionDomain(const PrimExpr& expr, const Map<Var, Range>& ou
 
     // Perform simplification mainly to remove a possibly empty reduction.
     arith::Analyzer analyzer;
-    return analyzer.Simplify(
-        Reduce(red->combiner, new_source, new_axis, All(res->dst->relations), red->value_index),
-        kSimplifyRewriteCanonicalRewrite);
+    return analyzer.Simplify(Reduce(red->combiner, new_source, new_axis, All(res->dst->relations),
+                                    red->value_index, red->init),
+                             kSimplifyRewriteCanonicalRewrite);
   } else {
     return expr;
   }
@@ -937,6 +938,7 @@ class RemoveRedundantInequalitiesMutator : public ExprMutator {
 
   virtual PrimExpr VisitExpr_(const ReduceNode* op) {
     Array<PrimExpr> known_with_axes = known_;
+    CHECK(op->init.empty()) << "Derivative of Reduction with initialization is not implemented";
     for (const PrimExpr& axis_cond : IterVarsToInequalities(op->axis)) {
       known_with_axes.push_back(axis_cond);
     }
@@ -955,7 +957,7 @@ class RemoveRedundantInequalitiesMutator : public ExprMutator {
       new_source.push_back(new_mutator(src));
     }
 
-    return Reduce(op->combiner, new_source, op->axis, new_cond, op->value_index);
+    return Reduce(op->combiner, new_source, op->axis, new_cond, op->value_index, op->init);
   }
 
   virtual PrimExpr VisitExpr_(const EQNode* op) { return MutateAtomic_(GetRef<PrimExpr>(op)); }
@@ -1067,13 +1069,14 @@ class ReductionAsTensorAccessMutator : public ExprMutator {
     ReductionAsTensorAccessMutator new_mutator(Concat(IterVarsToVars(op->axis), outer_axis_),
                                                Merge(vranges_, IterVarsToMap(op->axis)), name_);
 
+    CHECK(op->init.empty()) << "Derivative of Reduction with initialization is not implemented";
     Array<PrimExpr> new_source;
     for (const PrimExpr& src : op->source) {
       new_source.push_back(new_mutator(src));
     }
 
     PrimExpr new_reduce =
-        Reduce(op->combiner, new_source, op->axis, op->condition, op->value_index);
+        Reduce(op->combiner, new_source, op->axis, op->condition, op->value_index, op->init);
 
     Array<Var> undefined_vars = UndefinedVars(new_reduce);
     std::unordered_set<const VarNode*> undefined_var_set;
@@ -1132,7 +1135,7 @@ PrimExpr LiftReductions(const PrimExpr& expr, const Array<Var>& outer_axis,
     }
     PrimExpr new_condition = ReductionAsTensorAccess(red->condition, new_outer_axis, new_vranges);
 
-    return Reduce(red->combiner, new_source, red->axis, new_condition, red->value_index);
+    return Reduce(red->combiner, new_source, red->axis, new_condition, red->value_index, red->init);
   } else {
     return ReductionAsTensorAccess(expr, outer_axis, vranges);
   }
@@ -1149,6 +1152,7 @@ PrimExpr RemoveJacobianAndLiftNonzeroCondImpl(const PrimExpr& expr_orig, const A
   PrimExpr expr = analyzer.Simplify(expr_orig, kSimplifyRewriteCanonicalRewrite);
 
   if (const ReduceNode* red = expr.as<ReduceNode>()) {
+    CHECK(red->init.empty()) << "Derivative of Reduction with initialization is not implemented";
     // TODO(sgrechanik-h): There are some other operations which behave like sum
     bool is_sum = IsSumCombiner(red->combiner, vranges);
     if (is_sum || CanFactorZeroFromCombiner(red->combiner, red->value_index, vranges)) {
@@ -1166,7 +1170,7 @@ PrimExpr RemoveJacobianAndLiftNonzeroCondImpl(const PrimExpr& expr_orig, const A
         source.Set(0, nz.value);
       }
 
-      new_red = Reduce(red->combiner, source, red->axis, cond, red->value_index);
+      new_red = Reduce(red->combiner, source, red->axis, cond, red->value_index, red->init);
       new_red = SimplifyReductionDomain(new_red, combined_vranges);
       // If the reduction disappears completely then transform the result as a non-reduction
       if (!new_red.as<ReduceNode>()) {
@@ -1192,8 +1196,8 @@ PrimExpr RemoveJacobianAndLiftNonzeroCondImpl(const PrimExpr& expr_orig, const A
         new_source.Set(red->value_index, Select(nz_cond, nz_source, make_zero(nz_source.dtype())));
       }
 
-      PrimExpr new_reduce =
-          Reduce(red->combiner, new_source, red->axis, new_reduce_cond, red->value_index);
+      PrimExpr new_reduce = Reduce(red->combiner, new_source, red->axis, new_reduce_cond,
+                                   red->value_index, red->init);
       new_reduce =
           TrySimplifyCompute(new_reduce, new_outer_cond, IterVarsToVars(axis), combined_vranges);
       result = Select(new_outer_cond, new_reduce, make_zero(new_reduce.dtype()));

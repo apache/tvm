@@ -27,6 +27,7 @@
 
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 
 #include <memory>
@@ -117,7 +118,8 @@ inline Expr TransformF(const std::function<Expr(const Expr&)>& func, const Expr&
  *   if so, the compute cost of the expression is bounded so it can be copy without graph mode.
  */
 inline bool IsAtomic(const Expr& e) {
-  return e.as<VarNode>() || e.as<OpNode>() || e.as<ConstructorNode>() || e.as<GlobalVarNode>();
+  return e.as<VarNode>() || e.as<OpNode>() || e.as<ConstructorNode>() || e.as<GlobalVarNode>() ||
+         e.as<ConstantNode>();  // Constant is always by reference.
 }
 
 /*!

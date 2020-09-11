@@ -22,7 +22,6 @@ from tvm import topi
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 
-from common import get_all_backend
 
 def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width,
                   layout='NCHW', coord_trans="align_corners", method="bilinear"):
@@ -47,13 +46,9 @@ def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width,
         scale_w = out_width / in_width
         b_np = tvm.topi.testing.upsampling_python(a_np, (scale_h, scale_w), layout)
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_injective_schedule(device)(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
@@ -62,10 +57,11 @@ def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width,
 
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 
+@tvm.testing.uses_gpu
 def test_resize():
     # Scale NCHW
     verify_resize(4, 16, 32, 32, 50, 50, 'NCHW')
@@ -114,13 +110,9 @@ def verify_resize3d(batch, in_channel, in_depth, in_height, in_width, out_depth,
         scale_w = out_width / in_width
         b_np = tvm.topi.testing.upsampling3d_python(a_np, (scale_d, scale_h, scale_w), layout)
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_injective_schedule(device)(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
@@ -129,10 +121,11 @@ def verify_resize3d(batch, in_channel, in_depth, in_height, in_width, out_depth,
 
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 
+@tvm.testing.uses_gpu
 def test_resize3d():
     # Trilinear
     verify_resize3d(4, 8, 16, 16, 16, 25, 25, 25, 'NCDHW')
@@ -147,6 +140,7 @@ def test_resize3d():
     verify_resize3d(4, 8, 16, 16, 16, 25, 25, 25, 'NDHWC', method="nearest_neighbor")
 
 
+@tvm.testing.uses_gpu
 def test_crop_and_resize():
     def verify_crop_and_resize(image_shape, np_boxes, np_box_indices, np_crop_size, layout='NHWC',
                                method="bilinear", extrapolation_value=0.0):
@@ -174,13 +168,9 @@ def test_crop_and_resize():
         baseline_np = tvm.topi.testing.crop_and_resize_python(np_images, np_boxes, np_box_indices,
                                                           np_crop_size, layout, method,
                                                           extrapolation_value)
-        def check_device(device):
-            ctx = tvm.context(device, 0)
-            if not ctx.exist:
-                print("Skip because %s is not enabled" % device)
-                return
+        def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(out)
             tvm_images = tvm.nd.array(np_images, ctx)
             tvm_boxes = tvm.nd.array(np_boxes, ctx)
@@ -191,8 +181,8 @@ def test_crop_and_resize():
 
             tvm.testing.assert_allclose(tvm_out.asnumpy(), baseline_np, rtol=1e-3, atol=1e-3)
 
-        for device in get_all_backend():
-            check_device(device)
+        for device, ctx in tvm.testing.enabled_targets():
+            check_device(device, ctx)
 
     boxes_1 = np.array([[.2, .3, .7, .9]], dtype="float32")
     boxes_2 = np.array([[.2, .3, .7, .9], [0, .1, .8, 1]], dtype="float32")
@@ -209,6 +199,7 @@ def test_crop_and_resize():
     verify_crop_and_resize((1, 3, 224, 224), boxes_1, indices_1, size_1, layout="NCHW")
 
 
+@tvm.testing.uses_gpu
 def test_affine_grid():
     def verify_affine_grid(num_batch, target_shape):
         dtype = "float32"
@@ -224,13 +215,9 @@ def test_affine_grid():
 
         data_np, out_np = get_ref_data()
 
-        def check_device(device):
-            ctx = tvm.context(device, 0)
-            if not ctx.exist:
-                print("Skip because %s is not enabled" % device)
-                return
+        def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(out)
             tvm_data = tvm.nd.array(data_np, ctx)
             tvm_out = tvm.nd.empty(out_np.shape, dtype, ctx)
@@ -240,13 +227,14 @@ def test_affine_grid():
             tvm.testing.assert_allclose(
                 tvm_out.asnumpy(), out_np, rtol=1e-5, atol=1e-5)
 
-        for device in get_all_backend():
-            check_device(device)
+        for device, ctx in tvm.testing.enabled_targets():
+            check_device(device, ctx)
 
     verify_affine_grid(1, (16, 32))
     verify_affine_grid(4, (16, 32))
 
 
+@tvm.testing.uses_gpu
 def test_grid_sample():
     def verify_grid_sample(data_shape, grid_shape):
         dtype = "float32"
@@ -264,13 +252,9 @@ def test_grid_sample():
 
         data_np, grid_np, out_np = get_ref_data()
 
-        def check_device(device):
-            ctx = tvm.context(device, 0)
-            if not ctx.exist:
-                print("Skip because %s is not enabled" % device)
-                return
+        def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(out)
             tvm_data = tvm.nd.array(data_np, ctx)
             tvm_grid = tvm.nd.array(grid_np, ctx)
@@ -281,8 +265,8 @@ def test_grid_sample():
             tvm.testing.assert_allclose(
                 tvm_out.asnumpy(), out_np, rtol=1e-5, atol=1e-5)
 
-        for device in get_all_backend():
-            check_device(device)
+        for device, ctx in tvm.testing.enabled_targets():
+            check_device(device, ctx)
 
     verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
     verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))

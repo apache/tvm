@@ -20,6 +20,7 @@
 import tvm
 from tvm import te
 from tvm import autotvm
+from tvm.target import Target
 from tvm.topi.cuda.injective import schedule_injective_from_existing
 from ..util import get_const_tuple, traverse_inline, simplify, tag
 from ..nn.pad import pad
@@ -158,7 +159,8 @@ def hwnc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dtyp
         packed_kernel = Filter
     else:
         packed_kernel = te.compute(kernel_shape, lambda kh, kw, o, i, oo, ii:
-                                   Filter[kh, kw, o * wmma_n + oo, i * wmma_k + ii],
+                                   Filter[kh, kw, o * wmma_n +
+                                          oo, i * wmma_k + ii],
                                    name="packed_kernel"
                                    )
 
@@ -218,7 +220,7 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
             s[packed_kernel].pragma(
                 s[packed_kernel].op.axis[0], "debug_skip_region")
         else:
-            with tvm.target.create('cuda'):
+            with Target('cuda'):
                 schedule_injective_from_existing(s, packed_kernel)
 
     if isinstance(pad_data.op, te.tensor.ComputeOp) and "pad" in pad_data.op.tag:
@@ -260,7 +262,7 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     if not fuse_pack:
         s[packed_data].compute_inline()
     else:
-        with tvm.target.create('cuda'):
+        with Target('cuda'):
             schedule_injective_from_existing(s, packed_data)
 
     if data_dtype in ['int4', 'uint4']:
