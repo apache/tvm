@@ -288,6 +288,7 @@ def _concatenate(prelude):
 
 def _slice():
     def _impl(inputs, input_types):
+        axis_dtype = "int64"
         index_size_limit = 2**63 - 1
         data = inputs[0]
         dshape = _infer_shape(data)
@@ -315,13 +316,13 @@ def _slice():
             tmp = []
             for b in begin:
                 if isinstance(b, int):
-                    tmp.append(_op.expand_dims(_expr.const(b, "int64"), axis=0))
+                    tmp.append(_op.expand_dims(_expr.const(b, axis_dtype), axis=0))
                 else:
-                    tmp.append(_op.cast(_op.expand_dims(b, axis=0), "int64"))
+                    tmp.append(_op.cast(_op.expand_dims(b, axis=0), axis_dtype))
             begin = _op.concatenate(tmp, axis=0)
             btype = _infer_type(begin).checked_type.dtype
-            if str(btype) != "int32":
-                begin = _op.cast(begin, "int32")
+            if str(btype) != axis_dtype:
+                begin = _op.cast(begin, axis_dtype)
 
         if isinstance(inputs[3], str) and inputs[3].isdigit():
             target_end = int(inputs[3])
@@ -362,15 +363,15 @@ def _slice():
             end = _op.shape_of(data)
             if not isinstance(target_end, tvm.tir.Any):
                 ttype = _infer_type(target_end).checked_type.dtype
-                if str(ttype) != "int32":
-                    target_end = _op.cast(target_end, 'int32')
+                if str(ttype) != axis_dtype:
+                    target_end = _op.cast(target_end, axis_dtype)
                 end = _op.scatter(end, _op.expand_dims(_expr.const(dim), axis=0),
                                   _op.expand_dims(target_end, axis=0), axis=0)
 
         if not isinstance(end, list):
             etype = _infer_type(end).checked_type.dtype
-            if str(etype) != "int32":
-                end = _op.cast(end, "int32")
+            if str(etype) != axis_dtype:
+                end = _op.cast(end, axis_dtype)
 
         strides = [1] * ndim
         strides[dim] = int(inputs[4])
