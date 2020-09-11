@@ -838,3 +838,21 @@ def matrix_set_diag(data, diagonal):
               [7, 7, 6, 7]]]
     """
     return cpp.matrix_set_diag(data, diagonal)
+
+def adv_index(data, indices):
+    """Numpy style indexing with tensors.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        Input data.
+
+    indices : A list of tvm.te.Tensor
+        Tensor index.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        Output tensor
+    """
+    return cpp.adv_index(data, indices)

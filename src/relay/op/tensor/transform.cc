@@ -3163,5 +3163,88 @@ RELAY_REGISTER_OP("matrix_set_diag")
     .set_attr<FTVMCompute>("FTVMCompute", MatrixSetDiagCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+// adv_index
+bool AdvIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                 const TypeReporter& reporter) {
+  CHECK_EQ(num_inputs, 1);
+  auto inputs = types[0].as<TupleTypeNode>();
+  auto data = inputs->fields[0].as<TensorTypeNode>();
+
+  if (inputs == nullptr || data == nullptr) {
+    return false;
+  }
+
+  Array<IndexExpr> oshape;
+  Array<IndexExpr> broadcast_shape;
+  int64_t num_picked_elems = 1;
+
+  if (inputs->fields.size() == 2) {
+    broadcast_shape = inputs->fields[1].as<TensorTypeNode>()->shape;
+  } else {
+    for (size_t i = 1; i < inputs->fields.size(); ++i) {
+      auto index_type = inputs->fields[i].as<TensorTypeNode>();
+      if (index_type == nullptr) {
+        return false;
+      }
+      CHECK(index_type->dtype.is_int()) << "indices must be tensor of integers";
+
+      int64_t flatten_len = 1;
+      bool has_dyn_shape = false;
+      for (const auto& dim : index_type->shape) {
+        const IntImmNode* axis_len = dim.as<IntImmNode>();
+        if (!axis_len) {
+          // If dynamic shape appears, just use the first shape
+          broadcast_shape = index_type->shape;
+          has_dyn_shape = true;
+          break;
+        }
+        flatten_len *= axis_len->value;
+      }
+      if (has_dyn_shape) break;
+      if (flatten_len > num_picked_elems) {
+        num_picked_elems = flatten_len;
+        broadcast_shape = index_type->shape;
+      }
+    }
+  }
+
+  for (const auto& dim : broadcast_shape) {
+    oshape.push_back(dim);
+  }
+  for (size_t i = inputs->fields.size() - 1; i < data->shape.size(); ++i) {
+    oshape.push_back(data->shape[i]);
+  }
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Array<te::Tensor> AdvIndexCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                  const Type& out_type) {
+  Array<te::Tensor> indices;
+  for (size_t i = 1; i < inputs.size(); ++i) {
+    indices.push_back(inputs[i]);
+  }
+  return {topi::adv_index(inputs[0], indices)};
+}
+
+Expr MakeAdvIndex(Expr inputs) {
+  static const Op& op = Op::Get("adv_index");
+  return Call(op, {inputs}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.adv_index").set_body_typed(MakeAdvIndex);
+
+RELAY_REGISTER_OP("adv_index")
+    .describe(R"code(Numpy style advanced indexing. Index with a list of tensors.
+    )code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_support_level(3)
+    .add_argument("inputs", "Tuple of Tensors", "Input tensor and indices.")
+    .add_type_rel("AdvIndex", AdvIndexRel)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute", AdvIndexCompute);
+
 }  // namespace relay
 }  // namespace tvm

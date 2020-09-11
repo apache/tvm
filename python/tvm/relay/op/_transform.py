@@ -62,6 +62,7 @@ _reg.register_reduce_schedule("collapse_sum_to")
 _reg.register_injective_schedule("unravel_index")
 _reg.register_injective_schedule("sparse_to_dense")
 _reg.register_injective_schedule("matrix_set_diag")
+_reg.register_injective_schedule("adv_index")
 
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)
@@ -661,3 +662,35 @@ def split_shape_func(attrs, inputs, _):
                               convert(i),
                               convert(indices_or_sections),
                               convert(axis)) for i in range(num_out)]
+
+@script
+def _adv_index_shape_func(inputs):
+    index_rank = inputs[1].shape[0]
+    data_rank = inputs[0].shape[0]
+    out = output_tensor((data_rank + index_rank - len(inputs) + 1,), "int64")
+
+    max_flatten_len = int64(1)
+    for i in const_range(index_rank):
+        max_flatten_len *= inputs[1][i]
+        out[i] = inputs[1][i]
+    for i in const_range(len(inputs) - 2):
+        flatten_len = int64(1)
+        for j in const_range(index_rank):
+            flatten_len *= inputs[i + 2][j]
+        if flatten_len > max_flatten_len:
+            max_flatten_len = flatten_len
+            for k in const_range(index_rank):
+                out[k] = inputs[i + 2][k]
+
+    for i in const_range(data_rank - len(inputs) + 1):
+        out[i + index_rank] = inputs[0][i + len(inputs) - 1]
+
+    return out
+
+@_reg.register_shape_func("adv_index", False)
+def adv_index_shape_func(attrs, inputs, _):
+    """
+    Shape func for adv_index.
+    Only allow single index tensor.
+    """
+    return [_adv_index_shape_func(inputs)]
