@@ -185,7 +185,7 @@ def _arange():
             # dtype is a tvm dtype
             if isinstance(val, _expr.Expr):
                 try:
-                    ret = _infer_value(_op.cast(val, dtype), {}).asnumpy()
+                    ret = _infer_value(val, {}).asnumpy()
                     ret = _expr.const(ret, dtype)
                 except Exception:
                     ret = _op.cast(val, dtype)
@@ -439,10 +439,13 @@ def _take():
 def _topk():
     def _impl(inputs, input_types):
         data = inputs[0]
-        try:
-            k = int(_infer_value(inputs[1], {}).asnumpy().tolist())
-            k = _expr.const(k)
-        except Exception:
+        if isinstance(k, _expr.Expr):
+            try:
+                k = _infer_value(inputs[1], {}).asnumpy().tolist()
+                k = _expr.const(k)
+            except Exception:
+                k = inputs[1]
+        else:
             k = inputs[1]
         axis = int(inputs[2])
         is_ascend = not bool(inputs[3])
@@ -555,7 +558,7 @@ def _full_impl(data, fill_value, dtype):
         out = _op.reshape(out, new_shape)
     return out
 
-def _ones():
+def _ones(default_dtype):
     def _impl(inputs, input_types):
         data = inputs[0]
 
@@ -564,18 +567,24 @@ def _ones():
             msg = "Data type %s could not be parsed in ones op" % (type(data))
             raise AssertionError(msg)
 
-        dtype = _convert_dtype_value(inputs[1])
+        if inputs[1] is not None:
+            dtype = _convert_dtype_value(inputs[1])
+        else:
+            dtype = default_dtype
         return _full_impl(data, 1, dtype)
     return _impl
 
 
-def _ones_like():
+def _ones_like(default_dtype):
     def _impl(inputs, input_types):
         data = inputs[0]
         out = _op.ones_like(data)
 
         # If the input and the output datatype is different, do a cast
-        dtype = _convert_dtype_value(inputs[1])
+        if inputs[1] is not None:
+            dtype = _convert_dtype_value(inputs[1])
+        else:
+            dtype = default_dtype
         if input_types[0] != dtype:
             out = _op.cast(out, dtype)
 
@@ -584,7 +593,7 @@ def _ones_like():
     return _impl
 
 
-def _zeros():
+def _zeros(default_dtype):
     def _impl(inputs, input_types):
         data = inputs[0]
 
@@ -593,18 +602,24 @@ def _zeros():
             msg = "Data type %s could not be parsed in zeros op" % (type(data))
             raise AssertionError(msg)
 
-        dtype = _convert_dtype_value(inputs[1])
+        if inputs[1] is not None:
+            dtype = _convert_dtype_value(inputs[1])
+        else:
+            dtype = default_dtype
         return _full_impl(data, 0, dtype)
     return _impl
 
 
-def _zeros_like():
+def _zeros_like(default_dtype):
     def _impl(inputs, input_types):
         data = inputs[0]
         out = _op.zeros_like(data)
 
         # If the input and the output datatype is different, do a cast
-        dtype = _convert_dtype_value(inputs[1])
+        if inputs[1] is not None:
+            dtype = _convert_dtype_value(inputs[1])
+        else:
+            dtype = default_dtype
         if input_types[0] not in dtype:
             out = _op.cast(out, dtype)
 
@@ -633,7 +648,7 @@ def _full(default_dtype):
     return _impl
 
 
-def _full_like():
+def _full_like(default_dtype):
     def _impl(inputs, input_types):
         data = inputs[0]
         fill_value = inputs[1]
@@ -641,7 +656,11 @@ def _full_like():
         out = _op.full_like(data, _expr.const(fill_value))
 
         # If the input and the output datatype is different, do a cast
-        dtype = _convert_dtype_value(inputs[2])
+        if inputs[2] is not None:  # dtype given
+            dtype = _convert_dtype_value(inputs[2])
+        else:
+            # if dtype is None, torch uses a global default set by torch.set_default_tensor_type()
+            dtype = default_dtype
         if input_types[0] not in dtype:
             out = _op.cast(out, dtype)
 
@@ -2166,7 +2185,7 @@ def _roi_align(prelude):
         output_size = (inputs[3], inputs[4])
         spatial_scale = inputs[2]
         sample_ratio = inputs[5]
-        aligned = inputs[6]
+        aligned = False if len(inputs) < 7 else inputs[6]
 
         if aligned:
             data -= _expr.const(0.5)
@@ -2329,6 +2348,14 @@ def _pytorch_result_type(dtypes, non_tensor_inputs):
 
 def _pytorch_promote_types(inputs, dtypes):
     """This promotes TVM inputs with TVM dtypes passed like PyTorch would"""
+    actual_dtypes = []
+    for i, inp in enumerate(inputs):
+        if isinstance(inp, _expr.Expr):
+            idt = _infer_type(inp).checked_type.dtype
+            actual_dtypes.append(idt)
+        else:
+            actual_dtypes.append(dtypes[i])
+    dtypes = actual_dtypes
     tensor_dtypes = [dt for inp, dt in zip(inputs, dtypes) if not np.isscalar(inp)]
     non_tensor_inputs = [inp for inp in inputs if np.isscalar(inp)]
     result_type = _pytorch_result_type(tensor_dtypes, non_tensor_inputs)
@@ -2396,6 +2423,8 @@ def _convert_data_type(input_type, default_dtype=None):
         return "qint32"
     elif input_type in ["bool", "torch.bool"]:
         return "bool"
+    elif input_type in ["str"]:
+        return "str"
     else:
         raise NotImplementedError("input_type {} is not handled yet".format(input_type))
     return "float32"  # Never reached
@@ -2452,12 +2481,12 @@ def _get_convert_map(prelude, default_dtype):
         "aten::floor_divide": _elemwise("floor_divide"),
         "aten::addcdiv": _addcdiv(),
         "aten::addcmul": _addcmul(),
-        "aten::ones": _ones(),
-        "aten::ones_like": _ones_like(),
-        "aten::zeros": _zeros(),
-        "aten::zeros_like": _zeros_like(),
+        "aten::ones": _ones(default_dtype),
+        "aten::ones_like": _ones_like(default_dtype),
+        "aten::zeros": _zeros(default_dtype),
+        "aten::zeros_like": _zeros_like(default_dtype),
         "aten::full": _full(default_dtype),
-        "aten::full_like": _full_like(),
+        "aten::full_like": _full_like(default_dtype),
         "aten::linspace": _linspace(),
         "aten::reciprocal": _reciprocal(),
         "aten::repeat": _repeat(),
@@ -2762,7 +2791,7 @@ def _get_constant(node):
                 # TODO(t-vi): When is this needed?
                 return tensor.item()
             return _wrap_const(tensor.numpy())
-        elif ty == "DeviceObjType":
+        elif ty == "DeviceObjType" or ty == "StringType":
             return node.s(attr_name)
         elif ty == "FunctionType":
             return None
