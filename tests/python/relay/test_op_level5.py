@@ -390,13 +390,15 @@ def test_non_max_suppression_gpu():
         
         func_indices = relay.Function([x0, x1, x2, x3], z_indices)
         func_indices = run_infer_type(func_indices)
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             if target != 'cuda':
                 continue
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
-            print('op_indices_res1[0]: \n', op_indices_res1[0])
-            print('op_indices_res1[1]: \n', op_indices_res1[1])
+            op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
+            tvm.testing.assert_allclose(op_indices_res1[0].asnumpy(), ref_indices_res, rtol=1e-5)
+            op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
+            tvm.testing.assert_allclose(op_indices_res2[0].asnumpy(), ref_indices_res, rtol=1e-5)
 
     # data after get_valid_counts
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], 
