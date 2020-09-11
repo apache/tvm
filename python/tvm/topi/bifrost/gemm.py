@@ -16,9 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument
 """GEMM schedules for Mali Bifrost"""
-from .transforms import tile_and_bind, tile_and_bind3d, interleave_transpose, \
-    transpose_interleave
+from .transforms import tile_and_bind, tile_and_bind3d, interleave_transpose, transpose_interleave
 from .. import util
+
 
 def decl_gemm(cfg, A, B):
     """Declare a single GEMM computation for Mali Bifrost GPUs
@@ -47,7 +47,6 @@ def decl_gemm(cfg, A, B):
     cfg.define_knob("B_interleave", [1, 4, 8, 16, 32])
     cfg.define_knob("split_k_factor", [1, 4, 16])
 
-
     # Mutual k axis must be of equal extent
     assert util.get_const_int(A.shape[1]) == util.get_const_int(B.shape[0])
     n = A.shape[0]
@@ -61,9 +60,10 @@ def decl_gemm(cfg, A, B):
         B_unrolled = te.compute((k_size, m), lambda i, j: B[i, j], name="B_unrolled")
 
         # Declare standard GEMM
-        k = te.reduce_axis((0, A.shape[1]), name='k')
-        C = te.compute((n, m), lambda i, j:
-                       te.sum(A_unrolled[i, k] * B_unrolled[k, j], axis=k), name='C')
+        k = te.reduce_axis((0, A.shape[1]), name="k")
+        C = te.compute(
+            (n, m), lambda i, j: te.sum(A_unrolled[i, k] * B_unrolled[k, j], axis=k), name="C"
+        )
 
         R = te.compute((n, m), lambda i, j: C[i, j], name="R")
 
@@ -71,23 +71,32 @@ def decl_gemm(cfg, A, B):
         unrolled_k_size = k_size // unroll_gemm
 
         # Unroll the two input matrices along the shared k axis
-        A_unrolled = te.compute((unroll_gemm, n, unrolled_k_size), lambda b, i, j:
-                                A[i][unrolled_k_size * b + j], name='A_unrolled')
+        A_unrolled = te.compute(
+            (unroll_gemm, n, unrolled_k_size),
+            lambda b, i, j: A[i][unrolled_k_size * b + j],
+            name="A_unrolled",
+        )
 
-        B_unrolled = te.compute((unroll_gemm, unrolled_k_size, m), lambda b, i, j:
-                                B[unrolled_k_size * b + i][j], name='B_unrolled')
+        B_unrolled = te.compute(
+            (unroll_gemm, unrolled_k_size, m),
+            lambda b, i, j: B[unrolled_k_size * b + i][j],
+            name="B_unrolled",
+        )
 
         # Declare a batched GEMM
-        k = te.reduce_axis((0, unrolled_k_size), name='k')
-        C = te.compute((unroll_gemm, n, m), lambda b, i, j:
-                       te.sum(A_unrolled[b][i][k] * B_unrolled[b][k][j], axis=k), name='C')
+        k = te.reduce_axis((0, unrolled_k_size), name="k")
+        C = te.compute(
+            (unroll_gemm, n, m),
+            lambda b, i, j: te.sum(A_unrolled[b][i][k] * B_unrolled[b][k][j], axis=k),
+            name="C",
+        )
 
         # Then declare a reduction to reduce the sub matrices
-        k = te.reduce_axis((0, unroll_gemm), name='k')
-        R = te.compute((n, m), lambda i, j:
-                       te.sum(C[k][i][j], axis=k), name='R')
+        k = te.reduce_axis((0, unroll_gemm), name="k")
+        R = te.compute((n, m), lambda i, j: te.sum(C[k][i][j], axis=k), name="R")
 
     return R
+
 
 def decl_batched_gemm(cfg, A, B):
     """Declare a batched GEMM computation for Mali Bifrost GPUs
@@ -124,11 +133,13 @@ def decl_batched_gemm(cfg, A, B):
     b_size = util.get_const_int(A.shape[0])
 
     # Declare a batched GEMM
-    k = te.reduce_axis((0, k_size), name='k')
-    C = te.compute((b_size, n, m), lambda b, i, j:
-                   te.sum(A[b][i][k] * B[b][k][j], axis=k), name='C')
+    k = te.reduce_axis((0, k_size), name="k")
+    C = te.compute(
+        (b_size, n, m), lambda b, i, j: te.sum(A[b][i][k] * B[b][k][j], axis=k), name="C"
+    )
 
     return C
+
 
 def decl_winograd_gemm(cfg, A, B):
     """Declare a winograd GEMM for Mali Bifrost GPUs
@@ -154,11 +165,13 @@ def decl_winograd_gemm(cfg, A, B):
     n = util.get_const_int(A.shape[2])
     k = util.get_const_int(A.shape[3])
 
-    A_3D = te.compute((alpha * alpha, n, k), lambda b, i, j:
-                      A[b // alpha][b % alpha][i][j], name='A_3D')
+    A_3D = te.compute(
+        (alpha * alpha, n, k), lambda b, i, j: A[b // alpha][b % alpha][i][j], name="A_3D"
+    )
 
     C = decl_batched_gemm(cfg, A_3D, B)
     return A_3D, C
+
 
 def schedule_gemm(cfg, s, A, B, C, batched=False, schedule_transforms=True):
     """Schedule GEMM, single and batched
@@ -223,9 +236,9 @@ def schedule_gemm(cfg, s, A, B, C, batched=False, schedule_transforms=True):
         tile_and_bind(s, inter_trans, y, xo, 4, 4)
 
     # Schedule C
-    CR_A = s.cache_read(A_transposed_interleaved, 'local', [C])
-    CR_B = s.cache_read(B_interleaved_transposed, 'local', [C])
-    CW_C = s.cache_write(C, 'local')
+    CR_A = s.cache_read(A_transposed_interleaved, "local", [C])
+    CR_B = s.cache_read(B_interleaved_transposed, "local", [C])
+    CW_C = s.cache_write(C, "local")
 
     if not batched:
         y, x = s[C].op.axis
@@ -275,6 +288,7 @@ def schedule_gemm(cfg, s, A, B, C, batched=False, schedule_transforms=True):
 
     return trans_inter, inter_trans
 
+
 def schedule_unrollable_gemm(cfg, s, A, B, C, R):
     """Schedule a GEMM that can be unrolled by a constant factor
     along its inner dimension
@@ -314,7 +328,7 @@ def schedule_unrollable_gemm(cfg, s, A, B, C, R):
         s[B].compute_inline()
         schedule_gemm(cfg, s, A, B, C, batched=True)
 
-        CR_C = s.cache_read(C, 'local', [R])
+        CR_C = s.cache_read(C, "local", [R])
 
         y, x = s[R].op.axis
         xo, xi = s[R].split(x, 4)
@@ -329,6 +343,7 @@ def schedule_unrollable_gemm(cfg, s, A, B, C, R):
         _, y, x = s[CR_C].op.axis
         s[CR_C].unroll(y)
         s[CR_C].vectorize(x)
+
 
 def get_unrollable_gemm_ops(R):
     """Get all GEMM operators from the final reduction

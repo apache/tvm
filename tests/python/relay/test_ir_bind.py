@@ -25,10 +25,8 @@ def test_bind_params():
     y = relay.var("y")
     z = relay.add(x, y)
     f = relay.Function([x, y], z)
-    fbinded = relay.bind(f, {x : relay.const(1, "float32")})
-    fexpected =relay.Function(
-        [y],
-        relay.add(relay.const(1, "float32"),  y))
+    fbinded = relay.bind(f, {x: relay.const(1, "float32")})
+    fexpected = relay.Function([y], relay.add(relay.const(1, "float32"), y))
     assert tvm.ir.structural_equal(fbinded, fexpected)
 
     zbinded = relay.bind(z, {y: x})

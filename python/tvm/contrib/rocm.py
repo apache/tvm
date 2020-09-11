@@ -54,8 +54,7 @@ def find_lld(required=True):
     valid_list = [util.which(x) for x in lld_list]
     valid_list = [x for x in valid_list if x]
     if not valid_list and required:
-        raise RuntimeError(
-            "cannot find ld.lld, candidates are: " + str(lld_list))
+        raise RuntimeError("cannot find ld.lld, candidates are: " + str(lld_list))
     return valid_list
 
 
@@ -75,10 +74,7 @@ def rocm_link(in_file, out_file, lld=None):
         we will try to guess the matched clang version.
     """
     args = [lld if lld is not None else find_lld()[0], "-shared", in_file, "-o", out_file]
-    proc = subprocess.Popen(
-        args,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:
@@ -110,6 +106,7 @@ def callback_rocm_link(obj_bin):
     cobj_bin = bytearray(open(tmp_cobj, "rb").read())
     return cobj_bin
 
+
 @tvm._ffi.register_func("tvm_callback_rocm_bitcode_path")
 def callback_rocm_bitcode_path(rocdl_dir="/opt/rocm/lib/"):
     """Utility function to find ROCm device library bitcodes
@@ -137,7 +134,7 @@ def callback_rocm_bitcode_path(rocdl_dir="/opt/rocm/lib/"):
         "oclc_isa_version_906.amdgcn.bc",
         "oclc_unsafe_math_off.amdgcn.bc",
         "oclc_unsafe_math_on.amdgcn.bc",
-        "oclc_wavefrontsize64_on.amdgcn.bc"
+        "oclc_wavefrontsize64_on.amdgcn.bc",
     ]
     paths = [join(rocdl_dir, bitcode) for bitcode in bitcode_files]
     return tvm.runtime.convert([path for path in paths if exists(path)])

@@ -18,6 +18,7 @@
 """Batch matmul in python"""
 import numpy as np
 
+
 def batch_matmul(x, y):
     """batch_matmul operator implemented in numpy.
 

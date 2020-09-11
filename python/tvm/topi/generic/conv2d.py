@@ -22,6 +22,7 @@ from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from ..util import get_const_tuple
 
+
 def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):
     """Fallback schedule for conv2d int8 on cpu.
     Normally the inner most pattern takes two int8/uint8 tensors
@@ -41,10 +42,14 @@ def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):
     HSTR, WSTR = wkl.hstride, wkl.wstride
     out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
 
-    assert wkl.out_filter % int32_lanes == 0, \
-        "wkl.out_filter=%d, int32_lanes=%d" % (wkl.out_filter, int32_lanes)
-    assert wkl.in_filter % num_int8_elements == 0, \
-        "wkl.in_filter=%d, num_int8_elements=%d" % (wkl.in_filter, num_int8_elements)
+    assert wkl.out_filter % int32_lanes == 0, "wkl.out_filter=%d, int32_lanes=%d" % (
+        wkl.out_filter,
+        int32_lanes,
+    )
+    assert wkl.in_filter % num_int8_elements == 0, "wkl.in_filter=%d, num_int8_elements=%d" % (
+        wkl.in_filter,
+        num_int8_elements,
+    )
 
     oc_bn = int32_lanes
     ic_bn = 1
@@ -85,10 +90,14 @@ def fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes, num_int8_elements):
     out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
     out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
 
-    assert wkl.out_filter % int32_lanes == 0, \
-        "wkl.out_filter=%d, int32_lanes=%d" % (wkl.out_filter, int32_lanes)
-    assert wkl.in_filter % num_int8_elements == 0, \
-        "wkl.in_filter=%d, num_int8_elements=%d" % (wkl.in_filter, num_int8_elements)
+    assert wkl.out_filter % int32_lanes == 0, "wkl.out_filter=%d, int32_lanes=%d" % (
+        wkl.out_filter,
+        int32_lanes,
+    )
+    assert wkl.in_filter % num_int8_elements == 0, "wkl.in_filter=%d, num_int8_elements=%d" % (
+        wkl.in_filter,
+        num_int8_elements,
+    )
 
     oc_bn = int32_lanes
     ic_bn = 1
@@ -109,8 +118,9 @@ def fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes, num_int8_elements):
     raise ValueError("cannot decide default schedule for workload: {}".format(wkl))
 
 
-def schedule_conv_NCHWc_cpu_common_int8(s, cfg, data_vec, kernel_vec, conv_out,
-                                        last, int32_lanes=16, intrin=None):
+def schedule_conv_NCHWc_cpu_common_int8(
+    s, cfg, data_vec, kernel_vec, conv_out, last, int32_lanes=16, intrin=None
+):
     """
     Defines the schedule for INT8 for Intel and ARM machines
     Uses the Intel/ARM intrinsics to use INT8 operations
@@ -122,8 +132,7 @@ def schedule_conv_NCHWc_cpu_common_int8(s, cfg, data_vec, kernel_vec, conv_out,
     _, _, _, _, oc_bn = get_const_tuple(conv_out.shape)
 
     # schedule pad
-    if isinstance(s[data_vec].op, te.tensor.ComputeOp) \
-            and "pad" in data_vec.op.tag:
+    if isinstance(s[data_vec].op, te.tensor.ComputeOp) and "pad" in data_vec.op.tag:
         batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
         parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
         s[data_vec].parallel(parallel_axis)
@@ -135,8 +144,7 @@ def schedule_conv_NCHWc_cpu_common_int8(s, cfg, data_vec, kernel_vec, conv_out,
         # this part will be folded during Relay fold_constant pass.
         s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
         s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
-    elif isinstance(kernel_vec.op, te.tensor.ComputeOp) and \
-            kernel_vec.name == 'kernel_vec':
+    elif isinstance(kernel_vec.op, te.tensor.ComputeOp) and kernel_vec.name == "kernel_vec":
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for
         # testing purpose.
@@ -155,7 +163,7 @@ def schedule_conv_NCHWc_cpu_common_int8(s, cfg, data_vec, kernel_vec, conv_out,
 
     # schedule 5-D NCHW[x]c conv
     C, O = conv_out, last
-    CC = s.cache_write(C, 'global')
+    CC = s.cache_write(C, "global")
 
     batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
     ow_chunk, ow_block = s[C].split(ow, factor=reg_n)
@@ -177,12 +185,34 @@ def schedule_conv_NCHWc_cpu_common_int8(s, cfg, data_vec, kernel_vec, conv_out,
     oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
 
     if unroll_kw:
-        s[CC].reorder(oc_chunk, oh, ow_chunk, ic_outer, kh, ic_f_inner, kw,
-                      ow_block, oc_f_inner, oc_s_inner, ic_s_inner)
+        s[CC].reorder(
+            oc_chunk,
+            oh,
+            ow_chunk,
+            ic_outer,
+            kh,
+            ic_f_inner,
+            kw,
+            ow_block,
+            oc_f_inner,
+            oc_s_inner,
+            ic_s_inner,
+        )
         s[CC].unroll(kw)
     else:
-        s[CC].reorder(oc_chunk, oh, ow_chunk, ic_outer, kh, kw, ic_f_inner,
-                      ow_block, oc_f_inner, oc_s_inner, ic_s_inner)
+        s[CC].reorder(
+            oc_chunk,
+            oh,
+            ow_chunk,
+            ic_outer,
+            kh,
+            kw,
+            ic_f_inner,
+            ow_block,
+            oc_f_inner,
+            oc_s_inner,
+            ic_s_inner,
+        )
 
     if intrin is not None:
         s[CC].tensorize(oc_s_inner, intrin)
@@ -213,8 +243,10 @@ def schedule_conv_NCHWc_cpu_common_int8(s, cfg, data_vec, kernel_vec, conv_out,
 
     return s
 
-def schedule_conv_NCHWc_cpu_1x1_int8(s, cfg, data_vec, kernel_vec, conv_out,
-                                     last, int32_lanes=16, intrin=None):
+
+def schedule_conv_NCHWc_cpu_1x1_int8(
+    s, cfg, data_vec, kernel_vec, conv_out, last, int32_lanes=16, intrin=None
+):
     """
     Defines the 1x1 conv schedule for INT8 for Intel and ARM machines
     Uses the Intel/ARM intrinsics to use INT8 operations
@@ -226,8 +258,7 @@ def schedule_conv_NCHWc_cpu_1x1_int8(s, cfg, data_vec, kernel_vec, conv_out,
     _, _, _, _, oc_bn = get_const_tuple(conv_out.shape)
 
     # schedule pad
-    if isinstance(s[data_vec].op, te.tensor.ComputeOp) \
-            and "pad" in data_vec.op.tag:
+    if isinstance(s[data_vec].op, te.tensor.ComputeOp) and "pad" in data_vec.op.tag:
         batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
         parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
         s[data_vec].parallel(parallel_axis)
@@ -239,8 +270,7 @@ def schedule_conv_NCHWc_cpu_1x1_int8(s, cfg, data_vec, kernel_vec, conv_out,
         # this part will be folded during Relay fold_constant pass.
         s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
         s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
-    elif isinstance(kernel_vec.op, te.tensor.ComputeOp) and \
-            kernel_vec.name == 'kernel_vec':
+    elif isinstance(kernel_vec.op, te.tensor.ComputeOp) and kernel_vec.name == "kernel_vec":
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for
         # testing purpose.
@@ -258,7 +288,7 @@ def schedule_conv_NCHWc_cpu_1x1_int8(s, cfg, data_vec, kernel_vec, conv_out,
         s[kernel_vec].parallel(parallel_axis)
 
     C, O = conv_out, last
-    CC = s.cache_write(C, 'global')
+    CC = s.cache_write(C, "global")
 
     batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
     oh_outer, oh_inner = s[C].split(oh, factor=oh_factor)
@@ -282,8 +312,20 @@ def schedule_conv_NCHWc_cpu_1x1_int8(s, cfg, data_vec, kernel_vec, conv_out,
     oh_outer, oh_inner = s[CC].split(oh, factor=oh_factor)
     ow_outer, ow_inner = s[CC].split(ow, factor=ow_factor)
 
-    s[CC].reorder(oc_chunk, oh_outer, ow_outer, kh, kw, ic_outer, ic_f_inner, oh_inner,
-                  ow_inner, oc_f_inner, oc_s_inner, ic_s_inner)
+    s[CC].reorder(
+        oc_chunk,
+        oh_outer,
+        ow_outer,
+        kh,
+        kw,
+        ic_outer,
+        ic_f_inner,
+        oh_inner,
+        ow_inner,
+        oc_f_inner,
+        oc_s_inner,
+        ic_s_inner,
+    )
     s[CC].fuse(oc_chunk, oh_outer)
 
     if intrin is not None:

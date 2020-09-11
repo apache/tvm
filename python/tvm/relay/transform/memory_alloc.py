@@ -30,19 +30,24 @@ from ... import DataType, register_func
 from .. import ty, expr
 from ..backend import compile_engine
 from ..op.memory import flatten_tuple_type, from_tuple_type, to_tuple_type
-from ...import cpu
+from ... import cpu
 from ..op.memory import alloc_storage
 from ..analysis import context_analysis
 from ..._ffi.runtime_ctypes import TVMContext
 
-def alloc_tensor(storage, shape, dtype='float32', assert_shape=None):
+
+def alloc_tensor(storage, shape, dtype="float32", assert_shape=None):
     offset = expr.const(0, dtype="int64")
     return op.memory.alloc_tensor(storage, offset, shape, dtype, assert_shape)
 
 
 def is_primitive(call):
-    return hasattr(call, 'op') and hasattr(call.op, 'attrs') and \
-           hasattr(call.op.attrs, 'Primitive') and int(call.op.attrs.Primitive) == 1
+    return (
+        hasattr(call, "op")
+        and hasattr(call.op, "attrs")
+        and hasattr(call.op.attrs, "Primitive")
+        and int(call.op.attrs.Primitive) == 1
+    )
 
 
 def is_device_copy(func):
@@ -60,10 +65,14 @@ def is_device_copy(func):
 
 class CheckReshapeOnly(ExprVisitor):
     """A pass to check if the fused op contains only reshape ops."""
+
     def __init__(self):
         super().__init__()
-        self._reshape_ops = [op.get("reshape"), op.get("contrib_reverse_reshape"),
-                             op.get("dyn.reshape")]
+        self._reshape_ops = [
+            op.get("reshape"),
+            op.get("contrib_reverse_reshape"),
+            op.get("dyn.reshape"),
+        ]
         self.reshape_only = True
 
     def visit_call(self, call):
@@ -119,7 +128,7 @@ class ManifestAllocPass(ExprMutator):
         for field in tup.fields:
             field = self.visit(field)
             if isinstance(field, expr.Constant):
-                field = scope.let('const', field)
+                field = scope.let("const", field)
             new_fields.append(field)
         return expr.Tuple(new_fields)
 
@@ -159,10 +168,7 @@ class ManifestAllocPass(ExprMutator):
         size = self.compute_storage(tensor_type)
         alignment = self.compute_alignment(tensor_type.dtype)
         dtype = tensor_type.dtype
-        sto = scope.let("storage_{0}".format(name_hint), alloc_storage(size,
-                                                                       alignment,
-                                                                       ctx,
-                                                                       dtype))
+        sto = scope.let("storage_{0}".format(name_hint), alloc_storage(size, alignment, ctx, dtype))
         # TODO(@jroesch): There is a bug with typing based on the constant shape.
         tensor = alloc_tensor(sto, shape, dtype, tensor_type.shape)
         return scope.let("tensor_{0}".format(name_hint), tensor)
@@ -198,8 +204,7 @@ class ManifestAllocPass(ExprMutator):
             if state == 2:
                 for j, subexp in enumerate(from_tuple_type(arg.type_annotation, arg)):
                     sh_of = self.visit(self.shape_of(subexp))
-                    shape_func_ins.append(
-                        scope.let("in_shape_{0}".format(input_pos + j), sh_of))
+                    shape_func_ins.append(scope.let("in_shape_{0}".format(input_pos + j), sh_of))
                     input_pos += 1
                 is_inputs.append(0)
             # Pass Inputs
@@ -208,8 +213,7 @@ class ManifestAllocPass(ExprMutator):
                 ctx = self.get_context(arg)
                 if ctx.device_type != cpu_ctx.device_type:
                     new_arg = self.device_copy(new_arg, ctx, cpu_ctx)
-                shape_func_ins.append(
-                    scope.let("in_shape_{0}".format(input_pos), new_arg))
+                shape_func_ins.append(scope.let("in_shape_{0}".format(input_pos), new_arg))
                 input_pos += 1
                 is_inputs.append(1)
             else:
@@ -226,9 +230,8 @@ class ManifestAllocPass(ExprMutator):
             out_shapes.append(alloc)
 
         shape_call = self.shape_func(
-            func,
-            expr.Tuple(shape_func_ins),
-            expr.Tuple(out_shapes), is_inputs)
+            func, expr.Tuple(shape_func_ins), expr.Tuple(out_shapes), is_inputs
+        )
 
         scope.let("shape_func", shape_call)
         return out_shapes
@@ -242,18 +245,15 @@ class ManifestAllocPass(ExprMutator):
         for i, (out_shape, out_type) in enumerate(zip(out_shapes, out_types)):
             size = self.compute_storage_in_relay(out_shape, out_type.dtype)
             alignment = self.compute_alignment(out_type.dtype)
-            sto = scope.let("storage_{i}".format(i=i), alloc_storage(
-                size, alignment, func_ctx, out_type.dtype))
+            sto = scope.let(
+                "storage_{i}".format(i=i), alloc_storage(size, alignment, func_ctx, out_type.dtype)
+            )
             storages.append(sto)
 
         outs = []
         sh_ty_storage = zip(out_shapes, out_types, storages)
         for i, (out_shape, out_type, storage) in enumerate(sh_ty_storage):
-            alloc = alloc_tensor(
-                storage,
-                out_shape,
-                out_type.dtype,
-                out_type.shape)
+            alloc = alloc_tensor(storage, out_shape, out_type.dtype, out_type.shape)
             alloc = scope.let("out_{i}".format(i=i), alloc)
             outs.append(alloc)
 
@@ -299,9 +299,9 @@ class ManifestAllocPass(ExprMutator):
                     attr = call.op.body.attrs
                 else:
                     attr = call.attr
-                return self.device_copy(new_args[0],
-                                        TVMContext(attr.src_dev_type, 0),
-                                        TVMContext(attr.dst_dev_type, 0))
+                return self.device_copy(
+                    new_args[0], TVMContext(attr.src_dev_type, 0), TVMContext(attr.dst_dev_type, 0)
+                )
 
             if self.is_dynamic(ret_type):
                 # Handle dynamic case.
@@ -324,6 +324,7 @@ class ManifestAllocPass(ExprMutator):
 
 def mk_analysis_annotator(results):
     """Pretty print the annotated relay program with device info"""
+
     def _annotator(exp):
         if exp in results:
             val = results[exp]
@@ -339,6 +340,7 @@ def mk_analysis_annotator(results):
 @module_pass(opt_level=0)
 class ManifestAlloc:
     """The explicit pass wrapper around ManifestAlloc."""
+
     # TODO(zhiics, jroesch) Port this pass to C++.
     def __init__(self, target_host, targets):
         self.target_host = target_host

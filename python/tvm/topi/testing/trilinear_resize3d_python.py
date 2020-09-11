@@ -19,12 +19,14 @@
 import math
 import numpy as np
 
-def trilinear_resize3d_python(data_in, out_size, layout,
-                              coordinate_transformation_mode="align_corners"):
+
+def trilinear_resize3d_python(
+    data_in, out_size, layout, coordinate_transformation_mode="align_corners"
+):
     """ Trilinear 3d scaling using python"""
     (new_d, new_h, new_w) = out_size
 
-    if layout == 'NDHWC':
+    if layout == "NDHWC":
         (batch, d, h, w, channel) = data_in.shape
         data_out = np.ones((batch, new_d, new_h, new_w, channel))
     else:
@@ -32,16 +34,17 @@ def trilinear_resize3d_python(data_in, out_size, layout,
         data_out = np.ones((batch, channel, new_d, new_h, new_w))
 
     if coordinate_transformation_mode == "align_corners":
-        depth_scale = np.float32(d-1) / np.float32(out_size[0]-1)
-        height_scale = np.float32(h-1) / np.float32(out_size[1]-1)
-        width_scale = np.float32(w-1) / np.float32(out_size[2]-1)
+        depth_scale = np.float32(d - 1) / np.float32(out_size[0] - 1)
+        height_scale = np.float32(h - 1) / np.float32(out_size[1] - 1)
+        width_scale = np.float32(w - 1) / np.float32(out_size[2] - 1)
     elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
         depth_scale = np.float32(d) / np.float32(out_size[0])
         height_scale = np.float32(h) / np.float32(out_size[1])
         width_scale = np.float32(w) / np.float32(out_size[2])
     else:
-        raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
-            coordinate_transformation_mode))
+        raise ValueError(
+            "Unsupported coordinate_transformation_mode: {}".format(coordinate_transformation_mode)
+        )
 
     def _lerp(A, B, t):
         return A * (1.0 - t) + B * t
@@ -62,14 +65,17 @@ def trilinear_resize3d_python(data_in, out_size, layout,
             for m in range(new_d):
                 for j in range(new_h):
                     for k in range(new_w):
-                        z0, z1, z_lerp = _in_coord(m, depth_scale, d,\
-                                                   coordinate_transformation_mode)
-                        y0, y1, y_lerp = _in_coord(j, height_scale, h,\
-                                                   coordinate_transformation_mode)
-                        x0, x1, x_lerp = _in_coord(k, width_scale, w,\
-                                                   coordinate_transformation_mode)
+                        z0, z1, z_lerp = _in_coord(
+                            m, depth_scale, d, coordinate_transformation_mode
+                        )
+                        y0, y1, y_lerp = _in_coord(
+                            j, height_scale, h, coordinate_transformation_mode
+                        )
+                        x0, x1, x_lerp = _in_coord(
+                            k, width_scale, w, coordinate_transformation_mode
+                        )
 
-                        if layout == 'NDHWC':
+                        if layout == "NDHWC":
                             A0 = data_in[b][z0][y0][x0][i]
                             B0 = data_in[b][z0][y0][x1][i]
                             C0 = data_in[b][z0][y1][x0][i]
@@ -97,7 +103,7 @@ def trilinear_resize3d_python(data_in, out_size, layout,
 
                         pixel = np.float32(_lerp(top, bottom, y_lerp))
 
-                        if layout == 'NDHWC':
+                        if layout == "NDHWC":
                             data_out[b][m][j][k][i] = pixel
                         else:
                             data_out[b][i][m][j][k] = pixel

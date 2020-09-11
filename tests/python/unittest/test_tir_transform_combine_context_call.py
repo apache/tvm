@@ -17,28 +17,24 @@
 import tvm
 from tvm import te
 
+
 def test_for():
     dev_type = te.var("dev_type")
+
     def device_context(dev_id):
         ctx = tvm.tir.call_extern("handle", "device_context", dev_type, dev_id)
-        return tvm.tir.Call(
-            "handle", "tir.tvm_thread_context", [ctx])
+        return tvm.tir.Call("handle", "tir.tvm_thread_context", [ctx])
 
     ib = tvm.tir.ir_builder.create()
     n = te.var("n")
     A = ib.allocate("float32", n, name="A", scope="global")
     with ib.for_range(0, n, name="i") as i:
-        ib.emit(tvm.tir.call_extern
-                ("int32", "fadd", device_context(0), A))
+        ib.emit(tvm.tir.call_extern("int32", "fadd", device_context(0), A))
         with ib.for_range(0, 10, name="j") as j:
-            ib.emit(tvm.tir.call_extern
-                    ("int32", "fadd", device_context(1), A))
-            ib.emit(tvm.tir.call_extern
-                    ("int32", "fadd", device_context(0), A))
+            ib.emit(tvm.tir.call_extern("int32", "fadd", device_context(1), A))
+            ib.emit(tvm.tir.call_extern("int32", "fadd", device_context(0), A))
     body = ib.get()
-    mod = tvm.IRModule({
-        "func" : tvm.tir.PrimFunc([dev_type, n], body)
-    })
+    mod = tvm.IRModule({"func": tvm.tir.PrimFunc([dev_type, n], body)})
 
     mod = tvm.tir.transform.CombineContextCall()(mod)
 

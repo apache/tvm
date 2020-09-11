@@ -17,6 +17,7 @@
 import tvm
 from tvm import te
 
+
 def test_dtype_bound():
     analyzer = tvm.arith.Analyzer()
 
@@ -44,8 +45,7 @@ def test_cast_bound():
     assert bd.min_value == 0
     assert bd.max_value == 2
 
-    bd = analyzer.const_int_bound(
-        tmod(x, 3).astype("float32").astype("int32"))
+    bd = analyzer.const_int_bound(tmod(x, 3).astype("float32").astype("int32"))
     assert bd.min_value == -2
     assert bd.max_value == 2
 
@@ -240,8 +240,7 @@ def test_select_bound():
     analyzer.update(x, tvm.arith.ConstIntBound(-9, 11))
     analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
 
-    bd = analyzer.const_int_bound(
-        tvm.tir.Select(x > 1, (y < 0).astype("int32"), y + 1))
+    bd = analyzer.const_int_bound(tvm.tir.Select(x > 1, (y < 0).astype("int32"), y + 1))
     assert bd.min_value == 0
     assert bd.max_value == 11
 

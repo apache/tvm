@@ -25,6 +25,7 @@ from tvm import topi
 
 from ..nms import non_max_suppression
 
+
 @hybrid.script
 def hybrid_multibox_prior(data, sizes, ratios, steps, offsets):
     """Hybrid routing for multibox_prior operator.
@@ -75,11 +76,18 @@ def hybrid_multibox_prior(data, sizes, ratios, steps, offsets):
                     w = float32(sizes[k] * in_height) / in_width / 2.0
                     h = sizes[k] / 2.0
                 else:
-                    w = float32(sizes[0] * in_height) / in_width \
-                        * sqrt(ratios[k - num_sizes + 1] * 1.0) / 2.0
+                    w = (
+                        float32(sizes[0] * in_height)
+                        / in_width
+                        * sqrt(ratios[k - num_sizes + 1] * 1.0)
+                        / 2.0
+                    )
                     h = sizes[0] / sqrt(ratios[k - num_sizes + 1] * 1.0) / 2.0
-                count = i * in_width * (num_sizes + num_ratios - 1) \
-                    + j * (num_sizes + num_ratios - 1) + k
+                count = (
+                    i * in_width * (num_sizes + num_ratios - 1)
+                    + j * (num_sizes + num_ratios - 1)
+                    + k
+                )
                 output[0, count, 0] = center_w - w
                 output[0, count, 1] = center_h - h
                 output[0, count, 2] = center_w + w
@@ -116,8 +124,13 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
     out : tvm.te.Tensor
         3-D tensor with shape [1, h_in * w_in * (num_sizes + num_ratios - 1), 4]
     """
-    out = hybrid_multibox_prior(data, tvm.runtime.convert(sizes), tvm.runtime.convert(ratios),
-                                tvm.runtime.convert(steps), tvm.runtime.convert(offsets))
+    out = hybrid_multibox_prior(
+        data,
+        tvm.runtime.convert(sizes),
+        tvm.runtime.convert(ratios),
+        tvm.runtime.convert(steps),
+        tvm.runtime.convert(offsets),
+    )
     if clip:
         out = topi.clip(out, 0, 1)
     return out
@@ -125,8 +138,7 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
 
 @hybrid.script
 def _hybridy_transform_loc(box, pred_loc, variance, clip):
-    """Transform prior anchor box to output box through location predictions.
-    """
+    """Transform prior anchor box to output box through location predictions."""
     al = box[0]
     at = box[1]
     ar = box[2]
@@ -158,9 +170,9 @@ def _hybridy_transform_loc(box, pred_loc, variance, clip):
     output[3] = max(0.0, min(1.0, oy + oh)) if clip else oy + oh
     return output
 
+
 @hybrid.script
-def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
-                                  clip, threshold, variances):
+def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor, clip, threshold, variances):
     """Hybrid routing for transform location in multibox_detection operator.
 
     Parameters
@@ -196,8 +208,7 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
     num_anchors = cls_prob.shape[2]
     box_coord = allocate((4,), loc_pred.dtype)
     pred_coord = allocate((4,), loc_pred.dtype)
-    out_loc = output_tensor((batch_size, num_anchors, 6),
-                            loc_pred.dtype)
+    out_loc = output_tensor((batch_size, num_anchors, 6), loc_pred.dtype)
     valid_count = output_tensor((batch_size,), "int32")
 
     for i in parallel(batch_size):
@@ -221,8 +232,7 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
                 for l in range(4):
                     box_coord[l] = anchor[0, j, l]
                     pred_coord[l] = loc_pred[i, j * 4 + l]
-                out_coord = _hybridy_transform_loc(box_coord, pred_coord,
-                                                   variances, clip)
+                out_coord = _hybridy_transform_loc(box_coord, pred_coord, variances, clip)
                 out_loc[i, valid_count[i], 2] = out_coord[0]
                 out_loc[i, valid_count[i], 3] = out_coord[1]
                 out_loc[i, valid_count[i], 4] = out_coord[2]
@@ -231,8 +241,10 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
 
     return out_loc, valid_count
 
-def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01,
-                           variances=(0.1, 0.1, 0.2, 0.2)):
+
+def multibox_transform_loc(
+    cls_prob, loc_pred, anchor, clip=True, threshold=0.01, variances=(0.1, 0.1, 0.2, 0.2)
+):
     """Location transformation for multibox detection
 
     Parameters
@@ -259,13 +271,27 @@ def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01
     -------
     ret : tuple of tvm.te.Tensor
     """
-    return hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
-                                         tvm.tir.const(clip, "bool"),
-                                         tvm.tir.const(threshold, "float32"),
-                                         tvm.runtime.convert(variances))
+    return hybrid_multibox_transform_loc(
+        cls_prob,
+        loc_pred,
+        anchor,
+        tvm.tir.const(clip, "bool"),
+        tvm.tir.const(threshold, "float32"),
+        tvm.runtime.convert(variances),
+    )
 
-def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nms_threshold=0.5,
-                       force_suppress=False, variances=(0.1, 0.1, 0.2, 0.2), nms_topk=-1):
+
+def multibox_detection(
+    cls_prob,
+    loc_pred,
+    anchor,
+    clip=True,
+    threshold=0.01,
+    nms_threshold=0.5,
+    force_suppress=False,
+    variances=(0.1, 0.1, 0.2, 0.2),
+    nms_topk=-1,
+):
     """Convert multibox detection predictions.
 
     Parameters
@@ -302,9 +328,15 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
     out : tvm.te.Tensor
         3-D tensor with shape (batch_size, num_anchors, 6)
     """
-    inter_out = multibox_transform_loc(cls_prob, loc_pred, anchor,
-                                       clip, threshold, variances)
-    out = non_max_suppression(inter_out[0], inter_out[1], inter_out[1], max_output_size=-1,
-                              iou_threshold=nms_threshold, force_suppress=force_suppress,
-                              top_k=nms_topk, return_indices=False)
+    inter_out = multibox_transform_loc(cls_prob, loc_pred, anchor, clip, threshold, variances)
+    out = non_max_suppression(
+        inter_out[0],
+        inter_out[1],
+        inter_out[1],
+        max_output_size=-1,
+        iou_threshold=nms_threshold,
+        force_suppress=force_suppress,
+        top_k=nms_topk,
+        return_indices=False,
+    )
     return out

@@ -17,6 +17,7 @@
 """Yolo operations."""
 from . import _make
 
+
 def yolo_reorg(data, stride):
     """Yolo reorg operation used in darknet models.
     This layer shuffles the input tensor values based on the stride value.

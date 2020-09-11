@@ -33,6 +33,7 @@ _softmax_schedule = {
     "hls": topi.hls.schedule_softmax,
 }
 
+
 def check_device(A, B, a_np, b_np, device, ctx, name):
     print("Running on target: %s" % device)
     with tvm.target.Target(device):
@@ -45,8 +46,9 @@ def check_device(A, B, a_np, b_np, device, ctx, name):
     f(a, b)
     tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
+
 def verify_softmax(m, n, dtype="float32"):
-    A = te.placeholder((m, n), dtype=dtype, name='A')
+    A = te.placeholder((m, n), dtype=dtype, name="A")
     B = topi.nn.softmax(A)
     # confirm lower works
     s = te.create_schedule([B.op])
@@ -58,17 +60,19 @@ def verify_softmax(m, n, dtype="float32"):
     for device, ctx in tvm.testing.enabled_targets():
         check_device(A, B, a_np, b_np, device, ctx, "softmax")
 
+
 def verify_softmax_4d(shape, dtype="float32"):
-    A = te.placeholder(shape, dtype=dtype, name='A')
+    A = te.placeholder(shape, dtype=dtype, name="A")
     B = topi.nn.softmax(A, axis=1)
 
     _, c, h, w = shape
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
-    b_np = tvm.topi.testing.softmax_python(a_np.transpose(0, 2, 3, 1).reshape(h*w, c))
+    b_np = tvm.topi.testing.softmax_python(a_np.transpose(0, 2, 3, 1).reshape(h * w, c))
     b_np = b_np.reshape(1, h, w, c).transpose(0, 3, 1, 2)
 
     for device, ctx in tvm.testing.enabled_targets():
         check_device(A, B, a_np, b_np, device, ctx, "softmax")
+
 
 @tvm.testing.uses_gpu
 def test_softmax():
@@ -77,8 +81,9 @@ def test_softmax():
     verify_softmax(32, 10, "float64")
     verify_softmax_4d((1, 16, 256, 256))
 
+
 def verify_log_softmax(m, n, dtype="float32"):
-    A = te.placeholder((m, n), dtype=dtype, name='A')
+    A = te.placeholder((m, n), dtype=dtype, name="A")
     B = topi.nn.log_softmax(A)
     # confirm lower works
     s = te.create_schedule([B.op])
@@ -95,6 +100,7 @@ def test_log_softmax():
     verify_log_softmax(32, 10)
     verify_log_softmax(3, 4)
     verify_log_softmax(32, 10, "float64")
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

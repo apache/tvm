@@ -21,6 +21,7 @@ from tvm import te
 from .. import tag
 from ..util import simplify
 
+
 def csrmm_default(data, indices, indptr, weight, bias=None):
     # pylint: disable=invalid-name
     """The default implementation of csrmm in topi.
@@ -47,14 +48,20 @@ def csrmm_default(data, indices, indptr, weight, bias=None):
     output : tvm.te.Tensor
         2-D with shape [m, n]
     """
-    assert len(data.shape) == 1 and len(indices.shape) == 1 and len(indptr.shape) == 1 \
-        and len(weight.shape) == 2, "only support 2-dim csrmm"
-    assert isinstance(weight, te.tensor.Tensor), \
-        "weight matrix is assumed to be tvm.te.Tensor, but weight is `%s`" % (type(weight))
+    assert (
+        len(data.shape) == 1
+        and len(indices.shape) == 1
+        and len(indptr.shape) == 1
+        and len(weight.shape) == 2
+    ), "only support 2-dim csrmm"
+    assert isinstance(
+        weight, te.tensor.Tensor
+    ), "weight matrix is assumed to be tvm.te.Tensor, but weight is `%s`" % (type(weight))
     if bias is not None:
         assert len(bias.shape) == 1
-    M = simplify(indptr.shape[0]-1)
+    M = simplify(indptr.shape[0] - 1)
     _, N = weight.shape
+
     def csrmm_default_ir(data, indices, indptr, weight, out):
         """define ir for csrmm"""
         irb = tvm.tir.ir_builder.create()
@@ -63,28 +70,33 @@ def csrmm_default(data, indices, indptr, weight, bias=None):
         indptr_ptr = irb.buffer_ptr(indptr)
         weight_ptr = irb.buffer_ptr(weight)
         out_ptr = irb.buffer_ptr(out)
-        M = simplify(indptr.shape[0]-1)
+        M = simplify(indptr.shape[0] - 1)
         _, N = weight.shape
-        with irb.for_range(0, N, for_type="vectorize", name='n') as n:
-            with irb.for_range(0, M, for_type="parallel", name='row') as row:
-                dot = irb.allocate('float32', (1,), name='dot', scope='local')
-                out_ptr[row*N+n] = 0.
-                dot[0] = 0.
+        with irb.for_range(0, N, for_type="vectorize", name="n") as n:
+            with irb.for_range(0, M, for_type="parallel", name="row") as row:
+                dot = irb.allocate("float32", (1,), name="dot", scope="local")
+                out_ptr[row * N + n] = 0.0
+                dot[0] = 0.0
                 row_start = indptr_ptr[row]
-                row_end = indptr_ptr[row+1]
-                row_elems = row_end-row_start
-                with irb.for_range(0, row_elems, name='idx') as idx:
-                    elem = row_start+idx
-                    dot[0] += data_ptr[elem] * weight_ptr[indices_ptr[elem]*N+n]
-                out_ptr[row*N+n] += dot[0]
+                row_end = indptr_ptr[row + 1]
+                row_elems = row_end - row_start
+                with irb.for_range(0, row_elems, name="idx") as idx:
+                    elem = row_start + idx
+                    dot[0] += data_ptr[elem] * weight_ptr[indices_ptr[elem] * N + n]
+                out_ptr[row * N + n] += dot[0]
         return irb.get()
+
     oshape = (M, N)
-    matmul = te.extern(oshape, [data, indices, indptr, weight],
-                       lambda ins, outs: csrmm_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
-                       tag="csrmm", dtype='float32', name='out')
+    matmul = te.extern(
+        oshape,
+        [data, indices, indptr, weight],
+        lambda ins, outs: csrmm_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
+        tag="csrmm",
+        dtype="float32",
+        name="out",
+    )
     if bias is not None:
-        matmul = te.compute(oshape, lambda i, j: matmul[i, j] + bias[i], \
-                            tag=tag.BROADCAST)
+        matmul = te.compute(oshape, lambda i, j: matmul[i, j] + bias[i], tag=tag.BROADCAST)
     return matmul
 
 

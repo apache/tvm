@@ -33,6 +33,7 @@ DEFAULT_SECTION_CONSTRAINTS = {
     "stack": (32, MemConstraint.ABSOLUTE_BYTES),
 }
 
+
 def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=None):
     """Wrapper over `create_micro_lib_base` to add device-specific options
 
@@ -60,8 +61,8 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=N
         DEVICE_ID,
         lib_type,
         options=options,
-        lib_src_paths=lib_src_paths
-        )
+        lib_src_paths=lib_src_paths,
+    )
 
 
 def generate_config(base_addr, available_mem, server_addr, server_port, section_constraints=None):
@@ -102,7 +103,10 @@ def generate_config(base_addr, available_mem, server_addr, server_port, section_
     }
 
 
-register_device(DEVICE_ID, {
-    "create_micro_lib": create_micro_lib,
-    "generate_config": generate_config,
-})
+register_device(
+    DEVICE_ID,
+    {
+        "create_micro_lib": create_micro_lib,
+        "generate_config": generate_config,
+    },
+)

@@ -69,21 +69,18 @@ def update_func(func):
 
         def visit_function(self, fn):
             new_body = self.visit(fn.body)
-            return Function(
-                list(fn.params), new_body, fn.ret_type, fn.type_params,
-                fn.attrs)
+            return Function(list(fn.params), new_body, fn.ret_type, fn.type_params, fn.attrs)
 
     double_value = DoubleValues()
     return double_value.visit(func)
 
 
-class OptTester():
+class OptTester:
     """A helper class for testing the pass manager."""
 
     def __init__(self, mod):
         if not isinstance(mod, tvm.IRModule):
-            raise TypeError("mod is expected to be the type of "
-                            "tvm.IRModule")
+            raise TypeError("mod is expected to be the type of " "tvm.IRModule")
         self.mod = mod
 
     def analysis(self):
@@ -105,7 +102,7 @@ class OptTester():
         raise TypeError("Found not supported node type.")
 
 
-def get_rand(shape, dtype='float32'):
+def get_rand(shape, dtype="float32"):
     return tvm.nd.array(np.random.rand(*shape).astype(dtype))
 
 
@@ -118,7 +115,7 @@ def check_func(func, ref_func):
 @tvm.testing.uses_gpu
 def test_module_pass():
     shape = (5, 10)
-    dtype = 'float32'
+    dtype = "float32"
     tp = relay.TensorType(shape, dtype)
     x = relay.var("x", tp)
     y = relay.var("y", tp)
@@ -145,6 +142,7 @@ def test_module_pass():
     def test_pass_registration_no_decorator():
         def direct_transform(expr, ctx):
             return opt_tester.transform(expr, ctx)
+
         mod_pass = tvm.transform.module_pass(direct_transform, opt_level=3)
         assert isinstance(mod_pass, tvm.transform.ModulePass)
         pass_info = mod_pass.info
@@ -197,6 +195,7 @@ def test_function_class_pass():
     @relay.transform.function_pass(opt_level=1)
     class TestReplaceFunc:
         """Simple test function to replace one argument to another."""
+
         def __init__(self, new_func):
             self.new_func = new_func
 
@@ -218,8 +217,8 @@ def test_function_class_pass():
 
 @tvm.testing.uses_gpu
 def test_function_pass():
-    shape = (10, )
-    dtype = 'float32'
+    shape = (10,)
+    dtype = "float32"
     tp = relay.TensorType(shape, dtype)
     x = relay.var("x", tp)
     v_log = relay.GlobalVar("myLog")
@@ -249,6 +248,7 @@ def test_function_pass():
     def test_pass_registration_no_decorator():
         def direct_transform(expr, ctx):
             return opt_tester.transform(expr, ctx)
+
         mod_pass = _transform.function_pass(direct_transform, opt_level=0)
         assert isinstance(mod_pass, _transform.FunctionPass)
         pass_info = mod_pass.info
@@ -291,6 +291,7 @@ def test_module_class_pass():
     @tvm.transform.module_pass(opt_level=1)
     class TestPipeline:
         """Simple test function to replace one argument to another."""
+
         def __init__(self, new_mod, replace):
             self.new_mod = new_mod
             self.replace = replace
@@ -319,8 +320,8 @@ def test_pass_info():
 
 @tvm.testing.uses_gpu
 def test_sequential_pass():
-    shape = (10, )
-    dtype = 'float32'
+    shape = (10,)
+    dtype = "float32"
     tp = relay.TensorType(shape, dtype)
     x = relay.var("x", tp)
     y = relay.var("y", tp)
@@ -338,9 +339,7 @@ def test_sequential_pass():
         return ref_log
 
     def get_ref_sub():
-        ref_sub = relay.Function([x, y],
-                                 relay.subtract(
-                                     relay.add(x, x), relay.add(y, y)))
+        ref_sub = relay.Function([x, y], relay.subtract(relay.add(x, x), relay.add(y, y)))
         return ref_sub
 
     def get_ref_abs():
@@ -467,6 +466,7 @@ def test_sequential_with_scoping():
     shape = (1, 2, 3)
     c_data = np.array(shape).astype("float32")
     tp = relay.TensorType(shape, "float32")
+
     def before():
         c = relay.const(c_data)
         x = relay.var("x", tp)
@@ -486,12 +486,14 @@ def test_sequential_with_scoping():
         z1 = relay.add(z, z)
         return relay.Function([x], z1)
 
-    seq = tvm.transform.Sequential([
-        relay.transform.InferType(),
-        relay.transform.FoldConstant(),
-        relay.transform.EliminateCommonSubexpr(),
-        relay.transform.AlterOpLayout()
-    ])
+    seq = tvm.transform.Sequential(
+        [
+            relay.transform.InferType(),
+            relay.transform.FoldConstant(),
+            relay.transform.EliminateCommonSubexpr(),
+            relay.transform.AlterOpLayout(),
+        ]
+    )
 
     mod = tvm.IRModule({"main": before()})
     with tvm.transform.PassContext(opt_level=3):
@@ -511,12 +513,14 @@ def test_print_ir(capfd):
     y = relay.multiply(y, relay.const(2, "float32"))
     func = relay.Function([x], y)
 
-    seq = tvm.transform.Sequential([
-        relay.transform.InferType(),
-        relay.transform.FoldConstant(),
-        tvm.transform.PrintIR(),
-        relay.transform.DeadCodeElimination()
-    ])
+    seq = tvm.transform.Sequential(
+        [
+            relay.transform.InferType(),
+            relay.transform.FoldConstant(),
+            tvm.transform.PrintIR(),
+            relay.transform.DeadCodeElimination(),
+        ]
+    )
 
     mod = tvm.IRModule({"main": func})
     with tvm.transform.PassContext(opt_level=3):
@@ -527,7 +531,9 @@ def test_print_ir(capfd):
     assert "PrintIR" in out
     assert "multiply" in out
 
+
 __TRACE_COUNTER__ = 0
+
 
 def _tracer(module, info, is_before):
     global __TRACE_COUNTER__
@@ -544,11 +550,13 @@ def test_print_debug_callback():
     y = relay.multiply(y, relay.const(2, "float32"))
     func = relay.Function([x], y)
 
-    seq = tvm.transform.Sequential([
-        relay.transform.InferType(),
-        relay.transform.FoldConstant(),
-        relay.transform.DeadCodeElimination()
-    ])
+    seq = tvm.transform.Sequential(
+        [
+            relay.transform.InferType(),
+            relay.transform.FoldConstant(),
+            relay.transform.DeadCodeElimination(),
+        ]
+    )
 
     assert __TRACE_COUNTER__ == 0
     mod = tvm.IRModule({"main": func})

@@ -33,13 +33,12 @@ def test_min_repeat_ms():
         with open(filename, "a") as fout:
             fout.write("c")
 
-    X = te.compute((), lambda : tvm.tir.call_packed("my_debug", filename))
+    X = te.compute((), lambda: tvm.tir.call_packed("my_debug", filename))
     s = te.create_schedule(X.op)
     func = tvm.build(s, [X])
 
     x = tvm.nd.empty((), dtype="int32")
-    ftimer = func.time_evaluator(func.entry_name, tvm.cpu(),
-                                 number=1, repeat=1)
+    ftimer = func.time_evaluator(func.entry_name, tvm.cpu(), number=1, repeat=1)
     ftimer(x)
 
     with open(filename, "r") as fin:
@@ -47,9 +46,7 @@ def test_min_repeat_ms():
 
     assert ct == 2
 
-
-    ftimer = func.time_evaluator(func.entry_name, tvm.cpu(),
-                                 number=1, repeat=1, min_repeat_ms=1000)
+    ftimer = func.time_evaluator(func.entry_name, tvm.cpu(), number=1, repeat=1, min_repeat_ms=1000)
     ftimer(x)
 
     # make sure we get more than 10 calls
@@ -61,4 +58,3 @@ def test_min_repeat_ms():
 
 if __name__ == "__main__":
     test_min_repeat_ms()
-

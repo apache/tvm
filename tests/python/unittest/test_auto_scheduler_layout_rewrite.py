@@ -38,6 +38,7 @@ def test_apply_steps_with_layout_rewrite():
     assert bufs[1].shape[3] == 4
     assert bufs[1].shape[4] == 512
 
+
 def test_layout_rewrite_correctness():
     N = 128
     target = "llvm"
@@ -52,8 +53,12 @@ def test_layout_rewrite_correctness():
 
         search_policy = auto_scheduler.SketchPolicy(task)
 
-        tuning_options = auto_scheduler.TuningOptions(num_measure_trials=2,
-                runner='local', verbose=1, measure_callbacks=[auto_scheduler.RecordToFile(log_file)])
+        tuning_options = auto_scheduler.TuningOptions(
+            num_measure_trials=2,
+            runner="local",
+            verbose=1,
+            measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+        )
         auto_scheduler.auto_schedule(task, search_policy, tuning_options)
         inp, _ = auto_scheduler.load_best(log_file, workload_key, target)
         s, bufs = dag.apply_steps_from_state(inp.state, layout_rewrite=True)
@@ -70,12 +75,22 @@ def test_layout_rewrite_correctness():
             out_dim = weight.shape[3 + base] * weight.shape[5 + base]
             for i in range(base + 2):
                 out_dim *= weight.shape[i]
-            new_order = [2 + base, 4 + base,] + list(range(base + 2)) + [3 + base, 5 + base,]
+            new_order = (
+                [
+                    2 + base,
+                    4 + base,
+                ]
+                + list(range(base + 2))
+                + [
+                    3 + base,
+                    5 + base,
+                ]
+            )
             np_args_ref[1] = np_args_ref[1].transpose(new_order)
             np_args_ref[1] = np_args_ref[1].reshape((red_dim, out_dim))
 
         func = tvm.build(s, bufs, target=inp.task.target, target_host=inp.task.target_host)
-        func_ref = tvm.build(s_ref, bufs_ref, target='llvm')
+        func_ref = tvm.build(s_ref, bufs_ref, target="llvm")
 
         ctx = tvm.context(str(inp.task.target))
         ctx_ref = tvm.cpu()
@@ -90,6 +105,7 @@ def test_layout_rewrite_correctness():
 
         np.testing.assert_allclose(np_args[0], np_args_ref[0])
         np.testing.assert_allclose(np_args[2], np_args_ref[2])
+
 
 if __name__ == "__main__":
     test_apply_steps_with_layout_rewrite()

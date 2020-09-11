@@ -45,12 +45,17 @@ import numpy as np
 # Load pretrained keras model
 # ----------------------------
 # We load a pretrained resnet-50 classification model provided by keras.
-weights_url = ''.join(['https://github.com/fchollet/deep-learning-models/releases/',
-                       'download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels.h5'])
-weights_file = 'resnet50_weights.h5'
-weights_path = download_testdata(weights_url, weights_file, module='keras')
-keras_resnet50 = keras.applications.resnet50.ResNet50(include_top=True, weights=None,
-                                                      input_shape=(224, 224, 3), classes=1000)
+weights_url = "".join(
+    [
+        "https://github.com/fchollet/deep-learning-models/releases/",
+        "download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels.h5",
+    ]
+)
+weights_file = "resnet50_weights.h5"
+weights_path = download_testdata(weights_url, weights_file, module="keras")
+keras_resnet50 = keras.applications.resnet50.ResNet50(
+    include_top=True, weights=None, input_shape=(224, 224, 3), classes=1000
+)
 keras_resnet50.load_weights(weights_path)
 
 ######################################################################
@@ -60,32 +65,33 @@ keras_resnet50.load_weights(weights_path)
 from PIL import Image
 from matplotlib import pyplot as plt
 from keras.applications.resnet50 import preprocess_input
-img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-img_path = download_testdata(img_url, 'cat.png', module='data')
+
+img_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
+img_path = download_testdata(img_url, "cat.png", module="data")
 img = Image.open(img_path).resize((224, 224))
 plt.imshow(img)
 plt.show()
 # input preprocess
-data = np.array(img)[np.newaxis, :].astype('float32')
+data = np.array(img)[np.newaxis, :].astype("float32")
 data = preprocess_input(data).transpose([0, 3, 1, 2])
-print('input_1', data.shape)
+print("input_1", data.shape)
 
 ######################################################################
 # Compile the model with Relay
 # ----------------------------
 # convert the keras model(NHWC layout) to Relay format(NCHW layout).
-shape_dict = {'input_1': data.shape}
+shape_dict = {"input_1": data.shape}
 mod, params = relay.frontend.from_keras(keras_resnet50, shape_dict)
 # compile the model
-target = 'cuda'
+target = "cuda"
 ctx = tvm.gpu(0)
 with tvm.transform.PassContext(opt_level=3):
-    executor = relay.build_module.create_executor('graph', mod, ctx, target)
+    executor = relay.build_module.create_executor("graph", mod, ctx, target)
 
 ######################################################################
 # Execute on TVM
 # ---------------
-dtype = 'float32'
+dtype = "float32"
 tvm_out = executor.evaluate()(tvm.nd.array(data.astype(dtype)), **params)
 top1_tvm = np.argmax(tvm_out.asnumpy()[0])
 
@@ -93,16 +99,20 @@ top1_tvm = np.argmax(tvm_out.asnumpy()[0])
 # Look up synset name
 # -------------------
 # Look up prediction top 1 index in 1000 class synset.
-synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
-                      '4d0b62f3d01426887599d4f7ede23ee5/raw/',
-                      '596b27d23537e5a1b5751d2b0481ef172f58b539/',
-                      'imagenet1000_clsid_to_human.txt'])
-synset_name = 'imagenet1000_clsid_to_human.txt'
-synset_path = download_testdata(synset_url, synset_name, module='data')
+synset_url = "".join(
+    [
+        "https://gist.githubusercontent.com/zhreshold/",
+        "4d0b62f3d01426887599d4f7ede23ee5/raw/",
+        "596b27d23537e5a1b5751d2b0481ef172f58b539/",
+        "imagenet1000_clsid_to_human.txt",
+    ]
+)
+synset_name = "imagenet1000_clsid_to_human.txt"
+synset_path = download_testdata(synset_url, synset_name, module="data")
 with open(synset_path) as f:
     synset = eval(f.read())
-print('Relay top-1 id: {}, class name: {}'.format(top1_tvm, synset[top1_tvm]))
+print("Relay top-1 id: {}, class name: {}".format(top1_tvm, synset[top1_tvm]))
 # confirm correctness with keras output
 keras_out = keras_resnet50.predict(data.transpose([0, 2, 3, 1]))
 top1_keras = np.argmax(keras_out)
-print('Keras top-1 id: {}, class name: {}'.format(top1_keras, synset[top1_keras]))
+print("Keras top-1 id: {}, class name: {}".format(top1_keras, synset[top1_keras]))

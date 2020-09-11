@@ -22,6 +22,7 @@ import time
 import multiprocessing
 from tvm import rpc
 
+
 def check_server_drop():
     """test when server drops"""
     try:
@@ -37,24 +38,17 @@ def check_server_drop():
             base.recvjson(tclient._sock)
 
         tserver = tracker.Tracker("localhost", 8888)
-        tproxy = proxy.Proxy("localhost", 8881,
-                             tracker_addr=("localhost", tserver.port))
+        tproxy = proxy.Proxy("localhost", 8881, tracker_addr=("localhost", tserver.port))
         tclient = rpc.connect_tracker("localhost", tserver.port)
 
         server0 = rpc.Server(
-            "localhost", port=9099,
-            tracker_addr=("localhost", tserver.port),
-            key="abc")
+            "localhost", port=9099, tracker_addr=("localhost", tserver.port), key="abc"
+        )
         server1 = rpc.Server(
-            "localhost", port=9099,
-            tracker_addr=("localhost", tserver.port),
-            key="xyz")
-        server2 = rpc.Server(
-            "localhost", tproxy.port, is_proxy=True,
-            key="xyz")
-        server3 = rpc.Server(
-            "localhost", tproxy.port, is_proxy=True,
-            key="xyz1")
+            "localhost", port=9099, tracker_addr=("localhost", tserver.port), key="xyz"
+        )
+        server2 = rpc.Server("localhost", tproxy.port, is_proxy=True, key="xyz")
+        server3 = rpc.Server("localhost", tproxy.port, is_proxy=True, key="xyz1")
 
         # Fault tolerence to un-handled requested value
         _put(tclient, [TrackerCode.REQUEST, "abc", "", 1])
@@ -71,6 +65,7 @@ def check_server_drop():
                 time.sleep(sleeptime)
                 f1 = remote.get_function("rpc.test2.addone")
                 assert f1(10) == 11
+
             try:
                 tclient.request_and_run("xyz", myfunc, session_timeout=timeout)
             except RuntimeError:

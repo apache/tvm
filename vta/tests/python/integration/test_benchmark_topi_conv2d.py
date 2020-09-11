@@ -38,9 +38,22 @@ import vta.testing
 from vta.testing import simulator
 
 
-Workload = namedtuple("Conv2DWorkload",
-                      ['batch', 'height', 'width', 'in_filter', 'out_filter',
-                       'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
+Workload = namedtuple(
+    "Conv2DWorkload",
+    [
+        "batch",
+        "height",
+        "width",
+        "in_filter",
+        "out_filter",
+        "hkernel",
+        "wkernel",
+        "hpad",
+        "wpad",
+        "hstride",
+        "wstride",
+    ],
+)
 
 # Get batch info from env
 env = vta.get_env()
@@ -49,16 +62,16 @@ env = vta.get_env()
 resnet_wkls = [
     # Workloads of resnet18 on imagenet
     # ('resnet-18.C1',  Workload(env.BATCH, 224, 224, 3,   64,  7, 7, 3, 3, 2, 2)),
-    ('resnet-18.C2',  Workload(env.BATCH,  56,  56, 64,  64,  3, 3, 1, 1, 1, 1)),
-    ('resnet-18.C3',  Workload(env.BATCH,  56,  56, 64,  128, 3, 3, 1, 1, 2, 2)),
-    ('resnet-18.C4',  Workload(env.BATCH,  56,  56, 64,  128, 1, 1, 0, 0, 2, 2)),
-    ('resnet-18.C5',  Workload(env.BATCH,  28,  28, 128, 128, 3, 3, 1, 1, 1, 1)),
-    ('resnet-18.C6',  Workload(env.BATCH,  28,  28, 128, 256, 3, 3, 1, 1, 2, 2)),
-    ('resnet-18.C7',  Workload(env.BATCH,  28,  28, 128, 256, 1, 1, 0, 0, 2, 2)),
-    ('resnet-18.C8',  Workload(env.BATCH,  14,  14, 256, 256, 3, 3, 1, 1, 1, 1)),
-    ('resnet-18.C9',  Workload(env.BATCH,  14,  14, 256, 512, 3, 3, 1, 1, 2, 2)),
-    ('resnet-18.C10', Workload(env.BATCH,  14,  14, 256, 512, 1, 1, 0, 0, 2, 2)),
-    ('resnet-18.C11', Workload(env.BATCH,   7,   7, 512, 512, 3, 3, 1, 1, 1, 1)),
+    ("resnet-18.C2", Workload(env.BATCH, 56, 56, 64, 64, 3, 3, 1, 1, 1, 1)),
+    ("resnet-18.C3", Workload(env.BATCH, 56, 56, 64, 128, 3, 3, 1, 1, 2, 2)),
+    ("resnet-18.C4", Workload(env.BATCH, 56, 56, 64, 128, 1, 1, 0, 0, 2, 2)),
+    ("resnet-18.C5", Workload(env.BATCH, 28, 28, 128, 128, 3, 3, 1, 1, 1, 1)),
+    ("resnet-18.C6", Workload(env.BATCH, 28, 28, 128, 256, 3, 3, 1, 1, 2, 2)),
+    ("resnet-18.C7", Workload(env.BATCH, 28, 28, 128, 256, 1, 1, 0, 0, 2, 2)),
+    ("resnet-18.C8", Workload(env.BATCH, 14, 14, 256, 256, 3, 3, 1, 1, 1, 1)),
+    ("resnet-18.C9", Workload(env.BATCH, 14, 14, 256, 512, 3, 3, 1, 1, 2, 2)),
+    ("resnet-18.C10", Workload(env.BATCH, 14, 14, 256, 512, 1, 1, 0, 0, 2, 2)),
+    ("resnet-18.C11", Workload(env.BATCH, 7, 7, 512, 512, 3, 3, 1, 1, 1, 1)),
 ]
 
 # FIXME: we need a custom clip operator to circumvent a pattern detection limitation
@@ -71,9 +84,8 @@ def my_clip(x, a_min, a_max):
     x = te.compute(x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
     return x
 
-def run_conv2d(env, remote, wl, target,
-               check_correctness=True, print_ir=False,
-               samples=4):
+
+def run_conv2d(env, remote, wl, target, check_correctness=True, print_ir=False, samples=4):
 
     # Workload assertions
     assert wl.hpad == wl.wpad
@@ -95,12 +107,30 @@ def run_conv2d(env, remote, wl, target,
     w_shape = (wl.out_filter, wl.in_filter, wl.hkernel, wl.wkernel)
     b_shape = (wl.batch, wl.out_filter, 1, 1)
     if data_pack:
-        data_shape = (wl.batch//env.BATCH, wl.in_filter//env.BLOCK_IN,
-                      wl.height, wl.width, env.BATCH, env.BLOCK_IN)
-        kernel_shape = (wl.out_filter//env.BLOCK_OUT, wl.in_filter//env.BLOCK_IN,
-                        wl.hkernel, wl.wkernel, env.BLOCK_OUT, env.BLOCK_IN)
-        bias_shape = (wl.batch//env.BATCH, wl.out_filter//env.BLOCK_OUT,
-                      1, 1, env.BATCH, env.BLOCK_OUT)
+        data_shape = (
+            wl.batch // env.BATCH,
+            wl.in_filter // env.BLOCK_IN,
+            wl.height,
+            wl.width,
+            env.BATCH,
+            env.BLOCK_IN,
+        )
+        kernel_shape = (
+            wl.out_filter // env.BLOCK_OUT,
+            wl.in_filter // env.BLOCK_IN,
+            wl.hkernel,
+            wl.wkernel,
+            env.BLOCK_OUT,
+            env.BLOCK_IN,
+        )
+        bias_shape = (
+            wl.batch // env.BATCH,
+            wl.out_filter // env.BLOCK_OUT,
+            1,
+            1,
+            env.BATCH,
+            env.BLOCK_OUT,
+        )
     else:
         data_shape = a_shape
         kernel_shape = w_shape
@@ -114,12 +144,12 @@ def run_conv2d(env, remote, wl, target,
     with target:
         if data_pack:
             res = conv2d_fcompute(
-                data, kernel, (wl.hstride, wl.wstride), padding, (1, 1),
-                layout, env.acc_dtype)
+                data, kernel, (wl.hstride, wl.wstride), padding, (1, 1), layout, env.acc_dtype
+            )
         else:
             res = conv2d_fcompute(
-                data, kernel, (wl.hstride, wl.wstride), padding, (1, 1),
-                env.acc_dtype)
+                data, kernel, (wl.hstride, wl.wstride), padding, (1, 1), env.acc_dtype
+            )
         res = topi.right_shift(res, 8)
         res = topi.add(res, bias)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
@@ -132,47 +162,68 @@ def run_conv2d(env, remote, wl, target,
     # Derive number of ops
     fout_height = (wl.height + 2 * wl.hpad - wl.hkernel) // wl.hstride + 1
     fout_width = (wl.width + 2 * wl.wpad - wl.wkernel) // wl.wstride + 1
-    num_ops = 2 * wl.batch * fout_height * fout_width * wl.hkernel * wl.wkernel * wl.out_filter * wl.in_filter
+    num_ops = (
+        2
+        * wl.batch
+        * fout_height
+        * fout_width
+        * wl.hkernel
+        * wl.wkernel
+        * wl.out_filter
+        * wl.in_filter
+    )
 
     # @memoize("vta.tests.test_benchmark_topi.conv2d.verify_nhwc")
     def get_ref_data():
         # derive min max for act, wgt, and bias types (max non inclusive)
         a_min, a_max = 0 - (1 << (env.INP_WIDTH - 1)), (1 << (env.INP_WIDTH - 1))
         w_min, w_max = 0 - (1 << (env.WGT_WIDTH - 1)), (1 << (env.WGT_WIDTH - 1))
-        b_min, b_max = 0 - 1 << (env.INP_WIDTH + env.WGT_WIDTH - 2), 1 << (env.INP_WIDTH + env.WGT_WIDTH - 2)
+        b_min, b_max = 0 - 1 << (env.INP_WIDTH + env.WGT_WIDTH - 2), 1 << (
+            env.INP_WIDTH + env.WGT_WIDTH - 2
+        )
         a_np = np.random.randint(a_min, a_max, size=a_shape).astype(data.dtype)
         w_np = np.random.randint(w_min, w_max, size=w_shape).astype(kernel.dtype)
         b_np = np.random.randint(b_min, b_max, size=b_shape).astype(env.acc_dtype)
         r_np = tvm.topi.testing.conv2d_nchw_python(
-            a_np.astype(env.acc_dtype), w_np.astype(env.acc_dtype), (wl.hstride, wl.wstride), wl.hpad).astype(env.acc_dtype)
+            a_np.astype(env.acc_dtype),
+            w_np.astype(env.acc_dtype),
+            (wl.hstride, wl.wstride),
+            wl.hpad,
+        ).astype(env.acc_dtype)
         return a_np, w_np, b_np, r_np
 
     # Data in original format
     data_np, kernel_np, bias_np, res_ref = get_ref_data()
     if data_pack:
         data_np = data_np.reshape(
-            wl.batch//env.BATCH, env.BATCH,
-            wl.in_filter//env.BLOCK_IN, env.BLOCK_IN,
-            wl.height, wl.width).transpose((0, 2, 4, 5, 1, 3))
+            wl.batch // env.BATCH,
+            env.BATCH,
+            wl.in_filter // env.BLOCK_IN,
+            env.BLOCK_IN,
+            wl.height,
+            wl.width,
+        ).transpose((0, 2, 4, 5, 1, 3))
         kernel_np = kernel_np.reshape(
-            wl.out_filter//env.BLOCK_OUT, env.BLOCK_OUT,
-            wl.in_filter//env.BLOCK_IN, env.BLOCK_IN,
-            wl.hkernel, wl.wkernel).transpose((0, 2, 4, 5, 1, 3))
+            wl.out_filter // env.BLOCK_OUT,
+            env.BLOCK_OUT,
+            wl.in_filter // env.BLOCK_IN,
+            env.BLOCK_IN,
+            wl.hkernel,
+            wl.wkernel,
+        ).transpose((0, 2, 4, 5, 1, 3))
         bias_np = bias_np.reshape(
-            wl.batch//env.BATCH, wl.out_filter//env.BLOCK_OUT,
-            1, 1, env.BATCH, env.BLOCK_OUT)
+            wl.batch // env.BATCH, wl.out_filter // env.BLOCK_OUT, 1, 1, env.BATCH, env.BLOCK_OUT
+        )
 
     # Build
     if "vta" in target.keys:
-        mod = vta.build(s, [data, kernel, bias, res],
-                        target=target,
-                        target_host=env.target_host,
-                        name="conv2d")
+        mod = vta.build(
+            s, [data, kernel, bias, res], target=target, target_host=env.target_host, name="conv2d"
+        )
     else:
-        mod = tvm.build(s, [data, kernel, bias, res],
-                        target=target,
-                        target_host=env.target_host,
-                        name="conv2d")
+        mod = tvm.build(
+            s, [data, kernel, bias, res], target=target, target_host=env.target_host, name="conv2d"
+        )
     temp = util.tempdir()
     mod.save(temp.relpath("conv2d.o"))
     remote.upload(temp.relpath("conv2d.o"))
@@ -215,10 +266,10 @@ def run_conv2d(env, remote, wl, target,
     if check_correctness:
         res_orig = res_arr.asnumpy()
         if data_pack:
-            res_orig = res_orig.transpose(
-                (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, fout_height, fout_width)
-            bias_np = bias_np.transpose(
-                (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, 1, 1)
+            res_orig = res_orig.transpose((0, 4, 1, 5, 2, 3)).reshape(
+                wl.batch, wl.out_filter, fout_height, fout_width
+            )
+            bias_np = bias_np.transpose((0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, 1, 1)
         res_ref = res_ref >> env.WGT_WIDTH
         res_ref += bias_np
         res_ref = np.clip(res_ref, 0, (1 << env.OUT_WIDTH - 1) - 1)
@@ -235,6 +286,7 @@ def run_conv2d(env, remote, wl, target,
 
     return correct, cost, stats
 
+
 @pytest.mark.parametrize("device", ["vta", "arm_cpu"])
 def test_conv2d(device):
     def _run(env, remote):
@@ -246,11 +298,13 @@ def test_conv2d(device):
                 reconfig_runtime(remote)
         elif device == "arm_cpu":
             target = env.target_vta_cpu
-        with autotvm.tophub.context(target): # load pre-tuned schedule parameters
+        with autotvm.tophub.context(target):  # load pre-tuned schedule parameters
             for _, wl in resnet_wkls:
                 print(wl)
                 run_conv2d(env, remote, wl, target)
+
     vta.testing.run(_run)
+
 
 if __name__ == "__main__":
     test_conv2d(device="arm_cpu")

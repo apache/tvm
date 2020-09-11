@@ -107,7 +107,7 @@ def test_ewise():
             check_device(target, ctx)
 
     def test_infiniteness_ops(topi_op, ref_op, name):
-        for dtype in ['float32', 'float64', 'int32', 'int16']:
+        for dtype in ["float32", "float64", "int32", "int16"]:
             m = te.var("m")
             l = te.var("l")
             A = te.placeholder((m, l), dtype=dtype, name="A")
@@ -115,9 +115,13 @@ def test_ewise():
             assert tuple(B.shape) == tuple(A.shape)
 
             a_np = np.random.uniform(size=(8, 8)).astype(A.dtype) * 10
-            if dtype.startswith('float'):
-                a_np.ravel()[np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)] = np.infty
-                a_np.ravel()[np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)] = np.nan
+            if dtype.startswith("float"):
+                a_np.ravel()[
+                    np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)
+                ] = np.infty
+                a_np.ravel()[
+                    np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)
+                ] = np.nan
             b_np = ref_op(a_np)
 
             def check_device(device, ctx):
@@ -144,15 +148,17 @@ def test_ewise():
     test_apply(topi.sigmoid, "sigmoid", lambda x: 1 / (1 + np.exp(-x)), -1, 1)
     test_apply(topi.log, "log", np.log, 0, 100)
     test_apply(topi.sqrt, "sqrt", np.sqrt, 0, 100)
-    test_apply(topi.rsqrt, "rsqrt", lambda x: np.ones_like(x) / np.sqrt(x), 0, 100, skip_name_check=True)
-    test_apply(topi.cos, "cos", np.cos, -2.0*np.pi, 2.0*np.pi)
-    test_apply(topi.tan, "tan", np.tan, -2.0*np.pi, 2.0*np.pi, dtype='float32')
-    test_apply(topi.tan, "tan", np.tan, -2.0*np.pi, 2.0*np.pi, dtype='float64')
-    test_apply(topi.sin, "sin", np.sin, -2.0*np.pi, 2.0*np.pi)
-    test_apply(topi.erf, "erf", scipy.special.erf, -.1, .1, dtype="float32")
+    test_apply(
+        topi.rsqrt, "rsqrt", lambda x: np.ones_like(x) / np.sqrt(x), 0, 100, skip_name_check=True
+    )
+    test_apply(topi.cos, "cos", np.cos, -2.0 * np.pi, 2.0 * np.pi)
+    test_apply(topi.tan, "tan", np.tan, -2.0 * np.pi, 2.0 * np.pi, dtype="float32")
+    test_apply(topi.tan, "tan", np.tan, -2.0 * np.pi, 2.0 * np.pi, dtype="float64")
+    test_apply(topi.sin, "sin", np.sin, -2.0 * np.pi, 2.0 * np.pi)
+    test_apply(topi.erf, "erf", scipy.special.erf, -0.1, 0.1, dtype="float32")
     test_isnan(-100, 100)
-    test_infiniteness_ops(topi.isfinite, np.isfinite, 'isifinite')
-    test_infiniteness_ops(topi.isinf, np.isinf, 'isinf')
+    test_infiniteness_ops(topi.isfinite, np.isfinite, "isifinite")
+    test_infiniteness_ops(topi.isinf, np.isinf, "isinf")
 
 
 @tvm.testing.uses_gpu
@@ -191,15 +197,7 @@ def test_cast():
 
 
 def test_fastmath():
-    def test_apply(
-        func,
-        name,
-        f_numpy,
-        low,
-        high,
-        step,
-        dtype="float32"
-    ):
+    def test_apply(func, name, f_numpy, low, high, step, dtype="float32"):
         a_np = np.arange(low, high, step).astype(dtype)
         b_np = f_numpy(a_np)
         A = te.placeholder(a_np.shape, dtype=dtype, name="A")
@@ -219,16 +217,13 @@ def test_fastmath():
             func(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-        check_device('llvm')
-        check_device('llvm -device=arm-cpu')
+        check_device("llvm")
+        check_device("llvm -device=arm-cpu")
 
+    test_apply(topi.fast_exp, "fast_exp", np.exp, low=-88, high=88, step=0.01)
+    test_apply(topi.fast_erf, "fast_erf", scipy.special.erf, low=-10, high=10, step=0.01)
+    test_apply(topi.fast_tanh, "fast_tanh", np.tanh, low=-10, high=10, step=0.01)
 
-    test_apply(topi.fast_exp, "fast_exp", np.exp,
-               low=-88, high=88, step=0.01)
-    test_apply(topi.fast_erf, "fast_erf", scipy.special.erf,
-               low=-10, high=10, step=0.01)
-    test_apply(topi.fast_tanh, "fast_tanh", np.tanh,
-               low=-10, high=10, step=0.01)
 
 if __name__ == "__main__":
     test_util()

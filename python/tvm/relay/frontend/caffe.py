@@ -29,11 +29,12 @@ from ... import nd as _nd
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 
-__all__ = ['from_caffe']
+__all__ = ["from_caffe"]
 
 
 class OperatorConverter(object):
     """ Operator Converted for converting Caffe ops to Relay ops """
+
     def __init__(self, init_layer_dict, predict_layer, exp_tab):
         self.init_layer_dict = init_layer_dict
         self.predict_layer = predict_layer
@@ -42,26 +43,26 @@ class OperatorConverter(object):
         self.changed_layers = None
 
         self.convert_map = {
-            'BatchNorm': self.convert_batch_norm,
-            'Concat': self.convert_concat,
-            'Convolution': self.convert_conv,
-            'Crop': self.convert_crop,
-            'Deconvolution': self.convert_deconv,
-            'Dropout': self.convert_dropout,
-            'Eltwise': self.convert_eltwise,
-            'Flatten': self.convert_flatten,
-            'InnerProduct': self.convert_innerproduct,
-            'Input': None,
-            'LRN': self.convert_lrn,
-            'Pooling': self.convert_pooling,
-            'PReLU': self.convert_prelu,
-            'ReLU': self.convert_relu,
-            'Reshape': self.convert_reshape,
-            'Scale': self.convert_scale,
-            'Sigmoid': self.convert_sigmoid,
-            'Slice': self.convert_slice,
-            'Softmax': self.convert_softmax,
-            'TanH': self.convert_tanh,
+            "BatchNorm": self.convert_batch_norm,
+            "Concat": self.convert_concat,
+            "Convolution": self.convert_conv,
+            "Crop": self.convert_crop,
+            "Deconvolution": self.convert_deconv,
+            "Dropout": self.convert_dropout,
+            "Eltwise": self.convert_eltwise,
+            "Flatten": self.convert_flatten,
+            "InnerProduct": self.convert_innerproduct,
+            "Input": None,
+            "LRN": self.convert_lrn,
+            "Pooling": self.convert_pooling,
+            "PReLU": self.convert_prelu,
+            "ReLU": self.convert_relu,
+            "Reshape": self.convert_reshape,
+            "Scale": self.convert_scale,
+            "Sigmoid": self.convert_sigmoid,
+            "Slice": self.convert_slice,
+            "Softmax": self.convert_softmax,
+            "TanH": self.convert_tanh,
         }
 
     def convert_flatten(self, op):
@@ -89,29 +90,27 @@ class OperatorConverter(object):
         assert lhs_shape == rhs_shape, "input tensors shape should be equal"
 
         eltwise_params = op.eltwise_param
-        eltwise_type_dict = ['PROD', 'SUM', 'MAX']
+        eltwise_type_dict = ["PROD", "SUM", "MAX"]
         eltwise_type = eltwise_params.operation
         coeff = list(eltwise_params.coeff)
 
-        if eltwise_type_dict[eltwise_type] == 'PROD':
+        if eltwise_type_dict[eltwise_type] == "PROD":
             out = _op.multiply(lhs_expr, rhs_expr)
-        elif eltwise_type_dict[eltwise_type] == 'SUM':
+        elif eltwise_type_dict[eltwise_type] == "SUM":
             if coeff:
-                left_coeff_expr = self.exp_tab.new_const(
-                    np.asarray(coeff[0], np.float32))
-                right_coeff_expr = self.exp_tab.new_const(
-                    np.asarray(coeff[1], np.float32))
+                left_coeff_expr = self.exp_tab.new_const(np.asarray(coeff[0], np.float32))
+                right_coeff_expr = self.exp_tab.new_const(np.asarray(coeff[1], np.float32))
                 lhs_expr_scale = _op.multiply(lhs_expr, left_coeff_expr)
                 rhs_expr_scale = _op.multiply(rhs_expr, right_coeff_expr)
                 out = _op.add(lhs_expr_scale, rhs_expr_scale)
             else:
                 out = _op.add(lhs_expr, rhs_expr)
-        elif eltwise_type_dict[eltwise_type] == 'MAX':
+        elif eltwise_type_dict[eltwise_type] == "MAX":
             out = _op.maximum(lhs_expr, rhs_expr)
         else:
             raise tvm.error.OpNotImplemented(
-                "eltwise_type {} is not supported for frontend Caffe.".format(
-                    eltwise_type))
+                "eltwise_type {} is not supported for frontend Caffe.".format(eltwise_type)
+            )
 
         return out
 
@@ -124,41 +123,40 @@ class OperatorConverter(object):
         params = dict()
         # parse kernel size
         if conv_params.kernel_h > 0 or conv_params.kernel_w > 0:
-            params['kernel_size'] = (conv_params.kernel_h,
-                                     conv_params.kernel_w)
+            params["kernel_size"] = (conv_params.kernel_h, conv_params.kernel_w)
         else:
             ksize_h = nonzone(conv_params.kernel_size, 0, 1)
             ksize_w = nonzone(conv_params.kernel_size, 1, ksize_h)
-            params['kernel_size'] = (ksize_h, ksize_w)
+            params["kernel_size"] = (ksize_h, ksize_w)
 
         # parse padding size
         if conv_params.pad_h > 0 or conv_params.pad_w > 0:
-            params['padding'] = (conv_params.pad_h, conv_params.pad_w)
+            params["padding"] = (conv_params.pad_h, conv_params.pad_w)
         else:
             pad_h = nonzone(conv_params.pad, 0, 0)
             pad_w = nonzone(conv_params.pad, 1, pad_h)
-            params['padding'] = (pad_h, pad_w)
+            params["padding"] = (pad_h, pad_w)
 
         # parse stride size
         if conv_params.stride_h > 0 or conv_params.stride_w > 0:
-            params['strides'] = (conv_params.stride_h, conv_params.stride_w)
+            params["strides"] = (conv_params.stride_h, conv_params.stride_w)
         else:
             stride_h = nonzone(conv_params.stride, 0, 1)
             stride_w = nonzone(conv_params.stride, 1, stride_h)
-            params['strides'] = (stride_h, stride_w)
+            params["strides"] = (stride_h, stride_w)
 
         # parse dilation size
-        if hasattr(conv_params, 'dilation') and len(conv_params.dilation) > 0:
-            dilation = ' '.join(str(d) for d in conv_params.dilation)
-            dilation = tuple(map(int, dilation.split(' ')))
-            params['dilation'] = dilation
+        if hasattr(conv_params, "dilation") and len(conv_params.dilation) > 0:
+            dilation = " ".join(str(d) for d in conv_params.dilation)
+            dilation = tuple(map(int, dilation.split(" ")))
+            params["dilation"] = dilation
             if len(dilation) == 1:
-                params['dilation'] = (dilation[0], dilation[0])
+                params["dilation"] = (dilation[0], dilation[0])
 
-        params['kernel_layout'] = 'OIHW'
-        params['data_layout'] = 'NCHW'
-        params['groups'] = conv_params.group
-        params['channels'] = conv_params.num_output
+        params["kernel_layout"] = "OIHW"
+        params["data_layout"] = "NCHW"
+        params["groups"] = conv_params.group
+        params["channels"] = conv_params.num_output
         return params
 
     def convert_batch_norm(self, op):
@@ -169,17 +167,13 @@ class OperatorConverter(object):
 
         if op.name in self.new_bn:
             mean, var, eps, gamma, beta = self.new_bn[op.name]
-            mean_expr = self.exp_tab.new_const(mean, dtype='float32')
-            var_expr = self.exp_tab.new_const(var, dtype='float32')
-            gamma_expr = self.exp_tab.new_const(gamma, dtype='float32')
-            beta_expr = self.exp_tab.new_const(beta, dtype='float32')
-            out = _op.nn.batch_norm(in_expr,
-                                    gamma_expr,
-                                    beta_expr,
-                                    mean_expr,
-                                    var_expr,
-                                    epsilon=eps,
-                                    scale=True)
+            mean_expr = self.exp_tab.new_const(mean, dtype="float32")
+            var_expr = self.exp_tab.new_const(var, dtype="float32")
+            gamma_expr = self.exp_tab.new_const(gamma, dtype="float32")
+            beta_expr = self.exp_tab.new_const(beta, dtype="float32")
+            out = _op.nn.batch_norm(
+                in_expr, gamma_expr, beta_expr, mean_expr, var_expr, epsilon=eps, scale=True
+            )
 
         else:
             weight_bias_blobs = self.init_layer_dict[op.name].blobs
@@ -188,11 +182,11 @@ class OperatorConverter(object):
             if len(weight_bias_blobs) == 2:
                 mean = np.repeat(mean, h * w).reshape((c, h, w))
                 mean = np.expand_dims(mean, 0).repeat(n, axis=0)
-                mean_expr = self.exp_tab.new_const(mean, dtype='float32')
+                mean_expr = self.exp_tab.new_const(mean, dtype="float32")
 
                 var = np.repeat(var, h * w).reshape((c, h, w))
                 var = np.expand_dims(var, 0).repeat(n, axis=0)
-                var_expr = self.exp_tab.new_const(var, dtype='float32')
+                var_expr = self.exp_tab.new_const(var, dtype="float32")
 
                 tmp_out = _op.multiply(in_expr, mean_expr)
                 out = _op.add(tmp_out, var_expr)
@@ -202,25 +196,21 @@ class OperatorConverter(object):
                 scale = np.asarray(weight_bias_blobs[2].data, np.float32)
                 if scale:
                     scale = 1 / scale
-            mean_expr = self.exp_tab.new_const(mean * scale, dtype='float32')
-            var_expr = self.exp_tab.new_const(var * scale, dtype='float32')
+            mean_expr = self.exp_tab.new_const(mean * scale, dtype="float32")
+            var_expr = self.exp_tab.new_const(var * scale, dtype="float32")
 
-            #caffe bn layer not support scale
-            gamma_expr = self.exp_tab.new_const(np.ones(mean.shape,
-                                                        dtype=np.float32),
-                                                dtype='float32')
-            beta_expr = self.exp_tab.new_const(np.zeros(mean.shape,
-                                                        dtype=np.float32),
-                                               dtype='float32')
+            # caffe bn layer not support scale
+            gamma_expr = self.exp_tab.new_const(
+                np.ones(mean.shape, dtype=np.float32), dtype="float32"
+            )
+            beta_expr = self.exp_tab.new_const(
+                np.zeros(mean.shape, dtype=np.float32), dtype="float32"
+            )
 
             bn_params = op.batch_norm_param.eps
-            out = _op.nn.batch_norm(in_expr,
-                                    gamma_expr,
-                                    beta_expr,
-                                    mean_expr,
-                                    var_expr,
-                                    epsilon=bn_params,
-                                    scale=False)
+            out = _op.nn.batch_norm(
+                in_expr, gamma_expr, beta_expr, mean_expr, var_expr, epsilon=bn_params, scale=False
+            )
 
         return out[0]
 
@@ -231,18 +221,18 @@ class OperatorConverter(object):
         weight_bias_blobs = self.init_layer_dict[op.name].blobs
 
         params = dict()
-        params['bias'] = op.scale_param.bias_term
-        params['axis'] = op.scale_param.axis
+        params["bias"] = op.scale_param.bias_term
+        params["axis"] = op.scale_param.axis
 
         gamma = np.asarray(weight_bias_blobs[0].data, np.float32)
-        gamma_expr = self.exp_tab.new_const(gamma, dtype='float32')
-        if params['bias']:
+        gamma_expr = self.exp_tab.new_const(gamma, dtype="float32")
+        if params["bias"]:
             beta = np.asarray(weight_bias_blobs[1].data, np.float32)
-            beta_expr = self.exp_tab.new_const(beta, dtype='float32')
+            beta_expr = self.exp_tab.new_const(beta, dtype="float32")
         else:
-            beta_expr = self.exp_tab.new_const(np.zeros(gamma.shape,
-                                                        dtype=np.float32),
-                                               dtype='float32')
+            beta_expr = self.exp_tab.new_const(
+                np.zeros(gamma.shape, dtype=np.float32), dtype="float32"
+            )
 
         _, c, _, _ = _infer_shape(in_expr)
         gamma_expr = _op.reshape(gamma_expr, newshape=(1, c, 1, 1))
@@ -255,12 +245,11 @@ class OperatorConverter(object):
     def convert_concat(self, op):
         """ Convert Concat layer """
         inputs = op.bottom
-        in_expr = (self.exp_tab.get_expr(inputs[i])
-                   for i in range(len(inputs)))
+        in_expr = (self.exp_tab.get_expr(inputs[i]) for i in range(len(inputs)))
 
         c_params = dict()
-        c_params['axis'] = op.concat_param.axis
-        out = _op.concatenate(in_expr, axis=c_params['axis'])
+        c_params["axis"] = op.concat_param.axis
+        out = _op.concatenate(in_expr, axis=c_params["axis"])
 
         return out
 
@@ -313,7 +302,7 @@ class OperatorConverter(object):
         in_expr = self.exp_tab.get_expr(input_name)
 
         softmax_param = op.softmax_param
-        parmas = {'axis': softmax_param.axis}
+        parmas = {"axis": softmax_param.axis}
 
         out = _op.nn.softmax(in_expr, **parmas)
 
@@ -333,20 +322,19 @@ class OperatorConverter(object):
         else:
             weight = weight_bias_blobs[0]
         if weight:
-            kh, kw = params['kernel_size']
+            kh, kw = params["kernel_size"]
             weight_shape = [conv_params.num_output, -1, kh, kw]
             weight_value = np.asarray(weight.data, np.float32)
             weight_value = np.reshape(weight_value, weight_shape)
         else:
-            raise Exception('No weight value of layer {} in caffemodel'.format(
-                op.name))
+            raise Exception("No weight value of layer {} in caffemodel".format(op.name))
 
-        weight_expr = self.exp_tab.new_const(weight_value, dtype='float32')
+        weight_expr = self.exp_tab.new_const(weight_value, dtype="float32")
         in_expr = self.exp_tab.get_expr(inputs[0])
         out = _op.nn.conv2d(data=in_expr, weight=weight_expr, **params)
         if bias:
             bias_value = np.asarray(bias.data, np.float32)
-            bias_expr = self.exp_tab.new_const(bias_value, dtype='float32')
+            bias_expr = self.exp_tab.new_const(bias_value, dtype="float32")
             out = _op.nn.bias_add(out, bias_expr)
         return out
 
@@ -356,37 +344,36 @@ class OperatorConverter(object):
         input_name = inputs[0]
 
         pool_params = op.pooling_param
-        pool_type_dict = ['MAX', 'AVE', 'STOCHASTIC']
+        pool_type_dict = ["MAX", "AVE", "STOCHASTIC"]
 
         params = dict()
         # parse pool type: 0: MAX, 1: AVE, 2: STOCHASTIC
         pool_type = pool_params.pool
         # parse kernel size
         if pool_params.kernel_h > 0 or pool_params.kernel_w > 0:
-            params['pool_size'] = (pool_params.kernel_h, pool_params.kernel_w)
+            params["pool_size"] = (pool_params.kernel_h, pool_params.kernel_w)
         else:
-            params['pool_size'] = (pool_params.kernel_size,
-                                   pool_params.kernel_size)
+            params["pool_size"] = (pool_params.kernel_size, pool_params.kernel_size)
 
         # parse padding size
         if pool_params.pad_h > 0 or pool_params.pad_w > 0:
-            params['padding'] = (pool_params.pad_h, pool_params.pad_w)
+            params["padding"] = (pool_params.pad_h, pool_params.pad_w)
         else:
-            params['padding'] = (pool_params.pad, pool_params.pad)
+            params["padding"] = (pool_params.pad, pool_params.pad)
 
         # parse stride size
         if pool_params.stride_h > 0 or pool_params.stride_w > 0:
-            params['strides'] = (pool_params.stride_h, pool_params.stride_w)
+            params["strides"] = (pool_params.stride_h, pool_params.stride_w)
         else:
-            params['strides'] = (pool_params.stride, pool_params.stride)
+            params["strides"] = (pool_params.stride, pool_params.stride)
 
-        params['ceil_mode'] = True
-        if hasattr(pool_params, 'ceil_mode'):
-            params['ceil_mode'] = pool_params.ceil_mode
+        params["ceil_mode"] = True
+        if hasattr(pool_params, "ceil_mode"):
+            params["ceil_mode"] = pool_params.ceil_mode
 
         in_expr = self.exp_tab.get_expr(input_name)
 
-        if pool_type_dict[pool_type] == 'MAX':
+        if pool_type_dict[pool_type] == "MAX":
             if pool_params.global_pooling:
                 out = _op.nn.global_max_pool2d(in_expr)
             else:
@@ -397,16 +384,18 @@ class OperatorConverter(object):
                     out2 = _op.vision.max_pool2d_location(in_expr, **params)
                     return _expr.Tuple((out1, out2))
 
-        elif pool_type_dict[pool_type] == 'AVE':  # AVE
+        elif pool_type_dict[pool_type] == "AVE":  # AVE
             if pool_params.global_pooling:
                 out = _op.nn.global_avg_pool2d(in_expr)
             else:
-                params['count_include_pad'] = True
+                params["count_include_pad"] = True
                 out = _op.nn.avg_pool2d(in_expr, **params)
         else:
             raise tvm.error.OpNotImplemented(
                 "Operator {} is not supported for frontend Caffe.".format(
-                    pool_type_dict[pool_type] + ' pool'))
+                    pool_type_dict[pool_type] + " pool"
+                )
+            )
 
         return out
 
@@ -417,10 +406,10 @@ class OperatorConverter(object):
 
         params = dict()
         lrn_params = op.lrn_param
-        params['size'] = lrn_params.local_size
-        params['bias'] = lrn_params.k
-        params['alpha'] = lrn_params.alpha
-        params['beta'] = lrn_params.beta
+        params["size"] = lrn_params.local_size
+        params["bias"] = lrn_params.k
+        params["alpha"] = lrn_params.alpha
+        params["beta"] = lrn_params.beta
 
         in_expr = self.exp_tab.get_expr(input_name)
         out = _op.nn.lrn(in_expr, **params)
@@ -452,10 +441,9 @@ class OperatorConverter(object):
             weight_value = np.reshape(weight_value, (params["num_output"], -1))
             weight_shape = weight_value.shape
         else:
-            raise Exception('No weight value of layer {} in caffemodel'.format(
-                op.name))
+            raise Exception("No weight value of layer {} in caffemodel".format(op.name))
 
-        weight_expr = self.exp_tab.new_const(weight_value, dtype='float32')
+        weight_expr = self.exp_tab.new_const(weight_value, dtype="float32")
 
         in_expr = self.exp_tab.get_expr(inputs[0])
         in_reshape = _op.reshape(data=in_expr, newshape=(-1, weight_shape[-1]))
@@ -464,7 +452,7 @@ class OperatorConverter(object):
 
         if bias:
             bias_value = np.asarray(bias.data, np.float32)
-            bias_expr = self.exp_tab.new_const(bias_value, dtype='float32')
+            bias_expr = self.exp_tab.new_const(bias_value, dtype="float32")
             out = _op.nn.bias_add(out, bias_expr, axis=params["axis"])
         return out
 
@@ -476,7 +464,7 @@ class OperatorConverter(object):
         params = dict()
         dropout_params = op.dropout_param
 
-        params['rate'] = dropout_params.dropout_ratio
+        params["rate"] = dropout_params.dropout_ratio
 
         in_expr = self.exp_tab.get_expr(input_name)
         out = _op.nn.dropout(in_expr, **params)
@@ -501,7 +489,7 @@ class OperatorConverter(object):
 
         alpha = self.init_layer_dict[op.name].blobs[0].data
         alpha = np.asarray(alpha, np.float32)
-        alpha = self.exp_tab.new_const(alpha, dtype='float32')
+        alpha = self.exp_tab.new_const(alpha, dtype="float32")
         axis = 1
         out = _op.nn.prelu(in_expr, alpha, axis=axis)
         return out
@@ -521,23 +509,20 @@ class OperatorConverter(object):
         else:
             weight = weight_bias_blobs[0]
         if weight:
-            kh, kw = params['kernel_size']
+            kh, kw = params["kernel_size"]
             weight_shape = [-1, conv_params.num_output, kh, kw]
             weight_value = np.asarray(weight.data, np.float32)
             weight_value = np.reshape(weight_value, weight_shape)
         else:
-            raise Exception('No weight value of layer {} in caffemodel'.format(
-                op.name))
+            raise Exception("No weight value of layer {} in caffemodel".format(op.name))
 
-        weight_expr = self.exp_tab.new_const(weight_value, dtype='float32')
+        weight_expr = self.exp_tab.new_const(weight_value, dtype="float32")
         in_expr = self.exp_tab.get_expr(inputs[0])
-        out = _op.nn.conv2d_transpose(data=in_expr,
-                                      weight=weight_expr,
-                                      **params)
+        out = _op.nn.conv2d_transpose(data=in_expr, weight=weight_expr, **params)
         if bias:
 
             bias_value = np.asarray(bias.data, np.float32)
-            bias_expr = self.exp_tab.new_const(bias_value, dtype='float32')
+            bias_expr = self.exp_tab.new_const(bias_value, dtype="float32")
             out = _op.nn.bias_add(out, bias_expr)
         return out
 
@@ -556,9 +541,7 @@ class OperatorConverter(object):
         else:
             indices_or_sections = sorted(indices_or_sections)
 
-        out = _op.split(in_expr,
-                        indices_or_sections=indices_or_sections,
-                        axis=axis)
+        out = _op.split(in_expr, indices_or_sections=indices_or_sections, axis=axis)
         return out
 
     def convert_sigmoid(self, op):
@@ -584,8 +567,8 @@ class OperatorConverter(object):
 
         # parse crop params
         crop_params = op.crop_param
-        axis = int(getattr(crop_params, 'axis', 2))
-        offset = list(getattr(crop_params, 'offset', 0))
+        axis = int(getattr(crop_params, "axis", 2))
+        offset = list(getattr(crop_params, "offset", 0))
 
         # expand offset to (offset1, offset2, ...)
         in_a_shape = _infer_shape(in_expr_a)
@@ -610,7 +593,6 @@ class OperatorConverter(object):
         out = _op.slice_like(in_expr_a_stride, in_expr_b, axes=to_crop_axis)
         return out
 
-
     def check_unsupported_ops(self):
         """Check unsupported Caffe ops in our converter."""
         unsupported_ops_set = set()
@@ -628,9 +610,8 @@ class OperatorConverter(object):
                 unsupported_ops_set.add(op_name)
 
         if unsupported_ops_set:
-            msg = 'The following operators are not supported in frontend ' \
-                'Caffe: {}'
-            ops = str(list(unsupported_ops_set)).strip('[,]')
+            msg = "The following operators are not supported in frontend " "Caffe: {}"
+            ops = str(list(unsupported_ops_set)).strip("[,]")
             raise tvm.error.OpNotImplemented(msg.format(ops))
 
     def fuse_op(self, layers):
@@ -642,10 +623,8 @@ class OperatorConverter(object):
         bn_scale = np.asarray(bn_weight_bias_blobs[2].data, np.float32)
         if bn_scale:
             bn_scale = 1 / bn_scale
-        bn_mean = np.asarray(bn_weight_bias_blobs[0].data,
-                             np.float32) * bn_scale
-        bn_var = np.asarray(bn_weight_bias_blobs[1].data,
-                            np.float32) * bn_scale
+        bn_mean = np.asarray(bn_weight_bias_blobs[0].data, np.float32) * bn_scale
+        bn_var = np.asarray(bn_weight_bias_blobs[1].data, np.float32) * bn_scale
         bn_eps = bn.batch_norm_param.eps
 
         # scale params
@@ -653,15 +632,12 @@ class OperatorConverter(object):
         scale_gamma = np.asarray(scale_weight_bias_blobs[0].data, np.float32)
         scale_bias = scale.scale_param.bias_term
         if scale_bias:
-            scale_beta = np.asarray(scale_weight_bias_blobs[1].data,
-                                    np.float32)
+            scale_beta = np.asarray(scale_weight_bias_blobs[1].data, np.float32)
         else:
             scale_beta = np.zeros(scale_gamma.shape, dtype=np.float32)
 
         # new params
-        self.new_bn[bn.name] = [
-            bn_mean, bn_var, bn_eps, scale_gamma, scale_beta
-        ]
+        self.new_bn[bn.name] = [bn_mean, bn_var, bn_eps, scale_gamma, scale_beta]
         return bn
 
     def op_fuse(self):
@@ -677,7 +653,8 @@ class OperatorConverter(object):
                 continue
             elif op_type == "BatchNorm":
                 if (index != len(self.predict_layer) - 1) and (
-                        self.predict_layer[index + 1].type == "Scale"):
+                    self.predict_layer[index + 1].type == "Scale"
+                ):
                     temp_layers["bn"] = pl
                     continue
                 else:
@@ -695,14 +672,13 @@ class OperatorConverter(object):
             if len(temp_layers) == 2:
                 layer = self.fuse_op(temp_layers)
                 new_layers.append(layer)
-                changed_layers[
-                    temp_layers["scale"].name] = temp_layers['bn'].name
+                changed_layers[temp_layers["scale"].name] = temp_layers["bn"].name
 
             for idx, plt in enumerate(pl.bottom):
                 if plt in changed_layers:
                     pl.bottom[idx] = changed_layers[plt]
 
-            if op_type not in ['BatchNorm', 'Scale']:
+            if op_type not in ["BatchNorm", "Scale"]:
                 new_layers.append(pl)
 
         self.predict_layer = new_layers
@@ -737,7 +713,7 @@ def _rebuild_layers(predict_layer):
             continue
         # if current layer has single input and output and input equals to output
         # it means that the layer does "in-place"
-        if (len(pl.top) == 1 and len(pl.bottom) == 1):
+        if len(pl.top) == 1 and len(pl.bottom) == 1:
             if pl.top[0] == pl.bottom[0]:
                 # change current layer's input firstly
                 if pl.bottom[0] in changed_top_dict:
@@ -766,9 +742,7 @@ def _get_inputs_outputs(predict_layer):
     not_outputs = set()
     for pl in predict_layer:
         if pl.type == "Input":
-            assert len(
-                pl.top
-            ) == 1, "The number of Input layer's output is more than 1."
+            assert len(pl.top) == 1, "The number of Input layer's output is more than 1."
             model_inputs.append(pl.top[0])
         for i in pl.bottom:
             not_outputs.add(i)

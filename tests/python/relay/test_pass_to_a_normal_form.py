@@ -30,7 +30,7 @@ def run_opt_pass(expr, passes):
     mod = tvm.IRModule.from_expr(expr)
     seq = tvm.transform.Sequential(passes)
     with tvm.transform.PassContext(opt_level=3):
-       mod = seq(mod)
+        mod = seq(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
@@ -64,11 +64,11 @@ def test_order():
     val = x + y * z
     check_eval(val, 7.0)
     anf = run_opt_pass(val, [transform.ToANormalForm(), transform.InferType()])
-    a = relay.Var('a', relay.IncompleteType())
-    b = relay.Var('b', relay.IncompleteType())
-    c = relay.Var('c', relay.IncompleteType())
-    d = relay.Var('d', relay.IncompleteType())
-    e = relay.Var('e', relay.IncompleteType())
+    a = relay.Var("a", relay.IncompleteType())
+    b = relay.Var("b", relay.IncompleteType())
+    c = relay.Var("c", relay.IncompleteType())
+    d = relay.Var("d", relay.IncompleteType())
+    e = relay.Var("e", relay.IncompleteType())
     expected_output = e
     expected_output = relay.Let(e, a + d, expected_output)
     expected_output = relay.Let(d, b * c, expected_output)
@@ -83,10 +83,10 @@ def test_if():
     cond = relay.const(True)
     x = relay.If(cond, relay.const(2), relay.const(3))
     anf = run_opt_pass(x, [transform.ToANormalForm(), transform.InferType()])
-    a = relay.Var('a', relay.IncompleteType())
-    b = relay.Var('b', relay.IncompleteType())
-    c = relay.Var('c', relay.IncompleteType())
-    d = relay.Var('d', relay.IncompleteType())
+    a = relay.Var("a", relay.IncompleteType())
+    b = relay.Var("b", relay.IncompleteType())
+    c = relay.Var("c", relay.IncompleteType())
+    d = relay.Var("d", relay.IncompleteType())
     true_branch = relay.Let(a, relay.const(2), a)
     false_branch = relay.Let(b, relay.const(3), b)
     expected_output = relay.If(c, true_branch, false_branch)
@@ -112,27 +112,27 @@ def test_recursion():
        f(5);
     """
     mod = tvm.IRModule()
-    i64 = relay.TensorType((), 'int64')
+    i64 = relay.TensorType((), "int64")
     f = relay.GlobalVar("f")
     n = relay.Var("n", i64)
-    m = n * relay.const(2, 'int64')
-    funcbody = relay.If(relay.equal(n, relay.const(0, 'int64')),
-                        m,
-                        m + f(n - relay.const(1, 'int64')))
+    m = n * relay.const(2, "int64")
+    funcbody = relay.If(
+        relay.equal(n, relay.const(0, "int64")), m, m + f(n - relay.const(1, "int64"))
+    )
     value = relay.Function([n], funcbody, i64, [])
     mod[f] = value
-    check_eval(f(relay.const(5, 'int64')), 30.0, mod=mod)
+    check_eval(f(relay.const(5, "int64")), 30.0, mod=mod)
     old_f = mod[f]
     mod = transform.ToANormalForm()(mod)
     f = mod[f]
-    check_eval(f(relay.const(5, 'int64')), 30.0, mod=mod)
+    check_eval(f(relay.const(5, "int64")), 30.0, mod=mod)
 
 
 def test_ref():
-    i = relay.Var('i')
-    iv = relay.Var('iv')
-    u = relay.Var('u')
-    uv = relay.Var('uv')
+    i = relay.Var("i")
+    iv = relay.Var("iv")
+    u = relay.Var("u")
+    uv = relay.Var("uv")
     body = relay.add(iv, uv)
     body = relay.Let(uv, relay.RefRead(i), body)
     body = relay.Let(u, relay.RefWrite(i, relay.const(2)), body)
@@ -167,7 +167,7 @@ def test_nat_add():
 def test_let():
     x = relay.Var("x")
     y = relay.Var("y")
-    d = relay.const(4.0, 'float32')
+    d = relay.const(4.0, "float32")
     body = relay.Let(y, x, x + y)
     body = relay.Let(x, d, body)
     check_eval(body, 8)
@@ -176,10 +176,10 @@ def test_let():
 
 
 def test_function():
-    t = relay.TensorType((), 'float32')
+    t = relay.TensorType((), "float32")
     x = relay.Var("x", t)
     f = relay.Function([x], x + x)
-    d = relay.const(4.0, 'float32')
+    d = relay.const(4.0, "float32")
     anf_f = run_opt_pass(f, transform.ToANormalForm())
     assert isinstance(anf_f, relay.Function)
     check_eval(f(d), 8)
@@ -189,17 +189,17 @@ def test_function():
 def test_gradient_if():
     x = relay.var("a", shape=(1, 16))
     y = relay.var("y", shape=(1, 16))
-    cond = relay.var("cond", shape=(), dtype='uint1')
+    cond = relay.var("cond", shape=(), dtype="uint1")
     net = relay.If(cond, x, x)
     net = relay.add(x, net)
-    net = relay.Function([cond,x,y], net)
+    net = relay.Function([cond, x, y], net)
     mod = tvm.IRModule.from_expr(net)
     mod = relay.transform.ToANormalForm()(mod)
-    mod["main"] = relay.transform.gradient(mod["main"], mode='higher_order')
+    mod["main"] = relay.transform.gradient(mod["main"], mode="higher_order")
     mod = relay.transform.ToANormalForm()(mod)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_explicit_bound()
     test_order()
     test_if()

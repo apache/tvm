@@ -18,6 +18,7 @@
 """MatrixSetDiag in Python"""
 import numpy as np
 
+
 def matrix_set_diag(input_np, diagonal):
     """matrix_set_diag operator implemented in numpy.
 

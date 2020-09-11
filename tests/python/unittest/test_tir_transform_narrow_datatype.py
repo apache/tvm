@@ -22,8 +22,7 @@ from tvm.tir import const
 
 def lower_stmt(params, stmt, target_bits):
     func = tvm.tir.PrimFunc(params, stmt)
-    func = tvm.tir.transform.NarrowDataType(target_bits)(
-        tvm.IRModule.from_expr(func))["main"]
+    func = tvm.tir.transform.NarrowDataType(target_bits)(tvm.IRModule.from_expr(func))["main"]
     stmt = func.body
     return stmt
 
@@ -52,12 +51,12 @@ def lower_sch(sch, args, target_bits):
 def test_basic():
     def check(m, n, target_bits, target_dtype):
         ib = tvm.tir.ir_builder.create()
-        Ab = tvm.tir.decl_buffer((m, n), name='A')
+        Ab = tvm.tir.decl_buffer((m, n), name="A")
         A = ib.buffer_ptr(Ab)
-        Bb = tvm.tir.decl_buffer((m, n), name='B')
+        Bb = tvm.tir.decl_buffer((m, n), name="B")
         B = ib.buffer_ptr(Bb)
-        with ib.for_range(0, m, name='i') as i:
-            with ib.for_range(0, n, name='j') as j:
+        with ib.for_range(0, m, name="i") as i:
+            with ib.for_range(0, n, name="j") as j:
                 B[i * n + j] = A[i * n + j] + 1
         stmt = ib.get()
         stmt = lower_stmt([Ab, Bb], stmt, target_bits)
@@ -67,25 +66,25 @@ def test_basic():
     # const shape
     # i32 -> i32
     check(2, 2, 32, "int32")
-    check(2**16, 2**16, 32, "int32")  # i32 + i32 is not promoted to i64 even if overflow
+    check(2 ** 16, 2 ** 16, 32, "int32")  # i32 + i32 is not promoted to i64 even if overflow
     # i64 -> i32
-    check(const(2, dtype='int64'), const(2, dtype='int64'), 32, "int32")
-    check(const(2**16, dtype='int64'), const(2**16, dtype='int64'), 32, "int64")
+    check(const(2, dtype="int64"), const(2, dtype="int64"), 32, "int32")
+    check(const(2 ** 16, dtype="int64"), const(2 ** 16, dtype="int64"), 32, "int64")
     # i32 -> i16
     check(2, 2, 16, "int16")
-    check(2**10, 2**10, 16, "int32")
+    check(2 ** 10, 2 ** 10, 16, "int32")
 
     # symbolic shape
-    check(te.size_var(name='m', dtype='int32'), te.size_var(name='n', dtype='int32'), 32, "int32")
-    check(te.size_var(name='m', dtype='int64'), te.size_var(name='n', dtype='int64'), 32, "int64")
+    check(te.size_var(name="m", dtype="int32"), te.size_var(name="n", dtype="int32"), 32, "int32")
+    check(te.size_var(name="m", dtype="int64"), te.size_var(name="n", dtype="int64"), 32, "int64")
 
 
 def test_thread_axis():
     def check(m, n, target_bits, target_dtype):
         ib = tvm.tir.ir_builder.create()
-        Ab = tvm.tir.decl_buffer((m, n), name='A')
+        Ab = tvm.tir.decl_buffer((m, n), name="A")
         A = ib.buffer_ptr(Ab)
-        Bb = tvm.tir.decl_buffer((m, n), name='B')
+        Bb = tvm.tir.decl_buffer((m, n), name="B")
         B = ib.buffer_ptr(Bb)
         bx = te.thread_axis("blockIdx.x")
         tx = te.thread_axis("threadIdx.x")
@@ -98,85 +97,81 @@ def test_thread_axis():
         assert stmt.body.node.var.dtype == target_dtype
 
     # i32 -> i32
-    check(2, 32,
-          target_bits=32, target_dtype='int32')
-    check(2**30, 32,  # i32 + i32 is not promoted to i64 even in the case of overflow
-          target_bits=32, target_dtype='int32')
+    check(2, 32, target_bits=32, target_dtype="int32")
+    check(
+        2 ** 30,
+        32,  # i32 + i32 is not promoted to i64 even in the case of overflow
+        target_bits=32,
+        target_dtype="int32",
+    )
     # i64 -> i32
-    check(const(2, dtype='int64'),
-          const(32, dtype='int64'),
-          target_bits=32, target_dtype='int32')
-    check(const(2**30, dtype='int64'),
-          const(32, dtype='int64'),
-          target_bits=32, target_dtype='int64')
+    check(const(2, dtype="int64"), const(32, dtype="int64"), target_bits=32, target_dtype="int32")
+    check(
+        const(2 ** 30, dtype="int64"),
+        const(32, dtype="int64"),
+        target_bits=32,
+        target_dtype="int64",
+    )
     # i32 -> i16
-    check(2, 32,
-          target_bits=16, target_dtype='int16')
-    check(2**14, 32,
-          target_bits=16, target_dtype='int32')
+    check(2, 32, target_bits=16, target_dtype="int16")
+    check(2 ** 14, 32, target_bits=16, target_dtype="int32")
 
 
 def test_multilanes():
     def check(m, lanes, target_bits, target_dtype):
         ib = tvm.tir.ir_builder.create()
-        Ab = tvm.tir.decl_buffer((m,), dtype='float32x{}'.format(lanes), name='A')
+        Ab = tvm.tir.decl_buffer((m,), dtype="float32x{}".format(lanes), name="A")
         A = ib.buffer_ptr(Ab)
-        Bb = tvm.tir.decl_buffer((m,), dtype='float32x{}'.format(lanes), name='B')
+        Bb = tvm.tir.decl_buffer((m,), dtype="float32x{}".format(lanes), name="B")
         B = ib.buffer_ptr(Bb)
-        with ib.for_range(0, m, name='i', dtype=m.dtype) as i:
+        with ib.for_range(0, m, name="i", dtype=m.dtype) as i:
             B[i] = A[i] + 1
         stmt = ib.get()
         stmt = lower_stmt([Ab, Bb], stmt, target_bits)
         assert stmt.loop_var.dtype == target_dtype
 
     # i32 -> i32
-    check(const(2 ** 10, dtype='int32'), 2,
-          target_bits=32, target_dtype='int32')
-    check(const(2 ** 32, dtype='int32'), 2,
-          target_bits=32, target_dtype='int32')
+    check(const(2 ** 10, dtype="int32"), 2, target_bits=32, target_dtype="int32")
+    check(const(2 ** 32, dtype="int32"), 2, target_bits=32, target_dtype="int32")
     # i64 -> i32
-    check(const(2 ** 10, dtype='int64'), 2,
-          target_bits=32, target_dtype='int32')
-    check(const(2 ** 32, dtype='int64'), 2,
-          target_bits=32, target_dtype='int64')
+    check(const(2 ** 10, dtype="int64"), 2, target_bits=32, target_dtype="int32")
+    check(const(2 ** 32, dtype="int64"), 2, target_bits=32, target_dtype="int64")
     # i32 -> i16
-    check(const(2 ** 10, dtype='int32'), 2,
-          target_bits=16, target_dtype='int16')
-    check(const(2 ** 16, dtype='int32'), 2,
-          target_bits=16, target_dtype='int32')
+    check(const(2 ** 10, dtype="int32"), 2, target_bits=16, target_dtype="int16")
+    check(const(2 ** 16, dtype="int32"), 2, target_bits=16, target_dtype="int32")
 
 
 def test_reduce():
     def check(m, target_bits, target_dtype):
-        A = te.placeholder((m,), name='A', dtype='float32')
+        A = te.placeholder((m,), name="A", dtype="float32")
         k = te.reduce_axis((0, m), "k")
-        B = te.compute((), lambda *idx: te.sum(A[k], axis=k), name='B')
+        B = te.compute((), lambda *idx: te.sum(A[k], axis=k), name="B")
         s = te.create_schedule(B.op)
         stmt = lower_sch(s, [A, B], target_bits)
         assert stmt[1].loop_var.dtype == target_dtype
 
     # i32 -> i32
-    check(const(64, dtype='int32'), 32, 'int32')
+    check(const(64, dtype="int32"), 32, "int32")
     # i64 -> i32
-    check(const(64, dtype='int64'), 32, 'int32')
+    check(const(64, dtype="int64"), 32, "int32")
     # i32 -> i16
-    check(const(64, dtype='int32'), 16, 'int16')
-    check(const(2**16, dtype='int32'), 16, 'int32')
+    check(const(64, dtype="int32"), 16, "int16")
+    check(const(2 ** 16, dtype="int32"), 16, "int32")
     # symbolic
-    check(te.var('n', dtype='int32'), 32, 'int32')
-    check(te.var('n', dtype='int64'), 32, 'int64')
+    check(te.var("n", dtype="int32"), 32, "int32")
+    check(te.var("n", dtype="int64"), 32, "int64")
 
 
 def test_slice():
     def check(m, n, target_bits, target_dtype):
         # The index may overflow in B, while not in A
         ib = tvm.tir.ir_builder.create()
-        Ab = tvm.tir.decl_buffer((m, n), name='A')
+        Ab = tvm.tir.decl_buffer((m, n), name="A")
         A = ib.buffer_ptr(Ab)
-        Bb = tvm.tir.decl_buffer((m, n * 2), name='B')
+        Bb = tvm.tir.decl_buffer((m, n * 2), name="B")
         B = ib.buffer_ptr(Bb)
-        with ib.for_range(0, m, name='i') as i:
-            with ib.for_range(0, n, name='j') as j:
+        with ib.for_range(0, m, name="i") as i:
+            with ib.for_range(0, n, name="j") as j:
                 A[i * n + j] = B[i * 2 * n + 2 * j] + 1
         stmt = ib.get()
         stmt = lower_stmt([Ab, Bb], stmt, target_bits)
@@ -184,18 +179,19 @@ def test_slice():
         assert stmt.body.loop_var.dtype == target_dtype
 
     # The maximum index is (2**15 * 2**15 - 1) * 2 <= 2**31 - 1
-    check(const(2**15, 'int64'), const(2**15, 'int64'),
-          target_bits=32, target_dtype='int32')
+    check(const(2 ** 15, "int64"), const(2 ** 15, "int64"), target_bits=32, target_dtype="int32")
     # The maximum index is (2**15 * 2**15 - 1 + 2**15) * 2 > 2**31 - 1
-    check(const(2**15, 'int64'), const((2**15 + 1), 'int64'),
-          target_bits=32, target_dtype='int64')
+    check(
+        const(2 ** 15, "int64"), const((2 ** 15 + 1), "int64"), target_bits=32, target_dtype="int64"
+    )
 
 
 def test_relay_basic():
     engine = relay.backend.compile_engine.get()
+
     def check(shapex, shapey, target_bits, target_dtype):
-        x = relay.var('x', shape=shapex)
-        y = relay.var('y', shape=shapey)
+        x = relay.var("x", shape=shapex)
+        y = relay.var("y", shape=shapey)
         z = relay.add(x, y)
         func = relay.Function([x, y], z)
         mod = tvm.IRModule.from_expr(func)
@@ -208,18 +204,32 @@ def test_relay_basic():
         if len(shapex) > 1 or len(shapey) > 1:
             assert stmt.body.loop_var.dtype == target_dtype
 
-    check((const(2**16, 'int64'), const(2**15 + 1, 'int64')), (1, const(2**15 + 1, 'int64')),
-          target_bits=32, target_dtype="int64")
-    check((const(2**16, 'int64'), const(2**15, 'int64')), (1, const(2**15, 'int64')),
-          target_bits=32, target_dtype="int32")
-    check((const(2**31, 'int64'),), (const(2**31, 'int64'),),
-          target_bits=32, target_dtype="int32")
-    check((const(2**31 + 1, 'int64'),), (const(2**31 + 1, 'int64'),),
-          target_bits=32, target_dtype="int64")
+    check(
+        (const(2 ** 16, "int64"), const(2 ** 15 + 1, "int64")),
+        (1, const(2 ** 15 + 1, "int64")),
+        target_bits=32,
+        target_dtype="int64",
+    )
+    check(
+        (const(2 ** 16, "int64"), const(2 ** 15, "int64")),
+        (1, const(2 ** 15, "int64")),
+        target_bits=32,
+        target_dtype="int32",
+    )
+    check(
+        (const(2 ** 31, "int64"),), (const(2 ** 31, "int64"),), target_bits=32, target_dtype="int32"
+    )
+    check(
+        (const(2 ** 31 + 1, "int64"),),
+        (const(2 ** 31 + 1, "int64"),),
+        target_bits=32,
+        target_dtype="int64",
+    )
 
 
 def test_relay_take():
     engine = relay.backend.compile_engine.get()
+
     def check(shape, index, target_bits, target_dtype):
         x = relay.var("x", shape=shape)
         y = relay.op.take(x, indices=index)
@@ -230,10 +240,18 @@ def test_relay_take():
         stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
         assert stmt.value.index.dtype == target_dtype
 
-    check((const(2**16, 'int64'), const(2**15 + 1, 'int64')), relay.const(0, dtype="int64"),
-          target_bits=32, target_dtype="int32")
-    check((const(2**16, 'int64'), const(2**15 + 1, 'int64')), relay.const(2**31, dtype="int64"),
-          target_bits=32, target_dtype="int64")
+    check(
+        (const(2 ** 16, "int64"), const(2 ** 15 + 1, "int64")),
+        relay.const(0, dtype="int64"),
+        target_bits=32,
+        target_dtype="int32",
+    )
+    check(
+        (const(2 ** 16, "int64"), const(2 ** 15 + 1, "int64")),
+        relay.const(2 ** 31, dtype="int64"),
+        target_bits=32,
+        target_dtype="int64",
+    )
 
 
 if __name__ == "__main__":

@@ -26,15 +26,15 @@ import numpy as np
 
 # Global declarations of environment.
 
-tgt_host="llvm"
-tgt="llvm"
+tgt_host = "llvm"
+tgt = "llvm"
 
 ######################################################################
 # Describe the Computation
 # ------------------------
 n = te.var("n")
-A = te.placeholder((n,), name='A')
-B = te.placeholder((n,), name='B')
+A = te.placeholder((n,), name="A")
+B = te.placeholder((n,), name="B")
 C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 
 ######################################################################

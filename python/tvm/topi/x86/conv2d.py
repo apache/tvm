@@ -31,10 +31,12 @@ from ..nn.util import get_pad_tuple
 from ..util import get_const_tuple, traverse_inline
 from . import conv2d_avx_1x1, conv2d_avx_common
 
-logger = logging.getLogger('topi')
+logger = logging.getLogger("topi")
 
-def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False,
-                        layout='NCHW'):
+
+def _get_default_config(
+    cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False, layout="NCHW"
+):
     """
     Get default schedule config for the workload
     """
@@ -48,6 +50,7 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depth
     if is_depthwise:
         wkl = _get_depthwise_conv2d_workload(data, kernel, strides, padding, out_dtype)
         from .depthwise_conv2d import _fallback_schedule
+
         _fallback_schedule(cfg, wkl)
     else:
         wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype, layout)
@@ -56,6 +59,7 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depth
             conv2d_avx_1x1._fallback_schedule(cfg, wkl)
         else:
             conv2d_avx_common._fallback_schedule(cfg, wkl)
+
 
 @conv2d_infer_layout.register("cpu")
 def _conv2d_infer_layout(workload, cfg):
@@ -74,6 +78,7 @@ def _conv2d_infer_layout(workload, cfg):
     out_layout = "NCHW%dc" % tile_oc
     return ((in_shape, in_layout),), ((out_shape, out_layout),)
 
+
 def schedule_conv2d_nhwc(outs):
     """Create schedule for conv2d_nhwc"""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
@@ -81,7 +86,7 @@ def schedule_conv2d_nhwc(outs):
     output_op = outs[0].op
 
     def _callback(op):
-        if 'conv2d_nhwc' in op.tag:
+        if "conv2d_nhwc" in op.tag:
             conv = op.output(0)
             kernel = op.input_tensors[1]
             if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
@@ -101,7 +106,7 @@ def schedule_conv2d_nhwc(outs):
             s[C].vectorize(c)
 
             O = output_op.output(0)
-            if len(O.op.axis) == 4: # schedule bias + bn + relu
+            if len(O.op.axis) == 4:  # schedule bias + bn + relu
                 n, h, w, c = O.op.axis
                 fused = s[O].fuse(n, h, w)
                 s[O].parallel(fused)
@@ -115,15 +120,17 @@ def schedule_conv2d_nhwc(outs):
     traverse_inline(s, output_op, _callback)
     return s
 
+
 def conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype):
     layout = "NCHW"
-    packed_out = conv2d_NCHWc(data, kernel, strides, padding, dilation,
-                              layout, layout, out_dtype)
+    packed_out = conv2d_NCHWc(data, kernel, strides, padding, dilation, layout, layout, out_dtype)
     return unpack_NCHWc_to_nchw(packed_out, out_dtype)
+
 
 def schedule_conv2d_nchw(outs):
     """Create schedule for tensors"""
     return schedule_conv2d_NCHWc(outs)
+
 
 def _pack_data(cfg, data, kernel):
     n, _, ih, iw = get_const_tuple(data.shape)
@@ -133,17 +140,20 @@ def _pack_data(cfg, data, kernel):
     ic_chunk = ic // ic_bn
     oc_chunk = oc // oc_bn
 
-    data = te.compute((n, ic_chunk, ih, iw, ic_bn),
-                      lambda bs, c, h, w, vc: data[bs, c*ic_bn + vc, h, w],
-                      name="data_vec")
+    data = te.compute(
+        (n, ic_chunk, ih, iw, ic_bn),
+        lambda bs, c, h, w, vc: data[bs, c * ic_bn + vc, h, w],
+        name="data_vec",
+    )
 
     kernel = te.compute(
         (oc_chunk, ic_chunk, kh, kw, ic_bn, oc_bn),
-        lambda occ, icc, k_h, k_w, icb, ocb:
-        kernel[occ * oc_bn + ocb, icc * ic_bn + icb, k_h, k_w],
-        name="kernel_vec")
+        lambda occ, icc, k_h, k_w, icb, ocb: kernel[occ * oc_bn + ocb, icc * ic_bn + icb, k_h, k_w],
+        name="kernel_vec",
+    )
 
     return data, kernel
+
 
 @autotvm.register_topi_compute("conv2d_NCHWc.x86")
 def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layout, out_dtype):
@@ -152,8 +162,9 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layo
     # we keep them for debug convenience when dumping autotvm workload
     if len(data.shape) == 5:
         n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
-        oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn = \
-            get_const_tuple(kernel.shape)
+        oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn = get_const_tuple(
+            kernel.shape
+        )
         in_channel = ic_chunk * ic_bn
         num_filter = oc_chunk * oc_bn
     else:
@@ -169,8 +180,9 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layo
 
     cfg.define_split("tile_ic", in_channel, num_outputs=2)
     cfg.define_split("tile_oc", num_filter, num_outputs=2)
-    cfg.define_split("tile_ow", ow, num_outputs=2, filter=lambda y: y.size[-1] <= 64,
-                     policy="verbose")
+    cfg.define_split(
+        "tile_ow", ow, num_outputs=2, filter=lambda y: y.size[-1] <= 64, policy="verbose"
+    )
     if is_kernel_1x1:
         cfg.define_knob("tile_oh", [1, 2] if oh > 1 else [1])
     else:
@@ -178,36 +190,38 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layo
 
     # If no config was set, we can fallback to default config.
     if cfg.is_fallback:
-        _get_default_config(cfg, te.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
-                            te.placeholder((num_filter, in_channel, kernel_height, kernel_width),
-                                           dtype=kernel.dtype),
-                            strides, padding, out_dtype)
+        _get_default_config(
+            cfg,
+            te.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
+            te.placeholder(
+                (num_filter, in_channel, kernel_height, kernel_width), dtype=kernel.dtype
+            ),
+            strides,
+            padding,
+            out_dtype,
+        )
 
     # Pack data if raw 4-D data is provided.
     # This can only happen when autotuning.
     if len(data.shape) == 4:
         if autotvm.GLOBAL_SCOPE.in_tuning:
             # Directly use modified data layout placeholder.
-            dshape = (n, in_channel // cfg["tile_ic"].size[-1],
-                      ih, iw, cfg["tile_ic"].size[-1])
+            dshape = (n, in_channel // cfg["tile_ic"].size[-1], ih, iw, cfg["tile_ic"].size[-1])
             data = tvm.te.placeholder(dshape, data.dtype, name="data")
-            kshape = (num_filter // cfg["tile_oc"].size[-1],
-                      in_channel // cfg["tile_ic"].size[-1],
-                      kernel_height, kernel_width,
-                      cfg["tile_ic"].size[-1],
-                      cfg["tile_oc"].size[-1])
+            kshape = (
+                num_filter // cfg["tile_oc"].size[-1],
+                in_channel // cfg["tile_ic"].size[-1],
+                kernel_height,
+                kernel_width,
+                cfg["tile_ic"].size[-1],
+                cfg["tile_oc"].size[-1],
+            )
             kernel = tvm.te.placeholder(kshape, kernel.dtype, name="kernel")
         else:
             data, kernel = _pack_data(cfg, data, kernel)
 
-    return nn.conv2d_NCHWc(data,
-                           kernel,
-                           strides,
-                           padding,
-                           dilation,
-                           layout,
-                           out_layout,
-                           out_dtype)
+    return nn.conv2d_NCHWc(data, kernel, strides, padding, dilation, layout, out_layout, out_dtype)
+
 
 @autotvm.register_topi_schedule("conv2d_NCHWc.x86")
 def schedule_conv2d_NCHWc(cfg, outs):
@@ -216,13 +230,20 @@ def schedule_conv2d_NCHWc(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if 'conv2d_NCHWc' in op.tag:
+        if "conv2d_NCHWc" in op.tag:
             conv_out = op.output(0)
             kernel_vec = conv_out.op.input_tensors[1]
             data_vec = conv_out.op.input_tensors[0]
 
             args = [s, cfg, data_vec, kernel_vec, conv_out, outs[0]]
-            _, _, kh, kw, _, _, = get_const_tuple(kernel_vec.shape)
+            (
+                _,
+                _,
+                kh,
+                kw,
+                _,
+                _,
+            ) = get_const_tuple(kernel_vec.shape)
             if kh == 1 and kw == 1:
                 conv2d_avx_1x1._schedule_conv_NCHWc(*args)
             else:

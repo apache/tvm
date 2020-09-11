@@ -25,9 +25,7 @@ from .util import get_pad_tuple
 from ..util import simplify
 
 
-
-def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype,
-                          output_padding):
+def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype, output_padding):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -55,41 +53,44 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype,
     Output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return declaration_conv2d_transpose_impl(Input, Filter, strides, padding, out_dtype,
-                                             output_padding=output_padding)
+    return declaration_conv2d_transpose_impl(
+        Input, Filter, strides, padding, out_dtype, output_padding=output_padding
+    )
 
 
 def conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype, output_padding):
     """Preprocess data and kernel to make the compute pattern
-       of conv2d_transpose the same as conv2d"""
+    of conv2d_transpose the same as conv2d"""
     batch, in_c, in_h, in_w = data.shape
     _, out_c, filter_h, filter_w = kernel.shape
     stride_h, stride_w = strides
     opad_h, opad_w = output_padding
     assert opad_h < stride_h and opad_w < stride_w
     # dilate data
-    data_dilate = dilate(data, [1, 1, stride_h, stride_w], name='data_dilate')
+    data_dilate = dilate(data, [1, 1, stride_h, stride_w], name="data_dilate")
     # pad data
     fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (filter_h, filter_w))
     bpad_top = filter_h - 1 - fpad_top
     bpad_bottom = filter_h - 1 - fpad_bottom + opad_h
     bpad_left = filter_w - 1 - fpad_left
     bpad_right = filter_w - 1 - fpad_right + opad_w
-    data_pad = pad(data_dilate, \
-                   [0, 0, bpad_top, bpad_left], \
-                   [0, 0, bpad_bottom, bpad_right], \
-                   name='data_pad')
+    data_pad = pad(
+        data_dilate, [0, 0, bpad_top, bpad_left], [0, 0, bpad_bottom, bpad_right], name="data_pad"
+    )
     # transform kernel layout from IOHW to OIHW, and rotate kernel by 180 degrees
-    kernel_transform = te.compute((out_c, in_c, filter_h, filter_w), \
-                                  lambda o, i, h, w: kernel[i][o][filter_h-1-h][filter_w-1-w], \
-                                  name='kernel_transform')
+    kernel_transform = te.compute(
+        (out_c, in_c, filter_h, filter_w),
+        lambda o, i, h, w: kernel[i][o][filter_h - 1 - h][filter_w - 1 - w],
+        name="kernel_transform",
+    )
     return data_pad, kernel_transform
 
 
 def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype, output_padding):
     """Implementation of conv2d transpose"""
-    data_pad, kernel_transform = \
-        conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype, output_padding)
+    data_pad, kernel_transform = conv2d_transpose_nchw_preprocess(
+        data, kernel, strides, padding, out_dtype, output_padding
+    )
     batch, in_c, in_h, in_w = data_pad.shape
     out_c, _, filter_h, filter_w = kernel_transform.shape
 
@@ -98,16 +99,19 @@ def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype,
 
     out_h = simplify(in_h - filter_h + 1 + output_padding[0])
     out_w = simplify(in_w - filter_w + 1 + output_padding[1])
-    dc = tvm.reduce_axis((0, in_c), name='dc')
-    dh = tvm.reduce_axis((0, filter_h), name='dh')
-    dw = tvm.reduce_axis((0, filter_w), name='dw')
+    dc = tvm.reduce_axis((0, in_c), name="dc")
+    dh = tvm.reduce_axis((0, filter_h), name="dh")
+    dw = tvm.reduce_axis((0, filter_w), name="dw")
 
     Output = te.compute(
         (batch, out_c, out_h, out_w),
         lambda b, c, h, w: te.sum(
-            data_pad[b, dc, h+dh, w+dw].astype(out_dtype) *
-            kernel_transform[c, dc, dh, dw].astype(out_dtype),
-            axis=[dc, dh, dw]), tag="conv2d_transpose_nchw")
+            data_pad[b, dc, h + dh, w + dw].astype(out_dtype)
+            * kernel_transform[c, dc, dh, dw].astype(out_dtype),
+            axis=[dc, dh, dw],
+        ),
+        tag="conv2d_transpose_nchw",
+    )
 
     return Output
 
@@ -130,24 +134,24 @@ def conv2d_transpose_legalize(attrs, inputs, types):
     result : tvm.relay.Expr
         The legalized expr
     """
-    if attrs['data_layout'] == 'NHWC':
+    if attrs["data_layout"] == "NHWC":
         data, kernel = inputs
-        kernel_layout = attrs['kernel_layout']
+        kernel_layout = attrs["kernel_layout"]
         # Convert Kernel layout to IOHW
         # kernel_layout is different from input kernel layout - IO is swapped
-        if kernel_layout == 'HWIO':
+        if kernel_layout == "HWIO":
             # input kernel layout is swapped to HWOI
             # output kernel layout will be IOHW
             kernel = relay.transpose(kernel, axes=(3, 2, 0, 1))
-        elif kernel_layout == 'HWOI':
+        elif kernel_layout == "HWOI":
             # input kernel layout is swapped to HWIO
             # output kernel layout will be IOHW
             kernel = relay.transpose(kernel, axes=(2, 3, 0, 1))
-        elif kernel_layout == 'IOHW':
+        elif kernel_layout == "IOHW":
             # input kernel layout is swapped to OIHW
             # output kernel layout will be IOHW
             kernel = relay.transpose(kernel, axes=(1, 0, 2, 3))
-        elif kernel_layout == 'OIHW':
+        elif kernel_layout == "OIHW":
             # input kernel layout is swapped to IOHW
             # output kernel layout will be IOHW
             pass
@@ -157,9 +161,9 @@ def conv2d_transpose_legalize(attrs, inputs, types):
 
         # Set new attrs for conv2d_transpose.
         new_attrs = {k: attrs[k] for k in attrs.keys()}
-        new_attrs['data_layout'] = 'NCHW'
+        new_attrs["data_layout"] = "NCHW"
         # layout of kernel should be IOHW, but kernel_layout should be swapped - OIHW
-        new_attrs['kernel_layout'] = 'OIHW'
+        new_attrs["kernel_layout"] = "OIHW"
 
         # Convert data to NCHW.
         data = relay.transpose(data, axes=(0, 3, 1, 2))

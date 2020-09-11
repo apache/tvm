@@ -24,6 +24,7 @@ import subprocess
 from . import util
 from .._ffi.base import py_str
 
+
 def tar(output, files):
     """Create tarball containing all files in root.
 
@@ -48,15 +49,14 @@ def tar(output, files):
     cmd += [output]
     cmd += ["-C", temp.temp_dir]
     cmd += temp.listdir()
-    proc = subprocess.Popen(cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:
         msg = "Tar error:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
+
 
 # assign output format
 tar.output_format = "tar"
@@ -77,9 +77,7 @@ def untar(tar_file, directory):
     cmd += ["-xf"]
     cmd += [tar_file]
     cmd += ["-C", directory]
-    proc = subprocess.Popen(cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:

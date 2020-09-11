@@ -52,15 +52,11 @@ def find_clang(required=True):
     valid_list = [util.which(x) for x in cc_list]
     valid_list = [x for x in valid_list if x]
     if not valid_list and required:
-        raise RuntimeError(
-            "cannot find clang, candidates are: " + str(cc_list))
+        raise RuntimeError("cannot find clang, candidates are: " + str(cc_list))
     return valid_list
 
 
-def create_llvm(inputs,
-                output=None,
-                options=None,
-                cc=None):
+def create_llvm(inputs, output=None, options=None, cc=None):
     """Create llvm text ir.
 
     Parameters
@@ -103,8 +99,7 @@ def create_llvm(inputs,
         cmd += options
     cmd += ["-o", output]
     cmd += input_files
-    proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         msg = "Compilation error:\n"

@@ -76,11 +76,7 @@ class HybridParser(ast.NodeVisitor):
         ast.Or: tir.Or,
     }
 
-    _unaryop_maker = {
-        ast.USub: operator.neg,
-        ast.Invert: operator.invert,
-        ast.Not: tir.Not
-    }
+    _unaryop_maker = {ast.USub: operator.neg, ast.Invert: operator.invert, ast.Not: tir.Not}
 
     def __init__(self, src, base_lienno):
         self.params = None
@@ -88,7 +84,7 @@ class HybridParser(ast.NodeVisitor):
         self.dict_attr = None
         self.scope_emitter = None
 
-        self.src = src.split('\n')
+        self.src = src.split("\n")
         self.base_lineno = base_lienno
         self.current_lineno = 0
         self.current_col_offset = 0
@@ -109,8 +105,12 @@ class HybridParser(ast.NodeVisitor):
     @staticmethod
     def is_meta(node):
         """Judge whether an AST node is META"""
-        return isinstance(node, ast.Assign) and len(node.targets) == 1 \
-               and isinstance(node.targets[0], ast.Name) and node.targets[0].id == "__tvm_meta__"
+        return (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "__tvm_meta__"
+        )
 
     def init_meta(self, meta_dict):
         if meta_dict is not None:
@@ -125,7 +125,7 @@ class HybridParser(ast.NodeVisitor):
         if hasattr(node, "col_offset"):
             self.current_col_offset = node.col_offset
 
-        method = 'visit_' + node.__class__.__name__
+        method = "visit_" + node.__class__.__name__
         visitor = getattr(self, method, self.generic_visit)
         visit_res = visitor(node)
 
@@ -136,14 +136,23 @@ class HybridParser(ast.NodeVisitor):
     def wrap_line_col(self, message, lineno, col_offset):
         """Wrap the message with line number and column offset"""
         src_line = self.src[lineno - self.base_lineno]
-        leading_space = len(src_line) - len(src_line.lstrip(' '))
+        leading_space = len(src_line) - len(src_line.lstrip(" "))
         col_offset = col_offset - leading_space
         src_line = src_line[leading_space:]
-        return "\n  " + src_line + "\n  " + " " * col_offset + "^\n" + "ParserError in line " \
-               + str(lineno) + " : " + message
+        return (
+            "\n  "
+            + src_line
+            + "\n  "
+            + " " * col_offset
+            + "^\n"
+            + "ParserError in line "
+            + str(lineno)
+            + " : "
+            + message
+        )
 
     def report_error(self, message, lineno=None, col_offset=None):
-        """ Report an error occur in line lineno and column col_offset
+        """Report an error occur in line lineno and column col_offset
         Parameters
         ----------
         message : str
@@ -161,8 +170,11 @@ class HybridParser(ast.NodeVisitor):
         raise HybridParserError(self.wrap_line_col(message, lineno, col_offset))
 
     def get_type_name(self, vtype):
-        if isinstance(vtype, ast.Attribute) \
-                and isinstance(vtype.value, ast.Name) and vtype.value.id == 'ty':
+        if (
+            isinstance(vtype, ast.Attribute)
+            and isinstance(vtype.value, ast.Name)
+            and vtype.value.id == "ty"
+        ):
             return vtype.attr
         self.report_error("invalid type annotation")
 
@@ -194,14 +206,14 @@ class HybridParser(ast.NodeVisitor):
         self.report_error("invalid type annotation")
 
     def generic_visit(self, node):
-        """ Override method in ast.NodeVisitor.
+        """Override method in ast.NodeVisitor.
         To directly filter out invalidate type of stmt.
         """
 
         self.report_error(type(node).__name__ + " stmt is not supported now")
 
     def visit_Module(self, node):
-        """ Module visitor
+        """Module visitor
         AST abstract grammar:
             Module(stmt* body, type_ignore* type_ignore)
         By now we support two format of hybrid script shown below.
@@ -250,10 +262,11 @@ class HybridParser(ast.NodeVisitor):
                 self.init_meta(MetaUnparser().visit(node.body[1].value))
                 return self.visit(node.body[0])
         self.report_error(
-            "Only one-function, one-class or function-with-meta source code is allowed")
+            "Only one-function, one-class or function-with-meta source code is allowed"
+        )
 
     def visit_ClassDef(self, node):
-        """ ClassDef visitor
+        """ClassDef visitor
         AST abstract grammar:
             ClassDef(identifier name, expr* bases, keyword* keywords, stmt* body,
                      expr* decorator_list)
@@ -275,10 +288,11 @@ class HybridParser(ast.NodeVisitor):
             if isinstance(body_element, ast.FunctionDef):
                 self.visit(body_element)
         from .utils import create_module
+
         return create_module(self.functions)
 
     def visit_FunctionDef(self, node):
-        """ FunctionDef visitor
+        """FunctionDef visitor
         AST abstract grammar:
             FunctionDef(identifier name, arguments args, stmt* body, expr* decorator_list,
                         expr? returns, string? type_comment)
@@ -298,15 +312,18 @@ class HybridParser(ast.NodeVisitor):
         self.scope_emitter.node_stack[-1].extend(reversed(node.body))
 
         # fetch the body and return a tir.PrimFunc
-        func = tvm.tir.PrimFunc(self.params, self.get_body(),
-                                ret_type=self.parse_type(node.returns),
-                                buffer_map=self.buffer_map,
-                                attrs=tvm.ir.make_node("DictAttrs", **self.dict_attr))
+        func = tvm.tir.PrimFunc(
+            self.params,
+            self.get_body(),
+            ret_type=self.parse_type(node.returns),
+            buffer_map=self.buffer_map,
+            attrs=tvm.ir.make_node("DictAttrs", **self.dict_attr),
+        )
         self.functions[GlobalVar(node.name)] = func
         return func
 
     def visit_Assign(self, node):
-        """ Assign visitor
+        """Assign visitor
         AST abstract grammar:
             Assign(expr* targets, expr value, string? type_comment)
         By now only 2 types of Assign is supported:
@@ -338,13 +355,14 @@ class HybridParser(ast.NodeVisitor):
             else:
                 if len(indexes) != 1:
                     self.report_error("Invalid Store stmt")
-                return tvm.tir.Store(symbol, tvm.runtime.convert(rhs), indexes[0],
-                                     tvm.runtime.convert(True))
+                return tvm.tir.Store(
+                    symbol, tvm.runtime.convert(rhs), indexes[0], tvm.runtime.convert(True)
+                )
         else:
             self.report_error("Unsupported Assign stmt")
 
     def visit_AnnAssign(self, node):
-        """ AnnAssign visitor
+        """AnnAssign visitor
         AST abstract grammar:
             AnnAssign(expr target, expr annotation, expr? value, int simple)
         Corresponds to concise mode of with tir.let()
@@ -359,7 +377,7 @@ class HybridParser(ast.NodeVisitor):
             self.report_error("Unsupported AnnAssign stmt")
 
     def visit_Assert(self, node):
-        """ Assert visitor
+        """Assert visitor
         AST abstract grammar:
             Assert(expr test, expr? msg)
         Corresponds to concise mode of with tir.assert()
@@ -372,7 +390,7 @@ class HybridParser(ast.NodeVisitor):
         return tvm.tir.AssertStmt(condition, tvm.runtime.convert(message), self.get_body())
 
     def visit_For(self, node):
-        """ For visitor
+        """For visitor
         AST abstract grammar:
             For(expr target, expr iter, stmt* body, stmt* orelse, string? type_comment)
         By now only 1 type of For is supported:
@@ -384,9 +402,11 @@ class HybridParser(ast.NodeVisitor):
         # check node.iter, which is a tir Call
         if not isinstance(node.iter, ast.Call):
             self.report_error("The loop iter should be a Call")
-        if not isinstance(node.iter.func, ast.Attribute) \
-                or not isinstance(node.iter.func.value, ast.Name) \
-                or node.iter.func.value.id != "tir":
+        if (
+            not isinstance(node.iter.func, ast.Attribute)
+            or not isinstance(node.iter.func.value, ast.Name)
+            or node.iter.func.value.id != "tir"
+        ):
             self.report_error("The loop iter Call should be tir.name()")
 
         func_name = node.iter.func.attr
@@ -396,19 +416,23 @@ class HybridParser(ast.NodeVisitor):
         kw_args = {kw_arg[0]: kw_arg[1] for kw_arg in kw_args}
         # All the functions supported in For stmt are registered in scope_handler.ForScope
         if func_name not in Registry.for_scope:
-            self.report_error("Function " + func_name + " used in For stmt is not supported now",
-                              self.current_lineno,
-                              node.iter.col_offset)
+            self.report_error(
+                "Function " + func_name + " used in For stmt is not supported now",
+                self.current_lineno,
+                node.iter.col_offset,
+            )
 
         old_lineno, old_col_offset = self.current_lineno, self.current_col_offset
-        self.current_lineno, self.current_col_offset = \
-            self.base_lineno + node.iter.lineno - 1, node.iter.col_offset
+        self.current_lineno, self.current_col_offset = (
+            self.base_lineno + node.iter.lineno - 1,
+            node.iter.col_offset,
+        )
         res = Registry.for_scope.get(func_name)(self, node, args, kw_args)
         self.current_lineno, self.current_col_offset = old_lineno, old_col_offset
         return res
 
     def visit_With(self, node):
-        """ With visitor
+        """With visitor
         AST abstract grammar:
             With(withitem* items, stmt* body, string? type_comment)
             withitem = (expr context_expr, expr? optional_vars)
@@ -421,9 +445,11 @@ class HybridParser(ast.NodeVisitor):
         if not isinstance(node.items[0].context_expr, ast.Call):
             self.report_error("The context expression of with should be a Call")
         func_call = node.items[0].context_expr
-        if not isinstance(func_call.func, ast.Attribute) \
-                or not isinstance(func_call.func.value, ast.Name) \
-                or func_call.func.value.id != "tir":
+        if (
+            not isinstance(func_call.func, ast.Attribute)
+            or not isinstance(func_call.func.value, ast.Name)
+            or func_call.func.value.id != "tir"
+        ):
             self.report_error("The context expression of with should be tir.name()")
 
         func_name = func_call.func.attr
@@ -436,14 +462,16 @@ class HybridParser(ast.NodeVisitor):
 
         # All the functions supported in With stmt are registered in scope_handler.WithScope
         old_lineno, old_col_offset = self.current_lineno, self.current_col_offset
-        self.current_lineno, self.current_col_offset = \
-            self.base_lineno + func_call.lineno - 1, func_call.col_offset
+        self.current_lineno, self.current_col_offset = (
+            self.base_lineno + func_call.lineno - 1,
+            func_call.col_offset,
+        )
         res = Registry.with_scope.get(func_name)(self, node, args, kw_args)
         self.current_lineno, self.current_col_offset = old_lineno, old_col_offset
         return res
 
     def visit_If(self, node):
-        """ If visitor
+        """If visitor
         AST abstract grammar:
             If(expr test, stmt* body, stmt* orelse)
         """
@@ -466,7 +494,7 @@ class HybridParser(ast.NodeVisitor):
         return tvm.tir.IfThenElse(condition, then_body, else_body)
 
     def visit_Call(self, node):
-        """ Call visitor
+        """Call visitor
         AST abstract grammar:
             Call(expr func, expr* args, keyword* keywords)
             keyword = (identifier? arg, expr value)
@@ -499,7 +527,7 @@ class HybridParser(ast.NodeVisitor):
         self.report_error("Function " + func_name + " is not supported now")
 
     def visit_Expr(self, node):
-        """ Expr visitor
+        """Expr visitor
         AST abstract grammar:
             Expr(expr value)
 
@@ -515,7 +543,7 @@ class HybridParser(ast.NodeVisitor):
         return self.visit(node.value)
 
     def visit_BinOp(self, node):
-        """ BinOp visitor
+        """BinOp visitor
         AST abstract grammar:
             BinOp(expr left, operator op, expr right)
         """
@@ -527,7 +555,7 @@ class HybridParser(ast.NodeVisitor):
         return HybridParser._binop_maker[type(node.op)](lhs, rhs)
 
     def visit_Compare(self, node):
-        """ Compare visitor
+        """Compare visitor
         AST abstract grammar:
             Compare(expr left, expr right, ops=)
         """
@@ -542,7 +570,7 @@ class HybridParser(ast.NodeVisitor):
         return _all(*res)
 
     def visit_BoolOp(self, node):
-        """ BoolOp visitor
+        """BoolOp visitor
         AST abstract grammar:
             BoolOp(boolop op, expr* values)
         """
@@ -551,7 +579,7 @@ class HybridParser(ast.NodeVisitor):
         return HybridParser._binop_maker[type(node.op)](*values)
 
     def visit_UnaryOp(self, node):
-        """ UnaryOp visitor
+        """UnaryOp visitor
         AST abstract grammar:
             UnaryOp(unaryop op, expr operand)
         """
@@ -562,7 +590,7 @@ class HybridParser(ast.NodeVisitor):
         return HybridParser._unaryop_maker[type(node.op)](operand)
 
     def visit_Subscript(self, node):
-        """ Subscript visitor
+        """Subscript visitor
         AST abstract grammar:
             Subscript(expr value, slice slice, expr_context ctx)
             slice = Slice(expr? lower, expr? upper, expr? step)
@@ -616,12 +644,18 @@ class HybridParser(ast.NodeVisitor):
                     doms.append(tvm.ir.Range.from_min_extent(lower, extent))
                 return symbol, doms
 
-        elif isinstance(node.value, ast.Subscript) and isinstance(node.value.value, ast.Name) \
-                and node.value.value.id == 'meta':
+        elif (
+            isinstance(node.value, ast.Subscript)
+            and isinstance(node.value.value, ast.Name)
+            and node.value.value.id == "meta"
+        ):
             # meta[type_key][index]
-            if not (isinstance(node.slice, ast.Index) and isinstance(node.slice.value, ast.Num)) \
-                    or not (isinstance(node.value.slice, ast.Index) \
-                            and isinstance(node.value.slice.value, ast.Name)):
+            if not (
+                isinstance(node.slice, ast.Index) and isinstance(node.slice.value, ast.Num)
+            ) or not (
+                isinstance(node.value.slice, ast.Index)
+                and isinstance(node.value.slice.value, ast.Name)
+            ):
                 self.report_error("The meta access format ought to be meta[type_key][index]")
             type_key = node.value.slice.value.id
             index = node.slice.value.n
@@ -635,7 +669,7 @@ class HybridParser(ast.NodeVisitor):
             self.report_error("Only buffer variable and meta can be subscriptable")
 
     def visit_Name(self, node):
-        """ Name visitor
+        """Name visitor
         AST abstract grammar:
             Name(identifier id, expr_context ctx)
         """
@@ -647,7 +681,7 @@ class HybridParser(ast.NodeVisitor):
         return symbol
 
     def visit_Attribute(self, node):
-        """ Attribute visitor
+        """Attribute visitor
         AST abstract grammar:
             Attribute(expr value, identifier attr, expr_context ctx)
         """
@@ -663,7 +697,7 @@ class HybridParser(ast.NodeVisitor):
         return getattr(symbol, node.attr)
 
     def visit_Dict(self, node):
-        """ Dict visitor
+        """Dict visitor
         AST abstract grammar:
             Dict(expr* keys, expr* values)
         """
@@ -674,7 +708,7 @@ class HybridParser(ast.NodeVisitor):
         return {key: value for key, value in zip(keys, values)}
 
     def visit_Tuple(self, node):
-        """ Tuple visitor
+        """Tuple visitor
         AST abstract grammar:
             Tuple(expr* elts, expr_context ctx)
         """
@@ -682,7 +716,7 @@ class HybridParser(ast.NodeVisitor):
         return tuple(self.visit(element) for element in node.elts)
 
     def visit_List(self, node):
-        """ List visitor
+        """List visitor
         AST abstract grammar:
             List(expr* elts, expr_context ctx)
         """
@@ -690,7 +724,7 @@ class HybridParser(ast.NodeVisitor):
         return [self.visit(element) for element in node.elts]
 
     def visit_keyword(self, node):
-        """ Keyword visitor
+        """Keyword visitor
         AST abstract grammar:
             keyword = (identifier? arg, expr value)
         """
@@ -717,7 +751,7 @@ class HybridParser(ast.NodeVisitor):
 
 
 def from_source(src, func_lineno=0):
-    """ Parse the src into TIR
+    """Parse the src into TIR
 
     Parameters
     ----------
@@ -740,13 +774,14 @@ def from_source(src, func_lineno=0):
         raise e
     except TVMError as e:
         # TVM internal c++ error, we have to process the error message and inject line info
-        inject_e = str(e).split('\n')
-        msg = inject_e[-1].split(':', maxsplit=1)[1].strip()
+        inject_e = str(e).split("\n")
+        msg = inject_e[-1].split(":", maxsplit=1)[1].strip()
         inject_e = inject_e[:-1]
         inject_e.extend(
-            parser.wrap_line_col(msg, parser.current_lineno, parser.current_col_offset).split('\n'))
+            parser.wrap_line_col(msg, parser.current_lineno, parser.current_col_offset).split("\n")
+        )
         inject_e[-1] = "TVM" + inject_e[-1][6:]
-        raise TVMError('\n'.join(inject_e))
+        raise TVMError("\n".join(inject_e))
     except Exception as e:
         inject_e = parser.wrap_line_col(str(e), parser.current_lineno, parser.current_col_offset)
         raise HybridParserError(inject_e)

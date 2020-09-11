@@ -152,6 +152,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
     """
     return _schedule_conv2d(outs)
 
+
 def schedule_bitserial_conv2d_nchw(outs):
     """Schedule for bitserial_conv2d_nchw
 
@@ -253,17 +254,21 @@ def schedule_softmax(outs):
     softmax = outs[0]
 
     op_tag = softmax.op.tag
-    if op_tag == 'softmax_output':
+    if op_tag == "softmax_output":
         expsum = softmax.op.input_tensors[1]
         exp = softmax.op.input_tensors[0]
         max_elem = s[exp].op.input_tensors[1]
-    elif op_tag == 'log_softmax_output':
+    elif op_tag == "log_softmax_output":
         exp = None
         max_elem = softmax.op.input_tensors[1]
         expsum = softmax.op.input_tensors[2]
     else:
-        raise ValueError('Tag is expected to be softmax_output or log_softmax_output. \
-                         Got {0}'.format(op_tag))
+        raise ValueError(
+            "Tag is expected to be softmax_output or log_softmax_output. \
+                         Got {0}".format(
+                op_tag
+            )
+        )
 
     if exp is not None:
         s[exp].compute_at(s[softmax], s[softmax].op.axis[1])
@@ -304,7 +309,7 @@ def schedule_dense(outs):
                 if isinstance(tensor.op, tvm.te.ComputeOp):
                     traverse(tensor.op)
         # schedule dense
-        elif OP.tag == 'dense':
+        elif OP.tag == "dense":
             Dense = OP.output(0)
             if not Dense.op in s.outputs:
                 Out = outs[0].op.output(0)
@@ -347,7 +352,7 @@ def schedule_pool(outs, layout):
                 if isinstance(tensor.op, tvm.te.ComputeOp):
                     traverse(tensor.op)
         # schedule pool
-        elif OP.tag.startswith('pool'):
+        elif OP.tag.startswith("pool"):
             Pool = OP.output(0)
             if not Pool.op in s.outputs:
                 Out = outs[0].op.output(0)
@@ -390,7 +395,7 @@ def schedule_adaptive_pool(outs):
                 if isinstance(tensor.op, tvm.te.ComputeOp):
                     traverse(tensor.op)
         # schedule global_pool
-        elif OP.tag.startswith('adaptive_pool'):
+        elif OP.tag.startswith("adaptive_pool"):
             Pool = OP.output(0)
             if not Pool.op in s.outputs:
                 Out = outs[0].op.output(0)

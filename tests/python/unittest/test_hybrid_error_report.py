@@ -91,11 +91,11 @@ def wrap_error(module, lineno):
     assert error is not None
     e = error.value
     print(e)
-    msg = str(e).split('\n')[-1].split(':', maxsplit=1)[0].strip().split(' ')[-1].strip()
+    msg = str(e).split("\n")[-1].split(":", maxsplit=1)[0].strip().split(" ")[-1].strip()
     assert int(msg) == lineno
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     wrap_error(Module1, 29)
     wrap_error(Module2, 39)
     wrap_error(Module3, 50)

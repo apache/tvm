@@ -47,9 +47,9 @@ from PIL import Image
 # ----------------------------
 # We will download and load a pretrained mobilenet classification network
 # provided by apple in this example
-model_url = 'https://docs-assets.developer.apple.com/coreml/models/MobileNet.mlmodel'
-model_file = 'mobilenet.mlmodel'
-model_path = download_testdata(model_url, model_file, module='coreml')
+model_url = "https://docs-assets.developer.apple.com/coreml/models/MobileNet.mlmodel"
+model_file = "mobilenet.mlmodel"
+model_path = download_testdata(model_url, model_file, module="coreml")
 # Now you have mobilenet.mlmodel on disk
 mlmodel = cm.models.MLModel(model_path)
 
@@ -57,19 +57,19 @@ mlmodel = cm.models.MLModel(model_path)
 # Load a test image
 # ------------------
 # A single cat dominates the examples!
-img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-img_path = download_testdata(img_url, 'cat.png', module='data')
+img_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
+img_path = download_testdata(img_url, "cat.png", module="data")
 img = Image.open(img_path).resize((224, 224))
 # Mobilenet.mlmodel's input is BGR format
-img_bgr = np.array(img)[:,:,::-1]
+img_bgr = np.array(img)[:, :, ::-1]
 x = np.transpose(img_bgr, (2, 0, 1))[np.newaxis, :]
 
 ######################################################################
 # Compile the model on Relay
 # ---------------------------
 # We should be familiar with the process right now.
-target = 'llvm'
-shape_dict = {'image': x.shape}
+target = "llvm"
+shape_dict = {"image": x.shape}
 
 # Parse CoreML model and convert into Relay computation graph
 mod, params = relay.frontend.from_coreml(mlmodel, shape_dict)
@@ -82,11 +82,12 @@ with tvm.transform.PassContext(opt_level=3):
 # -------------------
 # The process is no different from other example
 from tvm.contrib import graph_runtime
+
 ctx = tvm.cpu(0)
-dtype = 'float32'
-m = graph_runtime.GraphModule(lib['default'](ctx))
+dtype = "float32"
+m = graph_runtime.GraphModule(lib["default"](ctx))
 # set inputs
-m.set_input('image', tvm.nd.array(x.astype(dtype)))
+m.set_input("image", tvm.nd.array(x.astype(dtype)))
 # execute
 m.run()
 # get outputs
@@ -97,13 +98,17 @@ top1 = np.argmax(tvm_output.asnumpy()[0])
 # Look up synset name
 # -------------------
 # Look up prediction top 1 index in 1000 class synset.
-synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
-                      '4d0b62f3d01426887599d4f7ede23ee5/raw/',
-                      '596b27d23537e5a1b5751d2b0481ef172f58b539/',
-                      'imagenet1000_clsid_to_human.txt'])
-synset_name = 'imagenet1000_clsid_to_human.txt'
-synset_path = download_testdata(synset_url, synset_name, module='data')
+synset_url = "".join(
+    [
+        "https://gist.githubusercontent.com/zhreshold/",
+        "4d0b62f3d01426887599d4f7ede23ee5/raw/",
+        "596b27d23537e5a1b5751d2b0481ef172f58b539/",
+        "imagenet1000_clsid_to_human.txt",
+    ]
+)
+synset_name = "imagenet1000_clsid_to_human.txt"
+synset_path = download_testdata(synset_url, synset_name, module="data")
 with open(synset_path) as f:
     synset = eval(f.read())
 # You should see the following result: Top-1 id 282 class name tiger cat
-print('Top-1 id', top1, 'class name', synset[top1])
+print("Top-1 id", top1, "class name", synset[top1])

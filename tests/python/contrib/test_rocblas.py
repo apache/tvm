@@ -19,13 +19,14 @@ from tvm import te
 import numpy as np
 from tvm.contrib import rocblas
 
+
 @tvm.testing.requires_rocm
 def test_matmul_add():
     n = 1024
     l = 128
     m = 235
-    A = te.placeholder((n, l), name='A')
-    B = te.placeholder((l, m), name='B')
+    A = te.placeholder((n, l), name="A")
+    B = te.placeholder((l, m), name="B")
     C = rocblas.matmul(A, B)
     s = te.create_schedule(C.op)
 
@@ -39,8 +40,8 @@ def test_matmul_add():
         b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), ctx)
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
         f(a, b, c)
-        tvm.testing.assert_allclose(
-            c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()), rtol=1e-5)
+        tvm.testing.assert_allclose(c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()), rtol=1e-5)
+
     verify()
 
 

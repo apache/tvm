@@ -38,7 +38,7 @@ import os
 
 batch_size = 1
 model_name = "resnet18_v1"
-target = 'cuda'
+target = "cuda"
 ctx = tvm.context(target)
 
 ###############################################################################
@@ -47,8 +47,10 @@ ctx = tvm.context(target)
 # We will demonstrate how to prepare the calibration dataset for quantization.
 # We first download the validation set of ImageNet and pre-process the dataset.
 calibration_rec = download_testdata(
-    'http://data.mxnet.io.s3-website-us-west-1.amazonaws.com/data/val_256_q90.rec',
-    'val_256_q90.rec')
+    "http://data.mxnet.io.s3-website-us-west-1.amazonaws.com/data/val_256_q90.rec",
+    "val_256_q90.rec",
+)
+
 
 def get_val_data(num_workers=4):
     mean_rgb = [123.68, 116.779, 103.939]
@@ -57,7 +59,7 @@ def get_val_data(num_workers=4):
     def batch_fn(batch):
         return batch.data[0].asnumpy(), batch.label[0].asnumpy()
 
-    img_size = 299 if model_name == 'inceptionv3' else 224
+    img_size = 299 if model_name == "inceptionv3" else 224
     val_data = mx.io.ImageRecordIter(
         path_imgrec=calibration_rec,
         preprocess_threads=num_workers,
@@ -82,6 +84,7 @@ def get_val_data(num_workers=4):
 
 calibration_samples = 10
 
+
 def calibrate_dataset():
     val_data, batch_fn = get_val_data()
     val_data.reset()
@@ -89,7 +92,7 @@ def calibrate_dataset():
         if i * batch_size >= calibration_samples:
             break
         data, _ = batch_fn(batch)
-        yield {'data': data}
+        yield {"data": data}
 
 
 ###############################################################################
@@ -98,7 +101,7 @@ def calibrate_dataset():
 # We use the Relay MxNet frontend to import a model from the Gluon model zoo.
 def get_model():
     gluon_model = gluon.model_zoo.vision.get_model(model_name, pretrained=True)
-    img_size = 299 if model_name == 'inceptionv3' else 224
+    img_size = 299 if model_name == "inceptionv3" else 224
     data_shape = (batch_size, 3, img_size, img_size)
     mod, params = relay.frontend.from_mxnet(gluon_model, {"data": data_shape})
     return mod, params
@@ -127,12 +130,13 @@ def get_model():
 # Alternatively, we can also use pre-defined global scales. This saves the time
 # for calibration. But the accuracy might be impacted.
 
+
 def quantize(mod, params, data_aware):
     if data_aware:
-        with relay.quantize.qconfig(calibrate_mode='kl_divergence', weight_scale='max'):
+        with relay.quantize.qconfig(calibrate_mode="kl_divergence", weight_scale="max"):
             mod = relay.quantize.quantize(mod, params, dataset=calibrate_dataset())
     else:
-        with relay.quantize.qconfig(calibrate_mode='global_scale', global_scale=8.0):
+        with relay.quantize.qconfig(calibrate_mode="global_scale", global_scale=8.0):
             mod = relay.quantize.quantize(mod, params)
     return mod
 
@@ -142,7 +146,7 @@ def quantize(mod, params, data_aware):
 # -------------
 # We create a Relay VM to build and execute the model.
 def run_inference(mod):
-    executor = relay.create_executor('vm', mod, ctx, target)
+    executor = relay.create_executor("vm", mod, ctx, target)
     val_data, batch_fn = get_val_data()
     for i, batch in enumerate(val_data):
         data, label = batch_fn(batch)
@@ -150,10 +154,12 @@ def run_inference(mod):
         if i > 10:  # only run inference on a few samples in this tutorial
             break
 
+
 def main():
     mod, params = get_model()
     mod = quantize(mod, params, data_aware=True)
     run_inference(mod)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -32,8 +32,8 @@ def schedule_conv1d_ncw(outs):
         if tag.is_broadcast(op.tag):
             if op not in s.outputs:
                 s[op].compute_inline()
-            else: # inject custom schedule
-                if len(op.axis) == 3: # schedule bias + bn + relu
+            else:  # inject custom schedule
+                if len(op.axis) == 3:  # schedule bias + bn + relu
                     n, c, w = op.axis
                     fused = s[op].fuse(n, c)
                     s[op].parallel(fused)
@@ -42,7 +42,7 @@ def schedule_conv1d_ncw(outs):
                 if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
 
-        if 'conv1d_ncw' in op.tag:
+        if "conv1d_ncw" in op.tag:
             conv = op.output(0)
             kernel = op.input_tensors[1]
             if isinstance(kernel.op, te.tensor.ComputeOp) and "dilate" in kernel.op.tag:
@@ -62,7 +62,7 @@ def schedule_conv1d_ncw(outs):
             rc, rw = C.op.reduce_axis
             n_out, c_out, w_out = output_op.axis
             s[C].vectorize(w)
-            if op != output_op: # fuse bias + bn + relu into conv
+            if op != output_op:  # fuse bias + bn + relu into conv
                 s[C].compute_at(s[output_op], w_out)
             else:
                 fused = s[C].fuse(n, c)
@@ -86,8 +86,8 @@ def schedule_conv1d_nwc(outs):
         if tag.is_broadcast(op.tag):
             if op not in s.outputs:
                 s[op].compute_inline()
-            else: # inject custom schedule
-                if len(op.axis) == 3: # schedule bias + bn + relu
+            else:  # inject custom schedule
+                if len(op.axis) == 3:  # schedule bias + bn + relu
                     n, w, c = op.axis
                     fused = s[op].fuse(n, w)
                     s[op].parallel(fused)
@@ -96,7 +96,7 @@ def schedule_conv1d_nwc(outs):
                 if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
 
-        if 'conv1d_nwc' in op.tag:
+        if "conv1d_nwc" in op.tag:
             conv = op.output(0)
             kernel = op.input_tensors[1]
             if isinstance(kernel.op, te.tensor.ComputeOp) and "dilate" in kernel.op.tag:
@@ -116,7 +116,7 @@ def schedule_conv1d_nwc(outs):
             rc, rw = C.op.reduce_axis
             n_out, w_out, c_out = output_op.axis
             s[C].vectorize(c)
-            if op != output_op: # fuse bias + bn + relu into conv
+            if op != output_op:  # fuse bias + bn + relu into conv
                 s[C].compute_at(s[output_op], c_out)
             else:
                 fused = s[C].fuse(n, w)

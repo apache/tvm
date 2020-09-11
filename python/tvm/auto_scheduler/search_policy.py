@@ -42,7 +42,7 @@ class SearchCallback(Object):
 
 @tvm._ffi.register_object("auto_scheduler.PreloadMeasuredStates")
 class PreloadMeasuredStates(SearchCallback):
-    """ A SearchCallback to load measured states from the log file for a search policy.
+    """A SearchCallback to load measured states from the log file for a search policy.
 
     This can resume the state of the search policy:
         - Making sure an already measured state in former searches will never be measured again.
@@ -54,6 +54,7 @@ class PreloadMeasuredStates(SearchCallback):
     filename : str
         The name of the record file.
     """
+
     def __init__(self, filename="auto_scheduler_tuning.json"):
         self.__init_handle_by_constructor__(_ffi_api.PreloadMeasuredStates, filename)
 
@@ -65,7 +66,7 @@ class SearchPolicy(Object):
 
 @tvm._ffi.register_object("auto_scheduler.EmptyPolicy")
 class EmptyPolicy(SearchPolicy):
-    """ This is an example empty search policy which will always generate
+    """This is an example empty search policy which will always generate
     the init state of ComputeDAG.
 
     Parameters
@@ -75,13 +76,14 @@ class EmptyPolicy(SearchPolicy):
     init_search_callbacks : Optional[List[SearchCallback]]
         Callback functions called before the search process.
     """
+
     def __init__(self, task, init_search_callbacks=None):
         self.__init_handle_by_constructor__(_ffi_api.EmptyPolicy, task, init_search_callbacks)
 
 
 @tvm._ffi.register_object("auto_scheduler.SketchPolicy")
 class SketchPolicy(SearchPolicy):
-    """  The search policy that searches in a hierarchical search space defined by sketches.
+    """The search policy that searches in a hierarchical search space defined by sketches.
     The policy randomly samples programs from the space defined by sketches and use evolutionary
     search to fine-tune them.
 
@@ -111,25 +113,28 @@ class SketchPolicy(SearchPolicy):
     DEFAULT_PARAMS = {
         "eps_greedy": 0.05,
         "retry_search_one_round_on_empty": 10,
-
-        'evolutionary_search_population': 2048,
-        'evolutionary_search_num_iters': 10,
-        'evolutionary_search_mutation_prob': 0.85,
+        "evolutionary_search_population": 2048,
+        "evolutionary_search_num_iters": 10,
+        "evolutionary_search_mutation_prob": 0.85,
         "evolutionary_search_use_measured_ratio": 0.2,
-
-        'cpu_multi_level_tiling_structure': 'SSRSRS',
-        'gpu_multi_level_tiling_structure': 'SSSRRSRS',
+        "cpu_multi_level_tiling_structure": "SSRSRS",
+        "gpu_multi_level_tiling_structure": "SSSRRSRS",
         # Notice: the default thread bind policy of GPU assumes the tiling structure to have at
         # least 3 spatial tiling levels in outermost
-
-        'max_innermost_split_factor': 16,
-        'max_vectorize_size': 16,
-
-        'disable_change_compute_location': 0,
+        "max_innermost_split_factor": 16,
+        "max_vectorize_size": 16,
+        "disable_change_compute_location": 0,
     }
 
-    def __init__(self, task, schedule_cost_model=RandomModel(), params=None, seed=None, verbose=1,
-                 init_search_callbacks=None):
+    def __init__(
+        self,
+        task,
+        schedule_cost_model=RandomModel(),
+        params=None,
+        seed=None,
+        verbose=1,
+        init_search_callbacks=None,
+    ):
         if params is None:
             params = SketchPolicy.DEFAULT_PARAMS
         else:
@@ -138,11 +143,17 @@ class SketchPolicy(SearchPolicy):
                     params[key] = value
 
         self.__init_handle_by_constructor__(
-            _ffi_api.SketchPolicy, task, schedule_cost_model, params,
-            seed or random.randint(1, 1 << 30), verbose, init_search_callbacks)
+            _ffi_api.SketchPolicy,
+            task,
+            schedule_cost_model,
+            params,
+            seed or random.randint(1, 1 << 30),
+            verbose,
+            init_search_callbacks,
+        )
 
     def generate_sketches(self, print_for_debug=False):
-        """ Generate the sketches.
+        """Generate the sketches.
         This python interface is mainly used for debugging and testing.
         The actual search is all done in c++.
 

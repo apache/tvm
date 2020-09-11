@@ -36,8 +36,7 @@ def find_minrpc_server_libpath(server="posix_popen_server"):
     curr_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     source_dir = os.path.abspath(os.path.join(curr_dir, "..", "..", ".."))
 
-    path = os.path.join(
-        source_dir, "src", "runtime", "rpc", "minrpc", ("%s.cc" % server))
+    path = os.path.join(source_dir, "src", "runtime", "rpc", "minrpc", ("%s.cc" % server))
 
     candidates = [path]
     if not os.path.isfile(path):
@@ -45,9 +44,7 @@ def find_minrpc_server_libpath(server="posix_popen_server"):
     return path
 
 
-def with_minrpc(compile_func,
-                server="posix_popen_server",
-                runtime="libtvm"):
+def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm"):
     """Attach the compiler function with minrpc related options.
 
     Parameters
@@ -67,8 +64,7 @@ def with_minrpc(compile_func,
         The return compilation.
     """
     server_path = find_minrpc_server_libpath(server)
-    runtime_path = libinfo.find_lib_path(
-        [runtime, runtime + ".so", runtime + ".dylib"])[0]
+    runtime_path = libinfo.find_lib_path([runtime, runtime + ".so", runtime + ".dylib"])[0]
 
     runtime_dir = os.path.abspath(os.path.dirname(runtime_path))
     options = ["-std=c++14"]
@@ -78,9 +74,8 @@ def with_minrpc(compile_func,
     options += ["-Wl,-rpath=" + runtime_dir]
     options += ["-I" + path for path in libinfo.find_include_path()]
     fcompile = cc.cross_compiler(
-        compile_func,
-        options=options,
-        add_files=[server_path, runtime_path])
+        compile_func, options=options, add_files=[server_path, runtime_path]
+    )
     fcompile.__name__ = "with_minrpc"
     fcompile.need_system_lib = True
     return fcompile

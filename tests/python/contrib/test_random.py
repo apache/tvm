@@ -22,10 +22,11 @@ from tvm.contrib import random
 from tvm import rpc
 import tvm.testing
 
+
 def test_randint():
     m = 10240
     n = 10240
-    A = random.randint(-127, 128, size=(m, n), dtype='int32')
+    A = random.randint(-127, 128, size=(m, n), dtype="int32")
     s = te.create_schedule(A.op)
 
     def verify(target="llvm"):
@@ -43,6 +44,7 @@ def test_randint():
         assert abs(np.mean(na)) < 0.3
         assert np.min(na) == -127
         assert np.max(na) == 127
+
     verify()
 
 
@@ -67,6 +69,7 @@ def test_uniform():
         assert abs(np.mean(na) - 0.5) < 1e-1
         assert abs(np.min(na) - 0.0) < 1e-3
         assert abs(np.max(na) - 1.0) < 1e-3
+
     verify()
 
 
@@ -91,7 +94,9 @@ def test_normal():
         na = a.asnumpy()
         assert abs(np.mean(na) - 3) < 1e-1
         assert abs(np.std(na) - 4) < 1e-2
+
     verify()
+
 
 @tvm.testing.uses_gpu
 def test_random_fill():
@@ -129,11 +134,24 @@ def test_random_fill():
         np_values = value.asnumpy()
         assert np.isfinite(np_values * np_values + np_values).any()
 
-    for dtype in ["bool", "int8", "uint8", "int16", "uint16", "int32", "int32",
-                  "int64", "uint64", "float16", "float32", "float64"]:
+    for dtype in [
+        "bool",
+        "int8",
+        "uint8",
+        "int16",
+        "uint16",
+        "int32",
+        "int32",
+        "int64",
+        "uint64",
+        "float16",
+        "float32",
+        "float64",
+    ]:
         for _, ctx in tvm.testing.enabled_targets():
             test_local(ctx, dtype)
         test_rpc(dtype)
+
 
 if __name__ == "__main__":
     test_randint()
@@ -141,4 +159,3 @@ if __name__ == "__main__":
     # TODO(trevmorr): Disabled in neo-ai/tvm due to MemoryError
     # test_normal()
     test_random_fill()
-

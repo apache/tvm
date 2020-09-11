@@ -23,13 +23,14 @@ from .environment import get_env
 
 def EarlyRewrite():
     """Try to do storage rewrite in early pass."""
+
     def _transform(mod, ctx):
         try:
             return tvm.tir.transform.StorageRewrite()(mod)
         except tvm.error.TVMError:
             return mod
-    return tvm.transform.module_pass(
-        _transform, opt_level=0, name="tir.vta.EarlyRewrite")
+
+    return tvm.transform.module_pass(_transform, opt_level=0, name="tir.vta.EarlyRewrite")
 
 
 def build_config(debug_flag=0, **kwargs):
@@ -60,32 +61,28 @@ def build_config(debug_flag=0, **kwargs):
 
     @tvm.tir.transform.prim_func_pass(opt_level=0)
     def add_debug(f, *_):
-        debug = tvm.tir.call_extern(
-            "int32", "VTASetDebugMode",
-            env.dev.command_handle,
-            debug_flag)
+        debug = tvm.tir.call_extern("int32", "VTASetDebugMode", env.dev.command_handle, debug_flag)
 
         return f.with_body(tvm.tir.stmt_seq(debug, f.body))
 
-
-    pass_list = [(0, transform.InjectConv2DTransposeSkip()),
-                 (1, transform.InjectDMAIntrin()),
-                 (1, transform.InjectSkipCopy()),
-                 (1, transform.AnnotateALUCoProcScope()),
-                 (1, tvm.tir.transform.LiftAttrScope("coproc_uop_scope")),
-                 (1, transform.LiftAllocToScopeBegin()),
-                 (1, tvm.tir.transform.LiftAttrScope("coproc_scope")),
-                 (1, transform.InjectCoProcSync()),
-                 (1, EarlyRewrite())]
+    pass_list = [
+        (0, transform.InjectConv2DTransposeSkip()),
+        (1, transform.InjectDMAIntrin()),
+        (1, transform.InjectSkipCopy()),
+        (1, transform.AnnotateALUCoProcScope()),
+        (1, tvm.tir.transform.LiftAttrScope("coproc_uop_scope")),
+        (1, transform.LiftAllocToScopeBegin()),
+        (1, tvm.tir.transform.LiftAttrScope("coproc_scope")),
+        (1, transform.InjectCoProcSync()),
+        (1, EarlyRewrite()),
+    ]
     if debug_flag:
         pass_list.append((1, add_debug))
     pass_list.append((2, transform.InjectALUIntrin()))
     pass_list.append((3, tvm.tir.transform.LowerDeviceStorageAccessInfo()))
     pass_list.append((3, transform.FoldUopLoop()))
     pass_list.append((3, transform.CPUAccessRewrite()))
-    config = {
-        "tir.add_lower_pass": pass_list
-    }
+    config = {"tir.add_lower_pass": pass_list}
     if kwargs.get("config"):
         config.update(kwargs[config])
         del kwargs["config"]

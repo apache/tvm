@@ -21,7 +21,7 @@ from . import create_micro_lib_base, register_device, gen_mem_layout, MemConstra
 
 DEVICE_ID = "host"
 TOOLCHAIN_PREFIX = ""
-WORD_SIZE_BITS = 64 if sys.maxsize > 2**32 else 32
+WORD_SIZE_BITS = 64 if sys.maxsize > 2 ** 32 else 32
 
 # we pretend we only have 320kb in the default case, so we can use `gen_mem_layout`
 DEFAULT_AVAILABLE_MEM = 3200000
@@ -35,6 +35,7 @@ DEFAULT_SECTION_CONSTRAINTS = {
     "workspace": (64000, MemConstraint.ABSOLUTE_BYTES),
     "stack": (80, MemConstraint.ABSOLUTE_BYTES),
 }
+
 
 def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=None):
     """Wrapper over `create_micro_lib_base` to add device-specific options
@@ -62,12 +63,18 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=N
         options = list(options)
     # Cannot increase optimization level on host due to code loading method.
     options.append("-O0")
-    if sys.maxsize > 2**32 and sys.platform.startswith("linux"):
+    if sys.maxsize > 2 ** 32 and sys.platform.startswith("linux"):
         options += ["-mcmodel=large"]
-    options.append('-DUTVM_TARGET_HOST')
+    options.append("-DUTVM_TARGET_HOST")
     create_micro_lib_base(
-        obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options,
-        lib_src_paths=lib_src_paths)
+        obj_path,
+        src_path,
+        TOOLCHAIN_PREFIX,
+        DEVICE_ID,
+        lib_type,
+        options=options,
+        lib_src_paths=lib_src_paths,
+    )
 
 
 def generate_config(available_mem=None, section_constraints=None):
@@ -111,7 +118,10 @@ def generate_config(available_mem=None, section_constraints=None):
     }
 
 
-register_device(DEVICE_ID, {
-    "create_micro_lib": create_micro_lib,
-    "generate_config": generate_config,
-})
+register_device(
+    DEVICE_ID,
+    {
+        "create_micro_lib": create_micro_lib,
+        "generate_config": generate_config,
+    },
+)

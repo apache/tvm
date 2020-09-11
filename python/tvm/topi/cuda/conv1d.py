@@ -25,13 +25,7 @@ from ..util import traverse_inline, get_const_tuple
 
 
 @autotvm.register_topi_compute("conv1d_ncw.cuda")
-def conv1d_ncw(cfg,
-               data,
-               kernel,
-               strides,
-               padding,
-               dilation,
-               out_dtype='float32'):
+def conv1d_ncw(cfg, data, kernel, strides, padding, dilation, out_dtype="float32"):
     return nn.conv1d_ncw(data, kernel, strides, padding, dilation, out_dtype)
 
 
@@ -57,7 +51,7 @@ def schedule_conv1d_ncw(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == 'conv1d_ncw':
+        if op.tag == "conv1d_ncw":
             pad_data = op.input_tensors[0]
             kernel = op.input_tensors[1]
             conv = op.output(0)
@@ -72,29 +66,28 @@ def schedule_conv1d_ncw(cfg, outs):
             cfg.define_knob("auto_unroll_max_step", [64, 512, 1500])
 
             target = tvm.target.Target.current()
-            if target.kind.name in ['nvptx', 'rocm']:
+            if target.kind.name in ["nvptx", "rocm"]:
                 cfg.define_knob("unroll_explicit", [1])
             else:
                 cfg.define_knob("unroll_explicit", [0, 1])
 
             ##### space definition end #####
 
-            if isinstance(kernel.op,
-                          tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
+            if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
             if conv.op in s.outputs:
                 output = conv
-                OL = s.cache_write(conv, 'local')
+                OL = s.cache_write(conv, "local")
             else:
                 output = s.outputs[0].output(0)
-                s[conv].set_scope('local')
+                s[conv].set_scope("local")
                 OL = conv
 
             # create cache stage
-            s[pad_data].set_scope('shared')
+            s[pad_data].set_scope("shared")
             AA = pad_data
-            WW = s.cache_read(kernel, 'shared', [OL])
+            WW = s.cache_read(kernel, "shared", [OL])
 
             # tile and bind spatial axes
             n, f, x = s[output].op.axis
@@ -120,7 +113,7 @@ def schedule_conv1d_ncw(cfg, outs):
             # tile reduction axes
             n, f, x = s[OL].op.axis
             rc, rx = s[OL].op.reduce_axis
-            rco, rcm, rci = cfg['tile_rc'].apply(s, OL, rc)
+            rco, rcm, rci = cfg["tile_rc"].apply(s, OL, rc)
             s[OL].reorder(rco, rcm, rx, rci, n, f, x)
 
             s[AA].compute_at(s[OL], rx)
@@ -135,10 +128,8 @@ def schedule_conv1d_ncw(cfg, outs):
                 s[load].bind(tz, te.thread_axis("threadIdx.y"))
                 s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
-            s[output].pragma(kernel_scope, 'auto_unroll_max_step',
-                             cfg['auto_unroll_max_step'].val)
-            s[output].pragma(kernel_scope, 'unroll_explicit',
-                             cfg['unroll_explicit'].val)
+            s[output].pragma(kernel_scope, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+            s[output].pragma(kernel_scope, "unroll_explicit", cfg["unroll_explicit"].val)
 
             N, CO, OW = get_const_tuple(output.shape)
             _, CI, KW = get_const_tuple(kernel.shape)
@@ -150,13 +141,7 @@ def schedule_conv1d_ncw(cfg, outs):
 
 
 @autotvm.register_topi_compute("conv1d_nwc.cuda")
-def conv1d_nwc(cfg,
-               data,
-               kernel,
-               strides,
-               padding,
-               dilation,
-               out_dtype='float32'):
+def conv1d_nwc(cfg, data, kernel, strides, padding, dilation, out_dtype="float32"):
     return nn.conv1d_nwc(data, kernel, strides, padding, dilation, out_dtype)
 
 
@@ -182,7 +167,7 @@ def schedule_conv1d_nwc(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == 'conv1d_nwc':
+        if op.tag == "conv1d_nwc":
             pad_data = op.input_tensors[0]
             kernel = op.input_tensors[1]
             conv = op.output(0)
@@ -197,29 +182,28 @@ def schedule_conv1d_nwc(cfg, outs):
             cfg.define_knob("auto_unroll_max_step", [64, 512, 1500])
 
             target = tvm.target.Target.current()
-            if target.kind.name in ['nvptx', 'rocm']:
+            if target.kind.name in ["nvptx", "rocm"]:
                 cfg.define_knob("unroll_explicit", [1])
             else:
                 cfg.define_knob("unroll_explicit", [0, 1])
 
             ##### space definition end #####
 
-            if isinstance(kernel.op,
-                          tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
+            if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
             if conv.op in s.outputs:
                 output = conv
-                OL = s.cache_write(conv, 'local')
+                OL = s.cache_write(conv, "local")
             else:
                 output = s.outputs[0].output(0)
-                s[conv].set_scope('local')
+                s[conv].set_scope("local")
                 OL = conv
 
             # create cache stage
-            s[pad_data].set_scope('shared')
+            s[pad_data].set_scope("shared")
             AA = pad_data
-            WW = s.cache_read(kernel, 'shared', [OL])
+            WW = s.cache_read(kernel, "shared", [OL])
 
             # tile and bind spatial axes
             n, f, x = s[output].op.axis
@@ -245,7 +229,7 @@ def schedule_conv1d_nwc(cfg, outs):
             # tile reduction axes
             n, x, f = s[OL].op.axis
             rc, rx = s[OL].op.reduce_axis
-            rco, rcm, rci = cfg['tile_rc'].apply(s, OL, rc)
+            rco, rcm, rci = cfg["tile_rc"].apply(s, OL, rc)
             s[OL].reorder(rco, rcm, rx, rci, n, x, f)
 
             s[AA].compute_at(s[OL], rx)
@@ -260,10 +244,8 @@ def schedule_conv1d_nwc(cfg, outs):
                 s[load].bind(tz, te.thread_axis("threadIdx.y"))
                 s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
-            s[output].pragma(kernel_scope, 'auto_unroll_max_step',
-                             cfg['auto_unroll_max_step'].val)
-            s[output].pragma(kernel_scope, 'unroll_explicit',
-                             cfg['unroll_explicit'].val)
+            s[output].pragma(kernel_scope, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+            s[output].pragma(kernel_scope, "unroll_explicit", cfg["unroll_explicit"].val)
 
             N, OW, CO = get_const_tuple(output.shape)
             KW, CI, _ = get_const_tuple(kernel.shape)

@@ -20,22 +20,22 @@ import random
 from tvm.autotvm import util
 
 
-SI_PREFIXES = 'yzafpn\xb5m kMGTPEZY'
+SI_PREFIXES = "yzafpn\xb5m kMGTPEZY"
 
 
 def test_format_si_prefix():
-  # test float conversion
-  assert util.format_si_prefix(1024, 'k') == 1.024
+    # test float conversion
+    assert util.format_si_prefix(1024, "k") == 1.024
 
-  for i, prefix in enumerate(SI_PREFIXES):
-    integer, decimal = random.randint(0, 1000), random.randint(0, 1000)
-    exp = -24 + 3 * i   # 0th prefix (yocto) is 10^-24
-    number = integer * (10 ** exp) + decimal * (10 ** (exp - 3))
-    expected = (integer + decimal / 1000)
-    assert isclose(util.format_si_prefix(number, prefix), expected)
+    for i, prefix in enumerate(SI_PREFIXES):
+        integer, decimal = random.randint(0, 1000), random.randint(0, 1000)
+        exp = -24 + 3 * i  # 0th prefix (yocto) is 10^-24
+        number = integer * (10 ** exp) + decimal * (10 ** (exp - 3))
+        expected = integer + decimal / 1000
+        assert isclose(util.format_si_prefix(number, prefix), expected)
 
-  assert util.format_si_prefix(0, 'y') == 0
+    assert util.format_si_prefix(0, "y") == 0
 
 
-if __name__ == '__main__':
-  test_format_si_prefix()
+if __name__ == "__main__":
+    test_format_si_prefix()

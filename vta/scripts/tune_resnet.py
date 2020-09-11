@@ -35,25 +35,42 @@ from vta.testing import simulator
 from vta.top import graph_pack
 from tvm.autotvm.task import extract_from_program
 
+
 def parse_arguments():
 
-    parser = argparse.ArgumentParser(description='Train a model for image classification.')
-    parser.add_argument('--model', type=str, default='resnet18_v1', choices=['resnet18_v1'],
-                        help='Input model name.')
-    parser.add_argument('--start-name', type=str, default='nn.max_pool2d',
-                        help='The name of the node where packing starts')
-    parser.add_argument('--stop-name', type=str, default='nn.global_avg_pool2d',
-                        help='The name of the node where packing stops')
-    parser.add_argument('--debug-profile', action='store_true',
-                        help='Show layer-wise time cost profiling results')
-    parser.add_argument('--device', default='vta',  choices=['vta', 'arm_cpu'],
-                        help='Select device target')
-    parser.add_argument('--measurements', type=int, default=1,
-                        help='Number of measurements during AutoTVM search')
-    parser.add_argument('--tuner', type=str, default="random",
-                        help='AutoTVM search strategy')
-    parser.add_argument('--log-filename', type=str, default="resnet-18.log",
-                        help='AutoTVM log file name')
+    parser = argparse.ArgumentParser(description="Train a model for image classification.")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="resnet18_v1",
+        choices=["resnet18_v1"],
+        help="Input model name.",
+    )
+    parser.add_argument(
+        "--start-name",
+        type=str,
+        default="nn.max_pool2d",
+        help="The name of the node where packing starts",
+    )
+    parser.add_argument(
+        "--stop-name",
+        type=str,
+        default="nn.global_avg_pool2d",
+        help="The name of the node where packing stops",
+    )
+    parser.add_argument(
+        "--debug-profile", action="store_true", help="Show layer-wise time cost profiling results"
+    )
+    parser.add_argument(
+        "--device", default="vta", choices=["vta", "arm_cpu"], help="Select device target"
+    )
+    parser.add_argument(
+        "--measurements", type=int, default=1, help="Number of measurements during AutoTVM search"
+    )
+    parser.add_argument("--tuner", type=str, default="random", help="AutoTVM search strategy")
+    parser.add_argument(
+        "--log-filename", type=str, default="resnet-18.log", help="AutoTVM log file name"
+    )
 
     return parser.parse_args()
 
@@ -85,7 +102,7 @@ def register_vta_tuning_tasks():
             res = my_clip(res, 0, 127)
             res = topi.cast(res, "int8")
 
-        if tvm.target.Target.current().device_name == 'vta':
+        if tvm.target.Target.current().device_name == "vta":
             s = topi.generic.schedule_conv2d_nchw([res])
         else:
             s = te.create_schedule([res.op])
@@ -103,7 +120,7 @@ def register_vta_tuning_tasks():
             res = my_clip(res, 0, 127)
             res = topi.cast(res, "int8")
 
-        if tvm.target.Target.current().device_name == 'vta':
+        if tvm.target.Target.current().device_name == "vta":
             s = topi.generic.schedule_dense([res])
         else:
             s = te.create_schedule([res.op])
@@ -114,7 +131,7 @@ def register_vta_tuning_tasks():
 def compile_network(opt, env, target):
 
     # Populate the shape and data type dictionary
-    dtype_dict = {"data": 'float32'}
+    dtype_dict = {"data": "float32"}
     shape_dict = {"data": (env.BATCH, 3, 224, 224)}
 
     # Get off the shelf gluon model, and convert to relay
@@ -128,8 +145,7 @@ def compile_network(opt, env, target):
     # Perform quantization in Relay
     # Note: We set opt_level to 3 in order to fold batch norm
     with tvm.transform.PassContext(opt_level=3):
-        with relay.quantize.qconfig(global_scale=8.0,
-                                    skip_conv_layers=[0]):
+        with relay.quantize.qconfig(global_scale=8.0, skip_conv_layers=[0]):
             relay_prog = relay.quantize.quantize(mod["main"], params=params)
 
     # Perform graph packing and constant folding for VTA target
@@ -141,19 +157,22 @@ def compile_network(opt, env, target):
             env.BLOCK_OUT,
             env.WGT_WIDTH,
             start_name=opt.start_name,
-            stop_name=opt.stop_name)
+            stop_name=opt.stop_name,
+        )
 
     return relay_prog, params
 
 
-def tune_tasks(tasks,
-               measure_option,
-               tuner='xgb',
-               n_trial=1000,
-               early_stopping=None,
-               log_filename='tuning.log',
-               use_transfer_learning=True,
-               try_winograd=True):
+def tune_tasks(
+    tasks,
+    measure_option,
+    tuner="xgb",
+    n_trial=1000,
+    early_stopping=None,
+    log_filename="tuning.log",
+    use_transfer_learning=True,
+    try_winograd=True,
+):
 
     # create tmp log file
     tmp_log_file = log_filename + ".tmp"
@@ -161,16 +180,16 @@ def tune_tasks(tasks,
         os.remove(tmp_log_file)
 
     for i, tsk in enumerate(reversed(tasks)):
-        prefix = "[Task %2d/%2d] " % (i+1, len(tasks))
+        prefix = "[Task %2d/%2d] " % (i + 1, len(tasks))
 
         # create tuner
-        if tuner == 'xgb' or tuner == 'xgb-rank':
-            tuner_obj = XGBTuner(tsk, loss_type='rank')
-        elif tuner == 'ga':
+        if tuner == "xgb" or tuner == "xgb-rank":
+            tuner_obj = XGBTuner(tsk, loss_type="rank")
+        elif tuner == "ga":
             tuner_obj = GATuner(tsk, pop_size=50)
-        elif tuner == 'random':
+        elif tuner == "random":
             tuner_obj = RandomTuner(tsk)
-        elif tuner == 'gridsearch':
+        elif tuner == "gridsearch":
             tuner_obj = GridSearchTuner(tsk)
         else:
             raise ValueError("Invalid tuner: " + tuner)
@@ -181,18 +200,22 @@ def tune_tasks(tasks,
 
         # do tuning
         n_trial_ = min(n_trial, len(tsk.config_space))
-        tuner_obj.tune(n_trial_,
-                       early_stopping=early_stopping,
-                       measure_option=measure_option,
-                       callbacks=[
-                           autotvm.callback.progress_bar(n_trial_, prefix=prefix),
-                           autotvm.callback.log_to_file(tmp_log_file)])
+        tuner_obj.tune(
+            n_trial_,
+            early_stopping=early_stopping,
+            measure_option=measure_option,
+            callbacks=[
+                autotvm.callback.progress_bar(n_trial_, prefix=prefix),
+                autotvm.callback.log_to_file(tmp_log_file),
+            ],
+        )
 
     # pick best records to a cache file
     autotvm.record.pick_best(tmp_log_file, log_filename)
     os.remove(tmp_log_file)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
 
     opt = parse_arguments()
 
@@ -216,7 +239,9 @@ if __name__ == '__main__':
         reconfig_start = time.time()
 
         # Get remote from fleet node
-        remote = autotvm.measure.request_remote(env.TARGET, tracker_host, int(tracker_port), timeout=10000)
+        remote = autotvm.measure.request_remote(
+            env.TARGET, tracker_host, int(tracker_port), timeout=10000
+        )
 
         # Reconfigure the JIT runtime and FPGA.
         # You can program the FPGA with your own custom bitstream
@@ -245,24 +270,34 @@ if __name__ == '__main__':
 
     # Perform task extraction on Relay program
     print("Extracting tasks...")
-    tasks = extract_from_program(func=relay_prog,
-                                 params=params,
-                                 ops=(relay.op.get("nn.conv2d"),),
-                                 target=target,
-                                 target_host=env.target_host)
+    tasks = extract_from_program(
+        func=relay_prog,
+        params=params,
+        ops=(relay.op.get("nn.conv2d"),),
+        target=target,
+        target_host=env.target_host,
+    )
 
     # Perform Autotuning
     print("Tuning...")
     tuning_opt = {
-        'log_filename': opt.log_filename,
-        'tuner': opt.tuner,
-        'n_trial': 1e9,
-        'early_stopping': None,
-        'measure_option': autotvm.measure_option(
-                builder=autotvm.LocalBuilder(build_func=vta.vta_autotvm_build_func),
-                runner=autotvm.RPCRunner(env.TARGET, tracker_host, tracker_port,
-                    number=4, min_repeat_ms=150, repeat=opt.measurements, timeout=60,
-                    check_correctness=True))
+        "log_filename": opt.log_filename,
+        "tuner": opt.tuner,
+        "n_trial": 1e9,
+        "early_stopping": None,
+        "measure_option": autotvm.measure_option(
+            builder=autotvm.LocalBuilder(build_func=vta.vta_autotvm_build_func),
+            runner=autotvm.RPCRunner(
+                env.TARGET,
+                tracker_host,
+                tracker_port,
+                number=4,
+                min_repeat_ms=150,
+                repeat=opt.measurements,
+                timeout=60,
+                check_correctness=True,
+            ),
+        ),
     }
     tune_tasks(tasks, **tuning_opt)
 
@@ -274,13 +309,13 @@ if __name__ == '__main__':
         if target.device_name != "vta":
             with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
                 graph, lib, params = relay.build(
-                    relay_prog, target=target,
-                    params=params, target_host=env.target_host)
+                    relay_prog, target=target, params=params, target_host=env.target_host
+                )
         else:
             with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
                 graph, lib, params = relay.build(
-                    relay_prog, target=target,
-                    params=params, target_host=env.target_host)
+                    relay_prog, target=target, params=params, target_host=env.target_host
+                )
 
         # Export library
         temp = util.tempdir()
@@ -295,17 +330,18 @@ if __name__ == '__main__':
             m = graph_runtime.create(graph, lib, ctx)
 
         # Set the network parameters and synthetic input
-        image = tvm.nd.array(
-            (np.random.uniform(size=(1, 3, 224, 224))).astype('float32'))
+        image = tvm.nd.array((np.random.uniform(size=(1, 3, 224, 224))).astype("float32"))
         m.set_input(**params)
-        m.set_input('data', image)
+        m.set_input("data", image)
 
         # Perform inference
         timer = m.module.time_evaluator("run", ctx, number=4, repeat=opt.measurements)
         tcost = timer()
         prof_res = np.array(tcost.results) * 1000  # convert to millisecond
-        print("Mean inference time (std dev): %.2f ms (%.2f ms)" %
-              (np.mean(prof_res), np.std(prof_res)))
+        print(
+            "Mean inference time (std dev): %.2f ms (%.2f ms)"
+            % (np.mean(prof_res), np.std(prof_res))
+        )
 
         # Display profile information
         if opt.debug_profile:

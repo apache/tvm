@@ -21,6 +21,7 @@ from tvm import te
 from .. import tag
 from ..util import get_const_int
 
+
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
 def relu(x):
     """Take relu of input x.
@@ -55,11 +56,14 @@ def leaky_relu(x, alpha):
     y : tvm.te.Tensor
         The result.
     """
+
     def _compute(*indices):
         value = x(*indices)
         calpha = tvm.tir.const(alpha, value.dtype)
         return tvm.tir.Select(value > 0, value, value * calpha)
+
     return te.compute(x.shape, _compute)
+
 
 @tvm.te.tag_scope(tag=tag.BROADCAST)
 def prelu(x, slope, axis=1):
@@ -97,4 +101,5 @@ def prelu(x, slope, axis=1):
     def _compute_channelwise(*indices):
         xval = x(*indices)
         return tvm.tir.Select(xval > 0, xval, xval * slope(indices[axis]))
+
     return te.compute(x.shape, _compute_channelwise)
