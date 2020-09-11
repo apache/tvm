@@ -75,7 +75,7 @@ def add_compile_parser(subparsers):
         "--tuning-records",
         metavar="PATH",
         default="",
-        help="path to an auto-tuning log file from AutoTVM"
+        help="path to an auto-tuning log file by AutoTVM. If not presented, the fallback/tophub configs will be used"
     )
     parser.add_argument(
         "-v", "--verbose", action="count", default=0, help="increase verbosity"
@@ -105,7 +105,7 @@ def drive_compile(args):
         args.FILE,
         args.target,
         args.dump_code,
-        "",
+        None,
         args.model_format,
         args.tuning_records,
         args.tensor_layout,
@@ -182,7 +182,7 @@ def compile_model(
     # TODO(@leandron) We don't have an API to collect a list of supported
     #       targets yet
     logging.debug("creating target from input: %s", target)
-    tvm_target = tvm.target.create(target)
+    tvm_target = tvm.target.Target(target)
     target_host = target_host or ""
 
     if tuning_records:

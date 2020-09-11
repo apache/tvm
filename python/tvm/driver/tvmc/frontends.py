@@ -383,7 +383,7 @@ def guess_frontend(path):
         if suffix in frontend.suffixes():
             return frontend()
 
-    raise TVMCException("cannot guess model format")
+    raise TVMCException("failed to infer the model format. Please specify --model-format")
 
 
 def load_model(path, model_format=None):
