@@ -37,9 +37,7 @@ if [[ "$#" -lt 1 ]]; then
     exit 1
 fi
 
-if [ -x "$(command -v black)" ]; then
-    BLACK=black
-else
+if [ ! -x "$(command -v black)" ]; then
     echo "Cannot find black"
     exit 1
 fi
