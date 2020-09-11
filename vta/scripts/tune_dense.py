@@ -30,13 +30,13 @@ import vta.testing
 
 env = vta.get_env()
 
-Workload = namedtuple("DenseWorkload",
-                      ['batch', 'in_filter', 'out_filter'])
+Workload = namedtuple("DenseWorkload", ["batch", "in_filter", "out_filter"])
 
 dense_wkls = [
-    ('lstm.dense.1',  Workload(1, 256, 128)),
-    ('lstm.dense.4',  Workload(4, 256, 128)),
+    ("lstm.dense.1", Workload(1, 256, 128)),
+    ("lstm.dense.4", Workload(4, 256, 128)),
 ]
+
 
 @tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
 def my_clip(x, a_min, a_max):
@@ -47,27 +47,29 @@ def my_clip(x, a_min, a_max):
     x = te.compute(x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
     return x
 
+
 def dense(N, CI, CO):
-    data_shape = (N//env.BATCH, CI//env.BLOCK_IN, env.BATCH, env.BLOCK_IN)
-    kernel_shape = (CO//env.BLOCK_OUT, CI//env.BLOCK_IN, env.BLOCK_OUT, env.BLOCK_IN)
+    data_shape = (N // env.BATCH, CI // env.BLOCK_IN, env.BATCH, env.BLOCK_IN)
+    kernel_shape = (CO // env.BLOCK_OUT, CI // env.BLOCK_IN, env.BLOCK_OUT, env.BLOCK_IN)
 
     data = te.placeholder(data_shape, name="data", dtype=env.inp_dtype)
     kernel = te.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
 
     with tvm.target.vta():
-        res = topi.nn.dense(data, kernel, None, 'int32')
+        res = topi.nn.dense(data, kernel, None, "int32")
         res = topi.right_shift(res, 8)
         res = my_clip(res, 0, 127)
         res = topi.cast(res, "int8")
 
-    if tvm.target.Target.current().device_name == 'vta':
+    if tvm.target.Target.current().device_name == "vta":
         s = topi.generic.schedule_dense([res])
     else:
         s = te.create_schedule([res.op])
 
     return s, [data, kernel, res]
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
 
     # Logging config (for printing tuning log to the screen)
     logging.basicConfig()
@@ -96,27 +98,39 @@ if __name__ == '__main__':
         CI = wl.in_filter
         CO = wl.out_filter
 
-        task = autotvm.task.create(dense, args=(N, CI, CO),
-                target=tvm.target.vta(), target_host=env.target_host, template_key='direct')
+        task = autotvm.task.create(
+            dense,
+            args=(N, CI, CO),
+            target=tvm.target.vta(),
+            target_host=env.target_host,
+            template_key="direct",
+        )
         print(task.config_space)
 
         # Tune
         measure_option = autotvm.measure_option(
-                builder=autotvm.LocalBuilder(),
-                runner=autotvm.RPCRunner(
-                        env.TARGET, host=tracket_host, port=int(tracket_port),
-                        number=5, timeout=60,
-                        check_correctness=True))
+            builder=autotvm.LocalBuilder(),
+            runner=autotvm.RPCRunner(
+                env.TARGET,
+                host=tracket_host,
+                port=int(tracket_port),
+                number=5,
+                timeout=60,
+                check_correctness=True,
+            ),
+        )
 
         # Run Tuner
         tuner = autotvm.tuner.RandomTuner(task)
         tuner.tune(
-                n_trial=len(task.config_space),
-                early_stopping=None,
-                measure_option=measure_option,
-                callbacks=[
-                    autotvm.callback.progress_bar(len(task.config_space), prefix=prefix),
-                    autotvm.callback.log_to_file(tmp_log_file)])
+            n_trial=len(task.config_space),
+            early_stopping=None,
+            measure_option=measure_option,
+            callbacks=[
+                autotvm.callback.progress_bar(len(task.config_space), prefix=prefix),
+                autotvm.callback.log_to_file(tmp_log_file),
+            ],
+        )
 
     # Pick best records to a cache file
     autotvm.record.pick_best(tmp_log_file, log_file)

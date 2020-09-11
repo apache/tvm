@@ -22,13 +22,12 @@ import argparse
 import os
 from .. import rpc
 
+
 def main():
     """Main funciton"""
     parser = argparse.ArgumentParser()
-    parser.add_argument('--host', type=str, default="",
-                        help='the hostname of the tracker')
-    parser.add_argument('--port', type=int, default=None,
-                        help='The port of the RPC')
+    parser.add_argument("--host", type=str, default="", help="the hostname of the tracker")
+    parser.add_argument("--port", type=int, default=None, help="The port of the RPC")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
@@ -43,6 +42,7 @@ def main():
     # pylint: disable=superfluous-parens
     print("Tracker address %s:%d\n" % (args.host, args.port))
     print("%s" % conn.text_summary())
+
 
 if __name__ == "__main__":
     main()

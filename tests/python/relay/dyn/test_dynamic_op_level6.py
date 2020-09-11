@@ -1,4 +1,3 @@
-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -65,6 +64,7 @@ def test_dynamic_topk():
                     tvm.testing.assert_allclose(op_res.asnumpy(), np_values)
                 else:
                     tvm.testing.assert_allclose(op_res.asnumpy(), np_indices)
+
     np.random.seed(0)
     for k in [0, 1, 5]:
         for axis in [0, -1, 1]:

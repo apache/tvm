@@ -33,23 +33,28 @@ import tvm.testing
 
 sys.setrecursionlimit(10000)
 
+
 def list_ops(expr):
     class OpLister(tvm.relay.ExprVisitor):
         def visit_op(self, expr):
             if expr not in self.node_set:
                 self.node_list.append(expr)
             return super().visit_op(expr)
+
         def list_nodes(self, expr):
             self.node_set = {}
             self.node_list = []
             self.visit(expr)
             return self.node_list
+
     return OpLister().list_nodes(expr)
+
 
 def assert_shapes_match(tru, est):
     if tru.shape != est.shape:
         msg = "Output shapes {} and {} don't match"
         raise AssertionError(msg.format(tru.shape, est.shape))
+
 
 def load_torchvision(model_name):
     """Given a model name, returns a Torchvision model in eval mode as well
@@ -76,10 +81,12 @@ def load_torchvision(model_name):
         model = model.float().eval()
         return model, [input_data]
 
+
 def load_pretrainedmodels(model_name):
     """Given a model name, returns a pretrainedmodels.pytorch model in eval
     mode as well as an example input."""
-    import pretrainedmodels # https://github.com/Cadene/pretrained-models.pytorch
+    import pretrainedmodels  # https://github.com/Cadene/pretrained-models.pytorch
+
     model = getattr(pretrainedmodels, model_name)().float().eval()
     input_shape = [1, *model.input_size]
     input_data = torch.rand(input_shape).float() * 256
@@ -88,12 +95,14 @@ def load_pretrainedmodels(model_name):
         input_data[:, channel] /= model.std[channel]
     return model, [input_data]
 
+
 def load_model(model_name):
     """Given a model name, returns a model as well as an example input."""
     if hasattr(torchvision.models, model_name):
         return load_torchvision(model_name)
     try:
         import pretrainedmodels
+
         if hasattr(pretrainedmodels, model_name):
             return load_pretrainedmodels(model_name)
     except ModuleNotFoundError:
@@ -101,12 +110,13 @@ def load_model(model_name):
     raise RuntimeError("Model not supported")
 
 
-def confidence_interval(mean, stdev, count, alpha=.01):
+def confidence_interval(mean, stdev, count, alpha=0.01):
     """Returns the lower and upper bounds of the confidence interval of a random
     variable. Confidence is 1 - alpha (default confidence is 99%)."""
     stdval = tdistr.ppf(1 - alpha / 2, count - 1)
     lower, upper = mean + np.array([-1, 1]) * stdval * stdev / np.sqrt(count)
     return lower, upper
+
 
 def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
     """Compute the latency of the given model"""
@@ -150,9 +160,8 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
             if err < thresh:
                 return est
 
-def verify_model(model_name, input_data=[],
-                 custom_convert_map={},
-                 rtol=1e-5, atol=1e-5):
+
+def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, atol=1e-5):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
     if isinstance(model_name, str):
@@ -189,12 +198,9 @@ def verify_model(model_name, input_data=[],
             trace = trace.cpu()
 
     input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
-    input_shapes = list(zip(input_names,
-                            [inp.shape for inp in baseline_input]))
-    mod, params = relay.frontend.from_pytorch(trace, input_shapes,
-                                              custom_convert_map)
-    compiled_input = dict(zip(input_names,
-                              [inp.cpu().numpy() for inp in baseline_input]))
+    input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
+    mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+    compiled_input = dict(zip(input_names, [inp.cpu().numpy() for inp in baseline_input]))
 
     with tvm.transform.PassContext(opt_level=3):
         for target, ctx in tvm.testing.enabled_targets():
@@ -209,12 +215,12 @@ def verify_model(model_name, input_data=[],
                 compiled_output = relay_model.get_output(i).asnumpy()
 
                 assert_shapes_match(baseline_output, compiled_output)
-                tvm.testing.assert_allclose(baseline_output, compiled_output,
-                                            rtol=rtol, atol=atol)
+                tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
 
     del model_name
     del baseline_model
     torch.cuda.empty_cache()
+
 
 # Single operator tests
 @tvm.testing.uses_gpu
@@ -250,6 +256,7 @@ def test_forward_add():
     verify_model(Add3().float().eval(), input_data=input_data)
     verify_model(Add4().float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_subtract():
     torch.set_grad_enabled(False)
@@ -282,6 +289,7 @@ def test_forward_subtract():
     verify_model(Subtract2().float().eval(), input_data=input_data)
     verify_model(Subtract3().float().eval(), input_data=input_data)
     verify_model(Subtract4().float().eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_multiply():
@@ -359,6 +367,7 @@ def test_min_max():
 def test_forward_reciprocal():
     torch.set_grad_enabled(False)
     input_shape = [2, 1, 10, 1, 10]
+
     class Reciprocal1(Module):
         def forward(self, *args):
             return args[0].reciprocal()
@@ -366,10 +375,12 @@ def test_forward_reciprocal():
     input_data = torch.rand(input_shape).float()
     verify_model(Reciprocal1().float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_repeat():
     torch.set_grad_enabled(False)
     input_shape = [1, 3]
+
     class Repeat1(Module):
         def forward(self, *args):
             return args[0].repeat(1, 1)
@@ -387,10 +398,12 @@ def test_forward_repeat():
     verify_model(Repeat2().float().eval(), input_data=input_data)
     verify_model(Repeat3().float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_repeat_interleave():
     torch.set_grad_enabled(False)
     input_shape = [2, 2, 3]
+
     class RepeatInterleave1(Module):
         def forward(self, *args):
             return args[0].repeat_interleave(2)
@@ -413,6 +426,7 @@ def test_forward_repeat_interleave():
     verify_model(RepeatInterleave3().float().eval(), input_data=input_data)
     verify_model(RepeatInterleave4().float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_unsqueeze():
     torch.set_grad_enabled(False)
@@ -424,6 +438,7 @@ def test_forward_unsqueeze():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Unsqueeze1().float().eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_squeeze():
@@ -441,6 +456,7 @@ def test_forward_squeeze():
     input_data = torch.rand(input_shape).float()
     verify_model(Squeeze1().float().eval(), input_data=input_data)
     verify_model(Squeeze2().float().eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_arange():
@@ -517,6 +533,7 @@ def test_forward_arange():
     verify_model(Arange11().float().eval())
     verify_model(Arange12().float().eval())
 
+
 @tvm.testing.uses_gpu
 def test_forward_mesh_grid():
     torch.set_grad_enabled(False)
@@ -538,6 +555,7 @@ def test_forward_mesh_grid():
     verify_model(MeshGrid1().float().eval())
     verify_model(MeshGrid2().float().eval())
 
+
 @tvm.testing.uses_gpu
 def test_forward_abs():
     torch.set_grad_enabled(False)
@@ -549,6 +567,7 @@ def test_forward_abs():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Abs1().float().eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_concatenate():
@@ -570,6 +589,7 @@ def test_forward_concatenate():
     verify_model(Concatenate1().float().eval(), input_data=input_data)
     verify_model(Concatenate2().float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_relu():
     torch.set_grad_enabled(False)
@@ -577,12 +597,14 @@ def test_forward_relu():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.ReLU().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_prelu():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.PReLU(num_parameters=3).eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_leakyrelu():
@@ -592,7 +614,10 @@ def test_forward_leakyrelu():
     verify_model(torch.nn.LeakyReLU().eval(), input_data=input_data)
     verify_model(torch.nn.LeakyReLU(negative_slope=0.05).eval(), input_data=input_data)
     verify_model(torch.nn.LeakyReLU(negative_slope=1.0, inplace=True).eval(), input_data=input_data)
-    verify_model(torch.nn.LeakyReLU(negative_slope=1.25, inplace=True).eval(), input_data=input_data)
+    verify_model(
+        torch.nn.LeakyReLU(negative_slope=1.25, inplace=True).eval(), input_data=input_data
+    )
+
 
 @tvm.testing.uses_gpu
 def test_forward_elu():
@@ -604,6 +629,7 @@ def test_forward_elu():
     verify_model(torch.nn.ELU(alpha=1.0).eval(), input_data=input_data)
     verify_model(torch.nn.ELU(alpha=1.3).eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_celu():
     torch.set_grad_enabled(False)
@@ -614,6 +640,7 @@ def test_forward_celu():
     verify_model(torch.nn.CELU(alpha=1.0).eval(), input_data=input_data)
     verify_model(torch.nn.CELU(alpha=1.3).eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_gelu():
     torch.set_grad_enabled(False)
@@ -621,12 +648,14 @@ def test_forward_gelu():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.GELU().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_selu():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.SELU().eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_softplus():
@@ -637,6 +666,7 @@ def test_forward_softplus():
     verify_model(torch.nn.Softplus(beta=1.5, threshold=20).eval(), input_data=input_data)
     verify_model(torch.nn.Softplus(beta=5, threshold=10).eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_softsign():
     torch.set_grad_enabled(False)
@@ -644,12 +674,14 @@ def test_forward_softsign():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.Softsign().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_log_sigmoid():
     torch.set_grad_enabled(False)
     input_shape = [10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.LogSigmoid().eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_adaptiveavgpool():
@@ -659,20 +691,16 @@ def test_forward_adaptiveavgpool():
     verify_model(torch.nn.AdaptiveAvgPool2d([1, 1]).eval(), input_data=input_data)
     verify_model(torch.nn.AdaptiveAvgPool2d([10, 10]).eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_maxpool2d():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
 
-    verify_model(torch.nn.MaxPool2d(kernel_size=[1, 1]).eval(),
-                 input_data)
-    verify_model(torch.nn.MaxPool2d(kernel_size=[10, 10]).eval(),
-                 input_data)
-    verify_model(torch.nn.MaxPool2d(kernel_size=[4, 4],
-                                    padding=2,
-                                    stride=2).eval(),
-                 input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[1, 1]).eval(), input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[10, 10]).eval(), input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[4, 4], padding=2, stride=2).eval(), input_data)
 
     # A functional variant (default strides = None case)
     class MaxPool2D(Module):
@@ -692,20 +720,16 @@ def test_forward_maxpool2d():
 
     verify_model(MaxPool2DWithIndices().float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_maxpool1d():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10]
     input_data = torch.rand(input_shape).float()
 
-    verify_model(torch.nn.MaxPool1d(kernel_size=1).eval(),
-                 input_data)
-    verify_model(torch.nn.MaxPool1d(kernel_size=10).eval(),
-                 input_data)
-    verify_model(torch.nn.MaxPool1d(kernel_size=4,
-                                    padding=2,
-                                    stride=2).eval(),
-                 input_data)
+    verify_model(torch.nn.MaxPool1d(kernel_size=1).eval(), input_data)
+    verify_model(torch.nn.MaxPool1d(kernel_size=10).eval(), input_data)
+    verify_model(torch.nn.MaxPool1d(kernel_size=4, padding=2, stride=2).eval(), input_data)
 
     # A functional variant (default strides = None case)
     class MaxPool1D(Module):
@@ -721,14 +745,9 @@ def test_forward_maxpool3d():
     input_shape = [1, 3, 10, 10, 10]
     input_data = torch.rand(input_shape).float()
 
-    verify_model(torch.nn.MaxPool3d(kernel_size=[1, 1, 1]).eval(),
-                 input_data)
-    verify_model(torch.nn.MaxPool3d(kernel_size=[10, 10, 10]).eval(),
-                 input_data)
-    verify_model(torch.nn.MaxPool3d(kernel_size=[4, 4, 4],
-                                    padding=2,
-                                    stride=2).eval(),
-                 input_data)
+    verify_model(torch.nn.MaxPool3d(kernel_size=[1, 1, 1]).eval(), input_data)
+    verify_model(torch.nn.MaxPool3d(kernel_size=[10, 10, 10]).eval(), input_data)
+    verify_model(torch.nn.MaxPool3d(kernel_size=[4, 4, 4], padding=2, stride=2).eval(), input_data)
 
     # A functional variant (default strides = None case)
     class MaxPool3D(Module):
@@ -753,14 +772,11 @@ def test_forward_split():
             return torch.split(args[0], self.split_size_or_sections, self.dim)
 
     input_data = torch.rand(input_shape).float()
-    verify_model(Split(2, 0).float().eval(),
-                 input_data=input_data)
-    verify_model(Split(3, 1).float().eval(),
-                 input_data=input_data)
-    verify_model(Split(4, 1).float().eval(),
-                 input_data=input_data)
-    verify_model(Split([2, 3, 5], 1).float().eval(),
-                 input_data=input_data)
+    verify_model(Split(2, 0).float().eval(), input_data=input_data)
+    verify_model(Split(3, 1).float().eval(), input_data=input_data)
+    verify_model(Split(4, 1).float().eval(), input_data=input_data)
+    verify_model(Split([2, 3, 5], 1).float().eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_avgpool():
@@ -775,6 +791,7 @@ def test_forward_avgpool():
     verify_model(torch.nn.AvgPool2d(kernel_size=[10, 10]).eval(), input_data=input_data)
     verify_model(AvgPool2D2().float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_avgpool3d():
     torch.set_grad_enabled(False)
@@ -788,12 +805,14 @@ def test_forward_avgpool3d():
     verify_model(torch.nn.AvgPool3d(kernel_size=[10, 10, 10]).eval(), input_data=input_data)
     verify_model(AvgPool3D1().float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_hardtanh():
     torch.set_grad_enabled(False)
     input_shape = [10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.Hardtanh().eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_conv():
@@ -861,14 +880,16 @@ def test_forward_conv():
     # depth wise conv with channel mult 2
     verify_model(Conv2D3().float().eval(), input_data=conv2d_input_data)
     # group conv
-    verify_model(torch.nn.Conv2d(8, 8, kernel_size=(3, 3),
-                                 stride=(1, 1), groups=2).eval(),
-                 input_data=torch.randn((1, 8, 16, 16)))
+    verify_model(
+        torch.nn.Conv2d(8, 8, kernel_size=(3, 3), stride=(1, 1), groups=2).eval(),
+        input_data=torch.randn((1, 8, 16, 16)),
+    )
 
     conv1d_input_data = torch.rand(conv1d_input_shape).float()
     verify_model(Conv1D1().float().eval(), input_data=conv1d_input_data)
     verify_model(Conv1D2().float().eval(), input_data=conv1d_input_data)
     verify_model(Conv1D3().float().eval(), input_data=conv1d_input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_conv_transpose():
@@ -890,6 +911,7 @@ def test_forward_threshold():
     input_shape = [1, 3]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.Threshold(0, 0).float().eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_contiguous():
@@ -913,8 +935,7 @@ def test_forward_batchnorm():
     inp_2d = torch.rand((1, 16, 10, 10))
     inp_3d = torch.rand((1, 16, 10, 10, 10))
 
-    for bn, inp in [(torch.nn.BatchNorm2d(16), inp_2d),
-                    (torch.nn.BatchNorm3d(16), inp_3d)]:
+    for bn, inp in [(torch.nn.BatchNorm2d(16), inp_2d), (torch.nn.BatchNorm3d(16), inp_3d)]:
         init_weight(bn.eval())
         verify_model(bn.eval(), input_data=inp)
 
@@ -924,9 +945,12 @@ def test_forward_instancenorm():
     inp_2d = torch.rand((1, 16, 10, 10))
     inp_3d = torch.rand((1, 16, 10, 10, 10))
 
-    for ins_norm, inp in [(torch.nn.InstanceNorm2d(16), inp_2d),
-                          (torch.nn.InstanceNorm3d(16), inp_3d)]:
+    for ins_norm, inp in [
+        (torch.nn.InstanceNorm2d(16), inp_2d),
+        (torch.nn.InstanceNorm3d(16), inp_3d),
+    ]:
         verify_model(ins_norm.eval(), input_data=inp)
+
 
 @tvm.testing.uses_gpu
 def test_forward_layernorm():
@@ -936,8 +960,7 @@ def test_forward_layernorm():
 
     inp_2d = torch.rand((1, 16, 10, 10))
     inp_3d = torch.rand((1, 16, 10, 10, 10))
-    for ln, inp in [(torch.nn.LayerNorm(10), inp_2d),
-                    (torch.nn.LayerNorm(10), inp_3d)]:
+    for ln, inp in [(torch.nn.LayerNorm(10), inp_2d), (torch.nn.LayerNorm(10), inp_3d)]:
         init_weight(ln.eval())
         verify_model(ln.eval(), input_data=inp)
 
@@ -1019,12 +1042,13 @@ def test_forward_transpose():
 
     class Transpose3(Module):
         def forward(self, *args):
-            return args[0].permute(0,2,3,1)
+            return args[0].permute(0, 2, 3, 1)
 
     input_data = torch.rand(input_shape).float()
     verify_model(Transpose1().float().eval(), input_data=input_data)
     verify_model(Transpose2().float().eval(), input_data=input_data)
     verify_model(Transpose3().float().eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_size():
@@ -1099,6 +1123,7 @@ def test_forward_view():
     verify_model(View1().float().eval(), input_data=input_data)
     verify_model(View2().float().eval(), input_data=input_data)
     verify_model(View3().float().eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_select():
@@ -1175,9 +1200,13 @@ def test_forward_gather():
     verify_model(Gather2().float().eval(), input_data=[input_data, index])
 
     input_data = torch.rand((3, 3, 3)).float()
-    index = torch.tensor([[[1, 0, 0], [1, 0, 1], [0, 1, 1]],
-                          [[1, 1, 1], [1, 2, 1], [1, 0, 1]],
-                          [[1, 2, 1], [1, 2, 1], [1, 2, 1]]])
+    index = torch.tensor(
+        [
+            [[1, 0, 0], [1, 0, 1], [0, 1, 1]],
+            [[1, 1, 1], [1, 2, 1], [1, 0, 1]],
+            [[1, 2, 1], [1, 2, 1], [1, 2, 1]],
+        ]
+    )
     verify_model(Gather3().float().eval(), input_data=[input_data, index])
 
 
@@ -1201,23 +1230,23 @@ def test_forward_norm():
 
     class Norm1(Module):
         def forward(self, *args):
-            return torch.norm(args[0], p=float('inf'), dim=None, keepdim=False)
+            return torch.norm(args[0], p=float("inf"), dim=None, keepdim=False)
 
     class Norm2(Module):
         def forward(self, *args):
-            return torch.norm(args[0], p=float('-inf'), dim=None, keepdim=False)
+            return torch.norm(args[0], p=float("-inf"), dim=None, keepdim=False)
 
     class Norm3(Module):
         def forward(self, *args):
-            return torch.norm(args[0], p=float('-inf'), dim=None, keepdim=True)
+            return torch.norm(args[0], p=float("-inf"), dim=None, keepdim=True)
 
     class Norm4(Module):
         def forward(self, *args):
-            return torch.norm(args[0], p=float('inf'), dim=(1, 2), keepdim=False)
+            return torch.norm(args[0], p=float("inf"), dim=(1, 2), keepdim=False)
 
     class Norm5(Module):
         def forward(self, *args):
-            return torch.norm(args[0], p=float('inf'), dim=(1), keepdim=True)
+            return torch.norm(args[0], p=float("inf"), dim=(1), keepdim=True)
 
     class Norm6(Module):
         def forward(self, *args):
@@ -1263,11 +1292,11 @@ def test_forward_frobenius_norm():
 
     class FroNorm2(Module):
         def forward(self, *args):
-            return torch.norm(args[0], p='fro', dim=None, keepdim=True)
+            return torch.norm(args[0], p="fro", dim=None, keepdim=True)
 
     class FroNorm3(Module):
         def forward(self, *args):
-            return torch.norm(args[0], p='fro', dim=(1), keepdim=True)
+            return torch.norm(args[0], p="fro", dim=(1), keepdim=True)
 
     class FroNorm4(Module):
         def forward(self, *args):
@@ -1287,6 +1316,7 @@ def test_forward_sigmoid():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.Sigmoid().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_dense():
     torch.set_grad_enabled(False)
@@ -1296,6 +1326,7 @@ def test_forward_dense():
         def __init__(self):
             super(Dense1, self).__init__()
             self.linear = torch.nn.Linear(10, 7, bias=True)
+
         def forward(self, *args):
             return self.linear(args[0][0, 0])
 
@@ -1303,6 +1334,7 @@ def test_forward_dense():
         def __init__(self):
             super(Dense2, self).__init__()
             self.linear = torch.nn.Linear(10, 7, bias=False)
+
         def forward(self, *args):
             return self.linear(args[0][0, 0])
 
@@ -1313,9 +1345,10 @@ def test_forward_dense():
     trace = torch.jit.trace(Dense1(), [input_data])
     mod, params = relay.frontend.from_pytorch(
         trace,
-        [('input', input_shape)],
+        [("input", input_shape)],
     )
-    assert not any([op.name == "multiply" for op in list_ops(mod['main'])])
+    assert not any([op.name == "multiply" for op in list_ops(mod["main"])])
+
 
 @tvm.testing.uses_gpu
 def test_forward_dropout():
@@ -1326,6 +1359,7 @@ def test_forward_dropout():
     verify_model(torch.nn.Dropout2d(p=0.5).eval(), input_data=input_data[0])
     verify_model(torch.nn.Dropout3d(p=0.5).eval(), input_data=input_data)
     verify_model(torch.nn.AlphaDropout(p=0.5).eval(), input_data=input_data[0, 0])
+
 
 @tvm.testing.uses_gpu
 def test_forward_slice():
@@ -1374,6 +1408,7 @@ def test_forward_mean():
     input_data = torch.rand(input_shape).float()
     verify_model(Mean1().float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_expand():
     torch.set_grad_enabled(False)
@@ -1407,6 +1442,7 @@ def test_forward_pow():
     input_data = torch.rand(input_shape).float()
     verify_model(Pow1().float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_chunk():
     torch.set_grad_enabled(False)
@@ -1420,11 +1456,11 @@ def test_forward_chunk():
     input_data = torch.rand(input_shape).float()
     verify_model(Chunk1().float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_upsample():
     class Upsample(Module):
-        def __init__(self, size=None, scale=None,
-                     mode="nearest", align_corners=None):
+        def __init__(self, size=None, scale=None, mode="nearest", align_corners=None):
             super().__init__()
             self.size = size
             self.scale = scale
@@ -1432,10 +1468,14 @@ def test_upsample():
             self.align_corners = align_corners
 
         def forward(self, x):
-            return torch.nn.functional.interpolate(x, size=self.size,
-                                                   scale_factor=self.scale,
-                                                   mode=self.mode,
-                                                   align_corners=self.align_corners)
+            return torch.nn.functional.interpolate(
+                x,
+                size=self.size,
+                scale_factor=self.scale,
+                mode=self.mode,
+                align_corners=self.align_corners,
+            )
+
     inp = torch.rand((1, 3, 32, 32))
     verify_model(Upsample(size=(64, 64), mode="nearest"), inp)
     verify_model(Upsample(scale=2, mode="nearest"), inp)
@@ -1444,9 +1484,11 @@ def test_upsample():
     verify_model(Upsample(scale=2, mode="bilinear", align_corners=True), inp)
     verify_model(Upsample(size=(50, 50), mode="bilinear", align_corners=True), inp)
 
+
 @tvm.testing.uses_gpu
 def test_to():
     """ test for aten::to(...) """
+
     class ToCPU(Module):
         def forward(self, x):
             return x.to("cpu")
@@ -1478,9 +1520,7 @@ def test_to():
 
 @tvm.testing.uses_gpu
 def test_adaptive_pool3d():
-    for ishape in [(1, 32, 16, 16, 16),
-                   (1, 32, 9, 15, 15),
-                   (1, 32, 13, 7, 7)]:
+    for ishape in [(1, 32, 16, 16, 16), (1, 32, 9, 15, 15), (1, 32, 13, 7, 7)]:
         inp = torch.rand(ishape)
         verify_model(torch.nn.AdaptiveMaxPool3d((1, 1, 1)).eval(), inp)
         verify_model(torch.nn.AdaptiveMaxPool3d((2, 2, 2)).eval(), inp)
@@ -1494,6 +1534,7 @@ def test_adaptive_pool3d():
 def test_forward_functional_pad():
     torch.set_grad_enabled(False)
     pad = (0, 0)
+
     class Pad1(Module):
         def forward(self, *args):
             return torch.nn.functional.pad(args[0], pad, "constant", 0)
@@ -1592,14 +1633,17 @@ def test_forward_replication_pad3d():
 @tvm.testing.uses_gpu
 def test_forward_upsample3d():
     inp = torch.arange(1, 9, dtype=torch.float32).view(1, 1, 2, 2, 2)
-    verify_model(torch.nn.Upsample(scale_factor=2, mode='nearest').eval(), inp)
-    verify_model(torch.nn.Upsample(scale_factor=2, mode='trilinear').eval(), inp)
-    verify_model(torch.nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True).eval(), inp)
+    verify_model(torch.nn.Upsample(scale_factor=2, mode="nearest").eval(), inp)
+    verify_model(torch.nn.Upsample(scale_factor=2, mode="trilinear").eval(), inp)
+    verify_model(
+        torch.nn.Upsample(scale_factor=2, mode="trilinear", align_corners=True).eval(), inp
+    )
 
 
 def test_forward_nms():
     """dynamic Non-Maximum Suppression"""
     torch.set_grad_enabled(False)
+
     class NonMaxSupression(Module):
         def __init__(self, iou_thres):
             super().__init__()
@@ -1626,49 +1670,42 @@ def test_forward_nms():
 
 @tvm.testing.uses_gpu
 def test_conv3d():
-    for ishape in [(1, 32, 16, 16, 16),
-                   (1, 32, 9, 15, 15),
-                   (1, 32, 13, 7, 7)]:
+    for ishape in [(1, 32, 16, 16, 16), (1, 32, 9, 15, 15), (1, 32, 13, 7, 7)]:
         inp = torch.rand(ishape)
-        verify_model(torch.nn.Conv3d(32, 16, (3, 3, 3),
-                                     padding=(1, 1, 1)).eval(),
-                     inp),
-        verify_model(torch.nn.Conv3d(32, 16, (5, 5, 5),
-                                     padding=(2, 2, 2)).eval(),
-                     inp),
-        verify_model(torch.nn.Conv3d(32, 16, kernel_size=1).eval(),
-                     inp)
+        verify_model(torch.nn.Conv3d(32, 16, (3, 3, 3), padding=(1, 1, 1)).eval(), inp),
+        verify_model(torch.nn.Conv3d(32, 16, (5, 5, 5), padding=(2, 2, 2)).eval(), inp),
+        verify_model(torch.nn.Conv3d(32, 16, kernel_size=1).eval(), inp)
         # downsample
-        verify_model(torch.nn.Conv3d(32, 16, kernel_size=1, stride=2).eval(),
-                     inp)
+        verify_model(torch.nn.Conv3d(32, 16, kernel_size=1, stride=2).eval(), inp)
 
 
 @tvm.testing.uses_gpu
 def test_conv3d_transpose():
-    for ishape in [(1, 8, 10, 5, 10),
-                   (1, 8, 5, 8, 8),
-                   (1, 8, 13, 7, 7)]:
+    for ishape in [(1, 8, 10, 5, 10), (1, 8, 5, 8, 8), (1, 8, 13, 7, 7)]:
         inp = torch.rand(ishape)
-        verify_model(torch.nn.ConvTranspose3d(in_channels=8,
-                                              out_channels=33,
-                                              kernel_size=3,
-                                              stride=2).eval(),
-                     inp),
-        verify_model(torch.nn.ConvTranspose3d(in_channels=8,
-                                              out_channels=20,
-                                              kernel_size=(3, 5, 2),
-                                              stride=(2, 1, 1),
-                                              padding=(0, 4, 2)).eval(),
-                     inp),
-        verify_model(torch.nn.ConvTranspose3d(in_channels=8,
-                                               out_channels=20,
-                                               kernel_size=1).eval(),
-                     inp)
-        verify_model(torch.nn.ConvTranspose3d(in_channels=8,
-                                              out_channels=5,
-                                              kernel_size=1,
-                                              stride=2).eval(),
-                     inp)
+        verify_model(
+            torch.nn.ConvTranspose3d(
+                in_channels=8, out_channels=33, kernel_size=3, stride=2
+            ).eval(),
+            inp,
+        ),
+        verify_model(
+            torch.nn.ConvTranspose3d(
+                in_channels=8,
+                out_channels=20,
+                kernel_size=(3, 5, 2),
+                stride=(2, 1, 1),
+                padding=(0, 4, 2),
+            ).eval(),
+            inp,
+        ),
+        verify_model(
+            torch.nn.ConvTranspose3d(in_channels=8, out_channels=20, kernel_size=1).eval(), inp
+        )
+        verify_model(
+            torch.nn.ConvTranspose3d(in_channels=8, out_channels=5, kernel_size=1, stride=2).eval(),
+            inp,
+        )
 
 
 # Model tests
@@ -1677,40 +1714,48 @@ def test_resnet18():
     torch.set_grad_enabled(False)
     verify_model("resnet18", atol=1e-4, rtol=1e-4)
 
+
 @tvm.testing.uses_gpu
 def test_squeezenet1_0():
     torch.set_grad_enabled(False)
     verify_model("squeezenet1_0", atol=1e-4, rtol=1e-4)
+
 
 @tvm.testing.uses_gpu
 def test_squeezenet1_1():
     torch.set_grad_enabled(False)
     verify_model("squeezenet1_1", atol=1e-4, rtol=1e-4)
 
+
 @tvm.testing.uses_gpu
 def test_densenet121():
     torch.set_grad_enabled(False)
     verify_model("densenet121", atol=1e-4, rtol=1e-4)
+
 
 @tvm.testing.uses_gpu
 def test_inception_v3():
     torch.set_grad_enabled(False)
     verify_model("inception_v3", atol=1e-4, rtol=1e-4)
 
+
 @tvm.testing.uses_gpu
 def test_googlenet():
     torch.set_grad_enabled(False)
     verify_model("googlenet", atol=1e-4, rtol=1e-4)
+
 
 @tvm.testing.uses_gpu
 def test_mnasnet0_5():
     torch.set_grad_enabled(False)
     verify_model("mnasnet0_5", atol=1e-4, rtol=1e-4)
 
+
 @tvm.testing.uses_gpu
 def test_mobilenet_v2():
     torch.set_grad_enabled(False)
     verify_model("mobilenet_v2", atol=1e-4, rtol=1e-4)
+
 
 """
 #TODO: Fix VGG and AlexNet issues (probably due to pooling)
@@ -1730,18 +1775,23 @@ def test_vgg11_bn():
     verify_model("vgg11_bn")
 """
 
+
 @tvm.testing.uses_gpu
 def test_custom_conversion_map():
     def get_roi_align():
         pool_size = 5
         n_channels = 2 * (pool_size ** 2)
         x = torch.rand(2, n_channels, 10, 10)
-        rois = torch.tensor([[0, 0, 0, 9, 9],  # format is (xyxy)
-                             [0, 0, 5, 4, 9],
-                             [0, 5, 5, 9, 9],
-                             [1, 0, 0, 9, 9]], dtype=torch.float)
-        roi_align = torchvision.ops.RoIAlign(pool_size, spatial_scale=1,
-                                             sampling_ratio=-1)
+        rois = torch.tensor(
+            [
+                [0, 0, 0, 9, 9],  # format is (xyxy)
+                [0, 0, 5, 4, 9],
+                [0, 5, 5, 9, 9],
+                [1, 0, 0, 9, 9],
+            ],
+            dtype=torch.float,
+        )
+        roi_align = torchvision.ops.RoIAlign(pool_size, spatial_scale=1, sampling_ratio=-1)
         return roi_align.eval(), [x, rois]
 
     def convert_roi_align():
@@ -1749,12 +1799,13 @@ def test_custom_conversion_map():
             spatial_scale = inputs[2]
             pooled_size = (inputs[3], inputs[4])
             sampling_ratio = inputs[5]
-            return relay.op.vision.roi_align(inputs[0], inputs[1],
-                                             pooled_size, spatial_scale,
-                                             sampling_ratio)
+            return relay.op.vision.roi_align(
+                inputs[0], inputs[1], pooled_size, spatial_scale, sampling_ratio
+            )
+
         return _impl
 
-    custom_map = {'torchvision::roi_align': convert_roi_align()}
+    custom_map = {"torchvision::roi_align": convert_roi_align()}
     model, inputs = get_roi_align()
 
     verify_model(model, inputs, custom_map)
@@ -1802,12 +1853,10 @@ def verify_trace_model(pt_model, idata, targets):
     verify_model_vm(traced_model, ishapes, idata=idata, targets=targets)
 
 
-def verify_model_vm(input_model, ishapes, idtype=torch.float,
-                    idata=None, targets=["llvm"]):
+def verify_model_vm(input_model, ishapes, idtype=torch.float, idata=None, targets=["llvm"]):
     input_names = ["i{}".format(idx) for idx, ish in enumerate(ishapes)]
     input_shapes = list(zip(input_names, ishapes))
-    input_data = idata if idata else [torch.randn(shape, dtype=idtype)
-                                      for shape in ishapes]
+    input_data = idata if idata else [torch.randn(shape, dtype=idtype) for shape in ishapes]
     # Compile via VM
     mod, params = relay.frontend.from_pytorch(input_model, input_shapes)
 
@@ -1832,8 +1881,7 @@ def verify_model_vm(input_model, ishapes, idtype=torch.float,
             tvm_res = vm_res.asnumpy().item()
             assert pt_result == tvm_res
         else:
-            tvm.testing.assert_allclose(vm_res.asnumpy(), pt_result.numpy(),
-                                        rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(vm_res.asnumpy(), pt_result.numpy(), rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -1844,7 +1892,7 @@ def test_control_flow():
             self.weight = torch.nn.Parameter(torch.rand(N, M))
 
         def forward(self, inp):
-            if inp.sum() > 0.:
+            if inp.sum() > 0.0:
                 output = self.weight + inp
             else:
                 output = self.weight - inp
@@ -1856,13 +1904,13 @@ def test_control_flow():
             self.weight = torch.nn.Parameter(torch.rand(N, M))
 
         def forward(self, inp):
-            if inp.sum() > 0.:
-                if inp.mean() > 0.:
+            if inp.sum() > 0.0:
+                if inp.mean() > 0.0:
                     output = self.weight + inp
                 else:
                     output = self.weight - inp
             else:
-                if inp.mean() >= 0.:
+                if inp.mean() >= 0.0:
                     output = self.weight * inp
                 else:
                     output = self.weight / inp
@@ -1886,7 +1934,7 @@ def test_control_flow():
         def forward(self, inp):
             a = inp
             for i in range(inp.size(0)):
-                b = a * 2.
+                b = a * 2.0
                 c = a + b
                 a += c
             return a
@@ -1895,7 +1943,7 @@ def test_control_flow():
         def forward(self, inp):
             a = inp
             for i in range(inp.size(0)):
-                b = a * 2.
+                b = a * 2.0
                 b = a + b
                 if b.sum() > 0.0:
                     a += b
@@ -2007,11 +2055,11 @@ def test_forward_reduce_sum():
 
     class ReduceSum4(Module):
         def forward(self, *args):
-            return args[0].sum(dim=(2,3), keepdim=True)
+            return args[0].sum(dim=(2, 3), keepdim=True)
 
     class ReduceSum5(Module):
         def forward(self, *args):
-            return args[0].sum(dim=(2,3), keepdim=False)
+            return args[0].sum(dim=(2, 3), keepdim=False)
 
     input_data = torch.rand(input_shape).float()
     verify_model(ReduceSum1().float().eval(), input_data=input_data)
@@ -2109,11 +2157,11 @@ def test_forward_std():
 
     class Std4(Module):
         def forward(self, *args):
-            return args[0].std(dim=(2,3), keepdim=True, unbiased=False)
+            return args[0].std(dim=(2, 3), keepdim=True, unbiased=False)
 
     class Std5(Module):
         def forward(self, *args):
-            return args[0].std(dim=(2,3), keepdim=False, unbiased=False)
+            return args[0].std(dim=(2, 3), keepdim=False, unbiased=False)
 
     class Std6(Module):
         def forward(self, *args):
@@ -2125,7 +2173,7 @@ def test_forward_std():
 
     class Std8(Module):
         def forward(self, *args):
-            return args[0].std(dim=(2,3), keepdim=True, unbiased=True)
+            return args[0].std(dim=(2, 3), keepdim=True, unbiased=True)
 
     class Std9(Module):
         def forward(self, *args):
@@ -2162,11 +2210,11 @@ def test_forward_variance():
 
     class Variance4(Module):
         def forward(self, *args):
-            return args[0].var(dim=(2,3), keepdim=True, unbiased=False)
+            return args[0].var(dim=(2, 3), keepdim=True, unbiased=False)
 
     class Variance5(Module):
         def forward(self, *args):
-            return args[0].var(dim=(2,3), keepdim=False, unbiased=False)
+            return args[0].var(dim=(2, 3), keepdim=False, unbiased=False)
 
     class Variance6(Module):
         def forward(self, *args):
@@ -2178,7 +2226,7 @@ def test_forward_variance():
 
     class Variance8(Module):
         def forward(self, *args):
-            return args[0].var(dim=(2,3), keepdim=True, unbiased=True)
+            return args[0].var(dim=(2, 3), keepdim=True, unbiased=True)
 
     class Variance9(Module):
         def forward(self, *args):
@@ -2258,7 +2306,7 @@ def test_forward_isfinite():
         def forward(self, *args):
             return torch.isfinite(args[0])
 
-    input_data = torch.tensor([1, float('inf'), 2, float('-inf'), float('nan')]).float()
+    input_data = torch.tensor([1, float("inf"), 2, float("-inf"), float("nan")]).float()
     verify_model(IsFinite1().float().eval(), input_data=input_data)
 
 
@@ -2270,7 +2318,7 @@ def test_forward_isnan():
         def forward(self, *args):
             return torch.isnan(args[0])
 
-    input_data = torch.tensor([1, float('inf'), 2, float('-inf'), float('nan')]).float()
+    input_data = torch.tensor([1, float("inf"), 2, float("-inf"), float("nan")]).float()
     verify_model(IsNan1().float().eval(), input_data=input_data)
 
 
@@ -2282,7 +2330,7 @@ def test_forward_isinf():
         def forward(self, *args):
             return torch.isinf(args[0])
 
-    input_data = torch.tensor([1, float('inf'), 2, float('-inf'), float('nan')]).float()
+    input_data = torch.tensor([1, float("inf"), 2, float("-inf"), float("nan")]).float()
     verify_model(IsInf1().float().eval(), input_data=input_data)
 
 
@@ -2315,7 +2363,7 @@ def test_forward_ones():
 
     class Ones1(Module):
         def forward(self, *args):
-            return torch.ones(2,3)
+            return torch.ones(2, 3)
 
     verify_model(Ones1().float().eval(), input_data=[])
 
@@ -2349,7 +2397,7 @@ def test_forward_zeros():
 
     class Zeros1(Module):
         def forward(self, *args):
-            return torch.zeros(2,3)
+            return torch.zeros(2, 3)
 
     verify_model(Zeros1().float().eval(), input_data=[])
 
@@ -2383,11 +2431,11 @@ def test_forward_full():
 
     class Full1(Module):
         def forward(self, *args):
-            return torch.full((2,3), 3.14)
+            return torch.full((2, 3), 3.14)
 
     class Full2(Module):
         def forward(self, *args):
-            return torch.full((1, 2,3), 1.0, dtype=torch.int32)
+            return torch.full((1, 2, 3), 1.0, dtype=torch.int32)
 
     verify_model(Full1().float().eval(), input_data=[])
     verify_model(Full2().float().eval(), input_data=[])
@@ -2415,6 +2463,7 @@ def test_forward_full_like():
     verify_model(FullLike2().float().eval(), input_data=input_data)
     verify_model(FullLike3().float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_linspace():
     torch.set_grad_enabled(False)
@@ -2422,24 +2471,31 @@ def test_forward_linspace():
     class Linspace1(Module):
         def forward(self, *args):
             return torch.linspace(5, 10)
+
     class Linspace2(Module):
         def forward(self, *args):
             return torch.linspace(-10, 10, steps=5)
+
     class Linspace3(Module):
         def forward(self, *args):
             return torch.linspace(start=-10, end=10, steps=5)
+
     class Linspace4(Module):
         def forward(self, *args):
             return torch.linspace(start=-10, end=10, steps=1)
+
     class Linspace5(Module):
         def forward(self, *args):
             return torch.linspace(1, 2, 1, dtype=torch.int32)
+
     class Linspace6(Module):
         def forward(self, *args):
             return torch.linspace(start=1, end=6, steps=2)
+
     class Linspace7(Module):
         def forward(self, *args):
             return torch.linspace(1, 4, dtype=torch.float32)
+
     class Linspace8(Module):
         def forward(self, *args):
             return torch.linspace(1, 2, 1, dtype=torch.int16)
@@ -2457,9 +2513,10 @@ def test_forward_linspace():
 @tvm.testing.uses_gpu
 def test_forward_take():
     torch.set_grad_enabled(False)
+
     class Take1(Module):
         def forward(self, *args):
-            indices = torch.tensor([[0,0],[1,0]])
+            indices = torch.tensor([[0, 0], [1, 0]])
             if torch.cuda.is_available():
                 indices = indices.cuda()
             return torch.take(args[0], indices)
@@ -2468,15 +2525,16 @@ def test_forward_take():
         def forward(self, *args):
             return torch.take(args[0], args[1])
 
-    input_data = torch.tensor([[1,2],[3,4]])
+    input_data = torch.tensor([[1, 2], [3, 4]])
     verify_model(Take1().float().eval(), input_data=input_data)
-    indices = torch.tensor([[0,0],[1,0]])
+    indices = torch.tensor([[0, 0], [1, 0]])
     verify_model(Take2().float().eval(), input_data=[input_data, indices])
 
 
 @tvm.testing.uses_gpu
 def test_forward_topk():
     torch.set_grad_enabled(False)
+
     class Topk1(Module):
         def forward(self, *args):
             return torch.topk(args[0], k=3)
@@ -2525,10 +2583,10 @@ def test_forward_logical_not():
     input_data = torch.tensor([0, 1, -10], dtype=torch.int8)
     verify_model(LogicalNot1().float().eval(), input_data=input_data)
 
-    input_data = torch.tensor([0., 1.5, -10.], dtype=torch.double)
+    input_data = torch.tensor([0.0, 1.5, -10.0], dtype=torch.double)
     verify_model(LogicalNot1().float().eval(), input_data=input_data)
 
-    input_data = torch.tensor([0., 1., -10.], dtype=torch.int32)
+    input_data = torch.tensor([0.0, 1.0, -10.0], dtype=torch.int32)
     verify_model(LogicalNot1().float().eval(), input_data=input_data)
 
 
@@ -2543,7 +2601,7 @@ def test_forward_bitwise_not():
     input_data = torch.tensor([0, 1, -10], dtype=torch.int8)
     verify_model(BitwiseNot1().float().eval(), input_data=input_data)
 
-    input_data = torch.tensor([0., 1., -10.], dtype=torch.int32)
+    input_data = torch.tensor([0.0, 1.0, -10.0], dtype=torch.int32)
     verify_model(BitwiseNot1().float().eval(), input_data=input_data)
 
     input_data = torch.tensor([True, False])
@@ -2795,6 +2853,7 @@ def test_forward_addcmul():
     t2 = torch.rand([1, 3]).float()
     verify_model(Addcmul2().float().eval(), input_data=[input_data, t1, t2])
 
+
 @tvm.testing.uses_gpu
 def test_forward_traced_function():
     def fn(t1, t2):
@@ -2803,6 +2862,7 @@ def test_forward_traced_function():
     tensor1 = torch.randn(3, 4)
     tensor2 = torch.randn(3, 4)
     verify_model(fn, input_data=[tensor1, tensor2])
+
 
 @tvm.testing.uses_gpu
 def test_forward_dtypes():
@@ -2831,7 +2891,7 @@ def test_forward_dtypes():
 @tvm.testing.uses_gpu
 def test_weight_names():
     tm = torch.jit.trace(torch.nn.Linear(3, 4), [torch.randn(2, 3)])
-    mod, params = relay.frontend.from_pytorch(tm, [('input', (2, 3))])
+    mod, params = relay.frontend.from_pytorch(tm, [("input", (2, 3))])
     assert set(params.keys()) == set(n for n, p in tm.named_parameters())
 
 
@@ -2980,7 +3040,7 @@ def test_forward_pretrained_bert_base_uncased():
     # -----------------------------------------
 
     # Load pre-trained model tokenizer (vocabulary)
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
     # Tokenized input
     text = "[CLS] Who was Jim Henson ? [SEP] Jim Henson was a puppeteer [SEP]"
@@ -2988,9 +3048,23 @@ def test_forward_pretrained_bert_base_uncased():
 
     # Mask a token that we will try to predict back with `BertForMaskedLM`
     masked_index = 8
-    tokenized_text[masked_index] = '[MASK]'
-    assert tokenized_text == ['[CLS]', 'who', 'was', 'jim', 'henson', '?', '[SEP]', 'jim', '[MASK]', 'was', 'a', 'puppet',
-                              '##eer', '[SEP]']
+    tokenized_text[masked_index] = "[MASK]"
+    assert tokenized_text == [
+        "[CLS]",
+        "who",
+        "was",
+        "jim",
+        "henson",
+        "?",
+        "[SEP]",
+        "jim",
+        "[MASK]",
+        "was",
+        "a",
+        "puppet",
+        "##eer",
+        "[SEP]",
+    ]
 
     # Convert token to vocabulary indices
     indexed_tokens = tokenizer.convert_tokens_to_ids(tokenized_text)
@@ -3006,7 +3080,7 @@ def test_forward_pretrained_bert_base_uncased():
     # -------------------------------------------------
 
     # Bert Model with a language modeling
-    model = BertForMaskedLM.from_pretrained('bert-base-uncased')
+    model = BertForMaskedLM.from_pretrained("bert-base-uncased")
     model.eval()
 
     ######################################################################
@@ -3027,10 +3101,9 @@ def test_forward_pretrained_bert_base_uncased():
     # -------------------------
     # Convert PyTorch graph to Relay graph. The input name can be arbitrary.
 
-    input_1 = 'input_ids'
-    input_2 = 'input.2'
-    shape_list = [(input_1, list(tokens_tensor.shape)),
-                  (input_2, list(segments_tensors.shape))]
+    input_1 = "input_ids"
+    input_2 = "input.2"
+    shape_list = [(input_1, list(tokens_tensor.shape)), (input_2, list(segments_tensors.shape))]
 
     mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 
@@ -3038,7 +3111,7 @@ def test_forward_pretrained_bert_base_uncased():
     # Compile the model with relay
     # ----------------------------
 
-    target = 'llvm'
+    target = "llvm"
     with tvm.transform.PassContext(opt_level=3):
         relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
 
@@ -3078,8 +3151,8 @@ def test_forward_pretrained_bert_base_uncased():
     assert torch_pred_token == tvm_pred_token
 
     # Print the outputs
-    print('Torch top-1 id: {}, token: {}'.format(torch_pred_idx, torch_pred_token))
-    print('TVM   top-1 id: {}, token: {}'.format(tvm_pred_idx, tvm_pred_token))
+    print("Torch top-1 id: {}, token: {}".format(torch_pred_idx, torch_pred_token))
+    print("TVM   top-1 id: {}, token: {}".format(tvm_pred_idx, tvm_pred_token))
 
 
 if __name__ == "__main__":

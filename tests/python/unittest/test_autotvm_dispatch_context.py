@@ -20,8 +20,8 @@ to the parameters of workload"""
 
 from tvm import autotvm
 
-def test_fallback():
 
+def test_fallback():
     @autotvm.template("testing/dispatch_fallback")
     def simple_template(a, b):
         cfg = autotvm.get_config()

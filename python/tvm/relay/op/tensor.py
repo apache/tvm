@@ -33,6 +33,7 @@ from ..expr import Tuple, Expr
 # - Not put too much burden on FFI to support complicated features
 #   like default value and keyword arguments
 
+
 def log(data):
     """Compute elementwise log of data.
 
@@ -47,6 +48,7 @@ def log(data):
         The computed result.
     """
     return _make.log(data)
+
 
 def log2(data):
     """Compute elementwise log to the base 2 of data.
@@ -63,6 +65,7 @@ def log2(data):
     """
     return _make.log2(data)
 
+
 def log10(data):
     """Compute elementwise log to the base 10 of data.
 
@@ -77,6 +80,7 @@ def log10(data):
         The computed result.
     """
     return _make.log10(data)
+
 
 def tan(data):
     """Compute elementwise tan of data.
@@ -93,6 +97,7 @@ def tan(data):
     """
     return _make.tan(data)
 
+
 def cos(data):
     """Compute elementwise cos of data.
 
@@ -107,6 +112,7 @@ def cos(data):
         The computed result.
     """
     return _make.cos(data)
+
 
 def cosh(data):
     """Compute elementwise cosh of data.
@@ -123,6 +129,7 @@ def cosh(data):
     """
     return _make.cosh(data)
 
+
 def sin(data):
     """Compute elementwise sin of data.
 
@@ -137,6 +144,7 @@ def sin(data):
         The computed result.
     """
     return _make.sin(data)
+
 
 def sinh(data):
     """Compute elementwise sinh of data.
@@ -153,6 +161,7 @@ def sinh(data):
     """
     return _make.sinh(data)
 
+
 def acos(data):
     """Compute elementwise acos of data.
 
@@ -167,6 +176,7 @@ def acos(data):
         The computed result.
     """
     return _make.acos(data)
+
 
 def acosh(data):
     """Compute elementwise acosh of data.
@@ -183,6 +193,7 @@ def acosh(data):
     """
     return _make.acosh(data)
 
+
 def asin(data):
     """Compute elementwise asin of data.
 
@@ -197,6 +208,7 @@ def asin(data):
         The computed result.
     """
     return _make.asin(data)
+
 
 def asinh(data):
     """Compute elementwise asinh of data.
@@ -213,6 +225,7 @@ def asinh(data):
     """
     return _make.asinh(data)
 
+
 def atan(data):
     """Compute elementwise atan of data.
 
@@ -228,6 +241,7 @@ def atan(data):
     """
     return _make.atan(data)
 
+
 def atanh(data):
     """Compute elementwise atanh of data.
 
@@ -242,6 +256,7 @@ def atanh(data):
         The computed result.
     """
     return _make.atanh(data)
+
 
 def exp(data):
     """Compute elementwise exp of data.
@@ -406,6 +421,7 @@ def abs(data):
     """
     return _make.abs(data)
 
+
 def sign(data):
     """Compute element-wise absolute of data.
 
@@ -420,6 +436,7 @@ def sign(data):
         The computed result.
     """
     return _make.sign(data)
+
 
 def tanh(data):
     """Compute element-wise tanh of data.
@@ -689,6 +706,7 @@ def logical_xor(lhs, rhs):
         The computed result.
     """
     return _make.logical_xor(lhs, rhs)
+
 
 def bitwise_and(lhs, rhs):
     """bitwise AND with numpy-style broadcasting.
@@ -1034,6 +1052,7 @@ def clip(a, a_min, a_max):
     """
     return _make.clip(a, a_min, a_max)
 
+
 def fixed_point_multiply(data, multiplier, shift):
     """Fixed point multiplication between data and a fixed point
     constant expressed as multiplier * 2^(-shift), where multiplier
@@ -1145,16 +1164,20 @@ def device_copy(data, src_dev, dst_dev):
     elif isinstance(src_dev, str):
         src_dev = _nd.context(src_dev).device_type
     else:
-        raise ValueError("src_dev is expected to be the type of TVMContext or "
-                         "str, but received %s" % (type(src_dev)))
+        raise ValueError(
+            "src_dev is expected to be the type of TVMContext or "
+            "str, but received %s" % (type(src_dev))
+        )
 
     if isinstance(dst_dev, _TVMContext):
         dst_dev = dst_dev.device_type
     elif isinstance(dst_dev, str):
         dst_dev = _nd.context(dst_dev).device_type
     else:
-        raise ValueError("dst_dev is expected to be the type of TVMContext or "
-                         "str, but received %s" % (type(dst_dev)))
+        raise ValueError(
+            "dst_dev is expected to be the type of TVMContext or "
+            "str, but received %s" % (type(dst_dev))
+        )
     return _make.device_copy(data, src_dev, dst_dev)
 
 

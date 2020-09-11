@@ -44,30 +44,35 @@ def build_graph_lib(model_file, opt_level):
 
     # Compile the relay mod
     mod, params = _get_mod_and_params(model_file)
-    target = 'llvm -target=wasm32-unknown-unknown -mattr=+simd128 --system-lib'
+    target = "llvm -target=wasm32-unknown-unknown -mattr=+simd128 --system-lib"
     with tvm.transform.PassContext(opt_level=opt_level):
         graph_json, lib, params = relay.build(mod, target=target, params=params)
 
     # Save the model artifacts to obj_file
-    obj_file = os.path.join(out_dir, 'graph.o')
+    obj_file = os.path.join(out_dir, "graph.o")
     lib.save(obj_file)
     # Run llvm-ar to archive obj_file into lib_file
-    lib_file = os.path.join(out_dir, 'libgraph_wasm32.a')
-    cmds = [os.environ.get("LLVM_AR", "llvm-ar-10"), 'rcs', lib_file, obj_file]
+    lib_file = os.path.join(out_dir, "libgraph_wasm32.a")
+    cmds = [os.environ.get("LLVM_AR", "llvm-ar-10"), "rcs", lib_file, obj_file]
     subprocess.run(cmds)
 
-    with open(os.path.join(out_dir, 'graph.json'), 'w') as f_graph:
+    with open(os.path.join(out_dir, "graph.json"), "w") as f_graph:
         f_graph.write(graph_json)
 
-    with open(os.path.join(out_dir, 'graph.params'), 'wb') as f_params:
+    with open(os.path.join(out_dir, "graph.params"), "wb") as f_params:
         f_params.write(relay.save_param_dict(params))
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='ONNX model build example')
-    parser.add_argument('model_file', type=str, help='the path of onnx model file')
-    parser.add_argument('-O', '--opt-level', type=int, default=0,
-                        help='level of optimization. 0 is unoptimized and 3 is the highest level')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="ONNX model build example")
+    parser.add_argument("model_file", type=str, help="the path of onnx model file")
+    parser.add_argument(
+        "-O",
+        "--opt-level",
+        type=int,
+        default=0,
+        help="level of optimization. 0 is unoptimized and 3 is the highest level",
+    )
     args = parser.parse_args()
 
     build_graph_lib(args.model_file, args.opt_level)

@@ -23,10 +23,15 @@ from tvm import te, auto_scheduler
 from tvm.auto_scheduler import _ffi_api
 from tvm.auto_scheduler.loop_state import Stage
 
-from test_auto_scheduler_common import (matmul_auto_scheduler_test, conv2d_nchw_bn_relu_auto_scheduler_test,
-                                        max_pool2d_auto_scheduler_test, min_nm_auto_scheduler_test,
-                                        softmax_nm_auto_scheduler_test, softmax_abcd_auto_scheduler_test,
-                                        conv2d_winograd_nhwc_auto_scheduler_test)
+from test_auto_scheduler_common import (
+    matmul_auto_scheduler_test,
+    conv2d_nchw_bn_relu_auto_scheduler_test,
+    max_pool2d_auto_scheduler_test,
+    min_nm_auto_scheduler_test,
+    softmax_nm_auto_scheduler_test,
+    softmax_abcd_auto_scheduler_test,
+    conv2d_winograd_nhwc_auto_scheduler_test,
+)
 
 
 def generate_sketches(workload_func, args, target, print_for_debug=False):
@@ -36,35 +41,42 @@ def generate_sketches(workload_func, args, target, print_for_debug=False):
     policy = auto_scheduler.SketchPolicy(task, verbose=0)
     return policy.generate_sketches(print_for_debug)
 
+
 def assert_compute_at_condition(stage, condition):
     assert stage.compute_at == Stage.COMPUTE_AT_TRANS_TABLE[condition]
+
 
 def assert_is_tiled(stage):
     assert _ffi_api.SearchPolicyUtilsIsTiled(stage)
 
+
 def assert_is_not_tiled(stage):
     assert not _ffi_api.SearchPolicyUtilsIsTiled(stage)
+
 
 def assert_has_cache_write(state, stage_id):
     assert _ffi_api.SearchPolicyUtilsHasCacheWriteStage(state, stage_id)
 
+
 def assert_has_cache_read(state, stage_id):
     assert _ffi_api.SearchPolicyUtilsHasCacheReadStage(state, stage_id)
 
+
 def assert_has_rfactor(state, stage_id):
     assert _ffi_api.SearchPolicyUtilsHasRfactorStage(state, stage_id)
+
 
 def assert_has_cross_thread_reduction(state, stage_id):
     assert _ffi_api.SearchPolicyUtilsHasCrossThreadReduction(state, stage_id)
 
 
 def test_cpu_matmul_sketch():
-    sketches = generate_sketches(matmul_auto_scheduler_test, (512, 512, 512), 'llvm')
-    ''' 3 multi-level tiling sketches
+    sketches = generate_sketches(matmul_auto_scheduler_test, (512, 512, 512), "llvm")
+    """ 3 multi-level tiling sketches
         0 - Multi-level tiling
         1 - Multi-level tiling with cache write on position 0
         2 - Multi-level tiling with cache write on position 1
-    '''
+    """
     assert len(sketches) == 3
     # Sketch 0
     assert_is_tiled(sketches[0].stages[2])
@@ -78,14 +90,14 @@ def test_cpu_matmul_sketch():
     assert_compute_at_condition(sketches[2].stages[2], "iter")
     assert sketches[1] != sketches[2]
 
-    sketches = generate_sketches(matmul_auto_scheduler_test, (8, 8, 512), 'llvm')
-    ''' 2 rfactor sketches + 3 multi-level tiling sketches
+    sketches = generate_sketches(matmul_auto_scheduler_test, (8, 8, 512), "llvm")
+    """ 2 rfactor sketches + 3 multi-level tiling sketches
         0 - Rfactor with factor position 0
         1 - Rfactor with factor position 1
         2 - Multi-level tiling
         3 - Multi-level tiling with cache write on position 0
         4 - Multi-level tiling with cache write on position 1
-    '''
+    """
     assert len(sketches) == 5
     # Sketch 0
     assert_has_rfactor(sketches[0], 2)
@@ -106,13 +118,14 @@ def test_cpu_matmul_sketch():
 
 
 def test_cpu_conv2d_bn_relu_sketch():
-    sketches = generate_sketches(conv2d_nchw_bn_relu_auto_scheduler_test,
-                                 (1, 56, 56, 512, 512, 3, 1, 1), 'llvm')
-    ''' 3 multi-level tiling sketches
+    sketches = generate_sketches(
+        conv2d_nchw_bn_relu_auto_scheduler_test, (1, 56, 56, 512, 512, 3, 1, 1), "llvm"
+    )
+    """ 3 multi-level tiling sketches
         0 - Conv2d multi-level tiling with fusion on position 0
         1 - Conv2d multi-level tiling with fusion on position 1
         2 - Conv2d multi-level tiling without fusion
-    '''
+    """
     assert len(sketches) == 3
     # Sketch 0
     assert_is_not_tiled(sketches[0].stages[1])
@@ -141,20 +154,20 @@ def test_cpu_conv2d_bn_relu_sketch():
 
 
 def test_cpu_max_pool2d_sketch():
-    sketches = generate_sketches(max_pool2d_auto_scheduler_test, (1, 56, 56, 512, 1), 'llvm')
-    ''' 1 default sketch '''
+    sketches = generate_sketches(max_pool2d_auto_scheduler_test, (1, 56, 56, 512, 1), "llvm")
+    """ 1 default sketch """
     assert len(sketches) == 1
     # Sketch 0
     assert len(sketches[0].transform_steps) == 0
 
 
 def test_cpu_min_sketch():
-    sketches = generate_sketches(min_nm_auto_scheduler_test, (10, 1024), 'llvm')
-    ''' 2 rfactor sketches + 1 default sketch
+    sketches = generate_sketches(min_nm_auto_scheduler_test, (10, 1024), "llvm")
+    """ 2 rfactor sketches + 1 default sketch
         0 - Rfactor with factor position 0
         1 - Rfactor with factor position 1
         2 - Default sketch
-    '''
+    """
     assert len(sketches) == 3
     # Sketch 0
     assert_has_rfactor(sketches[0], 1)
@@ -166,8 +179,8 @@ def test_cpu_min_sketch():
 
 
 def test_cpu_softmax_sketch():
-    sketches = generate_sketches(softmax_nm_auto_scheduler_test, (1, 1024), 'llvm')
-    ''' (2 rfactor sketches + 1 default sketch) * (2 rfactor sketches + 1 default sketch) '''
+    sketches = generate_sketches(softmax_nm_auto_scheduler_test, (1, 1024), "llvm")
+    """ (2 rfactor sketches + 1 default sketch) * (2 rfactor sketches + 1 default sketch) """
     assert len(sketches) == (3 * 3)
     for i in range(0, 3):
         for j in range(0, 3):
@@ -178,8 +191,8 @@ def test_cpu_softmax_sketch():
                 assert_has_rfactor(sketch, 4 if j in [0, 1] else 3)
     assert len(sketches[8].transform_steps) == 0
 
-    sketches = generate_sketches(softmax_abcd_auto_scheduler_test, (1, 12, 128, 128), 'llvm')
-    ''' (2 rfactor sketches + 1 default sketch) * (2 rfactor sketches + 1 default sketch) '''
+    sketches = generate_sketches(softmax_abcd_auto_scheduler_test, (1, 12, 128, 128), "llvm")
+    """ (2 rfactor sketches + 1 default sketch) * (2 rfactor sketches + 1 default sketch) """
     assert len(sketches) == (3 * 3)
     for i in range(0, 3):
         for j in range(0, 3):
@@ -192,13 +205,14 @@ def test_cpu_softmax_sketch():
 
 
 def test_cpu_conv2d_winograd_sketch():
-    sketches = generate_sketches(conv2d_winograd_nhwc_auto_scheduler_test,
-                                 (1, 28, 28, 128, 128, 3, 1, 1), 'llvm')
-    ''' 3 multi-level tiling sketches
+    sketches = generate_sketches(
+        conv2d_winograd_nhwc_auto_scheduler_test, (1, 28, 28, 128, 128, 3, 1, 1), "llvm"
+    )
+    """ 3 multi-level tiling sketches
         0 - Bgemm multi-level tiling
         1 - Bgemm multi-level tiling with cache write on position 0
         2 - Bgemm multi-level tiling with cache write on position 1
-    '''
+    """
     assert len(sketches) == 3
     # Sketch 0
     assert_is_not_tiled(sketches[0].stages[1])
@@ -236,8 +250,8 @@ def test_cpu_conv2d_winograd_sketch():
 
 @tvm.testing.requires_cuda
 def test_cuda_matmul_sketch():
-    sketches = generate_sketches(matmul_auto_scheduler_test, (512, 512, 512), 'cuda')
-    ''' 1 multi-level tiling sketch '''
+    sketches = generate_sketches(matmul_auto_scheduler_test, (512, 512, 512), "cuda")
+    """ 1 multi-level tiling sketch """
     assert len(sketches) == 1
     assert_has_cache_read(sketches[0], 0)
     assert_compute_at_condition(sketches[0].stages[1], "iter")
@@ -248,8 +262,8 @@ def test_cuda_matmul_sketch():
     assert_compute_at_condition(sketches[0].stages[4], "iter")
     assert_is_tiled(sketches[0].stages[5])
 
-    sketches = generate_sketches(matmul_auto_scheduler_test, (8, 8, 1024), 'cuda')
-    ''' 1 cross thread reuction sketch + 1 multi-level tiling sketch '''
+    sketches = generate_sketches(matmul_auto_scheduler_test, (8, 8, 1024), "cuda")
+    """ 1 cross thread reuction sketch + 1 multi-level tiling sketch """
     assert len(sketches) == 2
     # Sketch 0
     assert_has_cross_thread_reduction(sketches[0], 2)
@@ -266,9 +280,10 @@ def test_cuda_matmul_sketch():
 
 @tvm.testing.requires_cuda
 def test_cuda_conv2d_bn_relu_sketch():
-    sketches = generate_sketches(conv2d_nchw_bn_relu_auto_scheduler_test,
-                                 (1, 56, 56, 512, 512, 3, 1, 1), 'cuda')
-    ''' 1 multi-level tiling sketch '''
+    sketches = generate_sketches(
+        conv2d_nchw_bn_relu_auto_scheduler_test, (1, 56, 56, 512, 512, 3, 1, 1), "cuda"
+    )
+    """ 1 multi-level tiling sketch """
     assert len(sketches) == 1
     assert_has_cache_read(sketches[0], 1)
     assert_compute_at_condition(sketches[0].stages[1], "inlined")
@@ -285,16 +300,16 @@ def test_cuda_conv2d_bn_relu_sketch():
 
 @tvm.testing.requires_cuda
 def test_cuda_max_pool2d_sketch():
-    sketches = generate_sketches(max_pool2d_auto_scheduler_test, (1, 56, 56, 512, 0), 'cuda')
-    ''' 1 default sketch '''
+    sketches = generate_sketches(max_pool2d_auto_scheduler_test, (1, 56, 56, 512, 0), "cuda")
+    """ 1 default sketch """
     assert len(sketches) == 1
     assert len(sketches[0].transform_steps) == 0
 
 
 @tvm.testing.requires_cuda
 def test_cuda_min_sketch():
-    sketches = generate_sketches(min_nm_auto_scheduler_test, (10, 1024), 'cuda')
-    ''' 1 cross thread reuction sketch + 1 default sketch '''
+    sketches = generate_sketches(min_nm_auto_scheduler_test, (10, 1024), "cuda")
+    """ 1 cross thread reuction sketch + 1 default sketch """
     assert len(sketches) == 2
     # Sketch 0
     assert_has_cross_thread_reduction(sketches[0], 1)
@@ -304,8 +319,8 @@ def test_cuda_min_sketch():
 
 @tvm.testing.requires_cuda
 def test_cuda_softmax_sketch():
-    sketches = generate_sketches(softmax_nm_auto_scheduler_test, (2, 1024), 'cuda')
-    ''' (1 cross thread reuction sketch + 1 default sketch) * (1 cross thread reuction sketch + 1 default sketch) '''
+    sketches = generate_sketches(softmax_nm_auto_scheduler_test, (2, 1024), "cuda")
+    """ (1 cross thread reuction sketch + 1 default sketch) * (1 cross thread reuction sketch + 1 default sketch) """
     assert len(sketches) == (2 * 2)
     # Sketch 0
     assert_has_cross_thread_reduction(sketches[0], 1)
@@ -320,8 +335,8 @@ def test_cuda_softmax_sketch():
     # Sketch 3
     assert_compute_at_condition(sketches[3].stages[2], "inlined")
 
-    sketches = generate_sketches(softmax_abcd_auto_scheduler_test, (1, 12, 128, 128), 'cuda')
-    ''' (1 cross thread reuction sketch + 1 default sketch) * (1 cross thread reuction sketch + 1 default sketch) '''
+    sketches = generate_sketches(softmax_abcd_auto_scheduler_test, (1, 12, 128, 128), "cuda")
+    """ (1 cross thread reuction sketch + 1 default sketch) * (1 cross thread reuction sketch + 1 default sketch) """
     assert len(sketches) == (2 * 2)
     # Sketch 0
     assert_has_cross_thread_reduction(sketches[0], 1)
@@ -339,9 +354,10 @@ def test_cuda_softmax_sketch():
 
 @tvm.testing.requires_cuda
 def test_cuda_conv2d_winograd_sketch():
-    sketches = generate_sketches(conv2d_winograd_nhwc_auto_scheduler_test,
-                                 (1, 28, 28, 128, 128, 3, 1, 1), 'cuda')
-    ''' 1 multi-level tiling sketch '''
+    sketches = generate_sketches(
+        conv2d_winograd_nhwc_auto_scheduler_test, (1, 28, 28, 128, 128, 3, 1, 1), "cuda"
+    )
+    """ 1 multi-level tiling sketch """
     assert len(sketches) == 1
     assert_compute_at_condition(sketches[0].stages[1], "inlined")
     assert_compute_at_condition(sketches[0].stages[2], "inlined")

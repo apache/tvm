@@ -20,6 +20,7 @@ import tvm
 from tvm import te
 from ..util import is_empty_shape
 
+
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
 
@@ -44,6 +45,7 @@ def schedule_injective_from_existing(sch, out):
     elif len(sch[out].op.axis) >= 2:
         sch[out].parallel(sch[out].op.axis[0])
     return sch
+
 
 def schedule_injective(outs):
     """ARM CPU schedule for injective op.
@@ -72,6 +74,7 @@ def schedule_injective(outs):
     if not is_empty_shape(x.shape):
         schedule_injective_from_existing(s, x)
     return s
+
 
 def schedule_concatenate(outs):
     """Schedule for concatenate op.

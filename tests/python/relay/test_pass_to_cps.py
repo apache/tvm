@@ -46,7 +46,7 @@ def test_recursion():
     p = Prelude(mod)
     add_nat_definitions(p)
     shape = (10, 10)
-    dtype = 'float32'
+    dtype = "float32"
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     double = relay.Function([x], x + x)
@@ -71,22 +71,29 @@ def test_cps_pe():
         x = run_infer_type(x)
         y = un_cps(x)
         y = run_infer_type(y)
-        x = run_opt_pass(x, tvm.transform.Sequential(
-            [transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)]))
+        x = run_opt_pass(
+            x,
+            tvm.transform.Sequential(
+                [transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)]
+            ),
+        )
         assert Feature.fRefCreate not in detect_feature(x)
-    unit = relay.Function([], relay.const(0., dtype='float32'))
+
+    unit = relay.Function([], relay.const(0.0, dtype="float32"))
     f_ref = relay.Var("f_ref")
 
-    one = relay.const(1., dtype='float32')
-    two = relay.const(2., dtype='float32')
-    cond = relay.var(shape=(), dtype='uint1', name_hint='cond')
+    one = relay.const(1.0, dtype="float32")
+    two = relay.const(2.0, dtype="float32")
+    cond = relay.var(shape=(), dtype="uint1", name_hint="cond")
     true_branch = relay.RefWrite(f_ref, relay.Function([], one))
     false_branch = relay.RefWrite(f_ref, relay.Function([], two))
     if_expr = relay.If(cond, true_branch, false_branch)
 
-    stmt = relay.Let(f_ref, relay.RefCreate(unit),
-                     relay.Let(relay.Var("x"), if_expr,
-                               relay.Call(relay.RefRead(f_ref), [])))
+    stmt = relay.Let(
+        f_ref,
+        relay.RefCreate(unit),
+        relay.Let(relay.Var("x"), if_expr, relay.Call(relay.RefRead(f_ref), [])),
+    )
 
     F = relay.Function([cond], stmt)
     destroy_ref(F)
@@ -99,15 +106,15 @@ def test_cps_pe():
     x = relay.var("x", shape=(1, 16))
     y = relay.var("y", shape=(1, 16))
     z = relay.var("z", shape=(1, 16))
-    cond = relay.var("cond", shape=(), dtype='uint1')
+    cond = relay.var("cond", shape=(), dtype="uint1")
     H = relay.If(cond, x, y)
     H = relay.add(H, z)
-    H = relay.Function([cond,x,y,z], H)
+    H = relay.Function([cond, x, y, z], H)
     H = run_infer_type(H)
     H = relay.transform.gradient(H)
     destroy_ref(H)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_recursion()
     test_cps_pe()

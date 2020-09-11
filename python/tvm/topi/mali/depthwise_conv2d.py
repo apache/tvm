@@ -59,17 +59,17 @@ def schedule_depthwise_conv2d_nchw(cfg, outs):
         ##### space definition begin #####
         n, c, y, x = s[conv].op.axis
         bc, tc, ci = cfg.define_split("tile_c", c, num_outputs=3)
-        by, ty, yi = cfg.define_split('tile_y', y, num_outputs=3)
+        by, ty, yi = cfg.define_split("tile_y", y, num_outputs=3)
         bx, tx, xi = cfg.define_split("tile_x", x, num_outputs=3)
-        cfg.define_annotate('ann_spatial', [ci, yi, xi], policy='try_unroll_vec')
+        cfg.define_annotate("ann_spatial", [ci, yi, xi], policy="try_unroll_vec")
 
         # fallback support
         if cfg.is_fallback:
             ref_log = autotvm.tophub.load_reference_log(
-                'mali', 'rk3399', 'depthwise_conv2d_nchw.mali')
+                "mali", "rk3399", "depthwise_conv2d_nchw.mali"
+            )
             cfg.fallback_with_reference_log(ref_log)
         ###### space definition end ######
-
 
         # schedule padding
         n, c, y, x = s[pad_data].op.axis
@@ -81,17 +81,17 @@ def schedule_depthwise_conv2d_nchw(cfg, outs):
 
         # schedule conv
         if conv.op not in s.outputs:
-            s[conv].set_scope('local')
+            s[conv].set_scope("local")
             OL = conv
             output = s.outputs[0].output(0)
         else:
-            OL = s.cache_write(conv, 'local')
+            OL = s.cache_write(conv, "local")
             output = conv
 
         n, c, y, x = s[output].op.axis
-        bc, tc, ci = cfg['tile_c'].apply(s, output, c)
-        by, ty, yi = cfg['tile_y'].apply(s, output, y)
-        bx, tx, xi = cfg['tile_x'].apply(s, output, x)
+        bc, tc, ci = cfg["tile_c"].apply(s, output, c)
+        by, ty, yi = cfg["tile_y"].apply(s, output, y)
+        bx, tx, xi = cfg["tile_x"].apply(s, output, x)
 
         bc = s[output].fuse(n, bc)
         s[output].bind(bc, te.thread_axis("blockIdx.z"))
@@ -108,17 +108,20 @@ def schedule_depthwise_conv2d_nchw(cfg, outs):
         s[OL].compute_at(s[output], tx)
         n, ci, yi, xi = s[OL].op.axis
 
-        cfg["ann_spatial"].apply(s, OL, [ci, yi, xi],
-                                 axis_lens=[cfg['tile_c'].size[2], cfg['tile_y'].size[2],
-                                            cfg['tile_x'].size[2]],
-                                 max_unroll=max_unroll,
-                                 vec_size=vec_size,
-                                 cfg=cfg)
+        cfg["ann_spatial"].apply(
+            s,
+            OL,
+            [ci, yi, xi],
+            axis_lens=[cfg["tile_c"].size[2], cfg["tile_y"].size[2], cfg["tile_x"].size[2]],
+            max_unroll=max_unroll,
+            vec_size=vec_size,
+            cfg=cfg,
+        )
 
     def _callback(op):
         """traverse to find op to schedule"""
         # schedule depthwise_conv2d
-        if op.tag == 'depthwise_conv2d_nchw':
+        if op.tag == "depthwise_conv2d_nchw":
             pad_data = op.input_tensors[0]
             kernel = op.input_tensors[1]
             conv = op.output(0)

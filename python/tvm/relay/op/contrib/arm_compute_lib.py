@@ -55,11 +55,15 @@ def partition_for_arm_compute_lib(mod, params=None):
     ret : annotated and partitioned module.
     """
     if params:
-        mod['main'] = bind_params_by_name(mod['main'], params)
+        mod["main"] = bind_params_by_name(mod["main"], params)
 
-    seq = tvm.transform.Sequential([transform.MergeComposite(arm_compute_lib_pattern_table()),
-                                    transform.AnnotateTarget('arm_compute_lib'),
-                                    transform.PartitionGraph()])
+    seq = tvm.transform.Sequential(
+        [
+            transform.MergeComposite(arm_compute_lib_pattern_table()),
+            transform.AnnotateTarget("arm_compute_lib"),
+            transform.PartitionGraph(),
+        ]
+    )
 
     return seq(mod)
 
@@ -76,10 +80,10 @@ def arm_compute_lib_pattern_table():
         pattern : dataflow_pattern.AltPattern
             Denotes the convolution pattern.
         """
-        pattern = is_op('nn.pad')(wildcard()) | wildcard()
-        pattern = is_op('nn.conv2d')(pattern, is_constant())
-        pattern = pattern.optional(lambda x: is_op('nn.bias_add')(x, is_constant()))
-        pattern = pattern.optional(is_op('nn.relu'))
+        pattern = is_op("nn.pad")(wildcard()) | wildcard()
+        pattern = is_op("nn.conv2d")(pattern, is_constant())
+        pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
+        pattern = pattern.optional(is_op("nn.relu"))
         return pattern
 
     def qnn_conv_pattern():
@@ -90,13 +94,15 @@ def arm_compute_lib_pattern_table():
         pattern : dataflow_pattern.AltPattern
             Denotes the convolution pattern.
         """
-        pattern = is_op('nn.pad')(wildcard()) | wildcard()
-        pattern = is_op('qnn.conv2d')(
-            pattern, is_constant(), is_constant(), is_constant(), is_constant(), is_constant())
-        pattern = pattern.optional(lambda x: is_op('nn.bias_add')(x, is_constant()))
-        pattern = pattern.optional(is_op('nn.relu'))
-        pattern = is_op('qnn.requantize')(
-            pattern, wildcard(), wildcard(), is_constant(), is_constant())
+        pattern = is_op("nn.pad")(wildcard()) | wildcard()
+        pattern = is_op("qnn.conv2d")(
+            pattern, is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+        )
+        pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
+        pattern = pattern.optional(is_op("nn.relu"))
+        pattern = is_op("qnn.requantize")(
+            pattern, wildcard(), wildcard(), is_constant(), is_constant()
+        )
         return pattern
 
     def dense_pattern():
@@ -107,8 +113,8 @@ def arm_compute_lib_pattern_table():
         pattern : dataflow_pattern.AltPattern
             Denotes the convolution pattern.
         """
-        pattern = is_op('nn.dense')(wildcard(), is_constant())
-        pattern = pattern.optional(lambda x: is_op('nn.bias_add')(x, is_constant()))
+        pattern = is_op("nn.dense")(wildcard(), is_constant())
+        pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
         return pattern
 
     def qnn_dense_pattern():
@@ -119,11 +125,13 @@ def arm_compute_lib_pattern_table():
         pattern : dataflow_pattern.AltPattern
             Denotes the convolution pattern.
         """
-        pattern = is_op('qnn.dense')(
-            wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant())
-        pattern = pattern.optional(lambda x: is_op('nn.bias_add')(x, is_constant()))
-        pattern = is_op('qnn.requantize')(
-            pattern, wildcard(), wildcard(), is_constant(), is_constant())
+        pattern = is_op("qnn.dense")(
+            wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+        )
+        pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
+        pattern = is_op("qnn.requantize")(
+            pattern, wildcard(), wildcard(), is_constant(), is_constant()
+        )
         return pattern
 
     def avg_pool2d_pattern():
@@ -135,9 +143,9 @@ def arm_compute_lib_pattern_table():
         pattern : dataflow_pattern.AltPattern
             Denotes the convolution pattern.
         """
-        pattern = is_op('cast')(wildcard())
-        pattern = is_op('nn.avg_pool2d')(pattern) | is_op('nn.global_avg_pool2d')(pattern)
-        pattern = is_op('cast')(pattern)
+        pattern = is_op("cast")(wildcard())
+        pattern = is_op("nn.avg_pool2d")(pattern) | is_op("nn.global_avg_pool2d")(pattern)
+        pattern = is_op("cast")(pattern)
         return pattern
 
     def l2_pool2d_pattern():
@@ -148,9 +156,9 @@ def arm_compute_lib_pattern_table():
         pattern : dataflow_pattern.AltPattern
             Denotes the convolution pattern.
         """
-        pattern = is_op('power')(wildcard(), is_expr(const(2.0)))
-        pattern = is_op('nn.avg_pool2d')(pattern)
-        pattern = is_op('sqrt')(pattern)
+        pattern = is_op("power")(wildcard(), is_expr(const(2.0)))
+        pattern = is_op("nn.avg_pool2d")(pattern)
+        pattern = is_op("sqrt")(pattern)
         return pattern
 
     def check_conv(extract):
@@ -199,13 +207,15 @@ def arm_compute_lib_pattern_table():
         pool = extract.args[0]
         return avg_pool2d(pool.attrs, pool.args)
 
-    return [('arm_compute_lib.conv2d', conv_pattern(), check_conv),
-            ('arm_compute_lib.qnn_conv2d', qnn_conv_pattern(), check_qnn_conv),
-            ('arm_compute_lib.dense', dense_pattern(), check_dense),
-            ('arm_compute_lib.qnn_dense', qnn_dense_pattern(), check_qnn_dense),
-            ('arm_compute_lib.qnn_conv2d', qnn_conv_pattern(), check_qnn_conv),
-            ('arm_compute_lib.avg_pool2d', avg_pool2d_pattern(), check_avg_pool2d),
-            ('arm_compute_lib.l2_pool2d', l2_pool2d_pattern(), check_l2_pool2d)]
+    return [
+        ("arm_compute_lib.conv2d", conv_pattern(), check_conv),
+        ("arm_compute_lib.qnn_conv2d", qnn_conv_pattern(), check_qnn_conv),
+        ("arm_compute_lib.dense", dense_pattern(), check_dense),
+        ("arm_compute_lib.qnn_dense", qnn_dense_pattern(), check_qnn_dense),
+        ("arm_compute_lib.qnn_conv2d", qnn_conv_pattern(), check_qnn_conv),
+        ("arm_compute_lib.avg_pool2d", avg_pool2d_pattern(), check_avg_pool2d),
+        ("arm_compute_lib.l2_pool2d", l2_pool2d_pattern(), check_l2_pool2d),
+    ]
 
 
 def _register_external_op_helper(op_name, supported=True):

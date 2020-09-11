@@ -45,13 +45,16 @@ def ethosn_available():
 @register_pattern_table("ethos-n")
 def pattern_table():
     """Get the Ethos-N compiler pattern table."""
+
     def qnn_conv_pattern():
-        pattern = is_op('nn.pad')(wildcard()) | wildcard()
-        pattern = is_op('qnn.conv2d')(
-            pattern, is_constant(), is_constant(), is_constant(), is_constant(), is_constant())
-        pattern = is_op('nn.bias_add')(pattern, is_constant())
-        pattern = is_op('qnn.requantize')(
-            pattern, is_constant(), is_constant(), is_constant(), is_constant())
+        pattern = is_op("nn.pad")(wildcard()) | wildcard()
+        pattern = is_op("qnn.conv2d")(
+            pattern, is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+        )
+        pattern = is_op("nn.bias_add")(pattern, is_constant())
+        pattern = is_op("qnn.requantize")(
+            pattern, is_constant(), is_constant(), is_constant(), is_constant()
+        )
         return pattern
 
     def check_conv2d(extract):
@@ -88,7 +91,7 @@ def qnn_concatenate(attrs, args):
         qnn_params.append((scale, zero_point))
 
     scale = (max_range - min_range) / 255
-    zero_point = int(-min_range/scale)
+    zero_point = int(-min_range / scale)
     if (scale, zero_point) in qnn_params:
         return True
 
@@ -102,13 +105,13 @@ def split(attrs, args):
         return False
 
     if isinstance(attrs["indices_or_sections"], tvm.tir.IntImm):
-        sp = tvm.relay.split(*args,
-                             indices_or_sections=attrs["indices_or_sections"].value,
-                             axis=attrs["axis"])
+        sp = tvm.relay.split(
+            *args, indices_or_sections=attrs["indices_or_sections"].value, axis=attrs["axis"]
+        )
     else:
-        sp = tvm.relay.split(*args,
-                             indices_or_sections=attrs["indices_or_sections"],
-                             axis=attrs["axis"])
+        sp = tvm.relay.split(
+            *args, indices_or_sections=attrs["indices_or_sections"], axis=attrs["axis"]
+        )
     if not support.split(sp.astuple()):
         return False
 

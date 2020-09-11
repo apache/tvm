@@ -20,7 +20,7 @@ from tvm import te
 import tvm._ffi
 
 
-def randint(low, high, size, dtype='int32'):
+def randint(low, high, size, dtype="int32"):
     """Return random integers from low (inclusive) to high (exclusive).
     Return random integers from the "discrete uniform" distribution of the
     specified dtype in the "half-open" interval [low, high).
@@ -37,9 +37,15 @@ def randint(low, high, size, dtype='int32'):
     out : Tensor
         A tensor with specified size and dtype
     """
-    assert 'int' in dtype, "the type of randint output must be int or uint"
-    return te.extern(size, [], lambda ins, outs: tvm.tir.call_packed(
-        "tvm.contrib.random.randint", int(low), int(high), outs[0]), dtype=dtype)
+    assert "int" in dtype, "the type of randint output must be int or uint"
+    return te.extern(
+        size,
+        [],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.random.randint", int(low), int(high), outs[0]
+        ),
+        dtype=dtype,
+    )
 
 
 def uniform(low, high, size):
@@ -66,8 +72,14 @@ def uniform(low, high, size):
     out : Tensor
         A tensor with specified size and dtype.
     """
-    return te.extern(size, [], lambda ins, outs: tvm.tir.call_packed(
-        "tvm.contrib.random.uniform", float(low), float(high), outs[0]), dtype='float32')
+    return te.extern(
+        size,
+        [],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.random.uniform", float(low), float(high), outs[0]
+        ),
+        dtype="float32",
+    )
 
 
 def normal(loc, scale, size):
@@ -90,8 +102,14 @@ def normal(loc, scale, size):
     out : Tensor
         A tensor with specified size and dtype
     """
-    return te.extern(size, [], lambda ins, outs: tvm.tir.call_packed(
-        "tvm.contrib.random.normal", float(loc), float(scale), outs[0]), dtype='float32')
+    return te.extern(
+        size,
+        [],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.random.normal", float(loc), float(scale), outs[0]
+        ),
+        dtype="float32",
+    )
 
 
 tvm._ffi._init_api("tvm.contrib.random")

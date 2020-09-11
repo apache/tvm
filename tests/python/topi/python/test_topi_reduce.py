@@ -75,7 +75,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
 
         foo = tvm.build(s, [A, B], device, name=type)
         # Test
-        if dtype == 'bool':
+        if dtype == "bool":
             in_npy_map = in_npy = np.random.choice([True, False], size=in_shape)
         else:
             in_npy = np.random.uniform(-1, 1, size=in_shape).astype(dtype)
@@ -83,7 +83,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
 
         if type == "sum":
             out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims)
-        elif type == "all" and dtype == 'bool':
+        elif type == "all" and dtype == "bool":
             out_npy = in_npy_map.all(axis=axis, keepdims=keepdims)
         elif type == "any" and dtype == "bool":
             out_npy = in_npy_map.any(axis=axis, keepdims=keepdims)
@@ -108,15 +108,16 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
             if axis is None:
                 out_tvm_val = in_npy_map.ravel()[out_tvm_indices]
             else:
-                other_indices = tuple(np.indices(in_shape[0:axis] + in_shape[(axis+1):]))
+                other_indices = tuple(np.indices(in_shape[0:axis] + in_shape[(axis + 1) :]))
                 sel_indices = other_indices[0:axis] + (out_tvm_indices,) + other_indices[axis:]
                 out_tvm_val = in_npy_map[sel_indices]
             if type == "argmax":
-                tvm.testing.assert_allclose(out_tvm_val, in_npy_map.max(axis=axis), 1E-3, 1E-3)
+                tvm.testing.assert_allclose(out_tvm_val, in_npy_map.max(axis=axis), 1e-3, 1e-3)
             elif type == "argmin":
-                tvm.testing.assert_allclose(out_tvm_val, in_npy_map.min(axis=axis), 1E-3, 1E-3)
+                tvm.testing.assert_allclose(out_tvm_val, in_npy_map.min(axis=axis), 1e-3, 1e-3)
         else:
-            tvm.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1E-3, 1E-3)
+            tvm.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1e-3, 1e-3)
+
     for device, ctx in tvm.testing.enabled_targets():
         check_device(device, ctx)
 
@@ -124,77 +125,31 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
 @tvm.testing.uses_gpu
 def test_reduce_map():
 
-    verify_reduce_map_ele(in_shape=(32,),
-                          axis=0,
-                          keepdims=False,
-                          type="argmax")
-    verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
-                          axis=(1, 2, 3),
-                          keepdims=True,
-                          type="sum")
-    verify_reduce_map_ele(in_shape=(2, 3),
-                          axis=None,
-                          keepdims=True,
-                          type="all",
-                          dtype='bool')
-    verify_reduce_map_ele(in_shape=(128, 24 * 128 * 24),
-                          axis=(1,),
-                          keepdims=False,
-                          type="max")
-    verify_reduce_map_ele(in_shape=(32, 128, 24),
-                          axis=None,
-                          keepdims=True,
-                          type="sum")
-    verify_reduce_map_ele(in_shape=(32, 128, 24),
-                          axis=None,
-                          keepdims=True,
-                          dtype='bool',
-                          type="all")
-    verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
-                          axis=(0, 2),
-                          keepdims=False,
-                          type="min")
-    verify_reduce_map_ele(in_shape=(32, 128),
-                          axis=1,
-                          keepdims=True,
-                          type="argmax")
-    verify_reduce_map_ele(in_shape=(32, 24, 32, 24),
-                          axis=2,
-                          keepdims=False,
-                          type="argmin")
-    verify_reduce_map_ele(in_shape=(31, 21, 15),
-                          axis=None,
-                          keepdims=True,
-                          type="argmax")
-    verify_reduce_map_ele(in_shape=(31, 21, 15),
-                          axis=None,
-                          keepdims=False,
-                          type="sum")
-    verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
-                          axis=(1, 2, 3),
-                          keepdims=True,
-                          type="sum",
-                          dtype="float64")
-    verify_reduce_map_ele(in_shape=(2, 3),
-                          axis=None,
-                          keepdims=True,
-                          type="any",
-                          dtype="bool")
-    verify_reduce_map_ele(in_shape=(32, 128, 24),
-                          axis=None,
-                          keepdims=True,
-                          type="any",
-                          dtype="bool")
-    verify_reduce_map_ele(in_shape=(1, 4, 7),
-                          axis=1,
-                          keepdims=True,
-                          type="any",
-                          dtype="bool")
-    verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
-                          axis=2,
-                          keepdims=False,
-                          type="any",
-                          dtype="bool")
+    verify_reduce_map_ele(in_shape=(32,), axis=0, keepdims=False, type="argmax")
+    verify_reduce_map_ele(in_shape=(128, 24, 128, 24), axis=(1, 2, 3), keepdims=True, type="sum")
+    verify_reduce_map_ele(in_shape=(2, 3), axis=None, keepdims=True, type="all", dtype="bool")
+    verify_reduce_map_ele(in_shape=(128, 24 * 128 * 24), axis=(1,), keepdims=False, type="max")
+    verify_reduce_map_ele(in_shape=(32, 128, 24), axis=None, keepdims=True, type="sum")
+    verify_reduce_map_ele(
+        in_shape=(32, 128, 24), axis=None, keepdims=True, dtype="bool", type="all"
+    )
+    verify_reduce_map_ele(in_shape=(128, 24, 128, 24), axis=(0, 2), keepdims=False, type="min")
+    verify_reduce_map_ele(in_shape=(32, 128), axis=1, keepdims=True, type="argmax")
+    verify_reduce_map_ele(in_shape=(32, 24, 32, 24), axis=2, keepdims=False, type="argmin")
+    verify_reduce_map_ele(in_shape=(31, 21, 15), axis=None, keepdims=True, type="argmax")
+    verify_reduce_map_ele(in_shape=(31, 21, 15), axis=None, keepdims=False, type="sum")
+    verify_reduce_map_ele(
+        in_shape=(128, 24, 128, 24), axis=(1, 2, 3), keepdims=True, type="sum", dtype="float64"
+    )
+    verify_reduce_map_ele(in_shape=(2, 3), axis=None, keepdims=True, type="any", dtype="bool")
+    verify_reduce_map_ele(
+        in_shape=(32, 128, 24), axis=None, keepdims=True, type="any", dtype="bool"
+    )
+    verify_reduce_map_ele(in_shape=(1, 4, 7), axis=1, keepdims=True, type="any", dtype="bool")
+    verify_reduce_map_ele(
+        in_shape=(128, 24, 128, 24), axis=2, keepdims=False, type="any", dtype="bool"
+    )
+
 
 if __name__ == "__main__":
     test_reduce_map()

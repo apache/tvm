@@ -31,9 +31,9 @@ class PBQPTuner(BaseGraphTuner):
     Nearly optimal register allocation with pbqp.JMLC 2006.
     LNCS, vol.4228,pp. 346-361, 2016
     """
+
     def __init__(self, *args, **kwargs):
-        """Create a partitioned boolean quadratic programming tuner.
-        """
+        """Create a partitioned boolean quadratic programming tuner."""
         super(PBQPTuner, self).__init__(*args, **kwargs)
 
         # Remove input and ruled_out nodes
@@ -46,8 +46,9 @@ class PBQPTuner(BaseGraphTuner):
 
         self._adj_dict = {}
         for node_idx in self._in_nodes_dict:
-            self._adj_dict[node_idx] = list(self._in_nodes_dict[node_idx]) + \
-                                       list(self._out_nodes_dict[node_idx])
+            self._adj_dict[node_idx] = list(self._in_nodes_dict[node_idx]) + list(
+                self._out_nodes_dict[node_idx]
+            )
 
         self._record_cost_dict = {}
         for key in self._in_nodes_dict:
@@ -71,13 +72,11 @@ class PBQPTuner(BaseGraphTuner):
         self._is_optimal = True
 
     def _get_degree(self, node_idx):
-        """Get node degree.
-        """
+        """Get node degree."""
         return len(self._adj_dict[node_idx])
 
     def _reorder_adj_nodes(self, node_idx):
-        """Update buckets list with current adjacency list.
-        """
+        """Update buckets list with current adjacency list."""
         for adj_node in self._adj_dict[node_idx]:
             current_degree = self._get_degree(adj_node)
             prev_degree = self._node_degree_dict[adj_node]
@@ -87,36 +86,31 @@ class PBQPTuner(BaseGraphTuner):
                 self._node_degree_dict[adj_node] = current_degree
 
     def _remove_node(self, node_idx):
-        """Remove node from graph. Update adjacency list accordingly.
-        """
+        """Remove node from graph. Update adjacency list accordingly."""
         node_degree = self._get_degree(node_idx)
         self._buckets[node_degree].remove(node_idx)
         for adj_node in self._adj_dict[node_idx]:
             self._adj_dict[adj_node].remove(node_idx)
 
     def _insert_edge(self, node_x, node_y, adj_cost_matrix):
-        """Insert an edge between two nodes.
-        """
+        """Insert an edge between two nodes."""
         self._layout_transform_interlayer_cost[(node_x, node_y)] = adj_cost_matrix
         self._layout_transform_interlayer_cost[(node_y, node_x)] = []
         for i in range(len(adj_cost_matrix[0])):
             self._layout_transform_interlayer_cost[(node_y, node_x)].append([])
             for cost_vec in adj_cost_matrix:
-                self._layout_transform_interlayer_cost[(node_y, node_x)][i] \
-                    .append(cost_vec[i])
+                self._layout_transform_interlayer_cost[(node_y, node_x)][i].append(cost_vec[i])
 
         self._adj_dict[node_x].append(node_y)
         self._adj_dict[node_y].append(node_x)
 
     def _backward_insert_node(self, node_idx):
-        """Reinsert node in backward pass.
-        """
+        """Reinsert node in backward pass."""
         for adj_node in self._adj_dict[node_idx]:
             self._adj_dict[adj_node].append(node_idx)
 
     def _RI_reduction(self, node_idx):
-        """Reduce nodes with degree 1.
-        """
+        """Reduce nodes with degree 1."""
         adj_node = self._adj_dict[node_idx][0]
         ltf_matrix = self._layout_transform_interlayer_cost[(adj_node, node_idx)]
         for i, cost_vec in enumerate(ltf_matrix):
@@ -129,8 +123,7 @@ class PBQPTuner(BaseGraphTuner):
         self._stack.append(node_idx)
 
     def _RII_reduction(self, node_idx):
-        """Reduce nodes with degree 2.
-        """
+        """Reduce nodes with degree 2."""
         adj_node_x, adj_node_y = self._adj_dict[node_idx]
         ltf_matrix_x = self._layout_transform_interlayer_cost[(adj_node_x, node_idx)]
         ltf_matrix_y = self._layout_transform_interlayer_cost[(adj_node_y, node_idx)]
@@ -139,8 +132,10 @@ class PBQPTuner(BaseGraphTuner):
             for j, cost_vec_y in enumerate(ltf_matrix_y):
                 min_cost = INVALID_LAYOUT_TIME
                 for k in range(len(self._record_cost_dict[node_idx])):
-                    min_cost = min(min_cost, cost_vec_x[k] + cost_vec_y[k]
-                                   + self._record_cost_dict[node_idx][k])
+                    min_cost = min(
+                        min_cost,
+                        cost_vec_x[k] + cost_vec_y[k] + self._record_cost_dict[node_idx][k],
+                    )
                 delta_matrix[i].append(min_cost)
 
         if adj_node_x == adj_node_y:
@@ -149,10 +144,8 @@ class PBQPTuner(BaseGraphTuner):
         elif adj_node_x in self._adj_dict[adj_node_y]:
             for i, _ in enumerate(delta_matrix):
                 for j, delta in enumerate(delta_matrix[i]):
-                    self._layout_transform_interlayer_cost[(adj_node_x, adj_node_y)][i][j] \
-                        += delta
-                    self._layout_transform_interlayer_cost[(adj_node_y, adj_node_x)][j][i] \
-                        += delta
+                    self._layout_transform_interlayer_cost[(adj_node_x, adj_node_y)][i][j] += delta
+                    self._layout_transform_interlayer_cost[(adj_node_y, adj_node_x)][j][i] += delta
         else:
             self._insert_edge(adj_node_x, adj_node_y, delta_matrix)
 
@@ -161,8 +154,7 @@ class PBQPTuner(BaseGraphTuner):
         self._stack.append(node_idx)
 
     def _RN_reduction(self, node_idx):
-        """Reduce nodes with degree greater than 2.
-        """
+        """Reduce nodes with degree greater than 2."""
         min_cost = INVALID_LAYOUT_TIME
         record_idx = -1
 
@@ -179,8 +171,9 @@ class PBQPTuner(BaseGraphTuner):
                 record_idx = i
 
         if record_idx < 0:
-            raise RuntimeError("Can't find a soltuion for node %d when "
-                               "applying RN reduction" % node_idx)
+            raise RuntimeError(
+                "Can't find a soltuion for node %d when " "applying RN reduction" % node_idx
+            )
         self._optimal_record_dict[node_idx] = record_idx
         self._is_optimal = False
 
@@ -194,8 +187,7 @@ class PBQPTuner(BaseGraphTuner):
         self._stack.append(node_idx)
 
     def _forward(self):
-        """Forward pass in PBQP to reduce nodes.
-        """
+        """Forward pass in PBQP to reduce nodes."""
         while True:
             if self._buckets[1]:
                 node_idx = self._buckets[1][0]
@@ -216,8 +208,7 @@ class PBQPTuner(BaseGraphTuner):
                 break
 
     def _backward(self):
-        """Backward pass in PBQP to generate optimal solution.
-        """
+        """Backward pass in PBQP to generate optimal solution."""
         # Solve nodes left in the forward graph
         for node_idx in self._buckets[0]:
             record_costs = self._record_cost_dict[node_idx]
@@ -232,15 +223,14 @@ class PBQPTuner(BaseGraphTuner):
                 for adj_node in self._adj_dict[node_idx]:
                     adj_optimal_idx = self._optimal_record_dict[adj_node]
                     for i, _ in enumerate(record_costs):
-                        record_costs[i] += \
-                            self._layout_transform_interlayer_cost \
-                                [(node_idx, adj_node)][i][adj_optimal_idx]
+                        record_costs[i] += self._layout_transform_interlayer_cost[
+                            (node_idx, adj_node)
+                        ][i][adj_optimal_idx]
                 min_cost = min(record_costs)
                 self._optimal_record_dict[node_idx] = record_costs.index(min_cost)
 
     def run(self, **kwargs):
-        """Run partitioned boolean quadratic programming tuner.
-        """
+        """Run partitioned boolean quadratic programming tuner."""
         self._logger.info("Start to run PBQP algorithm...")
         # Define virtual record lists and layout transformaton matrices
         # for multi-input nodes.
@@ -266,16 +256,18 @@ class PBQPTuner(BaseGraphTuner):
                 for j in range(len(record_candidates)):
                     temp[(target_input_idx, key)].append([])
                     for k in range(len(record_candidates)):
-                        temp[(target_input_idx, key)][j].append(0 if j == k
-                                                                else INVALID_LAYOUT_TIME)
+                        temp[(target_input_idx, key)][j].append(
+                            0 if j == k else INVALID_LAYOUT_TIME
+                        )
 
                 for j in range(target_input_pos + 1, len(val)):
                     input_idx = val[j]
                     input_node = self._node_list[input_idx]
                     if is_boundary_node(input_node, input_names):
                         continue
-                    temp[(input_idx, key)] = \
-                        self._layout_transform_interlayer_cost[(input_idx, target_input_idx)]
+                    temp[(input_idx, key)] = self._layout_transform_interlayer_cost[
+                        (input_idx, target_input_idx)
+                    ]
         self._layout_transform_interlayer_cost.update(temp)
 
         # Create reverse layout transformation matrices

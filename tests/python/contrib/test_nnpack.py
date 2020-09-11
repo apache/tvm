@@ -28,9 +28,9 @@ def test_fully_connected_inference():
     n = 1024
     l = 128
     m = 235
-    bias = te.var('bias', dtype="float32")
-    A = te.placeholder((l, ), name='A')
-    B = te.placeholder((m, l), name='B')
+    bias = te.var("bias", dtype="float32")
+    A = te.placeholder((l,), name="A")
+    B = te.placeholder((m, l), name="B")
     C = nnpack.fully_connected_inference(A, B)
     D = te.compute(C.shape, lambda i: C[i] + bias, name="D")
     s = te.create_schedule(D.op)
@@ -45,12 +45,13 @@ def test_fully_connected_inference():
         f = tvm.build(s, [A, B, D, bias], target)
         a = tvm.nd.array(np.random.uniform(size=(l)).astype(A.dtype), ctx)
         b = tvm.nd.array(np.random.uniform(size=(m, l)).astype(B.dtype), ctx)
-        d = tvm.nd.array(np.zeros((m, ), dtype=D.dtype), ctx)
+        d = tvm.nd.array(np.zeros((m,), dtype=D.dtype), ctx)
         bb = 10.0
         f(a, b, d, bb)
-        tvm.testing.assert_allclose(
-            d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy().T) + bb, rtol=1e-5)
+        tvm.testing.assert_allclose(d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy().T) + bb, rtol=1e-5)
+
     verify()
+
 
 def np_conv(na, nw, padding, stride=1):
     batch, in_channel, in_height, in_width = na.shape
@@ -73,13 +74,13 @@ def np_conv(na, nw, padding, stride=1):
             for c in range(in_channel):
                 if pad_h > 0 or pad_w > 0:
                     apad = np.zeros((in_height + pad_h, in_width + pad_w))
-                    apad[pad_top:pad_top + in_height, pad_left:pad_left + in_width] = na[n, c]
+                    apad[pad_top : pad_top + in_height, pad_left : pad_left + in_width] = na[n, c]
                 else:
                     apad = na[n, c]
-                out = scipy.signal.convolve2d(
-                    apad, np.rot90(np.rot90(nw[f, c])), mode='valid')
+                out = scipy.signal.convolve2d(apad, np.rot90(np.rot90(nw[f, c])), mode="valid")
                 nb[n, f] += out[::stride, ::stride]
     return nb
+
 
 @tvm.testing.requires_llvm
 def test_convolution_inference():
@@ -92,19 +93,18 @@ def test_convolution_inference():
     PAD = 1
     STRIDE = 1
 
-    OH = (IH + 2*PAD - K) + 1
-    OW = (IW + 2*PAD - K) + 1
+    OH = (IH + 2 * PAD - K) + 1
+    OW = (IW + 2 * PAD - K) + 1
     dshape = (BATCH, IC, IH, IW)
     kshape = (OC, IC, K, K)
-    bshape = (OC, )
+    bshape = (OC,)
     oshape = (BATCH, OC, OH, OW)
 
-    data = te.placeholder(dshape, name='data')
-    kernel = te.placeholder(kshape, name='kernel')
-    bias = te.placeholder(bshape, name='bias')
-    def verify(target="llvm",
-               algorithm=nnpack.ConvolutionAlgorithm.AUTO,
-               with_bias=True):
+    data = te.placeholder(dshape, name="data")
+    kernel = te.placeholder(kshape, name="kernel")
+    bias = te.placeholder(bshape, name="bias")
+
+    def verify(target="llvm", algorithm=nnpack.ConvolutionAlgorithm.AUTO, with_bias=True):
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             pytest.skip("extern function is not available")
         if not nnpack.is_available():
@@ -112,9 +112,13 @@ def test_convolution_inference():
 
         ctx = tvm.cpu(0)
         output = nnpack.convolution_inference(
-            data, kernel, bias if with_bias else None,
-            [PAD, PAD, PAD, PAD], [STRIDE, STRIDE],
-            algorithm=algorithm)
+            data,
+            kernel,
+            bias if with_bias else None,
+            [PAD, PAD, PAD, PAD],
+            [STRIDE, STRIDE],
+            algorithm=algorithm,
+        )
         s = te.create_schedule(output.op)
 
         f = tvm.build(s, [data, kernel, bias, output], target)
@@ -127,16 +131,18 @@ def test_convolution_inference():
         tc = tvm.nd.array(nc, ctx)
         td = tvm.nd.array(np.zeros(oshape, dtype=output.dtype), ctx)
         f(ta, tb, tc, td)
-        nd = np_conv(np.reshape(na, (BATCH, IC, IH, IW)), nb, PAD, STRIDE) + nc.reshape(1, bshape[0], 1, 1)
-        tvm.testing.assert_allclose(
-            td.asnumpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
+        nd = np_conv(np.reshape(na, (BATCH, IC, IH, IW)), nb, PAD, STRIDE) + nc.reshape(
+            1, bshape[0], 1, 1
+        )
+        tvm.testing.assert_allclose(td.asnumpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
+
     for algorithm in [
-            nnpack.ConvolutionAlgorithm.AUTO,
-            nnpack.ConvolutionAlgorithm.FFT_8x8,
-            nnpack.ConvolutionAlgorithm.FFT_16x16,
-            nnpack.ConvolutionAlgorithm.WT_8x8,
-            nnpack.ConvolutionAlgorithm.IMPLICIT_GEMM,
-            nnpack.ConvolutionAlgorithm.WT_8x8_FP16,
+        nnpack.ConvolutionAlgorithm.AUTO,
+        nnpack.ConvolutionAlgorithm.FFT_8x8,
+        nnpack.ConvolutionAlgorithm.FFT_16x16,
+        nnpack.ConvolutionAlgorithm.WT_8x8,
+        nnpack.ConvolutionAlgorithm.IMPLICIT_GEMM,
+        nnpack.ConvolutionAlgorithm.WT_8x8_FP16,
     ]:
         for with_bias in [True, False]:
             verify(algorithm=algorithm, with_bias=with_bias)
@@ -153,19 +159,18 @@ def test_convolution_inference_without_weight_transform():
     PAD = 1
     STRIDE = 1
 
-    OH = (IH + 2*PAD - K) + 1
-    OW = (IW + 2*PAD - K) + 1
+    OH = (IH + 2 * PAD - K) + 1
+    OW = (IW + 2 * PAD - K) + 1
     dshape = (BATCH, IC, IH, IW)
     kshape = (OC, IC, K, K)
-    bshape = (OC, )
+    bshape = (OC,)
     oshape = (BATCH, OC, OH, OW)
 
-    data = te.placeholder(dshape, name='data')
-    kernel = te.placeholder(kshape, name='kernel')
-    bias = te.placeholder(bshape, name='bias')
-    def verify(target="llvm",
-               algorithm=nnpack.ConvolutionAlgorithm.AUTO,
-               with_bias=True):
+    data = te.placeholder(dshape, name="data")
+    kernel = te.placeholder(kshape, name="kernel")
+    bias = te.placeholder(bshape, name="bias")
+
+    def verify(target="llvm", algorithm=nnpack.ConvolutionAlgorithm.AUTO, with_bias=True):
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             pytest.skip("extern function is not available")
         if not nnpack.is_available():
@@ -173,11 +178,16 @@ def test_convolution_inference_without_weight_transform():
 
         ctx = tvm.cpu(0)
         transformed_kernel = nnpack.convolution_inference_weight_transform(
-            kernel, algorithm=algorithm)
+            kernel, algorithm=algorithm
+        )
         output = nnpack.convolution_inference_without_weight_transform(
-            data, transformed_kernel, bias if with_bias else None,
-            [PAD, PAD, PAD, PAD], [STRIDE, STRIDE],
-            algorithm=algorithm)
+            data,
+            transformed_kernel,
+            bias if with_bias else None,
+            [PAD, PAD, PAD, PAD],
+            [STRIDE, STRIDE],
+            algorithm=algorithm,
+        )
 
         s = te.create_schedule(output.op)
 
@@ -185,15 +195,21 @@ def test_convolution_inference_without_weight_transform():
 
         na = np.random.uniform(size=dshape).astype(data.dtype)
         nb = np.random.uniform(size=kshape).astype(kernel.dtype)
-        nc = np.random.uniform(size=bshape).astype(bias.dtype) if with_bias else np.zeros(bshape, dtype=bias.dtype)
+        nc = (
+            np.random.uniform(size=bshape).astype(bias.dtype)
+            if with_bias
+            else np.zeros(bshape, dtype=bias.dtype)
+        )
         ta = tvm.nd.array(na, ctx)
         tb = tvm.nd.array(nb, ctx)
         tc = tvm.nd.array(nc, ctx)
         td = tvm.nd.array(np.zeros(oshape, dtype=output.dtype), ctx)
         f(ta, tb, tc, td)
-        nd = np_conv(np.reshape(na, (BATCH, IC, IH, IW)), nb, PAD, STRIDE) + nc.reshape(1, bshape[0], 1, 1)
-        tvm.testing.assert_allclose(
-            td.asnumpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
+        nd = np_conv(np.reshape(na, (BATCH, IC, IH, IW)), nb, PAD, STRIDE) + nc.reshape(
+            1, bshape[0], 1, 1
+        )
+        tvm.testing.assert_allclose(td.asnumpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
+
     for algorithm in [nnpack.ConvolutionAlgorithm.WT_8x8]:
         for with_bias in [True, False]:
             verify(algorithm=algorithm, with_bias=with_bias)

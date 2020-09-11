@@ -116,27 +116,25 @@ def test_nested_ref():
 def test_recursive_func():
     mod = tvm.IRModule({})
 
-    x = relay.var('x', shape=[], dtype='int32')
+    x = relay.var("x", shape=[], dtype="int32")
     fn0 = relay.Function([x], x)
     gx = relay.GlobalVar("gx")
     mod[gx] = fn0
 
-    sum_up = relay.GlobalVar('sum_up')
-    i = relay.var('i', shape=[], dtype='int32')
+    sum_up = relay.GlobalVar("sum_up")
+    i = relay.var("i", shape=[], dtype="int32")
     sb = relay.ScopeBuilder()
-    with sb.if_scope(relay.equal(i, relay.const(0, dtype='int32'))):
+    with sb.if_scope(relay.equal(i, relay.const(0, dtype="int32"))):
         sb.ret(i)
     with sb.else_scope():
-        one_less = relay.subtract(i, relay.const(1, dtype='int32'))
+        one_less = relay.subtract(i, relay.const(1, dtype="int32"))
         global_call = gx(i)
         rec_call = relay.Call(sum_up, [one_less]) + global_call
         sb.ret(relay.add(rec_call, i))
-    func = relay.Function([i],
-                          sb.get(),
-                          ret_type=relay.TensorType([], 'int32'))
+    func = relay.Function([i], sb.get(), ret_type=relay.TensorType([], "int32"))
     func = func.with_attr("Compiler", "a")
     mod[sum_up] = func
-    iarg = relay.var('i', shape=[], dtype='int32')
+    iarg = relay.var("i", shape=[], dtype="int32")
     mod["main"] = relay.Function([iarg], sum_up(iarg))
     call_graph = relay.analysis.CallGraph(mod)
 

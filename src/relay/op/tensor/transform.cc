@@ -451,27 +451,17 @@ RELAY_REGISTER_OP("transpose")
 /* relay.reshape */
 TVM_REGISTER_NODE_TYPE(ReshapeAttrs);
 
-bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                const TypeReporter& reporter) {
+Array<IndexExpr> infer_newshape(const Array<IndexExpr>& data_shape, const Attrs& attrs) {
   const auto* param = attrs.as<ReshapeAttrs>();
-  // types: [data, result]
-  CHECK_EQ(types.size(), 2);
-  const auto* data = types[0].as<TensorTypeNode>();
-  if (data == nullptr) {
-    CHECK(types[0].as<IncompleteTypeNode>())
-        << "reshape: expect input type to be TensorType but get " << types[0];
-    return false;
-  }
-
   Array<IndexExpr> oshape;
-  Array<IndexExpr> data_shape;
+  Array<IndexExpr> ishape;
   Array<Integer> newshape;
 
   if (param->reverse) {
-    data_shape.Assign(data->shape.rbegin(), data->shape.rend());
+    ishape.Assign(data_shape.rbegin(), data_shape.rend());
     newshape.Assign(param->newshape.rbegin(), param->newshape.rend());
   } else {
-    data_shape = data->shape;
+    ishape = data_shape;
     newshape = param->newshape;
   }
 
@@ -488,10 +478,10 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       ++src_idx;
     } else if (svalue == 0) {
       // keep same
-      CHECK_LT(src_idx, data_shape.size());
+      CHECK_LT(src_idx, ishape.size());
       used_input_dims.insert(src_idx);
       used_output_dims.insert(oshape.size());
-      oshape.push_back(data_shape[src_idx++]);
+      oshape.push_back(ishape[src_idx++]);
     } else if (svalue == -1) {
       // inference based on rest
       CHECK_LT(infer_idx, 0) << "One and only one dim can be inferred";
@@ -500,18 +490,18 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       ++src_idx;
     } else if (svalue == -2) {
       // copy all remaining dims from source
-      while (src_idx < data_shape.size()) {
+      while (src_idx < ishape.size()) {
         used_input_dims.insert(src_idx);
         used_output_dims.insert(oshape.size());
-        oshape.push_back(data_shape[src_idx++]);
+        oshape.push_back(ishape[src_idx++]);
       }
     } else if (svalue == -3) {
       // merge two dims from source
-      CHECK_LT(src_idx + 1, data_shape.size());
+      CHECK_LT(src_idx + 1, ishape.size());
       used_input_dims.insert(src_idx);
-      IndexExpr d1 = data_shape[src_idx++];
+      IndexExpr d1 = ishape[src_idx++];
       used_input_dims.insert(src_idx);
-      IndexExpr d2 = data_shape[src_idx++];
+      IndexExpr d2 = ishape[src_idx++];
       used_output_dims.insert(oshape.size());
       if (d1.as<AnyNode>() || d2.as<AnyNode>()) {
         oshape.push_back(Any());
@@ -522,13 +512,13 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       // split the source dim s into two dims
       // read the left dim and then the right dim (either can be -1)
       CHECK_LT(i + 2, newshape.size());
-      CHECK_LT(src_idx, data_shape.size());
+      CHECK_LT(src_idx, ishape.size());
       used_input_dims.insert(src_idx);
-      IndexExpr d0 = data_shape[src_idx++];
+      IndexExpr d0 = ishape[src_idx++];
       Integer d1 = newshape[++i];
       Integer d2 = newshape[++i];
       if (d1->value == -1) {
-        CHECK(d2->value != -1) << "Split dims cannot both be -1.";
+        CHECK_NE(d2->value, -1) << "Split dims cannot both be -1.";
         used_output_dims.insert(oshape.size());
         if (d0.as<AnyNode>()) {
           oshape.push_back(Any());
@@ -552,21 +542,21 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         }
       }
     } else {
-      CHECK(false) << "Unsupported special value: " << svalue;
+      LOG(FATAL) << "Unsupported special value: " << svalue;
     }
   }
 
   if (infer_idx >= 0) {
     IndexExpr infer_dim = 1;
-    for (size_t i = 0; i < data_shape.size(); ++i) {
+    for (size_t i = 0; i < ishape.size(); ++i) {
       if (used_input_dims.count(i) != 0) {
         continue;
       }
-      if (data_shape[i].as<AnyNode>()) {
+      if (ishape[i].as<AnyNode>()) {
         infer_dim = Any();
         break;
       }
-      infer_dim *= data_shape[i];
+      infer_dim *= ishape[i];
     }
     if (!infer_dim.as<AnyNode>()) {
       for (size_t i = 0; i < oshape.size(); ++i) {
@@ -585,8 +575,32 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     oshape.Set(infer_idx, infer_dim);
   }
 
+  return oshape;
+}
+
+bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                const TypeReporter& reporter) {
+  const auto* param = attrs.as<ReshapeAttrs>();
+  // types: [data, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "reshape: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+
+  const auto& oshape = infer_newshape(data->shape, attrs);
+
   // Verify that the sum of dimensions in the output shape is the sum of
   // dimensions in the input shape
+  Array<IndexExpr> data_shape;
+  if (param->reverse) {
+    data_shape.Assign(data->shape.rbegin(), data->shape.rend());
+  } else {
+    data_shape = data->shape;
+  }
+
   bool found_dynamic = false;
   int64_t oshape_sum = 1;
   for (auto& x : oshape) {
@@ -626,15 +640,26 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                  const Type& out_type) {
+  // Quick path for reshape_like
+  if (!attrs.as<ReshapeAttrs>()) {
+    return {topi::reshape(inputs[0], inputs[1]->shape)};
+  }
+
   const auto* out_ttype = out_type.as<TensorTypeNode>();
   CHECK(out_ttype != nullptr);
   Array<IndexExpr> newshape;
+  bool newshape_has_any = false;
   for (auto val : out_ttype->shape) {
-    if (val->IsInstance<tir::AnyNode>()) {
-      newshape.push_back(val.as<tir::AnyNode>()->ToVar());
+    if (val->IsInstance<tir::AnyNode>() || val->IsInstance<tir::VarNode>()) {
+      newshape_has_any = true;
+      break;
     } else {
       newshape.push_back(val);
     }
+  }
+
+  if (newshape_has_any) {
+    newshape = infer_newshape(inputs[0]->shape, attrs);
   }
   return {topi::reshape(inputs[0], newshape)};
 }
@@ -3137,6 +3162,89 @@ RELAY_REGISTER_OP("matrix_set_diag")
     .add_type_rel("MatrixSetDiag", MatrixSetDiagRel)
     .set_attr<FTVMCompute>("FTVMCompute", MatrixSetDiagCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
+
+// adv_index
+bool AdvIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                 const TypeReporter& reporter) {
+  CHECK_EQ(num_inputs, 1);
+  auto inputs = types[0].as<TupleTypeNode>();
+  auto data = inputs->fields[0].as<TensorTypeNode>();
+
+  if (inputs == nullptr || data == nullptr) {
+    return false;
+  }
+
+  Array<IndexExpr> oshape;
+  Array<IndexExpr> broadcast_shape;
+  int64_t num_picked_elems = 1;
+
+  if (inputs->fields.size() == 2) {
+    broadcast_shape = inputs->fields[1].as<TensorTypeNode>()->shape;
+  } else {
+    for (size_t i = 1; i < inputs->fields.size(); ++i) {
+      auto index_type = inputs->fields[i].as<TensorTypeNode>();
+      if (index_type == nullptr) {
+        return false;
+      }
+      CHECK(index_type->dtype.is_int()) << "indices must be tensor of integers";
+
+      int64_t flatten_len = 1;
+      bool has_dyn_shape = false;
+      for (const auto& dim : index_type->shape) {
+        const IntImmNode* axis_len = dim.as<IntImmNode>();
+        if (!axis_len) {
+          // If dynamic shape appears, just use the first shape
+          broadcast_shape = index_type->shape;
+          has_dyn_shape = true;
+          break;
+        }
+        flatten_len *= axis_len->value;
+      }
+      if (has_dyn_shape) break;
+      if (flatten_len > num_picked_elems) {
+        num_picked_elems = flatten_len;
+        broadcast_shape = index_type->shape;
+      }
+    }
+  }
+
+  for (const auto& dim : broadcast_shape) {
+    oshape.push_back(dim);
+  }
+  for (size_t i = inputs->fields.size() - 1; i < data->shape.size(); ++i) {
+    oshape.push_back(data->shape[i]);
+  }
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Array<te::Tensor> AdvIndexCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                  const Type& out_type) {
+  Array<te::Tensor> indices;
+  for (size_t i = 1; i < inputs.size(); ++i) {
+    indices.push_back(inputs[i]);
+  }
+  return {topi::adv_index(inputs[0], indices)};
+}
+
+Expr MakeAdvIndex(Expr inputs) {
+  static const Op& op = Op::Get("adv_index");
+  return Call(op, {inputs}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.adv_index").set_body_typed(MakeAdvIndex);
+
+RELAY_REGISTER_OP("adv_index")
+    .describe(R"code(Numpy style advanced indexing. Index with a list of tensors.
+    )code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_support_level(3)
+    .add_argument("inputs", "Tuple of Tensors", "Input tensor and indices.")
+    .add_type_rel("AdvIndex", AdvIndexRel)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute", AdvIndexCompute);
 
 }  // namespace relay
 }  // namespace tvm

@@ -20,7 +20,8 @@ from __future__ import absolute_import
 import tvm
 from tvm import te
 
-@tvm.te.tag_scope(tag='softmax_output')
+
+@tvm.te.tag_scope(tag="softmax_output")
 def softmax(x, axis=-1):
     """Perform softmax activation on the data
 
@@ -43,8 +44,8 @@ def softmax(x, axis=-1):
     if axis >= len(shape):
         ValueError("axis parameter should be less than input dim")
 
-    k1 = te.reduce_axis((0, shape[axis]), name='k')
-    k2 = te.reduce_axis((0, shape[axis]), name='k')
+    k1 = te.reduce_axis((0, shape[axis]), name="k")
+    k2 = te.reduce_axis((0, shape[axis]), name="k")
 
     def insert_reduce_index(indices, reduce_index):
         return indices[:axis] + (reduce_index,) + indices[axis:]
@@ -69,15 +70,20 @@ def softmax(x, axis=-1):
         return exp[indices] / expsum[non_reduce_indices]
 
     reduced_shape = tuple([dim for (i, dim) in enumerate(shape) if i != axis])
-    max_elem = te.compute(reduced_shape, _compute_max, name='T_softmax_maxelem')
-    exp = te.compute(shape, lambda *indices: _compute_exp(max_elem, *indices),
-                     name='T_softmax_exp')
-    expsum = te.compute(reduced_shape, lambda *indices: _compute_expsum(exp, *indices),
-                        name='T_softmax_expsum')
-    return te.compute(shape, lambda *indices: _normalize(exp, expsum, *indices),
-                      name='T_softmax_norm', attrs={"axis" : axis})
+    max_elem = te.compute(reduced_shape, _compute_max, name="T_softmax_maxelem")
+    exp = te.compute(shape, lambda *indices: _compute_exp(max_elem, *indices), name="T_softmax_exp")
+    expsum = te.compute(
+        reduced_shape, lambda *indices: _compute_expsum(exp, *indices), name="T_softmax_expsum"
+    )
+    return te.compute(
+        shape,
+        lambda *indices: _normalize(exp, expsum, *indices),
+        name="T_softmax_norm",
+        attrs={"axis": axis},
+    )
 
-@tvm.te.tag_scope(tag='log_softmax_output')
+
+@tvm.te.tag_scope(tag="log_softmax_output")
 def log_softmax(x):
     """Perform log softmax activation on the data
 
@@ -94,10 +100,8 @@ def log_softmax(x):
 
     assert len(x.shape) == 2, "only support 2-dim log softmax"
     m, n = x.shape
-    k = te.reduce_axis((0, n), name='k')
-    max_elem = te.compute((m, ), lambda i: tvm.te.max(x[i, k], axis=k))
-    k = te.reduce_axis((0, n), name='k')
-    expsum = te.compute(
-        (m, ), lambda i: te.sum(te.exp(x[i, k] - max_elem[i]), axis=k))
-    return te.compute(
-        x.shape, lambda i, j: x[i, j] - max_elem[i] - te.log(expsum[i]))
+    k = te.reduce_axis((0, n), name="k")
+    max_elem = te.compute((m,), lambda i: tvm.te.max(x[i, k], axis=k))
+    k = te.reduce_axis((0, n), name="k")
+    expsum = te.compute((m,), lambda i: te.sum(te.exp(x[i, k] - max_elem[i]), axis=k))
+    return te.compute(x.shape, lambda i, j: x[i, j] - max_elem[i] - te.log(expsum[i]))

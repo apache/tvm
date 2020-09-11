@@ -19,5 +19,6 @@ from __future__ import absolute_import as _abs
 
 from .. import cpp
 
+
 def schedule_lrn(outs):
     return cpp.rocm.schedule_lrn(outs)

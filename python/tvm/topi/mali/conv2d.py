@@ -64,8 +64,10 @@ def conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_
     output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding,
-                                    dilation, out_dtype, num_tile=3)
+    return conv2d_spatial_pack_nchw(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, num_tile=3
+    )
+
 
 @autotvm.register_topi_schedule("conv2d_nchw_spatial_pack.mali")
 def schedule_conv2d_nchw_spatial_pack(cfg, outs):
@@ -88,7 +90,7 @@ def schedule_conv2d_nchw_spatial_pack(cfg, outs):
 
     def _callback(op):
         # schedule conv2d
-        if 'spatial_conv2d_output' in op.tag:
+        if "spatial_conv2d_output" in op.tag:
             output = op.output(0)
             conv = op.input_tensors[0]
 
@@ -97,7 +99,7 @@ def schedule_conv2d_nchw_spatial_pack(cfg, outs):
             s[data_pad].compute_inline()
 
             kernel_vec = conv.op.input_tensors[1]
-            if kernel_vec.op.name == 'kernel_vec':
+            if kernel_vec.op.name == "kernel_vec":
                 kernel = kernel_vec.op.input_tensors[0]
             else:
                 kernel = kernel_vec
@@ -127,7 +129,7 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
         s[data_pad].compute_inline()
 
     # schedule data packing
-    if isinstance(data_vec.op, tvm.te.ComputeOp) and data_vec.op.name == 'data_vec_undilated':
+    if isinstance(data_vec.op, tvm.te.ComputeOp) and data_vec.op.name == "data_vec_undilated":
         _, h, w, ci, _, _, vh, vw = s[data_vec].op.axis
     else:
         _, h, w, ci, vh, vw = s[data_vec].op.axis
@@ -137,7 +139,7 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
     if vw.dom.extent.value < max_unroll:
         s[data_vec].unroll(vw)
 
-    if isinstance(kernel_vec.op, tvm.te.ComputeOp) and kernel_vec.name == 'kernel_vec':
+    if isinstance(kernel_vec.op, tvm.te.ComputeOp) and kernel_vec.name == "kernel_vec":
         if not autotvm.GLOBAL_SCOPE.in_tuning:
             max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
             co, ci, kh, kw, vc = s[kernel_vec].op.axis
@@ -156,16 +158,23 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
     cfg["reorder_0"].apply(s, conv, [n, c, h, w, kc, kh, kw, vh, vw, vc])
     tile_and_bind3d(s, conv, c, h, w, TC, TH, TW)
 
-    cfg["ann_reduce"].apply(s, conv, [kh, kw],
-                            axis_lens=[get_const_int(kernel_vec.shape[2]),
-                                       get_const_int(kernel_vec.shape[3])],
-                            max_unroll=max_unroll)
+    cfg["ann_reduce"].apply(
+        s,
+        conv,
+        [kh, kw],
+        axis_lens=[get_const_int(kernel_vec.shape[2]), get_const_int(kernel_vec.shape[3])],
+        max_unroll=max_unroll,
+    )
 
-    cfg["ann_spatial"].apply(s, conv, [vh, vw, vc],
-                             axis_lens=[VH, VW, VC],
-                             max_unroll=max_unroll,
-                             vec_size=vec_size,
-                             cfg=cfg)
+    cfg["ann_spatial"].apply(
+        s,
+        conv,
+        [vh, vw, vc],
+        axis_lens=[VH, VW, VC],
+        max_unroll=max_unroll,
+        vec_size=vec_size,
+        cfg=cfg,
+    )
 
     # schedule output
     if output.op not in s.outputs:  # has bias
@@ -176,6 +185,7 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
     tile_and_bind3d(s, output, co, oh, ow, TC, TH, TW)
 
     return s
+
 
 ##### WINOGRAD TEMPLATE #####
 def _pick_tile_size(data, kernel):
@@ -190,8 +200,7 @@ def _pick_tile_size(data, kernel):
 @autotvm.register_topi_compute("conv2d_nchw_winograd.mali")
 def conv2d_nchw_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype):
     tile_size = _pick_tile_size(data, kernel)
-    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype,
-                          tile_size)
+    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, tile_size)
 
 
 @autotvm.register_topi_schedule("conv2d_nchw_winograd.mali")
@@ -199,7 +208,7 @@ def schedule_conv2d_nchw_winograd(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if 'winograd_conv2d_output' in op.tag:
+        if "winograd_conv2d_output" in op.tag:
             _schedule_winograd(cfg, s, op)
 
     traverse_inline(s, outs[0].op, _callback)
@@ -237,43 +246,48 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
 
     H = (IH + pt + pb - 3) // HSTR + 1
     W = (IW + pl + pr - 3) // WSTR + 1
-    nH, nW = (H + m-1) // m, (W + m-1) // m
+    nH, nW = (H + m - 1) // m, (W + m - 1) // m
     P = N * nH * nW
 
     ##### space definition begin #####
     tile_bna_candidates = [1, 2, 4, 8, 16]
     factors = get_factors(CO)
-    cfg.define_knob('tile_bna', [x for x in tile_bna_candidates if x in factors])
-    cfg.define_knob('tile_bnb', [1, 2, 4, 8, 16])
-    cfg.define_split('tile_t1', CI, num_outputs=2, max_factor=128)
-    cfg.define_split('tile_t2', CO, num_outputs=2, max_factor=128)
-    cfg.define_split('c_unroll', CI, num_outputs=2, max_factor=8)
-    cfg.define_knob('yt', [1, 2, 4, 8, 16, 32])
+    cfg.define_knob("tile_bna", [x for x in tile_bna_candidates if x in factors])
+    cfg.define_knob("tile_bnb", [1, 2, 4, 8, 16])
+    cfg.define_split("tile_t1", CI, num_outputs=2, max_factor=128)
+    cfg.define_split("tile_t2", CO, num_outputs=2, max_factor=128)
+    cfg.define_split("c_unroll", CI, num_outputs=2, max_factor=8)
+    cfg.define_knob("yt", [1, 2, 4, 8, 16, 32])
     ##### space definition end #####
 
     if cfg.is_fallback:
-        cfg['tile_bnb'].val = 4
-        cfg['tile_bna'].val = 4
-        while CO % cfg['tile_bna'].val != 0:
-            cfg['tile_bna'].val //= 2
-        cfg['yt'].val = 8
-        cfg.fallback_split('tile_t1', [-1, 128])
-        cfg.fallback_split('tile_t2', [-1, 128])
-        cfg.fallback_split('c_unroll', [-1, 8])
+        cfg["tile_bnb"].val = 4
+        cfg["tile_bna"].val = 4
+        while CO % cfg["tile_bna"].val != 0:
+            cfg["tile_bna"].val //= 2
+        cfg["yt"].val = 8
+        cfg.fallback_split("tile_t1", [-1, 128])
+        cfg.fallback_split("tile_t2", [-1, 128])
+        cfg.fallback_split("c_unroll", [-1, 8])
 
-    bna = cfg['tile_bna'].val
-    bnb = cfg['tile_bnb'].val
+    bna = cfg["tile_bna"].val
+    bnb = cfg["tile_bnb"].val
 
     P_round = (P + bnb - 1) // bnb * bnb
     assert CO % bna == 0 and P_round % bnb == 0
 
     # pack input tile
     input_tile = te.compute(
-        (CI, P_round // bnb, alpha, alpha, bnb), lambda ci, b, eps, nu, bb: \
-        tvm.tir.if_then_else(
+        (CI, P_round // bnb, alpha, alpha, bnb),
+        lambda ci, b, eps, nu, bb: tvm.tir.if_then_else(
             b * bnb + bb < P,
-            data_pad[(b*bnb+bb) // (nH*nW)][ci][(b*bnb+bb) // nW % nH * m + eps]
-            [(b*bnb+bb) % nW * m + nu], tvm.tir.const(0, data_pad.dtype)), name='d')
+            data_pad[(b * bnb + bb) // (nH * nW)][ci][(b * bnb + bb) // nW % nH * m + eps][
+                (b * bnb + bb) % nW * m + nu
+            ],
+            tvm.tir.const(0, data_pad.dtype),
+        ),
+        name="d",
+    )
 
     if autotvm.GLOBAL_SCOPE.in_tuning:
         kvshape = (alpha, alpha, CO // bna, CI, bna)
@@ -283,49 +297,69 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
         if pre_computed:
             U = kernel
         else:
-            r_kh = te.reduce_axis((0, KH), 'r_kh')
-            r_kw = te.reduce_axis((0, KW), 'r_kw')
-            U = te.compute((alpha, alpha, CO // bna, CI, bna), lambda eps, nu, co, ci, vco:
-                           te.sum(kernel[co * bna + vco][ci][r_kh][r_kw] *
-                                  G[eps][r_kh] * G[nu][r_kw],
-                                  axis=[r_kh, r_kw]), name='U')
+            r_kh = te.reduce_axis((0, KH), "r_kh")
+            r_kw = te.reduce_axis((0, KW), "r_kw")
+            U = te.compute(
+                (alpha, alpha, CO // bna, CI, bna),
+                lambda eps, nu, co, ci, vco: te.sum(
+                    kernel[co * bna + vco][ci][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw],
+                    axis=[r_kh, r_kw],
+                ),
+                name="U",
+            )
 
     # transform image
-    r_a = te.reduce_axis((0, alpha), 'r_a')
-    r_b = te.reduce_axis((0, alpha), 'r_b')
-    V = te.compute((alpha, alpha, P_round // bnb, CI, bnb), lambda eps, nu, p, ci, vp:
-                   te.sum(input_tile[ci][p][r_a][r_b][vp] * B[r_a][eps] * B[r_b][nu],
-                          axis=[r_a, r_b]), name='V')
+    r_a = te.reduce_axis((0, alpha), "r_a")
+    r_b = te.reduce_axis((0, alpha), "r_b")
+    V = te.compute(
+        (alpha, alpha, P_round // bnb, CI, bnb),
+        lambda eps, nu, p, ci, vp: te.sum(
+            input_tile[ci][p][r_a][r_b][vp] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]
+        ),
+        name="V",
+    )
 
     idxdiv = tvm.tir.indexdiv
     idxmod = tvm.tir.indexmod
 
     # batch gemm
-    ci = te.reduce_axis((0, CI), name='c')
-    M = te.compute((alpha, alpha, CO, P_round), lambda eps, nu, co, p:
-                   te.sum(U[eps][nu][idxdiv(co, bna)][ci][idxmod(co, bna)] *
-                          V[eps][nu][idxdiv(p, bnb)][ci][idxmod(p, bnb)], axis=ci), name='M')
+    ci = te.reduce_axis((0, CI), name="c")
+    M = te.compute(
+        (alpha, alpha, CO, P_round),
+        lambda eps, nu, co, p: te.sum(
+            U[eps][nu][idxdiv(co, bna)][ci][idxmod(co, bna)]
+            * V[eps][nu][idxdiv(p, bnb)][ci][idxmod(p, bnb)],
+            axis=ci,
+        ),
+        name="M",
+    )
 
-    r_a = te.reduce_axis((0, alpha), 'r_a')
-    r_b = te.reduce_axis((0, alpha), 'r_b')
-    Y = te.compute((CO, P, m, m), lambda co, p, vh, vw:
-                   te.sum(M[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw],
-                          axis=[r_a, r_b]), name='Y')
+    r_a = te.reduce_axis((0, alpha), "r_a")
+    r_b = te.reduce_axis((0, alpha), "r_b")
+    Y = te.compute(
+        (CO, P, m, m),
+        lambda co, p, vh, vw: te.sum(M[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]),
+        name="Y",
+    )
 
     # unpack output
-    output = te.compute((N, CO, H, W), lambda n, co, h, w:
-                        Y[co, n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
-                          idxmod(h, m), idxmod(w, m)]
-                        # The following hack term is used to make the padding in batch gemm ("M")
-                        # effective, otherwise the padding will be eliminated by bound inference.
-                        # Use `tvm.tir.Mul` instead of `*` to avoid issues in const folding.
-                        + tvm.tir.Mul(tvm.tir.const(0, out_dtype),
-                                      M[alpha-1][alpha-1][CO-1][P_round-1]),
-                        name='output', tag='winograd_conv2d_output')
+    output = te.compute(
+        (N, CO, H, W),
+        lambda n, co, h, w: Y[
+            co, n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m), idxmod(h, m), idxmod(w, m)
+        ]
+        # The following hack term is used to make the padding in batch gemm ("M")
+        # effective, otherwise the padding will be eliminated by bound inference.
+        # Use `tvm.tir.Mul` instead of `*` to avoid issues in const folding.
+        + tvm.tir.Mul(tvm.tir.const(0, out_dtype), M[alpha - 1][alpha - 1][CO - 1][P_round - 1]),
+        name="output",
+        tag="winograd_conv2d_output",
+    )
 
     # we have to manually assign effective GFLOP for winograd
     cfg.add_flop(2 * N * CO * H * W * KH * KW * CI)
     return output
+
 
 def _schedule_winograd(cfg, s, op):
     """schedule winograd fast convolution F(2x2, 3x3) for conv2d"""
@@ -345,7 +379,13 @@ def _schedule_winograd(cfg, s, op):
     if isinstance(U.op, tvm.te.ComputeOp):
         kernel, G = s[U].op.input_tensors
         s[G].compute_inline()
-        eps, nu, co, ci, vco, = s[U].op.axis
+        (
+            eps,
+            nu,
+            co,
+            ci,
+            vco,
+        ) = s[U].op.axis
         if not autotvm.GLOBAL_SCOPE.in_tuning:
             r_kh, r_kw = s[U].op.reduce_axis
             s[U].reorder(co, ci, eps, nu, r_kh, r_kw, vco)
@@ -359,7 +399,7 @@ def _schedule_winograd(cfg, s, op):
 
     # transform image
     s[B].compute_inline()
-    VL = s.cache_write(V, 'local')
+    VL = s.cache_write(V, "local")
 
     eps, nu, p, ci, vp = s[V].op.axis
     s[V].reorder(p, ci, eps, nu, vp)
@@ -368,9 +408,9 @@ def _schedule_winograd(cfg, s, op):
     s[V].vectorize(vp)
     fused = s[V].fuse(p, ci)
 
-    bb, tt = cfg['tile_t1'].apply(s, V, fused)
-    s[V].bind(bb, te.thread_axis('blockIdx.x'))
-    s[V].bind(tt, te.thread_axis('threadIdx.x'))
+    bb, tt = cfg["tile_t1"].apply(s, V, fused)
+    s[V].bind(bb, te.thread_axis("blockIdx.x"))
+    s[V].bind(tt, te.thread_axis("threadIdx.x"))
 
     eps, nu, p, ci, vp = s[VL].op.axis
     r_a, r_b = s[VL].op.reduce_axis
@@ -381,20 +421,20 @@ def _schedule_winograd(cfg, s, op):
     s[VL].compute_at(s[V], tt)
 
     # batch gemm
-    bna = cfg['tile_bna'].val
-    bnb = cfg['tile_bnb'].val
+    bna = cfg["tile_bna"].val
+    bnb = cfg["tile_bnb"].val
 
     eps, nu, k, b = s[M].op.axis
     alpha = eps.dom.extent
     c = s[M].op.reduce_axis[0]
     yo, xo, yi, xi = s[M].tile(k, b, bna, bnb)
-    c, c_unroll = cfg['c_unroll'].apply(s, M, c)
+    c, c_unroll = cfg["c_unroll"].apply(s, M, c)
     s[M].reorder(yo, xo, c, c_unroll, yi, xi)
     s[M].unroll(c_unroll)
     s[M].unroll(yi)
     s[M].vectorize(xi)
     z = s[M].fuse(eps, nu)
-    tile_and_bind3d(s, M, z, yo, xo, 1, cfg['yt'].val, 1)
+    tile_and_bind3d(s, M, z, yo, xo, 1, cfg["yt"].val, 1)
 
     # inverse transform
     s[A].compute_inline()
@@ -414,9 +454,9 @@ def _schedule_winograd(cfg, s, op):
     s[output].unroll(hi)
     s[output].unroll(wi)
     fused = s[output].fuse(n, co, h, w)
-    bb, tt = cfg['tile_t2'].apply(s, output, fused)
-    s[output].bind(bb, te.thread_axis('blockIdx.x'))
-    s[output].bind(tt, te.thread_axis('threadIdx.x'))
+    bb, tt = cfg["tile_t2"].apply(s, output, fused)
+    s[output].bind(bb, te.thread_axis("blockIdx.x"))
+    s[output].bind(tt, te.thread_axis("threadIdx.x"))
 
     s[Y].compute_at(s[output], tt)
 
@@ -428,7 +468,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     dispatch_ctx = autotvm.task.DispatchContext.current
 
     _, outs = relay.backend.compile_engine.select_implementation(
-        relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target)
+        relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target
+    )
     workload = autotvm.task.get_workload(outs)
     if workload is None:
         # The best implementation is not an AutoTVM template,
@@ -456,15 +497,16 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         N, CI, H, W = get_const_tuple(data.shape)
         CO, _, KH, KW = get_const_tuple(kernel.shape)
-        VC = cfg['tile_co'].size[-1]
+        VC = cfg["tile_co"].size[-1]
 
-        new_attrs['kernel_layout'] = 'OIHW%do' % VC
+        new_attrs["kernel_layout"] = "OIHW%do" % VC
 
         new_data = data
         new_kernel = te.placeholder((idxd(CO, VC), CI, KH, KW, VC), dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, out_dtype],
-            "conv2d_nchw_spatial_pack.mali")
+            "conv2d_nchw_spatial_pack.mali",
+        )
         dispatch_ctx.update(target, new_workload, cfg)
 
         return relay.nn.conv2d(*inputs, **new_attrs)
@@ -473,31 +515,32 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         N, CI, H, W = get_const_tuple(data.shape)
         CO, _, KH, KW = get_const_tuple(kernel.shape)
         tile_size = _pick_tile_size(data, kernel)
-        VC = cfg['tile_bna'].val
+        VC = cfg["tile_bna"].val
 
         weight_expr = inputs[1]
         weight_expr = relay.nn.contrib_conv2d_winograd_weight_transform(
-            weight_expr, tile_size=tile_size)
-        weight_expr = relay.reshape(weight_expr,
-                                    newshape=(KH + tile_size - 1,
-                                              KW + tile_size - 1,
-                                              idxd(CO, VC), VC, CI))
+            weight_expr, tile_size=tile_size
+        )
+        weight_expr = relay.reshape(
+            weight_expr, newshape=(KH + tile_size - 1, KW + tile_size - 1, idxd(CO, VC), VC, CI)
+        )
         weight_expr = relay.transpose(weight_expr, axes=[0, 1, 2, 4, 3])
 
-        new_attrs['tile_size'] = tile_size
+        new_attrs["tile_size"] = tile_size
 
         new_data = data
-        new_kernel = te.placeholder((KH + tile_size - 1,
-                                     KW + tile_size -1,
-                                     idxd(CO, VC), CI, VC),
-                                    kernel.dtype)
+        new_kernel = te.placeholder(
+            (KH + tile_size - 1, KW + tile_size - 1, idxd(CO, VC), CI, VC), kernel.dtype
+        )
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, out_dtype],
-            'conv2d_nchw_winograd.mali')
+            "conv2d_nchw_winograd.mali",
+        )
         dispatch_ctx.update(target, new_workload, cfg)
 
         return relay.nn.contrib_conv2d_winograd_without_weight_transform(
-            inputs[0], weight_expr, **new_attrs)
+            inputs[0], weight_expr, **new_attrs
+        )
     else:
         return None
 

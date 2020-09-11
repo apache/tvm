@@ -160,22 +160,36 @@ def roi_align_nchw_ir(data, rois, w_pc, pos_pc, pooled_size, spatial_scale, samp
                     output_val = 0.0
                     for iy in range(roi_bin_grid_h):
                         for ix in range(roi_bin_grid_w):
-                            output_val += w_pc[n, pre_calc_index, 0] \
-                                * data[roi_batch_index, c,
-                                       pos_pc[n, pre_calc_index, 2],
-                                       pos_pc[n, pre_calc_index, 0]] \
-                                + w_pc[n, pre_calc_index, 1] \
-                                * data[roi_batch_index, c,
-                                       pos_pc[n, pre_calc_index, 2],
-                                       pos_pc[n, pre_calc_index, 1]] \
-                                + w_pc[n, pre_calc_index, 2] \
-                                * data[roi_batch_index, c,
-                                       pos_pc[n, pre_calc_index, 3],
-                                       pos_pc[n, pre_calc_index, 0]] \
-                                + w_pc[n, pre_calc_index, 3] \
-                                * data[roi_batch_index, c,
-                                       pos_pc[n, pre_calc_index, 3],
-                                       pos_pc[n, pre_calc_index, 1]]
+                            output_val += (
+                                w_pc[n, pre_calc_index, 0]
+                                * data[
+                                    roi_batch_index,
+                                    c,
+                                    pos_pc[n, pre_calc_index, 2],
+                                    pos_pc[n, pre_calc_index, 0],
+                                ]
+                                + w_pc[n, pre_calc_index, 1]
+                                * data[
+                                    roi_batch_index,
+                                    c,
+                                    pos_pc[n, pre_calc_index, 2],
+                                    pos_pc[n, pre_calc_index, 1],
+                                ]
+                                + w_pc[n, pre_calc_index, 2]
+                                * data[
+                                    roi_batch_index,
+                                    c,
+                                    pos_pc[n, pre_calc_index, 3],
+                                    pos_pc[n, pre_calc_index, 0],
+                                ]
+                                + w_pc[n, pre_calc_index, 3]
+                                * data[
+                                    roi_batch_index,
+                                    c,
+                                    pos_pc[n, pre_calc_index, 3],
+                                    pos_pc[n, pre_calc_index, 1],
+                                ]
+                            )
                             pre_calc_index += 1
 
                     output_val /= count
@@ -221,13 +235,17 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
         _, _, height, width = get_const_tuple(data.shape)
         max_roi_bin_grid_h = math.ceil(height / pooled_size[0])
         max_roi_bin_grid_w = math.ceil(width / pooled_size[1])
-    max_pc_shape = (rois.shape[0], max_roi_bin_grid_h * max_roi_bin_grid_w
-                    * pooled_size[0] * pooled_size[1], 4)
+    max_pc_shape = (
+        rois.shape[0],
+        max_roi_bin_grid_h * max_roi_bin_grid_w * pooled_size[0] * pooled_size[1],
+        4,
+    )
     w_pc_buffer = full(max_pc_shape, data.dtype, 0)
     pos_pc_buffer = full(max_pc_shape, "int32", 0)
 
     pooled_size = tvm.runtime.convert(pooled_size)
     spatial_scale = tvm.tir.const(spatial_scale, "float32")
     sample_ratio = tvm.tir.const(sample_ratio, "int32")
-    return roi_align_nchw_ir(data, rois, w_pc_buffer, pos_pc_buffer,
-                             pooled_size, spatial_scale, sample_ratio)
+    return roi_align_nchw_ir(
+        data, rois, w_pc_buffer, pos_pc_buffer, pooled_size, spatial_scale, sample_ratio
+    )

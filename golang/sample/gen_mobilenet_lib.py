@@ -25,13 +25,14 @@ from tvm.contrib.download import download_testdata
 # ----------------------------------------------
 def extract(path):
     import tarfile
+
     if path.endswith("tgz") or path.endswith("gz"):
         dir_path = os.path.dirname(path)
         tar = tarfile.open(path)
         tar.extractall(path=dir_path)
         tar.close()
     else:
-        raise RuntimeError('Could not decompress the file: ' + path)
+        raise RuntimeError("Could not decompress the file: " + path)
 
 
 ###################################
@@ -39,7 +40,7 @@ def extract(path):
 # ---------------------------------
 
 model_url = "https://storage.googleapis.com/mobilenet_v2/checkpoints/mobilenet_v2_1.4_224.tgz"
-model_path = download_testdata(model_url, "mobilenet_v2_1.4_224.tgz", module=['tf', 'official'])
+model_path = download_testdata(model_url, "mobilenet_v2_1.4_224.tgz", module=["tf", "official"])
 model_dir = os.path.dirname(model_path)
 extract(model_path)
 
@@ -50,9 +51,11 @@ model_file = os.path.join(model_dir, "mobilenet_v2_1.4_224.tflite")
 tflite_model_buf = open(model_file, "rb").read()
 try:
     import tflite
+
     tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
 except AttributeError:
     import tflite.Model
+
     tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
 
 
@@ -66,30 +69,29 @@ input_shape = (1, 224, 224, 3)
 input_dtype = "float32"
 
 # parse TFLite model and convert into Relay computation graph
-mod, params = relay.frontend.from_tflite(tflite_model,
-                                         shape_dict={input_tensor: input_shape},
-                                         dtype_dict={input_tensor: input_dtype})
+mod, params = relay.frontend.from_tflite(
+    tflite_model, shape_dict={input_tensor: input_shape}, dtype_dict={input_tensor: input_dtype}
+)
 
 #############
 # Compilation
 # -----------
 
-target = 'llvm'
+target = "llvm"
 
 # Build with Relay
 with transform.PassContext(opt_level=3):
-    graph, lib, params = relay.build_module.build(
-        mod, target, params=params)
+    graph, lib, params = relay.build_module.build(mod, target, params=params)
 
 ###############################################
 # Save the graph, lib and parameters into files
 # ---------------------------------------------
 
 lib.export_library("./mobilenet.so")
-print('lib export succeefully')
+print("lib export succeefully")
 
 with open("./mobilenet.json", "w") as fo:
-   fo.write(graph)
+    fo.write(graph)
 
 with open("./mobilenet.params", "wb") as fo:
-   fo.write(relay.save_param_dict(params))
+    fo.write(relay.save_param_dict(params))

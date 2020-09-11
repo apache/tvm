@@ -19,6 +19,7 @@
 import signal
 
 from multiprocessing import Process, Queue
+
 try:
     from queue import Empty
 except ImportError:
@@ -44,6 +45,7 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
             process.send_signal(sig)
         except psutil.NoSuchProcess:
             return
+
 
 def _execute_func(func, queue, args, kwargs):
     """execute function and return the result or exception to a queue"""
@@ -79,6 +81,7 @@ class LocalFuture(executor.Future):
     queue: multiprocessing.Queue
         queue for receiving the result of this task
     """
+
     def __init__(self, process, queue):
         self._done = False
         self._process = process
@@ -110,6 +113,7 @@ class LocalFutureNoFork(executor.Future):
     This is a none-fork version of LocalFuture.
     Use this for the runtime that does not support fork (like cudnn)
     """
+
     def __init__(self, result):
         self._result = result
 
@@ -132,21 +136,22 @@ class LocalExecutor(executor.Executor):
         (e.g. cuda runtime, cudnn). Set this to False if you have used these runtime
         before submitting jobs.
     """
+
     def __init__(self, timeout=None, do_fork=True):
         self.timeout = timeout or executor.Executor.DEFAULT_TIMEOUT
         self.do_fork = do_fork
 
         if self.do_fork:
             if not psutil:
-                raise RuntimeError("Python package psutil is missing. "
-                                   "please try `pip install psutil`")
+                raise RuntimeError(
+                    "Python package psutil is missing. " "please try `pip install psutil`"
+                )
 
     def submit(self, func, *args, **kwargs):
         if not self.do_fork:
             return LocalFutureNoFork(func(*args, **kwargs))
 
         queue = Queue(2)  # Size of 2 to avoid a race condition with size 1.
-        process = Process(target=call_with_timeout,
-                          args=(queue, self.timeout, func, args, kwargs))
+        process = Process(target=call_with_timeout, args=(queue, self.timeout, func, args, kwargs))
         process.start()
         return LocalFuture(process, queue)

@@ -34,16 +34,15 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype):
     wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype)
     is_kernel_1x1 = wkl.hkernel == 1 and wkl.wkernel == 1
     if is_kernel_1x1:
-        conv2d_generic.fallback_schedule_cpu_1x1_int8(
-            cfg, wkl, int32_lanes=2, num_int8_elements=4)
+        conv2d_generic.fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes=2, num_int8_elements=4)
     else:
         conv2d_generic.fallback_schedule_cpu_common_int8(
-            cfg, wkl, int32_lanes=2, num_int8_elements=4)
+            cfg, wkl, int32_lanes=2, num_int8_elements=4
+        )
 
 
 @autotvm.register_topi_compute("conv2d_NCHWc_int8.arm_cpu")
-def conv2d_NCHWc_int8(cfg, data, kernel, strides,
-                      padding, dilation, layout, out_layout, out_dtype):
+def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out_layout, out_dtype):
     """Compute conv2d int8 with NCHWc layout"""
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
@@ -55,17 +54,17 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides,
 
     # If no config was set, we can fallback to NCHW config.
     if cfg.is_fallback:
-        _get_default_config(cfg, te.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
-                            te.placeholder((num_filter, in_channel, kh, kw), dtype=kernel.dtype),
-                            strides, padding, out_dtype)
-    return nn.conv2d_NCHWc_int8_compute(data,
-                                        kernel,
-                                        strides,
-                                        padding,
-                                        dilation,
-                                        layout,
-                                        out_layout,
-                                        out_dtype)
+        _get_default_config(
+            cfg,
+            te.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
+            te.placeholder((num_filter, in_channel, kh, kw), dtype=kernel.dtype),
+            strides,
+            padding,
+            out_dtype,
+        )
+    return nn.conv2d_NCHWc_int8_compute(
+        data, kernel, strides, padding, dilation, layout, out_layout, out_dtype
+    )
 
 
 @autotvm.register_topi_schedule("conv2d_NCHWc_int8.arm_cpu")
@@ -84,13 +83,15 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
                 if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
 
-        if 'conv2d_NCHWc_int8' in op.tag:
+        if "conv2d_NCHWc_int8" in op.tag:
             conv_out = op.output(0)
             kernel_vec = conv_out.op.input_tensors[1]
             data_vec = conv_out.op.input_tensors[0]
-            data = data_vec.op.input_tensors[0] \
-                if isinstance(data_vec.op, te.tensor.ComputeOp) and "pad" not in data_vec.op.tag \
+            data = (
+                data_vec.op.input_tensors[0]
+                if isinstance(data_vec.op, te.tensor.ComputeOp) and "pad" not in data_vec.op.tag
                 else data_vec
+            )
             if isinstance(data.op, te.tensor.ComputeOp) and "pad" in data.op.tag:
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
@@ -101,10 +102,12 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
             dtype = "uint" if data.dtype == "uint8" else "int"
             if kh == 1 and kw == 1:
                 conv2d_generic.schedule_conv_NCHWc_cpu_1x1_int8(
-                    *args, int32_lanes=4, intrin=dot_int8_int8_int32(int32_lanes=4, dtype=dtype))
+                    *args, int32_lanes=4, intrin=dot_int8_int8_int32(int32_lanes=4, dtype=dtype)
+                )
             else:
                 conv2d_generic.schedule_conv_NCHWc_cpu_common_int8(
-                    *args, int32_lanes=4, intrin=dot_int8_int8_int32(int32_lanes=4, dtype=dtype))
+                    *args, int32_lanes=4, intrin=dot_int8_int8_int32(int32_lanes=4, dtype=dtype)
+                )
 
         scheduled_ops.append(op)
 
@@ -119,18 +122,19 @@ def compute_conv2d_NHWC_quantized(cfg, data, kernel, strides, padding, dilation,
     tile_rows = 4
     tile_cols = 16
     kernel = nn.conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols)
-    return  compute_conv2d_gemm_without_weight_transform(cfg,
-                                                         data, kernel, strides, padding,
-                                                         dilation, out_dtype, (KH, KW), OC)
+    return compute_conv2d_gemm_without_weight_transform(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, (KH, KW), OC
+    )
 
 
 @autotvm.register_topi_compute("conv2d_NHWC_quantized_without_transform.arm_cpu")
-def compute_conv2d_NHWC_quantized_without_transform(cfg, data, B, strides, padding,
-                                                    dilation, out_dtype, kernel_size=None,
-                                                    output_channels=None):
-    return  compute_conv2d_gemm_without_weight_transform(cfg, data, B, strides, padding,
-                                                         dilation, out_dtype, kernel_size,
-                                                         output_channels)
+def compute_conv2d_NHWC_quantized_without_transform(
+    cfg, data, B, strides, padding, dilation, out_dtype, kernel_size=None, output_channels=None
+):
+    """Compute for conv2d_NHWC_quantized without weight transform."""
+    return compute_conv2d_gemm_without_weight_transform(
+        cfg, data, B, strides, padding, dilation, out_dtype, kernel_size, output_channels
+    )
 
 
 @autotvm.register_topi_schedule("conv2d_NHWC_quantized.arm_cpu")
@@ -155,7 +159,6 @@ def schedule_conv2d_NHWC_quantized(cfg, outs):
             else:
                 C = conv_out.op.input_tensors[0]
                 s[C].compute_at(s[out], inner)
-
 
     traverse_inline(s, outs[0].op, _callback)
     return s

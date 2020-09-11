@@ -46,21 +46,23 @@ def compute_clip_vta(attrs, inputs, output_type):
     const_min = tvm.tir.const(a_min, x.dtype)
     const_max = tvm.tir.const(a_max, x.dtype)
     with tvm.te.tag_scope(topi.tag.ELEMWISE):
-        x = te.compute(
-            x.shape, lambda *i: tvm.te.min(x(*i), const_max), name="clipA")
-        x = te.compute(
-            x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
+        x = te.compute(x.shape, lambda *i: tvm.te.min(x(*i), const_max), name="clipA")
+        x = te.compute(x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
     return [x]
+
 
 def clip_strategy_vta(attrs, inputs, out_type, target):
     strategy = OpStrategy()
     strategy.add_implementation(
         compute_clip_vta,
         _strategy.wrap_topi_schedule(topi.generic.schedule_injective),
-        name="clip.vta")
+        name="clip.vta",
+    )
     return strategy
 
+
 reg.get("clip").get_attr("FTVMStrategy").register(clip_strategy_vta, "vta")
+
 
 @_strategy.conv2d_strategy.register("vta")
 def conv2d_strategy_vta(attrs, inputs, out_type, target):
@@ -82,12 +84,14 @@ def conv2d_strategy_vta(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 _strategy.wrap_compute_conv2d(conv2d_packed, True),
                 _strategy.wrap_topi_schedule(schedule_conv2d_packed),
-                name="conv2d_packed.vta")
-        else: # group_conv2d
+                name="conv2d_packed.vta",
+            )
+        else:  # group_conv2d
             strategy.add_implementation(
                 _strategy.wrap_compute_conv2d(group_conv2d_packed, has_groups=True),
                 _strategy.wrap_topi_schedule(schedule_group_conv2d_packed),
-                name="group_conv2d_packed.vta")
+                name="group_conv2d_packed.vta",
+            )
         return strategy
 
     # If it's not packed, run on ARM CPU
@@ -107,7 +111,8 @@ def conv2d_transpose_strategy_vta(attrs, inputs, out_type, target):
         strategy.add_implementation(
             _strategy.wrap_compute_conv2d_transpose(conv2d_transpose_packed),
             _strategy.wrap_topi_schedule(schedule_conv2d_transpose_packed),
-            name="conv2d_transpose_packed.vta")
+            name="conv2d_transpose_packed.vta",
+        )
         return strategy
 
     # If it's not packed, run on ARM CPU
@@ -118,12 +123,13 @@ def conv2d_transpose_strategy_vta(attrs, inputs, out_type, target):
 @_strategy.dense_strategy.register("vta")
 def dense_strategy_vta(attrs, inputs, out_type, target):
     """dense vta strategy"""
-    if inputs[0].shape == 4: # this implies the layout is packed
+    if inputs[0].shape == 4:  # this implies the layout is packed
         strategy = OpStrategy()
         strategy.add_implementation(
             _strategy.wrap_compute_dense(dense_packed),
             _strategy.wrap_topi_schedule(schedule_dense_packed),
-            name="dense_packed.vta")
+            name="dense_packed.vta",
+        )
         return strategy
     # If it's not packed, run on ARM CPU
     arm_tgt = tvm.target.arm_cpu(target.model)

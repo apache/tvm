@@ -19,6 +19,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay import ExprFunctor, ExprMutator, ExprVisitor
 
+
 def check_visit(expr):
     try:
         ef = ExprFunctor()
@@ -39,47 +40,41 @@ def test_constant():
 
 
 def test_tuple():
-    t = relay.Tuple([relay.var('x', shape=())])
+    t = relay.Tuple([relay.var("x", shape=())])
     check_visit(t)
 
 
 def test_var():
-    v = relay.var('x', shape=())
+    v = relay.var("x", shape=())
     check_visit(v)
 
 
 def test_global():
-    v = relay.GlobalVar('f')
+    v = relay.GlobalVar("f")
     check_visit(v)
 
 
 def test_function():
-    x = relay.var('x', shape=())
-    y = relay.var('y', shape=())
+    x = relay.var("x", shape=())
+    y = relay.var("y", shape=())
     params = [x, y]
     body = x + y
     ret_type = relay.TensorType(())
     type_params = []
-    attrs = None # How to build?
-    f = relay.Function(
-        params,
-        body,
-        ret_type,
-        type_params,
-        attrs
-    )
+    attrs = None  # How to build?
+    f = relay.Function(params, body, ret_type, type_params, attrs)
     check_visit(f)
 
 
 def test_call():
-    x = relay.var('x', shape=())
-    y = relay.var('y', shape=())
+    x = relay.var("x", shape=())
+    y = relay.var("y", shape=())
     call = relay.op.add(x, y)
     check_visit(call)
 
 
 def test_let():
-    x = relay.var('x', shape=())
+    x = relay.var("x", shape=())
     value = relay.const(2.0)
     body = x + x
     l = relay.Let(x, value, body)
@@ -87,13 +82,13 @@ def test_let():
 
 
 def test_ite():
-    cond = relay.var('x', shape=(), dtype='bool')
+    cond = relay.var("x", shape=(), dtype="bool")
     ite = relay.If(cond, cond, cond)
     check_visit(ite)
 
 
 def test_get_item():
-    t = relay.Tuple([relay.var('x', shape=())])
+    t = relay.Tuple([relay.var("x", shape=())])
     t = relay.TupleGetItem(t, 0)
     check_visit(t)
 

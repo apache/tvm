@@ -56,9 +56,7 @@ def mxnet_check():
     mxf(xx, yy, zz, 10.0)
     mxf(xx, yy, zz, 10.0)
 
-
-    tvm.testing.assert_allclose(
-        zz.asnumpy(), (xx.asnumpy() + yy.asnumpy()) * 10)
+    tvm.testing.assert_allclose(zz.asnumpy(), (xx.asnumpy() + yy.asnumpy()) * 10)
 
 
 if __name__ == "__main__":
