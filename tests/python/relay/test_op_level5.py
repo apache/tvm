@@ -333,7 +333,7 @@ def test_non_max_suppression():
             op_res2 = intrp2.evaluate(func)(x0_data, x1_data, x2_data, x3_data)
             tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
             if target == 'cuda':
-                return
+                continue
             op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
             tvm.testing.assert_allclose(op_indices_res1[0].asnumpy(), ref_indices_res, rtol=1e-5)
             op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
@@ -371,6 +371,51 @@ def test_non_max_suppression():
     verify_nms(np_data, np_valid_count, np_indices, np_max_output_size, dshape, np_result,
                np_indices_result, top_k=2)
 
+
+@tvm.testing.uses_gpu
+def test_non_max_suppression_gpu():
+    def verify_nms(x0_data, x1_data, x2_data, x3_data, dshape, ref_res,
+                   ref_indices_res, iou_threshold=0.5, force_suppress=True,
+                   top_k=-1, check_type_only=False):
+        x0 = relay.var("x0", relay.ty.TensorType(dshape, "float32"))
+        x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int32"))
+        x2 = relay.var("x2", relay.ty.TensorType((dshape[0], dshape[1]), "int32"))
+        x3 = relay.var("x3", relay.ty.TensorType((), "int32"))
+        z_indices = relay.vision.non_max_suppression(x0, x1, x2, x3, \
+                    iou_threshold=iou_threshold, force_suppress=force_suppress, \
+                    top_k=top_k, return_indices=True)
+        if isinstance(z_indices, relay.expr.TupleWrapper):
+            z_indices = z_indices.astuple()
+        zz_indices = run_infer_type(z_indices)
+        
+        func_indices = relay.Function([x0, x1, x2, x3], z_indices)
+        func_indices = run_infer_type(func_indices)
+        for target, ctx in ctx_list():
+            if target != 'cuda':
+                continue
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
+            print('op_indices_res1[0]: \n', op_indices_res1[0])
+            print('op_indices_res1[1]: \n', op_indices_res1[1])
+
+    # data after get_valid_counts
+    np_data = np.array([[[0, 0.8, 1, 20, 25, 45], 
+                         [1, 0.7, 2, 21, 26, 45],
+                         [-1, -1, -1, -1, -1, -1], 
+                         [2, 0.9, 35, 61, 52, 79],
+                         [1, 0.5, 100, 60, 70, 110]]]).astype("float32")
+    np_indices = np.array([[0, 1, -1, 3, 4]]).astype("int32")
+    np_valid_count = np.array([4]).astype("int32")
+    np_max_output_size = -1
+    num_anchors = 5
+    dshape = (1, num_anchors, 6)
+    np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
+                           [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
+                           [-1, -1, -1, -1, -1, -1]]])
+    np_indices_result = np.array([[3, 0, -1, -1, -1]])
+    verify_nms(np_data, np_valid_count, np_indices, 
+               np_max_output_size, dshape, np_result,
+               np_indices_result)
 
 @tvm.testing.uses_gpu
 def test_multibox_transform_loc():
@@ -926,6 +971,7 @@ if __name__ == "__main__":
     test_yolo_reorg_infer_shape()
     test_yolo_reorg()
     test_non_max_suppression()
+    test_non_max_suppression_gpu()
     test_deformable_conv2d()
     test_depth_to_space()
     test_space_to_depth()
