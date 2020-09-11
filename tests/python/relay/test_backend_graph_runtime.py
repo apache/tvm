@@ -39,12 +39,13 @@ def check_rts(expr, args, expected_result, mod=None):
     expected_result:
         The expected result of running the expression.
     """
-    intrp = relay.create_executor('debug', mod=mod)
-    graph = relay.create_executor('graph', mod=mod)
+    intrp = relay.create_executor("debug", mod=mod)
+    graph = relay.create_executor("graph", mod=mod)
     eval_result = intrp.evaluate(expr)(*args)
     rts_result = graph.evaluate(expr)(*args)
     tvm.testing.assert_allclose(eval_result.asnumpy(), rts_result.asnumpy())
     tvm.testing.assert_allclose(eval_result.asnumpy(), expected_result)
+
 
 def test_add_op_scalar():
     """
@@ -53,12 +54,13 @@ def test_add_op_scalar():
             return x + y;
         }
     """
-    x = relay.var('x', shape=())
-    y = relay.var('y', shape=())
+    x = relay.var("x", shape=())
+    y = relay.var("y", shape=())
     func = relay.Function([x, y], add(x, y))
-    x_data = np.array(10.0, dtype='float32')
-    y_data = np.array(1.0, dtype='float32')
+    x_data = np.array(10.0, dtype="float32")
+    y_data = np.array(1.0, dtype="float32")
     check_rts(func, [x_data, y_data], x_data + y_data)
+
 
 def test_add_op_tensor():
     """
@@ -67,12 +69,13 @@ def test_add_op_tensor():
             return x + y;
         }
     """
-    x = relay.var('x', shape=(10, 5))
-    y = relay.var('y', shape=(10, 5))
+    x = relay.var("x", shape=(10, 5))
+    y = relay.var("y", shape=(10, 5))
     func = relay.Function([x, y], add(x, y))
-    x_data = np.random.rand(10, 5).astype('float32')
-    y_data = np.random.rand(10, 5).astype('float32')
+    x_data = np.random.rand(10, 5).astype("float32")
+    y_data = np.random.rand(10, 5).astype("float32")
     check_rts(func, [x_data, y_data], x_data + y_data)
+
 
 def test_add_op_broadcast():
     """
@@ -81,22 +84,22 @@ def test_add_op_broadcast():
             return x + y;
         }
     """
-    x = relay.var('x', shape=(10, 5))
-    y = relay.var('y', shape=(1, 5))
+    x = relay.var("x", shape=(10, 5))
+    y = relay.var("y", shape=(1, 5))
     func = relay.Function([x, y], add(x, y))
-    x_data = np.random.rand(10, 5).astype('float32')
-    y_data = np.random.rand(1, 5).astype('float32')
+    x_data = np.random.rand(10, 5).astype("float32")
+    y_data = np.random.rand(1, 5).astype("float32")
     check_rts(func, [x_data, y_data], x_data + y_data)
 
 
 def test_with_params():
-    x = relay.var('x', shape=(10, 5))
-    y = relay.var('y', shape=(1, 5))
+    x = relay.var("x", shape=(10, 5))
+    y = relay.var("y", shape=(1, 5))
     z = relay.add(x, y)
     z = relay.exp(z)
     func = relay.Function([x, y], z)
-    x_data = np.random.rand(10, 5).astype('float32')
-    y_data = np.random.rand(1, 5).astype('float32')
+    x_data = np.random.rand(10, 5).astype("float32")
+    y_data = np.random.rand(1, 5).astype("float32")
     params = {"y": y_data}
     graph, lib, params = relay.build(tvm.IRModule.from_expr(func), "llvm", params=params)
     mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
@@ -162,7 +165,7 @@ def test_gru_like():
     dtype = "float32"
     rnn_dim = 1000
     x = np.random.rand(1, rnn_dim).astype(dtype)
-    y = np.random.rand(3*rnn_dim, rnn_dim).astype(dtype) * 0.01 - 0.005
+    y = np.random.rand(3 * rnn_dim, rnn_dim).astype(dtype) * 0.01 - 0.005
     out_shape = (1, rnn_dim)
     z = unit(rnn_dim)
 

@@ -205,11 +205,12 @@ ki = te.reduce_axis((0, env.BLOCK_IN), name="ki")
 # Describe the in-VTA matrix multiplication
 C_buf = te.compute(
     (o, m, env.BATCH, env.BLOCK_OUT),
-    lambda bo, co, bi, ci:
-        te.sum(A_buf[bo, ko, bi, ki].astype(env.acc_dtype) *
-                B_buf[co, ko, ci, ki].astype(env.acc_dtype),
-                axis=[ko, ki]),
-    name="C_buf")
+    lambda bo, co, bi, ci: te.sum(
+        A_buf[bo, ko, bi, ki].astype(env.acc_dtype) * B_buf[co, ko, ci, ki].astype(env.acc_dtype),
+        axis=[ko, ki],
+    ),
+    name="C_buf",
+)
 
 ######################################################################
 # Casting the Results
@@ -236,9 +237,8 @@ C_buf = te.compute(
 
 # Cast to output type, and send to main memory
 C = te.compute(
-    (o, m, env.BATCH, env.BLOCK_OUT),
-    lambda *i: C_buf(*i).astype(env.inp_dtype),
-    name="C")
+    (o, m, env.BATCH, env.BLOCK_OUT), lambda *i: C_buf(*i).astype(env.inp_dtype), name="C"
+)
 
 ######################################################################
 # This concludes the computation declaration part of this tutorial.
@@ -369,12 +369,8 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # by the VTA runtime JIT compiler.
 
 s[C_buf].reorder(
-    ko,
-    s[C_buf].op.axis[0],
-    s[C_buf].op.axis[1],
-    s[C_buf].op.axis[2],
-    s[C_buf].op.axis[3],
-    ki)
+    ko, s[C_buf].op.axis[0], s[C_buf].op.axis[1], s[C_buf].op.axis[2], s[C_buf].op.axis[3], ki
+)
 s[C_buf].tensorize(s[C_buf].op.axis[2], env.gemm)
 
 # Let's take a look at the finalized schedule
@@ -422,16 +418,12 @@ f = remote.load_module("gemm.o")
 ctx = remote.ext_dev(0)
 
 # Initialize the A and B arrays randomly in the int range of (-128, 128]
-A_orig = np.random.randint(
-    -128, 128, size=(o * env.BATCH, n * env.BLOCK_IN)).astype(A.dtype)
-B_orig = np.random.randint(
-    -128, 128, size=(m * env.BLOCK_OUT, n * env.BLOCK_IN)).astype(B.dtype)
+A_orig = np.random.randint(-128, 128, size=(o * env.BATCH, n * env.BLOCK_IN)).astype(A.dtype)
+B_orig = np.random.randint(-128, 128, size=(m * env.BLOCK_OUT, n * env.BLOCK_IN)).astype(B.dtype)
 
 # Apply packing to the A and B arrays from a 2D to a 4D packed layout
-A_packed = A_orig.reshape(
-    o, env.BATCH, n, env.BLOCK_IN).transpose((0, 2, 1, 3))
-B_packed = B_orig.reshape(
-    m, env.BLOCK_OUT, n, env.BLOCK_IN).transpose((0, 2, 1, 3))
+A_packed = A_orig.reshape(o, env.BATCH, n, env.BLOCK_IN).transpose((0, 2, 1, 3))
+B_packed = B_orig.reshape(m, env.BLOCK_OUT, n, env.BLOCK_IN).transpose((0, 2, 1, 3))
 
 # Format the input/output arrays with tvm.nd.array to the DLPack standard
 A_nd = tvm.nd.array(A_packed, ctx)
@@ -452,10 +444,8 @@ f(A_nd, B_nd, C_nd)
 # matrix multiplication indeed is correct
 
 # Compute reference result with numpy
-C_ref = np.dot(A_orig.astype(env.acc_dtype),
-               B_orig.T.astype(env.acc_dtype)).astype(C.dtype)
-C_ref = C_ref.reshape(
-    o, env.BATCH, m, env.BLOCK_OUT).transpose((0, 2, 1, 3))
+C_ref = np.dot(A_orig.astype(env.acc_dtype), B_orig.T.astype(env.acc_dtype)).astype(C.dtype)
+C_ref = C_ref.reshape(o, env.BATCH, m, env.BLOCK_OUT).transpose((0, 2, 1, 3))
 np.testing.assert_equal(C_ref, C_nd.asnumpy())
 
 # Print stats

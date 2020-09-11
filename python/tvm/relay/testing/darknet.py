@@ -37,10 +37,12 @@ def convert_image(image):
     imagex = np.flip(imagex, 0)
     return imagex
 
+
 def load_image_color(test_image):
     """To load the image using opencv api and do preprocessing."""
     imagex = cv2.imread(test_image)
     return convert_image(imagex)
+
 
 def _letterbox_image(img, w_in, h_in):
     """To get the image in boxed format."""
@@ -60,10 +62,13 @@ def _letterbox_image(img, w_in, h_in):
     resized = convert_image(resized)
     boxed = np.full((imc, h_in, w_in), 0.5, dtype=float)
     _, resizedh, resizedw = resized.shape
-    boxed[:, int((h_in - new_h) / 2)
-          :int((h_in - new_h) / 2) + resizedh, int((w_in - new_w) / 2)
-          :int((w_in - new_w) / 2) + resizedw] = resized
+    boxed[
+        :,
+        int((h_in - new_h) / 2) : int((h_in - new_h) / 2) + resizedh,
+        int((w_in - new_w) / 2) : int((w_in - new_w) / 2) + resizedw,
+    ] = resized
     return boxed
+
 
 def load_image(img, resize_width, resize_height):
     """Load the image and convert to the darknet model format.
@@ -87,8 +92,10 @@ def load_image(img, resize_width, resize_height):
     imagex = cv2.imread(img)
     return _letterbox_image(imagex, resize_width, resize_height)
 
+
 class LAYERTYPE(object):
     """Darknet LAYERTYPE Class constant."""
+
     CONVOLUTIONAL = 0
     DECONVOLUTIONAL = 1
     CONNECTED = 2
@@ -119,8 +126,10 @@ class LAYERTYPE(object):
     L2NORM = 27
     BLANK = 28
 
+
 class ACTIVATION(object):
     """Darknet ACTIVATION Class constant."""
+
     LOGISTIC = 0
     RELU = 1
     RELIE = 2
@@ -135,9 +144,11 @@ class ACTIVATION(object):
     HARDTAN = 11
     LHTAN = 12
 
+
 __darknetffi__ = FFI()
 
-__darknetffi__.cdef("""
+__darknetffi__.cdef(
+    """
 typedef struct network network;
 typedef struct layer layer;
 
@@ -526,4 +537,4 @@ layer make_upsample_layer(int batch, int w, int h, int c, int stride);
 layer make_l2norm_layer(int batch, int inputs);
 void free_network(network *net);
 """
-                   )
+)

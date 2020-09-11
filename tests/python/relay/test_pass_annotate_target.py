@@ -28,22 +28,22 @@ from tvm import runtime
 from tvm.contrib import util
 
 
-def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
-                 ctx=tvm.cpu(), params=None):
+def check_result(
+    mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", ctx=tvm.cpu(), params=None
+):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
         return
 
     def update_lib(lib):
-        test_dir = os.path.dirname(
-            os.path.realpath(os.path.expanduser(__file__)))
+        test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
         source_dir = os.path.join(test_dir, "..", "..", "..")
         contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
 
         kwargs = {}
         kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
         tmp_path = util.tempdir()
-        lib_name = 'lib.so'
+        lib_name = "lib.so"
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path, fcompile=False, **kwargs)
         lib = runtime.load_module(lib_path)
@@ -81,18 +81,14 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
 
 def test_extern_dnnl():
     def annotated(dtype, ishape, w1shape):
-        data = relay.var('data', shape=(ishape), dtype=dtype)
-        weight1 = relay.var('weight1', shape=(w1shape), dtype=dtype)
-        depthwise_conv2d_1 = relay.nn.conv2d(data,
-                                             weight1,
-                                             kernel_size=(3, 3),
-                                             padding=(1, 1),
-                                             groups=32)
-        depthwise_conv2d_2 = relay.nn.conv2d(depthwise_conv2d_1,
-                                             weight1,
-                                             kernel_size=(3, 3),
-                                             padding=(1, 1),
-                                             groups=32)
+        data = relay.var("data", shape=(ishape), dtype=dtype)
+        weight1 = relay.var("weight1", shape=(w1shape), dtype=dtype)
+        depthwise_conv2d_1 = relay.nn.conv2d(
+            data, weight1, kernel_size=(3, 3), padding=(1, 1), groups=32
+        )
+        depthwise_conv2d_2 = relay.nn.conv2d(
+            depthwise_conv2d_1, weight1, kernel_size=(3, 3), padding=(1, 1), groups=32
+        )
         out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
 
         f = relay.Function([data, weight1], out)
@@ -101,25 +97,21 @@ def test_extern_dnnl():
         return mod
 
     def expected(dtype, ishape, w1shape):
-        data = relay.var('data', shape=(ishape), dtype=dtype)
-        weight1 = relay.var('weight1', shape=(w1shape), dtype=dtype)
+        data = relay.var("data", shape=(ishape), dtype=dtype)
+        weight1 = relay.var("weight1", shape=(w1shape), dtype=dtype)
         begin0 = relay.annotation.compiler_begin(data, "dnnl")
         begin1 = relay.annotation.compiler_begin(weight1, "dnnl")
-        depthwise_conv2d_1 = relay.nn.conv2d(begin0,
-                                             begin1,
-                                             kernel_size=(3, 3),
-                                             padding=(1, 1),
-                                             groups=32)
+        depthwise_conv2d_1 = relay.nn.conv2d(
+            begin0, begin1, kernel_size=(3, 3), padding=(1, 1), groups=32
+        )
         end0 = relay.annotation.compiler_end(depthwise_conv2d_1, "dnnl")
         end1 = relay.annotation.compiler_end(depthwise_conv2d_1, "dnnl")
         begin2 = relay.annotation.compiler_begin(end1, "dnnl")
         begin3 = relay.annotation.compiler_begin(end0, "dnnl")
         begin4 = relay.annotation.compiler_begin(weight1, "dnnl")
-        depthwise_conv2d_2 = relay.nn.conv2d(begin3,
-                                             begin4,
-                                             kernel_size=(3, 3),
-                                             padding=(1, 1),
-                                             groups=32)
+        depthwise_conv2d_2 = relay.nn.conv2d(
+            begin3, begin4, kernel_size=(3, 3), padding=(1, 1), groups=32
+        )
         end2 = relay.annotation.compiler_end(depthwise_conv2d_2, "dnnl")
         begin5 = relay.annotation.compiler_begin(end2, "dnnl")
         out = relay.add(begin2, begin5)
@@ -153,11 +145,13 @@ def test_extern_dnnl():
         ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
         ref_res = ref_ex.evaluate()(i_data, w1_data)
 
-        check_result(mod, {"data": i_data, "weight1": w1_data},
-                     (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
+        check_result(
+            mod, {"data": i_data, "weight1": w1_data}, (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5
+        )
 
     test_annotate()
     test_run()
+
 
 @pytest.mark.skip(reason="fix constant node before opening this case")
 def test_extern_dnnl_mobilenet():
@@ -165,23 +159,20 @@ def test_extern_dnnl_mobilenet():
         print("skip because DNNL codegen is not available")
         return
 
-    dtype = 'float32'
+    dtype = "float32"
     ishape = (1, 3, 224, 224)
-    mod, params = relay.testing.mobilenet.get_workload(
-        batch_size=1, dtype='float32')
+    mod, params = relay.testing.mobilenet.get_workload(batch_size=1, dtype="float32")
 
     mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
     mod = transform.AnnotateTarget("dnnl")(mod)
     mod = transform.PartitionGraph()(mod)
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
-    ref_mod, params = relay.testing.mobilenet.get_workload(batch_size=1,
-                                                           dtype='float32')
+    ref_mod, params = relay.testing.mobilenet.get_workload(batch_size=1, dtype="float32")
     ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu(0))
     ref_res = ref_ex.evaluate()(i_data, **params)
 
-    check_result(mod, {"data": i_data},
-                 (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
+    check_result(mod, {"data": i_data}, (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
 
 
 def test_multiple_ends():
@@ -228,7 +219,7 @@ def test_type_propagation():
     target = "test_type_propagation"
 
     @tvm.ir.register_op_attr("nn.relu", "target." + target)
-    def relu(attrs, args): # pylint: disable=unused-variable
+    def relu(attrs, args):  # pylint: disable=unused-variable
         return args[0].checked_type.dtype == "float32"
 
     def before():
@@ -247,7 +238,7 @@ def test_tuple():
     target = "test_tuple"
 
     @tvm.ir.register_op_attr("nn.relu", "target." + target)
-    def relu(attrs, args): # pylint: disable=unused-variable
+    def relu(attrs, args):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("concatenate", "target." + target)
@@ -255,6 +246,7 @@ def test_tuple():
         return True
 
     """Test that TupleNode is included in annotation when surrounded by supported nodes."""
+
     def before():
         x = relay.var("x", shape=(10, 5))
         y = relay.var("y", shape=(10, 5))
@@ -292,12 +284,12 @@ def test_tuple():
 
 def test_composite_function():
     def before():
-        a = relay.var('a', shape=(10, 10))
-        b = relay.var('b', shape=(10, 10))
+        a = relay.var("a", shape=(10, 10))
+        b = relay.var("b", shape=(10, 10))
 
         # add_relu function
-        in_1 = relay.var('in_1', shape=(10, 10))
-        in_2 = relay.var('in_2', shape=(10, 10))
+        in_1 = relay.var("in_1", shape=(10, 10))
+        in_2 = relay.var("in_2", shape=(10, 10))
         add_node = relay.add(in_1, in_2)
         relu_node = relay.nn.relu(add_node)
         add_relu = relay.Function([in_1, in_2], relu_node)
@@ -310,12 +302,12 @@ def test_composite_function():
         return mod
 
     def after():
-        a = relay.var('a', shape=(10, 10))
-        b = relay.var('b', shape=(10, 10))
+        a = relay.var("a", shape=(10, 10))
+        b = relay.var("b", shape=(10, 10))
 
         # add_relu function
-        in_1 = relay.var('in_1', shape=(10, 10))
-        in_2 = relay.var('in_2', shape=(10, 10))
+        in_1 = relay.var("in_1", shape=(10, 10))
+        in_2 = relay.var("in_2", shape=(10, 10))
         add_node = relay.add(in_1, in_2)
         relu_node = relay.nn.relu(add_node)
         add_relu = relay.Function([in_1, in_2], relu_node)
@@ -364,7 +356,7 @@ def test_multiple_runs():
 if __name__ == "__main__":
     test_extern_dnnl()
     test_composite_function()
-    #test_extern_dnnl_mobilenet()
+    # test_extern_dnnl_mobilenet()
     test_multiple_ends()
     test_type_propagation()
     test_tuple()

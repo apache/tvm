@@ -25,6 +25,7 @@ from tvm.relay.expr import Var, GlobalVar
 from tvm.relay.function import Function
 from tvm.relay.ty import GlobalTypeVar, TypeVar, FuncType
 
+
 def define_nat_adt(prelude):
     """Defines a Peano (unary) natural number ADT.
     Zero is represented by z(). s(n) adds 1 to a nat n.
@@ -46,8 +47,9 @@ def define_nat_double(prelude):
     x = Var("x", prelude.nat())
     y = Var("y")
     z_case = Clause(PatternConstructor(prelude.z), prelude.z())
-    s_case = Clause(PatternConstructor(prelude.s, [PatternVar(y)]),
-                    prelude.s(prelude.s(prelude.double(y))))
+    s_case = Clause(
+        PatternConstructor(prelude.s, [PatternVar(y)]), prelude.s(prelude.s(prelude.double(y)))
+    )
     prelude.mod[prelude.double] = Function([x], Match(x, [z_case, s_case]))
 
 
@@ -60,12 +62,12 @@ def define_nat_add(prelude):
     y = Var("y", prelude.nat())
     a = Var("a")
     z_case = Clause(PatternConstructor(prelude.z), y)
-    s_case = Clause(PatternConstructor(prelude.s, [PatternVar(a)]),
-                    prelude.s(prelude.add(a, y)))
+    s_case = Clause(PatternConstructor(prelude.s, [PatternVar(a)]), prelude.s(prelude.add(a, y)))
     prelude.mod[prelude.add] = Function([x, y], Match(x, [z_case, s_case]))
 
 
 # versions of prelude functions that use nats instead of scalars
+
 
 def define_nat_nth(prelude):
     """Defines a function to get the nth eleemnt of a list using
@@ -80,12 +82,11 @@ def define_nat_nth(prelude):
     y = Var("y")
 
     z_case = Clause(PatternConstructor(prelude.z), prelude.hd(x))
-    s_case = Clause(PatternConstructor(prelude.s, [PatternVar(y)]),
-                    prelude.nat_nth(prelude.tl(x), y))
+    s_case = Clause(
+        PatternConstructor(prelude.s, [PatternVar(y)]), prelude.nat_nth(prelude.tl(x), y)
+    )
 
-    prelude.mod[prelude.nat_nth] = Function([x, n],
-                                            Match(n, [z_case, s_case]),
-                                            a, [a])
+    prelude.mod[prelude.nat_nth] = Function([x, n], Match(n, [z_case, s_case]), a, [a])
 
 
 def define_nat_update(prelude):
@@ -101,16 +102,15 @@ def define_nat_update(prelude):
     v = Var("v", a)
     y = Var("y")
 
-    z_case = Clause(PatternConstructor(prelude.z),
-                    prelude.cons(v, prelude.tl(l)))
-    s_case = Clause(PatternConstructor(prelude.s, [PatternVar(y)]),
-                    prelude.cons(
-                        prelude.hd(l),
-                        prelude.nat_update(prelude.tl(l), y, v)))
+    z_case = Clause(PatternConstructor(prelude.z), prelude.cons(v, prelude.tl(l)))
+    s_case = Clause(
+        PatternConstructor(prelude.s, [PatternVar(y)]),
+        prelude.cons(prelude.hd(l), prelude.nat_update(prelude.tl(l), y, v)),
+    )
 
-    prelude.mod[prelude.nat_update] = Function([l, n, v],
-                                               Match(n, [z_case, s_case]),
-                                               prelude.l(a), [a])
+    prelude.mod[prelude.nat_update] = Function(
+        [l, n, v], Match(n, [z_case, s_case]), prelude.l(a), [a]
+    )
 
 
 def define_nat_iterate(prelude):
@@ -127,13 +127,14 @@ def define_nat_iterate(prelude):
     y = Var("y", prelude.nat())
 
     z_case = Clause(PatternConstructor(prelude.z), prelude.id)
-    s_case = Clause(PatternConstructor(prelude.s, [PatternVar(y)]),
-                    prelude.compose(f, prelude.nat_iterate(f, y)))
+    s_case = Clause(
+        PatternConstructor(prelude.s, [PatternVar(y)]),
+        prelude.compose(f, prelude.nat_iterate(f, y)),
+    )
 
-    prelude.mod[prelude.nat_iterate] = Function([f, x],
-                                                Match(x, [z_case, s_case]),
-                                                FuncType([a], a),
-                                                [a])
+    prelude.mod[prelude.nat_iterate] = Function(
+        [f, x], Match(x, [z_case, s_case]), FuncType([a], a), [a]
+    )
 
 
 def add_nat_definitions(prelude):

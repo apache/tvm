@@ -35,6 +35,7 @@ class RecordToFile(MeasureCallback):
     filename : str
         File name for this callback to write log to.
     """
+
     def __init__(self, filename="auto_scheduler_tuning.json"):
         self.__init_handle_by_constructor__(_ffi_api.RecordToFile, filename)
 
@@ -49,11 +50,12 @@ class RecordReader(Object):
     filename : str = "auto_scheduler_tuning.json"
         File name for this reader to load log from.
     """
+
     def __init__(self, filename="auto_scheduler_tuning.json"):
         self.__init_handle_by_constructor__(_ffi_api.RecordReader, filename)
 
     def read_lines(self, max_lines=None, skip_lines=0):
-        """ Read multiple lines from the log file.
+        """Read multiple lines from the log file.
 
         Parameters
         ----------
@@ -69,8 +71,9 @@ class RecordReader(Object):
         results : List[MeasureResult]
             The MeasureResults loaded from the log file.
         """
-        inputs, results = _ffi_api.RecordReaderReadLines(self, max_lines if max_lines else -1,
-                                                         skip_lines)
+        inputs, results = _ffi_api.RecordReaderReadLines(
+            self, max_lines if max_lines else -1, skip_lines
+        )
         return inputs, results
 
     def __iter__(self):
@@ -112,8 +115,9 @@ def save_records(filename, inputs, results):
     """
     _ffi_api.SaveRecords(filename, inputs, results)
 
+
 def load_best(filename, workload_key=None, target=None):
-    """ Return the best measurement pair form a log file. This may return none results if
+    """Return the best measurement pair form a log file. This may return none results if
     there is no legal measure pair with the specified workload_key/target found from the log file.
 
     Parameters

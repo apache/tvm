@@ -18,6 +18,7 @@ import tvm
 import pytest
 from tvm import te
 
+
 def test_const_saveload_json():
     # save load json
     x = tvm.tir.const(1, "int32")
@@ -28,16 +29,19 @@ def test_const_saveload_json():
     zz = tvm.ir.load_json(json_str)
     tvm.ir.assert_structural_equal(zz, z, map_free_vars=True)
 
+
 def _test_infinity_value(value, dtype):
     x = tvm.tir.const(value, dtype)
     json_str = tvm.ir.save_json(x)
     tvm.ir.assert_structural_equal(x, tvm.ir.load_json(json_str))
 
+
 def test_infinity_value():
-    _test_infinity_value(float("inf"), 'float64')
-    _test_infinity_value(float("-inf"), 'float64')
-    _test_infinity_value(float("inf"), 'float32')
-    _test_infinity_value(float("-inf"), 'float32')
+    _test_infinity_value(float("inf"), "float64")
+    _test_infinity_value(float("-inf"), "float64")
+    _test_infinity_value(float("inf"), "float32")
+    _test_infinity_value(float("-inf"), "float32")
+
 
 def test_make_smap():
     # save load json
@@ -56,12 +60,10 @@ def test_make_node():
     x = tvm.ir.make_node("IntImm", dtype="int32", value=10)
     assert isinstance(x, tvm.tir.IntImm)
     assert x.value == 10
-    A = te.placeholder((10, ), name='A')
-    AA = tvm.ir.make_node("Tensor",
-                       shape=A.shape,
-                       dtype=A.dtype,
-                       op=A.op,
-                       value_index=A.value_index)
+    A = te.placeholder((10,), name="A")
+    AA = tvm.ir.make_node(
+        "Tensor", shape=A.shape, dtype=A.dtype, op=A.op, value_index=A.value_index
+    )
     assert AA.op == A.op
     assert AA.value_index == A.value_index
 
@@ -69,8 +71,8 @@ def test_make_node():
 
 
 def test_make_sum():
-    A = te.placeholder((2, 10), name='A')
-    k = te.reduce_axis((0,10), "k")
+    A = te.placeholder((2, 10), name="A")
+    k = te.reduce_axis((0, 10), "k")
     B = te.compute((2,), lambda i: te.sum(A[i, k], axis=k), name="B")
     json_str = tvm.ir.save_json(B)
     BB = tvm.ir.load_json(json_str)
@@ -92,7 +94,7 @@ def test_env_func():
     assert y(1) == 2
     assert y.func(1) == 2
 
-    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3,4), func=y)
+    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4), func=y)
     assert x.name == "xx"
     assert x.padding[0].value == 3
     assert x.padding[1].value == 4
@@ -115,12 +117,15 @@ def test_string():
 
 
 def test_pass_config():
-    cfg = tvm.transform.PassContext(opt_level=1, config={
-        "tir.UnrollLoop": {
-            "auto_max_step": 10,
-        }
-    })
-    cfg.opt_level  == 1
+    cfg = tvm.transform.PassContext(
+        opt_level=1,
+        config={
+            "tir.UnrollLoop": {
+                "auto_max_step": 10,
+            }
+        },
+    )
+    cfg.opt_level == 1
 
     assert cfg.config["tir.UnrollLoop"].auto_max_step == 10
     # default option
@@ -128,22 +133,19 @@ def test_pass_config():
 
     # schema checking for specific config key
     with pytest.raises(AttributeError):
-        cfg = tvm.transform.PassContext(config={
-            "tir.UnrollLoop": { "invalid": 1 }
-        })
+        cfg = tvm.transform.PassContext(config={"tir.UnrollLoop": {"invalid": 1}})
 
     # schema check for un-registered config
     with pytest.raises(AttributeError):
-        cfg = tvm.transform.PassContext(config={ "inavlid-opt": True })
+        cfg = tvm.transform.PassContext(config={"inavlid-opt": True})
 
     # schema check for wrong type
     with pytest.raises(AttributeError):
-        cfg = tvm.transform.PassContext(config={
-            "tir.UnrollLoop": 1
-        })
+        cfg = tvm.transform.PassContext(config={"tir.UnrollLoop": 1})
+
 
 def test_dict():
-    x = tvm.tir.const(1) # a class that has Python-defined methods
+    x = tvm.tir.const(1)  # a class that has Python-defined methods
     # instances should see the full class dict
     assert set(dir(x.__class__)) <= set(dir(x))
 

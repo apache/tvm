@@ -19,6 +19,7 @@
 from tvm import te
 from ..util import is_empty_shape
 
+
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
 
@@ -50,6 +51,7 @@ def schedule_injective_from_existing(sch, out):
         sch[out].vectorize(li)
     return sch
 
+
 def schedule_injective(outs):
     """X86 schedule for injective op.
 
@@ -73,6 +75,7 @@ def schedule_injective(outs):
         schedule_injective_from_existing(s, x)
     return s
 
+
 def schedule_concatenate(outs):
     """X86 schedule for concatenate op.
 
@@ -87,6 +90,7 @@ def schedule_concatenate(outs):
     sch: Schedule
         The computation schedule for the op.
     """
+
     def vectorize(sch, tensor, vectorize_limit):
         """Internal vectorization function for concatenate."""
         inner_axis = s[tensor].op.axis[len(s[tensor].op.axis) - 1]
@@ -117,6 +121,7 @@ def schedule_concatenate(outs):
     else:
         s[x].parallel(s[x].op.axis[0])
     return s
+
 
 schedule_elemwise = schedule_injective
 schedule_broadcast = schedule_injective

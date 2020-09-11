@@ -43,17 +43,18 @@ def _update_target(target):
 
     tgts = {}
     if isinstance(target, (str, Target)):
-        dev_type = tvm_expr.IntImm(
-            "int32", _nd.context(str(target)).device_type)
+        dev_type = tvm_expr.IntImm("int32", _nd.context(str(target)).device_type)
         tgts[dev_type] = Target(target)
     elif isinstance(target, dict):
         for dev, tgt in target.items():
             dev_type = tvm_expr.IntImm("int32", _nd.context(dev).device_type)
             tgts[dev_type] = Target(tgt)
     else:
-        raise TypeError("target is expected to be str or " +
-                        "tvm.target.Target, but received " +
-                        "{}".format(type(target)))
+        raise TypeError(
+            "target is expected to be str or "
+            + "tvm.target.Target, but received "
+            + "{}".format(type(target))
+        )
     return tgts
 
 
@@ -185,7 +186,7 @@ class BuildModule(object):
         return ret
 
 
-def build(mod, target=None, target_host=None, params=None, mod_name='default'):
+def build(mod, target=None, target_host=None, params=None, mod_name="default"):
     """Helper function that builds a Relay function to run on TVM graph
     runtime.
 
@@ -236,15 +237,15 @@ def build(mod, target=None, target_host=None, params=None, mod_name='default'):
         warnings.warn(
             "Please use input parameter mod (tvm.IRModule) "
             "instead of deprecated parameter mod (tvm.relay.function.Function)",
-            DeprecationWarning)
+            DeprecationWarning,
+        )
 
     target = _update_target(target)
 
     if isinstance(target_host, (str, Target)):
         target_host = Target(target_host)
     elif target_host:
-        raise ValueError("target host must be the type of str, " +
-                         "tvm.target.Target, or None")
+        raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
@@ -255,10 +256,8 @@ def build(mod, target=None, target_host=None, params=None, mod_name='default'):
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, mod, params = bld_mod.build(
-            mod, target, target_host, params)
-        mod = _graph_runtime_factory.GraphRuntimeFactoryModule(
-            graph_json, mod, mod_name, params)
+        graph_json, mod, params = bld_mod.build(mod, target, target_host, params)
+        mod = _graph_runtime_factory.GraphRuntimeFactoryModule(graph_json, mod, mod_name, params)
         return mod
 
 
@@ -297,7 +296,8 @@ def optimize(mod, target=None, params=None):
         warnings.warn(
             "Please use input parameter mod (tvm.IRModule) "
             "instead of deprecated parameter func (tvm.relay.function.Function)",
-            DeprecationWarning)
+            DeprecationWarning,
+        )
 
     target = _update_target(target)
 
@@ -365,12 +365,10 @@ class GraphExecutor(_interpreter.Executor):
             self.mod["main"] = expr
         ret_type = self.mod["main"].checked_type.ret_type
         if _ty.is_dynamic(ret_type):
-            raise ValueError("Graph Runtime only supports static graphs, got output type",
-                             ret_type)
-        num_outputs = len(ret_type.fields) if isinstance(
-            ret_type, _ty.TupleType) else 1
+            raise ValueError("Graph Runtime only supports static graphs, got output type", ret_type)
+        num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
         mod = build(self.mod, target=self.target)
-        gmodule = _graph_rt.GraphModule(mod['default'](self.ctx))
+        gmodule = _graph_rt.GraphModule(mod["default"](self.ctx))
 
         def _graph_wrapper(*args, **kwargs):
             args = self._convert_args(self.mod["main"], args, kwargs)
@@ -390,10 +388,7 @@ class GraphExecutor(_interpreter.Executor):
         return _graph_wrapper
 
 
-def create_executor(kind="debug",
-                    mod=None,
-                    ctx=None,
-                    target="llvm"):
+def create_executor(kind="debug", mod=None, ctx=None, target="llvm"):
     """Factory function to create an executor.
 
     Parameters

@@ -60,15 +60,13 @@ class Stage(Object):
 
     # Static trans table for compute_at location
     # This is used to transform the compute_at location to C++ enum
-    COMPUTE_AT_TRANS_TABLE = {
-        "root": 0,
-        "inlined": 1,
-        "iter": 2
-    }
+    COMPUTE_AT_TRANS_TABLE = {"root": 0, "inlined": 1, "iter": 2}
+
 
 @tvm._ffi.register_object("auto_scheduler.State")
 class StateObject(Object):
     """ The internal State object """
+
     def __eq__(self, other):
         return _ffi_api.StateEqual(self, other)
 
@@ -106,14 +104,14 @@ class State:
         "threadIdx.y": 8,
         "blockIdx.z": 9,
         "threadIdx.z": 10,
-        "tensorize": 11
+        "tensorize": 11,
     }
 
     def __init__(self, state_object, dag):
         self.state_object = state_object
         self.compute_dag = dag
 
-        self.stage_id_map = {}    # A dict maps operation to stage id
+        self.stage_id_map = {}  # A dict maps operation to stage id
         self._update_stage_id_map()
 
     @property
@@ -172,9 +170,12 @@ class State:
         if not thread_name in State.ANNOTATION_TRANS_TABLE.keys():
             raise ValueError("Invalid thread_name: ", thread_name)
 
-        self.state_object, res = _ffi_api.StateBind(self.state_object,
-                                                    self._resolve_stage_id(stage), iterator,
-                                                    State.ANNOTATION_TRANS_TABLE[thread_name])
+        self.state_object, res = _ffi_api.StateBind(
+            self.state_object,
+            self._resolve_stage_id(stage),
+            iterator,
+            State.ANNOTATION_TRANS_TABLE[thread_name],
+        )
         return res
 
     def parallel(self, stage, iterator):
@@ -194,8 +195,9 @@ class State:
         res_it : Iterator
             The paralleled Iterator.
         """
-        self.state_object, res = _ffi_api.StateParallel(self.state_object,
-                                                        self._resolve_stage_id(stage), iterator)
+        self.state_object, res = _ffi_api.StateParallel(
+            self.state_object, self._resolve_stage_id(stage), iterator
+        )
         return res
 
     def unroll(self, stage, iterator, max_unroll=None):
@@ -217,9 +219,12 @@ class State:
         res_it : Iterator
             The unrolled Iterator.
         """
-        self.state_object, res = _ffi_api.StateUnroll(self.state_object,
-                                                      self._resolve_stage_id(stage), iterator,
-                                                      max_unroll if max_unroll else -1)
+        self.state_object, res = _ffi_api.StateUnroll(
+            self.state_object,
+            self._resolve_stage_id(stage),
+            iterator,
+            max_unroll if max_unroll else -1,
+        )
         return res
 
     def vectorize(self, stage, iterator):
@@ -239,8 +244,9 @@ class State:
         res_it : Iterator
             The vectorized Iterator.
         """
-        self.state_object, res = _ffi_api.StateVectorize(self.state_object,
-                                                         self._resolve_stage_id(stage), iterator)
+        self.state_object, res = _ffi_api.StateVectorize(
+            self.state_object, self._resolve_stage_id(stage), iterator
+        )
         return res
 
     def fuse(self, stage, iters):
@@ -265,8 +271,9 @@ class State:
         If the iterators to be fused have stages attached at them(by compute_at), the fused
         result will become the new attach point.
         """
-        self.state_object, res = _ffi_api.StateFuse(self.state_object,
-                                                    self._resolve_stage_id(stage), iters)
+        self.state_object, res = _ffi_api.StateFuse(
+            self.state_object, self._resolve_stage_id(stage), iters
+        )
         return res
 
     def pragma(self, stage, iterator, pragma_type):
@@ -283,8 +290,9 @@ class State:
         pragma_type : str
             The pragma string.
         """
-        self.state_object = _ffi_api.StatePragma(self.state_object, self._resolve_stage_id(stage),
-                                                 iterator, pragma_type)
+        self.state_object = _ffi_api.StatePragma(
+            self.state_object, self._resolve_stage_id(stage), iterator, pragma_type
+        )
 
     def reorder(self, stage, order):
         """Schedule primitive corresponding to `te.Stage.reorder`.
@@ -298,8 +306,9 @@ class State:
         order : List[Iterator]
             Iterators in the expected order.
         """
-        self.state_object = _ffi_api.StateReorder(self.state_object, self._resolve_stage_id(stage),
-                                                  order)
+        self.state_object = _ffi_api.StateReorder(
+            self.state_object, self._resolve_stage_id(stage), order
+        )
 
     def split(self, stage, iterator, lengths, inner_to_outer=True):
         """Schedule primitive corresponding to `te.Stage.split`.
@@ -330,9 +339,9 @@ class State:
         If we do split on an iterator which has stages attached at it(by compute_at), the inner
         most iterator of split results will become the new attach point.
         """
-        self.state_object, res = _ffi_api.StateSplit(self.state_object,
-                                                     self._resolve_stage_id(stage),
-                                                     iterator, lengths, inner_to_outer)
+        self.state_object, res = _ffi_api.StateSplit(
+            self.state_object, self._resolve_stage_id(stage), iterator, lengths, inner_to_outer
+        )
         return res
 
     def follow_split(self, stage, iterator, src_step_id, n_split):
@@ -366,15 +375,13 @@ class State:
             The splitted new Iterators.
         """
 
-        self.state_object, res = _ffi_api.StateFollowSplit(self.state_object,
-                                                           self._resolve_stage_id(stage),
-                                                           iterator,
-                                                           src_step_id, n_split)
+        self.state_object, res = _ffi_api.StateFollowSplit(
+            self.state_object, self._resolve_stage_id(stage), iterator, src_step_id, n_split
+        )
         return res
 
-    def follow_fused_split(self, stage, iterator, src_step_ids, level,
-                           factor_or_nparts):
-        """ Schedule primitive extends to split step.
+    def follow_fused_split(self, stage, iterator, src_step_ids, level, factor_or_nparts):
+        """Schedule primitive extends to split step.
 
         This step is used to split an iterator by the same factors
         as the given list of SplitSteps and FuseSteps.
@@ -415,11 +422,14 @@ class State:
             The splitted new Iterators.
         """
 
-        self.state_object, res = _ffi_api.StateFollowFusedSplit(self.state_object,
-                                                                self._resolve_stage_id(stage),
-                                                                iterator,
-                                                                src_step_ids, level,
-                                                                factor_or_nparts)
+        self.state_object, res = _ffi_api.StateFollowFusedSplit(
+            self.state_object,
+            self._resolve_stage_id(stage),
+            iterator,
+            src_step_ids,
+            level,
+            factor_or_nparts,
+        )
         return res
 
     def storage_align(self, stage, iterator, factor, offset):
@@ -438,9 +448,9 @@ class State:
         offset : int
             The offset in the alignment specification.
         """
-        self.state_object = _ffi_api.StateStorageAlign(self.state_object,
-                                                       self._resolve_stage_id(stage), iterator,
-                                                       factor, offset)
+        self.state_object = _ffi_api.StateStorageAlign(
+            self.state_object, self._resolve_stage_id(stage), iterator, factor, offset
+        )
 
     def compute_at(self, stage, target_stage, target_iter):
         """Schedule primitive corresponding to `te.Stage.compute_at`.
@@ -464,10 +474,12 @@ class State:
         as bound for the newly created iterators.
         Call ComputeDAG::InferBound on the returned state to get the complete bound information.
         """
-        self.state_object = _ffi_api.StateComputeAt(self.state_object,
-                                                    self._resolve_stage_id(stage),
-                                                    self._resolve_stage_id(target_stage),
-                                                    target_iter)
+        self.state_object = _ffi_api.StateComputeAt(
+            self.state_object,
+            self._resolve_stage_id(stage),
+            self._resolve_stage_id(target_stage),
+            target_iter,
+        )
 
     def compute_inline(self, stage):
         """Schedule primitive corresponding to `te.Stage.compute_inline`, see also the `te.Stage`
@@ -479,8 +491,9 @@ class State:
             The Stage to be marked compute inlined, which can be specified by the integer index,
             Operation, or output tensor of the stage.
         """
-        self.state_object = _ffi_api.StateComputeInline(self.state_object,
-                                                        self._resolve_stage_id(stage))
+        self.state_object = _ffi_api.StateComputeInline(
+            self.state_object, self._resolve_stage_id(stage)
+        )
 
     def compute_root(self, stage):
         """Schedule primitive corresponding to `te.Stage.compute_root`.
@@ -499,8 +512,9 @@ class State:
         as bound for the newly created iterators.
         Call ComputeDAG::InferBound on the returned state to get the complete bound information.
         """
-        self.state_object = _ffi_api.StateComputeRoot(self.state_object,
-                                                      self._resolve_stage_id(stage))
+        self.state_object = _ffi_api.StateComputeRoot(
+            self.state_object, self._resolve_stage_id(stage)
+        )
 
     def cache_read(self, stage, scope_name, reader_stages):
         """Schedule primitive corresponding to `te.Schedule.cache_read`.
@@ -528,10 +542,13 @@ class State:
         target stage).
         """
         reader_stage_ids = [self._resolve_stage_id(i) for i in reader_stages]
-        self.state_object, new_stage_id = _ffi_api.StateCacheRead(self.state_object,
-                                                                  self._resolve_stage_id(stage),
-                                                                  scope_name, reader_stage_ids,
-                                                                  self.compute_dag)
+        self.state_object, new_stage_id = _ffi_api.StateCacheRead(
+            self.state_object,
+            self._resolve_stage_id(stage),
+            scope_name,
+            reader_stage_ids,
+            self.compute_dag,
+        )
         # Add a new stage will change all ops behind the added stage. But we still want to keep the
         # original ops map, apply stage id offset to stage_id_map to make them work.
         self._apply_stage_id_offset(int(new_stage_id))
@@ -561,9 +578,9 @@ class State:
         target stage).
         This step will cache write all output tensors of the target stage.
         """
-        self.state_object, new_stage_id = _ffi_api.StateCacheWrite(self.state_object,
-                                                                   self._resolve_stage_id(stage),
-                                                                   scope_name, self.compute_dag)
+        self.state_object, new_stage_id = _ffi_api.StateCacheWrite(
+            self.state_object, self._resolve_stage_id(stage), scope_name, self.compute_dag
+        )
         # Add a new stage will change all ops behind the added stage. But we still want to keep the
         # original ops map, apply stage id offset to stage_id_map to make them work.
         self._apply_stage_id_offset(int(new_stage_id))
@@ -594,10 +611,13 @@ class State:
         Rfactor step will insert an extra stage to the original ComputeDAG (in the front of the
         target stage).
         """
-        self.state_object, new_stage_id = _ffi_api.StateRfactor(self.state_object,
-                                                                self._resolve_stage_id(stage),
-                                                                iterator, factor_iter_id,
-                                                                self.compute_dag)
+        self.state_object, new_stage_id = _ffi_api.StateRfactor(
+            self.state_object,
+            self._resolve_stage_id(stage),
+            iterator,
+            factor_iter_id,
+            self.compute_dag,
+        )
         # Add a new stage will change all ops behind the added stage. But we still want to keep the
         # original ops map, apply stage id offset to stage_id_map to make them work.
         self._apply_stage_id_offset(int(new_stage_id))
@@ -617,8 +637,9 @@ class State:
             return self.stage_id_map[stage_id.op]
         if isinstance(stage_id, int):
             return stage_id
-        raise ValueError("Invalid stage: " + stage_id +
-                         " . Expect to be a int, Operation or Tensor")
+        raise ValueError(
+            "Invalid stage: " + stage_id + " . Expect to be a int, Operation or Tensor"
+        )
 
     def _update_stage_id_map(self):
         for index, stage in enumerate(self.stages):
@@ -634,8 +655,7 @@ class State:
             key = key.op
         if isinstance(key, Operation):
             return self.stages[self.stage_id_map[key]]
-        raise ValueError("Invalid item: " + key +
-                         " . Expect to be a Operation or Tensor")
+        raise ValueError("Invalid item: " + key + " . Expect to be a Operation or Tensor")
 
     def __str__(self):
         return str(self.state_object)

@@ -19,6 +19,7 @@
 from tvm import autotvm
 from tvm.autotvm.task.space import FallbackConfigEntity
 
+
 class Int8Fallback(autotvm.FallbackContext):
     def _query_inside(self, target, workload):
         key = (target, workload)

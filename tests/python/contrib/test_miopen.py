@@ -39,21 +39,15 @@ def test_conv2d():
         return
     wshape = (out_channel, in_channel, filter_h, filter_w)
 
-    X = te.placeholder(xshape, name='X')
-    W = te.placeholder(wshape, name='W')
-    Y = miopen.conv2d_forward(X,
-                              W,
-                              stride_h,
-                              stride_w,
-                              pad_h,
-                              pad_w,
-                              dilation_h,
-                              dilation_w,
-                              conv_mode=0,
-                              data_type=1)
+    X = te.placeholder(xshape, name="X")
+    W = te.placeholder(wshape, name="W")
+    Y = miopen.conv2d_forward(
+        X, W, stride_h, stride_w, pad_h, pad_w, dilation_h, dilation_w, conv_mode=0, data_type=1
+    )
 
     yshape = [x.value for x in Y.shape]
     from tvm import topi
+
     s = te.create_schedule(Y.op)
 
     def verify():
@@ -64,8 +58,9 @@ def test_conv2d():
         y = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), ctx)
         f(x, w, y)
 
-        Y_ref = topi.nn.conv2d_nchw(X, W, (stride_h, stride_w), (pad_h, pad_w),
-                                    (dilation_h, dilation_w))
+        Y_ref = topi.nn.conv2d_nchw(
+            X, W, (stride_h, stride_w), (pad_h, pad_w), (dilation_h, dilation_w)
+        )
         s_ref = te.create_schedule(Y_ref.op)
         f_ref = tvm.build(s_ref, [X, W, Y_ref], "rocm", target_host="llvm")
         y_ref = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), ctx)

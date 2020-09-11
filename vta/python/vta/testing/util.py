@@ -63,10 +63,9 @@ def run(run_func):
         pynq_port = os.environ.get("VTA_RPC_PORT", None)
         # Run device from fleet node if env variables are defined
         if tracker_host and tracker_port:
-            remote = autotvm.measure.request_remote(env.TARGET,
-                                                    tracker_host,
-                                                    int(tracker_port),
-                                                    timeout=10000)
+            remote = autotvm.measure.request_remote(
+                env.TARGET, tracker_host, int(tracker_port), timeout=10000
+            )
             run_func(env, remote)
         else:
             # Next, run on PYNQ if env variables are defined
@@ -75,7 +74,8 @@ def run(run_func):
                 run_func(env, remote)
             else:
                 raise RuntimeError(
-                    "Please set the VTA_RPC_HOST and VTA_RPC_PORT environment variables")
+                    "Please set the VTA_RPC_HOST and VTA_RPC_PORT environment variables"
+                )
 
     else:
         raise RuntimeError("Unknown target %s" % env.TARGET)

@@ -27,10 +27,16 @@ from tvm import auto_scheduler
 from test_auto_scheduler_common import matmul_auto_scheduler_test, PropagatingThread
 
 
-def search_common(workload=matmul_auto_scheduler_test, target="llvm",
-                  search_policy='empty', seed=random.randint(1, 1 << 30), runner='local',
-                  cost_model=auto_scheduler.RandomModel(), num_measure_trials=2,
-                  init_search_callbacks=None):
+def search_common(
+    workload=matmul_auto_scheduler_test,
+    target="llvm",
+    search_policy="empty",
+    seed=random.randint(1, 1 << 30),
+    runner="local",
+    cost_model=auto_scheduler.RandomModel(),
+    num_measure_trials=2,
+    init_search_callbacks=None,
+):
     print("Test %s schedule search with the default search policy" % (target))
 
     random.seed(seed)
@@ -44,22 +50,25 @@ def search_common(workload=matmul_auto_scheduler_test, target="llvm",
         log_file = fp.name
 
         init_search_callbacks = init_search_callbacks or []
-        init_search_callbacks.append(
-            auto_scheduler.PreloadMeasuredStates(log_file))
+        init_search_callbacks.append(auto_scheduler.PreloadMeasuredStates(log_file))
 
-        if search_policy == 'empty':
+        if search_policy == "empty":
             search_policy = auto_scheduler.EmptyPolicy(task)
-        elif search_policy == 'sketch':
-            search_policy = auto_scheduler.SketchPolicy(task, schedule_cost_model=cost_model,
-                                                        init_search_callbacks=init_search_callbacks)
+        elif search_policy == "sketch":
+            search_policy = auto_scheduler.SketchPolicy(
+                task, schedule_cost_model=cost_model, init_search_callbacks=init_search_callbacks
+            )
 
-        tuning_options = auto_scheduler.TuningOptions(num_measure_trials=num_measure_trials,
-                                                      runner=runner, verbose=1, measure_callbacks=[auto_scheduler.RecordToFile(log_file)])
-        sch, args = auto_scheduler.auto_schedule(
-            task, search_policy, tuning_options)
-        print("*"*80)
+        tuning_options = auto_scheduler.TuningOptions(
+            num_measure_trials=num_measure_trials,
+            runner=runner,
+            verbose=1,
+            measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+        )
+        sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options)
+        print("*" * 80)
         print(target)
-        print("*"*80)
+        print("*" * 80)
         inp, res = auto_scheduler.load_best(log_file, workload_key, target)
 
         print("==== Python Code ====")
@@ -76,8 +85,7 @@ def search_common(workload=matmul_auto_scheduler_test, target="llvm",
             b = tvm.nd.array(np.random.uniform(size=(N, N)).astype(dtype), ctx)
             c = tvm.nd.array(np.zeros((N, N), dtype=dtype), ctx)
             mod(a, b, c)
-            tvm.testing.assert_allclose(c.asnumpy(), np.dot(
-                a.asnumpy(), b.asnumpy()), rtol=1e-5)
+            tvm.testing.assert_allclose(c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()), rtol=1e-5)
             print("==== Verification passed ====")
         except Exception:
             raise Exception("Error encountered with seed: %d" % (seed))
@@ -88,15 +96,18 @@ def search_common(workload=matmul_auto_scheduler_test, target="llvm",
 def test_workload_registry_search_basic():
     # wrap the search in a new thread to avoid the conflict
     # between python's multiprocessing and tvm's thread pool
-    t = PropagatingThread(target=search_common, kwargs={'seed': 944563397})
+    t = PropagatingThread(target=search_common, kwargs={"seed": 944563397})
     t.start()
     t.join()
-    t = PropagatingThread(target=search_common,
-                          kwargs={'seed': 944563397, 'workload': "matmul_auto_scheduler_test"})
+    t = PropagatingThread(
+        target=search_common, kwargs={"seed": 944563397, "workload": "matmul_auto_scheduler_test"}
+    )
     t.start()
     t.join()
-    t = PropagatingThread(target=search_common,
-                          kwargs={'seed': 944563397, 'workload': "matmul_auto_scheduler_test_rename_1"})
+    t = PropagatingThread(
+        target=search_common,
+        kwargs={"seed": 944563397, "workload": "matmul_auto_scheduler_test_rename_1"},
+    )
     t.start()
     t.join()
 
@@ -105,8 +116,9 @@ def test_workload_registry_search_basic():
 def test_sketch_search_policy_basic():
     # wrap the search in a new thread to avoid the conflict
     # between python's multiprocessing and tvm's thread pool
-    t = PropagatingThread(target=search_common,
-                          kwargs={'seed': 944563397, 'search_policy': 'sketch'})
+    t = PropagatingThread(
+        target=search_common, kwargs={"seed": 944563397, "search_policy": "sketch"}
+    )
     t.start()
     t.join()
 
@@ -115,9 +127,14 @@ def test_sketch_search_policy_basic():
 def test_sketch_search_policy_xgbmodel():
     # wrap the search in a new thread to avoid the conflict
     # between python's multiprocessing and tvm's thread pool
-    t = PropagatingThread(target=search_common,
-                          kwargs={'seed': 944563397, 'search_policy': 'sketch',
-                                  'cost_model': auto_scheduler.XGBModel()})
+    t = PropagatingThread(
+        target=search_common,
+        kwargs={
+            "seed": 944563397,
+            "search_policy": "sketch",
+            "cost_model": auto_scheduler.XGBModel(),
+        },
+    )
     t.start()
     t.join()
 
@@ -127,9 +144,15 @@ def test_sketch_search_policy_cuda_rpc_runner():
     measure_ctx = auto_scheduler.LocalRPCMeasureContext()
     # wrap the search in a new thread to avoid the conflict
     # between python's multiprocessing and tvm's thread pool
-    t = PropagatingThread(target=search_common,
-                          kwargs={'seed': 944563397, 'search_policy': 'sketch', 'target': 'cuda',
-                                  'runner': measure_ctx.runner})
+    t = PropagatingThread(
+        target=search_common,
+        kwargs={
+            "seed": 944563397,
+            "search_policy": "sketch",
+            "target": "cuda",
+            "runner": measure_ctx.runner,
+        },
+    )
     t.start()
     t.join()
 
@@ -140,9 +163,16 @@ def test_sketch_search_policy_cuda_xgbmodel_rpc_runner():
     measure_ctx = auto_scheduler.LocalRPCMeasureContext()
     # wrap the search in a new thread to avoid the conflict
     # between python's multiprocessing and tvm's thread pool
-    t = PropagatingThread(target=search_common,
-                          kwargs={'seed': 944563397, 'search_policy': 'sketch', 'target': 'cuda',
-                                  'runner': measure_ctx.runner, 'cost_model': auto_scheduler.XGBModel()})
+    t = PropagatingThread(
+        target=search_common,
+        kwargs={
+            "seed": 944563397,
+            "search_policy": "sketch",
+            "target": "cuda",
+            "runner": measure_ctx.runner,
+            "cost_model": auto_scheduler.XGBModel(),
+        },
+    )
     t.start()
     t.join()
 

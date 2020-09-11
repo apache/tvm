@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=no-else-return
+# pylint: disable=no-else-return
 """The Python interface to the Relay reference interpreter."""
 from __future__ import absolute_import
 
@@ -35,15 +35,13 @@ from ..scope_builder import ScopeBuilder
 @tvm._ffi.register_object("relay.ConstructorValue")
 class ConstructorValue(Object):
     def __init__(self, tag, fields, constructor):
-        self.__init_handle_by_constructor__(
-            _make.ConstructorValue, tag, fields, constructor)
+        self.__init_handle_by_constructor__(_make.ConstructorValue, tag, fields, constructor)
 
 
 @tvm._ffi.register_object("relay.RefValue")
 class RefValue(Object):
     def __init__(self, value):
-        self.__init_handle_by_constructor__(
-            _make.RefValue, value)
+        self.__init_handle_by_constructor__(_make.RefValue, value)
 
 
 def _arg_to_ast(mod, arg):
@@ -56,8 +54,7 @@ def _arg_to_ast(mod, arg):
     elif isinstance(arg, RefValue):
         return RefCreate(_arg_to_ast(mod, arg.value))
     elif isinstance(arg, ConstructorValue):
-        return Call(mod.get_constructor(arg.tag),
-                    [_arg_to_ast(mod, field) for field in arg.fields])
+        return Call(mod.get_constructor(arg.tag), [_arg_to_ast(mod, field) for field in arg.fields])
     elif isinstance(arg, np.ndarray):
         return Constant(nd.array(arg))
     elif isinstance(arg, Constant):
@@ -102,8 +99,9 @@ class Executor(object):
             return args
 
         if kwargs and not isinstance(expr, Function):
-            raise Exception("can only supply keyword parameters for a "
-                            "relay.Function, found {0}".format(expr))
+            raise Exception(
+                "can only supply keyword parameters for a " "relay.Function, found {0}".format(expr)
+            )
 
         params = expr.params
         param_names = [p.name_hint for p in params]
@@ -116,14 +114,16 @@ class Executor(object):
                     raise Exception(
                         "duplicate argument supplied in "
                         "both positional args (at position: {0}), "
-                        "and keyword argument (with name: {1})".format(i, name))
+                        "and keyword argument (with name: {1})".format(i, name)
+                    )
             else:
                 cargs.append(kwargs[name])
 
         if len(cargs) != len(params):
             raise Exception(
                 "insufficient arguments, expected "
-                "{0}, provided {1}".format(len(cargs), len(params)))
+                "{0}, provided {1}".format(len(cargs), len(params))
+            )
 
         return tuple(cargs)
 
@@ -197,6 +197,7 @@ class Interpreter(Executor):
     target : tvm.Target
         The target option to build the function.
     """
+
     def __init__(self, mod, ctx, target):
         self.mod = mod
         self.ctx = ctx
@@ -210,15 +211,20 @@ class Interpreter(Executor):
         opt_mod : tvm.IRModule
             The optimized module.
         """
-        seq = tvm.transform.Sequential([transform.SimplifyInference(),
-                                        transform.FuseOps(0),
-                                        transform.ToANormalForm(),
-                                        transform.InferType()])
+        seq = tvm.transform.Sequential(
+            [
+                transform.SimplifyInference(),
+                transform.FuseOps(0),
+                transform.ToANormalForm(),
+                transform.InferType(),
+            ]
+        )
         return seq(self.mod)
 
     def _make_executor(self, expr=None):
         if expr is None or isinstance(expr, GlobalVar):
             assert self.mod is not None
+
         def _interp_wrapper(*args, **kwargs):
             if expr is None:
                 args = self._convert_args(self.mod["main"], args, kwargs)
@@ -247,4 +253,5 @@ class Interpreter(Executor):
             opt_expr = Call(mod["main"], relay_args)
             _intrp = _backend.CreateInterpreter(mod, self.ctx, self.target)
             return _intrp(opt_expr)
+
         return _interp_wrapper

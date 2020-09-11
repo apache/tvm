@@ -46,19 +46,21 @@ from tvm.contrib.download import download_testdata
 # Helper functions to run the demo
 def get_transform():
     import torchvision.transforms as transforms
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-    return transforms.Compose([
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    return transforms.Compose(
+        [
             transforms.Resize(256),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
             normalize,
-        ])
+        ]
+    )
 
 
 def get_real_image(im_height, im_width):
-    img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-    img_path = download_testdata(img_url, 'cat.png', module='data')
+    img_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
+    img_path = download_testdata(img_url, "cat.png", module="data")
     return Image.open(img_path).resize((im_height, im_width))
 
 
@@ -70,12 +72,16 @@ def get_imagenet_input():
 
 
 def get_synset():
-    synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
-                          '4d0b62f3d01426887599d4f7ede23ee5/raw/',
-                          '596b27d23537e5a1b5751d2b0481ef172f58b539/',
-                          'imagenet1000_clsid_to_human.txt'])
-    synset_name = 'imagenet1000_clsid_to_human.txt'
-    synset_path = download_testdata(synset_url, synset_name, module='data')
+    synset_url = "".join(
+        [
+            "https://gist.githubusercontent.com/zhreshold/",
+            "4d0b62f3d01426887599d4f7ede23ee5/raw/",
+            "596b27d23537e5a1b5751d2b0481ef172f58b539/",
+            "imagenet1000_clsid_to_human.txt",
+        ]
+    )
+    synset_name = "imagenet1000_clsid_to_human.txt"
+    synset_path = download_testdata(synset_url, synset_name, module="data")
     with open(synset_path) as f:
         return eval(f.read())
 
@@ -84,7 +90,7 @@ def run_tvm_model(mod, params, input_name, inp, target="llvm"):
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target=target, params=params)
 
-    runtime = tvm.contrib.graph_runtime.GraphModule(lib['default'](tvm.context(target, 0)))
+    runtime = tvm.contrib.graph_runtime.GraphModule(lib["default"](tvm.context(target, 0)))
 
     runtime.set_input(input_name, inp)
     runtime.run()
@@ -114,9 +120,10 @@ inp = get_imagenet_input()
 # In short, this function takes a floating point model and converts it to uint8.
 # The model is per-channel quantized.
 
+
 def quantize_model(model, inp):
     model.fuse_model()
-    model.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+    model.qconfig = torch.quantization.get_default_qconfig("fbgemm")
     torch.quantization.prepare(model, inplace=True)
     # Dummy calibration
     model(inp)
@@ -192,8 +199,7 @@ print("%d in 1000 raw floating outputs identical." % np.sum(tvm_result[0] == pt_
 # Here we give an example of how to measure performance of TVM compiled models.
 n_repeat = 100  # should be bigger to make the measurement more accurate
 ctx = tvm.cpu(0)
-ftimer = rt_mod.module.time_evaluator("run", ctx, number=1,
-                                      repeat=n_repeat)
+ftimer = rt_mod.module.time_evaluator("run", ctx, number=1, repeat=n_repeat)
 prof_res = np.array(ftimer().results) * 1e3
 print("Elapsed average ms:", np.mean(prof_res))
 

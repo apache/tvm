@@ -20,10 +20,12 @@ tests."""
 
 from tvm import relay
 
+
 class TempOpAttr(object):
     """ Temporarily changes the attr of an op. """
+
     def __init__(self, op_name, attr_key, attr_value):
-        """ Saves the required info for RAII pattern usage.
+        """Saves the required info for RAII pattern usage.
 
         Parameters
         ----------

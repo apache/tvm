@@ -38,10 +38,18 @@ def _build_and_run_network(mod, params, inputs, device, tvm_ops, acl_partitions,
 
     outputs = []
     for acl in [False, True]:
-        outputs.append(build_and_run(mod, data, 1, params,
-                                     device, enable_acl=acl,
-                                     tvm_ops=tvm_ops,
-                                     acl_partitions=acl_partitions)[0])
+        outputs.append(
+            build_and_run(
+                mod,
+                data,
+                1,
+                params,
+                device,
+                enable_acl=acl,
+                tvm_ops=tvm_ops,
+                acl_partitions=acl_partitions,
+            )[0]
+        )
     verify(outputs, atol=atol, rtol=rtol, verify_saturation=False)
 
 
@@ -49,7 +57,7 @@ def _get_tflite_model(tflite_model_path, inputs_dict):
     """Convert TFlite graph to relay."""
     import tflite.Model
 
-    with open(tflite_model_path, 'rb') as f:
+    with open(tflite_model_path, "rb") as f:
         tflite_model_buffer = f.read()
 
     try:
@@ -63,11 +71,7 @@ def _get_tflite_model(tflite_model_path, inputs_dict):
         shape_dict[input] = input_shape
         dtype_dict[input] = input_dtype
 
-    return relay.frontend.from_tflite(
-        tflite_model,
-        shape_dict=shape_dict,
-        dtype_dict=dtype_dict
-    )
+    return relay.frontend.from_tflite(tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict)
 
 
 def _get_keras_model(keras_model, inputs_dict):
@@ -88,15 +92,15 @@ def test_vgg16():
 
     def get_model():
         from keras.applications import VGG16
-        vgg16 = VGG16(include_top=True, weights='imagenet',
-                      input_shape=(224, 224, 3), classes=1000)
+
+        vgg16 = VGG16(include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000)
         inputs = {vgg16.input_names[0]: ((1, 224, 224, 3), "float32")}
         mod, params = _get_keras_model(vgg16, inputs)
         return mod, params, inputs
 
-    _build_and_run_network(*get_model(), device=device,
-                           tvm_ops=4, acl_partitions=21,
-                           atol=0.002, rtol=0.01)
+    _build_and_run_network(
+        *get_model(), device=device, tvm_ops=4, acl_partitions=21, atol=0.002, rtol=0.01
+    )
 
 
 def test_mobilenet():
@@ -109,15 +113,17 @@ def test_mobilenet():
 
     def get_model():
         from keras.applications import MobileNet
-        mobilenet = MobileNet(include_top=True, weights='imagenet',
-                              input_shape=(224, 224, 3), classes=1000)
+
+        mobilenet = MobileNet(
+            include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000
+        )
         inputs = {mobilenet.input_names[0]: ((1, 224, 224, 3), "float32")}
         mod, params = _get_keras_model(mobilenet, inputs)
         return mod, params, inputs
 
-    _build_and_run_network(*get_model(), device=device,
-                           tvm_ops=73, acl_partitions=18,
-                           atol=0.002, rtol=0.01)
+    _build_and_run_network(
+        *get_model(), device=device, tvm_ops=73, acl_partitions=18, atol=0.002, rtol=0.01
+    )
 
 
 def test_quantized_mobilenet():
@@ -132,20 +138,17 @@ def test_quantized_mobilenet():
 
     def get_model():
         model_path = tf_testing.get_workload_official(
-            "https://storage.googleapis.com/download.tensorflow.org/" \
+            "https://storage.googleapis.com/download.tensorflow.org/"
             "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
             "mobilenet_v1_1.0_224_quant.tflite",
         )
         inputs = {"input": ((1, 224, 224, 3), "uint8")}
-        mod, params = _get_tflite_model(
-            model_path,
-            inputs_dict=inputs
-        )
+        mod, params = _get_tflite_model(model_path, inputs_dict=inputs)
         return mod, params, inputs
 
-    _build_and_run_network(*get_model(), device=device,
-                           tvm_ops=42, acl_partitions=17,
-                           atol=8, rtol=0)
+    _build_and_run_network(
+        *get_model(), device=device, tvm_ops=42, acl_partitions=17, atol=8, rtol=0
+    )
 
 
 if __name__ == "__main__":

@@ -23,11 +23,9 @@ import tvm.relay.transform as _transform
 
 def test_canonicalize_cast():
     def before(data, conv_weight, bias1, bias2):
-        x = relay.nn.conv2d(data, conv_weight,
-                          channels=16,
-                          kernel_size=(3, 3),
-                          padding=(1, 1),
-                          out_dtype="int8")
+        x = relay.nn.conv2d(
+            data, conv_weight, channels=16, kernel_size=(3, 3), padding=(1, 1), out_dtype="int8"
+        )
         x1 = relay.cast(x, dtype="int32")
         y1 = relay.add(x1, bias1)
         y2 = relay.add(x1, bias2)
@@ -35,11 +33,9 @@ def test_canonicalize_cast():
         return relay.Function([data, conv_weight, bias1, bias2], y)
 
     def expected(data, conv_weight, bias1, bias2):
-        x = relay.nn.conv2d(data, conv_weight,
-                          channels=16,
-                          kernel_size=(3, 3),
-                          padding=(1, 1),
-                          out_dtype="int8")
+        x = relay.nn.conv2d(
+            data, conv_weight, channels=16, kernel_size=(3, 3), padding=(1, 1), out_dtype="int8"
+        )
         x1 = relay.cast(x, dtype="int32")
         x2 = relay.cast(x, dtype="int32")
         y1 = relay.add(x1, bias1)
@@ -54,8 +50,9 @@ def test_canonicalize_cast():
         bias2 = relay.var("bias2", shape=(16, 1, 1), dtype="int32")
         y = before(data, conv_weight, bias1, bias2)
         mod = tvm.IRModule.from_expr(y)
-        seq = tvm.transform.Sequential([_transform.InferType(), _transform.CanonicalizeCast(),
-                                     _transform.InferType()])
+        seq = tvm.transform.Sequential(
+            [_transform.InferType(), _transform.CanonicalizeCast(), _transform.InferType()]
+        )
         with tvm.transform.PassContext(opt_level=3):
             mod = seq(mod)
         y = mod["main"]
@@ -69,5 +66,5 @@ def test_canonicalize_cast():
     check((1, 16, 7, 7))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_canonicalize_cast()

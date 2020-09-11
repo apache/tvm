@@ -21,10 +21,7 @@ from tvm._ffi.base import py_str
 from tvm._ffi.libinfo import find_lib_path
 
 
-def create_tvmjs_wasm(output,
-                      objects,
-                      options=None,
-                      cc="emcc"):
+def create_tvmjs_wasm(output, objects, options=None, cc="emcc"):
     """Create wasm that is supposed to run with the tvmjs.
 
     Parameters
@@ -49,7 +46,6 @@ def create_tvmjs_wasm(output,
     cmd += ["-s", "STANDALONE_WASM=1"]
     cmd += ["-s", "ALLOW_MEMORY_GROWTH=1"]
 
-
     objects = [objects] if isinstance(objects, str) else objects
 
     with_runtime = False
@@ -69,15 +65,13 @@ def create_tvmjs_wasm(output,
     if options:
         cmd += options
 
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:
         msg = "Compilation error:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
+
 
 create_tvmjs_wasm.object_format = "bc"

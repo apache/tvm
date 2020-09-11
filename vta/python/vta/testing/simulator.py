@@ -21,6 +21,7 @@ import tvm
 from ..environment import get_env
 from ..libinfo import find_libvta
 
+
 def _load_sw():
     """Load hardware library for simulator."""
 
@@ -37,7 +38,7 @@ def _load_sw():
 
     if env.TARGET == "tsim":
         lib_hw = find_libvta("libvta_hw", optional=True)
-        assert lib_hw # make sure to make in ${VTA_HW_PATH}/hardware/chisel
+        assert lib_hw  # make sure to make in ${VTA_HW_PATH}/hardware/chisel
         try:
             f = tvm.get_global_func("vta.tsim.init")
             m = tvm.runtime.load_module(lib_hw[0], "vta-tsim")
@@ -84,6 +85,7 @@ def stats():
 
 # debug flag to skip execution.
 DEBUG_SKIP_EXEC = 1
+
 
 def debug_mode(flag):
     """Set debug mode

@@ -37,7 +37,7 @@ import numpy as np
 from .space import FallbackConfigEntity
 from .. import env as _env
 
-logger = logging.getLogger('autotvm')
+logger = logging.getLogger("autotvm")
 
 
 class DispatchContext(object):
@@ -47,6 +47,7 @@ class DispatchContext(object):
     DispatchContext enables the target and workload
     specific dispatch mechanism for templates.
     """
+
     current = None
     # a set to prevent print duplicated message
     warning_messages = set()
@@ -243,7 +244,7 @@ class ApplyHistoryBest(DispatchContext):
             # use model as key to build best map
             key = (inp.target.model, inp.task.workload)
             if key not in best_by_model:
-                if inp.target.model != 'unknown':
+                if inp.target.model != "unknown":
                     best_by_model[key] = (inp, res)
             else:
                 _, other_res = best_by_model[key]
@@ -254,9 +255,11 @@ class ApplyHistoryBest(DispatchContext):
 
     def _query_inside(self, target, workload):
         if target is None:
-            raise RuntimeError("Need a target context to find the history best. "
-                               "Hint: If your target is llvm, use `with tvm.target.Target('llvm'):`"
-                               " above the dispatcher call. So does other target. ")
+            raise RuntimeError(
+                "Need a target context to find the history best. "
+                "Hint: If your target is llvm, use `with tvm.target.Target('llvm'):`"
+                " above the dispatcher call. So does other target. "
+            )
 
         # first try matching by model
         key = (target.model, workload)
@@ -307,9 +310,10 @@ class FallbackContext(DispatchContext):
             return self.memory[key]
 
         if not _env.GLOBAL_SCOPE.silent:
-            msg = "Cannot find config for target=%s, workload=%s. A fallback configuration "\
-                  "is used, which may bring great performance regression." % (
-                      target, workload)
+            msg = (
+                "Cannot find config for target=%s, workload=%s. A fallback configuration "
+                "is used, which may bring great performance regression." % (target, workload)
+            )
             if msg not in DispatchContext.warning_messages:
                 DispatchContext.warning_messages.add(msg)
                 logger.warning(msg)
@@ -421,9 +425,11 @@ class ApplyGraphBest(DispatchContext):
             return cfg
         key = (str(target), workload)
         if key not in self._global_cfg_dict:
-            msg = "Config for target=%s, workload=%s is missing in ApplyGraphBest context. " \
-                  "A fallback configuration is used, which may bring great performance " \
-                  "regression." % (target, workload)
+            msg = (
+                "Config for target=%s, workload=%s is missing in ApplyGraphBest context. "
+                "A fallback configuration is used, which may bring great performance "
+                "regression." % (target, workload)
+            )
             logger.warning(msg)
             cfg = FallbackConfigEntity()
             self._global_cfg_dict[key] = cfg

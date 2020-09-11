@@ -51,11 +51,10 @@ def test_record_split_reorder_fuse_annotation():
     if not tvm.testing.device_enabled("llvm"):
         return
 
-    A = te.placeholder((512, 512), name='A')
-    B = te.placeholder((512, 512), name='B')
-    k = te.reduce_axis((0, 512), name='k')
-    C = te.compute((512, 512), lambda i, j: te.sum(
-        A[i][k] * B[k][j], axis=[k]), name='C')
+    A = te.placeholder((512, 512), name="A")
+    B = te.placeholder((512, 512), name="B")
+    k = te.reduce_axis((0, 512), name="k")
+    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name="C")
 
     dag = auto_scheduler.ComputeDAG([A, B, C])
     s = dag.get_init_state()
@@ -64,8 +63,9 @@ def test_record_split_reorder_fuse_annotation():
     its0 = s.split(C, s[C].iters[0], [4, 8, 8])
     its1 = s.split(C, s[C].iters[4], [8, 4, 4])
     # Reorder
-    s.reorder(C, [its0[0], its1[0], its0[1], its1[1], its0[2], its1[2], its0[3], s[C].iters[8],
-                  its1[3]])
+    s.reorder(
+        C, [its0[0], its1[0], its0[1], its1[1], its0[2], its1[2], its0[3], s[C].iters[8], its1[3]]
+    )
     # Fuse
     s.fuse(C, [s[C].iters[0], s[C].iters[1], s[C].iters[2]])
     # Parallel
@@ -86,12 +86,11 @@ def test_record_compute_at_root_inline_cache_read_write():
     if not tvm.testing.device_enabled("llvm"):
         return
 
-    A = te.placeholder((512, 512), name='A')
+    A = te.placeholder((512, 512), name="A")
     AA = topi.nn.relu(A)
-    B = te.placeholder((512, 512), name='B')
-    k = te.reduce_axis((0, 512), name='k')
-    C = te.compute((512, 512), lambda i, j: te.sum(
-        AA[i][k] * B[k][j], axis=[k]), name='C')
+    B = te.placeholder((512, 512), name="B")
+    k = te.reduce_axis((0, 512), name="k")
+    C = te.compute((512, 512), lambda i, j: te.sum(AA[i][k] * B[k][j], axis=[k]), name="C")
 
     dag = auto_scheduler.ComputeDAG([A, B, C])
     s = dag.get_init_state()
@@ -115,11 +114,10 @@ def test_record_follow_split_follow_fused_split():
     if not tvm.testing.device_enabled("llvm"):
         return
 
-    A = te.placeholder((512, 512), name='A')
-    B = te.placeholder((512, 512), name='B')
-    k = te.reduce_axis((0, 512), name='k')
-    C = te.compute((512, 512), lambda i, j: te.sum(
-        A[i][k] * B[k][j], axis=[k]), name='C')
+    A = te.placeholder((512, 512), name="A")
+    B = te.placeholder((512, 512), name="B")
+    k = te.reduce_axis((0, 512), name="k")
+    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name="C")
     D = topi.nn.relu(C)
     E = topi.nn.relu(D)
 
@@ -150,11 +148,10 @@ def test_record_pragma_storage_align_rfactor():
     if not tvm.testing.device_enabled("llvm"):
         return
 
-    A = te.placeholder((512, 512), name='A')
-    B = te.placeholder((512, 512), name='B')
-    k = te.reduce_axis((0, 512), name='k')
-    C = te.compute((512, 512), lambda i, j: te.sum(
-        A[i][k] * B[k][j], axis=[k]), name='C')
+    A = te.placeholder((512, 512), name="A")
+    B = te.placeholder((512, 512), name="B")
+    k = te.reduce_axis((0, 512), name="k")
+    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name="C")
 
     dag = auto_scheduler.ComputeDAG([A, B, C])
     s = dag.get_init_state()
@@ -180,8 +177,9 @@ def test_measure_local_builder_runner(enable_cpu_cache_flush=False):
 
     minp = auto_scheduler.MeasureInput(task, s0)
     local_builder = auto_scheduler.LocalBuilder()
-    local_runner = auto_scheduler.LocalRunner(timeout=60,
-                                              enable_cpu_cache_flush=enable_cpu_cache_flush)
+    local_runner = auto_scheduler.LocalRunner(
+        timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
+    )
 
     bress = local_builder.build([minp])
     assert bress[0].error_no == 0
@@ -199,8 +197,9 @@ def test_measure_local_builder_rpc_runner(enable_cpu_cache_flush=False):
 
     minp = auto_scheduler.MeasureInput(task, s0)
     local_builder = auto_scheduler.LocalBuilder()
-    measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=60,
-                                                        enable_cpu_cache_flush=enable_cpu_cache_flush)
+    measure_ctx = auto_scheduler.LocalRPCMeasureContext(
+        timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
+    )
     rpc_runner = measure_ctx.runner
 
     bress = local_builder.build([minp])
@@ -218,4 +217,3 @@ if __name__ == "__main__":
     test_measure_local_builder_runner(enable_cpu_cache_flush=False)
     test_measure_local_builder_rpc_runner(enable_cpu_cache_flush=True)
     test_measure_local_builder_rpc_runner(enable_cpu_cache_flush=False)
-

@@ -30,6 +30,7 @@ from .tensor_intrin import intrin_wmma_load_matrix_W
 from .tensor_intrin import intrin_wmma_store_matrix
 from .tensor_intrin import intrin_wmma_gemm
 
+
 def _infer_tile_size(data, kernel):
     """Compute the tile size"""
     N, H, W, CI = get_const_tuple(data.shape)
@@ -47,12 +48,12 @@ def schedule_bgemm_tensorcore(cfg, s, bgemm, data_pack, kernel_pack):
     out_dtype = C.dtype
 
     # Explicit memory access
-    AS = s.cache_read(A, 'shared', [C])
-    BS = s.cache_read(B, 'shared', [C])
-    AF = s.cache_read(AS, 'wmma.matrix_a', [C])
-    BF = s.cache_read(BS, 'wmma.matrix_b', [C])
-    CF = s.cache_write(C, 'wmma.accumulator')
-    CS = s.cache_read(CF, 'shared', [C])
+    AS = s.cache_read(A, "shared", [C])
+    BS = s.cache_read(B, "shared", [C])
+    AF = s.cache_read(AS, "wmma.matrix_a", [C])
+    BF = s.cache_read(BS, "wmma.matrix_b", [C])
+    CF = s.cache_write(C, "wmma.accumulator")
+    CS = s.cache_read(CF, "shared", [C])
 
     # Create tuning space
     cfg.define_knob("block_row_warps", [1, 2, 4])
@@ -65,11 +66,11 @@ def schedule_bgemm_tensorcore(cfg, s, bgemm, data_pack, kernel_pack):
     cfg.define_knob("vec", [1, 2, 4, 8])
 
     # Ensure that the default parameters are applicable when autotvm is not in use
-    if (P % 16 == 0 and out_dim % 16 == 0):
+    if P % 16 == 0 and out_dim % 16 == 0:
         cfg.define_knob("wmma_m", [16, 8, 32])
-    elif (P % 32 == 0 and out_dim % 8 == 0):
+    elif P % 32 == 0 and out_dim % 8 == 0:
         cfg.define_knob("wmma_m", [32, 16, 8])
-    elif (P % 8 == 0 and out_dim % 32 == 0):
+    elif P % 8 == 0 and out_dim % 32 == 0:
         cfg.define_knob("wmma_m", [8, 16, 32])
 
     warp_size = 32
@@ -101,12 +102,12 @@ def schedule_bgemm_tensorcore(cfg, s, bgemm, data_pack, kernel_pack):
     BF_stride = [wmma_n * warp_col_tiles, 1]
     CF_stride = [warp_col_tiles * wmma_n, 1]
     CS_stride = [CS_align, 1]
-    block_x = te.thread_axis('blockIdx.x')
-    block_y = te.thread_axis('blockIdx.y')
-    block_z = te.thread_axis('blockIdx.z')
-    thread_x = te.thread_axis('threadIdx.x')
-    thread_y = te.thread_axis('threadIdx.y')
-    thread_z = te.thread_axis('threadIdx.z')
+    block_x = te.thread_axis("blockIdx.x")
+    block_y = te.thread_axis("blockIdx.y")
+    block_z = te.thread_axis("blockIdx.z")
+    thread_x = te.thread_axis("threadIdx.x")
+    thread_y = te.thread_axis("threadIdx.y")
+    thread_z = te.thread_axis("threadIdx.z")
 
     # Schedule for computation
     block_factor_b = wmma_m * warp_row_tiles * block_row_warps
@@ -144,7 +145,7 @@ def schedule_bgemm_tensorcore(cfg, s, bgemm, data_pack, kernel_pack):
     _, _, warp_i, warp_j = CF.op.axis
     warp_i, _ii = s[CF].split(warp_i, factor=wmma_m)
     warp_j, _jj = s[CF].split(warp_j, factor=wmma_n)
-    k, = CF.op.reduce_axis
+    (k,) = CF.op.reduce_axis
     k, _k = s[CF].split(k, factor=wmma_k)
     ko, ki = s[CF].split(k, factor=chunk)
     s[CF].reorder(ko, ki, warp_i, warp_j, _ii, _jj, _k)
@@ -182,25 +183,42 @@ def schedule_bgemm_tensorcore(cfg, s, bgemm, data_pack, kernel_pack):
     shared_shedule(BS, BS_align)
 
     shape = (wmma_m, wmma_n, wmma_k)
-    in_dtype = 'float16'
-    AL_gemm = te.placeholder((wmma_m, wmma_k), name='AL_gemm', dtype=in_dtype)
-    BL_gemm = te.placeholder((wmma_k, wmma_n), name='BL_gemm', dtype=in_dtype)
-    k_gemm = te.reduce_axis((0, wmma_k), name='k_gemm')
-    CL_compute = te.compute((wmma_m, wmma_n), lambda ii, jj:
-                            te.sum(AL_gemm[ii, k_gemm].astype(out_dtype) *
-                                   BL_gemm[k_gemm, jj].astype(out_dtype),
-                                   axis=k_gemm), name='CL_compute')
+    in_dtype = "float16"
+    AL_gemm = te.placeholder((wmma_m, wmma_k), name="AL_gemm", dtype=in_dtype)
+    BL_gemm = te.placeholder((wmma_k, wmma_n), name="BL_gemm", dtype=in_dtype)
+    k_gemm = te.reduce_axis((0, wmma_k), name="k_gemm")
+    CL_compute = te.compute(
+        (wmma_m, wmma_n),
+        lambda ii, jj: te.sum(
+            AL_gemm[ii, k_gemm].astype(out_dtype) * BL_gemm[k_gemm, jj].astype(out_dtype),
+            axis=k_gemm,
+        ),
+        name="CL_compute",
+    )
 
     # Lower the computation loops down to TensorCore hardware intrinsics
     # by mapping the tensorcore to tensor intrinsics
-    s[AF].tensorize(b_ii, intrin_wmma_load_matrix_A(AF_stride, AS_stride, shape, "row_major",
-                                                    (wmma_m, wmma_k), (wmma_m, wmma_k), 'float16'))
-    s[BF].tensorize(i_ii, intrin_wmma_load_matrix_W(BF_stride, BS_stride, shape, "row_major",
-                                                    (wmma_k, wmma_n), (wmma_k, wmma_n), 'float16'))
-    s[CF].tensorize(_ii, intrin_wmma_gemm(AL_gemm, BL_gemm, CL_compute, AF_stride,
-                                          BF_stride, CF_stride, shape))
-    s[CS].tensorize(bbi, intrin_wmma_store_matrix(CS_stride, CF_stride, shape, out_dtype,
-                                                  (wmma_m, wmma_n), (wmma_m, wmma_n)))
+    s[AF].tensorize(
+        b_ii,
+        intrin_wmma_load_matrix_A(
+            AF_stride, AS_stride, shape, "row_major", (wmma_m, wmma_k), (wmma_m, wmma_k), "float16"
+        ),
+    )
+    s[BF].tensorize(
+        i_ii,
+        intrin_wmma_load_matrix_W(
+            BF_stride, BS_stride, shape, "row_major", (wmma_k, wmma_n), (wmma_k, wmma_n), "float16"
+        ),
+    )
+    s[CF].tensorize(
+        _ii, intrin_wmma_gemm(AL_gemm, BL_gemm, CL_compute, AF_stride, BF_stride, CF_stride, shape)
+    )
+    s[CS].tensorize(
+        bbi,
+        intrin_wmma_store_matrix(
+            CS_stride, CF_stride, shape, out_dtype, (wmma_m, wmma_n), (wmma_m, wmma_n)
+        ),
+    )
 
 
 def schedule_bgemm_direct(cfg, s, bgemm, data_pack, kernel_pack):
@@ -210,8 +228,9 @@ def schedule_bgemm_direct(cfg, s, bgemm, data_pack, kernel_pack):
     alpha = get_const_int(b1.dom.extent)
 
     # Create tuning space
-    cfg.define_split("tile_b", cfg.axis(alpha * alpha), num_outputs=4,
-                     filter=lambda x: x.size[-3:] == [1, 1, 1])
+    cfg.define_split(
+        "tile_b", cfg.axis(alpha * alpha), num_outputs=4, filter=lambda x: x.size[-3:] == [1, 1, 1]
+    )
     cfg.define_split("tile_y", y, num_outputs=4)
     cfg.define_split("tile_x", x, num_outputs=4)
     cfg.define_split("tile_rc", rc, num_outputs=2)
@@ -224,9 +243,9 @@ def schedule_bgemm_direct(cfg, s, bgemm, data_pack, kernel_pack):
     A0, B0 = kernel_pack, data_pack
 
     # Designate the memory hierarchy
-    OL = s.cache_write(C, 'local')
-    AA = s.cache_read(A0, 'shared', [OL])
-    BB = s.cache_read(B0, 'shared', [OL])
+    OL = s.cache_write(C, "local")
+    AA = s.cache_read(A0, "shared", [OL])
+    BB = s.cache_read(B0, "shared", [OL])
 
     # Tile and bind spatial axes
     b = s[bgemm].fuse(b1, b2)
@@ -249,8 +268,8 @@ def schedule_bgemm_direct(cfg, s, bgemm, data_pack, kernel_pack):
     s[OL].compute_at(s[C], tx)
     b1, b2, y, x = s[OL].op.axis
     b = s[OL].fuse(b1, b2)
-    rc, = s[OL].op.reduce_axis
-    rco, rci = cfg['tile_rc'].apply(s, OL, rc)
+    (rc,) = s[OL].op.reduce_axis
+    rco, rci = cfg["tile_rc"].apply(s, OL, rc)
     s[OL].reorder(rco, b, y, x, rci)
 
     s[AA].compute_at(s[OL], rco)
@@ -276,8 +295,9 @@ def schedule_bgemm_direct(cfg, s, bgemm, data_pack, kernel_pack):
         s[load].vectorize(ti)
 
 
-def nhwc_winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
-                       use_tensorcore, pre_computed):
+def nhwc_winograd_cuda(
+    cfg, data, kernel, strides, padding, dilation, out_dtype, use_tensorcore, pre_computed
+):
     """Compute declaration for winograd"""
     tile_size = _infer_tile_size(data, kernel)
     N, H, W, CI = get_const_tuple(data.shape)
@@ -313,9 +333,11 @@ def nhwc_winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
     P = N * nH * nW
 
     # Determine whether the shape is available with tensorcore
-    shape_judge = (P % 16 == 0 and CI % 16 == 0 and CO % 16 == 0) or \
-                      (P % 8 == 0 and CI % 16 == 0 and CO % 32 == 0) or \
-                      (P % 32 == 0 and CI % 16 == 0 and CO % 8 == 0)
+    shape_judge = (
+        (P % 16 == 0 and CI % 16 == 0 and CO % 16 == 0)
+        or (P % 8 == 0 and CI % 16 == 0 and CO % 32 == 0)
+        or (P % 32 == 0 and CI % 16 == 0 and CO % 8 == 0)
+    )
 
     if shape_judge and use_tensorcore:
         trans_type = "float16"
@@ -331,16 +353,19 @@ def nhwc_winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
         # Check if we are currently tuning, if so we want to avoid counting
         # prepacking in time costs. Just use a placeholder with the packed shape instead.
         if autotvm.GLOBAL_SCOPE.in_tuning:
-            kernel_pack = te.placeholder((alpha, alpha, CI, CO),
-                                         dtype=kernel.dtype,
-                                         name='kernel_pack')
+            kernel_pack = te.placeholder(
+                (alpha, alpha, CI, CO), dtype=kernel.dtype, name="kernel_pack"
+            )
         else:
-            r_kh = te.reduce_axis((0, KH), name='r_kh')
-            r_kw = te.reduce_axis((0, KW), name='r_kw')
-            kernel_pack = te.compute((alpha, alpha, CI, CO), lambda eps, nu, ci, co:
-                                     te.sum((kernel[r_kh][r_kw][ci][co]) *
-                                            G[eps][r_kh] * G[nu][r_kw],
-                                            axis=[r_kh, r_kw]), name='kernel_pack')
+            r_kh = te.reduce_axis((0, KH), name="r_kh")
+            r_kw = te.reduce_axis((0, KW), name="r_kw")
+            kernel_pack = te.compute(
+                (alpha, alpha, CI, CO),
+                lambda eps, nu, ci, co: te.sum(
+                    (kernel[r_kh][r_kw][ci][co]) * G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]
+                ),
+                name="kernel_pack",
+            )
     else:
         kernel_pack = kernel
 
@@ -348,46 +373,65 @@ def nhwc_winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
     idxmod = tvm.tir.indexmod
 
     # Pack input tile
-    input_tile = te.compute((P, CI, alpha, alpha), lambda p, c, eps, nu:
-                            data_pad[idxdiv(p, (nH * nW)),
-                                     idxmod(idxdiv(p, nW), nH) * m + eps,
-                                     idxmod(p, nW) * m + nu,
-                                     c], name='d')
+    input_tile = te.compute(
+        (P, CI, alpha, alpha),
+        lambda p, c, eps, nu: data_pad[
+            idxdiv(p, (nH * nW)), idxmod(idxdiv(p, nW), nH) * m + eps, idxmod(p, nW) * m + nu, c
+        ],
+        name="d",
+    )
 
     # Transform data
-    r_a = te.reduce_axis((0, alpha), 'r_a')
-    r_b = te.reduce_axis((0, alpha), 'r_b')
-    data_pack = te.compute((alpha, alpha, P, CI), lambda eps, nu, p, ci:
-                           te.sum(input_tile[p][ci][r_a][r_b] * B[r_a][eps] * B[r_b][nu],
-                                  axis=[r_a, r_b]), name='data_pack')
+    r_a = te.reduce_axis((0, alpha), "r_a")
+    r_b = te.reduce_axis((0, alpha), "r_b")
+    data_pack = te.compute(
+        (alpha, alpha, P, CI),
+        lambda eps, nu, p, ci: te.sum(
+            input_tile[p][ci][r_a][r_b] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]
+        ),
+        name="data_pack",
+    )
 
     # Convert data type of input feature maps and weights for tensorcore
     Transdata = te.compute(
-        data_pack.shape, lambda eps, nu, p, ci: data_pack[eps, nu, p, ci].astype(trans_type))
+        data_pack.shape, lambda eps, nu, p, ci: data_pack[eps, nu, p, ci].astype(trans_type)
+    )
     TransFilter = te.compute(
-        kernel_pack.shape, lambda eps, nu, ci, co: kernel_pack[eps, nu, ci, co].astype(trans_type))
+        kernel_pack.shape, lambda eps, nu, ci, co: kernel_pack[eps, nu, ci, co].astype(trans_type)
+    )
 
     # Do batch gemm
-    ci = te.reduce_axis((0, CI), name='ci')
-    bgemm = te.compute((alpha, alpha, P, CO), lambda eps, nu, p, co:
-                       te.sum((Transdata[eps][nu][p][ci]).astype(out_dtype) *
-                              (TransFilter[eps][nu][ci][co]).astype(out_dtype),
-                              axis=[ci]), name='bgemm')
+    ci = te.reduce_axis((0, CI), name="ci")
+    bgemm = te.compute(
+        (alpha, alpha, P, CO),
+        lambda eps, nu, p, co: te.sum(
+            (Transdata[eps][nu][p][ci]).astype(out_dtype)
+            * (TransFilter[eps][nu][ci][co]).astype(out_dtype),
+            axis=[ci],
+        ),
+        name="bgemm",
+    )
 
     # Inverse transform
-    r_a = te.reduce_axis((0, alpha), 'r_a')
-    r_b = te.reduce_axis((0, alpha), 'r_a')
-    inverse = te.compute((P, CO, m, m), lambda p, co, vh, vw:
-                         te.sum(bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw],
-                                axis=[r_a, r_b]), name='inverse')
+    r_a = te.reduce_axis((0, alpha), "r_a")
+    r_b = te.reduce_axis((0, alpha), "r_a")
+    inverse = te.compute(
+        (P, CO, m, m),
+        lambda p, co, vh, vw: te.sum(
+            bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
+        ),
+        name="inverse",
+    )
 
     # Output
-    output = te.compute((N, H, W, CO), lambda n, h, w, co:
-                        inverse[n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
-                                co,
-                                idxmod(h, m),
-                                idxmod(w, m)],
-                        name='output', tag='conv2d_nhwc_winograd')
+    output = te.compute(
+        (N, H, W, CO),
+        lambda n, h, w, co: inverse[
+            n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m), co, idxmod(h, m), idxmod(w, m)
+        ],
+        name="output",
+        tag="conv2d_nhwc_winograd",
+    )
     cfg.add_flop(2 * N * CO * H * W * CI * KH * KW)
     return output
 
@@ -395,8 +439,8 @@ def nhwc_winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
 def data_weight_transform(s, data_trans, input_tile, thread_num_trans, offset_trans, trans_tag):
     """Schedule for data or kernel transform"""
     kernel_align = thread_num_trans + offset_trans
-    indata_s = s.cache_read(input_tile, 'shared', [data_trans])
-    data_l = s.cache_write(data_trans, 'local')
+    indata_s = s.cache_read(input_tile, "shared", [data_trans])
+    data_l = s.cache_write(data_trans, "local")
     # Schedule for data or kernel transform
     eps, nu, p, c = s[data_trans].op.axis
 
@@ -421,8 +465,9 @@ def data_weight_transform(s, data_trans, input_tile, thread_num_trans, offset_tr
     s[indata_s].compute_at(s[data_l], block_x_l)
     if trans_tag == "data":
         p_is, c_is, eps_is, nu_is = s[indata_s].op.axis
-        data_align = get_const_int(eps_is.dom.extent) * \
-                         get_const_int(nu_is.dom.extent) + offset_trans
+        data_align = (
+            get_const_int(eps_is.dom.extent) * get_const_int(nu_is.dom.extent) + offset_trans
+        )
         s[indata_s].storage_align(c_is, data_align - 1, data_align)
         block_x_is, thread_x_is = s[indata_s].split(c_is, thread_num_trans)
         s[indata_s].bind(thread_x_is, te.thread_axis("threadIdx.x"))
@@ -475,8 +520,9 @@ def schedule_nhwc_winograd_cuda(cfg, s, output, use_tensorcore, pre_computed):
     if not pre_computed and not autotvm.GLOBAL_SCOPE.in_tuning:
         kernel, G = s[kernel_pack].op.input_tensors
         s[G].compute_inline()
-        data_weight_transform(s, kernel_pack, kernel, thread_num_kernel,
-                              offset_kernel, trans_tag="kernel")
+        data_weight_transform(
+            s, kernel_pack, kernel, thread_num_kernel, offset_kernel, trans_tag="kernel"
+        )
     else:
         kernel = kernel_pack
 
@@ -489,9 +535,11 @@ def schedule_nhwc_winograd_cuda(cfg, s, output, use_tensorcore, pre_computed):
     _, _, _, CO = get_const_tuple(TransFilter.shape)
 
     # Determine whether the shape is available with tensorcore
-    shape_judge = (P % 16 == 0 and CI % 16 == 0 and CO % 16 == 0) or \
-                      (P % 8 == 0 and CI % 16 == 0 and CO % 32 == 0) or \
-                      (P % 32 == 0 and CI % 16 == 0 and CO % 8 == 0)
+    shape_judge = (
+        (P % 16 == 0 and CI % 16 == 0 and CO % 16 == 0)
+        or (P % 8 == 0 and CI % 16 == 0 and CO % 32 == 0)
+        or (P % 32 == 0 and CI % 16 == 0 and CO % 8 == 0)
+    )
 
     if shape_judge and use_tensorcore:
         schedule_bgemm_tensorcore(cfg, s, bgemm, Transdata, TransFilter)
@@ -503,11 +551,11 @@ def schedule_nhwc_winograd_cuda(cfg, s, output, use_tensorcore, pre_computed):
         OL = None
     else:
         OL = output
-        s[OL].set_scope('local')
+        s[OL].set_scope("local")
         output = s.outputs[0]
 
     s[A].compute_inline()
-    inverse_s = s.cache_read(bgemm, 'shared', [inverse])
+    inverse_s = s.cache_read(bgemm, "shared", [inverse])
 
     m = alpha - 3 + 1
     offset_inverse_in = offset_inverse
@@ -556,8 +604,17 @@ def schedule_nhwc_winograd_cuda(cfg, s, output, use_tensorcore, pre_computed):
 @autotvm.register_topi_compute("conv2d_nhwc_winograd_direct.cuda")
 def conv2d_nhwc_winograd_direct(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Compute conv2d with winograd for NHWC layout"""
-    return nhwc_winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
-                              use_tensorcore=False, pre_computed=False)
+    return nhwc_winograd_cuda(
+        cfg,
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        use_tensorcore=False,
+        pre_computed=False,
+    )
 
 
 @autotvm.register_topi_schedule("conv2d_nhwc_winograd_direct.cuda")
@@ -566,9 +623,10 @@ def schedule_conv2d_nhwc_winograd_direct(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if 'conv2d_nhwc_winograd' in op.tag:
-            schedule_nhwc_winograd_cuda(cfg, s, op.output(0), use_tensorcore=False,
-                                        pre_computed=False)
+        if "conv2d_nhwc_winograd" in op.tag:
+            schedule_nhwc_winograd_cuda(
+                cfg, s, op.output(0), use_tensorcore=False, pre_computed=False
+            )
 
     traverse_inline(s, outs[0].op, _callback)
     return s
@@ -577,8 +635,17 @@ def schedule_conv2d_nhwc_winograd_direct(cfg, outs):
 @autotvm.register_topi_compute("conv2d_nhwc_winograd_tensorcore.cuda")
 def conv2d_nhwc_winograd_tensorcore(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Compute conv2d with winograd for NHWC layout"""
-    return nhwc_winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
-                              use_tensorcore=True, pre_computed=False)
+    return nhwc_winograd_cuda(
+        cfg,
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        use_tensorcore=True,
+        pre_computed=False,
+    )
 
 
 @autotvm.register_topi_schedule("conv2d_nhwc_winograd_tensorcore.cuda")
@@ -587,20 +654,31 @@ def schedule_conv2d_nhwc_winograd_tensorcore(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if 'conv2d_nhwc_winograd' in op.tag:
-            schedule_nhwc_winograd_cuda(cfg, s, op.output(0), use_tensorcore=True,
-                                        pre_computed=False)
+        if "conv2d_nhwc_winograd" in op.tag:
+            schedule_nhwc_winograd_cuda(
+                cfg, s, op.output(0), use_tensorcore=True, pre_computed=False
+            )
 
     traverse_inline(s, outs[0].op, _callback)
     return s
 
 
 @autotvm.register_topi_compute("conv2d_nhwc_winograd_direct_without_weight_transform.cuda")
-def conv2d_nhwc_winograd_direct_without_weight_transform(cfg, data, kernel, strides,
-                                                         padding, dilation, out_dtype):
+def conv2d_nhwc_winograd_direct_without_weight_transform(
+    cfg, data, kernel, strides, padding, dilation, out_dtype
+):
     """Compute conv2d with winograd for NHWC layout"""
-    return nhwc_winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
-                              use_tensorcore=False, pre_computed=True)
+    return nhwc_winograd_cuda(
+        cfg,
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        use_tensorcore=False,
+        pre_computed=True,
+    )
 
 
 @autotvm.register_topi_schedule("conv2d_nhwc_winograd_direct_without_weight_transform.cuda")
@@ -609,20 +687,31 @@ def schedule_conv2d_nhwc_winograd_direct_without_weight_transform(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if 'conv2d_nhwc_winograd' in op.tag:
-            schedule_nhwc_winograd_cuda(cfg, s, op.output(0), use_tensorcore=False,
-                                        pre_computed=True)
+        if "conv2d_nhwc_winograd" in op.tag:
+            schedule_nhwc_winograd_cuda(
+                cfg, s, op.output(0), use_tensorcore=False, pre_computed=True
+            )
 
     traverse_inline(s, outs[0].op, _callback)
     return s
 
 
 @autotvm.register_topi_compute("conv2d_nhwc_winograd_tensorcore_without_weight_transform.cuda")
-def conv2d_nhwc_winograd_tensorcore_without_weight_transform(cfg, data, kernel, strides,
-                                                             padding, dilation, out_dtype):
+def conv2d_nhwc_winograd_tensorcore_without_weight_transform(
+    cfg, data, kernel, strides, padding, dilation, out_dtype
+):
     """Compute conv2d with winograd for NHWC layout"""
-    return nhwc_winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
-                              use_tensorcore=True, pre_computed=True)
+    return nhwc_winograd_cuda(
+        cfg,
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        use_tensorcore=True,
+        pre_computed=True,
+    )
 
 
 @autotvm.register_topi_schedule("conv2d_nhwc_winograd_tensorcore_without_weight_transform.cuda")
@@ -631,9 +720,10 @@ def schedule_conv2d_nhwc_winograd_tensorcore_without_weight_transform(cfg, outs)
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if 'conv2d_nhwc_winograd' in op.tag:
-            schedule_nhwc_winograd_cuda(cfg, s, op.output(0), use_tensorcore=True,
-                                        pre_computed=True)
+        if "conv2d_nhwc_winograd" in op.tag:
+            schedule_nhwc_winograd_cuda(
+                cfg, s, op.output(0), use_tensorcore=True, pre_computed=True
+            )
 
     traverse_inline(s, outs[0].op, _callback)
     return s

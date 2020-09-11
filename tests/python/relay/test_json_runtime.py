@@ -39,14 +39,9 @@ def set_func_attr(func, compile_name, symbol_name):
     return func
 
 
-def check_result(mod,
-                 ref_mod,
-                 map_inputs,
-                 out_shape,
-                 tol=1e-5,
-                 target="llvm",
-                 ctx=tvm.cpu(),
-                 params=None):
+def check_result(
+    mod, ref_mod, map_inputs, out_shape, tol=1e-5, target="llvm", ctx=tvm.cpu(), params=None
+):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
         return
@@ -100,7 +95,7 @@ def test_conv2d():
         return
 
     def conv2d_direct():
-        dtype = 'float32'
+        dtype = "float32"
         ishape = (1, 32, 14, 14)
         w1shape = (32, 32, 3, 3)
 
@@ -124,7 +119,7 @@ def test_conv2d():
         out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1))
         main_f = relay.Function([data0, weight0], out)
         ref_mod = tvm.IRModule()
-        ref_mod['main'] = main_f
+        ref_mod["main"] = main_f
 
         i_data = np.random.uniform(0, 1, ishape).astype(dtype)
         w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
@@ -132,7 +127,7 @@ def test_conv2d():
         return mod, ref_mod, {"data": i_data, "weight": w1_data}, (1, 32, 14, 14)
 
     def group_conv2d():
-        dtype = 'float32'
+        dtype = "float32"
         ishape = (1, 32, 14, 14)
         w2shape = (32, 1, 3, 3)
 
@@ -156,7 +151,7 @@ def test_conv2d():
         out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1), groups=32)
         main_f = relay.Function([data0, weight0], out)
         ref_mod = tvm.IRModule()
-        ref_mod['main'] = main_f
+        ref_mod["main"] = main_f
 
         i_data = np.random.uniform(0, 1, ishape).astype(dtype)
         w_data = np.random.uniform(0, 1, w2shape).astype(dtype)
@@ -173,7 +168,7 @@ def test_add():
         print("skip because DNNL codegen is not available")
         return
 
-    dtype = 'float32'
+    dtype = "float32"
     shape = (10, 10)
 
     def gen_add():
@@ -214,7 +209,7 @@ def test_relu():
         print("skip because DNNL codegen is not available")
         return
 
-    dtype = 'float32'
+    dtype = "float32"
     shape = (1, 32, 14, 14)
 
     def gen_relu():
@@ -242,7 +237,15 @@ def test_relu():
     mod, ref_mod = gen_relu()
 
     data0 = np.random.uniform(-1, 1, shape).astype(dtype)
-    check_result(mod, ref_mod, {"data0": data0,}, (1, 32, 14, 14), tol=1e-5)
+    check_result(
+        mod,
+        ref_mod,
+        {
+            "data0": data0,
+        },
+        (1, 32, 14, 14),
+        tol=1e-5,
+    )
 
 
 def test_dense():
@@ -251,7 +254,7 @@ def test_dense():
         print("skip because DNNL codegen is not available")
         return
 
-    dtype = 'float32'
+    dtype = "float32"
     a_shape = (1, 512)
     b_shape = (1024, 512)
 
@@ -293,12 +296,12 @@ def test_bn():
         print("skip because DNNL codegen is not available")
         return
 
-    dtype = 'float32'
+    dtype = "float32"
     d_shape = (1, 8)
-    c_shape = (8, )
+    c_shape = (8,)
 
     def gen_bn():
-        data = relay.var('data', shape=d_shape)
+        data = relay.var("data", shape=d_shape)
         gamma = relay.var("gamma", shape=c_shape)
         beta = relay.var("beta", shape=c_shape)
         moving_mean = relay.var("moving_mean", shape=c_shape)
@@ -312,16 +315,18 @@ def test_bn():
         mod = tvm.IRModule()
         mod[glb_var] = func
 
-        data = relay.var('data', shape=d_shape)
+        data = relay.var("data", shape=d_shape)
         gamma = relay.var("gamma", shape=c_shape)
         beta = relay.var("beta", shape=c_shape)
         moving_mean = relay.var("moving_mean", shape=c_shape)
         moving_var = relay.var("moving_var", shape=c_shape)
-        main_f = relay.Function([data, gamma, beta, moving_mean, moving_var],
-                                glb_var(data, gamma, beta, moving_mean, moving_var))
+        main_f = relay.Function(
+            [data, gamma, beta, moving_mean, moving_var],
+            glb_var(data, gamma, beta, moving_mean, moving_var),
+        )
         mod["main"] = main_f
 
-        data = relay.var('data', shape=d_shape)
+        data = relay.var("data", shape=d_shape)
         gamma = relay.var("gamma", shape=c_shape)
         beta = relay.var("beta", shape=c_shape)
         moving_mean = relay.var("moving_mean", shape=c_shape)
@@ -341,16 +346,19 @@ def test_bn():
     beta = np.random.uniform(-1, 1, c_shape).astype(dtype)
     moving_mean = np.random.uniform(-1, 1, c_shape).astype(dtype)
     moving_var = np.random.uniform(-1, 1, c_shape).astype(dtype)
-    check_result(mod,
-                 ref_mod, {
-                     "data": data,
-                     "gamma": gamma,
-                     "beta": beta,
-                     "moving_mean": moving_mean,
-                     "moving_var": moving_var
-                 },
-                 d_shape,
-                 tol=1e-5)
+    check_result(
+        mod,
+        ref_mod,
+        {
+            "data": data,
+            "gamma": gamma,
+            "beta": beta,
+            "moving_mean": moving_mean,
+            "moving_var": moving_var,
+        },
+        d_shape,
+        tol=1e-5,
+    )
 
 
 def test_multiple_ops():
@@ -359,7 +367,7 @@ def test_multiple_ops():
         print("skip because DNNL codegen is not available")
         return
 
-    dtype = 'float32'
+    dtype = "float32"
     ishape = (1, 32, 14, 14)
     w1shape = (32, 32, 3, 3)
     w2shape = (64, 32, 5, 5)
@@ -380,18 +388,22 @@ def test_multiple_ops():
         return mod
 
     def get_partitoned_mod(mod):
-        remove_bn_pass = tvm.transform.Sequential([
-            transform.InferType(),
-            transform.SimplifyInference(),
-            transform.FoldConstant(),
-            transform.FoldScaleAxis(),
-        ])
-        byoc_pass = tvm.transform.Sequential([
-            remove_bn_pass,
-            transform.AnnotateTarget("dnnl"),
-            transform.MergeCompilerRegions(),
-            transform.PartitionGraph()
-        ])
+        remove_bn_pass = tvm.transform.Sequential(
+            [
+                transform.InferType(),
+                transform.SimplifyInference(),
+                transform.FoldConstant(),
+                transform.FoldScaleAxis(),
+            ]
+        )
+        byoc_pass = tvm.transform.Sequential(
+            [
+                remove_bn_pass,
+                transform.AnnotateTarget("dnnl"),
+                transform.MergeCompilerRegions(),
+                transform.PartitionGraph(),
+            ]
+        )
 
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
             return byoc_pass(mod)
@@ -402,11 +414,17 @@ def test_multiple_ops():
     data = np.random.uniform(0, 1, ishape).astype(dtype)
     w1 = np.random.uniform(0, 1, w1shape).astype(dtype)
     w2 = np.random.uniform(0, 1, w2shape).astype(dtype)
-    check_result(mod, ref_mod, {
-        "data": data,
-        "w1": w1,
-        "w2": w2,
-    }, (1, 64, 14, 14), tol=1e-5)
+    check_result(
+        mod,
+        ref_mod,
+        {
+            "data": data,
+            "w1": w1,
+            "w2": w2,
+        },
+        (1, 64, 14, 14),
+        tol=1e-5,
+    )
 
 
 def test_composite():
@@ -415,7 +433,7 @@ def test_composite():
         print("skip because DNNL codegen is not available")
         return
 
-    dtype = 'float32'
+    dtype = "float32"
 
     def conv2d_relu():
         ishape = (1, 32, 14, 14)
@@ -427,8 +445,8 @@ def test_composite():
         conv2d = relay.nn.conv2d(in_1, in_2, kernel_size=(3, 3), padding=(1, 1))
         relu = relay.nn.relu(conv2d)
         func = relay.Function([in_1, in_2], relu)
-        func = func.with_attr('Composite', 'dnnl.conv2d_relu')
-        func = func.with_attr('PartitionedFromPattern', 'nn.conv2d_nn.relu_')
+        func = func.with_attr("Composite", "dnnl.conv2d_relu")
+        func = func.with_attr("PartitionedFromPattern", "nn.conv2d_nn.relu_")
 
         # Partition function
         arg_1 = relay.var("arg_1", shape=ishape, dtype=dtype)
@@ -458,7 +476,7 @@ def test_composite():
         i_data = np.random.uniform(0, 1, ishape).astype(dtype)
         w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-        return mod, ref_mod, {'data': i_data, 'weight': w1_data}, (1, 32, 14, 14)
+        return mod, ref_mod, {"data": i_data, "weight": w1_data}, (1, 32, 14, 14)
 
     def conv2d_bias_relu():
         ishape = (1, 32, 14, 14)
@@ -473,8 +491,8 @@ def test_composite():
         add = relay.add(conv2d, in_3)
         relu = relay.nn.relu(add)
         func = relay.Function([in_1, in_2, in_3], relu)
-        func = func.with_attr('Composite', 'dnnl.conv2d_bias_relu')
-        func = func.with_attr('PartitionedFromPattern', 'nn.conv2d_add_nn.relu_')
+        func = func.with_attr("Composite", "dnnl.conv2d_bias_relu")
+        func = func.with_attr("PartitionedFromPattern", "nn.conv2d_add_nn.relu_")
 
         # Partition function
         arg_1 = relay.var("arg_1", shape=ishape, dtype=dtype)
@@ -490,14 +508,14 @@ def test_composite():
         # Main function
         data = relay.var("data", shape=ishape, dtype=dtype)
         weight = relay.var("weight", shape=w1shape, dtype=dtype)
-        bias = relay.var('bias', shape=bshape, dtype=dtype)
+        bias = relay.var("bias", shape=bshape, dtype=dtype)
         main_func = relay.Function([data, weight, bias], glb_var(data, weight, bias))
         mod["main"] = main_func
 
         # Reference module
         data = relay.var("data", shape=ishape, dtype=dtype)
         weight = relay.var("weight", shape=w1shape, dtype=dtype)
-        bias = relay.var('bias', shape=bshape, dtype=dtype)
+        bias = relay.var("bias", shape=bshape, dtype=dtype)
         conv2d = relay.nn.conv2d(data, weight, kernel_size=(3, 3), padding=(1, 1))
         add = relay.add(conv2d, bias)
         relu = relay.nn.relu(add)
@@ -509,7 +527,7 @@ def test_composite():
         w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
         b_data = np.random.uniform(0, 1, bshape).astype(dtype)
 
-        return mod, ref_mod, {'data': i_data, 'weight': w1_data, 'bias': b_data}, (1, 32, 14, 14)
+        return mod, ref_mod, {"data": i_data, "weight": w1_data, "bias": b_data}, (1, 32, 14, 14)
 
     for mod, ref_mod, input_maps, out_shape in [conv2d_relu(), conv2d_bias_relu()]:
         check_result(mod, ref_mod, input_maps, out_shape, tol=1e-5)
@@ -521,7 +539,7 @@ def test_constant():
         print("skip because DNNL codegen is not available")
         return
 
-    dtype = 'float32'
+    dtype = "float32"
     ishape = (1, 32, 14, 14)
     wshape = (32, 32, 3, 3)
 
@@ -541,26 +559,31 @@ def test_constant():
     ref_mod, params = tvm.relay.testing.create_workload(func)
     ref_mod["main"] = bind_params_by_name(ref_mod["main"], params)
 
-    remove_bn_pass = tvm.transform.Sequential([
-        transform.InferType(),
-        transform.SimplifyInference(),
-        transform.FoldConstant(),
-        transform.FoldScaleAxis(),
-    ])
+    remove_bn_pass = tvm.transform.Sequential(
+        [
+            transform.InferType(),
+            transform.SimplifyInference(),
+            transform.FoldConstant(),
+            transform.FoldScaleAxis(),
+        ]
+    )
 
     dnnl_patterns = get_pattern_table("dnnl")
-    composite_partition = tvm.transform.Sequential([
-        transform.MergeComposite(dnnl_patterns),
-        transform.AnnotateTarget("dnnl"),
-        transform.PartitionGraph()
-    ])
+    composite_partition = tvm.transform.Sequential(
+        [
+            transform.MergeComposite(dnnl_patterns),
+            transform.AnnotateTarget("dnnl"),
+            transform.PartitionGraph(),
+        ]
+    )
 
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
         ref_mod = remove_bn_pass(ref_mod)
         mod = composite_partition(ref_mod)
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
-    check_result(mod, ref_mod, {'data': i_data}, (1, 32, 14, 14), tol=1e-5)
+    check_result(mod, ref_mod, {"data": i_data}, (1, 32, 14, 14), tol=1e-5)
+
 
 def test_partial_constant():
     """Test the subgraph with (const, var, const, var) arguments."""
@@ -568,7 +591,7 @@ def test_partial_constant():
         print("skip because DNNL codegen is not available")
         return
 
-    dtype = 'float32'
+    dtype = "float32"
     ishape = (10, 10)
 
     in_1 = relay.var("in_1", shape=ishape, dtype=dtype)
@@ -589,27 +612,29 @@ def test_partial_constant():
     data3 = np.random.uniform(0, 1, ishape).astype(dtype)
 
     params = {
-        'in_1': tvm.nd.array(data1, ctx=tvm.cpu(0)),
-        'in_3': tvm.nd.array(data3, ctx=tvm.cpu(0))
+        "in_1": tvm.nd.array(data1, ctx=tvm.cpu(0)),
+        "in_3": tvm.nd.array(data3, ctx=tvm.cpu(0)),
     }
     ref_mod["main"] = bind_params_by_name(ref_mod["main"], params)
 
-    opt_pass = tvm.transform.Sequential([
-        transform.InferType(),
-        transform.SimplifyInference(),
-        transform.FoldConstant(),
-        transform.FoldScaleAxis(),
-        transform.AnnotateTarget("dnnl"),
-        transform.MergeCompilerRegions(),
-        transform.PartitionGraph()
-    ])
+    opt_pass = tvm.transform.Sequential(
+        [
+            transform.InferType(),
+            transform.SimplifyInference(),
+            transform.FoldConstant(),
+            transform.FoldScaleAxis(),
+            transform.AnnotateTarget("dnnl"),
+            transform.MergeCompilerRegions(),
+            transform.PartitionGraph(),
+        ]
+    )
 
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
         mod = opt_pass(ref_mod)
 
     data2 = np.random.uniform(0, 1, ishape).astype(dtype)
     data4 = np.random.uniform(0, 1, ishape).astype(dtype)
-    check_result(mod, ref_mod, {'in_2': data2, 'in_4': data4}, (10, 10), tol=1e-5)
+    check_result(mod, ref_mod, {"in_2": data2, "in_4": data4}, (10, 10), tol=1e-5)
 
 
 if __name__ == "__main__":

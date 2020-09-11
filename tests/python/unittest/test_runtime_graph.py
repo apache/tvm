@@ -21,35 +21,38 @@ import json
 from tvm import rpc
 from tvm.contrib import util, graph_runtime
 
+
 @tvm.testing.requires_llvm
 def test_graph_simple():
     n = 4
-    A = te.placeholder((n,), name='A')
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     s = te.create_schedule(B.op)
 
     node0 = {"op": "null", "name": "x", "inputs": []}
-    node1 = {"op": "tvm_op", "name": "add",
-             "inputs": [[0, 0, 0]],
-             "attrs": {"func_name": "myadd",
-                       "flatten_data": "1",
-                       "num_inputs" : "1",
-                    "num_outputs" : "1"}}
+    node1 = {
+        "op": "tvm_op",
+        "name": "add",
+        "inputs": [[0, 0, 0]],
+        "attrs": {"func_name": "myadd", "flatten_data": "1", "num_inputs": "1", "num_outputs": "1"},
+    }
     nodes = [node0, node1]
     arg_nodes = [0]
     node_row_ptr = [0, 1, 2]
     outputs = [[1, 0, 0]]
     shape = (4,)
     attrs = {
-        "shape" : ["list_shape", [shape, shape]],
-        "dltype" : ["list_str", ["float32", "float32"]],
-        "storage_id" : ["list_int", [0, 1]],
+        "shape": ["list_shape", [shape, shape]],
+        "dltype": ["list_str", ["float32", "float32"]],
+        "storage_id": ["list_int", [0, 1]],
     }
-    graph = {"nodes": nodes,
-             "arg_nodes": arg_nodes,
-             "node_row_ptr": node_row_ptr,
-             "heads": outputs,
-             "attrs": attrs}
+    graph = {
+        "nodes": nodes,
+        "arg_nodes": arg_nodes,
+        "node_row_ptr": node_row_ptr,
+        "heads": outputs,
+        "attrs": attrs,
+    }
     graph = json.dumps(graph)
 
     def check_verify():
@@ -79,20 +82,20 @@ def test_graph_simple():
 
     def check_sharing():
         from tvm import relay
-        x = relay.var('x', shape=(1, 10))
-        y = relay.var('y', shape=(1, 10))
+
+        x = relay.var("x", shape=(1, 10))
+        y = relay.var("y", shape=(1, 10))
         z = relay.add(x, y)
         func = relay.Function([x, y], z)
 
         x_in = np.ones((1, 10)).astype("float32")
-        params = {'x': x_in}
+        params = {"x": x_in}
         graph, lib, params = relay.build(func, target="llvm", params=params)
 
         mod_shared = graph_runtime.create(graph, lib, tvm.cpu(0))
         mod_shared.load_params(relay.save_param_dict(params))
         num_mods = 10
-        mods = [graph_runtime.create(graph, lib, tvm.cpu(0))
-                for _ in range(num_mods)]
+        mods = [graph_runtime.create(graph, lib, tvm.cpu(0)) for _ in range(num_mods)]
 
         for mod in mods:
             mod.share_params(mod_shared, relay.save_param_dict(params))
@@ -114,6 +117,7 @@ def test_graph_simple():
     check_verify()
     check_remote()
     check_sharing()
+
 
 if __name__ == "__main__":
     test_graph_simple()

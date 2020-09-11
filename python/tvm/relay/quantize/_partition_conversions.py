@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument, not-context-manager
+# pylint: disable=unused-argument, not-context-manager
 """Utilities for partitioning input quantization and output dequantization expressions."""
 import tvm
 from tvm import relay
@@ -22,7 +22,8 @@ from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 # operators that are allowed in prefix/suffix partitions, because they are used
 # to quantize/dequantize
-ALLOWED_CONVERSION_OPS = ['add', 'multiply', 'right_shift', 'clip', 'round', 'cast']
+ALLOWED_CONVERSION_OPS = ["add", "multiply", "right_shift", "clip", "round", "cast"]
+
 
 def partition_conversions(mod, quantized_dtypes, ensure_fully_integral):
     """Partition mod into input quantization, core quantized inference, and output dequantization.
@@ -80,9 +81,9 @@ def partition_conversions(mod, quantized_dtypes, ensure_fully_integral):
     pre_mod, mid_mod = partition_prefix(mod, quantized_dtypes)
     mid_mod, post_mod = partition_suffix(mid_mod, quantized_dtypes)
     if ensure_fully_integral:
-        assert has_only_conversion_ops(pre_mod['main'])
-        assert relay.analysis.all_dtypes(mid_mod['main']).issubset(quantized_dtypes)
-        assert has_only_conversion_ops(post_mod['main'])
+        assert has_only_conversion_ops(pre_mod["main"])
+        assert relay.analysis.all_dtypes(mid_mod["main"]).issubset(quantized_dtypes)
+        assert has_only_conversion_ops(post_mod["main"])
     return fuse_partitions(pre_mod, mid_mod, post_mod)
 
 
@@ -109,33 +110,38 @@ def fuse_partitions(pre_mod, mid_mod, post_mod):
         Module containing the input quantization, core quantized inference,
         output dequantization, and full quantized inference functions
     """
-    pre_func = pre_mod['main']
-    mid_func = mid_mod['main']
-    post_func = post_mod['main']
+    pre_func = pre_mod["main"]
+    mid_func = mid_mod["main"]
+    post_func = post_mod["main"]
     # create a module containing the prefix, middle, and suffix partitions
-    fused_mod = tvm.IRModule(functions={
-        relay.GlobalVar('quantize_inputs'): pre_func,
-        relay.GlobalVar('quantized_main'): mid_func,
-        relay.GlobalVar('dequantize_outputs'): post_func,
-    })
+    fused_mod = tvm.IRModule(
+        functions={
+            relay.GlobalVar("quantize_inputs"): pre_func,
+            relay.GlobalVar("quantized_main"): mid_func,
+            relay.GlobalVar("dequantize_outputs"): post_func,
+        }
+    )
     # construct a `main` that strings together the partitions, such that its
     # behaviour is equivalent to `main` in an *unpartitioned* module
     scope_builder = relay.ScopeBuilder()
     fused_mod_main_params = [relay.Var(param.name_hint) for param in pre_func.params]
-    quantized_inputs = scope_builder.let('quantized_inputs', relay.Call(
-        fused_mod.get_global_var('quantize_inputs'),
-        fused_mod_main_params
-    ))
-    quantized_outputs = scope_builder.let('quantized_outputs', relay.Call(
-        fused_mod.get_global_var('quantized_main'),
-        [relay.TupleGetItem(quantized_inputs, i) for i in range(len(pre_func.ret_type.fields))]
-    ))
-    dequantized_outputs = scope_builder.let('dequantized_outputs', relay.Call(
-        fused_mod.get_global_var('dequantize_outputs'),
-        [quantized_outputs]
-    ))
+    quantized_inputs = scope_builder.let(
+        "quantized_inputs",
+        relay.Call(fused_mod.get_global_var("quantize_inputs"), fused_mod_main_params),
+    )
+    quantized_outputs = scope_builder.let(
+        "quantized_outputs",
+        relay.Call(
+            fused_mod.get_global_var("quantized_main"),
+            [relay.TupleGetItem(quantized_inputs, i) for i in range(len(pre_func.ret_type.fields))],
+        ),
+    )
+    dequantized_outputs = scope_builder.let(
+        "dequantized_outputs",
+        relay.Call(fused_mod.get_global_var("dequantize_outputs"), [quantized_outputs]),
+    )
     scope_builder.ret(dequantized_outputs)
-    fused_mod['main'] = relay.Function(fused_mod_main_params, scope_builder.get())
+    fused_mod["main"] = relay.Function(fused_mod_main_params, scope_builder.get())
     return fused_mod
 
 
@@ -162,7 +168,7 @@ class PrefixCutter(ExprMutator):
 
     def visit_call(self, call):
         # TODO(weberlo) use graph pattern matching?
-        if not hasattr(call.op, 'name') or call.op.name not in ALLOWED_CONVERSION_OPS:
+        if not hasattr(call.op, "name") or call.op.name not in ALLOWED_CONVERSION_OPS:
             new_args = []
             for arg in call.args:
                 new_arg = self.visit(arg)
@@ -173,9 +179,7 @@ class PrefixCutter(ExprMutator):
                     param = next(iter(self.subtree_params))
                     pre_param = self.prefix_sb.let(param.name_hint, new_arg)
                     self.subtree_params.clear()
-                    mid_param = relay.Var(
-                        param.name_hint,
-                        arg.checked_type)
+                    mid_param = relay.Var(param.name_hint, arg.checked_type)
                     self.prefix_binding_map[mid_param] = pre_param
                     # return new parameter, then we can use
                     # relay.analysis.free_vars at the end of the pass to generate
@@ -206,14 +210,12 @@ def partition_prefix(mod, quantized_dtypes):
         Module containing a function with everything except for input quantization
     """
     assert len(mod.functions) == 1
-    func = mod['main']
+    func = mod["main"]
     prefix_cutter = PrefixCutter(func.params, quantized_dtypes)
     mid_body = prefix_cutter.visit(func.body)
-    assert not func.type_params, 'unimplemented'
-    assert func.attrs is None, 'unimplemented'
-    mid_func = relay.Function(
-        relay.analysis.free_vars(mid_body),
-        mid_body)
+    assert not func.type_params, "unimplemented"
+    assert func.attrs is None, "unimplemented"
+    mid_func = relay.Function(relay.analysis.free_vars(mid_body), mid_body)
     mid_mod = tvm.IRModule.from_expr(mid_func)
 
     scope_builder = prefix_cutter.prefix_sb
@@ -252,9 +254,9 @@ class SuffixCutter(ExprMutator):
         self.quantized_dtypes = quantized_dtypes
 
     def visit(self, expr):
-        if hasattr(expr, 'checked_type') and expr.checked_type.dtype in self.quantized_dtypes:
+        if hasattr(expr, "checked_type") and expr.checked_type.dtype in self.quantized_dtypes:
             self.mid_body = expr
-            return relay.Var('input', expr.checked_type)
+            return relay.Var("input", expr.checked_type)
 
         return super().visit(expr)
 
@@ -279,15 +281,12 @@ def partition_suffix(mod, quantized_dtypes):
         Module containing a function with everything except for input quantization
     """
     assert len(mod.functions) == 1
-    func = mod['main']
+    func = mod["main"]
     suffix_cutter = SuffixCutter(quantized_dtypes)
     post_body = suffix_cutter.visit(func.body)
-    assert not func.type_params, 'unimplemented'
-    assert func.attrs is None, 'unimplemented'
-    post_func = relay.Function(
-        relay.analysis.free_vars(post_body),
-        post_body,
-        func.ret_type)
+    assert not func.type_params, "unimplemented"
+    assert func.attrs is None, "unimplemented"
+    post_func = relay.Function(relay.analysis.free_vars(post_body), post_body, func.ret_type)
     post_mod = tvm.IRModule.from_expr(post_func)
 
     mid_body = suffix_cutter.mid_body
@@ -296,15 +295,11 @@ def partition_suffix(mod, quantized_dtypes):
         # quantization boundary in the given mod.  In this case, we use the
         # suffix mod as the middle mod and make the suffix an identity function.
         mid_mod = post_mod
-        post_body = relay.Var('input', mid_mod['main'].ret_type)
-        post_func = relay.Function(
-            [post_body],
-            post_body)
+        post_body = relay.Var("input", mid_mod["main"].ret_type)
+        post_func = relay.Function([post_body], post_body)
         post_mod = tvm.IRModule.from_expr(post_func)
     else:
-        mid_func = relay.Function(
-            func.params,
-            mid_body)
+        mid_func = relay.Function(func.params, mid_body)
         mid_mod = tvm.IRModule.from_expr(mid_func)
 
     return mid_mod, post_mod
@@ -312,12 +307,13 @@ def partition_suffix(mod, quantized_dtypes):
 
 class ConversionOpChecker(ExprVisitor):
     """A pass for checking that the visited function contains only conversion ops"""
+
     def __init__(self):
         ExprVisitor.__init__(self)
         self.valid = True
 
     def visit_call(self, call):
-        if not hasattr(call.op, 'name') or call.op.name not in ALLOWED_CONVERSION_OPS:
+        if not hasattr(call.op, "name") or call.op.name not in ALLOWED_CONVERSION_OPS:
             self.valid = False
         super().visit_call(call)
 

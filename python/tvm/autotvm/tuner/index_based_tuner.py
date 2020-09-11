@@ -21,6 +21,7 @@ import numpy as np
 
 from .tuner import Tuner
 
+
 class IndexBaseTuner(Tuner):
     """Base class for index based tuner
     This type of tuner determine the next batch of configs based on config indices.
@@ -33,10 +34,12 @@ class IndexBaseTuner(Tuner):
     range_idx: Optional[Tuple[int, int]]
         A tuple of index range that this tuner can select from
     """
+
     def __init__(self, task, range_idx=None):
         super(IndexBaseTuner, self).__init__(task)
-        assert range_idx is None or isinstance(range_idx, tuple), \
-            "range_idx must be None or (int, int)"
+        assert range_idx is None or isinstance(
+            range_idx, tuple
+        ), "range_idx must be None or (int, int)"
 
         self.range_length = len(self.task.config_space)
         self.index_offset = 0
@@ -79,6 +82,7 @@ class RandomTuner(IndexBaseTuner):
     range_idx: Optional[Tuple[int, int]]
         A tuple of index range to random
     """
+
     def __init__(self, task, range_idx=None):
         super(RandomTuner, self).__init__(task, range_idx)
 

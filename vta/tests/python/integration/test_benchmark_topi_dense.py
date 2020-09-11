@@ -45,10 +45,18 @@ def my_clip(x, a_min, a_max):
     x = te.compute(x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
     return x
 
-def run_gemm(env, remote, target,
-             batch_size, in_feat, out_feat,
-             check_correctness=True, print_ir=True,
-             samples=4):
+
+def run_gemm(
+    env,
+    remote,
+    target,
+    batch_size,
+    in_feat,
+    out_feat,
+    check_correctness=True,
+    print_ir=True,
+    samples=4,
+):
 
     # Perform packing only if we are targeting the accelerator
     if "arm_cpu" in target.keys:
@@ -60,10 +68,13 @@ def run_gemm(env, remote, target,
     a_shape = (batch_size, in_feat)
     w_shape = (out_feat, in_feat)
     if data_pack:
-        data_shape = (batch_size//env.BATCH, in_feat//env.BLOCK_IN,
-                      env.BATCH, env.BLOCK_IN)
-        kernel_shape = (out_feat//env.BLOCK_OUT, in_feat//env.BLOCK_IN,
-                        env.BLOCK_OUT, env.BLOCK_IN)
+        data_shape = (batch_size // env.BATCH, in_feat // env.BLOCK_IN, env.BATCH, env.BLOCK_IN)
+        kernel_shape = (
+            out_feat // env.BLOCK_OUT,
+            in_feat // env.BLOCK_IN,
+            env.BLOCK_OUT,
+            env.BLOCK_IN,
+        )
         fcompute = vta.top.dense_packed
         fschedule = vta.top.schedule_dense_packed
     else:
@@ -76,8 +87,7 @@ def run_gemm(env, remote, target,
 
     # Define base computation schedule
     with target:
-        res = fcompute(
-            data, kernel, None, env.acc_dtype)
+        res = fcompute(data, kernel, None, env.acc_dtype)
         res = topi.right_shift(res, 8)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
@@ -97,30 +107,30 @@ def run_gemm(env, remote, target,
         a_np = np.random.randint(a_min, a_max, size=a_shape).astype(data.dtype)
         w_np = np.random.randint(w_min, w_max, size=w_shape).astype(kernel.dtype)
 
-        r_np = np.dot(a_np.astype(env.acc_dtype), w_np.T.astype(env.acc_dtype)).astype(env.acc_dtype)
+        r_np = np.dot(a_np.astype(env.acc_dtype), w_np.T.astype(env.acc_dtype)).astype(
+            env.acc_dtype
+        )
         return a_np, w_np, r_np
 
     # Data in original format
     data_np, kernel_np, res_ref = get_ref_data()
     if data_pack:
         data_np = data_np.reshape(
-            batch_size//env.BATCH, env.BATCH,
-            in_feat//env.BLOCK_IN, env.BLOCK_IN).transpose((0, 2, 1, 3))
+            batch_size // env.BATCH, env.BATCH, in_feat // env.BLOCK_IN, env.BLOCK_IN
+        ).transpose((0, 2, 1, 3))
         kernel_np = kernel_np.reshape(
-            out_feat//env.BLOCK_OUT, env.BLOCK_OUT,
-            in_feat//env.BLOCK_IN, env.BLOCK_IN).transpose((0, 2, 1, 3))
+            out_feat // env.BLOCK_OUT, env.BLOCK_OUT, in_feat // env.BLOCK_IN, env.BLOCK_IN
+        ).transpose((0, 2, 1, 3))
 
     # Build
     if "vta" in target.keys:
-        mod = vta.build(s, [data, kernel, res],
-                        target=target,
-                        target_host=env.target_host,
-                        name="dense")
+        mod = vta.build(
+            s, [data, kernel, res], target=target, target_host=env.target_host, name="dense"
+        )
     else:
-        mod = tvm.build(s, [data, kernel, res],
-                        target=target,
-                        target_host=env.target_host,
-                        name="dense")
+        mod = tvm.build(
+            s, [data, kernel, res], target=target, target_host=env.target_host, name="dense"
+        )
     temp = util.tempdir()
     mod.save(temp.relpath("dense.o"))
     remote.upload(temp.relpath("dense.o"))
@@ -178,6 +188,7 @@ def run_gemm(env, remote, target,
 
     return correct, cost, stats
 
+
 def test_gemm(device="vta", batch=128, in_feat=128, out_feat=128):
     def _run(env, remote):
         if device == "vta":
@@ -188,9 +199,11 @@ def test_gemm(device="vta", batch=128, in_feat=128, out_feat=128):
                 reconfig_runtime(remote)
         elif device == "arm_cpu":
             target = env.target_vta_cpu
-        with autotvm.tophub.context(target): # load pre-tuned schedule parameters
+        with autotvm.tophub.context(target):  # load pre-tuned schedule parameters
             run_gemm(env, remote, target, batch, in_feat, out_feat)
+
     vta.testing.run(_run)
+
 
 if __name__ == "__main__":
     test_gemm("vta", 16, 512, 1008)

@@ -27,14 +27,17 @@ from tvm.topi.util import get_const_tuple
 TASK = "conv2d_hwcn_map"
 USE_MANUAL_CODE = False
 
+
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
     ptx = nvcc.compile_cuda(code, target="ptx")
     return ptx
 
+
 def write_code(code, fname):
     with open(fname, "w") as f:
         f.write(code)
+
 
 @tvm.register_func
 def tvm_callback_cuda_postproc(code):
@@ -54,10 +57,10 @@ def test_conv2d_hwcn_map():
     num_filter = 128
     kernel = 3
     stride = 2
-    padding = 'SAME'
+    padding = "SAME"
 
-    A = te.placeholder((in_height, in_width, in_channel, batch), name='A')
-    W = te.placeholder((kernel, kernel, in_channel, num_filter), name='W')
+    A = te.placeholder((in_height, in_width, in_channel, batch), name="A")
+    W = te.placeholder((kernel, kernel, in_channel, num_filter), name="W")
     B = topi.nn.conv2d_hwcn(A, W, stride, padding)
     C = topi.nn.relu(B)
     s1 = topi.cuda.schedule_conv2d_hwcn([B])
@@ -78,10 +81,11 @@ def test_conv2d_hwcn_map():
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
 
-        with tvm.transform.PassContext(config={"tir.UrollLoop": {
-                "auto_unroll_max_step": 128,
-                "explicit_unroll": device == "rocm"
-        }}):
+        with tvm.transform.PassContext(
+            config={
+                "tir.UrollLoop": {"auto_unroll_max_step": 128, "explicit_unroll": device == "rocm"}
+            }
+        ):
             func1 = tvm.build(s1, [A, W, B], device)
             func1(a, w, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
@@ -89,7 +93,7 @@ def test_conv2d_hwcn_map():
             func2(a, w, c)
             tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'rocm']:
+    for device in ["cuda", "opencl", "rocm"]:
         check_device(device)
 
 

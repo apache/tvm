@@ -36,13 +36,11 @@ def NodeGetAttr(obj, name):
 
 
 def SaveJSON(obj):
-    raise RuntimeError(
-        "Do not support object serialization in runtime only mode")
+    raise RuntimeError("Do not support object serialization in runtime only mode")
 
 
 def LoadJSON(json_str):
-    raise RuntimeError(
-        "Do not support object serialization in runtime only mode")
+    raise RuntimeError("Do not support object serialization in runtime only mode")
 
 
 # Exports functions registered via TVM_REGISTER_GLOBAL with the "node" prefix.

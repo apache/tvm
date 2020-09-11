@@ -22,6 +22,7 @@ import os
 import tempfile
 import threading
 import shutil
+
 try:
     import fcntl
 except ImportError:
@@ -30,6 +31,7 @@ except ImportError:
 
 class DirectoryCreatedPastAtExit(Exception):
     """Raised when a TempDirectory is created after the atexit hook runs."""
+
 
 class TempDirectory(object):
     """Helper object to manage temp directory during testing.
@@ -44,6 +46,7 @@ class TempDirectory(object):
     # In debug mode, each tempdir is named after the sequence
     _NUM_TEMPDIR_CREATED = 0
     _NUM_TEMPDIR_CREATED_LOCK = threading.Lock()
+
     @classmethod
     def _increment_num_tempdir_created(cls):
         with cls._NUM_TEMPDIR_CREATED_LOCK:
@@ -53,20 +56,23 @@ class TempDirectory(object):
         return to_return
 
     _DEBUG_PARENT_DIR = None
+
     @classmethod
     def _get_debug_parent_dir(cls):
         if cls._DEBUG_PARENT_DIR is None:
-            all_parents = f'{tempfile.gettempdir()}/tvm-debug-mode-tempdirs'
+            all_parents = f"{tempfile.gettempdir()}/tvm-debug-mode-tempdirs"
             if not os.path.isdir(all_parents):
                 os.makedirs(all_parents)
             cls._DEBUG_PARENT_DIR = tempfile.mkdtemp(
-                prefix=datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S___'), dir=all_parents)
+                prefix=datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S___"), dir=all_parents
+            )
         return cls._DEBUG_PARENT_DIR
 
     TEMPDIRS = set()
+
     @classmethod
     def remove_tempdirs(cls):
-        temp_dirs = getattr(cls, 'TEMPDIRS', None)
+        temp_dirs = getattr(cls, "TEMPDIRS", None)
         if temp_dirs is None:
             return
 
@@ -97,7 +103,7 @@ class TempDirectory(object):
         else:
             if self._created_with_keep_for_debug:
                 parent_dir = self._get_debug_parent_dir()
-                self.temp_dir = f'{parent_dir}/{self._increment_num_tempdir_created():05d}'
+                self.temp_dir = f"{parent_dir}/{self._increment_num_tempdir_created():05d}"
                 os.mkdir(self.temp_dir)
             else:
                 self.temp_dir = tempfile.mkdtemp()
@@ -114,7 +120,7 @@ class TempDirectory(object):
             self.temp_dir = None
 
     def __del__(self):
-        temp_dirs = getattr(self, 'TEMPDIRS', None)
+        temp_dirs = getattr(self, "TEMPDIRS", None)
         if temp_dirs is None:
             # Do nothing if the atexit hook has already run.
             return
@@ -174,11 +180,11 @@ class FileLock(object):
     path : str
         The path to the lock
     """
+
     def __init__(self, path):
         self.lock_file = open(path, "w")
         if fcntl:
             fcntl.lockf(self.lock_file, fcntl.LOCK_EX)
-
 
     def release(self):
         """Release the lock"""
