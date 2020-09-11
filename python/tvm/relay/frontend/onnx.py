@@ -30,7 +30,7 @@ from .. import vision as _vision
 
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels
-from .common import infer_type, get_name, infer_value_simulated
+from .common import infer_type, get_name
 
 __all__ = ["from_onnx"]
 
@@ -945,7 +945,6 @@ class Upsample(OnnxOpConverter):
         return out
 
 
-
 class Shape(OnnxOpConverter):
     """Operator converter for Shape."""
 
@@ -1047,24 +1046,35 @@ class Slice(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        attrs = {"starts": inputs[1], "ends": inputs[2]}
-        if len(inputs) >= 4:
-            attrs["axes"] = inputs[3]
-        attrs = {k: (v, get_name(v)) for (k, v) in attrs.items()}
-        attrs = {
-            k: params[v[1]].asnumpy()
-            if v[1] in params
-            else infer_value_simulated(v[0], params).asnumpy()
-            for (k, v) in attrs.items()
-        }
+        starts = inputs[1]
+        ends = inputs[2]
+        axes = inputs[3]
+        steps = inputs[4]
+
+        data_rank = len(infer_shape(inputs[0]))
 
         # Update the starts and ends according to axes if required.
-        if "axes" in attrs:
-            if max(attrs["axes"] + 1) != len(attrs["axes"]):
-                new_starts, new_ends, _ = cls._common(attrs["starts"], attrs["ends"], attrs["axes"])
-                attrs["starts"] = new_starts
-                attrs["ends"] = new_ends
-        return _op.strided_slice(inputs[0], begin=list(attrs["starts"]), end=list(attrs["ends"]))
+        if axes is not None:
+            data_shape = _op.shape_of(inputs[0], dtype=infer_type(ends).checked_type.dtype)
+            starts = _op.scatter(
+                _op.const([0] * data_rank, dtype=infer_type(starts).checked_type.dtype),
+                axes,
+                starts,
+                axis=0,
+            )
+            ends = _op.scatter(data_shape, axes, ends, axis=0)
+            if steps is not None:
+                steps = _op.scatter(
+                    _op.const([1] * data_rank, dtype=infer_type(steps).checked_type.dtype),
+                    axes,
+                    steps,
+                    axis=0,
+                )
+
+        if steps is None:
+            steps = _op.const([1] * data_rank, dtype=infer_type(starts).checked_type.dtype)
+
+        return _op.strided_slice(inputs[0], starts, ends, steps)
 
 
 class Gather(OnnxOpConverter):
@@ -1404,7 +1414,6 @@ class Tile(Elemwise):
     @classmethod
     def _impl_v6(cls, inputs, attr, params):
         return _op.tile(inputs[0], inputs[1])
-
 
 
 class Erf(OnnxOpConverter):

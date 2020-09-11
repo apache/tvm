@@ -599,12 +599,13 @@ def _test_slice_iteration_v10(indata, outdata, **attrs):
     model = helper.make_model(graph, producer_name="slice_test")
 
     for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, "float32", opset=10)
+        tvm_out = get_tvm_output_with_vm(model, indata, target, ctx, opset=10, freeze_params=True)
 
     tvm.testing.assert_allclose(outdata, tvm_out)
 
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): enable once VM supports heterogenous execution
+# @tvm.testing.uses_gpu
 def test_slice():
     x = np.random.randn(20, 10, 5).astype(np.float32)
     _test_slice_iteration_v1(x, x[0:3, 0:10], starts=(0, 0), ends=(3, 10), axes=(0, 1))
