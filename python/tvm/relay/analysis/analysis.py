@@ -28,6 +28,21 @@ from . import _ffi_api
 from .feature import Feature
 
 
+def context_analysis(mod, default_context):
+    """Analyze the device context information of each IR node in a Relay
+    program.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The input module.
+
+    default_context : tvm.runtime.TVMContext
+        The default context allocated to an IR node.
+    """
+    return _ffi_api.ContextAnalysis(mod, default_context)
+
+
 def post_order_visit(expr, fvisit):
     """Recursively visit the ir in post DFS order node,
     apply fvisit. Each node is guaranteed to be visited
@@ -234,6 +249,22 @@ def all_type_vars(expr, mod=None):
     """
     use_mod = mod if mod is not None else IRModule()
     return _ffi_api.all_type_vars(expr, use_mod)
+
+
+def all_dtypes(expr):
+    """Collect set of all data types used in `expr`.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression
+
+    Returns
+    -------
+    ret : Set[String]
+        Set of data types used in the expression (e.g., `{'int8', 'int32'}`)
+    """
+    return set(_ffi_api.all_dtypes(expr))
 
 
 def collect_device_info(expr):

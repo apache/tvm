@@ -37,7 +37,7 @@ _reduce_schedule = {
 
 def dispatch(target, dispatch_map):
     if isinstance(target, str):
-        target = tvm.target.create(target)
+        target = tvm.target.Target(target)
     assert isinstance(target, tvm.target.Target)
     for key in target.keys:
         if key in dispatch_map:

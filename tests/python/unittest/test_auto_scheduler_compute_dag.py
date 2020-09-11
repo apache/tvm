@@ -44,12 +44,16 @@ def test_estimate_flop():
 
     D = topi.nn.relu(C)
     dag = auto_scheduler.ComputeDAG([A, B, D])
-    assert abs(dag.flop_ct - 2 * N ** 3 - N * N) < 0.5
+    assert abs(dag.flop_ct - (2 * N ** 3 + N * N)) < 0.5
 
     # should not count the comparison operations in padding
-    D = topi.nn.pad(C, [1, 1])
-    dag = auto_scheduler.ComputeDAG([A, B, D])
+    E = topi.nn.pad(C, [1, 1])
+    dag = auto_scheduler.ComputeDAG([A, B, E])
     assert abs(dag.flop_ct - 2 * N ** 3) < 0.5
+
+    F = te.compute((N, N), lambda i, j: E[i,j], name='F', attrs={"FLOP": 1234})
+    dag = auto_scheduler.ComputeDAG([A, B, F])
+    assert abs(dag.flop_ct - (2 * N ** 3 + 1234)) < 0.5
 
 
 if __name__ == "__main__":

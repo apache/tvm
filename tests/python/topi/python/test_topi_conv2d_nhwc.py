@@ -23,7 +23,7 @@ from tvm import topi
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
-
+import tvm.testing
 
 
 _conv2d_nhwc_implement = {
@@ -56,11 +56,11 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, p
     a_np, w_np, b_np = get_ref_data()
 
     def check_device(device):
-        if not tvm.runtime.enabled(device):
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv2d_nhwc_implement)
             B = fcompute(A, W, stride, padding, dilation, dtype)
             s = fschedule([B])
@@ -76,6 +76,7 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, p
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_nhwc():
     verify_conv2d_nhwc(1, 256, 32, 256, 3, 1, "SAME")
     verify_conv2d_nhwc(4, 128, 16, 128, 5, 2, "SAME")

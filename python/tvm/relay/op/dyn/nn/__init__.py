@@ -14,18 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Configuration about tests"""
-from __future__ import absolute_import as _abs
+# pylint: disable=wildcard-import, redefined-builtin, invalid-name
+"""The Relay namespace containing dynamic ops."""
 
-import os
-import tvm
-
-
-def ctx_list():
-    """Get context list for testcases"""
-    device_list = os.environ.get("RELAY_TEST_TARGETS", "")
-    device_list = (device_list.split(",") if device_list
-                   else ["llvm", "cuda"])
-    device_list = set(device_list)
-    res = [(device, tvm.context(device, 0)) for device in device_list]
-    return [x for x in res if x[1].exist]
+from . import _nn

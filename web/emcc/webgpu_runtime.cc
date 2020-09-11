@@ -132,8 +132,8 @@ class WebGPUDeviceAPI : public DeviceAPI {
     WebGPUThreadEntry::ThreadLocal()->pool.FreeWorkspace(ctx, data);
   }
 
-  static const std::shared_ptr<WebGPUDeviceAPI>& Global() {
-    static std::shared_ptr<WebGPUDeviceAPI> inst = std::make_shared<WebGPUDeviceAPI>();
+  static WebGPUDeviceAPI* Global() {
+    static WebGPUDeviceAPI* inst = new WebGPUDeviceAPI();
     return inst;
   }
 
@@ -222,7 +222,7 @@ Module WebGPUModuleLoadBinary(void* strm) {
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_vulkan").set_body_typed(WebGPUModuleLoadBinary);
 
 TVM_REGISTER_GLOBAL("device_api.webgpu").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = WebGPUDeviceAPI::Global().get();
+  DeviceAPI* ptr = WebGPUDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
 

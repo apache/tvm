@@ -100,6 +100,35 @@ class SearchCallback : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SearchCallback, ObjectRef, SearchCallbackNode);
 };
 
+/*! \brief Preload measured states from a log file.
+ * This can resume the state of the search policy */
+class PreloadMeasuredStatesNode : public SearchCallbackNode {
+ public:
+  /*! \brief The name of the record log file. */
+  String filename;
+
+  void Callback(SearchPolicyNode* policy) final;
+
+  static constexpr const char* _type_key = "auto_scheduler.PreloadMeasuredStates";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PreloadMeasuredStatesNode, SearchCallbackNode);
+};
+
+/*!
+ * \brief Managed reference to PreloadMeasuredStatesNode.
+ * \sa PreloadMeasuredStatesNode
+ */
+class PreloadMeasuredStates : public SearchCallback {
+ public:
+  /*!
+   * \brief The constructor.
+   * \param filename The name of the record log file.
+   */
+  explicit PreloadMeasuredStates(String filename);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PreloadMeasuredStates, SearchCallback,
+                                        PreloadMeasuredStatesNode);
+};
+
 /*! \brief Attribute keys of ops used for SearchPolicy. */
 struct SearchPolicyKey {
   /*! \brief Always apply unroll to the inner most iterator of the specificed iterators. */
@@ -140,6 +169,12 @@ class SearchPolicyNode : public Object {
    */
   virtual State Search(int num_measure_trials, int early_stopping, int num_measures_per_round,
                        ProgramMeasurer measurer) = 0;
+
+  /*!
+   * \brief Preload measured states from a log file to resume the state of the search policy.
+   * \param log_file The name of the record log file.
+   */
+  void PreloadMeasuredStates(const String& log_file);
 
   /*!
    * \brief Call SearchCallback with the current SearchPolicyNode

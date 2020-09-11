@@ -92,6 +92,7 @@
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/feature.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/transform.h>
@@ -535,7 +536,7 @@ DLContext CPUContext() {
 FInterpreter CPUInterpreter() {
   using tvm::transform::PassContext;
 
-  Target target = Target::Create("llvm");
+  Target target = Target("llvm");
   // use a fresh build context
   // in case we are already in a build context.
   With<PassContext> fresh_build_ctx(PassContext::Create());
@@ -1181,6 +1182,7 @@ Expr PostProcess(const Expr& e) { return StripWithFuncId(DeDup(Remap(e))); }
 }  // namespace partial_eval
 
 IRModule PartialEval(const IRModule& m) {
+  CheckFeature(m, FeatureSet::All() - fGraph);
   relay::partial_eval::PartialEvaluator pe(m);
   std::vector<GlobalVar> gvs;
   for (const auto& p : m->functions) {
@@ -1189,6 +1191,7 @@ IRModule PartialEval(const IRModule& m) {
   for (const auto& gv : gvs) {
     pe.VisitGlobalVar(gv);
   }
+  CheckFeature(m, FeatureSet::All() - fGraph);
   return m;
 }
 
@@ -1197,7 +1200,7 @@ namespace transform {
 Pass PartialEval() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
       [=](IRModule m, PassContext pc) { return relay::PartialEval(m); };
-  return CreateModulePass(pass_func, 1, "PartialEvaluate", {});
+  return CreateModulePass(pass_func, 1, "PartialEval", {});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.PartialEvaluate").set_body_typed(PartialEval);

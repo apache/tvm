@@ -60,16 +60,16 @@ Target DefaultTargetHost(Target target) {
     return target;
   } else {
     if (LLVMEnabled()) {
-      return target::llvm();
+      return Target("llvm");
     } else {
-      return target::stackvm();
+      return Target("stackvm");
     }
   }
 }
 
 tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std::string name,
                                       int data_alignment, int offset_factor, bool compact) {
-  auto data = tir::Var(name, DataType::Handle());
+  auto data = tir::Var(name, PointerType(PrimType(dtype)));
   bool has_any = false;
   if (!compact) {
     for (const auto& it : shape) {
@@ -294,10 +294,10 @@ runtime::Module build(const Map<Target, IRModule>& inputs, const Target& target_
 runtime::Module build(const Map<String, IRModule>& inputs, const Target& target_host) {
   Map<Target, IRModule> updated_input;
   for (const auto& it : inputs) {
-    auto target = Target::Create(it.first);
+    auto target = Target(it.first);
     Optional<String> device = target->GetAttr<String>("device");
     if (device.defined() && device.value() == "vta") {
-      target = Target::Create("ext_dev");
+      target = Target("ext_dev");
     }
     updated_input.Set(target, it.second);
   }

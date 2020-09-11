@@ -23,7 +23,42 @@ from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay import transform
+import tvm.testing
 
+def _trace(module, metadata, _):
+    if metadata.name == 'ManifestAlloc':
+        pass # import pdb; pdb.set_trace()
+
+
+def check_graph_runtime(target, ref_res, device, func, params, config,
+                        opt_level, expected_index=None):
+    with tvm.transform.PassContext(opt_level=opt_level, config=config):
+        graph, lib, new_params = relay.build(
+            func,
+            target,
+            params=params)
+        contexts = [tvm.cpu(0), tvm.context(device)]
+        graph_json = json.loads(graph)
+        if "device_index" in graph_json["attrs"]:
+            device_index = graph_json["attrs"]["device_index"][1]
+            assert device_index == expected_index
+        mod = graph_runtime.create(graph, lib, contexts)
+        mod.set_input(**new_params)
+        mod.run()
+        res = mod.get_output(0).asnumpy()
+        tvm.testing.assert_allclose(res, ref_res, rtol=1e-5, atol=1e-5)
+
+
+def check_vm_runtime(target, ref_res, device, func, params, config,
+                     opt_level, expected_index=None):
+    with tvm.transform.PassContext(opt_level=opt_level, trace=_trace, config=config):
+        mod = tvm.IRModule()
+        mod["main"] = func
+        exe = relay.vm.compile(mod, target)
+        ctx = [tvm.cpu(0), tvm.context(device)]
+        vm = tvm.runtime.vm.VirtualMachine(exe, ctx)
+        res = vm.invoke("main", **params)
+        tvm.testing.assert_allclose(res.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
@@ -309,6 +344,76 @@ def test_conv_network():
     test_visitor_annotation()
 
 
+def test_propogation():
+    R""" The network and device type is as following:
+                  x           1
+                  |
+                 log          1
+                /   \
+              log2 log10      2
+                \   /
+                 add          2
+                  |
+                 tan          1
+    """
+    ctx1 = tvm.context(1)
+    ctx2 = tvm.context(2)
+
+    expected_dev_type = {
+        'log': ctx1,
+        'log2': ctx2,
+        'log10': ctx2,
+        'add': ctx2,
+        'tan': ctx1
+    }
+
+    x = relay.var("x", shape=(3,))
+
+    def annotated():
+        log = relay.log(x)
+        _log = relay.annotation.on_device(log, expected_dev_type['log'])
+        log2 = relay.log2(_log)
+        _log2 = relay.annotation.on_device(log2, expected_dev_type['log2'])
+        log10 = relay.log10(_log)
+        _log10 = relay.annotation.on_device(log10, expected_dev_type['log10'])
+        add = relay.add(_log2, _log10)
+        _add = relay.annotation.on_device(add, expected_dev_type['add'])
+        tan = relay.tan(_add)
+        _tan = relay.annotation.on_device(tan, expected_dev_type['tan'])
+
+        func = run_opt_pass(_tan, transform.RewriteAnnotatedOps(ctx1.device_type))
+        return func
+
+    def expected():
+        log = relay.log(x)
+        _log_left = relay.device_copy(log, ctx1, ctx2)
+        _log_right = relay.device_copy(log, ctx1, ctx2)
+        log2 = relay.log2(_log_left)
+        log10 = relay.log10(_log_right)
+        add = relay.add(log2, log10)
+        _add = relay.device_copy(add, ctx2, ctx1)
+        tan = relay.tan(_add)
+
+        func = run_opt_pass(tan, transform.InferType())
+        return func
+
+    annotated_expr = annotated()
+    expected_expr = expected()
+    assert tvm.ir.structural_equal(annotated_expr, expected_expr)
+
+    smap = relay.backend._backend.GraphPlanMemory(annotated_expr)
+    for expr, storage_dev_type in smap.items():
+        # x is ctx1 as output is ctx1
+        if isinstance(expr, tvm.relay.expr.Var):
+            assert storage_dev_type[1][0] == ctx1.device_type
+        else:
+            # device_copy op should be its dst_dev_type
+            if isinstance(expr.attrs, tvm.relay.op.op_attrs.DeviceCopyAttrs):
+                assert storage_dev_type[1][0] == expr.attrs.dst_dev_type
+            else:
+                assert storage_dev_type[1][0] == expected_dev_type[expr.op.name].device_type
+
+
 def run_fusible_network(dev, tgt):
     R""" The network is as following:
                x     y
@@ -330,6 +435,7 @@ def run_fusible_network(dev, tgt):
     tmp_log = np.log(tmp_add)
     tmp_sub = np.subtract(tmp_sqrt, tmp_log)
     ref_res = np.exp(tmp_sub)
+    params = {"x": x_data, "y": y_data}
 
     def get_func():
         add = relay.add(x, y)
@@ -340,28 +446,6 @@ def run_fusible_network(dev, tgt):
 
         func = relay.Function([x, y], exp)
         return func
-
-    def test_runtime(target, device, func, fallback_device=None,
-                     expected_index=None):
-        params = {"x": x_data, "y": y_data}
-        config = {}
-        if fallback_device:
-            config["relay.fallback_device_type"] = fallback_device.device_type
-        with tvm.transform.PassContext(opt_level=1, config=config):
-            graph, lib, params = relay.build(
-                func,
-                target,
-                params=params)
-            contexts = [tvm.cpu(0), tvm.context(device)]
-            graph_json = json.loads(graph)
-            if "device_index" in graph_json["attrs"]:
-                device_index = graph_json["attrs"]["device_index"][1]
-                assert device_index == expected_index
-            mod = graph_runtime.create(graph, lib, contexts)
-            mod.set_input(**params)
-            mod.run()
-            res = mod.get_output(0).asnumpy()
-            tvm.testing.assert_allclose(res, ref_res, rtol=1e-5, atol=1e-5)
 
     def test_fuse_log_add(device, tgt):
         """ Only log and add are fused."""
@@ -403,8 +487,13 @@ def run_fusible_network(dev, tgt):
         dev_idx = ctx.device_type
         expected_index = [1, 1, 1, dev_idx, dev_idx, 1, 1, dev_idx, dev_idx]
         check_annotated_graph(annotated_func, expected_func)
-        test_runtime(target, device, annotated_func, fallback_device,
-                     expected_index)
+        opt_level = 1
+        config = {"relay.fallback_device_type": fallback_device.device_type}
+        check_graph_runtime(target, ref_res, device, annotated_func, params,
+                            config, opt_level, expected_index)
+        opt_level = 2
+        check_vm_runtime(target, ref_res, device, annotated_func, params,
+                         config, opt_level, expected_index)
 
     def test_fuse_all(device, tgt):
         """Fuse all operators."""
@@ -433,7 +522,13 @@ def run_fusible_network(dev, tgt):
         annotated_func = annotated()
         expected_func = get_func()
         check_annotated_graph(annotated_func, expected_func)
-        test_runtime(target, device, annotated_func, fallback_device)
+        opt_level = 1
+        config = {"relay.fallback_device_type": fallback_device.device_type}
+        check_graph_runtime(target, ref_res, device, annotated_func, params,
+                            config, opt_level)
+        opt_level = 2
+        check_vm_runtime(target, ref_res, device, annotated_func, params,
+                         config, opt_level)
 
     def test_fallback_exp(device, tgt):
         fallback_device = tvm.context("cpu")
@@ -470,22 +565,32 @@ def run_fusible_network(dev, tgt):
         ctx = tvm.context(device, 0)
         dev_idx = ctx.device_type
         expected_index = [dev_idx, dev_idx, dev_idx, 1, 1]
+        opt_level = 1
+        config = {"relay.fallback_device_type": fallback_device.device_type}
         check_annotated_graph(annotated_func, expected_func)
-        test_runtime(target, device, annotated_func, fallback_device,
-                     expected_index)
+        check_graph_runtime(target, ref_res, device, annotated_func, params, config,
+                            opt_level, expected_index)
+        opt_level = 2
+        check_vm_runtime(target, ref_res, device, annotated_func, params, config,
+                         opt_level, expected_index)
 
     def test_fallback_all_operators(device, tgt):
         target = {device: tgt, "cpu": "llvm"}
         annotated_func = get_func()
         expected_func = get_func()
         check_annotated_graph(annotated_func, expected_func)
-        test_runtime(target, device, annotated_func)
+        opt_level = 2
+        check_graph_runtime(target, ref_res, device, annotated_func, params, {},
+                            opt_level)
+        check_vm_runtime(target, ref_res, device, annotated_func, params, {},
+                         opt_level)
 
 
     test_fuse_log_add(dev, tgt)
     test_fuse_all(dev, tgt)
     test_fallback_exp(dev, tgt)
     test_fallback_all_operators(dev, tgt)
+
 
 def run_unpropagatable_graph(dev, tgt):
     R""" The network is as following:
@@ -538,38 +643,44 @@ def run_unpropagatable_graph(dev, tgt):
     expected_index = [2, 2, 2, 1, 1, 1, 2, 2]
     check_annotated_graph(annotated_func, expected_func)
     params = {"a": a_data, "b": b_data, "c": c_data, "d": d_data}
-    with tvm.transform.PassContext(opt_level=0,
-                                   config={"relay.fallback_device_type":
-                                           fallback_device.device_type}):
-        graph, lib, params = relay.build(annotated_func, target, params=params)
-        contexts = [tvm.cpu(0), tvm.context(dev)]
-        graph_json = json.loads(graph)
-        if "device_index" in graph_json["attrs"]:
-            device_index = graph_json["attrs"]["device_index"][1]
-            assert device_index == expected_index
-        mod = graph_runtime.create(graph, lib, contexts)
-        mod.set_input(**params)
-        mod.run()
-        res = mod.get_output(0).asnumpy()
-        tvm.testing.assert_allclose(res, ref_res, rtol=1e-5, atol=1e-5)
+    opt_level = 0
+    config = {"relay.fallback_device_type": fallback_device.device_type}
+
+    check_graph_runtime(target, ref_res, dev, annotated_func, params, config,
+                        opt_level, expected_index)
+
+    opt_level = 2
+    check_vm_runtime(target, ref_res, dev, annotated_func, params, config,
+                     opt_level)
 
 
-def test_check_run():
-    for dev, tgt in [("opencl", "opencl"), ("cuda", "cuda"),
-                 ("opencl", str(tvm.target.intel_graphics()))]:
-        if not tvm.runtime.enabled(dev):
-            print("Skip test because %s is not enabled." % dev)
-            continue
-        run_fusible_network(dev, tgt)
-        run_unpropagatable_graph(dev, tgt)
+@tvm.testing.requires_opencl
+def test_check_run_opencl():
+    dev = "opencl"
+    tgt = "opencl"
+    run_fusible_network(dev, tgt)
+    run_unpropagatable_graph(dev, tgt)
 
 
+@tvm.testing.requires_opencl
+def test_check_run_opencl_intel():
+    dev = "opencl"
+    tgt = str(tvm.target.intel_graphics())
+    run_fusible_network(dev, tgt)
+    run_unpropagatable_graph(dev, tgt)
+
+
+@tvm.testing.requires_cuda
+def test_check_run_cuda():
+    dev = "cuda"
+    tgt = "cuda"
+    run_fusible_network(dev, tgt)
+    run_unpropagatable_graph(dev, tgt)
+
+
+@tvm.testing.requires_cuda
 def test_tuple_get_item():
     dev = "cuda"
-    if not tvm.runtime.enabled(dev):
-        print("Skip test because %s is not enabled." % dev)
-        return
-
     cpu_ctx = tvm.cpu(0)
     gpu_ctx = tvm.context(dev)
 
@@ -605,5 +716,4 @@ if __name__ == "__main__":
     test_annotate_all()
     test_annotate_none()
     test_conv_network()
-    test_check_run()
     test_tuple_get_item()

@@ -374,7 +374,7 @@ inline bool IsEqualScalar(const Expr& a, const Expr& b) {
  * \param i element index
  * \return Converted scalar value.
  */
-static inline double ToScalar(const runtime::NDArray& array, size_t i = 0) {
+static inline long double ToScalar(const runtime::NDArray& array, size_t i = 0) {
   if (array->dtype.code == kDLInt) {
     if (array->dtype.bits == 8) {
       return reinterpret_cast<int8_t*>(array->data)[i];
@@ -396,11 +396,10 @@ static inline double ToScalar(const runtime::NDArray& array, size_t i = 0) {
       return reinterpret_cast<uint64_t*>(array->data)[i];
     }
   } else if (array->dtype.code == kDLFloat) {
-#if (__ARM_FP16_FORMAT_IEEE == 1)
     if (array->dtype.bits == 16) {
-      return reinterpret_cast<__fp16*>(array->data)[i];
+      return __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
+          reinterpret_cast<uint16_t*>(array->data)[i]);
     }
-#endif
     if (array->dtype.bits == 32) {
       return reinterpret_cast<float*>(array->data)[i];
     } else if (array->dtype.bits == 64) {
@@ -419,12 +418,36 @@ static inline double ToScalar(const runtime::NDArray& array, size_t i = 0) {
  */
 static inline Array<Integer> ToVector(const runtime::NDArray& array) {
   size_t ndim = array.Shape().size();
-  CHECK_EQ(ndim, 1) << "This function should only used for shape tensor.";
+  CHECK_EQ(ndim, 1) << "This function should only be used for 1D NDArrays";
   size_t len = array.Shape().front();
   Array<Integer> out;
   for (size_t i = 0; i < len; ++i) {
-    double elem_val = ToScalar(array, i);
-    out.push_back(Integer(static_cast<int>(elem_val)));
+    long double elem_val = ToScalar(array, i);
+    out.push_back(Integer(IntImm(DataType::Int(32), static_cast<int64_t>(elem_val))));
+  }
+  return out;
+}
+
+/*!
+ * \brief Convert a NDArray with type int or float to Array<Array<Integer>>.
+ * \param array Input NDArray
+ * \return Converted Array.
+ */
+static inline Array<Array<Integer>> ToMatrix(const runtime::NDArray& array) {
+  size_t ndim = array.Shape().size();
+  CHECK_EQ(ndim, 2) << "This function should only used for 2D NDArrays";
+  size_t dim1 = array.Shape().at(0);
+  size_t dim2 = array.Shape().at(1);
+
+  Array<Array<Integer>> out;
+
+  for (size_t i = 0; i < dim1; ++i) {
+    Array<Integer> inner_out;
+    for (size_t j = 0; j < dim2; ++j) {
+      double elem_val = ToScalar(array, i * dim2 + j);
+      inner_out.push_back(Integer(static_cast<int>(elem_val)));
+    }
+    out.push_back(inner_out);
   }
   return out;
 }
@@ -596,7 +619,7 @@ static inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
 }
 
 static inline Expr Full(Expr fill_value, Array<IndexExpr> shape, DataType dtype) {
-  return MakeFull(fill_value, CheckConstantShape(shape), dtype);
+  return MakeFull(fill_value, CheckConstantShapeArrayInteger(shape), dtype);
 }
 
 static inline Expr Conv2D(Expr data, Expr weight, Array<IndexExpr> strides,
@@ -629,7 +652,11 @@ static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexE
 
 static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value,
                        std::string pad_mode) {
-  return MakePad(data, pad_width, pad_value, pad_mode);
+  Array<Array<Integer>> pad_width_int;
+  for (size_t i = 0; i < pad_width.size(); ++i) {
+    pad_width_int.push_back(CheckConstantShapeArrayInteger(pad_width[i]));
+  }
+  return MakePad(data, pad_width_int, pad_value, pad_mode);
 }
 
 static inline Expr Tile(Expr data, Array<Integer> reps) { return MakeTile(data, reps); }

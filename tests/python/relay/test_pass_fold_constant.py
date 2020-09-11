@@ -71,7 +71,7 @@ def test_fold_const():
         return relay.Function([x], z)
 
     # the fold constant should work on any context.
-    with tvm.target.create("cuda"):
+    with tvm.target.Target("cuda"):
         zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
     assert tvm.ir.structural_equal(zz, zexpected)

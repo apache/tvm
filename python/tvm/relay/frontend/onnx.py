@@ -34,6 +34,7 @@ from ..expr import If, Tuple, TupleGetItem
 from ..expr import RefCreate, RefRead, RefWrite
 from ..expr_functor import ExprFunctor
 from ..adt import Match, Clause
+from ..op.tensor import minimum as _minimum, maximum as _maximum
 
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels
@@ -937,7 +938,10 @@ class Upsample(OnnxOpConverter):
         else:
             assert len(scales) == 4
             attr['layout'] = 'NCHW'
-            attr['align_corners'] = True
+            if method == 'nearest_neighbor':
+                attr['align_corners'] = False
+            else:
+                attr['align_corners'] = True
             op_name = 'upsampling'
         return AttrCvt(op_name)(inputs, attr)
 
@@ -1045,26 +1049,29 @@ class Slice(OnnxOpConverter):
         end = list(attr['ends'])
 
         return _op.strided_slice(inputs[0],
-                                 begin=_expr.const(begin, dtype="int32"),
-                                 end=_expr.const(end, dtype="int32"))
+                                 begin=begin,
+                                 end=end)
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        starts = params[get_name(inputs[1])].asnumpy()
-        ends = params[get_name(inputs[2])].asnumpy()
+        attrs = {'starts' : inputs[1], 'ends' : inputs[2]}
+        if len(inputs) >= 4:
+            attrs['axes'] = inputs[3]
+        attrs = {k : (v, get_name(v)) for (k, v) in attrs.items()}
+        attrs = {k : params[v[1]].asnumpy() if v[1] in params else
+                     infer_value_simulated(v[0], params).asnumpy()
+                 for (k, v) in attrs.items()}
 
         # Update the starts and ends according to axes if required.
-        if len(inputs) >= 4:
-            axes = params[get_name(inputs[3])].asnumpy()
-
-            if max(axes + 1) != len(axes):
+        if 'axes' in attrs:
+            if max(attrs['axes'] + 1) != len(attrs['axes']):
                 new_starts, new_ends, _ = cls._common(
-                    starts, ends, axes)
-                starts = new_starts
-                ends = new_ends
+                    attrs['starts'], attrs['ends'], attrs['axes'])
+                attrs['starts'] = new_starts
+                attrs['ends'] = new_ends
         return _op.strided_slice(inputs[0],
-                                 begin=_expr.const(starts, dtype="int32"),
-                                 end=_expr.const(ends, dtype="int32"))
+                                 begin=list(attrs['starts']),
+                                 end=list(attrs['ends']))
 
 
 class Gather(OnnxOpConverter):
@@ -1875,6 +1882,30 @@ class RoiAlign(OnnxOpConverter):
         return _vision.roi_align(x, rois, [output_height, output_width],
                                  spatial_scale, sampling_ratio)
 
+class Clip(OnnxOpConverter):
+    """Operator converter for Clip.
+    """
+    @staticmethod
+    def convert_attributes(inputs, attr, params):
+        convert = AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'})
+        return convert(inputs, attr, params)
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return Clip.convert_attributes(inputs, attr, params)
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        if 'min' in attr and 'max' in attr:
+            return Clip.convert_attributes(inputs, attr, params)
+
+        assert len(inputs) <= 3, "Clip-11 takes up to 3 inputs, input, min, max"
+        result = inputs[0]
+        for i, op in enumerate([_maximum, _minimum]):
+            if i < len(inputs) - 1:
+                result = op(result, inputs[i+1])
+        return result
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1956,7 +1987,7 @@ def _get_convert_map(opset):
         'Min': Minimum.get_converter(opset),
         'Sum': Sum.get_converter(opset),
         'Mean': Mean.get_converter(opset),
-        'Clip': AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'}),
+        'Clip': Clip.get_converter(opset),
         # softmax default axis is different in onnx
         'Softmax': Softmax.get_converter(opset),
         'LogSoftmax': AttrCvt('log_softmax', {'axis': ('axis', 1)}),

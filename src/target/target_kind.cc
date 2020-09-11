@@ -21,22 +21,26 @@
  * \file src/target/target_kind.cc
  * \brief Target kind registry
  */
+#include <tvm/ir/expr.h>
+#include <tvm/runtime/device_api.h>
+#include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
 
 #include <algorithm>
 
 #include "../node/attr_registry.h"
-#include "../runtime/object_internal.h"
 
 namespace tvm {
 
 TVM_REGISTER_NODE_TYPE(TargetKindNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<TargetKindNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const TargetKindNode*>(node.get());
-      p->stream << op->name;
+    .set_dispatch<TargetKindNode>([](const ObjectRef& obj, ReprPrinter* p) {
+      const TargetKind& kind = Downcast<TargetKind>(obj);
+      p->stream << kind->name;
     });
+
+/**********  Registry-related code  **********/
 
 using TargetKindRegistry = AttrRegistry<TargetKindRegEntry, TargetKind>;
 
@@ -53,461 +57,247 @@ const AttrRegistryMapContainerMap<TargetKind>& TargetKind::GetAttrMapContainer(
   return TargetKindRegistry::Global()->GetAttrMap(attr_name);
 }
 
-const TargetKind& TargetKind::Get(const String& target_kind_name) {
+Optional<TargetKind> TargetKind::Get(const String& target_kind_name) {
   const TargetKindRegEntry* reg = TargetKindRegistry::Global()->Get(target_kind_name);
-  CHECK(reg != nullptr) << "ValueError: TargetKind \"" << target_kind_name
-                        << "\" is not registered";
+  if (reg == nullptr) {
+    return NullOpt;
+  }
   return reg->kind_;
 }
 
-void TargetKindNode::VerifyTypeInfo(const ObjectRef& obj,
-                                    const TargetKindNode::ValueTypeInfo& info) const {
-  CHECK(obj.defined()) << "Object is None";
-  if (!runtime::ObjectInternal::DerivedFrom(obj.get(), info.type_index)) {
-    LOG(FATAL) << "AttributeError: expect type \"" << info.type_key << "\" but get "
-               << obj->GetTypeKey();
-    throw;
-  }
-  if (info.type_index == ArrayNode::_type_index) {
-    int i = 0;
-    for (const auto& e : *obj.as<ArrayNode>()) {
-      try {
-        VerifyTypeInfo(e, *info.key);
-      } catch (const tvm::Error& e) {
-        LOG(FATAL) << "The i-th element of array failed type checking, where i = " << i
-                   << ", and the error is:\n"
-                   << e.what();
-        throw;
-      }
-      ++i;
-    }
-  } else if (info.type_index == MapNode::_type_index) {
-    for (const auto& kv : *obj.as<MapNode>()) {
-      try {
-        VerifyTypeInfo(kv.first, *info.key);
-      } catch (const tvm::Error& e) {
-        LOG(FATAL) << "The key of map failed type checking, where key = \"" << kv.first
-                   << "\", value = \"" << kv.second << "\", and the error is:\n"
-                   << e.what();
-        throw;
-      }
-      try {
-        VerifyTypeInfo(kv.second, *info.val);
-      } catch (const tvm::Error& e) {
-        LOG(FATAL) << "The value of map failed type checking, where key = \"" << kv.first
-                   << "\", value = \"" << kv.second << "\", and the error is:\n"
-                   << e.what();
-        throw;
-      }
-    }
-  }
-}
+/**********  Utility functions  **********/
 
-void TargetKindNode::ValidateSchema(const Map<String, ObjectRef>& config) const {
-  const String kTargetKind = "kind";
-  for (const auto& kv : config) {
-    const String& name = kv.first;
-    const ObjectRef& obj = kv.second;
-    if (name == kTargetKind) {
-      CHECK(obj->IsInstance<StringObj>())
-          << "AttributeError: \"kind\" is not a string, but its type is \"" << obj->GetTypeKey()
-          << "\"";
-      CHECK(Downcast<String>(obj) == this->name)
-          << "AttributeError: \"kind\" = \"" << obj << "\" is inconsistent with TargetKind \""
-          << this->name << "\"";
-      continue;
-    }
-    auto it = key2vtype_.find(name);
-    if (it == key2vtype_.end()) {
-      std::ostringstream os;
-      os << "AttributeError: Invalid config option, cannot recognize \"" << name
-         << "\". Candidates are:";
-      for (const auto& kv : key2vtype_) {
-        os << "\n  " << kv.first;
-      }
-      LOG(FATAL) << os.str();
-      throw;
-    }
-    const auto& info = it->second;
-    try {
-      VerifyTypeInfo(obj, info);
-    } catch (const tvm::Error& e) {
-      LOG(FATAL) << "AttributeError: Schema validation failed for TargetKind \"" << this->name
-                 << "\", details:\n"
-                 << e.what() << "\n"
-                 << "The config is:\n"
-                 << config;
-      throw;
-    }
-  }
-}
-
-inline String GetKind(const Map<String, ObjectRef>& target, const char* name) {
-  const String kTargetKind = "kind";
-  CHECK(target.count(kTargetKind))
-      << "AttributeError: \"kind\" does not exist in \"" << name << "\"\n"
-      << name << " = " << target;
-  const ObjectRef& obj = target[kTargetKind];
-  CHECK(obj->IsInstance<StringObj>()) << "AttributeError: \"kind\" is not a string in \"" << name
-                                      << "\", but its type is \"" << obj->GetTypeKey() << "\"\n"
-                                      << name << " = \"" << target << '"';
-  return Downcast<String>(obj);
-}
-
-void TargetValidateSchema(const Map<String, ObjectRef>& config) {
-  try {
-    const String kTargetHost = "target_host";
-    Map<String, ObjectRef> target = config;
-    Map<String, ObjectRef> target_host;
-    String target_kind = GetKind(target, "target");
-    String target_host_kind;
-    if (config.count(kTargetHost)) {
-      target.erase(kTargetHost);
-      target_host = Downcast<Map<String, ObjectRef>>(config[kTargetHost]);
-      target_host_kind = GetKind(target_host, "target_host");
-    }
-    TargetKind::Get(target_kind)->ValidateSchema(target);
-    if (!target_host.empty()) {
-      TargetKind::Get(target_host_kind)->ValidateSchema(target_host);
-    }
-  } catch (const tvm::Error& e) {
-    LOG(FATAL) << "AttributeError: schedule validation fails:\n"
-               << e.what() << "\nThe configuration is:\n"
-               << config;
-  }
-}
-
-static inline size_t CountNumPrefixDashes(const std::string& s) {
-  size_t i = 0;
-  for (; i < s.length() && s[i] == '-'; ++i) {
-  }
-  return i;
-}
-
-static inline int FindUniqueSubstr(const std::string& str, const std::string& substr) {
-  size_t pos = str.find_first_of(substr);
-  if (pos == std::string::npos) {
+/*!
+ * \brief Extract a number from the string with the given prefix.
+ * For example, when `str` is "sm_20" and `prefix` is "sm_".
+ * This function first checks if `str` starts with `prefix`,
+ * then return the integer 20 after the `prefix`
+ * \param str The string to be extracted
+ * \param prefix The prefix to be checked
+ * \return An integer, the extracted number. -1 if the check fails
+ */
+static int ExtractIntWithPrefix(const std::string& str, const std::string& prefix) {
+  if (str.substr(0, prefix.size()) != prefix) {
     return -1;
   }
-  size_t next_pos = pos + substr.size();
-  CHECK(next_pos >= str.size() || str.find_first_of(substr, next_pos) == std::string::npos)
-      << "ValueError: At most one \"" << substr << "\" is allowed in "
-      << "the the given string \"" << str << "\"";
-  return pos;
+  int result = 0;
+  for (size_t i = prefix.size(); i < str.size(); ++i) {
+    char c = str[i];
+    if (!isdigit(c)) {
+      return -1;
+    }
+    result = result * 10 + c - '0';
+  }
+  return result;
 }
 
-static inline ObjectRef ParseScalar(uint32_t type_index, const std::string& str) {
-  std::istringstream is(str);
-  if (type_index == Integer::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-    int v;
-    is >> v;
-    return is.fail() ? ObjectRef(nullptr) : Integer(v);
-  } else if (type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-    std::string v;
-    is >> v;
-    return is.fail() ? ObjectRef(nullptr) : String(v);
+/*!
+ * \brief Using TVM DeviceAPI to detect the device flag
+ * \param device The device to be detected
+ * \param flag The device flag to be detected
+ * \param val The detected value
+ * \return A boolean indicating if detection succeeds
+ */
+static bool DetectDeviceFlag(TVMContext device, runtime::DeviceAttrKind flag, TVMRetValue* val) {
+  using runtime::DeviceAPI;
+  DeviceAPI* api = DeviceAPI::Get(device, true);
+  // Check if compiled with the corresponding device api
+  if (api == nullptr) {
+    return false;
   }
-  return ObjectRef(nullptr);
+  // Check if the device exists
+  api->GetAttr(device, runtime::kExist, val);
+  int exists = *val;
+  if (!exists) {
+    return false;
+  }
+  // Get the arch of the device
+  DeviceAPI::Get(device)->GetAttr(device, flag, val);
+  return true;
 }
 
-static inline Optional<String> StringifyScalar(const ObjectRef& obj) {
-  if (const auto* p = obj.as<IntImmNode>()) {
-    return String(std::to_string(p->value));
+void CheckOrSetAttr(Map<String, ObjectRef>* attrs, const String& name, const String& value) {
+  auto iter = attrs->find(name);
+  if (iter == attrs->end()) {
+    attrs->Set(name, value);
+  } else {
+    const auto* str = (*iter).second.as<StringObj>();
+    CHECK(str != nullptr && GetRef<String>(str) == value)
+        << "ValueError: Expects \"" << name << "\" to be \"" << value
+        << "\", but gets: " << (*iter).second;
   }
-  if (const auto* p = obj.as<StringObj>()) {
-    return GetRef<String>(p);
-  }
-  return NullOpt;
 }
 
-static inline Optional<String> Join(const std::vector<String>& array, char separator) {
-  if (array.empty()) {
-    return NullOpt;
-  }
-  std::ostringstream os;
-  os << array[0];
-  for (size_t i = 1; i < array.size(); ++i) {
-    os << separator << array[i];
-  }
-  return String(os.str());
-}
+/**********  Target kind attribute updaters  **********/
 
-Map<String, ObjectRef> TargetKindNode::ParseAttrsFromRaw(
-    const std::vector<std::string>& options) const {
-  std::unordered_map<String, ObjectRef> attrs;
-  for (size_t iter = 0, end = options.size(); iter < end;) {
-    std::string s = options[iter++];
-    // remove the prefix dashes
-    size_t n_dashes = CountNumPrefixDashes(s);
-    CHECK(0 < n_dashes && n_dashes < s.size())
-        << "ValueError: Not an attribute key \"" << s << "\"";
-    s = s.substr(n_dashes);
-    // parse name-obj pair
-    std::string name;
-    std::string obj;
-    int pos;
-    if ((pos = FindUniqueSubstr(s, "=")) != -1) {
-      // case 1. --key=value
-      name = s.substr(0, pos);
-      obj = s.substr(pos + 1);
-      CHECK(!name.empty()) << "ValueError: Empty attribute key in \"" << options[iter - 1] << "\"";
-      CHECK(!obj.empty()) << "ValueError: Empty attribute in \"" << options[iter - 1] << "\"";
-    } else if (iter < end && options[iter][0] != '-') {
-      // case 2. --key value
-      name = s;
-      obj = options[iter++];
+/*!
+ * \brief Update the attributes in the LLVM NVPTX target.
+ * \param attrs The original attributes
+ * \return The updated attributes
+ */
+Map<String, ObjectRef> UpdateNVPTXAttrs(Map<String, ObjectRef> attrs) {
+  CheckOrSetAttr(&attrs, "mtriple", "nvptx64-nvidia-cuda");
+  // Update -mcpu=sm_xx
+  int arch;
+  if (attrs.count("mcpu")) {
+    // If -mcpu has been specified, validate the correctness
+    String mcpu = Downcast<String>(attrs.at("mcpu"));
+    arch = ExtractIntWithPrefix(mcpu, "sm_");
+    CHECK(arch != -1) << "ValueError: NVPTX target gets an invalid CUDA arch: -mcpu=" << mcpu;
+  } else {
+    // Use the compute version of the first CUDA GPU instead
+    TVMRetValue version;
+    if (!DetectDeviceFlag({kDLGPU, 0}, runtime::kComputeVersion, &version)) {
+      LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_20\" instead";
+      arch = 20;
     } else {
-      // case 3. --boolean-key
-      name = s;
-      obj = "1";
+      arch = std::stod(version.operator std::string()) * 10 + 0.1;
     }
-    // check if `name` is invalid
-    auto it = key2vtype_.find(name);
-    if (it == key2vtype_.end()) {
-      std::ostringstream os;
-      os << "AttributeError: Invalid config option, cannot recognize \'" << name
-         << "\'. Candidates are:";
-      for (const auto& kv : key2vtype_) {
-        os << "\n  " << kv.first;
-      }
-      LOG(FATAL) << os.str();
-    }
-    // check if `name` has been set once
-    CHECK(!attrs.count(name)) << "AttributeError: key \"" << name
-                              << "\" appears more than once in the target string";
-    // then `name` is valid, let's parse them
-    // only several types are supported when parsing raw string
-    const auto& info = it->second;
-    ObjectRef parsed_obj(nullptr);
-    if (info.type_index != ArrayNode::_type_index) {
-      parsed_obj = ParseScalar(info.type_index, obj);
-    } else {
-      Array<ObjectRef> array;
-      std::string item;
-      bool failed = false;
-      uint32_t type_index = info.key->type_index;
-      for (std::istringstream is(obj); std::getline(is, item, ',');) {
-        ObjectRef parsed_obj = ParseScalar(type_index, item);
-        if (parsed_obj.defined()) {
-          array.push_back(parsed_obj);
-        } else {
-          failed = true;
-          break;
-        }
-      }
-      if (!failed) {
-        parsed_obj = std::move(array);
-      }
-    }
-    if (!parsed_obj.defined()) {
-      LOG(FATAL) << "ValueError: Cannot parse type \"" << info.type_key << "\""
-                 << ", where attribute key is \"" << name << "\""
-                 << ", and attribute is \"" << obj << "\"";
-    }
-    attrs[name] = std::move(parsed_obj);
-  }
-  // set default attribute values if they do not exist
-  for (const auto& kv : key2default_) {
-    if (!attrs.count(kv.first)) {
-      attrs[kv.first] = kv.second;
-    }
+    attrs.Set("mcpu", String("sm_") + std::to_string(arch));
   }
   return attrs;
 }
 
-Optional<String> TargetKindNode::StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) const {
-  std::ostringstream os;
-  std::vector<String> keys;
-  for (const auto& kv : attrs) {
-    keys.push_back(kv.first);
-  }
-  std::sort(keys.begin(), keys.end());
-  std::vector<String> result;
-  for (const auto& key : keys) {
-    const ObjectRef& obj = attrs[key];
-    Optional<String> value = NullOpt;
-    if (const auto* array = obj.as<ArrayNode>()) {
-      std::vector<String> items;
-      for (const ObjectRef& item : *array) {
-        Optional<String> str = StringifyScalar(item);
-        if (str.defined()) {
-          items.push_back(str.value());
-        } else {
-          items.clear();
-          break;
-        }
-      }
-      value = Join(items, ',');
+/*!
+ * \brief Update the attributes in the LLVM ROCm target.
+ * \param attrs The original attributes
+ * \return The updated attributes
+ */
+Map<String, ObjectRef> UpdateROCmAttrs(Map<String, ObjectRef> attrs) {
+  CheckOrSetAttr(&attrs, "mtriple", "amdgcn-amd-amdhsa-hcc");
+  // Update -mcpu=gfx
+  int arch;
+  if (attrs.count("mcpu")) {
+    String mcpu = Downcast<String>(attrs.at("mcpu"));
+    arch = ExtractIntWithPrefix(mcpu, "gfx");
+    CHECK(arch != -1) << "ValueError: ROCm target gets an invalid GFX version: -mcpu=" << mcpu;
+  } else {
+    TVMRetValue val;
+    if (!DetectDeviceFlag({kDLROCM, 0}, runtime::kGcnArch, &val)) {
+      LOG(WARNING) << "Unable to detect ROCm compute arch, default to \"-mcpu=gfx900\" instead";
+      arch = 900;
     } else {
-      value = StringifyScalar(obj);
+      arch = val.operator int();
     }
-    if (value.defined()) {
-      result.push_back("-" + key + "=" + value.value());
-    }
+    attrs.Set("mcpu", String("gfx") + std::to_string(arch));
   }
-  return Join(result, ' ');
+  // Update -mattr before ROCm 3.5:
+  //   Before ROCm 3.5 we needed code object v2, starting
+  //   with 3.5 we need v3 (this argument disables v3)
+
+  TVMRetValue val;
+  int version;
+  if (!DetectDeviceFlag({kDLROCM, 0}, runtime::kApiVersion, &val)) {
+    LOG(WARNING) << "Unable to detect ROCm version, assuming >= 3.5";
+    version = 305;
+  } else {
+    version = val.operator int();
+  }
+  if (version < 305) {
+    Array<String> mattr;
+    if (attrs.count("mattr")) {
+      mattr = Downcast<Array<String>>(attrs.at("mattr"));
+    }
+    mattr.push_back("-code-object-v3");
+    attrs.Set("mattr", mattr);
+  }
+  return attrs;
 }
 
-// TODO(@junrushao1994): remove some redundant attributes
+/**********  Register Target kinds and attributes  **********/
 
-TVM_REGISTER_TARGET_KIND("llvm")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
-    .add_attr_option<Bool>("system-lib")
-    .add_attr_option<String>("runtime")
-    .add_attr_option<String>("mcpu")
+TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<Array<String>>("mattr")
+    .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<String>("mfloat-abi")
-    .set_default_keys({"cpu"})
-    .set_device_type(kDLCPU);
-
-TVM_REGISTER_TARGET_KIND("c")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<String>("runtime")
-    .set_default_keys({"cpu"})
-    .set_device_type(kDLCPU);
+    .set_default_keys({"cpu"});
 
-TVM_REGISTER_TARGET_KIND("cuda")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
+TVM_REGISTER_TARGET_KIND("c", kDLCPU)
+    .add_attr_option<Bool>("system-lib")
+    .add_attr_option<String>("runtime")
+    .set_default_keys({"cpu"});
+
+TVM_REGISTER_TARGET_KIND("cuda", kDLGPU)
+    .add_attr_option<String>("mcpu")
+    .add_attr_option<String>("arch")
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(1024))
     .add_attr_option<Integer>("thread_warp_size", Integer(32))
-    .add_attr_option<String>("mcpu")
-    .set_default_keys({"cuda", "gpu"})
-    .set_device_type(kDLGPU);
+    .set_default_keys({"cuda", "gpu"});
 
-TVM_REGISTER_TARGET_KIND("nvptx")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
+TVM_REGISTER_TARGET_KIND("nvptx", kDLGPU)
+    .add_attr_option<String>("mcpu")
+    .add_attr_option<String>("mtriple")
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(1024))
     .add_attr_option<Integer>("thread_warp_size", Integer(32))
-    .add_attr_option<String>("mcpu")
     .set_default_keys({"cuda", "gpu"})
-    .set_device_type(kDLGPU);
+    .set_attrs_preprocessor(UpdateNVPTXAttrs);
 
-TVM_REGISTER_TARGET_KIND("rocm")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
+TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
+    .add_attr_option<String>("mcpu")
+    .add_attr_option<String>("mtriple")
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .add_attr_option<Integer>("thread_warp_size", Integer(64))
     .set_default_keys({"rocm", "gpu"})
-    .set_device_type(kDLROCM);
+    .set_attrs_preprocessor(UpdateROCmAttrs);
 
-TVM_REGISTER_TARGET_KIND("opencl")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
+TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .add_attr_option<Integer>("thread_warp_size")
-    .set_default_keys({"opencl", "gpu"})
-    .set_device_type(kDLOpenCL);
+    .set_default_keys({"opencl", "gpu"});
 
-TVM_REGISTER_TARGET_KIND("metal")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
+TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
-    .set_default_keys({"metal", "gpu"})
-    .set_device_type(kDLMetal);
+    .set_default_keys({"metal", "gpu"});
 
-TVM_REGISTER_TARGET_KIND("vulkan")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
+TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
-    .set_default_keys({"vulkan", "gpu"})
-    .set_device_type(kDLVulkan);
+    .set_default_keys({"vulkan", "gpu"});
 
-TVM_REGISTER_TARGET_KIND("webgpu")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
+TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
-    .set_default_keys({"webgpu", "gpu"})
-    .set_device_type(kDLWebGPU);
+    .set_default_keys({"webgpu", "gpu"});
 
-TVM_REGISTER_TARGET_KIND("sdaccel")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
+TVM_REGISTER_TARGET_KIND("sdaccel", kDLOpenCL)
     .add_attr_option<Bool>("system-lib")
-    .set_default_keys({"sdaccel", "hls"})
-    .set_device_type(kDLOpenCL);
+    .set_default_keys({"sdaccel", "hls"});
 
-TVM_REGISTER_TARGET_KIND("aocl")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
+TVM_REGISTER_TARGET_KIND("aocl", kDLAOCL)
     .add_attr_option<Bool>("system-lib")
-    .set_default_keys({"aocl", "hls"})
-    .set_device_type(kDLAOCL);
+    .set_default_keys({"aocl", "hls"});
 
-TVM_REGISTER_TARGET_KIND("aocl_sw_emu")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
+TVM_REGISTER_TARGET_KIND("aocl_sw_emu", kDLAOCL)
     .add_attr_option<Bool>("system-lib")
-    .set_default_keys({"aocl", "hls"})
-    .set_device_type(kDLAOCL);
+    .set_default_keys({"aocl", "hls"});
 
-TVM_REGISTER_TARGET_KIND("hexagon")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
+TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
+    .add_attr_option<Array<String>>("mattr")
+    .add_attr_option<String>("mcpu")
+    .add_attr_option<String>("mtriple")
     .add_attr_option<Bool>("system-lib")
-    .set_default_keys({"hexagon"})
-    .set_device_type(kDLHexagon);
+    .add_attr_option<Array<String>>("llvm-options")
+    .set_default_keys({"hexagon"});
 
-TVM_REGISTER_TARGET_KIND("stackvm")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
-    .add_attr_option<Bool>("system-lib")
-    .set_device_type(kDLCPU);
+TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU)  // line break
+    .add_attr_option<Bool>("system-lib");
 
-TVM_REGISTER_TARGET_KIND("ext_dev")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
-    .add_attr_option<Bool>("system-lib")
-    .set_device_type(kDLExtDev);
+TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev)  // line break
+    .add_attr_option<Bool>("system-lib");
 
-TVM_REGISTER_TARGET_KIND("hybrid")
-    .add_attr_option<Array<String>>("keys")
-    .add_attr_option<Array<String>>("libs")
-    .add_attr_option<String>("device")
-    .add_attr_option<String>("model")
-    .add_attr_option<Bool>("system-lib")
-    .set_device_type(kDLCPU);
+TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
+    .add_attr_option<Bool>("system-lib");
+
+TVM_REGISTER_TARGET_KIND("composite", kDLCPU)
+    .add_attr_option<Target>("target_host")
+    .add_attr_option<Array<Target>>("devices");
 
 }  // namespace tvm

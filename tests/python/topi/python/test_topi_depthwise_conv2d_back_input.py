@@ -24,6 +24,7 @@ from tvm.topi.util import get_const_tuple
 from tvm.topi.nn.util import get_pad_tuple
 import tvm.topi.testing
 from tvm.topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_backward_input_nhwc
+import tvm.testing
 
 
 def verify_depthwise_conv2d_back_input(batch, in_channel, in_h, channel_multiplier, filter_h, stride_h, padding_h):
@@ -51,7 +52,7 @@ def verify_depthwise_conv2d_back_input(batch, in_channel, in_h, channel_multipli
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -106,6 +107,7 @@ def verify_depthwise_conv2d_back_input(batch, in_channel, in_h, channel_multipli
     check_device("vulkan")
     check_device("nvptx")
 
+@tvm.testing.requires_gpu
 def test_topi_depthwise_conv2d_backward_input_nhwc():
     verify_depthwise_conv2d_back_input(16, 256, 56, 1, 3, 1, 1)
     verify_depthwise_conv2d_back_input(16, 256, 56, 2, 3, 1, 1)

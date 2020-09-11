@@ -24,7 +24,7 @@ from tvm.topi.util import get_const_tuple
 from tvm.topi.nn.util import get_pad_tuple
 from tvm.contrib.pickle_memoize import memoize
 
-from common import get_all_backend
+import tvm.testing
 
 _depthwise_conv2d_nchw_implement = {
     "generic": [(topi.nn.depthwise_conv2d_nchw, topi.generic.schedule_depthwise_conv2d_nchw)],
@@ -40,6 +40,7 @@ _depthwise_conv2d_nchw_implement = {
 
 _depthwise_conv2d_nhwc_implement = {
     "generic": (topi.nn.depthwise_conv2d_nhwc, topi.generic.schedule_depthwise_conv2d_nhwc),
+    "arm_cpu": (topi.arm_cpu.compute_depthwise_conv2d_nhwc, topi.arm_cpu.schedule_depthwise_conv2d_nhwc),
     "gpu": (topi.nn.depthwise_conv2d_nhwc, topi.cuda.schedule_depthwise_conv2d_nhwc),
 }
 
@@ -66,11 +67,7 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
 
     dtype = 'float32'
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
 
         impl_list = tvm.topi.testing.dispatch(device, _depthwise_conv2d_nchw_implement)[:]
@@ -78,7 +75,7 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
             impl_list.append((topi.x86.depthwise_conv2d_nchw, topi.x86.schedule_depthwise_conv2d_nchw))
 
         for fcompute, fschedule in impl_list:
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 # declare
                 DepthwiseConv2d = fcompute(Input, Filter, (stride_h, stride_w),
                                            padding_args, dilation, dtype)
@@ -142,9 +139,9 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
             tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
             tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
 
-    for device in get_all_backend():
+    for device, ctx in tvm.testing.enabled_targets():
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
-            check_device(device)
+            check_device(device, ctx)
 
 
 def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding, dilation=1):
@@ -169,15 +166,11 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
 
     dtype = 'float32'
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
 
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _depthwise_conv2d_nhwc_implement)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             # declare
             DepthwiseConv2d = fcompute(Input, Filter,
                 (stride_h, stride_w), padding_args, dilation, dtype)
@@ -242,9 +235,9 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
         tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
 
-    for device in get_all_backend():
+    for device, ctx in tvm.testing.enabled_targets():
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
-            check_device(device)
+            check_device(device, ctx)
 
 def _transform_data(data, bn):
     # NCHW -> NCHW[x]c
@@ -268,7 +261,6 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
     filter_width = filter_height
     stride_h = stride_w = stride
 
-    assert dilation == 1, "depthwise_conv2d_NCHWc currently does not support dilation."
     assert channel_multiplier == 1, "depthwise_conv2d_NCHWc currently does not support channel multiplier > 1."
     pad_h, pad_w, _, _ = get_pad_tuple(padding, (filter_height, filter_width))
     padding_args = (pad_h, pad_w)
@@ -298,15 +290,15 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             # declare
             DepthwiseConv2d = topi.x86.depthwise_conv2d_NCHWc(Input, Filter,
                                                               (stride_h, stride_w),
-                                                              padding_args,
+                                                              padding,
                                                               (dilation, dilation),
                                                               in_layout,
                                                               out_layout, dtype)
@@ -329,8 +321,9 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
             input_np = np.random.uniform(size=input_shape).astype(dtype)
             filter_np = np.random.uniform(size=filter_shape).astype(dtype)
             # correctness with scipy
+            dw_np = tvm.topi.testing.dilate_python(filter_np, (1, 1, dilation, dilation)).astype(dtype)
             depthwise_conv2d_scipy = tvm.topi.testing.depthwise_conv2d_python_nchw(
-                input_np, filter_np, stride, padding)
+                input_np, dw_np, stride, padding)
             relu_scipy = np.maximum(depthwise_conv2d_scipy, 0)
             return (_transform_data(input_np, ic_block),
                     _transform_kernel(filter_np, oc_block),
@@ -359,6 +352,7 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
             check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_depthwise_conv2d():
     # mobilenet workloads
     depthwise_conv2d_with_workload_nchw(1, 32, 112, 1, 3, 1, "SAME")
@@ -389,6 +383,7 @@ def test_depthwise_conv2d():
     # depthwise_conv2d_with_workload_nhwc(1, 728, 64, 1, 3, 1, "SAME", dilation=2)
 
     # NCHW[x]c
+    depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "SAME", dilation=2)
     depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "SAME")
     depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "VALID")
 

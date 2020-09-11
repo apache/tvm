@@ -19,9 +19,12 @@
 A pass for manifesting explicit memory allocations.
 """
 import numpy as np
+
+from tvm.ir.transform import PassContext, module_pass
+from tvm import nd, container
+from ..function import Function
 from ..expr_functor import ExprVisitor, ExprMutator
 from ..scope_builder import ScopeBuilder
-from . import transform
 from .. import op
 from ... import DataType, register_func
 from .. import ty, expr
@@ -29,14 +32,30 @@ from ..backend import compile_engine
 from ..op.memory import flatten_tuple_type, from_tuple_type, to_tuple_type
 from ...import cpu
 from ..op.memory import alloc_storage
+from ..analysis import context_analysis
+from ..._ffi.runtime_ctypes import TVMContext
 
 def alloc_tensor(storage, shape, dtype='float32', assert_shape=None):
     offset = expr.const(0, dtype="int64")
     return op.memory.alloc_tensor(storage, offset, shape, dtype, assert_shape)
 
+
 def is_primitive(call):
     return hasattr(call, 'op') and hasattr(call.op, 'attrs') and \
            hasattr(call.op.attrs, 'Primitive') and int(call.op.attrs.Primitive) == 1
+
+
+def is_device_copy(func):
+    """
+    Check if the current relay expression is a device copy call. We can simply check
+    the body of it if it is a function becase the device_copy op is opaque.
+    """
+    if isinstance(func, Function):
+        body = func.body
+        return isinstance(body, expr.Call) and body.op == op.get("device_copy")
+    if isinstance(func, expr.Call):
+        return func.op == op.get("device_copy")
+    return False
 
 
 class CheckReshapeOnly(ExprVisitor):
@@ -66,7 +85,7 @@ def is_reshape_only(func):
 class ManifestAllocPass(ExprMutator):
     """A pass for explicitly manifesting all memory allocations in Relay."""
 
-    def __init__(self, target_host):
+    def __init__(self, target_host, context_analysis_map):
         self.invoke_tvm = op.vm.invoke_tvm_op
         self.shape_func = op.vm.shape_func
         self.shape_of = op.vm.shape_of
@@ -75,7 +94,21 @@ class ManifestAllocPass(ExprMutator):
         self.target_host = target_host
         self.default_context = cpu(0)
         self.compute_dtype = "int64"
+        self.context_analysis_map = context_analysis_map
         super().__init__()
+
+    def get_context(self, exp):
+        """Get the context of a given expression"""
+        assert exp in self.context_analysis_map, exp.astext(False)
+        val = self.context_analysis_map[exp]
+        # val[0], val[1] are device_type and device_id, respectively.
+        # We don't need to unpack after porting this pass to C++.
+        assert len(val) == 2
+        return TVMContext(val[0].value, val[1].value)
+
+    def device_copy(self, inp, src_ctx, dst_ctx):
+        """Insert a device copy node."""
+        return self.visit(op.tensor.device_copy(inp, src_ctx, dst_ctx))
 
     def current_scope(self):
         return self.scopes[-1]
@@ -116,7 +149,7 @@ class ManifestAllocPass(ExprMutator):
         size *= (dtype.bits * dtype.lanes + 7) // 8
         return expr.const(size, dtype=self.compute_dtype)
 
-    def make_static_allocation(self, scope, tensor_type, i):
+    def make_static_allocation(self, scope, tensor_type, ctx, name_hint):
         """Allocate a tensor with a statically known shape."""
         shape = [int(sh) for sh in tensor_type.shape]
         if len(shape) == 0:
@@ -126,11 +159,13 @@ class ManifestAllocPass(ExprMutator):
         size = self.compute_storage(tensor_type)
         alignment = self.compute_alignment(tensor_type.dtype)
         dtype = tensor_type.dtype
-        sto = scope.let("storage_{0}".format(i), alloc_storage(
-            size, alignment, self.default_context, dtype))
+        sto = scope.let("storage_{0}".format(name_hint), alloc_storage(size,
+                                                                       alignment,
+                                                                       ctx,
+                                                                       dtype))
         # TODO(@jroesch): There is a bug with typing based on the constant shape.
         tensor = alloc_tensor(sto, shape, dtype, tensor_type.shape)
-        return scope.let("tensor_{0}".format(i), tensor)
+        return scope.let("tensor_{0}".format(name_hint), tensor)
 
     def visit_let(self, let):
         scope = ScopeBuilder()
@@ -156,13 +191,13 @@ class ManifestAllocPass(ExprMutator):
 
         is_inputs = []
         input_pos = 0
+        cpu_ctx = nd.cpu(0)
         for i, (arg, state) in enumerate(zip(new_args, input_states)):
             state = int(state)
             # Pass Shapes
             if state == 2:
                 for j, subexp in enumerate(from_tuple_type(arg.type_annotation, arg)):
-                    let_in_arg = scope.let("in_arg_{0}".format(input_pos + j), subexp)
-                    sh_of = self.visit(self.shape_of(let_in_arg))
+                    sh_of = self.visit(self.shape_of(subexp))
                     shape_func_ins.append(
                         scope.let("in_shape_{0}".format(input_pos + j), sh_of))
                     input_pos += 1
@@ -170,6 +205,9 @@ class ManifestAllocPass(ExprMutator):
             # Pass Inputs
             elif state == 1:
                 new_arg = self.visit(arg)
+                ctx = self.get_context(arg)
+                if ctx.device_type != cpu_ctx.device_type:
+                    new_arg = self.device_copy(new_arg, ctx, cpu_ctx)
                 shape_func_ins.append(
                     scope.let("in_shape_{0}".format(input_pos), new_arg))
                 input_pos += 1
@@ -181,7 +219,9 @@ class ManifestAllocPass(ExprMutator):
         out_shapes = []
         for i, out in enumerate(cfunc.outputs):
             tt = ty.TensorType(out.shape, out.dtype)
-            alloc = self.make_static_allocation(scope, tt, i)
+            # Put shape func on CPU. This also ensures that everything between
+            # shape_of and shape_func are on CPU.
+            alloc = self.make_static_allocation(scope, tt, cpu_ctx, i)
             alloc = scope.let("shape_func_out_{0}".format(i), alloc)
             out_shapes.append(alloc)
 
@@ -198,12 +238,12 @@ class ManifestAllocPass(ExprMutator):
         out_shapes = self.emit_shape_func(scope, func, new_args)
 
         storages = []
+        func_ctx = self.get_context(func)
         for i, (out_shape, out_type) in enumerate(zip(out_shapes, out_types)):
-            size = self.compute_storage_in_relay(
-                out_shape, out_type.dtype)
+            size = self.compute_storage_in_relay(out_shape, out_type.dtype)
             alignment = self.compute_alignment(out_type.dtype)
             sto = scope.let("storage_{i}".format(i=i), alloc_storage(
-                size, alignment, self.default_context, out_type.dtype))
+                size, alignment, func_ctx, out_type.dtype))
             storages.append(sto)
 
         outs = []
@@ -253,6 +293,16 @@ class ManifestAllocPass(ExprMutator):
                 # Handle fused op that only contains reshape op
                 return self.emit_reshape_tensor(scope, call.op, new_args, ret_type)
 
+            if is_device_copy(call.op):
+                # Handle device copy op
+                if isinstance(call.op, Function):
+                    attr = call.op.body.attrs
+                else:
+                    attr = call.attr
+                return self.device_copy(new_args[0],
+                                        TVMContext(attr.src_dev_type, 0),
+                                        TVMContext(attr.dst_dev_type, 0))
+
             if self.is_dynamic(ret_type):
                 # Handle dynamic case.
                 return self.dynamic_invoke(scope, call.op, ins, new_args, out_types, ret_type)
@@ -260,7 +310,9 @@ class ManifestAllocPass(ExprMutator):
             # Handle static case.
             outs = []
             for i, out_ty in enumerate(out_types):
-                out = self.make_static_allocation(scope, out_ty, i)
+                ctx = self.get_context(call)
+                assert isinstance(ctx, TVMContext)
+                out = self.make_static_allocation(scope, out_ty, ctx, i)
                 outs.append(out)
 
             output = expr.Tuple(outs)
@@ -270,19 +322,59 @@ class ManifestAllocPass(ExprMutator):
         return super().visit_call(call)
 
 
-@transform.function_pass(opt_level=0)
+def mk_analysis_annotator(results):
+    """Pretty print the annotated relay program with device info"""
+    def _annotator(exp):
+        if exp in results:
+            val = results[exp]
+            assert len(val) == 2
+            ctx = TVMContext(val[0].value, val[1].value)
+            return f"<{ctx}>"
+        else:
+            return ""
+
+    return _annotator
+
+
+@module_pass(opt_level=0)
 class ManifestAlloc:
     """The explicit pass wrapper around ManifestAlloc."""
-    def __init__(self, target_host):
+    # TODO(zhiics, jroesch) Port this pass to C++.
+    def __init__(self, target_host, targets):
         self.target_host = target_host
+        self.targets = targets
 
-    def transform_function(self, func, mod, _):
+    def transform_module(self, mod, _):
+        """Invokes the pass"""
         # TODO(@jroesch): Is there a way to do one shot initialization?
         # can we have def pass_init?
         mod.import_from_std("core.rly")
-        ea = ManifestAllocPass(self.target_host)
-        func = ea.visit(func)
-        return func
+
+        assert isinstance(self.targets, (dict, container.Map))
+        if len(self.targets) > 1:
+            pass_ctx = PassContext.current()
+            if "relay.fallback_device_type" in pass_ctx.config:
+                fallback_ctx = nd.context(pass_ctx.config["relay.fallback_device_type"])
+            else:
+                fallback_ctx = cpu(0)
+            ca = context_analysis(mod, TVMContext(fallback_ctx.device_type, 0))
+        else:
+            if isinstance(self.targets, dict):
+                dev = list(self.targets.keys())[0]
+            else:
+                dev, _ = self.targets.items()[0]
+            ca = context_analysis(mod, nd.context(dev.value))
+
+        # The following code can be used for debugging the module after
+        # annotation.
+        # print(mod.astext(show_meta_data=False, annotate=mk_analysis_annotator(ca)))
+
+        gv_funcs = mod.functions
+        for gv, f in gv_funcs.items():
+            ea = ManifestAllocPass(self.target_host, ca)
+            f = ea.visit(f)
+            mod.update_func(gv, f)
+        return mod
 
 
 register_func("relay.transform.ManifestAlloc", ManifestAlloc)

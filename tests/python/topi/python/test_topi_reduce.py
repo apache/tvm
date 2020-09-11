@@ -22,7 +22,6 @@ from tvm import te
 from tvm import topi
 import tvm.topi.testing
 
-from common import get_all_backend
 
 def _my_npy_argmax(arr, axis, keepdims):
     if not keepdims:
@@ -69,13 +68,9 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
     else:
         raise NotImplementedError
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_reduce_schedule(device)(B)
 
         foo = tvm.build(s, [A, B], device, name=type)
@@ -122,10 +117,11 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
                 tvm.testing.assert_allclose(out_tvm_val, in_npy_map.min(axis=axis), 1E-3, 1E-3)
         else:
             tvm.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1E-3, 1E-3)
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 
+@tvm.testing.uses_gpu
 def test_reduce_map():
 
     verify_reduce_map_ele(in_shape=(32,),

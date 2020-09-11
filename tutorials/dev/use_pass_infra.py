@@ -65,7 +65,7 @@ def example():
     z = relay.add(y, c)
     z1 = relay.add(y, c)
     z2 = relay.add(z, z1)
-    return relay.Function([x], z2)
+    return relay.Function([x, weight], z2)
 
 ###############################################################################
 # Let us register layout alteration for a conv2d op so that we can apply the
@@ -191,7 +191,7 @@ print(mod4)
 
 seq1 = tvm.transform.Sequential([relay.transform.AlterOpLayout()])
 with tvm.transform.PassContext(opt_level=3):
-    with tvm.target.create("llvm"):
+    with tvm.target.Target("llvm"):
         mod5 = seq1(mod)
 print(mod5)
 
@@ -264,7 +264,7 @@ def print_ir(mod, info, is_before):
         print(mod)
 
 with tvm.transform.PassContext(opt_level=3, trace=print_ir):
-    with tvm.target.create("llvm"):
+    with tvm.target.Target("llvm"):
         # Perform the optimizations.
         mod = seq(mod)
 print(mod)

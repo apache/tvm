@@ -18,7 +18,7 @@
  */
 
 use crate::runtime::array::Array;
-use crate::runtime::{IsObject, Object, ObjectPtr, ObjectRef, String as TString};
+use crate::runtime::{object::*, String as TString};
 use crate::DataType;
 use tvm_macros::Object;
 
@@ -96,7 +96,7 @@ impl GlobalVar {
     pub fn new(name_hint: String, _span: ObjectRef) -> GlobalVar {
         let node = GlobalVarNode {
             base: RelayExpr::base::<GlobalVarNode>(),
-            name_hint: TString::new(name_hint).unwrap(),
+            name_hint: name_hint.into(),
         };
         GlobalVar(Some(ObjectPtr::new(node)))
     }
@@ -135,7 +135,7 @@ impl Var {
     pub fn new(name_hint: String, _span: ObjectRef) -> Var {
         let node = VarNode {
             base: RelayExpr::base::<VarNode>(),
-            vid: Id::new(TString::new(name_hint.to_string()).unwrap()),
+            vid: Id::new(name_hint.into()),
             type_annotation: ObjectRef::null(),
         };
         Var(Some(ObjectPtr::new(node)))
@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn test_id() -> Result<()> {
-        let string = TString::new("foo".to_string()).expect("bar");
+        let string = TString::from("foo");
         let id = Id::new(string);
         let text = as_text(id.clone());
         assert!(text.contains("relay.Id"));
@@ -275,8 +275,8 @@ mod tests {
             Var::new("bar".into(), ObjectRef::null()),
         ];
         let array = Array::from_vec(vec)?;
-        assert_eq!(array.get(0)?.name_hint().to_string()?, "foo");
-        assert_eq!(array.get(1)?.name_hint().to_string()?, "bar");
+        assert_eq!(array.get(0)?.name_hint().to_string(), "foo");
+        assert_eq!(array.get(1)?.name_hint().to_string(), "bar");
         Ok(())
     }
 }

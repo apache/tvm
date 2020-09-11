@@ -23,7 +23,7 @@ from ..base import string_types, py2cerror
 from ..runtime_ctypes import DataType, TVMContext, TVMByteArray, ObjectRValueRef
 
 
-cdef void tvm_callback_finalize(void* fhandle):
+cdef void tvm_callback_finalize(void* fhandle) with gil:
     local_pyfunc = <object>(fhandle)
     Py_DECREF(local_pyfunc)
 
@@ -116,7 +116,7 @@ cdef inline int make_arg(object arg,
         ptr = arg._tvm_handle
         value[0].v_handle = (<void*>ptr)
         tcode[0] = arg.__class__._tvm_tcode
-    elif isinstance(arg, (int, long)):
+    elif isinstance(arg, Integral):
         value[0].v_int64 = arg
         tcode[0] = kInt
     elif isinstance(arg, float):

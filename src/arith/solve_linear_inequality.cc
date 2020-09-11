@@ -94,35 +94,6 @@ struct ExprLess {
   }
 };
 
-/*!
- * \brief Combine the information into an array of (in)equalities.
- */
-Array<PrimExpr> as_conditions(const Array<Var>& variables, const Map<Var, IntGroupBounds>& bounds,
-                              const Array<PrimExpr>& relations) {
-  Array<PrimExpr> res;
-  // use variables to keep the order of iteration
-  // so as to get rid of any non-determinism.
-  CHECK_EQ(variables.size(), bounds.size());
-  for (const auto v : variables) {
-    CHECK(bounds.count(v));
-    const auto& bnds = bounds[v];
-    PrimExpr lhs = bnds->coef * v;
-    for (const PrimExpr& rhs : bnds->equal) {
-      res.push_back(tir::EQ(lhs, rhs));
-    }
-    for (const PrimExpr& rhs : bnds->lower) {
-      res.push_back(tir::GE(lhs, rhs));
-    }
-    for (const PrimExpr& rhs : bnds->upper) {
-      res.push_back(tir::LE(lhs, rhs));
-    }
-  }
-  for (const PrimExpr& e : relations) {
-    res.push_back(e);
-  }
-  return res;
-}
-
 void DebugPrint(
     const std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>& current_ineq_set,
     const std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>& next_ineq_set,
@@ -290,7 +261,8 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
   // Simplify each inequality into the form `expr <= 0` and add to current formulas
   for (const PrimExpr& ineq : system_to_solve->relations) {
-    AddInequality(&current_ineq_set_to_solve, NormalizeComparisons()(analyzer.Simplify(ineq, 3)),
+    AddInequality(&current_ineq_set_to_solve,
+                  NormalizeComparisons()(analyzer.Simplify(ineq, kSimplifyRewriteCanonicalRewrite)),
                   &analyzer);
   }
 
@@ -307,8 +279,9 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     // Add bounds from vranges
     if (system_to_solve->ranges.count(v)) {
       const Range& range = system_to_solve->ranges[v];
-      PrimExpr range_lbound = analyzer.Simplify(range->min, 3);
-      PrimExpr range_ubound = analyzer.Simplify(range->min + range->extent - 1, 3);
+      PrimExpr range_lbound = analyzer.Simplify(range->min, kSimplifyRewriteCanonicalRewrite);
+      PrimExpr range_ubound =
+          analyzer.Simplify(range->min + range->extent - 1, kSimplifyRewriteCanonicalRewrite);
       coef_neg.push_back({-1, range_lbound});
       coef_pos.push_back({1, -range_ubound});
     }
@@ -329,7 +302,8 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         // we need rewrite_simplify -> canonical_simplify -> rewrite_simplify
         // to help simplify things like (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // with steps = 2 it's (y*2) - 10 <= 0
-        new_ineq = NormalizeComparisons()(analyzer.Simplify(new_ineq, 3));
+        new_ineq =
+            NormalizeComparisons()(analyzer.Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite));
         AddInequality(&next_ineq_set_to_solve, new_ineq, &analyzer);
       }
     }
@@ -354,7 +328,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
     for (const auto& pos : coef_pos) {
       PrimExpr bound = make_const(v.dtype(), -coef_lcm / pos.first) * pos.second;
-      bound = analyzer.Simplify(bound, 3);
+      bound = analyzer.Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(upper_bounds.begin(), upper_bounds.end(),
                       [&bound, &analyzer](const PrimExpr& o) {
@@ -375,7 +349,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     }
     for (const auto& neg : coef_neg) {
       PrimExpr bound = make_const(v.dtype(), -coef_lcm / neg.first) * neg.second;
-      bound = analyzer.Simplify(bound, 3);
+      bound = analyzer.Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(lower_bounds.begin(), lower_bounds.end(),
                       [&bound, &analyzer](const PrimExpr& o) {
@@ -414,7 +388,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
   // Everything that is left goes to res.relations
   Array<PrimExpr> other_conditions;
   for (const PrimExpr& e : current_ineq_set_to_solve) {
-    PrimExpr e_simp = analyzer.Simplify(e, 3);
+    PrimExpr e_simp = analyzer.Simplify(e, kSimplifyRewriteCanonicalRewrite);
     if (is_const_int(e_simp, 0)) {
       // contradiction detected
       other_conditions = {const_false()};
@@ -433,6 +407,9 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
   return {res_bounds, other_conditions};
 }
 
+#ifdef _MSC_VER
+#pragma optimize("g", off)
+#endif
 IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
   // Resulting ranges will contain ranges for the new variables and for the variables that are
   // not in the inequalities->variables but are in inequalities->ranges
@@ -465,7 +442,10 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
       // There is an equation of the form `v == expr`, so this variable can be completely removed.
       // Note that we use the 0-th expression because they are ordered by complexity,
       // so it must be the simplest one.
-      Range best_range(bnd->equal[0], analyzer.Simplify(bnd->equal[0] + 1, 3));
+      // The MSVC compiler optimization must be disabled for the expression `bnd->equal[0]` which
+      // triggers an internal compiler error.
+      Range best_range(bnd->equal[0],
+                       analyzer.Simplify(bnd->equal[0] + 1, kSimplifyRewriteCanonicalRewrite));
       res_ranges.Set(var, best_range);
       vranges.Set(var, best_range);
     } else {
@@ -491,7 +471,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
   arith::Analyzer analyzer;
   analyzer.Bind(vranges);
   for (const PrimExpr& old_cond :
-       as_conditions(inequalities->variables, solved_bounds, solved_other_relations)) {
+       AsConditions(inequalities->variables, solved_bounds, solved_other_relations)) {
     if (!analyzer.CanProve(old_cond)) {
       // those not represented in vranges (res_ranges)
       res_relations.push_back(old_cond);
@@ -502,6 +482,9 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
 
   return system;
 }
+#ifdef _MSC_VER
+#pragma optimize("g", on)
+#endif
 
 IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequalities) {
   // Resulting ranges will contain ranges for the new variables and for the variables that are
@@ -584,7 +567,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
 
   // Add the original conditions (with variables substituted) to the resulting conditions
   for (const PrimExpr& old_cond :
-       as_conditions(inequalities->variables, solved_bounds, solved_other_relations)) {
+       AsConditions(inequalities->variables, solved_bounds, solved_other_relations)) {
     PrimExpr new_cond = analyzer.Simplify(Substitute(old_cond, res_src_to_dst));
     if (!is_const_int(new_cond, 1)) {
       // those not represented in vranges (res_ranges)
@@ -615,7 +598,7 @@ TVM_REGISTER_GLOBAL("arith.SolveInequalitiesAsCondition")
         LOG(FATAL) << "arith.SolveInequalitiesAsCondition expects 1 or 3 arguments, gets "
                    << args.size();
       }
-      *ret = as_conditions(problem->variables, ret_ineq.first, ret_ineq.second);
+      *ret = AsConditions(problem->variables, ret_ineq.first, ret_ineq.second);
     });
 
 TVM_REGISTER_GLOBAL("arith.SolveInequalitiesToRange").set_body([](TVMArgs args, TVMRetValue* ret) {

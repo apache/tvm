@@ -62,6 +62,16 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
   };
 
   /*!
+   * \brief A series of operators that form a composite
+   * dense layer. Supports both nn.dense and qnn.dense.
+   */
+  struct CompositeDenseNode {
+    const CallNode* dense = nullptr;
+    const CallNode* bias = nullptr;
+    const CallNode* requantize = nullptr;
+  };
+
+  /*!
    * \brief Visit call nodes and generate appropriate JSON node.
    *
    * \param cn The current call node.
@@ -82,6 +92,12 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
     std::shared_ptr<JSONGraphNode> json_node;
     if (name == "arm_compute_lib.conv2d" || name == "arm_compute_lib.qnn_conv2d") {
       json_node = CreateCompositeConvJSONNode(cn);
+    } else if (name == "arm_compute_lib.dense" || name == "arm_compute_lib.qnn_dense") {
+      json_node = CreateCompositeDenseJSONNode(cn);
+    } else if (name == "arm_compute_lib.avg_pool2d") {
+      json_node = CreateCompositeAvgPool2DJSONNode(cn);
+    } else if (name == "arm_compute_lib.l2_pool2d") {
+      json_node = CreateCompositeL2Pool2DJSONNode(cn);
     } else {
       LOG(FATAL) << "Unrecognized Arm Compute Library pattern: " << name;
     }
@@ -188,6 +204,127 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
       act_attr.emplace_back(activation_type);
       json_node->SetAttr("activation_type", act_attr);
     }
+    return json_node;
+  }
+
+  /*!
+   * \brief Extract dense nodes from a composite function.
+   *
+   * \param cn The call node of the composite function.
+   * \return Extracted composite convolution nodes.
+   */
+  static CompositeDenseNode UnpackCompositeDense(const CallNode* cn) {
+    CompositeDenseNode nodes{};
+    const auto* fn = cn->op.as<FunctionNode>();
+    CHECK(fn);
+
+    // Traverse composite dense function from child to parent
+    const auto* current_call = fn->body.as<CallNode>();
+    if (backend::IsOp(current_call, "qnn.requantize")) {
+      nodes.requantize = current_call;
+      current_call = current_call->args[0].as<CallNode>();
+    }
+    if (backend::IsOp(current_call, "nn.bias_add")) {
+      nodes.bias = current_call;
+      current_call = current_call->args[0].as<CallNode>();
+    }
+    // Enforce a dense node exists at this point during traversal
+    if (nodes.requantize) {
+      CHECK(backend::IsOp(current_call, "qnn.dense"));
+    } else {
+      CHECK(backend::IsOp(current_call, "nn.dense"));
+    }
+    nodes.dense = current_call;
+    return nodes;
+  }
+
+  /*!
+   * \brief Create a JSON representation of a composite dense (fully-connected) operator.
+   *
+   * \param cn The call to be represented.
+   * \return A JSON representation of a specific operator.
+   */
+  std::shared_ptr<JSONGraphNode> CreateCompositeDenseJSONNode(const CallNode* cn) {
+    CompositeDenseNode nodes = UnpackCompositeDense(cn);
+    std::string name = "nn.dense";
+
+    // Inputs must be added in the same order they appear in the relay graph.
+    std::vector<JSONGraphNodeEntry> inputs;
+    inputs.push_back(VisitExpr(cn->args[0])[0]);
+    inputs.push_back(VisitExpr(nodes.dense->args[1])[0]);
+    if (nodes.requantize) {
+      name = "qnn.dense";
+      inputs.push_back(VisitExpr(nodes.dense->args[2])[0]);  // input zero-point
+      inputs.push_back(VisitExpr(nodes.dense->args[3])[0]);  // weight zero-point
+      inputs.push_back(VisitExpr(nodes.dense->args[4])[0]);  // input scale
+      inputs.push_back(VisitExpr(nodes.dense->args[5])[0]);  // weight scale
+    }
+    if (nodes.bias) {
+      inputs.push_back(VisitExpr(nodes.bias->args[1])[0]);
+    }
+    if (nodes.requantize) {
+      inputs.push_back(VisitExpr(nodes.requantize->args[3])[0]);  // output scale
+      inputs.push_back(VisitExpr(nodes.requantize->args[4])[0]);  // output zero-point
+    }
+
+    auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
+    SetCallNodeAttribute(json_node, nodes.dense);
+    return json_node;
+  }
+
+  /*!
+   * \brief Create a JSON representation of a composite (global) average pooling operator.
+   *
+   * A composite function is only created when using the uint8 datatype for these operators.
+   *
+   * \param cn The call to be represented.
+   * \return A JSON representation of a specific operator.
+   */
+  std::shared_ptr<JSONGraphNode> CreateCompositeAvgPool2DJSONNode(const CallNode* cn) {
+    const auto* fn = cn->op.as<FunctionNode>();
+    CHECK(fn);
+    const auto* cast = fn->body.as<CallNode>();
+    CHECK(cast);
+    const auto* avg_pool = cast->args[0].as<CallNode>();
+    CHECK(avg_pool);
+    const auto* avg_pool_op = avg_pool->op.as<OpNode>();
+    CHECK(avg_pool_op);
+    const std::string name = avg_pool_op->name;
+
+    std::vector<JSONGraphNodeEntry> inputs;
+    inputs.push_back(VisitExpr(cn->args[0])[0]);
+    auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
+    SetCallNodeAttribute(json_node, avg_pool);
+    return json_node;
+  }
+
+  /*!
+   * \brief Create a JSON representation of a composite L2 pooling operator.
+   *
+   * \note Relay does not have an operator for L2 pooling, instead we can create
+   * an equivalent from power(2) + nn.avg_pool2d + sqrt.
+   *
+   * \param cn The call to be represented.
+   * \return A JSON representation of a specific operator.
+   */
+  std::shared_ptr<JSONGraphNode> CreateCompositeL2Pool2DJSONNode(const CallNode* cn) {
+    const std::string name = "nn.l2_pool2d";
+    const auto* fn = cn->op.as<FunctionNode>();
+    CHECK(fn);
+    const auto* sqrt = fn->body.as<CallNode>();
+    CHECK(sqrt);
+    const auto* avg_pool = sqrt->args[0].as<CallNode>();
+    CHECK(avg_pool);
+    const auto* pow = avg_pool->args[0].as<CallNode>();
+    CHECK(pow);
+    const auto* exponent = pow->args[1].as<ConstantNode>();
+    CHECK(exponent);
+    CHECK_EQ(*static_cast<float*>(exponent->data->data), 2) << "Exponent must be 2 for L2 pooling";
+
+    std::vector<JSONGraphNodeEntry> inputs;
+    inputs.push_back(VisitExpr(cn->args[0])[0]);
+    auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
+    SetCallNodeAttribute(json_node, avg_pool);
     return json_node;
   }
 };

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file auto_scheduler/utils.cc
+ * \file auto_scheduler/search_policy/utils.cc
  * \brief Common utilities
  */
 
@@ -28,6 +28,44 @@
 
 namespace tvm {
 namespace auto_scheduler {
+
+Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id) {
+  const auto& stage = s->stages[stage_id];
+  const auto& pop = s->stages[stage_id]->op.as<te::ComputeOpNode>();
+  CHECK(pop != nullptr);
+  const std::set<std::string>& no_split_at_inner_name_set =
+      stage->op->attrs.count(SearchPolicyKey::no_split_at_inner)
+          ? GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::no_split_at_inner)
+          : std::set<std::string>();
+  size_t reduce_count = 0;
+  for (const auto axis : pop->reduce_axis) {
+    if (!no_split_at_inner_name_set.count(axis->var->name_hint)) {
+      reduce_count++;
+    }
+  }
+
+  Array<Integer> spatial_split_step_ids;
+  for (int i = s->transform_steps.size() - 1; i >= 0; --i) {
+    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
+        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
+        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+      if (stage_id > s->transform_steps[i]->stage_id) {
+        stage_id--;
+      }
+    } else if (auto ps = s->transform_steps[i].as<SplitStepNode>()) {
+      if (stage_id == ps->stage_id) {
+        // Assume SplitStep on reduction axes are always after SplitStep on spatial axes.
+        if (reduce_count) {
+          reduce_count--;
+        } else {
+          spatial_split_step_ids.push_back(i);
+        }
+      }
+    }
+  }
+
+  return spatial_split_step_ids;
+}
 
 State DoMultiLevelTiling(const State& state, int stage_id, const std::string& format,
                          std::vector<int>* spatial_split_step_ids) {
@@ -232,6 +270,69 @@ State FollowTiling(const State& state, int stage_id, const std::vector<int>& spl
   return tmp_s;
 }
 
+// Return whether a state has nested parallel, which is invalid on CPUs
+bool HasNestedParallel(const State& state) {
+  std::function<void(int stage_id, size_t*)> count_parallel_ct;
+
+  count_parallel_ct = [&state, &count_parallel_ct](int stage_id, size_t* parallel_ct) {
+    const Stage& stage = state->stages[stage_id];
+
+    if (stage->compute_at == ComputeAtKind::kInlined) {
+      return;
+    }
+
+    for (size_t i = 0; i < stage->iters.size(); ++i) {
+      if (stage->iters[i]->annotation == IteratorAnnotation::kParallel) {
+        (*parallel_ct)++;
+      }
+
+      IterKey iter_key(stage_id, i);
+      auto pair = state->attach_map->iter_to_attached_stages.find(iter_key);
+      if (pair != state->attach_map->iter_to_attached_stages.end()) {
+        for (const auto& attach_stage_id : pair->second) {
+          count_parallel_ct(attach_stage_id, parallel_ct);
+        }
+      }
+    }
+  };
+
+  for (size_t stage_id = 0; stage_id < state->stages.size(); ++stage_id) {
+    size_t parallel_ct = 0;
+
+    if (state->stages[stage_id]->compute_at == ComputeAtKind::kRoot) {
+      count_parallel_ct(stage_id, &parallel_ct);
+      if (parallel_ct >= 2) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+void PruneInvalidState(const SearchTask& task, Array<State>* states) {
+  size_t pt = 0;
+  for (size_t i = 0; i < states->size(); ++i) {
+    if (!(*states)[i].defined()) {
+      continue;
+    }
+    if (!IsGPUTask(task) && HasNestedParallel((*states)[i])) {
+      continue;
+    }
+
+    if (i != pt) {
+      states->Set(pt, (*states)[i]);
+    }
+    pt++;
+  }
+
+  if (pt == 0) {
+    LOG(INFO) << "All states are invalid.";
+  } else {
+    states->resize(pt);
+  }
+}
+
 const Array<Array<Integer>>& SplitFactorizationMemo::GetFactorizationSchemes(
     int extent, int n_lengths, int max_innermost_factor) {
   QueryKey key = std::make_tuple(extent, n_lengths, max_innermost_factor);
@@ -281,6 +382,23 @@ const std::vector<int>& SplitFactorizationMemo::GetFactors(int n) {
   std::sort(res.begin(), res.end());
   return res;
 }
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsIsTiled")
+    .set_body_typed([](const Stage& stage) { return IsTiled(stage); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsHasCacheReadStage")
+    .set_body_typed([](const State& s, int stage_id) { return HasCacheReadStage(s, stage_id); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsHasCacheWriteStage")
+    .set_body_typed([](const State& s, int stage_id) { return HasCacheWriteStage(s, stage_id); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsHasRfactorStage")
+    .set_body_typed([](const State& s, int stage_id) { return HasRfactorStage(s, stage_id); });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsHasCrossThreadReduction")
+    .set_body_typed([](const State& s, int stage_id) {
+      return HasCrossThreadReduction(s, stage_id);
+    });
 
 }  // namespace auto_scheduler
 }  // namespace tvm

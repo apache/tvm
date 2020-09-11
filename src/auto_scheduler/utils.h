@@ -141,27 +141,6 @@ inline void StrReplace(std::string* base, const std::string& from, const std::st
   }
 }
 
-/*! \brief Convert a Array<Integer> to std::vector<int>. */
-inline std::vector<int> IntArrayToVector(const ::tvm::Array<::tvm::Integer>& data) {
-  std::vector<int> out;
-  for (const auto& x : data) {
-    CHECK(x.defined());
-    out.push_back(x);
-  }
-  return out;
-}
-
-/*! \brief Convert a Array<Optional<Integer>> to std::vector<int>. */
-inline std::vector<int> IntArrayToVector(
-    const ::tvm::Array<::tvm::Optional<::tvm::Integer>>& data) {
-  std::vector<int> out;
-  for (const auto& x : data) {
-    CHECK(x);
-    out.push_back(x.value());
-  }
-  return out;
-}
-
 /*! \brief Return whether two int arrays are elementwise-equal */
 inline bool IntArrayEqual(const Array<PrimExpr>& arr1, const Array<PrimExpr>& arr2) {
   if (arr1.size() != arr2.size()) {
@@ -269,6 +248,38 @@ inline std::string Chars(const char& str, int times) {
   }
   return ret.str();
 }
+
+/*!
+ * \brief Parse shape and axis names from layout string
+ */
+inline void ParseKernelLayout(const String& layout, Array<PrimExpr>* shape,
+                              std::vector<std::string>* axes) {
+  int32_t factor = 0;
+  std::string axis = "";
+  for (char c : std::string(layout)) {
+    if (c >= 'A' && c <= 'z') {
+      axis += c;
+      if (factor != 0) {
+        shape->push_back(factor);
+        factor = 0;
+      }
+    } else if (c >= '0' && c <= '9') {
+      factor = factor * 10 + c - '0';
+      if (!axis.empty()) {
+        axes->push_back(axis);
+        axis = "";
+      }
+    } else {
+      LOG(FATAL) << "Invalid layout " << layout;
+    }
+  }
+  if (!axis.empty()) {
+    axes->push_back(axis);
+  }
+}
+
+/*! \brief Get the base name before '_' of an axis */
+inline std::string AxisBaseName(const std::string& str) { return str.substr(0, str.rfind("_")); }
 
 }  // namespace auto_scheduler
 }  // namespace tvm

@@ -189,16 +189,10 @@ relay::Function RunTypeCheck(const IRModule& mod, const GlobalVar& var, relay::F
   // Type check the item before we add it to the module.
   auto fv = relay::FreeVars(func);
   auto ftv = relay::FreeTypeVars(func, mod);
-  if (fv.size() != 0) {
-    LOG(WARNING) << "There are free variables: " << fv << " in function: " << AsText(func, false)
-                 << std::endl;
-  }
-  if (ftv.size() != 0) {
-    LOG(WARNING) << "There are free type variables: " << ftv
-                 << " in function: " << AsText(func, false) << std::endl;
-  }
-  func = relay::Function(concat(func->params, fv), func->body, func->ret_type,
-                         concat(func->type_params, ftv), func->attrs);
+  CHECK_EQ(fv.size(), 0) << "There are free variables: " << fv
+                         << " in function: " << AsText(func, false);
+  CHECK_EQ(ftv.size(), 0) << "There are free type variables: " << fv
+                          << " in function: " << AsText(func, false);
   // Type check the item before we add it to the module.
   relay::Function checked_func = InferType(func, mod, var);
   return checked_func;
@@ -453,6 +447,9 @@ TVM_REGISTER_GLOBAL("ir.Module_FromExpr")
 TVM_REGISTER_GLOBAL("ir.Module_Update").set_body_typed([](IRModule mod, IRModule from) {
   mod->Update(from);
 });
+
+TVM_REGISTER_GLOBAL("ir.Module_UpdateFunction")
+    .set_body_typed([](IRModule mod, GlobalVar gv, BaseFunc func) { mod->Update(gv, func); });
 
 TVM_REGISTER_GLOBAL("ir.Module_Import").set_body_typed([](IRModule mod, String path) {
   mod->Import(path);

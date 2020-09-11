@@ -49,7 +49,7 @@
 // Always inline macro only use in template
 // expansion cases where we know inline is important.
 #ifdef _MSC_VER
-#define TVM_ALWAYS_INLINE __forceinline inline
+#define TVM_ALWAYS_INLINE __forceinline
 #else
 #define TVM_ALWAYS_INLINE inline __attribute__((always_inline))
 #endif
@@ -233,7 +233,7 @@ class TypedPackedFunc<R(Args...)> {
    */
   template <typename FLambda, typename = typename std::enable_if<
                                   std::is_convertible<FLambda,
-                                                      std::function<R(Args...)> >::value>::type>
+                                                      std::function<R(Args...)>>::value>::type>
   TypedPackedFunc(const FLambda& typed_lambda) {  // NOLINT(*)
     this->AssignTypedLambda(typed_lambda);
   }
@@ -255,7 +255,7 @@ class TypedPackedFunc<R(Args...)> {
    */
   template <typename FLambda, typename = typename std::enable_if<
                                   std::is_convertible<FLambda,
-                                                      std::function<R(Args...)> >::value>::type>
+                                                      std::function<R(Args...)>>::value>::type>
   TSelf& operator=(FLambda typed_lambda) {  // NOLINT(*)
     this->AssignTypedLambda(typed_lambda);
     return *this;

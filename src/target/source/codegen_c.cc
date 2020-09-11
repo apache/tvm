@@ -617,9 +617,13 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       CHECK(op->args.size() == 1 && l);
       os << "((";
       this->PrintType(l->dtype.element_of(), os);
-      os << " *)" << this->GetVarID(l->buffer_var.get()) << " + ";
+      os << " *)" << this->GetVarID(l->buffer_var.get()) << " + "
+         << "(";
       this->PrintExpr(l->index, os);
-      os << ')';
+      if (l->dtype.bits() == 4 || (l->dtype.bits() == 1 && l->dtype.is_int())) {
+        os << " / " << (32 / l->dtype.bits());
+      }
+      os << "))";
     } else if (op->op.same_as(builtin::tvm_struct_get())) {
       CHECK_EQ(op->args.size(), 3U);
       os << GetStructRef(op->dtype, op->args[0], op->args[1], op->args[2].as<IntImmNode>()->value);

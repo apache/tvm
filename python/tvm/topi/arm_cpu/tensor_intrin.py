@@ -21,7 +21,186 @@ import tvm
 from tvm import te
 from tvm.contrib import util, clang
 
-def gemv_quantized_impl(M, N, data_type='uint8'):
+def gemm_quantized_4_4_batched():
+    return """
+           // First half
+           // Higher part of a0 * {b0,b1,b2,b3}
+           "umull v8.8h, v0.8b, v4.8b\\n"
+           "umull v9.8h, v0.8b, v5.8b\\n"
+           "umull v10.8h, v0.8b, v6.8b\\n"
+           "umull v11.8h, v0.8b, v7.8b\\n"
+
+           // Higher part of a1 * {b0,b1,b2,b3}
+           "umull v12.8h, v1.8b, v4.8b\\n"
+           "umull v13.8h, v1.8b, v5.8b\\n"
+           "umull v14.8h, v1.8b, v6.8b\\n"
+           "umull v15.8h, v1.8b, v7.8b\\n"
+
+           // Accumulate
+           "uadalp v16.4s, v8.8h\\n"
+           "uadalp v17.4s, v9.8h\\n"
+           "uadalp v18.4s, v10.8h\\n"
+           "uadalp v19.4s, v11.8h\\n"
+           "uadalp v20.4s, v12.8h\\n"
+           "uadalp v21.4s, v13.8h\\n"
+           "uadalp v22.4s, v14.8h\\n"
+           "uadalp v23.4s, v15.8h\\n"
+
+           // Lower part of a0 * {b0,b1,b2,b3}
+           "umull2 v8.8h, v0.16b, v4.16b\\n"
+           "umull2 v9.8h, v0.16b, v5.16b\\n"
+           "umull2 v10.8h, v0.16b, v6.16b\\n"
+           "umull2 v11.8h, v0.16b, v7.16b\\n"
+
+           // Lower part of a1 * {b0,b1,b2,b3}
+           "umull2 v12.8h, v1.16b, v4.16b\\n"
+           "umull2 v13.8h, v1.16b, v5.16b\\n"
+           "umull2 v14.8h, v1.16b, v6.16b\\n"
+           "umull2 v15.8h, v1.16b, v7.16b\\n"
+
+            // Accumulate again
+           "uadalp v16.4s, v8.8h\\n"
+           "uadalp v17.4s, v9.8h\\n"
+           "uadalp v18.4s, v10.8h\\n"
+           "uadalp v19.4s, v11.8h\\n"
+           "uadalp v20.4s, v12.8h\\n"
+           "uadalp v21.4s, v13.8h\\n"
+           "uadalp v22.4s, v14.8h\\n"
+           "uadalp v23.4s, v15.8h\\n"
+
+           // Second half
+           // Lower part of a2 * {b0,b1,b2,b3}
+           "umull v8.8h, v2.8b, v4.8b\\n"
+           "umull v9.8h, v2.8b, v5.8b\\n"
+           "umull v10.8h, v2.8b, v6.8b\\n"
+           "umull v11.8h, v2.8b, v7.8b\\n"
+
+           // Lower part of a3 * {b0,b1,b2,b3}
+           "umull v12.8h, v3.8b, v4.8b\\n"
+           "umull v13.8h, v3.8b, v5.8b\\n"
+           "umull v14.8h, v3.8b, v6.8b\\n"
+           "umull v15.8h, v3.8b, v7.8b\\n"
+
+           // Accumulate
+           "uadalp v24.4s, v8.8h\\n"
+           "uadalp v25.4s, v9.8h\\n"
+           "uadalp v26.4s, v10.8h\\n"
+           "uadalp v27.4s, v11.8h\\n"
+           "uadalp v28.4s, v12.8h\\n"
+           "uadalp v29.4s, v13.8h\\n"
+           "uadalp v30.4s, v14.8h\\n"
+           "uadalp v31.4s, v15.8h\\n"
+
+           // Higher part of a2 * {b0,b1,b2,b3}
+           "umull2 v8.8h, v2.16b, v4.16b\\n"
+           "umull2 v9.8h, v2.16b, v5.16b\\n"
+           "umull2 v10.8h, v2.16b, v6.16b\\n"
+           "umull2 v11.8h, v2.16b, v7.16b\\n"
+
+           // Higher part of a3 * {b0,b1,b2,b3}
+           "umull2 v12.8h, v3.16b, v4.16b\\n"
+           "umull2 v13.8h, v3.16b, v5.16b\\n"
+           "umull2 v14.8h, v3.16b, v6.16b\\n"
+           "umull2 v15.8h, v3.16b, v7.16b\\n"
+
+           // Accumulate again
+           "uadalp v24.4s, v8.8h\\n"
+           "uadalp v25.4s, v9.8h\\n"
+           "uadalp v26.4s, v10.8h\\n"
+           "uadalp v27.4s, v11.8h\\n"
+           "uadalp v28.4s, v12.8h\\n"
+           "uadalp v29.4s, v13.8h\\n"
+           "uadalp v30.4s, v14.8h\\n"
+           "uadalp v31.4s, v15.8h\\n"
+    """
+
+def gemm_quantized_4_4_interleaved():
+    return """
+             // First half
+             // Higher part of a0 * {b0,b1,b2,b3} and accumulate
+             "umull v8.8h, v0.8b, v4.8b\\n"
+             "uadalp v16.4s, v8.8h\\n"
+             "umull v9.8h, v0.8b, v5.8b\\n"
+             "uadalp v17.4s, v9.8h\\n"
+             "umull v10.8h, v0.8b, v6.8b\\n"
+             "uadalp v18.4s, v10.8h\\n"
+             "umull v11.8h, v0.8b, v7.8b\\n"
+             "uadalp v19.4s, v11.8h\\n"
+
+             // Higher part of a1 * {b0,b1,b2,b3} and accumulate
+             "umull v12.8h, v1.8b, v4.8b\\n"
+             "uadalp v20.4s, v12.8h\\n"
+             "umull v13.8h, v1.8b, v5.8b\\n"
+             "uadalp v21.4s, v13.8h\\n"
+             "umull v14.8h, v1.8b, v6.8b\\n"
+             "uadalp v22.4s, v14.8h\\n"
+             "umull v15.8h, v1.8b, v7.8b\\n"
+             "uadalp v23.4s, v15.8h\\n"
+
+             // Lower part of a0 * {b0,b1,b2,b3} and accumulate
+             "umull2 v8.8h, v0.16b, v4.16b\\n"
+             "uadalp v16.4s, v8.8h\\n"
+             "umull2 v9.8h, v0.16b, v5.16b\\n"
+             "uadalp v17.4s, v9.8h\\n"
+             "umull2 v10.8h, v0.16b, v6.16b\\n"
+             "uadalp v18.4s, v10.8h\\n"
+             "umull2 v11.8h, v0.16b, v7.16b\\n"
+             "uadalp v19.4s, v11.8h\\n"
+
+             // Lower part of a1 * {b0,b1,b2,b3} and accumulate
+             "umull2 v12.8h, v1.16b, v4.16b\\n"
+             "uadalp v20.4s, v12.8h\\n"
+             "umull2 v13.8h, v1.16b, v5.16b\\n"
+             "uadalp v21.4s, v13.8h\\n"
+             "umull2 v14.8h, v1.16b, v6.16b\\n"
+             "uadalp v22.4s, v14.8h\\n"
+             "umull2 v15.8h, v1.16b, v7.16b\\n"
+             "uadalp v23.4s, v15.8h\\n"
+
+             // Second half
+             // Higher part of a2 * {b0,b1,b2,b3} and accumulate
+             "umull v8.8h, v2.8b, v4.8b\\n"
+             "uadalp v24.4s, v8.8h\\n"
+             "umull v9.8h, v2.8b, v5.8b\\n"
+             "uadalp v25.4s, v9.8h\\n"
+             "umull v10.8h, v2.8b, v6.8b\\n"
+             "uadalp v26.4s, v10.8h\\n"
+             "umull v11.8h, v2.8b, v7.8b\\n"
+             "uadalp v27.4s, v11.8h\\n"
+
+             // Higher part of a3 * {b0,b1,b2,b3} and accumulate
+             "umull v12.8h, v3.8b, v4.8b\\n"
+             "uadalp v28.4s, v12.8h\\n"
+             "umull v13.8h, v3.8b, v5.8b\\n"
+             "uadalp v29.4s, v13.8h\\n"
+             "umull v14.8h, v3.8b, v6.8b\\n"
+             "uadalp v30.4s, v14.8h\\n"
+             "umull v15.8h, v3.8b, v7.8b\\n"
+             "uadalp v31.4s, v15.8h\\n"
+
+             // Lower part of a2 * {b0,b1,b2,b3} and accumulate
+             "umull2 v8.8h, v2.16b, v4.16b\\n"
+             "uadalp v24.4s, v8.8h\\n"
+             "umull2 v9.8h, v2.16b, v5.16b\\n"
+             "uadalp v25.4s, v9.8h\\n"
+             "umull2 v10.8h, v2.16b, v6.16b\\n"
+             "uadalp v26.4s, v10.8h\\n"
+             "umull2 v11.8h, v2.16b, v7.16b\\n"
+             "uadalp v27.4s, v11.8h\\n"
+
+             // Lower part of a3 * {b0,b1,b2,b3} and accumulate
+             "umull2 v12.8h, v3.16b, v4.16b\\n"
+             "uadalp v28.4s, v12.8h\\n"
+             "umull2 v13.8h, v3.16b, v5.16b\\n"
+             "uadalp v29.4s, v13.8h\\n"
+             "umull2 v14.8h, v3.16b, v6.16b\\n"
+             "uadalp v30.4s, v14.8h\\n"
+             "umull2 v15.8h, v3.16b, v7.16b\\n"
+             "uadalp v31.4s, v15.8h\\n"
+    """
+
+
+def gemm_quantized_impl(M, N, K, unroll, interleave, data_type='uint8'):
     """ Assembly implementation of a blocked gemv. Given
     a block a of shape (4, k) and a block b' of shape (4, k)
     produces the output block c = a*b of shape (4,4) """
@@ -30,13 +209,21 @@ def gemv_quantized_impl(M, N, data_type='uint8'):
     stepB = min(4, N)
     assert data_type in ['uint8', 'int8'], 'Only uint8/int8 supported for this implementation'
 
-    cc_code = """
-          extern "C" int gemv_{0}_{0}_int32_{1}_{2}(int *c_buffer,
-                                                    unsigned char *a_buffer,
-                                                    unsigned char *b_buffer,
-                                                    int K, int m, int n)
-              """.format(data_type, stepA, stepB)
+    signature = """extern "C" int gemm_quantized_{0}_{0}_int32_{1}_{2}""".format(data_type,
+                                                                                 stepA,
+                                                                                 stepB)
+    if unroll:
+        signature += ("_" + str(K))
 
+    if interleave:
+        signature += ("_interleaved")
+
+    signature += """(int *c_buffer,
+                      unsigned char *a_buffer,
+                      unsigned char *b_buffer,
+                      int K, int m, int n)"""
+
+    cc_code = signature
     cc_code += """
     {
             unsigned char * a_ptr = a_buffer;
@@ -65,141 +252,58 @@ def gemv_quantized_impl(M, N, data_type='uint8'):
             "1:"
     """
 
-    cc_code += ' "ldr q0, [%[a_ptr]]\\n" '
+    main_loop = ' "ldr q0, [%[a_ptr]]\\n" '
 
     if M > 1:
-        cc_code += ' "ldr q1, [%[a_ptr], #16]\\n" '
+        main_loop += ' "ldr q1, [%[a_ptr], #16]\\n" '
     else:
-        cc_code += ' "movi v1.4s, #0\\n" '
+        main_loop += ' "movi v1.4s, #0\\n" '
 
     if M > 2:
-        cc_code += ' "ldr q2, [%[a_ptr], #32]\\n" '
+        main_loop += ' "ldr q2, [%[a_ptr], #32]\\n" '
     else:
-        cc_code += ' "movi v2.4s, #0\\n" '
+        main_loop += ' "movi v2.4s, #0\\n" '
 
     if M > 3:
-        cc_code += ' "ldr q3, [%[a_ptr], #48]\\n" '
+        main_loop += ' "ldr q3, [%[a_ptr], #48]\\n" '
     else:
-        cc_code += ' "movi v3.4s, #0\\n" '
+        main_loop += ' "movi v3.4s, #0\\n" '
 
-    cc_code += ' "ldr q4, [%[b_ptr]]\\n" '
+    main_loop += ' "ldr q4, [%[b_ptr]]\\n" '
 
     if N > 1:
-        cc_code += ' "ldr q5, [%[b_ptr], #16]\\n" '
+        main_loop += ' "ldr q5, [%[b_ptr], #16]\\n" '
 
     if N > 2:
-        cc_code += ' "ldr q6, [%[b_ptr], #32]\\n" '
+        main_loop += ' "ldr q6, [%[b_ptr], #32]\\n" '
 
     if N > 3:
-        cc_code += ' "ldr q7, [%[b_ptr], #48]\\n" '
+        main_loop += ' "ldr q7, [%[b_ptr], #48]\\n" '
 
-    cc_code += """
-                // First half
-                // Higher part of a0 * {b0,b1,b2,b3}
-                "umull v8.8h, v0.8b, v4.8b\\n"
-                "umull v9.8h, v0.8b, v5.8b\\n"
-                "umull v10.8h, v0.8b, v6.8b\\n"
-                "umull v11.8h, v0.8b, v7.8b\\n"
+    # Main computation can interleave multiply/accumulate instructions
+    # or schedule them in batches (first all multiplies then all accumulates)
+    if interleave:
+        main_loop += gemm_quantized_4_4_interleaved()
+    else:
+        main_loop += gemm_quantized_4_4_batched()
 
-                // Higher part of a1 * {b0,b1,b2,b3}
-                "umull v12.8h, v1.8b, v4.8b\\n"
-                "umull v13.8h, v1.8b, v5.8b\\n"
-                "umull v14.8h, v1.8b, v6.8b\\n"
-                "umull v15.8h, v1.8b, v7.8b\\n"
-
-                // Accumulate
-                "uadalp v16.4s, v8.8h\\n"
-                "uadalp v17.4s, v9.8h\\n"
-                "uadalp v18.4s, v10.8h\\n"
-                "uadalp v19.4s, v11.8h\\n"
-                "uadalp v20.4s, v12.8h\\n"
-                "uadalp v21.4s, v13.8h\\n"
-                "uadalp v22.4s, v14.8h\\n"
-                "uadalp v23.4s, v15.8h\\n"
-
-                // Lower part of a0 * {b0,b1,b2,b3}
-                "umull2 v8.8h, v0.16b, v4.16b\\n"
-                "umull2 v9.8h, v0.16b, v5.16b\\n"
-                "umull2 v10.8h, v0.16b, v6.16b\\n"
-                "umull2 v11.8h, v0.16b, v7.16b\\n"
-
-                // Lower part of a1 * {b0,b1,b2,b3}
-                "umull2 v12.8h, v1.16b, v4.16b\\n"
-                "umull2 v13.8h, v1.16b, v5.16b\\n"
-                "umull2 v14.8h, v1.16b, v6.16b\\n"
-                "umull2 v15.8h, v1.16b, v7.16b\\n"
-
-                 // Accumulate again
-                "uadalp v16.4s, v8.8h\\n"
-                "uadalp v17.4s, v9.8h\\n"
-                "uadalp v18.4s, v10.8h\\n"
-                "uadalp v19.4s, v11.8h\\n"
-                "uadalp v20.4s, v12.8h\\n"
-                "uadalp v21.4s, v13.8h\\n"
-                "uadalp v22.4s, v14.8h\\n"
-                "uadalp v23.4s, v15.8h\\n"
-
-                // Second half
-
-                // Lower part of a2 * {b0,b1,b2,b3}
-                "umull v8.8h, v2.8b, v4.8b\\n"
-                "umull v9.8h, v2.8b, v5.8b\\n"
-                "umull v10.8h, v2.8b, v6.8b\\n"
-                "umull v11.8h, v2.8b, v7.8b\\n"
-
-                // Lower part of a3 * {b0,b1,b2,b3}
-                "umull v12.8h, v3.8b, v4.8b\\n"
-                "umull v13.8h, v3.8b, v5.8b\\n"
-                "umull v14.8h, v3.8b, v6.8b\\n"
-                "umull v15.8h, v3.8b, v7.8b\\n"
-
-                // Accumulate
-                "uadalp v24.4s, v8.8h\\n"
-                "uadalp v25.4s, v9.8h\\n"
-                "uadalp v26.4s, v10.8h\\n"
-                "uadalp v27.4s, v11.8h\\n"
-                "uadalp v28.4s, v12.8h\\n"
-                "uadalp v29.4s, v13.8h\\n"
-                "uadalp v30.4s, v14.8h\\n"
-                "uadalp v31.4s, v15.8h\\n"
-
-                // Higher part of a2 * {b0,b1,b2,b3}
-                "umull2 v8.8h, v2.16b, v4.16b\\n"
-                "umull2 v9.8h, v2.16b, v5.16b\\n"
-                "umull2 v10.8h, v2.16b, v6.16b\\n"
-                "umull2 v11.8h, v2.16b, v7.16b\\n"
-
-                // Higher part of a3 * {b0,b1,b2,b3}
-                "umull2 v12.8h, v3.16b, v4.16b\\n"
-                "umull2 v13.8h, v3.16b, v5.16b\\n"
-                "umull2 v14.8h, v3.16b, v6.16b\\n"
-                "umull2 v15.8h, v3.16b, v7.16b\\n"
-
-                // Accumulate again
-                "uadalp v24.4s, v8.8h\\n"
-                "uadalp v25.4s, v9.8h\\n"
-                "uadalp v26.4s, v10.8h\\n"
-                "uadalp v27.4s, v11.8h\\n"
-                "uadalp v28.4s, v12.8h\\n"
-                "uadalp v29.4s, v13.8h\\n"
-                "uadalp v30.4s, v14.8h\\n"
-                "uadalp v31.4s, v15.8h\\n"
-    """
     blockA = min(64, M * 16)
     blockB = min(64, N * 16)
+    main_loop += """// Increment pointers
+                    "add %[a_ptr], %[a_ptr], #{0}\\n"
+                    "add %[b_ptr], %[b_ptr], #{1}\\n" """.format(blockA, blockB)
 
+    if unroll:
+        k = int(K//16)
+        for l in range(0, k):
+            cc_code += main_loop
+    else:
+        cc_code += main_loop
+        cc_code += """
+                    "subs %w[k], %w[k], #1\\n"
+                    "cbnz %w[k], 1b\\n"
+                   """
     cc_code += """
-                // Increment pointers and decrement k
-                "add %[a_ptr], %[a_ptr], #{0}\\n"
-                "add %[b_ptr], %[b_ptr], #{1}\\n"
-                "subs %w[k], %w[k], #1\\n"
-    """.format(blockA, blockB)
-
-    stepC = min(4, N)
-
-    cc_code += """
-                "cbnz %w[k], 1b\\n"
-
                 // Final additions
 
                 // v16 contains the four partial sums of a[0, 0:K].*b[0,0:K], let's call them (a,b,c,d)
@@ -237,6 +341,7 @@ def gemv_quantized_impl(M, N, data_type='uint8'):
                 "str q16, [%[c_ptr]]\\n"
             """
 
+    stepC = min(4, N)
     if M > 1:
         cc_code += ' "str q20, [%[c_ptr], #{0}]\\n" '.format(stepC * 4)
 
@@ -272,7 +377,7 @@ def gemv_quantized_impl(M, N, data_type='uint8'):
     return ll_code
 
 
-def gemv_quantized(M, N, K, in_type, out_type):
+def gemm_quantized(M, N, K, unroll, interleave, in_type, out_type):
     """
     Use integer ARM v8 instructions in order to produce a block c of 4x4 elements
     given two 4xK blocks a and b' (where b' is a Kx4 block transposed). The final
@@ -331,23 +436,17 @@ def gemv_quantized(M, N, K, in_type, out_type):
             cc = outs[0]
             stepA = min(4, M)
             stepB = min(4, N)
-
-            if in_type == 'int8':
-                ib.emit(tvm.tir.call_extern("int32",
-                                            "gemv_int8_int8_int32_{0}_{1}".format(stepA, stepB),
-                                            outs[0].access_ptr("w"),
-                                            a_buffer.access_ptr("r"),
-                                            b_buffer.access_ptr("r"),
-                                            K))
-            else:
-                ib.emit(tvm.tir.call_extern("int32",
-                                            "gemv_uint8_uint8_int32_{0}_{1}".format(stepA, stepB),
-                                            c_buffer.access_ptr("w"),
-                                            a_buffer.access_ptr("r"),
-                                            b_buffer.access_ptr("r"),
-                                            K,
-                                            C.shape[0],  # m, very useful for debug
-                                            C.shape[1]))  # n, very useful for debug
+            intrin_name = "gemm_quantized_{0}_{0}_int32_{1}_{2}".format(in_type, stepA, stepB)
+            if unroll:
+                intrin_name += ("_" + str(K))
+            if interleave:
+                intrin_name += "_interleaved"
+            ib.emit(tvm.tir.call_extern("int32",
+                                        intrin_name,
+                                        outs[0].access_ptr("w"),
+                                        a_buffer.access_ptr("r"),
+                                        b_buffer.access_ptr("r"),
+                                        K))
             return ib.get()
 
         # body, reset, update

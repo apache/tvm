@@ -235,6 +235,8 @@ def _get_expected_codegen(shape, kernel_h, kernel_w, padding, strides,
 
 
 def test_conv2d():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
@@ -274,7 +276,7 @@ def test_conv2d():
                                          params, device,
                                          enable_acl=acl)[0])
 
-        params = {
+        config = {
             "shape": shape,
             "groups": groups,
             "kernel size": (kernel_h, kernel_w),
@@ -284,7 +286,7 @@ def test_conv2d():
             "out channels": out_channels,
             "composite operators (pad, bias, activation)": composite
         }
-        verify(outputs, atol=0.002, rtol=0.01, params=params)
+        verify(outputs, atol=0.002, rtol=0.01, config=config)
 
 
 def test_codegen_conv2d():
@@ -325,6 +327,8 @@ def test_codegen_conv2d():
 
 
 def test_qnn_conv2d():
+    Device.load("test_config.json")
+
     if skip_runtime_test():
         return
 
@@ -376,7 +380,7 @@ def test_qnn_conv2d():
                                          params, device,
                                          enable_acl=acl)[0])
 
-        params = {
+        config = {
             "shape": shape,
             "groups": groups,
             "kernel size": (kernel_h, kernel_w),
@@ -392,14 +396,12 @@ def test_qnn_conv2d():
             "output scale": output_sc,
             "output zero point": output_zp
         }
-        verify(outputs, atol=1, rtol=0, params=params)
+        verify(outputs, atol=1, rtol=0, config=config, verify_saturation=True)
 
 
 def test_codegen_qnn_conv2d():
     if skip_codegen_test():
         return
-
-    np.random.seed(0)
 
     kernel_hs = [1, 2, 3, 5]
     kernel_ws = [1, 2, 3, 5]

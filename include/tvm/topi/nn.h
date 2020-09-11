@@ -124,6 +124,8 @@ inline tvm::te::Tensor prelu(const tvm::te::Tensor& x, const tvm::te::Tensor& sl
  * "constant" pads with constant_value;
  * "edge" pads using the edge values of the input array;
  * "reflect" pads by reflecting values with respect to the edges.
+ * \param dyn_output_shape Output shape of the pad op, default nullptr.
+ * You only need to pass this in if the shape was evaluated dynamically.
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
@@ -151,30 +153,40 @@ inline tvm::te::Tensor prelu(const tvm::te::Tensor& x, const tvm::te::Tensor& sl
 inline tvm::te::Tensor pad(const tvm::te::Tensor& t, const tvm::Array<tvm::PrimExpr>& pad_before,
                            tvm::Array<tvm::PrimExpr> pad_after = tvm::Array<tvm::PrimExpr>(),
                            PrimExpr pad_value = PrimExpr(), std::string name = "T_pad",
-                           std::string tag = kElementWise, std::string pad_mode = "constant") {
+                           std::string tag = kElementWise, std::string pad_mode = "constant",
+                           const Array<PrimExpr>* dyn_output_shape = nullptr) {
   if (pad_after.size() < pad_before.size()) {
     for (size_t i = pad_after.size(); i < pad_before.size(); ++i) {
       pad_after.push_back(pad_before[i]);
     }
   }
+
   arith::Analyzer analyzer;
   CHECK_GE(pad_before.size(), 1);
   CHECK_EQ(pad_before.size(), pad_after.size());
-  tvm::Array<tvm::PrimExpr> output_shape;
   tvm::Array<tvm::PrimExpr> pad_before_int32;
   tvm::Array<tvm::PrimExpr> pad_after_int32;
+
   for (const auto& ele : pad_before) {
     pad_before_int32.push_back(tvm::cast(tvm::DataType::Int(32), ele));
   }
   for (const auto& ele : pad_after) {
     pad_after_int32.push_back(tvm::cast(tvm::DataType::Int(32), ele));
   }
-  for (size_t i = 0; i < t->shape.size(); ++i) {
-    if (i >= pad_before.size()) {
-      output_shape.push_back(t->shape[i]);
-    } else {
-      output_shape.push_back(
-          analyzer.Simplify(t->shape[i] + pad_before_int32[i] + pad_after_int32[i]));
+
+  tvm::Array<tvm::PrimExpr> output_shape;
+  if (dyn_output_shape == nullptr) {
+    for (size_t i = 0; i < t->shape.size(); ++i) {
+      if (i >= pad_before.size()) {
+        output_shape.push_back(t->shape[i]);
+      } else {
+        output_shape.push_back(
+            analyzer.Simplify(t->shape[i] + pad_before_int32[i] + pad_after_int32[i]));
+      }
+    }
+  } else {
+    for (size_t i = 0; i < dyn_output_shape->size(); i++) {
+      output_shape.push_back((*dyn_output_shape)[i]);
     }
   }
 

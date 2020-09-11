@@ -24,15 +24,10 @@
 #ifndef TVM_TARGET_TARGET_KIND_H_
 #define TVM_TARGET_TARGET_KIND_H_
 
-#include <tvm/ir/expr.h>
-#include <tvm/ir/transform.h>
 #include <tvm/node/attr_registry_map.h>
-#include <tvm/runtime/container.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/support/with.h>
+#include <tvm/node/node.h>
 
 #include <memory>
-#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -43,10 +38,7 @@ template <typename, typename, typename>
 struct ValueTypeInfoMaker;
 }
 
-class Target;
-
-/*! \brief Perform schema validation */
-TVM_DLL void TargetValidateSchema(const Map<String, ObjectRef>& config);
+class TargetInternal;
 
 template <typename>
 class TargetKindAttrMap;
@@ -60,6 +52,8 @@ class TargetKindNode : public Object {
   int device_type;
   /*! \brief Default keys of the target */
   Array<String> default_keys;
+  /*! \brief Function used to preprocess on target creation */
+  PackedFunc preprocessor;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
@@ -67,14 +61,14 @@ class TargetKindNode : public Object {
     v->Visit("default_keys", &default_keys);
   }
 
-  Map<String, ObjectRef> ParseAttrsFromRaw(const std::vector<std::string>& options) const;
-
-  Optional<String> StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) const;
-
   static constexpr const char* _type_key = "TargetKind";
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetKindNode, Object);
 
  private:
+  /*! \brief Return the index stored in attr registry */
+  uint32_t AttrRegistryIndex() const { return index_; }
+  /*! \brief Return the name stored in attr registry */
+  String AttrRegistryName() const { return name; }
   /*! \brief Stores the required type_key and type_index of a specific attr of a target */
   struct ValueTypeInfo {
     String type_key;
@@ -82,29 +76,21 @@ class TargetKindNode : public Object {
     std::unique_ptr<ValueTypeInfo> key;
     std::unique_ptr<ValueTypeInfo> val;
   };
-
-  uint32_t AttrRegistryIndex() const { return index_; }
-  String AttrRegistryName() const { return name; }
-  /*! \brief Perform schema validation */
-  void ValidateSchema(const Map<String, ObjectRef>& config) const;
-  /*! \brief Verify if the obj is consistent with the type info */
-  void VerifyTypeInfo(const ObjectRef& obj, const TargetKindNode::ValueTypeInfo& info) const;
   /*! \brief A hash table that stores the type information of each attr of the target key */
   std::unordered_map<String, ValueTypeInfo> key2vtype_;
   /*! \brief A hash table that stores the default value of each attr of the target key */
   std::unordered_map<String, ObjectRef> key2default_;
   /*! \brief Index used for internal lookup of attribute registry */
   uint32_t index_;
-  friend void TargetValidateSchema(const Map<String, ObjectRef>&);
-  friend class Target;
-  friend class TargetKind;
+
+  template <typename, typename, typename>
+  friend struct detail::ValueTypeInfoMaker;
   template <typename, typename>
   friend class AttrRegistry;
   template <typename>
   friend class AttrRegistryMapContainerMap;
   friend class TargetKindRegEntry;
-  template <typename, typename, typename>
-  friend struct detail::ValueTypeInfoMaker;
+  friend class TargetInternal;
 };
 
 /*!
@@ -122,7 +108,7 @@ class TargetKind : public ObjectRef {
    * \param target_kind_name Name of the target kind
    * \return The TargetKind requested
    */
-  TVM_DLL static const TargetKind& Get(const String& target_kind_name);
+  TVM_DLL static Optional<TargetKind> Get(const String& target_kind_name);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TargetKind, ObjectRef, TargetKindNode);
 
  private:
@@ -130,10 +116,8 @@ class TargetKind : public ObjectRef {
   TargetKindNode* operator->() { return static_cast<TargetKindNode*>(data_.get()); }
   TVM_DLL static const AttrRegistryMapContainerMap<TargetKind>& GetAttrMapContainer(
       const String& attr_name);
-  template <typename, typename>
-  friend class AttrRegistry;
   friend class TargetKindRegEntry;
-  friend class Target;
+  friend class TargetInternal;
 };
 
 /*!
@@ -189,6 +173,13 @@ class TargetKindRegEntry {
    */
   inline TargetKindRegEntry& set_default_keys(std::vector<String> keys);
   /*!
+   * \brief Set the pre-processing function applied upon target creation
+   * \tparam FLambda Type of the function
+   * \param f The pre-processing function
+   */
+  template <typename FLambda>
+  inline TargetKindRegEntry& set_attrs_preprocessor(FLambda f);
+  /*!
    * \brief Register a valid configuration option and its ValueType for validation
    * \param key The configuration key
    * \tparam ValueType The value type to be registered
@@ -231,29 +222,6 @@ class TargetKindRegEntry {
   friend class AttrRegistry;
   friend class TargetKind;
 };
-
-#define TVM_TARGET_KIND_REGISTER_VAR_DEF \
-  static DMLC_ATTRIBUTE_UNUSED ::tvm::TargetKindRegEntry& __make_##TargetKind
-
-/*!
- * \def TVM_REGISTER_TARGET_KIND
- * \brief Register a new target kind, or set attribute of the corresponding target kind.
- *
- * \param TargetKindName The name of target kind
- *
- * \code
- *
- *  TVM_REGISTER_TARGET_KIND("llvm")
- *  .set_attr<TPreCodegenPass>("TPreCodegenPass", a-pre-codegen-pass)
- *  .add_attr_option<Bool>("system_lib")
- *  .add_attr_option<String>("mtriple")
- *  .add_attr_option<String>("mattr");
- *
- * \endcode
- */
-#define TVM_REGISTER_TARGET_KIND(TargetKindName)                  \
-  TVM_STR_CONCAT(TVM_TARGET_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
-      ::tvm::TargetKindRegEntry::RegisterOrGet(TargetKindName).set_name()
 
 namespace detail {
 template <typename Type, template <typename...> class Container>
@@ -344,6 +312,13 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_default_keys(std::vector<Stri
   return *this;
 }
 
+template <typename FLambda>
+inline TargetKindRegEntry& TargetKindRegEntry::set_attrs_preprocessor(FLambda f) {
+  using FType = typename tvm::runtime::detail::function_signature<FLambda>::FType;
+  kind_->preprocessor = tvm::runtime::TypedPackedFunc<FType>(std::move(f)).packed();
+  return *this;
+}
+
 template <typename ValueType>
 inline TargetKindRegEntry& TargetKindRegEntry::add_attr_option(const String& key) {
   CHECK(!kind_->key2vtype_.count(key))
@@ -366,6 +341,37 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
   }
   return *this;
 }
+
+#define TVM_TARGET_KIND_REGISTER_VAR_DEF \
+  static DMLC_ATTRIBUTE_UNUSED ::tvm::TargetKindRegEntry& __make_##TargetKind
+
+/*!
+ * \def TVM_REGISTER_TARGET_KIND
+ * \brief Register a new target kind, or set attribute of the corresponding target kind.
+ *
+ * \param TargetKindName The name of target kind
+ * \param DeviceType The DLDeviceType of the target kind
+ *
+ * \code
+ *
+ *  TVM_REGISTER_TARGET_KIND("llvm")
+ *  .set_attr<TPreCodegenPass>("TPreCodegenPass", a-pre-codegen-pass)
+ *  .add_attr_option<Bool>("system_lib")
+ *  .add_attr_option<String>("mtriple")
+ *  .add_attr_option<String>("mattr");
+ *
+ * \endcode
+ */
+#define TVM_REGISTER_TARGET_KIND(TargetKindName, DeviceType)      \
+  TVM_STR_CONCAT(TVM_TARGET_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
+      ::tvm::TargetKindRegEntry::RegisterOrGet(TargetKindName)    \
+          .set_name()                                             \
+          .set_device_type(DeviceType)                            \
+          .add_attr_option<Array<String>>("keys")                 \
+          .add_attr_option<String>("tag")                         \
+          .add_attr_option<String>("device")                      \
+          .add_attr_option<String>("model")                       \
+          .add_attr_option<Array<String>>("libs")
 
 }  // namespace tvm
 

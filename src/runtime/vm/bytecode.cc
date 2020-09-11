@@ -123,6 +123,11 @@ Instruction::Instruction(const Instruction& instr) {
       this->reshape_tensor.tensor = instr.reshape_tensor.tensor;
       this->reshape_tensor.newshape = instr.reshape_tensor.newshape;
       return;
+    case Opcode::DeviceCopy:
+      this->src = instr.src;
+      this->src_device_type = instr.src_device_type;
+      this->dst_device_type = instr.dst_device_type;
+      return;
     default:
       std::ostringstream out;
       out << "Invalid instruction " << static_cast<int>(instr.op);
@@ -220,6 +225,15 @@ Instruction& Instruction::operator=(const Instruction& instr) {
     case Opcode::ShapeOf:
       this->shape_of.tensor = instr.shape_of.tensor;
       return *this;
+    case Opcode::ReshapeTensor:
+      this->reshape_tensor.tensor = instr.reshape_tensor.tensor;
+      this->reshape_tensor.newshape = instr.reshape_tensor.newshape;
+      return *this;
+    case Opcode::DeviceCopy:
+      this->src = instr.src;
+      this->src_device_type = instr.src_device_type;
+      this->dst_device_type = instr.dst_device_type;
+      return *this;
     default:
       std::ostringstream out;
       out << "Invalid instruction " << static_cast<int>(instr.op);
@@ -241,6 +255,7 @@ Instruction::~Instruction() {
     case Opcode::AllocStorage:
     case Opcode::ShapeOf:
     case Opcode::ReshapeTensor:
+    case Opcode::DeviceCopy:
     case Opcode::Fatal:
       return;
     case Opcode::AllocTensor:
@@ -324,13 +339,14 @@ Instruction Instruction::AllocTensorReg(RegName storage, RegName offset, RegName
 }
 
 Instruction Instruction::AllocStorage(RegName size, Index alignment, DLDataType dtype_hint,
-                                      RegName dst) {
+                                      Index device_type, RegName dst) {
   Instruction instr;
   instr.op = Opcode::AllocStorage;
   instr.dst = dst;
   instr.alloc_storage.allocation_size = size;
   instr.alloc_storage.alignment = alignment;
   instr.alloc_storage.dtype_hint = dtype_hint;
+  instr.alloc_storage.device_type = device_type;
   return instr;
 }
 
@@ -348,6 +364,17 @@ Instruction Instruction::ReshapeTensor(RegName tensor, RegName newshape, RegName
   instr.dst = dst;
   instr.reshape_tensor.tensor = tensor;
   instr.reshape_tensor.newshape = newshape;
+  return instr;
+}
+
+Instruction Instruction::DeviceCopy(RegName src, Index src_device_type, Index dst_device_type,
+                                    RegName dst) {
+  Instruction instr;
+  instr.op = Opcode::DeviceCopy;
+  instr.dst = dst;
+  instr.src = src;
+  instr.src_device_type = src_device_type;
+  instr.dst_device_type = dst_device_type;
   return instr;
 }
 
@@ -582,7 +609,8 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     case Opcode::AllocStorage: {
       os << "alloc_storage $" << instr.dst << " $" << instr.alloc_storage.allocation_size << " "
          << instr.alloc_storage.alignment << " "
-         << DLDataType2String(instr.alloc_storage.dtype_hint);
+         << DLDataType2String(instr.alloc_storage.dtype_hint) << " "
+         << instr.alloc_storage.device_type;
       break;
     }
     case Opcode::ShapeOf: {
@@ -592,6 +620,11 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     case Opcode::ReshapeTensor: {
       os << "reshape_tensor $" << instr.dst << " $" << instr.reshape_tensor.tensor << " $"
          << instr.reshape_tensor.newshape;
+      break;
+    }
+    case Opcode::DeviceCopy: {
+      os << "device_copy $" << instr.dst << " $" << instr.src << " " << instr.dst_device_type << " "
+         << instr.src_device_type;
       break;
     }
     default:

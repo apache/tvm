@@ -50,10 +50,16 @@ namespace auto_scheduler {
 struct SketchParamKey {
   /*! \brief Always allocate this percentage of measurements to random sampled states. */
   static constexpr const char* eps_greedy = "eps_greedy";
+  /*! \brief Retry several times if SearchOneRound gets no valid state. */
+  static constexpr const char* empty_retry_count = "retry_search_one_round_on_empty";
 
   struct EvolutionarySearch {
     /*! \brief The population size for evolutionary search. */
     static constexpr const char* population = "evolutionary_search_population";
+    /*! \brief The number of iterations performed by generic algorithm.*/
+    static constexpr const char* num_iters = "evolutionary_search_num_iters";
+    /*! \brief The mutation probability.*/
+    static constexpr const char* mutation_prob = "evolutionary_search_mutation_prob";
     /*! \brief The maximum percentage of measured states in the initial population for evolutionary
      * search. */
     static constexpr const char* use_measured_ratio = "evolutionary_search_use_measured_ratio";
@@ -83,12 +89,14 @@ class SketchPolicyNode : public SearchPolicyNode {
  public:
   /*! \brief The cost model to estimate the complete schedules. */
   CostModel schedule_cost_model;
-  /*! \brief The parameters map for this search process. */
+  /*! \brief The parameters map for this search policy. */
   Map<String, ObjectRef> params;
   /*! \brief The rules to generate sketches. */
   std::vector<SketchGenerationRule*> sketch_rules;
   /*! \brief The rules to generate initial states. */
-  std::vector<InitPopulationRule*> init_rules;
+  std::vector<PopulationGenerationRule*> init_rules;
+  /*! \brief The rules to mutate states. */
+  std::vector<PopulationMutationRule*> mutation_rules;
   /*! \brief Random generator. */
   std::mt19937 rand_gen;
   /*! \brief Memorize split space for Split. */
@@ -103,6 +111,22 @@ class SketchPolicyNode : public SearchPolicyNode {
    */
   Array<State> GenerateSketches();
 
+  /*!
+   * \brief Sample the init population.
+   * \param sketches The initial sketches for the sampled population
+   * \param out_size The number of output states.
+   * \return The generated states (the initial population).
+   */
+  Array<State> SampleInitPopulation(const Array<State>& sketches, int out_size);
+
+  /*!
+   * \brief Perform evolutionary search.
+   * \param init_populations The states generated from init population.
+   * \param out_size The number of expected output states.
+   * \return The generated states after evolutionary search.
+   */
+  Array<State> EvolutionarySearch(const Array<State>& init_populations, int out_size);
+
   static constexpr const char* _type_key = "auto_scheduler.SketchPolicy";
 
   TVM_DECLARE_FINAL_OBJECT_INFO(SketchPolicyNode, SearchPolicyNode);
@@ -116,22 +140,6 @@ class SketchPolicyNode : public SearchPolicyNode {
    * \return The best several states generated in this search round.
    */
   Array<State> SearchOneRound(int num_random_states, Array<State>* random_states = nullptr);
-
-  /*!
-   * \brief Sample init population.
-   * \param sketches The initial sketches to process population.
-   * \param out_size The number of expected output states.
-   * \return The generated states after initial population.
-   */
-  Array<State> SampleInitPopulation(const Array<State>& sketches, int out_size);
-
-  /*!
-   * \brief Perform evolutionary search.
-   * \param init_populations The states generated from init population.
-   * \param out_size The number of expected output states.
-   * \return The generated states after evolutionary search.
-   */
-  Array<State> EvolutionarySearch(const Array<State>& init_populations, int out_size);
 
   /*!
    * \brief Pick states from best states and random states with eps-greedy policy.

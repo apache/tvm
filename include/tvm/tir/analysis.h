@@ -57,12 +57,19 @@ struct ExprDeepEqual {
 };
 
 /*!
- * \brief Find undefined vars in the statment.
+ * \brief Find undefined vars in the statement.
  * \param stmt The function to be checked.
  * \param defs The vars that is defined.
  * \return Array of undefined vars.
  */
 TVM_DLL Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& defs);
+
+/*!
+ * \brief Find undefined vars in the expression.
+ * \param expr The expression to be checked.
+ * \return Array of undefined vars.
+ */
+TVM_DLL Array<Var> UndefinedVars(const PrimExpr& expr);
 
 /*!
  * \brief Analyze the side effect

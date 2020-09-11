@@ -200,9 +200,9 @@ class StorageFlattener : public StmtExprMutator {
         strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
       }
 
-      e.buffer =
-          Buffer(Var(op->buffer->data->name_hint, DataType::Handle()), op->buffer->dtype, shape,
-                 strides, PrimExpr(), op->buffer->name, skey.to_string(), align, 0, kDefault);
+      e.buffer = Buffer(Var(op->buffer->data->name_hint, op->buffer->data->type_annotation),
+                        op->buffer->dtype, shape, strides, PrimExpr(), op->buffer->name,
+                        skey.to_string(), align, 0, kDefault);
 
       buf_map_[key] = e;
       Stmt body = this->VisitStmt(op->body);

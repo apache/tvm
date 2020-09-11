@@ -20,7 +20,7 @@ import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.op import add
-from tvm.relay.testing.config import ctx_list
+import tvm.testing
 
 # @tq, @jr should we put this in testing ns?
 def check_rts(expr, args, expected_result, mod=None):
@@ -141,6 +141,7 @@ def test_plan_memory():
     assert len(device_types) == 1
 
 
+@tvm.testing.uses_gpu
 def test_gru_like():
     def unit(rnn_dim):
         X = relay.var("X", shape=(1, rnn_dim))
@@ -165,7 +166,7 @@ def test_gru_like():
     out_shape = (1, rnn_dim)
     z = unit(rnn_dim)
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         with tvm.transform.PassContext(opt_level=2):
             graph, lib, params = relay.build(tvm.IRModule.from_expr(z), target)
             m = graph_runtime.create(graph, lib, ctx)

@@ -63,6 +63,7 @@
 #include <tvm/node/structural_equal.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/feature.h>
 #include <tvm/relay/transform.h>
 
 #include "let_list.h"
@@ -70,92 +71,54 @@
 namespace tvm {
 namespace relay {
 
-/*!
- * \brief Visitor appropriately wraps tensors with Raw constructor
- *
- * Recursively looks at the type of the expression (TensorType or TupleType are only supported for
- * now) and either call the GradCell constructor if TensorType or unfold and recursively visit if
- * TupleType
- */
-class InputVisitor : public ExprFunctor<Expr(const Expr&, const Type&)> {
- public:
-  explicit InputVisitor(IRModule module) : module_(module) {}
-
-  Expr VisitExpr_(const VarNode* op, const Type& t) final {
-    std::cout << op->type_annotation << std::endl;
-    return WrapExpr(GetRef<Var>(op), op->type_annotation);
-  }
-
-  Expr VisitExpr_(const TupleGetItemNode* op, const Type& t) final {
-    return WrapExpr(GetRef<TupleGetItem>(op), t);
-  }
-
- private:
-  IRModule module_;
-
-  Expr WrapExpr(const Expr expr, const Type& type) {
-    if (type.as<TensorTypeNode>()) {
-      return Call(module_->GetConstructor("GradCell", "Raw"), {expr}, Attrs(), {type});
-    } else if (auto* type_anno = type.as<TupleTypeNode>()) {
-      tvm::Array<Expr> fields;
-      for (size_t i = 0; i < type_anno->fields.size(); i++) {
-        const Type& t = type_anno->fields[i];
-        fields.push_back(this->VisitExpr(TupleGetItem(expr, i), t));
-      }
-      Expr tuple = Tuple(fields);
-      return tuple;
-    }
-
-    return expr;
-  }
-};
-
-/*!
- * \brief Visitor appropriately unwraps expressions with GradCell type into Tensors
- *
- * Recursively looks at the type of the expression
- * and either use the FromGradCell function if TypeCall to GradCell
- * or unfold and recursively visit if TupleType
- */
-class OutputVisitor : public ExprFunctor<Expr(const Expr&, const Type&)> {
- public:
-  explicit OutputVisitor(IRModule module) : module_(module) {}
-
-  Expr VisitExpr_(const CallNode* op, const Type& t) final {
-    return UnwrapExpr(GetRef<Call>(op), t);
-  }
-
-  Expr VisitExpr_(const TupleGetItemNode* op, const Type& t) final {
-    return UnwrapExpr(GetRef<TupleGetItem>(op), t);
-  }
-
- private:
-  IRModule module_;
-
-  Expr UnwrapExpr(const Expr expr, const Type& type) {
-    if (auto* type_call = type.as<TypeCallNode>()) {
-      if (type_call->func.same_as(module_->GetGlobalTypeVar("GradCell"))) {
-        return Call(module_->GetGlobalVar("FromGradCell"), {expr});
-      }
-      return expr;
-    } else if (auto* type_anno = type.as<TupleTypeNode>()) {
-      tvm::Array<Expr> fields;
-      for (size_t i = 0; i < type_anno->fields.size(); i++) {
-        const Type& t = type_anno->fields[i];
-        fields.push_back(this->VisitExpr(TupleGetItem(expr, i), t));
-      }
-      Expr tuple = Tuple(fields);
-      return tuple;
-    }
-
-    return expr;
-  }
-};
-
 class LazyGradientInitializer : public ExprMutator, public TypeMutator {
  public:
   explicit LazyGradientInitializer(IRModule module) : module_(module) {
     module_->ImportFromStd("gradient.rly");
+  }
+
+  Expr WrapExpr(const Var& var, const Type& type, LetList* ll) {
+    if (type.as<TensorTypeNode>()) {
+      return Call(module_->GetConstructor("GradCell", "Raw"), {var}, Attrs(), {type});
+    } else if (auto* type_anno = type.as<TupleTypeNode>()) {
+      tvm::Array<Expr> fields;
+      for (size_t i = 0; i < type_anno->fields.size(); i++) {
+        const Type& t = type_anno->fields[i];
+        fields.push_back(WrapExpr(ll->Push(TupleGetItem(var, i)), t, ll));
+      }
+      Expr tuple = Tuple(fields);
+      return tuple;
+    }
+
+    return var;
+  }
+
+  Expr UnwrapExpr(const Var& var, const Type& type, LetList* ll) {
+    if (auto* type_call = type.as<TypeCallNode>()) {
+      if (type_call->func.same_as(module_->GetGlobalTypeVar("GradCell"))) {
+        return Call(module_->GetGlobalVar("FromGradCell"), {var});
+      }
+      return var;
+    } else if (auto* type_anno = type.as<TupleTypeNode>()) {
+      tvm::Array<Expr> fields;
+      for (size_t i = 0; i < type_anno->fields.size(); i++) {
+        const Type& t = type_anno->fields[i];
+        fields.push_back(UnwrapExpr(ll->Push(TupleGetItem(var, i)), t, ll));
+      }
+      Expr tuple = Tuple(fields);
+      return tuple;
+    }
+
+    return var;
+  }
+
+  // Turn off memo for constant node.
+  Expr VisitExpr(const Expr& e) final {
+    if (e.as<ConstantNode>()) {
+      return ExprFunctor::VisitExpr(e);
+    } else {
+      return ExprMutator::VisitExpr(e);
+    }
   }
 
   /*!
@@ -165,23 +128,26 @@ class LazyGradientInitializer : public ExprMutator, public TypeMutator {
    * input/output types should only be a combination of TupleTypes and TensorTypes
    */
   Expr Transform(const Expr& e) {
-    auto* f = (e).as<FunctionNode>();
+    auto* f = e.as<FunctionNode>();
     auto* transformed = this->Mutate(e).as<FunctionNode>();
+
+    CHECK(f);
+    CHECK(transformed);
 
     if (e.same_as(GetRef<Function>(transformed))) {
       return GetRef<Function>(transformed);
     }
 
-    // wrap inputs of Tensor type using InputVisitor class
-    tvm::Array<Expr> args;
-    for (Var var : f->params) {
-      Expr wrappedInput = InputVisitor(module_).VisitExpr(var, var->checked_type());
-      args.push_back(wrappedInput);
-    }
-    Expr transformedExpr = Call(GetRef<Function>(transformed), args);
-
-    // unwrap outputs of GradCell type into Tensor type using OutputVisitor class
-    Expr tensorOutput = OutputVisitor(module_).VisitExpr(transformedExpr, transformed->ret_type);
+    auto tensorOutput = LetList::With([&](LetList* ll) {
+      // wrap inputs of Tensor type using InputVisitor class
+      tvm::Array<Expr> args;
+      for (const Var& var : f->params) {
+        args.push_back(WrapExpr(var, var->checked_type(), ll));
+      }
+      Expr transformedExpr = Call(GetRef<Function>(transformed), args);
+      // unwrap outputs of GradCell type into Tensor type using OutputVisitor class
+      return UnwrapExpr(ll->Push(transformedExpr), transformed->ret_type, ll);
+    });
     return Function(f->params, tensorOutput, f->ret_type, Array<TypeVar>());
   }
 
@@ -293,7 +259,10 @@ class LazyGradientInitializer : public ExprMutator, public TypeMutator {
 };
 
 Expr LazyGradientInit(const Expr& e, IRModule mod) {
-  return LazyGradientInitializer(mod).Transform(e);
+  CheckFeature(e, mod, FeatureSet::All() - fGraph);
+  auto ret = LazyGradientInitializer(mod).Transform(e);
+  CheckFeature(ret, mod, FeatureSet::All() - fGraph);
+  return ret;
 }
 
 namespace transform {

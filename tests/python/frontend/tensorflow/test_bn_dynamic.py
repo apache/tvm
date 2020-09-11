@@ -45,7 +45,7 @@ def verify_fused_batch_norm(shape):
 
     for device in ["llvm"]:
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             continue
         mod, params = relay.frontend.from_tensorflow(constant_graph,

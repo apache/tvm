@@ -21,12 +21,12 @@ import tvm
 from tvm import te
 from tvm import autotvm
 from tvm import topi
+import tvm.testing
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.nn.util import get_pad_tuple3d
 from tvm.topi.util import get_const_tuple
 
-from common import get_all_backend
 
 _conv3d_ncdhw_implement = {
     "gpu": (topi.cuda.conv3d_ncdhw_winograd, topi.cuda.schedule_conv3d_ncdhw_winograd),
@@ -78,12 +78,12 @@ def verify_conv3d_ncdhw(batch,
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv3d_ncdhw_implement)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             C = fcompute(A, W, (stride, stride, stride), padding, (dilation, dilation, dilation),
                          dtype)
             if add_bias:
@@ -117,6 +117,7 @@ def verify_conv3d_ncdhw(batch,
             check_device(device)
 
 
+@tvm.testing.requires_gpu
 def test_conv3d_ncdhw():
     # Try without depth transformation
     #3DCNN  workloads

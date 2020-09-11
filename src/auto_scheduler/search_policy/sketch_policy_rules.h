@@ -26,9 +26,12 @@
 #define TVM_AUTO_SCHEDULER_SEARCH_POLICY_SKETCH_POLICY_RULES_H_
 
 #include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/search_task.h>
 
 #include <utility>
 #include <vector>
+
+#include "utils.h"
 
 namespace tvm {
 namespace auto_scheduler {
@@ -59,7 +62,7 @@ class SketchGenerationRule {
    * \return The condition check result of this rule.
    */
   virtual ConditionKind MeetCondition(const SketchPolicyNode& policy, const State& state,
-                                      int stage_id) = 0;
+                                      int stage_id) const = 0;
 
   /*!
    * \brief Apply function of this rule.
@@ -73,89 +76,56 @@ class SketchGenerationRule {
                                                    const State& state, int stage_id) const = 0;
 };
 
+#define DEFINE_SKETCH_GENERATION_RULE(rule_name)                                                 \
+  class rule_name : public SketchGenerationRule {                                                \
+   public:                                                                                       \
+    ConditionKind MeetCondition(const SketchPolicyNode& policy, const State& state,              \
+                                int stage_id) const final;                                       \
+    std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy, const State& state, \
+                                             int stage_id) const final;                          \
+  };
+
 /*! \brief The rule that simply skips the current stage. It returns an unchanged state and move to
  * the next stage. */
-class RuleSkipStage : public SketchGenerationRule {
- public:
-  ConditionKind MeetCondition(const SketchPolicyNode& policy, const State& state,
-                              int stage_id) final;
-
-  std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy, const State& state,
-                                           int stage_id) const final;
-};
+DEFINE_SKETCH_GENERATION_RULE(RuleSkipStage);
 
 /*! \brief The rule that inlines simple elementwise ops.
  * \note This rule only inlines the strictly inlineable stages. Stages marked as not strictly
  * inlineable will have a chance to try different compute at location in InitPopulation later.
  */
-class RuleAlwaysInline : public SketchGenerationRule {
- public:
-  ConditionKind MeetCondition(const SketchPolicyNode& policy, const State& state,
-                              int stage_id) final;
-
-  std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy, const State& state,
-                                           int stage_id) const final;
-};
+DEFINE_SKETCH_GENERATION_RULE(RuleAlwaysInline);
 
 /*! \brief The rule that performs multi-level tiling. */
-class RuleMultiLevelTiling : public SketchGenerationRule {
- public:
-  ConditionKind MeetCondition(const SketchPolicyNode& policy, const State& state,
-                              int stage_id) final;
+DEFINE_SKETCH_GENERATION_RULE(RuleMultiLevelTiling);
 
-  std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy, const State& state,
-                                           int stage_id) const final;
-};
+/*! \brief The rule that performs multi-level tiling and fuses later consumers. */
+DEFINE_SKETCH_GENERATION_RULE(RuleMultiLevelTilingWithFusion);
 
-/*! The rule that performs multi-level tiling and fuses later consumers. */
-class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
- public:
-  ConditionKind MeetCondition(const SketchPolicyNode& policy, const State& state,
-                              int stage_id) final;
-
-  std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy, const State& state,
-                                           int stage_id) const final;
-
- private:
-  int target_stage_id;
-};
+/*! \brief The rule that adds a cache read stage. Mainly used for GPU cooperative fetching,
+ * Currently only support 1 to 1 match cache read. */
+DEFINE_SKETCH_GENERATION_RULE(RuleAddCacheRead);
 
 /*! \brief The rule that adds a cache write stage. */
-class RuleAddCacheWrite : public SketchGenerationRule {
- public:
-  ConditionKind MeetCondition(const SketchPolicyNode& policy, const State& state,
-                              int stage_id) final;
-
-  std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy, const State& state,
-                                           int stage_id) const final;
-};
+DEFINE_SKETCH_GENERATION_RULE(RuleAddCacheWrite);
 
 /*! \brief The rule that adds rfactor stage. */
-class RuleAddRfactor : public SketchGenerationRule {
- public:
-  ConditionKind MeetCondition(const SketchPolicyNode& policy, const State& state,
-                              int stage_id) final;
-
-  std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy, const State& state,
-                                           int stage_id) const final;
-};
+DEFINE_SKETCH_GENERATION_RULE(RuleAddRfactor);
 
 /*! \brief The rule that deals with compute ops that perform "fake reduction" with const tensors.
- * This kind of op comes from winograd transformation.
- */
-class RuleSimplifyComputeWithConstTensor : public SketchGenerationRule {
- public:
-  ConditionKind MeetCondition(const SketchPolicyNode& policy, const State& state,
-                              int stage_id) final;
+ * This kind of op comes from winograd transformation. */
+DEFINE_SKETCH_GENERATION_RULE(RuleSimplifyComputeWithConstTensor);
 
-  std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy, const State& state,
-                                           int stage_id) const final;
-};
+/*! \brief The rule that use cross thread reduction for GPU. */
+DEFINE_SKETCH_GENERATION_RULE(RuleCrossThreadReduction);
+
+/*! \brief Handle special cases in Winograd transformation for GPU. We need to change the compute
+ * location of the producers of compute ops that perform "fake reduction" with const tensors. */
+DEFINE_SKETCH_GENERATION_RULE(RuleSpecialComputeLocationGPU);
 
 /********** Init Population **********/
 
 /*! \brief The base class for derivation rules used in the initial population. */
-class InitPopulationRule {
+class PopulationGenerationRule {
  public:
   /*! \brief Result enumeration of the apply function. */
   enum class ResultKind : int { kValid = 0, kInvalid = 1 };
@@ -170,35 +140,79 @@ class InitPopulationRule {
   virtual ResultKind Apply(SketchPolicyNode* policy, State* state) const = 0;
 };
 
+#define DEFINE_INIT_POPULATION_RULE(rule_name)                            \
+  class rule_name : public PopulationGenerationRule {                     \
+   public:                                                                \
+    ResultKind Apply(SketchPolicyNode* policy, State* state) const final; \
+  };
+
 /*! \brief The rule that fills the incomplete SplitSteps. */
-class InitFillTileSize : public InitPopulationRule {
+DEFINE_INIT_POPULATION_RULE(InitFillTileSize);
+
+/*! \brief The rule that randomly changes the computation location for some stages, which do not
+ * need tiling and are not strictly inlineable(e.g. data padding). */
+DEFINE_INIT_POPULATION_RULE(InitChangeComputeLocation);
+
+/*! \brief The rule that annotates parallel for CPU. */
+DEFINE_INIT_POPULATION_RULE(InitParallel);
+
+/*! \brief The rule that annotates unroll. */
+DEFINE_INIT_POPULATION_RULE(InitUnroll);
+
+/*! \brief The rule that annotates vectorization. */
+DEFINE_INIT_POPULATION_RULE(InitVectorization);
+
+/*! \brief The rule that annotates thread binding for GPU. */
+DEFINE_INIT_POPULATION_RULE(InitThreadBind);
+
+/********** Mutation **********/
+
+/*! \brief The base class for mutation rules used in the evolutionary search. */
+class PopulationMutationRule : public PopulationGenerationRule {
+ public:
+  /*!
+   * \brief Get the priority level of this mutation rule.
+   * \return The priority level of this mutation rule. Higher the better.
+   */
+  virtual int GetLevel(const SearchTask& task) const = 0;
+};
+
+// A helper to define mutation rules with a constant rule level.
+#define DEFINE_MUTATE_POPULATION_RULE(rule_name, rule_level)                \
+  class rule_name : public PopulationMutationRule {                         \
+   public:                                                                  \
+    ResultKind Apply(SketchPolicyNode* policy, State* state) const final;   \
+    int GetLevel(const SearchTask& task) const final { return rule_level; } \
+  };
+
+/*! \brief The rule that mutates tile size by randomly dividing a tile size by a factor
+    and multipling it to another tile size. */
+DEFINE_MUTATE_POPULATION_RULE(MutateTileSize, 100);
+
+/*! \brief The rule that mutates the fusion iterators annotated by parallel. */
+DEFINE_MUTATE_POPULATION_RULE(MutateParallel, 50);
+
+/*! \brief The rule that mutates the factor of a randomly selected auto max unroll step. */
+class MutateMaxUnrollFactor : public PopulationMutationRule {
  public:
   ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
+  int GetLevel(const SearchTask& task) const final { return 10; }
+
+  const std::vector<int> cpu_unroll_cands_ = {0, 16, 64, 512, 1024};
+  const std::vector<int> gpu_unroll_cands_ = {0, 16, 64, 512};
 };
 
 /*! \brief The rule that randomly changes the computation location for some stages, which do not
  * need tiling and are not strictly inlineable(e.g. data padding). */
-class InitChangeComputeLocation : public InitPopulationRule {
+class MutateComputeLocation : public PopulationMutationRule {
  public:
   ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
-};
-
-/*! \brief The rule that annotates parallel for CPU. */
-class InitParallel : public InitPopulationRule {
- public:
-  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
-};
-
-/*! \brief The rule that annotates unroll. */
-class InitUnroll : public InitPopulationRule {
- public:
-  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
-};
-
-/*! \brief The rule that annotates vectorization. */
-class InitVectorization : public InitPopulationRule {
- public:
-  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
+  int GetLevel(const SearchTask& task) const final {
+    if (IsGPUTask(task)) {
+      return 0;
+    }
+    return 5;
+  }
 };
 
 }  // namespace auto_scheduler

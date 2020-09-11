@@ -86,12 +86,43 @@ FeatureSet DetectFeature(const Expr& expr) {
   return fd.fs;
 }
 
+std::string FeatureSet::ToString() const {
+  std::string ret;
+  ret += "[";
+  size_t detected = 0;
+#define DETECT_FEATURE(FEATURE_NAME) \
+  ++detected;                        \
+  if (bs_[FEATURE_NAME]) {           \
+    ret += #FEATURE_NAME;            \
+    ret += ", ";                     \
+  }
+  DETECT_FEATURE(fVar);
+  DETECT_FEATURE(fGlobalVar);
+  DETECT_FEATURE(fConstant);
+  DETECT_FEATURE(fTuple);
+  DETECT_FEATURE(fTupleGetItem);
+  DETECT_FEATURE(fFunction);
+  DETECT_FEATURE(fOp);
+  DETECT_FEATURE(fCall);
+  DETECT_FEATURE(fLet);
+  DETECT_FEATURE(fIf);
+  DETECT_FEATURE(fRefCreate);
+  DETECT_FEATURE(fRefRead);
+  DETECT_FEATURE(fRefWrite);
+  DETECT_FEATURE(fConstructor);
+  DETECT_FEATURE(fMatch);
+  DETECT_FEATURE(fGraph);
+  DETECT_FEATURE(fLetRec);
+#undef DETECT_FEATURE
+  CHECK(detected == feature_count) << "some feature not printed";
+  ret += "]";
+  return ret;
+}
+
 FeatureSet DetectFeature(const IRModule& mod) {
   FeatureSet fs = FeatureSet::No();
-  if (mod.defined()) {
-    for (const auto& f : mod->functions) {
-      fs += DetectFeature(f.second);
-    }
+  for (const auto& f : mod->functions) {
+    fs += DetectFeature(f.second);
   }
   return fs;
 }
@@ -105,6 +136,18 @@ Array<Integer> PyDetectFeature(const Expr& expr, const Optional<IRModule>& mod) 
 }
 
 TVM_REGISTER_GLOBAL("relay.analysis.detect_feature").set_body_typed(PyDetectFeature);
+
+void CheckFeature(const Expr& expr, const FeatureSet& fs) {
+  auto dfs = DetectFeature(expr);
+  CHECK(dfs.is_subset_of(fs)) << AsText(expr, false)
+                              << "\nhas unsupported feature: " << (dfs - fs).ToString();
+}
+
+void CheckFeature(const IRModule& mod, const FeatureSet& fs) {
+  for (const auto& f : mod->functions) {
+    CheckFeature(f.second, fs);
+  }
+}
 
 }  // namespace relay
 }  // namespace tvm

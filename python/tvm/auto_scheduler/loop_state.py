@@ -58,6 +58,13 @@ class Iterator(Object):
 class Stage(Object):
     """ A stage in the compute declaration. Similar to tvm.te.schedule.Stage. """
 
+    # Static trans table for compute_at location
+    # This is used to transform the compute_at location to C++ enum
+    COMPUTE_AT_TRANS_TABLE = {
+        "root": 0,
+        "inlined": 1,
+        "iter": 2
+    }
 
 @tvm._ffi.register_object("auto_scheduler.State")
 class StateObject(Object):
@@ -85,7 +92,7 @@ class State:
     This is a wrapper class of StateObject to deal with copy-on-write property
     """
 
-    # Static trans table for thread bind
+    # Static trans table for thread bind and annotation
     # This is used to transform the annotation name to C++ enum
     ANNOTATION_TRANS_TABLE = {
         "none": 0,

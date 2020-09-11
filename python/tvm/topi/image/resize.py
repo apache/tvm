@@ -519,8 +519,9 @@ def resize(data, size, layout="NCHW", method="bilinear",
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
 
-    output_shape: optional
+    output_shape: tvm.tir.container.Array, optional
         Shape to return. If left None will be inferred
+        (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 
     Returns
     -------
@@ -529,8 +530,11 @@ def resize(data, size, layout="NCHW", method="bilinear",
         or [batch, in_height*scale, in_width*scale, channel]
         or 5-D with shape [batch, channel-major, in_height*scale, in_width*scale, channel-minor]
     """
-
     method = method.lower()
+    if method == "nearest_neighbor" and coordinate_transformation_mode != "asymmetric":
+        raise ValueError('Topi Resize does not support the combination of method %s ' \
+                         'and coordinate_transformation_mode %s' %
+                         (method, coordinate_transformation_mode))
     if layout == 'NHWC':
         in_n, in_h, in_w, in_c = data.shape
         if output_shape is None:
@@ -677,17 +681,22 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
         inputs is a 5-D tensor with shape
         [batch, channel, in_depth, in_height, in_width]
         or  [batch, in_depth, in_height, in_width, channel]
+
     size: Tuple
         Output resolution scale to
+
     layout: string, optional
         "NCDHW", "NDHWC", or "NCDHWc".
+
     coordinate_transformation_mode: string, optional
         Describes how to transform the coordinate in the resized tensor
         to the coordinate in the original tensor.
         Refer to the ONNX Resize operator specification for details.
+
         Available options are "half_pixel", "align_corners" and "asymmetric".
     method: {"trilinear", "nearest_neighbor"}
         Method to be used for resizing.
+
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
 

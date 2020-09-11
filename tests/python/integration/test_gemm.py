@@ -18,8 +18,10 @@ import tvm
 from tvm import te
 import numpy as np
 import time
+import tvm.testing
 
 
+@tvm.testing.requires_gpu
 def test_gemm():
     # graph
     nn = 1024
@@ -82,11 +84,11 @@ def test_gemm():
     # one line to build the function.
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
 
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             f = tvm.build(s, [A, B, C])
 
         # launch the kernel.

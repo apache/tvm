@@ -21,8 +21,6 @@ from tvm import te
 from tvm import topi
 import tvm.topi.testing
 
-from common import get_all_backend
-
 
 def verify_space_to_depth(block_size, batch, in_channel, in_height, in_width, layout='NCHW'):
     out_channel = int(in_channel * (block_size * block_size))
@@ -50,13 +48,9 @@ def verify_space_to_depth(block_size, batch, in_channel, in_height, in_width, la
         a_np = np.transpose(a_np, axes=[0, 2, 3, 1])
         b_np = np.transpose(b_np, axes=[0, 2, 3, 1])
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_injective_schedule(device)(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
@@ -64,10 +58,11 @@ def verify_space_to_depth(block_size, batch, in_channel, in_height, in_width, la
         f(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 
+@tvm.testing.uses_gpu
 def test_space_to_depth():
     for layout in ['NCHW', 'NHWC']:
         # Simplest possible case

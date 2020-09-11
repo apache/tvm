@@ -20,7 +20,7 @@ import tvm._ffi
 
 from tvm._ffi.base import string_types
 from tvm.runtime import Object, convert
-from tvm.ir import PrimExpr
+from tvm.ir import PrimExpr, PointerType, PrimType
 from . import _ffi_api
 
 
@@ -241,7 +241,7 @@ def decl_buffer(shape,
         shape_dtype = shape[0].dtype if hasattr(shape[0], "dtype") else "int32"
         elem_offset = Var('%s_elem_offset' % name, shape_dtype)
     if data is None:
-        data = Var(name, "handle")
+        data = Var(name, PointerType(PrimType(dtype)))
     return _ffi_api.Buffer(
         data, dtype, shape, strides, elem_offset, name, scope,
         data_alignment, offset_factor, buffer_type)

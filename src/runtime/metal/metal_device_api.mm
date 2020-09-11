@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -28,8 +29,10 @@ namespace tvm {
 namespace runtime {
 namespace metal {
 
-const std::shared_ptr<MetalWorkspace>& MetalWorkspace::Global() {
-  static std::shared_ptr<MetalWorkspace> inst = std::make_shared<MetalWorkspace>();
+MetalWorkspace* MetalWorkspace::Global() {
+  // NOTE: explicitly use new to avoid exit-time destruction of global state
+  // Global state will be recycled by OS as the process exits.
+  static MetalWorkspace* inst = new MetalWorkspace();
   return inst;
 }
 
@@ -157,10 +160,13 @@ void* MetalWorkspace::AllocDataSpace(TVMContext ctx, size_t nbytes, size_t align
   */
   id<MTLBuffer> buf = [dev newBufferWithLength:nbytes options:storage_mode];
   CHECK(buf != nil);
-  return (__bridge void*)([buf retain]);
+  return (void*)(CFBridgingRetain(buf));
 }
 
 void MetalWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
+  // MTLBuffer PurgeableState should be set to empty before manual
+  // release in order to prevent memory leak
+  [(id<MTLBuffer>)ptr setPurgeableState:MTLPurgeableStateEmpty];
   // release the ptr.
   CFRelease(ptr);
 }
@@ -249,7 +255,10 @@ void MetalWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
 
 MetalThreadEntry::~MetalThreadEntry() {
   for (auto x : temp_buffer_) {
-    if (x != nil) [x release];
+    if (x != nil) {
+      [(id<MTLBuffer>)x setPurgeableState:MTLPurgeableStateEmpty];
+      [x release];
+    }
   }
 }
 
@@ -273,7 +282,7 @@ typedef dmlc::ThreadLocalStore<MetalThreadEntry> MetalThreadStore;
 MetalThreadEntry* MetalThreadEntry::ThreadLocal() { return MetalThreadStore::Get(); }
 
 TVM_REGISTER_GLOBAL("device_api.metal").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = MetalWorkspace::Global().get();
+  DeviceAPI* ptr = MetalWorkspace::Global();
   *rv = static_cast<void*>(ptr);
 });
 

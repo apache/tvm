@@ -1427,6 +1427,22 @@ class Map : public ObjectRef {
   MapNode* GetMapNode() const { return static_cast<MapNode*>(data_.get()); }
 };
 
+/*!
+ * \brief Merge two Maps.
+ * \param lhs the first Map to merge.
+ * \param rhs the second Map to merge.
+ * @return The merged Array. Original Maps are kept unchanged.
+ */
+template <typename K, typename V,
+          typename = typename std::enable_if<std::is_base_of<ObjectRef, K>::value>::type,
+          typename = typename std::enable_if<std::is_base_of<ObjectRef, V>::value>::type>
+inline Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
+  for (const auto& p : rhs) {
+    lhs.Set(p.first, p.second);
+  }
+  return std::move(lhs);
+}
+
 }  // namespace tvm
 
 namespace tvm {
