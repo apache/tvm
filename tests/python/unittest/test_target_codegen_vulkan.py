@@ -22,16 +22,18 @@ import numpy as np
 
 @tvm.testing.requires_vulkan
 def test_vector_comparison():
-    target = 'vulkan'
+    target = "vulkan"
 
     def check_correct_assembly(dtype):
         n = (1024,)
-        A = te.placeholder(n, dtype=dtype, name='A')
+        A = te.placeholder(n, dtype=dtype, name="A")
         B = te.compute(
             A.shape,
             lambda i: tvm.tir.Select(
-                A[i] >= 0, A[i] + tvm.tir.const(1, dtype),
-                tvm.tir.const(0, dtype)), name='B')
+                A[i] >= 0, A[i] + tvm.tir.const(1, dtype), tvm.tir.const(0, dtype)
+            ),
+            name="B",
+        )
         s = te.create_schedule(B.op)
 
         (bx, tx) = s[B].split(s[B].op.axis[0], factor=128)
@@ -48,9 +50,10 @@ def test_vector_comparison():
         assert len(matches) == 1
         matches = re.findall("OpSelect %v4.*", assembly)
         assert len(matches) == 1
-    check_correct_assembly('float32')
-    check_correct_assembly('int32')
-    check_correct_assembly('float16')
+
+    check_correct_assembly("float32")
+    check_correct_assembly("int32")
+    check_correct_assembly("float16")
 
 
 tx = te.thread_axis("threadIdx.x")
@@ -59,9 +62,8 @@ bx = te.thread_axis("blockIdx.x")
 
 @tvm.testing.requires_vulkan
 def test_vulkan_copy():
-
     def check_vulkan(dtype, n):
-        A = te.placeholder((n,), name='A', dtype=dtype)
+        A = te.placeholder((n,), name="A", dtype=dtype)
         ctx = tvm.vulkan(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
         a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(a_np)
@@ -81,16 +83,15 @@ def test_vulkan_vectorize_add():
     num_thread = 8
 
     def check_vulkan(dtype, n, lanes):
-        A = te.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
-        B = te.compute((n,), lambda i: A[i]+tvm.tir.const(1, A.dtype), name='B')
+        A = te.placeholder((n,), name="A", dtype="%sx%d" % (dtype, lanes))
+        B = te.compute((n,), lambda i: A[i] + tvm.tir.const(1, A.dtype), name="B")
         s = te.create_schedule(B.op)
         xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
         s[B].bind(xo, bx)
         s[B].bind(xi, tx)
         fun = tvm.build(s, [A, B], "vulkan")
         ctx = tvm.vulkan(0)
-        a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(
-            np.random.uniform(size=(n, lanes)))
+        a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(np.random.uniform(size=(n, lanes)))
         c = tvm.nd.empty((n,), B.dtype, ctx)
         fun(a, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
@@ -107,20 +108,21 @@ def test_vulkan_stress():
     """
     import random
     import threading
+
     n = 1024
     num_thread = 64
 
     def run_stress():
         def worker():
-            A = te.placeholder((n,), name='A', dtype="float32")
-            B = te.placeholder((n,), name='B', dtype="float32")
+            A = te.placeholder((n,), name="A", dtype="float32")
+            B = te.placeholder((n,), name="B", dtype="float32")
             functions = [
-                (lambda: te.compute((n,), lambda i: 2 * A[i] + 3 * B[i]),
-                 lambda a, b: 2 * a + 3 * b),
-                (lambda: te.compute((n,), lambda i: A[i]+B[i]),
-                 lambda a, b: a + b),
-                (lambda: te.compute((n,), lambda i: A[i]+2 * B[i]),
-                 lambda a, b: a + 2 * b),
+                (
+                    lambda: te.compute((n,), lambda i: 2 * A[i] + 3 * B[i]),
+                    lambda a, b: 2 * a + 3 * b,
+                ),
+                (lambda: te.compute((n,), lambda i: A[i] + B[i]), lambda a, b: a + b),
+                (lambda: te.compute((n,), lambda i: A[i] + 2 * B[i]), lambda a, b: a + 2 * b),
             ]
 
             def build_f(f_ref):
@@ -133,23 +135,20 @@ def test_vulkan_stress():
                 fun = tvm.build(s, [A, B, C], "vulkan")
                 return (fun, ref)
 
-            fs = [build_f(random.choice(functions))
-                  for _ in range(np.random.randint(low=1, high=10))]
+            fs = [
+                build_f(random.choice(functions)) for _ in range(np.random.randint(low=1, high=10))
+            ]
             ctx = tvm.vulkan(0)
-            a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(
-                np.random.uniform(size=(n,)))
-            b = tvm.nd.empty((n,), B.dtype, ctx).copyfrom(
-                np.random.uniform(size=(n,)))
+            a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(np.random.uniform(size=(n,)))
+            b = tvm.nd.empty((n,), B.dtype, ctx).copyfrom(np.random.uniform(size=(n,)))
             cs = [tvm.nd.empty((n,), A.dtype, ctx) for _ in fs]
             for ((f, _), c) in zip(fs, cs):
                 f(a, b, c)
 
             for ((_, ref), c) in zip(fs, cs):
-                tvm.testing.assert_allclose(
-                    c.asnumpy(), ref(a.asnumpy(), b.asnumpy()))
+                tvm.testing.assert_allclose(c.asnumpy(), ref(a.asnumpy(), b.asnumpy()))
 
-        ts = [threading.Thread(target=worker)
-              for _ in range(np.random.randint(1, 10))]
+        ts = [threading.Thread(target=worker) for _ in range(np.random.randint(1, 10))]
         for t in ts:
             t.start()
         for t in ts:

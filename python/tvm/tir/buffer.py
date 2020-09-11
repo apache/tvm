@@ -38,6 +38,7 @@ class Buffer(Object):
     --------
     decl_buffer : Declare a buffer
     """
+
     READ = 1
     WRITE = 2
 
@@ -89,8 +90,7 @@ class Buffer(Object):
                     raise ValueError("Unknown access_mask %s" % access_mask)
             access_mask = mask
         offset = convert(offset)
-        return _ffi_api.BufferAccessPtr(self, access_mask, ptr_type,
-                                        content_lanes, offset)
+        return _ffi_api.BufferAccessPtr(self, access_mask, ptr_type, content_lanes, offset)
 
     def vload(self, begin, dtype=None):
         """Generate an Expr that loads dtype from begin index.
@@ -133,16 +133,18 @@ class Buffer(Object):
         return _ffi_api.BufferVStore(self, begin, value)
 
 
-def decl_buffer(shape,
-                dtype=None,
-                name="buffer",
-                data=None,
-                strides=None,
-                elem_offset=None,
-                scope="",
-                data_alignment=-1,
-                offset_factor=0,
-                buffer_type=""):
+def decl_buffer(
+    shape,
+    dtype=None,
+    name="buffer",
+    data=None,
+    strides=None,
+    elem_offset=None,
+    scope="",
+    data_alignment=-1,
+    offset_factor=0,
+    buffer_type="",
+):
     """Declare a new symbolic buffer.
 
     Normally buffer is created automatically during lower and build.
@@ -239,12 +241,21 @@ def decl_buffer(shape,
     strides = () if strides is None else strides
     if offset_factor != 0 and elem_offset is None:
         shape_dtype = shape[0].dtype if hasattr(shape[0], "dtype") else "int32"
-        elem_offset = Var('%s_elem_offset' % name, shape_dtype)
+        elem_offset = Var("%s_elem_offset" % name, shape_dtype)
     if data is None:
         data = Var(name, PointerType(PrimType(dtype)))
     return _ffi_api.Buffer(
-        data, dtype, shape, strides, elem_offset, name, scope,
-        data_alignment, offset_factor, buffer_type)
+        data,
+        dtype,
+        shape,
+        strides,
+        elem_offset,
+        name,
+        scope,
+        data_alignment,
+        offset_factor,
+        buffer_type,
+    )
 
 
 @tvm._ffi.register_object("tir.DataProducer")

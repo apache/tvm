@@ -67,7 +67,7 @@ from tvm.contrib import nvcc
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
-    """ Version of np.testing.assert_allclose with `atol` and `rtol` fields set
+    """Version of np.testing.assert_allclose with `atol` and `rtol` fields set
     in reasonable defaults.
 
     Arguments `actual` and `desired` are not interchangable, since the function
@@ -77,8 +77,9 @@ def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
     np.testing.assert_allclose(actual, desired, rtol=rtol, atol=atol, verbose=True)
 
 
-def check_numerical_grads(function, input_values, grad_values, function_value=None,
-                          delta=1e-3, atol=1e-2, rtol=0.1):
+def check_numerical_grads(
+    function, input_values, grad_values, function_value=None, delta=1e-3, atol=1e-2, rtol=0.1
+):
     """A helper function that checks that numerical gradients of a function are
     equal to gradients computed in some different way (analytical gradients).
 
@@ -123,6 +124,7 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
 
         def _function(_input_len=input_len, _orig_function=function, **kwargs):
             return _orig_function(*(kwargs[str(i)] for i in range(input_len)))
+
         function = _function
 
         grad_values = {str(idx): val for idx, val in enumerate(grad_values)}
@@ -138,19 +140,22 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
 
     # numerically compute a partial derivative with respect to j-th element of the var `name`
     def derivative(x_name, j, a_delta):
-        modified_values = {n: modify(val, j, a_delta) if n == x_name else val
-                           for n, val in input_values.items()}
-        return (function(**modified_values) - function_value)/a_delta
+        modified_values = {
+            n: modify(val, j, a_delta) if n == x_name else val for n, val in input_values.items()
+        }
+        return (function(**modified_values) - function_value) / a_delta
 
     def compare_derivative(j, n_der, grad):
         der = grad.reshape(-1)[j]
-        return np.abs(n_der - der) < atol + rtol*np.abs(n_der)
+        return np.abs(n_der - der) < atol + rtol * np.abs(n_der)
 
     for x_name, grad in grad_values.items():
         if grad.shape != input_values[x_name].shape:
             raise AssertionError(
-                "Gradient wrt '{}' has unexpected shape {}, expected {} "
-                .format(x_name, grad.shape, input_values[x_name].shape))
+                "Gradient wrt '{}' has unexpected shape {}, expected {} ".format(
+                    x_name, grad.shape, input_values[x_name].shape
+                )
+            )
 
         ngrad = np.zeros_like(grad)
 
@@ -165,13 +170,15 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
             # precise and expensive methods
             if not compare_derivative(j, nder, grad):
                 # central difference approximation
-                nder = (derivative(x_name, j, -delta) + nder)/2
+                nder = (derivative(x_name, j, -delta) + nder) / 2
 
                 if not compare_derivative(j, nder, grad):
                     # central difference approximation using h = delta/2
-                    cnder2 = (derivative(x_name, j, delta/2) + derivative(x_name, j, -delta/2))/2
+                    cnder2 = (
+                        derivative(x_name, j, delta / 2) + derivative(x_name, j, -delta / 2)
+                    ) / 2
                     # five-point derivative
-                    nder = (4*cnder2 - nder)/3
+                    nder = (4 * cnder2 - nder) / 3
 
             # if the derivatives still don't match, add this position to the
             # list of wrong positions
@@ -180,35 +187,51 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
 
             ngrad.reshape(-1)[j] = nder
 
-        wrong_percentage = int(100*len(wrong_positions)/np.prod(grad.shape))
+        wrong_percentage = int(100 * len(wrong_positions) / np.prod(grad.shape))
 
-        dist = np.sqrt(np.sum((ngrad - grad)**2))
-        grad_norm = np.sqrt(np.sum(ngrad**2))
+        dist = np.sqrt(np.sum((ngrad - grad) ** 2))
+        grad_norm = np.sqrt(np.sum(ngrad ** 2))
 
         if not (np.isfinite(dist) and np.isfinite(grad_norm)):
             raise ValueError(
                 "NaN or infinity detected during numerical gradient checking wrt '{}'\n"
-                "analytical grad = {}\n numerical grad = {}\n"
-                .format(x_name, grad, ngrad))
+                "analytical grad = {}\n numerical grad = {}\n".format(x_name, grad, ngrad)
+            )
 
         # we multiply atol by this number to make it more universal for different sizes
         sqrt_n = np.sqrt(float(np.prod(grad.shape)))
 
-        if dist > atol*sqrt_n + rtol*grad_norm:
+        if dist > atol * sqrt_n + rtol * grad_norm:
             raise AssertionError(
                 "Analytical and numerical grads wrt '{}' differ too much\n"
                 "analytical grad = {}\n numerical grad = {}\n"
                 "{}% of elements differ, first 10 of wrong positions: {}\n"
                 "distance > atol*sqrt(n) + rtol*grad_norm\n"
-                "distance {} > {}*{} + {}*{}"
-                .format(x_name, grad, ngrad, wrong_percentage, wrong_positions[:10],
-                        dist, atol, sqrt_n, rtol, grad_norm))
+                "distance {} > {}*{} + {}*{}".format(
+                    x_name,
+                    grad,
+                    ngrad,
+                    wrong_percentage,
+                    wrong_positions[:10],
+                    dist,
+                    atol,
+                    sqrt_n,
+                    rtol,
+                    grad_norm,
+                )
+            )
 
         max_diff = np.max(np.abs(ngrad - grad))
         avg_diff = np.mean(np.abs(ngrad - grad))
-        logging.info("Numerical grad test wrt '%s' of shape %s passes, "
-                     "dist = %f, max_diff = %f, avg_diff = %f",
-                     x_name, grad.shape, dist, max_diff, avg_diff)
+        logging.info(
+            "Numerical grad test wrt '%s' of shape %s passes, "
+            "dist = %f, max_diff = %f, avg_diff = %f",
+            x_name,
+            grad.shape,
+            dist,
+            max_diff,
+            avg_diff,
+        )
 
 
 def assert_prim_expr_equal(lhs, rhs):
@@ -230,7 +253,7 @@ def assert_prim_expr_equal(lhs, rhs):
 
 
 def check_bool_expr_is_true(bool_expr, vranges, cond=None):
-    """ Check that bool_expr holds given the condition cond
+    """Check that bool_expr holds given the condition cond
     for every value of free variables from vranges.
 
     for example, 2x > 4y solves to x > 2y given x in (0, 10) and y in (0, 10)
@@ -253,9 +276,10 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
         bool_expr = tvm.te.any(tvm.tir.Not(cond), bool_expr)
 
     def _run_expr(expr, vranges):
-        """ Evaluate expr for every value of free variables
+        """Evaluate expr for every value of free variables
         given by vranges and return the tensor of results.
         """
+
         def _compute_body(*us):
             vmap = {v: u + r.min for (v, r), u in zip(vranges.items(), us)}
             return tvm.tir.stmt_functor.substitute(expr, vmap)
@@ -274,13 +298,14 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
         counterex = sorted(counterex, key=lambda x: x[0])
         counterex = ", ".join([v + " = " + str(i) for v, i in counterex])
         ana = tvm.arith.Analyzer()
-        raise AssertionError("Expression {}\nis not true on {}\n"
-                             "Counterexample: {}"
-                             .format(ana.simplify(bool_expr), vranges, counterex))
+        raise AssertionError(
+            "Expression {}\nis not true on {}\n"
+            "Counterexample: {}".format(ana.simplify(bool_expr), vranges, counterex)
+        )
 
 
 def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
-    """ Check IntConstraintsTransform is a bijective transformation.
+    """Check IntConstraintsTransform is a bijective transformation.
 
     Parameters
     ----------
@@ -298,7 +323,7 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
         all_vranges.update({v: r for v, r in constraints1.ranges.items()})
 
         # Check that the transformation is injective
-        cond_on_vars = tvm.tir.const(1, 'bool')
+        cond_on_vars = tvm.tir.const(1, "bool")
         for v in constraints1.variables:
             if v in varmap:
                 # variable mapping is consistent
@@ -306,7 +331,8 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
                 cond_on_vars = tvm.te.all(cond_on_vars, v == v_back)
         # Also we have to check that the new relations are true when old relations are true
         cond_subst = tvm.tir.stmt_functor.substitute(
-            tvm.te.all(tvm.tir.const(1, 'bool'), *constraints2.relations), backvarmap)
+            tvm.te.all(tvm.tir.const(1, "bool"), *constraints2.relations), backvarmap
+        )
         # We have to include relations from vranges too
         for v in constraints2.variables:
             if v in constraints2.ranges:
@@ -316,13 +342,23 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
                 cond_subst = tvm.te.all(cond_subst, range_cond)
         cond_subst = ana.simplify(cond_subst)
         check_bool_expr_is_true(
-            tvm.te.all(cond_subst, cond_on_vars), all_vranges,
-            cond=tvm.te.all(tvm.tir.const(1, 'bool'), *constraints1.relations))
+            tvm.te.all(cond_subst, cond_on_vars),
+            all_vranges,
+            cond=tvm.te.all(tvm.tir.const(1, "bool"), *constraints1.relations),
+        )
 
-    _check_forward(constraints_trans.src, constraints_trans.dst,
-                   constraints_trans.src_to_dst, constraints_trans.dst_to_src)
-    _check_forward(constraints_trans.dst, constraints_trans.src,
-                   constraints_trans.dst_to_src, constraints_trans.src_to_dst)
+    _check_forward(
+        constraints_trans.src,
+        constraints_trans.dst,
+        constraints_trans.src_to_dst,
+        constraints_trans.dst_to_src,
+    )
+    _check_forward(
+        constraints_trans.dst,
+        constraints_trans.src,
+        constraints_trans.dst_to_src,
+        constraints_trans.src_to_dst,
+    )
 
 
 def _get_targets():
@@ -413,8 +449,7 @@ def enabled_targets():
 
 
 def _compose(args, decs):
-    """Helper to apply multiple markers
-    """
+    """Helper to apply multiple markers"""
     if len(args) > 0:
         f = args[0]
         for d in reversed(decs):
@@ -456,8 +491,6 @@ def requires_gpu(*args):
     return _compose(args, _requires_gpu)
 
 
-
-
 def requires_cuda(*args):
     """Mark a test as requiring the CUDA runtime.
 
@@ -470,14 +503,10 @@ def requires_cuda(*args):
     """
     _requires_cuda = [
         pytest.mark.cuda,
-        pytest.mark.skipif(
-            not device_enabled("cuda"), reason="CUDA support not enabled"
-        ),
+        pytest.mark.skipif(not device_enabled("cuda"), reason="CUDA support not enabled"),
         *requires_gpu(),
     ]
     return _compose(args, _requires_cuda)
-
-
 
 
 def requires_opencl(*args):
@@ -492,14 +521,10 @@ def requires_opencl(*args):
     """
     _requires_opencl = [
         pytest.mark.opencl,
-        pytest.mark.skipif(
-            not device_enabled("opencl"), reason="OpenCL support not enabled"
-        ),
+        pytest.mark.skipif(not device_enabled("opencl"), reason="OpenCL support not enabled"),
         *requires_gpu(),
     ]
     return _compose(args, _requires_opencl)
-
-
 
 
 def requires_rocm(*args):
@@ -514,14 +539,10 @@ def requires_rocm(*args):
     """
     _requires_rocm = [
         pytest.mark.rocm,
-        pytest.mark.skipif(
-            not device_enabled("rocm"), reason="rocm support not enabled"
-        ),
+        pytest.mark.skipif(not device_enabled("rocm"), reason="rocm support not enabled"),
         *requires_gpu(),
     ]
     return _compose(args, _requires_rocm)
-
-
 
 
 def requires_metal(*args):
@@ -536,14 +557,10 @@ def requires_metal(*args):
     """
     _requires_metal = [
         pytest.mark.metal,
-        pytest.mark.skipif(
-            not device_enabled("metal"), reason="metal support not enabled"
-        ),
+        pytest.mark.skipif(not device_enabled("metal"), reason="metal support not enabled"),
         *requires_gpu(),
     ]
     return _compose(args, _requires_metal)
-
-
 
 
 def requires_vulkan(*args):
@@ -558,14 +575,10 @@ def requires_vulkan(*args):
     """
     _requires_vulkan = [
         pytest.mark.vulkan,
-        pytest.mark.skipif(
-            not device_enabled("vulkan"), reason="vulkan support not enabled"
-        ),
+        pytest.mark.skipif(not device_enabled("vulkan"), reason="vulkan support not enabled"),
         *requires_gpu(),
     ]
     return _compose(args, _requires_vulkan)
-
-
 
 
 def requires_tensorcore(*args):
@@ -589,8 +602,6 @@ def requires_tensorcore(*args):
     return _compose(args, _requires_tensorcore)
 
 
-
-
 def requires_llvm(*args):
     """Mark a test as requiring llvm to run.
 
@@ -601,9 +612,7 @@ def requires_llvm(*args):
     """
     _requires_llvm = [
         pytest.mark.llvm,
-        pytest.mark.skipif(
-            not device_enabled("llvm"), reason="LLVM support not enabled"
-        ),
+        pytest.mark.skipif(not device_enabled("llvm"), reason="LLVM support not enabled"),
     ]
     return _compose(args, _requires_llvm)
 
@@ -654,6 +663,7 @@ def parametrize_targets(*args):
     >>> def test_mytest(target, ctx):
     >>>     ...  # do something
     """
+
     def wrap(targets):
         def func(f):
             params = [
@@ -661,7 +671,9 @@ def parametrize_targets(*args):
                 for target in targets
             ]
             return pytest.mark.parametrize("target,ctx", params)(f)
+
         return func
+
     if len(args) == 1 and callable(args[0]):
         targets = [t for t, _ in enabled_targets()]
         return wrap(targets)(args[0])

@@ -23,9 +23,9 @@ import ctypes
 import numpy as np
 from . import libinfo
 
-#----------------------------
+# ----------------------------
 # library loading
-#----------------------------
+# ----------------------------
 string_types = (str,)
 integer_types = (int, np.int32)
 numeric_types = integer_types + (float, np.float32)
@@ -33,15 +33,17 @@ numeric_types = integer_types + (float, np.float32)
 # this function is needed for python3
 # to convert ctypes.char_p .value back to python str
 if sys.platform == "win32":
+
     def _py_str(x):
         try:
-            return x.decode('utf-8')
+            return x.decode("utf-8")
         except UnicodeDecodeError:
-            encoding = 'cp' + str(ctypes.cdll.kernel32.GetACP())
+            encoding = "cp" + str(ctypes.cdll.kernel32.GetACP())
         return x.decode(encoding)
+
     py_str = _py_str
 else:
-    py_str = lambda x: x.decode('utf-8')
+    py_str = lambda x: x.decode("utf-8")
 
 
 def _load_lib():
@@ -50,6 +52,7 @@ def _load_lib():
     lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
     lib.TVMGetLastError.restype = ctypes.c_char_p
     return lib, os.path.basename(lib_path[0])
+
 
 try:
     import readline  # pylint: disable=unused-import
@@ -67,9 +70,9 @@ _RUNTIME_ONLY = "runtime" in _LIB_NAME
 # The FFI mode of TVM
 _FFI_MODE = os.environ.get("TVM_FFI", "auto")
 
-#----------------------------
+# ----------------------------
 # helper function in ctypes.
-#----------------------------
+# ----------------------------
 def c_str(string):
     """Create ctypes char * from a python string
     Parameters
@@ -82,7 +85,7 @@ def c_str(string):
     str : c_char_p
         A char pointer that can be passed to C API
     """
-    return ctypes.c_char_p(string.encode('utf-8'))
+    return ctypes.c_char_p(string.encode("utf-8"))
 
 
 def c_array(ctype, values):
@@ -116,12 +119,13 @@ def decorate(func, fwrapped):
         The wrapped function
     """
     import decorator
+
     return decorator.decorate(func, fwrapped)
 
 
-#-----------------------------------------
+# -----------------------------------------
 # Base code for structured error handling.
-#-----------------------------------------
+# -----------------------------------------
 # Maps error type to its constructor
 ERROR_TYPE = {}
 
@@ -169,6 +173,7 @@ def register_error(func_name=None, cls=None):
         err_name = func_name if isinstance(func_name, str) else mycls.__name__
         ERROR_TYPE[err_name] = mycls
         return mycls
+
     if cls is None:
         return register
     return register(cls)
