@@ -291,9 +291,14 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
 impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
     fn from(object_ptr: ObjectPtr<T>) -> ArgValue<'a> {
         debug_assert!(object_ptr.count() >= 1);
-        let raw_ptr = ObjectPtr::leak(object_ptr) as *mut T as *mut std::ffi::c_void;
+        let object_ptr = object_ptr.upcast::<Object>();
+        let index = object_ptr.type_index;
+        let raw_ptr = ObjectPtr::leak(object_ptr) as *mut Object as *mut std::ffi::c_void;
         assert!(!raw_ptr.is_null());
-        ArgValue::ObjectHandle(raw_ptr)
+        match index {
+            tvm_sys::ffi::TVMArgTypeCode_kTVMNDArrayHandle => ArgValue::NDArrayHandle(raw_ptr),
+            _ => ArgValue::ObjectHandle(raw_ptr)
+        }
     }
 }
 
@@ -307,7 +312,13 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
                 debug_assert!(optr.count() >= 1);
                 // println!("count: {}", optr.count());
                 optr.downcast()
-            }
+            },
+            ArgValue::NDArrayHandle(handle) => {
+                let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
+                debug_assert!(optr.count() >= 1);
+                // println!("count: {}", optr.count());
+                optr.downcast()
+            },
             _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
         }
     }
