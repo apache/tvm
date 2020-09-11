@@ -28,11 +28,8 @@ from tvm.runtime import ndarray as nd
 from . import util
 from .._ffi.base import py_str
 
-def compile_cuda(code,
-                 target="ptx",
-                 arch=None,
-                 options=None,
-                 path_target=None):
+
+def compile_cuda(code, target="ptx", arch=None, options=None, path_target=None):
     """Compile cuda code with NVCC from env.
 
     Parameters
@@ -69,7 +66,7 @@ def compile_cuda(code,
     if arch is None:
         if nd.gpu(0).exist:
             # auto detect the compute arch argument
-            arch = "sm_" + "".join(nd.gpu(0).compute_version.split('.'))
+            arch = "sm_" + "".join(nd.gpu(0).compute_version.split("."))
         else:
             raise ValueError("arch(sm_xy) is not passed, and we cannot detect it from env")
 
@@ -92,8 +89,7 @@ def compile_cuda(code,
     cmd += ["-o", file_target]
     cmd += [temp_code]
 
-    proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     (out, _) = proc.communicate()
 
@@ -105,9 +101,9 @@ def compile_cuda(code,
 
     data = bytearray(open(file_target, "rb").read())
     if not data:
-        raise RuntimeError(
-            "Compilation error: empty result is generated")
+        raise RuntimeError("Compilation error: empty result is generated")
     return data
+
 
 def find_cuda_path():
     """Utility function to find cuda path
@@ -120,8 +116,7 @@ def find_cuda_path():
     if "CUDA_PATH" in os.environ:
         return os.environ["CUDA_PATH"]
     cmd = ["which", "nvcc"]
-    proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
     out = py_str(out)
     if proc.returncode == 0:
@@ -151,7 +146,7 @@ def get_cuda_version(cuda_path):
         version_file_path = os.path.join(cuda_path, "lib", "cuda", "version.txt")
     try:
         with open(version_file_path) as f:
-            version_str = f.readline().replace('\n', '').replace('\r', '')
+            version_str = f.readline().replace("\n", "").replace("\r", "")
             return float(version_str.split(" ")[2][:2])
     except:
         raise RuntimeError("Cannot read cuda version file")
@@ -218,7 +213,7 @@ def parse_compute_version(compute_version):
     minor : int
         minor version number
     """
-    split_ver = compute_version.split('.')
+    split_ver = compute_version.split(".")
     try:
         major = int(split_ver[0])
         minor = int(split_ver[1])
@@ -245,6 +240,7 @@ def have_fp16(compute_version):
 
     return False
 
+
 def have_int8(compute_version):
     """Either int8 support is provided in the compute capability or not
 
@@ -258,6 +254,7 @@ def have_int8(compute_version):
         return True
 
     return False
+
 
 def have_tensorcore(compute_version):
     """Either TensorCore support is provided in the compute capability or not

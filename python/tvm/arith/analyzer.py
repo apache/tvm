@@ -23,9 +23,9 @@ from . import _ffi_api
 @tvm._ffi.register_object("arith.ModularSet")
 class ModularSet(Object):
     """Represent range of (coeff * x + base) for x in Z """
+
     def __init__(self, coeff, base):
-        self.__init_handle_by_constructor__(
-            _ffi_api.ModularSet, coeff, base)
+        self.__init_handle_by_constructor__(_ffi_api.ModularSet, coeff, base)
 
 
 @tvm._ffi.register_object("arith.ConstIntBound")
@@ -40,12 +40,12 @@ class ConstIntBound(Object):
     max_value : int
         The maximum value of the bound.
     """
+
     POS_INF = (1 << 63) - 1
     NEG_INF = -POS_INF
 
     def __init__(self, min_value, max_value):
-        self.__init_handle_by_constructor__(
-            _ffi_api.ConstIntBound, min_value, max_value)
+        self.__init_handle_by_constructor__(_ffi_api.ConstIntBound, min_value, max_value)
 
 
 class ConstraintScope:
@@ -60,6 +60,7 @@ class ConstraintScope:
     ----
     Do not create object directly, use Analyzer.constraint_scope
     """
+
     def __init__(self, fenter):
         self._fenter = fenter
         self._fexit = None
@@ -77,6 +78,7 @@ class Analyzer:
     This is a stateful analyzer class that can
     be used to perform various symbolic integer analysis.
     """
+
     def __init__(self):
         _mod = _ffi_api.CreateAnalyzer()
         self._const_int_bound = _mod("const_int_bound")
@@ -225,8 +227,10 @@ class Analyzer:
           # constraint no longer in effect
           assert analyzer.modular_set(x).coeff != 3
         """
+
         def _fenter():
             return self._enter_constraint_context(constraint)
+
         return ConstraintScope(_fenter)
 
     def update(self, var, info, override=False):
@@ -246,5 +250,4 @@ class Analyzer:
         if isinstance(info, ConstIntBound):
             self._const_int_bound_update(var, info, override)
         else:
-            raise TypeError(
-                "Do not know how to handle type {}".format(type(info)))
+            raise TypeError("Do not know how to handle type {}".format(type(info)))

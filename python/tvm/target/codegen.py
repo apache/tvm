@@ -1,4 +1,3 @@
-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -74,5 +73,4 @@ def llvm_version_major(allow_none=False):
     except AttributeError:
         if allow_none:
             return None
-        raise RuntimeError(
-            "LLVM version is not available, please check if you build with LLVM")
+        raise RuntimeError("LLVM version is not available, please check if you build with LLVM")

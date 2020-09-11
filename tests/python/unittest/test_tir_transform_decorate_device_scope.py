@@ -17,12 +17,14 @@
 import tvm
 from tvm import te
 
+
 def test_decorate_device():
     x = te.var("x")
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([x], tvm.tir.Evaluate(x)))
 
     stmt = tvm.tir.transform.DecorateDeviceScope()(mod)["main"].body
     assert stmt.attr_key == "device_scope"
+
 
 if __name__ == "__main__":
     test_decorate_device()
