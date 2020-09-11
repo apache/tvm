@@ -233,6 +233,7 @@ void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
   global->setAlignment(1);
 #endif
   global->setInitializer(llvm::ConstantDataArray::getString(*ctx_, entry_func_name));
+  global->setDLLStorageClass(llvm::GlobalVariable::DLLExportStorageClass);
 }
 
 std::unique_ptr<llvm::Module> CodeGenCPU::Finish() {

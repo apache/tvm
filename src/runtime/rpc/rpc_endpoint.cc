@@ -234,7 +234,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   // Current state;
   State state_;
   // Initialize remote header
-  bool init_header_step_{0};
+  int init_header_step_{0};
   // Whether current handler is client or server mode.
   bool client_mode_{false};
   // Whether current handler is in the async server mode.
