@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=invalid-name, unused-argument, len-as-condition
+# pylint: disable=invalid-name, unused-argument, len-as-condition
 """Backend compiler related feature registration"""
 
 from tvm.te.hybrid import script
@@ -96,6 +96,7 @@ def zeros_compute(attrs, inputs, output_type):
     assert not inputs
     return [topi.full(output_type.shape, output_type.dtype, 0.0)]
 
+
 register_broadcast_schedule("zeros")
 register_pattern("zeros", OpPattern.ELEMWISE)
 
@@ -105,6 +106,7 @@ def zeros_like_compute(attrs, inputs, output_type):
     assert len(inputs) == 1
     return [topi.full_like(inputs[0], 0.0)]
 
+
 register_broadcast_schedule("zeros_like")
 
 # ones
@@ -112,6 +114,7 @@ register_broadcast_schedule("zeros_like")
 def ones_compute(attrs, inputs, output_type):
     assert not inputs
     return [topi.full(output_type.shape, output_type.dtype, 1.0)]
+
 
 register_broadcast_schedule("ones")
 register_pattern("ones", OpPattern.ELEMWISE)
@@ -122,6 +125,7 @@ def ones_like_compute(attrs, inputs, output_type):
     assert len(inputs) == 1
     return [topi.full_like(inputs[0], 1.0)]
 
+
 register_broadcast_schedule("ones_like")
 
 # clip
@@ -130,6 +134,7 @@ def clip_compute(attrs, inputs, output_type):
     assert len(inputs) == 1
     return [topi.clip(inputs[0], attrs.a_min, attrs.a_max)]
 
+
 register_injective_schedule("clip")
 
 # fixed point multiply
@@ -137,6 +142,7 @@ register_injective_schedule("clip")
 def fixed_point_multiply_compute(attrs, inputs, output_type):
     assert len(inputs) == 1
     return [topi.fixed_point_multiply(inputs[0], attrs.multiplier, attrs.shift)]
+
 
 register_injective_schedule("fixed_point_multiply")
 
@@ -149,17 +155,20 @@ def _full_shape_func(shape):
         out[i] = int64(shape[i])
     return out
 
+
 def full_shape_func(attrs, inputs, out_ndims):
     """
     Shape func for full.
     """
     return [_full_shape_func(inputs[1])]
 
+
 def no_data_full_shape_func(attrs, inputs, out_ndims):
     """
     Shape func for zeros and ones.
     """
     return [_full_shape_func(inputs[0])]
+
 
 @script
 def _broadcast_shape_func(x, y, ndim):
@@ -173,21 +182,24 @@ def _broadcast_shape_func(x, y, ndim):
     else:
         ndim1 = x.shape[0]
         ndim2 = y.shape[0]
-        for i in const_range(1, min(ndim1, ndim2)+1):
-            if x[ndim1-i] == y[ndim2-i]:
-                out[ndim-i] = x[ndim1-i]
-            elif x[ndim1-i] == 1:
-                out[ndim-i] = y[ndim2-i]
+        for i in const_range(1, min(ndim1, ndim2) + 1):
+            if x[ndim1 - i] == y[ndim2 - i]:
+                out[ndim - i] = x[ndim1 - i]
+            elif x[ndim1 - i] == 1:
+                out[ndim - i] = y[ndim2 - i]
             else:
                 assert y[ndim2 - i] == 1, "Incompatible broadcast type %s and %s" % (
-                    x[ndim1-i], y[ndim2-i])
-                out[ndim-i] = x[ndim1-i]
-        for i in const_range(min(ndim1, ndim2)+1, ndim+1):
+                    x[ndim1 - i],
+                    y[ndim2 - i],
+                )
+                out[ndim - i] = x[ndim1 - i]
+        for i in const_range(min(ndim1, ndim2) + 1, ndim + 1):
             if ndim1 >= ndim2:
-                out[ndim-i] = x[ndim1-i]
+                out[ndim - i] = x[ndim1 - i]
             else:
-                out[ndim-i] = y[ndim2-i]
+                out[ndim - i] = y[ndim2 - i]
     return out
+
 
 def broadcast_shape_func(attrs, inputs, out_ndims):
     """
@@ -195,11 +207,13 @@ def broadcast_shape_func(attrs, inputs, out_ndims):
     """
     return [_broadcast_shape_func(*inputs, out_ndims[0])]
 
+
 def elemwise_shape_func(attrs, inputs, _):
     """
     Shape function for elemwise op.
     """
     return [topi.math.identity(inputs[0])]
+
 
 register_shape_func("cast", False, elemwise_shape_func)
 register_shape_func("zeros", False, full_shape_func)

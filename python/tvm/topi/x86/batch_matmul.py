@@ -42,8 +42,7 @@ def batch_matmul(cfg, x, y, out_shape=None):
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    assert len(x.shape) == 3 and len(
-        y.shape) == 3, "only support 3-dim batch_matmul"
+    assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
     XB, M, XK = get_const_tuple(x.shape)
     YB, N, YK = get_const_tuple(y.shape)
     assert XB == YB, "batch dimension doesn't match"
@@ -57,11 +56,10 @@ def batch_matmul(cfg, x, y, out_shape=None):
     if cfg.is_fallback:
         _default_batch_matmul_config(cfg, M, N, K)
 
-    k = te.reduce_axis((0, K), name='k')
+    k = te.reduce_axis((0, K), name="k")
     C = te.compute(
-        (B, M, N),
-        lambda b, i, j: te.sum(x[b, i, k] * y[b, j, k], axis=k),
-        tag='batch_matmul')
+        (B, M, N), lambda b, i, j: te.sum(x[b, i, k] * y[b, j, k], axis=k), tag="batch_matmul"
+    )
     return C
 
 
@@ -112,7 +110,7 @@ def schedule_batch_matmul(cfg, outs):
             s[O].parallel(bxyo)
 
             s[CC].compute_at(s[O], bxyo)
-            k, = s[CC].op.reduce_axis
+            (k,) = s[CC].op.reduce_axis
             ko, ki = cfg["tile_k"].apply(s, CC, k)
 
             Crf = s.rfactor(CC, ki)
@@ -120,7 +118,7 @@ def schedule_batch_matmul(cfg, outs):
             _, _, y, x = s[Crf].op.axis
             s[Crf].fuse(y, x)
             s[Crf].vectorize(s[Crf].op.axis[0])
-            s[O].pragma(bxyo, 'auto_unroll_max_step', 16)
+            s[O].pragma(bxyo, "auto_unroll_max_step", 16)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
@@ -152,8 +150,7 @@ def batch_matmul_cblas(cfg, x, y):
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    assert len(x.shape) == 3 and len(
-        y.shape) == 3, "only support 3-dim batch_matmul"
+    assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
     XB, M, XK = get_const_tuple(x.shape)
     YB, N, YK = get_const_tuple(y.shape)
     assert XB == YB, "batch dimension doesn't match"
