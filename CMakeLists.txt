@@ -111,6 +111,20 @@ if(MSVC)
       endif(${flag_var} MATCHES "/MD")
     endforeach(flag_var)
   endif()
+  # Disable common MSVC warnings
+  # Integer conversion warnings(e.g. int64 to int)
+  add_compile_options(/wd4244)
+  add_compile_options(/wd4267)
+  # Signed unsigned constant comparison
+  add_compile_options(/wd4018)
+  # Aligned alloc may not met(need c++17)
+  add_compile_options(/wd4316)
+  # unreferenced local variables(usually in exception catch)
+  add_compile_options(/wd4101)
+  # always inline keyword not necessary
+  add_compile_options(/wd4180)
+  # DLL interface warning in c++
+  add_compile_options(/wd4251)
 else(MSVC)
 
   if(USE_TF_COMPILE_FLAGS)
