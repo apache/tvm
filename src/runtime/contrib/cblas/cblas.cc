@@ -34,10 +34,11 @@ namespace tvm {
 namespace contrib {
 
 using namespace runtime;
-
+namespace {
 inline CBLAS_TRANSPOSE BooleanToTranspose(bool trans) { return trans ? CblasTrans : CblasNoTrans; }
 
 inline char BooleanToTransposeChar(bool trans) { return trans ? 'T' : 'N'; }
+}  // namespace
 
 struct CblasSgemmOp {
   typedef float TDatatype;
