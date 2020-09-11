@@ -254,7 +254,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,\
         if obj.endswith(".o"):
             link_cmd += [obj]
 
-    link_cmd += ["-EXPORT:__tvm_main__"]
     link_cmd += [temp_path + "dllmain.obj"]
     link_cmd += ["-out:" + output]
 
