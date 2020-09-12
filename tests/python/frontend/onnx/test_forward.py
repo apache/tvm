@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import io
 import numpy as np
 import math
 import onnx
@@ -525,8 +526,7 @@ def _test_slice_iteration_v1(indata, outdata, starts, ends, axes=None):
 
     for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, "float32", opset=1)
-
-    tvm.testing.assert_allclose(outdata, tvm_out)
+        tvm.testing.assert_allclose(outdata, tvm_out)
 
 
 def _test_slice_iteration_v10(indata, outdata, **attrs):
@@ -616,8 +616,7 @@ def _test_slice_iteration_v10(indata, outdata, **attrs):
 
     for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, "float32", opset=10)
-
-    tvm.testing.assert_allclose(outdata, tvm_out)
+        tvm.testing.assert_allclose(outdata, tvm_out)
 
 
 @tvm.testing.uses_gpu
@@ -680,6 +679,31 @@ def test_slice():
     _test_slice_iteration_v10(
         x, x, starts=(0, 0), ends=(9223372036854775807, 9223372036854775807), axes=(0, 3)
     )
+
+    def test_slice_with_strides():
+        class SliceWithStrides(torch.nn.Module):
+            def forward(self, x):
+                return x[..., 0::2] + x[..., 1::2]
+
+        onnx_io = io.BytesIO()
+        torch.onnx.export(
+            SliceWithStrides(),
+            (torch.randn(1, 4),),
+            onnx_io,
+            input_names=["x"],
+            output_names=["y"],
+            opset_version=10,
+            enable_onnx_checker=True,
+        )
+        model = onnx.load_model_from_string(onnx_io.getvalue())
+
+        for target, ctx in tvm.testing.enabled_targets():
+            x = np.random.uniform(size=(1, 4)).astype("float32")
+            tvm_out = get_tvm_output(model, x, target, ctx, (1, 2), "float32")
+            onnx_out = get_onnxruntime_output(model, x, "float32")
+            tvm.testing.assert_allclose(onnx_out, tvm_out)
+
+    test_slice_with_strides()
 
 
 def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
