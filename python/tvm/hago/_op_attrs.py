@@ -239,7 +239,9 @@ def unify_scale(input_bits, output_bits, input_thresholds, output_thresholds):
     sign_bit = 1
     # convert from tvm object to POD
     ibits = [bit.value for bit in input_bits]
-    obits = [bit.value for bit in output_bits]
+    # FIXME - Uncommenting next line can cause failures when add is followed by a non-quantized op.
+    # Exmaple is add --> clip and model is MXNet mobilenetv2
+    # obits = [32 if bit is None else bit.value for bit in output_bits]
     itholds = [thold.value for thold in input_thresholds]
     otholds = [thold.value for thold in output_thresholds]
 
@@ -250,7 +252,7 @@ def unify_scale(input_bits, output_bits, input_thresholds, output_thresholds):
     unified_scale = itholds[idx] / (2 ** (ibits[idx] - sign_bit))
 
     print('  in bits   : {}'.format(ibits))
-    print('  out bits  : {}'.format(obits))
+    # print('  out bits  : {}'.format(obits))
     print('  in tholds : {}'.format(', '.join(["{:.3f}".format(thold) for thold in itholds])))
     print('  out tholds: {}'.format(', '.join(["{:.3f}".format(thold) for thold in otholds])))
     print('  choose unifed scale {:.3e} for op add'.format(unified_scale))
