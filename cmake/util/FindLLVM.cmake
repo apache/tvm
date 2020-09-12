@@ -61,51 +61,76 @@ macro(find_llvm use_llvm)
     separate_arguments(LLVM_CONFIG)
     execute_process(COMMAND ${LLVM_CONFIG} --libfiles
       RESULT_VARIABLE __llvm_exit_code
-      OUTPUT_VARIABLE __llvm_libfiles)
+      OUTPUT_VARIABLE __llvm_libfiles_space
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
       message(FATAL_ERROR "Fatal error executing: ${use_llvm} --libfiles")
     endif()
     execute_process(COMMAND ${LLVM_CONFIG} --system-libs
       RESULT_VARIABLE __llvm_exit_code
-      OUTPUT_VARIABLE __llvm_system_libs)
+      OUTPUT_VARIABLE __llvm_system_libs
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
       message(FATAL_ERROR "Fatal error executing: ${use_llvm} --system-libs")
     endif()
     execute_process(COMMAND ${LLVM_CONFIG} --cxxflags
       RESULT_VARIABLE __llvm_exit_code
-      OUTPUT_VARIABLE __llvm_cxxflags)
+      OUTPUT_VARIABLE __llvm_cxxflags_space
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
       message(FATAL_ERROR "Fatal error executing: ${use_llvm} --cxxflags")
     endif()
     execute_process(COMMAND ${LLVM_CONFIG} --version
       RESULT_VARIABLE __llvm_exit_code
-      OUTPUT_VARIABLE __llvm_version)
+      OUTPUT_VARIABLE __llvm_version
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
       message(FATAL_ERROR "Fatal error executing: ${use_llvm} --version")
     endif()
+    execute_process(COMMAND ${LLVM_CONFIG} --prefix
+      RESULT_VARIABLE __llvm_exit_code
+      OUTPUT_VARIABLE __llvm_prefix
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(NOT "${__llvm_exit_code}" STREQUAL "0")
+      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --prefix")
+    endif()
+    # map prefix => $
+    # to handle the case when the prefix contains space.
+    string(REPLACE ${__llvm_prefix} "$" __llvm_cxxflags ${__llvm_cxxflags_space})
+    string(REPLACE ${__llvm_prefix} "$" __llvm_libfiles ${__llvm_libfiles_space})
     # llvm version
     set(TVM_INFO_LLVM_VERSION ${__llvm_version})
     string(REGEX REPLACE "^([^.]+)\.([^.])+\.[^.]+.*$" "\\1\\2" TVM_LLVM_VERSION ${__llvm_version})
+    string(STRIP ${TVM_LLVM_VERSION} TVM_LLVM_VERSION)
     # definitions
-    string(REGEX MATCHALL "(^| )-D[A-Za-z0-9_]*" LLVM_DEFINITIONS ${__llvm_cxxflags})
+    string(REGEX MATCHALL "(^| )-D[A-Za-z0-9_]*" __llvm_defs ${__llvm_cxxflags})
+    set(LLVM_DEFINTIIONS "")
+    foreach(__flag IN ITEMS ${__llvm_defs})
+      string(STRIP __llvm_def "${__flag}")
+      list(APPEND LLVM_DEFINITIONS "${__llvm_def}")
+    endforeach()
     # include dir
     string(REGEX MATCHALL "(^| )-I[^ ]*" __llvm_include_flags ${__llvm_cxxflags})
     set(LLVM_INCLUDE_DIRS "")
     foreach(__flag IN ITEMS ${__llvm_include_flags})
       string(REGEX REPLACE "(^| )-I" "" __dir "${__flag}")
-      list(APPEND LLVM_INCLUDE_DIRS "${__dir}")
+      # map $ => prefix
+      string(REPLACE "$" ${__llvm_prefix} __dir_with_prefix "${__dir}")
+      list(APPEND LLVM_INCLUDE_DIRS "${__dir_with_prefix}")
     endforeach()
-    message(STATUS ${LLVM_INCLUDE_DIRS})
     # libfiles
-    string(STRIP ${__llvm_libfiles} __llvm_libfiles)
-    string(STRIP ${__llvm_system_libs} __llvm_system_libs)
-    set(LLVM_LIBS "${__llvm_libfiles} ${__llvm_system_libs}")
-    separate_arguments(LLVM_LIBS)
-    string(STRIP ${TVM_LLVM_VERSION} TVM_LLVM_VERSION)
+    set(LLVM_LIBS "")
+    set(__llvm_libs "${__llvm_libfiles} ${__llvm_system_libs}")
+    separate_arguments(__llvm_libs)
+    foreach(__flag IN ITEMS ${__llvm_libs})
+      # map $ => prefix
+      string(REPLACE "$" ${__llvm_prefix} __lib_with_prefix "${__flag}")
+      list(APPEND LLVM_LIBS "${__lib_with_prefix}")
+    endforeach()
   endif()
   if(NOT LLVM_CONFIG STREQUAL "OFF")
-    message(STATUS "Found LLVM_INCLUDE_DIRS=" ${LLVM_INCLUDE_DIRS})
-    message(STATUS "Found LLVM_DEFINITIONS=" ${LLVM_DEFINITIONS})
+    message(STATUS "Found LLVM_INCLUDE_DIRS=" "${LLVM_INCLUDE_DIRS}")
+    message(STATUS "Found LLVM_DEFINITIONS=" "${LLVM_DEFINITIONS}")
     message(STATUS "Found TVM_LLVM_VERSION=" ${TVM_LLVM_VERSION})
     if (${TVM_LLVM_VERSION} LESS 40)
       message(FATAL_ERROR "TVM requires LLVM 4.0 or higher.")

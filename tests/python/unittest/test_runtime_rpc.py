@@ -159,20 +159,23 @@ def test_rpc_echo():
     check(rpc.LocalSession())
 
     check(client)
-    # Test minrpc server.
-    temp = util.tempdir()
-    minrpc_exec = temp.relpath("minrpc")
-    tvm.rpc.with_minrpc(cc.create_executable)(minrpc_exec, [])
-    check(rpc.PopenSession(minrpc_exec))
-    # minrpc on the remote
-    server = rpc.Server("localhost")
-    client = rpc.connect(
-        server.host,
-        server.port,
-        session_constructor_args=["rpc.PopenSession", open(minrpc_exec, "rb").read()],
-    )
-    check(client)
-
+    def check_minrpc():
+        if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
+            return
+        # Test minrpc server.
+        temp = util.tempdir()
+        minrpc_exec = temp.relpath("minrpc")
+        tvm.rpc.with_minrpc(cc.create_executable)(minrpc_exec, [])
+        check(rpc.PopenSession(minrpc_exec))
+        # minrpc on the remote
+        server = rpc.Server("localhost")
+        client = rpc.connect(
+            server.host,
+            server.port,
+            session_constructor_args=["rpc.PopenSession", open(minrpc_exec, "rb").read()],
+        )
+        check(client)
+    check_minrpc()
 
 def test_rpc_file_exchange():
     if not tvm.runtime.enabled("rpc"):
@@ -234,7 +237,7 @@ def test_rpc_remote_module():
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
     def check_minrpc():
-        if tvm.get_global_func("rpc.PopenSession", allow_missing=True) is None:
+        if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
             return
         # export to minrpc
         temp = util.tempdir()
