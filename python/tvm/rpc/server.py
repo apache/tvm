@@ -70,6 +70,34 @@ def _server_env(load_library, work_path=None):
         logger.info("load_module %s", path)
         return m
 
+    @tvm._ffi.register_func("tvm.rpc.server.download_linked_module", override=True)
+    def download_linked_module(file_name):
+        """Load module from remote side."""
+        # pylint: disable=import-outside-toplevel
+        path = temp.relpath(file_name)
+
+        if path.endswith(".o"):
+            # Extra dependencies during runtime.
+            from tvm.contrib import cc as _cc
+
+            _cc.create_shared(path + ".so", path)
+            path += ".so"
+        elif path.endswith(".tar"):
+            # Extra dependencies during runtime.
+            from tvm.contrib import cc as _cc, tar as _tar
+
+            tar_temp = util.tempdir(custom_path=path.replace(".tar", ""))
+            _tar.untar(path, tar_temp.temp_dir)
+            files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
+            _cc.create_shared(path + ".so", files)
+            path += ".so"
+        elif path.endswith(".dylib") or path.endswith(".so"):
+            pass
+        else:
+            raise RuntimeError("Do not know how to link %s" % file_name)
+        logger.info("Send linked module %s to client", path)
+        return bytearray(open(path, "rb").read())
+
     libs = []
     load_library = load_library.split(":") if load_library else []
     for file_name in load_library:
