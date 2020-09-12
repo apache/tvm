@@ -24,21 +24,14 @@ import tvm._ffi
 from ...relay.expr_functor import ExprVisitor
 from .. import xcode, coreml_runtime
 
+
 def _convert_add(builder, name, inputs, outputs, args, attrs):
-    builder.add_elementwise(
-        name=name,
-        input_names=inputs,
-        output_name=outputs[0],
-        mode='ADD'
-    )
+    builder.add_elementwise(name=name, input_names=inputs, output_name=outputs[0], mode="ADD")
+
 
 def _convert_multiply(builder, name, inputs, outputs, args, attrs):
-    builder.add_elementwise(
-        name=name,
-        input_names=inputs,
-        output_name=outputs[0],
-        mode='MULTIPLY'
-    )
+    builder.add_elementwise(name=name, input_names=inputs, output_name=outputs[0], mode="MULTIPLY")
+
 
 def _convert_clip(builder, name, inputs, outputs, args, attrs):
     builder.add_clip(
@@ -46,48 +39,38 @@ def _convert_clip(builder, name, inputs, outputs, args, attrs):
         input_name=inputs[0],
         output_name=outputs[0],
         min_value=attrs.a_min,
-        max_value=attrs.a_max
+        max_value=attrs.a_max,
     )
 
+
 def _convert_batch_flatten(builder, name, inputs, outputs, args, attrs):
-    builder.add_flatten_to_2d(
-        name=name,
-        input_name=inputs[0],
-        output_name=outputs[0]
-    )
+    builder.add_flatten_to_2d(name=name, input_name=inputs[0], output_name=outputs[0])
+
 
 def _convert_expand_dims(builder, name, inputs, outputs, args, attrs):
     if attrs.axis >= 0:
-        axes = list(range(attrs.axis, attrs.axis+attrs.num_newaxis))
+        axes = list(range(attrs.axis, attrs.axis + attrs.num_newaxis))
     else:
-        axes = list(range(attrs.axis-attrs.num_newaxis+1, attrs.axis+1))
+        axes = list(range(attrs.axis - attrs.num_newaxis + 1, attrs.axis + 1))
 
-    builder.add_expand_dims(
-        name=name,
-        input_name=inputs[0],
-        output_name=outputs[0],
-        axes=axes
-    )
+    builder.add_expand_dims(name=name, input_name=inputs[0], output_name=outputs[0], axes=axes)
+
 
 def _convert_relu(builder, name, inputs, outputs, args, attrs):
     builder.add_activation(
-        name=name,
-        non_linearity='RELU',
-        input_name=inputs[0],
-        output_name=outputs[0]
+        name=name, non_linearity="RELU", input_name=inputs[0], output_name=outputs[0]
     )
+
 
 def _convert_softmax(builder, name, inputs, outputs, args, attrs):
     builder.add_softmax_nd(
-        name=name,
-        input_name=inputs[0],
-        output_name=outputs[0],
-        axis=int(attrs['axis'])
+        name=name, input_name=inputs[0], output_name=outputs[0], axis=int(attrs["axis"])
     )
+
 
 def _convert_conv2d(builder, name, inputs, outputs, args, attrs):
     weight = args[1].data.asnumpy()
-    if attrs['kernel_layout'] == 'OIHW':
+    if attrs["kernel_layout"] == "OIHW":
         # convert to 'HWIO'
         weight = weight.transpose([2, 3, 1, 0])
     kh, kw, kc, oc = weight.shape
@@ -98,21 +81,22 @@ def _convert_conv2d(builder, name, inputs, outputs, args, attrs):
         output_channels=oc,
         height=kh,
         width=kw,
-        stride_height=int(attrs['strides'][0]),
-        stride_width=int(attrs['strides'][0]),
+        stride_height=int(attrs["strides"][0]),
+        stride_width=int(attrs["strides"][0]),
         border_mode="valid",
-        groups=int(attrs['groups']),
+        groups=int(attrs["groups"]),
         W=weight,
         b=None,
         has_bias=False,
         input_name=inputs[0],
         output_name=outputs[0],
-        dilation_factors=[int(v) for v in attrs['dilation']],
-        padding_top=int(attrs['padding'][0]),
-        padding_bottom=int(attrs['padding'][2]),
-        padding_left=int(attrs['padding'][1]),
-        padding_right=int(attrs['padding'][3])
+        dilation_factors=[int(v) for v in attrs["dilation"]],
+        padding_top=int(attrs["padding"][0]),
+        padding_bottom=int(attrs["padding"][2]),
+        padding_left=int(attrs["padding"][1]),
+        padding_right=int(attrs["padding"][3]),
     )
+
 
 def _convert_global_avg_pool2d(builder, name, inputs, outputs, args, attrs):
     builder.add_pooling(
@@ -121,29 +105,32 @@ def _convert_global_avg_pool2d(builder, name, inputs, outputs, args, attrs):
         width=1,
         stride_height=1,
         stride_width=1,
-        layer_type='AVERAGE',
-        padding_type='VALID',
+        layer_type="AVERAGE",
+        padding_type="VALID",
         input_name=inputs[0],
         output_name=outputs[0],
-        is_global=True
+        is_global=True,
     )
 
+
 _convert_map = {
-    'add'                       : _convert_add,
-    'multiply'                  : _convert_multiply,
-    'clip'                      : _convert_clip,
-    'expand_dims'               : _convert_expand_dims,
-    'nn.relu'                   : _convert_relu,
-    'nn.batch_flatten'          : _convert_batch_flatten,
-    'nn.softmax'                : _convert_softmax,
-    'nn.conv2d'                 : _convert_conv2d,
-    'nn.global_avg_pool2d'      : _convert_global_avg_pool2d,
+    "add": _convert_add,
+    "multiply": _convert_multiply,
+    "clip": _convert_clip,
+    "expand_dims": _convert_expand_dims,
+    "nn.relu": _convert_relu,
+    "nn.batch_flatten": _convert_batch_flatten,
+    "nn.softmax": _convert_softmax,
+    "nn.conv2d": _convert_conv2d,
+    "nn.global_avg_pool2d": _convert_global_avg_pool2d,
 }
+
 
 class CodegenCoreML(ExprVisitor):
     """
     A visitor to traverse subgraphs and build Core ML models.
     """
+
     def __init__(self, model_name, function):
         import coremltools
         from coremltools.models.neural_network import NeuralNetworkBuilder
@@ -158,10 +145,24 @@ class CodegenCoreML(ExprVisitor):
         # Update inputs and outputs after we visit all the nodes.
         # Set dummy values for now.
         # TODO: support multiple outputs
-        inputs = [('', coremltools.models.datatypes.Array(1,)) for _ in self.function.params]
-        outputs = [('', coremltools.models.datatypes.Array(1,))]
-        self.builder = NeuralNetworkBuilder(inputs, outputs,
-                                            disable_rank5_shape_mapping=True)
+        inputs = [
+            (
+                "",
+                coremltools.models.datatypes.Array(
+                    1,
+                ),
+            )
+            for _ in self.function.params
+        ]
+        outputs = [
+            (
+                "",
+                coremltools.models.datatypes.Array(
+                    1,
+                ),
+            )
+        ]
+        self.builder = NeuralNetworkBuilder(inputs, outputs, disable_rank5_shape_mapping=True)
 
     def visit_constant(self, const):
         output = "buf_" + str(self.buf_idx_)
@@ -169,7 +170,7 @@ class CodegenCoreML(ExprVisitor):
             name=output,
             output_name=output,
             constant_value=const.data.asnumpy(),
-            shape=const.data.shape
+            shape=const.data.shape,
         )
         self.buf_idx_ = self.buf_idx_ + 1
         self.out_map[const] = [output]
@@ -192,8 +193,7 @@ class CodegenCoreML(ExprVisitor):
         layer_name = op_name + "_" + str(self.buf_idx_)
 
         assert op_name in _convert_map, "{} is not supported".format(op_name)
-        _convert_map[op_name](self.builder, layer_name, inputs, outputs,
-                              call.args, call.attrs)
+        _convert_map[op_name](self.builder, layer_name, inputs, outputs, call.args, call.attrs)
 
         self.buf_idx_ = self.buf_idx_ + 1
         self.out_map[call] = outputs

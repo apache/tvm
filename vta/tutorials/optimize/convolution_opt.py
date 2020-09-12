@@ -39,6 +39,7 @@ from __future__ import absolute_import, print_function
 
 import os
 import tvm
+import tvm.testing
 from tvm import te
 import vta
 import numpy as np
@@ -143,78 +144,72 @@ assert in_channels % env.BLOCK_IN == 0
 assert out_channels % env.BLOCK_OUT == 0
 
 # Input feature map: (N, IC, H, W, n, ic)
-data_shape = (batch_size // env.BATCH,
-              in_channels // env.BLOCK_IN,
-              height,
-              width,
-              env.BATCH,
-              env.BLOCK_IN)
+data_shape = (
+    batch_size // env.BATCH,
+    in_channels // env.BLOCK_IN,
+    height,
+    width,
+    env.BATCH,
+    env.BLOCK_IN,
+)
 # Kernel: (OC, IC, H, W, oc, ic)
-kernel_shape = (out_channels // env.BLOCK_OUT,
-                in_channels // env.BLOCK_IN,
-                kernel_h,
-                kernel_w,
-                env.BLOCK_OUT,
-                env.BLOCK_IN)
+kernel_shape = (
+    out_channels // env.BLOCK_OUT,
+    in_channels // env.BLOCK_IN,
+    kernel_h,
+    kernel_w,
+    env.BLOCK_OUT,
+    env.BLOCK_IN,
+)
 # Derive output feature map dimensions
 fout_height = (height + 2 * pad_h - kernel_h) // stride_h + 1
 fout_width = (width + 2 * pad_w - kernel_w) // stride_w + 1
 # Output feature map: (N, OC, H, W, n, oc)
-output_shape = (batch_size // env.BATCH,
-                out_channels // env.BLOCK_OUT,
-                fout_height,
-                fout_width,
-                env.BATCH,
-                env.BLOCK_OUT)
+output_shape = (
+    batch_size // env.BATCH,
+    out_channels // env.BLOCK_OUT,
+    fout_height,
+    fout_width,
+    env.BATCH,
+    env.BLOCK_OUT,
+)
 
 # Convolution reduction axes
-dy = te.reduce_axis((0, kernel_h), name='dy')
-dx = te.reduce_axis((0, kernel_w), name='dx')
-ic = te.reduce_axis((0, in_channels // env.BLOCK_IN), name='ic')
-ic_tns = te.reduce_axis((0, env.BLOCK_IN), name='ic_tns')
+dy = te.reduce_axis((0, kernel_h), name="dy")
+dx = te.reduce_axis((0, kernel_w), name="dx")
+ic = te.reduce_axis((0, in_channels // env.BLOCK_IN), name="ic")
+ic_tns = te.reduce_axis((0, env.BLOCK_IN), name="ic_tns")
 
 # Input placeholder tensors
-data = te.placeholder(data_shape,
-                       name="data",
-                       dtype=env.inp_dtype)
-kernel = te.placeholder(kernel_shape,
-                         name="kernel",
-                         dtype=env.wgt_dtype)
+data = te.placeholder(data_shape, name="data", dtype=env.inp_dtype)
+kernel = te.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
 
 # Copy buffers:
 #   Apply spatial padding to input feature map
-data_buf = topi.nn.pad(data,
-                       [0, 0, pad_h, pad_w, 0, 0],
-                       name="data_buf")
+data_buf = topi.nn.pad(data, [0, 0, pad_h, pad_w, 0, 0], name="data_buf")
 kernel_buf = te.compute(kernel_shape, lambda *i: kernel(*i), "kernel_buf")
 
 # Declare 2D convolution
 res_conv = te.compute(
     output_shape,
     lambda bo, co, i, j, bi, ci: te.sum(
-      data_buf[bo, ic, i*stride_h+dy, j*stride_w+dx, bi, ic_tns].astype(env.acc_dtype) *
-      kernel_buf[co, ic, dy, dx, ci, ic_tns].astype(env.acc_dtype),
-    axis=[ic, dy, dx, ic_tns]),
-    name="res_conv")
+        data_buf[bo, ic, i * stride_h + dy, j * stride_w + dx, bi, ic_tns].astype(env.acc_dtype)
+        * kernel_buf[co, ic, dy, dx, ci, ic_tns].astype(env.acc_dtype),
+        axis=[ic, dy, dx, ic_tns],
+    ),
+    name="res_conv",
+)
 
 # Add shift stage for fix-point normalization
-res_shr = te.compute(output_shape,
-                      lambda *i: res_conv(*i) >> 8,
-                      name="res_shr")
+res_shr = te.compute(output_shape, lambda *i: res_conv(*i) >> 8, name="res_shr")
 
 # Apply clipping between (0, input max value)
 inp_max = (1 << (env.INP_WIDTH - 1)) - 1
-res_max = te.compute(output_shape,
-                      lambda *i: tvm.te.max(res_shr(*i), 0),
-                      "res_max")
-res_min = te.compute(output_shape,
-                      lambda *i: tvm.te.min(res_max(*i), inp_max),
-                      "res_min")
+res_max = te.compute(output_shape, lambda *i: tvm.te.max(res_shr(*i), 0), "res_max")
+res_min = te.compute(output_shape, lambda *i: tvm.te.min(res_max(*i), inp_max), "res_min")
 
 # Result Tensor
-res = te.compute(output_shape,
-                  lambda *i: res_min(*i).astype(env.inp_dtype),
-                  name="res")
+res = te.compute(output_shape, lambda *i: res_min(*i).astype(env.inp_dtype), name="res")
 
 
 ######################################################################
@@ -385,28 +380,27 @@ ctx = remote.ext_dev(0)
 
 # Initialize the data and kernel arrays randomly in the int range
 # of (-128, 128] in NCHW layout
-data_np = np.random.randint(
-    -128, 128,
-    size=(batch_size, in_channels, height, width)).astype(data.dtype)
+data_np = np.random.randint(-128, 128, size=(batch_size, in_channels, height, width)).astype(
+    data.dtype
+)
 kernel_np = np.random.randint(
-    -128, 128,
-    size=(out_channels, in_channels, kernel_h, kernel_w)).astype(kernel.dtype)
+    -128, 128, size=(out_channels, in_channels, kernel_h, kernel_w)
+).astype(kernel.dtype)
 
 # Apply packing to the data and kernel arrays from a 2D NCHW
 # to a 4D NCHWnc packed layout
-data_packed = data_np.reshape(batch_size // env.BATCH,
-                              env.BATCH,
-                              in_channels // env.BLOCK_IN,
-                              env.BLOCK_IN,
-                              height,
-                              width).transpose((0, 2, 4, 5, 1, 3))
+data_packed = data_np.reshape(
+    batch_size // env.BATCH, env.BATCH, in_channels // env.BLOCK_IN, env.BLOCK_IN, height, width
+).transpose((0, 2, 4, 5, 1, 3))
 
-kernel_packed = kernel_np.reshape(out_channels // env.BLOCK_OUT,
-                                  env.BLOCK_OUT,
-                                  in_channels // env.BLOCK_IN,
-                                  env.BLOCK_IN,
-                                  kernel_h,
-                                  kernel_w).transpose((0, 2, 4, 5, 1, 3))
+kernel_packed = kernel_np.reshape(
+    out_channels // env.BLOCK_OUT,
+    env.BLOCK_OUT,
+    in_channels // env.BLOCK_IN,
+    env.BLOCK_IN,
+    kernel_h,
+    kernel_w,
+).transpose((0, 2, 4, 5, 1, 3))
 
 # Format the input/output arrays with tvm.nd.array to the DLPack standard
 data_nd = tvm.nd.array(data_packed, ctx)
@@ -421,19 +415,25 @@ if env.TARGET in ["sim", "tsim"]:
 f(data_nd, kernel_nd, res_nd)
 
 # Verify against numpy implementation
-res_ref = conv2d_nchw_python(data_np.astype(env.acc_dtype),
-                            kernel_np.astype(env.acc_dtype),
-                            (stride_h, stride_w),
-                            (pad_h, pad_w)).astype(env.acc_dtype)
+res_ref = conv2d_nchw_python(
+    data_np.astype(env.acc_dtype),
+    kernel_np.astype(env.acc_dtype),
+    (stride_h, stride_w),
+    (pad_h, pad_w),
+).astype(env.acc_dtype)
 res_ref = res_ref >> env.INP_WIDTH
 res_ref = np.clip(res_ref, 0, inp_max)
 res_ref = res_ref.astype(res.dtype)
-res_ref = res_ref.reshape((batch_size // env.BATCH,
-                           env.BATCH,
-                           out_channels // env.BLOCK_OUT,
-                           env.BLOCK_OUT,
-                           fout_height,
-                           fout_width)).transpose((0, 2, 4, 5, 1, 3))
+res_ref = res_ref.reshape(
+    (
+        batch_size // env.BATCH,
+        env.BATCH,
+        out_channels // env.BLOCK_OUT,
+        env.BLOCK_OUT,
+        fout_height,
+        fout_width,
+    )
+).transpose((0, 2, 4, 5, 1, 3))
 tvm.testing.assert_allclose(res_ref, res_nd.asnumpy())
 
 # Print stats

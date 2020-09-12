@@ -31,9 +31,10 @@ _batch_matmul_implement = {
     "gpu": (topi.cuda.batch_matmul, topi.cuda.schedule_batch_matmul),
 }
 
+
 def verify_batch_matmul(batch, M, N, K):
-    x = te.placeholder((batch, M, K), name='x')
-    y = te.placeholder((batch, N, K), name='y')
+    x = te.placeholder((batch, M, K), name="x")
+    y = te.placeholder((batch, N, K), name="y")
     dtype = x.dtype
 
     # use memoize to pickle the test data for next time use
@@ -43,6 +44,7 @@ def verify_batch_matmul(batch, M, N, K):
         b_np = np.random.uniform(size=(batch, N, K)).astype(dtype)
         c_np = tvm.topi.testing.batch_matmul(a_np, b_np)
         return (a_np, b_np, c_np)
+
     # get the test data
     a_np, b_np, c_np = get_ref_data()
 
@@ -61,6 +63,7 @@ def verify_batch_matmul(batch, M, N, K):
 
     for device, ctx in tvm.testing.enabled_targets():
         check_device(device, ctx)
+
 
 @tvm.testing.uses_gpu
 def test_batch_matmul():

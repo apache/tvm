@@ -22,7 +22,7 @@ from .. import tag
 from ..util import traverse_inline
 
 
-def schedule_adaptive_pool(outs, layout='NCHW'):
+def schedule_adaptive_pool(outs, layout="NCHW"):
     """Schedule for adaptive_pool.
 
     Parameters
@@ -53,7 +53,7 @@ def schedule_adaptive_pool(outs, layout='NCHW'):
             s[Pool].set_scope("local")
 
         by, ty = s[Out].split(s[Out].op.axis[0], factor=num_thread)
-        if layout == 'NHWC':
+        if layout == "NHWC":
             bx, tx = s[Out].split(s[Out].op.axis[3], factor=num_thread)
         else:
             bx, tx = s[Out].split(s[Out].op.axis[1], factor=num_thread)
@@ -79,7 +79,7 @@ def schedule_adaptive_pool(outs, layout='NCHW'):
                 if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule global_pool
-        elif OP.tag.startswith('adaptive_pool'):
+        elif OP.tag.startswith("adaptive_pool"):
             Pool = OP.output(0)
             _schedule(Pool)
         else:
@@ -110,6 +110,7 @@ def schedule_pool(outs, layout):
     """
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
+
     def _schedule(PaddedInput, Pool):
         if isinstance(PaddedInput.op, tvm.te.ComputeOp):
             s[PaddedInput].compute_inline()
@@ -141,7 +142,7 @@ def schedule_pool(outs, layout):
                 if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule pool
-        elif OP.tag.startswith('pool'):
+        elif OP.tag.startswith("pool"):
             PaddedInput = OP.input_tensors[0]
             Pool = OP.output(0)
             _schedule(PaddedInput, Pool)
@@ -194,7 +195,7 @@ def schedule_pool_grad(outs):
             s[op].compute_at(s[out], tx)
 
     def _callback(op):
-        if op.tag.startswith('pool_grad'):
+        if op.tag.startswith("pool_grad"):
             _schedule_pool_grad(op)
 
     traverse_inline(s, outs[0].op, _callback)

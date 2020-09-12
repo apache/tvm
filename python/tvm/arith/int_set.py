@@ -22,6 +22,7 @@ from . import _ffi_api
 
 class IntSet(Object):
     """Represent a set of integer in one dimension."""
+
     def is_nothing(self):
         """Whether the set represent nothing"""
         return _ffi_api.IntSetIsNothing(self)
@@ -75,6 +76,6 @@ class IntervalSet(IntSet):
     max_value : PrimExpr
         The maximum value in the interval.
     """
+
     def __init__(self, min_value, max_value):
-        self.__init_handle_by_constructor__(
-            _ffi_api.IntervalSet, min_value, max_value)
+        self.__init_handle_by_constructor__(_ffi_api.IntervalSet, min_value, max_value)

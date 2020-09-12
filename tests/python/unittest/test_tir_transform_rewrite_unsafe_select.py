@@ -22,22 +22,18 @@ def test_rewrite_Select():
     ib = tvm.tir.ir_builder.create()
     A = ib.allocate("float32", 100, name="A", scope="global")
     i = te.var("i")
-    y = tvm.tir.Select(i > 1, A[i-1], 1.0)
+    y = tvm.tir.Select(i > 1, A[i - 1], 1.0)
 
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([i], tvm.tir.Evaluate(y)))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i], tvm.tir.Evaluate(y)))
     yy = tvm.tir.transform.RewriteUnsafeSelect()(mod)["main"].body.value
 
-    z = tvm.tir.Select(
-        tvm.tir.Select(i > 1, A[i-1], 1.0) > 0.0, A[i], 0.1)
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([i], tvm.tir.Evaluate(z)))
+    z = tvm.tir.Select(tvm.tir.Select(i > 1, A[i - 1], 1.0) > 0.0, A[i], 0.1)
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i], tvm.tir.Evaluate(z)))
     zz = tvm.tir.transform.RewriteUnsafeSelect()(mod)["main"].body.value
 
     a = tvm.tir.Select(tvm.tir.floordiv(i, 4) > 10, y, z)
 
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([i], tvm.tir.Evaluate(a)))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i], tvm.tir.Evaluate(a)))
     aa = tvm.tir.transform.RewriteUnsafeSelect()(mod)["main"].body.value
     builtin_if_then_else = tvm.ir.Op.get("tir.if_then_else")
 

@@ -23,19 +23,25 @@ from tvm.contrib import nvcc
 
 from tvm import topi
 from tvm.topi.util import get_const_tuple
-from tvm.topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_nchw, schedule_depthwise_conv2d_nhwc
+from tvm.topi.cuda.depthwise_conv2d import (
+    schedule_depthwise_conv2d_nchw,
+    schedule_depthwise_conv2d_nhwc,
+)
 
 TASK = "depthwise_conv2d"
 USE_MANUAL_CODE = False
+
 
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
     ptx = nvcc.compile_cuda(code, target="ptx")
     return ptx
 
+
 def write_code(code, fname):
     with open(fname, "w") as f:
         f.write(code)
+
 
 @tvm.register_func
 def tvm_callback_cuda_postproc(code):
@@ -45,6 +51,7 @@ def tvm_callback_cuda_postproc(code):
     if USE_MANUAL_CODE:
         code = open("perf/%s_manual.cu" % TASK).read()
     return code
+
 
 def test_depthwise_conv2d_nchw():
     """You may test different settings."""
@@ -61,14 +68,16 @@ def test_depthwise_conv2d_nchw():
     stride_h = 1
     stride_w = 1
 
-    padding = 'SAME' # or 'VALID'
+    padding = "SAME"  # or 'VALID'
 
     # Placeholder
-    Input = te.placeholder((batch, in_channel, in_height, in_width), name='Input')
-    Filter = te.placeholder((filter_channel, channel_multiplier, filter_height, filter_width), name='Filter')
+    Input = te.placeholder((batch, in_channel, in_height, in_width), name="Input")
+    Filter = te.placeholder(
+        (filter_channel, channel_multiplier, filter_height, filter_width), name="Filter"
+    )
     Stride = [stride_h, stride_w]
-    Scale = te.placeholder((in_channel * channel_multiplier,), name='Scale')
-    Shift = te.placeholder((in_channel * channel_multiplier,), name='Shift')
+    Scale = te.placeholder((in_channel * channel_multiplier,), name="Scale")
+    Shift = te.placeholder((in_channel * channel_multiplier,), name="Shift")
     # Declare
     DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, Filter, Stride, padding)
     ScaleShift = topi.nn.scale_shift_nchw(DepthwiseConv2d, Scale, Shift)
@@ -97,8 +106,12 @@ def test_depthwise_conv2d_nchw():
         scale_tvm = tvm.nd.array(scale_np, ctx)
         shift_tvm = tvm.nd.array(shift_np, ctx)
 
-        depthwise_conv2d_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(DepthwiseConv2d.shape),dtype=DepthwiseConv2d.dtype), ctx)
-        scale_shift_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(ScaleShift.shape), dtype=ScaleShift.dtype), ctx)
+        depthwise_conv2d_tvm = tvm.nd.array(
+            np.zeros(shape=get_const_tuple(DepthwiseConv2d.shape), dtype=DepthwiseConv2d.dtype), ctx
+        )
+        scale_shift_tvm = tvm.nd.array(
+            np.zeros(shape=get_const_tuple(ScaleShift.shape), dtype=ScaleShift.dtype), ctx
+        )
         relu_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(Relu.shape), dtype=Relu.dtype), ctx)
         # Measure time cost of kernel 1 (depthwise_conv2d)
         timer_1 = f1.time_evaluator(f1.entry_name, ctx, number=1000)
@@ -114,26 +127,38 @@ def test_depthwise_conv2d_nchw():
         print("Stride = (%d, %d)" % (stride_h, stride_w))
         print("padding = %s\n" % padding)
         print("Output shape = " + str(get_const_tuple(DepthwiseConv2d.shape)))
-        print("average time cost of 1000 runs (depthwise_conv2d) = %g us" % (tcost_1*1e6))
-        print("average time cost of 1000 runs (depthwise_conv2d + scale_shift) = %g us" % (tcost_2*1e6))
-        print("average time cost of 1000 runs (depthwise_conv2d + scale_shift + relu) = %g us" % (tcost_3*1e6))
+        print("average time cost of 1000 runs (depthwise_conv2d) = %g us" % (tcost_1 * 1e6))
+        print(
+            "average time cost of 1000 runs (depthwise_conv2d + scale_shift) = %g us"
+            % (tcost_2 * 1e6)
+        )
+        print(
+            "average time cost of 1000 runs (depthwise_conv2d + scale_shift + relu) = %g us"
+            % (tcost_3 * 1e6)
+        )
         # correctness
-        depthwise_conv2d_scipy = tvm.topi.testing.depthwise_conv2d_python_nchw(input_np, filter_np, stride=[stride_h, stride_w], padding=padding)
+        depthwise_conv2d_scipy = tvm.topi.testing.depthwise_conv2d_python_nchw(
+            input_np, filter_np, stride=[stride_h, stride_w], padding=padding
+        )
         scale_shift_scipy = np.zeros(shape=get_const_tuple(ScaleShift.shape))
         for c in range(in_channel * channel_multiplier):
-            scale_shift_scipy[:,c,:,:] = depthwise_conv2d_scipy[:,c,:,:] * scale_np[c] + shift_np[c]
+            scale_shift_scipy[:, c, :, :] = (
+                depthwise_conv2d_scipy[:, c, :, :] * scale_np[c] + shift_np[c]
+            )
         relu_scipy = np.maximum(scale_shift_scipy, 0)
-        tvm.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(
+            depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5
+        )
         tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
         tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
         print("success")
 
-    for device in ['cuda', 'opencl', 'rocm']:
-        with tvm.transform.PassContext(config={"tir.UnrollLoop": {
-            "auto_max_step": 128,
-            "explicit_unroll": device != "rocm"
-        }}):
+    for device in ["cuda", "opencl", "rocm"]:
+        with tvm.transform.PassContext(
+            config={"tir.UnrollLoop": {"auto_max_step": 128, "explicit_unroll": device != "rocm"}}
+        ):
             check_device(device)
+
 
 def test_depthwise_conv2d_nhwc():
     """You may test different settings."""
@@ -150,14 +175,16 @@ def test_depthwise_conv2d_nhwc():
     stride_h = 1
     stride_w = 1
 
-    padding = 'SAME' # or 'VALID'
+    padding = "SAME"  # or 'VALID'
 
     # Placeholder
-    Input = te.placeholder((batch, in_height, in_width, in_channel), name='Input')
-    Filter = te.placeholder((filter_height, filter_width,filter_channel, channel_multiplier), name='Filter')
+    Input = te.placeholder((batch, in_height, in_width, in_channel), name="Input")
+    Filter = te.placeholder(
+        (filter_height, filter_width, filter_channel, channel_multiplier), name="Filter"
+    )
     Stride = [stride_h, stride_w]
-    Scale = te.placeholder((in_channel * channel_multiplier,), name='Scale')
-    Shift = te.placeholder((in_channel * channel_multiplier,), name='Shift')
+    Scale = te.placeholder((in_channel * channel_multiplier,), name="Scale")
+    Shift = te.placeholder((in_channel * channel_multiplier,), name="Shift")
     # Declare
     DepthwiseConv2d = topi.nn.depthwise_conv2d_nhwc(Input, Filter, Stride, padding)
     ScaleShift = topi.nn.scale_shift_nhwc(DepthwiseConv2d, Scale, Shift)
@@ -186,8 +213,12 @@ def test_depthwise_conv2d_nhwc():
         filter_tvm = tvm.nd.array(filter_np, ctx)
         scale_tvm = tvm.nd.array(scale_np, ctx)
         shift_tvm = tvm.nd.array(shift_np, ctx)
-        depthwise_conv2d_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(DepthwiseConv2d.shape),dtype=DepthwiseConv2d.dtype), ctx)
-        scale_shift_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(ScaleShift.shape), dtype=ScaleShift.dtype), ctx)
+        depthwise_conv2d_tvm = tvm.nd.array(
+            np.zeros(shape=get_const_tuple(DepthwiseConv2d.shape), dtype=DepthwiseConv2d.dtype), ctx
+        )
+        scale_shift_tvm = tvm.nd.array(
+            np.zeros(shape=get_const_tuple(ScaleShift.shape), dtype=ScaleShift.dtype), ctx
+        )
         relu_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(Relu.shape), dtype=Relu.dtype), ctx)
         # Measure time cost of kernel 1 (depthwise_conv2d)
         timer_1 = f1.time_evaluator(f1.entry_name, ctx, number=1000)
@@ -203,26 +234,38 @@ def test_depthwise_conv2d_nhwc():
         print("Stride = (%d, %d)" % (stride_h, stride_w))
         print("padding = %s\n" % padding)
         print("Output shape = " + str(get_const_tuple(DepthwiseConv2d.shape)))
-        print("average time cost of 1000 runs (depthwise_conv2d) = %g us" % (tcost_1*1e6))
-        print("average time cost of 1000 runs (depthwise_conv2d + scale_shift) = %g us" % (tcost_2*1e6))
-        print("average time cost of 1000 runs (depthwise_conv2d + scale_shift + relu) = %g us" % (tcost_3*1e6))
+        print("average time cost of 1000 runs (depthwise_conv2d) = %g us" % (tcost_1 * 1e6))
+        print(
+            "average time cost of 1000 runs (depthwise_conv2d + scale_shift) = %g us"
+            % (tcost_2 * 1e6)
+        )
+        print(
+            "average time cost of 1000 runs (depthwise_conv2d + scale_shift + relu) = %g us"
+            % (tcost_3 * 1e6)
+        )
         # correctness
-        depthwise_conv2d_scipy = tvm.topi.testing.depthwise_conv2d_python_nhwc(input_np, filter_np, stride=[stride_h, stride_w], padding=padding)
+        depthwise_conv2d_scipy = tvm.topi.testing.depthwise_conv2d_python_nhwc(
+            input_np, filter_np, stride=[stride_h, stride_w], padding=padding
+        )
         scale_shift_scipy = np.zeros(shape=get_const_tuple(ScaleShift.shape))
         for c in range(in_channel * channel_multiplier):
-            scale_shift_scipy[:,:,:,c] = depthwise_conv2d_scipy[:,:,:,c] * scale_np[c] + shift_np[c]
+            scale_shift_scipy[:, :, :, c] = (
+                depthwise_conv2d_scipy[:, :, :, c] * scale_np[c] + shift_np[c]
+            )
         relu_scipy = np.maximum(scale_shift_scipy, 0)
-        tvm.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(
+            depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5
+        )
         tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
         tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
         print("success")
 
-    for device in ['cuda', 'opencl', 'rocm']:
-        with tvm.transform.PassContext(config={"tir.UnrollLoop": {
-            "auto_max_step": 128,
-            "explicit_unroll": device != "cuda"
-        }}):
+    for device in ["cuda", "opencl", "rocm"]:
+        with tvm.transform.PassContext(
+            config={"tir.UnrollLoop": {"auto_max_step": 128, "explicit_unroll": device != "cuda"}}
+        ):
             check_device(device)
+
 
 if __name__ == "__main__":
     test_depthwise_conv2d_nchw()

@@ -22,8 +22,7 @@ import numpy as np
 from . import _quantize
 
 
-def _find_scale_by_kl(arr, quantized_dtype='int8',
-                      num_bins=8001, num_quantized_bins=255):
+def _find_scale_by_kl(arr, quantized_dtype="int8", num_bins=8001, num_quantized_bins=255):
     """Given a tensor, find the optimal threshold for quantizing it.
     The reference distribution is `q`, and the candidate distribution is `p`.
     `q` is a truncated version of the original distribution.
@@ -36,7 +35,7 @@ def _find_scale_by_kl(arr, quantized_dtype='int8',
     max_val = np.max(arr)
     thres = max(abs(min_val), abs(max_val))
 
-    if min_val >= 0 and quantized_dtype in ['uint8']:
+    if min_val >= 0 and quantized_dtype in ["uint8"]:
         # We need to move negative bins to positive bins to fit uint8 range.
         num_quantized_bins = num_quantized_bins * 2 + 1
 
@@ -48,5 +47,6 @@ def _find_scale_by_kl(arr, quantized_dtype='int8',
     hist_ptr = get_pointer(hist.astype(np.int32), ctypes.c_int)
     hist_edges_ptr = get_pointer(hist_edges, ctypes.c_float)
 
-    return _quantize.FindScaleByKLMinimization(hist_ptr, hist_edges_ptr,
-                                               num_bins, num_quantized_bins)
+    return _quantize.FindScaleByKLMinimization(
+        hist_ptr, hist_edges_ptr, num_bins, num_quantized_bins
+    )

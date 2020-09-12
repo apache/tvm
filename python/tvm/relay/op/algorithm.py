@@ -21,6 +21,7 @@ from . import _make
 from .dyn import _make as _dyn_make
 from ..expr import TupleWrapper, Expr, Constant
 
+
 def argsort(data, axis=-1, is_ascend=1, dtype="int32"):
     """Performs sorting along the given axis and returns an array of indicies
     having same shape as an input array that index data in sorted order.
@@ -50,8 +51,7 @@ def argsort(data, axis=-1, is_ascend=1, dtype="int32"):
     return _make.argsort(data, axis, is_ascend, dtype)
 
 
-def topk(data, k=1, axis=-1, ret_type="both",
-         is_ascend=False, dtype="int32"):
+def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int32"):
     """Get the top k elements in an input tensor along the given axis.
 
     ret_type specifies the return type, can be one of ("both", "values", "indices").

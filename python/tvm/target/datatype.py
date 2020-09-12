@@ -104,11 +104,11 @@ def register_op(lower_func, op_name, target, type_name, src_type_name=None):
 
     if op_name == "Cast":
         assert src_type_name is not None
-        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
-                          + type_name + "." + src_type_name
+        lower_func_name = (
+            "tvm.datatype.lower." + target + "." + op_name + "." + type_name + "." + src_type_name
+        )
     else:
-        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
-                          + type_name
+        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." + type_name
     tvm._ffi.register_func(lower_func_name, lower_func)
 
 

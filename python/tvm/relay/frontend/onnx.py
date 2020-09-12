@@ -42,17 +42,20 @@ from .common import infer_type, get_name
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
 
-__all__ = ['from_onnx']
+__all__ = ["from_onnx"]
 
 g = None
+
 
 def infer_value(input_val, params, mod=None):
     return g.infer_value(input_val, params, mod)
 
+
 def infer_value_simulated(input_val, params):
     return g.infer_value_simulated(input_val, params)
 
-class onnx_input():
+
+class onnx_input:
     """ Dual purpose list or dictionary access object."""
 
     def __init__(self):
@@ -107,23 +110,23 @@ def get_numpy(tensor_proto):
     try:
         from onnx.numpy_helper import to_array
     except ImportError as e:
-        raise ImportError(
-            "Unable to import onnx which is required {}".format(e))
+        raise ImportError("Unable to import onnx which is required {}".format(e))
     return to_array(tensor_proto)
 
 
-def dimension_picker(prefix, suffix=''):
+def dimension_picker(prefix, suffix=""):
     """Check that dimensions are supported."""
+
     def _impl(attr):
-        kernel = attr['kernel_shape']
+        kernel = attr["kernel_shape"]
         if len(kernel) == 1:
-            return prefix + '1d' + suffix
+            return prefix + "1d" + suffix
         if len(kernel) == 2:
-            return prefix + '2d' + suffix
+            return prefix + "2d" + suffix
         if len(kernel) == 3:
-            return prefix + '3d' + suffix
-        msg = 'Only 1D, 2D, and 3D kernels are supported for operator {}.'
-        op_name = prefix + '1d/2d/3d'
+            return prefix + "3d" + suffix
+        msg = "Only 1D, 2D, and 3D kernels are supported for operator {}."
+        op_name = prefix + "1d/2d/3d"
         raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
     return _impl
@@ -136,8 +139,7 @@ def revert_caffe2_pad(pads):
     elif len(pads) == 2:
         pass
     else:
-        raise tvm.error.OpAttributeInvalid(
-            'Number of pads must be either 2 or 4.')
+        raise tvm.error.OpAttributeInvalid("Number of pads must be either 2 or 4.")
     return pads
 
 
@@ -154,11 +156,11 @@ def get_pad_pair(input1d, kernel1d, stride1d):
 
 def onnx_default_layout(dims):
     if dims == 1:
-        return 'NCW'
+        return "NCW"
     if dims == 2:
-        return 'NCHW'
+        return "NCHW"
     if dims == 3:
-        return 'NCDHW'
+        return "NCDHW"
 
     msg = "Only 1D, 2D and 3D layouts are currently supported"
     raise tvm.error.OpAttributeInvalid(msg.format(op_name))
@@ -167,14 +169,14 @@ def onnx_default_layout(dims):
 def onnx_storage_order2layout(storage_order, dims=2):
     """converter of onnx storage order parameter to tvm storage order format"""
     if storage_order not in (0, 1):
-        raise tvm.error.OpAttributeInvalid('Mode of storage_order must be either 0 or 1')
+        raise tvm.error.OpAttributeInvalid("Mode of storage_order must be either 0 or 1")
 
     if dims == 1:
-        return 'NCW' if storage_order == 0 else 'NWC'
+        return "NCW" if storage_order == 0 else "NWC"
     if dims == 2:
-        return 'NCHW' if storage_order == 0 else 'NHWC'
+        return "NCHW" if storage_order == 0 else "NHWC"
     if dims == 3:
-        return 'NCDHW' if storage_order == 0 else 'NDHWC'
+        return "NCDHW" if storage_order == 0 else "NDHWC"
 
     msg = "Only 1D, 2D and 3D layouts are currently supported"
     raise tvm.error.OpAttributeInvalid(msg.format(op_name))
@@ -182,7 +184,7 @@ def onnx_storage_order2layout(storage_order, dims=2):
 
 def dimension_constraint():
     def _dim_check(attrs):
-        if len(attrs['kernel_shape']) in [1, 2, 3]:
+        if len(attrs["kernel_shape"]) in [1, 2, 3]:
             return True
         return False
 
@@ -190,12 +192,11 @@ def dimension_constraint():
 
 
 class OnnxOpConverter(object):
-    """ A helper class for holding onnx op converters.
-    """
+    """A helper class for holding onnx op converters."""
 
     @classmethod
     def get_converter(cls, opset):
-        """ Get converter matches given opset.
+        """Get converter matches given opset.
 
         Parameters
         ----------
@@ -207,187 +208,180 @@ class OnnxOpConverter(object):
         converter, which should be `_impl_vx`. Number x is the biggest
             number smaller than or equal to opset belongs to all support versions.
         """
-        versions = [
-            int(d.replace('_impl_v', '')) for d in dir(cls) if '_impl_v' in d
-        ]
+        versions = [int(d.replace("_impl_v", "")) for d in dir(cls) if "_impl_v" in d]
         versions = sorted(versions + [opset])
-        version = versions[
-            max([i for i, v in enumerate(versions) if v == opset]) - 1]
-        if hasattr(cls, '_impl_v{}'.format(version)):
-            return getattr(cls, '_impl_v{}'.format(version))
+        version = versions[max([i for i, v in enumerate(versions) if v == opset]) - 1]
+        if hasattr(cls, "_impl_v{}".format(version)):
+            return getattr(cls, "_impl_v{}".format(version))
         raise NotImplementedError(
-            'opset version {} of {} not implemented'.format(
-                version, cls.__name__))
+            "opset version {} of {} not implemented".format(version, cls.__name__)
+        )
 
 
 class Unary(OnnxOpConverter):
-    """ A helper class for unary op converters.
-    """
-    name = ''
+    """A helper class for unary op converters."""
+
+    name = ""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 1, "Unary math op {} takes 1 input, {} given".format(
-            cls.name, len(inputs))
+            cls.name, len(inputs)
+        )
         op_name = cls.name
         return get_relay_op(op_name)(*inputs)
 
 
 class Elemwise(OnnxOpConverter):
-    """ A helper class for elemwise op converters.
-    """
-    name = ''
+    """A helper class for elemwise op converters."""
+
+    name = ""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        assert len(inputs) == 2, "Math op {} take 2 inputs, {} given".format(
-            cls.name, len(inputs))
+        assert len(inputs) == 2, "Math op {} take 2 inputs, {} given".format(cls.name, len(inputs))
         op_name = cls.name
         conv_ops = ["conv2d", "conv2d_transpose"]
-        if attr.get('broadcast', 0) and any(x in str(inputs[0]) for x in conv_ops):
+        if attr.get("broadcast", 0) and any(x in str(inputs[0]) for x in conv_ops):
             # TODO(zhreshold): remove hard coded infershape
-            axis = int(attr.get('axis', 0))
+            axis = int(attr.get("axis", 0))
             inputs[1] = _op.expand_dims(inputs[1], axis=axis, num_newaxis=2)
         return get_relay_op(op_name)(*inputs)
 
 
 class Pool(OnnxOpConverter):
-    """ A helper class for pool op converters.
-    """
-    name = ''
+    """A helper class for pool op converters."""
+
+    name = ""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         input_shape = infer_shape(inputs[0])
-        if 'auto_pad' in attr:
-            attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
-            if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
+        if "auto_pad" in attr:
+            attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
+            if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 pad_tuple = []
                 for axis in range(len(input_shape) - 2):
                     axis_shape = input_shape[2 + axis]
-                    stride = attr['strides'][axis]
-                    kernel = attr['kernel_shape'][axis]
+                    stride = attr["strides"][axis]
+                    kernel = attr["kernel_shape"][axis]
                     pad = get_pad_pair(axis_shape, kernel, stride)
                     pad_tuple.append(pad)
                 pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
-                attr['pads'] = pad_tuple
-            elif attr['auto_pad'] == 'VALID':
-                attr['pads'] = 0
-            elif attr['auto_pad'] == 'NOTSET':
+                attr["pads"] = pad_tuple
+            elif attr["auto_pad"] == "VALID":
+                attr["pads"] = 0
+            elif attr["auto_pad"] == "NOTSET":
                 pass
             else:
                 msg = 'Value {} in attribute "auto_pad" of operator {} is invalid.'
-                raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad'], cls.name))
+                raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"], cls.name))
             attr.pop("auto_pad")
 
-        if 'storage_order' in attr:
-            attr['layout'] = onnx_storage_order2layout(attr['storage_order'],
-                                                       dims=(len(input_shape) - 2))
+        if "storage_order" in attr:
+            attr["layout"] = onnx_storage_order2layout(
+                attr["storage_order"], dims=(len(input_shape) - 2)
+            )
         else:
-            attr['layout'] = onnx_default_layout(dims=(len(input_shape) - 2))
+            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2))
 
         return AttrCvt(
             op_name=dimension_picker(cls.name),
-            transforms={
-                'kernel_shape': 'pool_size',
-                'pads': ('padding', 0)
-            },
-            ignores=['dilations', 'storage_order'],
-            custom_check=dimension_constraint())(inputs, attr, params)
+            transforms={"kernel_shape": "pool_size", "pads": ("padding", 0)},
+            ignores=["dilations", "storage_order"],
+            custom_check=dimension_constraint(),
+        )(inputs, attr, params)
 
 
 class Absolute(Unary):
-    """ Operator converter for Absolute.
-    """
-    name = 'abs'
+    """Operator converter for Absolute."""
+
+    name = "abs"
 
 
 class Add(Elemwise):
-    """ Operator converter for Add.
-    """
-    name = 'add'
+    """Operator converter for Add."""
+
+    name = "add"
 
 
 class AveragePool(Pool):
-    """ Operator converter for AveragePool.
-    """
-    name = 'avg_pool'
+    """Operator converter for AveragePool."""
+
+    name = "avg_pool"
 
 
 class BatchNorm(OnnxOpConverter):
-    """ Operator converter for BatchNorm.
-    """
+    """Operator converter for BatchNorm."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # TODO(zhreshold): 'spatial' is not properly handled here.
         out = AttrCvt(
-            op_name='batch_norm',
-            ignores=['spatial', 'is_test', 'consumed_inputs', 'momentum'])(inputs, attr,
-                                                                           params)
+            op_name="batch_norm", ignores=["spatial", "is_test", "consumed_inputs", "momentum"]
+        )(inputs, attr, params)
         return out[0]
 
 
 class InstanceNorm(OnnxOpConverter):
-    """ Operator converter for BatchNorm.
-    """
+    """Operator converter for BatchNorm."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return AttrCvt(op_name='instance_norm')(inputs, attr, params)
+        return AttrCvt(op_name="instance_norm")(inputs, attr, params)
 
 
 class Conv(OnnxOpConverter):
-    """ Operator converter for Conv.
-    """
+    """Operator converter for Conv."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # Use shape of input to determine convolution type.
         input_shape = infer_shape(inputs[0])
-        if 'auto_pad' in attr:
-            attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
-            if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
+        if "auto_pad" in attr:
+            attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
+            if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 pad_tuple = []
                 for axis in range(len(input_shape) - 2):
                     axis_shape = input_shape[2 + axis]
-                    stride = attr['strides'][axis]
-                    kernel = attr['kernel_shape'][axis]
-                    dilation = attr['dilations'][axis]
+                    stride = attr["strides"][axis]
+                    kernel = attr["kernel_shape"][axis]
+                    dilation = attr["dilations"][axis]
                     dilated_kernel = (kernel - 1) * dilation + 1
                     pad = get_pad_pair(axis_shape, dilated_kernel, stride)
                     pad_tuple.append(pad)
                 pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
-                attr['pads'] = pad_tuple
-            elif attr['auto_pad'] == 'VALID':
-                attr['pads'] = tuple([0 for i in range(len(input_shape) - 2)])
-            elif attr['auto_pad'] == 'NOTSET':
+                attr["pads"] = pad_tuple
+            elif attr["auto_pad"] == "VALID":
+                attr["pads"] = tuple([0 for i in range(len(input_shape) - 2)])
+            elif attr["auto_pad"] == "NOTSET":
                 pass
             else:
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
-                raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad']))
-            attr.pop('auto_pad')
-        elif len(attr['kernel_shape']) == 2:
+                raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
+            attr.pop("auto_pad")
+        elif len(attr["kernel_shape"]) == 2:
             sym_pad = True
-            if 'pads' in attr:
-                padding = attr['pads']
+            if "pads" in attr:
+                padding = attr["pads"]
             else:
                 padding = [0, 0, 0, 0]
             for i in range(0, len(padding), 2):
                 sym_pad = sym_pad and padding[i] == padding[i + 1]
 
             if sym_pad:
-                attr['pads'] = padding[0::2]
+                attr["pads"] = padding[0::2]
 
         out = AttrCvt(
-            op_name=dimension_picker('conv'),
+            op_name=dimension_picker("conv"),
             transforms={
-                'kernel_shape': 'kernel_size',
-                'dilations': ('dilation', 1),
-                'pads': ('padding', 0),
-                'group': ('groups', 1)
+                "kernel_shape": "kernel_size",
+                "dilations": ("dilation", 1),
+                "pads": ("padding", 0),
+                "group": ("groups", 1),
             },
-            custom_check=dimension_constraint())(inputs[:2], attr, params)
+            custom_check=dimension_constraint(),
+        )(inputs[:2], attr, params)
 
         use_bias = len(inputs) == 3
         if use_bias:
@@ -396,47 +390,48 @@ class Conv(OnnxOpConverter):
 
 
 class ConvTranspose(OnnxOpConverter):
-    """ Operator converter for ConvTranspose.
-    """
+    """Operator converter for ConvTranspose."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # get number of channels
         channels = infer_channels(inputs[1], True)
-        attr['channels'] = channels
-        groups = attr.pop('group')
-        attr['groups'] = groups
+        attr["channels"] = channels
+        groups = attr.pop("group")
+        attr["groups"] = groups
         # infer pads for auto_pad
-        if 'auto_pad' in attr:
-            attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
-            if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
+        if "auto_pad" in attr:
+            attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
+            if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 input_shape = infer_shape(inputs[0])
                 in_h, in_w = input_shape[2], input_shape[3]
-                stride_h, stride_w = attr['strides']
-                kernel_h, kernel_w = attr['kernel_shape']
-                dilation_h, dilation_w = attr['dilations']
+                stride_h, stride_w = attr["strides"]
+                kernel_h, kernel_w = attr["kernel_shape"]
+                dilation_h, dilation_w = attr["dilations"]
                 dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
                 dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
                 pad_v = get_pad_pair(in_h, dilated_kernel_h, stride_h)
                 pad_h = get_pad_pair(in_w, dilated_kernel_w, stride_w)
-                attr['pads'] = (pad_v[0], pad_h[0], pad_v[1], pad_h[1])
-            elif attr['auto_pad'] == 'VALID':
-                attr['pads'] = (0, 0)
-            elif attr['auto_pad'] == 'NOTSET':
+                attr["pads"] = (pad_v[0], pad_h[0], pad_v[1], pad_h[1])
+            elif attr["auto_pad"] == "VALID":
+                attr["pads"] = (0, 0)
+            elif attr["auto_pad"] == "NOTSET":
                 pass
             else:
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
-                raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad']))
-            attr.pop('auto_pad')
+                raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
+            attr.pop("auto_pad")
 
         out = AttrCvt(
-            op_name=dimension_picker('conv', '_transpose'),
+            op_name=dimension_picker("conv", "_transpose"),
             transforms={
-                'kernel_shape': 'kernel_size',
-                'dilations': ('dilation', (0, 0)),
-                'pads': ('padding', (0, 0), revert_caffe2_pad)
+                "kernel_shape": "kernel_size",
+                "dilations": ("dilation", (0, 0)),
+                "pads": ("padding", (0, 0), revert_caffe2_pad),
             },
-            disables=['output_shape'],
-            custom_check=dimension_constraint())(inputs[:2], attr, params)
+            disables=["output_shape"],
+            custom_check=dimension_constraint(),
+        )(inputs[:2], attr, params)
         use_bias = len(inputs) == 3
         if use_bias:
             out = _op.nn.bias_add(out, inputs[2])
@@ -444,35 +439,33 @@ class ConvTranspose(OnnxOpConverter):
 
 
 class Div(Elemwise):
-    """ Operator converter for Divide.
-    """
-    name = 'divide'
+    """Operator converter for Divide."""
+
+    name = "divide"
 
 
 class Elu(OnnxOpConverter):
-    """ Operator converter for Elu.
-    """
+    """Operator converter for Elu."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        alpha = float(attr.get('alpha', 1.0))
-        return _expr.const(-alpha) * _op.nn.relu(_expr.const(1.) - _op.exp(inputs[0])) + \
-                                     _op.nn.relu(inputs[0])
+        alpha = float(attr.get("alpha", 1.0))
+        return _expr.const(-alpha) * _op.nn.relu(
+            _expr.const(1.0) - _op.exp(inputs[0])
+        ) + _op.nn.relu(inputs[0])
 
 
 class Gemm(OnnxOpConverter):
-    """ Operator converter for Gemm.
-    """
+    """Operator converter for Gemm."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        assert len(inputs) == 3, "Gemm op take 3 inputs, {} given".format(
-            len(inputs))
+        assert len(inputs) == 3, "Gemm op take 3 inputs, {} given".format(len(inputs))
         # Y = alpha * A * B + beta * C
-        alpha = float(attr.get('alpha', 1.0))
-        beta = float(attr.get('beta', 1.0))
-        transA = int(attr.get('transA', 0))
-        transB = int(attr.get('transB', 0))
+        alpha = float(attr.get("alpha", 1.0))
+        beta = float(attr.get("beta", 1.0))
+        transA = int(attr.get("transA", 0))
+        transB = int(attr.get("transB", 0))
         # get number of channels
         channels = infer_channels(inputs[1], not transB)
         if transA:
@@ -493,8 +486,7 @@ class Gemm(OnnxOpConverter):
 
 
 class MatMul(OnnxOpConverter):
-    """ Operator converter for MatMul.
-    """
+    """Operator converter for MatMul."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
@@ -525,8 +517,7 @@ class MatMul(OnnxOpConverter):
 
 
 class Mod(OnnxOpConverter):
-    """ Operator converter for Mod.
-    """
+    """Operator converter for Mod."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
@@ -535,7 +526,7 @@ class Mod(OnnxOpConverter):
         # Note: attr['fmod'] determines whether the operator should behave like np.fmod or np.mod.
         # attr['fmod'] == 0 will behave as np.mod and attr['fmod'] == 1 will force fmod treatment.
         # The relay equivalent of np.fmod is relay.mod and np.mod is relay.floor_mod
-        if attr['fmod'] == 0:
+        if attr["fmod"] == 0:
             op_name = "floor_mod"
         else:
             op_name = "mod"
@@ -544,117 +535,119 @@ class Mod(OnnxOpConverter):
 
 
 class MaxPool(Pool):
-    """ Operator converter for MaxPool
-    """
-    name = 'max_pool'
+    """Operator converter for MaxPool"""
+
+    name = "max_pool"
+
 
 class LpPool(OnnxOpConverter):
-    """ A helper class for lppool op converters.
-    """
+    """A helper class for lppool op converters."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         input_shape = infer_shape(inputs[0])
         dtype = infer_type(inputs[0]).checked_type.dtype
 
-        if 'auto_pad' in attr:
-            attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
-            if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
+        if "auto_pad" in attr:
+            attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
+            if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 pad_tuple = []
                 for axis in range(len(input_shape) - 2):
                     axis_shape = input_shape[2 + axis]
-                    stride = attr['strides'][axis]
-                    kernel = attr['kernel_shape'][axis]
+                    stride = attr["strides"][axis]
+                    kernel = attr["kernel_shape"][axis]
                     pad = get_pad_pair(axis_shape, kernel, stride)
                     pad_tuple.append(pad)
                 pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
-                attr['pads'] = pad_tuple
-            elif attr['auto_pad'] == 'VALID':
-                attr['pads'] = 0
-            elif attr['auto_pad'] == 'NOTSET':
+                attr["pads"] = pad_tuple
+            elif attr["auto_pad"] == "VALID":
+                attr["pads"] = 0
+            elif attr["auto_pad"] == "NOTSET":
                 pass
             else:
                 msg = 'Value {} in attribute "auto_pad" of operator {} is invalid.'
-                raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad'], "LpPool"))
+                raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"], "LpPool"))
             attr.pop("auto_pad")
 
-        if 'storage_order' in attr:
-            attr['layout'] = onnx_storage_order2layout(attr['storage_order'],
-                                                       dims=(len(input_shape) - 2))
+        if "storage_order" in attr:
+            attr["layout"] = onnx_storage_order2layout(
+                attr["storage_order"], dims=(len(input_shape) - 2)
+            )
         else:
-            attr['layout'] = onnx_default_layout(dims=(len(input_shape) - 2))
+            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2))
 
-        p = _expr.const(attr['p'], dtype)
-        reci_p = _expr.const(1.0 / attr['p'], dtype)
+        p = _expr.const(attr["p"], dtype)
+        reci_p = _expr.const(1.0 / attr["p"], dtype)
         inputs[0] = _op.power(inputs[0], p)
 
-        out = AttrCvt(op_name=dimension_picker("avg_pool"),
-                      transforms={
-                          'kernel_shape': 'pool_size',
-                          'pads': ('padding', 0)
-                      },
-                      extras={'count_include_pad': True},
-                      ignores=['p'],
-                      custom_check=dimension_constraint())(inputs, attr, params)
-        kernels = attr['kernel_shape']
+        out = AttrCvt(
+            op_name=dimension_picker("avg_pool"),
+            transforms={"kernel_shape": "pool_size", "pads": ("padding", 0)},
+            extras={"count_include_pad": True},
+            ignores=["p"],
+            custom_check=dimension_constraint(),
+        )(inputs, attr, params)
+        kernels = attr["kernel_shape"]
         out = _op.abs(out) * _expr.const(np.prod(kernels).astype(dtype))
         return _op.power(out, reci_p)
 
 
 class Mul(Elemwise):
-    """ Operator converter for Multiply.
-    """
-    name = 'multiply'
+    """Operator converter for Multiply."""
+
+    name = "multiply"
 
 
 class Pad(OnnxOpConverter):
-    """ Operator converter for Pad.
-    """
+    """Operator converter for Pad."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         pad_width = []
-        pads = attr.pop('paddings')
+        pads = attr.pop("paddings")
         dims = int(len(pads) / 2)
         for i in range(dims):
-            pad_width.append((pads[i], pads[i+dims]))
-        attr['pad_width'] = pad_width
-        pad_mode = attr.get('mode', b'constant').decode('utf-8')
-        if pad_mode in ['constant', 'edge', 'reflect']:
-            attr['pad_mode'] = pad_mode
-            attr.pop('mode', None)
+            pad_width.append((pads[i], pads[i + dims]))
+        attr["pad_width"] = pad_width
+        pad_mode = attr.get("mode", b"constant").decode("utf-8")
+        if pad_mode in ["constant", "edge", "reflect"]:
+            attr["pad_mode"] = pad_mode
+            attr.pop("mode", None)
         else:
             raise tvm.error.OpAttributeInvalid(
-                'Value ' + pad_mode + ' in attribute "mode" is invalid for operator Pad.')
+                "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
+            )
 
         return AttrCvt(
             _op.nn.pad,
             transforms={
-                'value': 'pad_value',
+                "value": "pad_value",
             },
-            )(inputs, attr, params)
+        )(inputs, attr, params)
 
     @classmethod
     def _impl_v2(cls, inputs, attr, params):
         pad_width = []
-        pads = attr.pop('pads')
+        pads = attr.pop("pads")
         dims = int(len(pads) / 2)
         for i in range(dims):
-            pad_width.append((pads[i], pads[i+dims]))
-        attr['pad_width'] = pad_width
-        pad_mode = attr.get('mode', b'constant').decode('utf-8')
-        if pad_mode in ['constant', 'edge', 'reflect']:
-            attr['pad_mode'] = pad_mode
-            attr.pop('mode', None)
+            pad_width.append((pads[i], pads[i + dims]))
+        attr["pad_width"] = pad_width
+        pad_mode = attr.get("mode", b"constant").decode("utf-8")
+        if pad_mode in ["constant", "edge", "reflect"]:
+            attr["pad_mode"] = pad_mode
+            attr.pop("mode", None)
         else:
             raise tvm.error.OpAttributeInvalid(
-                'Value ' + pad_mode + ' in attribute "mode" is invalid for operator Pad.')
+                "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
+            )
 
         return AttrCvt(
-            'pad',
+            "pad",
             transforms={
-                'value': 'pad_value',
+                "value": "pad_value",
             },
-            )(inputs, attr, params)
+        )(inputs, attr, params)
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
@@ -667,35 +660,32 @@ class Pad(OnnxOpConverter):
         attr["pad_value"] = value
         dims = int(len(pads) / 2)
         for i in range(dims):
-            pad_width.append((pads[i], pads[i+dims]))
-        attr['pad_width'] = pad_width
-        pad_mode = attr.get('mode', b'constant').decode('utf-8')
-        if pad_mode in ['constant', 'edge', 'reflect']:
-            attr['pad_mode'] = pad_mode
-            attr.pop('mode', None)
+            pad_width.append((pads[i], pads[i + dims]))
+        attr["pad_width"] = pad_width
+        pad_mode = attr.get("mode", b"constant").decode("utf-8")
+        if pad_mode in ["constant", "edge", "reflect"]:
+            attr["pad_mode"] = pad_mode
+            attr.pop("mode", None)
         else:
             raise tvm.error.OpAttributeInvalid(
-                'Value ' + pad_mode + ' in attribute "mode" is invalid for operator Pad.')
+                "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
+            )
 
-        return AttrCvt('pad')(inputs[:1], attr, params)
-
-
+        return AttrCvt("pad")(inputs[:1], attr, params)
 
 
 class ParametricSoftPlus(OnnxOpConverter):
-    """ Operator converter for ParametricSoftPlus.
-    """
+    """Operator converter for ParametricSoftPlus."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        alpha = _expr.const(float(attr.get('alpha', 1.0)))
-        beta = _expr.const(float(attr.get('beta', 1.0)))
-        return _op.log(_op.exp(beta * inputs[0]) + _expr.const(1.)) * alpha
+        alpha = _expr.const(float(attr.get("alpha", 1.0)))
+        beta = _expr.const(float(attr.get("beta", 1.0)))
+        return _op.log(_op.exp(beta * inputs[0]) + _expr.const(1.0)) * alpha
 
 
 class Prelu(OnnxOpConverter):
-    """ Operator converter for Prelu.
-    """
+    """Operator converter for Prelu."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
@@ -709,8 +699,7 @@ class Prelu(OnnxOpConverter):
 
 
 class Reciprocal(OnnxOpConverter):
-    """ Operator converter for Reciprocal.
-    """
+    """Operator converter for Reciprocal."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
@@ -718,12 +707,11 @@ class Reciprocal(OnnxOpConverter):
 
 
 class Flatten(OnnxOpConverter):
-    """ Operator converter for Flatten.
-    """
+    """Operator converter for Flatten."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        axis = attr.get('axis', 1)
+        axis = attr.get("axis", 1)
         if axis == 1:
             out = _op.nn.batch_flatten(inputs[0])
         else:
@@ -734,12 +722,11 @@ class Flatten(OnnxOpConverter):
 
 
 class Reshape(OnnxOpConverter):
-    """ Operator converter for Reshape.
-    """
+    """Operator converter for Reshape."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return _op.reshape(inputs[0], attr['shape'])
+        return _op.reshape(inputs[0], attr["shape"])
 
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
@@ -750,103 +737,95 @@ class Reshape(OnnxOpConverter):
         else:
             data, shape = inputs
             static_shape = infer_value_simulated(shape, params)
-            out = _op.reshape(data, newshape=tuple(
-                static_shape.asnumpy().astype('int32')))
+            out = _op.reshape(data, newshape=tuple(static_shape.asnumpy().astype("int32")))
         return out
 
 
 class DepthToSpace(OnnxOpConverter):
-    """ Operator converter for DepthToSpace.
-    """
+    """Operator converter for DepthToSpace."""
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
 
-        block_size = int(attr['blocksize'])
-        mode = attr.get('mode', b'DCR').decode('utf-8')
+        block_size = int(attr["blocksize"])
+        mode = attr.get("mode", b"DCR").decode("utf-8")
         return _op.nn.depth_to_space(inputs[0], block_size, mode=mode)
 
 
 class SpaceToDepth(OnnxOpConverter):
-    """ Operator converter for SpaceToDepth.
-    """
+    """Operator converter for SpaceToDepth."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
 
-        block_size = int(attr['blocksize'])
+        block_size = int(attr["blocksize"])
         return _op.nn.space_to_depth(inputs[0], block_size)
 
 
 class Concat(OnnxOpConverter):
-    """ Operator converter for Concat.
-    """
+    """Operator converter for Concat."""
 
     @classmethod
     def _impl_v1(cls, inputs, args, params):
-        return AttrCvt(op_name='concatenate')((inputs,), args)
+        return AttrCvt(op_name="concatenate")((inputs,), args)
+
 
 class Scale(OnnxOpConverter):
-    """ Operator converter for Scale.
-    """
+    """Operator converter for Scale."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        scale = float(attr.get('scale', 1.0))
+        scale = float(attr.get("scale", 1.0))
         return inputs[0] * _expr.const(scale)
 
 
 class Selu(OnnxOpConverter):
-    """ Operator converter for Selu.
-    """
+    """Operator converter for Selu."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        alpha = float(attr.get('alpha', 1.6732))
-        gamma = float(attr.get('gamma', 1.0507))
-        return _expr.const(gamma) * (_expr.const(-alpha) *
-                                     _op.nn.relu(_expr.const(1.) - _op.exp(inputs[0])) +
-                                     _op.nn.relu(inputs[0]))
+        alpha = float(attr.get("alpha", 1.6732))
+        gamma = float(attr.get("gamma", 1.0507))
+        return _expr.const(gamma) * (
+            _expr.const(-alpha) * _op.nn.relu(_expr.const(1.0) - _op.exp(inputs[0]))
+            + _op.nn.relu(inputs[0])
+        )
 
 
 class ScaledTanh(OnnxOpConverter):
-    """ Operator converter for ScaledTanh.
-    """
+    """Operator converter for ScaledTanh."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        alpha = float(attr.get('alpha', 1.0))
-        beta = float(attr.get('beta', 1.0))
+        alpha = float(attr.get("alpha", 1.0))
+        beta = float(attr.get("beta", 1.0))
         return _op.tanh(_expr.const(beta) * inputs[0]) * _expr.const(alpha)
 
 
 class SoftPlus(OnnxOpConverter):
-    """ Operator converter for SoftPlus.
-    """
+    """Operator converter for SoftPlus."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return _op.log(_op.exp(inputs[0]) + _expr.const(1.))
+        return _op.log(_op.exp(inputs[0]) + _expr.const(1.0))
 
 
 class Softsign(OnnxOpConverter):
-    """ Operator converter for Softsign.
-    """
+    """Operator converter for Softsign."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return inputs[0] / (_expr.const(1.) + Absolute.get_converter(1)(inputs, attr, params))
+        return inputs[0] / (_expr.const(1.0) + Absolute.get_converter(1)(inputs, attr, params))
 
 
 class Sub(Elemwise):
-    """ Operator converter for Subtract.
-    """
-    name = 'subtract'
+    """Operator converter for Subtract."""
+
+    name = "subtract"
 
 
 class Sum(OnnxOpConverter):
-    """ Operator converter for Sum.
-    """
+    """Operator converter for Sum."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
@@ -858,32 +837,29 @@ class Sum(OnnxOpConverter):
 
 
 class Affine(OnnxOpConverter):
-    """ Operator converter for Affine transformation.
-    """
+    """Operator converter for Affine transformation."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        alpha = _expr.const(attr.get('alpha', 1.0))
-        beta = _expr.const(attr.get('beta', 0.0))
+        alpha = _expr.const(attr.get("alpha", 1.0))
+        beta = _expr.const(attr.get("beta", 0.0))
         return (alpha * inputs[0]) + beta
 
 
 class ThresholdedRelu(OnnxOpConverter):
-    """ Operator converter for ThresholdedRelu.
-    """
+    """Operator converter for ThresholdedRelu."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        alpha = float(attr.get('alpha', 1.0))
+        alpha = float(attr.get("alpha", 1.0))
         alpha_tensor = _op.full_like(inputs[0], fill_value=_expr.const(alpha))
         mask = _op.greater(inputs[0], alpha_tensor).astype("float32")
         return inputs[0] * mask
 
 
 def _broadcast_constraint():
-
     def _broadcast_check(attrs):
-        if attrs.get('axis', None):
+        if attrs.get("axis", None):
             return False
         return True
 
@@ -891,25 +867,23 @@ def _broadcast_constraint():
 
 
 def _fully_connected(opset):
-
     def _impl(inputs, attr, params):
         # get number of channels
         channels = infer_channels(inputs[1], params)
-        attr['units'] = channels
-        return AttrCvt('dense', ignores=['axis', 'axis_w'])(inputs, attr)
+        attr["units"] = channels
+        return AttrCvt("dense", ignores=["axis", "axis_w"])(inputs, attr)
 
     return _impl
 
 
 class Upsample(OnnxOpConverter):
-    """ Operator converter for Upsample (nearest mode).
-    """
+    """Operator converter for Upsample (nearest mode)."""
 
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        scales = attr.get('scales')
+        scales = attr.get("scales")
         if not scales:
-            #Here we are going to higher OPSET version.
+            # Here we are going to higher OPSET version.
             assert len(inputs) == 2, "Upsample op take 2 inputs, {} given".format(len(inputs))
             if get_name(inputs[1]) in params:
                 scales = params[inputs[1].name_hint].asnumpy()
@@ -919,95 +893,89 @@ class Upsample(OnnxOpConverter):
         assert scales[0] == 1.0 and scales[1] == 1.0
         input_shape = infer_shape(inputs[0])
         dims = len(input_shape)
-        mode = attr.get('mode')
-        if mode == b'nearest':
+        mode = attr.get("mode")
+        if mode == b"nearest":
             method = "nearest_neighbor"
-        elif mode == b'linear':
+        elif mode == b"linear":
             method = "trilinear" if dims == 5 else "bilinear"
         else:
             raise tvm.error.OpAttributeInvalid(
-                'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode))
-        attr = {'scale_h': scales[-2],
-                'scale_w': scales[-1],
-                'method': method}
+                'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode)
+            )
+        attr = {"scale_h": scales[-2], "scale_w": scales[-1], "method": method}
         if dims == 5:
             assert len(scales) == 5
-            attr['scale_d'] = scales[-3]
-            attr['layout'] = 'NCDHW'
-            op_name = 'upsampling3d'
+            attr["scale_d"] = scales[-3]
+            attr["layout"] = "NCDHW"
+            op_name = "upsampling3d"
         else:
             assert len(scales) == 4
-            attr['layout'] = 'NCHW'
-            if method == 'nearest_neighbor':
-                attr['align_corners'] = False
+            attr["layout"] = "NCHW"
+            if method == "nearest_neighbor":
+                attr["align_corners"] = False
             else:
-                attr['align_corners'] = True
-            op_name = 'upsampling'
+                attr["align_corners"] = True
+            op_name = "upsampling"
         return AttrCvt(op_name)(inputs, attr)
 
+
 class Shape(OnnxOpConverter):
-    """ Operator converter for Shape.
-    """
+    """Operator converter for Shape."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         return _op.shape_of(inputs[0], "int64")
 
+
 class Cast(OnnxOpConverter):
-    """ Operator converter for Cast.
-    """
+    """Operator converter for Cast."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return AttrCvt(op_name='cast', transforms={'to': 'dtype'})(inputs, attr)
+        return AttrCvt(op_name="cast", transforms={"to": "dtype"})(inputs, attr)
 
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
         try:
             from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
-            attr['to'] = str(TENSOR_TYPE_TO_NP_TYPE[attr['to']])
+
+            attr["to"] = str(TENSOR_TYPE_TO_NP_TYPE[attr["to"]])
         except ImportError as e:
-            raise ImportError(
-                "Unable to import onnx.mapping which is required {}".format(e))
-        return AttrCvt(op_name='cast', transforms={'to': 'dtype'})(inputs, attr)
+            raise ImportError("Unable to import onnx.mapping which is required {}".format(e))
+        return AttrCvt(op_name="cast", transforms={"to": "dtype"})(inputs, attr)
 
 
 class Unsqueeze(OnnxOpConverter):
-    """ Operator converter for Unsqueeze.
-    """
+    """Operator converter for Unsqueeze."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        for axes in attr['axes']:
+        for axes in attr["axes"]:
             inputs[0] = _op.expand_dims(inputs[0], axis=axes, num_newaxis=1)
         return inputs[0]
 
 
 class Split(OnnxOpConverter):
-    """ Operator converter for Split.
-    """
+    """Operator converter for Split."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        splits = attr.get('split', False)
+        splits = attr.get("split", False)
         if splits:
-            attr['indices_or_sections'] = []
+            attr["indices_or_sections"] = []
             index = 0
             for i in splits[:-1]:
                 index += i
-                attr['indices_or_sections'].append(index)
+                attr["indices_or_sections"].append(index)
         # When splits isnt specified divide evenly over axis.
         else:
             in_shape = infer_shape(inputs[0])
-            attr['indices_or_sections'] = in_shape[attr['axis']]
-        return AttrCvt(
-            'split',
-            ignores=['split'])(inputs, attr, params)
+            attr["indices_or_sections"] = in_shape[attr["axis"]]
+        return AttrCvt("split", ignores=["split"])(inputs, attr, params)
 
 
 class Slice(OnnxOpConverter):
-    """ Operator converter for Slice.
-    """
+    """Operator converter for Slice."""
 
     @classmethod
     def _common(cls, starts, ends, axes):
@@ -1029,138 +997,138 @@ class Slice(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if isinstance(attr['starts'], int):
-            attr['starts'] = (attr['starts'],)
-            attr['ends'] = (attr['ends'],)
+        if isinstance(attr["starts"], int):
+            attr["starts"] = (attr["starts"],)
+            attr["ends"] = (attr["ends"],)
 
         try:
             # Update the starts and ends according to axes if required.
-            if isinstance(attr['axes'], int):
-                attr['axes'] = (attr['axes'],)
-            if (max(attr['axes']) + 1) != len(attr['axes']):
+            if isinstance(attr["axes"], int):
+                attr["axes"] = (attr["axes"],)
+            if (max(attr["axes"]) + 1) != len(attr["axes"]):
                 new_starts, new_ends, new_axes = cls._common(
-                    attr['starts'], attr['ends'], attr['axes'])
-                attr['axes'] = new_axes
-                attr['starts'] = new_starts
-                attr['ends'] = new_ends
+                    attr["starts"], attr["ends"], attr["axes"]
+                )
+                attr["axes"] = new_axes
+                attr["starts"] = new_starts
+                attr["ends"] = new_ends
         except KeyError:
             pass
-        begin = list(attr['starts'])
-        end = list(attr['ends'])
+        begin = list(attr["starts"])
+        end = list(attr["ends"])
 
-        return _op.strided_slice(inputs[0],
-                                 begin=begin,
-                                 end=end)
+        return _op.strided_slice(inputs[0], begin=begin, end=end)
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        attrs = {'starts' : inputs[1], 'ends' : inputs[2]}
+        attrs = {"starts": inputs[1], "ends": inputs[2]}
         if len(inputs) >= 4:
-            attrs['axes'] = inputs[3]
-        attrs = {k : (v, get_name(v)) for (k, v) in attrs.items()}
-        attrs = {k : params[v[1]].asnumpy() if v[1] in params else
-                     infer_value_simulated(v[0], params).asnumpy()
-                 for (k, v) in attrs.items()}
+            attrs["axes"] = inputs[3]
+        attrs = {k: (v, get_name(v)) for (k, v) in attrs.items()}
+        attrs = {
+            k: params[v[1]].asnumpy()
+            if v[1] in params
+            else infer_value_simulated(v[0], params).asnumpy()
+            for (k, v) in attrs.items()
+        }
 
         # Update the starts and ends according to axes if required.
-        if 'axes' in attrs:
-            if max(attrs['axes'] + 1) != len(attrs['axes']):
-                new_starts, new_ends, _ = cls._common(
-                    attrs['starts'], attrs['ends'], attrs['axes'])
-                attrs['starts'] = new_starts
-                attrs['ends'] = new_ends
-        return _op.strided_slice(inputs[0],
-                                 begin=list(attrs['starts']),
-                                 end=list(attrs['ends']))
+        if "axes" in attrs:
+            if max(attrs["axes"] + 1) != len(attrs["axes"]):
+                new_starts, new_ends, _ = cls._common(attrs["starts"], attrs["ends"], attrs["axes"])
+                attrs["starts"] = new_starts
+                attrs["ends"] = new_ends
+        return _op.strided_slice(inputs[0], begin=list(attrs["starts"]), end=list(attrs["ends"]))
 
 
 class Gather(OnnxOpConverter):
-    """ Operator converter for Gather.
-    """
+    """Operator converter for Gather."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        axis = attr.get('axis', 0)
-        return AttrCvt('take',
-                       extras={'axis': axis})(inputs, {})
+        axis = attr.get("axis", 0)
+        return AttrCvt("take", extras={"axis": axis})(inputs, {})
 
 
 class GatherND(OnnxOpConverter):
-    """ Operator converter for GatherND.
-    """
+    """Operator converter for GatherND."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         return _op.gather_nd(inputs[0], inputs[1])
 
 
 class Scatter(OnnxOpConverter):
-    """ Operator converter for Scatter.
-    """
+    """Operator converter for Scatter."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        axis = attr.get('axis', 0)
+        axis = attr.get("axis", 0)
         return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
 
 
 class Greater(OnnxOpConverter):
-    """ Operator logical greater.
-    """
+    """Operator logical greater."""
+
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
         return _op.greater(inputs[0], inputs[1])
 
 
 class Less(OnnxOpConverter):
-    """ Operator logical less than.
-    """
+    """Operator logical less than."""
+
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
         return _op.less(inputs[0], inputs[1])
 
 
 class LRN(OnnxOpConverter):
-    """ Operator converter for Local Response Normalization.
-    """
+    """Operator converter for Local Response Normalization."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         """LRN support only NCHW format
         https://github.com/onnx/onnx/blob/master/docs/Operators.md#LRN
         """
         axis = 1
-        alpha = attr.get('alpha', 0.0001)
-        beta = attr.get('beta', 0.75)
-        bias = attr.get('bias', 1.0)
-        nsize = attr.get('size')
-        attr = {'size': nsize, 'axis': axis, 'alpha': alpha, 'beta': beta, 'bias': bias}
-        return AttrCvt('lrn')(inputs, attr)
+        alpha = attr.get("alpha", 0.0001)
+        beta = attr.get("beta", 0.75)
+        bias = attr.get("bias", 1.0)
+        nsize = attr.get("size")
+        attr = {"size": nsize, "axis": axis, "alpha": alpha, "beta": beta, "bias": bias}
+        return AttrCvt("lrn")(inputs, attr)
+
 
 class Maximum(OnnxOpConverter):
-    """ Operator converter for Maximum.
-    """
+    """Operator converter for Maximum."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if not isinstance(inputs, (list, onnx_input)) or len(inputs) < 2:
             raise ValueError("Expect minimum 2 inputs")
         _max = inputs[0]
         for i in range(1, len(inputs)):
-            _max = AttrCvt('maximum')([_max, inputs[i]], {})
+            _max = AttrCvt("maximum")([_max, inputs[i]], {})
         return _max
 
+
 class Minimum(OnnxOpConverter):
-    """ Operator converter for Minimum.
-    """
+    """Operator converter for Minimum."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if not isinstance(inputs, (list, onnx_input)) or len(inputs) < 2:
             raise ValueError("Expect minimum 2 inputs")
         _min = inputs[0]
         for i in range(1, len(inputs)):
-            _min = AttrCvt('minimum')([_min, inputs[i]], {})
+            _min = AttrCvt("minimum")([_min, inputs[i]], {})
         return _min
 
+
 class Mean(OnnxOpConverter):
-    """ Operator converter for Mean.
-    """
+    """Operator converter for Mean."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if not isinstance(inputs, (list, onnx_input)) or len(inputs) < 2:
@@ -1169,105 +1137,114 @@ class Mean(OnnxOpConverter):
         concat = _op.concatenate([_op.expand_dims(x, axis=0) for x in inputs], axis=0)
         return _op.mean(concat, axis=0, keepdims=False)
 
+
 class HardSigmoid(OnnxOpConverter):
-    """ Operator converter for HardSigmoid.
-    """
+    """Operator converter for HardSigmoid."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        alpha = attr.get('alpha', 0.2)
-        beta = attr.get('beta', 0.5)
+        alpha = attr.get("alpha", 0.2)
+        beta = attr.get("beta", 0.5)
         transformX = (inputs[0] * _expr.const(alpha)) + _expr.const(beta)
-        attr = {'a_min': 0, 'a_max': 1}
-        return AttrCvt('clip')([transformX], attr)
+        attr = {"a_min": 0, "a_max": 1}
+        return AttrCvt("clip")([transformX], attr)
+
 
 class Reduce(OnnxOpConverter):
-    """ Operator converter for reduce ops.
-    """
-    name = ''
+    """Operator converter for reduce ops."""
+
+    name = ""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if 'axes' in attr:
-            axis = attr.get('axes', 0)
+        if "axes" in attr:
+            axis = attr.get("axes", 0)
         else:
             axis_len = len(infer_shape(inputs[0]))
             axis = list(range(axis_len))
-        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
+        attr = {"axis": axis, "keepdims": attr.get("keepdims", True)}
         return AttrCvt(cls.name)(inputs, attr)
 
+
 class ReduceMax(Reduce):
-    """ Operator converter for ReduceMax.
-    """
-    name = 'max'
+    """Operator converter for ReduceMax."""
+
+    name = "max"
+
 
 class ReduceMin(Reduce):
-    """ Operator converter for ReduceMin.
-    """
-    name = 'min'
+    """Operator converter for ReduceMin."""
+
+    name = "min"
+
 
 class ReduceSum(Reduce):
-    """ Operator converter for ReduceSum.
-    """
-    name = 'sum'
+    """Operator converter for ReduceSum."""
+
+    name = "sum"
+
 
 class ReduceMean(Reduce):
-    """ Operator converter for ReduceMean.
-    """
-    name = 'mean'
+    """Operator converter for ReduceMean."""
+
+    name = "mean"
+
 
 class ReduceProd(Reduce):
-    """ Operator converter for ReduceProd.
-    """
-    name = 'prod'
+    """Operator converter for ReduceProd."""
+
+    name = "prod"
+
 
 class ReduceLogSumExp(Reduce):
-    """ Operator converter for ReduceLogSumExp.
-    """
-    name = 'logsumexp'
+    """Operator converter for ReduceLogSumExp."""
+
+    name = "logsumexp"
 
 
 class ReduceSumSquare(OnnxOpConverter):
-    """ Operator converter for ReduceSumSquare.
-    """
+    """Operator converter for ReduceSumSquare."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if 'axes' in attr:
-            axis = attr.get('axes', 0)
+        if "axes" in attr:
+            axis = attr.get("axes", 0)
         else:
             axis_len = len(infer_shape(inputs[0]))
             axis = list(range(axis_len))
-        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
+        attr = {"axis": axis, "keepdims": attr.get("keepdims", True)}
         inputs[0] = inputs[0] * inputs[0]
 
         return AttrCvt("sum")(inputs, attr)
 
 
 class ReduceL1(OnnxOpConverter):
-    """ Operator converter for ReduceL1.
-    """
+    """Operator converter for ReduceL1."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if 'axes' in attr:
-            axis = attr.get('axes', 0)
+        if "axes" in attr:
+            axis = attr.get("axes", 0)
         else:
             axis_len = len(infer_shape(inputs[0]))
             axis = list(range(axis_len))
-        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
+        attr = {"axis": axis, "keepdims": attr.get("keepdims", True)}
         inputs[0] = _op.abs(inputs[0])
 
         return AttrCvt("sum")(inputs, attr)
 
 
 class ReduceL2(OnnxOpConverter):
-    """ Operator converter for ReduceL2.
-    """
+    """Operator converter for ReduceL2."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if 'axes' in attr:
-            axis = attr.get('axes', 0)
+        if "axes" in attr:
+            axis = attr.get("axes", 0)
         else:
             axis_len = len(infer_shape(inputs[0]))
             axis = list(range(axis_len))
-        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
+        attr = {"axis": axis, "keepdims": attr.get("keepdims", True)}
         inputs[0] = inputs[0] * inputs[0]
         out = AttrCvt("sum")(inputs, attr)
 
@@ -1275,151 +1252,149 @@ class ReduceL2(OnnxOpConverter):
 
 
 class ReduceLogSum(OnnxOpConverter):
-    """ Operator converter for ReduceLogSum.
-    """
+    """Operator converter for ReduceLogSum."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if 'axes' in attr:
-            axis = attr.get('axes', 0)
+        if "axes" in attr:
+            axis = attr.get("axes", 0)
         else:
             axis_len = len(infer_shape(inputs[0]))
             axis = list(range(axis_len))
-        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
+        attr = {"axis": axis, "keepdims": attr.get("keepdims", True)}
         out = AttrCvt("sum")(inputs, attr)
 
         return _op.log(out)
 
 
 class ArgMax(OnnxOpConverter):
-    """ Operator converter for ArgMax.
-    """
+    """Operator converter for ArgMax."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        axis = attr.get('axis', 0)
-        keepdims = attr.get('keepdims', True)
-        attr = {'axis': axis, 'keepdims': keepdims}
-        return AttrCvt('argmax')(inputs, attr)
+        axis = attr.get("axis", 0)
+        keepdims = attr.get("keepdims", True)
+        attr = {"axis": axis, "keepdims": keepdims}
+        return AttrCvt("argmax")(inputs, attr)
+
 
 class ArgMin(OnnxOpConverter):
-    """ Operator converter for ArgMin.
-    """
+    """Operator converter for ArgMin."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        axis = attr.get('axis', 0)
-        keepdims = attr.get('keepdims', True)
-        attr = {'axis': axis, 'keepdims': keepdims}
-        return AttrCvt('argmin')(inputs, attr)
+        axis = attr.get("axis", 0)
+        keepdims = attr.get("keepdims", True)
+        attr = {"axis": axis, "keepdims": keepdims}
+        return AttrCvt("argmin")(inputs, attr)
+
 
 class Softmax(OnnxOpConverter):
-    """ Operator converter for Softmax.
-    """
+    """Operator converter for Softmax."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # set default value when axis is not set in the model
-        if 'axis' not in attr:
-            attr['axis'] = 1
-        return AttrCvt('softmax', transforms={'axis': ('axis', 1)})(inputs, attr, params)
+        if "axis" not in attr:
+            attr["axis"] = 1
+        return AttrCvt("softmax", transforms={"axis": ("axis", 1)})(inputs, attr, params)
 
 
 class OneHot(OnnxOpConverter):
-    """ Operator converter for OneHot.
-    """
+    """Operator converter for OneHot."""
+
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
         # Extract relay one_hot inputs.
         indices, depth, values = inputs
         # Split onnx on off values into two separate expressions.
-        off_value, on_value = _op.take(
-            values, _op.const(0)), _op.take(values, _op.const(1))
+        off_value, on_value = _op.take(values, _op.const(0)), _op.take(values, _op.const(1))
         # Extract the datatype of the output from on_value.
         dtype = infer_type(on_value).checked_type.dtype
         # Convert depth into an integer.
         depth = int(infer_value(depth, params).asnumpy()[0])
         # set default value when axis is not set in the model
-        if 'axis' not in attr:
-            attr['axis'] = -1
-        return _op.one_hot(indices,
-                           on_value,
-                           off_value,
-                           depth,
-                           int(attr['axis']),
-                           dtype=dtype)
+        if "axis" not in attr:
+            attr["axis"] = -1
+        return _op.one_hot(indices, on_value, off_value, depth, int(attr["axis"]), dtype=dtype)
 
 
 class ConstantOfShape(OnnxOpConverter):
-    """ Operator converter for ConstantOfShape.
-    """
+    """Operator converter for ConstantOfShape."""
+
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        if 'value' in attr:
-            np_value = get_numpy(attr.pop('value'))[0]
+        if "value" in attr:
+            np_value = get_numpy(attr.pop("value"))[0]
             value = _expr.const(np_value)
             dtype = np_value.dtype.name
         else:
             value = _expr.const(0)
-            dtype = 'float32'
+            dtype = "float32"
         static_shape = infer_value_simulated(inputs[0], params)
-        output = _op.full(
-            value, shape=tuple(static_shape.asnumpy().astype('int32')), dtype=dtype)
+        output = _op.full(value, shape=tuple(static_shape.asnumpy().astype("int32")), dtype=dtype)
         return output
 
 
 class Sign(OnnxOpConverter):
-    """ Operator converter for Sign.
-    """
+    """Operator converter for Sign."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         return _op.sign(inputs[0])
 
+
 class Equal(Elemwise):
-    """ Operator converter for Equal.
-    """
-    name = 'equal'
+    """Operator converter for Equal."""
+
+    name = "equal"
 
 
 class Not(Elemwise):
-    """ Operator converter for Not.
-    """
+    """Operator converter for Not."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         return _op.logical_not(inputs[0])
 
 
 class And(Elemwise):
-    """ Operator converter for And.
-    """
+    """Operator converter for And."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         return _op.logical_and(inputs[0], inputs[1])
 
 
 class Tile(Elemwise):
-    """Operator converter for Tile
-    """
+    """Operator converter for Tile"""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if 'repeats' not in attr:
-            raise tvm.error.OpAttributeInvalid('Attribute "repeats" should be set '
-                                               'for operator Tile.')
-        reps = attr.pop('repeats')  # The number of times repeating the tensor data.
+        if "repeats" not in attr:
+            raise tvm.error.OpAttributeInvalid(
+                'Attribute "repeats" should be set ' "for operator Tile."
+            )
+        reps = attr.pop("repeats")  # The number of times repeating the tensor data.
         return _op.tile(inputs[0], reps)
 
     @classmethod
     def _impl_v6(cls, inputs, attr, params):
-        reps = tuple(infer_value_simulated(
-            inputs[1], params).asnumpy().astype('int32'))
+        reps = tuple(infer_value_simulated(inputs[1], params).asnumpy().astype("int32"))
         return _op.tile(inputs[0], reps)
 
+
 class Erf(OnnxOpConverter):
-    """Operator converter for Erf
-    """
+    """Operator converter for Erf"""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         return _op.erf(inputs[0])
 
+
 class Where(OnnxOpConverter):
-    """Operator converter for Where
-    """
+    """Operator converter for Where"""
+
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
         condition_shape = infer_shape(inputs[0])
@@ -1451,24 +1426,25 @@ class Where(OnnxOpConverter):
             inputs[2] = _op.broadcast_to(inputs[2], broadcast_shape)
         return _op.where(inputs[0], inputs[1], inputs[2])
 
+
 class Or(Elemwise):
-    """ Operator converter for Or.
-    """
+    """Operator converter for Or."""
+
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
         return _op.logical_or(inputs[0], inputs[1])
 
 
 class Expand(OnnxOpConverter):
-    """ Operator converter for Expand.
-    """
+    """Operator converter for Expand."""
+
     @classmethod
     def _impl_v8(cls, inputs, attr, params):
-        in_shape = np.array(infer_shape(inputs[0])).astype('int32')
+        in_shape = np.array(infer_shape(inputs[0])).astype("int32")
         if get_name(inputs[1]) in params:
-            shape = params[inputs[1].name_hint].asnumpy().astype('int32')
+            shape = params[inputs[1].name_hint].asnumpy().astype("int32")
         else:
-            shape = infer_value_simulated(inputs[1], params).asnumpy().astype('int32')
+            shape = infer_value_simulated(inputs[1], params).asnumpy().astype("int32")
 
         # Currently 'op.broadcast_to' expect the rank of the given 'shape'
         # (the 2nd input) is always higher than that of the given 'input' (the 1st input)
@@ -1479,7 +1455,7 @@ class Expand(OnnxOpConverter):
         # In above cases, we cannot directorly apply 'op.broadcast_to' instead of 'expand'
         # so, here we solved this problem by expanding the given 'shape' itself.
         def expand_shape(in_shape, shape):
-            """ A function expands the shape when the rank is lower than that of the given
+            """A function expands the shape when the rank is lower than that of the given
             intput. Also it replaces the extent of the shape with the corresponding extent
             of the intput when it is 1.
             """
@@ -1508,17 +1484,16 @@ class Expand(OnnxOpConverter):
 
 
 class RNN(OnnxOpConverter):
-    """ Operator converter for RNNs such as LSTM and GRU.
-    """
+    """Operator converter for RNNs such as LSTM and GRU."""
 
     @classmethod
     def _activation_helper(cls, activation, alpha, beta):
         convert_map = _get_convert_map(1)
         attrs = {}
         if alpha is not None:
-            attrs['alpha'] = alpha
+            attrs["alpha"] = alpha
         if beta is not None:
-            attrs['beta'] = beta
+            attrs["beta"] = beta
         return lambda x: convert_map[activation.decode("utf-8")]([x], attrs, {})
 
     @classmethod
@@ -1544,8 +1519,7 @@ class RNN(OnnxOpConverter):
 
 
 class LSTM(RNN):
-    """Operator converter for LSTM
-    """
+    """Operator converter for LSTM"""
 
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
@@ -1555,7 +1529,7 @@ class LSTM(RNN):
         R = inputs[2]
         B = inputs[3]
         # Sequence length currently unused as it can be inferred from shapes.
-        #sequence_lens = inputs['sequence_lens']
+        # sequence_lens = inputs['sequence_lens']
         h_0 = inputs[5]
         c_0 = inputs[6]
         P = inputs[7]
@@ -1593,17 +1567,16 @@ class LSTM(RNN):
         C_t = c_0
         h_list = []
 
-        if 'activations' in attr:
-            activations = attr['activations']
+        if "activations" in attr:
+            activations = attr["activations"]
             if len(activations) != 3:
-                raise NotImplementedError(
-                    "LSTM assumes 3 activation functions are provided")
+                raise NotImplementedError("LSTM assumes 3 activation functions are provided")
             alpha_loc = 0
-            alphas = attr.get('activation_alpha', [])
+            alphas = attr.get("activation_alpha", [])
             if isinstance(alphas, float):
                 alphas = [alphas]
             beta_loc = 0
-            betas = attr.get('activation_beta', [])
+            betas = attr.get("activation_beta", [])
             if isinstance(betas, float):
                 betas = [betas]
             acts = []
@@ -1611,12 +1584,10 @@ class LSTM(RNN):
                 alpha = None
                 beta = None
                 activation = activations[i]
-                if cls._activation_needs_alpha(
-                        activation) and len(alphas) > alpha_loc:
+                if cls._activation_needs_alpha(activation) and len(alphas) > alpha_loc:
                     alpha = alphas[alpha_loc]
                     alpha_loc += 1
-                if cls._activation_needs_beta(
-                        activation) and len(betas) > beta_loc:
+                if cls._activation_needs_beta(activation) and len(betas) > beta_loc:
                     beta = betas[beta_loc]
                     beta_loc += 1
                 acts.append(cls._activation_helper(activation, alpha, beta))
@@ -1661,8 +1632,7 @@ class LSTM(RNN):
 
 
 class GRU(RNN):
-    """Operator convert for GRU
-    """
+    """Operator convert for GRU"""
 
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
@@ -1672,9 +1642,9 @@ class GRU(RNN):
         R = inputs[2]
         B = inputs[3]
         # Sequence length currently unused as it can be inferred from shapes.
-        #sequence_lens = inputs['sequence_lens']
+        # sequence_lens = inputs['sequence_lens']
         h_0 = inputs[5]
-        linear_before_reset = attr.get('linear_before_reset', 0)
+        linear_before_reset = attr.get("linear_before_reset", 0)
 
         num_directions = infer_shape(W)[0]
         W_dtype = infer_type(W).type_annotation.dtype
@@ -1701,17 +1671,16 @@ class GRU(RNN):
         H_t = h_0
         h_list = []
 
-        if 'activations' in attr:
-            activations = attr['activations']
+        if "activations" in attr:
+            activations = attr["activations"]
             if len(activations) != 2:
-                raise NotImplementedError(
-                    "GRU assumes 2 activation functions are provided")
+                raise NotImplementedError("GRU assumes 2 activation functions are provided")
             alpha_loc = 0
-            alphas = attr.get('activation_alpha', [])
+            alphas = attr.get("activation_alpha", [])
             if isinstance(alphas, float):
                 alphas = [alphas]
             beta_loc = 0
-            betas = attr.get('activation_beta', [])
+            betas = attr.get("activation_beta", [])
             if isinstance(betas, float):
                 betas = [betas]
             acts = []
@@ -1719,12 +1688,10 @@ class GRU(RNN):
                 alpha = None
                 beta = None
                 activation = activations[i]
-                if cls._activation_needs_alpha(
-                        activation) and len(alphas) > alpha_loc:
+                if cls._activation_needs_alpha(activation) and len(alphas) > alpha_loc:
                     alpha = alphas[alpha_loc]
                     alpha_loc += 1
-                if cls._activation_needs_beta(
-                        activation) and len(betas) > beta_loc:
+                if cls._activation_needs_beta(activation) and len(betas) > beta_loc:
                     beta = betas[beta_loc]
                     beta_loc += 1
                 acts.append(cls._activation_helper(activation, alpha, beta))
@@ -1772,18 +1739,19 @@ class GRU(RNN):
 
 
 class Resize(OnnxOpConverter):
-    """Operator converter for Resize
-    """
+    """Operator converter for Resize"""
+
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
-        mode = attr.get('mode')
-        if mode == b'nearest':
+        mode = attr.get("mode")
+        if mode == b"nearest":
             method = "nearest_neighbor"
-        elif mode == b'linear':
+        elif mode == b"linear":
             method = "bilinear"
         else:
             raise tvm.error.OpAttributeInvalid(
-                'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode))
+                'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode)
+            )
 
         in_size = np.array(infer_shape(inputs[0]))
         scale = infer_value_simulated(inputs[2], params).asnumpy()
@@ -1794,37 +1762,39 @@ class Resize(OnnxOpConverter):
             assert len(scale) != 0, "One of scale or size should be passed."
             size = (in_size * scale).astype(np.int32)
 
-        coord_trans = attr.get('coordinate_transformation_mode')
-        if coord_trans in [b'pytorch_half_pixel', b'half_pixel']:
+        coord_trans = attr.get("coordinate_transformation_mode")
+        if coord_trans in [b"pytorch_half_pixel", b"half_pixel"]:
             coord_trans = "half_pixel"
-        elif coord_trans == b'align_corners':
+        elif coord_trans == b"align_corners":
             coord_trans = "align_corners"
-        elif coord_trans == b'asymmetric' or method == "nearest_neighbor":
+        elif coord_trans == b"asymmetric" or method == "nearest_neighbor":
             coord_trans = "asymmetric"
         else:
             raise tvm.error.OpAttributeInvalid(
-                'Unsupported coordinate_transformation_mode: {}'.format(coord_trans))
+                "Unsupported coordinate_transformation_mode: {}".format(coord_trans)
+            )
         layout = "NCHW"  # ONNX assumes NCHW layout
         out_size = (size[2], size[3])
         return _op.image.resize(inputs[0], out_size, layout, method, coord_trans)
 
 
 class NonZero(OnnxOpConverter):
-    """Operator converter for NonZero
-    """
+    """Operator converter for NonZero"""
+
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
         if len(inputs) > 1:
             raise ValueError("Expect 1 input only")
 
-        output = AttrCvt(op_name='argwhere')(inputs, attr, params)
+        output = AttrCvt(op_name="argwhere")(inputs, attr, params)
         # ONNX NonZero always outputs int64
         output = _op.cast(output, "int64")
         return _op.transpose(output, axes=(1, 0))
 
+
 class TopK(OnnxOpConverter):
-    """Operator converter for TopK
-    """
+    """Operator converter for TopK"""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if len(inputs) != 2:
@@ -1841,8 +1811,8 @@ class TopK(OnnxOpConverter):
 
 
 class MaxRoiPool(OnnxOpConverter):
-    """Operator converter for MaxRoiPool.
-    """
+    """Operator converter for MaxRoiPool."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "MMaxRoiPool op take 2 inputs, {} given".format(len(inputs))
@@ -1856,8 +1826,8 @@ class MaxRoiPool(OnnxOpConverter):
 
 
 class RoiAlign(OnnxOpConverter):
-    """Operator converter for RoiAlign.
-    """
+    """Operator converter for RoiAlign."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if len(inputs) != 3:
@@ -1866,7 +1836,7 @@ class RoiAlign(OnnxOpConverter):
         rois = inputs[1]
         batch_indices = inputs[2]
         mode = attr.get("mode", "avg")
-        if mode != b'avg':
+        if mode != b"avg":
             raise ValueError("RoiAlign in Relay only uses avg mode")
         output_height = attr.get("output_height", 1)
         output_width = attr.get("output_width", 1)
@@ -1875,19 +1845,20 @@ class RoiAlign(OnnxOpConverter):
         spatial_scale = attr.get("spatial_scale", 1.0)
 
         batch_indices = _op.expand_dims(batch_indices, axis=1, num_newaxis=1)
-        batch_indices = _op.cast(
-            batch_indices, infer_type(rois).type_annotation.dtype)
+        batch_indices = _op.cast(batch_indices, infer_type(rois).type_annotation.dtype)
         rois = _op.concatenate([batch_indices, rois], 1)
 
-        return _vision.roi_align(x, rois, [output_height, output_width],
-                                 spatial_scale, sampling_ratio)
+        return _vision.roi_align(
+            x, rois, [output_height, output_width], spatial_scale, sampling_ratio
+        )
+
 
 class Clip(OnnxOpConverter):
-    """Operator converter for Clip.
-    """
+    """Operator converter for Clip."""
+
     @staticmethod
     def convert_attributes(inputs, attr, params):
-        convert = AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'})
+        convert = AttrCvt("clip", transforms={"min": "a_min", "max": "a_max"})
         return convert(inputs, attr, params)
 
     @classmethod
@@ -1896,15 +1867,16 @@ class Clip(OnnxOpConverter):
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
-        if 'min' in attr and 'max' in attr:
+        if "min" in attr and "max" in attr:
             return Clip.convert_attributes(inputs, attr, params)
 
         assert len(inputs) <= 3, "Clip-11 takes up to 3 inputs, input, min, max"
         result = inputs[0]
         for i, op in enumerate([_maximum, _minimum]):
             if i < len(inputs) - 1:
-                result = op(result, inputs[i+1])
+                result = op(result, inputs[i + 1])
         return result
+
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1918,156 +1890,149 @@ _identity_list = []
 def _get_convert_map(opset):
     return {
         # defs/experimental
-        'Identity': Renamer('copy'),
-        'Affine': Affine.get_converter(opset),
-        'ThresholdedRelu': ThresholdedRelu.get_converter(opset),
-        'ScaledTanh': ScaledTanh.get_converter(opset),
-        'ParametricSoftplus': ParametricSoftPlus.get_converter(opset),
-        'ConstantOfShape': ConstantOfShape.get_converter(opset),
+        "Identity": Renamer("copy"),
+        "Affine": Affine.get_converter(opset),
+        "ThresholdedRelu": ThresholdedRelu.get_converter(opset),
+        "ScaledTanh": ScaledTanh.get_converter(opset),
+        "ParametricSoftplus": ParametricSoftPlus.get_converter(opset),
+        "ConstantOfShape": ConstantOfShape.get_converter(opset),
         # 'GivenTensorFill'
-        'FC': AttrCvt('dense', ignores=['axis', 'axis_w']),
-        'Scale': Scale.get_converter(opset),
+        "FC": AttrCvt("dense", ignores=["axis", "axis_w"]),
+        "Scale": Scale.get_converter(opset),
         # 'GRUUnit'
         # 'ATen'
         # 'ImageScaler'
         # 'MeanVarianceNormalization'
         # 'Crop'
         # 'Embedding'
-        'Upsample': Upsample.get_converter(opset),
-        'SpatialBN': BatchNorm.get_converter(opset),
-
+        "Upsample": Upsample.get_converter(opset),
+        "SpatialBN": BatchNorm.get_converter(opset),
         # defs/generator
         # 'Constant' # Implemented
         # 'RandomUniform'
         # 'RandomNormal'
         # 'RandomUniformLike'
         # 'RandomNormalLike'
-
         # defs/logical
-
         # defs/math
-        'Add': Add.get_converter(opset),
-        'Sub': Sub.get_converter(opset),
-        'Mul': Mul.get_converter(opset),
-        'Div': Div.get_converter(opset),
-        'Neg': Renamer('negative'),
-        'Abs': Absolute.get_converter(opset),
-        'Reciprocal': Reciprocal.get_converter(opset),
-        'Floor': Renamer('floor'),
-        'Ceil': Renamer('ceil'),
-        'Round': Renamer('round'),
-        'IsInf': Renamer('isinf'),
-        'IsNaN': Renamer('isnan'),
-        'Sqrt': Renamer('sqrt'),
-        'Relu': Renamer('relu'),
-        'LeakyRelu': Renamer('leaky_relu'),
-        'Selu': Selu.get_converter(opset),
-        'Elu': Elu.get_converter(opset),
-        'Exp': Renamer('exp'),
-        'Greater': Greater.get_converter(opset),
-        'Less': Less.get_converter(opset),
-        'Log': Renamer('log'),
-        'ACos': Renamer('acos'),
-        'ACosh': Renamer('acosh'),
-        'ASin': Renamer('asin'),
-        'ASinh': Renamer('asinh'),
-        'ATan': Renamer('atan'),
-        'ATanh': Renamer('atanh'),
-        'Cos': Renamer('cos'),
-        'Cosh': Renamer('cosh'),
-        'Sin': Renamer('sin'),
-        'Sinh': Renamer('sinh'),
-        'Tan': Renamer('tan'),
-        'Tanh': Renamer('tanh'),
-        'Pow': Renamer('power'),
-        'PRelu': Prelu.get_converter(opset),
-        'Sigmoid': Renamer('sigmoid'),
-        'HardSigmoid': HardSigmoid.get_converter(opset),
-        'Max': Maximum.get_converter(opset),
-        'Min': Minimum.get_converter(opset),
-        'Sum': Sum.get_converter(opset),
-        'Mean': Mean.get_converter(opset),
-        'Clip': Clip.get_converter(opset),
+        "Add": Add.get_converter(opset),
+        "Sub": Sub.get_converter(opset),
+        "Mul": Mul.get_converter(opset),
+        "Div": Div.get_converter(opset),
+        "Neg": Renamer("negative"),
+        "Abs": Absolute.get_converter(opset),
+        "Reciprocal": Reciprocal.get_converter(opset),
+        "Floor": Renamer("floor"),
+        "Ceil": Renamer("ceil"),
+        "Round": Renamer("round"),
+        "IsInf": Renamer("isinf"),
+        "IsNaN": Renamer("isnan"),
+        "Sqrt": Renamer("sqrt"),
+        "Relu": Renamer("relu"),
+        "LeakyRelu": Renamer("leaky_relu"),
+        "Selu": Selu.get_converter(opset),
+        "Elu": Elu.get_converter(opset),
+        "Exp": Renamer("exp"),
+        "Greater": Greater.get_converter(opset),
+        "Less": Less.get_converter(opset),
+        "Log": Renamer("log"),
+        "ACos": Renamer("acos"),
+        "ACosh": Renamer("acosh"),
+        "ASin": Renamer("asin"),
+        "ASinh": Renamer("asinh"),
+        "ATan": Renamer("atan"),
+        "ATanh": Renamer("atanh"),
+        "Cos": Renamer("cos"),
+        "Cosh": Renamer("cosh"),
+        "Sin": Renamer("sin"),
+        "Sinh": Renamer("sinh"),
+        "Tan": Renamer("tan"),
+        "Tanh": Renamer("tanh"),
+        "Pow": Renamer("power"),
+        "PRelu": Prelu.get_converter(opset),
+        "Sigmoid": Renamer("sigmoid"),
+        "HardSigmoid": HardSigmoid.get_converter(opset),
+        "Max": Maximum.get_converter(opset),
+        "Min": Minimum.get_converter(opset),
+        "Sum": Sum.get_converter(opset),
+        "Mean": Mean.get_converter(opset),
+        "Clip": Clip.get_converter(opset),
         # softmax default axis is different in onnx
-        'Softmax': Softmax.get_converter(opset),
-        'LogSoftmax': AttrCvt('log_softmax', {'axis': ('axis', 1)}),
-        'OneHot': OneHot.get_converter(opset),
+        "Softmax": Softmax.get_converter(opset),
+        "LogSoftmax": AttrCvt("log_softmax", {"axis": ("axis", 1)}),
+        "OneHot": OneHot.get_converter(opset),
         # 'Hardmax'
-        'Softsign': Softsign.get_converter(opset),
-        'SoftPlus': SoftPlus.get_converter(opset),
-        'Gemm': Gemm.get_converter(opset),
-        'MatMul': MatMul.get_converter(opset),
-        'Mod': Mod.get_converter(opset),
-        'Xor': Renamer('logical_xor'),
-
+        "Softsign": Softsign.get_converter(opset),
+        "SoftPlus": SoftPlus.get_converter(opset),
+        "Gemm": Gemm.get_converter(opset),
+        "MatMul": MatMul.get_converter(opset),
+        "Mod": Mod.get_converter(opset),
+        "Xor": Renamer("logical_xor"),
         # defs/nn
-        'AveragePool': AveragePool.get_converter(opset),
-        'LpPool': LpPool.get_converter(opset),
-        'MaxPool': MaxPool.get_converter(opset),
-        'Conv': Conv.get_converter(opset),
-        'ConvTranspose': ConvTranspose.get_converter(opset),
-        'GlobalAveragePool': Renamer('global_avg_pool2d'),
-        'GlobalMaxPool': Renamer('global_max_pool2d'),
-        'BatchNormalization': BatchNorm.get_converter(opset),
-        'InstanceNormalization': InstanceNorm.get_converter(opset),
+        "AveragePool": AveragePool.get_converter(opset),
+        "LpPool": LpPool.get_converter(opset),
+        "MaxPool": MaxPool.get_converter(opset),
+        "Conv": Conv.get_converter(opset),
+        "ConvTranspose": ConvTranspose.get_converter(opset),
+        "GlobalAveragePool": Renamer("global_avg_pool2d"),
+        "GlobalMaxPool": Renamer("global_max_pool2d"),
+        "BatchNormalization": BatchNorm.get_converter(opset),
+        "InstanceNormalization": InstanceNorm.get_converter(opset),
         # 'LpNormalization'
-        'Dropout': AttrCvt('dropout', {'ratio': 'rate'}, ignores=['is_test']),
-        'Flatten': Flatten.get_converter(opset),
-        'LRN': LRN.get_converter(opset),
+        "Dropout": AttrCvt("dropout", {"ratio": "rate"}, ignores=["is_test"]),
+        "Flatten": Flatten.get_converter(opset),
+        "LRN": LRN.get_converter(opset),
         # Recurrent Layers
-        'LSTM': LSTM.get_converter(opset),
-        'GRU': GRU.get_converter(opset),
-
+        "LSTM": LSTM.get_converter(opset),
+        "GRU": GRU.get_converter(opset),
         # defs/vision
-        'MaxRoiPool': MaxRoiPool.get_converter(opset),
-        'RoiAlign': RoiAlign.get_converter(opset),
-
+        "MaxRoiPool": MaxRoiPool.get_converter(opset),
+        "RoiAlign": RoiAlign.get_converter(opset),
         # defs/reduction
-        'ReduceMax': ReduceMax.get_converter(opset),
-        'ReduceMin': ReduceMin.get_converter(opset),
-        'ReduceSum': ReduceSum.get_converter(opset),
-        'ReduceMean': ReduceMean.get_converter(opset),
-        'ReduceProd': ReduceProd.get_converter(opset),
-        'ReduceLogSumExp': ReduceLogSumExp.get_converter(opset),
-        'ReduceLogSum': ReduceLogSum.get_converter(opset),
-        'ReduceSumSquare': ReduceSumSquare.get_converter(opset),
-        'ReduceL1': ReduceL1.get_converter(opset),
-        'ReduceL2': ReduceL2.get_converter(opset),
-
-        #defs/sorting
-        'ArgMax': ArgMax.get_converter(opset),
-        'ArgMin': ArgMin.get_converter(opset),
-        'TopK': TopK.get_converter(opset),
-
+        "ReduceMax": ReduceMax.get_converter(opset),
+        "ReduceMin": ReduceMin.get_converter(opset),
+        "ReduceSum": ReduceSum.get_converter(opset),
+        "ReduceMean": ReduceMean.get_converter(opset),
+        "ReduceProd": ReduceProd.get_converter(opset),
+        "ReduceLogSumExp": ReduceLogSumExp.get_converter(opset),
+        "ReduceLogSum": ReduceLogSum.get_converter(opset),
+        "ReduceSumSquare": ReduceSumSquare.get_converter(opset),
+        "ReduceL1": ReduceL1.get_converter(opset),
+        "ReduceL2": ReduceL2.get_converter(opset),
+        # defs/sorting
+        "ArgMax": ArgMax.get_converter(opset),
+        "ArgMin": ArgMin.get_converter(opset),
+        "TopK": TopK.get_converter(opset),
         # defs/tensor
-        'Cast': Cast.get_converter(opset),
-        'Reshape': Reshape.get_converter(opset),
-        'Expand': Expand.get_converter(opset),
-        'Concat': Concat.get_converter(opset),
-        'Split': Split.get_converter(opset),
-        'Slice': Slice.get_converter(opset),
-        'Transpose': AttrCvt('transpose', {'perm': 'axes'}),
-        'DepthToSpace': DepthToSpace.get_converter(opset),
-        'SpaceToDepth': SpaceToDepth.get_converter(opset),
-        'Gather': Gather.get_converter(opset),
-        'GatherND': GatherND.get_converter(opset),
-        'Scatter': Scatter.get_converter(opset),
-        'ScatterElements': Scatter.get_converter(opset),
-        'Squeeze': AttrCvt('squeeze', {'axes': 'axis'}),
-        'Unsqueeze': Unsqueeze.get_converter(opset),
-        'Pad': Pad.get_converter(opset),
-        'Shape': Shape.get_converter(opset),
-        'Sign': Sign.get_converter(opset),
-        'Equal': Equal.get_converter(opset),
-        'Not': Not.get_converter(opset),
-        'And': And.get_converter(opset),
-        'Tile': Tile.get_converter(opset),
-        'Erf': Erf.get_converter(opset),
-        'Where': Where.get_converter(opset),
-        'Or': Or.get_converter(opset),
-        'Resize': Resize.get_converter(opset),
-        'NonZero': NonZero.get_converter(opset),
+        "Cast": Cast.get_converter(opset),
+        "Reshape": Reshape.get_converter(opset),
+        "Expand": Expand.get_converter(opset),
+        "Concat": Concat.get_converter(opset),
+        "Split": Split.get_converter(opset),
+        "Slice": Slice.get_converter(opset),
+        "Transpose": AttrCvt("transpose", {"perm": "axes"}),
+        "DepthToSpace": DepthToSpace.get_converter(opset),
+        "SpaceToDepth": SpaceToDepth.get_converter(opset),
+        "Gather": Gather.get_converter(opset),
+        "GatherND": GatherND.get_converter(opset),
+        "Scatter": Scatter.get_converter(opset),
+        "ScatterElements": Scatter.get_converter(opset),
+        "Squeeze": AttrCvt("squeeze", {"axes": "axis"}),
+        "Unsqueeze": Unsqueeze.get_converter(opset),
+        "Pad": Pad.get_converter(opset),
+        "Shape": Shape.get_converter(opset),
+        "Sign": Sign.get_converter(opset),
+        "Equal": Equal.get_converter(opset),
+        "Not": Not.get_converter(opset),
+        "And": And.get_converter(opset),
+        "Tile": Tile.get_converter(opset),
+        "Erf": Erf.get_converter(opset),
+        "Where": Where.get_converter(opset),
+        "Or": Or.get_converter(opset),
+        "Resize": Resize.get_converter(opset),
+        "NonZero": NonZero.get_converter(opset),
     }
+
 
 class GraphProto(ExprFunctor):
     """A helper class for handling Relay expression copying from pb2.GraphProto.
@@ -2091,7 +2056,7 @@ class GraphProto(ExprFunctor):
         self._shape = shape if shape else {}
         self._dtype = dtype
 
-        #For infering Values
+        # For infering Values
         self._tmp_params = {}
         self._infer_simulated = True
         self._mod = None
@@ -2118,12 +2083,9 @@ class GraphProto(ExprFunctor):
     def visit_function(self, fn):
         new_params = [self.visit(x) for x in fn.params]
         new_body = self.visit(fn.body)
-        return self.infer(Function(
-            list(new_params),
-            new_body,
-            fn.ret_type,
-            fn.type_params,
-            fn.attrs))
+        return self.infer(
+            Function(list(new_params), new_body, fn.ret_type, fn.type_params, fn.attrs)
+        )
 
     def visit_let(self, let):
         newvar = self.visit(let.var)
@@ -2146,10 +2108,9 @@ class GraphProto(ExprFunctor):
         return self.infer(global_var)
 
     def visit_if(self, ite):
-        return self.infer(If(
-            self.visit(ite.cond),
-            self.visit(ite.true_branch),
-            self.visit(ite.false_branch)))
+        return self.infer(
+            If(self.visit(ite.cond), self.visit(ite.true_branch), self.visit(ite.false_branch))
+        )
 
     def visit_tuple(self, tup):
         return Tuple([self.visit(field) for field in tup.fields])
@@ -2173,10 +2134,13 @@ class GraphProto(ExprFunctor):
         return con
 
     def visit_match(self, m):
-        return self.infer(Match(
-            self.visit(m.data),
-            [Clause(c.lhs, self.visit(c.rhs)) for c in m.clauses],
-            complete=m.complete))
+        return self.infer(
+            Match(
+                self.visit(m.data),
+                [Clause(c.lhs, self.visit(c.rhs)) for c in m.clauses],
+                complete=m.complete,
+            )
+        )
 
     def visit_ref_create(self, r):
         return RefCreate(self.visit(r.value))
@@ -2217,21 +2181,23 @@ class GraphProto(ExprFunctor):
             if not init_tensor.name.strip():
                 raise ValueError("Tensor's name is required.")
             self._params[init_tensor.name] = self._parse_array(init_tensor)
-            self._nodes[init_tensor.name] = new_var(init_tensor.name,
-                                                    shape=self._params[init_tensor.name].shape,
-                                                    dtype=self._params[init_tensor.name].dtype)
+            self._nodes[init_tensor.name] = new_var(
+                init_tensor.name,
+                shape=self._params[init_tensor.name].shape,
+                dtype=self._params[init_tensor.name].dtype,
+            )
         for i in graph.input:
             # from onnx v0.2, GraphProto.input has type ValueInfoProto,
             #  and the name is 'i.name'
             i_name = self._parse_value_proto(i)
-            d_type = self._parse_dtype(i, 'float32')
+            d_type = self._parse_dtype(i, "float32")
             if i_name in self._params:
                 # i is a param instead of input
                 self._num_param += 1
                 self._params[i_name] = self._params.pop(i_name)
-                self._nodes[i_name] = new_var(i_name,
-                                              shape=self._params[i_name].shape,
-                                              dtype=self._params[i_name].dtype)
+                self._nodes[i_name] = new_var(
+                    i_name, shape=self._params[i_name].shape, dtype=self._params[i_name].dtype
+                )
             else:
                 self._num_input += 1
                 if i_name in self._shape:
@@ -2248,13 +2214,15 @@ class GraphProto(ExprFunctor):
         unsupported_ops = set()
         for node in graph.node:
             op_name = node.op_type
-            if op_name not in convert_map and \
-               op_name != 'Constant' and \
-               op_name not in _identity_list:
+            if (
+                op_name not in convert_map
+                and op_name != "Constant"
+                and op_name not in _identity_list
+            ):
                 unsupported_ops.add(op_name)
         if unsupported_ops:
-            msg = 'The following operators are not supported for frontend ONNX: '
-            msg += ', '.join(unsupported_ops)
+            msg = "The following operators are not supported for frontend ONNX: "
+            msg += ", ".join(unsupported_ops)
             raise tvm.error.OpNotImplemented(msg)
         # construct nodes, nodes are stored as directed acyclic graph
         for node in graph.node:
@@ -2263,7 +2231,7 @@ class GraphProto(ExprFunctor):
             # Create and populate onnx input object.
             inputs = onnx_input()
             for i in node.input:
-                if i != '':
+                if i != "":
                     inputs[i] = self._nodes[self._renames.get(i, i)]
             if op_name == "Constant":
                 t_proto = self._parse_attr(node.attribute)["value"]
@@ -2272,13 +2240,12 @@ class GraphProto(ExprFunctor):
                 array = self._parse_array(t_proto)
                 self._params[node.output[0]] = array
                 self._nodes[node.output[0]] = new_var(
-                    node.output[0],
-                    shape=list(t_proto.dims),
-                    dtype=array.dtype)
+                    node.output[0], shape=list(t_proto.dims), dtype=array.dtype
+                )
             else:
                 i_name = self._parse_value_proto(node)
-                attr['tvm_custom'] = {}
-                attr['tvm_custom']['name'] = i_name
+                attr["tvm_custom"] = {}
+                attr["tvm_custom"]["name"] = i_name
 
                 op = self._convert_operator(op_name, inputs, attr, opset)
                 node_output = self._fix_outputs(op_name, node.output)
@@ -2286,9 +2253,11 @@ class GraphProto(ExprFunctor):
                     outputs_num = 1
                 else:
                     outputs_num = len(op)
-                assert len(node_output) == outputs_num, (
-                    "Number of output mismatch {} vs {} in {}.".format(
-                        len(node_output), outputs_num, op_name))
+                assert (
+                    len(node_output) == outputs_num
+                ), "Number of output mismatch {} vs {} in {}.".format(
+                    len(node_output), outputs_num, op_name
+                )
                 if outputs_num == 1:
                     self._nodes[node_output[0]] = op
                 else:
@@ -2313,6 +2282,7 @@ class GraphProto(ExprFunctor):
         """Parse dtype."""
         try:
             from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
+
             return TENSOR_TYPE_TO_NP_TYPE[value_proto.type.tensor_type.elem_type].name
         except AttributeError:
             return dtype
@@ -2325,37 +2295,31 @@ class GraphProto(ExprFunctor):
         """Convert a list of AttributeProto to a dict, with names as keys."""
         attrs = {}
         for a in attr_proto:
-            for f in ['f', 'i', 's']:
+            for f in ["f", "i", "s"]:
                 if a.HasField(f):
                     attrs[a.name] = getattr(a, f)
-            for f in ['floats', 'ints', 'strings']:
+            for f in ["floats", "ints", "strings"]:
                 if list(getattr(a, f)):
                     assert a.name not in attrs, "Only one type of attr is allowed"
                     attrs[a.name] = tuple(getattr(a, f))
-            for f in ['t']:
+            for f in ["t"]:
                 if a.HasField(f):
                     attrs[a.name] = getattr(a, f)
-            for f in ['tensors']:
+            for f in ["tensors"]:
                 if list(getattr(a, f)):
                     assert a.name not in attrs, "Only one type of attr is allowed"
                     attrs[a.name] = tuple(getattr(a, f))
-            for f in ['g']:
+            for f in ["g"]:
                 if a.HasField(f):
-                    raise NotImplementedError(
-                        "Filed {} is not supported in relay.".format(f))
-            for f in ['graphs']:
+                    raise NotImplementedError("Filed {} is not supported in relay.".format(f))
+            for f in ["graphs"]:
                 if list(getattr(a, f)):
-                    raise NotImplementedError(
-                        "Filed {} is not supported in relay.".format(f))
+                    raise NotImplementedError("Filed {} is not supported in relay.".format(f))
             if a.name not in attrs:
                 raise ValueError("Cannot parse attribute: \n{}\n.".format(a))
         return attrs
 
-    def _convert_operator(self,
-                          op_name,
-                          inputs,
-                          attrs,
-                          opset):
+    def _convert_operator(self, op_name, inputs, attrs, opset):
         """Convert ONNX operator into a Relay operator.
         The converter must specify conversions explicitly for incompatible name, and
         apply handlers to operator attributes.
@@ -2382,25 +2346,22 @@ class GraphProto(ExprFunctor):
         elif op_name in convert_map:
             sym = convert_map[op_name](inputs, attrs, self._params)
         else:
-            raise NotImplementedError(
-                "Operator {} not implemented.".format(op_name))
+            raise NotImplementedError("Operator {} not implemented.".format(op_name))
         return sym
 
     def _fix_outputs(self, op_name, outputs):
         """A hack to handle dropout or similar operator that have more than one out
         in ONNX.
         """
-        if op_name == 'Dropout':
+        if op_name == "Dropout":
             if len(outputs) == 1:
                 return outputs
             # TODO(zhreshold): support dropout mask?
             outputs = outputs[:-1]
         return outputs
 
-def from_onnx(model,
-              shape=None,
-              dtype="float32",
-              opset=None):
+
+def from_onnx(model, shape=None, dtype="float32", opset=None):
     """Convert a ONNX model into an equivalent Relay Function.
 
     ONNX graphs are represented as Python Protobuf objects.
@@ -2435,12 +2396,14 @@ def from_onnx(model,
     """
     try:
         import onnx
-        if hasattr(onnx.checker, 'check_model'):
+
+        if hasattr(onnx.checker, "check_model"):
             # try use onnx's own model checker before converting any model
             try:
                 onnx.checker.check_model(model)
             except onnx.onnx_cpp2py_export.checker.ValidationError as e:
                 import warnings
+
                 # the checker is a bit violent about errors, so simply print warnings here
                 warnings.warn(str(e))
     except ImportError:

@@ -33,8 +33,9 @@ _lrn_schedule = {
     "nvptx": topi.cuda.schedule_lrn,
 }
 
+
 def verify_lrn(shape, size, axis, bias, alpha, beta):
-    A = te.placeholder(shape, name='A')
+    A = te.placeholder(shape, name="A")
     B = topi.nn.lrn(A, size, axis, alpha, beta, bias)
     dtype = A.dtype
 
@@ -56,14 +57,16 @@ def verify_lrn(shape, size, axis, bias, alpha, beta):
         f(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
+    for device in ["llvm", "cuda", "opencl", "metal", "rocm", "vulkan", "nvptx"]:
         check_device(device)
+
 
 @tvm.testing.uses_gpu
 def test_lrn():
     verify_lrn((1, 3, 5, 5), 3, 1, 1.0, 1.0, 0.5)
     verify_lrn((1, 3, 5, 5), 3, 3, 1.0, 1.0, 0.5)
     verify_lrn((1, 3, 20, 20), 3, 1, 2.0, 1.0, 0.75)
+
 
 if __name__ == "__main__":
     test_lrn()

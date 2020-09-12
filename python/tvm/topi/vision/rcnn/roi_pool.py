@@ -20,6 +20,7 @@ import tvm
 from tvm import te
 from ...util import get_const_tuple
 
+
 def roi_pool_nchw(data, rois, pooled_size, spatial_scale):
     """ROI pool operator in NCHW layout.
 
@@ -55,27 +56,27 @@ def roi_pool_nchw(data, rois, pooled_size, spatial_scale):
 
     def _pool(i, c, ph, pw):
         roi = rois[i]
-        batch_index = roi[0].astype('int32')
+        batch_index = roi[0].astype("int32")
         roi_start_w, roi_start_h, roi_end_w, roi_end_h = roi[1], roi[2], roi[3], roi[4]
 
-        roi_start_h = te.round(roi_start_h * spatial_scale).astype('int32')
-        roi_start_w = te.round(roi_start_w * spatial_scale).astype('int32')
-        roi_end_h = te.round(roi_end_h * spatial_scale).astype('int32')
-        roi_end_w = te.round(roi_end_w * spatial_scale).astype('int32')
+        roi_start_h = te.round(roi_start_h * spatial_scale).astype("int32")
+        roi_start_w = te.round(roi_start_w * spatial_scale).astype("int32")
+        roi_end_h = te.round(roi_end_h * spatial_scale).astype("int32")
+        roi_end_w = te.round(roi_end_w * spatial_scale).astype("int32")
 
         # force malformed ROIs to be 1x1
-        roi_h = tvm.te.max(roi_end_h - roi_start_h + 1, tvm.tir.const(1, 'int32'))
-        roi_w = tvm.te.max(roi_end_w - roi_start_w + 1, tvm.tir.const(1, 'int32'))
+        roi_h = tvm.te.max(roi_end_h - roi_start_h + 1, tvm.tir.const(1, "int32"))
+        roi_w = tvm.te.max(roi_end_w - roi_start_w + 1, tvm.tir.const(1, "int32"))
 
         bin_h = roi_h.astype(dtype) / pooled_size_h
         bin_w = roi_w.astype(dtype) / pooled_size_w
 
         # use epsilon to prevent floating point precision loss in floor/ceil
         epsilon = tvm.tir.const(0.00001, dtype)
-        hstart = te.floor(ph * bin_h + epsilon).astype('int32')
-        wstart = te.floor(pw * bin_w + epsilon).astype('int32')
-        hend = te.ceil((ph + 1) * bin_h - epsilon).astype('int32')
-        wend = te.ceil((pw + 1) * bin_w - epsilon).astype('int32')
+        hstart = te.floor(ph * bin_h + epsilon).astype("int32")
+        wstart = te.floor(pw * bin_w + epsilon).astype("int32")
+        hend = te.ceil((ph + 1) * bin_h - epsilon).astype("int32")
+        wend = te.ceil((pw + 1) * bin_w - epsilon).astype("int32")
         hstart = tvm.te.min(tvm.te.max(hstart + roi_start_h, 0), height)
         wstart = tvm.te.min(tvm.te.max(wstart + roi_start_w, 0), width)
         hend = tvm.te.min(tvm.te.max(hend + roi_start_h, 0), height)
@@ -83,11 +84,12 @@ def roi_pool_nchw(data, rois, pooled_size, spatial_scale):
 
         non_empty = tvm.tir.all(hstart < hend, wstart < wend)
         min_value = lambda dtype: tvm.tir.if_then_else(
-            non_empty, tvm.te.min_value(dtype), tvm.tir.const(0.0, dtype))
+            non_empty, tvm.te.min_value(dtype), tvm.tir.const(0.0, dtype)
+        )
         # pylint: disable=unnecessary-lambda
-        _max = te.comm_reducer(lambda x, y: tvm.te.max(x, y), min_value, name='max')
-        rh = te.reduce_axis((0, hend - hstart), 'rh')
-        rw = te.reduce_axis((0, wend - wstart), 'rw')
-        return _max(data[batch_index, c, hstart+rh, wstart+rw], axis=[rh, rw])
+        _max = te.comm_reducer(lambda x, y: tvm.te.max(x, y), min_value, name="max")
+        rh = te.reduce_axis((0, hend - hstart), "rh")
+        rw = te.reduce_axis((0, wend - wstart), "rw")
+        return _max(data[batch_index, c, hstart + rh, wstart + rw], axis=[rh, rw])
 
     return te.compute((num_roi, channel, pooled_size_h, pooled_size_w), _pool, tag="pool,roi_pool")

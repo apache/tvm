@@ -19,6 +19,7 @@
 from tvm import te
 from ..util import get_const_tuple
 
+
 def batch_matmul(x, y):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch.
@@ -43,7 +44,7 @@ def batch_matmul(x, y):
     assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistant"
     batch, M, K = x.shape
     N = y.shape[1]
-    k = te.reduce_axis((0, K), name='k')
-    return te.compute((batch, M, N),
-                      lambda b, i, j: te.sum(x[b, i, k] * y[b, j, k], axis=k),
-                      tag='batch_matmul')
+    k = te.reduce_axis((0, K), name="k")
+    return te.compute(
+        (batch, M, N), lambda b, i, j: te.sum(x[b, i, k] * y[b, j, k], axis=k), tag="batch_matmul"
+    )

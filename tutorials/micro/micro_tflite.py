@@ -108,9 +108,9 @@ from tvm import relay
 # Load the pretrained TFLite model from a file in your current
 # directory into a buffer
 
-model_url = 'https://people.linaro.org/~tom.gall/sine_model.tflite'
-model_file = 'sine_model.tflite'
-model_path = download_testdata(model_url, model_file, module='data')
+model_url = "https://people.linaro.org/~tom.gall/sine_model.tflite"
+model_file = "sine_model.tflite"
+model_path = download_testdata(model_url, model_file, module="data")
 
 tflite_model_buf = open(model_path, "rb").read()
 
@@ -118,15 +118,17 @@ tflite_model_buf = open(model_path, "rb").read()
 # Using the buffer, transform into a tflite model python object
 try:
     import tflite
+
     tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
 except AttributeError:
     import tflite.Model
+
     tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
 
 ######################################################################
 # Print out the version of the model
 version = tflite_model.Version()
-print ("Model Version: " + str(version))
+print("Model Version: " + str(version))
 
 ######################################################################
 # Parse the python model object to convert it into a relay module
@@ -142,9 +144,9 @@ input_tensor = "dense_4_input"
 input_shape = (1,)
 input_dtype = "float32"
 
-mod, params = relay.frontend.from_tflite(tflite_model,
-                                         shape_dict={input_tensor: input_shape},
-                                         dtype_dict={input_tensor: input_dtype})
+mod, params = relay.frontend.from_tflite(
+    tflite_model, shape_dict={input_tensor: input_shape}, dtype_dict={input_tensor: input_dtype}
+)
 
 ######################################################################
 # Now we create a build config for relay. turning off two options
@@ -153,9 +155,9 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 #
 # .. code-block:: python
 #
-TARGET = tvm.target.target.micro('host')
+TARGET = tvm.target.target.micro("host")
 
-with tvm.transform.PassContext(opt_level=3, config={'tir.disable_vectorize': True},disabled_pass=['FuseOps']):
+with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True},disabled_pass=["FuseOps"]):
     graph, c_mod, c_params = relay.build(mod, target=TARGET, params=params)
 
 
@@ -168,14 +170,14 @@ with tvm.transform.PassContext(opt_level=3, config={'tir.disable_vectorize': Tru
 workspace = tvm.micro.Workspace()
 
 compiler = tvm.micro.DefaultCompiler(target=TARGET)
-opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, 'host'))
+opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
 
 micro_binary = tvm.micro.build_static_runtime(
   # the x86 compiler *expects* you to give the exact same dictionary for both
   # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
   # the binary compiler is expecting those mutations to be in bin_opts.
   # TODO(weberlo) fix this very bizarre behavior
-  workspace, compiler, c_mod, lib_opts=opts['bin_opts'], bin_opts=opts['bin_opts'])
+  workspace, compiler, c_mod, lib_opts=opts["bin_opts"], bin_opts=opts["bin_opts"])
 
 
 ######################################################################

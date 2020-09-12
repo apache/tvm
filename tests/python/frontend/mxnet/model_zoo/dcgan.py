@@ -29,6 +29,7 @@ arXiv preprint arXiv:1511.06434 (2015).
 
 import mxnet as mx
 
+
 def deconv2d(data, ishape, oshape, kshape, name, stride=(2, 2)):
     """a deconv layer that enlarges the feature map"""
     target_shape = (oshape[-2], oshape[-1])
@@ -37,15 +38,18 @@ def deconv2d(data, ishape, oshape, kshape, name, stride=(2, 2)):
     adj_y = (target_shape[0] + 2 * pad_y - kshape[0]) % stride[0]
     adj_x = (target_shape[1] + 2 * pad_x - kshape[1]) % stride[1]
 
-    net = mx.sym.Deconvolution(data,
-                               kernel=kshape,
-                               stride=stride,
-                               pad=(pad_y, pad_x),
-                               adj=(adj_y, adj_x),
-                               num_filter=oshape[0],
-                               no_bias=True,
-                               name=name)
+    net = mx.sym.Deconvolution(
+        data,
+        kernel=kshape,
+        stride=stride,
+        pad=(pad_y, pad_x),
+        adj=(adj_y, adj_x),
+        num_filter=oshape[0],
+        no_bias=True,
+        name=name,
+    )
     return net
+
 
 def deconv2d_bn_relu(data, prefix, **kwargs):
     """a block of deconv + batch norm + relu"""
@@ -53,8 +57,9 @@ def deconv2d_bn_relu(data, prefix, **kwargs):
 
     net = deconv2d(data, name="%s_deconv" % prefix, **kwargs)
     net = mx.sym.BatchNorm(net, eps=eps, name="%s_bn" % prefix)
-    net = mx.sym.Activation(net, name="%s_act" % prefix, act_type='relu')
+    net = mx.sym.Activation(net, name="%s_act" % prefix, act_type="relu")
     return net
+
 
 def get_symbol(oshape=(3, 64, 64), ngf=128, code=None):
     """get symbol of dcgan generator"""
@@ -62,21 +67,25 @@ def get_symbol(oshape=(3, 64, 64), ngf=128, code=None):
     assert oshape[-2] == 64, "Only support 64x64 image"
 
     code = mx.sym.Variable("data") if code is None else code
-    net = mx.sym.FullyConnected(code, name="g1", num_hidden=ngf*8*4*4, no_bias=True, flatten=False)
-    net = mx.sym.Activation(net, act_type='relu')
+    net = mx.sym.FullyConnected(
+        code, name="g1", num_hidden=ngf * 8 * 4 * 4, no_bias=True, flatten=False
+    )
+    net = mx.sym.Activation(net, act_type="relu")
     # 4 x 4
     net = mx.sym.reshape(net, shape=(-1, ngf * 8, 4, 4))
     # 8 x 8
     net = deconv2d_bn_relu(
-        net, ishape=(ngf * 8, 4, 4), oshape=(ngf * 4, 8, 8), kshape=(4, 4), prefix="g2")
+        net, ishape=(ngf * 8, 4, 4), oshape=(ngf * 4, 8, 8), kshape=(4, 4), prefix="g2"
+    )
     # 16x16
     net = deconv2d_bn_relu(
-        net, ishape=(ngf * 4, 8, 8), oshape=(ngf * 2, 16, 16), kshape=(4, 4), prefix="g3")
+        net, ishape=(ngf * 4, 8, 8), oshape=(ngf * 2, 16, 16), kshape=(4, 4), prefix="g3"
+    )
     # 32x32
     net = deconv2d_bn_relu(
-        net, ishape=(ngf * 2, 16, 16), oshape=(ngf, 32, 32), kshape=(4, 4), prefix="g4")
+        net, ishape=(ngf * 2, 16, 16), oshape=(ngf, 32, 32), kshape=(4, 4), prefix="g4"
+    )
     # 64x64
-    net = deconv2d(
-        net, ishape=(ngf, 32, 32), oshape=oshape[-3:], kshape=(4, 4), name="g5_deconv")
-    net = mx.sym.Activation(net, act_type='tanh')
+    net = deconv2d(net, ishape=(ngf, 32, 32), oshape=oshape[-3:], kshape=(4, 4), name="g5_deconv")
+    net = mx.sym.Activation(net, act_type="tanh")
     return net

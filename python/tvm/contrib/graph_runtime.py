@@ -93,12 +93,10 @@ def get_device_ctx(libmod, ctx, force_local_graph_runtime):
     if isinstance(ctx, TVMContext):
         ctx = [ctx]
     elif not isinstance(ctx, (list, tuple)):
-        raise ValueError("ctx has to be the type of TVMContext or a list of "
-                         "TVMContext")
+        raise ValueError("ctx has to be the type of TVMContext or a list of " "TVMContext")
     for cur_ctx in ctx:
         if not isinstance(cur_ctx, TVMContext):
-            raise ValueError("ctx has to be the type of TVMContext or a list "
-                             "of TVMContext")
+            raise ValueError("ctx has to be the type of TVMContext or a list " "of TVMContext")
 
     # device_type_id[0], device_type_id[1] are used as the primary/fallback
     # context type and id. All other ones are used as device context for
@@ -115,8 +113,7 @@ def get_device_ctx(libmod, ctx, force_local_graph_runtime):
         device_type = cur_ctx.device_type
         if device_type >= rpc_base.RPC_SESS_MASK and not use_local_runtime:
             assert libmod.type_key == "rpc"
-            assert _rpc_ffi_api.SessTableIndex(
-                libmod) == cur_ctx._rpc_sess._tbl_index
+            assert _rpc_ffi_api.SessTableIndex(libmod) == cur_ctx._rpc_sess._tbl_index
             device_type = cur_ctx.device_type % rpc_base.RPC_SESS_MASK
         device_type_id.append(device_type)
         device_type_id.append(cur_ctx.device_id)
@@ -262,8 +259,7 @@ class GraphModule(object):
         out : NDArray
             The output array container
         """
-        raise NotImplementedError(
-            "Please use debugger.debug_runtime as graph_runtime instead.")
+        raise NotImplementedError("Please use debugger.debug_runtime as graph_runtime instead.")
 
     def load_params(self, params_bytes):
         """Load parameters from serialized byte array of parameter dict.

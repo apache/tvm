@@ -19,10 +19,11 @@ import tvm
 from tvm import te
 import os
 
+
 def prepare_test_libs(base_path):
     n = te.var("n")
-    A = te.placeholder((n,), name='A')
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     s = te.create_schedule(B.op)
     # Compile library as dynamic library
     fadd_dylib = tvm.build(s, [A, B], "llvm", name="addone")
@@ -33,6 +34,7 @@ def prepare_test_libs(base_path):
     fadd_syslib = tvm.build(s, [A, B], "llvm --system-lib", name="addonesys")
     syslib_path = os.path.join(base_path, "test_addone_sys.o")
     fadd_syslib.save(syslib_path)
+
 
 if __name__ == "__main__":
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))

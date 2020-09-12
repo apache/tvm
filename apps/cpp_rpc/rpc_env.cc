@@ -200,7 +200,7 @@ void LinuxShared(const std::string output, const std::vector<std::string>& files
 void WindowsShared(const std::string& output, const std::vector<std::string>& files,
                    const std::string& options = "", const std::string& cc = "clang") {
   std::string cmd = cc;
-  cmd += " -O2 -flto=full -fuse-ld=lld-link -Wl,/EXPORT:__tvm_main__ -shared ";
+  cmd += " -O2 -flto=full -fuse-ld=lld-link -shared ";
   cmd += " -o " + output;
   for (const auto& file : files) {
     cmd += " " + file;

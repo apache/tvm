@@ -21,12 +21,16 @@ import tvm._ffi
 # pylint: disable=unused-argument, import-outside-toplevel
 def _debugger_init(expr, stack):
     import pdb
+
     pdb.set_trace()
+
 
 @tvm._ffi.register_func("relay.debug")
 def _debug(*args):
     import pdb
+
     pdb.set_trace()
+
 
 # pylint: disable=unused-argument
 @tvm._ffi.register_func("relay.debug_interp")

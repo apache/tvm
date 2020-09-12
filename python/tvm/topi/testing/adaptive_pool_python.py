@@ -85,11 +85,11 @@ def adaptive_pool_nhwc(np_data, out_size, pool_op, np_op):
     for i in range(n):
         for j in range(c):
             if len(out_size) == 2:
-                np_out[i, :, :, j] = pool_op(ishape[1:-1], out_size,
-                                             np_data[i, :, :, j], np_op)
+                np_out[i, :, :, j] = pool_op(ishape[1:-1], out_size, np_data[i, :, :, j], np_op)
             else:
-                np_out[i, :, :, :, j] = pool_op(ishape[1:-1], out_size,
-                                                np_data[i, :, :, :, j], np_op)
+                np_out[i, :, :, :, j] = pool_op(
+                    ishape[1:-1], out_size, np_data[i, :, :, :, j], np_op
+                )
 
     return np_out
 

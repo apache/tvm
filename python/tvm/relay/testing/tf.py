@@ -39,6 +39,7 @@ except ImportError:
 # Some helper functions
 # ---------------------
 
+
 def ProcessGraphDefParam(graph_def):
     """Type-checks and possibly canonicalizes `graph_def`.
 
@@ -62,7 +63,7 @@ def ProcessGraphDefParam(graph_def):
             graph_def = graph_pb2.GraphDef()
             graph_def.MergeFrom(old_graph_def)
         except TypeError:
-            raise TypeError('graph_def must be a GraphDef proto.')
+            raise TypeError("graph_def must be a GraphDef proto.")
     return graph_def
 
 
@@ -71,8 +72,9 @@ def convert_to_list(x):
         x = [x]
     return x
 
+
 def AddShapesToGraphDef(session, out_node):
-    """ Add shapes attribute to nodes of the graph.
+    """Add shapes attribute to nodes of the graph.
         Input graph here is the default graph in context.
 
     Parameters
@@ -93,15 +95,14 @@ def AddShapesToGraphDef(session, out_node):
         session,
         session.graph.as_graph_def(add_shapes=True),
         convert_to_list(out_node),
-        )
+    )
     return graph_def
+
 
 class NodeLookup(object):
     """Converts integer node ID's to human readable labels."""
 
-    def __init__(self,
-                 label_lookup_path=None,
-                 uid_lookup_path=None):
+    def __init__(self, label_lookup_path=None, uid_lookup_path=None):
         self.node_lookup = self.load(label_lookup_path, uid_lookup_path)
 
     def load(self, label_lookup_path, uid_lookup_path):
@@ -122,14 +123,14 @@ class NodeLookup(object):
 
         """
         if not tf_compat_v1.gfile.Exists(uid_lookup_path):
-            tf.logging.fatal('File does not exist %s', uid_lookup_path)
+            tf.logging.fatal("File does not exist %s", uid_lookup_path)
         if not tf_compat_v1.gfile.Exists(label_lookup_path):
-            tf.logging.fatal('File does not exist %s', label_lookup_path)
+            tf.logging.fatal("File does not exist %s", label_lookup_path)
 
         # Loads mapping from string UID to human-readable string
         proto_as_ascii_lines = tf_compat_v1.gfile.GFile(uid_lookup_path).readlines()
         uid_to_human = {}
-        p = re.compile(r'[n\d]*[ \S,]*')
+        p = re.compile(r"[n\d]*[ \S,]*")
         for line in proto_as_ascii_lines:
             parsed_items = p.findall(line)
             uid = parsed_items[0]
@@ -140,17 +141,17 @@ class NodeLookup(object):
         node_id_to_uid = {}
         proto_as_ascii = tf_compat_v1.gfile.GFile(label_lookup_path).readlines()
         for line in proto_as_ascii:
-            if line.startswith('  target_class:'):
-                target_class = int(line.split(': ')[1])
-            if line.startswith('  target_class_string:'):
-                target_class_string = line.split(': ')[1]
+            if line.startswith("  target_class:"):
+                target_class = int(line.split(": ")[1])
+            if line.startswith("  target_class_string:"):
+                target_class_string = line.split(": ")[1]
                 node_id_to_uid[target_class] = target_class_string[1:-2]
 
         # Loads the final mapping of integer node ID to human-readable string
         node_id_to_name = {}
         for key, val in node_id_to_uid.items():
             if val not in uid_to_human:
-                tf.logging.fatal('Failed to locate: %s', val)
+                tf.logging.fatal("Failed to locate: %s", val)
             name = uid_to_human[val]
             node_id_to_name[key] = name
 
@@ -158,11 +159,12 @@ class NodeLookup(object):
 
     def id_to_string(self, node_id):
         if node_id not in self.node_lookup:
-            return ''
+            return ""
         return self.node_lookup[node_id]
 
+
 def get_workload_official(model_url, model_sub_path):
-    """ Import workload from tensorflow official
+    """Import workload from tensorflow official
 
     Parameters
     ----------
@@ -180,25 +182,28 @@ def get_workload_official(model_url, model_sub_path):
     """
 
     model_tar_name = os.path.basename(model_url)
-    model_path = download_testdata(model_url, model_tar_name, module=['tf', 'official'])
+    model_path = download_testdata(model_url, model_tar_name, module=["tf", "official"])
     dir_path = os.path.dirname(model_path)
 
     if model_path.endswith("tgz") or model_path.endswith("gz"):
         import tarfile
+
         tar = tarfile.open(model_path)
         tar.extractall(path=dir_path)
         tar.close()
     elif model_path.endswith("zip"):
         import zipfile
+
         zip_object = zipfile.ZipFile(model_path)
         zip_object.extractall(path=dir_path)
         zip_object.close()
     else:
-        raise RuntimeError('Could not decompress the file: ' + model_path)
+        raise RuntimeError("Could not decompress the file: " + model_path)
     return os.path.join(dir_path, model_sub_path)
 
+
 def get_workload(model_path, model_sub_path=None, inputs_dict=None, output=None):
-    """ Import workload from frozen protobuf
+    """Import workload from frozen protobuf
 
     Parameters
     ----------
@@ -218,15 +223,15 @@ def get_workload(model_path, model_sub_path=None, inputs_dict=None, output=None)
     if model_sub_path:
         path_model = get_workload_official(model_path, model_sub_path)
     else:
-        repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/'
+        repo_base = "https://github.com/dmlc/web-data/raw/master/tensorflow/models/"
         model_url = os.path.join(repo_base, model_path)
-        path_model = download_testdata(model_url, model_path, module='tf')
+        path_model = download_testdata(model_url, model_path, module="tf")
 
     # Creates graph from saved graph_def.pb.
-    with tf_compat_v1.gfile.FastGFile(path_model, 'rb') as f:
+    with tf_compat_v1.gfile.FastGFile(path_model, "rb") as f:
         graph_def = tf_compat_v1.GraphDef()
         graph_def.ParseFromString(f.read())
-        graph = tf_compat_v1.import_graph_def(graph_def, name='', input_map=inputs_dict)
+        graph = tf_compat_v1.import_graph_def(graph_def, name="", input_map=inputs_dict)
 
     if inputs_dict is not None:
         # graph is changed so generate graph_def again
@@ -235,14 +240,17 @@ def get_workload(model_path, model_sub_path=None, inputs_dict=None, output=None)
 
     return graph_def
 
+
 #######################################################################
 # PTB LSTMBlockCell Model
 # -----------------------
+
 
 class PTBSmallConfig(object):
     """Small config.
     This configurations are used when training the model
     """
+
     num_layers = 2
     num_steps = 1
     hidden_size = 200
@@ -250,38 +258,47 @@ class PTBSmallConfig(object):
     vocab_size = 10000
     init_scale = 0.1
 
+
 def get_config():
     """Configuration used for training the model"""
     return PTBSmallConfig()
+
 
 def pick_from_weight(weight, pows=1.0):
     """Identify token from Softmax output.
     This token will be mapped to word in the vocabulary.
     """
-    weight = weight**pows
+    weight = weight ** pows
     t = np.cumsum(weight)
     s = np.sum(weight)
     return int(np.searchsorted(t, 0.5 * s))
+
 
 def do_tf_sample(session, data, in_states, num_samples):
     """Sampled from the model"""
     samples = []
     sample = None
-    #Cell inputs c and h should be passed for each layer explicitly.
-    state_input_name = ['Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros:0',
-                        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros_1:0',
-                        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros:0',
-                        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros_1:0']
+    # Cell inputs c and h should be passed for each layer explicitly.
+    state_input_name = [
+        "Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros:0",
+        "Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros_1:0",
+        "Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros:0",
+        "Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros_1:0",
+    ]
     state = in_states
 
-    #Graph nodes to be fetched as run output. Tensorflow LSTMBlockCell create internal
-    #nodes for intermediate operations (gates) in the cell during run.
-    #Cell state (c) is ':1'and cell output (h) is ':6' for each layer.
-    fetches = [['Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:1',
-                'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:6',
-                'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:1',
-                'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:6'],
-               'Model/Softmax:0']
+    # Graph nodes to be fetched as run output. Tensorflow LSTMBlockCell create internal
+    # nodes for intermediate operations (gates) in the cell during run.
+    # Cell state (c) is ':1'and cell output (h) is ':6' for each layer.
+    fetches = [
+        [
+            "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:1",
+            "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:6",
+            "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:1",
+            "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:6",
+        ],
+        "Model/Softmax:0",
+    ]
 
     def _get_feed_dict(input_name, input_data):
         """Create feed dict"""
@@ -295,7 +312,7 @@ def do_tf_sample(session, data, in_states, num_samples):
 
     for x in data:
         feed_dict = _get_feed_dict(state_input_name, state)
-        feed_dict['Model/Placeholder:0'] = [[x]]
+        feed_dict["Model/Placeholder:0"] = [[x]]
         state, probs = session.run(fetches, feed_dict)
         sample = pick_from_weight(probs[0])
     if sample is not None:
@@ -306,17 +323,19 @@ def do_tf_sample(session, data, in_states, num_samples):
     k = 1
     while k < num_samples:
         feed_dict = _get_feed_dict(state_input_name, state)
-        feed_dict['Model/Placeholder:0'] = [[samples[-1]]]
+        feed_dict["Model/Placeholder:0"] = [[samples[-1]]]
         state, probs = session.run(fetches, feed_dict)
         sample = pick_from_weight(probs[0])
         samples.append(sample)
         k += 1
     return samples, state
 
+
 def _create_ptb_vocabulary(data_dir):
     """Read the PTB sample data input to create vocabulary"""
-    data_path = os.path.join(data_dir, 'simple-examples/data/')
-    file_name = 'ptb.train.txt'
+    data_path = os.path.join(data_dir, "simple-examples/data/")
+    file_name = "ptb.train.txt"
+
     def _read_words(filename):
         """Read the data for creating vocabulary"""
         with tf_compat_v1.gfile.GFile(filename, "r") as f:
@@ -329,7 +348,7 @@ def _create_ptb_vocabulary(data_dir):
         count_pairs = sorted(counter.items(), key=lambda x: (-x[1], x[0]))
         words, _ = list(zip(*count_pairs))
         word_to_id = dict(zip(words, range(len(words))))
-        #for python 3.x
+        # for python 3.x
         id_to_word = dict((v, k) for k, v in word_to_id.items())
         return word_to_id, id_to_word
 
@@ -338,10 +357,12 @@ def _create_ptb_vocabulary(data_dir):
         train_path = os.path.join(data_path, file_name)
         word_to_id, id_2_word = _build_vocab(train_path)
         return word_to_id, id_2_word
+
     return ptb_raw_data(data_path, file_name)
 
+
 def get_workload_ptb():
-    """ Import ptb workload from frozen protobuf
+    """Import ptb workload from frozen protobuf
 
     Parameters
     ----------
@@ -358,39 +379,38 @@ def get_workload_ptb():
     id_to_word : dict
         Integer id to English word mapping
     """
-    sample_repo = 'http://www.fit.vutbr.cz/~imikolov/rnnlm/'
-    sample_data_file = 'simple-examples.tgz'
-    sample_url = sample_repo+sample_data_file
-    ptb_model_file = 'RNN/ptb/ptb_model_with_lstmblockcell.pb'
+    sample_repo = "http://www.fit.vutbr.cz/~imikolov/rnnlm/"
+    sample_data_file = "simple-examples.tgz"
+    sample_url = sample_repo + sample_data_file
+    ptb_model_file = "RNN/ptb/ptb_model_with_lstmblockcell.pb"
     # pylint: disable=import-outside-toplevel
     import tarfile
-    file_path = download_testdata(sample_url, sample_data_file, module=['data', 'ptb_data'])
+
+    file_path = download_testdata(sample_url, sample_data_file, module=["data", "ptb_data"])
     dir_path = os.path.dirname(file_path)
-    t = tarfile.open(file_path, 'r')
+    t = tarfile.open(file_path, "r")
     t.extractall(dir_path)
 
     word_to_id, id_to_word = _create_ptb_vocabulary(dir_path)
-    dtype = 'float32'
+    dtype = "float32"
     shape = (1, 200)
 
     # Convert states of LSTMBlockCell to placeholder, so TVM can feed data
     state_name = [
-        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros:0',
-        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros_1:0',
-        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros:0',
-        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros_1:0',
-        ]
+        "Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros:0",
+        "Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros_1:0",
+        "Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros:0",
+        "Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros_1:0",
+    ]
 
     inputs_dict = {
-        state_name[0]:
-            tf_compat_v1.placeholder(dtype, shape, state_name[0].split(':')[0]),
-        state_name[1]:
-            tf_compat_v1.placeholder(dtype, shape, state_name[1].split(':')[0]),
-        state_name[2]:
-            tf_compat_v1.placeholder(dtype, shape, state_name[2].split(':')[0]),
-        state_name[3]:
-            tf_compat_v1.placeholder(dtype, shape, state_name[3].split(':')[0]),
+        state_name[0]: tf_compat_v1.placeholder(dtype, shape, state_name[0].split(":")[0]),
+        state_name[1]: tf_compat_v1.placeholder(dtype, shape, state_name[1].split(":")[0]),
+        state_name[2]: tf_compat_v1.placeholder(dtype, shape, state_name[2].split(":")[0]),
+        state_name[3]: tf_compat_v1.placeholder(dtype, shape, state_name[3].split(":")[0]),
     }
-    return word_to_id, id_to_word, get_workload(ptb_model_file,
-                                                inputs_dict=inputs_dict,
-                                                output='Model/Softmax')
+    return (
+        word_to_id,
+        id_to_word,
+        get_workload(ptb_model_file, inputs_dict=inputs_dict, output="Model/Softmax"),
+    )

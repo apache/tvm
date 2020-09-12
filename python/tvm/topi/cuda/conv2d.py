@@ -29,7 +29,7 @@ from .conv2d_nhwc import schedule_conv2d_nhwc_direct
 
 
 @autotvm.register_topi_compute("conv2d_nchw.cuda")
-def conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
+def conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype="float32"):
     """Compute conv2d with NCHW layout"""
     return nn.conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
 
@@ -41,7 +41,7 @@ def schedule_conv2d_nchw(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == 'conv2d_nchw':
+        if op.tag == "conv2d_nchw":
             schedule_direct_cuda(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
@@ -49,7 +49,7 @@ def schedule_conv2d_nchw(cfg, outs):
 
 
 @autotvm.register_topi_compute("conv2d_nhwc.cuda")
-def conv2d_nhwc(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
+def conv2d_nhwc(cfg, data, kernel, strides, padding, dilation, out_dtype="float32"):
     """Compute conv2d with NHWC layout"""
     return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
 
@@ -59,22 +59,25 @@ def schedule_conv2d_nhwc(cfg, outs):
     """Create the schedule for conv2d_nhwc"""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
+
     def _callback(op):
-        if op.tag == 'conv2d_nhwc':
+        if op.tag == "conv2d_nhwc":
             schedule_conv2d_nhwc_direct(cfg, s, op.output(0))
+
     traverse_inline(s, outs[0].op, _callback)
     return s
 
 
 @autotvm.register_topi_compute("conv2d_cudnn.cuda")
-def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, groups=1,
-                 layout='NCHW', out_dtype='float32'):
+def conv2d_cudnn(
+    cfg, data, kernel, strides, padding, dilation, groups=1, layout="NCHW", out_dtype="float32"
+):
     """Compute conv2d using CuDNN library"""
-    if layout == 'NCHW':
-        tensor_format = 0 # CUDNN_TENSOR_NCHW
+    if layout == "NCHW":
+        tensor_format = 0  # CUDNN_TENSOR_NCHW
         N, _, H, W = get_const_tuple(data.shape)
-    elif layout == 'NHWC':
-        tensor_format = 1 # CUDNN_TENSOR_NHWC
+    elif layout == "NHWC":
+        tensor_format = 1  # CUDNN_TENSOR_NHWC
         N, H, W, _ = get_const_tuple(data.shape)
     else:
         raise ValueError("Unsupported layout %s in cudnn" % layout)
@@ -84,36 +87,50 @@ def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, groups=1,
     stride_h, stride_w = (strides, strides) if isinstance(strides, int) else strides
     dilation_h, dilation_w = (dilation, dilation) if isinstance(dilation, int) else dilation
 
-    if isinstance(padding, (list, tuple)) and len(padding) == 4 and \
-            (padding[0] != padding[2] or padding[1] != padding[3]):
+    if (
+        isinstance(padding, (list, tuple))
+        and len(padding) == 4
+        and (padding[0] != padding[2] or padding[1] != padding[3])
+    ):
         raise ValueError("Cudnn doesn't support asymmetric padding.")
     pt, pl, pb, pr = get_pad_tuple(padding, (KH, KW))
     OH = (H + pt + pb - KH) // stride_h + 1
     OW = (W + pl + pr - KW) // stride_w + 1
-    cfg.add_flop(groups * 2 * N * OH * OW * CO * CI * ((KH - 1) * dilation_h + 1) * \
-                 ((KW - 1) * dilation_w + 1))
+    cfg.add_flop(
+        groups
+        * 2
+        * N
+        * OH
+        * OW
+        * CO
+        * CI
+        * ((KH - 1) * dilation_h + 1)
+        * ((KW - 1) * dilation_w + 1)
+    )
 
     if data.dtype == "int8" or kernel.dtype == "int8":
-        if layout == 'NCHW':
+        if layout == "NCHW":
             raise ValueError("NCHW layout do not support int8 in cudnn")
         dtype = "int32"
     else:
         dtype = data.dtype
 
-    cfg.define_knob('algo', range(8))
-    if cfg.is_fallback: # Let CUDNN choose the best algo
-        cfg['algo'] = OtherOptionEntity(-1)
+    cfg.define_knob("algo", range(8))
+    if cfg.is_fallback:  # Let CUDNN choose the best algo
+        cfg["algo"] = OtherOptionEntity(-1)
 
-    return cudnn.conv_forward(data,
-                              kernel,
-                              [pt, pl], # cudnn padding pt, pl on both sides of input
-                              [stride_h, stride_w],
-                              [dilation_h, dilation_w],
-                              conv_mode=1,
-                              tensor_format=tensor_format,
-                              algo=cfg['algo'].val,
-                              conv_dtype=dtype,
-                              groups=groups)
+    return cudnn.conv_forward(
+        data,
+        kernel,
+        [pt, pl],  # cudnn padding pt, pl on both sides of input
+        [stride_h, stride_w],
+        [dilation_h, dilation_w],
+        conv_mode=1,
+        tensor_format=tensor_format,
+        algo=cfg["algo"].val,
+        conv_dtype=dtype,
+        groups=groups,
+    )
 
 
 @autotvm.register_topi_schedule("conv2d_cudnn.cuda")
