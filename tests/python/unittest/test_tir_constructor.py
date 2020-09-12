@@ -17,14 +17,13 @@
 import tvm
 from tvm import te
 
+
 def test_expr_constructor():
     x = tvm.tir.Var("xx", "float32")
     assert isinstance(x, tvm.tir.Var)
     assert x.name == "xx"
 
-    x = tvm.tir.Reduce(None, [1],
-                       [tvm.tir.IterVar((0, 1), "x", 2)],
-                       None, 0)
+    x = tvm.tir.Reduce(None, [1], [tvm.tir.IterVar((0, 1), "x", 2)], None, 0)
     assert isinstance(x, tvm.tir.Reduce)
     assert x.combiner == None
     assert x.value_index == 0
@@ -51,28 +50,28 @@ def test_expr_constructor():
     a = tvm.tir.const(1.0, dtype="float32")
     b = te.var("x", dtype="float32")
 
-    for cls in [tvm.tir.Add,
-                tvm.tir.Sub,
-                tvm.tir.Mul,
-                tvm.tir.Div,
-                tvm.tir.Mod,
-                tvm.tir.Min,
-                tvm.tir.Max,
-                tvm.tir.LT,
-                tvm.tir.LE,
-                tvm.tir.GT,
-                tvm.tir.GE]:
+    for cls in [
+        tvm.tir.Add,
+        tvm.tir.Sub,
+        tvm.tir.Mul,
+        tvm.tir.Div,
+        tvm.tir.Mod,
+        tvm.tir.Min,
+        tvm.tir.Max,
+        tvm.tir.LT,
+        tvm.tir.LE,
+        tvm.tir.GT,
+        tvm.tir.GE,
+    ]:
         x = cls(a, b)
         assert isinstance(x, cls)
         assert x.a == a
         assert x.b.same_as(b)
 
-
     a = tvm.runtime.convert(te.var("x") > 1)
     b = tvm.runtime.convert(te.var("x") == 1)
 
-    for cls in [tvm.tir.And,
-                tvm.tir.Or]:
+    for cls in [tvm.tir.And, tvm.tir.Or]:
         x = cls(a, b)
         assert isinstance(x, cls)
         assert x.a == a
@@ -139,9 +138,7 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tir.AttrStmt)
     assert x.value.value == 1
 
-    x = tvm.tir.AssertStmt(tvm.tir.const(1, "uint1"),
-                            tvm.runtime.convert("hellow"),
-                            nop)
+    x = tvm.tir.AssertStmt(tvm.tir.const(1, "uint1"), tvm.runtime.convert("hellow"), nop)
     assert isinstance(x, tvm.tir.AssertStmt)
     assert x.body == nop
 
@@ -157,8 +154,7 @@ def test_stmt_constructor():
     assert x.index.value == 10
     assert x.value.value == 1
 
-    x = tvm.tir.Allocate(buffer_var, "float32", [10],
-                          tvm.tir.const(1, "uint1"), nop)
+    x = tvm.tir.Allocate(buffer_var, "float32", [10], tvm.tir.const(1, "uint1"), nop)
     assert isinstance(x, tvm.tir.Allocate)
     assert x.dtype == "float32"
     assert x.buffer_var == buffer_var
@@ -170,9 +166,7 @@ def test_stmt_constructor():
     assert x.attr_key == "xyz"
     assert x.body == nop
 
-    x = tvm.tir.IfThenElse(tvm.tir.const(1, "uint1"),
-                            tvm.tir.Evaluate(11),
-                            nop)
+    x = tvm.tir.IfThenElse(tvm.tir.const(1, "uint1"), tvm.tir.Evaluate(11), nop)
     assert isinstance(x, tvm.tir.IfThenElse)
     assert x.then_case.value.value == 11
     assert x.else_case == nop

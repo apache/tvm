@@ -34,7 +34,7 @@ namespace tvm {
 namespace contrib {
 
 using namespace runtime;
-
+namespace {
 inline CBLAS_TRANSPOSE BooleanToTranspose(bool trans) { return trans ? CblasTrans : CblasNoTrans; }
 
 inline CBLAS_OFFSET StringToOffset(const std::string offset_type) {
@@ -51,6 +51,7 @@ inline CBLAS_OFFSET StringToOffset(const std::string offset_type) {
 }
 
 inline char BooleanToTransposeChar(bool trans) { return trans ? 'T' : 'N'; }
+}  // namespace
 
 struct MKLGemmU8S8S32Op {
   void operator()(bool ta, bool tb, int M, int N, int K, float alpha, const void* A, int lda,

@@ -20,6 +20,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import topi
+import tvm.testing
 import tvm.topi.testing
 from tvm.topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
@@ -30,20 +31,22 @@ _bitserial_dense_implement = {
     "arm_cpu": (topi.arm_cpu.bitserial_dense, topi.arm_cpu.schedule_bitserial_dense),
 }
 
+
 def generate_quantized_np(shape, bits, out_dtype):
     min_val = 0
     max_val = 1 << bits
     return np.random.randint(min_val, max_val, size=shape).astype(out_dtype)
 
+
 def verify_bitserial_dense(batch, in_dim, out_dim, activation_bits, weight_bits, unipolar):
-    out_dtype = 'int16'
+    out_dtype = "int16"
 
     def get_ref_data(a_shape, b_shape, input_dtype):
         a_np = generate_quantized_np(get_const_tuple(a_shape), activation_bits, input_dtype)
         b_np = generate_quantized_np(get_const_tuple(b_shape), weight_bits, input_dtype)
         if unipolar:
             b_ = np.copy(b_np).astype(out_dtype)
-            for x in np.nditer(b_, op_flags=['readwrite']):
+            for x in np.nditer(b_, op_flags=["readwrite"]):
                 x[...] = 1 if x == 1 else -1
             c_np = np.dot(a_np, b_.T)
         else:
@@ -51,15 +54,14 @@ def verify_bitserial_dense(batch, in_dim, out_dim, activation_bits, weight_bits,
         return a_np, b_np, c_np
 
     for target in ["llvm", "llvm -device=arm_cpu"]:
-        if "arm_cpu" in target and 'arm' not in os.uname()[4]:
-            print ("Skipped running code, not an arm device")
+        if "arm_cpu" in target and "arm" not in os.uname()[4]:
+            print("Skipped running code, not an arm device")
             continue
-        input_dtype = 'uint8' if "arm_cpu" in target else "uint32"
-        A = te.placeholder((batch, in_dim), dtype=input_dtype, name='A')
-        B = te.placeholder((out_dim, in_dim), dtype=input_dtype, name='B')
+        input_dtype = "uint8" if "arm_cpu" in target else "uint32"
+        A = te.placeholder((batch, in_dim), dtype=input_dtype, name="A")
+        B = te.placeholder((out_dim, in_dim), dtype=input_dtype, name="B")
         fcompute, fschedule = tvm.topi.testing.dispatch(target, _bitserial_dense_implement)
-        C = fcompute(A, B, activation_bits, weight_bits,
-                     input_dtype, out_dtype, unipolar)
+        C = fcompute(A, B, activation_bits, weight_bits, input_dtype, out_dtype, unipolar)
         s = fschedule([C])
 
         a_shape = get_const_tuple(A.shape)
@@ -74,12 +76,14 @@ def verify_bitserial_dense(batch, in_dim, out_dim, activation_bits, weight_bits,
         func(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
+
 def test_bitserial_dense():
     verify_bitserial_dense(1, 1024, 1000, 1, 1, True)
     verify_bitserial_dense(1, 1024, 1000, 2, 1, True)
 
     verify_bitserial_dense(1, 1024, 1000, 1, 1, False)
     verify_bitserial_dense(1, 1024, 1000, 2, 1, False)
+
 
 if __name__ == "__main__":
     test_bitserial_dense()

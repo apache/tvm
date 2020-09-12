@@ -34,8 +34,9 @@ namespace tvm {
 namespace contrib {
 
 using namespace runtime;
-
+namespace {
 inline char BooleanToTransposeChar(bool trans) { return trans ? 'T' : 'N'; }
+}  // namespace
 
 struct MKLDNNSgemmOp {
   typedef float TDatatype;

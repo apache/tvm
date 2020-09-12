@@ -29,10 +29,21 @@ class DPStage(object):
 
     In most cases, instance of this class should be created through DPTuner.
     """
-    def __init__(self, idx, input_shapes, node_list,
-                 counted_nodes_set, layout_transform_interlayer_cost,
-                 stage_dict, in_nodes_dict, out_nodes_dict,
-                 dep_dict, target_ops, dtype="float32"):
+
+    def __init__(
+        self,
+        idx,
+        input_shapes,
+        node_list,
+        counted_nodes_set,
+        layout_transform_interlayer_cost,
+        stage_dict,
+        in_nodes_dict,
+        out_nodes_dict,
+        dep_dict,
+        target_ops,
+        dtype="float32",
+    ):
         """Initialize a stage and create all states.
 
         Parameters
@@ -105,8 +116,7 @@ class DPStage(object):
         input_idx = self._global_in_nodes_dict[self._idx][0]
         input_node_entry = self._global_node_list[input_idx]
         if is_boundary_node(input_node_entry, self._global_input_names):
-            self._full_states = np.array([record[1].costs[0]
-                                          for record in self._record_list])
+            self._full_states = np.array([record[1].costs[0] for record in self._record_list])
             self._states = self._full_states
         else:
             input_stage = self._global_stage_dict[input_idx]
@@ -118,9 +128,13 @@ class DPStage(object):
             num_input_schedules = len(input_record_list)
             num_input_states = input_flatten_states.shape[0]
 
-            full_states_shape = tuple([num_schedules, num_input_schedules] +
-                                      [len(self._global_node_list[dep_idx]["record_candidates"])
-                                       for dep_idx in input_dep])
+            full_states_shape = tuple(
+                [num_schedules, num_input_schedules]
+                + [
+                    len(self._global_node_list[dep_idx]["record_candidates"])
+                    for dep_idx in input_dep
+                ]
+            )
             self._full_states = np.zeros(full_states_shape).flatten().astype("float32")
             self._full_states_idx = [self._idx, input_idx] + input_dep
             dep_multiplier = 1
@@ -132,15 +146,16 @@ class DPStage(object):
                 current_sch_time = float(self._record_list[i][1].costs[0])
                 for j in range(num_input_states):
                     input_sch_idx = j // dep_multiplier
-                    layout_transform_time = \
-                        self._global_layout_transform_interlayer_cost \
-                            [(input_idx, self._idx)][input_sch_idx][i]
+                    layout_transform_time = self._global_layout_transform_interlayer_cost[
+                        (input_idx, self._idx)
+                    ][input_sch_idx][i]
 
                     if input_node_time_counted:
                         total_time = current_sch_time + layout_transform_time
                     else:
-                        total_time = \
+                        total_time = (
                             current_sch_time + layout_transform_time + input_flatten_states[j]
+                        )
                     current_state_idx = i * num_input_states + j
                     self._full_states[current_state_idx] = total_time
 
@@ -156,7 +171,9 @@ class DPStage(object):
                 self._dep = list(input_dep)
             else:
                 self._states = self._full_states
-                self._dep = [input_idx,] + input_dep
+                self._dep = [
+                    input_idx,
+                ] + input_dep
 
         # Update global dependency dictionary.
         # This is to monitor the dependency states to decide
@@ -202,9 +219,9 @@ class DPStage(object):
                 input_index_list.append(input_idx)
 
         # Generate new states
-        states_list, aligned_node_list = DPStage.align_states(input_index_list,
-                                                              self._global_stage_dict,
-                                                              self._global_node_list)
+        states_list, aligned_node_list = DPStage.align_states(
+            input_index_list, self._global_stage_dict, self._global_node_list
+        )
         target_node_idx, target_major_axis, target_multiplier, target_states = states_list[0]
         aligned_shape = target_states.shape
         self._full_states = np.zeros(aligned_shape).astype("float32").flatten()
@@ -215,8 +232,9 @@ class DPStage(object):
         src_states_list = [states_list[i][3].flatten() for i in range(1, len(states_list))]
 
         for i in range(num_states):
-            target_sch_idx = (i % (target_multiplier *
-                                   aligned_shape[target_major_axis])) // target_multiplier
+            target_sch_idx = (
+                i % (target_multiplier * aligned_shape[target_major_axis])
+            ) // target_multiplier
             if node_time_counted[0]:
                 new_state = 0
             else:
@@ -225,11 +243,12 @@ class DPStage(object):
             for j in range(1, len(states_list)):
                 src_states = src_states_list[j - 1]
                 src_node_idx, src_major_axis, src_multiplier, _ = states_list[j]
-                src_sch_idx = (i % (src_multiplier *
-                                    aligned_shape[src_major_axis])) // src_multiplier
-                layout_transform_time = \
-                    self._global_layout_transform_interlayer_cost\
-                        [(src_node_idx, target_node_idx)][src_sch_idx][target_sch_idx]
+                src_sch_idx = (
+                    i % (src_multiplier * aligned_shape[src_major_axis])
+                ) // src_multiplier
+                layout_transform_time = self._global_layout_transform_interlayer_cost[
+                    (src_node_idx, target_node_idx)
+                ][src_sch_idx][target_sch_idx]
 
                 if node_time_counted[j]:
                     new_state += layout_transform_time
@@ -256,7 +275,7 @@ class DPStage(object):
         for i, dep in enumerate(reduced_states_dep_list):
             if dep not in self._global_dep_dict or len(self._global_dep_dict[dep]) == 1:
                 self._global_dep_dict.pop(dep, None)
-                reduced_states = np.amin(reduced_states, axis=i+1-shift)
+                reduced_states = np.amin(reduced_states, axis=i + 1 - shift)
                 shift += 1
             else:
                 self._dep.append(dep)

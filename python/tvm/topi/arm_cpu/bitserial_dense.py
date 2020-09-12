@@ -26,9 +26,9 @@ from .bitserial_conv2d import _intrin_popcount
 from ..nn.pad import pad
 from ..nn.bitserial_util import bitpack, binary_op_multiplier
 
-@autotvm.register_topi_compute('bitserial_dense.arm_cpu')
-def bitserial_dense(cfg, data, weight, data_bits, weight_bits, pack_dtype, out_dtype,
-                    unipolar):
+
+@autotvm.register_topi_compute("bitserial_dense.arm_cpu")
+def bitserial_dense(cfg, data, weight, data_bits, weight_bits, pack_dtype, out_dtype, unipolar):
     """The default implementation of bitserial dense in topi.
 
     Parameters
@@ -57,7 +57,7 @@ def bitserial_dense(cfg, data, weight, data_bits, weight_bits, pack_dtype, out_d
     # out_dim and in_dim need to be multiples of 8
     if out_dim % 8 != 0:
         out_dim_pad = out_dim % 8
-        data_packed = pad(data_packed, [0, 0, 0], [out_dim_pad, 0, 0], name='PaddedInput')
+        data_packed = pad(data_packed, [0, 0, 0], [out_dim_pad, 0, 0], name="PaddedInput")
         out_dim += out_dim_pad
 
     ######## Search space
@@ -65,43 +65,71 @@ def bitserial_dense(cfg, data, weight, data_bits, weight_bits, pack_dtype, out_d
     x, y = cfg.axis(batch), cfg.axis(out_dim)
     db, wb, k = cfg.reduce_axis(DB), cfg.reduce_axis(WB), cfg.reduce_axis(in_dim)
 
-    ko, ki = cfg.define_split('tile_k', k, num_outputs=2,
-                              filter=lambda xx: xx.size[-1] == 8 or xx.size[-1] == 16)
-    xo, xi = cfg.define_split('tile_x', x, num_outputs=2)
-    yo, yi = cfg.define_split('tile_y', y, num_outputs=2,
-                              filter=lambda xx: xx.size[-1] == 8)
+    ko, ki = cfg.define_split(
+        "tile_k", k, num_outputs=2, filter=lambda xx: xx.size[-1] == 8 or xx.size[-1] == 16
+    )
+    xo, xi = cfg.define_split("tile_x", x, num_outputs=2)
+    yo, yi = cfg.define_split("tile_y", y, num_outputs=2, filter=lambda xx: xx.size[-1] == 8)
 
-    cfg.define_reorder('reorder_0', [yo, xo, ko, xi, wb, db, yi, ki],
-                       policy='candidate', candidate=[
-                           [yo, xo, ko, xi, wb, db, yi, ki],
-                           [yo, xo, xi, ko, wb, db, yi, ki],
-                           [yo, xo, ko, xi, wb, db, yi, ki]])
+    cfg.define_reorder(
+        "reorder_0",
+        [yo, xo, ko, xi, wb, db, yi, ki],
+        policy="candidate",
+        candidate=[
+            [yo, xo, ko, xi, wb, db, yi, ki],
+            [yo, xo, xi, ko, wb, db, yi, ki],
+            [yo, xo, ko, xi, wb, db, yi, ki],
+        ],
+    )
 
     ###### Compute rule
-    VY = cfg['tile_y'].size[-1]
-    VK = cfg['tile_k'].size[-1]
+    VY = cfg["tile_y"].size[-1]
+    VK = cfg["tile_k"].size[-1]
 
-    wvshape = (out_dim//VY, in_dim//VK, WB, VY, VK)
+    wvshape = (out_dim // VY, in_dim // VK, WB, VY, VK)
     oshape = (batch, out_dim)
 
-    k = te.reduce_axis((0, in_dim), name='k')
-    db = te.reduce_axis((0, DB), name='db')
-    wb = te.reduce_axis((0, WB), name='wb')
+    k = te.reduce_axis((0, in_dim), name="k")
+    db = te.reduce_axis((0, DB), name="db")
+    wb = te.reduce_axis((0, WB), name="wb")
 
     # Tile data and weights
-    weight_vec = te.compute(wvshape, lambda yo, ko, wb, vy, vk:
-                            weight_packed[yo*VY+vy][wb][ko*VK+vk], name='weight_vec')
-    matmul_unipolar = te.compute(oshape, lambda x, y: te.sum(
-        (tvm.tir.popcount(weight_vec[y//VY, k//VK, wb, y%VY, k%VK].astype(out_dtype) &
-                          data_packed[x, db, k].astype(out_dtype)) -
-         tvm.tir.popcount(~weight_vec[y//VY, k//VK, wb, y%VY, k%VK].astype(out_dtype) &
-                          data_packed[x, db, k].astype(out_dtype)))
-        << (wb+db).astype(out_dtype), axis=[wb, db, k]), tag='bitserial_dense_unipolar')
+    weight_vec = te.compute(
+        wvshape,
+        lambda yo, ko, wb, vy, vk: weight_packed[yo * VY + vy][wb][ko * VK + vk],
+        name="weight_vec",
+    )
+    matmul_unipolar = te.compute(
+        oshape,
+        lambda x, y: te.sum(
+            (
+                tvm.tir.popcount(
+                    weight_vec[y // VY, k // VK, wb, y % VY, k % VK].astype(out_dtype)
+                    & data_packed[x, db, k].astype(out_dtype)
+                )
+                - tvm.tir.popcount(
+                    ~weight_vec[y // VY, k // VK, wb, y % VY, k % VK].astype(out_dtype)
+                    & data_packed[x, db, k].astype(out_dtype)
+                )
+            )
+            << (wb + db).astype(out_dtype),
+            axis=[wb, db, k],
+        ),
+        tag="bitserial_dense_unipolar",
+    )
 
-    matmul = te.compute(oshape, lambda x, y: te.sum(
-        tvm.tir.popcount(weight_vec[y//VY, k//VK, wb, y%VY, k%VK].astype(out_dtype) &
-                         data_packed[x, db, k].astype(out_dtype))
-        << (wb+db).astype(out_dtype), axis=[wb, db, k]), tag='bitserial_dense')
+    matmul = te.compute(
+        oshape,
+        lambda x, y: te.sum(
+            tvm.tir.popcount(
+                weight_vec[y // VY, k // VK, wb, y % VY, k % VK].astype(out_dtype)
+                & data_packed[x, db, k].astype(out_dtype)
+            )
+            << (wb + db).astype(out_dtype),
+            axis=[wb, db, k],
+        ),
+        tag="bitserial_dense",
+    )
 
     cfg.add_flop(batch * out_dim * in_dim * binary_op_multiplier(pack_dtype))
 
@@ -110,7 +138,7 @@ def bitserial_dense(cfg, data, weight, data_bits, weight_bits, pack_dtype, out_d
     return matmul
 
 
-@autotvm.register_topi_schedule('bitserial_dense.arm_cpu')
+@autotvm.register_topi_schedule("bitserial_dense.arm_cpu")
 def schedule_bitserial_dense(cfg, outs):
     """Schedule for binary_dense.
 
@@ -148,8 +176,8 @@ def schedule_bitserial_dense(cfg, outs):
         fused = s[output].fuse(xo, yo)
         s[output].parallel(fused)
 
-        nfactor = cfg['tile_y'].size[-1]
-        kfactor = cfg['tile_k'].size[-1]
+        nfactor = cfg["tile_y"].size[-1]
+        kfactor = cfg["tile_k"].size[-1]
         if nfactor % 8 == 0:
             pc = _intrin_popcount(nfactor, kfactor, WB, DB, unipolar)
             s[output].tensorize(wb, pc)
@@ -159,14 +187,14 @@ def schedule_bitserial_dense(cfg, outs):
     def traverse(op):
         """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_broadcast(op.tag) or 'elemwise' in op.tag:
+        if tag.is_broadcast(op.tag) or "elemwise" in op.tag:
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
                 if isinstance(tensor.op, tvm.te.ComputeOp):
                     traverse(tensor.op)
 
-        elif op.tag == 'bitserial_dense' or 'bitserial_dense_unipolar':
+        elif op.tag == "bitserial_dense" or "bitserial_dense_unipolar":
             output = op.output(0)
             weight_vec = op.input_tensors[0]
 
@@ -174,7 +202,7 @@ def schedule_bitserial_dense(cfg, outs):
             data = data_vec.op.input_tensors[0]
             if "QuantizeInput" in data.op.name:
                 data = data.op.input_tensors[0]
-            unipolar = (output.op.tag == 'bitserial_dense_unipolar')
+            unipolar = output.op.tag == "bitserial_dense_unipolar"
             _schedule(cfg, s, data_vec, weight_vec, output, unipolar)
         else:
             raise RuntimeError("Unsupported operator: %s" % op.tag)

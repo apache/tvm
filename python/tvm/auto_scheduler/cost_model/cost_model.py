@@ -28,9 +28,11 @@ from .. import _ffi_api
 class CostModel(Object):
     """The base class for cost model"""
 
+
 @tvm._ffi.register_object("auto_scheduler.RandomModel")
 class RandomModel(CostModel):
     """A model returns random estimation for all inputs"""
+
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.RandomModel)
 
@@ -85,6 +87,7 @@ def random_fill_float(size, return_ptr):
 @tvm._ffi.register_object("auto_scheduler.PythonBasedModel")
 class PythonBasedModel(CostModel):
     """Base class for cost models implemented in python"""
+
     def __init__(self):
         def update_func(inputs, results):
             self.update(inputs, results)
@@ -100,8 +103,9 @@ class PythonBasedModel(CostModel):
             array_wrapper = np.ctypeslib.as_array(return_ptr, shape=ret.shape)
             array_wrapper[:] = ret
 
-        self.__init_handle_by_constructor__(_ffi_api.PythonBasedModel, update_func,
-                                            predict_func, predict_stage_func)
+        self.__init_handle_by_constructor__(
+            _ffi_api.PythonBasedModel, update_func, predict_func, predict_stage_func
+        )
 
     def update(self, inputs, results):
         """Update the cost model according to new measurement results (training data).

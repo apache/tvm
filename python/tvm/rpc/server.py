@@ -45,9 +45,10 @@ from tvm.runtime.module import load_module as _load_module
 from tvm.contrib import util
 from . import _ffi_api
 from . import base
-from . base import TrackerCode
+from .base import TrackerCode
 
-logger = logging.getLogger('RPCServer')
+logger = logging.getLogger("RPCServer")
+
 
 def _server_env(load_library, work_path=None):
     """Server environment function return temp dir"""
@@ -78,6 +79,7 @@ def _server_env(load_library, work_path=None):
     temp.libs = libs
     return temp
 
+
 def _serve_loop(sock, addr, load_library, work_path=None):
     """Server loop"""
     sockfd = sock.fileno()
@@ -87,6 +89,7 @@ def _serve_loop(sock, addr, load_library, work_path=None):
         temp.remove()
     logger.info("Finish serving %s", addr)
 
+
 def _parse_server_opt(opts):
     # parse client options
     ret = {}
@@ -95,8 +98,10 @@ def _parse_server_opt(opts):
             ret["timeout"] = float(kv[9:])
     return ret
 
+
 def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
     """Listening loop of the server master."""
+
     def _accept_conn(listen_sock, tracker_conn, ping_period=2):
         """Accept connection from the other places.
 
@@ -115,8 +120,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         # Report resource to tracker
         if tracker_conn:
             matchkey = base.random_key(rpc_key + ":")
-            base.sendjson(tracker_conn,
-                          [TrackerCode.PUT, rpc_key, (port, matchkey), custom_addr])
+            base.sendjson(tracker_conn, [TrackerCode.PUT, rpc_key, (port, matchkey), custom_addr])
             assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
         else:
             matchkey = rpc_key
@@ -141,9 +145,9 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                     if unmatch_period_count * ping_period > unmatch_timeout + ping_period:
                         logger.info("no incoming connections, regenerate key ...")
                         matchkey = base.random_key(rpc_key + ":", old_keyset)
-                        base.sendjson(tracker_conn,
-                                      [TrackerCode.PUT, rpc_key, (port, matchkey),
-                                       custom_addr])
+                        base.sendjson(
+                            tracker_conn, [TrackerCode.PUT, rpc_key, (port, matchkey), custom_addr]
+                        )
                         assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
                         unmatch_period_count = 0
                     continue
@@ -179,9 +183,8 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                 if magic != base.RPC_TRACKER_MAGIC:
                     raise RuntimeError("%s is not RPC Tracker" % str(tracker_addr))
                 # report status of current queue
-                cinfo = {"key" : "server:" + rpc_key}
-                base.sendjson(tracker_conn,
-                              [TrackerCode.UPDATE_INFO, cinfo])
+                cinfo = {"key": "server:" + rpc_key}
+                base.sendjson(tracker_conn, [TrackerCode.UPDATE_INFO, cinfo])
                 assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
 
             # step 2: wait for in-coming connections
@@ -198,8 +201,9 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         # step 3: serving
         work_path = util.tempdir()
         logger.info("connection from %s", addr)
-        server_proc = multiprocessing.Process(target=_serve_loop,
-                                              args=(conn, addr, load_library, work_path))
+        server_proc = multiprocessing.Process(
+            target=_serve_loop, args=(conn, addr, load_library, work_path)
+        )
         server_proc.deamon = True
         server_proc.start()
         # close from our side.
@@ -210,6 +214,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
             logger.info("Timeout in RPC session, kill..")
             # pylint: disable=import-outside-toplevel
             import psutil
+
             parent = psutil.Process(server_proc.pid)
             # terminate worker childs
             for child in parent.children(recursive=True):
@@ -243,8 +248,7 @@ def _connect_proxy_loop(addr, key, load_library):
             remote_key = py_str(base.recvall(sock, keylen))
             opts = _parse_server_opt(remote_key.split()[1:])
             logger.info("connected to %s", str(addr))
-            process = multiprocessing.Process(
-                target=_serve_loop, args=(sock, addr, load_library))
+            process = multiprocessing.Process(target=_serve_loop, args=(sock, addr, load_library))
             process.deamon = True
             process.start()
             sock.close()
@@ -260,11 +264,9 @@ def _connect_proxy_loop(addr, key, load_library):
                 raise RuntimeError("Maximum retry error: last error: %s" % str(err))
             time.sleep(retry_period)
 
+
 def _popen(cmd):
-    proc = subprocess.Popen(cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT,
-                            env=os.environ)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=os.environ)
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         msg = "Server invoke error:\n"
@@ -316,20 +318,22 @@ class Server(object):
     silent: bool, optional
         Whether run this server in silent mode.
     """
-    def __init__(self,
-                 host,
-                 port=9091,
-                 port_end=9199,
-                 is_proxy=False,
-                 use_popen=False,
-                 tracker_addr=None,
-                 key="",
-                 load_library=None,
-                 custom_addr=None,
-                 silent=False,
-                 utvm_dev_id=None,
-                 utvm_dev_config_args=None,
-                 ):
+
+    def __init__(
+        self,
+        host,
+        port=9091,
+        port_end=9199,
+        is_proxy=False,
+        use_popen=False,
+        tracker_addr=None,
+        key="",
+        load_library=None,
+        custom_addr=None,
+        silent=False,
+        utvm_dev_id=None,
+        utvm_dev_config_args=None,
+    ):
         try:
             if _ffi_api.ServerLoop is None:
                 raise RuntimeError("Please compile with USE_RPC=1")
@@ -345,15 +349,17 @@ class Server(object):
             logger.setLevel(logging.ERROR)
 
         if use_popen:
-            cmd = [sys.executable,
-                   "-m", "tvm.exec.rpc_server",
-                   "--host=%s" % host,
-                   "--port=%s" % port,
-                   "--port-end=%s" % port_end]
+            cmd = [
+                sys.executable,
+                "-m",
+                "tvm.exec.rpc_server",
+                "--host=%s" % host,
+                "--port=%s" % port,
+                "--port-end=%s" % port_end,
+            ]
             if tracker_addr:
                 assert key
-                cmd += ["--tracker=%s:%d" % tracker_addr,
-                        "--key=%s" % key]
+                cmd += ["--tracker=%s:%d" % tracker_addr, "--key=%s" % key]
             if load_library:
                 cmd += ["--load-library", load_library]
             if custom_addr:
@@ -397,14 +403,15 @@ class Server(object):
             sock.listen(1)
             self.sock = sock
             self.proc = multiprocessing.Process(
-                target=_listen_loop, args=(
-                    self.sock, self.port, key, tracker_addr, load_library,
-                    self.custom_addr))
+                target=_listen_loop,
+                args=(self.sock, self.port, key, tracker_addr, load_library, self.custom_addr),
+            )
             self.proc.deamon = True
             self.proc.start()
         else:
             self.proc = multiprocessing.Process(
-                target=_connect_proxy_loop, args=((host, port), key, load_library))
+                target=_connect_proxy_loop, args=((host, port), key, load_library)
+            )
             self.proc.deamon = True
             self.proc.start()
 

@@ -73,6 +73,7 @@ def compute_strided_set(attrs, inputs, output_type):
     """Compute definition of strided_set"""
     return [topi.strided_set(inputs[0], inputs[1], inputs[2], inputs[3], inputs[4])]
 
+
 _reg.register_injective_schedule("strided_set")
 
 # layout_transform
@@ -93,6 +94,7 @@ def compute_argwhere(attrs, inputs, output_type):
     new_output_type = tvm.relay.ty.TensorType(output_shape, "int32")
     return [topi.argwhere(new_output_type, inputs[0])]
 
+
 _reg.register_schedule("argwhere", strategy.schedule_argwhere)
 
 # scatter
@@ -100,6 +102,7 @@ _reg.register_schedule("argwhere", strategy.schedule_argwhere)
 def compute_scatter(attrs, inputs, output_type):
     """Compute definition of scatter"""
     return [topi.scatter(inputs[0], inputs[1], inputs[2], attrs.axis)]
+
 
 _reg.register_schedule("scatter", strategy.schedule_scatter)
 
@@ -109,11 +112,13 @@ def compute_scatter_add(attrs, inputs, output_type):
     """Compute definition of scatter_add"""
     return [topi.scatter_add(inputs[0], inputs[1], inputs[2], attrs.axis)]
 
+
 _reg.register_schedule("scatter_add", strategy.schedule_scatter_add)
 
 #####################
 #  Shape functions  #
 #####################
+
 
 @script
 def _arange_shape_func(start, stop, step):
@@ -121,12 +126,14 @@ def _arange_shape_func(start, stop, step):
     out[0] = int64(ceil_div((int64(stop[0]) - int64(start[0])), int64(step[0])))
     return out
 
+
 @_reg.register_shape_func("arange", True)
 def arange_shape_func(attrs, inputs, _):
     """
     Shape func for arange
     """
     return [_arange_shape_func(*inputs)]
+
 
 @script
 def _strided_slice_shape_func_input_shape(data_shape, begin, end, strides, slice_mode):
@@ -175,8 +182,12 @@ def strided_slice_shape_func(attrs, inputs, _):
     Shape func for strided_slice
     """
     slice_mode = convert(0 if attrs.slice_mode == "end" else 1)
-    return [_strided_slice_shape_func_input_shape(inputs[0], attrs.begin, attrs.end,
-                                                  attrs.strides, slice_mode)]
+    return [
+        _strided_slice_shape_func_input_shape(
+            inputs[0], attrs.begin, attrs.end, attrs.strides, slice_mode
+        )
+    ]
+
 
 @script
 def _concatenate_shape_func(inputs, axis):
@@ -186,13 +197,13 @@ def _concatenate_shape_func(inputs, axis):
         if i != axis:
             out[i] = inputs[0][i]
             for j in const_range(1, len(inputs)):
-                assert out[i] == inputs[j][i], \
-                    "Dims mismatch in the inputs of concatenate."
+                assert out[i] == inputs[j][i], "Dims mismatch in the inputs of concatenate."
         else:
             out[i] = int64(0)
             for j in const_range(len(inputs)):
                 out[i] += inputs[j][i]
     return out
+
 
 @_reg.register_shape_func("concatenate", False)
 def concatenate_shape_func(attrs, inputs, _):
@@ -200,6 +211,7 @@ def concatenate_shape_func(attrs, inputs, _):
     if axis < 0:
         axis += inputs[0].shape[0]
     return [_concatenate_shape_func(inputs, convert(axis))]
+
 
 @script
 def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
@@ -228,25 +240,25 @@ def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
         elif newshape[i] == -2:
             copy = True
         elif newshape[i] == -3:
-            assert data_shape.shape[0] - src_idx > 1, \
-                "Not enough dims in input shape for -3"
-            out[dst_idx] = data_shape[src_idx] * data_shape[src_idx+1]
+            assert data_shape.shape[0] - src_idx > 1, "Not enough dims in input shape for -3"
+            out[dst_idx] = data_shape[src_idx] * data_shape[src_idx + 1]
             src_idx += 2
             dst_idx += 1
         elif newshape[i] == -4:
             assert len(newshape) - i > 2, "Not enough dims in new shape for -4"
-            if newshape[i+1] == -1:
-                assert newshape[i+2] != -1, "Split dims cannot both be -1."
-                out[dst_idx] = data_shape[src_idx] // int64(newshape[i+2])
-                out[dst_idx+1] = int64(newshape[i+2])
+            if newshape[i + 1] == -1:
+                assert newshape[i + 2] != -1, "Split dims cannot both be -1."
+                out[dst_idx] = data_shape[src_idx] // int64(newshape[i + 2])
+                out[dst_idx + 1] = int64(newshape[i + 2])
             else:
-                out[dst_idx] = int64(newshape[i+1])
-                if newshape[i+2] == -1:
-                    out[dst_idx+1] = data_shape[src_idx] // int64(newshape[i+1])
+                out[dst_idx] = int64(newshape[i + 1])
+                if newshape[i + 2] == -1:
+                    out[dst_idx + 1] = data_shape[src_idx] // int64(newshape[i + 1])
                 else:
-                    out[dst_idx+1] = int64(newshape[i+2])
-            assert data_shape[src_idx] == out[dst_idx] * out[dst_idx+1],\
-                "Product of split dims doesn't match to input dim"
+                    out[dst_idx + 1] = int64(newshape[i + 2])
+            assert (
+                data_shape[src_idx] == out[dst_idx] * out[dst_idx + 1]
+            ), "Product of split dims doesn't match to input dim"
             src_idx += 1
             dst_idx += 2
             skip = 2
@@ -268,12 +280,12 @@ def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
             out[infer_idx] = old_size // new_size
     return out
 
+
 @_reg.register_shape_func("reshape", False)
 def reshape_shape_func(attrs, inputs, out_ndims):
     newshape = get_const_tuple(attrs.newshape)
-    return [_reshape_shape_func_input_shape(inputs[0],
-                                            convert(newshape),
-                                            out_ndims[0])]
+    return [_reshape_shape_func_input_shape(inputs[0], convert(newshape), out_ndims[0])]
+
 
 @script
 def _take_no_axis_shape_func(indices_shape, out_ndim):
@@ -282,6 +294,7 @@ def _take_no_axis_shape_func(indices_shape, out_ndim):
         out[i] = indices_shape[i]
     return out
 
+
 @script
 def _take_with_axis_shape_func(data_shape, indices_shape, axis, out_ndim):
     out = output_tensor((out_ndim,), "int64")
@@ -289,14 +302,15 @@ def _take_with_axis_shape_func(data_shape, indices_shape, axis, out_ndim):
         out[i] = data_shape[i]
     if len(indices_shape.shape) == 0:
         # indices is constant
-        for i in const_range(axis+1, len(data_shape)):
-            out[i-1] = data_shape[i]
+        for i in const_range(axis + 1, len(data_shape)):
+            out[i - 1] = data_shape[i]
     else:
         for i in const_range(len(indices_shape)):
-            out[axis+i] = indices_shape[i]
-        for i in const_range(axis+1, len(data_shape)):
-            out[len(indices_shape)+i-1] = data_shape[i]
+            out[axis + i] = indices_shape[i]
+        for i in const_range(axis + 1, len(data_shape)):
+            out[len(indices_shape) + i - 1] = data_shape[i]
     return out
+
 
 @_reg.register_shape_func("take", False)
 def take_shape_func(attrs, inputs, out_ndims):
@@ -312,9 +326,10 @@ def take_shape_func(attrs, inputs, out_ndims):
     assert 0 <= axis < data_ndim
     return [_take_with_axis_shape_func(*inputs, convert(axis), out_ndims[0])]
 
+
 @script
 def _argwhere_shape_func_1d(condition):
-    out = output_tensor((2, ), "int64")
+    out = output_tensor((2,), "int64")
     out[0] = int64(0)
     out[1] = int64(1)
     for i1 in range(condition.shape[0]):
@@ -322,9 +337,10 @@ def _argwhere_shape_func_1d(condition):
             out[0] += int64(1)
     return out
 
+
 @script
 def _argwhere_shape_func_2d(condition):
-    out = output_tensor((2, ), "int64")
+    out = output_tensor((2,), "int64")
     out[0] = int64(0)
     out[1] = int64(2)
     for i1 in range(condition.shape[0]):
@@ -333,9 +349,10 @@ def _argwhere_shape_func_2d(condition):
                 out[0] += int64(1)
     return out
 
+
 @script
 def _argwhere_shape_func_3d(condition):
-    out = output_tensor((2, ), "int64")
+    out = output_tensor((2,), "int64")
     out[0] = int64(0)
     out[1] = int64(3)
     for i1 in range(condition.shape[0]):
@@ -345,9 +362,10 @@ def _argwhere_shape_func_3d(condition):
                     out[0] += int64(1)
     return out
 
+
 @script
 def _argwhere_shape_func_4d(condition):
-    out = output_tensor((2, ), "int64")
+    out = output_tensor((2,), "int64")
     out[0] = int64(0)
     out[1] = int64(4)
     for i1 in range(condition.shape[0]):
@@ -358,9 +376,10 @@ def _argwhere_shape_func_4d(condition):
                         out[0] += int64(1)
     return out
 
+
 @script
 def _argwhere_shape_func_5d(condition):
-    out = output_tensor((2, ), "int64")
+    out = output_tensor((2,), "int64")
     out[0] = int64(0)
     out[1] = int64(5)
     for i1 in range(condition.shape[0]):
@@ -371,6 +390,7 @@ def _argwhere_shape_func_5d(condition):
                         if condition[i1, i2, i3, i4, i5] != 0:
                             out[0] += int64(1)
     return out
+
 
 @_reg.register_shape_func("argwhere", True)
 def argwhere_shape_func(attrs, inputs, out_ndims):
@@ -389,38 +409,38 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
         return [_argwhere_shape_func_5d(inputs[0])]
     return ValueError("Does not support rank higher than 5 in argwhere")
 
+
 _reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
 
+
 @script
-def _layout_transform_shape_func(data_shape,
-                                 out_layout_len,
-                                 dst_equal_list,
-                                 dst_mul_list,
-                                 dst_div_list,
-                                 dst_mix_list):
+def _layout_transform_shape_func(
+    data_shape, out_layout_len, dst_equal_list, dst_mul_list, dst_div_list, dst_mix_list
+):
     out = output_tensor((out_layout_len,), "int64")
     for i in const_range(len(dst_equal_list)):
         out[dst_equal_list[i][0]] = data_shape[dst_equal_list[i][1]]
     for i in const_range(len(dst_mul_list)):
-        out[dst_mul_list[i][0]] = data_shape[dst_mul_list[i][1]] * \
-                                  data_shape[dst_mul_list[i][2]]
+        out[dst_mul_list[i][0]] = data_shape[dst_mul_list[i][1]] * data_shape[dst_mul_list[i][2]]
     for i in const_range(len(dst_div_list)):
-        out[dst_div_list[i][0]] = data_shape[dst_div_list[i][1]] \
-                                  // dst_div_list[i][3]
+        out[dst_div_list[i][0]] = data_shape[dst_div_list[i][1]] // dst_div_list[i][3]
         out[dst_div_list[i][2]] = int64(dst_div_list[i][3])
     for i in const_range(len(dst_mix_list)):
-        out[dst_mix_list[i][0]] = data_shape[dst_mix_list[i][1]] * \
-                                  dst_mix_list[i][2] // dst_mix_list[i][4]
+        out[dst_mix_list[i][0]] = (
+            data_shape[dst_mix_list[i][1]] * dst_mix_list[i][2] // dst_mix_list[i][4]
+        )
         out[dst_mix_list[i][3]] = int64(dst_mix_list[i][4])
 
     return out
+
 
 @_reg.register_shape_func("layout_transform", False)
 def layout_transform_shape_func(attrs, inputs, _):
     """
     Shape function for layout_transform op.
     """
+
     def _fetch_axis(layout):
         major_axes = []
         minor_axes = {}
@@ -455,31 +475,47 @@ def layout_transform_shape_func(attrs, inputs, _):
     for key in dst_major_axes:
         if key.lower() not in dst_minor_axes:
             if key.lower() not in src_minor_axes:
-                dst_equal_list.append((dst_letter_list.index(key),
-                                       src_letter_list.index(key)))
+                dst_equal_list.append((dst_letter_list.index(key), src_letter_list.index(key)))
             else:
-                dst_mul_list.append((dst_letter_list.index(key),
-                                     src_letter_list.index(key),
-                                     src_letter_list.index(key.lower())))
+                dst_mul_list.append(
+                    (
+                        dst_letter_list.index(key),
+                        src_letter_list.index(key),
+                        src_letter_list.index(key.lower()),
+                    )
+                )
         else:
             if key.lower() not in src_minor_axes:
-                dst_div_list.append((dst_letter_list.index(key),
-                                     src_letter_list.index(key),
-                                     dst_letter_list.index(key.lower()),
-                                     dst_minor_axes[key.lower()]))
+                dst_div_list.append(
+                    (
+                        dst_letter_list.index(key),
+                        src_letter_list.index(key),
+                        dst_letter_list.index(key.lower()),
+                        dst_minor_axes[key.lower()],
+                    )
+                )
             else:
-                dst_mix_list.append((dst_letter_list.index(key),
-                                     src_letter_list.index(key),
-                                     src_minor_axes[key.lower()],
-                                     dst_letter_list.index(key.lower()),
-                                     dst_minor_axes[key.lower()]))
+                dst_mix_list.append(
+                    (
+                        dst_letter_list.index(key),
+                        src_letter_list.index(key),
+                        src_minor_axes[key.lower()],
+                        dst_letter_list.index(key.lower()),
+                        dst_minor_axes[key.lower()],
+                    )
+                )
 
-    return [_layout_transform_shape_func(inputs[0],
-                                         convert(out_layout_len),
-                                         convert(dst_equal_list),
-                                         convert(dst_mul_list),
-                                         convert(dst_div_list),
-                                         convert(dst_mix_list))]
+    return [
+        _layout_transform_shape_func(
+            inputs[0],
+            convert(out_layout_len),
+            convert(dst_equal_list),
+            convert(dst_mul_list),
+            convert(dst_div_list),
+            convert(dst_mix_list),
+        )
+    ]
+
 
 @script
 def _expand_dim_shape_func(data_shape, ndim, axis, num_newaxis):
@@ -494,6 +530,7 @@ def _expand_dim_shape_func(data_shape, ndim, axis, num_newaxis):
 
     return out
 
+
 @_reg.register_shape_func("expand_dims", False)
 def expand_dim_shape_func(attrs, inputs, _):
     """
@@ -504,10 +541,8 @@ def expand_dim_shape_func(attrs, inputs, _):
     if axis < 0:
         axis = inputs[0].shape[0] + axis + 1
     ndim = inputs[0].shape[0] if inputs[0].shape else 0
-    return [_expand_dim_shape_func(inputs[0],
-                                   convert(ndim),
-                                   convert(axis),
-                                   convert(num_newaxis))]
+    return [_expand_dim_shape_func(inputs[0], convert(ndim), convert(axis), convert(num_newaxis))]
+
 
 @script
 def _transpose_shape_func(data_shape, axes):
@@ -516,6 +551,7 @@ def _transpose_shape_func(data_shape, axes):
         out[i] = data_shape[axes[i]]
 
     return out
+
 
 @_reg.register_shape_func("transpose", False)
 def transpose_shape_func(attrs, inputs, _):
@@ -532,6 +568,7 @@ def transpose_shape_func(attrs, inputs, _):
             axes[i] = inputs[0].shape[0] + axis
     return [_transpose_shape_func(inputs[0], convert(axes))]
 
+
 @script
 def _squeeze_shape_func(data_shape, keep_axes):
     out = output_tensor((len(keep_axes),), "int64")
@@ -539,6 +576,7 @@ def _squeeze_shape_func(data_shape, keep_axes):
         out[i] = data_shape[keep_axes[i]]
 
     return out
+
 
 @_reg.register_shape_func("squeeze", False)
 def squeeze_shape_func(attrs, inputs, _):
@@ -563,6 +601,7 @@ def squeeze_shape_func(attrs, inputs, _):
         out = te.compute((), lambda *indices: 0)
     return [out]
 
+
 @script
 def _reshape_like_shape_func(target_shape):
     out = output_tensor((target_shape.shape[0],), "int64")
@@ -571,12 +610,14 @@ def _reshape_like_shape_func(target_shape):
 
     return out
 
+
 @_reg.register_shape_func("reshape_like", False)
 def reshape_like_shape_func(attrs, inputs, _):
     """
     Shape function for reshape_like op.
     """
     return [_reshape_like_shape_func(inputs[1])]
+
 
 @script
 def _tile_shape_func(data, reps, ndim, tndim, rndim):
@@ -601,6 +642,7 @@ def _tile_shape_func(data, reps, ndim, tndim, rndim):
                 out[i] = int64(reps[i]) * data[i - rgap]
     return out
 
+
 @_reg.register_shape_func("tile", False)
 def tile_shape_func(attrs, inputs, _):
     """
@@ -610,8 +652,10 @@ def tile_shape_func(attrs, inputs, _):
     ndim = inputs[0].shape[0].value
     rndim = len(reps)
     tndim = ndim if ndim > rndim else rndim
-    return [_tile_shape_func(inputs[0], convert(reps), convert(ndim),
-                             convert(tndim), convert(rndim))]
+    return [
+        _tile_shape_func(inputs[0], convert(reps), convert(ndim), convert(tndim), convert(rndim))
+    ]
+
 
 @script
 def _split_shape_func(data_shape, index, indices_or_sections, axis):
@@ -619,8 +663,9 @@ def _split_shape_func(data_shape, index, indices_or_sections, axis):
     if len(indices_or_sections) == 1:
         for i in const_range(data_shape.shape[0]):
             if i == axis:
-                assert data_shape[axis] % indices_or_sections[0] == 0, \
-                    "num_sections must be an integer factor of the size of axis"
+                assert (
+                    data_shape[axis] % indices_or_sections[0] == 0
+                ), "num_sections must be an integer factor of the size of axis"
                 out[i] = ceil_div(data_shape[axis], indices_or_sections[0])
             else:
                 out[i] = data_shape[i]
@@ -638,6 +683,7 @@ def _split_shape_func(data_shape, index, indices_or_sections, axis):
                 out[i] = data_shape[i]
     return out
 
+
 @_reg.register_shape_func("split", False)
 def split_shape_func(attrs, inputs, _):
     """
@@ -648,20 +694,24 @@ def split_shape_func(attrs, inputs, _):
         assert indices_or_sections > 0, "Slice count must be > 0"
     else:
         indices_or_sections = list(get_const_tuple(attrs.indices_or_sections))
-        assert sorted(indices_or_sections)[0] > 0 and \
-               indices_or_sections == sorted(indices_or_sections), \
-            "split_indices must be sorted"
+        assert sorted(indices_or_sections)[0] > 0 and indices_or_sections == sorted(
+            indices_or_sections
+        ), "split_indices must be sorted"
 
     axis = get_const_int(attrs.axis)
 
-    num_out = indices_or_sections if isinstance(indices_or_sections, int) \
+    num_out = (
+        indices_or_sections
+        if isinstance(indices_or_sections, int)
         else len(indices_or_sections) + 1
+    )
     if isinstance(indices_or_sections, int):
         indices_or_sections = [indices_or_sections]
-    return [_split_shape_func(inputs[0],
-                              convert(i),
-                              convert(indices_or_sections),
-                              convert(axis)) for i in range(num_out)]
+    return [
+        _split_shape_func(inputs[0], convert(i), convert(indices_or_sections), convert(axis))
+        for i in range(num_out)
+    ]
+
 
 @script
 def _adv_index_shape_func(inputs):
@@ -686,6 +736,7 @@ def _adv_index_shape_func(inputs):
         out[i + index_rank] = inputs[0][i + len(inputs) - 1]
 
     return out
+
 
 @_reg.register_shape_func("adv_index", False)
 def adv_index_shape_func(attrs, inputs, _):

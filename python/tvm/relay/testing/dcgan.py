@@ -30,6 +30,7 @@ from tvm import relay
 from . import layers
 from .init import create_workload
 
+
 def deconv2d(data, ishape, oshape, kshape, layout, name, stride=(2, 2)):
     """a deconv layer that enlarges the feature map"""
     target_shape = (oshape[-2], oshape[-1])
@@ -46,36 +47,48 @@ def deconv2d(data, ishape, oshape, kshape, layout, name, stride=(2, 2)):
     else:
         raise ValueError("Invalid layout: " + layout)
 
-    net = layers.conv2d_transpose(data,
-                                  kernel_size=kshape,
-                                  strides=stride,
-                                  channels=oshape[0],
-                                  padding=(pad_y, pad_x),
-                                  output_padding=(adj_y, adj_x),
-                                  data_layout=layout,
-                                  kernel_layout=kernel_layout,
-                                  name=name)
+    net = layers.conv2d_transpose(
+        data,
+        kernel_size=kshape,
+        strides=stride,
+        channels=oshape[0],
+        padding=(pad_y, pad_x),
+        output_padding=(adj_y, adj_x),
+        data_layout=layout,
+        kernel_layout=kernel_layout,
+        name=name,
+    )
     return net
+
 
 def deconv2d_bn_relu(data, prefix, **kwargs):
     """a block of deconv + batch norm + relu"""
     eps = 1e-5 + 1e-12
     net = deconv2d(data, name="%s_deconv" % prefix, **kwargs)
-    bn_axis = kwargs.get('layout', "NCHW").index('C')
-    net = layers.batch_norm_infer(net, epsilon=eps, scale=False, axis=bn_axis,
-                                  name="%s_batch_norm" % prefix)
+    bn_axis = kwargs.get("layout", "NCHW").index("C")
+    net = layers.batch_norm_infer(
+        net, epsilon=eps, scale=False, axis=bn_axis, name="%s_batch_norm" % prefix
+    )
     net = relay.nn.relu(net)
     return net
 
-def get_net(batch_size, random_len=100, oshape=(3, 64, 64), ngf=128, code=None,
-            layout='NCHW', dtype="float32"):
+
+def get_net(
+    batch_size,
+    random_len=100,
+    oshape=(3, 64, 64),
+    ngf=128,
+    code=None,
+    layout="NCHW",
+    dtype="float32",
+):
     """get net of dcgan generator"""
     assert oshape[-1] == 64, "Only support 64x64 image"
     assert oshape[-2] == 64, "Only support 64x64 image"
 
     code = relay.var("data", dtype=dtype, shape=(batch_size, random_len)) if code is None else code
     dense_weight = relay.var("dense_weight")
-    dense = relay.nn.dense(code, weight=dense_weight, units=4*4*ngf*8)
+    dense = relay.nn.dense(code, weight=dense_weight, units=4 * 4 * ngf * 8)
     relu = relay.nn.relu(dense)
     # 4 x 4
     if layout == "NCHW":
@@ -85,25 +98,50 @@ def get_net(batch_size, random_len=100, oshape=(3, 64, 64), ngf=128, code=None,
     else:
         raise ValueError("Invalid layout: " + layout)
     # 8 x 8
-    dc8 = deconv2d_bn_relu(reshape, ishape=(ngf * 8, 4, 4), oshape=(ngf * 4, 8, 8), kshape=(4, 4),
-                           layout=layout, prefix="g2")
+    dc8 = deconv2d_bn_relu(
+        reshape,
+        ishape=(ngf * 8, 4, 4),
+        oshape=(ngf * 4, 8, 8),
+        kshape=(4, 4),
+        layout=layout,
+        prefix="g2",
+    )
     # 16x16
-    dc16 = deconv2d_bn_relu(dc8, ishape=(ngf * 4, 8, 8), oshape=(ngf * 2, 16, 16), kshape=(4, 4),
-                            layout=layout, prefix="g3")
+    dc16 = deconv2d_bn_relu(
+        dc8,
+        ishape=(ngf * 4, 8, 8),
+        oshape=(ngf * 2, 16, 16),
+        kshape=(4, 4),
+        layout=layout,
+        prefix="g3",
+    )
     # 32x32
-    dc32 = deconv2d_bn_relu(dc16, ishape=(ngf * 2, 16, 16), oshape=(ngf, 32, 32), kshape=(4, 4),
-                            layout=layout, prefix="g4")
+    dc32 = deconv2d_bn_relu(
+        dc16,
+        ishape=(ngf * 2, 16, 16),
+        oshape=(ngf, 32, 32),
+        kshape=(4, 4),
+        layout=layout,
+        prefix="g4",
+    )
     # 64x64
-    dc64 = deconv2d(dc32, ishape=(ngf, 32, 32), oshape=oshape[-3:], kshape=(4, 4),
-                    layout=layout, name="g5_deconv")
+    dc64 = deconv2d(
+        dc32,
+        ishape=(ngf, 32, 32),
+        oshape=oshape[-3:],
+        kshape=(4, 4),
+        layout=layout,
+        name="g5_deconv",
+    )
     tanh = relay.tanh(dc64)
 
     args = relay.analysis.free_vars(tanh)
     return relay.Function(args, tanh)
 
 
-def get_workload(batch_size, oshape=(3, 64, 64), ngf=128, random_len=100,
-                 layout='NCHW', dtype="float32"):
+def get_workload(
+    batch_size, oshape=(3, 64, 64), ngf=128, random_len=100, layout="NCHW", dtype="float32"
+):
     """Get benchmark workload for a DCGAN generator
 
     Parameters

@@ -16,6 +16,7 @@
 # under the License.
 """Global configuration/variable scope for autotvm"""
 
+
 class AutotvmGlobalScope(object):
     current = None
 
@@ -26,5 +27,6 @@ class AutotvmGlobalScope(object):
         self.cuda_target_arch = None
         self.in_tuning = False
         self.silent = False
+
 
 GLOBAL_SCOPE = AutotvmGlobalScope()

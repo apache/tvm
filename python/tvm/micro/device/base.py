@@ -27,6 +27,7 @@ from tvm.micro import DEVICE_SECTIONS, LibType, get_micro_host_driven_dir, get_m
 
 _DEVICE_REGISTRY = {}
 
+
 def register_device(device_id, device_funcs):
     """Register a device and associated compilation/config functions
 
@@ -63,14 +64,14 @@ def get_device_funcs(device_id):
 
 
 def create_micro_lib_base(
-        out_obj_path,
-        in_src_path,
-        toolchain_prefix,
-        device_id,
-        lib_type,
-        options=None,
-        lib_src_paths=None,
-        ):
+    out_obj_path,
+    in_src_path,
+    toolchain_prefix,
+    device_id,
+    lib_type,
+    options=None,
+    lib_src_paths=None,
+):
     """Compiles code into a binary for the target micro device.
 
     Parameters
@@ -114,7 +115,7 @@ def create_micro_lib_base(
         "-nostdlib",
         "-fdata-sections",
         "-ffunction-sections",
-        ]
+    ]
     if options is not None:
         base_compile_cmd += options
 
@@ -174,6 +175,7 @@ def create_micro_lib_base(
 # TODO we shouldn't need an enum for this. too much bureaucracy.
 class MemConstraint(enum.Enum):
     """Represents a constraint on the device's memory layout"""
+
     ABSOLUTE_BYTES = 0
     WEIGHT = 1
 
@@ -197,12 +199,10 @@ def gen_mem_layout(base_addr, available_mem, word_size_bits, section_constraints
     """
     assert word_size_bits in (32, 64), "only 32- or 64-bit devices are supported now"
     word_size_bytes = word_size_bits // 8
-    byte_sum = sum(x[0]
-                   for x in section_constraints.values()
-                   if x[1] == MemConstraint.ABSOLUTE_BYTES)
-    weight_sum = sum(x[0]
-                     for x in section_constraints.values()
-                     if x[1] == MemConstraint.WEIGHT)
+    byte_sum = sum(
+        x[0] for x in section_constraints.values() if x[1] == MemConstraint.ABSOLUTE_BYTES
+    )
+    weight_sum = sum(x[0] for x in section_constraints.values() if x[1] == MemConstraint.WEIGHT)
     assert byte_sum <= available_mem
     available_weight_mem = available_mem - byte_sum
 
@@ -211,8 +211,9 @@ def gen_mem_layout(base_addr, available_mem, word_size_bits, section_constraints
     for section in DEVICE_SECTIONS:
         (val, cons_type) = section_constraints[section]
         if cons_type == MemConstraint.ABSOLUTE_BYTES:
-            assert val % word_size_bytes == 0, \
-                f"constraint {val} for {section} section is not word-aligned"
+            assert (
+                val % word_size_bytes == 0
+            ), f"constraint {val} for {section} section is not word-aligned"
             size = val
             res[section] = {
                 "start": curr_addr,

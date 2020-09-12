@@ -293,6 +293,7 @@ def schedule_conv3d_ncdhw(outs):
     """
     return _default_schedule(outs, False)
 
+
 def schedule_conv3d_ndhwc(outs):
     """Schedule for conv3d_ndhwc
 

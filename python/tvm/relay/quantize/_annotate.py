@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument,inconsistent-return-statements
+# pylint: disable=unused-argument,inconsistent-return-statements
 """Internal module for registering attribute for annotation."""
 import warnings
 from tvm import topi
@@ -51,8 +51,7 @@ def simulated_quantize_compute(attrs, inputs, out_type):
 
 
 _reg.register_injective_schedule("relay.op.annotation.simulated_quantize")
-_reg.register_pattern("relay.op.annotation.simulated_quantize",
-                      _reg.OpPattern.ELEMWISE)
+_reg.register_pattern("relay.op.annotation.simulated_quantize", _reg.OpPattern.ELEMWISE)
 _reg.register_injective_schedule("annotation.cast_hint")
 
 
@@ -68,9 +67,9 @@ class QAnnotateExpr(_expr.TempExpr):
     kind: QAnnotateKind
         the kind of annotation field.
     """
+
     def __init__(self, expr, kind):
-        self.__init_handle_by_constructor__(
-            _quantize.make_annotate_expr, expr, kind)
+        self.__init_handle_by_constructor__(_quantize.make_annotate_expr, expr, kind)
 
 
 def _get_expr_kind(anno):
@@ -94,6 +93,7 @@ def register_annotate_function(op_name, frewrite=None, level=10):
     level : int, optional
         The priority level
     """
+
     def default_rewrite(ref_call, new_args, ctx):
         # recover from QAnnotateExpr
         args = [_get_expr_kind(x)[0] for x in new_args]
@@ -101,6 +101,7 @@ def register_annotate_function(op_name, frewrite=None, level=10):
 
     def _register(func):
         """internal register function"""
+
         def frewrite_with_guard(ref_call, new_args, ctx):
             if not current_qconfig().guard(ref_call):
                 return default_rewrite(ref_call, new_args, ctx)
@@ -135,20 +136,21 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     dom_scale = _expr.var("dom_scale")
     clip_min = _expr.var("clip_min")
     clip_max = _expr.var("clip_max")
-    qnode = _quantize.simulated_quantize(
-        data, dom_scale, clip_min, clip_max, kind, sign, rounding)
+    qnode = _quantize.simulated_quantize(data, dom_scale, clip_min, clip_max, kind, sign, rounding)
     qctx.qnode_map[key] = qnode
     return qnode
 
-tvm._ffi.register_func(
-    "relay.quantize.attach_simulated_quantize", attach_simulated_quantize)
+
+tvm._ffi.register_func("relay.quantize.attach_simulated_quantize", attach_simulated_quantize)
 
 
 @register_annotate_function("nn.contrib_conv2d_NCHWc")
 def conv2d_nchwc_rewrite(ref_call, new_args, ctx):
-    warnings.warn("NCHWc layout Conv2D detected, please use a lower "
-                  "optimization level before applying the quantization "
-                  "pass as quantization will have no effect here...")
+    warnings.warn(
+        "NCHWc layout Conv2D detected, please use a lower "
+        "optimization level before applying the quantization "
+        "pass as quantization will have no effect here..."
+    )
 
 
 @register_annotate_function("nn.conv2d")
@@ -261,8 +263,9 @@ def add_rewrite(ref_call, new_args, ctx):
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
             return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
-        if (lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.INPUT) or \
-            (lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.ACTIVATION):
+        if (lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.INPUT) or (
+            lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.ACTIVATION
+        ):
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
             return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
     raise ValueError()

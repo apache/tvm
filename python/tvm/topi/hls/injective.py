@@ -19,6 +19,7 @@
 import tvm
 from tvm import te
 
+
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
 
@@ -38,6 +39,7 @@ def schedule_injective_from_existing(sch, out):
     px, x = sch[out].split(fused, nparts=1)
     sch[out].bind(px, te.thread_axis("pipeline"))
     return sch
+
 
 def schedule_injective(outs):
     """Schedule for injective op.
@@ -59,6 +61,7 @@ def schedule_injective(outs):
     for out in outs:
         schedule_injective_from_existing(s, out)
     return s
+
 
 schedule_elemwise = schedule_injective
 schedule_broadcast = schedule_injective

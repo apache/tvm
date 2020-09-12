@@ -32,8 +32,8 @@ def test_fc_int8_acc32():
     n = 1024
     k = 1024
 
-    X = te.placeholder((m, k), name='X', dtype="uint8")
-    W = te.placeholder((n, k), name='W', dtype="int8")
+    X = te.placeholder((m, k), name="X", dtype="uint8")
+    W = te.placeholder((n, k), name="W", dtype="int8")
 
     peak = 280
     print("Peak {} Gops/s".format(peak))
@@ -50,15 +50,21 @@ def test_fc_int8_acc32():
 
         ctx = tvm.context(target, 0)
         pc = dot_16x1x16_uint8_int8_int32_cascadelake()
-        ak = te.reduce_axis((0, k), name='k')
-        packedW = te.placeholder(
-            (n // 16, 16 * (k // 4), 4), name='packedW', dtype="int8")
+        ak = te.reduce_axis((0, k), name="k")
+        packedW = te.placeholder((n // 16, 16 * (k // 4), 4), name="packedW", dtype="int8")
 
-        t_fc = te.compute((m, n), lambda i, j: te.sum(X[i, ak].astype(
-            "int32") * packedW[j / 16, (ak / 4) * 16 + j % 16, ak % 4].astype("int32"), axis=ak), name="F")
+        t_fc = te.compute(
+            (m, n),
+            lambda i, j: te.sum(
+                X[i, ak].astype("int32")
+                * packedW[j / 16, (ak / 4) * 16 + j % 16, ak % 4].astype("int32"),
+                axis=ak,
+            ),
+            name="F",
+        )
         t_sch = te.create_schedule(t_fc.op)
         a_x, a_y = t_fc.op.axis
-        a_k, = t_fc.op.reduce_axis
+        (a_k,) = t_fc.op.reduce_axis
 
         a_yo, a_yi = t_sch[t_fc].split(a_y, factor=16)
         a_xo, a_xi = t_sch[t_fc].split(a_x, factor=32)
@@ -76,14 +82,14 @@ def test_fc_int8_acc32():
         a_ = np.random.uniform(1, 10, size=(m, k)).astype("uint8")
         b_ = np.random.uniform(1, 10, size=(n, k)).astype("int8")
 
-        packW = np.random.uniform(1, 10, size=(
-            n // 16, 16 * (k // 4), 4)).astype("int8")
+        packW = np.random.uniform(1, 10, size=(n // 16, 16 * (k // 4), 4)).astype("int8")
         # This occurs in pre_compute stage
         for r_idx in range(n // 16):
             for s_idx in range(16 * (k // 4)):
                 for t_idx in range(4):
-                    packW[r_idx][s_idx][t_idx] = b_[r_idx * 16 + s_idx %
-                                                    16][(s_idx // 16) * 4 + t_idx]
+                    packW[r_idx][s_idx][t_idx] = b_[r_idx * 16 + s_idx % 16][
+                        (s_idx // 16) * 4 + t_idx
+                    ]
 
         x = tvm.nd.array(a_, ctx)
         w = tvm.nd.array(packW, ctx)
@@ -93,8 +99,11 @@ def test_fc_int8_acc32():
         gops_per_sec = gops_per_mm / result.mean / 1e9
         # verify the correctness
         tvm.testing.assert_allclose(y.asnumpy(), np.dot(a_, b_.T), rtol=0)
-        print('Tensorization: running time: {:.3f} ms, {:.2f} Gops/s, effiency: {:.2f}'.format(
-            result.mean * 1000, gops_per_sec, gops_per_sec / peak))
+        print(
+            "Tensorization: running time: {:.3f} ms, {:.2f} Gops/s, effiency: {:.2f}".format(
+                result.mean * 1000, gops_per_sec, gops_per_sec / peak
+            )
+        )
         t_func.export_library("tensorize_acc32.o")
 
     verify()

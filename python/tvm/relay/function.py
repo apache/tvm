@@ -25,6 +25,7 @@ from tvm.ir import BaseFunc
 from .expr import Call
 from . import _ffi_api
 
+
 @tvm._ffi.register_object("relay.Function")
 class Function(BaseFunc):
     """A function declaration expression.
@@ -44,17 +45,14 @@ class Function(BaseFunc):
         The additional type parameters, this is only
         used in advanced usecase of template functions.
     """
-    def __init__(self,
-                 params,
-                 body,
-                 ret_type=None,
-                 type_params=None,
-                 attrs=None):
+
+    def __init__(self, params, body, ret_type=None, type_params=None, attrs=None):
         if type_params is None:
             type_params = convert([])
 
         self.__init_handle_by_constructor__(
-            _ffi_api.Function, params, body, ret_type, type_params, attrs)
+            _ffi_api.Function, params, body, ret_type, type_params, attrs
+        )
 
     def __call__(self, *args):
         """Invoke the global function.

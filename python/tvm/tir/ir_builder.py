@@ -25,6 +25,7 @@ from . import expr as _expr
 
 class WithScope(object):
     """Auxiliary scope  with"""
+
     def __init__(self, enter_value, exit_cb):
         self._enter_value = enter_value
         self._exit_cb = exit_cb
@@ -60,6 +61,7 @@ class BufferVar(ObjectGeneric):
     IRBuilder.buffer_ptr
     IRBuilder.allocate
     """
+
     def __init__(self, builder, buffer_var, content_type):
         self._builder = builder
         self._buffer_var = buffer_var
@@ -83,8 +85,8 @@ class BufferVar(ObjectGeneric):
         value = convert(value)
         if value.dtype != self._content_type:
             raise ValueError(
-                "data type does not match content type %s vs %s" % (
-                    value.dtype, self._content_type))
+                "data type does not match content type %s vs %s" % (value.dtype, self._content_type)
+            )
         t = DataType(self._content_type)
         if t.lanes > 1:
             base = index * t.lanes
@@ -108,6 +110,7 @@ class IRBuilder(object):
         # The result stmt.
         stmt = ib.get()
     """
+
     def __init__(self):
         self._seq_stack = [[]]
         self.nidx = 0
@@ -206,12 +209,13 @@ class IRBuilder(object):
             with ib.for_range(1, 10, name="i") as i:
                 x[i] = x[i - 1] + 1
         """
-        if name == 'i':
+        if name == "i":
             name = chr(ord(name) + self.nidx) if self.nidx < 3 else name + "_" + str(self.nidx - 3)
             self.nidx += 1
         self._seq_stack.append([])
         loop_var = _expr.Var(name, dtype=dtype)
         extent = end if begin == 0 else (end - begin)
+
         def _exit_cb():
             if for_type == "serial":
                 for_type_id = 0
@@ -223,8 +227,8 @@ class IRBuilder(object):
                 for_type_id = 3
             else:
                 raise ValueError("Unknown for_type")
-            self.emit(_stmt.For(
-                loop_var, begin, extent, for_type_id, 0, self._pop_seq()))
+            self.emit(_stmt.For(loop_var, begin, extent, for_type_id, 0, self._pop_seq()))
+
         return WithScope(loop_var, _exit_cb)
 
     def if_scope(self, cond):
@@ -251,8 +255,10 @@ class IRBuilder(object):
                 x[i] = x[i - 1] + 1
         """
         self._seq_stack.append([])
+
         def _exit_cb():
             self.emit(_stmt.IfThenElse(cond, self._pop_seq(), None))
+
         return WithScope(None, _exit_cb)
 
     def else_scope(self):
@@ -284,8 +290,10 @@ class IRBuilder(object):
             raise RuntimeError("else_scope can only follow an if_scope")
         self._seq_stack[-1].pop()
         self._seq_stack.append([])
+
         def _exit_cb():
             self.emit(_stmt.IfThenElse(prev.condition, prev.then_case, self._pop_seq()))
+
         return WithScope(None, _exit_cb)
 
     def new_scope(self):
@@ -299,8 +307,10 @@ class IRBuilder(object):
            The result new scope.
         """
         self._seq_stack.append([])
+
         def _exit_cb():
             self.emit(self._pop_seq())
+
         return WithScope(None, _exit_cb)
 
     def allocate(self, dtype, shape, name="buf", scope=None):
@@ -330,8 +340,7 @@ class IRBuilder(object):
             shape = [shape]
         if scope:
             self.scope_attr(buffer_var, "storage_scope", scope)
-        self.emit(lambda x: _stmt.Allocate(
-            buffer_var, dtype, shape, const(1, dtype="uint1"), x))
+        self.emit(lambda x: _stmt.Allocate(buffer_var, dtype, shape, const(1, dtype="uint1"), x))
         return BufferVar(self, buffer_var, dtype)
 
     def pointer(self, content_type, name="ptr"):

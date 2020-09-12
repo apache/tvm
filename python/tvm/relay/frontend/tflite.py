@@ -34,18 +34,22 @@ from .common import infer_shape as _infer_shape
 from .tflite_flexbuffer import FlexBufferDecoder
 
 
-__all__ = ['from_tflite']
+__all__ = ["from_tflite"]
+
 
 class TensorWrapper(object):
     """Tensor wrapper for TFLite Tensor"""
+
     def __init__(self, tensor_idx, tensor, buffer, qnn_params=None):
         self.tensor_idx = tensor_idx
         self.tensor = tensor
         self.buffer = buffer
         self.qnn_params = qnn_params
 
+
 class OperatorConverter(object):
     """Operator Converted for converting TFLite ops to Relay ops"""
+
     def __init__(self, model, subgraph, exp_tab):
 
         try:
@@ -64,107 +68,107 @@ class OperatorConverter(object):
 
         # Add more operators
         self.convert_map = {
-            'ABS': self.convert_abs,
-            'ADD': self.convert_add,
-            'ADD_N': self.convert_add_n,
-            'ARG_MAX': self.convert_arg_max,
-            'ARG_MIN': self.convert_arg_min,
-            'AVERAGE_POOL_2D': self.convert_average_pool2d,
-            'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
-            'CAST': self.convert_cast,
-            'CEIL': self.convert_ceil,
-            'CONCATENATION': self.convert_concatenation,
-            'CONV_2D': self.convert_conv2d,
-            'COS': self.convert_cos,
-            'DEPTH_TO_SPACE': self.convert_depth_to_space,
-            'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
-            'DEQUANTIZE': self.convert_dequantize,
-            'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
-            'DIV': self.convert_div,
-            'ELU': self.convert_elu,
-            'EQUAL': self.convert_equal,
-            'EXP': self.convert_exp,
-            'EXPAND_DIMS': self.convert_expand_dims,
-            'FILL': self.convert_fill,
-            'FLOOR_DIV': self.convert_floor_div,
-            'FLOOR_MOD': self.convert_floor_mod,
-            'FLOOR': self.convert_floor,
-            'FULLY_CONNECTED': self.convert_fully_connected,
-            'GATHER': self.convert_gather,
-            'GATHER_ND' : self.convert_gather_nd,
-            'GREATER_EQUAL': self.convert_greater_equal,
-            'GREATER': self.convert_greater,
-            'HARD_SWISH': self.convert_hard_swish,
-            'L2_NORMALIZATION': self.convert_l2_normalization,
-            'L2_POOL_2D': self.convert_l2_pool2d,
-            'LEAKY_RELU': self.convert_leaky_relu,
-            'LESS_EQUAL': self.convert_less_equal,
-            'LESS': self.convert_less,
-            'LOCAL_RESPONSE_NORMALIZATION': self.convert_lrn,
-            'LOG': self.convert_log,
-            'LOG_SOFTMAX': self.convert_log_softmax,
-            'LOGICAL_AND': self.convert_logical_and,
-            'LOGICAL_NOT': self.convert_logical_not,
-            'LOGICAL_OR': self.convert_logical_or,
-            'LOGISTIC': self.convert_logistic,
-            'MATRIX_DIAG': self.convert_matrix_diag,
-            'MATRIX_SET_DIAG': self.convert_matrix_set_diag,
-            'MAX_POOL_2D': self.convert_max_pool2d,
-            'MAXIMUM': self.convert_maximum,
-            'MEAN': self.convert_reduce_mean,
-            'MINIMUM': self.convert_minimum,
-            'MIRROR_PAD': self.convert_mirror_pad,
-            'MUL': self.convert_mul,
-            'NEG': self.convert_neg,
-            'NOT_EQUAL': self.convert_not_equal,
-            'ONE_HOT': self.convert_one_hot,
-            'PACK': self.convert_pack,
-            'PAD': self.convert_pad,
-            'PADV2': self.convert_pad,
-            'POW': self.convert_pow,
-            'PRELU': self.convert_prelu,
-            'RANGE': self.convert_range,
-            'QUANTIZE': self.convert_quantize,
-            'REDUCE_ANY': self.convert_reduce_any,
-            'REDUCE_MAX': self.convert_reduce_max,
-            'REDUCE_MIN': self.convert_reduce_min,
-            'REDUCE_PROD': self.convert_reduce_prod,
-            'RELU':self.convert_relu,
-            'RELU6': self.convert_relu6,
-            'RELU_N1_TO_1': self.convert_relu_n1_to_1,
-            'RESHAPE': self.convert_reshape,
-            'RESIZE_BILINEAR': self.convert_resize_bilinear,
-            'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
-            'ROUND': self.convert_round,
-            'RSQRT': self.convert_rsqrt,
-            'REVERSE_SEQUENCE': self.convert_reverse_sequence,
-            'REVERSE_V2': self.convert_reverse_v2,
-            'SELECT': self.convert_select,
-            'SHAPE': self.convert_shape,
-            'SIN': self.convert_sin,
-            'SLICE': self.convert_slice,
-            'SOFTMAX': self.convert_softmax,
-            'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
-            'SPACE_TO_DEPTH': self.convert_space_to_depth,
-            'SPARSE_TO_DENSE': self.convert_sparse_to_dense,
-            'SPLIT': self.convert_split,
-            'SPLIT_V': self.convert_split_v,
-            'SQRT': self.convert_sqrt,
-            'SQUARE': self.convert_square,
-            'SQUARED_DIFFERENCE': self.convert_squared_difference,
-            'SQUEEZE': self.convert_squeeze,
-            'STRIDED_SLICE': self.convert_strided_slice,
-            'SUB': self.convert_sub,
-            'SUM': self.convert_reduce_sum,
-            'TAN': self.convert_tan,
-            'TANH':self.convert_tanh,
-            'TILE': self.convert_tile,
-            'TOPK_V2': self.convert_topk_v2,
-            'TRANSPOSE_CONV': self.convert_transpose_conv,
-            'TRANSPOSE': self.convert_transpose,
-            'UNPACK': self.convert_unpack,
-            'WHERE': self.convert_select,
-            'ZEROS_LIKE': self.convert_zeros_like,
+            "ABS": self.convert_abs,
+            "ADD": self.convert_add,
+            "ADD_N": self.convert_add_n,
+            "ARG_MAX": self.convert_arg_max,
+            "ARG_MIN": self.convert_arg_min,
+            "AVERAGE_POOL_2D": self.convert_average_pool2d,
+            "BATCH_TO_SPACE_ND": self.convert_batch_to_space_nd,
+            "CAST": self.convert_cast,
+            "CEIL": self.convert_ceil,
+            "CONCATENATION": self.convert_concatenation,
+            "CONV_2D": self.convert_conv2d,
+            "COS": self.convert_cos,
+            "DEPTH_TO_SPACE": self.convert_depth_to_space,
+            "DEPTHWISE_CONV_2D": self.convert_depthwise_conv2d,
+            "DEQUANTIZE": self.convert_dequantize,
+            "DETECTION_POSTPROCESS": self.convert_detection_postprocess,
+            "DIV": self.convert_div,
+            "ELU": self.convert_elu,
+            "EQUAL": self.convert_equal,
+            "EXP": self.convert_exp,
+            "EXPAND_DIMS": self.convert_expand_dims,
+            "FILL": self.convert_fill,
+            "FLOOR_DIV": self.convert_floor_div,
+            "FLOOR_MOD": self.convert_floor_mod,
+            "FLOOR": self.convert_floor,
+            "FULLY_CONNECTED": self.convert_fully_connected,
+            "GATHER": self.convert_gather,
+            "GATHER_ND": self.convert_gather_nd,
+            "GREATER_EQUAL": self.convert_greater_equal,
+            "GREATER": self.convert_greater,
+            "HARD_SWISH": self.convert_hard_swish,
+            "L2_NORMALIZATION": self.convert_l2_normalization,
+            "L2_POOL_2D": self.convert_l2_pool2d,
+            "LEAKY_RELU": self.convert_leaky_relu,
+            "LESS_EQUAL": self.convert_less_equal,
+            "LESS": self.convert_less,
+            "LOCAL_RESPONSE_NORMALIZATION": self.convert_lrn,
+            "LOG": self.convert_log,
+            "LOG_SOFTMAX": self.convert_log_softmax,
+            "LOGICAL_AND": self.convert_logical_and,
+            "LOGICAL_NOT": self.convert_logical_not,
+            "LOGICAL_OR": self.convert_logical_or,
+            "LOGISTIC": self.convert_logistic,
+            "MATRIX_DIAG": self.convert_matrix_diag,
+            "MATRIX_SET_DIAG": self.convert_matrix_set_diag,
+            "MAX_POOL_2D": self.convert_max_pool2d,
+            "MAXIMUM": self.convert_maximum,
+            "MEAN": self.convert_reduce_mean,
+            "MINIMUM": self.convert_minimum,
+            "MIRROR_PAD": self.convert_mirror_pad,
+            "MUL": self.convert_mul,
+            "NEG": self.convert_neg,
+            "NOT_EQUAL": self.convert_not_equal,
+            "ONE_HOT": self.convert_one_hot,
+            "PACK": self.convert_pack,
+            "PAD": self.convert_pad,
+            "PADV2": self.convert_pad,
+            "POW": self.convert_pow,
+            "PRELU": self.convert_prelu,
+            "RANGE": self.convert_range,
+            "QUANTIZE": self.convert_quantize,
+            "REDUCE_ANY": self.convert_reduce_any,
+            "REDUCE_MAX": self.convert_reduce_max,
+            "REDUCE_MIN": self.convert_reduce_min,
+            "REDUCE_PROD": self.convert_reduce_prod,
+            "RELU": self.convert_relu,
+            "RELU6": self.convert_relu6,
+            "RELU_N1_TO_1": self.convert_relu_n1_to_1,
+            "RESHAPE": self.convert_reshape,
+            "RESIZE_BILINEAR": self.convert_resize_bilinear,
+            "RESIZE_NEAREST_NEIGHBOR": self.convert_resize_nearest_neighbor,
+            "ROUND": self.convert_round,
+            "RSQRT": self.convert_rsqrt,
+            "REVERSE_SEQUENCE": self.convert_reverse_sequence,
+            "REVERSE_V2": self.convert_reverse_v2,
+            "SELECT": self.convert_select,
+            "SHAPE": self.convert_shape,
+            "SIN": self.convert_sin,
+            "SLICE": self.convert_slice,
+            "SOFTMAX": self.convert_softmax,
+            "SPACE_TO_BATCH_ND": self.convert_space_to_batch_nd,
+            "SPACE_TO_DEPTH": self.convert_space_to_depth,
+            "SPARSE_TO_DENSE": self.convert_sparse_to_dense,
+            "SPLIT": self.convert_split,
+            "SPLIT_V": self.convert_split_v,
+            "SQRT": self.convert_sqrt,
+            "SQUARE": self.convert_square,
+            "SQUARED_DIFFERENCE": self.convert_squared_difference,
+            "SQUEEZE": self.convert_squeeze,
+            "STRIDED_SLICE": self.convert_strided_slice,
+            "SUB": self.convert_sub,
+            "SUM": self.convert_reduce_sum,
+            "TAN": self.convert_tan,
+            "TANH": self.convert_tanh,
+            "TILE": self.convert_tile,
+            "TOPK_V2": self.convert_topk_v2,
+            "TRANSPOSE_CONV": self.convert_transpose_conv,
+            "TRANSPOSE": self.convert_transpose,
+            "UNPACK": self.convert_unpack,
+            "WHERE": self.convert_select,
+            "ZEROS_LIKE": self.convert_zeros_like,
         }
 
     def check_unsupported_ops(self):
@@ -178,9 +182,8 @@ class OperatorConverter(object):
                 unsupported_ops_set.add(op_code_str)
 
         if unsupported_ops_set:
-            msg = 'The following operators are not supported in frontend ' \
-                  'TFLite: {}'
-            ops = str(list(unsupported_ops_set)).strip('[,]')
+            msg = "The following operators are not supported in frontend " "TFLite: {}"
+            ops = str(list(unsupported_ops_set)).strip("[,]")
             raise tvm.error.OpNotImplemented(msg.format(ops))
 
     def convert_op_to_relay(self):
@@ -202,8 +205,9 @@ class OperatorConverter(object):
                 self.exp_tab.set_expr(get_tensor_name(self.subgraph, tensor_idx), ret)
             else:
                 for idx, output_tensor in enumerate(output_tensors):
-                    self.exp_tab.set_expr(get_tensor_name(self.subgraph, output_tensor.tensor_idx),
-                                          ret[idx])
+                    self.exp_tab.set_expr(
+                        get_tensor_name(self.subgraph, output_tensor.tensor_idx), ret[idx]
+                    )
 
     def get_op_code_str(self, op):
         """Get TFLite ops string representation"""
@@ -217,12 +221,15 @@ class OperatorConverter(object):
         try:
             op_code_str = self.builtin_op_code[op_code_id]
         except KeyError:
-            raise NotImplementedError('TFLite operator with code ' + str(op_code_id) + \
-                                      ' is not supported by this version of the fbs schema.')
+            raise NotImplementedError(
+                "TFLite operator with code "
+                + str(op_code_id)
+                + " is not supported by this version of the fbs schema."
+            )
         if op_code_id == BuiltinOperator.CUSTOM:
             # Custom operator
             custom_op_code_str = self.model.OperatorCodes(op_code_list_idx).CustomCode()
-            if custom_op_code_str == b'TFLite_Detection_PostProcess':
+            if custom_op_code_str == b"TFLite_Detection_PostProcess":
                 return "DETECTION_POSTPROCESS"
 
             raise NotImplementedError("Custom operators are currently not supported")
@@ -274,9 +281,10 @@ class OperatorConverter(object):
                         # Ensure that all zero points are zeros
                         zero_point = tflite_zero_point
                         if not np.all(zero_point == 0):
-                            raise tvm.error.OpAttributeInvalid(\
-                                    "TFLite per-axis quantization restricts all zero points to be"
-                                    + " 0, but a non-zero value is observed")
+                            raise tvm.error.OpAttributeInvalid(
+                                "TFLite per-axis quantization restricts all zero points to be"
+                                + " 0, but a non-zero value is observed"
+                            )
                         zero_point = int(zero_point[0])
 
                     # Scalar - Per-tensor quantization
@@ -285,25 +293,27 @@ class OperatorConverter(object):
                         zero_point = int(tflite_zero_point[0])
 
                     else:
-                        raise NotImplementedError(\
-                                "Quantized type {} (scale) and  {} (zero point) not supported"
-                                .format(type(tflite_scale), type(tflite_zero_point)))
+                        raise NotImplementedError(
+                            "Quantized type {} (scale) and  {} (zero point) not supported".format(
+                                type(tflite_scale), type(tflite_zero_point)
+                            )
+                        )
                 elif tflite_scale == 0 and tflite_zero_point == 0:
                     # Handle corner case for ops like quantized reshape whose second operand (shape)
                     # has zero scale and zero zero point. This is not used.
                     is_qnn_params_valid = False
                 else:
-                    raise NotImplementedError("Quantized type {} not supported"
-                                              .format(type(tflite_scale)))
+                    raise NotImplementedError(
+                        "Quantized type {} not supported".format(type(tflite_scale))
+                    )
 
                 # Check that the scale and zero points are valid.
                 if is_qnn_params_valid:
                     qnn_params = dict()
-                    qnn_params['scale'] = relay.const(scale, 'float32')
-                    qnn_params['zero_point'] = relay.const(zero_point, 'int32')
+                    qnn_params["scale"] = relay.const(scale, "float32")
+                    qnn_params["zero_point"] = relay.const(zero_point, "int32")
             return_list.append(TensorWrapper(tensor_idx, tensor, buffer, qnn_params))
         return return_list
-
 
     def get_tensor_type_as_numpy(self, tensor_wrapper):
         """Returns np.dtype out of TensorType"""
@@ -311,18 +321,21 @@ class OperatorConverter(object):
 
         try:
             from tflite.TensorType import TensorType
-            return {TensorType.UINT8: np.uint8,
-                    TensorType.INT8: np.int8,
-                    TensorType.FLOAT32: np.float32,
-                    TensorType.INT32: np.int32,
-                    TensorType.INT64: np.int64,
-                    TensorType.BOOL: np.bool_}[tensor_wrapper.tensor.Type()]
+
+            return {
+                TensorType.UINT8: np.uint8,
+                TensorType.INT8: np.int8,
+                TensorType.FLOAT32: np.float32,
+                TensorType.INT32: np.int32,
+                TensorType.INT64: np.int64,
+                TensorType.BOOL: np.bool_,
+            }[tensor_wrapper.tensor.Type()]
         except ImportError:
             raise ImportError("The tflite package must be installed")
         except KeyError:
-            raise NotImplementedError("Tensor type '{}' currently not supported"
-                                      .format(tensor_wrapper.tensor.Type()))
-
+            raise NotImplementedError(
+                "Tensor type '{}' currently not supported".format(tensor_wrapper.tensor.Type())
+            )
 
     def get_tensor_value(self, tensor_wrapper):
         """Get tensor buffer value from given tensor wrapper"""
@@ -337,7 +350,6 @@ class OperatorConverter(object):
             shape = []
 
         return np.frombuffer(data, dtype=dtype).reshape(shape)
-
 
     def get_tensor_type_str(self, tensor_type):
         """Get tensor type string representation when given TFLite tensor type"""
@@ -358,24 +370,21 @@ class OperatorConverter(object):
             return "int64"
         if tensor_type == TensorType.BOOL:
             return "bool"
-        raise NotImplementedError("Tensor type {} is currently not supported"
-                                  .format(str(tensor_type)))
+        raise NotImplementedError(
+            "Tensor type {} is currently not supported".format(str(tensor_type))
+        )
 
     def has_same_qnn_params(self, lhs_tensor, rhs_tensor):
-        lhs_scale = lhs_tensor.qnn_params['scale']
-        rhs_scale = rhs_tensor.qnn_params['scale']
-        lhs_zero_point = lhs_tensor.qnn_params['zero_point']
-        rhs_zero_point = rhs_tensor.qnn_params['zero_point']
+        lhs_scale = lhs_tensor.qnn_params["scale"]
+        rhs_scale = rhs_tensor.qnn_params["scale"]
+        lhs_zero_point = lhs_tensor.qnn_params["zero_point"]
+        rhs_zero_point = rhs_tensor.qnn_params["zero_point"]
         # 0.1 + 0.2 != 0.3
-        return np.allclose(lhs_scale.data.asnumpy(),
-                           rhs_scale.data.asnumpy(),
-                           rtol=1e-5,
-                           atol=1e-5) \
-               and \
-               np.allclose(lhs_zero_point.data.asnumpy(),
-                           rhs_zero_point.data.asnumpy(),
-                           rtol=1e-5,
-                           atol=1e-5)
+        return np.allclose(
+            lhs_scale.data.asnumpy(), rhs_scale.data.asnumpy(), rtol=1e-5, atol=1e-5
+        ) and np.allclose(
+            lhs_zero_point.data.asnumpy(), rhs_zero_point.data.asnumpy(), rtol=1e-5, atol=1e-5
+        )
 
     def is_quantized(self, op):
         """Check if an input tensor is quantized."""
@@ -387,24 +396,28 @@ class OperatorConverter(object):
         """ Helper function to quantize a tensor with Relay """
         tensor_type = tensor_to_quantize.tensor.Type()
         tensor_type_str = self.get_tensor_type_str(tensor_type)
-        quantized = _qnn.op.quantize(data=expr,
-                                     output_scale=tensor_to_quantize.qnn_params['scale'],
-                                     output_zero_point=tensor_to_quantize.qnn_params['zero_point'],
-                                     out_dtype=tensor_type_str)
+        quantized = _qnn.op.quantize(
+            data=expr,
+            output_scale=tensor_to_quantize.qnn_params["scale"],
+            output_zero_point=tensor_to_quantize.qnn_params["zero_point"],
+            out_dtype=tensor_type_str,
+        )
         return quantized
 
     def dequantize(self, expr, tensor):
         """ Helper function to dequantize a tensor with Relay """
-        dequantized = _qnn.op.dequantize(data=expr,
-                                         input_scale=tensor.qnn_params['scale'],
-                                         input_zero_point=tensor.qnn_params['zero_point'])
+        dequantized = _qnn.op.dequantize(
+            data=expr,
+            input_scale=tensor.qnn_params["scale"],
+            input_zero_point=tensor.qnn_params["zero_point"],
+        )
         return dequantized
 
-
-    def convert_qnn_fused_activation_function(self, expr, fused_activation_fn,
-                                              scale, zero_point, dtype):
+    def convert_qnn_fused_activation_function(
+        self, expr, fused_activation_fn, scale, zero_point, dtype
+    ):
         """Convert TFLite fused activation function. The expr is an input quantized tensor with
-        scale and zero point """
+        scale and zero point"""
         try:
             from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
@@ -423,21 +436,16 @@ class OperatorConverter(object):
         if fused_activation_fn == ActivationFunctionType.NONE:
             return expr
         if fused_activation_fn == ActivationFunctionType.RELU6:
-            return _op.clip(expr,
-                            a_min=max(qmin, quantize(0)),
-                            a_max=min(qmax, quantize(6.0)))
+            return _op.clip(expr, a_min=max(qmin, quantize(0)), a_max=min(qmax, quantize(6.0)))
         if fused_activation_fn == ActivationFunctionType.RELU_N1_TO_1:
-            return _op.clip(expr,
-                            a_min=max(qmin, quantize(-1.0)),
-                            a_max=min(qmax, quantize(1.0)))
+            return _op.clip(expr, a_min=max(qmin, quantize(-1.0)), a_max=min(qmax, quantize(1.0)))
         if fused_activation_fn == ActivationFunctionType.RELU:
-            return _op.clip(expr,
-                            a_min=max(qmin, quantize(0.0)),
-                            a_max=qmax)
+            return _op.clip(expr, a_min=max(qmin, quantize(0.0)), a_max=qmax)
 
         fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
         raise tvm.error.OpNotImplemented(
-            'Quantized activation {} is not supported yet.'.format(fused_activation_fn_str))
+            "Quantized activation {} is not supported yet.".format(fused_activation_fn_str)
+        )
 
     def convert_conv2d(self, op):
         """Convert TFLite conv2d"""
@@ -484,6 +492,7 @@ class OperatorConverter(object):
                 target_shape = self.get_tensor_value(shape_tensor)
                 # convert to flattened list
                 from itertools import chain
+
                 try:
                     target_shape = list(chain(*target_shape))
                 except TypeError:
@@ -501,8 +510,9 @@ class OperatorConverter(object):
         # If the tensors are quantized, ensure that input/output qnn params are same.
         if input_tensor.qnn_params:
             output_tensor = output_tensors[0]
-            assert self.has_same_qnn_params(input_tensor, output_tensor), \
-                    "TFLite reshape requires input and output scale and zero points to be equal"
+            assert self.has_same_qnn_params(
+                input_tensor, output_tensor
+            ), "TFLite reshape requires input and output scale and zero points to be equal"
 
         out = _op.reshape(in_expr, newshape=target_shape)
         return out
@@ -512,10 +522,12 @@ class OperatorConverter(object):
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ResizeBilinearOptions import ResizeBilinearOptions
+
             # ResizeNearestNeighborOptions was added in tflite v1.13
             tflite_ver = 1120
-            if 'ResizeNearestNeighborOptions' in dir(BuiltinOptions):
+            if "ResizeNearestNeighborOptions" in dir(BuiltinOptions):
                 from tflite.ResizeNearestNeighborOptions import ResizeNearestNeighborOptions
+
                 tflite_ver = 1130
         except ImportError:
             raise ImportError("The tflite package must be installed")
@@ -547,8 +559,9 @@ class OperatorConverter(object):
 
         # Use layout NHWC
         coord_trans = "align_corners" if align_corners else "asymmetric"
-        out = _op.image.resize(in_expr, target_size, "NHWC", method,
-                               coordinate_transformation_mode=coord_trans)
+        out = _op.image.resize(
+            in_expr, target_size, "NHWC", method, coordinate_transformation_mode=coord_trans
+        )
         return out
 
     def convert_resize_bilinear(self, op):
@@ -587,7 +600,8 @@ class OperatorConverter(object):
 
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFLite quantized L2_NORMALIZATION operator is not supported yet.')
+                "TFLite quantized L2_NORMALIZATION operator is not supported yet."
+            )
 
         # TFL uses only the default epsilon value
         out = _op.nn.l2_normalize(in_expr, eps=1e-12, axis=[input_tensor_rank - 1])
@@ -595,7 +609,8 @@ class OperatorConverter(object):
         # if we have fused activation fn
         if output_tensor.qnn_params:
             raise tvm.error.OpNotImplemented(
-                'TFLite quantized L2_NORMALIZATION operator is not supported yet.')
+                "TFLite quantized L2_NORMALIZATION operator is not supported yet."
+            )
         out = self.convert_fused_activation_function(out, fused_activation_fn)
 
         return out
@@ -609,8 +624,7 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
 
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized LRN operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized LRN operator is not supported yet.")
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -630,7 +644,7 @@ class OperatorConverter(object):
         beta = lrn_options.Beta()
         size = (radius * 2) + 1
         alpha = alpha * size
-        axis = 3 # NHWC format
+        axis = 3  # NHWC format
         out = _op.nn.lrn(in_expr, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
 
         return out
@@ -667,7 +681,7 @@ class OperatorConverter(object):
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
 
-        params = {'axis': 1}  # 1 is channel
+        params = {"axis": 1}  # 1 is channel
         in_expr = self.get_expr(input_tensor_idx)
 
         # TODO - Naive softmax int8 implementation leads to bad accuracy. Currently, we can
@@ -746,27 +760,30 @@ class OperatorConverter(object):
 
         if input_tensor.qnn_params:
             # Quantize a float value to an quantized integer value
-            scale_val = get_scalar_from_constant(input_tensor.qnn_params['scale'])
-            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
+            scale_val = get_scalar_from_constant(input_tensor.qnn_params["scale"])
+            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params["zero_point"])
 
             output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = self.convert_qnn_fused_activation_function(\
-                    expr=in_expr,
-                    fused_activation_fn=ActivationFunctionType.RELU,
-                    scale=scale_val,
-                    zero_point=zero_point_val,
-                    dtype=output_tensor_type_str)
+            out = self.convert_qnn_fused_activation_function(
+                expr=in_expr,
+                fused_activation_fn=ActivationFunctionType.RELU,
+                scale=scale_val,
+                zero_point=zero_point_val,
+                dtype=output_tensor_type_str,
+            )
         else:
             out = _op.nn.relu(in_expr)
 
         if output_tensor.qnn_params:
             output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = _qnn.op.requantize(out,
-                                     input_scale=input_tensor.qnn_params['scale'],
-                                     input_zero_point=input_tensor.qnn_params['zero_point'],
-                                     output_scale=output_tensor.qnn_params['scale'],
-                                     output_zero_point=output_tensor.qnn_params['zero_point'],
-                                     out_dtype=output_tensor_type_str)
+            out = _qnn.op.requantize(
+                out,
+                input_scale=input_tensor.qnn_params["scale"],
+                input_zero_point=input_tensor.qnn_params["zero_point"],
+                output_scale=output_tensor.qnn_params["scale"],
+                output_zero_point=output_tensor.qnn_params["zero_point"],
+                out_dtype=output_tensor_type_str,
+            )
 
         return out
 
@@ -818,27 +835,30 @@ class OperatorConverter(object):
 
         if input_tensor.qnn_params:
             # Quantize a float value to an quantized integer value
-            scale_val = get_scalar_from_constant(input_tensor.qnn_params['scale'])
-            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
+            scale_val = get_scalar_from_constant(input_tensor.qnn_params["scale"])
+            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params["zero_point"])
 
             output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = self.convert_qnn_fused_activation_function(\
-                    expr=in_expr,
-                    fused_activation_fn=ActivationFunctionType.RELU6,
-                    scale=scale_val,
-                    zero_point=zero_point_val,
-                    dtype=output_tensor_type_str)
+            out = self.convert_qnn_fused_activation_function(
+                expr=in_expr,
+                fused_activation_fn=ActivationFunctionType.RELU6,
+                scale=scale_val,
+                zero_point=zero_point_val,
+                dtype=output_tensor_type_str,
+            )
         else:
             out = _op.clip(in_expr, a_min=0, a_max=6)
 
         if output_tensor.qnn_params:
             output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = _qnn.op.requantize(out,
-                                     input_scale=input_tensor.qnn_params['scale'],
-                                     input_zero_point=input_tensor.qnn_params['zero_point'],
-                                     output_scale=output_tensor.qnn_params['scale'],
-                                     output_zero_point=output_tensor.qnn_params['zero_point'],
-                                     out_dtype=output_tensor_type_str)
+            out = _qnn.op.requantize(
+                out,
+                input_scale=input_tensor.qnn_params["scale"],
+                input_zero_point=input_tensor.qnn_params["zero_point"],
+                output_scale=output_tensor.qnn_params["scale"],
+                output_zero_point=output_tensor.qnn_params["zero_point"],
+                out_dtype=output_tensor_type_str,
+            )
 
         return out
 
@@ -886,8 +906,8 @@ class OperatorConverter(object):
 
         if input_tensor.qnn_params:
             # Quantize a float value to an quantized integer value
-            scale_val = get_scalar_from_constant(input_tensor.qnn_params['scale'])
-            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
+            scale_val = get_scalar_from_constant(input_tensor.qnn_params["scale"])
+            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params["zero_point"])
             quantize = lambda x: float(int(round(x / scale_val)) + zero_point_val)
 
             # Get min/max of the input dtype. This will be used to ensure that
@@ -896,20 +916,20 @@ class OperatorConverter(object):
             qmin = float(tvm.tir.op.min_value(input_tensor_type_str).value)
             qmax = float(tvm.tir.op.max_value(input_tensor_type_str).value)
 
-            out = _op.clip(in_expr,
-                           a_min=max(qmin, quantize(-1.0)),
-                           a_max=min(qmax, quantize(1.0)))
+            out = _op.clip(in_expr, a_min=max(qmin, quantize(-1.0)), a_max=min(qmax, quantize(1.0)))
         else:
             out = _op.clip(in_expr, a_min=-1, a_max=1)
 
         if output_tensor.qnn_params:
             output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = _qnn.op.requantize(out,
-                                     input_scale=input_tensor.qnn_params['scale'],
-                                     input_zero_point=input_tensor.qnn_params['zero_point'],
-                                     output_scale=output_tensor.qnn_params['scale'],
-                                     output_zero_point=output_tensor.qnn_params['zero_point'],
-                                     out_dtype=output_tensor_type_str)
+            out = _qnn.op.requantize(
+                out,
+                input_scale=input_tensor.qnn_params["scale"],
+                input_zero_point=input_tensor.qnn_params["zero_point"],
+                output_scale=output_tensor.qnn_params["scale"],
+                output_zero_point=output_tensor.qnn_params["zero_point"],
+                out_dtype=output_tensor_type_str,
+            )
 
         return out
 
@@ -958,27 +978,31 @@ class OperatorConverter(object):
         if not input_tensors[0].qnn_params:
             out = _op.concatenate(in_exprs, axis=concatenation_axis)
         else:
-            input_scales = [input_tensor.qnn_params['scale'] for input_tensor in input_tensors]
-            input_zero_points = \
-                    [input_tensor.qnn_params['zero_point'] for input_tensor in input_tensors]
-            out = _qnn.op.concatenate(in_exprs,
-                                      input_scales=input_scales,
-                                      input_zero_points=input_zero_points,
-                                      output_scale=output_tensor.qnn_params['scale'],
-                                      output_zero_point=output_tensor.qnn_params['zero_point'],
-                                      axis=concatenation_axis)
+            input_scales = [input_tensor.qnn_params["scale"] for input_tensor in input_tensors]
+            input_zero_points = [
+                input_tensor.qnn_params["zero_point"] for input_tensor in input_tensors
+            ]
+            out = _qnn.op.concatenate(
+                in_exprs,
+                input_scales=input_scales,
+                input_zero_points=input_zero_points,
+                output_scale=output_tensor.qnn_params["scale"],
+                output_zero_point=output_tensor.qnn_params["zero_point"],
+                axis=concatenation_axis,
+            )
 
         # Handle fused activations
         if output_tensor.qnn_params:
-            scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
-            zero_point_val = get_scalar_from_constant(output_tensor.qnn_params['zero_point'])
+            scale_val = get_scalar_from_constant(output_tensor.qnn_params["scale"])
+            zero_point_val = get_scalar_from_constant(output_tensor.qnn_params["zero_point"])
             output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = self.convert_qnn_fused_activation_function(\
-                    expr=out,
-                    fused_activation_fn=fused_activation_fn,
-                    scale=scale_val,
-                    zero_point=zero_point_val,
-                    dtype=output_tensor_type_str)
+            out = self.convert_qnn_fused_activation_function(
+                expr=out,
+                fused_activation_fn=fused_activation_fn,
+                scale=scale_val,
+                zero_point=zero_point_val,
+                dtype=output_tensor_type_str,
+            )
         else:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
 
@@ -998,101 +1022,94 @@ class OperatorConverter(object):
     def convert_abs(self, op):
         """Convert TFLite ABS"""
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized ABS operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized ABS operator is not supported yet.")
         return self._convert_unary_elemwise(_op.abs, op)
 
     def convert_ceil(self, op):
         """Convert TFLite CEIL"""
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized CEIL operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized CEIL operator is not supported yet.")
         return self._convert_unary_elemwise(_op.ceil, op)
 
     def convert_floor(self, op):
         """Convert TFLite FLOOR"""
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized FLOOR operator is not supported yet.')
+                "TFlite quantized FLOOR operator is not supported yet."
+            )
         return self._convert_unary_elemwise(_op.floor, op)
 
     def convert_round(self, op):
         """Convert TFLite ROUND"""
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized ROUND operator is not supported yet.')
+                "TFlite quantized ROUND operator is not supported yet."
+            )
         return self._convert_unary_elemwise(_op.round, op)
 
     def convert_exp(self, op):
         """Convert TFLite EXP"""
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized EXP operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized EXP operator is not supported yet.")
         return self._convert_unary_elemwise(_op.exp, op)
 
     def convert_log(self, op):
         """Convert TFLite LOG"""
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized LOG operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized LOG operator is not supported yet.")
         return self._convert_unary_elemwise(_op.log, op)
 
     def convert_sin(self, op):
         """Convert TFLite SIN"""
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized SIN operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized SIN operator is not supported yet.")
         return self._convert_unary_elemwise(_op.sin, op)
 
     def convert_tan(self, op):
         """Convert TFLite TAN"""
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized TAN operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized TAN operator is not supported yet.")
         return self._convert_unary_elemwise(_op.tan, op)
 
     def convert_cos(self, op):
         """Convert TFLite COS"""
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized COS operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized COS operator is not supported yet.")
         return self._convert_unary_elemwise(_op.cos, op)
 
     def convert_sqrt(self, op):
         """Convert TFLite SQRT"""
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized SQRT operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized SQRT operator is not supported yet.")
         return self._convert_unary_elemwise(_op.sqrt, op)
 
     def convert_rsqrt(self, op):
         """Convert TFLite RSQRT"""
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized RSQRT operator is not supported yet.')
+                "TFlite quantized RSQRT operator is not supported yet."
+            )
         return self._convert_unary_elemwise(_op.rsqrt, op)
 
     def convert_neg(self, op):
         """Convert TFLite NEG"""
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized NEG operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized NEG operator is not supported yet.")
         return self._convert_unary_elemwise(_op.negative, op)
 
     def convert_elu(self, op):
         """Convert TFLite ELU"""
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized ELU operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized ELU operator is not supported yet.")
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
 
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
         exp_type = self.get_tensor_type_str(input_tensor.tensor.Type())
-        out = relay.const(-1.0, exp_type) * \
-              _op.nn.relu(relay.const(1., exp_type) - _op.exp(in_expr)) + \
-              _op.nn.relu(in_expr)
+        out = relay.const(-1.0, exp_type) * _op.nn.relu(
+            relay.const(1.0, exp_type) - _op.exp(in_expr)
+        ) + _op.nn.relu(in_expr)
 
         return out
 
@@ -1109,7 +1126,8 @@ class OperatorConverter(object):
 
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized SQUARE operator is not supported yet.')
+                "TFlite quantized SQUARE operator is not supported yet."
+            )
 
         exp_type = self.get_tensor_type_str(output_tensor.tensor.Type())
         out = _op.power(in_expr, relay.const(2, exp_type))
@@ -1142,23 +1160,26 @@ class OperatorConverter(object):
         # TFLite format demands equal scale and zero_point tuple parameters for some operations
         # to allow us to use non-quantized operation instead of quantized if ignore_qnn_params=True
         if ignore_qnn_params:
-            assert  lhs_tensor.qnn_params \
-                and self.has_same_qnn_params(lhs_tensor, output_tensor) \
-                and self.has_same_qnn_params(rhs_tensor, output_tensor), \
-                "All tensors should be quantized with the same (scale,zero-point) tuple parameters"
+            assert (
+                lhs_tensor.qnn_params
+                and self.has_same_qnn_params(lhs_tensor, output_tensor)
+                and self.has_same_qnn_params(rhs_tensor, output_tensor)
+            ), "All tensors should be quantized with the same (scale,zero-point) tuple parameters"
 
         # If quantized, extracts qnn params and call QNN add operator.
         if not ignore_qnn_params and lhs_tensor.qnn_params:
             assert rhs_tensor.qnn_params, "Both tensors should be quantized."
             assert output_tensor.qnn_params, "Output tensor should be quantized."
-            out = relay_op(lhs=lhs_expr,
-                           rhs=rhs_expr,
-                           lhs_scale=lhs_tensor.qnn_params['scale'],
-                           lhs_zero_point=lhs_tensor.qnn_params['zero_point'],
-                           rhs_scale=rhs_tensor.qnn_params['scale'],
-                           rhs_zero_point=rhs_tensor.qnn_params['zero_point'],
-                           output_scale=output_tensor.qnn_params['scale'],
-                           output_zero_point=output_tensor.qnn_params['zero_point'])
+            out = relay_op(
+                lhs=lhs_expr,
+                rhs=rhs_expr,
+                lhs_scale=lhs_tensor.qnn_params["scale"],
+                lhs_zero_point=lhs_tensor.qnn_params["zero_point"],
+                rhs_scale=rhs_tensor.qnn_params["scale"],
+                rhs_zero_point=rhs_tensor.qnn_params["zero_point"],
+                output_scale=output_tensor.qnn_params["scale"],
+                output_zero_point=output_tensor.qnn_params["zero_point"],
+            )
         else:
             out = relay_op(lhs_expr, rhs_expr)
 
@@ -1180,15 +1201,16 @@ class OperatorConverter(object):
 
             # Handle fused activations
             if not ignore_qnn_params and output_tensor.qnn_params:
-                scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
-                zero_point_val = get_scalar_from_constant(output_tensor.qnn_params['zero_point'])
+                scale_val = get_scalar_from_constant(output_tensor.qnn_params["scale"])
+                zero_point_val = get_scalar_from_constant(output_tensor.qnn_params["zero_point"])
                 output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-                out = self.convert_qnn_fused_activation_function(\
-                        expr=out,
-                        fused_activation_fn=fused_activation_fn,
-                        scale=scale_val,
-                        zero_point=zero_point_val,
-                        dtype=output_tensor_type_str)
+                out = self.convert_qnn_fused_activation_function(
+                    expr=out,
+                    fused_activation_fn=fused_activation_fn,
+                    scale=scale_val,
+                    zero_point=zero_point_val,
+                    dtype=output_tensor_type_str,
+                )
             else:
                 out = self.convert_fused_activation_function(out, fused_activation_fn)
         return out
@@ -1232,16 +1254,14 @@ class OperatorConverter(object):
         """Convert TFLite DIV"""
         # Check if the input tensor is quantized, call QNN op
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized DIV operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized DIV operator is not supported yet.")
         return self._convert_elemwise(_op.divide, op)
 
     def convert_pow(self, op):
         """Convert TFLite POW"""
         # Check if the input tensor is quantized, call QNN op
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized POW operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized POW operator is not supported yet.")
         return self._convert_elemwise(_op.power, op)
 
     def convert_maximum(self, op):
@@ -1257,7 +1277,8 @@ class OperatorConverter(object):
         # Check if the input tensor is quantized, call QNN op
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized GREATER operator is not supported yet.')
+                "TFlite quantized GREATER operator is not supported yet."
+            )
         return self._convert_elemwise(_op.greater, op)
 
     def convert_squared_difference(self, op):
@@ -1265,7 +1286,8 @@ class OperatorConverter(object):
         # Check if the input tensor is quantized, call QNN op
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized squared difference operator is not supported yet.')
+                "TFlite quantized squared difference operator is not supported yet."
+            )
         difference = self._convert_elemwise(_op.subtract, op)
         # _convert_elemwise has guaranteed only have one output tensor
         exp_type = self.get_tensor_type_str(self.get_output_tensors(op)[0].tensor.Type())
@@ -1276,35 +1298,38 @@ class OperatorConverter(object):
         """Convert TFLite GREATER_EQUAL"""
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized GREATER_EQUAL operator is not supported yet.')
+                "TFlite quantized GREATER_EQUAL operator is not supported yet."
+            )
         return self._convert_elemwise(_op.greater_equal, op)
 
     def convert_less(self, op):
         """Convert TFLite LESS"""
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized LESS operator is not supported yet.')
+            raise tvm.error.OpNotImplemented("TFlite quantized LESS operator is not supported yet.")
         return self._convert_elemwise(_op.less, op)
 
     def convert_less_equal(self, op):
         """Convert TFLite LESS_EQUAL"""
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized LESS_EQUAL operator is not supported yet.')
+                "TFlite quantized LESS_EQUAL operator is not supported yet."
+            )
         return self._convert_elemwise(_op.less_equal, op)
 
     def convert_equal(self, op):
         """Convert TFLite EQUAL"""
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized EQUAL operator is not supported yet.')
+                "TFlite quantized EQUAL operator is not supported yet."
+            )
         return self._convert_elemwise(_op.equal, op)
 
     def convert_not_equal(self, op):
         """Convert TFLite NOT_EQUAL"""
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized NOT_EQUAL operator is not supported yet.')
+                "TFlite quantized NOT_EQUAL operator is not supported yet."
+            )
         return self._convert_elemwise(_op.not_equal, op)
 
     def _convert_logical_binary(self, relay_op, op):
@@ -1373,18 +1398,21 @@ class OperatorConverter(object):
             indices_expr = self.get_expr(indices.tensor_idx)
         else:
             indices_val = self.get_tensor_value(indices)
-            indices_expr = self.exp_tab.new_const(indices_val,
-                                                  dtype=self.get_tensor_type_str(indices_type))
+            indices_expr = self.exp_tab.new_const(
+                indices_val, dtype=self.get_tensor_type_str(indices_type)
+            )
             indices_shape = list(indices_val.shape)
             indices_len = len(indices_shape)
 
-            out_shape = data_shape[:axis] + indices_shape[:] + data_shape[axis+1:]
+            out_shape = data_shape[:axis] + indices_shape[:] + data_shape[axis + 1 :]
 
             loopover = [range(s) for s in out_shape]
             for idx in list(itertools.product(*loopover)):
-                real_indices = list(idx[:axis]) \
-                    + [indices_val[idx[axis: axis + indices_len]]] \
-                    + list(idx[axis + indices_len:])
+                real_indices = (
+                    list(idx[:axis])
+                    + [indices_val[idx[axis : axis + indices_len]]]
+                    + list(idx[axis + indices_len :])
+                )
                 if np.any(np.subtract(data_shape, real_indices) < 0):
                     raise ValueError("TFLite out of bound indices are not supported.")
 
@@ -1412,45 +1440,45 @@ class OperatorConverter(object):
         assert indices_type in (TensorType.INT32, TensorType.INT64)
 
         indices_dims = len(_infer_shape(indices))
-        indices_t = _op.transpose(indices, axes=[-1] + list(range(indices_dims-1)))
+        indices_t = _op.transpose(indices, axes=[-1] + list(range(indices_dims - 1)))
 
         out = _op.gather_nd(data, indices_t)
         return out
 
     def convert_strided_slice(self, op):
         """Method to Convert TFLite STRIDED_SLICE operator.
-           NOTE: Eventhough tensorflow supports begin_mask, end_mask, ellipsis_mask, new_axis_mask
-           and shrink_axis_mask, tflite doesn't support these and expect these values to be zero.
-           But in future, they may open up the mask implementation, so kept the implementation
-           same as tensorflow.
+        NOTE: Eventhough tensorflow supports begin_mask, end_mask, ellipsis_mask, new_axis_mask
+        and shrink_axis_mask, tflite doesn't support these and expect these values to be zero.
+        But in future, they may open up the mask implementation, so kept the implementation
+        same as tensorflow.
 
-           This op extracts a slice of size (end - begin) / stride from the given input tensor.
-           Starting at the location specified by begin the slice continues by adding stride to the
-           index until all dimensions are not less than end. Note that a stride can be negative,
-           which causes a reverse slice.
+        This op extracts a slice of size (end - begin) / stride from the given input tensor.
+        Starting at the location specified by begin the slice continues by adding stride to the
+        index until all dimensions are not less than end. Note that a stride can be negative,
+        which causes a reverse slice.
 
-           For slice input[val0, val1, ..., valn], begin/end/strides will be vectors of length n.
+        For slice input[val0, val1, ..., valn], begin/end/strides will be vectors of length n.
 
-           In each mask field(begin_mask, end_mask, ellipsis_mask, new_axis_mask, shrink_axis_mask)
-           the ith bit will correspond to the ith val.
+        In each mask field(begin_mask, end_mask, ellipsis_mask, new_axis_mask, shrink_axis_mask)
+        the ith bit will correspond to the ith val.
 
-           If the ith bit of begin_mask is set, begin[i] is ignored and the fullest possible range
-           in that dimension is used instead.
+        If the ith bit of begin_mask is set, begin[i] is ignored and the fullest possible range
+        in that dimension is used instead.
 
-           If the ith bit of ellipsis_mask is set, as many unspecified dimensions as needed will be
-           inserted between other dimensions. Only one non-zero bit is allowed in ellipsis_mask.
+        If the ith bit of ellipsis_mask is set, as many unspecified dimensions as needed will be
+        inserted between other dimensions. Only one non-zero bit is allowed in ellipsis_mask.
 
-           If the ith bit of new_axis_mask is set, then begin, end, and stride are ignored and a
-           new length 1 dimension is added at this point in the output tensor.
+        If the ith bit of new_axis_mask is set, then begin, end, and stride are ignored and a
+        new length 1 dimension is added at this point in the output tensor.
 
-           If the ith bit of shrink_axis_mask is set, it implies that the ith specification shrinks
-           the dimensionality by 1, taking on the value at index begin[i]. end[i] and strides[i]
-           are ignored in this case.
-           begin and end are zero-indexed. strides entries must be non-zero.
+        If the ith bit of shrink_axis_mask is set, it implies that the ith specification shrinks
+        the dimensionality by 1, taking on the value at index begin[i]. end[i] and strides[i]
+        are ignored in this case.
+        begin and end are zero-indexed. strides entries must be non-zero.
 
-           TVM Relay implementation of doesn't support mask, so the mask values are processed in
-           this function and begin/end/strides are updated accordingly. If any mask is present, and
-           since tvm doesn't support mask computation directly, the output need a final reshape.
+        TVM Relay implementation of doesn't support mask, so the mask values are processed in
+        this function and begin/end/strides are updated accordingly. If any mask is present, and
+        since tvm doesn't support mask computation directly, the output need a final reshape.
         """
         try:
             from tflite.BuiltinOptions import BuiltinOptions
@@ -1480,13 +1508,14 @@ class OperatorConverter(object):
         data_shape = list(input_tensors[0].tensor.ShapeAsNumpy())
         data_dim = len(data_shape)
         stride_dim = len(stride)
+
         def _transform_mask(stride_dim, ellipsis_mask):
             """Handle mask inputs to create new begin, end, stride and output shape"""
             m_begin = [0] * data_dim
             m_end = [0] * data_dim
             m_stride = [0] * data_dim
             fshape_indices = []
-            #Count new axis after ellipsis_mask, consider while applying ellipsis_mask.
+            # Count new axis after ellipsis_mask, consider while applying ellipsis_mask.
             ellipsis_seen = False
             new_axes_after_ellipsis = 0
             for i in range(stride_dim):
@@ -1496,42 +1525,44 @@ class OperatorConverter(object):
                 if (mask & ellipsis_mask) != 0:
                     ellipsis_seen = True
             if not ellipsis_seen:
-                #Used later for extending the stride attributes in the below loop.
-                ellipsis_mask |= (1 << stride_dim)
+                # Used later for extending the stride attributes in the below loop.
+                ellipsis_mask |= 1 << stride_dim
                 stride_dim += 1
             final_index = 0
             for index in range(stride_dim):
                 mask = 1 << index
                 if mask & ellipsis_mask:
-                    #Identify the end index for applying ellipsis_mask
-                    to_index = min(((data_dim - (stride_dim-index)) + 1 \
-                                     + new_axes_after_ellipsis), data_dim)
+                    # Identify the end index for applying ellipsis_mask
+                    to_index = min(
+                        ((data_dim - (stride_dim - index)) + 1 + new_axes_after_ellipsis), data_dim
+                    )
                     for i in range(final_index, to_index):
                         m_begin[final_index] = 0
                         m_end[final_index] = data_shape[final_index]
                         m_stride[final_index] = 1
                         fshape_indices.append(final_index)
                         final_index += 1
-                elif mask &new_axis_mask:
+                elif mask & new_axis_mask:
                     fshape_indices.append(-1)
                 elif not mask & new_axis_mask:
                     if final_index == len(m_begin):
                         break
                     if mask & begin_mask:
-                        m_begin[final_index] = data_shape[final_index] \
-                                                     if stride[index] < 0 else 0
+                        m_begin[final_index] = data_shape[final_index] if stride[index] < 0 else 0
                     elif begin[index]:
                         m_begin[final_index] = begin[index]
                     if mask & end_mask:
-                        m_end[final_index] = 0 if stride[index] < 0 \
-                                                 else data_shape[final_index]
+                        m_end[final_index] = 0 if stride[index] < 0 else data_shape[final_index]
                     elif end[index]:
                         m_end[final_index] = end[index]
                     m_stride[final_index] = stride[index]
                     if mask & shrink_axis_mask:
-                        #Tensorflow make axis with shrink_axis_mask as dimension 1
-                        m_begin[final_index] = data_shape[final_index] + begin[index] \
-                                                 if begin[index] < 0 else begin[index]
+                        # Tensorflow make axis with shrink_axis_mask as dimension 1
+                        m_begin[final_index] = (
+                            data_shape[final_index] + begin[index]
+                            if begin[index] < 0
+                            else begin[index]
+                        )
                         m_end[final_index] = begin[index] + 1
                         m_stride[final_index] = 1
                         fshape_indices.append(-2)
@@ -1550,7 +1581,7 @@ class OperatorConverter(object):
         if not fshape_indices:
             fshape_indices = range(len(out_shape))
 
-        #Create final output shape.
+        # Create final output shape.
         final_output = []
         for gather_index in fshape_indices:
             if gather_index == -1:
@@ -1581,8 +1612,9 @@ class OperatorConverter(object):
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
         if self.has_expr(input_tensors[0].tensor_idx):
-            raise tvm.error.OpNotImplemented("For dims parameter of Fill operator,"
-                                             " only constant values are supported.")
+            raise tvm.error.OpNotImplemented(
+                "For dims parameter of Fill operator," " only constant values are supported."
+            )
 
         in_dims = list(self.get_tensor_value(input_tensors[0]))
         in_value_expr = self.get_expr(input_tensors[1].tensor_idx)
@@ -1626,12 +1658,14 @@ class OperatorConverter(object):
         output_tensor = output_tensors[0]
         output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
         if output_tensor.qnn_params:
-            out = _qnn.op.requantize(out,
-                                     input_scale=input_tensor.qnn_params['scale'],
-                                     input_zero_point=input_tensor.qnn_params['zero_point'],
-                                     output_scale=output_tensor.qnn_params['scale'],
-                                     output_zero_point=output_tensor.qnn_params['zero_point'],
-                                     out_dtype=output_tensor_type_str)
+            out = _qnn.op.requantize(
+                out,
+                input_scale=input_tensor.qnn_params["scale"],
+                input_zero_point=input_tensor.qnn_params["zero_point"],
+                output_scale=output_tensor.qnn_params["scale"],
+                output_zero_point=output_tensor.qnn_params["zero_point"],
+                out_dtype=output_tensor_type_str,
+            )
 
         return out
 
@@ -1694,7 +1728,8 @@ class OperatorConverter(object):
         """Convert TFLite ARG_MIN"""
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized ARG_MIN operator is not supported yet.')
+                "TFlite quantized ARG_MIN operator is not supported yet."
+            )
         return self._convert_arg_min_max(_op.argmin, op)
 
     def convert_arg_max(self, op):
@@ -1738,7 +1773,7 @@ class OperatorConverter(object):
         in_expr = self.get_tensor_expr(input_tensor)
         in_expr = _op.reshape(in_expr, target_shape)
 
-        #TODO: Change the output shape calculation based on keep_dim option
+        # TODO: Change the output shape calculation based on keep_dim option
         assert op.BuiltinOptionsType() == BuiltinOptions.FullyConnectedOptions
         op_options = op.BuiltinOptions()
         fully_connected_options = FullyConnectedOptions()
@@ -1758,13 +1793,16 @@ class OperatorConverter(object):
         weight_shape = _infer_shape(weight_expr)
 
         if input_tensor.qnn_params:
-            out = _qnn.op.dense(in_expr, weight_expr,
-                                input_zero_point=input_tensor.qnn_params['zero_point'],
-                                kernel_zero_point=weight_tensor.qnn_params['zero_point'],
-                                input_scale=input_tensor.qnn_params['scale'],
-                                kernel_scale=weight_tensor.qnn_params['scale'],
-                                units=weight_shape[0],
-                                out_dtype='int32')
+            out = _qnn.op.dense(
+                in_expr,
+                weight_expr,
+                input_zero_point=input_tensor.qnn_params["zero_point"],
+                kernel_zero_point=weight_tensor.qnn_params["zero_point"],
+                input_scale=input_tensor.qnn_params["scale"],
+                kernel_scale=weight_tensor.qnn_params["scale"],
+                units=weight_shape[0],
+                out_dtype="int32",
+            )
         else:
             out = _op.nn.dense(in_expr, weight_expr)
 
@@ -1775,37 +1813,41 @@ class OperatorConverter(object):
             # bias tensor type should be INT32 (quantization) or FLOAT32
             assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
             bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
-            bias_expr = self.exp_tab.new_const(self.get_tensor_value(bias_tensor),
-                                               dtype=bias_tensor_type_str)
+            bias_expr = self.exp_tab.new_const(
+                self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
+            )
             out = _op.nn.bias_add(out, bias_expr)
 
         # Finally if the dense is quantized. Add a requantize at the end.
         if output_tensor.qnn_params:
-            data_scale = input_tensor.qnn_params['scale']
-            weight_scale = weight_tensor.qnn_params['scale']
+            data_scale = input_tensor.qnn_params["scale"]
+            weight_scale = weight_tensor.qnn_params["scale"]
             data_scale_val = get_scalar_from_constant(data_scale)
             weight_scale_val = get_scalar_from_constant(weight_scale)
             new_input_scale_val = data_scale_val * weight_scale_val
-            new_input_scale = relay.const(new_input_scale_val, 'float32')
-            new_input_zero_point = relay.const(0, 'int32')
+            new_input_scale = relay.const(new_input_scale_val, "float32")
+            new_input_zero_point = relay.const(0, "int32")
 
             # Requantize
-            out = _qnn.op.requantize(out,
-                                     input_scale=new_input_scale,
-                                     input_zero_point=new_input_zero_point,
-                                     output_scale=output_tensor.qnn_params['scale'],
-                                     output_zero_point=output_tensor.qnn_params['zero_point'],
-                                     out_dtype=output_tensor_type_str)
+            out = _qnn.op.requantize(
+                out,
+                input_scale=new_input_scale,
+                input_zero_point=new_input_zero_point,
+                output_scale=output_tensor.qnn_params["scale"],
+                output_zero_point=output_tensor.qnn_params["zero_point"],
+                out_dtype=output_tensor_type_str,
+            )
 
             # Call activation function
-            output_scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
-            output_zero_point_val = get_scalar_from_constant(output_tensor.qnn_params['zero_point'])
-            out = self.convert_qnn_fused_activation_function(\
-                    expr=out,
-                    fused_activation_fn=fused_activation_fn,
-                    scale=output_scale_val,
-                    zero_point=output_zero_point_val,
-                    dtype=output_tensor_type_str)
+            output_scale_val = get_scalar_from_constant(output_tensor.qnn_params["scale"])
+            output_zero_point_val = get_scalar_from_constant(output_tensor.qnn_params["zero_point"])
+            out = self.convert_qnn_fused_activation_function(
+                expr=out,
+                fused_activation_fn=fused_activation_fn,
+                scale=output_scale_val,
+                zero_point=output_zero_point_val,
+                dtype=output_tensor_type_str,
+            )
 
         else:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
@@ -1857,7 +1899,8 @@ class OperatorConverter(object):
             return _op.tanh(in_expr)
         fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
         raise tvm.error.OpNotImplemented(
-            'Fused activation {} is not supported yet.'.format(fused_activation_fn_str))
+            "Fused activation {} is not supported yet.".format(fused_activation_fn_str)
+        )
 
     def convert_conv(self, op, conv_type):
         """convolution implementation."""
@@ -1884,12 +1927,12 @@ class OperatorConverter(object):
         output_tensor_type_str = self.get_tensor_type_str(output_tensor_type)
 
         is_depthwise_conv = False
-        if conv_type == 'conv2d':
+        if conv_type == "conv2d":
             assert op.BuiltinOptionsType() == BuiltinOptions.Conv2DOptions
             op_options = op.BuiltinOptions()
             conv_options = Conv2DOptions()
             conv_options.Init(op_options.Bytes, op_options.Pos)
-        elif conv_type == 'depthwise':
+        elif conv_type == "depthwise":
             is_depthwise_conv = True
             assert op.BuiltinOptionsType() == BuiltinOptions.DepthwiseConv2DOptions
             op_options = op.BuiltinOptions()
@@ -1898,7 +1941,8 @@ class OperatorConverter(object):
             depth_multiplier = conv_options.DepthMultiplier()
         else:
             raise tvm.error.OpNotImplemented(
-                'Operator {} is not supported for frontend TFLite.'.format(conv_type))
+                "Operator {} is not supported for frontend TFLite.".format(conv_type)
+            )
 
         stride_h = conv_options.StrideH()
         stride_w = conv_options.StrideW()
@@ -1920,21 +1964,23 @@ class OperatorConverter(object):
         dilated_kernel_h = dilation_h * (kernel_h - 1) + 1
         dilated_kernel_w = dilation_w * (kernel_w - 1) + 1
 
-        params = {'kernel_size': [kernel_h, kernel_w],
-                  'strides': [stride_h, stride_w],
-                  'dilation': [dilation_h, dilation_w],
-                  'padding': [0, 0],
-                  'data_layout': 'NHWC'}
+        params = {
+            "kernel_size": [kernel_h, kernel_w],
+            "strides": [stride_h, stride_w],
+            "dilation": [dilation_h, dilation_w],
+            "padding": [0, 0],
+            "data_layout": "NHWC",
+        }
 
         if is_depthwise_conv:
-            params['channels'] = int(in_channels)
-            params['groups'] = int(input_c)
+            params["channels"] = int(in_channels)
+            params["groups"] = int(input_c)
             # If number of input channels is 1, treat as normal
             # convolution.
-            params['kernel_layout'] = 'HWIO' if input_c == 1 else 'HWOI'
+            params["kernel_layout"] = "HWIO" if input_c == 1 else "HWOI"
         else:
-            params['channels'] = int(output_channels)
-            params['kernel_layout'] = 'HWIO'
+            params["channels"] = int(output_channels)
+            params["kernel_layout"] = "HWIO"
 
         # weight tensor type should be INT8/UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
@@ -1964,19 +2010,20 @@ class OperatorConverter(object):
             pad_left, pad_right = get_pad_value(input_w, dilated_kernel_w, stride_w)
             do_pad = not (pad_top == 0 and pad_bottom == 0 and pad_left == 0 and pad_right == 0)
             if do_pad:
-                params['padding'] = [pad_top, pad_left, pad_bottom, pad_right]
+                params["padding"] = [pad_top, pad_left, pad_bottom, pad_right]
 
         else:
             raise tvm.error.OpAttributeUnImplemented(
-                'Padding format {} is not supported for operator Conv.'.format(padding))
+                "Padding format {} is not supported for operator Conv.".format(padding)
+            )
 
         if input_tensor.qnn_params:
             qnn_conv2d_params = dict(params)
-            qnn_conv2d_params['input_zero_point'] = input_tensor.qnn_params['zero_point']
-            qnn_conv2d_params['kernel_zero_point'] = weight_tensor.qnn_params['zero_point']
-            qnn_conv2d_params['out_dtype'] = 'int32'
-            qnn_conv2d_params['input_scale'] = input_tensor.qnn_params['scale']
-            qnn_conv2d_params['kernel_scale'] = weight_tensor.qnn_params['scale']
+            qnn_conv2d_params["input_zero_point"] = input_tensor.qnn_params["zero_point"]
+            qnn_conv2d_params["kernel_zero_point"] = weight_tensor.qnn_params["zero_point"]
+            qnn_conv2d_params["out_dtype"] = "int32"
+            qnn_conv2d_params["input_scale"] = input_tensor.qnn_params["scale"]
+            qnn_conv2d_params["kernel_scale"] = weight_tensor.qnn_params["scale"]
             out = _qnn.op.conv2d(in_expr, weight_expr, **qnn_conv2d_params)
         else:
             out = _op.nn.conv2d(in_expr, weight_expr, **params)
@@ -1988,18 +2035,19 @@ class OperatorConverter(object):
             # bias tensor type should be INT32 (quantization) or FLOAT32
             assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
             bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
-            bias_expr = self.exp_tab.new_const(self.get_tensor_value(bias_tensor),
-                                               dtype=bias_tensor_type_str)
+            bias_expr = self.exp_tab.new_const(
+                self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
+            )
             channel_axis = 3
             out = _op.nn.bias_add(out, bias_expr, axis=channel_axis)
 
         # Handle fused activation.
         if output_tensor.qnn_params:
             # Calculate the intermediate scale and zero point of the int32 output.
-            data_scale = input_tensor.qnn_params['scale']
+            data_scale = input_tensor.qnn_params["scale"]
             data_scale_val = get_scalar_from_constant(data_scale)
 
-            weight_scale = weight_tensor.qnn_params['scale']
+            weight_scale = weight_tensor.qnn_params["scale"]
             # If weight scale is scalar, it is per-tensor quantization
             if isinstance(weight_scale, float):
                 weight_scale_val = get_scalar_from_constant(weight_scale)
@@ -2007,27 +2055,30 @@ class OperatorConverter(object):
                 weight_scale_val = get_tensor_from_constant(weight_scale)
 
             new_input_scale_val = data_scale_val * weight_scale_val
-            new_input_scale = relay.const(new_input_scale_val, 'float32')
-            new_input_zero_point = relay.const(0, 'int32')
+            new_input_scale = relay.const(new_input_scale_val, "float32")
+            new_input_zero_point = relay.const(0, "int32")
 
             # Finally requantize
-            out = _qnn.op.requantize(out,
-                                     input_scale=new_input_scale,
-                                     input_zero_point=new_input_zero_point,
-                                     output_scale=output_tensor.qnn_params['scale'],
-                                     output_zero_point=output_tensor.qnn_params['zero_point'],
-                                     out_dtype=output_tensor_type_str,
-                                     axis=3)
+            out = _qnn.op.requantize(
+                out,
+                input_scale=new_input_scale,
+                input_zero_point=new_input_zero_point,
+                output_scale=output_tensor.qnn_params["scale"],
+                output_zero_point=output_tensor.qnn_params["zero_point"],
+                out_dtype=output_tensor_type_str,
+                axis=3,
+            )
 
             # Call activation function
-            output_scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
-            output_zero_point_val = get_scalar_from_constant(output_tensor.qnn_params['zero_point'])
-            out = self.convert_qnn_fused_activation_function(\
-                    expr=out,
-                    fused_activation_fn=fused_activation_fn,
-                    scale=output_scale_val,
-                    zero_point=output_zero_point_val,
-                    dtype=output_tensor_type_str)
+            output_scale_val = get_scalar_from_constant(output_tensor.qnn_params["scale"])
+            output_zero_point_val = get_scalar_from_constant(output_tensor.qnn_params["zero_point"])
+            out = self.convert_qnn_fused_activation_function(
+                expr=out,
+                fused_activation_fn=fused_activation_fn,
+                scale=output_scale_val,
+                zero_point=output_zero_point_val,
+                dtype=output_tensor_type_str,
+            )
         else:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
         return out
@@ -2078,8 +2129,10 @@ class OperatorConverter(object):
         in_expr = self.get_expr(input_tensor_idx)
 
         if self.has_expr(input_tensors[1].tensor_idx):
-            raise tvm.error.OpNotImplemented("For size_splits parameter of SPLIT_V operator, "
-                                             "only constant values are supported.")
+            raise tvm.error.OpNotImplemented(
+                "For size_splits parameter of SPLIT_V operator, "
+                "only constant values are supported."
+            )
         size_splits = list(self.get_tensor_value(input_tensors[1]))
         size_splits = tuple(np.cumsum(size_splits)[:-1])
 
@@ -2160,7 +2213,8 @@ class OperatorConverter(object):
 
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFLite does not support quantized REVERSE_SEQUENCE operator yet.')
+                "TFLite does not support quantized REVERSE_SEQUENCE operator yet."
+            )
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
@@ -2259,10 +2313,12 @@ class OperatorConverter(object):
         filter_w = pool2d_options.FilterWidth()
         fused_activation_fn = pool2d_options.FusedActivationFunction()
 
-        params = {'pool_size': (filter_h, filter_w),
-                  'strides': (stride_h, stride_w),
-                  'padding': [0, 0],
-                  'layout': 'NHWC'}
+        params = {
+            "pool_size": (filter_h, filter_w),
+            "strides": (stride_h, stride_w),
+            "padding": [0, 0],
+            "layout": "NHWC",
+        }
 
         in_expr = self.get_expr(input_tensor_idx)
 
@@ -2272,16 +2328,18 @@ class OperatorConverter(object):
         elif padding == Padding.SAME:
             pad_top, pad_bottom = get_pad_value(input_h, filter_h, stride_h)
             pad_left, pad_right = get_pad_value(input_w, filter_w, stride_w)
-            params['padding'] = [pad_top, pad_left, pad_bottom, pad_right]
+            params["padding"] = [pad_top, pad_left, pad_bottom, pad_right]
         else:
             raise tvm.error.OpAttributeUnImplemented(
-                'Padding format {} for operator Pool2D is not supported.'.format(padding))
+                "Padding format {} for operator Pool2D is not supported.".format(padding)
+            )
 
         if pool_type == "average":
             if input_tensor.qnn_params:
-                assert self.has_same_qnn_params(input_tensor, output_tensor), \
-                        'TFLite avg_pool2dreshape requires input and output scale' \
-                        'and zero points to be equal'
+                assert self.has_same_qnn_params(input_tensor, output_tensor), (
+                    "TFLite avg_pool2dreshape requires input and output scale"
+                    "and zero points to be equal"
+                )
                 out = _op.cast(in_expr, dtype="int32")
                 out = _op.nn.avg_pool2d(out, **params)
                 out = _op.cast(out, dtype=output_tensor_type_str)
@@ -2289,14 +2347,16 @@ class OperatorConverter(object):
                 out = _op.nn.avg_pool2d(in_expr, **params)
         elif pool_type == "max":
             if input_tensor.qnn_params:
-                assert self.has_same_qnn_params(input_tensor, output_tensor), \
-                        "qnn.op.max_pool2d requires input and output qnn params to be same"
+                assert self.has_same_qnn_params(
+                    input_tensor, output_tensor
+                ), "qnn.op.max_pool2d requires input and output qnn params to be same"
             out = _op.nn.max_pool2d(in_expr, **params)
         elif pool_type == "l2":
             # L2_POOL_2D is equivalent to square_root(avg_pool(square(in_data)))
             # TFLite does not have support for quantised L2_POOL_2D op.
-            assert not input_tensor.qnn_params, \
-                "As TFLite does not have support for quantized L2_POOL_2D, \
+            assert (
+                not input_tensor.qnn_params
+            ), "As TFLite does not have support for quantized L2_POOL_2D, \
                 Quantized input is not expected."
             exp_type = self.get_tensor_type_str(output_tensor.tensor.Type())
             square_exp = _op.power(in_expr, relay.const(2, exp_type))
@@ -2304,18 +2364,20 @@ class OperatorConverter(object):
             out = _op.sqrt(avg_pool_exp)
         else:
             raise tvm.error.OpNotImplemented(
-                'Operator {} is not supported for frontend TFLite.'.format(pool_type + ' pool'))
+                "Operator {} is not supported for frontend TFLite.".format(pool_type + " pool")
+            )
 
         # Handle fused activations
         if output_tensor.qnn_params:
-            scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
-            zero_point_val = get_scalar_from_constant(output_tensor.qnn_params['zero_point'])
-            out = self.convert_qnn_fused_activation_function(\
-                    expr=out,
-                    fused_activation_fn=fused_activation_fn,
-                    scale=scale_val,
-                    zero_point=zero_point_val,
-                    dtype=output_tensor_type_str)
+            scale_val = get_scalar_from_constant(output_tensor.qnn_params["scale"])
+            zero_point_val = get_scalar_from_constant(output_tensor.qnn_params["zero_point"])
+            out = self.convert_qnn_fused_activation_function(
+                expr=out,
+                fused_activation_fn=fused_activation_fn,
+                scale=scale_val,
+                zero_point=zero_point_val,
+                dtype=output_tensor_type_str,
+            )
         else:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
 
@@ -2328,12 +2390,14 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
 
         # TFLite PAD/PADV2 only supports CONSTANT mode
-        assert (len(input_tensors) == 2 or len(input_tensors) == 3), \
-            "input tensor's length should be 2 for PAD and 3 for PADV2"
+        assert (
+            len(input_tensors) == 2 or len(input_tensors) == 3
+        ), "input tensor's length should be 2 for PAD and 3 for PADV2"
 
         if len(input_tensors) == 3:
-            assert input_tensors[0].tensor.Type() == input_tensors[2].tensor.Type(), \
-                "constant_values tensor must be of same type as input tensor"
+            assert (
+                input_tensors[0].tensor.Type() == input_tensors[2].tensor.Type()
+            ), "constant_values tensor must be of same type as input tensor"
 
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
@@ -2351,11 +2415,12 @@ class OperatorConverter(object):
             # Check that input and output tensor have same qnn params.
             output_tensors = self.get_output_tensors(op)
             output_tensor = output_tensors[0]
-            assert self.has_same_qnn_params(input_tensor, output_tensor), \
-                "TFLite PADV2 requires input and output scale and zero points to be equal"
+            assert self.has_same_qnn_params(
+                input_tensor, output_tensor
+            ), "TFLite PADV2 requires input and output scale and zero points to be equal"
 
             # The pad value for quantized pad is the input zero point by default.
-            pad_value = float(input_tensor.qnn_params['zero_point'].data.asnumpy())
+            pad_value = float(input_tensor.qnn_params["zero_point"].data.asnumpy())
 
         if len(input_tensors) == 3:
             pad_value = self.get_tensor_value(input_tensors[2])
@@ -2366,26 +2431,28 @@ class OperatorConverter(object):
                 pad_value = pad_value[0]
             if input_tensor.qnn_params:
                 # Check that input tensor and constant_values have same qnn params.
-                assert self.has_same_qnn_params(input_tensor, input_tensors[2]), \
-                    "TFLite PADV2 requires input and constant_values tensors' \
+                assert self.has_same_qnn_params(
+                    input_tensor, input_tensors[2]
+                ), "TFLite PADV2 requires input and constant_values tensors' \
                         scale and zero points to be equal"
 
         out = _op.nn.pad(in_expr, pad_width=paddings, pad_value=pad_value)
         return out
 
-
     def convert_floor_div(self, op):
         """Convert TFLite FLOOR_DIV"""
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized FLOOR DIV operator is not supported yet.')
+                "TFlite quantized FLOOR DIV operator is not supported yet."
+            )
         return self._convert_elemwise(_op.floor_divide, op)
 
     def convert_floor_mod(self, op):
         """Convert TFLite FLOOR_MOD"""
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized FLOOR MOD operator is not supported yet.')
+                "TFlite quantized FLOOR MOD operator is not supported yet."
+            )
         return self._convert_elemwise(_op.floor_mod, op)
 
     def convert_mirror_pad(self, op):
@@ -2399,7 +2466,8 @@ class OperatorConverter(object):
         # the quantized form MirrorPad is not yet implemented in TFLite.
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized MIRROR_PAD operator is not supported yet.')
+                "TFlite quantized MIRROR_PAD operator is not supported yet."
+            )
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
@@ -2482,12 +2550,13 @@ class OperatorConverter(object):
             if isinstance(squeezed, _expr.TupleWrapper):
                 squeezed = squeezed[0]
         else:
-            splitted = _op.split(in_expr,
-                                 indices_or_sections=num_unpacks,
-                                 axis=unpack_axis)
+            splitted = _op.split(in_expr, indices_or_sections=num_unpacks, axis=unpack_axis)
             squeezed = _expr.TupleWrapper(
-                _expr.Tuple([_op.squeeze(split_item, axis=squeeze_axis) \
-                             for split_item in splitted]), len(splitted))
+                _expr.Tuple(
+                    [_op.squeeze(split_item, axis=squeeze_axis) for split_item in splitted]
+                ),
+                len(splitted),
+            )
 
         return squeezed
 
@@ -2515,8 +2584,11 @@ class OperatorConverter(object):
         reshaped = _op.reshape(in_expr, newshape=shape1)
 
         # Permute dimensions of reshaped to produce permuted of shape
-        axes = [M] + [axis for i in range(M) for axis in [M + i + 1, i]] + \
-            list(range(2 * M + 1, len(shape1)))
+        axes = (
+            [M]
+            + [axis for i in range(M) for axis in [M + i + 1, i]]
+            + list(range(2 * M + 1, len(shape1)))
+        )
         permuted = _op.transpose(reshaped, axes=axes)
 
         # Reshape permuted to produce reshaped_permuted of shape
@@ -2533,7 +2605,7 @@ class OperatorConverter(object):
                 indices = _op.arange(
                     _expr.const(crop[0]),
                     _expr.const(reshaped_permuted_shape[axis] - crop[1]),
-                    dtype='int32'
+                    dtype="int32",
                 )
                 cropped = _op.take(cropped, indices=indices, axis=axis)
 
@@ -2578,14 +2650,18 @@ class OperatorConverter(object):
         reshaped_padded = _op.reshape(padded, newshape=shape1)
 
         # Permute dimensions of reshaped_padded to produce permuted_reshaped_padded of shape:
-        axes = [2 * i + 2 for i in range(M)] + [0] + [2 * i + 1 for i in range(M)] + \
-            list(range(1 + 2 * M, 1 + 2 * M + remaining_shape_length))
+        axes = (
+            [2 * i + 2 for i in range(M)]
+            + [0]
+            + [2 * i + 1 for i in range(M)]
+            + list(range(1 + 2 * M, 1 + 2 * M + remaining_shape_length))
+        )
         permuted_reshaped_padded = _op.transpose(reshaped_padded, axes=axes)
         permuted_reshaped_padded_shape = _infer_shape(permuted_reshaped_padded)
 
         # Reshape permuted_reshaped_padded to flatten block_shape into the batch dimension,
         # producing an output tensor of shape:
-        shape2 = [batch * np.prod(block_shape)] + list(permuted_reshaped_padded_shape)[M + 1:]
+        shape2 = [batch * np.prod(block_shape)] + list(permuted_reshaped_padded_shape)[M + 1 :]
         reshaped_permuted_reshaped_padded = _op.reshape(permuted_reshaped_padded, newshape=shape2)
 
         return reshaped_permuted_reshaped_padded
@@ -2609,7 +2685,7 @@ class OperatorConverter(object):
         depth_to_space_options = DepthToSpaceOptions()
         depth_to_space_options.Init(op_options.Bytes, op_options.Pos)
         block_size = depth_to_space_options.BlockSize()
-        out = _op.nn.depth_to_space(in_expr, block_size, layout='NHWC')
+        out = _op.nn.depth_to_space(in_expr, block_size, layout="NHWC")
 
         return out
 
@@ -2632,7 +2708,7 @@ class OperatorConverter(object):
         space_to_depth_options = SpaceToDepthOptions()
         space_to_depth_options.Init(op_options.Bytes, op_options.Pos)
         block_size = space_to_depth_options.BlockSize()
-        out = _op.nn.space_to_depth(in_expr, block_size, layout='NHWC')
+        out = _op.nn.space_to_depth(in_expr, block_size, layout="NHWC")
 
         return out
 
@@ -2661,7 +2737,7 @@ class OperatorConverter(object):
             self.get_tensor_expr(indices),
             list(self.get_tensor_value(output_shape)),
             self.get_tensor_expr(values),
-            self.get_tensor_expr(default_value)
+            self.get_tensor_expr(default_value),
         )
 
         return out
@@ -2675,8 +2751,9 @@ class OperatorConverter(object):
         alpha_tensor = input_tensors[1]
         alpha_tensor_type = alpha_tensor.tensor.Type()
         alpha_tensor_type_str = self.get_tensor_type_str(alpha_tensor_type)
-        alpha_expr = self.exp_tab.new_const(self.get_tensor_value(alpha_tensor).flatten(),
-                                            dtype=alpha_tensor_type_str)
+        alpha_expr = self.exp_tab.new_const(
+            self.get_tensor_value(alpha_tensor).flatten(), dtype=alpha_tensor_type_str
+        )
         in_expr = self.get_expr(input_tensor.tensor_idx)
         out = _op.nn.prelu(in_expr, alpha_expr, axis=3)
 
@@ -2701,8 +2778,9 @@ class OperatorConverter(object):
         # Weights tensor. TFLite uses OHWI layout
         weights_tensor = input_tensors[1]
         out_channels, kernel_h, kernel_w, in_channels = weights_tensor.tensor.ShapeAsNumpy()
-        assert input_c == in_channels, \
-            "Input channel in the filter should match to channel in the input"
+        assert (
+            input_c == in_channels
+        ), "Input channel in the filter should match to channel in the input"
         # output_shape Tensor. NHWC layout
         output_shape_tensor = input_tensors[0]
 
@@ -2720,8 +2798,10 @@ class OperatorConverter(object):
         padding = deconv_options.Padding()
         stride_h = deconv_options.StrideH()
         stride_w = deconv_options.StrideW()
-        assert padding in (Padding.VALID, Padding.SAME), \
-            'Padding format {} is not supported for operator TRANSPOSE_CONV'.format(padding)
+        assert padding in (
+            Padding.VALID,
+            Padding.SAME,
+        ), "Padding format {} is not supported for operator TRANSPOSE_CONV".format(padding)
 
         # Data
         in_expr = self.get_expr(input_tensor.tensor_idx)
@@ -2740,8 +2820,9 @@ class OperatorConverter(object):
         # Output shape value
         output_shape_value = self.get_tensor_value(output_shape_tensor)
         # Relay expects filter output channel to match to output tensor channel.
-        assert out_channels == output_shape_value[3], \
-            "Output channel in the filter should match to channel in the output_shape"
+        assert (
+            out_channels == output_shape_value[3]
+        ), "Output channel in the filter should match to channel in the output_shape"
 
         if padding == Padding.SAME:
             pad_top, pad_bottom = get_pad_value(input_h, kernel_h, stride_h)
@@ -2750,14 +2831,17 @@ class OperatorConverter(object):
         else:
             padding = (0, 0, 0, 0)
 
-        out = _op.nn.conv2d_transpose(in_expr, weight_expr_iohw,
-                                      strides=(stride_h, stride_w),
-                                      padding=padding,
-                                      channels=int(out_channels),
-                                      kernel_size=(int(kernel_h), int(kernel_w)),
-                                      data_layout="NHWC",
-                                      kernel_layout="OIHW",
-                                      out_dtype=output_tensor_type_str)
+        out = _op.nn.conv2d_transpose(
+            in_expr,
+            weight_expr_iohw,
+            strides=(stride_h, stride_w),
+            padding=padding,
+            channels=int(out_channels),
+            kernel_size=(int(kernel_h), int(kernel_w)),
+            data_layout="NHWC",
+            kernel_layout="OIHW",
+            out_dtype=output_tensor_type_str,
+        )
 
         return out
 
@@ -2782,12 +2866,14 @@ class OperatorConverter(object):
         if input_tensor_type_str == "float32":
             out = self.quantize(in_expr, output_tensor)
         else:
-            out = _qnn.op.requantize(in_expr,
-                                     input_scale=input_tensor.qnn_params['scale'],
-                                     input_zero_point=input_tensor.qnn_params['zero_point'],
-                                     output_scale=output_tensor.qnn_params['scale'],
-                                     output_zero_point=output_tensor.qnn_params['zero_point'],
-                                     out_dtype=output_tensor_type_str)
+            out = _qnn.op.requantize(
+                in_expr,
+                input_scale=input_tensor.qnn_params["scale"],
+                input_zero_point=input_tensor.qnn_params["zero_point"],
+                output_scale=output_tensor.qnn_params["scale"],
+                output_zero_point=output_tensor.qnn_params["zero_point"],
+                out_dtype=output_tensor_type_str,
+            )
         return out
 
     def convert_dequantize(self, op):
@@ -2813,8 +2899,9 @@ class OperatorConverter(object):
         if "use_regular_nms" in custom_options:
             if custom_options["use_regular_nms"]:
                 raise tvm.error.OpAttributeUnImplemented(
-                    "use_regular_nms=True is not yet supported for operator {}."
-                    .format("TFLite_Detection_PostProcess")
+                    "use_regular_nms=True is not yet supported for operator {}.".format(
+                        "TFLite_Detection_PostProcess"
+                    )
                 )
 
         inputs = self.get_input_tensors(op)
@@ -2828,17 +2915,23 @@ class OperatorConverter(object):
         anchor_expr = self.exp_tab.new_const(anchor_values, dtype=anchor_type)
 
         if inputs[0].qnn_params:
-            loc_prob = _qnn.op.dequantize(data=loc_prob,
-                                          input_scale=inputs[0].qnn_params['scale'],
-                                          input_zero_point=inputs[0].qnn_params['zero_point'])
+            loc_prob = _qnn.op.dequantize(
+                data=loc_prob,
+                input_scale=inputs[0].qnn_params["scale"],
+                input_zero_point=inputs[0].qnn_params["zero_point"],
+            )
         if inputs[1].qnn_params:
-            cls_pred = _qnn.op.dequantize(data=cls_pred,
-                                          input_scale=inputs[1].qnn_params['scale'],
-                                          input_zero_point=inputs[1].qnn_params['zero_point'])
+            cls_pred = _qnn.op.dequantize(
+                data=cls_pred,
+                input_scale=inputs[1].qnn_params["scale"],
+                input_zero_point=inputs[1].qnn_params["zero_point"],
+            )
         if inputs[2].qnn_params:
-            anchor_expr = _qnn.op.dequantize(data=anchor_expr,
-                                             input_scale=inputs[2].qnn_params['scale'],
-                                             input_zero_point=inputs[2].qnn_params['zero_point'])
+            anchor_expr = _qnn.op.dequantize(
+                data=anchor_expr,
+                input_scale=inputs[2].qnn_params["scale"],
+                input_zero_point=inputs[2].qnn_params["zero_point"],
+            )
 
         # reshape the cls_pred and loc_prob tensors so
         # they can be consumed by multibox_transform_loc
@@ -2849,7 +2942,7 @@ class OperatorConverter(object):
         loc_prob = _op.concatenate(
             [loc_coords[1], loc_coords[0], loc_coords[3], loc_coords[2]], axis=2
         )
-        loc_prob = _op.reshape(loc_prob, [batch_size, anchor_boxes*4])
+        loc_prob = _op.reshape(loc_prob, [batch_size, anchor_boxes * 4])
 
         # anchor coords are in yxhw format
         # need to convert to ltrb
@@ -2858,8 +2951,8 @@ class OperatorConverter(object):
         anchor_x = anchor_coords[1]
         anchor_h = anchor_coords[2]
         anchor_w = anchor_coords[3]
-        plus_half = _expr.const(0.5, dtype='float32')
-        minus_half = _expr.const(-0.5, dtype='float32')
+        plus_half = _expr.const(0.5, dtype="float32")
+        minus_half = _expr.const(-0.5, dtype="float32")
         anchor_l = _op.add(anchor_x, _op.multiply(anchor_w, minus_half))
         anchor_r = _op.add(anchor_x, _op.multiply(anchor_w, plus_half))
         anchor_t = _op.add(anchor_y, _op.multiply(anchor_h, minus_half))
@@ -2887,15 +2980,16 @@ class OperatorConverter(object):
         non_max_suppression_attrs["max_output_size"] = custom_options["max_detections"]
         non_max_suppression_attrs["invalid_to_bottom"] = False
 
-        ret = _op.vision.multibox_transform_loc(cls_pred, loc_prob,
-                                                anchor_expr, **multibox_transform_loc_attrs)
+        ret = _op.vision.multibox_transform_loc(
+            cls_pred, loc_prob, anchor_expr, **multibox_transform_loc_attrs
+        )
         ret = _op.vision.non_max_suppression(ret[0], ret[1], ret[1], **non_max_suppression_attrs)
         ret = _op.vision.get_valid_counts(ret, 0)
         valid_count = ret[0]
         # keep only the top 'max_detections' rows
-        ret = _op.strided_slice(ret[1],
-                                [0, 0, 0],
-                                [batch_size, custom_options["max_detections"], anchor_boxes])
+        ret = _op.strided_slice(
+            ret[1], [0, 0, 0], [batch_size, custom_options["max_detections"], anchor_boxes]
+        )
         # the output needs some reshaping to match tflite
         ret = _op.split(ret, 6, axis=2)
         cls_ids = _op.reshape(ret[0], [batch_size, -1])
@@ -2912,8 +3006,9 @@ class OperatorConverter(object):
         if input_tensors[0].qnn_params:
             # Check that input and output tensor have same qnn params.
             output_tensors = self.get_output_tensors(op)
-            assert self.has_same_qnn_params(input_tensors[0], output_tensors[0]), \
-                "TFLite EXPAND_DIMS requires input and output tensors' \
+            assert self.has_same_qnn_params(
+                input_tensors[0], output_tensors[0]
+            ), "TFLite EXPAND_DIMS requires input and output tensors' \
                     scale and zero points to be equal"
 
         input_expr = self.get_tensor_expr(input_tensors[0])
@@ -2923,7 +3018,7 @@ class OperatorConverter(object):
             axis = int(axis)
 
         ndims = len(input_tensors[0].tensor.ShapeAsNumpy())
-        assert (-1-ndims <= axis <= ndims), "axis out of range"
+        assert -1 - ndims <= axis <= ndims, "axis out of range"
 
         out = _op.expand_dims(input_expr, axis, 1)
 
@@ -2941,8 +3036,7 @@ class OperatorConverter(object):
         assert len(input_tensors) == 4, "Input tensor's length should be 4"
 
         # Ensuring input isn't quantized
-        assert all(not i.qnn_params for i in input_tensors), \
-            "Quantized input is not expected."
+        assert all(not i.qnn_params for i in input_tensors), "Quantized input is not expected."
 
         # TFlite ONE_HOT requires both on_value
         # and off_value, making dtype redundant.
@@ -2951,8 +3045,9 @@ class OperatorConverter(object):
         on_value = input_tensors[2]
         off_value = input_tensors[3]
 
-        assert on_value.tensor.Type() == off_value.tensor.Type(), \
-            "on_value and off_value should be the same type"
+        assert (
+            on_value.tensor.Type() == off_value.tensor.Type()
+        ), "on_value and off_value should be the same type"
 
         # Getting relay expr
         indices_expr = self.get_expr(indices.tensor_idx)
@@ -3000,19 +3095,22 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensor's length should be 2"
 
-        assert input_tensors[0].tensor.Type() == input_tensors[1].tensor.Type(), \
-            "input and diagonal should be the same type of tensors"
+        assert (
+            input_tensors[0].tensor.Type() == input_tensors[1].tensor.Type()
+        ), "input and diagonal should be the same type of tensors"
 
         if input_tensors[0].qnn_params:
             # Check that input and output tensor have same qnn params.
             output_tensors = self.get_output_tensors(op)
-            assert self.has_same_qnn_params(input_tensors[0], output_tensors[0]), \
-                "TFLite MATRIX_SET_DIAG requires input and output tensors' \
+            assert self.has_same_qnn_params(
+                input_tensors[0], output_tensors[0]
+            ), "TFLite MATRIX_SET_DIAG requires input and output tensors' \
                     scale and zero points to be equal"
 
             # Check that input and diagonal tensor have same qnn params.
-            assert self.has_same_qnn_params(input_tensors[0], input_tensors[1]), \
-                "TFLite MATRIX_SET_DIAG requires input and diagonal tensors' \
+            assert self.has_same_qnn_params(
+                input_tensors[0], input_tensors[1]
+            ), "TFLite MATRIX_SET_DIAG requires input and diagonal tensors' \
                     scale and zero points to be equal"
 
         input_expr = self.get_tensor_expr(input_tensors[0])
@@ -3031,8 +3129,9 @@ class OperatorConverter(object):
         if diagonal.qnn_params:
             # Check that diagonal and output tensor have same qnn params.
             output_tensors = self.get_output_tensors(op)
-            assert self.has_same_qnn_params(diagonal, output_tensors[0]), \
-                "TFLite MATRIX_DIAG requires diagonal and output tensors' \
+            assert self.has_same_qnn_params(
+                diagonal, output_tensors[0]
+            ), "TFLite MATRIX_DIAG requires diagonal and output tensors' \
                     scale and zero points to be equal"
 
         shape = diagonal.tensor.ShapeAsNumpy()
@@ -3044,7 +3143,6 @@ class OperatorConverter(object):
 
         out = _op.matrix_set_diag(input_expr, diagonal_expr)
         return out
-
 
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))
@@ -3064,20 +3162,25 @@ class OperatorConverter(object):
 
 def get_scalar_from_constant(expr):
     """ Returns scalar value from Relay constant scalar. """
-    assert isinstance(expr, _expr.Constant) and not expr.data.shape, \
-        "Expr is not a constant scalar."
+    assert (
+        isinstance(expr, _expr.Constant) and not expr.data.shape
+    ), "Expr is not a constant scalar."
     value = expr.data.asnumpy()
-    assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), \
-        "value must be float32/int32"
+    assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(
+        np.float32
+    ), "value must be float32/int32"
     return np.asscalar(value)
+
 
 def get_tensor_from_constant(expr):
     """ Returns tensor of values from Relay constant node. """
     assert isinstance(expr, _expr.Constant)
     value = expr.data.asnumpy()
-    assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), \
-        "value must be float32/int32"
+    assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(
+        np.float32
+    ), "value must be float32/int32"
     return value
+
 
 def build_str_map(obj):
     """Build string map of TFLite enum int value
@@ -3093,11 +3196,12 @@ def build_str_map(obj):
     """
     ret = {}
     for field_name in dir(obj):
-        if not field_name.startswith('_'):
+        if not field_name.startswith("_"):
             field_value = getattr(obj, field_name)
             if isinstance(field_value, int):
                 ret[field_value] = field_name
     return ret
+
 
 # SAME padding: https://www.tensorflow.org/api_guides/python/nn
 def get_pad_value(data, kernel, stride):
@@ -3175,9 +3279,11 @@ def from_tflite(model, shape_dict, dtype_dict):
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
     try:
         import tflite
+
         assert isinstance(model, tflite.Model)
     except TypeError:
         import tflite.Model
+
         assert isinstance(model, tflite.Model.Model)
 
     # keep the same as tflite
@@ -3201,7 +3307,7 @@ def from_tflite(model, shape_dict, dtype_dict):
     op_converter.convert_op_to_relay()
 
     # params and outputs
-    params = {k:_nd.array(np.array(v)) for k, v in exp_tab.params.items()}
+    params = {k: _nd.array(np.array(v)) for k, v in exp_tab.params.items()}
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
     func = _function.Function(analysis.free_vars(outputs), outputs)

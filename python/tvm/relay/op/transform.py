@@ -42,6 +42,7 @@ def cast(data, dtype):
         The casted result.
     """
     from .. import _ffi_api as _relay_make
+
     return _relay_make.cast(data, dtype)
 
 
@@ -59,6 +60,7 @@ def cast_like(data, dtype_like):
         The casted result.
     """
     from .. import _ffi_api as _relay_make
+
     return _relay_make.cast_like(data, dtype_like)
 
 
@@ -79,6 +81,7 @@ def reinterpret(data, dtype):
         The reinterpreted result.
     """
     from .. import _make as _relay_make
+
     return _relay_make.reinterpret(data, dtype)
 
 
@@ -226,7 +229,7 @@ def reshape(data, newshape):
                 try:
                     tempshape.append(int(shape))
                 except ValueError as err:
-                    raise RuntimeError('Unrecognized shape type: %s' % err)
+                    raise RuntimeError("Unrecognized shape type: %s" % err)
         newshape = tempshape
     return _make.reshape(data, list(newshape))
 
@@ -829,15 +832,16 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
         The computed result.
     """
     strides = strides or [1]
-    if (isinstance(begin, Expr) or isinstance(end, Expr) or isinstance(strides, Expr)):
+    if isinstance(begin, Expr) or isinstance(end, Expr) or isinstance(strides, Expr):
         if isinstance(begin, (tuple, list)):
             begin = const(list(begin))
         if isinstance(end, (tuple, list)):
             end = const(list(end))
         if isinstance(strides, (tuple, list)):
             strides = const(list(strides))
-        normalized_begin = _make.where(begin < cast_like(const(0), begin),
-                                       begin + cast_like(shape_of(data), begin), begin)
+        normalized_begin = _make.where(
+            begin < cast_like(const(0), begin), begin + cast_like(shape_of(data), begin), begin
+        )
         return _dyn_make.strided_slice(data, normalized_begin, end, strides, slice_mode)
     return _make.strided_slice(data, begin, end, strides, slice_mode)
 

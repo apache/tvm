@@ -22,8 +22,10 @@ from tvm import te
 from tvm.topi.util import get_const_tuple
 from .bitserial_util import bitpack
 
-def bitserial_dense(data, weight, data_bits, weight_bits, pack_dtype='uint32',
-                    out_dtype='int16', unipolar=True):
+
+def bitserial_dense(
+    data, weight, data_bits, weight_bits, pack_dtype="uint32", out_dtype="int16", unipolar=True
+):
     """The default implementation of bitserial dense in topi.
 
     Parameters
@@ -47,20 +49,32 @@ def bitserial_dense(data, weight, data_bits, weight_bits, pack_dtype='uint32',
     X, WB, _ = get_const_tuple(weight_packed.shape)
 
     oshape = (Y, X)
-    k = te.reduce_axis((0, K), name='k')
-    db = te.reduce_axis((0, DB), name='db')
-    wb = te.reduce_axis((0, WB), name='wb')
+    k = te.reduce_axis((0, K), name="k")
+    db = te.reduce_axis((0, DB), name="db")
+    wb = te.reduce_axis((0, WB), name="wb")
 
-    matmul_unipolar = te.compute(oshape, lambda i, j: te.sum(
-        (tvm.tir.popcount(weight_packed[j, wb, k] & data_packed[i, db, k]) -
-         tvm.tir.popcount(~weight_packed[j, wb, k] & data_packed[i, db, k])).astype(out_dtype)
-        << (db+wb).astype(out_dtype), axis=[wb, db, k]),
-                                 tag='bitserial_dense_unipolar')
+    matmul_unipolar = te.compute(
+        oshape,
+        lambda i, j: te.sum(
+            (
+                tvm.tir.popcount(weight_packed[j, wb, k] & data_packed[i, db, k])
+                - tvm.tir.popcount(~weight_packed[j, wb, k] & data_packed[i, db, k])
+            ).astype(out_dtype)
+            << (db + wb).astype(out_dtype),
+            axis=[wb, db, k],
+        ),
+        tag="bitserial_dense_unipolar",
+    )
 
-    matmul = te.compute(oshape, lambda i, j: te.sum(
-        tvm.tir.popcount(weight_packed[j, wb, k] & data_packed[i, db, k]).astype(out_dtype)
-        << (db+wb).astype(out_dtype), axis=[wb, db, k]), tag='bitserial_dense')
-
+    matmul = te.compute(
+        oshape,
+        lambda i, j: te.sum(
+            tvm.tir.popcount(weight_packed[j, wb, k] & data_packed[i, db, k]).astype(out_dtype)
+            << (db + wb).astype(out_dtype),
+            axis=[wb, db, k],
+        ),
+        tag="bitserial_dense",
+    )
 
     if unipolar:
         return matmul_unipolar

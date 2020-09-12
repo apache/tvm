@@ -18,21 +18,35 @@ import argparse
 import re
 
 default_team_id = "3FR42MXLK9"
-default_bundle_identifier = 'org.apache.tvmrpc'
+default_bundle_identifier = "org.apache.tvmrpc"
 
-parser = argparse.ArgumentParser(description='Update tvmrpc.xcodeproj\
- developer information')
-parser.add_argument('--team_id', type=str, required=True,
-                    help='Apple Developer Team ID.\n\
+parser = argparse.ArgumentParser(
+    description="Update tvmrpc.xcodeproj\
+ developer information"
+)
+parser.add_argument(
+    "--team_id",
+    type=str,
+    required=True,
+    help="Apple Developer Team ID.\n\
                     Can be found here:\n\
                     \n\
                     https://developer.apple.com/account/#/membership\n\
-                    (example: {})'.format(default_team_id))
+                    (example: {})".format(
+        default_team_id
+    ),
+)
 
-parser.add_argument('--bundle_identifier', type=str, required=False,
-                    default=default_bundle_identifier,
-                    help='The new bundle identifier\n\
-                    (example: {})'.format(default_bundle_identifier))
+parser.add_argument(
+    "--bundle_identifier",
+    type=str,
+    required=False,
+    default=default_bundle_identifier,
+    help="The new bundle identifier\n\
+                    (example: {})".format(
+        default_bundle_identifier
+    ),
+)
 
 args = parser.parse_args()
 team_id = args.team_id

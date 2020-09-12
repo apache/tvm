@@ -23,8 +23,7 @@ import tvm.testing
 @tvm.testing.uses_gpu
 def test_nd_create():
     for target, ctx in tvm.testing.enabled_targets():
-        for dtype in ["uint8", "int8", "uint16", "int16", "uint32", "int32",
-                      "float32"]:
+        for dtype in ["uint8", "int8", "uint16", "int16", "uint32", "int32", "float32"]:
             x = np.random.randint(0, 10, size=(3, 4))
             x = np.array(x, dtype=dtype)
             y = tvm.nd.array(x, ctx=ctx)
@@ -41,12 +40,12 @@ def test_nd_create():
 def test_fp16_conversion():
     n = 100
 
-    for (src, dst) in [('float32', 'float16'), ('float16', 'float32')]:
+    for (src, dst) in [("float32", "float16"), ("float16", "float32")]:
         A = te.placeholder((n,), dtype=src)
         B = te.compute((n,), lambda i: A[i].astype(dst))
 
         s = te.create_schedule([B.op])
-        func = tvm.build(s, [A, B], 'llvm')
+        func = tvm.build(s, [A, B], "llvm")
 
         x_tvm = tvm.nd.array(100 * np.random.randn(n).astype(src) - 50)
         y_tvm = tvm.nd.array(100 * np.random.randn(n).astype(dst) - 50)

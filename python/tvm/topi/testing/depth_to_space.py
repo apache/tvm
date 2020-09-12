@@ -19,7 +19,7 @@
 import numpy as np
 
 
-def depth_to_space_python(data, block_size, mode='DCR'):
+def depth_to_space_python(data, block_size, mode="DCR"):
     """Depth to Space operator in python for NCHW layout.
 
     Parameters
@@ -41,13 +41,11 @@ def depth_to_space_python(data, block_size, mode='DCR'):
     new_w = int(in_h * block_size)
     new_c = int(in_c / (block_size * block_size))
 
-    if mode == 'DCR':
-        expanded = np.reshape(
-            data, newshape=[in_n, block_size, block_size, new_c, in_h, in_w])
+    if mode == "DCR":
+        expanded = np.reshape(data, newshape=[in_n, block_size, block_size, new_c, in_h, in_w])
         transposed = np.transpose(expanded, axes=[0, 3, 4, 1, 5, 2])
     else:
-        expanded = np.reshape(
-            data, newshape=(in_n, new_c, block_size, block_size, in_h, in_w))
+        expanded = np.reshape(data, newshape=(in_n, new_c, block_size, block_size, in_h, in_w))
         transposed = np.transpose(expanded, axes=(0, 1, 4, 2, 5, 3))
     newshape = [in_n, new_c, new_h, new_w]
     d2s_out = np.reshape(transposed, newshape=newshape)

@@ -68,14 +68,16 @@ def dilation2d_nchw(input, filter, stride, padding, dilations, out_dtype=None):
 
     batch, in_channel, in_height, in_width = input.shape
     channel, kernel_h, kernel_w = filter.shape
-    assert in_channel.value == channel.value, \
-        "For Dilation2D input and filter channels should be same."
+    assert (
+        in_channel.value == channel.value
+    ), "For Dilation2D input and filter channels should be same."
 
     # compute the output shape
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (dilated_kernel_h, dilated_kernel_w))
+        padding, (dilated_kernel_h, dilated_kernel_w)
+    )
 
     out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
     out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
@@ -83,16 +85,20 @@ def dilation2d_nchw(input, filter, stride, padding, dilations, out_dtype=None):
     pad_before = [0, 0, pad_top, pad_left]
     pad_after = [0, 0, pad_down, pad_right]
     temp = pad(input, pad_before, pad_after, name="pad_temp")
-    ry = te.reduce_axis((0, kernel_h), name='ry')
-    rx = te.reduce_axis((0, kernel_w), name='rx')
+    ry = te.reduce_axis((0, kernel_h), name="ry")
+    rx = te.reduce_axis((0, kernel_w), name="rx")
 
     return te.compute(
         (batch, in_channel, out_height, out_width),
         lambda nn, ff, yy, xx: te.max(
-            temp[nn, ff, yy * stride_h + ry * dilation_h,
-                 xx * stride_w + rx * dilation_w].astype(out_dtype) +
-            filter[ff, ry, rx].astype(out_dtype),
-            axis=[ry, rx]), tag="dilation2d_nchw")
+            temp[nn, ff, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w].astype(
+                out_dtype
+            )
+            + filter[ff, ry, rx].astype(out_dtype),
+            axis=[ry, rx],
+        ),
+        tag="dilation2d_nchw",
+    )
 
 
 def dilation2d_nhwc(input, filter, stride, padding, dilations, out_dtype=None):
@@ -139,27 +145,33 @@ def dilation2d_nhwc(input, filter, stride, padding, dilations, out_dtype=None):
 
     batch, in_height, in_width, in_channel = input.shape
     kernel_h, kernel_w, channel = filter.shape
-    assert in_channel.value == channel.value, \
-        "For Dilation2D input and filter channels should be same."
+    assert (
+        in_channel.value == channel.value
+    ), "For Dilation2D input and filter channels should be same."
 
     # compute the output shape
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (dilated_kernel_h, dilated_kernel_w))
+        padding, (dilated_kernel_h, dilated_kernel_w)
+    )
 
     out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
     out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
     pad_before = [0, pad_top, pad_left, 0]
     pad_after = [0, pad_down, pad_right, 0]
     padded_input = pad(input, pad_before, pad_after, name="padded_input")
-    ry = te.reduce_axis((0, kernel_h), name='ry')
-    rx = te.reduce_axis((0, kernel_w), name='rx')
+    ry = te.reduce_axis((0, kernel_h), name="ry")
+    rx = te.reduce_axis((0, kernel_w), name="rx")
 
     return te.compute(
         (batch, out_height, out_width, in_channel),
         lambda nn, yy, xx, ff: te.max(
-            padded_input[nn, yy * stride_h + ry * dilation_h,
-                         xx * stride_w + rx * dilation_w, ff].astype(out_dtype) +
-            filter[ry, rx, ff].astype(out_dtype),
-            axis=[ry, rx]), tag="dilation2d_nhcw")
+            padded_input[
+                nn, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, ff
+            ].astype(out_dtype)
+            + filter[ry, rx, ff].astype(out_dtype),
+            axis=[ry, rx],
+        ),
+        tag="dilation2d_nhcw",
+    )
