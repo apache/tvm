@@ -19,7 +19,11 @@
 
 import tvm
 from tvm import te
+from .injective import schedule_injective_from_existing
 from .nms import atomic_add
+from .sort import topk, argsort
+from .. import tag
+from ..transform import strided_slice, adv_index, squeeze
 
 
 def argwhere_1d_ir(condition, out):
@@ -48,7 +52,9 @@ def argwhere_1d_ir(condition, out):
     tmp = ib.allocate("int32", (1,), name="tmp", scope="local")
     one_count = tvm.tir.const(1, dtype="int32")
 
-    max_threads = 1024
+    max_threads = int(
+        tvm.target.Target.current(allow_none=False).max_num_threads
+    )
     nthread_tx = max_threads
     nthread_bx = a0 // max_threads + 1
     tx = te.thread_axis("threadIdx.x")
@@ -105,7 +111,11 @@ def argwhere_1d(output_shape, condition):
         tag="argwhere1d_gpu",
     )
 
-    return out
+    sorted_out = topk(
+        out, k=0, axis=0, ret_type="values", is_ascend="True", dtype="int32"
+    )
+
+    return sorted_out
 
 
 def argwhere_2d_ir(condition, out):
@@ -135,7 +145,9 @@ def argwhere_2d_ir(condition, out):
     tmp = ib.allocate("int32", (1,), name="tmp", scope="local")
     one_count = tvm.tir.const(1, dtype="int32")
 
-    max_threads = 1024
+    max_threads = int(
+        tvm.target.Target.current(allow_none=False).max_num_threads
+    )
     nthread_tx = max_threads
     nthread_bx = (a0 * a1) // max_threads + 1
     tx = te.thread_axis("threadIdx.x")
@@ -194,7 +206,21 @@ def argwhere_2d(output_shape, condition):
         tag="argwhere2d_gpu",
     )
 
-    return out
+    if out.shape[0] <= 1:
+        return out
+
+    # sort the output from the least significant to the most significant
+    # column.
+    out1 = strided_slice(out, [0, 1], [out.shape[0], 2])
+    out2 = argsort(out1, axis=0, dtype="int32")
+    out3 = squeeze(out2)
+    out = adv_index(out, [out3])
+
+    out1 = strided_slice(out, [0, 0], [out.shape[0], 1])
+    out2 = argsort(out1, axis=0, dtype="int32")
+    out3 = squeeze(out2)
+
+    return adv_index(out, [out3])
 
 
 def argwhere_3d_ir(condition, out):
@@ -227,7 +253,9 @@ def argwhere_3d_ir(condition, out):
     tmp = ib.allocate("int32", (1,), name="tmp", scope="local")
     one_count = tvm.tir.const(1, dtype="int32")
 
-    max_threads = 1024
+    max_threads = int(
+        tvm.target.Target.current(allow_none=False).max_num_threads
+    )
     nthread_tx = max_threads
     nthread_bx = s0 // max_threads + 1
     tx = te.thread_axis("threadIdx.x")
@@ -289,6 +317,17 @@ def argwhere_3d(output_shape, condition):
         tag="argwhere3d_gpu",
     )
 
+    if out.shape[0] <= 1:
+        return out
+
+    # sort the output from the least significant to the most significant
+    # column.
+    for i in reversed(range(3)):
+        out1 = strided_slice(out, [0, i], [out.shape[0], i + 1])
+        out2 = argsort(out1, axis=0, dtype="int32")
+        out3 = squeeze(out2)
+        out = adv_index(out, [out3])
+
     return out
 
 
@@ -324,7 +363,9 @@ def argwhere_4d_ir(condition, out):
     tmp = ib.allocate("int32", (1,), name="tmp", scope="local")
     one_count = tvm.tir.const(1, dtype="int32")
 
-    max_threads = 1024
+    max_threads = int(
+        tvm.target.Target.current(allow_none=False).max_num_threads
+    )
     nthread_tx = max_threads
     nthread_bx = s0 // max_threads + 1
     tx = te.thread_axis("threadIdx.x")
@@ -387,6 +428,17 @@ def argwhere_4d(output_shape, condition):
         tag="argwhere4d_gpu",
     )
 
+    if out.shape[0] <= 1:
+        return out
+
+    # sort the output from the least significant to the most significant
+    # column.
+    for i in reversed(range(4)):
+        out1 = strided_slice(out, [0, i], [out.shape[0], i + 1])
+        out2 = argsort(out1, axis=0, dtype="int32")
+        out3 = squeeze(out2)
+        out = adv_index(out, [out3])
+
     return out
 
 
@@ -424,7 +476,9 @@ def argwhere_5d_ir(condition, out):
     tmp = ib.allocate("int32", (1,), name="tmp", scope="local")
     one_count = tvm.tir.const(1, dtype="int32")
 
-    max_threads = 1024
+    max_threads = int(
+        tvm.target.Target.current(allow_none=False).max_num_threads
+    )
     nthread_tx = max_threads
     nthread_bx = s0 // max_threads + 1
     tx = te.thread_axis("threadIdx.x")
@@ -488,6 +542,17 @@ def argwhere_5d(output_shape, condition):
         tag="argwhere5d_gpu",
     )
 
+    if out.shape[0] <= 1:
+        return out
+
+    # sort the output from the least significant to the most significant
+    # column.
+    for i in reversed(range(5)):
+        out1 = strided_slice(out, [0, i], [out.shape[0], i + 1])
+        out2 = argsort(out1, axis=0, dtype="int32")
+        out3 = squeeze(out2)
+        out = adv_index(out, [out3])
+
     return out
 
 
@@ -535,6 +600,17 @@ def schedule_argwhere(outs):
         The computation schedule for argwhere
     """
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-    sch = te.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
+    scheduled_ops = []
 
-    return sch
+    def traverse(op):
+        if tag.is_injective(op.tag):
+            schedule_injective_from_existing(s, op.output(0))
+        for tensor in op.input_tensors:
+            if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                traverse(tensor.op)
+        scheduled_ops.append(op)
+
+    for out in outs:
+        traverse(out.op)
+    return s
