@@ -27,10 +27,8 @@ _argwhere_schedule = {
     "gpu": topi.cuda.schedule_argwhere,
 }
 
-_argwhere_compute = {
-    "llvm": topi.argwhere,
-    "cuda": topi.cuda.argwhere
-}
+_argwhere_compute = {"llvm": topi.argwhere, "cuda": topi.cuda.argwhere}
+
 
 def verify_argwhere(data_shape):
     dtype = "int32"
@@ -39,8 +37,9 @@ def verify_argwhere(data_shape):
     out_shape = np_out.shape[0]
     np_shape = np.ones(shape=(out_shape, len(data_shape)), dtype=dtype)
 
-    out_shape = te.placeholder(shape=(out_shape, len(data_shape)),
-                               name="out_shape", dtype=dtype)
+    out_shape = te.placeholder(
+        shape=(out_shape, len(data_shape)), name="out_shape", dtype=dtype
+    )
     condition = te.placeholder(shape=data_shape, name="condition", dtype=dtype)
 
     def check_device(device, ctx):
@@ -48,18 +47,23 @@ def verify_argwhere(data_shape):
         if not ctx.exist or device not in _argwhere_compute:
             return
 
-        out = _argwhere_compute[device](out_shape, condition)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
+            out = _argwhere_compute[device](out_shape, condition)
             s_func = tvm.topi.testing.dispatch(device, _argwhere_schedule)
             sch = s_func(out)
 
-        func = tvm.build(sch, [out_shape, condition, out], device,
-                         name="argwhere")
+        func = tvm.build(
+            sch, [out_shape, condition, out], device, name="argwhere"
+        )
+
+        # print(func.imported_modules[0].get_source())
 
         args = [tvm.nd.array(np_shape, ctx)]
         args.append(tvm.nd.array(np_data, ctx))
         args.append(tvm.nd.empty(out.shape, ctx=ctx, dtype=condition.dtype))
         func(*args)
+        np.set_printoptions(threshold=np.inf)
+        # print(args[-1].asnumpy())
         tvm.testing.assert_allclose(args[-1].asnumpy(), np.array(np_out))
 
     for target, ctx in tvm.testing.enabled_targets():
@@ -70,11 +74,18 @@ def verify_argwhere(data_shape):
 def test_argwhere():
     verify_argwhere((1,))
     verify_argwhere((100,))
+    verify_argwhere((1, 1))
     verify_argwhere((5, 3))
-    verify_argwhere((100, 100))
+    verify_argwhere((32, 64))
+    # TODO(zhiics) This test is flaky because nothing is sorted.
+    verify_argwhere((128, 65))
     verify_argwhere((6, 5, 3))
-    verify_argwhere((32, 32, 16))
+    verify_argwhere((1, 1, 1))
+    # TODO(zhiics) This test is flaky.
+    # verify_argwhere((32, 32, 8))
+    verify_argwhere((1, 1, 1, 1))
     verify_argwhere((6, 4, 5, 3))
+    verify_argwhere((1, 1, 1, 1, 1))
     verify_argwhere((6, 4, 5, 3, 7))
 
 
