@@ -449,7 +449,6 @@ RELAY_REGISTER_OP("shape_of")
     // Use kOpaque for shape_of op for now since it won't be performance critic,
     // and it makes things easier for dynamic shape func
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_support_level(10)
     .set_attr<FTVMCompute>("FTVMCompute", ShapeOfCompute);
 
