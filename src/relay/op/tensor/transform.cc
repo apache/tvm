@@ -310,8 +310,9 @@ bool StackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     CHECK_EQ(e_dtype, dtype) << "relay.stack requires all tensors have the same dtype";
     for (size_t j = 0; j < first->shape.size(); ++j) {
       if (j == static_cast<size_t>(axis)) continue;
-      if (first->shape[j].as<AnyNode>() || e->shape[j].as<AnyNode>()
-          || reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
+      if (first->shape[j].as<AnyNode>() || e->shape[j].as<AnyNode>() ||
+          reporter->AssertEQ(first->shape[j], e->shape[j]))
+        continue;
       throw Error(
           "relay.stack requires all tensors have the same shape "
           "on non-stacking axes");
