@@ -749,7 +749,7 @@ def adv_index_shape_func(attrs, inputs, _):
 
 @script
 def _repeat_shape_func(data_shape, repeats, axis):
-    out =  output_tensor((data_shape.shape[0],), "int64")
+    out = output_tensor((data_shape.shape[0],), "int64")
 
     for i in const_range(data_shape.shape[0]):
         if i == axis:
@@ -777,7 +777,7 @@ def broadcast_to_like_shape_func(attrs, inputs, _):
 
 @script
 def _stack_shape_func(data_shape, axis, num_inputs):
-    out =  output_tensor((data_shape.shape[0] + 1,), "int64")
+    out = output_tensor((data_shape.shape[0] + 1,), "int64")
 
     for i in const_range(data_shape.shape[0] + 1):
         if i == axis:

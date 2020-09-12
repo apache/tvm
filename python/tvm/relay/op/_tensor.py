@@ -171,8 +171,8 @@ def full_shape_func(attrs, inputs, out_ndims):
     """
     if len(inputs) > 1:
         return [_full_shape_func(inputs[1])]
-    else:
-        return [_convert_shape(convert(attrs.shape))]
+
+    return [_convert_shape(convert(attrs.shape))]
 
 
 def no_data_full_shape_func(attrs, inputs, out_ndims):
