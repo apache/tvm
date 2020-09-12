@@ -21,6 +21,7 @@ This is a test script to test fused_batch_norm operators
 in TensorFlow frontend when mean and variance are not given.
 """
 import tvm
+import tvm.testing
 import numpy as np
 
 try:

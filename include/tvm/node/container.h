@@ -824,7 +824,6 @@ class DenseMapNode : public MapNode {
    */
   static ObjectPtr<DenseMapNode> Empty(uint32_t fib_shift, uint64_t n_slots) {
     CHECK_GT(n_slots, uint64_t(SmallMapNode::kMaxSize));
-    CHECK_EQ((n_slots & -n_slots), n_slots);
     ObjectPtr<DenseMapNode> p = make_object<DenseMapNode>();
     uint64_t n_blocks = CalcNumBlocks(n_slots - 1);
     Block* block = p->data_ = new Block[n_blocks];

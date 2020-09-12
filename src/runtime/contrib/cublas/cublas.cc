@@ -31,7 +31,7 @@ namespace tvm {
 namespace contrib {
 
 using namespace runtime;
-
+namespace {
 inline cublasOperation_t BooleanToTranspose(bool item) { return item ? CUBLAS_OP_T : CUBLAS_OP_N; }
 
 inline void TryEnableTensorCore(cublasHandle_t hdl) {
@@ -40,6 +40,7 @@ inline void TryEnableTensorCore(cublasHandle_t hdl) {
   CHECK_CUBLAS_ERROR(cublasGetVersion(hdl, &version));
   if (version >= 9000) CHECK_CUBLAS_ERROR(cublasSetMathMode(hdl, CUBLAS_TENSOR_OP_MATH));
 }
+}  // namespace
 
 struct CublasHgemmOp {
   typedef half TDatatype;
