@@ -1917,7 +1917,7 @@ class Clip(OnnxOpConverter):
 
         assert len(inputs) <= 3, "Clip-11 takes up to 3 inputs, input, min, max"
         result = inputs[0]
-        for i, op in enumerate([_maximum, _minimum]):
+        for i, op in enumerate([_op.tensor.maximum, _op.tensor.minimum]):
             if i < len(inputs) - 1:
                 result = op(result, inputs[i + 1])
         return result
