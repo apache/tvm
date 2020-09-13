@@ -160,6 +160,42 @@ class RPCSession(object):
         """
         return _ffi_api.LoadRemoteModule(self._sess, path)
 
+    def download_linked_module(self, path):
+        """Link a module in the remote and download it.
+
+        Parameters
+        ----------
+        path : str
+            The relative location to remote temp folder.
+
+        Returns
+        -------
+        blob : bytearray
+            The result blob from the file.
+
+        Note
+        ----
+        This function can be helpful when a linker
+        is not available on the local client.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            mod = build_module_with_cross_compilation()
+            # export the module as tar because a local linker is not available
+            mod.export_library("lib.tar")
+            remote.upload("lib.tar")
+            # invoke the linker on the remote to link the module as a library
+            # note that the library can only run on the same env as the remote
+            with open("lib.so", "wb") as file:
+                file.write(remote.download_linked_module("lib.tar"))
+        """
+        if "download_linked_module" not in self._remote_funcs:
+            self._remote_funcs["download_linked_module"] = self.get_function(
+                "tvm.rpc.server.download_linked_module")
+        return self._remote_funcs["download_linked_module"](path)
+
     def cpu(self, dev_id=0):
         """Construct CPU device."""
         return self.context(1, dev_id)

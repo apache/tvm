@@ -16,7 +16,9 @@
 # under the License.
 """Script to prepare test_addone.so"""
 import tvm
+import numpy as np
 from tvm import te
+from tvm import relay
 import os
 
 
@@ -36,6 +38,21 @@ def prepare_test_libs(base_path):
     fadd_syslib.save(syslib_path)
 
 
+def prepare_graph_lib(base_path):
+    x = relay.var("x", shape=(2, 2), dtype="float32")
+    y = relay.var("y", shape=(2, 2), dtype="float32")
+    params = {"y": np.ones((2, 2), dtype="float32")}
+    mod = tvm.IRModule.from_expr(relay.Function([x, y], x + y))
+    # build a module
+    compiled_lib = relay.build(mod, tvm.target.create("llvm"), params=params)
+    # export it as a shared library
+    # If you are running cross compilation, you can also consider export
+    # to tar and invoke host compiler later.
+    dylib_path = os.path.join(base_path, "test_relay_add.so")
+    compiled_lib.export_library(dylib_path)
+
+
 if __name__ == "__main__":
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     prepare_test_libs(os.path.join(curr_path, "./lib"))
+    prepare_graph_lib(os.path.join(curr_path, "./lib"))

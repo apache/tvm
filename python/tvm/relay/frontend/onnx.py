@@ -1050,6 +1050,17 @@ class Gather(OnnxOpConverter):
         return AttrCvt("take", extras={"axis": axis})(inputs, {})
 
 
+class GatherElements(OnnxOpConverter):
+    """Operator converter for GatherElements."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        data = inputs[0]
+        indices = inputs[1]
+        axis = attr.get("axis", 0)
+        return _op.gather(data, axis, indices)
+
+
 class GatherND(OnnxOpConverter):
     """Operator converter for GatherND."""
 
@@ -2014,6 +2025,7 @@ def _get_convert_map(opset):
         "DepthToSpace": DepthToSpace.get_converter(opset),
         "SpaceToDepth": SpaceToDepth.get_converter(opset),
         "Gather": Gather.get_converter(opset),
+        "GatherElements": GatherElements.get_converter(opset),
         "GatherND": GatherND.get_converter(opset),
         "Scatter": Scatter.get_converter(opset),
         "ScatterElements": Scatter.get_converter(opset),
