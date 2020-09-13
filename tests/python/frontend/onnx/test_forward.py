@@ -2734,8 +2734,6 @@ def test_max_roi_pool():
 
 
 def verify_lppool(x_shape, kernel_shape, p, strides, pads, out_shape, auto_pad="NOTSET"):
-    x_np = np.random.uniform(size=x_shape).astype("float32")
-
     if pads is None:
         pool_node = helper.make_node(
             "LpPool",
@@ -2765,11 +2763,7 @@ def verify_lppool(x_shape, kernel_shape, p, strides, pads, out_shape, auto_pad="
     )
 
     model = helper.make_model(graph, producer_name="lppool_test")
-
-    for target, ctx in tvm.testing.enabled_targets():
-        onnx_out = get_onnxruntime_output(model, x_np, "float32")
-        tvm_out = get_tvm_output(model, [x_np], target, ctx, out_shape)
-        tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+    verify_onnx_forward_impl(model, [x_shape], out_shape)
 
 
 @tvm.testing.uses_gpu
@@ -3177,12 +3171,7 @@ def test_resize():
 
         model = helper.make_model(graph, producer_name="resize_test")
 
-        for target, ctx in tvm.testing.enabled_targets():
-            x = np.random.uniform(size=ishape).astype("float32")
-            onnx_out = get_onnxruntime_output(model, x, "float32")
-            tvm_out = get_tvm_output(model, x, target, ctx, oshape, "float32", opset=11)
-
-            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
+        verify_onnx_forward_impl(model, [ishape], oshape)
 
     # upsampling
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
@@ -3327,17 +3316,9 @@ def test_roi_align():
         np_rois = np.random.uniform(size=[num_roi, 4]).astype("float32") * input_dims[2]
         np_batch_indicies = np.random.randint(low=0, high=input_dims[0], size=num_roi)
 
-        onnx_out = get_onnxruntime_output(model, [np_data, np_rois, np_batch_indicies])
-        for target, ctx in [("llvm", tvm.cpu())]:
-            tvm_out = get_tvm_output(
-                model,
-                [np_data, np_rois, np_batch_indicies],
-                target,
-                ctx,
-                output_dims,
-                output_dtype="float32",
-            )
-            tvm.testing.assert_allclose(onnx_out[0], tvm_out, rtol=1e-05, atol=1e-05)
+        verify_onnx_forward_impl_with_inputs(
+            model, [np_data, np_rois, np_batch_indicies], output_dims
+        )
 
     verify_roi_align((1, 4, 16, 16), 32, 7, 7, sampling_ratio=0, spatial_scale=1.0)
     verify_roi_align((4, 4, 16, 32), 32, 7, 7, sampling_ratio=0, spatial_scale=1.0)
