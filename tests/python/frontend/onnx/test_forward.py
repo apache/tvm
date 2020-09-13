@@ -14,17 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import io
 import numpy as np
 import math
 import onnx
 from onnx import helper, TensorProto, mapping
 import torch
 import torchvision
-from tvm import topi
 import tvm.topi.testing
 import tvm
-from tvm import te
 from tvm import relay
 from tvm.contrib import graph_runtime
 import scipy
@@ -563,6 +560,7 @@ def _test_slice_iteration_v10(indata, outdata, **attrs):
     starts = attrs["starts"]
     ends = attrs["ends"]
     axes = None if "axes" not in attrs else attrs["axes"]
+    steps = None if "steps" not in attrs else attrs["steps"]
     starts = np.asarray(starts)
     ends = np.asarray(ends)
     inputs = [
@@ -619,8 +617,8 @@ def _test_slice_iteration_v10(indata, outdata, **attrs):
             return [ref_node, ref_node2, reshape1_node, reshape2_node]
 
     slice_inputs = []
-    for attr_name in ["starts", "ends", "axes"]:
-        if attr_name == "axes" and not axes:
+    for attr_name in ["starts", "ends", "axes", "steps"]:
+        if attr_name not in attrs:
             continue
         if "add_noop_to_input_attrs" in attrs and attr_name in attrs["add_noop_to_input_attrs"]:
             nodes.extend(add_noop_to_input_attr(attr_name, attrs[attr_name]))
@@ -632,6 +630,13 @@ def _test_slice_iteration_v10(indata, outdata, **attrs):
         axes = np.asarray(axes)
         inputs.append(helper.make_tensor_value_info("axes", TensorProto.INT32, list(axes.shape)))
         initializer.append(helper.make_tensor("axes", TensorProto.INT32, list(axes.shape), axes))
+
+    if steps:
+        assert axes is not None and len(axes) == len(steps)
+        steps = np.asarray(steps)
+        inputs.append(helper.make_tensor_value_info("steps", TensorProto.INT32, list(axes.shape)))
+        initializer.append(helper.make_tensor("steps", TensorProto.INT32, list(steps.shape), steps))
+
     y = helper.make_node("Slice", ["data", *slice_inputs], ["out"])
 
     nodes.append(y)
@@ -710,31 +715,18 @@ def test_slice():
         x, x, starts=(0, 0), ends=(9223372036854775807, 9223372036854775807), axes=(0, 3)
     )
 
-    def test_slice_with_strides():
-        class SliceWithStrides(torch.nn.Module):
-            def forward(self, x):
-                return x[..., 0::2] + x[..., 1::2]
-
-        class SliceWithStrides2(torch.nn.Module):
-            def forward(self, x):
-                return x[0::2, 0::2] + x[1::2, 1::2]
-
-        for module in [SliceWithStrides, SliceWithStrides2]:
-            ishape = (4, 4)
-            onnx_io = io.BytesIO()
-            torch.onnx.export(
-                module(),
-                (torch.randn(ishape),),
-                onnx_io,
-                input_names=["x"],
-                output_names=["y"],
-                opset_version=10,
-                enable_onnx_checker=True,
-            )
-            model = onnx.load_model_from_string(onnx_io.getvalue())
-            verify_with_ort(model, [ishape])
-
-    test_slice_with_strides()
+    x = np.random.randn(4, 4).astype(np.float32)
+    _test_slice_iteration_v10(
+        x, x[:, 1::2], starts=(1,), ends=(9223372036854775807,), axes=(1,), steps=(2,)
+    )
+    _test_slice_iteration_v10(
+        x,
+        x[0::1, 1::2],
+        starts=(0, 1),
+        ends=(9223372036854775807, 9223372036854775807),
+        axes=(0, 1),
+        steps=(1, 2),
+    )
 
 
 def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
