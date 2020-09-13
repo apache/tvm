@@ -254,7 +254,6 @@ class RelayBuildModule : public runtime::ModuleNode {
     Array<runtime::String> entry_functions{"main"};
     pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
     pass_seqs.push_back(transform::ToBasicBlockNormalForm());
-    pass_seqs.push_back(transform::DynamicToStatic());
 
     // Run all dialect legalization passes.
     pass_seqs.push_back(relay::qnn::transform::Legalize());
@@ -263,6 +262,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (targets.size() == 1) {
       pass_seqs.push_back(transform::Legalize());
     }
+
+    // Convert Dynamic ops to static versions
+    pass_seqs.push_back(transform::DynamicToStatic());
 
     pass_seqs.push_back(transform::SimplifyInference());
     PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
