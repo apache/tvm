@@ -16,13 +16,10 @@
 # under the License.
 """Util to invoke C/C++ compilers in the system."""
 # pylint: disable=invalid-name
-from __future__ import absolute_import as _abs
 import sys
 import subprocess
-import os
 
 from .._ffi.base import py_str
-from .util import tempdir
 
 
 def create_shared(output, objects, options=None, cc="g++"):
@@ -207,66 +204,31 @@ def _linux_compile(output, objects, options, compile_cmd="g++", compile_shared=F
         msg += "\nCommand line: " + " ".join(cmd)
         raise RuntimeError(msg)
 
-
 def _windows_shared(output, objects, options):
-    cl_cmd = ["cl"]
-    cl_cmd += ["-c"]
+    cmd = ["clang"]
+    cmd += ["-O2", "-flto=full", "-fuse-ld=lld-link"]
+
+    if output.endswith(".so") or output.endswith(".dll"):
+        cmd += ["-shared"]
+    elif output.endswith(".obj"):
+        cmd += ["-c"]
+
     if isinstance(objects, str):
         objects = [objects]
-    cl_cmd += objects
+    cmd += ["-o", output]
+    cmd += objects
     if options:
-        cl_cmd += options
+        cmd += options
 
-    temp = tempdir()
-    dllmain_path = temp.relpath("dllmain.cc")
-    with open(dllmain_path, "w") as dllmain_obj:
-        dllmain_obj.write(
-            "#include <windows.h>\
-BOOL APIENTRY DllMain( HMODULE hModule,\
-                       DWORD  ul_reason_for_call,\
-                       LPVOID lpReserved)\
-{return TRUE;}"
-        )
-
-    cl_cmd += [dllmain_path]
-
-    temp_path = dllmain_path.replace("dllmain.cc", "")
-    cl_cmd += ["-Fo:" + temp_path]
     try:
-        proc = subprocess.Popen(cl_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         (out, _) = proc.communicate()
     except FileNotFoundError:
         raise RuntimeError(
-            "Can not find cl.exe," "please run this in Vistual Studio Command Prompt."
-        )
-    if proc.returncode != 0:
-        msg = "Compilation error:\n"
-        msg += py_str(out)
-        raise RuntimeError(msg)
-    link_cmd = ["lld-link"]
-    link_cmd += ["-dll", "-FORCE:MULTIPLE"]
-
-    for obj in objects:
-        if obj.endswith(".cc"):
-            (_, temp_file_name) = os.path.split(obj)
-            (shot_name, _) = os.path.splitext(temp_file_name)
-            link_cmd += [os.path.join(temp_path, shot_name + ".obj")]
-        if obj.endswith(".o"):
-            link_cmd += [obj]
-
-    link_cmd += [temp_path + "dllmain.obj"]
-    link_cmd += ["-out:" + output]
-
-    try:
-        proc = subprocess.Popen(link_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        (out, _) = proc.communicate()
-    except FileNotFoundError:
-        raise RuntimeError(
-            "Can not find the LLVM linker for Windows (lld-link.exe)."
+            "Can not find the LLVM clang for Windows clang.exe)."
             "Make sure it's installed"
             " and the installation directory is in the %PATH% environment "
             "variable. Prebuilt binaries can be found at: https://llvm.org/"
-            "For building the linker on your own see: https://lld.llvm.org/#build"
         )
     if proc.returncode != 0:
         msg = "Compilation error:\n"
