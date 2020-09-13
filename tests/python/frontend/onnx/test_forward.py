@@ -1615,7 +1615,7 @@ def verify_reduce_func(func, data, axis, keepdims):
 
     model = helper.make_model(graph, producer_name="reduce_test")
 
-    verify_with_ort(model, [data.shape], outshape)
+    verify_with_ort_with_inputs(model, [data], outshape)
 
 
 @tvm.testing.uses_gpu
