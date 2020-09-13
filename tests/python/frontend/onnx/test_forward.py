@@ -54,7 +54,9 @@ def get_tvm_output_with_vm(graph_def, input_data, target, ctx, opset=None):
 
     ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
     result = ex.evaluate()(*input_data)
-    return result.asnumpy()
+    if isinstance(result, tvm.runtime.NDArray):
+        return result.asnumpy()
+    return [r.asnumpy() for r in result]
 
 
 def get_tvm_output(
@@ -2313,7 +2315,7 @@ def test_batch_norm_dynamic_subgraph():
         model = helper.make_model(graph, producer_name="batchnorm_test")
         # X, inp, scale, b, mean, var
         inshapes = [in_shape, o_shape, in_shape[1], in_shape[1], in_shape[1], in_shape[1]]
-        verify_with_ort(model, inshapes, in_shape)
+        verify_with_ort(model, inshapes, in_shape, use_vm=False)
 
     verify_batch_norm_dynamic_subgraph([16, 16, 10, 10], [160, 160])
 
@@ -3208,7 +3210,7 @@ def test_resize():
 
         model = helper.make_model(graph, producer_name="resize_test")
 
-        verify_with_ort(model, [ishape], oshape, opset=11)
+        verify_with_ort(model, [ishape], oshape, use_vm=False, opset=11)
 
     # upsampling
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
