@@ -112,10 +112,13 @@ def get_onnxruntime_output(model, inputs, dtype="float32"):
     return ort_out
 
 
-def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
+def verify_onnx_forward_impl(graph_file_or_bytes, data_shape, out_shape):
     dtype = "float32"
-    x = np.random.uniform(size=data_shape)
-    model = onnx.load_model(graph_file)
+    x = np.random.uniform(size=data_shape).astype(dtype)
+    if isinstance(graph_file_or_bytes, bytes):
+        model = onnx.load_model_from_string(graph_file_or_bytes)
+    else:
+        model = onnx.load_model(graph_file_or_bytes)
     c2_out = get_onnxruntime_output(model, x, dtype)
     for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, dtype)
@@ -695,13 +698,8 @@ def test_slice():
             opset_version=10,
             enable_onnx_checker=True,
         )
-        model = onnx.load_model_from_string(onnx_io.getvalue())
 
-        for target, ctx in tvm.testing.enabled_targets():
-            x = np.random.uniform(size=(1, 4)).astype("float32")
-            tvm_out = get_tvm_output(model, x, target, ctx, (1, 2), "float32")
-            onnx_out = get_onnxruntime_output(model, x, "float32")
-            tvm.testing.assert_allclose(onnx_out, tvm_out)
+        verify_onnx_forward_impl(onnx_io.getvalue(), (1, 4), (1, 2))
 
     test_slice_with_strides()
 
