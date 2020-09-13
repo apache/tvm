@@ -680,18 +680,24 @@ def test_slice():
             def forward(self, x):
                 return x[..., 0::2] + x[..., 1::2]
 
-        onnx_io = io.BytesIO()
-        torch.onnx.export(
-            SliceWithStrides(),
-            (torch.randn(1, 4),),
-            onnx_io,
-            input_names=["x"],
-            output_names=["y"],
-            opset_version=10,
-            enable_onnx_checker=True,
-        )
-        model = onnx.load_model_from_string(onnx_io.getvalue())
-        verify_with_ort(model, [(1, 4)], (1, 2))
+        class SliceWithStrides2(torch.nn.Module):
+            def forward(self, x):
+                return x[0::2, 0::2] + x[1::2, 1::2]
+
+        for module in [SliceWithStrides, SliceWithStrides2]:
+            ishape = (4, 4)
+            onnx_io = io.BytesIO()
+            torch.onnx.export(
+                module(),
+                (torch.randn(ishape),),
+                onnx_io,
+                input_names=["x"],
+                output_names=["y"],
+                opset_version=10,
+                enable_onnx_checker=True,
+            )
+            model = onnx.load_model_from_string(onnx_io.getvalue())
+            verify_with_ort(model, [ishape])
 
     test_slice_with_strides()
 
