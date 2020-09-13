@@ -53,8 +53,7 @@ def get_tvm_output_with_vm(graph_def, input_data, target, ctx, opset=None):
     mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
 
     ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
-    indata = tvm.nd.array(input_data)
-    result = ex.evaluate()(indata)
+    result = ex.evaluate()(*input_data)
     return result.asnumpy()
 
 
@@ -110,12 +109,19 @@ def get_onnxruntime_output(model, inputs, dtype="float32"):
         inp = inputs[0]
     else:
         inp = inputs
-
     return rep.run(inp.astype(dtype))[0]
 
 
 def verify_with_ort_with_inputs(
-    model, inputs, out_shape=None, dtype="float32", rtol=1e-5, atol=1e-5
+    model,
+    inputs,
+    out_shape=None,
+    targets=None,
+    use_vm=False,
+    opset=None,
+    dtype="float32",
+    rtol=1e-5,
+    atol=1e-5,
 ):
     def flatten(out):
         if isinstance(out, list) and len(out) == 1:
@@ -126,15 +132,42 @@ def verify_with_ort_with_inputs(
 
     ort_out = get_onnxruntime_output(model, inputs, dtype)
 
-    for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, inputs, target, ctx, out_shape, dtype)
+    if targets is None:
+        targets = [tgt for (tgt, _) in tvm.testing.enabled_targets()]
+
+    for target in targets:
+        ctx = tvm.context(target, 0)
+
+        if use_vm:
+            tvm_out = get_tvm_output_with_vm(model, inputs, target, ctx, opset=opset)
+        else:
+            tvm_out = get_tvm_output(model, inputs, target, ctx, out_shape, dtype, opset=opset)
+
         tvm.testing.assert_allclose(flatten(ort_out), flatten(tvm_out), rtol=rtol, atol=atol)
 
 
-def verify_with_ort(model, input_shapes, out_shape=None, dtype="float32", rtol=1e-5, atol=1e-5):
+def verify_with_ort(
+    model,
+    input_shapes,
+    out_shape=None,
+    targets=None,
+    use_vm=False,
+    opset=None,
+    dtype="float32",
+    rtol=1e-5,
+    atol=1e-5,
+):
     inputs = [np.random.uniform(size=ishape).astype(dtype) for ishape in input_shapes]
     verify_with_ort_with_inputs(
-        model, inputs, out_shape=out_shape, dtype=dtype, rtol=rtol, atol=atol
+        model,
+        inputs,
+        out_shape=out_shape,
+        targets=targets,
+        use_vm=use_vm,
+        opset=opset,
+        dtype=dtype,
+        rtol=rtol,
+        atol=atol,
     )
 
 
@@ -3175,7 +3208,7 @@ def test_resize():
 
         model = helper.make_model(graph, producer_name="resize_test")
 
-        verify_with_ort(model, [ishape], oshape)
+        verify_with_ort(model, [ishape], oshape, opset=11)
 
     # upsampling
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
@@ -3208,11 +3241,9 @@ def test_nonzero():
 
         model = helper.make_model(graph, producer_name="nonzero_test")
 
-        onnx_out = get_onnxruntime_output(model, indata, dtype)
-
-        for target, ctx in [("llvm", tvm.cpu())]:
-            tvm_out = get_tvm_output_with_vm(model, indata, target, ctx, opset=9)
-            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
+        verify_with_ort_with_inputs(
+            model, [indata], targets=["llvm"], dtype="int64", use_vm=True, opset=9
+        )
 
     input_data = np.array([[1, 0], [1, 1]], dtype=np.int64)
     result = np.array((np.nonzero(input_data)))  # expected output [[0, 1, 1], [0, 0, 1]]
