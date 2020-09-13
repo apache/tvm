@@ -112,17 +112,13 @@ def get_onnxruntime_output(model, inputs, dtype="float32"):
     return ort_out
 
 
-def verify_onnx_forward_impl(graph_file_or_bytes, data_shape, out_shape):
+def verify_onnx_forward_impl(model, data_shape, out_shape=None, rtol=1e-5, atol=1e-5):
     dtype = "float32"
     x = np.random.uniform(size=data_shape).astype(dtype)
-    if isinstance(graph_file_or_bytes, bytes):
-        model = onnx.load_model_from_string(graph_file_or_bytes)
-    else:
-        model = onnx.load_model(graph_file_or_bytes)
-    c2_out = get_onnxruntime_output(model, x, dtype)
+    ort_out = get_onnxruntime_output(model, x, dtype)
     for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, dtype)
-        tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(ort_out, tvm_out, rtol=rtol, atol=atol)
 
 
 def make_constant_node(name, data_type, dims, vals):
@@ -165,8 +161,7 @@ def test_reshape():
     for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=in_shape).astype("int32")
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, "float32")
-
-    tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
+        tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
 
 @tvm.testing.uses_gpu
@@ -197,8 +192,7 @@ def test_expand():
 
         for target, ctx in tvm.testing.enabled_targets():
             tvm_out = get_tvm_output(model, data, target, ctx, ref_data.shape, "float32")
-
-        tvm.testing.assert_allclose(ref_data, tvm_out)
+            tvm.testing.assert_allclose(ref_data, tvm_out)
 
     in_shape = (3, 1)
     shape = (3, 4)
@@ -225,11 +219,7 @@ def verify_depth_to_space(inshape, outshape, mode, blockSize):
 
     model = helper.make_model(graph, producer_name="depth_to_space_test")
 
-    for target, ctx in tvm.testing.enabled_targets():
-        x = np.random.uniform(size=inshape).astype("float32")
-        tvm_out = get_tvm_output(model, x, target, ctx, outshape, "float32")
-        onnx_out = get_onnxruntime_output(model, x, "float32")
-        tvm.testing.assert_allclose(onnx_out, tvm_out)
+    verify_onnx_forward_impl(model, inshape, outshape)
 
 
 @tvm.testing.uses_gpu
@@ -252,11 +242,7 @@ def verify_space_to_depth(inshape, outshape, blockSize):
 
     model = helper.make_model(graph, producer_name="space_to_depth_test")
 
-    for target, ctx in tvm.testing.enabled_targets():
-        x = np.random.uniform(size=inshape).astype("float32")
-        tvm_out = get_tvm_output(model, x, target, ctx, outshape, "float32")
-        onnx_out = get_onnxruntime_output(model, x, "float32")
-        tvm.testing.assert_allclose(onnx_out, tvm_out)
+    verify_onnx_forward_impl(model, inshape, outshape)
 
 
 @tvm.testing.uses_gpu
@@ -297,8 +283,7 @@ def test_shape():
     for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=in_shape).astype("int32")
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, "int32")
-
-    tvm.testing.assert_allclose(ref_shape, tvm_out)
+        tvm.testing.assert_allclose(ref_shape, tvm_out)
 
 
 def _test_power_iteration(x_shape, y_shape):
@@ -354,8 +339,7 @@ def test_squeeze():
     for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=in_shape).astype("float32")
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, "float32")
-
-    tvm.testing.assert_allclose(out_shape, tvm_out.shape)
+        tvm.testing.assert_allclose(out_shape, tvm_out.shape)
 
 
 @tvm.testing.uses_gpu
@@ -379,8 +363,7 @@ def test_flatten():
     for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=in_shape).astype("int32")
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, "float32")
-
-    tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
+        tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
 
 @tvm.testing.uses_gpu
@@ -402,8 +385,7 @@ def test_unsqueeze():
     for target, ctx in tvm.testing.enabled_targets():
         x = np.random.uniform(size=in_shape).astype("float32")
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, "float32")
-
-    tvm.testing.assert_allclose(out_shape, tvm_out.shape)
+        tvm.testing.assert_allclose(out_shape, tvm_out.shape)
 
 
 def verify_gather(in_shape, indices, axis, dtype):
@@ -454,6 +436,7 @@ def verify_gatherelements(in_shape, indices, axis):
         outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, list(in_shape))],
     )
     model = helper.make_model(graph, producer_name="gather_elements_test")
+
     onnx_out = get_onnxruntime_output(model, [x, indices])
 
     for target, ctx in tvm.testing.enabled_targets():
@@ -698,8 +681,8 @@ def test_slice():
             opset_version=10,
             enable_onnx_checker=True,
         )
-
-        verify_onnx_forward_impl(onnx_io.getvalue(), (1, 4), (1, 2))
+        model = onnx.load_model_from_string(onnx_io.getvalue())
+        verify_onnx_forward_impl(model, (1, 4), (1, 2))
 
     test_slice_with_strides()
 
@@ -721,8 +704,7 @@ def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
 
     for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, dtype)
-
-    tvm.testing.assert_allclose(outdata, tvm_out)
+        tvm.testing.assert_allclose(outdata, tvm_out)
 
 
 @tvm.testing.uses_gpu
@@ -764,11 +746,7 @@ def test_clip_min_max_as_inputs():
     )
     model = helper.make_model(graph, producer_name="clip_test")
 
-    indata = np.random.uniform(-1, 7, size=input_shape).astype("float32")
-    onnx_out = get_onnxruntime_output(model, indata, "float32")
-    for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, indata, target, ctx, input_shape, "float32")
-    tvm.testing.assert_allclose(onnx_out, tvm_out)
+    verify_onnx_forward_impl(model, input_shape, input_shape)
 
 
 @tvm.testing.uses_gpu
@@ -793,8 +771,7 @@ def _test_finite_ops(inshape, outfunc, npargs, dtype, opname, kwargs):
 
     for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, dtype)
-
-    tvm.testing.assert_allclose(outdata, tvm_out)
+        tvm.testing.assert_allclose(outdata, tvm_out)
 
 
 @tvm.testing.uses_gpu
@@ -1596,10 +1573,7 @@ def verify_reduce_func(func, data, axis, keepdims):
 
     model = helper.make_model(graph, producer_name="reduce_test")
 
-    onnx_out = get_onnxruntime_output(model, data, "float32")
-    for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, data, target, ctx, outshape, "float32")
-        tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+    verify_onnx_forward_impl(model, data.shape, outshape)
 
 
 @tvm.testing.uses_gpu
@@ -1922,11 +1896,7 @@ def check_torch_conversion(model, input_size):
     # Set verbose=True for more output
     torch.onnx.export(model(), dummy_input, file_name, export_params=True, verbose=False)
     onnx_model = onnx.load(file_name)
-    for target, ctx in tvm.testing.enabled_targets():
-        input_data = np.random.uniform(size=input_size).astype("int32")
-        c2_out = get_onnxruntime_output(onnx_model, input_data)
-        tvm_out = get_tvm_output(onnx_model, input_data, target, ctx)
-        tvm.testing.assert_allclose(c2_out, tvm_out)
+    verify_onnx_forward_impl(onnx_model, input_size)
 
 
 @tvm.testing.uses_gpu
