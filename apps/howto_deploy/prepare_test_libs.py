@@ -54,5 +54,5 @@ def prepare_graph_lib(base_path):
 
 if __name__ == "__main__":
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    prepare_test_libs(os.path.join(curr_path, "./lib"))
-    prepare_graph_lib(os.path.join(curr_path, "./lib"))
+    prepare_test_libs(os.path.join(curr_path, "lib"))
+    prepare_graph_lib(os.path.join(curr_path, "lib"))
