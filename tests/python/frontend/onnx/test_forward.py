@@ -1930,7 +1930,8 @@ def check_torch_conversion(model, input_size):
     # Set verbose=True for more output
     torch.onnx.export(model(), dummy_input, file_name, export_params=True, verbose=False)
     onnx_model = onnx.load(file_name)
-    verify_with_ort(onnx_model, [input_size])
+    input_data = np.random.uniform(size=input_size).astype("int32")
+    verify_with_ort_with_inputs(onnx_model, [input_data])
 
 
 @tvm.testing.uses_gpu
