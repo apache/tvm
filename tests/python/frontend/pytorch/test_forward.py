@@ -182,7 +182,7 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
 
     with torch.no_grad():
         baseline_outputs = baseline_model(*baseline_input)
-
+    
     if isinstance(baseline_outputs, tuple):
         baseline_outputs = tuple(out.cpu().numpy() for out in baseline_outputs)
     else:
@@ -223,6 +223,17 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
 
 
 # Single operator tests
+@tvm.testing.uses_gpu
+def test_forward_pixel_shuffle():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 144, 16, 16]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.PixelShuffle(2).float().eval(), input_data=input_data)
+    verify_model(torch.nn.PixelShuffle(3).float().eval(), input_data=input_data)
+    verify_model(torch.nn.PixelShuffle(4).float().eval(), input_data=input_data)
+
+
 @tvm.testing.uses_gpu
 def test_forward_add():
     torch.set_grad_enabled(False)
@@ -3163,6 +3174,7 @@ if __name__ == "__main__":
     test_duplicate_weight_use()
 
     # Single operator tests
+    test_forward_pixel_shuffle()
     test_forward_add()
     test_forward_subtract()
     test_forward_multiply()
