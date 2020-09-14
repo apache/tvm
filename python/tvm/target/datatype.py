@@ -19,8 +19,12 @@
 TODO(@gussmith23 @hypercubestart) link to BYODT docs when they exist"""
 import tvm
 from tvm.runtime import convert, DataType
-from tvm.tir.expr import (Call as _Call, Cast as _Cast,
-                          FloatImm as _FloatImm, BinaryOpExpr as _BinaryOpExpr)
+from tvm.tir.expr import (
+    Call as _Call,
+    Cast as _Cast,
+    FloatImm as _FloatImm,
+    BinaryOpExpr as _BinaryOpExpr,
+)
 from tvm.tir.op import call_pure_extern
 from tvm._ffi import register_func as _register_func
 from tvm.tir import call_intrin
@@ -131,12 +135,9 @@ def get_type_registered(type_code):
     return tvm.runtime._ffi_api._datatype_get_type_registered(type_code)
 
 
-def register_op(lower_func,
-                op_name,
-                target,
-                src_type_name,
-                dest_type_name=None,
-                intrinsic_name=None):
+def register_op(
+    lower_func, op_name, target, src_type_name, dest_type_name=None, intrinsic_name=None
+):
     """Register a lowering function for a specific operator of a custom datatype
 
     At build time, Relay must lower operators over custom datatypes into
@@ -190,15 +191,31 @@ def register_op(lower_func,
 
     if op_name == "Cast":
         assert dest_type_name is not None
-        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
-                          + dest_type_name + "." + src_type_name
+        lower_func_name = (
+            "tvm.datatype.lower."
+            + target
+            + "."
+            + op_name
+            + "."
+            + dest_type_name
+            + "."
+            + src_type_name
+        )
     elif op_name == "Call" and intrinsic_name is not None:
-        lower_func_name = "tvm.datatype.lower." + target + "." + op_name \
-                          + ".intrin." + intrinsic_name + "." + src_type_name
+        lower_func_name = (
+            "tvm.datatype.lower."
+            + target
+            + "."
+            + op_name
+            + ".intrin."
+            + intrinsic_name
+            + "."
+            + src_type_name
+        )
     else:
-        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
-                          + src_type_name
+        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." + src_type_name
     tvm._ffi.register_func(lower_func_name, lower_func)
+
 
 def register_min_func(func, type_name):
     """Register the function that returns the minimum representable value of type_name.
@@ -228,6 +245,7 @@ def register_min_func(func, type_name):
     """
     _register_func("tvm.datatype.min." + type_name, func)
 
+
 def create_min_lower_func(extern_func_map, type_name):
     """Returns a lowering function for getting the minimum value of a custom datatype.
 
@@ -239,15 +257,17 @@ def create_min_lower_func(extern_func_map, type_name):
     type_name : string
         The name of the custom datatype, e.g. posites2 (but not custom[posites2]32).
     """
+
     def lower(num_bits):
-        dtype = f'custom[{type_name}]{num_bits}'
+        dtype = f"custom[{type_name}]{num_bits}"
 
         if num_bits not in extern_func_map:
-            raise RuntimeError('missing minimum function for {dtype}')
+            raise RuntimeError("missing minimum function for {dtype}")
 
         return call_pure_extern(dtype, extern_func_map[num_bits])
 
     return lower
+
 
 def create_lower_func(extern_func_map):
     """Returns a function which lowers an operation to a function call.
@@ -261,6 +281,7 @@ def create_lower_func(extern_func_map):
         Otherwise, for unary and binary ops, it should simply be a map
         from bit_length to the name of the extern "C" function to lower to.
     """
+
     def lower(op):
         """
         Takes an op---either a Cast, Call, or a binary op (e.g. an Add) and returns a
@@ -282,7 +303,7 @@ def create_lower_func(extern_func_map):
             key = (src_bits, t.bits)
 
         if key not in extern_func_map:
-            raise RuntimeError(f'missing key {key} in extern_func_map for {op.astext()}')
+            raise RuntimeError(f"missing key {key} in extern_func_map for {op.astext()}")
 
         if isinstance(op, _Cast):
             return call_pure_extern(dtype, extern_func_map[key], op.value)
@@ -296,6 +317,7 @@ def create_lower_func(extern_func_map):
         raise RuntimeError(f"lowering unsupported op: {op.astext()}")
 
     return lower
+
 
 def lower_ite(ite_op):
     """Lowered if then else function that calls intrinsic if_then_else.
@@ -316,9 +338,14 @@ def lower_ite(ite_op):
     dtype = "uint" + str(t.bits)
     if t.lanes > 1:
         dtype += "x" + str(t.lanes)
-    return call_intrin(dtype, "tir.if_then_else", convert(ite_op.args[0]),
-                       convert(ite_op.args[1]),
-                       convert(ite_op.args[2]))
+    return call_intrin(
+        dtype,
+        "tir.if_then_else",
+        convert(ite_op.args[0]),
+        convert(ite_op.args[1]),
+        convert(ite_op.args[2]),
+    )
+
 
 def lower_call_pure_extern(op):
     """Lowered call pure extern function that calls intrinsic call_pure_extern.

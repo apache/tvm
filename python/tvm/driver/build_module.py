@@ -256,27 +256,35 @@ def _build_for_device(input_mod, target, target_host):
 
     # device optimizations
     opt_device = tvm.transform.Sequential(
-        [tvm.tir.transform.Filter(
-            lambda f: "calling_conv" in f.attrs and
-            f.attrs["calling_conv"].value == CallingConv.DEVICE_KERNEL_LAUNCH),
-         tvm.tir.transform.LowerWarpMemory(),
-         tvm.tir.transform.Simplify(),
-         tvm.tir.transform.LowerDeviceStorageAccessInfo(),
-         tvm.tir.transform.LowerCustomDatatypes(),
-         tvm.tir.transform.LowerIntrin()])
+        [
+            tvm.tir.transform.Filter(
+                lambda f: "calling_conv" in f.attrs
+                and f.attrs["calling_conv"].value == CallingConv.DEVICE_KERNEL_LAUNCH
+            ),
+            tvm.tir.transform.LowerWarpMemory(),
+            tvm.tir.transform.Simplify(),
+            tvm.tir.transform.LowerDeviceStorageAccessInfo(),
+            tvm.tir.transform.LowerCustomDatatypes(),
+            tvm.tir.transform.LowerIntrin(),
+        ]
+    )
     mod_dev = opt_device(mod_mixed)
 
     # host optimizations
     opt_host = tvm.transform.Sequential(
-        [tvm.tir.transform.Filter(
-            lambda f: "calling_conv" not in f.attrs or
-            f.attrs["calling_conv"].value != CallingConv.DEVICE_KERNEL_LAUNCH),
-         tvm.tir.transform.Apply(lambda f: f.with_attr("target", target)),
-         tvm.tir.transform.LowerTVMBuiltin(),
-         tvm.tir.transform.LowerDeviceStorageAccessInfo(),
-         tvm.tir.transform.LowerCustomDatatypes(),
-         tvm.tir.transform.LowerIntrin(),
-         tvm.tir.transform.CombineContextCall()])
+        [
+            tvm.tir.transform.Filter(
+                lambda f: "calling_conv" not in f.attrs
+                or f.attrs["calling_conv"].value != CallingConv.DEVICE_KERNEL_LAUNCH
+            ),
+            tvm.tir.transform.Apply(lambda f: f.with_attr("target", target)),
+            tvm.tir.transform.LowerTVMBuiltin(),
+            tvm.tir.transform.LowerDeviceStorageAccessInfo(),
+            tvm.tir.transform.LowerCustomDatatypes(),
+            tvm.tir.transform.LowerIntrin(),
+            tvm.tir.transform.CombineContextCall(),
+        ]
+    )
     mod_host = opt_host(mod_mixed)
 
     if device_type == ndarray.cpu(0).device_type and target_host == target:
