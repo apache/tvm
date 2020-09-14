@@ -28,9 +28,8 @@ def _get_model(shape, typef, sizes, strides, pads, layout, dtype):
     """Return a model and any parameters it may have"""
     req = relay.var("a", shape=shape, dtype=dtype)
     if typef == relay.nn.avg_pool2d:
-        req = relay.cast(req, 'int32')
-    req = typef(req, pool_size=sizes, strides=strides, padding=pads,
-                ceil_mode=True, layout=layout)
+        req = relay.cast(req, "int32")
+    req = typef(req, pool_size=sizes, strides=strides, padding=pads, ceil_mode=True, layout=layout)
     if typef == relay.nn.avg_pool2d:
         req = relay.cast(req, dtype)
     return req
@@ -66,16 +65,56 @@ def test_pooling_failure():
         return
 
     trials = [
-        ((2, 8, 8, 8), relay.nn.max_pool2d, (2, 2), (2, 2), (0, 0, 0, 0), "NHWC", "uint8",
-         "batch size=2, batch size must = 1"),
-        ((1, 8, 8, 8), relay.nn.max_pool2d, (2, 2), (2, 2), (0, 0, 0, 0), "NHWC", "int8",
-         "dtype='int8', dtype must be either uint8 or int32"),
-        ((1, 8, 8, 8), relay.nn.max_pool2d, (2, 2), (2, 2), (0, 0, 0, 0), "NCHW", "uint8",
-         "data format=NCHW, data format must = NHWC"),
-        ((1, 8, 8, 8), relay.nn.max_pool2d, (2, 2), (2, 2, 2), (0, 0, 0, 0), "NHWC", "uint8",
-         "stride size=3, stride size must = 2"),
-        ((1, 8, 8, 8), relay.nn.max_pool2d, (2, 2, 2), (2, 2), (0, 0, 0, 0), "NHWC", "uint8",
-         "dimensions=3, dimensions must = 2"),
+        (
+            (2, 8, 8, 8),
+            relay.nn.max_pool2d,
+            (2, 2),
+            (2, 2),
+            (0, 0, 0, 0),
+            "NHWC",
+            "uint8",
+            "batch size=2, batch size must = 1",
+        ),
+        (
+            (1, 8, 8, 8),
+            relay.nn.max_pool2d,
+            (2, 2),
+            (2, 2),
+            (0, 0, 0, 0),
+            "NHWC",
+            "int8",
+            "dtype='int8', dtype must be either uint8 or int32",
+        ),
+        (
+            (1, 8, 8, 8),
+            relay.nn.max_pool2d,
+            (2, 2),
+            (2, 2),
+            (0, 0, 0, 0),
+            "NCHW",
+            "uint8",
+            "data format=NCHW, data format must = NHWC",
+        ),
+        (
+            (1, 8, 8, 8),
+            relay.nn.max_pool2d,
+            (2, 2),
+            (2, 2, 2),
+            (0, 0, 0, 0),
+            "NHWC",
+            "uint8",
+            "stride size=3, stride size must = 2",
+        ),
+        (
+            (1, 8, 8, 8),
+            relay.nn.max_pool2d,
+            (2, 2, 2),
+            (2, 2),
+            (0, 0, 0, 0),
+            "NHWC",
+            "uint8",
+            "dimensions=3, dimensions must = 2",
+        ),
     ]
 
     for shape, typef, size, stride, pad, layout, dtype, err_msg in trials:

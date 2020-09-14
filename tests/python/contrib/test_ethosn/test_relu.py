@@ -25,7 +25,7 @@ import numpy as np
 
 
 def _get_model(shape, dtype, a_min, a_max):
-    a = relay.var('a', shape=shape, dtype=dtype)
+    a = relay.var("a", shape=shape, dtype=dtype)
     relu = relay.clip(a, a_min=a_min, a_max=a_max)
     return relu
 
@@ -42,8 +42,7 @@ def test_relu():
 
     for shape, a_min, a_max in trials:
         inputs = {
-            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape,
-                                                dtype="uint8")),
+            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
         }
         outputs = []
         for npu in [False, True]:

@@ -29,25 +29,28 @@ def _get_model(input_shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, dtyp
 
     a = relay.var("a", shape=input_shape, dtype=dtype)
     b = relay.var("b", shape=input_shape, dtype=dtype)
-    model = relay.qnn.op.add(lhs=a, rhs=b,
-                             lhs_scale=relay.const(lhs_sc, 'float32'),
-                             lhs_zero_point=relay.const(lhs_zp, 'int32'),
-                             rhs_scale=relay.const(rhs_sc, 'float32'),
-                             rhs_zero_point=relay.const(rhs_zp, 'int32'),
-                             output_scale=relay.const(out_sc, 'float32'),
-                             output_zero_point=relay.const(out_zp, 'int32'))
+    model = relay.qnn.op.add(
+        lhs=a,
+        rhs=b,
+        lhs_scale=relay.const(lhs_sc, "float32"),
+        lhs_zero_point=relay.const(lhs_zp, "int32"),
+        rhs_scale=relay.const(rhs_sc, "float32"),
+        rhs_zero_point=relay.const(rhs_zp, "int32"),
+        output_scale=relay.const(out_sc, "float32"),
+        output_zero_point=relay.const(out_zp, "int32"),
+    )
     return model
 
 
 def _get_addition_qnn_params(input1_zp, input1_sc, input2_zp, input2_sc):
     input1_max = input1_sc * (255 - input1_zp)
-    input1_min = - input1_sc * input1_zp
+    input1_min = -input1_sc * input1_zp
     input2_max = input2_sc * (255 - input2_zp)
-    input2_min = - input2_sc * input2_zp
+    input2_min = -input2_sc * input2_zp
     output_max = input1_max + input2_max
     output_min = input1_min + input2_min
     output_sc = (output_max - output_min) / 255
-    output_zp = - int(output_min / output_sc)
+    output_zp = -int(output_min / output_sc)
     return output_zp, output_sc
 
 
@@ -66,10 +69,8 @@ def test_addition():
     for shape, rhs_zp, rhs_sc, lhs_zp, lhs_sc in trials:
         outputs = []
         inputs = {
-            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape,
-                                                dtype="uint8")),
-            "b": tvm.nd.array(np.random.randint(0, high=255, size=shape,
-                                                dtype="uint8")),
+            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
+            "b": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
         }
         out_zp, out_sc = _get_addition_qnn_params(lhs_zp, lhs_sc, rhs_zp, rhs_sc)
         model = _get_model(shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, "uint8")
@@ -85,10 +86,28 @@ def test_addition_failure():
         return
 
     trials = [
-        ((2, 4, 4, 4), "uint8", 0, 1, 0, 1, 0, 1,
-         "batch size=2, batch size must = 1; batch size=2, batch size must = 1"),
-        ((1, 4, 4, 4), "int8", 0, 1, 0, 1, 0, 1,
-         "dtype='int8', dtype must be either uint8 or int32; dtype='int8', dtype must be either uint8 or int32"),
+        (
+            (2, 4, 4, 4),
+            "uint8",
+            0,
+            1,
+            0,
+            1,
+            0,
+            1,
+            "batch size=2, batch size must = 1; batch size=2, batch size must = 1",
+        ),
+        (
+            (1, 4, 4, 4),
+            "int8",
+            0,
+            1,
+            0,
+            1,
+            0,
+            1,
+            "dtype='int8', dtype must be either uint8 or int32; dtype='int8', dtype must be either uint8 or int32",
+        ),
     ]
 
     for shape, dtype, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, err_msg in trials:

@@ -38,24 +38,28 @@ def test_split_add_concat():
         axis = 2
 
         split = relay.split(a, indices_or_sections=4, axis=axis)
-        b = relay.qnn.op.add(split[0], split[1],
-                             lhs_scale=split_scale,
-                             lhs_zero_point=split_zp,
-                             rhs_scale=split_scale,
-                             rhs_zero_point=split_zp,
-                             output_scale=add_scale,
-                             output_zero_point=add_zp)
-        conc = relay.qnn.op.concatenate([b, split[2], split[3]],
-                                        input_scales=(add_scale, split_scale, split_scale),
-                                        input_zero_points=(add_zp, split_zp, split_zp),
-                                        output_scale=add_scale,
-                                        output_zero_point=add_zp,
-                                        axis=axis)
+        b = relay.qnn.op.add(
+            split[0],
+            split[1],
+            lhs_scale=split_scale,
+            lhs_zero_point=split_zp,
+            rhs_scale=split_scale,
+            rhs_zero_point=split_zp,
+            output_scale=add_scale,
+            output_zero_point=add_zp,
+        )
+        conc = relay.qnn.op.concatenate(
+            [b, split[2], split[3]],
+            input_scales=(add_scale, split_scale, split_scale),
+            input_zero_points=(add_zp, split_zp, split_zp),
+            output_scale=add_scale,
+            output_zero_point=add_zp,
+            axis=axis,
+        )
         return conc
 
     inputs = {
-        "a": tvm.nd.array(np.random.randint(0, high=255, size=(1, 16, 16, 4),
-                                            dtype="uint8")),
+        "a": tvm.nd.array(np.random.randint(0, high=255, size=(1, 16, 16, 4), dtype="uint8")),
     }
 
     outputs = []
@@ -87,7 +91,7 @@ def test_multiple_command_streams():
              |
         max_pool2d
         """
-        x = relay.var('x', shape=(1, 4, 4, 4), dtype='uint8')
+        x = relay.var("x", shape=(1, 4, 4, 4), dtype="uint8")
         out = relay.nn.max_pool2d(x, (2, 2), (2, 2), layout="NHWC")  # supported
         out = relay.op.abs(out)  # not supported
         out = relay.nn.max_pool2d(out, (2, 2), (2, 2), layout="NHWC")  # supported
@@ -99,7 +103,9 @@ def test_multiple_command_streams():
     for npu in [False, True]:
         model = get_model()
         mod = tei.make_module(model, {})
-        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu, expected_host_ops=1, npu_partitions=2))
+        outputs.append(
+            tei.build_and_run(mod, inputs, 1, {}, npu=npu, expected_host_ops=1, npu_partitions=2)
+        )
 
     tei.verify(outputs, 0)
 
@@ -125,8 +131,7 @@ def test_output_order():
         return relay.Tuple((d, c, e, f, i, b, h, g))
 
     inputs = {
-        "a": tvm.nd.array(np.random.randint(0, high=255, size=(1, 16, 16, 4),
-                                            dtype="uint8")),
+        "a": tvm.nd.array(np.random.randint(0, high=255, size=(1, 16, 16, 4), dtype="uint8")),
     }
 
     outputs = []

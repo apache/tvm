@@ -18,8 +18,9 @@
 """Ethos-N integration end-to-end network tests"""
 
 import pytest
-pytest.importorskip('tflite')
-pytest.importorskip('tensorflow')
+
+pytest.importorskip("tflite")
+pytest.importorskip("tensorflow")
 
 from tvm import relay
 from tvm.relay.op.contrib.ethosn import ethosn_available, Available
@@ -30,7 +31,7 @@ from . import infrastructure as tei
 
 
 def _get_tflite_model(tflite_model_path, inputs_dict, dtype):
-    with open(tflite_model_path, 'rb') as f:
+    with open(tflite_model_path, "rb") as f:
         tflite_model_buffer = f.read()
 
     try:
@@ -51,7 +52,16 @@ def _get_tflite_model(tflite_model_path, inputs_dict, dtype):
     )
 
 
-def _test_image_network(model_url, model_sub_path, input_dict, compile_hash, output_count, run=True, host_ops=0, npu_partitions=1):
+def _test_image_network(
+    model_url,
+    model_sub_path,
+    input_dict,
+    compile_hash,
+    output_count,
+    run=True,
+    host_ops=0,
+    npu_partitions=1,
+):
     if not ethosn_available():
         return
 
@@ -66,7 +76,7 @@ def _test_image_network(model_url, model_sub_path, input_dict, compile_hash, out
                 model_url,
                 model_sub_path,
             )
-        return _get_tflite_model(model_path, input_dict, 'uint8')
+        return _get_tflite_model(model_path, input_dict, "uint8")
 
     outputs = []
     inputs = {}
@@ -76,7 +86,9 @@ def _test_image_network(model_url, model_sub_path, input_dict, compile_hash, out
 
     for npu in [False, True]:
         mod, params = get_model()
-        graph, lib, params = tei.build(mod, params, npu=npu, expected_host_ops=host_ops, npu_partitions=npu_partitions)
+        graph, lib, params = tei.build(
+            mod, params, npu=npu, expected_host_ops=host_ops, npu_partitions=npu_partitions
+        )
         if npu:
             tei.assert_lib_hash(lib, compile_hash)
         if run:
@@ -94,8 +106,8 @@ def test_mobilenet_v1():
     # on hardware that isn't available in CI.
     hw = ethosn_available()
     _test_image_network(
-        model_url="https://storage.googleapis.com/download.tensorflow.org/" \
-                  "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
+        model_url="https://storage.googleapis.com/download.tensorflow.org/"
+        "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
         model_sub_path="mobilenet_v1_1.0_224_quant.tflite",
         input_dict={"input": (1, 224, 224, 3)},
         compile_hash="81637c89339201a07dc96e3b5dbf836a",
@@ -113,8 +125,8 @@ def test_inception_v3():
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
     _test_image_network(
-        model_url="https://storage.googleapis.com/download.tensorflow.org/" \
-                  "models/tflite_11_05_08/inception_v3_quant.tgz",
+        model_url="https://storage.googleapis.com/download.tensorflow.org/"
+        "models/tflite_11_05_08/inception_v3_quant.tgz",
         model_sub_path="inception_v3_quant.tflite",
         input_dict={"input": (1, 299, 299, 3)},
         compile_hash="de0e175af610ebd45ccb03d170dc9664",
@@ -132,8 +144,8 @@ def test_inception_v4():
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
     _test_image_network(
-        model_url="https://storage.googleapis.com/download.tensorflow.org/" \
-                  "models/inception_v4_299_quant_20181026.tgz",
+        model_url="https://storage.googleapis.com/download.tensorflow.org/"
+        "models/inception_v4_299_quant_20181026.tgz",
         model_sub_path="inception_v4_299_quant.tflite",
         input_dict={"input": (1, 299, 299, 3)},
         compile_hash="06bf6cb56344f3904bcb108e54edfe87",
@@ -151,8 +163,8 @@ def test_ssd_mobilenet_v1():
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
     _test_image_network(
-        model_url="https://storage.googleapis.com/download.tensorflow.org/" \
-                  "models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip",
+        model_url="https://storage.googleapis.com/download.tensorflow.org/"
+        "models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip",
         model_sub_path="detect.tflite",
         input_dict={"normalized_input_image_tensor": (1, 300, 300, 3)},
         compile_hash="6211d96103880b016baa85e638abddef",

@@ -58,23 +58,25 @@ def pattern_table():
         return pattern
 
     def qnn_fc_pattern():
-        pattern = is_op('qnn.dense')(
-            wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant())
-        pattern = is_op('nn.bias_add')(pattern, is_constant())
-        pattern = is_op('qnn.requantize')(
-            pattern, is_constant(), is_constant(), is_constant(), is_constant())
+        pattern = is_op("qnn.dense")(
+            wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+        )
+        pattern = is_op("nn.bias_add")(pattern, is_constant())
+        pattern = is_op("qnn.requantize")(
+            pattern, is_constant(), is_constant(), is_constant(), is_constant()
+        )
         return pattern
 
     def qnn_avg_pool2d_pattern():
-        pattern = is_op('cast')(wildcard())
-        pattern = is_op('nn.avg_pool2d')(pattern)
-        pattern = is_op('cast')(pattern)
+        pattern = is_op("cast")(wildcard())
+        pattern = is_op("nn.avg_pool2d")(pattern)
+        pattern = is_op("cast")(pattern)
         return pattern
 
     def qnn_sigmoid_pattern():
-        pattern = is_op('qnn.dequantize')(wildcard(), is_constant(), is_constant())
-        pattern = is_op('sigmoid')(pattern)
-        pattern = is_op('qnn.quantize')(pattern, is_constant(), is_constant())
+        pattern = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+        pattern = is_op("sigmoid")(pattern)
+        pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
         return pattern
 
     def check_conv2d(extract):
@@ -103,7 +105,7 @@ def pattern_table():
         if not ethosn_available():
             return False
 
-        if extract.attrs.out_dtype != 'uint8':
+        if extract.attrs.out_dtype != "uint8":
             return False
 
         return support.sigmoid(extract)
@@ -120,7 +122,7 @@ def _is_ethosn_composite(node):
     if isinstance(node, tvm.relay.expr.Call) and isinstance(node.op, tvm.relay.Function):
         if "Composite" in node.op.attrs:
             comp_name = node.op.attrs["Composite"]
-            return comp_name.split('.')[0] == "ethos-n"
+            return comp_name.split(".")[0] == "ethos-n"
 
     return False
 

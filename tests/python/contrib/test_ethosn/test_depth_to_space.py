@@ -25,7 +25,7 @@ import numpy as np
 
 
 def _get_model(shape, block, dtype, layout):
-    a = relay.var('a', shape=shape, dtype=dtype)
+    a = relay.var("a", shape=shape, dtype=dtype)
     depth = relay.nn.depth_to_space(a, layout=layout, block_size=block)
     return depth
 

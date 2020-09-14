@@ -46,7 +46,9 @@ def test_reshape():
 
     np.random.seed(0)
     for input_shape, output_shape in trials:
-        inputs = {"a": tvm.nd.array(np.random.randint(0, high=255, size=input_shape, dtype="uint8"))}
+        inputs = {
+            "a": tvm.nd.array(np.random.randint(0, high=255, size=input_shape, dtype="uint8"))
+        }
         outputs = []
         for npu in [False, True]:
             model, params = _get_model(input_shape, output_shape, "uint8")
@@ -61,7 +63,12 @@ def test_reshape_failure():
         return
 
     trials = [
-        ((1, 15, 4, 1), (1, 15, -2), "uint8", "reshape dimension=-2, reshape dimension must be >= -1"),
+        (
+            (1, 15, 4, 1),
+            (1, 15, -2),
+            "uint8",
+            "reshape dimension=-2, reshape dimension must be >= -1",
+        ),
     ]
 
     np.random.seed(0)
