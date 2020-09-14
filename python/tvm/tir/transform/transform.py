@@ -38,6 +38,7 @@ def Apply(ftransform):
     # pylint: disable=unused-argument
     def _transform(func, mod, ctx):
         return ftransform(func)
+
     return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")
 
 
@@ -57,6 +58,7 @@ def Filter(fcond):
     # pylint: disable=unused-argument
     def _transform(func, mod, ctx):
         return func if fcond(func) else None
+
     return _fpass.prim_func_pass(_transform, opt_level=0, name="Filter")
 
 
@@ -226,6 +228,7 @@ def RemoveNoOp():
     """
     return _ffi_api.RemoveNoOp()
 
+
 def BF16Legalize():
     """Legalize bf16 typed Ops.
     Runs BF16Promote, BF16CastElimination and BF16TypeLowering
@@ -237,6 +240,7 @@ def BF16Legalize():
     """
     return _ffi_api.BF16Legalize()
 
+
 def BF16Promote():
     """Promote bf16 to fp32. Add a cast to fp32
     before Ops, then add a cast back to bf16.
@@ -247,6 +251,7 @@ def BF16Promote():
         The result pass
     """
     return _ffi_api.BF16Promote()
+
 
 def BF16CastElimination():
     """Eliminate verbose casting between fp32 and bf16
@@ -266,6 +271,7 @@ def BF16CastElimination():
     """
     return _ffi_api.BF16CastElimination()
 
+
 def BF16TypeLowering():
     """Replace all bf16 type with uint16. Also lower the casting
     between fp32 and bf16
@@ -276,6 +282,7 @@ def BF16TypeLowering():
         The result pass
     """
     return _ffi_api.BF16TypeLowering()
+
 
 def RewriteUnsafeSelect():
     """Detect and rewrite unsafe select that contains memory access.
@@ -374,7 +381,7 @@ def SkipAssert():
 
 
 def ThreadSync(storage_scope):
-    """ Insert sync between parallel read/write of shared buffers.
+    """Insert sync between parallel read/write of shared buffers.
 
     Parameters
     ----------
@@ -401,7 +408,7 @@ def LowerThreadAllreduce():
 
 
 def InferFragment():
-    """ Infer the TensorCore fragment infomation using tensor intrinsics.
+    """Infer the TensorCore fragment infomation using tensor intrinsics.
 
     Returns
     -------
@@ -500,7 +507,8 @@ def VerifyMemory():
     """
     return _ffi_api.VerifyMemory()
 
-#pylint: disable=no-else-return,inconsistent-return-statements
+
+# pylint: disable=no-else-return,inconsistent-return-statements
 def HoistIfThenElse(variant=None):
     """Hoist loop-invariant IfThenElse nodes to outside the elligible loops.
 

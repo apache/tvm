@@ -32,18 +32,22 @@ def test_split_with_asym_concats():
         split = relay.op.split(a, indices_or_sections=splits, axis=axis)
         zeroi = relay.const(1, "int32")
         zerof = relay.const(0.5, "float32")
-        con1 = relay.qnn.op.concatenate([split[0], split[1]],
-                                        input_scales=[zerof]*2,
-                                        input_zero_points=[zeroi]*2,
-                                        output_scale=zerof,
-                                        output_zero_point=zeroi,
-                                        axis=axis)
-        con2 = relay.qnn.op.concatenate([split[2], split[3]],
-                                        input_scales=[zerof]*2,
-                                        input_zero_points=[zeroi]*2,
-                                        output_scale=zerof,
-                                        output_zero_point=zeroi,
-                                        axis=axis)
+        con1 = relay.qnn.op.concatenate(
+            [split[0], split[1]],
+            input_scales=[zerof] * 2,
+            input_zero_points=[zeroi] * 2,
+            output_scale=zerof,
+            output_zero_point=zeroi,
+            axis=axis,
+        )
+        con2 = relay.qnn.op.concatenate(
+            [split[2], split[3]],
+            input_scales=[zerof] * 2,
+            input_zero_points=[zeroi] * 2,
+            output_scale=zerof,
+            output_zero_point=zeroi,
+            axis=axis,
+        )
         return relay.Tuple((con2, con1))
 
     trials = [
@@ -96,12 +100,14 @@ def test_input_tuples():
 
         zeroi = relay.const(1, "int32")
         zerof = relay.const(0.5, "float32")
-        con = relay.qnn.op.concatenate(tup,
-                                       input_scales=[zerof]*len(shapes),
-                                       input_zero_points=[zeroi]*len(shapes),
-                                       output_scale=zerof,
-                                       output_zero_point=zeroi,
-                                       axis=axis)
+        con = relay.qnn.op.concatenate(
+            tup,
+            input_scales=[zerof] * len(shapes),
+            input_zero_points=[zeroi] * len(shapes),
+            output_scale=zerof,
+            output_zero_point=zeroi,
+            axis=axis,
+        )
 
         return con
 

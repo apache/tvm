@@ -19,6 +19,7 @@
 import numpy as np
 from scipy import signal
 
+
 def depthwise_conv2d_python_nchw(input_np, filter_np, stride, padding):
     """Depthwise convolution operator in NCHW layout.
 
@@ -49,22 +50,29 @@ def depthwise_conv2d_python_nchw(input_np, filter_np, stride, padding):
         stride_h, stride_w = stride
 
     # calculate output shape
-    if padding == 'VALID':
+    if padding == "VALID":
         out_channel = in_channel * channel_multiplier
         out_height = (in_height - filter_height) // stride_h + 1
         out_width = (in_width - filter_width) // stride_w + 1
         output_np = np.zeros((batch, out_channel, out_height, out_width))
         for i in range(batch):
             for j in range(out_channel):
-                output_np[i, j, :, :] = signal.convolve2d(input_np[i, j//channel_multiplier, :, :], \
-                                                          np.rot90(filter_np[j//channel_multiplier, j%channel_multiplier, :, :], 2), \
-                                                          mode='valid')[0:(in_height - filter_height + 1):stride_h, 0:(in_width - filter_width + 1):stride_w]
-    if padding == 'SAME':
+                output_np[i, j, :, :] = signal.convolve2d(
+                    input_np[i, j // channel_multiplier, :, :],
+                    np.rot90(filter_np[j // channel_multiplier, j % channel_multiplier, :, :], 2),
+                    mode="valid",
+                )[
+                    0 : (in_height - filter_height + 1) : stride_h,
+                    0 : (in_width - filter_width + 1) : stride_w,
+                ]
+    if padding == "SAME":
         out_channel = in_channel * channel_multiplier
         out_height = np.int(np.ceil(float(in_height) / float(stride_h)))
         out_width = np.int(np.ceil(float(in_width) / float(stride_w)))
         output_np = np.zeros((batch, out_channel, out_height, out_width))
-        pad_along_height = np.int(np.max((out_height - 1) * stride_h + filter_height - in_height, 0))
+        pad_along_height = np.int(
+            np.max((out_height - 1) * stride_h + filter_height - in_height, 0)
+        )
         pad_along_width = np.int(np.max((out_width - 1) * stride_w + filter_width - in_width, 0))
         pad_top_tvm = np.int(np.ceil(float(pad_along_height) / 2))
         pad_left_tvm = np.int(np.ceil(float(pad_along_width) / 2))
@@ -74,11 +82,14 @@ def depthwise_conv2d_python_nchw(input_np, filter_np, stride, padding):
         index_w = pad_left_scipy - pad_left_tvm
         for i in range(batch):
             for j in range(out_channel):
-                output_np[i, j, :, :] = signal.convolve2d(input_np[i, j//channel_multiplier, :, :], \
-                                                          np.rot90(filter_np[j//channel_multiplier, j%channel_multiplier, :, :], 2), \
-                                                          mode='same')[index_h:in_height:stride_h, index_w:in_width:stride_w]
+                output_np[i, j, :, :] = signal.convolve2d(
+                    input_np[i, j // channel_multiplier, :, :],
+                    np.rot90(filter_np[j // channel_multiplier, j % channel_multiplier, :, :], 2),
+                    mode="same",
+                )[index_h:in_height:stride_h, index_w:in_width:stride_w]
 
     return output_np
+
 
 def depthwise_conv2d_python_nhwc(input_np, filter_np, stride, padding):
     """Depthwise convolution operator in nchw layout.
@@ -110,22 +121,29 @@ def depthwise_conv2d_python_nhwc(input_np, filter_np, stride, padding):
         stride_h, stride_w = stride
 
     # calculate output shape
-    if padding == 'VALID':
+    if padding == "VALID":
         out_channel = in_channel * channel_multiplier
         out_height = (in_height - filter_height) // stride_h + 1
         out_width = (in_width - filter_width) // stride_w + 1
         output_np = np.zeros((batch, out_height, out_width, out_channel))
         for i in range(batch):
             for j in range(out_channel):
-                output_np[i, :, :, j] = signal.convolve2d(input_np[i, :, :, j//channel_multiplier], \
-                                                          np.rot90(filter_np[:, :, j//channel_multiplier, j%channel_multiplier], 2), \
-                                                          mode='valid')[0:(in_height - filter_height + 1):stride_h, 0:(in_width - filter_width + 1):stride_w]
-    if padding == 'SAME':
+                output_np[i, :, :, j] = signal.convolve2d(
+                    input_np[i, :, :, j // channel_multiplier],
+                    np.rot90(filter_np[:, :, j // channel_multiplier, j % channel_multiplier], 2),
+                    mode="valid",
+                )[
+                    0 : (in_height - filter_height + 1) : stride_h,
+                    0 : (in_width - filter_width + 1) : stride_w,
+                ]
+    if padding == "SAME":
         out_channel = in_channel * channel_multiplier
         out_height = np.int(np.ceil(float(in_height) / float(stride_h)))
         out_width = np.int(np.ceil(float(in_width) / float(stride_w)))
         output_np = np.zeros((batch, out_height, out_width, out_channel))
-        pad_along_height = np.int(np.max((out_height - 1) * stride_h + filter_height - in_height, 0))
+        pad_along_height = np.int(
+            np.max((out_height - 1) * stride_h + filter_height - in_height, 0)
+        )
         pad_along_width = np.int(np.max((out_width - 1) * stride_w + filter_width - in_width, 0))
         pad_top_tvm = np.int(np.ceil(float(pad_along_height) / 2))
         pad_left_tvm = np.int(np.ceil(float(pad_along_width) / 2))
@@ -135,8 +153,10 @@ def depthwise_conv2d_python_nhwc(input_np, filter_np, stride, padding):
         index_w = pad_left_scipy - pad_left_tvm
         for i in range(batch):
             for j in range(out_channel):
-                output_np[i, :, :, j] = signal.convolve2d(input_np[i, :, :, j//channel_multiplier], \
-                                                          np.rot90(filter_np[:, :, j//channel_multiplier, j%channel_multiplier], 2), \
-                                                          mode='same')[index_h:in_height:stride_h, index_w:in_width:stride_w]
+                output_np[i, :, :, j] = signal.convolve2d(
+                    input_np[i, :, :, j // channel_multiplier],
+                    np.rot90(filter_np[:, :, j // channel_multiplier, j % channel_multiplier], 2),
+                    mode="same",
+                )[index_h:in_height:stride_h, index_w:in_width:stride_w]
 
     return output_np

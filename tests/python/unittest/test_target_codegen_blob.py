@@ -24,6 +24,7 @@ from tvm import te
 import ctypes
 import tvm.testing
 
+
 @tvm.testing.uses_gpu
 def test_synthetic():
     for device in ["llvm", "cuda"]:
@@ -47,9 +48,12 @@ def test_synthetic():
 
     synthetic_mod, synthetic_params = relay.testing.synthetic.get_workload(input_shape=input_shape)
     with tvm.transform.PassContext(opt_level=3):
-        graph, synthetic_gpu_lib, graph_params = relay.build_module.build(synthetic_mod, "cuda", params=synthetic_params)
+        graph, synthetic_gpu_lib, graph_params = relay.build_module.build(
+            synthetic_mod, "cuda", params=synthetic_params
+        )
 
     from tvm.contrib import util
+
     temp = util.tempdir()
     path_lib = temp.relpath("deploy_lib.so")
     synthetic_gpu_lib.export_library(path_lib)
@@ -81,14 +85,15 @@ def test_cuda_lib():
             return
     nn = 12
     n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name='A')
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     s = te.create_schedule(B.op)
     bx, tx = s[B].split(B.op.axis[0], factor=4)
     s[B].bind(bx, te.thread_axis("blockIdx.x"))
     s[B].bind(tx, te.thread_axis("threadIdx.x"))
 
     from tvm.contrib import util
+
     temp = util.tempdir()
     fn_add = tvm.build(s, [A, B], target="cuda", target_host="llvm", name="add")
     path_lib = temp.relpath("deploy_lib.so")
@@ -96,7 +101,7 @@ def test_cuda_lib():
     m = tvm.runtime.load_module(path_lib)
     a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), ctx)
     b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), ctx)
-    m['add'](a, b)
+    m["add"](a, b)
     np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
 

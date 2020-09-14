@@ -72,7 +72,10 @@ list_tags()
 
 # We purposely maintain all tags in the C++ side to support pure C++ use cases,
 # and the Python API is only used for fast prototyping.
-register_tag("nvidia/gtx1080ti", config={
-    "kind": "cuda",
-    "arch": "sm_61",
-})
+register_tag(
+    "nvidia/gtx1080ti",
+    config={
+        "kind": "cuda",
+        "arch": "sm_61",
+    },
+)

@@ -39,6 +39,7 @@ def create_updater(node_map, from_ver, to_ver):
     fupdater : function
         The updater function
     """
+
     def _updater(data):
         assert data["attrs"]["tvm_version"].startswith(from_ver)
         nodes = data["nodes"]
@@ -52,6 +53,7 @@ def create_updater(node_map, from_ver, to_ver):
             nodes[idx] = item
         data["attrs"]["tvm_version"] = to_ver
         return data
+
     return _updater
 
 
@@ -63,6 +65,7 @@ def create_updater_06_to_07():
     fupdater : function
         The updater function
     """
+
     def _ftype_var(item, nodes):
         vindex = int(item["attrs"]["var"])
         item["attrs"]["name_hint"] = nodes[vindex]["attrs"]["name"]
@@ -70,13 +73,14 @@ def create_updater_06_to_07():
         nodes[vindex]["type_key"] = ""
         del item["attrs"]["var"]
         assert item["type_key"].startswith("relay.")
-        item["type_key"] = item["type_key"][len("relay."):]
+        item["type_key"] = item["type_key"][len("relay.") :]
         return item
 
     def _rename(new_name):
         def _convert(item, _):
             item["type_key"] = new_name
             return item
+
         return _convert
 
     def _update_tir_var(new_name):
@@ -84,6 +88,7 @@ def create_updater_06_to_07():
             item["type_key"] = new_name
             item["attrs"]["type_annotation"] = "0"
             return item
+
         return _convert
 
     def _update_global_key(item, _):
@@ -100,11 +105,10 @@ def create_updater_06_to_07():
             val = jdata["nodes"][root_idx]
             sidx = len(nodes)
             nodes.append(val)
-            item["attrs"][key] = '%d' % sidx
+            item["attrs"][key] = "%d" % sidx
             return item
 
         return _convert
-
 
     node_map = {
         # Base IR
@@ -179,7 +183,10 @@ def create_updater_06_to_07():
         "AttrStmt": [_rename("tir.AttrStmt"), _update_from_std_str("attr_key")],
         "Layout": [_rename("tir.Layout"), _update_from_std_str("name")],
         "Buffer": [
-            _rename("tir.Buffer"), _update_from_std_str("name"), _update_from_std_str("scope")],
+            _rename("tir.Buffer"),
+            _update_from_std_str("name"),
+            _update_from_std_str("scope"),
+        ],
     }
     return create_updater(node_map, "0.6", "0.7")
 

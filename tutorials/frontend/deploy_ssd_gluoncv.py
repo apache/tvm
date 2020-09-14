@@ -58,13 +58,12 @@ from gluoncv import model_zoo, data, utils
 #   to your device.
 
 supported_model = [
-    'ssd_512_resnet50_v1_voc',
-    'ssd_512_resnet50_v1_coco',
-    'ssd_512_resnet101_v2_voc',
-    'ssd_512_mobilenet1.0_voc',
-    'ssd_512_mobilenet1.0_coco',
-    'ssd_300_vgg16_atrous_voc'
-    'ssd_512_vgg16_atrous_coco',
+    "ssd_512_resnet50_v1_voc",
+    "ssd_512_resnet50_v1_coco",
+    "ssd_512_resnet101_v2_voc",
+    "ssd_512_mobilenet1.0_voc",
+    "ssd_512_mobilenet1.0_coco",
+    "ssd_300_vgg16_atrous_voc" "ssd_512_vgg16_atrous_coco",
 ]
 
 model_name = supported_model[0]
@@ -73,9 +72,11 @@ dshape = (1, 3, 512, 512)
 ######################################################################
 # Download and pre-process demo image
 
-im_fname = download_testdata('https://github.com/dmlc/web-data/blob/master/' +
-                             'gluoncv/detection/street_small.jpg?raw=true',
-                             'street_small.jpg', module='data')
+im_fname = download_testdata(
+    "https://github.com/dmlc/web-data/blob/master/" + "gluoncv/detection/street_small.jpg?raw=true",
+    "street_small.jpg",
+    module="data",
+)
 x, img = data.transforms.presets.ssd.load_test(im_fname, short=512)
 
 ######################################################################
@@ -83,25 +84,29 @@ x, img = data.transforms.presets.ssd.load_test(im_fname, short=512)
 
 block = model_zoo.get_model(model_name, pretrained=True)
 
+
 def build(target):
     mod, params = relay.frontend.from_mxnet(block, {"data": dshape})
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target, params=params)
     return lib
 
+
 ######################################################################
 # Create TVM runtime and do inference
 
+
 def run(lib, ctx):
     # Build TVM runtime
-    m = graph_runtime.GraphModule(lib['default'](ctx))
+    m = graph_runtime.GraphModule(lib["default"](ctx))
     tvm_input = tvm.nd.array(x.asnumpy(), ctx=ctx)
-    m.set_input('data', tvm_input)
+    m.set_input("data", tvm_input)
     # execute
     m.run()
     # get outputs
     class_IDs, scores, bounding_boxs = m.get_output(0), m.get_output(1), m.get_output(2)
     return class_IDs, scores, bounding_boxs
+
 
 for target in ["llvm", "cuda"]:
     ctx = tvm.context(target, 0)
@@ -112,6 +117,11 @@ for target in ["llvm", "cuda"]:
 ######################################################################
 # Display result
 
-ax = utils.viz.plot_bbox(img, bounding_boxs.asnumpy()[0], scores.asnumpy()[0],
-                         class_IDs.asnumpy()[0], class_names=block.classes)
+ax = utils.viz.plot_bbox(
+    img,
+    bounding_boxs.asnumpy()[0],
+    scores.asnumpy()[0],
+    class_IDs.asnumpy()[0],
+    class_names=block.classes,
+)
 plt.show()

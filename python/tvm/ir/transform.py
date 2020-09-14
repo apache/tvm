@@ -25,6 +25,7 @@ import tvm.runtime
 
 from . import _ffi_transform_api
 
+
 @tvm._ffi.register_object("transform.PassInfo")
 class PassInfo(tvm.runtime.Object):
     """The class contains the meta data required by a pass. It is the
@@ -45,8 +46,7 @@ class PassInfo(tvm.runtime.Object):
     """
 
     def __init__(self, opt_level, name, required=None):
-        self.__init_handle_by_constructor__(
-            _ffi_transform_api.PassInfo, opt_level, name, required)
+        self.__init_handle_by_constructor__(_ffi_transform_api.PassInfo, opt_level, name, required)
 
 
 @tvm._ffi.register_object("transform.PassContext")
@@ -68,25 +68,22 @@ class PassContext(tvm.runtime.Object):
     config : Optional[Dict[str, Object]]
         Additional configurations for specific passes.
     """
-    def __init__(self,
-                 opt_level=2,
-                 required_pass=None,
-                 disabled_pass=None,
-                 trace=None,
-                 config=None):
+
+    def __init__(
+        self, opt_level=2, required_pass=None, disabled_pass=None, trace=None, config=None
+    ):
         required = list(required_pass) if required_pass else []
         if not isinstance(required, (list, tuple)):
-            raise TypeError("required_pass is expected to be the type of " +
-                            "list/tuple/set.")
+            raise TypeError("required_pass is expected to be the type of " + "list/tuple/set.")
 
         disabled = list(disabled_pass) if disabled_pass else []
         if not isinstance(disabled, (list, tuple)):
-            raise TypeError("disabled_pass is expected to be the type of " +
-                            "list/tuple/set.")
+            raise TypeError("disabled_pass is expected to be the type of " + "list/tuple/set.")
 
         config = config if config else None
-        self.__init_handle_by_constructor__(_ffi_transform_api.PassContext, opt_level,
-                                            required, disabled, trace, config)
+        self.__init_handle_by_constructor__(
+            _ffi_transform_api.PassContext, opt_level, required, disabled, trace, config
+        )
 
     def __enter__(self):
         _ffi_transform_api.EnterPassContext(self)
@@ -167,11 +164,8 @@ class Sequential(Pass):
     required : Optional[List[str]]
         The list of passes that the sequential pass is dependent on.
     """
-    def __init__(self,
-                 passes=None,
-                 opt_level=2,
-                 name="sequential",
-                 required=None):
+
+    def __init__(self, passes=None, opt_level=2, name="sequential", required=None):
         passes = passes if passes else []
         if not isinstance(passes, (list, tuple)):
             raise TypeError("passes must be a list of Pass objects.")
@@ -180,14 +174,17 @@ class Sequential(Pass):
         if not isinstance(required, (list, tuple)):
             raise TypeError("Required is expected to be the type of list/tuple.")
 
-        self.__init_handle_by_constructor__(_ffi_transform_api.Sequential,
-                                            passes, opt_level, name, required)
+        self.__init_handle_by_constructor__(
+            _ffi_transform_api.Sequential, passes, opt_level, name, required
+        )
 
 
 def _wrap_class_module_pass(pass_cls, pass_info):
     """Wrap a python class as function pass"""
+
     class PyModulePass(ModulePass):
         """Internal wrapper class to create a class instance."""
+
         def __init__(self, *args, **kwargs):
             # initialize handle in cass pass_cls creation failed.fg
             self.handle = None
@@ -196,8 +193,10 @@ def _wrap_class_module_pass(pass_cls, pass_info):
             # avoid a cyclic dependency
             def _pass_func(mod, ctx):
                 return inst.transform_module(mod, ctx)
+
             self.__init_handle_by_constructor__(
-                _ffi_transform_api.MakeModulePass, _pass_func, pass_info)
+                _ffi_transform_api.MakeModulePass, _pass_func, pass_info
+            )
             self._inst = inst
 
         def __getattr__(self, name):
@@ -298,8 +297,7 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None):
 
     required = required if required else []
     if not isinstance(required, (list, tuple)):
-        raise TypeError("Required is expected to be the type of " +
-                        "list/tuple.")
+        raise TypeError("Required is expected to be the type of " + "list/tuple.")
 
     def create_module_pass(pass_arg):
         """Internal function that creates a module pass"""

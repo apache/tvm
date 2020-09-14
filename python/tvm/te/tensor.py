@@ -23,6 +23,7 @@ from tvm.tir import expr as _expr, DataProducer
 
 from . import _ffi_api
 
+
 class TensorSlice(ObjectGeneric, _expr.ExprOp):
     """Auxiliary data structure for enable slicing syntax from tensor."""
 
@@ -45,6 +46,7 @@ class TensorSlice(ObjectGeneric, _expr.ExprOp):
     def dtype(self):
         """Data content of the tensor."""
         return self.tensor.dtype
+
 
 @tvm._ffi.register_object
 class TensorIntrinCall(Object):
@@ -71,7 +73,6 @@ class Tensor(DataProducer, _expr.ExprOp):
 
         return _expr.ProducerLoad(self, args)
 
-
     def __getitem__(self, indices):
         return TensorSlice(self, indices)
 
@@ -84,9 +85,11 @@ class Tensor(DataProducer, _expr.ExprOp):
                 return _expr.EqualOp(self, other)
             return False
         if self.ndim == 0 and other.ndim == 0:
-            raise ValueError("Equal == comparison among rank-0 tensor is ambiguous, "
-                             "use Tensor.equal for content expression equvalence, "
-                             "use Tensor.same_as for exact reference comparison")
+            raise ValueError(
+                "Equal == comparison among rank-0 tensor is ambiguous, "
+                "use Tensor.equal for content expression equvalence, "
+                "use Tensor.same_as for exact reference comparison"
+            )
         return _ffi_api.TensorEqual(self, other)
 
     @property
@@ -159,6 +162,7 @@ class PlaceholderOp(Operation):
 @tvm._ffi.register_object
 class BaseComputeOp(Operation):
     """Compute operation."""
+
     @property
     def axis(self):
         """Represent the IterVar axis, defined when it is a ComputeOp"""
@@ -183,6 +187,7 @@ class TensorComputeOp(BaseComputeOp):
 @tvm._ffi.register_object
 class ScanOp(Operation):
     """Scan operation."""
+
     @property
     def scan_axis(self):
         """Represent the scan axis, only defined when it is a ScanOp"""
@@ -197,6 +202,7 @@ class ExternOp(Operation):
 @tvm._ffi.register_object
 class HybridOp(Operation):
     """Hybrid operation."""
+
     @property
     def axis(self):
         """Represent the IterVar axis, also defined when it is a HybridOp"""

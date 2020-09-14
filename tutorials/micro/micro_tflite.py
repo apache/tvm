@@ -108,9 +108,9 @@ from tvm import relay
 # Load the pretrained TFLite model from a file in your current
 # directory into a buffer
 
-model_url = 'https://people.linaro.org/~tom.gall/sine_model.tflite'
-model_file = 'sine_model.tflite'
-model_path = download_testdata(model_url, model_file, module='data')
+model_url = "https://people.linaro.org/~tom.gall/sine_model.tflite"
+model_file = "sine_model.tflite"
+model_path = download_testdata(model_url, model_file, module="data")
 
 tflite_model_buf = open(model_path, "rb").read()
 
@@ -118,15 +118,17 @@ tflite_model_buf = open(model_path, "rb").read()
 # Using the buffer, transform into a tflite model python object
 try:
     import tflite
+
     tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
 except AttributeError:
     import tflite.Model
+
     tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
 
 ######################################################################
 # Print out the version of the model
 version = tflite_model.Version()
-print ("Model Version: " + str(version))
+print("Model Version: " + str(version))
 
 ######################################################################
 # Parse the python model object to convert it into a relay module
@@ -137,14 +139,14 @@ print ("Model Version: " + str(version))
 # If you are unsure what that might be, this can be discovered by using
 # the visualize.py script within the Tensorflow project.
 # See : How do I inspect a .tflite file? `<https://www.tensorflow.org/lite/guide/faq>`_
- 
+
 input_tensor = "dense_4_input"
 input_shape = (1,)
 input_dtype = "float32"
 
-mod, params = relay.frontend.from_tflite(tflite_model,
-                                         shape_dict={input_tensor: input_shape},
-                                         dtype_dict={input_tensor: input_dtype})
+mod, params = relay.frontend.from_tflite(
+    tflite_model, shape_dict={input_tensor: input_shape}, dtype_dict={input_tensor: input_dtype}
+)
 
 # %%
 # Running on device
@@ -152,7 +154,7 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 #
 # Setup the device config which is what will be used to communicate
 # with the microcontroller (a STM32F746 Discovery board)
-TARGET = 'c --system-lib  --runtime=c'
+TARGET = "c --system-lib  --runtime=c"
 dev_config = micro.device.arm.stm32f746xx.generate_config("127.0.0.1", 6666)
 
 ######################################################################

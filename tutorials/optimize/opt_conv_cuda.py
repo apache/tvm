@@ -54,28 +54,31 @@ pad = 1
 stride = 1
 
 # Algorithm
-A = te.placeholder((in_size, in_size, in_channel, batch), name='A')
-W = te.placeholder((kernel, kernel, in_channel, out_channel), name='W')
-out_size = (in_size - kernel + 2*pad) // stride + 1
+A = te.placeholder((in_size, in_size, in_channel, batch), name="A")
+W = te.placeholder((kernel, kernel, in_channel, out_channel), name="W")
+out_size = (in_size - kernel + 2 * pad) // stride + 1
 # Pad input
 Apad = te.compute(
-    (in_size + 2*pad, in_size + 2*pad, in_channel, batch),
+    (in_size + 2 * pad, in_size + 2 * pad, in_channel, batch),
     lambda yy, xx, cc, nn: tvm.tir.if_then_else(
-        tvm.tir.all(yy >= pad, yy - pad < in_size,
-                xx >= pad, xx - pad < in_size),
-        A[yy - pad, xx - pad, cc, nn], tvm.tir.const(0., "float32")),
-    name='Apad')
+        tvm.tir.all(yy >= pad, yy - pad < in_size, xx >= pad, xx - pad < in_size),
+        A[yy - pad, xx - pad, cc, nn],
+        tvm.tir.const(0.0, "float32"),
+    ),
+    name="Apad",
+)
 # Create reduction variables
-rc = te.reduce_axis((0, in_channel), name='rc')
-ry = te.reduce_axis((0, kernel), name='ry')
-rx = te.reduce_axis((0, kernel), name='rx')
+rc = te.reduce_axis((0, in_channel), name="rc")
+ry = te.reduce_axis((0, kernel), name="ry")
+rx = te.reduce_axis((0, kernel), name="rx")
 # Compute the convolution
 B = te.compute(
     (out_size, out_size, out_channel, batch),
     lambda yy, xx, ff, nn: te.sum(
-        Apad[yy * stride + ry, xx * stride + rx, rc, nn] * W[ry, rx, rc, ff],
-        axis=[ry, rx, rc]),
-    name='B')
+        Apad[yy * stride + ry, xx * stride + rx, rc, nn] * W[ry, rx, rc, ff], axis=[ry, rx, rc]
+    ),
+    name="B",
+)
 
 
 ###############################################################################
@@ -103,8 +106,8 @@ B = te.compute(
 
 # Designate the memory hierarchy
 s = te.create_schedule(B.op)
-s[Apad].compute_inline() # compute Apad inline
-AA = s.cache_read(Apad, 'shared', [B])
+s[Apad].compute_inline()  # compute Apad inline
+AA = s.cache_read(Apad, "shared", [B])
 WW = s.cache_read(W, "shared", [B])
 AL = s.cache_read(AA, "local", [B])
 WL = s.cache_read(WW, "local", [B])
@@ -234,7 +237,7 @@ s[WW].vectorize(fi)  # vectorize memory load
 # latency of convolution.
 #
 
-func = tvm.build(s, [A, W, B], 'cuda')
+func = tvm.build(s, [A, W, B], "cuda")
 ctx = tvm.gpu(0)
 a_np = np.random.uniform(size=(in_size, in_size, in_channel, batch)).astype(A.dtype)
 w_np = np.random.uniform(size=(kernel, kernel, in_channel, out_channel)).astype(W.dtype)
@@ -243,4 +246,4 @@ w = tvm.nd.array(w_np, ctx)
 b = tvm.nd.array(np.zeros((out_size, out_size, out_channel, batch), dtype=B.dtype), ctx)
 func(a, w, b)
 evaluator = func.time_evaluator(func.entry_name, ctx, number=1)
-print('Convolution: %f ms' % (evaluator(a, w, b).mean * 1e3))
+print("Convolution: %f ms" % (evaluator(a, w, b).mean * 1e3))

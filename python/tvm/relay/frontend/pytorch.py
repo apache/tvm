@@ -64,7 +64,7 @@ def _convert_to_list_adt(py_lst, prelude):
 def _map_tensor_array_constructor(adt_lst, prelude, shape):
     static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
     static_tensor_array_ops.register()
-    tensor_create = prelude.get_var_static('tensor_constructor', "float32", shape)
+    tensor_create = prelude.get_var_static("tensor_constructor", "float32", shape)
     return prelude.map(tensor_create, adt_lst)
 
 
@@ -129,6 +129,7 @@ def _elemwise(name):
     def _impl(inputs, input_types):
         data0, data1 = _pytorch_promote_types(inputs[:2], input_types[:2])
         return get_relay_op(name)(data0, data1)
+
     return _impl
 
 
@@ -146,6 +147,7 @@ def _min_max_common(name_elemwise, name_reduce):
         else:
             data0, data1 = _pytorch_promote_types(inputs[:2], input_types[:2])
             return get_relay_op(name_elemwise)(data0, data1)
+
     return _impl
 
 
@@ -161,17 +163,19 @@ def _unary(name):
     def _impl(inputs, input_types):
         input_type = input_types[0]
         # this is just to ensure tensor input
-        data, = _pytorch_promote_types(inputs[:1], input_types[:1])
+        (data,) = _pytorch_promote_types(inputs[:1], input_types[:1])
         return get_relay_op(name)(data)
+
     return _impl
 
 
 def _log1p():
     def _impl(inputs, input_types):
         # 1_plus_log x = log(x + 1)
-        dtype, = input_types
+        (dtype,) = input_types
         one = _expr.const(1, dtype=dtype)
         return _op.log(inputs[0] + one)
+
     return _impl
 
 
@@ -219,11 +223,10 @@ def _arange():
             msg = "Unknown number of arguments (%d) to parse." % (len(inputs))
             raise AssertionError(msg)
 
-        return _op.transform.arange(start=start,
-                                    stop=stop,
-                                    step=step,
-                                    dtype=dtype)
+        return _op.transform.arange(start=start, stop=stop, step=step, dtype=dtype)
+
     return _impl
+
 
 def _squeeze():
     def _impl(inputs, input_types):
@@ -235,7 +238,9 @@ def _squeeze():
             axis = [int(inputs[1])]
 
         return _op.transform.squeeze(data, axis)
+
     return _impl
+
 
 def _unsqueeze():
     def _impl(inputs, input_types):
@@ -243,6 +248,7 @@ def _unsqueeze():
         axis = inputs[1]
 
         return _op.transform.expand_dims(data, int(axis), 1)
+
     return _impl
 
 
@@ -251,12 +257,12 @@ def _concatenate(prelude):
         assert axis == 0, "Tensor array concat supported only for axis 0"
         tensor_array, shape = _convert_to_tensor_array(lst, prelude)
         concat_shape = (Any(),) + shape[1:]
-        concat = prelude.get_var_static('tensor_array_concat', "float32", shape)
+        concat = prelude.get_var_static("tensor_array_concat", "float32", shape)
         concatenated = concat(tensor_array)
 
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", concat_shape)
         static_tensor_array_ops.register()
-        get_tensor = prelude.get_var_static('tensor_get_data', "float32", concat_shape)
+        get_tensor = prelude.get_var_static("tensor_get_data", "float32", concat_shape)
         return get_tensor(concatenated)
 
     def _impl(inputs, input_types):
@@ -270,7 +276,9 @@ def _concatenate(prelude):
             data = [data]
 
         return _op.tensor.concatenate(data, int(axis))
+
     return _impl
+
 
 def _slice():
     def _impl(inputs, input_types):
@@ -308,12 +316,12 @@ def _slice():
         strides = [1] * len(end)
         strides[dim] = int(inputs[4])
 
-        return _op.transform.strided_slice(data,
-                                           begin=begin,
-                                           end=end,
-                                           strides=strides,
-                                           slice_mode="end")
+        return _op.transform.strided_slice(
+            data, begin=begin, end=end, strides=strides, slice_mode="end"
+        )
+
     return _impl
+
 
 def _split():
     def _impl(inputs, input_types):
@@ -328,7 +336,9 @@ def _split():
             split_index += split_size
 
         return _op.split(data, indices, dim)
+
     return _impl
+
 
 def _split_with_sizes():
     def _impl(inputs, input_types):
@@ -343,7 +353,9 @@ def _split_with_sizes():
             indices.append(split_index)
 
         return _op.split(data, indices, dim)
+
     return _impl
+
 
 def _select():
     def _impl(inputs, input_types):
@@ -351,7 +363,9 @@ def _select():
         dim = int(inputs[1])
         index = _wrap_const(inputs[2])
         return _op.transform.take(data, index, axis=dim)
+
     return _impl
+
 
 def _take():
     def _impl(inputs, input_types):
@@ -359,7 +373,9 @@ def _take():
         indices = _op.cast(inputs[1], "int32")
 
         return _op.transform.take(data, indices=indices)
+
     return _impl
+
 
 def _topk():
     def _impl(inputs, input_types):
@@ -376,20 +392,26 @@ def _topk():
         outs = _op.topk(data, k=k, axis=axis, is_ascend=is_ascend, ret_type="both")
 
         return outs[0], outs[1]
+
     return _impl
+
 
 def _reciprocal():
     def _impl(inputs, input_types):
         data = inputs[0]
         return _expr.const(1.0, dtype=input_types[0]) / data
+
     return _impl
+
 
 def _repeat():
     def _impl(inputs, input_types):
         data = inputs[0]
         reps = _get_dims(inputs[1])
         return _op.transform.tile(data, reps=reps)
+
     return _impl
+
 
 def _repeat_interleave():
     def _impl(inputs, input_types):
@@ -400,10 +422,11 @@ def _repeat_interleave():
         else:
             msg = "Only repeat with one value as repeat is currently supported."
             raise AssertionError(msg)
-        if axis is None: # Flatten the data if no axis is given from torch
+        if axis is None:  # Flatten the data if no axis is given from torch
             data = _op.transform.reshape(data, [-1])
             axis = 0
         return _op.transform.repeat(data, repeats=repeats, axis=axis)
+
     return _impl
 
 
@@ -411,6 +434,7 @@ def _addcdiv():
     def _impl(inputs, input_types):
         data, t1, t2, c = _pytorch_promote_types(inputs[:4], input_types[:4])
         return data + (c * (t1 / t2))
+
     return _impl
 
 
@@ -418,6 +442,7 @@ def _addcmul():
     def _impl(inputs, input_types):
         data, t1, t2, c = _pytorch_promote_types(inputs[:4], input_types[:4])
         return data + (c * (t1 * t2))
+
     return _impl
 
 
@@ -435,6 +460,7 @@ def _ones():
         data = inputs[0]
 
         import torch
+
         if isinstance(data, _expr.Expr):
             shape = _infer_shape(data)
         elif isinstance(data, list):
@@ -448,7 +474,9 @@ def _ones():
         dtype = _convert_dtype_value(inputs[1])
 
         return _op.full(_expr.const(1), shape, dtype=dtype)
+
     return _impl
+
 
 def _ones_like():
     def _impl(inputs, input_types):
@@ -461,6 +489,7 @@ def _ones_like():
             out = _op.cast(out, dtype)
 
         return out
+
     return _impl
 
 
@@ -469,6 +498,7 @@ def _zeros():
         data = inputs[0]
 
         import torch
+
         if isinstance(data, _expr.Expr):
             shape = _infer_shape(data)
         elif isinstance(data, list):
@@ -482,6 +512,7 @@ def _zeros():
         dtype = _convert_dtype_value(inputs[1])
 
         return _op.full(_expr.const(0), shape, dtype=dtype)
+
     return _impl
 
 
@@ -496,6 +527,7 @@ def _zeros_like():
             out = _op.cast(out, dtype)
 
         return out
+
     return _impl
 
 
@@ -505,6 +537,7 @@ def _full(default_dtype):
 
         fill_value = inputs[1]
         import torch
+
         if isinstance(data, _expr.Expr):
             shape = _infer_shape(data)
         elif isinstance(data, list):
@@ -515,14 +548,16 @@ def _full(default_dtype):
             msg = "Data type %s could not be parsed in zeros op" % (type(data))
             raise AssertionError(msg)
 
-        if inputs[2] is not None: # dtype given
+        if inputs[2] is not None:  # dtype given
             dtype = _convert_dtype_value(inputs[2])
         else:
             # if dtype is None, torch uses a global default set by torch.set_default_tensor_type()
             dtype = default_dtype
 
         return _op.full(_expr.const(fill_value), shape, dtype=dtype)
+
     return _impl
+
 
 def _full_like():
     def _impl(inputs, input_types):
@@ -537,6 +572,7 @@ def _full_like():
             out = _op.cast(out, dtype)
 
         return out
+
     return _impl
 
 
@@ -553,16 +589,13 @@ def _linspace():
         else:
             stop = start + step
 
-        dtype = ("float32" if inputs[3] is not None
-                 else _convert_dtype_value(inputs[3]))
+        dtype = "float32" if inputs[3] is not None else _convert_dtype_value(inputs[3])
         start = _create_typed_const(start, dtype)
         stop = _create_typed_const(stop, dtype)
         step = _create_typed_const(step, dtype)
 
-        return _op.transform.arange(start=start,
-                                    stop=stop,
-                                    step=step,
-                                    dtype=dtype)
+        return _op.transform.arange(start=start, stop=stop, step=step, dtype=dtype)
+
     return _impl
 
 
@@ -574,21 +607,27 @@ def _relu(prelude):
             input_zero_point = _expr.const(inputs[2], dtype="int32")
             return qnn_torch.quantized_relu(data, input_zero_point)
         return _op.nn.relu(data)
+
     return _impl
+
 
 def _prelu():
     def _impl(inputs, input_types):
         data = inputs[0]
         alpha = inputs[1]
         return _op.nn.prelu(data, alpha)
+
     return _impl
+
 
 def _leaky_relu():
     def _impl(inputs, input_types):
         data = inputs[0]
         alpha = float(inputs[1])
         return _op.nn.leaky_relu(data, alpha)
+
     return _impl
+
 
 def _elu():
     def _impl(inputs, input_types):
@@ -596,16 +635,21 @@ def _elu():
         dtype = input_types[0]
         alpha = _expr.const(float(inputs[1]), dtype=dtype)
         return alpha * _op.nn.relu(_expr.const(1, dtype=dtype) - _op.exp(data)) + _op.nn.relu(data)
+
     return _impl
+
 
 def _celu():
     def _impl(inputs, input_types):
         data = inputs[0]
         dtype = input_types[0]
         alpha = _expr.const(float(inputs[1]), dtype=dtype)
-        return alpha * _op.nn.relu(_expr.const(1, dtype=dtype)
-                                   - _op.exp(data / alpha)) + _op.nn.relu(data)
+        return alpha * _op.nn.relu(
+            _expr.const(1, dtype=dtype) - _op.exp(data / alpha)
+        ) + _op.nn.relu(data)
+
     return _impl
+
 
 def _gelu():
     def _impl(inputs, input_types):
@@ -615,10 +659,13 @@ def _gelu():
         # normcdf expressed as erf because we don't currently have that intrinsic
         # note that there is also a fastgelu variant approximating normcdf
         # with tanh and third order polynomials, but this is "true" gelu
-        return data * (_expr.const(0.5, dtype=dtype) +
-                       _op.erf(data * _expr.const(0.5**0.5, dtype=dtype))
-                       * _expr.const(0.5, dtype=dtype))
+        return data * (
+            _expr.const(0.5, dtype=dtype)
+            + _op.erf(data * _expr.const(0.5 ** 0.5, dtype=dtype)) * _expr.const(0.5, dtype=dtype)
+        )
+
     return _impl
+
 
 def _selu():
     def _impl(inputs, input_types):
@@ -627,15 +674,20 @@ def _selu():
         dtype = input_types[0]
         alpha = _expr.const(-1.6732632423543772848170429916717, dtype=dtype)
         gamma = _expr.const(1.0507009873554804934193349852946, dtype=dtype)
-        return gamma * (alpha * _op.nn.relu(_expr.const(1.0, dtype=dtype)
-                                            - _op.exp(data)) + _op.nn.relu(data))
+        return gamma * (
+            alpha * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(data)) + _op.nn.relu(data)
+        )
+
     return _impl
+
 
 def _log_sigmoid():
     def _impl(inputs, input_types):
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
+
     return _impl
+
 
 def _adaptive_avg_pool_2d(prelude):
     def _impl(inputs, input_types):
@@ -652,16 +704,17 @@ def _adaptive_avg_pool_2d(prelude):
 
     return _impl
 
+
 def _adaptive_max_pool_2d():
     def _impl(inputs, input_types):
         data = inputs[0]
         output_size = inputs[1]
 
         # returns dummy indices too
-        return _op.nn.adaptive_max_pool2d(
-            data,
-            output_size=output_size), None
+        return _op.nn.adaptive_max_pool2d(data, output_size=output_size), None
+
     return _impl
+
 
 def _adaptive_max_pool_3d():
     def _impl(inputs, input_types):
@@ -672,6 +725,7 @@ def _adaptive_max_pool_3d():
 
     return _impl
 
+
 def _adaptive_avg_pool_3d():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -679,6 +733,7 @@ def _adaptive_avg_pool_3d():
         return _op.nn.adaptive_avg_pool3d(data, output_size=output_size)
 
     return _impl
+
 
 def _maxpool_2d():
     def _impl(inputs, input_types):
@@ -695,13 +750,17 @@ def _maxpool_2d():
             raise NotImplementedError(msg)
 
         return _op.nn.max_pool2d(data, pool_size, strides, padding, "NCHW", ceil_mode)
+
     return _impl
+
 
 def _maxpool_2d_with_indices():
     def _impl(inputs, input_types):
         # returns dummy indices too
         return _maxpool_2d()(inputs, input_types), None
+
     return _impl
+
 
 def _maxpool_1d():
     def _impl(inputs, input_types):
@@ -718,7 +777,9 @@ def _maxpool_1d():
             raise NotImplementedError(msg)
 
         return _op.nn.max_pool1d(data, pool_size, strides, padding, "NCW", ceil_mode)
+
     return _impl
+
 
 def _maxpool_3d():
     def _impl(inputs, input_types):
@@ -733,12 +794,12 @@ def _maxpool_3d():
             msg = "MaxPool3d with dilation %s is not implemented" % (str(dilation))
             raise NotImplementedError(msg)
 
-        return _op.nn.max_pool3d(data,
-                                 pool_size=pool_size,
-                                 strides=strides,
-                                 padding=padding,
-                                 ceil_mode=ceil_mode)
+        return _op.nn.max_pool3d(
+            data, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode
+        )
+
     return _impl
+
 
 def _hardtanh():
     def _impl(inputs, input_types):
@@ -746,7 +807,9 @@ def _hardtanh():
         tanh_min = float(inputs[1])
         tanh_max = float(inputs[2])
         return _op.tensor.clip(a, tanh_min, tanh_max)
+
     return _impl
+
 
 def _convolution():
     def _impl(inputs, input_types):
@@ -790,9 +853,9 @@ def _convolution():
         use_bias = isinstance(bias, _expr.Expr)
 
         if len(kernel_size) == 1:
-            strides = (1, ) + strides
-            padding = (0, ) + padding
-            dilation = (1, ) + dilation
+            strides = (1,) + strides
+            padding = (0,) + padding
+            dilation = (1,) + dilation
 
         if use_transpose:
             if len(kernel_size) == 3:
@@ -816,20 +879,20 @@ def _convolution():
             data = _op.expand_dims(data, axis=2)
             weight = _op.expand_dims(weight, axis=2)
 
-        conv_out = conv_op(data,
-                           weight,
-                           strides=strides,
-                           padding=padding,
-                           dilation=dilation,
-                           groups=groups,
-                           channels=channels,
-                           kernel_size=[1] + kernel_size \
-                                        if len(kernel_size) == 1 \
-                                        else kernel_size,
-                           data_layout=data_layout,
-                           kernel_layout=kernel_layout,
-                           out_layout="",
-                           out_dtype="")
+        conv_out = conv_op(
+            data,
+            weight,
+            strides=strides,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            channels=channels,
+            kernel_size=[1] + kernel_size if len(kernel_size) == 1 else kernel_size,
+            data_layout=data_layout,
+            kernel_layout=kernel_layout,
+            out_layout="",
+            out_dtype="",
+        )
         if use_bias:
             res = _op.nn.bias_add(conv_out, bias)
         else:
@@ -840,6 +903,7 @@ def _convolution():
 
     return _impl
 
+
 def _softmax():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -848,19 +912,25 @@ def _softmax():
             axis = int(axis)
 
         return _op.nn.softmax(data, axis=axis)
+
     return _impl
+
 
 def _threshold():
     def _impl(inputs, input_types):
         data = inputs[0]
         return _op.nn.relu(data)
+
     return _impl
+
 
 def _contiguous():
     def _impl(inputs, input_types):
         data = inputs[0]
         return _op.tensor.copy(data)
+
     return _impl
+
 
 def _batch_norm():
     def _impl(inputs, input_types):
@@ -887,16 +957,20 @@ def _batch_norm():
         moving_var = inputs[4]
         epsilon = float(inputs[7])
 
-        return _op.nn.batch_norm(data,
-                                 gamma,
-                                 beta,
-                                 moving_mean,
-                                 moving_var,
-                                 axis=1,
-                                 epsilon=epsilon,
-                                 center=center,
-                                 scale=scale)[0]
+        return _op.nn.batch_norm(
+            data,
+            gamma,
+            beta,
+            moving_mean,
+            moving_var,
+            axis=1,
+            epsilon=epsilon,
+            center=center,
+            scale=scale,
+        )[0]
+
     return _impl
+
 
 def _instance_norm():
     def _impl(inputs, input_types):
@@ -919,17 +993,16 @@ def _instance_norm():
             beta = _create_typed_const(np.zeros([int(channels[1])]), data_type)
 
         epsilon = float(inputs[7])
-        return _op.nn.instance_norm(data,
-                                    gamma,
-                                    beta,
-                                    axis=1,
-                                    epsilon=epsilon,
-                                    center=center,
-                                    scale=scale)
+        return _op.nn.instance_norm(
+            data, gamma, beta, axis=1, epsilon=epsilon, center=center, scale=scale
+        )
+
     return _impl
+
 
 def _get_dims(data):
     import torch
+
     if isinstance(data, _expr.Expr):
         dims = _infer_shape(data)
     elif isinstance(data, list):
@@ -941,19 +1014,23 @@ def _get_dims(data):
         raise AssertionError(msg)
     return dims
 
+
 def _layer_norm():
     def _impl(inputs, input_types):
         data = inputs[0]
         ndims = len(_get_dims(inputs[1]))
         assert ndims == 1, "Support only normalization over last one dimension."
 
-        return _op.nn.layer_norm(data,
-                                 gamma=inputs[2],
-                                 beta=inputs[3],
-                                 axis=-1,
-                                 epsilon=float(inputs[4]),
-                                 center=True,
-                                 scale=True)
+        return _op.nn.layer_norm(
+            data,
+            gamma=inputs[2],
+            beta=inputs[3],
+            axis=-1,
+            epsilon=float(inputs[4]),
+            center=True,
+            scale=True,
+        )
+
     return _impl
 
 
@@ -965,14 +1042,17 @@ def _group_norm():
         num_groups = inputs[1]
         epsilon = float(inputs[4])
 
-        return _op.nn.group_norm(data,
-                                 gamma=gamma,
-                                 beta=beta,
-                                 num_groups=num_groups,
-                                 axis=1,
-                                 epsilon=epsilon,
-                                 center=True,
-                                 scale=True)
+        return _op.nn.group_norm(
+            data,
+            gamma=gamma,
+            beta=beta,
+            num_groups=num_groups,
+            axis=1,
+            epsilon=epsilon,
+            center=True,
+            scale=True,
+        )
+
     return _impl
 
 
@@ -981,6 +1061,7 @@ def _transpose(prelude):
         data = inputs[0]
 
         import torch
+
         if isinstance(data, _expr.Expr):
             ndims = len(_infer_shape(data, prelude.mod))
         elif isinstance(data, list):
@@ -1012,6 +1093,7 @@ def _transpose(prelude):
         else:
             axes = inputs[1]
         return _op.transform.transpose(data, axes)
+
     return _impl
 
 
@@ -1060,6 +1142,7 @@ def _dense():
             return _op.nn.bias_add(dense_out, bias)
         else:
             return dense_out
+
     return _impl
 
 
@@ -1083,6 +1166,7 @@ def _size(prelude):
         if axis is not None:
             return shape[axis]
         return shape
+
     return _impl
 
 
@@ -1100,12 +1184,14 @@ def _numtotensor():
 
         arr = val * np.ones([]).astype(dtype)
         return arr
+
     return _impl
 
 
 def _tensortonum():
     def _impl(inputs, input_types):
         return inputs[0]
+
     return _impl
 
 
@@ -1127,6 +1213,7 @@ def _view():
                 new_shape[i] = np.asscalar(val.asnumpy())
 
         return _op.transform.reshape(data, new_shape)
+
     return _impl
 
 
@@ -1138,37 +1225,46 @@ def _reshape():
         else:
             assert isinstance(inputs[1], list)
             infer_res = [_infer_value(_wrap_const(size), {}) for size in inputs[1]]
-            new_shape = [np.asscalar(res.asnumpy().astype(np.int))
-                         for res in infer_res]
+            new_shape = [np.asscalar(res.asnumpy().astype(np.int)) for res in infer_res]
         return _op.transform.reshape(data, new_shape)
+
     return _impl
+
 
 def _clone():
     def _impl(inputs, input_types):
         data = inputs[0]
         return _op.tensor.copy(data)
+
     return _impl
+
 
 def _log_softmax():
     def _impl(inputs, input_types):
         data = inputs[0]
         axis = int(inputs[1])
         return _op.nn.log_softmax(data, axis)
+
     return _impl
+
 
 def _sigmoid():
     def _impl(inputs, input_types):
         data = inputs[0]
         return _op.tensor.sigmoid(data)
+
     return _impl
+
 
 def _softplus():
     def _impl(inputs, input_types):
         data = inputs[0]
         dtype = input_types[0]
         beta = _expr.const(float(inputs[1]), dtype=dtype)
-        return _op.log(_op.exp(inputs[0] * beta) + _expr.const(1., dtype=dtype)) / beta
+        return _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.0, dtype=dtype)) / beta
+
     return _impl
+
 
 def _avg_pool2d(prelude):
     def _impl(inputs, input_types):
@@ -1181,12 +1277,14 @@ def _avg_pool2d(prelude):
         count_include_pad = int(inputs[5])
 
         def func(x):
-            return _op.nn.avg_pool2d(x,
-                                     pool_size=pool_size,
-                                     strides=strides,
-                                     padding=padding,
-                                     ceil_mode=ceil_mode,
-                                     count_include_pad=count_include_pad)
+            return _op.nn.avg_pool2d(
+                x,
+                pool_size=pool_size,
+                strides=strides,
+                padding=padding,
+                ceil_mode=ceil_mode,
+                count_include_pad=count_include_pad,
+            )
 
         if _is_quantized_tensor(data, prelude):
             return qnn_torch.apply_with_upcast(data, func)
@@ -1194,6 +1292,7 @@ def _avg_pool2d(prelude):
         return func(data)
 
     return _impl
+
 
 def _avg_pool3d():
     def _impl(inputs, input_types):
@@ -1205,13 +1304,17 @@ def _avg_pool3d():
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
 
-        return _op.nn.avg_pool3d(data,
-                                 pool_size=pool_size,
-                                 strides=strides,
-                                 padding=padding,
-                                 ceil_mode=ceil_mode,
-                                 count_include_pad=count_include_pad)
+        return _op.nn.avg_pool3d(
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            padding=padding,
+            ceil_mode=ceil_mode,
+            count_include_pad=count_include_pad,
+        )
+
     return _impl
+
 
 def _dropout():
     def _impl(inputs, input_types):
@@ -1219,7 +1322,9 @@ def _dropout():
         rate = float(inputs[1])
 
         return _op.nn.dropout(data, rate)
+
     return _impl
+
 
 def _reduce(name):
     def _impl(inputs, input_types):
@@ -1227,7 +1332,7 @@ def _reduce(name):
         axis = None
         keepdims = False
 
-        if len(inputs) > 2: # default, torch have only data, axis=None, keepdims=False
+        if len(inputs) > 2:  # default, torch have only data, axis=None, keepdims=False
             if isinstance(inputs[1], int):
                 axis = int(inputs[1])
             elif _is_int_seq(inputs[1]):
@@ -1239,6 +1344,7 @@ def _reduce(name):
         return get_relay_op(name)(data, axis=axis, keepdims=keepdims)
 
     return _impl
+
 
 def _norm():
     def _impl(inputs, input_types):
@@ -1258,10 +1364,11 @@ def _norm():
         else:
             reci_order = _expr.const(1.0 / order, dtype=dtype)
             order = _expr.const(order)
-            return _op.power(_op.reduce.sum(_op.power(_op.abs(data), order),
-                                            axis=axis,
-                                            keepdims=keepdims),
-                             reci_order)
+            return _op.power(
+                _op.reduce.sum(_op.power(_op.abs(data), order), axis=axis, keepdims=keepdims),
+                reci_order,
+            )
+
     return _impl
 
 
@@ -1295,6 +1402,7 @@ def _std():
 
     return _impl
 
+
 def _variance():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -1310,6 +1418,7 @@ def _variance():
         return _op.reduce.variance(data, axis=axis, keepdims=keepdims, unbiased=unbiased)
 
     return _impl
+
 
 def _mean(prelude):
     def _impl(inputs, input_types):
@@ -1336,12 +1445,12 @@ def _mean(prelude):
             assert len(inputs) == 6, "Input quant param not found in op inputs"
             input_scale = _expr.const(inputs[4])
             input_zero_point = _expr.const(inputs[5])
-            return qnn_torch.quantized_mean(data, input_scale,
-                                            input_zero_point, func)
+            return qnn_torch.quantized_mean(data, input_scale, input_zero_point, func)
 
         return func(data)
 
     return _impl
+
 
 def _chunk(prelude):
     def _impl(inputs, input_types):
@@ -1372,10 +1481,7 @@ def _chunk(prelude):
             end[axis] = i + unif_size
             stride = [1] * len(shape)
 
-            chunk_out = _op.transform.strided_slice(data,
-                                                    begin=begin,
-                                                    end=end,
-                                                    strides=stride)
+            chunk_out = _op.transform.strided_slice(data, begin=begin, end=end, strides=stride)
             chunks.append(chunk_out)
 
         if dim % num_chunks:
@@ -1385,14 +1491,13 @@ def _chunk(prelude):
             end[axis] = dim
             stride = [1] * len(shape)
 
-            chunk_out = _op.transform.strided_slice(data,
-                                                    begin=begin,
-                                                    end=end,
-                                                    strides=stride)
+            chunk_out = _op.transform.strided_slice(data, begin=begin, end=end, strides=stride)
             chunks.append(chunk_out)
 
         return chunks
+
     return _impl
+
 
 def _matmul(prelude):
     def _impl(inputs, input_types):
@@ -1464,6 +1569,7 @@ def _expand():
             out = _op.tensor.concatenate(data, i)
 
         return out
+
     return _impl
 
 
@@ -1472,17 +1578,23 @@ def _int():
         if isinstance(inputs[0], _expr.Expr):
             return inputs[0]
         return int(inputs[0])
+
     return _impl
+
 
 def _identity():
     def _impl(inputs, input_types):
         return inputs[0]
+
     return _impl
+
 
 def _none():
     def _impl(inputs, input_types):
         return None
+
     return _impl
+
 
 def _pad(mode):
     def _impl(inputs, input_types):
@@ -1507,7 +1619,7 @@ def _pad(mode):
             paddings[-6] = pad_list[4]
 
         # group into tuple of 2 ints
-        paddings = [paddings[i:i + 2] for i in range(0, len(paddings), 2)]
+        paddings = [paddings[i : i + 2] for i in range(0, len(paddings), 2)]
 
         if mode == "constant":
             return _op.nn.pad(data, paddings, pad_value=inputs[2], pad_mode=mode)
@@ -1523,6 +1635,7 @@ def _clamp():
         amin = inputs[1] if inputs[1] else np.finfo(np.float32).min
         amax = inputs[2] if inputs[2] else np.finfo(np.float32).max
         return _op.clip(data, amin, amax)
+
     return _impl
 
 
@@ -1534,12 +1647,7 @@ def _to():
         # special handling for aten::to(data, 6, _, _, _) case
         # 6 means dtype = float
         # this happens when converting upsampling with scale factor
-        cast_func = {
-            6: float,
-            7: float,
-            3: int,
-            4: int
-        }
+        cast_func = {6: float, 7: float, 3: int, 4: int}
         cast_func_expr = {
             6: lambda x: _op.cast(x, "float32"),
             7: lambda x: _op.cast(x, "float64"),
@@ -1554,6 +1662,7 @@ def _to():
 
     return _impl
 
+
 def _upsample(method, prelude):
     def _impl(inputs, input_types):
         if isinstance(inputs[1], _expr.Var):
@@ -1562,8 +1671,7 @@ def _upsample(method, prelude):
             out_size = inputs[1]
         elif isinstance(inputs[1], list):
             infer_res = [_infer_value(size, {}) for size in inputs[1]]
-            out_size = [np.asscalar(res.asnumpy().astype(np.int))
-                        for res in infer_res]
+            out_size = [np.asscalar(res.asnumpy().astype(np.int)) for res in infer_res]
 
         data = inputs[0]
 
@@ -1596,8 +1704,7 @@ def _upsample(method, prelude):
 
             input_scale = _expr.const(inputs[-2])
             input_zero_point = _expr.const(inputs[-1])
-            return qnn_torch.quantized_upsample(data, input_scale,
-                                                input_zero_point, func)
+            return qnn_torch.quantized_upsample(data, input_scale, input_zero_point, func)
         return func(data)
 
     return _impl
@@ -1611,8 +1718,7 @@ def _upsample3d(method):
             out_size = inputs[1]
         elif isinstance(inputs[1], list):
             infer_res = [_infer_value(size, {}) for size in inputs[1]]
-            out_size = [np.asscalar(res.asnumpy().astype(np.int))
-                        for res in infer_res]
+            out_size = [np.asscalar(res.asnumpy().astype(np.int)) for res in infer_res]
 
         data = inputs[0]
 
@@ -1629,6 +1735,7 @@ def _upsample3d(method):
             coord_trans = "half_pixel"
 
         return _op.image.resize3d(data, out_size, "NCDHW", method, coord_trans)
+
     return _impl
 
 
@@ -1639,6 +1746,7 @@ def _expand_as():
         msg = "aten::expand_as(...) found, assume it is part of broadcast op"
         logging.warning(msg)
         return inputs[0]
+
     return _impl
 
 
@@ -1646,18 +1754,22 @@ def _Bool():
     def _impl(inputs, input_types):
         assert len(inputs) == 1
         return inputs[0]
+
     return _impl
+
 
 def _Float():
     def _impl(inputs, input_types):
         assert len(inputs) == 1
         return _op.cast(inputs[0], "float32")
+
     return _impl
 
 
 def _mm():
     def _impl(inputs, input_types):
         return _op.nn.dense(inputs[0], inputs[1])
+
     return _impl
 
 
@@ -1672,6 +1784,7 @@ def _bitwise_not():
             out = _op.bitwise_not(_op.cast(data, "int"))
 
         return out
+
     return _impl
 
 
@@ -1683,6 +1796,7 @@ def _bitwise_xor():
         rhs = _op.cast(rhs, "bool") if input_types[1] == "bool" else _op.cast(rhs, "int")
 
         return _op.bitwise_xor(lhs, rhs)
+
     return _impl
 
 
@@ -1691,6 +1805,7 @@ def _logical_not():
         data = inputs[0]
 
         return _op.logical_not(_op.cast(data, "bool"))
+
     return _impl
 
 
@@ -1700,18 +1815,21 @@ def _logical_xor():
         rhs = _op.cast(inputs[1], "bool")
 
         return _op.logical_xor(lhs, rhs)
+
     return _impl
 
 
 def _list_getitem(prelude):
     def _impl(inputs, input_types):
         return prelude.nth(inputs[0], _wrap_const(inputs[1]))
+
     return _impl
 
 
 def _list_len(prelude):
     def _impl(inputs, input_types):
         return prelude.length(inputs[0])
+
     return _impl
 
 
@@ -1720,6 +1838,7 @@ def _type_as():
         assert len(inputs) == 2
         assert len(input_types) == 2
         return _op.cast(inputs[0], input_types[1])
+
     return _impl
 
 
@@ -1730,6 +1849,7 @@ def _gather():
         indices = inputs[2]
 
         return _op.gather(data, axis, indices)
+
     return _impl
 
 
@@ -1739,6 +1859,7 @@ def _add(prelude):
         if input_types[0] == "ListType":
             return prelude.concat(inputs[0], inputs[1])
         return _elemwise("add")(inputs, input_types)
+
     return _impl
 
 
@@ -1749,13 +1870,14 @@ def _tensor_array_stack(prelude):
         tensor_array, shape = _convert_to_tensor_array(inputs[0], prelude)
 
         stacked_shape = (Any(),) + shape
-        stack = prelude.get_var_static('tensor_array_stack', "float32", shape)
+        stack = prelude.get_var_static("tensor_array_stack", "float32", shape)
         stacked = stack(tensor_array)
 
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", stacked_shape)
         static_tensor_array_ops.register()
-        get_tensor = prelude.get_var_static('tensor_get_data', "float32", stacked_shape)
+        get_tensor = prelude.get_var_static("tensor_get_data", "float32", stacked_shape)
         return get_tensor(stacked)
+
     return _impl
 
 
@@ -1773,6 +1895,7 @@ def _stack(prelude):
             msg = "The input list is expected to be List ADT"
             assert isinstance(ty, tvm.ir.TypeCall) and ty.func == list_ty, msg
             return _tensor_array_stack(prelude)(inputs, input_types)
+
     return _impl
 
 
@@ -1785,6 +1908,7 @@ def _rsub():
 
         # note: rsub means data0 and data1 swap places
         return get_relay_op("subtract")(data1, alpha * data0)
+
     return _impl
 
 
@@ -1793,23 +1917,25 @@ def _embedding():
         weight = inputs[0]
         indices = inputs[1]
 
-        return _op.take(weight, indices.astype('int32'), axis=0)
+        return _op.take(weight, indices.astype("int32"), axis=0)
+
     return _impl
 
 
 def _one_hot():
     def _impl(inputs, input_types):
-        indices = inputs[0].astype('int32')
+        indices = inputs[0].astype("int32")
         num_classes = inputs[1]
         if num_classes == -1:
             msg = "Inferring the number of classes is not yet supported."
             raise NotImplementedError(msg)
 
-        dtype = 'int32'
+        dtype = "int32"
         on_value = tvm.relay.const(1.0, dtype)
         off_value = tvm.relay.const(0.0, dtype)
 
         return _op.one_hot(indices, on_value, off_value, num_classes, -1, dtype)
+
     return _impl
 
 
@@ -1818,6 +1944,7 @@ def _index():
         data = inputs[0]
         indices = inputs[1]
         return _op.adv_index([data] + indices)
+
     return _impl
 
 
@@ -1825,6 +1952,7 @@ def _meshgrid():
     def _impl(inputs, input_types):
         data = inputs[0]
         return _op.meshgrid(data, indexing="ij")
+
     return _impl
 
 
@@ -1835,42 +1963,44 @@ def _nms(prelude):
         iou_threshold = inputs[2]
 
         # Generate data with shape (1, num_anchors, 5)
-        scores = AttrCvt(op_name="expand_dims",
-                         extras={'axis': -1, 'num_newaxis': 1})([scores], {})
+        scores = AttrCvt(op_name="expand_dims", extras={"axis": -1, "num_newaxis": 1})([scores], {})
 
         # Prepare input data for get_valid_counts
         data = _op.concatenate([scores, boxes], -1)
         data = _op.expand_dims(data, 0, 1)
         # Leverage get_valid_counts to sort the data and clear invalid boxes
-        ct, data, indices = get_relay_op('get_valid_counts')(data,
-                                                             score_threshold=-1.0,
-                                                             id_index=-1,
-                                                             score_index=0)
+        ct, data, indices = get_relay_op("get_valid_counts")(
+            data, score_threshold=-1.0, id_index=-1, score_index=0
+        )
 
         # Perform Non-Maximum Suppression,
         # PyTorch NMS doesn't have parameter top_k and max_output_size
         score_index = 0
         top_k = max_out_size = -1
-        nms_ret = get_relay_op('non_max_suppression')(data=data,
-                                                      valid_count=ct,
-                                                      indices=indices,
-                                                      max_output_size=max_out_size,
-                                                      iou_threshold=iou_threshold,
-                                                      force_suppress=True,
-                                                      top_k=top_k,
-                                                      coord_start=1,
-                                                      score_index=score_index,
-                                                      id_index=-1,
-                                                      return_indices=True,
-                                                      invalid_to_bottom=False)
+        nms_ret = get_relay_op("non_max_suppression")(
+            data=data,
+            valid_count=ct,
+            indices=indices,
+            max_output_size=max_out_size,
+            iou_threshold=iou_threshold,
+            force_suppress=True,
+            top_k=top_k,
+            coord_start=1,
+            score_index=score_index,
+            id_index=-1,
+            return_indices=True,
+            invalid_to_bottom=False,
+        )
 
         # squeeze the two outputs of nms for strided_slice
         size = get_relay_op("squeeze")(nms_ret[1], axis=[1])
         data_slice = get_relay_op("squeeze")(nms_ret[0], axis=[0])
 
         # strided slice to get the dynamic result
-        return get_relay_op("strided_slice")(data_slice, begin=_expr.const([0]),
-                                             end=size, slice_mode="size")
+        return get_relay_op("strided_slice")(
+            data_slice, begin=_expr.const([0]), end=size, slice_mode="size"
+        )
+
     return _impl
 
 
@@ -1882,12 +2012,14 @@ def _logsumexp():
         # dim is output of prim::ListConstruct, even if it is int in python code
         assert isinstance(dim_list, list), "dim is expected to be a list"
         return _op.logsumexp(data[0], axis=dim_list, keepdims=keepdim)
+
     return _impl
 
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):
     """This promotes TVM dtypes like PyTorch would"""
     import torch
+
     dtype_map = {
         "float64": torch.float64,
         "float32": torch.float32,
@@ -1898,23 +2030,29 @@ def _pytorch_result_type(dtypes, non_tensor_inputs):
         "int16": torch.int16,
         "int8": torch.int8,
         "uint8": torch.uint8,
-        "bool": torch.bool
-        }
+        "bool": torch.bool,
+    }
     if len(dtypes) > 0:
         result_type = dtypes[0]
         for dt in dtypes[1:]:
-            if dt != result_type: # we don't want to work with same types as we
-                                  # don't do quantized here (which cannot be promoted?)
-                result_type = _convert_data_type(str(torch.result_type(
-                    torch.zeros((), dtype=dtype_map[result_type]),
-                    torch.zeros((), dtype=dtype_map[dt]))))
+            if dt != result_type:  # we don't want to work with same types as we
+                # don't do quantized here (which cannot be promoted?)
+                result_type = _convert_data_type(
+                    str(
+                        torch.result_type(
+                            torch.zeros((), dtype=dtype_map[result_type]),
+                            torch.zeros((), dtype=dtype_map[dt]),
+                        )
+                    )
+                )
     else:
         result_type = "bool"  # this is the smallest type...
     for inp in non_tensor_inputs:
         result_type = _convert_data_type(
-            str(torch.result_type(torch.zeros((), dtype=dtype_map[result_type]),
-                                  inp)))
+            str(torch.result_type(torch.zeros((), dtype=dtype_map[result_type]), inp))
+        )
     return result_type
+
 
 def _pytorch_promote_types(inputs, dtypes):
     """This promotes TVM inputs with TVM dtypes passed like PyTorch would"""
@@ -1931,28 +2069,32 @@ def _pytorch_promote_types(inputs, dtypes):
             results.append(_op.cast(inp, result_type))
     return results
 
+
 # Helper functions for operator implementation
 def _convert_dtype_value(val):
     """converts a PyTorch the PyTorch numeric type id to a torch scalar type."""
-    convert_torch_dtype_map = {7:"torch.float64",
-                               6:"torch.float32",
-                               5:"torch.float16",
-                               4:"torch.int64",
-                               3:"torch.int32",
-                               2:"torch.int16",
-                               1:"torch.int8",
-                               0:"torch.unit8",
-                               None:"torch.int64"} # Default is torch.int64
+    convert_torch_dtype_map = {
+        7: "torch.float64",
+        6: "torch.float32",
+        5: "torch.float16",
+        4: "torch.int64",
+        3: "torch.int32",
+        2: "torch.int16",
+        1: "torch.int8",
+        0: "torch.unit8",
+        None: "torch.int64",
+    }  # Default is torch.int64
     if val in convert_torch_dtype_map:
         return _convert_data_type(convert_torch_dtype_map[val])
     else:
         msg = "Torch data type value %d is not handled yet." % (val)
         raise NotImplementedError(msg)
 
+
 def _convert_data_type(input_type, default_dtype=None):
     """converts the PyTorch scalar type input_type to a TVM dtype.
-       optionally, default_dtype can be a TVM dtype that is used
-       if input_type is None (but not when it is unknown)"""
+    optionally, default_dtype can be a TVM dtype that is used
+    if input_type is None (but not when it is unknown)"""
     if input_type is None and default_dtype is not None:
         return default_dtype
 
@@ -1985,9 +2127,10 @@ def _convert_data_type(input_type, default_dtype=None):
         raise NotImplementedError("input_type {} is not handled yet".format(input_type))
     return "float32"  # Never reached
 
+
 def _create_typed_const(data, dtype):
     """create a (scalar) constant of given value and dtype.
-       dtype should be a TVM dtype"""
+    dtype should be a TVM dtype"""
 
     if dtype == "float64":
         typed_data = _expr.const(np.float64(data), dtype=dtype)
@@ -2009,184 +2152,186 @@ def _create_typed_const(data, dtype):
         raise NotImplementedError("input_type {} is not handled yet".format(dtype))
     return typed_data
 
+
 def _wrap_const(c):
     if not isinstance(c, (_expr.Expr, list, tvm.tir.expr.Any)):
         return _expr.const(c)
     return c
 
+
 # Operator mappings
 def _get_convert_map(prelude, default_dtype):
     convert_map = {
-        "aten::device"                          : _none(),
-        "prim::device"                          : _none(),
-        "aten::sub"                             : _elemwise("subtract"),
-        "aten::sub_"                            : _elemwise("subtract"),
-        "aten::max"                             : _max(),
-        "aten::min"                             : _min(),
-        "aten::mul"                             : _elemwise("multiply"),
-        "aten::mul_"                            : _elemwise("multiply"),
-        "aten::pow"                             : _elemwise("power"),
-        "aten::arange"                          : _arange(),
-        "aten::meshgrid"                        : _meshgrid(),
-        "aten::div"                             : _elemwise("divide"),
-        "aten::div_"                            : _elemwise("divide"),
-        "aten::floor_divide"                    : _elemwise("floor_divide"),
-        "aten::addcdiv"                         : _addcdiv(),
-        "aten::addcmul"                         : _addcmul(),
-        "aten::ones"                            : _ones(),
-        "aten::ones_like"                       : _ones_like(),
-        "aten::zeros"                           : _zeros(),
-        "aten::zeros_like"                      : _zeros_like(),
-        "aten::full"                            : _full(default_dtype),
-        "aten::full_like"                       : _full_like(),
-        "aten::linspace"                        : _linspace(),
-        "aten::reciprocal"                      : _reciprocal(),
-        "aten::repeat"                          : _repeat(),
-        "aten::repeat_interleave"               : _repeat_interleave(),
-        "aten::to"                              : _to(),
-        "aten::squeeze"                         : _squeeze(),
-        "aten::unsqueeze"                       : _unsqueeze(),
-        "aten::cat"                             : _concatenate(prelude),
-        "aten::slice"                           : _slice(),
-        "aten::split"                           : _split(),
-        "aten::split_with_sizes"                : _split_with_sizes(),
-        "aten::select"                          : _select(),
-        "aten::take"                            : _take(),
-        "aten::where"                           : _where(),
-        "aten::topk"                            : _topk(),
-        "aten::relu"                            : _relu(prelude),
-        "aten::relu_"                           : _relu(prelude),
-        "aten::prelu"                           : _prelu(),
-        "aten::leaky_relu"                      : _leaky_relu(),
-        "aten::leaky_relu_"                     : _leaky_relu(),
-        "aten::elu"                             : _elu(),
-        "aten::elu_"                            : _elu(),
-        "aten::celu"                            : _celu(),
-        "aten::gelu"                            : _gelu(),
-        "aten::selu"                            : _selu(),
-        "aten::log_sigmoid"                     : _log_sigmoid(),
-        "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(prelude),
-        "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),
-        "aten::max_pool2d"                      : _maxpool_2d(),
-        "aten::max_pool2d_with_indices"         : _maxpool_2d_with_indices(),
-        "aten::max_pool1d"                      : _maxpool_1d(),
-        "aten::max_pool3d"                      : _maxpool_3d(),
-        "aten::hardtanh"                        : _hardtanh(),
-        "aten::hardtanh_"                       : _hardtanh(),
-        "aten::_convolution"                    : _convolution(),
-        "aten::softmax"                         : _softmax(),
-        "aten::threshold"                       : _threshold(),
-        "aten::threshold_"                      : _threshold(),
-        "aten::contiguous"                      : _contiguous(),
-        "aten::batch_norm"                      : _batch_norm(),
-        "aten::instance_norm"                   : _instance_norm(),
-        "aten::layer_norm"                      : _layer_norm(),
-        "aten::group_norm"                      : _group_norm(),
-        "aten::transpose"                       : _transpose(prelude),
-        "aten::transpose_"                      : _transpose(prelude),
-        "aten::t"                               : _transpose(prelude),
-        "aten::flatten"                         : _flatten(),
-        "aten::addmm"                           : _dense(),
-        "aten::size"                            : _size(prelude),
-        "aten::view"                            : _view(),
-        "aten::reshape"                         : _reshape(),
-        "aten::clone"                           : _clone(),
-        "aten::log_softmax"                     : _log_softmax(),
-        "aten::sigmoid"                         : _sigmoid(),
-        "aten::softplus"                        : _softplus(),
-        "aten::avg_pool2d"                      : _avg_pool2d(prelude),
-        "aten::avg_pool3d"                      : _avg_pool3d(),
-        "aten::dropout"                         : _dropout(),
-        "aten::dropout_"                        : _dropout(),
-        "aten::feature_dropout"                 : _dropout(),
-        "aten::alpha_dropout"                   : _dropout(),
-        "aten::mean"                            : _mean(prelude),
-        "aten::chunk"                           : _chunk(prelude),
-        "aten::matmul"                          : _matmul(prelude),
-        "aten::bmm"                             : _matmul(prelude),
-        "aten::expand"                          : _expand(),
-        "aten::Int"                             : _int(),
-        "prim::NumToTensor"                     : _numtotensor(),
-        "prim::ImplicitTensorToNum"             : _tensortonum(),
-        "aten::ScalarImplicit"                  : _tensortonum(),
-        "aten::constant_pad_nd"                 : _pad("constant"),
-        "aten::reflection_pad1d"                : _pad("reflect"),
-        "aten::reflection_pad2d"                : _pad("reflect"),
-        "aten::replication_pad1d"               : _pad("edge"),
-        "aten::replication_pad2d"               : _pad("edge"),
-        "aten::replication_pad3d"               : _pad("edge"),
-        "aten::permute"                         : _transpose(prelude),
-        "aten::sum"                             : _reduce("sum"),
-        "aten::prod"                            : _reduce("prod"),
-        "aten::argmin"                          : _reduce("argmin"),
-        "aten::argmax"                          : _reduce("argmax"),
-        "aten::norm"                            : _norm(),
-        "aten::frobenius_norm"                  : _frobenius_norm(),
-        "aten::std"                             : _std(),
-        "aten::var"                             : _variance(),
-        "aten::abs"                             : _unary("abs"),
-        "aten::neg"                             : _unary("negative"),
-        "aten::cos"                             : _unary("cos"),
-        "aten::cosh"                            : _unary("cosh"),
-        "aten::sin"                             : _unary("sin"),
-        "aten::sinh"                            : _unary("sinh"),
-        "aten::tan"                             : _unary("tan"),
-        "aten::tanh"                            : _unary("tanh"),
-        "aten::acos"                            : _unary("acos"),
-        "aten::asin"                            : _unary("asin"),
-        "aten::atan"                            : _unary("atan"),
-        "aten::log"                             : _unary("log"),
-        "aten::log2"                            : _unary("log2"),
-        "aten::log10"                           : _unary("log10"),
-        "aten::log1p"                           : _log1p(),
-        "aten::exp"                             : _unary("exp"),
-        "aten::erf"                             : _unary("erf"),
-        "aten::trunc"                           : _unary("trunc"),
-        "aten::sign"                            : _unary("sign"),
-        "aten::sqrt"                            : _unary("sqrt"),
-        "aten::rsqrt"                           : _unary("rsqrt"),
-        "aten::ceil"                            : _unary("ceil"),
-        "aten::floor"                           : _unary("floor"),
-        "aten::round"                           : _unary("round"),
-        "aten::isfinite"                        : _unary("isfinite"),
-        "aten::isinf"                           : _unary("isinf"),
-        "aten::isnan"                           : _unary("isnan"),
-        "aten::clamp"                           : _clamp(),
-        "aten::detach"                          : _identity(),
-        "aten::upsample_bilinear2d"             : _upsample("bilinear", prelude),
-        "aten::upsample_nearest2d"              : _upsample("nearest_neighbor", prelude),
-        "aten::upsample_trilinear3d"            : _upsample3d("trilinear"),
-        "aten::upsample_nearest3d"              : _upsample3d("nearest_neighbor"),
-        "aten::expand_as"                       : _expand_as(),
-        "aten::lt"                              : _elemwise("less"),
-        "aten::gt"                              : _elemwise("greater"),
-        "aten::le"                              : _elemwise("less_equal"),
-        "aten::ge"                              : _elemwise("greater_equal"),
-        "aten::ne"                              : _elemwise("not_equal"),
-        "aten::eq"                              : _elemwise("equal"),
-        "aten::logical_not"                     : _logical_not(),
-        "aten::logical_xor"                     : _logical_xor(),
-        "aten::bitwise_not"                     : _bitwise_not(),
-        "aten::bitwise_xor"                     : _bitwise_xor(),
-        "aten::Bool"                            : _Bool(),
-        "aten::Float"                           : _Float(),
-        "aten::adaptive_avg_pool3d"             : _adaptive_avg_pool_3d(),
-        "aten::adaptive_max_pool3d"             : _adaptive_max_pool_3d(),
-        "aten::rsub"                            : _rsub(),
-        "aten::embedding"                       : _embedding(),
-        "aten::one_hot"                         : _one_hot(),
-        "aten::mm"                              : _matmul(prelude),
-        "aten::add"                             : _add(prelude),
-        "aten::add_"                            : _add(prelude),
-        "aten::stack"                           : _stack(prelude),
-        "aten::__getitem__"                     : _list_getitem(prelude),
-        "aten::len"                             : _list_len(prelude),
-        "aten::type_as"                         : _type_as(),
-        "aten::gather"                          : _gather(),
-        "aten::index_select"                    : _select(),
-        "aten::index"                           : _index(),
-        "torchvision::nms"                      : _nms(prelude),
-        "aten::logsumexp"                       : _logsumexp()
+        "aten::device": _none(),
+        "prim::device": _none(),
+        "aten::sub": _elemwise("subtract"),
+        "aten::sub_": _elemwise("subtract"),
+        "aten::max": _max(),
+        "aten::min": _min(),
+        "aten::mul": _elemwise("multiply"),
+        "aten::mul_": _elemwise("multiply"),
+        "aten::pow": _elemwise("power"),
+        "aten::arange": _arange(),
+        "aten::meshgrid": _meshgrid(),
+        "aten::div": _elemwise("divide"),
+        "aten::div_": _elemwise("divide"),
+        "aten::floor_divide": _elemwise("floor_divide"),
+        "aten::addcdiv": _addcdiv(),
+        "aten::addcmul": _addcmul(),
+        "aten::ones": _ones(),
+        "aten::ones_like": _ones_like(),
+        "aten::zeros": _zeros(),
+        "aten::zeros_like": _zeros_like(),
+        "aten::full": _full(default_dtype),
+        "aten::full_like": _full_like(),
+        "aten::linspace": _linspace(),
+        "aten::reciprocal": _reciprocal(),
+        "aten::repeat": _repeat(),
+        "aten::repeat_interleave": _repeat_interleave(),
+        "aten::to": _to(),
+        "aten::squeeze": _squeeze(),
+        "aten::unsqueeze": _unsqueeze(),
+        "aten::cat": _concatenate(prelude),
+        "aten::slice": _slice(),
+        "aten::split": _split(),
+        "aten::split_with_sizes": _split_with_sizes(),
+        "aten::select": _select(),
+        "aten::take": _take(),
+        "aten::where": _where(),
+        "aten::topk": _topk(),
+        "aten::relu": _relu(prelude),
+        "aten::relu_": _relu(prelude),
+        "aten::prelu": _prelu(),
+        "aten::leaky_relu": _leaky_relu(),
+        "aten::leaky_relu_": _leaky_relu(),
+        "aten::elu": _elu(),
+        "aten::elu_": _elu(),
+        "aten::celu": _celu(),
+        "aten::gelu": _gelu(),
+        "aten::selu": _selu(),
+        "aten::log_sigmoid": _log_sigmoid(),
+        "aten::adaptive_avg_pool2d": _adaptive_avg_pool_2d(prelude),
+        "aten::adaptive_max_pool2d": _adaptive_max_pool_2d(),
+        "aten::max_pool2d": _maxpool_2d(),
+        "aten::max_pool2d_with_indices": _maxpool_2d_with_indices(),
+        "aten::max_pool1d": _maxpool_1d(),
+        "aten::max_pool3d": _maxpool_3d(),
+        "aten::hardtanh": _hardtanh(),
+        "aten::hardtanh_": _hardtanh(),
+        "aten::_convolution": _convolution(),
+        "aten::softmax": _softmax(),
+        "aten::threshold": _threshold(),
+        "aten::threshold_": _threshold(),
+        "aten::contiguous": _contiguous(),
+        "aten::batch_norm": _batch_norm(),
+        "aten::instance_norm": _instance_norm(),
+        "aten::layer_norm": _layer_norm(),
+        "aten::group_norm": _group_norm(),
+        "aten::transpose": _transpose(prelude),
+        "aten::transpose_": _transpose(prelude),
+        "aten::t": _transpose(prelude),
+        "aten::flatten": _flatten(),
+        "aten::addmm": _dense(),
+        "aten::size": _size(prelude),
+        "aten::view": _view(),
+        "aten::reshape": _reshape(),
+        "aten::clone": _clone(),
+        "aten::log_softmax": _log_softmax(),
+        "aten::sigmoid": _sigmoid(),
+        "aten::softplus": _softplus(),
+        "aten::avg_pool2d": _avg_pool2d(prelude),
+        "aten::avg_pool3d": _avg_pool3d(),
+        "aten::dropout": _dropout(),
+        "aten::dropout_": _dropout(),
+        "aten::feature_dropout": _dropout(),
+        "aten::alpha_dropout": _dropout(),
+        "aten::mean": _mean(prelude),
+        "aten::chunk": _chunk(prelude),
+        "aten::matmul": _matmul(prelude),
+        "aten::bmm": _matmul(prelude),
+        "aten::expand": _expand(),
+        "aten::Int": _int(),
+        "prim::NumToTensor": _numtotensor(),
+        "prim::ImplicitTensorToNum": _tensortonum(),
+        "aten::ScalarImplicit": _tensortonum(),
+        "aten::constant_pad_nd": _pad("constant"),
+        "aten::reflection_pad1d": _pad("reflect"),
+        "aten::reflection_pad2d": _pad("reflect"),
+        "aten::replication_pad1d": _pad("edge"),
+        "aten::replication_pad2d": _pad("edge"),
+        "aten::replication_pad3d": _pad("edge"),
+        "aten::permute": _transpose(prelude),
+        "aten::sum": _reduce("sum"),
+        "aten::prod": _reduce("prod"),
+        "aten::argmin": _reduce("argmin"),
+        "aten::argmax": _reduce("argmax"),
+        "aten::norm": _norm(),
+        "aten::frobenius_norm": _frobenius_norm(),
+        "aten::std": _std(),
+        "aten::var": _variance(),
+        "aten::abs": _unary("abs"),
+        "aten::neg": _unary("negative"),
+        "aten::cos": _unary("cos"),
+        "aten::cosh": _unary("cosh"),
+        "aten::sin": _unary("sin"),
+        "aten::sinh": _unary("sinh"),
+        "aten::tan": _unary("tan"),
+        "aten::tanh": _unary("tanh"),
+        "aten::acos": _unary("acos"),
+        "aten::asin": _unary("asin"),
+        "aten::atan": _unary("atan"),
+        "aten::log": _unary("log"),
+        "aten::log2": _unary("log2"),
+        "aten::log10": _unary("log10"),
+        "aten::log1p": _log1p(),
+        "aten::exp": _unary("exp"),
+        "aten::erf": _unary("erf"),
+        "aten::trunc": _unary("trunc"),
+        "aten::sign": _unary("sign"),
+        "aten::sqrt": _unary("sqrt"),
+        "aten::rsqrt": _unary("rsqrt"),
+        "aten::ceil": _unary("ceil"),
+        "aten::floor": _unary("floor"),
+        "aten::round": _unary("round"),
+        "aten::isfinite": _unary("isfinite"),
+        "aten::isinf": _unary("isinf"),
+        "aten::isnan": _unary("isnan"),
+        "aten::clamp": _clamp(),
+        "aten::detach": _identity(),
+        "aten::upsample_bilinear2d": _upsample("bilinear", prelude),
+        "aten::upsample_nearest2d": _upsample("nearest_neighbor", prelude),
+        "aten::upsample_trilinear3d": _upsample3d("trilinear"),
+        "aten::upsample_nearest3d": _upsample3d("nearest_neighbor"),
+        "aten::expand_as": _expand_as(),
+        "aten::lt": _elemwise("less"),
+        "aten::gt": _elemwise("greater"),
+        "aten::le": _elemwise("less_equal"),
+        "aten::ge": _elemwise("greater_equal"),
+        "aten::ne": _elemwise("not_equal"),
+        "aten::eq": _elemwise("equal"),
+        "aten::logical_not": _logical_not(),
+        "aten::logical_xor": _logical_xor(),
+        "aten::bitwise_not": _bitwise_not(),
+        "aten::bitwise_xor": _bitwise_xor(),
+        "aten::Bool": _Bool(),
+        "aten::Float": _Float(),
+        "aten::adaptive_avg_pool3d": _adaptive_avg_pool_3d(),
+        "aten::adaptive_max_pool3d": _adaptive_max_pool_3d(),
+        "aten::rsub": _rsub(),
+        "aten::embedding": _embedding(),
+        "aten::one_hot": _one_hot(),
+        "aten::mm": _matmul(prelude),
+        "aten::add": _add(prelude),
+        "aten::add_": _add(prelude),
+        "aten::stack": _stack(prelude),
+        "aten::__getitem__": _list_getitem(prelude),
+        "aten::len": _list_len(prelude),
+        "aten::type_as": _type_as(),
+        "aten::gather": _gather(),
+        "aten::index_select": _select(),
+        "aten::index": _index(),
+        "torchvision::nms": _nms(prelude),
+        "aten::logsumexp": _logsumexp(),
     }
     return convert_map
 
@@ -2194,6 +2339,7 @@ def _get_convert_map(prelude, default_dtype):
 def _run_jit_passes(graph):
     """ The inline pass is necessary to unwrap prim::CallMethod """
     import torch
+
     torch._C._jit_pass_inline(graph)
 
 
@@ -2238,15 +2384,20 @@ def _get_users(node):
 
 def _report_missing_conversion(op_names, convert_map):
     """ Check if all ops in an input graph are supported by TVM """
-    known_ops = ["prim::Constant", "prim::GetAttr",
-                 "prim::ListConstruct", "prim::ListUnpack",
-                 "prim::TupleConstruct", "prim::TupleUnpack",
-                 "prim::If", "prim::Loop"]
+    known_ops = [
+        "prim::Constant",
+        "prim::GetAttr",
+        "prim::ListConstruct",
+        "prim::ListUnpack",
+        "prim::TupleConstruct",
+        "prim::TupleUnpack",
+        "prim::If",
+        "prim::Loop",
+    ]
     known_ops += list(convert_map.keys())
     known_ops += list(qnn_torch.convert_map.keys())
 
-    missing = [op_name for op_name in op_names
-               if op_name not in known_ops]
+    missing = [op_name for op_name in op_names if op_name not in known_ops]
 
     if missing:
         msg = "The following operators are not implemented: {}".format(missing)
@@ -2266,7 +2417,7 @@ def _getattr_full_name(getattrs):
 
 def _get_pytorch_value_type(typ, default_dtype="float32"):
     kind = typ.kind()
-    if kind == 'TensorType':
+    if kind == "TensorType":
         if typ.scalarType() is None:
             # Tensor's type can be unknown if we use torch.jit.script(...)
             # Defaults can be passed in, if not it is float32
@@ -2275,15 +2426,14 @@ def _get_pytorch_value_type(typ, default_dtype="float32"):
         else:
             return _convert_data_type(typ.scalarType())
 
-    elif kind == 'ListType':
+    elif kind == "ListType":
         return "ListType"
-    elif kind in ['IntType', 'FloatType', 'BoolType',
-                  'StringType', 'OptionalType']:
+    elif kind in ["IntType", "FloatType", "BoolType", "StringType", "OptionalType"]:
         pt_dtype = str(typ).lower()
-        dtype = pt_dtype if pt_dtype == 'OptionalType' else _convert_data_type(pt_dtype)
+        dtype = pt_dtype if pt_dtype == "OptionalType" else _convert_data_type(pt_dtype)
         return dtype
     else:
-        return 'UnsupportedType'
+        return "UnsupportedType"
 
 
 def _get_input_types(op_node, outputs, default_dtype="float32"):
@@ -2374,29 +2524,32 @@ def _get_relay_input_vars(graph, input_shapes, prelude, is_module=True, default_
 
     if len(graph_inputs) != len(input_shapes):
         msg = "PyTorch has {} inputs and input_shapes lists {}.".format(
-            len(graph_inputs), len(input_shapes))
+            len(graph_inputs), len(input_shapes)
+        )
         raise RuntimeError(msg)
 
     def get_relay_ty(ishape, pt_type):
-        if pt_type.kind() == 'TensorType':
+        if pt_type.kind() == "TensorType":
             if not (_is_int_seq(ishape) or len(ishape) == 0):
                 msg = "Shape for Tensors must be lists of ints"
                 raise RuntimeError(msg)
-            if ((pt_type.dim() is not None and pt_type.dim() != len(ishape)) or
-                    (pt_type.sizes() is not None
-                     and any([s1 != s2 for s1, s2 in zip(pt_type.sizes(), ishape)]))):
+            if (pt_type.dim() is not None and pt_type.dim() != len(ishape)) or (
+                pt_type.sizes() is not None
+                and any([s1 != s2 for s1, s2 in zip(pt_type.sizes(), ishape)])
+            ):
                 msg = "Shapes of input list and information in the graph do not match"
                 raise RuntimeError(msg)
             pt_dtype = pt_type.scalarType()
             dtype = _convert_data_type(pt_dtype, default_dtype=default_dtype)
             return TensorType(ishape, dtype)
-        elif pt_type.kind() == 'TupleType':
+        elif pt_type.kind() == "TupleType":
             if not isinstance(ishape, tuple):
                 msg = "Shapes for tuples must be tuples"
                 raise RuntimeError(msg)
-            return TupleType([get_relay_ty(elem, pt_t)
-                              for elem, pt_t in zip(ishape, pt_type.elements())])
-        elif pt_type.kind() == 'ListType':
+            return TupleType(
+                [get_relay_ty(elem, pt_t) for elem, pt_t in zip(ishape, pt_type.elements())]
+            )
+        elif pt_type.kind() == "ListType":
             if not isinstance(ishape, list):
                 msg = "Shapes for lists must be lists"
                 raise RuntimeError(msg)
@@ -2406,7 +2559,7 @@ def _get_relay_input_vars(graph, input_shapes, prelude, is_module=True, default_
                 msg = "List elements need have identical types"
                 raise RuntimeError(msg)
             return prelude.l(elem_tys[0])
-        elif pt_type.kind() == 'OptionalType':
+        elif pt_type.kind() == "OptionalType":
             # we do not support None yet, so we fill in the type
             return get_relay_ty(ishape, pt_type.getElementType())
         # TODO: scalar inputs
@@ -2418,12 +2571,14 @@ def _get_relay_input_vars(graph, input_shapes, prelude, is_module=True, default_
         if not isinstance(inp, tuple):
             msg = "Graph input {} is not a tuple".format(num)
             raise RuntimeError(msg)
-        if (len(inp) != 2 or not isinstance(inp[0], str)):
+        if len(inp) != 2 or not isinstance(inp[0], str):
             msg = "Graph input {} is not valid, expected ('name', shape)".format(inp)
             raise RuntimeError(msg)
 
-    input_types = [(name, get_relay_ty(shape, gi.type()))
-                   for (name, shape), gi in zip(input_shapes, graph_inputs)]
+    input_types = [
+        (name, get_relay_ty(shape, gi.type()))
+        for (name, shape), gi in zip(input_shapes, graph_inputs)
+    ]
 
     ir_inputs = [i.debugName() for i in graph_inputs]
     for ir_input, (name, itype) in zip(ir_inputs, input_types):
@@ -2465,6 +2620,7 @@ def get_use_chains(root_node, terminate=lambda _: False):
     Track a chain of users of this node forward, returning a list of chains
     See get_attr_chains below for its usage
     """
+
     def concat_lists(lists):
         return itertools.chain.from_iterable(lists)
 
@@ -2480,7 +2636,7 @@ def get_use_chains(root_node, terminate=lambda _: False):
 
 
 def get_attr_chains(root_getattr_node):
-    """ Returns chains of attribute access starting from root_getattr_node
+    """Returns chains of attribute access starting from root_getattr_node
 
     For example, given attribute "block", as in "self.block" when "self" points
     to the top level torch.nn.Module, it returns lists of attribute "chains",
@@ -2491,6 +2647,7 @@ def get_attr_chains(root_getattr_node):
     and "self.block.0._packed_params" will return the parameters of the first
     submodule.
     """
+
     def terminate(users):
         next_attrs = [user for user in users if user.kind() == "prim::GetAttr"]
         return len(next_attrs) == 0
@@ -2529,8 +2686,7 @@ def convert_params(graph, state_dict):
                     var = vars_by_name[full_attr]
                 else:
                     torch_tensor = state_dict[full_attr]
-                    tensor, var = _get_tensor_and_var(torch_tensor,
-                                                      full_attr)
+                    tensor, var = _get_tensor_and_var(torch_tensor, full_attr)
                     param_tensors[full_attr] = tensor
                     vars_by_name[full_attr] = var
                 params[full_attr_node_name] = var
@@ -2542,24 +2698,28 @@ def convert_block(block, outputs, convert_map, prelude, default_dtype="float32")
     """ Translate Torch "Block", used for prim::If and prim::Loop """
     ops = _get_operator_nodes(block.nodes())
     ret_names = _get_input_names(block.returnNode())
-    return convert_operators(ops, outputs, ret_names, convert_map, prelude,
-                             default_dtype=default_dtype)
+    return convert_operators(
+        ops, outputs, ret_names, convert_map, prelude, default_dtype=default_dtype
+    )
 
 
 def convert_if(if_node, outputs, convert_map, prelude, default_dtype="float32"):
     """ Translate Torch prim::If to Relay If """
     cond = outputs[if_node.inputsAt(0).debugName()]
     blocks = list(if_node.blocks())
-    true_branch = convert_block(blocks[0], outputs, convert_map, prelude,
-                                default_dtype=default_dtype)
-    false_branch = convert_block(blocks[1], outputs, convert_map, prelude,
-                                 default_dtype=default_dtype)
+    true_branch = convert_block(
+        blocks[0], outputs, convert_map, prelude, default_dtype=default_dtype
+    )
+    false_branch = convert_block(
+        blocks[1], outputs, convert_map, prelude, default_dtype=default_dtype
+    )
     assert len(true_branch) == 1 and len(false_branch) == 1
     return _expr.If(cond, true_branch[0], false_branch[0])
 
 
 def convert_loop(loop_node, outputs, convert_map, prelude):
     """ Translate Torch prim::Loop to Relay while_loop """
+
     def get_input(index):
         ivalue = loop_node.inputsAt(index)
         inode = ivalue.node()
@@ -2581,8 +2741,10 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
 
     # while loop has always max_loop_count being int64 max
     # max_loop_count.data (tvm.runtime.NDArray) is -1, so _get_constant again
-    is_while_loop = (isinstance(max_loop_count, _expr.Constant) and
-                     _get_constant(loop_node.inputsAt(0).node()) == sys.maxsize)
+    is_while_loop = (
+        isinstance(max_loop_count, _expr.Constant)
+        and _get_constant(loop_node.inputsAt(0).node()) == sys.maxsize
+    )
 
     if is_while_loop:
         loop_iter_dtype = "bool"
@@ -2599,8 +2761,7 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
     body_block = list(loop_node.blocks())[0]
     block_input_names = _get_input_names(body_block)
     num_block_inputs = len(block_input_names)
-    name_val_pairs = list(zip(block_input_names,
-                              [init_loop_iter_val] + init_vals))
+    name_val_pairs = list(zip(block_input_names, [init_loop_iter_val] + init_vals))
     outputs.update(name_val_pairs)
 
     def get_var(name, val):
@@ -2609,8 +2770,7 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
             return _expr.var(name, type_annotation=checked_type)
         return _expr.var(name)
 
-    loop_iter_var = _expr.var(block_input_names[0], shape=(),
-                              dtype=loop_iter_dtype)
+    loop_iter_var = _expr.var(block_input_names[0], shape=(), dtype=loop_iter_dtype)
     loop_vars = [get_var(name, val) for name, val in name_val_pairs[1:]]
 
     # Add non constant free variables to loop variables to prevent code blow up
@@ -2620,9 +2780,13 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
     # This issue was found when converting from Stacked LSTM test. Torch does not add the output
     # of the eariler loop into loop variables of the next loop.
     # So the variable corresponding to the first loop output appears free in the second loop body.
-    free_vars = [var for var in _get_free_vars_from_block(body_block)
-                 if var in outputs and not isinstance(outputs[var], (_expr.Constant, int, float))
-                 and outputs[var]]
+    free_vars = [
+        var
+        for var in _get_free_vars_from_block(body_block)
+        if var in outputs
+        and not isinstance(outputs[var], (_expr.Constant, int, float))
+        and outputs[var]
+    ]
 
     prev_outputs = {}
     for name in free_vars:
@@ -2637,7 +2801,7 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
         i = current_vals[0]
 
         if is_while_loop:
-            return _op.equal(i, _expr.const(True, 'bool'))
+            return _op.equal(i, _expr.const(True, "bool"))
 
         return _op.less(i, max_loop_count)
 
@@ -2649,7 +2813,7 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
             if i < num_block_inputs:
                 outputs[block_input_names[i]] = val
             else:
-                outputs[free_vars[i-num_block_inputs]] = val
+                outputs[free_vars[i - num_block_inputs]] = val
 
         block_outputs = convert_block(body_block, outputs, convert_map, prelude)
         block_outputs += [outputs[name] for name in free_vars]
@@ -2670,7 +2834,7 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
     outputs.update(prev_outputs)
 
     # The first element is a loop counter or boolean condition, ignore it
-    return [_expr.TupleGetItem(loop_val, i+1) for i in range(num_loop_var)]
+    return [_expr.TupleGetItem(loop_val, i + 1) for i in range(num_loop_var)]
 
 
 def convert_operators(operators, outputs, ret_names, convert_map, prelude, default_dtype="float32"):
@@ -2706,8 +2870,9 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude, defau
             outputs.update(zip(unpacked_names, loop_out))
         else:
             relay_op = convert_map[operator]
-            relay_out = relay_op(inputs, _get_input_types(op_node, outputs,
-                                                          default_dtype=default_dtype))
+            relay_out = relay_op(
+                inputs, _get_input_types(op_node, outputs, default_dtype=default_dtype)
+            )
 
             if isinstance(relay_out, tuple):
                 # This is for torch operators that return multiple outputs
@@ -2718,8 +2883,7 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude, defau
                 assert op_node.outputsSize() == 1
                 outputs[node_name] = relay_out
 
-    return [_wrap_const(outputs[ret_name])
-            for ret_name in ret_names]
+    return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
 
 
 def get_all_op_names(graph):
@@ -2735,7 +2899,7 @@ def get_all_op_names(graph):
 
 
 def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_dtype="float32"):
-    """ Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
+    """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
     Parameters
@@ -2778,9 +2942,9 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_d
 
     is_module = isinstance(script_module, torch.jit.ScriptModule)
     params = script_module.state_dict() if is_module else {}
-    outputs = _get_relay_input_vars(graph, input_shapes, prelude,
-                                    default_dtype=default_dtype,
-                                    is_module=is_module)
+    outputs = _get_relay_input_vars(
+        graph, input_shapes, prelude, default_dtype=default_dtype, is_module=is_module
+    )
     param_vars, tensors, packed_param_map = convert_params(graph, params)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
@@ -2791,15 +2955,18 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_d
     if "aten::quantize_per_tensor" in op_names:
         weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
         qnn_torch.add_input_quant_params_to_op_inputs(graph)
-        qnn_torch.add_quant_params_to_outputs(outputs,
-                                              packed_param_map,
-                                              weight_quant_params)
+        qnn_torch.add_quant_params_to_outputs(outputs, packed_param_map, weight_quant_params)
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         convert_map.update(qnn_torch.convert_map)
 
-    ret = convert_operators(_get_operator_nodes(graph.nodes()),
-                            outputs, ret_name, convert_map, prelude,
-                            default_dtype=default_dtype)
+    ret = convert_operators(
+        _get_operator_nodes(graph.nodes()),
+        outputs,
+        ret_name,
+        convert_map,
+        prelude,
+        default_dtype=default_dtype,
+    )
 
     mod["main"] = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
 

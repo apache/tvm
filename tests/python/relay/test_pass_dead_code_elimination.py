@@ -24,6 +24,7 @@ from tvm.relay.testing import inception_v3
 
 import pytest
 
+
 class env:
     def __init__(self):
         self.shape = tvm.runtime.convert([1, 2, 3])
@@ -66,6 +67,7 @@ def test_used_let():
     expected = relay.Let(e.c, e.one, e.c + e.c)
     assert tvm.ir.structural_equal(Function([], orig), Function([], expected))
 
+
 def test_inline():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.c))
     orig = run_opt_pass(orig, transform.DeadCodeElimination(True))
@@ -82,12 +84,12 @@ def use_f(func):
     f = relay.Var("f")
     n = relay.Var("n", e.int32)
     data = relay.Var("data", e.float32)
-    funcbody = relay.If(equal(n, relay.const(0)),
-                        data,
-                        relay.Call(f, [subtract(n, relay.const(1)),
-                                       log(data)]))
+    funcbody = relay.If(
+        equal(n, relay.const(0)), data, relay.Call(f, [subtract(n, relay.const(1)), log(data)])
+    )
     value = relay.Function([n, data], funcbody, e.float32, [])
     return relay.Let(f, value, func(f))
+
 
 # make sure we dont infinite loop
 def test_recursion():
@@ -107,6 +109,7 @@ def test_recursion():
     orig = run_opt_pass(orig, transform.InferType())
     tvm.ir.assert_structural_equal(dced, orig)
 
+
 def test_recursion_dead():
     x = relay.Let(e.a, e.one, e.three)
     dced_f = lambda f: x
@@ -115,15 +118,14 @@ def test_recursion_dead():
 
 
 def test_op_let():
-    dced = run_opt_pass(add(relay.Let(e.a, e.one, e.three), e.two),
-                        transform.DeadCodeElimination())
+    dced = run_opt_pass(add(relay.Let(e.a, e.one, e.three), e.two), transform.DeadCodeElimination())
     assert tvm.ir.structural_equal(dced, add(e.three, e.two))
 
 
 def test_tuple_get_item():
     tt = relay.TupleType([e.float32, e.float32])
-    t = relay.Var('t', tt)
-    a = relay.Var('a')
+    t = relay.Var("t", tt)
+    a = relay.Var("a")
     g = relay.TupleGetItem(t, 0)
     dced = run_opt_pass(g, transform.DeadCodeElimination())
     assert tvm.ir.structural_equal(Function(free_vars(dced), dced), Function(free_vars(g), g))
@@ -134,7 +136,7 @@ def test_tuple_get_item():
 
 @pytest.mark.timeout(timeout=10, method="thread")
 def test_complexity():
-    g = inception_v3.get_net(1, 1000, (3, 299, 299), 'float32')
+    g = inception_v3.get_net(1, 1000, (3, 299, 299), "float32")
     run_opt_pass(g, transform.DeadCodeElimination())
 
 

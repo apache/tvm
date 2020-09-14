@@ -24,12 +24,12 @@ def lower_intrin(params, stmt):
     """wrapper to call transformation in stmt"""
     lower_expr = isinstance(stmt, tvm.tir.PrimExpr)
     stmt = tvm.tir.Evaluate(stmt) if lower_expr else stmt
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc(params, stmt).with_attr(
-        "target", tvm.target.Target("llvm")))
-    mod = tvm.transform.Sequential([
-        tvm.tir.transform.Simplify(),
-        tvm.tir.transform.LowerIntrin()
-    ])(mod)
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc(params, stmt).with_attr("target", tvm.target.Target("llvm"))
+    )
+    mod = tvm.transform.Sequential([tvm.tir.transform.Simplify(), tvm.tir.transform.LowerIntrin()])(
+        mod
+    )
     func = mod["main"]
     stmt = func.body
     return stmt.value if lower_expr else stmt.body
@@ -61,6 +61,7 @@ def check_value(expr, vx, vy, data, fref):
 def get_ref_data():
     """Get reference data for every pairs"""
     import itertools
+
     x = range(-10, 10)
     y = list(range(-10, 10))
     y.remove(0)
@@ -78,24 +79,21 @@ def test_lower_floordiv():
         res = lower_intrin([x, y], tvm.te.floordiv(x, y))
         check_value(res, x, y, data, lambda a, b: a // b)
         # rhs >= 0
-        res = lower_intrin([x, y], tvm.tir.Select(
-            y >= 0, tvm.te.floordiv(x, y), zero))
+        res = lower_intrin([x, y], tvm.tir.Select(y >= 0, tvm.te.floordiv(x, y), zero))
         check_value(res, x, y, data, lambda a, b: a // b if b > 0 else 0)
         # involves max
-        res = lower_intrin([x, y], tvm.tir.Select(
-            y >= 0, tvm.te.max(tvm.te.floordiv(x, y), zero), zero))
-        check_value(res, x, y, data, lambda a,
-                    b: max(a // b, 0) if b > 0 else 0)
+        res = lower_intrin(
+            [x, y], tvm.tir.Select(y >= 0, tvm.te.max(tvm.te.floordiv(x, y), zero), zero)
+        )
+        check_value(res, x, y, data, lambda a, b: max(a // b, 0) if b > 0 else 0)
         # lhs >= 0
-        res = lower_intrin([x, y], tvm.tir.Select(
-            tvm.tir.all(y >= 0, x >= 0), tvm.te.floordiv(x, y), zero))
-        check_value(res, x, y, data, lambda a, b: a //
-                    b if b > 0 and a >= 0 else 0)
+        res = lower_intrin(
+            [x, y], tvm.tir.Select(tvm.tir.all(y >= 0, x >= 0), tvm.te.floordiv(x, y), zero)
+        )
+        check_value(res, x, y, data, lambda a, b: a // b if b > 0 and a >= 0 else 0)
         # const power of two
-        res = lower_intrin([x, y], tvm.te.floordiv(
-            x, tvm.tir.const(8, dtype=dtype)))
-        check_value(res, x, y, [(a, b)
-                                for a, b in data if b == 8], lambda a, b: a // b)
+        res = lower_intrin([x, y], tvm.te.floordiv(x, tvm.tir.const(8, dtype=dtype)))
+        check_value(res, x, y, [(a, b) for a, b in data if b == 8], lambda a, b: a // b)
 
 
 @tvm.testing.requires_llvm
@@ -109,19 +107,16 @@ def test_lower_floormod():
         res = lower_intrin([x, y], tvm.te.floormod(x, y))
         check_value(res, x, y, data, lambda a, b: a % b)
         # rhs >= 0
-        res = lower_intrin([x, y], tvm.tir.Select(
-            y >= 0, tvm.te.floormod(x, y), zero))
+        res = lower_intrin([x, y], tvm.tir.Select(y >= 0, tvm.te.floormod(x, y), zero))
         check_value(res, x, y, data, lambda a, b: a % b if b > 0 else 0)
         # lhs >= 0
-        res = lower_intrin([x, y], tvm.tir.Select(
-            tvm.tir.all(y >= 0, x >= 0), tvm.te.floormod(x, y), zero))
-        check_value(res, x, y, data, lambda a, b: a %
-                    b if b > 0 and a >= 0 else 0)
+        res = lower_intrin(
+            [x, y], tvm.tir.Select(tvm.tir.all(y >= 0, x >= 0), tvm.te.floormod(x, y), zero)
+        )
+        check_value(res, x, y, data, lambda a, b: a % b if b > 0 and a >= 0 else 0)
         # const power of two
-        res = lower_intrin([x, y], tvm.te.floormod(
-            x, tvm.tir.const(8, dtype=dtype)))
-        check_value(res, x, y, [(a, b)
-                                for a, b in data if b == 8], lambda a, b: a % b)
+        res = lower_intrin([x, y], tvm.te.floormod(x, tvm.tir.const(8, dtype=dtype)))
+        check_value(res, x, y, [(a, b) for a, b in data if b == 8], lambda a, b: a % b)
 
 
 if __name__ == "__main__":

@@ -24,8 +24,7 @@ from typing import Union
 from functools import wraps
 
 
-
-SEMVER = "#[version = \"0.0.5\"]\n"
+SEMVER = '#[version = "0.0.5"]\n'
 
 BINARY_OPS = {
     "*": relay.multiply,
@@ -45,18 +44,14 @@ TYPES = {
     "int16",
     "int32",
     "int64",
-
     "uint8",
     "uint16",
     "uint32",
     "uint64",
-
     "float16",
     "float32",
     "float64",
-
     "bool",
-
     "int8x4",
     "uint1x4",
     "float16x4",
@@ -69,26 +64,32 @@ type List[A] {
 }
 """
 
+
 def assert_graph_equal(lhs, rhs):
     tvm.ir.assert_structural_equal(lhs, rhs, map_free_vars=True)
 
+
 def graph_equal(lhs, rhs):
     return tvm.ir.structural_equal(lhs, rhs, map_free_vars=True)
+
 
 def roundtrip_expr(expr):
     text = tvm.relay.Expr.astext(expr, show_meta_data=False)
     x = tvm.parser.parse_expr(text)
     assert_graph_equal(x, expr)
 
+
 # Testing Utilities for expressions.
 def roundtrip(expr):
     x = tvm.parser.fromtext(expr.astext())
     assert_graph_equal(x, expr)
 
+
 def parse_text(code):
     expr = tvm.parser.parse_expr(code)
     roundtrip_expr(expr)
     return expr
+
 
 def parses_as(code, expr):
     # type: (str, relay.Expr) -> bool
@@ -96,23 +97,28 @@ def parses_as(code, expr):
     result = graph_equal(parsed, expr)
     return result
 
+
 # Testing Utilities for full modules.
 def parse_module(code):
     mod = tvm.parser.parse(SEMVER + code)
     roundtrip(mod)
     return mod
 
+
 def assert_parses_as(code, expr):
     parsed = parse_text(code)
     assert_graph_equal(parsed, expr)
+
 
 def assert_parse_module_as(code, mod):
     parsed = parse_module(code)
     assert_graph_equal(parsed, mod)
 
+
 def get_scalar(x):
     # type: (relay.Constant) -> (Union[float, int, bool])
     return x.data.asnumpy().item()
+
 
 int32 = relay.scalar_type("int32")
 
@@ -131,7 +137,7 @@ def test_comments():
         // This is a line comment!
         ()
         """,
-        UNIT
+        UNIT,
     )
 
     assert_parses_as(
@@ -141,7 +147,7 @@ def test_comments():
         */
         ()
         """,
-        UNIT
+        UNIT,
     )
 
     assert_parses_as(
@@ -151,7 +157,7 @@ def test_comments():
         */
         ()
         """,
-        UNIT
+        UNIT,
     )
 
 
@@ -174,13 +180,13 @@ def test_float_literal():
 
     # scientific notation
     assert isclose(get_scalar(parse_text("1e-1f")), 1e-1)
-    assert get_scalar(parse_text("1e+1f")) == 1e+1
-    assert isclose(get_scalar(parse_text("1E-1f")), 1E-1)
-    assert get_scalar(parse_text("1E+1f")) == 1E+1
+    assert get_scalar(parse_text("1e+1f")) == 1e1
+    assert isclose(get_scalar(parse_text("1E-1f")), 1e-1)
+    assert get_scalar(parse_text("1E+1f")) == 1e1
     assert isclose(get_scalar(parse_text("1.0e-1f")), 1.0e-1)
-    assert get_scalar(parse_text("1.0e+1f")) == 1.0e+1
-    assert isclose(get_scalar(parse_text("1.0E-1f")), 1.0E-1)
-    assert get_scalar(parse_text("1.0E+1f")) == 1.0E+1
+    assert get_scalar(parse_text("1.0e+1f")) == 1.0e1
+    assert isclose(get_scalar(parse_text("1.0E-1f")), 1.0e-1)
+    assert get_scalar(parse_text("1.0E+1f")) == 1.0e1
 
 
 def test_bool_literal():
@@ -198,8 +204,7 @@ def test_negative():
 def test_bin_op():
     for bin_op in BINARY_OPS.keys():
         assert_parses_as(
-            "1 {} 1".format(bin_op),
-            BINARY_OPS.get(bin_op)(relay.const(1), relay.const(1))
+            "1 {} 1".format(bin_op), BINARY_OPS.get(bin_op)(relay.const(1), relay.const(1))
         )
 
 
@@ -211,6 +216,7 @@ def test_parens():
 def test_op_assoc():
     assert graph_equal(parse_text("1 * 1 + 1 < 1 == 1"), parse_text("(((1 * 1) + 1) < 1) == 1"))
     assert graph_equal(parse_text("1 == 1 < 1 + 1 * 1"), parse_text("1 == (1 < (1 + (1 * 1)))"))
+
 
 def test_vars():
     # var
@@ -233,6 +239,7 @@ def test_vars():
     assert isinstance(op, tvm.ir.Op)
     assert op.name == "nn.global_avg_pool2d"
 
+
 def test_meta_ref():
     with pytest.raises(tvm.error.DiagnosticError):
         meta_op = parse_text("meta[type_key][1337]")
@@ -241,14 +248,7 @@ def test_meta_ref():
 
 
 def test_let():
-    assert_parses_as(
-        "let %x = 1; ()",
-        relay.Let(
-            X,
-            relay.const(1),
-            UNIT
-        )
-    )
+    assert_parses_as("let %x = 1; ()", relay.Let(X, relay.const(1), UNIT))
 
     assert_parses_as(
         """
@@ -256,47 +256,24 @@ def test_let():
         let %y = 2;
         ()
         """,
-        relay.Let(
-            X,
-            relay.const(1),
-            relay.Let(
-                Y,
-                relay.const(2),
-                UNIT
-            )
-        )
+        relay.Let(X, relay.const(1), relay.Let(Y, relay.const(2), UNIT)),
     )
 
 
 def test_seq():
-    assert_parses_as(
-        "(); ()",
-        relay.Let(
-            _,
-            UNIT,
-            UNIT)
-    )
+    assert_parses_as("(); ()", relay.Let(_, UNIT, UNIT))
 
-    assert_parses_as(
-        "let %_ = 1; ()",
-        relay.Let(
-            X,
-            relay.const(1),
-            UNIT
-        )
-    )
+    assert_parses_as("let %_ = 1; ()", relay.Let(X, relay.const(1), UNIT))
 
 
 def test_graph():
     code = "%0 = (); %1 = 1; (%0, %0, %1)"
-    assert_parses_as(
-        code,
-        relay.Tuple([UNIT, UNIT, relay.const(1)])
-    )
+    assert_parses_as(code, relay.Tuple([UNIT, UNIT, relay.const(1)]))
 
 
 def test_graph_single():
     assert_parses_as("%1 = (); %1", relay.Tuple([]))
+
 
 def test_let_global_var():
     with pytest.raises(tvm.error.DiagnosticError):
@@ -320,48 +297,16 @@ def test_tuple():
 
 def test_func():
     # 0 args
-    assert_parses_as(
-        "fn () { 0 }",
-        relay.Function(
-            [],
-            relay.const(0),
-            None,
-            []
-        )
-    )
+    assert_parses_as("fn () { 0 }", relay.Function([], relay.const(0), None, []))
 
     # 1 arg
-    assert_parses_as(
-        "fn (%x) { %x }",
-        relay.Function(
-            [X],
-            X,
-            None,
-            []
-        )
-    )
+    assert_parses_as("fn (%x) { %x }", relay.Function([X], X, None, []))
 
     # 2 args
-    assert_parses_as(
-        "fn (%x, %y) { %x + %y }",
-        relay.Function(
-            [X, Y],
-            relay.add(X, Y),
-            None,
-            []
-        )
-    )
+    assert_parses_as("fn (%x, %y) { %x + %y }", relay.Function([X, Y], relay.add(X, Y), None, []))
 
     # annotations
-    assert_parses_as(
-        "fn (%x: int32) -> int32 { %x }",
-        relay.Function(
-            [X_ANNO],
-            X_ANNO,
-            int32,
-            []
-        )
-    )
+    assert_parses_as("fn (%x: int32) -> int32 { %x }", relay.Function([X_ANNO], X_ANNO, int32, []))
 
     # Refactor the attribute syntax and printing.
     #
@@ -379,7 +324,8 @@ def test_defn():
         def @id(%x: int32) -> int32 {
             %x
         }
-        """)
+        """
+    )
     assert isinstance(id_defn, tvm.IRModule)
 
 
@@ -389,7 +335,8 @@ def test_recursive_call():
         def @id(%x: int32) -> int32 {
             @id(%x)
         }
-        """)
+        """
+    )
     assert isinstance(id_defn, tvm.IRModule)
 
 
@@ -402,11 +349,7 @@ def test_ifelse():
             1
         }
         """,
-        relay.If(
-            relay.const(True),
-            relay.const(0),
-            relay.const(1)
-        )
+        relay.If(relay.const(True), relay.const(0), relay.const(1)),
     )
 
 
@@ -435,8 +378,8 @@ def test_call():
         relay.Let(
             id_func,
             relay.Function([X], X, None, []),
-            relay.multiply(relay.const(10), relay.Call(id_func, [relay.const(10)]))
-        )
+            relay.multiply(relay.const(10), relay.Call(id_func, [relay.const(10)])),
+        ),
     )
 
     # 0 args
@@ -449,8 +392,8 @@ def test_call():
         relay.Let(
             constant,
             relay.Function([], relay.const(0), None, []),
-            relay.Call(constant, [], None, None)
-        )
+            relay.Call(constant, [], None, None),
+        ),
     )
 
     # 1 arg
@@ -463,8 +406,8 @@ def test_call():
         relay.Let(
             id_var,
             relay.Function([X], X, None, []),
-            relay.Call(id_var, [relay.const(1)], None, None)
-        )
+            relay.Call(id_var, [relay.const(1)], None, None),
+        ),
     )
 
     # 2 args
@@ -476,14 +419,9 @@ def test_call():
         """,
         relay.Let(
             multiply,
-            relay.Function(
-                [X, Y],
-                relay.multiply(X, Y),
-                None,
-                []
-            ),
-            relay.Call(multiply, [relay.const(0), relay.const(0)], None, None)
-        )
+            relay.Function([X, Y], relay.multiply(X, Y), None, []),
+            relay.Call(multiply, [relay.const(0), relay.const(0)], None, None),
+        ),
     )
 
     # anonymous function
@@ -491,17 +429,7 @@ def test_call():
         """
         (fn (%x) { %x })(0)
         """,
-        relay.Call(
-            relay.Function(
-                [X],
-                X,
-                None,
-                []
-            ),
-            [relay.const(0)],
-            None,
-            None
-        )
+        relay.Call(relay.Function([X], X, None, []), [relay.const(0)], None, None),
     )
 
     # curried function
@@ -519,43 +447,29 @@ def test_call():
         """,
         relay.Let(
             curried_mult,
-            relay.Function(
-                [X],
-                relay.Function(
-                    [Y],
-                    relay.multiply(X, Y),
-                    None,
-                    []
-                ),
-                None,
-                []
-            ),
+            relay.Function([X], relay.Function([Y], relay.multiply(X, Y), None, []), None, []),
             relay.Let(
                 _,
                 relay.Call(curried_mult, [relay.const(0)], None, None),
-                relay.Call(relay.Call(curried_mult, [relay.const(0)], None, None), [relay.const(0)], None, None)
-            )
-        )
+                relay.Call(
+                    relay.Call(curried_mult, [relay.const(0)], None, None),
+                    [relay.const(0)],
+                    None,
+                    None,
+                ),
+            ),
+        ),
     )
 
     # op
-    assert_parses_as(
-        "abs(1)",
-        relay.Call(relay.op.get("abs"), [relay.const(1)], None, None)
-    )
+    assert_parses_as("abs(1)", relay.Call(relay.op.get("abs"), [relay.const(1)], None, None))
+
 
 # Types
 
 
 def test_incomplete_type():
-    assert_parses_as(
-        "let %_ : _ = (); ()",
-        relay.Let(
-            _,
-            UNIT,
-            UNIT
-        )
-    )
+    assert_parses_as("let %_ : _ = (); ()", relay.Let(_, UNIT, UNIT))
 
 
 def test_builtin_types():
@@ -566,40 +480,23 @@ def test_builtin_types():
 def test_tensor_type():
     assert_parses_as(
         "let %_ : Tensor[(), float32] = (); ()",
-        relay.Let(
-            relay.Var("_", relay.TensorType((), "float32")),
-            UNIT,
-            UNIT
-        )
+        relay.Let(relay.Var("_", relay.TensorType((), "float32")), UNIT, UNIT),
     )
 
     assert_parses_as(
         "let %_ : Tensor[(1), float32] = (); ()",
-        relay.Let(
-            relay.Var("_", relay.TensorType((1,), "float32")),
-            UNIT,
-            UNIT
-        )
+        relay.Let(relay.Var("_", relay.TensorType((1,), "float32")), UNIT, UNIT),
     )
 
     assert_parses_as(
         "let %_ : Tensor[(1, 1), float32] = (); ()",
-        relay.Let(
-            relay.Var("_", relay.TensorType((1, 1), "float32")),
-            UNIT,
-            UNIT
-        )
+        relay.Let(relay.Var("_", relay.TensorType((1, 1), "float32")), UNIT, UNIT),
     )
 
     assert_parses_as(
         "let %_ : Tensor[(?, 1), float32] = (); ()",
-        relay.Let(
-            relay.Var("_", relay.TensorType((tvm.tir.Any(), 1), "float32")),
-            UNIT,
-            UNIT
-        )
+        relay.Let(relay.Var("_", relay.TensorType((tvm.tir.Any(), 1), "float32")), UNIT, UNIT),
     )
-
 
 
 def test_function_type():
@@ -610,8 +507,8 @@ def test_function_type():
         relay.Let(
             relay.Var("_", relay.FuncType([], int32, [], [])),
             relay.Function([], relay.const(0), int32, []),
-            UNIT
-        )
+            UNIT,
+        ),
     )
 
     assert_parses_as(
@@ -621,8 +518,8 @@ def test_function_type():
         relay.Let(
             relay.Var("_", relay.FuncType([int32], int32, [], [])),
             relay.Function([relay.Var("x", int32)], relay.const(0), int32, []),
-            UNIT
-        )
+            UNIT,
+        ),
     )
 
     assert_parses_as(
@@ -631,9 +528,11 @@ def test_function_type():
         """,
         relay.Let(
             relay.Var("_", relay.FuncType([int32, int32], int32, [], [])),
-            relay.Function([relay.Var("x", int32), relay.Var("y", int32)], relay.const(0), int32, []),
-            UNIT
-        )
+            relay.Function(
+                [relay.Var("x", int32), relay.Var("y", int32)], relay.const(0), int32, []
+            ),
+            UNIT,
+        ),
     )
 
 
@@ -642,22 +541,14 @@ def test_tuple_type():
         """
         let %_: () = (); ()
         """,
-        relay.Let(
-            relay.Var("_", relay.TupleType([])),
-            UNIT,
-            UNIT
-        )
+        relay.Let(relay.Var("_", relay.TupleType([])), UNIT, UNIT),
     )
 
     assert_parses_as(
         """
         let %_: (int32,) = (0,); ()
         """,
-        relay.Let(
-            relay.Var("_", relay.TupleType([int32])),
-            relay.Tuple([relay.const(0)]),
-            UNIT
-        )
+        relay.Let(relay.Var("_", relay.TupleType([int32])), relay.Tuple([relay.const(0)]), UNIT),
     )
 
     assert_parses_as(
@@ -667,8 +558,8 @@ def test_tuple_type():
         relay.Let(
             relay.Var("_", relay.TupleType([int32, int32])),
             relay.Tuple([relay.const(0), relay.const(1)]),
-            UNIT
-        )
+            UNIT,
+        ),
     )
 
 
@@ -676,17 +567,15 @@ def test_adt_defn():
     mod = tvm.IRModule()
 
     glob_typ_var = relay.GlobalTypeVar("Ayy")
-    prog = relay.TypeData(
-            glob_typ_var,
-            [],
-            [relay.Constructor("Nil", [], glob_typ_var)])
+    prog = relay.TypeData(glob_typ_var, [], [relay.Constructor("Nil", [], glob_typ_var)])
     mod[glob_typ_var] = prog
     assert_parse_module_as(
         """
         type Ayy { Nil }
         """,
-        mod
+        mod,
     )
+
 
 def test_adt_any():
     code = """
@@ -717,7 +606,7 @@ def test_empty_adt_defn():
         """
         type Ayy { }
         """,
-        mod
+        mod,
     )
 
 
@@ -727,12 +616,13 @@ def test_multiple_cons_defn():
     list_var = relay.GlobalTypeVar("List")
     typ_var = relay.TypeVar("A")
     prog = relay.TypeData(
-            list_var,
-            [typ_var],
-            [
-                relay.Constructor("Cons", [typ_var, list_var(typ_var)], list_var),
-                relay.Constructor("Nil", [], list_var),
-            ])
+        list_var,
+        [typ_var],
+        [
+            relay.Constructor("Cons", [typ_var, list_var(typ_var)], list_var),
+            relay.Constructor("Nil", [], list_var),
+        ],
+    )
     mod[list_var] = prog
     assert_parse_module_as(LIST_DEFN, mod)
 
@@ -742,12 +632,13 @@ def test_multiple_type_param_defn():
     typ_var_a = relay.TypeVar("A")
     typ_var_b = relay.TypeVar("B")
     prog = relay.TypeData(
-            glob_typ_var,
-            [typ_var_a, typ_var_b],
-            [
-                relay.Constructor("Left", [typ_var_a], glob_typ_var),
-                relay.Constructor("Right", [typ_var_b], glob_typ_var),
-            ])
+        glob_typ_var,
+        [typ_var_a, typ_var_b],
+        [
+            relay.Constructor("Left", [typ_var_a], glob_typ_var),
+            relay.Constructor("Right", [typ_var_b], glob_typ_var),
+        ],
+    )
     mod = tvm.IRModule()
     mod[glob_typ_var] = prog
     assert_parse_module_as(
@@ -757,7 +648,7 @@ def test_multiple_type_param_defn():
           Right(B),
         }
         """,
-        mod
+        mod,
     )
 
 
@@ -769,13 +660,9 @@ def test_match():
 
         list_var = relay.GlobalTypeVar("List")
         typ_var = relay.TypeVar("A")
-        cons_constructor = relay.Constructor(
-            "Cons", [typ_var, list_var(typ_var)], list_var)
+        cons_constructor = relay.Constructor("Cons", [typ_var, list_var(typ_var)], list_var)
         nil_constructor = relay.Constructor("Nil", [], list_var)
-        list_def = relay.TypeData(
-            list_var,
-            [typ_var],
-            [cons_constructor, nil_constructor])
+        list_def = relay.TypeData(list_var, [typ_var], [cons_constructor, nil_constructor])
         mod[list_var] = list_def
 
         length_var = relay.GlobalVar("length")
@@ -786,24 +673,22 @@ def test_match():
         cons_case = relay.Let(
             relay.var("", type_annotation=None),
             UNIT,
-            relay.add(relay.const(1), relay.Call(length_var, [rest_var])))
-        body = relay.Match(input_var,
-            [relay.Clause(
-                relay.PatternConstructor(
-                    cons_constructor,
-                    [relay.PatternWildcard(), relay.PatternVar(rest_var)]),
-                cons_case),
-            relay.Clause(
-                relay.PatternConstructor(nil_constructor, []),
-                relay.const(0))],
-            complete=is_complete
+            relay.add(relay.const(1), relay.Call(length_var, [rest_var])),
         )
-        length_func = relay.Function(
-            [input_var],
-            body,
-            int32,
-            [typ_var]
+        body = relay.Match(
+            input_var,
+            [
+                relay.Clause(
+                    relay.PatternConstructor(
+                        cons_constructor, [relay.PatternWildcard(), relay.PatternVar(rest_var)]
+                    ),
+                    cons_case,
+                ),
+                relay.Clause(relay.PatternConstructor(nil_constructor, []), relay.const(0)),
+            ],
+            complete=is_complete,
         )
+        length_func = relay.Function([input_var], body, int32, [typ_var])
         mod[length_var] = length_func
 
         assert_parse_module_as(
@@ -819,8 +704,9 @@ def test_match():
                 Nil => 0,
               }
             }
-            """ % (LIST_DEFN, match_keyword),
-            mod
+            """
+            % (LIST_DEFN, match_keyword),
+            mod,
         )
 
 
@@ -829,21 +715,15 @@ def test_adt_cons_expr():
 
     list_var = relay.GlobalTypeVar("List")
     typ_var = relay.TypeVar("A")
-    cons_constructor = relay.Constructor(
-        "Cons", [typ_var, list_var(typ_var)], list_var)
+    cons_constructor = relay.Constructor("Cons", [typ_var, list_var(typ_var)], list_var)
     nil_constructor = relay.Constructor("Nil", [], list_var)
-    list_def = relay.TypeData(
-        list_var,
-        [typ_var],
-        [cons_constructor, nil_constructor])
+    list_def = relay.TypeData(list_var, [typ_var], [cons_constructor, nil_constructor])
     mod[list_var] = list_def
 
     make_singleton_var = relay.GlobalVar("make_singleton")
     input_var = relay.Var("x", int32)
     make_singleton_func = relay.Function(
-        [input_var],
-        cons_constructor(input_var, nil_constructor()),
-        list_var(int32)
+        [input_var], cons_constructor(input_var, nil_constructor()), list_var(int32)
     )
     mod[make_singleton_var] = make_singleton_func
 
@@ -854,8 +734,9 @@ def test_adt_cons_expr():
         def @make_singleton(%%x: int32) -> List[int32] {
           Cons(%%x, Nil)
         }
-        """ % LIST_DEFN,
-        mod
+        """
+        % LIST_DEFN,
+        mod,
     )
 
 
@@ -869,7 +750,8 @@ def test_duplicate_adt_defn():
             Cons(A, List[A]),
             Nil,
             }
-            """ % LIST_DEFN
+            """
+            % LIST_DEFN
         )
 
 
@@ -915,18 +797,21 @@ def test_extern_adt_defn():
         """
         extern type T[A]
         """,
-        mod
+        mod,
     )
+
 
 def test_import_grad():
     mod = tvm.IRModule()
     mod.import_from_std("gradient.rly")
+
 
 def test_resnet():
     mod, _ = relay.testing.resnet.get_workload()
     text = mod.astext()
     parsed_mod = tvm.parser.parse(text)
     tvm.ir.assert_structural_equal(mod, parsed_mod)
+
 
 def inline_params(mod, params):
     main_fn = mod["main"]
@@ -943,6 +828,7 @@ def inline_params(mod, params):
     mod["main_fn"] = main_fn
     return mod
 
+
 def test_resnet_inlined_params():
     mod, params = relay.testing.resnet.get_workload()
     mod = inline_params(mod, params)
@@ -950,6 +836,8 @@ def test_resnet_inlined_params():
     parsed_mod = tvm.parser.parse(text)
     tvm.ir.assert_structural_equal(mod, parsed_mod)
 
+
 if __name__ == "__main__":
     import sys
+
     pytest.main(sys.argv)

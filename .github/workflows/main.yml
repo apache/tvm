@@ -77,5 +77,10 @@ jobs:
         "-DUSE_METAL=ON"
         ..
 
-    - name: Build
+    - name: Build@Win
+      if: matrix.os == 'windows-latest'
+      run: cmake --build build.common --config Release -- /m
+
+    - name: Build@MacOS
+      if: matrix.os == 'macOS-latest'
       run: cmake --build build.common --config Release -j3

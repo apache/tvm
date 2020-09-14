@@ -22,13 +22,10 @@ import numpy as np
 import tvm
 
 
-GRAPH_DUMP_FILE_NAME = '_tvmdbg_graph_dump.json'
+GRAPH_DUMP_FILE_NAME = "_tvmdbg_graph_dump.json"
 CHROME_TRACE_FILE_NAME = "_tvmdbg_execution_trace.json"
 
-ChromeTraceEvent = collections.namedtuple(
-    'ChromeTraceEvent',
-    ['ts', 'tid', 'pid', 'name', 'ph']
-)
+ChromeTraceEvent = collections.namedtuple("ChromeTraceEvent", ["ts", "tid", "pid", "name", "ph"])
 
 
 class DebugResult(object):
@@ -66,9 +63,9 @@ class DebugResult(object):
            The graph to be deployed in json format output by JSON graph.
         """
         json_obj = json.loads(graph_json)
-        self._nodes_list = json_obj['nodes']
-        self._shapes_list = json_obj['attrs']['shape']
-        self._dtype_list = json_obj['attrs']['dltype']
+        self._nodes_list = json_obj["nodes"]
+        self._shapes_list = json_obj["attrs"]["shape"]
+        self._dtype_list = json_obj["attrs"]["dltype"]
         self._update_graph_json()
         return json_obj
 
@@ -80,48 +77,42 @@ class DebugResult(object):
         for i in range(nodes_len):
             node = self._nodes_list[i]
             input_list = []
-            for input_node in node['inputs']:
-                input_list.append(self._nodes_list[input_node[0]]['name'])
-            node['inputs'] = input_list
+            for input_node in node["inputs"]:
+                input_list.append(self._nodes_list[input_node[0]]["name"])
+            node["inputs"] = input_list
             dtype = str("type: " + self._dtype_list[1][i])
-            if 'attrs' not in node:
-                node['attrs'] = {}
-                node['op'] = "param"
+            if "attrs" not in node:
+                node["attrs"] = {}
+                node["op"] = "param"
             else:
-                node['op'] = node['attrs']['func_name']
-            node['attrs'].update({"T": dtype})
-            node['shape'] = self._shapes_list[1][i]
+                node["op"] = node["attrs"]["func_name"]
+            node["attrs"].update({"T": dtype})
+            node["shape"] = self._shapes_list[1][i]
 
     def _cleanup_tensors(self):
-        """Remove the tensor dump file (graph wont be removed)
-        """
+        """Remove the tensor dump file (graph wont be removed)"""
         for filename in os.listdir(self._dump_path):
             if os.path.isfile(filename) and not filename.endswith(".json"):
                 os.remove(filename)
 
     def get_graph_nodes(self):
-        """Return the nodes list
-        """
+        """Return the nodes list"""
         return self._nodes_list
 
     def get_graph_node_shapes(self):
-        """Return the nodes shapes list
-        """
+        """Return the nodes shapes list"""
         return self._shapes_list
 
     def get_graph_node_output_num(self, node):
-        """Return the number of outputs of a node
-        """
-        return 1 if node['op'] == 'param' else int(node['attrs']['num_outputs'])
+        """Return the number of outputs of a node"""
+        return 1 if node["op"] == "param" else int(node["attrs"]["num_outputs"])
 
     def get_graph_node_dtypes(self):
-        """Return the nodes dtype list
-        """
+        """Return the nodes dtype list"""
         return self._dtype_list
 
     def get_output_tensors(self):
-        """Dump the outputs to a temporary folder, the tensors are in numpy format
-        """
+        """Dump the outputs to a temporary folder, the tensors are in numpy format"""
         eid = 0
         order = 0
         output_tensors = {}
@@ -129,15 +120,14 @@ class DebugResult(object):
             num_outputs = self.get_graph_node_output_num(node)
             for j in range(num_outputs):
                 order += time[0]
-                key = node['name'] + "_" + str(j)
+                key = node["name"] + "_" + str(j)
                 output_tensors[key] = self._output_tensor_list[eid]
                 eid += 1
         return output_tensors
 
     def dump_output_tensor(self):
-        """Dump the outputs to a temporary folder, the tensors are in numpy format
-        """
-        #cleanup existing tensors before dumping
+        """Dump the outputs to a temporary folder, the tensors are in numpy format"""
+        # cleanup existing tensors before dumping
         self._cleanup_tensors()
         eid = 0
         order = 0
@@ -146,7 +136,7 @@ class DebugResult(object):
             num_outputs = self.get_graph_node_output_num(node)
             for j in range(num_outputs):
                 order += time[0]
-                key = node['name'] + "_" + str(j) + "__" + str(order)
+                key = node["name"] + "_" + str(j) + "__" + str(order)
                 output_tensors[key] = self._output_tensor_list[eid]
                 eid += 1
 
@@ -154,8 +144,8 @@ class DebugResult(object):
             param_f.write(save_tensors(output_tensors))
 
     def dump_chrome_trace(self):
-        """Dump the trace to the Chrome trace.json format.
-        """
+        """Dump the trace to the Chrome trace.json format."""
+
         def s_to_us(t):
             return t * 10 ** 6
 
@@ -168,26 +158,27 @@ class DebugResult(object):
                     ts=s_to_us(starting_time),
                     tid=1,
                     pid=1,
-                    ph='B',
-                    name=node['name'],
+                    ph="B",
+                    name=node["name"],
                 ),
                 ChromeTraceEvent(
                     # Use start + duration instead of end to ensure precise timings.
                     ts=s_to_us(times[0] + starting_time),
                     tid=1,
                     pid=1,
-                    ph='E',
-                    name=node['name'],
+                    ph="E",
+                    name=node["name"],
                 ),
             ]
+
         events = [
-            e for (node, times, starting_time) in zip(
-                self._nodes_list, self._time_list, starting_times)
-            for e in node_to_events(node, times, starting_time)]
-        result = dict(
-            displayTimeUnit='ns',
-            traceEvents=[e._asdict() for e in events]
-        )
+            e
+            for (node, times, starting_time) in zip(
+                self._nodes_list, self._time_list, starting_times
+            )
+            for e in node_to_events(node, times, starting_time)
+        ]
+        result = dict(displayTimeUnit="ns", traceEvents=[e._asdict() for e in events])
 
         with open(os.path.join(self._dump_path, CHROME_TRACE_FILE_NAME), "w") as trace_f:
             json.dump(result, trace_f)
@@ -202,7 +193,7 @@ class DebugResult(object):
             name, shape and type.
         """
         graph_dump_file_name = GRAPH_DUMP_FILE_NAME
-        with open(os.path.join(self._dump_path, graph_dump_file_name), 'w') as outfile:
+        with open(os.path.join(self._dump_path, graph_dump_file_name), "w") as outfile:
             json.dump(graph, outfile, indent=4, sort_keys=False)
 
     def get_debug_result(self, sort_by_time=True):
@@ -215,16 +206,16 @@ class DebugResult(object):
         for node, time in zip(self._nodes_list, self._time_list):
             num_outputs = self.get_graph_node_output_num(node)
             for j in range(num_outputs):
-                op = node['op']
-                if node['op'] == 'param':
+                op = node["op"]
+                if node["op"] == "param":
                     eid += 1
                     continue
-                name = node['name']
+                name = node["name"]
                 shape = str(self._output_tensor_list[eid].shape)
                 time_us = round(time[0] * 1000000, 3)
                 time_percent = round(((time[0] / total_time) * 100), 3)
-                inputs = str(node['attrs']['num_inputs'])
-                outputs = str(node['attrs']['num_outputs'])
+                inputs = str(node["attrs"]["num_inputs"])
+                outputs = str(node["attrs"]["num_outputs"])
                 node_data = [name, op, time_us, time_percent, shape, inputs, outputs]
                 data.append(node_data)
                 eid += 1
@@ -248,11 +239,12 @@ class DebugResult(object):
         log.append(fmt.format(*lines))
         for row in data:
             log.append(fmt.format(*row))
-        return '\n'.join(log)
+        return "\n".join(log)
 
     def display_debug_result(self, sort_by_time=True):
         """Displays the debugger result"""
         print(self.get_debug_result(sort_by_time))
+
 
 def save_tensors(params):
     """Save parameter dictionary to binary bytes.

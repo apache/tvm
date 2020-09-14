@@ -16,18 +16,13 @@
 # under the License.
 """Util to invoke C/C++ compilers in the system."""
 # pylint: disable=invalid-name
-from __future__ import absolute_import as _abs
 import sys
 import subprocess
-import os
 
 from .._ffi.base import py_str
-from .util import tempdir
 
-def create_shared(output,
-                  objects,
-                  options=None,
-                  cc="g++"):
+
+def create_shared(output, objects, options=None, cc="g++"):
     """Create shared library.
 
     Parameters
@@ -52,10 +47,7 @@ def create_shared(output,
         raise ValueError("Unsupported platform")
 
 
-def create_executable(output,
-                      objects,
-                      options=None,
-                      cc="g++"):
+def create_executable(output, objects, options=None, cc="g++"):
     """Create executable binary.
 
     Parameters
@@ -79,7 +71,7 @@ def create_executable(output,
 
 
 def get_target_by_dump_machine(compiler):
-    """ Functor of get_target_triple that can get the target triple using compiler.
+    """Functor of get_target_triple that can get the target triple using compiler.
 
     Parameters
     ----------
@@ -91,12 +83,12 @@ def get_target_by_dump_machine(compiler):
     out: Callable
         A function that can get target triple according to dumpmachine option of compiler.
     """
+
     def get_target_triple():
         """ Get target triple according to dumpmachine option of compiler."""
         if compiler:
             cmd = [compiler, "-dumpmachine"]
-            proc = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             (out, _) = proc.communicate()
             if proc.returncode != 0:
                 msg = "dumpmachine error:\n"
@@ -111,14 +103,13 @@ def get_target_by_dump_machine(compiler):
 # assign so as default output format
 create_shared.output_format = "so" if sys.platform != "win32" else "dll"
 create_shared.get_target_triple = get_target_by_dump_machine(
-    "g++" if sys.platform == "darwin" or sys.platform.startswith("linux") else None)
+    "g++" if sys.platform == "darwin" or sys.platform.startswith("linux") else None
+)
 
 
-def cross_compiler(compile_func,
-                   options=None,
-                   output_format=None,
-                   get_target_triple=None,
-                   add_files=None):
+def cross_compiler(
+    compile_func, options=None, output_format=None, get_target_triple=None, add_files=None
+):
     """Create a cross compiler function by specializing compile_func with options.
 
     This function can be used to construct compile functions that
@@ -169,9 +160,8 @@ def cross_compiler(compile_func,
 
     # handle case where compile_func is the name of the cc
     if isinstance(compile_func, str):
-        kwargs = {"cc" : compile_func}
+        kwargs = {"cc": compile_func}
         compile_func = create_shared
-
 
     def _fcompile(outputs, objects, options=None):
         all_options = base_options
@@ -191,8 +181,7 @@ def cross_compiler(compile_func,
     return _fcompile
 
 
-def _linux_compile(output, objects, options,
-                   compile_cmd="g++", compile_shared=False):
+def _linux_compile(output, objects, options, compile_cmd="g++", compile_shared=False):
     cmd = [compile_cmd]
     if compile_shared or output.endswith(".so") or output.endswith(".dylib"):
         cmd += ["-shared", "-fPIC"]
@@ -207,8 +196,7 @@ def _linux_compile(output, objects, options,
         cmd += objects
     if options:
         cmd += options
-    proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         msg = "Compilation error:\n"
@@ -216,65 +204,32 @@ def _linux_compile(output, objects, options,
         msg += "\nCommand line: " + " ".join(cmd)
         raise RuntimeError(msg)
 
-
 def _windows_shared(output, objects, options):
-    cl_cmd = ["cl"]
-    cl_cmd += ["-c"]
+    cmd = ["clang"]
+    cmd += ["-O2", "-flto=full", "-fuse-ld=lld-link"]
+
+    if output.endswith(".so") or output.endswith(".dll"):
+        cmd += ["-shared"]
+    elif output.endswith(".obj"):
+        cmd += ["-c"]
+
     if isinstance(objects, str):
         objects = [objects]
-    cl_cmd += objects
+    cmd += ["-o", output]
+    cmd += objects
     if options:
-        cl_cmd += options
-
-    temp = tempdir()
-    dllmain_path = temp.relpath("dllmain.cc")
-    with open(dllmain_path, "w") as dllmain_obj:
-        dllmain_obj.write('#include <windows.h>\
-BOOL APIENTRY DllMain( HMODULE hModule,\
-                       DWORD  ul_reason_for_call,\
-                       LPVOID lpReserved)\
-{return TRUE;}')
-
-    cl_cmd += [dllmain_path]
-
-    temp_path = dllmain_path.replace("dllmain.cc", "")
-    cl_cmd += ["-Fo:" + temp_path]
-    try:
-        proc = subprocess.Popen(
-            cl_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        (out, _) = proc.communicate()
-    except FileNotFoundError:
-        raise RuntimeError("Can not find cl.exe,"
-                           "please run this in Vistual Studio Command Prompt.")
-    if proc.returncode != 0:
-        msg = "Compilation error:\n"
-        msg += py_str(out)
-        raise RuntimeError(msg)
-    link_cmd = ["lld-link"]
-    link_cmd += ["-dll", "-FORCE:MULTIPLE"]
-
-    for obj in objects:
-        if obj.endswith(".cc"):
-            (_, temp_file_name) = os.path.split(obj)
-            (shot_name, _) = os.path.splitext(temp_file_name)
-            link_cmd += [os.path.join(temp_path, shot_name + ".obj")]
-        if obj.endswith(".o"):
-            link_cmd += [obj]
-
-    link_cmd += ["-EXPORT:__tvm_main__"]
-    link_cmd += [temp_path + "dllmain.obj"]
-    link_cmd += ["-out:" + output]
+        cmd += options
 
     try:
-        proc = subprocess.Popen(
-            link_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         (out, _) = proc.communicate()
     except FileNotFoundError:
-        raise RuntimeError("Can not find the LLVM linker for Windows (lld-link.exe)."
-                           "Make sure it's installed"
-                           " and the installation directory is in the %PATH% environment "
-                           "variable. Prebuilt binaries can be found at: https://llvm.org/"
-                           "For building the linker on your own see: https://lld.llvm.org/#build")
+        raise RuntimeError(
+            "Can not find the LLVM clang for Windows clang.exe)."
+            "Make sure it's installed"
+            " and the installation directory is in the %PATH% environment "
+            "variable. Prebuilt binaries can be found at: https://llvm.org/"
+        )
     if proc.returncode != 0:
         msg = "Compilation error:\n"
         msg += py_str(out)

@@ -25,6 +25,7 @@ from tvm import te
 from .. import util
 from .. import tag
 
+
 def schedule_depthwise_conv2d_nchw(outs):
     """Schedule for depthwise_conv2d nchw forward.
 
@@ -41,12 +42,13 @@ def schedule_depthwise_conv2d_nchw(outs):
     """
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
+
     def _schedule(pad_data, kernel, conv):
         raw_data = s[pad_data].op.input_tensors[0]
 
         if conv.op not in s.outputs:  # has bias or relu
             output = outs[0]
-        else:                         # no bias or relu
+        else:  # no bias or relu
             output = conv
 
         def tile_and_bind3d(tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None):
@@ -72,7 +74,7 @@ def schedule_depthwise_conv2d_nchw(outs):
             VW = VW * 2
         while util.get_const_int(conv.shape[2]) % (VH * 2) == 0 and VH * 2 <= 2:
             VH = VH * 2
-        if raw_data.dtype == 'float16':
+        if raw_data.dtype == "float16":
             if util.get_const_int(conv.shape[3]) % (VW * 2) == 0:
                 VW *= 2
                 num_thread *= 2
@@ -113,10 +115,10 @@ def schedule_depthwise_conv2d_nchw(outs):
                     traverse(tensor.op)
 
         # schedule depthwise_conv2d
-        if op.tag == 'depthwise_conv2d_nchw':
+        if op.tag == "depthwise_conv2d_nchw":
             pad_data = op.input_tensors[0]
             kernel = op.input_tensors[1]
-            if isinstance(kernel.op, tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
+            if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
             conv = op.output(0)
             _schedule(pad_data, kernel, conv)
