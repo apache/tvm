@@ -211,14 +211,9 @@ def _arange():
                 dtype = "float32"
             else:
                 dtype = "int64"
-            if inputs[1] is not None:
-                start = _get_value(inputs[0], dtype)
-                stop = _get_value(inputs[1], dtype)
-                step = _get_value(inputs[2], dtype)
-            else:
-                start = _expr.const(0, dtype)
-                stop = _get_value(inputs[0], dtype)
-                step = _expr.const(1, dtype)
+            start = _expr.const(0, dtype)
+            stop = _get_value(inputs[0], dtype)
+            step = _expr.const(1, dtype)
         elif len(inputs) == 7:
             types = [_get_type(inputs[i], input_types[i]) for i in range(3)]
             if inputs[3] is not None:
@@ -227,14 +222,9 @@ def _arange():
                 dtype = "float32"
             else:
                 dtype = "int64"
-            if inputs[1] is not None:
-                start = _get_value(inputs[0], dtype)
-                stop = _get_value(inputs[1], dtype)
-                step = _get_value(inputs[2], dtype)
-            else:
-                start = _expr.const(0, dtype)
-                stop = _get_value(inputs[0], dtype)
-                step = _expr.const(1, dtype)
+            start = _get_value(inputs[0], dtype)
+            stop = _get_value(inputs[1], dtype)
+            step = _get_value(inputs[2], dtype)
         else:
             msg = "Unknown number of arguments (%d) to parse." % (len(inputs))
             raise AssertionError(msg)
