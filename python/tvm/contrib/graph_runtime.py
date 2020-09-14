@@ -24,7 +24,7 @@ from tvm._ffi.base import string_types
 from tvm._ffi.runtime_ctypes import TVMContext
 
 
-def create(graph_json_str, libmod, ctx, force_local_graph_runtime=False):
+def create(graph_json_str, libmod, ctx):
     """Create a runtime executor module given a graph and module.
 
     Parameters
@@ -43,15 +43,6 @@ def create(graph_json_str, libmod, ctx, force_local_graph_runtime=False):
         be used as this purpose. All context should be given for heterogeneous
         execution.
 
-    force_local_graph_runtime : bool
-        When ctx contains only rpc contexts, the GraphRuntime is typically instantiated
-        remotely, sending the graph JSON as a string and translating the rpc contexts to
-        non-RPC equivalents. In some cases e.g. micro TVM, it may not be desirable to use
-        RAM for these purposes, so a local GraphRuntime can drive remote execution. When
-        this parameter is True, a local GraphRuntime is used even when rpc contexts are
-        given. This degrades performance of the `run()` call; use DebugRuntime to measure
-        the true performance of the remote execution.
-
     Returns
     -------
     graph_module : GraphModule
@@ -59,18 +50,17 @@ def create(graph_json_str, libmod, ctx, force_local_graph_runtime=False):
     """
     assert isinstance(graph_json_str, string_types)
 
-    ctx, use_local_graph_runtime, device_type_id = get_device_ctx(
-        libmod, ctx, force_local_graph_runtime)
+    ctx, num_rpc_ctx, device_type_id = get_device_ctx(libmod, ctx)
 
-    if use_local_graph_runtime:
-        fcreate = tvm._ffi.get_global_func("tvm.graph_runtime.create")
-    else:
+    if num_rpc_ctx == len(ctx):
         fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.create")
+    else:
+        fcreate = tvm._ffi.get_global_func("tvm.graph_runtime.create")
 
     return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
 
 
-def get_device_ctx(libmod, ctx, force_local_graph_runtime):
+def get_device_ctx(libmod, ctx):
     """Parse and validate all the device context(s).
 
     Parameters
@@ -80,13 +70,10 @@ def get_device_ctx(libmod, ctx, force_local_graph_runtime):
 
     ctx : TVMContext or list of TVMContext
 
-    force_local_graph_runtime : bool
-        See create().
-
     Returns
     -------
     ctx : list of TVMContext
-    use_local_graph_runtime : True when a local GraphRuntime instance should be used.
+    num_rpc_ctx : Number of rpc contexts
     device_type_id : List of device type and device id
     """
 
@@ -101,24 +88,21 @@ def get_device_ctx(libmod, ctx, force_local_graph_runtime):
     # device_type_id[0], device_type_id[1] are used as the primary/fallback
     # context type and id. All other ones are used as device context for
     # heterogeneous execution.
-    if all(c.device_type >= rpc_base.RPC_SESS_MASK for c in ctx):
-        use_local_runtime = force_local_graph_runtime
-    elif all(c.device_type < rpc_base.RPC_SESS_MASK for c in ctx):
-        use_local_runtime = True
-    else:
-        raise ValueError("Either all or none of the contexts should be rpc.")
-
+    num_rpc_ctx = 0
     device_type_id = []
     for cur_ctx in ctx:
         device_type = cur_ctx.device_type
-        if device_type >= rpc_base.RPC_SESS_MASK and not use_local_runtime:
+        if device_type >= rpc_base.RPC_SESS_MASK:
             assert libmod.type_key == "rpc"
             assert _rpc_ffi_api.SessTableIndex(libmod) == cur_ctx._rpc_sess._tbl_index
+            num_rpc_ctx += 1
             device_type = cur_ctx.device_type % rpc_base.RPC_SESS_MASK
         device_type_id.append(device_type)
         device_type_id.append(cur_ctx.device_id)
 
-    return ctx, use_local_runtime, device_type_id
+    if 0 < num_rpc_ctx < len(ctx):
+        raise ValueError("Either all or none of the contexts should be rpc.")
+    return ctx, num_rpc_ctx, device_type_id
 
 
 class GraphModule(object):

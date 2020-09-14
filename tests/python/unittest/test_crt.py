@@ -108,6 +108,34 @@ def test_reset():
       pass
 
 
+def test_graph_runtime():
+  """Test use of the graph runtime with microTVM."""
+  workspace = tvm.micro.Workspace()
+  relay_mod = tvm.parser.fromtext(
+      """
+      #[version = "0.0.5"]
+      def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), uint8]) {
+          %0 = %a + %b;
+          %0
+      }""")
+
+  with tvm.transform.PassContext(opt_level=3, config={'tir.disable_vectorize': True}):
+    factory = tvm.relay.build(relay_mod, target=TARGET)
+
+  with _make_session(workspace, factory.get_lib()) as sess:
+    graph_mod = tvm.micro.create_local_graph_runtime(factory.get_json(), sess.get_system_lib(), sess.context)
+    A_data = tvm.nd.array(np.array([2, 3], dtype='uint8'), ctx=sess.context)
+    assert (A_data.asnumpy() == np.array([2, 3])).all()
+    B_data = tvm.nd.array(np.array([4, 7], dtype='uint8'), ctx=sess.context)
+    assert (B_data.asnumpy() == np.array([4, 7])).all()
+
+    graph_mod.run(a=A_data, b=B_data)
+
+    out = graph_mod.get_output(0)
+    assert (out.asnumpy() == np.array([6, 10])).all()
+
+
 if __name__ == '__main__':
   test_compile_runtime()
   test_reset()
+  test_graph_runtime()

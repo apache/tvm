@@ -20,6 +20,8 @@
 import logging
 import time
 
+from .._ffi import get_global_func
+from ..contrib import graph_runtime
 from .base import _rpc_connect
 from ..rpc import RPCSession
 from .transport import TransportLogger
@@ -68,6 +70,7 @@ class Session:
         self.session_name = session_name
 
         self._rpc = None
+        self._graph_runtime = None
 
     def get_system_lib(self):
         return self._rpc.get_function('runtime.SystemLib')()
@@ -94,3 +97,28 @@ class Session:
     def __exit__(self, exc_type, exc_value, exc_traceback):
         """Tear down this session and associated RPC session resources."""
         self.transport.__exit__(exc_type, exc_value, exc_traceback)
+
+
+def create_local_graph_runtime(graph_json_str, mod, ctx):
+    """Create a local graph runtime driving execution on the remote CPU context given.
+
+    Parameters
+    ----------
+    graph_json_str : str
+        A string containing the graph representation.
+
+    mod : tvm.runtime.Module
+        The remote module containing functions in graph_json_str.
+
+    ctx : tvm.Context
+        The remote CPU execution context.
+
+    Returns
+    -------
+    tvm.contrib.GraphRuntime :
+         A local graph runtime instance that executes on the remote device.
+    """
+    device_type_id = [ctx.device_type, ctx.device_id]
+    fcreate = get_global_func("tvm.graph_runtime.create")
+    return graph_runtime.GraphModule(fcreate(
+        graph_json_str, mod, *device_type_id))

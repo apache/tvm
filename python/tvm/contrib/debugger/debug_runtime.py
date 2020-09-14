@@ -30,7 +30,7 @@ _DUMP_ROOT_PREFIX = "tvmdbg_"
 _DUMP_PATH_PREFIX = "_tvmdbg_"
 
 
-def create(graph_json_str, libmod, ctx, dump_root=None, force_local_graph_runtime=False):
+def create(graph_json_str, libmod, ctx, dump_root=None):
     """Create a runtime executor module given a graph and module.
 
     Parameters
@@ -49,11 +49,6 @@ def create(graph_json_str, libmod, ctx, dump_root=None, force_local_graph_runtim
     dump_root : str
         To select which folder the outputs should be kept.
         None will make a temp folder in /tmp/tvmdbg<rand_string> and does the dumping
-
-    force_local_graph_runtime : bool
-        When only rpc contexts are present, controls which side of the RPC link instantiates
-        the underlying graph runtime. See tvm.contrib.graph_runtime.create().
-
     Returns
     -------
     graph_module : GraphModuleDebug
@@ -62,13 +57,11 @@ def create(graph_json_str, libmod, ctx, dump_root=None, force_local_graph_runtim
     assert isinstance(graph_json_str, string_types)
 
     try:
-        ctx, use_local_runtime, device_type_id = graph_runtime.get_device_ctx(
-            libmod, ctx, force_local_graph_runtime)
-        if use_local_runtime:
-            fcreate = tvm._ffi.get_global_func("tvm.graph_runtime_debug.create")
+        ctx, num_rpc_ctx, device_type_id = graph_runtime.get_device_ctx(libmod, ctx)
+        if num_rpc_ctx == len(ctx):
+            fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime_debug.create")
         else:
-            fcreate = ctx[0]._rpc_sess.get_function(
-                "tvm.graph_runtime_debug.create")
+            fcreate = tvm._ffi.get_global_func("tvm.graph_runtime_debug.create")
     except ValueError:
         raise ValueError(
             "Please set '(USE_GRAPH_RUNTIME_DEBUG ON)' in "
