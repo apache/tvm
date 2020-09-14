@@ -1024,6 +1024,9 @@ class Slice(OnnxOpConverter):
         attrs = {"starts": inputs[1], "ends": inputs[2]}
         if len(inputs) >= 4:
             attrs["axes"] = inputs[3]
+        if len(inputs) >= 5:
+            attrs["steps"] = inputs[4]
+
         attrs = {k: (v, get_name(v)) for (k, v) in attrs.items()}
         attrs = {
             k: params[v[1]].asnumpy()
@@ -1033,12 +1036,23 @@ class Slice(OnnxOpConverter):
         }
 
         # Update the starts and ends according to axes if required.
-        if "axes" in attrs:
-            if max(attrs["axes"] + 1) != len(attrs["axes"]):
-                new_starts, new_ends, _ = cls._common(attrs["starts"], attrs["ends"], attrs["axes"])
-                attrs["starts"] = new_starts
-                attrs["ends"] = new_ends
-        return _op.strided_slice(inputs[0], begin=list(attrs["starts"]), end=list(attrs["ends"]))
+        if "axes" in attrs and max(attrs["axes"] + 1) != len(attrs["axes"]):
+            new_starts, new_ends, _ = cls._common(attrs["starts"], attrs["ends"], attrs["axes"])
+            attrs["starts"] = new_starts
+            attrs["ends"] = new_ends
+
+        begins = list(attrs["starts"])
+        ends = list(attrs["ends"])
+        strides = [1] * len(begins)
+
+        if "steps" in attrs:
+            steps = list(attrs["steps"])
+            axes = attrs["axes"]
+            assert len(steps) == len(axes)
+            for axis, step in zip(axes, steps):
+                strides[axis] = step
+
+        return _op.strided_slice(inputs[0], begin=begins, end=ends, strides=strides)
 
 
 class Gather(OnnxOpConverter):
