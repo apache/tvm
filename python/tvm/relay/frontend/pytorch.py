@@ -1230,6 +1230,33 @@ def _reshape():
 
     return _impl
 
+def _pixel_shuffle(prelude):
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        upscale_factor = inputs[1]
+        upscale_squared = upscale_factor * upscale_factor
+        b, c, h, w = _infer_shape(data)
+        assert c % upscale_squared == 0, \
+            "input channel should be divisible by square of upscale_factor"
+
+        ndims = len(_infer_shape(data, prelude.mod))
+        axes = list(range(ndims))
+        num_inputs = len(inputs)
+        oc = c // upscale_squared
+        oh = h * upscale_factor
+        ow = w * upscale_factor
+
+        new_shape = [b, oc, upscale_factor, upscale_factor, h, w]
+        out_shape = [b, oc, oh, ow]
+
+        data = _op.transform.reshape(data, new_shape)
+        # The data will be transposed to
+        # [b, oc, h, upscale_factor, w, upscale_factor]
+        # for further reshape
+        axes = [0, 1, 4, 2, 5, 3]
+        data = _op.transform.transpose(data, axes)
+        return _op.transform.reshape(data, out_shape)
+    return _impl
 
 def _clone():
     def _impl(inputs, input_types):
@@ -2162,6 +2189,7 @@ def _wrap_const(c):
 # Operator mappings
 def _get_convert_map(prelude, default_dtype):
     convert_map = {
+        "aten::pixel_shuffle": _pixel_shuffle(prelude),
         "aten::device": _none(),
         "prim::device": _none(),
         "aten::sub": _elemwise("subtract"),
