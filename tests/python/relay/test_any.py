@@ -1152,7 +1152,7 @@ def verify_any_repeat(data_shape, np_dshape, repeats, axis):
     ref_res = np.repeat(np_data, repeats, axis)
     check_result([np_data], mod, ref_res)
 
-
+@tvm.testing.uses_gpu
 def test_any_repeat():
     verify_any_repeat(any_dims(2), (1, 2), 2, 0)
     verify_any_repeat(any_dims(1), (3,), 3, -1)
@@ -1173,10 +1173,13 @@ def verify_any_stack(data_shape, np_dshape, num_data, axis):
     ref_res = np.stack(np_inputs, axis)
     check_result(np_inputs, mod, ref_res)
 
+
+@tvm.testing.uses_gpu
 def test_any_stack():
     verify_any_stack(any_dims(2), (1, 2), 3, 0)
     verify_any_stack(any_dims(1), (3,), 4, -1)
     verify_any_stack(any_dims(4), (2, 1, 1, 4), 2, 2)
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
