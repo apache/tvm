@@ -36,6 +36,7 @@ class RPCSession(object):
 
     Do not directly create the obhect, call connect
     """
+
     # pylint: disable=invalid-name
     def __init__(self, sess):
         self._sess = sess
@@ -112,8 +113,7 @@ class RPCSession(object):
                 target = os.path.basename(data)
 
         if "upload" not in self._remote_funcs:
-            self._remote_funcs["upload"] = self.get_function(
-                "tvm.rpc.server.upload")
+            self._remote_funcs["upload"] = self.get_function("tvm.rpc.server.upload")
         self._remote_funcs["upload"](target, blob)
 
     def download(self, path):
@@ -130,8 +130,7 @@ class RPCSession(object):
             The result blob from the file.
         """
         if "download" not in self._remote_funcs:
-            self._remote_funcs["download"] = self.get_function(
-                "tvm.rpc.server.download")
+            self._remote_funcs["download"] = self.get_function("tvm.rpc.server.download")
         return self._remote_funcs["download"](path)
 
     def remove(self, path):
@@ -143,8 +142,7 @@ class RPCSession(object):
             The relative location to remote temp folder.
         """
         if "remove" not in self._remote_funcs:
-            self._remote_funcs["remove"] = self.get_function(
-                "tvm.rpc.server.remove")
+            self._remote_funcs["remove"] = self.get_function("tvm.rpc.server.remove")
         self._remote_funcs["remove"](path)
 
     def load_module(self, path):
@@ -161,6 +159,42 @@ class RPCSession(object):
             The remote module containing remote function.
         """
         return _ffi_api.LoadRemoteModule(self._sess, path)
+
+    def download_linked_module(self, path):
+        """Link a module in the remote and download it.
+
+        Parameters
+        ----------
+        path : str
+            The relative location to remote temp folder.
+
+        Returns
+        -------
+        blob : bytearray
+            The result blob from the file.
+
+        Note
+        ----
+        This function can be helpful when a linker
+        is not available on the local client.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            mod = build_module_with_cross_compilation()
+            # export the module as tar because a local linker is not available
+            mod.export_library("lib.tar")
+            remote.upload("lib.tar")
+            # invoke the linker on the remote to link the module as a library
+            # note that the library can only run on the same env as the remote
+            with open("lib.so", "wb") as file:
+                file.write(remote.download_linked_module("lib.tar"))
+        """
+        if "download_linked_module" not in self._remote_funcs:
+            self._remote_funcs["download_linked_module"] = self.get_function(
+                "tvm.rpc.server.download_linked_module")
+        return self._remote_funcs["download_linked_module"](path)
 
     def cpu(self, dev_id=0):
         """Construct CPU device."""
@@ -201,6 +235,7 @@ class LocalSession(RPCSession):
     This class can be used to implement functions that
     need to be ran both locally and remotely.
     """
+
     def __init__(self):
         self._temp = server._server_env([])
         RPCSession.__init__(self, _ffi_api.LocalSession())
@@ -235,6 +270,7 @@ class PopenSession(RPCSession):
     binary : List[Union[str, bytes]]
         The binary to be executed.
     """
+
     def __init__(self, binary):
         RPCSession.__init__(self, _popen_session(binary))
 
@@ -247,6 +283,7 @@ class TrackerSession(object):
     addr : tuple
         The address tuple
     """
+
     def __init__(self, addr):
         self._addr = addr
         self._sock = None
@@ -291,7 +328,7 @@ class TrackerSession(object):
             addr = item["addr"]
             res += addr[0] + ":" + str(addr[1]) + "\t"
             res += item["key"] + "\n"
-            key = item['key'].split(':')[1]   # 'server:rasp3b` -> 'rasp3b'
+            key = item["key"].split(":")[1]  # 'server:rasp3b` -> 'rasp3b'
             if key not in total_ct:
                 total_ct[key] = 0
             total_ct[key] += 1
@@ -299,7 +336,7 @@ class TrackerSession(object):
         res += "\n"
 
         # compute max length of device key
-        queue_info = data['queue_info']
+        queue_info = data["queue_info"]
         keys = list(queue_info.keys())
         if keys:
             keys.sort()
@@ -308,15 +345,19 @@ class TrackerSession(object):
             max_key_len = 0
 
         res += "Queue Status\n"
-        title = ("%%-%ds" % max_key_len + "   total  free  pending\n") % 'key'
-        separate_line = '-' * len(title) + '\n'
+        title = ("%%-%ds" % max_key_len + "   total  free  pending\n") % "key"
+        separate_line = "-" * len(title) + "\n"
         res += separate_line + title + separate_line
         for k in keys:
             total = total_ct.get(k, 0)
             free, pending = queue_info[k]["free"], queue_info[k]["pending"]
             if total or pending:
-                res += ("%%-%ds" % max_key_len + "   %-5d  %-4d  %-7d\n") % \
-                       (k, total, free, pending)
+                res += ("%%-%ds" % max_key_len + "   %-5d  %-4d  %-7d\n") % (
+                    k,
+                    total,
+                    free,
+                    pending,
+                )
         res += separate_line
         return res
 
@@ -344,8 +385,7 @@ class TrackerSession(object):
             try:
                 if self._sock is None:
                     self._connect()
-                base.sendjson(self._sock,
-                              [base.TrackerCode.REQUEST, key, "", priority])
+                base.sendjson(self._sock, [base.TrackerCode.REQUEST, key, "", priority])
                 value = base.recvjson(self._sock)
                 if value[0] != base.TrackerCode.SUCCESS:
                     raise RuntimeError("Invalid return value %s" % str(value))
@@ -357,15 +397,10 @@ class TrackerSession(object):
             except TVMError as err:
                 last_err = err
         raise RuntimeError(
-            "Cannot request %s after %d retry, last_error:%s" % (
-                key, max_retry, str(last_err)))
+            "Cannot request %s after %d retry, last_error:%s" % (key, max_retry, str(last_err))
+        )
 
-    def request_and_run(self,
-                        key,
-                        func,
-                        priority=1,
-                        session_timeout=0,
-                        max_retry=2):
+    def request_and_run(self, key, func, priority=1, session_timeout=0, max_retry=2):
         """Request a resource from tracker and run the func.
 
         This function safe-guard rare server node dropout during execution.
@@ -393,21 +428,18 @@ class TrackerSession(object):
         last_err = None
         for _ in range(max_retry):
             try:
-                sess = self.request(key,
-                                    priority=priority,
-                                    session_timeout=session_timeout)
+                sess = self.request(key, priority=priority, session_timeout=session_timeout)
                 tstart = time.time()
                 return func(sess)
             except TVMError as err:
                 duration = time.time() - tstart
                 # roughly estimate if the error is due to timeout termination
                 if session_timeout and duration >= session_timeout * 0.95:
-                    raise RuntimeError(
-                        "Session timeout when running %s" % func.__name__)
+                    raise RuntimeError("Session timeout when running %s" % func.__name__)
                 last_err = err
         raise RuntimeError(
-            "Failed to run on %s after %d retry, last_error:%s" % (
-                key, max_retry, str(last_err)))
+            "Failed to run on %s after %d retry, last_error:%s" % (key, max_retry, str(last_err))
+        )
 
 
 def connect(url, port, key="", session_timeout=0, session_constructor_args=None):

@@ -19,6 +19,7 @@
 from tvm import te
 from .. import tag
 
+
 def _parallel_sch(sch, oshape, do_vectorize=False):
     def vectorize(fused_axis, num_parallel_axis, vectorize_limit=64):
         """Internal vectorization utility function."""
@@ -95,7 +96,7 @@ def schedule_pool(outs, layout):
                 if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule pool
-        elif OP.tag.startswith('pool'):
+        elif OP.tag.startswith("pool"):
             # Average pool accumulation and division happens in different for loops (#3607).
             # To ensure good parallel support, apply multi-threading on the second loop.
             if OP != outs[0].op:
@@ -143,7 +144,7 @@ def schedule_adaptive_pool(outs):
                 if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule pool
-        elif OP.tag.startswith('adaptive_pool'):
+        elif OP.tag.startswith("adaptive_pool"):
             if OP != outs[0].op:
                 output = outs[0]
                 output_fused = s[output].fuse(output.op.axis[0], output.op.axis[1])

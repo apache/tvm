@@ -15,21 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
+
 
 def test_basic():
     a = te.var("a")
     b = te.var("b")
     c = te.var("c")
-    m = tvm.arith.detect_clip_bound(tvm.tir.all(a * 1 < b * 6,
-                                          a - 1 > 0), [a])
+    m = tvm.arith.detect_clip_bound(tvm.tir.all(a * 1 < b * 6, a - 1 > 0), [a])
     tvm.testing.assert_prim_expr_equal(m[1], b * 6 - 1)
     assert m[0].value == 2
-    m = tvm.arith.detect_clip_bound(tvm.tir.all(a * 1 < b * 6,
-                                          a - 1 > 0), [a, b])
+    m = tvm.arith.detect_clip_bound(tvm.tir.all(a * 1 < b * 6, a - 1 > 0), [a, b])
     assert len(m) == 0
-    m = tvm.arith.detect_clip_bound(tvm.tir.all(a + 10 * c <= 20,
-                                          b - 1 > 0), [a, b])
+    m = tvm.arith.detect_clip_bound(tvm.tir.all(a + 10 * c <= 20, b - 1 > 0), [a, b])
     tvm.testing.assert_prim_expr_equal(m[1], 20 - 10 * c)
     tvm.testing.assert_prim_expr_equal(m[2], 2)
 

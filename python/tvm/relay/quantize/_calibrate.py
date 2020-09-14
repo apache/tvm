@@ -34,14 +34,14 @@ from .kl_divergence import _find_scale_by_kl
 
 
 def _get_profile_runtime(mod):
-    func = mod['main']
+    func = mod["main"]
     func = _quantize.CreateStatsCollector(func)
 
     if tvm.target.Target.current():
         target = tvm.target.Target.current()
         ctx = tvm.context(target.kind.name)
     else:
-        target = 'llvm'
+        target = "llvm"
         ctx = tvm.context(target)
 
     with tvm.transform.PassContext(opt_level=3):
@@ -86,8 +86,8 @@ def collect_stats(mod, dataset, chunk_by=-1):
         for batch in dataset:
             runtime.set_input(**batch)
             runtime.run()
-            for j in range(i, min(i+chunk_by, num_outputs)):
-                outputs[j-i].append(runtime.get_output(j).asnumpy())
+            for j in range(i, min(i + chunk_by, num_outputs)):
+                outputs[j - i].append(runtime.get_output(j).asnumpy())
         yield [np.concatenate(output).reshape(-1) for output in outputs]
 
 
@@ -104,6 +104,7 @@ def _kl_scale(mod, dataset):
         scale = scales[func.scale_idx]
         func.scale_idx += 1
         return scale
+
     func.scale_idx = 0
 
     return func
@@ -115,7 +116,7 @@ def _set_params(mod, input_scale_func, weight_scale_func):
     const_params = {}
 
     def visit_func(expr):
-        '''visitor function for traverse'''
+        """visitor function for traverse"""
         if isinstance(expr, _expr.Call) and expr.op == quantize_op:
             _, ndom_scale, nclip_min, nclip_max = expr.args
             attrs = expr.attrs
@@ -131,19 +132,19 @@ def _set_params(mod, input_scale_func, weight_scale_func):
                 scale = input_scale_func(expr)
 
             def _make_const(val):
-                return _expr.const(val, 'float32')
+                return _expr.const(val, "float32")
 
-            valid_range = 2**valid_bit
+            valid_range = 2 ** valid_bit
             const_params[ndom_scale] = _make_const(scale / valid_range)
-            const_params[nclip_min] = _make_const(- (valid_range - 1))
+            const_params[nclip_min] = _make_const(-(valid_range - 1))
             const_params[nclip_max] = _make_const((valid_range - 1))
 
-    main_func = mod['main']
+    main_func = mod["main"]
     _analysis.post_order_visit(main_func, visit_func)
     main_func = _expr.bind(main_func, const_params)
     func_dict = {}
     for global_var, func in mod.functions.items():
-        if global_var.name_hint != 'main':
+        if global_var.name_hint != "main":
             func_dict[global_var] = func
     return IRModule.from_expr(main_func, func_dict)
 
@@ -154,7 +155,7 @@ def _power2_scale(sq_call):  # pylint: disable=unused-argument
     var = sq_call.args[0]
     assert isinstance(var, _expr.Constant)
     val = np.amax(np.abs(var.data.asnumpy()))
-    return 2**np.math.ceil(np.math.log(val, 2)) if val > 0 else 1.0
+    return 2 ** np.math.ceil(np.math.log(val, 2)) if val > 0 else 1.0
 
 
 def _max_scale(sq_call):
@@ -166,7 +167,7 @@ def _max_scale(sq_call):
 
 
 # input scale functions
-def _global_scale(sq_call): # pylint: disable=unused-argument
+def _global_scale(sq_call):  # pylint: disable=unused-argument
     cfg = quantize.current_qconfig()
     return cfg.global_scale
 
@@ -186,23 +187,25 @@ def calibrate(dataset=None):
     ret: Function
         The module pass function.
     """
+
     def wrapped_func(mod, _):
         """make transform.module pass happy"""
         cfg = quantize.current_qconfig()
 
-        if cfg.calibrate_mode == 'kl_divergence':
+        if cfg.calibrate_mode == "kl_divergence":
             input_scale_func = _kl_scale(mod, dataset)
-        elif cfg.calibrate_mode == 'global_scale':
+        elif cfg.calibrate_mode == "global_scale":
             input_scale_func = _global_scale
         else:
             raise ValueError("Unknown calibrate mode {}".format(cfg.calibrate_mode))
 
-        if cfg.weight_scale == 'max':
+        if cfg.weight_scale == "max":
             weight_scale_func = _max_scale
-        elif cfg.weight_scale == 'power2':
+        elif cfg.weight_scale == "power2":
             weight_scale_func = _power2_scale
         else:
             raise ValueError("Unknown weight scale mode {}".format(cfg.weight_scale))
 
         return _set_params(mod, input_scale_func, weight_scale_func)
+
     return wrapped_func

@@ -255,6 +255,8 @@ class IterAdapter {
 
   IterAdapter operator+(difference_type offset) const { return IterAdapter(iter_ + offset); }
 
+  IterAdapter operator-(difference_type offset) const { return IterAdapter(iter_ - offset); }
+
   template <typename T = IterAdapter>
   typename std::enable_if<std::is_same<iterator_category, std::random_access_iterator_tag>::value,
                           typename T::difference_type>::type inline

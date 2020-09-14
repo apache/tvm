@@ -79,6 +79,7 @@ def multiply(lhs, rhs):
     """
     return _ffi_api._OpMul(lhs, rhs)
 
+
 def divide(lhs, rhs):
     """Generic divide operator.
 
@@ -95,6 +96,7 @@ def divide(lhs, rhs):
         The result Expr of divide operaton.
     """
     return _ffi_api._OpDiv(lhs, rhs)
+
 
 def floordiv(lhs, rhs):
     """Generic floordiv operator.

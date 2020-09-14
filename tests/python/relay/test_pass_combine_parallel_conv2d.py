@@ -24,6 +24,7 @@ def run_combine_parallel(expr, min_num_branches=3):
     mod = transform.CombineParallelConv2D(min_num_branches)(mod)
     return mod["main"]
 
+
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, tvm.transform.Pass)
     mod = tvm.IRModule.from_expr(expr)
@@ -33,6 +34,7 @@ def run_opt_pass(expr, opt_pass):
 
 def test_combine_parallel_conv2d():
     """Simple testcase."""
+
     def before(x, w1, w2, w3, w4):
         args = [x, w1, w2, w3, w4]
         y1 = relay.nn.conv2d(x, w1)
@@ -49,22 +51,20 @@ def test_combine_parallel_conv2d():
         args = [x, w1, w2, w3, w4]
         w = relay.concatenate((w1, w2, w4), axis=0)
         y = relay.nn.conv2d(x, w, channels=channels1 + channels2 + channels4)
-        y1 = relay.strided_slice(y,
-                                 begin=[0, 0],
-                                 end=[-1, channels1],
-                                 strides=[1, 1],
-                                 slice_mode="size")
-        y2 = relay.strided_slice(y,
-                                 begin=[0, channels1],
-                                 end=[-1, channels2],
-                                 strides=[1, 1],
-                                 slice_mode="size")
+        y1 = relay.strided_slice(
+            y, begin=[0, 0], end=[-1, channels1], strides=[1, 1], slice_mode="size"
+        )
+        y2 = relay.strided_slice(
+            y, begin=[0, channels1], end=[-1, channels2], strides=[1, 1], slice_mode="size"
+        )
         y3 = relay.nn.conv2d(x, w3)
-        y4 = relay.strided_slice(y,
-                                 begin=[0, channels1 + channels2],
-                                 end=[-1, channels4],
-                                 strides=[1, 1],
-                                 slice_mode="size")
+        y4 = relay.strided_slice(
+            y,
+            begin=[0, channels1 + channels2],
+            end=[-1, channels4],
+            strides=[1, 1],
+            slice_mode="size",
+        )
         y5 = relay.nn.max_pool2d(x)
         y = relay.Tuple((y1, y2, y3, y4, y5))
         return relay.Function(args, y)
@@ -78,8 +78,7 @@ def test_combine_parallel_conv2d():
         w4 = relay.var("w4", shape=(channels4, in_c, 1, 1))
 
         y_before = before(x, w1, w2, w3, w4)
-        y = run_opt_pass(y_before,
-                         transform.CombineParallelConv2D(min_num_branches=2))
+        y = run_opt_pass(y_before, transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w1, w2, w3, w4, channels1, channels2, channels3, channels4)
         y_expected = run_opt_pass(y_expected, transform.InferType())
         assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
@@ -90,6 +89,7 @@ def test_combine_parallel_conv2d():
 
 def test_combine_parallel_conv2d_scale_relu():
     """Testcase of combining conv2d + scale + relu"""
+
     def before(x, w1, w2, scale1, scale2, bias):
         args = [x, w1, w2, scale1, scale2, bias]
         y1 = relay.nn.conv2d(x, w1)
@@ -109,16 +109,12 @@ def test_combine_parallel_conv2d_scale_relu():
         y = relay.nn.conv2d(x, w, channels=channels1 + channels2)
         y = relay.multiply(y, scale)
         y = relay.nn.relu(y)
-        y1 = relay.strided_slice(y,
-                                 begin=[0, 0],
-                                 end=[-1, channels1],
-                                 strides=[1, 1],
-                                 slice_mode="size")
-        y2 = relay.strided_slice(y,
-                                 begin=[0, channels1],
-                                 end=[-1, channels2],
-                                 strides=[1, 1],
-                                 slice_mode="size")
+        y1 = relay.strided_slice(
+            y, begin=[0, 0], end=[-1, channels1], strides=[1, 1], slice_mode="size"
+        )
+        y2 = relay.strided_slice(
+            y, begin=[0, channels1], end=[-1, channels2], strides=[1, 1], slice_mode="size"
+        )
         y2 = relay.add(y2, bias)
         y = relay.Tuple((y1, y2))
         return relay.Function(args, y)
@@ -132,8 +128,7 @@ def test_combine_parallel_conv2d_scale_relu():
         scale2 = relay.var("scale2", shape=(channels2, 1, 1))
         bias = relay.var("bias", shape=(channels2, 1, 1))
         y_before = before(x, w1, w2, scale1, scale2, bias)
-        y = run_opt_pass(y_before,
-                         transform.CombineParallelConv2D(min_num_branches=2))
+        y = run_opt_pass(y_before, transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w1, w2, scale1, scale2, bias, channels1, channels2)
         y_expected = run_opt_pass(y_expected, transform.InferType())
         assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
@@ -143,6 +138,7 @@ def test_combine_parallel_conv2d_scale_relu():
 
 def test_combine_parallel_conv2d_scale():
     """Testcase of un-combinable scale"""
+
     def before(x, w1, w2, scale1, scale2):
         args = [x, w1, w2, scale1, scale2]
         y1 = relay.nn.conv2d(x, w1)
@@ -156,16 +152,12 @@ def test_combine_parallel_conv2d_scale():
         args = [x, w1, w2, scale1, scale2]
         w = relay.concatenate((w1, w2), axis=0)
         y = relay.nn.conv2d(x, w, channels=channels1 + channels2)
-        y1 = relay.strided_slice(y,
-                                 begin=[0, 0],
-                                 end=[-1, channels1],
-                                 strides=[1, 1],
-                                 slice_mode="size")
-        y2 = relay.strided_slice(y,
-                                 begin=[0, channels1],
-                                 end=[-1, channels2],
-                                 strides=[1, 1],
-                                 slice_mode="size")
+        y1 = relay.strided_slice(
+            y, begin=[0, 0], end=[-1, channels1], strides=[1, 1], slice_mode="size"
+        )
+        y2 = relay.strided_slice(
+            y, begin=[0, channels1], end=[-1, channels2], strides=[1, 1], slice_mode="size"
+        )
         y1 = relay.multiply(y1, scale1)
         y2 = relay.multiply(y2, scale2)
         y = relay.Tuple((y1, y2))
@@ -179,8 +171,7 @@ def test_combine_parallel_conv2d_scale():
         scale1 = relay.var("scale1", shape=(1,))
         scale2 = relay.var("scale2", shape=(1,))
         y_before = before(x, w1, w2, scale1, scale2)
-        y = run_opt_pass(y_before,
-                         transform.CombineParallelConv2D(min_num_branches=2))
+        y = run_opt_pass(y_before, transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w1, w2, scale1, scale2, channels1, channels2)
         y_expected = run_opt_pass(y_expected, transform.InferType())
         assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
@@ -203,17 +194,13 @@ def test_combine_parallel_conv2d_multiple_blocks():
         y = x
         for i in range(repeat):
             w_concat = relay.concatenate((w, w), axis=0)
-            y = relay.nn.conv2d(y, w_concat, channels=channels*2)
-            y1 = relay.strided_slice(y,
-                                     begin=[0, 0],
-                                     end=[-1, channels],
-                                     strides=[1, 1],
-                                     slice_mode="size")
-            y2 = relay.strided_slice(y,
-                                     begin=[0, channels],
-                                     end=[-1, channels],
-                                     strides=[1, 1],
-                                     slice_mode="size")
+            y = relay.nn.conv2d(y, w_concat, channels=channels * 2)
+            y1 = relay.strided_slice(
+                y, begin=[0, 0], end=[-1, channels], strides=[1, 1], slice_mode="size"
+            )
+            y2 = relay.strided_slice(
+                y, begin=[0, channels], end=[-1, channels], strides=[1, 1], slice_mode="size"
+            )
             y = relay.concatenate((y1, y2), axis=1)
         return relay.Function(args, y)
 
@@ -223,8 +210,7 @@ def test_combine_parallel_conv2d_multiple_blocks():
         out_c = in_c // 2
         w = relay.var("w", shape=(out_c, in_c, 1, 1))
         y_before = before(x, w, repeat)
-        y = run_opt_pass(y_before,
-                         transform.CombineParallelConv2D(min_num_branches=2))
+        y = run_opt_pass(y_before, transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w, out_c, repeat)
         y_expected = run_opt_pass(y_expected, transform.InferType())
         assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)

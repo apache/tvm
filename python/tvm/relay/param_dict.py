@@ -23,6 +23,7 @@ import tvm._ffi
 _save_param_dict = tvm._ffi.get_global_func("tvm.relay._save_param_dict")
 _load_param_dict = tvm._ffi.get_global_func("tvm.relay._load_param_dict")
 
+
 def save_param_dict(params):
     """Save parameter dictionary to binary bytes.
 
@@ -75,4 +76,4 @@ def load_param_dict(param_bytes):
     if isinstance(param_bytes, (bytes, str)):
         param_bytes = bytearray(param_bytes)
     load_arr = _load_param_dict(param_bytes)
-    return {v.name : v.array for v in load_arr}
+    return {v.name: v.array for v in load_arr}

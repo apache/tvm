@@ -49,6 +49,7 @@ class TensorIntrin(Object):
     --------
     decl_tensor_intrin: Construct a TensorIntrin
     """
+
     def __call__(self, *args, **kwargs):
         tensors = [x.tensor for x in args if isinstance(x, _tensor.TensorSlice)]
         scalar_inputs = [x for x in args if not isinstance(x, _tensor.TensorSlice)]
@@ -64,12 +65,9 @@ class TensorIntrin(Object):
         return _ffi_api.TensorIntrinCall(self, tensors, regions, reduce_axis, scalar_inputs)
 
 
-def decl_tensor_intrin(op,
-                       fcompute,
-                       name="tensor_intrin",
-                       binds=None,
-                       scalar_params=None,
-                       default_buffer_params=None):
+def decl_tensor_intrin(
+    op, fcompute, name="tensor_intrin", binds=None, scalar_params=None, default_buffer_params=None
+):
     """Declare a tensor intrinsic function.
 
     Parameters
@@ -128,20 +126,21 @@ def decl_tensor_intrin(op,
 
     default_buffer_params = {} if default_buffer_params is None else default_buffer_params
     for t in tensors:
-        buf = (binds[t] if t in binds else
-               tvm.tir.decl_buffer(t.shape, t.dtype, t.op.name,
-                                   **default_buffer_params))
+        buf = (
+            binds[t]
+            if t in binds
+            else tvm.tir.decl_buffer(t.shape, t.dtype, t.op.name, **default_buffer_params)
+        )
         binds_list.append(buf)
 
     if scalar_params:
-        body = fcompute(binds_list[:len(inputs)], binds_list[len(inputs):], scalar_params)
+        body = fcompute(binds_list[: len(inputs)], binds_list[len(inputs) :], scalar_params)
     else:
-        body = fcompute(binds_list[:len(inputs)], binds_list[len(inputs):])
+        body = fcompute(binds_list[: len(inputs)], binds_list[len(inputs) :])
         scalar_params = []
     if isinstance(body, (tvm.tir.PrimExpr, tvm.tir.Stmt)):
         body = [body]
     body = [tvm.tir.Evaluate(x) if isinstance(x, tvm.tir.PrimExpr) else x for x in body]
     if len(body) < 3:
         body += [None] * (3 - len(body))
-    return _ffi_api.TensorIntrin(
-        name, op, inputs, binds_list, scalar_params, *body)
+    return _ffi_api.TensorIntrin(name, op, inputs, binds_list, scalar_params, *body)

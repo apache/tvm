@@ -40,20 +40,34 @@ def _get_same_padding(data, kernel, dilation, stride):
     return [pad_top, pad_left, pad_bottom, pad_right]
 
 
-def _get_model(shape, kernel_h, kernel_w,
-               input_zp, input_sc,
-               kernel_zp, kernel_sc,
-               output_zp, output_sc,
-               pad, strides, dilation,
-               groups, dtype,
-               out_channels, weight_format):
+def _get_model(
+    shape,
+    kernel_h,
+    kernel_w,
+    input_zp,
+    input_sc,
+    kernel_zp,
+    kernel_sc,
+    output_zp,
+    output_sc,
+    pad,
+    strides,
+    dilation,
+    groups,
+    dtype,
+    out_channels,
+    weight_format,
+):
     """Return a model and any parameters it may have"""
     a = relay.var("a", shape=shape, dtype=dtype)
     if pad == "op" or pad == "both":
         p = _get_same_padding((shape[1], shape[2]), (kernel_h, kernel_w), dilation, strides)
-        a = relay.nn.pad(a,
-                         pad_width=[(0, 0), (p[0], p[2]), (p[1], p[3]), (0, 0)],
-                         pad_value=input_zp, pad_mode="constant")
+        a = relay.nn.pad(
+            a,
+            pad_width=[(0, 0), (p[0], p[2]), (p[1], p[3]), (0, 0)],
+            pad_value=input_zp,
+            pad_mode="constant",
+        )
         shape = (shape[0], shape[1] + p[0] + p[2], shape[2] + p[1] + p[3], shape[3])
 
     p = _get_same_padding((shape[1], shape[2]), (kernel_h, kernel_w), dilation, strides)
@@ -61,7 +75,11 @@ def _get_model(shape, kernel_h, kernel_w,
         weight_shape = (kernel_h, kernel_w, shape[3] // groups, out_channels)
     else:
         weight_shape = (kernel_h, kernel_w, out_channels, 1)
-    w = tvm.nd.array(np.random.randint(np.iinfo(dtype).min, high=np.iinfo(dtype).max, size=weight_shape, dtype=dtype))
+    w = tvm.nd.array(
+        np.random.randint(
+            np.iinfo(dtype).min, high=np.iinfo(dtype).max, size=weight_shape, dtype=dtype
+        )
+    )
     weights = relay.const(w, dtype)
     conv = relay.qnn.op.conv2d(
         a,
@@ -85,30 +103,31 @@ def _get_model(shape, kernel_h, kernel_w,
     bias = relay.nn.bias_add(conv, biasc, axis=3)
     req = relay.qnn.op.requantize(
         bias,
-        relay.const(input_sc * kernel_sc, 'float32'),  # input zero scale
-        relay.const(0, 'int32'),                       # input zero point
-        relay.const(output_sc, 'float32'),             # output zero scale
-        relay.const(output_zp, 'int32'),               # output zero point
-        out_dtype="uint8"
+        relay.const(input_sc * kernel_sc, "float32"),  # input zero scale
+        relay.const(0, "int32"),  # input zero point
+        relay.const(output_sc, "float32"),  # output zero scale
+        relay.const(output_zp, "int32"),  # output zero point
+        out_dtype="uint8",
     )
-    params = {"w": w,
-              "b": b}
+    params = {"w": w, "b": b}
     return req, params
 
 
 def _get_conv2d_qnn_params(input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, channels):
     input_max = input_sc * (255 - input_zp)
-    input_min = - input_sc * input_zp
+    input_min = -input_sc * input_zp
     kernel_max = kernel_sc * (255 - kernel_zp)
-    kernel_min = - kernel_sc * kernel_zp
-    output_limits = [kernel_max * kernel_h * kernel_w * channels * input_max,
-                     kernel_min * kernel_h * kernel_w * channels * input_max,
-                     kernel_min * kernel_h * kernel_w * channels * input_min,
-                     kernel_max * kernel_h * kernel_w * channels * input_min]
+    kernel_min = -kernel_sc * kernel_zp
+    output_limits = [
+        kernel_max * kernel_h * kernel_w * channels * input_max,
+        kernel_min * kernel_h * kernel_w * channels * input_max,
+        kernel_min * kernel_h * kernel_w * channels * input_min,
+        kernel_max * kernel_h * kernel_w * channels * input_min,
+    ]
     output_max = max(output_limits)
     output_min = min(output_limits)
     output_sc = (output_max - output_min) / 255
-    output_zp = - int(output_min / output_sc)
+    output_zp = -int(output_min / output_sc)
     return output_zp, output_sc
 
 
@@ -117,18 +136,18 @@ def test_conv2d():
         return
 
     trials = [
-        [(1, 17, 20, 26), 4, 3, 1, 'attr', (2, 2), (1, 1)],
-        [(1, 30, 27, 30), 5, 5, 3, 'none', (1, 1), (1, 1)],
-        [(1, 14, 28, 11), 6, 2, 2, 'op', (2, 2), (1, 1)],
-        [(1, 9, 20, 30), 7, 1, 5, 'none', (1, 1), (1, 1)],
-        [(1, 21, 21, 22), 8, 5, 1, 'attr', (2, 2), (1, 1)],
-        [(1, 21, 25, 29), 9, 2, 5, 'op', (1, 1), (1, 1)],
-        [(1, 31, 28, 15), 10, 1, 2, 'attr', (2, 2), (1, 1)],
-        [(1, 21, 21, 8), 11, 3, 3, 'none', (1, 1), (1, 1)],
-        [(1, 5, 11, 6), 12, 5, 2, 'op', (2, 2), (1, 1)],
-        [(1, 12, 7, 18), 13, 1, 3, 'op', (1, 1), (1, 1)],
-        [(1, 24, 6, 26), 14, 3, 5, 'none', (2, 2), (1, 1)],
-        [(1, 19, 24, 16), 15, 2, 1, 'attr', (1, 1), (1, 1)],
+        [(1, 17, 20, 26), 4, 3, 1, "attr", (2, 2), (1, 1)],
+        [(1, 30, 27, 30), 5, 5, 3, "none", (1, 1), (1, 1)],
+        [(1, 14, 28, 11), 6, 2, 2, "op", (2, 2), (1, 1)],
+        [(1, 9, 20, 30), 7, 1, 5, "none", (1, 1), (1, 1)],
+        [(1, 21, 21, 22), 8, 5, 1, "attr", (2, 2), (1, 1)],
+        [(1, 21, 25, 29), 9, 2, 5, "op", (1, 1), (1, 1)],
+        [(1, 31, 28, 15), 10, 1, 2, "attr", (2, 2), (1, 1)],
+        [(1, 21, 21, 8), 11, 3, 3, "none", (1, 1), (1, 1)],
+        [(1, 5, 11, 6), 12, 5, 2, "op", (2, 2), (1, 1)],
+        [(1, 12, 7, 18), 13, 1, 3, "op", (1, 1), (1, 1)],
+        [(1, 24, 6, 26), 14, 3, 5, "none", (2, 2), (1, 1)],
+        [(1, 19, 24, 16), 15, 2, 1, "attr", (1, 1), (1, 1)],
     ]
 
     np.random.seed(0)
@@ -152,16 +171,27 @@ def test_conv2d():
             input_sc = np.random.random() * 2
             kernel_zp = np.random.randint(0, 255)
             kernel_sc = np.random.random() * 2
-            output_zp, output_sc = _get_conv2d_qnn_params(input_zp, input_sc,
-                                                          kernel_zp, kernel_sc,
-                                                          kernel_h, kernel_w, shape[3])
-            model, params = _get_model(shape, kernel_h, kernel_w,
-                                       input_zp, input_sc,
-                                       kernel_zp, kernel_sc,
-                                       output_zp, output_sc,
-                                       pad, stride, dilation,
-                                       groups, "uint8",
-                                       out_channels, weight_format)
+            output_zp, output_sc = _get_conv2d_qnn_params(
+                input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, shape[3]
+            )
+            model, params = _get_model(
+                shape,
+                kernel_h,
+                kernel_w,
+                input_zp,
+                input_sc,
+                kernel_zp,
+                kernel_sc,
+                output_zp,
+                output_sc,
+                pad,
+                stride,
+                dilation,
+                groups,
+                "uint8",
+                out_channels,
+                weight_format,
+            )
             for npu in [False, True]:
                 mod = tei.make_module(model, params)
                 outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
@@ -174,31 +204,160 @@ def test_conv2d_failure():
         return
 
     trials = [
-        ((1, 4, 4, 4), 1, 1, 0, 1, 0, 1, 0, 1, "none", (1, 1), (1, 1), 1, "uint8", 8, "HWIO",
-         "Overall scale (of the input * weights / output) should be in the range [0, 1)"),
-        ((1, 4, 4, 4), 1, 1, 0, 1, 0, 1, 0, 1, "none", (1, 1), (1, 1), 1, "int8", 8, "HWIO",
-         "dtype='int8', dtype must be either uint8 or int32"),
-        ((1, 4, 4, 4), 2, 2, 0, 1, 0, 1, 0, 2, "both", (1, 1), (1, 1), 1, "uint8", 8, "HWIO",
-         "both op and attr padding exist, must be either op/attr only or no padding"),
-        ((1, 4, 4, 4), 1, 1, 0, 1, 0, 1, 0, 2, "none", (1, 1, 1), (1, 1), 1, "uint8", 8, "HWIO",
-         "stride size=3, stride size must = 2"),
-        ((1, 4, 4, 4), 1, 1, 0, 1, 0, 1, 0, 2, "none", (1, 1), (2, 1), 1, "uint8", 8, "HWIO",
-         "dilation=[2, 1], dilation must = [1, 1]"),
-        ((2, 4, 4, 4), 1, 1, 0, 1, 0, 1, 0, 2, "none", (1, 1), (1, 1), 1, "uint8", 8, "HWIO",
-         "batch size=2, batch size must = 1"),
+        (
+            (1, 4, 4, 4),
+            1,
+            1,
+            0,
+            1,
+            0,
+            1,
+            0,
+            1,
+            "none",
+            (1, 1),
+            (1, 1),
+            1,
+            "uint8",
+            8,
+            "HWIO",
+            "Overall scale (of the input * weights / output) should be in the range [0, 1)",
+        ),
+        (
+            (1, 4, 4, 4),
+            1,
+            1,
+            0,
+            1,
+            0,
+            1,
+            0,
+            1,
+            "none",
+            (1, 1),
+            (1, 1),
+            1,
+            "int8",
+            8,
+            "HWIO",
+            "dtype='int8', dtype must be either uint8 or int32",
+        ),
+        (
+            (1, 4, 4, 4),
+            2,
+            2,
+            0,
+            1,
+            0,
+            1,
+            0,
+            2,
+            "both",
+            (1, 1),
+            (1, 1),
+            1,
+            "uint8",
+            8,
+            "HWIO",
+            "both op and attr padding exist, must be either op/attr only or no padding",
+        ),
+        (
+            (1, 4, 4, 4),
+            1,
+            1,
+            0,
+            1,
+            0,
+            1,
+            0,
+            2,
+            "none",
+            (1, 1, 1),
+            (1, 1),
+            1,
+            "uint8",
+            8,
+            "HWIO",
+            "stride size=3, stride size must = 2",
+        ),
+        (
+            (1, 4, 4, 4),
+            1,
+            1,
+            0,
+            1,
+            0,
+            1,
+            0,
+            2,
+            "none",
+            (1, 1),
+            (2, 1),
+            1,
+            "uint8",
+            8,
+            "HWIO",
+            "dilation=[2, 1], dilation must = [1, 1]",
+        ),
+        (
+            (2, 4, 4, 4),
+            1,
+            1,
+            0,
+            1,
+            0,
+            1,
+            0,
+            2,
+            "none",
+            (1, 1),
+            (1, 1),
+            1,
+            "uint8",
+            8,
+            "HWIO",
+            "batch size=2, batch size must = 1",
+        ),
     ]
 
     np.random.seed(0)
-    for shape, kernel_h, kernel_w, input_zp, input_sc, kernel_zp,\
-        kernel_sc, output_zp, output_sc, pad, stride, dilation,\
-        groups, dtype, out_channels, weight_format, err_msg in trials:
-        model, params = _get_model(shape, kernel_h, kernel_w,
-                                   input_zp, input_sc,
-                                   kernel_zp, kernel_sc,
-                                   output_zp, output_sc,
-                                   pad, stride, dilation,
-                                   groups, dtype,
-                                   out_channels, weight_format)
+    for (
+        shape,
+        kernel_h,
+        kernel_w,
+        input_zp,
+        input_sc,
+        kernel_zp,
+        kernel_sc,
+        output_zp,
+        output_sc,
+        pad,
+        stride,
+        dilation,
+        groups,
+        dtype,
+        out_channels,
+        weight_format,
+        err_msg,
+    ) in trials:
+        model, params = _get_model(
+            shape,
+            kernel_h,
+            kernel_w,
+            input_zp,
+            input_sc,
+            kernel_zp,
+            kernel_sc,
+            output_zp,
+            output_sc,
+            pad,
+            stride,
+            dilation,
+            groups,
+            dtype,
+            out_channels,
+            weight_format,
+        )
         model = tei.make_ethosn_composite(model, "ethos-n.qnn_conv2d")
         mod = tei.make_ethosn_partition(model)
         tei.test_error(mod, {}, err_msg)

@@ -35,7 +35,6 @@ class HybridModule(object):
     lowered. This contradicts to the fact that Hybrid Module is originally a text
     format for Phase 0 HalideIR. Thus, a totally separated module is defined."""
 
-
     def __init__(self, src=None, name=None):
         """The constructor of this a hybrid module
 
@@ -51,30 +50,26 @@ class HybridModule(object):
         if src is not None:
             temp = util.tempdir()
             dst = temp.relpath("script.py")
-            with open(dst, 'w') as f:
+            with open(dst, "w") as f:
                 f.write("import tvm\n@tvm.te.hybrid.script\n%s" % src)
 
             if name is not None:
                 self.name = name
             self.load(dst)
 
-
     def __call__(self, *args):
         if _is_tvm_arg_types(args):
             return source_to_op(self.root_, args, globals(), {})
         return self.func_(*args)
 
-
     def get_source(self):
         return self.src_
 
-
     def save(self, path):
-        if not path.endswith('.py'):
-            path = path + '.py'
-        with open(path, 'w') as f:
+        if not path.endswith(".py"):
+            path = path + ".py"
+        with open(path, "w") as f:
             f.write(self.src_)
-
 
     def load(self, path):
         """Load the module from a python file
@@ -84,18 +79,18 @@ class HybridModule(object):
         path : str
             Path to the given python file
         """
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             self.src_ = f.read()
 
         src = self.src_
 
         class FindFunc(ast.NodeVisitor):
             """ Find the function in module to be loaded module. """
-            #pylint: disable=invalid-name
+
+            # pylint: disable=invalid-name
             def __init__(self):
                 self.name = None
                 self.root = None
-
 
             def visit_FunctionDef(self, node):
                 _internal_assert(self.name is None, "For now, only one function supported!")
@@ -106,14 +101,13 @@ class HybridModule(object):
         root = ast.parse(src)
         finder = FindFunc()
         finder.visit(root)
-        _internal_assert(finder.name is not None and finder.root is not None, \
-                         "No function found!")
+        _internal_assert(finder.name is not None and finder.root is not None, "No function found!")
         if self.name is None:
             self.name = finder.name
         self.root_ = finder.root
 
         _, local_ = {}, {}
-        exec(self.src_, _, local_) #pylint: disable=exec-used
-        local_.pop('tvm')
+        exec(self.src_, _, local_)  # pylint: disable=exec-used
+        local_.pop("tvm")
         assert len(local_) == 1
         self.func_ = list(local_.values())[0]

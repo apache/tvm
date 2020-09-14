@@ -38,6 +38,7 @@ class TypeCall(Type):
     type_call: TypeCall
         The type function application.
     """
+
     def __init__(self, func, args):
         self.__init_handle_by_constructor__(_ffi_api.TypeCall, func, args)
 
@@ -69,6 +70,6 @@ class TypeRelation(TypeConstraint):
     type_relation : tvm.ir.TypeRelation
         The type relation.
     """
+
     def __init__(self, func, args, num_inputs, attrs):
-        self.__init_handle_by_constructor__(
-            _ffi_api.TypeRelation, func, args, num_inputs, attrs)
+        self.__init_handle_by_constructor__(_ffi_api.TypeRelation, func, args, num_inputs, attrs)

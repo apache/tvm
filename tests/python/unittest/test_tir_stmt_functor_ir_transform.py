@@ -17,6 +17,7 @@
 import tvm
 from tvm import te
 
+
 def test_ir_transform():
     ib = tvm.tir.ir_builder.create()
     n = te.var("n")
@@ -38,10 +39,12 @@ def test_ir_transform():
         if op.op.same_as(builtin_call_extern) and op.args[0].value == "TestA":
             return tvm.tir.call_extern("int32", "TestB", op.args[1] + 1)
         return op
+
     body = tvm.tir.stmt_functor.ir_transform(body, preorder, postorder, ["tir.Call"])
     stmt_list = tvm.tir.stmt_list(body.body.body)
     assert stmt_list[0].value.args[1].args[0].value == "TestB"
     assert stmt_list[1].value.value == 0
+
 
 if __name__ == "__main__":
     test_ir_transform()

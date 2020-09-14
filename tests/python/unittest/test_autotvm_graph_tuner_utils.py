@@ -25,16 +25,25 @@ from tvm import te
 
 from tvm import autotvm, relay
 from tvm.relay.testing import synthetic
-from tvm.autotvm.graph_tuner.utils import has_multiple_inputs, get_direct_ancestor, get_in_nodes, \
-    get_out_nodes, expr2graph, bind_inputs
+from tvm.autotvm.graph_tuner.utils import (
+    has_multiple_inputs,
+    get_direct_ancestor,
+    get_in_nodes,
+    get_out_nodes,
+    expr2graph,
+    bind_inputs,
+)
 from tvm.autotvm.graph_tuner._base import OPT_OUT_OP
 from tvm.relay.expr import Call, TupleGetItem, Tuple, Var
 
 
 def verify_has_multiple_inputs(node_list, node_idx, input_names, expected_result):
     out = has_multiple_inputs(node_list, node_idx, input_names, OPT_OUT_OP)
-    assert out == expected_result, "Output mismatch: expecting checking %s to be %s but got %s." \
-                                   % (node_list[node_idx]["op"], str(expected_result), str(out))
+    assert out == expected_result, "Output mismatch: expecting checking %s to be %s but got %s." % (
+        node_list[node_idx]["op"],
+        str(expected_result),
+        str(out),
+    )
 
 
 def test_has_multiple_inputs():
@@ -61,19 +70,24 @@ def test_expr2graph():
     node_list = []
     target_ops = [relay.op.get("nn.conv2d")]
     op_name_list = []
+
     def _count_node(node):
         if isinstance(node, Call):
             op_name_list.append(node.op)
         elif isinstance(node, (Var, TupleGetItem, Tuple)):
             op_name_list.append(None)
+
     relay.analysis.post_order_visit(mod["main"], _count_node)
 
     expr2graph(mod["main"], target_ops, node_dict, node_list)
     assert len(node_list) == len(op_name_list)
     for i, item in enumerate(zip(op_name_list, node_list)):
         op_name, node = item
-        assert op_name == node["op"], "%dth Node operator mismatch: expecting %s but got %s" \
-                                      % (i, str(op_name), str(node["op"]))
+        assert op_name == node["op"], "%dth Node operator mismatch: expecting %s but got %s" % (
+            i,
+            str(op_name),
+            str(node["op"]),
+        )
 
 
 def test_get_direct_ancestor():
@@ -115,7 +129,9 @@ def test_get_in_nodes():
     expected_out = {3: [0], 4: [3, 0], 7: [4]}
     diff_set = set(out) ^ set(expected_out)
     if len(diff_set) != 0:
-        raise RuntimeError("Output mismatch: expecting %s but got %s." % (str(expected_out), str(out)))
+        raise RuntimeError(
+            "Output mismatch: expecting %s but got %s." % (str(expected_out), str(out))
+        )
 
 
 def test_get_out_nodes():
@@ -124,8 +140,9 @@ def test_get_out_nodes():
     out = get_out_nodes(in_nodes_dict)
     diff_set = set(out) ^ set(expected_out)
     if len(diff_set) != 0:
-        raise RuntimeError("Output mismatch: expecting %s but got %s." % (str(expected_out), str(out)))
-
+        raise RuntimeError(
+            "Output mismatch: expecting %s but got %s." % (str(expected_out), str(out))
+        )
 
 
 if __name__ == "__main__":

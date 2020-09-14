@@ -37,7 +37,7 @@ from . import _ffi_api
 
 @tvm._ffi.register_object("auto_scheduler.HardwareParams")
 class HardwareParams(Object):
-    """ The parameters of target hardware used to guide the search policy
+    """The parameters of target hardware used to guide the search policy
 
     TODO(jcf94): This is considered to be merged with the new Target specification:
     https://discuss.tvm.ai/t/rfc-tvm-target-specification/6844
@@ -51,14 +51,16 @@ class HardwareParams(Object):
     cache_line_bytes : int
         The size of cache line in bytes.
     """
+
     def __init__(self, num_cores, vector_unit_bytes, cache_line_bytes):
-        self.__init_handle_by_constructor__(_ffi_api.HardwareParams, num_cores,
-                                            vector_unit_bytes, cache_line_bytes)
+        self.__init_handle_by_constructor__(
+            _ffi_api.HardwareParams, num_cores, vector_unit_bytes, cache_line_bytes
+        )
 
 
 @tvm._ffi.register_object("auto_scheduler.SearchTask")
 class SearchTask(Object):
-    """ The computation information and hardware parameters for a schedule search task.
+    """The computation information and hardware parameters for a schedule search task.
 
     Parameters
     ----------
@@ -73,16 +75,16 @@ class SearchTask(Object):
     hardware_params : Optional[HardwareParams]
         Hardware parameters used in this search task.
     """
-    def __init__(self, dag, workload_key, target, target_host=None,
-                 hardware_params=None):
-        self.__init_handle_by_constructor__(_ffi_api.SearchTask, dag,
-                                            workload_key, target, target_host,
-                                            hardware_params)
+
+    def __init__(self, dag, workload_key, target, target_host=None, hardware_params=None):
+        self.__init_handle_by_constructor__(
+            _ffi_api.SearchTask, dag, workload_key, target, target_host, hardware_params
+        )
 
 
 @tvm._ffi.register_object("auto_scheduler.TuningOptions")
 class TuningOptions(Object):
-    """ This controls the options of performance tuning.
+    """This controls the options of performance tuning.
 
     Parameters
     ----------
@@ -109,33 +111,53 @@ class TuningOptions(Object):
       Candidates:
         - auto_scheduler.RecordToFile
     """
-    def __init__(self, num_measure_trials=0, early_stopping=None, num_measures_per_round=64,
-                 verbose=1, builder='local', runner='local', measure_callbacks=None):
+
+    def __init__(
+        self,
+        num_measure_trials=0,
+        early_stopping=None,
+        num_measures_per_round=64,
+        verbose=1,
+        builder="local",
+        runner="local",
+        measure_callbacks=None,
+    ):
         if isinstance(builder, str):
-            if builder == 'local':
+            if builder == "local":
                 builder = LocalBuilder()
             else:
                 raise ValueError("Invalid builder: " + builder)
         elif not isinstance(builder, tvm.auto_scheduler.measure.ProgramBuilder):
-            raise ValueError("Invalid builder: " + builder +
-                             " . TuningOptions expects a ProgramBuilder or string.")
+            raise ValueError(
+                "Invalid builder: "
+                + builder
+                + " . TuningOptions expects a ProgramBuilder or string."
+            )
 
         if isinstance(runner, str):
-            if runner == 'local':
+            if runner == "local":
                 runner = LocalRunner()
             else:
                 raise ValueError("Invalid runner: " + runner)
         elif not isinstance(runner, tvm.auto_scheduler.measure.ProgramRunner):
-            raise ValueError("Invalid runner: " + runner +
-                             " . TuningOptions expects a ProgramRunner or string.")
+            raise ValueError(
+                "Invalid runner: " + runner + " . TuningOptions expects a ProgramRunner or string."
+            )
 
         self.__init_handle_by_constructor__(
-            _ffi_api.TuningOptions, num_measure_trials, early_stopping or -1,
-            num_measures_per_round, verbose, builder, runner, measure_callbacks)
+            _ffi_api.TuningOptions,
+            num_measure_trials,
+            early_stopping or -1,
+            num_measures_per_round,
+            verbose,
+            builder,
+            runner,
+            measure_callbacks,
+        )
 
 
 def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
-    """ Do auto scheduling for a computation declaration.
+    """Do auto scheduling for a computation declaration.
 
     Parameters
     ----------
@@ -152,8 +174,9 @@ def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
         A `te.schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
     """
     if not isinstance(task, SearchTask):
-        raise ValueError("Invalid task: " + task +
-                         " . `auto_scheduler.auto_schedule` expects a SearchTask.")
+        raise ValueError(
+            "Invalid task: " + task + " . `auto_scheduler.auto_schedule` expects a SearchTask."
+        )
 
     sch, tensors = _ffi_api.AutoSchedule(search_policy or EmptyPolicy(task), tuning_options)
     return sch, tensors

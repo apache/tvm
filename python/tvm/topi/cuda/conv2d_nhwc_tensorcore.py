@@ -47,39 +47,47 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dtyp
 
     batch, in_height, in_width, in_channel = get_const_tuple(Input.shape)
     kernel_h, kernel_w, _, num_filter = get_const_tuple(Filter.shape)
-    assert (batch % 16 == 0 and in_channel % 16 == 0 and num_filter % 16 == 0) or \
-               (batch % 8 == 0 and in_channel % 16 == 0 and num_filter % 32 == 0) or \
-               (batch % 32 == 0 and in_channel % 16 == 0 and num_filter % 8 == 0), \
-               "The shape of (batch, in_channel, num_filter) "\
-               "must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
+    assert (
+        (batch % 16 == 0 and in_channel % 16 == 0 and num_filter % 16 == 0)
+        or (batch % 8 == 0 and in_channel % 16 == 0 and num_filter % 32 == 0)
+        or (batch % 32 == 0 and in_channel % 16 == 0 and num_filter % 8 == 0)
+    ), (
+        "The shape of (batch, in_channel, num_filter) "
+        "must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
+    )
 
     # compute the output shape
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (dilated_kernel_h, dilated_kernel_w))
+        padding, (dilated_kernel_h, dilated_kernel_w)
+    )
     out_channel = num_filter
     out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
     out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
     pad_before = [0, pad_top, pad_left, 0]
     pad_after = [0, pad_down, pad_right, 0]
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
-    rc = te.reduce_axis((0, in_channel), name='rc')
-    ry = te.reduce_axis((0, kernel_h), name='ry')
-    rx = te.reduce_axis((0, kernel_w), name='rx')
+    rc = te.reduce_axis((0, in_channel), name="rc")
+    ry = te.reduce_axis((0, kernel_h), name="ry")
+    rx = te.reduce_axis((0, kernel_w), name="rx")
     # convert data type of input feature maps and weights
     TransPaddedInput = te.compute(
-        PaddedInput.shape,
-        lambda n, h, w, c: PaddedInput[n, h, w, c].astype('float16'))
-    TransFilter = te.compute(
-        Filter.shape, lambda h, w, i, o: Filter[h, w, i, o].astype('float16'))
+        PaddedInput.shape, lambda n, h, w, c: PaddedInput[n, h, w, c].astype("float16")
+    )
+    TransFilter = te.compute(Filter.shape, lambda h, w, i, o: Filter[h, w, i, o].astype("float16"))
     Output = te.compute(
         (batch, out_height, out_width, out_channel),
         lambda nn, yy, xx, ff: te.sum(
-            TransPaddedInput[nn, yy * stride_h + ry * dilation_h,
-                             xx * stride_w + rx * dilation_w, rc].astype(out_dtype) *
-            TransFilter[ry, rx, rc, ff].astype(out_dtype), axis=[ry, rx, rc]),
-        name="Conv2dOutput", tag="conv2d_nhwc_tensorcore")
+            TransPaddedInput[
+                nn, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, rc
+            ].astype(out_dtype)
+            * TransFilter[ry, rx, rc, ff].astype(out_dtype),
+            axis=[ry, rx, rc],
+        ),
+        name="Conv2dOutput",
+        tag="conv2d_nhwc_tensorcore",
+    )
     return Output
 
 
@@ -99,19 +107,19 @@ def schedule_nhwc_tensorcore_cuda(cfg, s, Conv):
     s[paddata[0]].compute_inline()
 
     # Designate the memory hierarchy
-    AS = s.cache_read(trans_paddata, 'shared', [Conv])
-    WS = s.cache_read(kernel, 'shared', [Conv])
-    AF = s.cache_read(AS, 'wmma.matrix_a', [Conv])
-    WF = s.cache_read(WS, 'wmma.matrix_b', [Conv])
-    ConvF = s.cache_write(Conv, 'wmma.accumulator')
+    AS = s.cache_read(trans_paddata, "shared", [Conv])
+    WS = s.cache_read(kernel, "shared", [Conv])
+    AF = s.cache_read(AS, "wmma.matrix_a", [Conv])
+    WF = s.cache_read(WS, "wmma.matrix_b", [Conv])
+    ConvF = s.cache_write(Conv, "wmma.accumulator")
 
     if Conv.op in s.outputs:
         output = Conv
-        ConvS = s.cache_read(ConvF, 'shared', [Conv])
+        ConvS = s.cache_read(ConvF, "shared", [Conv])
         OL = ConvS
     else:
         output = s.outputs[0].output(0)
-        s[Conv].set_scope('shared')
+        s[Conv].set_scope("shared")
         OL = Conv
 
     # Schedule for autotvm
@@ -123,18 +131,19 @@ def schedule_nhwc_tensorcore_cuda(cfg, s, Conv):
     cfg.define_knob("offset", [0, 8])
     cfg.define_knob("vector_width", [1, 2, 4, 8])
 
-    if (batch % 16 == 0 and out_channels % 16 == 0):
+    if batch % 16 == 0 and out_channels % 16 == 0:
         cfg.define_knob("wmma_m", [16, 8, 32])
-    elif (batch % 8 == 0 and out_channels % 32 == 0):
+    elif batch % 8 == 0 and out_channels % 32 == 0:
         cfg.define_knob("wmma_m", [8, 16, 32])
-    elif (batch % 32 == 0 and out_channels % 8 == 0):
+    elif batch % 32 == 0 and out_channels % 8 == 0:
         cfg.define_knob("wmma_m", [32, 16, 8])
 
     # fallback support
     target = tvm.target.Target.current()
     if cfg.is_fallback:
         ref_log = autotvm.tophub.load_reference_log(
-            target.kind.name, target.model, 'conv2d_nhwc_tensorcore.cuda')
+            target.kind.name, target.model, "conv2d_nhwc_tensorcore.cuda"
+        )
         cfg.fallback_with_reference_log(ref_log)
 
     block_row_warps = cfg["block_row_warps"].val
@@ -156,12 +165,12 @@ def schedule_nhwc_tensorcore_cuda(cfg, s, Conv):
 
     warp_size = 32
 
-    block_x = te.thread_axis('blockIdx.x')
-    block_y = te.thread_axis('blockIdx.y')
-    block_z = te.thread_axis('blockIdx.z')
-    thread_x = te.thread_axis('threadIdx.x')
-    thread_y = te.thread_axis('threadIdx.y')
-    thread_z = te.thread_axis('threadIdx.z')
+    block_x = te.thread_axis("blockIdx.x")
+    block_y = te.thread_axis("blockIdx.y")
+    block_z = te.thread_axis("blockIdx.z")
+    thread_x = te.thread_axis("threadIdx.x")
+    thread_y = te.thread_axis("threadIdx.y")
+    thread_z = te.thread_axis("threadIdx.z")
 
     # Define the intrin strides
     def get_strides(extents):
@@ -277,22 +286,37 @@ def schedule_nhwc_tensorcore_cuda(cfg, s, Conv):
     CL_shape = (wmma_m, 1, 1, wmma_n)
     CS_shape = (wmma_m, 1, 1, wmma_n)
 
-    AL_gemm = te.placeholder(AL_shape, name='A', dtype=in_dtype)
-    WL_gemm = te.placeholder(WL_shape, name='B', dtype=in_dtype)
+    AL_gemm = te.placeholder(AL_shape, name="A", dtype=in_dtype)
+    WL_gemm = te.placeholder(WL_shape, name="B", dtype=in_dtype)
     k_gemm = te.reduce_axis((0, wmma_k), name="k")
-    CL_compute = te.compute(CL_shape, lambda ii, t0, t1, jj:
-                            te.sum(AL_gemm[ii, t0, t1, k_gemm].astype(out_dtype) * \
-                                   WL_gemm[k_gemm, jj].astype(out_dtype), axis=k_gemm),
-                            name='C')
+    CL_compute = te.compute(
+        CL_shape,
+        lambda ii, t0, t1, jj: te.sum(
+            AL_gemm[ii, t0, t1, k_gemm].astype(out_dtype) * WL_gemm[k_gemm, jj].astype(out_dtype),
+            axis=k_gemm,
+        ),
+        name="C",
+    )
 
-    s[AF].tensorize(nn, intrin_wmma_load_matrix_A(AL_strides, AS_strides, shape,
-                                                  "row_major", AS_shape, AL_shape, in_dtype))
-    s[WF].tensorize(ii, intrin_wmma_load_matrix_W(WL_strides, WS_strides, shape,
-                                                  "row_major", WS_shape, WL_shape, in_dtype))
-    s[OL].tensorize(nnc, intrin_wmma_store_matrix(CS_strides, CL_strides,
-                                                  shape, out_dtype, CL_shape, CS_shape))
-    s[ConvF].tensorize(nnf, intrin_wmma_gemm(AL_gemm, WL_gemm, CL_compute, AL_strides,
-                                             WL_strides, CL_strides, shape))
+    s[AF].tensorize(
+        nn,
+        intrin_wmma_load_matrix_A(
+            AL_strides, AS_strides, shape, "row_major", AS_shape, AL_shape, in_dtype
+        ),
+    )
+    s[WF].tensorize(
+        ii,
+        intrin_wmma_load_matrix_W(
+            WL_strides, WS_strides, shape, "row_major", WS_shape, WL_shape, in_dtype
+        ),
+    )
+    s[OL].tensorize(
+        nnc, intrin_wmma_store_matrix(CS_strides, CL_strides, shape, out_dtype, CL_shape, CS_shape)
+    )
+    s[ConvF].tensorize(
+        nnf,
+        intrin_wmma_gemm(AL_gemm, WL_gemm, CL_compute, AL_strides, WL_strides, CL_strides, shape),
+    )
 
     N, OH, OW, CO = get_const_tuple(output.shape)
     KH, KW, CI, _ = get_const_tuple(kernel.shape)
@@ -311,7 +335,7 @@ def schedule_conv2d_nhwc_tensorcore(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if 'conv2d_nhwc_tensorcore' in op.tag:
+        if "conv2d_nhwc_tensorcore" in op.tag:
             schedule_nhwc_tensorcore_cuda(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)

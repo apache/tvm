@@ -29,6 +29,7 @@ from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..util import traverse_inline
 from .util import get_fp32_len
 
+
 def _fallback_schedule(cfg, wkl):
     """
     Get default schedule for the workload
@@ -68,16 +69,20 @@ def _fallback_schedule(cfg, wkl):
     cfg["tile_ow"] = SplitEntity([out_width // reg_n, reg_n])
     cfg["unroll_kw"] = OtherOptionEntity(False)
 
+
 def depthwise_conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype):
     """Compute depthwise conv2d with NCHW layout."""
     layout = "NCHW"
-    packed_out = depthwise_conv2d_NCHWc(data, kernel, strides, padding, dilation,
-                                        layout, layout, out_dtype)
+    packed_out = depthwise_conv2d_NCHWc(
+        data, kernel, strides, padding, dilation, layout, layout, out_dtype
+    )
     return unpack_NCHWc_to_nchw(packed_out, out_dtype)
+
 
 def schedule_depthwise_conv2d_nchw(outs):
     """Create schedule for depthwise_conv2d_nchw."""
     return schedule_depthwise_conv2d_NCHWc(outs)
+
 
 def _pack_data(cfg, data, kernel):
     n, ic, ih, iw = get_const_tuple(data.shape)
@@ -88,29 +93,40 @@ def _pack_data(cfg, data, kernel):
     ic_chunk = ic // ic_bn
     oc_chunk = oc // oc_bn
 
-    data = te.compute((n, ic_chunk, ih, iw, ic_bn),
-                      lambda bs, c, h, w, vc: data[bs, c*ic_bn + vc, h, w],
-                      name="data_vec")
+    data = te.compute(
+        (n, ic_chunk, ih, iw, ic_bn),
+        lambda bs, c, h, w, vc: data[bs, c * ic_bn + vc, h, w],
+        name="data_vec",
+    )
 
     kernel = te.compute(
         (oc_chunk, 1, kh, kw, 1, oc_bn),
-        lambda occ, icc, k_h, k_w, icb, ocb:
-        kernel[(occ * oc_bn + ocb) // cm,
-               (occ * oc_bn + ocb) % cm, k_h, k_w],
-        name="kernel_vec")
+        lambda occ, icc, k_h, k_w, icb, ocb: kernel[
+            (occ * oc_bn + ocb) // cm, (occ * oc_bn + ocb) % cm, k_h, k_w
+        ],
+        name="kernel_vec",
+    )
 
     return data, kernel
 
+
 @autotvm.register_topi_compute("depthwise_conv2d_NCHWc.x86")
-def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
-                           layout, out_layout, out_dtype=None):
+def depthwise_conv2d_NCHWc(
+    cfg, data, kernel, strides, padding, dilation, layout, out_layout, out_dtype=None
+):
     """Compute depthwise conv2d with NCHWc layout"""
     out_dtype = data.dtype if out_dtype is None else out_dtype
 
     if len(data.shape) == 5:
         batch, in_channel_chunk, in_height, in_width, in_channel_block = get_const_tuple(data.shape)
-        out_channel_chunk, cm_chunk, filter_height, filter_width, cm_block, out_channel_block \
-            = get_const_tuple(kernel.shape)
+        (
+            out_channel_chunk,
+            cm_chunk,
+            filter_height,
+            filter_width,
+            cm_block,
+            out_channel_block,
+        ) = get_const_tuple(kernel.shape)
         in_channel = in_channel_chunk * in_channel_block
         out_channel = out_channel_chunk * out_channel_block
         channel_multiplier = cm_chunk * cm_block
@@ -128,7 +144,8 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
     dilated_kernel_h = (filter_height - 1) * dh + 1
     dilated_kernel_w = (filter_width - 1) * dw + 1
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (dilated_kernel_h, dilated_kernel_w))
+        padding, (dilated_kernel_h, dilated_kernel_w)
+    )
     HPAD = pad_top + pad_down
     WPAD = pad_left + pad_right
 
@@ -143,9 +160,13 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
     # get workload and related schedule config
     wkl = _get_workload(
         te.placeholder((batch, in_channel, in_height, in_width), dtype=data.dtype),
-        te.placeholder((out_channel, channel_multiplier, filter_height, filter_width),
-                       dtype=kernel.dtype),
-        strides, (pad_top, pad_down), out_dtype)
+        te.placeholder(
+            (out_channel, channel_multiplier, filter_height, filter_width), dtype=kernel.dtype
+        ),
+        strides,
+        (pad_top, pad_down),
+        out_dtype,
+    )
     if cfg.is_fallback:
         _fallback_schedule(cfg, wkl)
 
@@ -165,11 +186,10 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
         else:
             data, kernel = _pack_data(cfg, data, kernel)
             _, _, _, _, in_channel_block = get_const_tuple(data.shape)
-            out_channel_chunk, _, _, _, _, out_channel_block \
-                = get_const_tuple(kernel.shape)
+            out_channel_chunk, _, _, _, _, out_channel_block = get_const_tuple(kernel.shape)
 
     # padding stage
-    DOPAD = (pad_top != 0 or pad_left != 0 or pad_down != 0 or pad_right != 0)
+    DOPAD = pad_top != 0 or pad_left != 0 or pad_down != 0 or pad_right != 0
     if DOPAD:
         pad_before = [0, 0, pad_top, pad_left, 0]
         pad_after = [0, 0, pad_down, pad_right, 0]
@@ -177,26 +197,36 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
     else:
         data_pad = data
 
-
     # depthconv stage
     idxdiv = tvm.tir.indexdiv
     idxmod = tvm.tir.indexmod
 
-    kh = te.reduce_axis((0, filter_height), name='kh')
-    kw = te.reduce_axis((0, filter_width), name='kw')
+    kh = te.reduce_axis((0, filter_height), name="kh")
+    kw = te.reduce_axis((0, filter_width), name="kw")
     Output = te.compute(
         (batch, out_channel_chunk, out_height, out_width, out_channel_block),
         lambda b, oco, oh, ow, oci: te.sum(
-            (data_pad[
-                b,
-                idxdiv(idxdiv(oco * out_channel_block + oci, channel_multiplier), in_channel_block),
-                oh*HSTR+kh*dh, ow*WSTR+kw*dw,
-                idxmod(idxdiv(oco * out_channel_block + oci, channel_multiplier), in_channel_block)]
-             .astype(out_dtype) *
-             kernel[oco, 0, kh, kw, 0, oci].astype(out_dtype)),
-            axis=[kh, kw]),
-        name='DepthwiseConv2d', tag="depthwise_conv2d_NCHWc")
+            (
+                data_pad[
+                    b,
+                    idxdiv(
+                        idxdiv(oco * out_channel_block + oci, channel_multiplier), in_channel_block
+                    ),
+                    oh * HSTR + kh * dh,
+                    ow * WSTR + kw * dw,
+                    idxmod(
+                        idxdiv(oco * out_channel_block + oci, channel_multiplier), in_channel_block
+                    ),
+                ].astype(out_dtype)
+                * kernel[oco, 0, kh, kw, 0, oci].astype(out_dtype)
+            ),
+            axis=[kh, kw],
+        ),
+        name="DepthwiseConv2d",
+        tag="depthwise_conv2d_NCHWc",
+    )
     return Output
+
 
 @autotvm.register_topi_schedule("depthwise_conv2d_NCHWc.x86")
 def schedule_depthwise_conv2d_NCHWc(cfg, outs):
@@ -206,7 +236,7 @@ def schedule_depthwise_conv2d_NCHWc(cfg, outs):
 
     def _callback(op):
         """Traverse operators from computation graph"""
-        if 'depthwise_conv2d_NCHWc' in op.tag:
+        if "depthwise_conv2d_NCHWc" in op.tag:
             conv_out = op.output(0)
             data = conv_out.op.input_tensors[0]
             kernel = conv_out.op.input_tensors[1]
@@ -215,20 +245,20 @@ def schedule_depthwise_conv2d_NCHWc(cfg, outs):
     traverse_inline(s, outs[0].op, _callback)
     return s
 
+
 def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out, output):
     tile_ow, oc_bn = cfg["tile_ow"].size[-1], cfg["tile_oc"].size[-1]
     unroll_kw = cfg["unroll_kw"].val
 
     # schedule pad
-    if isinstance(s[data_vec].op, tvm.te.ComputeOp) \
-            and "pad" in data_vec.op.tag:
+    if isinstance(s[data_vec].op, tvm.te.ComputeOp) and "pad" in data_vec.op.tag:
         batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
         s[data_vec].vectorize(ic_block)
         parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
         s[data_vec].parallel(parallel_axis)
 
     C, O = conv_out, output
-    CC = s.cache_write(C, 'global')
+    CC = s.cache_write(C, "global")
 
     _, ic_chunk, oh, ow, ic_block = s[C].op.axis
     ow_chunk, ow_block = s[C].split(ow, factor=tile_ow)
@@ -270,6 +300,7 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out
             raise ValueError("Unsupported output ndim: %s" % out_ndim)
 
     return s
+
 
 @depthwise_conv2d_infer_layout.register("cpu")
 def _depthwise_conv2d_infer_layout(workload, cfg):

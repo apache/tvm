@@ -28,8 +28,10 @@ def run_opt_pass(expr, opt_pass):
     mod = opt_pass(mod)
     return mod["main"]
 
+
 def test_combine_parallel_batch_matmul():
     """Simple testcase."""
+
     def before(x, w1, w2, w3):
         args = [x, w1, w2, w3]
         y1 = relay.nn.batch_matmul(x, w1)
@@ -46,21 +48,15 @@ def test_combine_parallel_batch_matmul():
         args = [x, w1, w2, w3]
         w = relay.concatenate((w1, w2, w3), axis=1)
         y = relay.nn.batch_matmul(x, w)
-        y1 = relay.strided_slice(y,
-                                 begin=[0, 0, 0],
-                                 end=[-1, -1, s1],
-                                 strides=[1, 1, 1],
-                                 slice_mode="size")
-        y2 = relay.strided_slice(y,
-                                 begin=[0, 0, s1],
-                                 end=[-1, -1, s2],
-                                 strides=[1, 1, 1],
-                                 slice_mode="size")
-        y3 = relay.strided_slice(y,
-                                 begin=[0, 0, s1+s2],
-                                 end=[-1, -1, s3],
-                                 strides=[1, 1, 1],
-                                 slice_mode="size")
+        y1 = relay.strided_slice(
+            y, begin=[0, 0, 0], end=[-1, -1, s1], strides=[1, 1, 1], slice_mode="size"
+        )
+        y2 = relay.strided_slice(
+            y, begin=[0, 0, s1], end=[-1, -1, s2], strides=[1, 1, 1], slice_mode="size"
+        )
+        y3 = relay.strided_slice(
+            y, begin=[0, 0, s1 + s2], end=[-1, -1, s3], strides=[1, 1, 1], slice_mode="size"
+        )
         y = relay.Tuple((y1, y2, y3))
         return relay.Function(args, y)
 
@@ -71,8 +67,7 @@ def test_combine_parallel_batch_matmul():
         w3 = relay.var("w3", shape=(b, j, k))
 
         y_before = before(x, w1, w2, w3)
-        y = run_opt_pass(y_before,
-                         transform.CombineParallelBatchMatmul(min_num_branches=2))
+        y = run_opt_pass(y_before, transform.CombineParallelBatchMatmul(min_num_branches=2))
         y_expected = expected(x, w1, w2, w3)
         y_expected = run_opt_pass(y_expected, transform.InferType())
         tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
@@ -80,8 +75,10 @@ def test_combine_parallel_batch_matmul():
     check(2, 3, 5, 4)
     check(1, 100, 200, 300)
 
+
 def test_combine_parallel_batch_matmul_biasadd():
     """Simple testcase with bias"""
+
     def before(x, w1, w2, w3, b1, b2, b3):
         args = [x, w1, w2, w3, b1, b2, b3]
         y1 = relay.nn.batch_matmul(x, w1)
@@ -103,21 +100,15 @@ def test_combine_parallel_batch_matmul_biasadd():
         b = relay.concatenate((b1, b2, b3), axis=-1)
         y = relay.nn.batch_matmul(x, w)
         y = relay.add(y, b)
-        y1 = relay.strided_slice(y,
-                                 begin=[0, 0, 0],
-                                 end=[-1, -1, s1],
-                                 strides=[1, 1, 1],
-                                 slice_mode="size")
-        y2 = relay.strided_slice(y,
-                                 begin=[0, 0, s1],
-                                 end=[-1, -1, s2],
-                                 strides=[1, 1, 1],
-                                 slice_mode="size")
-        y3 = relay.strided_slice(y,
-                                 begin=[0, 0, s1+s2],
-                                 end=[-1, -1, s3],
-                                 strides=[1, 1, 1],
-                                 slice_mode="size")
+        y1 = relay.strided_slice(
+            y, begin=[0, 0, 0], end=[-1, -1, s1], strides=[1, 1, 1], slice_mode="size"
+        )
+        y2 = relay.strided_slice(
+            y, begin=[0, 0, s1], end=[-1, -1, s2], strides=[1, 1, 1], slice_mode="size"
+        )
+        y3 = relay.strided_slice(
+            y, begin=[0, 0, s1 + s2], end=[-1, -1, s3], strides=[1, 1, 1], slice_mode="size"
+        )
         y = relay.Tuple((y1, y2, y3))
         return relay.Function(args, y)
 
@@ -131,8 +122,7 @@ def test_combine_parallel_batch_matmul_biasadd():
         b3 = relay.var("b3", shape=(j,))
 
         y_before = before(x, w1, w2, w3, b1, b2, b3)
-        y = run_opt_pass(y_before,
-                         transform.CombineParallelBatchMatmul(min_num_branches=2))
+        y = run_opt_pass(y_before, transform.CombineParallelBatchMatmul(min_num_branches=2))
         y_expected = expected(x, w1, w2, w3, b1, b2, b3)
         y_expected = run_opt_pass(y_expected, transform.InferType())
         tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)

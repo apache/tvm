@@ -30,11 +30,12 @@ def _register_coreml_op(op_name):
         The name of operator that will be registered.
 
     """
+
     def _check_supported(attrs, args):
-        if op_name == 'nn.conv2d':
+        if op_name == "nn.conv2d":
             if not isinstance(args[1], Constant):
                 return False
-            if attrs['kernel_layout'] not in ['HWIO', 'OIHW']:
+            if attrs["kernel_layout"] not in ["HWIO", "OIHW"]:
                 return False
         return True
 

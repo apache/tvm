@@ -23,10 +23,12 @@ import numpy as np
 from tvm import relay
 from tvm.relay.frontend.tensorflow import from_tensorflow
 
+
 def run_relay(graph):
     mod, params = from_tensorflow(graph.as_graph_def(add_shapes=True))
-    ex = relay.create_executor('debug', mod=mod)
+    ex = relay.create_executor("debug", mod=mod)
     return ex.evaluate()(**params)
+
 
 def test_no_op():
     g = tf.Graph()
@@ -43,4 +45,3 @@ def test_no_op():
 
 if __name__ == "__main__":
     test_no_op()
-

@@ -61,12 +61,15 @@ from tvm import relay
 # Download mobilenet V2 TFLite model provided by Google
 from tvm.contrib.download import download_testdata
 
-model_url = "https://storage.googleapis.com/download.tensorflow.org/models/" \
-             "tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz"
+model_url = (
+    "https://storage.googleapis.com/download.tensorflow.org/models/"
+    "tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz"
+)
 
 # Download model tar file and extract it to get mobilenet_v2_1.0_224.tflite
-model_path = download_testdata(model_url, "mobilenet_v2_1.0_224_quant.tgz",
-                               module=['tf', 'official'])
+model_path = download_testdata(
+    model_url, "mobilenet_v2_1.0_224_quant.tgz", module=["tf", "official"]
+)
 model_dir = os.path.dirname(model_path)
 
 
@@ -75,13 +78,15 @@ model_dir = os.path.dirname(model_path)
 # ----------------------------------------------
 def extract(path):
     import tarfile
+
     if path.endswith("tgz") or path.endswith("gz"):
         dir_path = os.path.dirname(path)
         tar = tarfile.open(path)
         tar.extractall(path=dir_path)
         tar.close()
     else:
-        raise RuntimeError('Could not decompress the file: ' + path)
+        raise RuntimeError("Could not decompress the file: " + path)
+
 
 extract(model_path)
 
@@ -95,14 +100,16 @@ extract(model_path)
 # --------------------------------
 def get_real_image(im_height, im_width):
     from PIL import Image
-    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
-    img_name = 'elephant-299.jpg'
+
+    repo_base = "https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/"
+    img_name = "elephant-299.jpg"
     image_url = os.path.join(repo_base, img_name)
-    img_path = download_testdata(image_url, img_name, module='data')
+    img_path = download_testdata(image_url, img_name, module="data")
     image = Image.open(img_path).resize((im_height, im_width))
-    x = np.array(image).astype('uint8')
+    x = np.array(image).astype("uint8")
     data = np.reshape(x, (1, im_height, im_width, 3))
     return data
+
 
 data = get_real_image(224, 224)
 
@@ -118,9 +125,11 @@ tflite_model_buf = open(tflite_model_file, "rb").read()
 # Get TFLite model from buffer
 try:
     import tflite
+
     tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
 except AttributeError:
     import tflite.Model
+
     tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
 
 ###############################################################################
@@ -143,7 +152,7 @@ def run_tflite_model(tflite_model_buf, input_data):
     # set input
     assert len(input_data) == len(input_details)
     for i in range(len(input_details)):
-        interpreter.set_tensor(input_details[i]['index'], input_data[i])
+        interpreter.set_tensor(input_details[i]["index"], input_data[i])
 
     # Run
     interpreter.invoke()
@@ -151,16 +160,18 @@ def run_tflite_model(tflite_model_buf, input_data):
     # get output
     tflite_output = list()
     for i in range(len(output_details)):
-        tflite_output.append(interpreter.get_tensor(output_details[i]['index']))
+        tflite_output.append(interpreter.get_tensor(output_details[i]["index"]))
 
     return tflite_output
+
 
 ###############################################################################
 # Lets run TVM compiled pre-quantized model inference and get the TVM prediction.
 def run_tvm(lib):
     from tvm.contrib import graph_runtime
-    rt_mod = graph_runtime.GraphModule(lib['default'](tvm.cpu(0)))
-    rt_mod.set_input('input', data)
+
+    rt_mod = graph_runtime.GraphModule(lib["default"](tvm.cpu(0)))
+    rt_mod.set_input("input", data)
     rt_mod.run()
     tvm_res = rt_mod.get_output(0).asnumpy()
     tvm_pred = np.squeeze(tvm_res).argsort()[-5:][::-1]
@@ -185,18 +196,16 @@ tflite_pred = np.squeeze(tflite_res).argsort()[-5:][::-1]
 # frontend parser call for a pre-quantized model is exactly same as frontend parser call for a FP32
 # model. We encourage you to remove the comment from print(mod) and inspect the Relay module. You
 # will see many QNN operators, like, Requantize, Quantize and QNN Conv2D.
-dtype_dict = {'input': data.dtype.name}
-shape_dict = {'input': data.shape}
+dtype_dict = {"input": data.dtype.name}
+shape_dict = {"input": data.shape}
 
-mod, params = relay.frontend.from_tflite(tflite_model,
-                                         shape_dict=shape_dict,
-                                         dtype_dict=dtype_dict)
+mod, params = relay.frontend.from_tflite(tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict)
 # print(mod)
 
 ###############################################################################
 # Lets now the compile the Relay module. We use the "llvm" target here. Please replace it with the
 # target platform that you are interested in.
-target = 'llvm'
+target = "llvm"
 with tvm.transform.PassContext(opt_level=3):
     lib = relay.build_module.build(mod, target=target, params=params)
 

@@ -34,12 +34,13 @@ from tvm.autotvm.measure import MeasureResult, MeasureInput
 from tvm.autotvm.graph_tuner import DPTuner, PBQPTuner
 
 
-def _create_args(dshape, kshape, strides, padding, dilation, layout, out_layout,
-                 dtype, out_dtype):
+def _create_args(dshape, kshape, strides, padding, dilation, layout, out_layout, dtype, out_dtype):
     data = tvm.te.placeholder(dshape, dtype=dtype)
     kernel = tvm.te.placeholder(kshape, dtype=dtype)
-    return autotvm.task.serialize_args([data, kernel, strides, padding, dilation,
-                                        layout, layout, out_dtype])
+    return autotvm.task.serialize_args(
+        [data, kernel, strides, padding, dilation, layout, layout, out_dtype]
+    )
+
 
 def _create_data(target, dshape, dtype, layout):
     data = relay.var("data", shape=dshape, dtype=dtype)
@@ -52,38 +53,71 @@ def _create_data(target, dshape, dtype, layout):
     out = relay.add(conv1, conv2)
     net = relay.Function(relay.analysis.free_vars(out), out)
     mod, params = relay.testing.create_workload(net)
-    tasks = autotvm.task.extract_from_program(mod["main"],
-                                              target=target,
-                                              params=params,
-                                              ops=(relay.op.get("nn.conv2d"),))
+    tasks = autotvm.task.extract_from_program(
+        mod["main"], target=target, params=params, ops=(relay.op.get("nn.conv2d"),)
+    )
     new_args = [
-        _create_args((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
-        _create_args((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0, 0, 0), (1, 1), layout, layout, dtype, dtype),
-        _create_args((1, 32, 8, 8), (32, 32, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
+        _create_args(
+            (1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype
+        ),
+        _create_args(
+            (1, 16, 8, 8),
+            (32, 16, 1, 1),
+            (1, 1),
+            (0, 0, 0, 0),
+            (1, 1),
+            layout,
+            layout,
+            dtype,
+            dtype,
+        ),
+        _create_args(
+            (1, 32, 8, 8),
+            (32, 32, 3, 3),
+            (1, 1),
+            (1, 1, 1, 1),
+            (1, 1),
+            layout,
+            layout,
+            dtype,
+            dtype,
+        ),
     ]
 
     costs = [0.04, 0.012, 0.03]
     config_list = []
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [3, 1]],
-                           ["tile_oc", "sp", [4, 4]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [3, 1]],
+            ["tile_oc", "sp", [4, 4]],
+            ["tile_ow", "sp", [4, 2]],
+            ["unroll_kw", "ot", True],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [2, 8]],
-                           ["tile_oc", "sp", [1, 32]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [2, 8]],
+            ["tile_oc", "sp", [1, 32]],
+            ["tile_oh", "ot", 1],
+            ["tile_ow", "sp", [4, 2]],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [8, 4]],
-                           ["tile_oc", "sp", [4, 8]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [8, 4]],
+            ["tile_oc", "sp", [4, 8]],
+            ["tile_ow", "sp", [2, 4]],
+            ["unroll_kw", "ot", False],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
 
     records = []
@@ -95,20 +129,20 @@ def _create_data(target, dshape, dtype, layout):
 
     ltf_records = []
     ltf_arg = [te.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
-    ltf_task = autotvm.task.create('layout_transform', ltf_arg, target)
+    ltf_task = autotvm.task.create("layout_transform", ltf_arg, target)
     ms_input = MeasureInput(target=target, task=ltf_task, config=None)
-    ms_output =  MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
+    ms_output = MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
     ltf_records.append((ms_input, ms_output))
 
     ltf_keys = []
     ltf_arg = [te.placeholder((1, 4, 8, 8, 4), dtype=dtype), "NCHW4c", "NCHW8c"]
-    ltf_wkl = autotvm.task.args_to_workload(ltf_arg, 'layout_transform')
+    ltf_wkl = autotvm.task.args_to_workload(ltf_arg, "layout_transform")
     ltf_keys.append(ltf_wkl)
     ltf_arg = [te.placeholder((1, 1, 8, 8, 32), dtype=dtype), "NCHW32c", "NCHW4c"]
-    ltf_wkl = autotvm.task.args_to_workload(ltf_arg, 'layout_transform')
+    ltf_wkl = autotvm.task.args_to_workload(ltf_arg, "layout_transform")
     ltf_keys.append(ltf_wkl)
     ltf_arg = [te.placeholder((1, 4, 8, 8, 8), dtype=dtype), "NCHW8c", "NCHW32c"]
-    ltf_wkl = autotvm.task.args_to_workload(ltf_arg, 'layout_transform')
+    ltf_wkl = autotvm.task.args_to_workload(ltf_arg, "layout_transform")
     ltf_keys.append(ltf_wkl)
 
     return net, records, ltf_records, ltf_keys, tasks
@@ -145,9 +179,13 @@ def test_graph_tuner_layout_transform():
             flops *= i
         expected_time = flops * avg_time
         out_time = out[ltf_workload][1].costs[0]
-        assert expected_time == out_time, "Inferred layout transformation time mismatch for %s: " \
-                                          "expecting %f but got %f" % (str(ltf_workload), expected_time,
-                                                                       out_time)
+        assert (
+            expected_time == out_time
+        ), "Inferred layout transformation time mismatch for %s: " "expecting %f but got %f" % (
+            str(ltf_workload),
+            expected_time,
+            out_time,
+        )
 
 
 def test_DPTuner_run():
@@ -164,26 +202,38 @@ def test_DPTuner_run():
     mod["main"] = g
     costs = [0.02, 0.02, 0.045]
     config_list = []
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 3]],
-                           ["tile_oc", "sp", [2, 8]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [1, 3]],
+            ["tile_oc", "sp", [2, 8]],
+            ["tile_ow", "sp", [4, 2]],
+            ["unroll_kw", "ot", True],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [4, 4]],
-                           ["tile_oc", "sp", [2, 16]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [4, 4]],
+            ["tile_oc", "sp", [2, 16]],
+            ["tile_oh", "ot", 1],
+            ["tile_ow", "sp", [4, 2]],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [16, 2]],
-                           ["tile_oc", "sp", [8, 4]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [16, 2]],
+            ["tile_oc", "sp", [8, 4]],
+            ["tile_ow", "sp", [2, 4]],
+            ["unroll_kw", "ot", False],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
     for cost, config, task in zip(costs, config_list, tasks):
         ms_input = MeasureInput(target=target, task=task, config=config)
@@ -195,8 +245,10 @@ def test_DPTuner_run():
     executor.run()
     out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[3][0].config, records[1][0].config, records[2][0].config]
-    assert expected_out == out, "Output mismatch: expecting %s but got %s" \
-                                % (str(expected_out), str(out))
+    assert expected_out == out, "Output mismatch: expecting %s but got %s" % (
+        str(expected_out),
+        str(out),
+    )
     assert os.path.isfile(log_file), "No log file with name %s exists." % log_file
 
 
@@ -211,26 +263,38 @@ def test_PBQPTuner_run():
     g, records, ltf_records, ltf_keys, tasks = _create_data(target, dshape, dtype, layout)
     costs = [0.02, 0.02, 0.045]
     config_list = []
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 3]],
-                           ["tile_oc", "sp", [2, 8]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [1, 3]],
+            ["tile_oc", "sp", [2, 8]],
+            ["tile_ow", "sp", [4, 2]],
+            ["unroll_kw", "ot", True],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [4, 4]],
-                           ["tile_oc", "sp", [2, 16]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [4, 4]],
+            ["tile_oc", "sp", [2, 16]],
+            ["tile_oh", "ot", 1],
+            ["tile_ow", "sp", [4, 2]],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [16, 2]],
-                           ["tile_oc", "sp", [8, 4]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [16, 2]],
+            ["tile_oc", "sp", [8, 4]],
+            ["tile_ow", "sp", [2, 4]],
+            ["unroll_kw", "ot", False],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
     for cost, config, task in zip(costs, config_list, tasks):
         ms_input = MeasureInput(target=target, task=task, config=config)
@@ -242,8 +306,10 @@ def test_PBQPTuner_run():
     executor.run()
     out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[3][0].config, records[1][0].config, records[2][0].config]
-    assert expected_out == out, "Output mismatch: expecting %s but got %s" \
-                           % (str(expected_out), str(out))
+    assert expected_out == out, "Output mismatch: expecting %s but got %s" % (
+        str(expected_out),
+        str(out),
+    )
 
 
 def test_many_sub_graphs():
@@ -271,59 +337,104 @@ def test_many_sub_graphs():
     net = relay.Function(relay.analysis.free_vars(out), out)
     net, params = relay.testing.create_workload(net)
 
-    tasks = autotvm.task.extract_from_program(net["main"],
-                                              target=target,
-                                              params=params,
-                                              ops=(conv2d,))
+    tasks = autotvm.task.extract_from_program(
+        net["main"], target=target, params=params, ops=(conv2d,)
+    )
     new_args = [
-        _create_args((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
-        _create_args((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0, 0, 0), (1, 1), layout, layout, dtype, dtype),
-        _create_args((1, 32, 8, 8), (32, 32, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
+        _create_args(
+            (1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype
+        ),
+        _create_args(
+            (1, 16, 8, 8),
+            (32, 16, 1, 1),
+            (1, 1),
+            (0, 0, 0, 0),
+            (1, 1),
+            layout,
+            layout,
+            dtype,
+            dtype,
+        ),
+        _create_args(
+            (1, 32, 8, 8),
+            (32, 32, 3, 3),
+            (1, 1),
+            (1, 1, 1, 1),
+            (1, 1),
+            layout,
+            layout,
+            dtype,
+            dtype,
+        ),
     ]
 
     costs = [0.04, 0.012, 0.03, 0.02, 0.02, 0.045]
     config_list = []
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [3, 1]],
-                           ["tile_oc", "sp", [4, 4]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [3, 1]],
+            ["tile_oc", "sp", [4, 4]],
+            ["tile_ow", "sp", [4, 2]],
+            ["unroll_kw", "ot", True],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [2, 8]],
-                           ["tile_oc", "sp", [1, 32]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [2, 8]],
+            ["tile_oc", "sp", [1, 32]],
+            ["tile_oh", "ot", 1],
+            ["tile_ow", "sp", [4, 2]],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [8, 4]],
-                           ["tile_oc", "sp", [4, 8]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [8, 4]],
+            ["tile_oc", "sp", [4, 8]],
+            ["tile_ow", "sp", [2, 4]],
+            ["unroll_kw", "ot", False],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 3]],
-                           ["tile_oc", "sp", [2, 8]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [1, 3]],
+            ["tile_oc", "sp", [2, 8]],
+            ["tile_ow", "sp", [4, 2]],
+            ["unroll_kw", "ot", True],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [4, 4]],
-                           ["tile_oc", "sp", [2, 16]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [4, 4]],
+            ["tile_oc", "sp", [2, 16]],
+            ["tile_oh", "ot", 1],
+            ["tile_ow", "sp", [4, 2]],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [16, 2]],
-                           ["tile_oc", "sp", [8, 4]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [16, 2]],
+            ["tile_oc", "sp", [8, 4]],
+            ["tile_ow", "sp", [2, 4]],
+            ["unroll_kw", "ot", False],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
 
     records = []
@@ -337,9 +448,9 @@ def test_many_sub_graphs():
 
     ltf_records = []
     ltf_arg = [te.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
-    ltf_task = autotvm.task.create('layout_transform', ltf_arg, target)
+    ltf_task = autotvm.task.create("layout_transform", ltf_arg, target)
     ms_input = MeasureInput(target=target, task=ltf_task, config=None)
-    ms_output =  MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
+    ms_output = MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
     ltf_records.append((ms_input, ms_output))
 
     executor = DPTuner(net, {"data": dshape}, records, target_ops, target)
@@ -347,16 +458,20 @@ def test_many_sub_graphs():
     executor.run()
     out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[3][0].config, records[1][0].config, records[2][0].config]
-    assert expected_out == out, "Output mismatch: expecting %s but got %s" \
-                                % (str(expected_out), str(out))
+    assert expected_out == out, "Output mismatch: expecting %s but got %s" % (
+        str(expected_out),
+        str(out),
+    )
 
     executor = PBQPTuner(net, {"data": dshape}, records, target_ops, target)
     executor.benchmark_layout_transform(layout_records=ltf_records, infer_layout=True)
     executor.run()
     out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[3][0].config, records[1][0].config, records[2][0].config]
-    assert expected_out == out, "Output mismatch: expecting %s but got %s" \
-                                % (str(expected_out), str(out))
+    assert expected_out == out, "Output mismatch: expecting %s but got %s" % (
+        str(expected_out),
+        str(out),
+    )
 
 
 def test_tuple():
@@ -376,43 +491,62 @@ def test_tuple():
     net = relay.Function(relay.analysis.free_vars(out), out)
     net, params = relay.testing.create_workload(net)
 
-    tasks = autotvm.task.extract_from_program(net["main"],
-                                              target=target,
-                                              params=params,
-                                              ops=(conv2d,))
+    tasks = autotvm.task.extract_from_program(
+        net["main"], target=target, params=params, ops=(conv2d,)
+    )
     new_args = [
-        _create_args((1, 5, 32, 32), (2, 5, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
-        _create_args((1, 5, 32, 32), (3, 5, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
+        _create_args(
+            (1, 5, 32, 32), (2, 5, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype
+        ),
+        _create_args(
+            (1, 5, 32, 32), (3, 5, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype
+        ),
     ]
     costs = [0.01, 0.012, 0.03, 0.04]
     config_list = []
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 5]],
-                           ["tile_oc", "sp", [1, 2]],
-                           ["tile_ow", "sp", [4, 8]],
-                           ["unroll_kw", "ot", True]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [1, 5]],
+            ["tile_oc", "sp", [1, 2]],
+            ["tile_ow", "sp", [4, 8]],
+            ["unroll_kw", "ot", True],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 5]],
-                           ["tile_oc", "sp", [1, 3]],
-                           ["tile_ow", "sp", [2, 16]],
-                           ["unroll_kw", "ot", False]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [1, 5]],
+            ["tile_oc", "sp", [1, 3]],
+            ["tile_ow", "sp", [2, 16]],
+            ["unroll_kw", "ot", False],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 5]],
-                           ["tile_oc", "sp", [2, 1]],
-                           ["tile_ow", "sp", [4, 8]],
-                           ["unroll_kw", "ot", True]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [1, 5]],
+            ["tile_oc", "sp", [2, 1]],
+            ["tile_ow", "sp", [4, 8]],
+            ["unroll_kw", "ot", True],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 5]],
-                           ["tile_oc", "sp", [3, 1]],
-                           ["tile_ow", "sp", [2, 16]],
-                           ["unroll_kw", "ot", False]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [1, 5]],
+            ["tile_oc", "sp", [3, 1]],
+            ["tile_ow", "sp", [2, 16]],
+            ["unroll_kw", "ot", False],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
 
     records = []
@@ -426,9 +560,9 @@ def test_tuple():
 
     ltf_records = []
     ltf_arg = [te.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
-    ltf_task = autotvm.task.create('layout_transform', ltf_arg, target)
+    ltf_task = autotvm.task.create("layout_transform", ltf_arg, target)
     ms_input = MeasureInput(target=target, task=ltf_task, config=None)
-    ms_output =  MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
+    ms_output = MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
     ltf_records.append((ms_input, ms_output))
 
     executor = DPTuner(net, {"data": dshape}, records, target_ops, target)
@@ -436,16 +570,20 @@ def test_tuple():
     executor.run()
     out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[2][0].config, records[1][0].config]
-    assert expected_out == out, "Output mismatch: expecting %s but got %s" \
-                                % (str(expected_out), str(out))
+    assert expected_out == out, "Output mismatch: expecting %s but got %s" % (
+        str(expected_out),
+        str(out),
+    )
 
     executor = PBQPTuner(net, {"data": dshape}, records, target_ops, target)
     executor.benchmark_layout_transform(layout_records=ltf_records, infer_layout=True)
     executor.run()
     out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[2][0].config, records[1][0].config]
-    assert expected_out == out, "Output mismatch: expecting %s but got %s" \
-                                % (str(expected_out), str(out))
+    assert expected_out == out, "Output mismatch: expecting %s but got %s" % (
+        str(expected_out),
+        str(out),
+    )
 
 
 def test_triangle_block():
@@ -467,58 +605,95 @@ def test_triangle_block():
     net = relay.Function(relay.analysis.free_vars(out), out)
     net, params = relay.testing.create_workload(net)
 
-    tasks = autotvm.task.extract_from_program(net["main"],
-                                              target=target,
-                                              params=params,
-                                              ops=(conv2d,))
+    tasks = autotvm.task.extract_from_program(
+        net["main"], target=target, params=params, ops=(conv2d,)
+    )
     new_args = [
-        _create_args((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
-        _create_args((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0, 0, 0), (1, 1), layout, layout, dtype, dtype),
-        _create_args((1, 3, 8, 8), (32, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
+        _create_args(
+            (1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype
+        ),
+        _create_args(
+            (1, 16, 8, 8),
+            (32, 16, 1, 1),
+            (1, 1),
+            (0, 0, 0, 0),
+            (1, 1),
+            layout,
+            layout,
+            dtype,
+            dtype,
+        ),
+        _create_args(
+            (1, 3, 8, 8), (32, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype
+        ),
     ]
     costs = [0.04, 0.012, 0.03, 0.02, 0.02, 0.045]
     config_list = []
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [3, 1]],
-                           ["tile_oc", "sp", [4, 4]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [3, 1]],
+            ["tile_oc", "sp", [4, 4]],
+            ["tile_ow", "sp", [4, 2]],
+            ["unroll_kw", "ot", True],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [2, 8]],
-                           ["tile_oc", "sp", [1, 32]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [2, 8]],
+            ["tile_oc", "sp", [1, 32]],
+            ["tile_oh", "ot", 1],
+            ["tile_ow", "sp", [4, 2]],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [8, 4]],
-                           ["tile_oc", "sp", [4, 8]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [8, 4]],
+            ["tile_oc", "sp", [4, 8]],
+            ["tile_ow", "sp", [2, 4]],
+            ["unroll_kw", "ot", False],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 3]],
-                           ["tile_oc", "sp", [2, 8]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [1, 3]],
+            ["tile_oc", "sp", [2, 8]],
+            ["tile_ow", "sp", [4, 2]],
+            ["unroll_kw", "ot", True],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [4, 4]],
-                           ["tile_oc", "sp", [2, 16]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [4, 4]],
+            ["tile_oc", "sp", [2, 16]],
+            ["tile_oh", "ot", 1],
+            ["tile_ow", "sp", [4, 2]],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [16, 2]],
-                           ["tile_oc", "sp", [8, 4]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
+    cfg_dict = {
+        "index": -1,
+        "code_hash": None,
+        "entity": [
+            ["tile_ic", "sp", [16, 2]],
+            ["tile_oc", "sp", [8, 4]],
+            ["tile_ow", "sp", [2, 4]],
+            ["unroll_kw", "ot", False],
+        ],
+    }
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
 
     records = []
@@ -532,9 +707,9 @@ def test_triangle_block():
 
     ltf_records = []
     ltf_arg = [te.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
-    ltf_task = autotvm.task.create('layout_transform', ltf_arg, target)
+    ltf_task = autotvm.task.create("layout_transform", ltf_arg, target)
     ms_input = MeasureInput(target=target, task=ltf_task, config=None)
-    ms_output =  MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
+    ms_output = MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
     ltf_records.append((ms_input, ms_output))
 
     executor = DPTuner(net, {"data": dshape}, records, target_ops, target)
@@ -542,19 +717,23 @@ def test_triangle_block():
     executor.run()
     out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[3][0].config, records[1][0].config, records[2][0].config]
-    assert expected_out == out, "Output mismatch: expecting %s but got %s" \
-                                % (str(expected_out), str(out))
+    assert expected_out == out, "Output mismatch: expecting %s but got %s" % (
+        str(expected_out),
+        str(out),
+    )
 
     executor = PBQPTuner(net, {"data": dshape}, records, target_ops, target)
     executor.benchmark_layout_transform(layout_records=ltf_records, infer_layout=True)
     executor.run()
     out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[3][0].config, records[1][0].config, records[2][0].config]
-    assert expected_out == out, "Output mismatch: expecting %s but got %s" \
-                                % (str(expected_out), str(out))
+    assert expected_out == out, "Output mismatch: expecting %s but got %s" % (
+        str(expected_out),
+        str(out),
+    )
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     test_graph_tuner_layout_transform()
     test_DPTuner_run()
     test_PBQPTuner_run()

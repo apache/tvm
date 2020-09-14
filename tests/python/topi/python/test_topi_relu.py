@@ -26,8 +26,9 @@ from tvm.contrib.nvcc import have_fp16
 
 import tvm.testing
 
+
 def verify_relu(m, n, dtype="float32"):
-    A = te.placeholder((m, n), name='A', dtype=dtype)
+    A = te.placeholder((m, n), name="A", dtype=dtype)
     B = topi.nn.relu(A)
 
     a_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(A.shape)).astype(A.dtype)
@@ -52,7 +53,7 @@ def verify_relu(m, n, dtype="float32"):
 
 
 def verify_leaky_relu(m, alpha):
-    A = te.placeholder((m,), name='A')
+    A = te.placeholder((m,), name="A")
     B = topi.nn.leaky_relu(A, alpha)
     s = te.create_schedule([B.op])
 
@@ -67,13 +68,13 @@ def verify_leaky_relu(m, alpha):
 
 
 def verify_prelu(x, w, axis, weight_reshape):
-    X = te.placeholder((x), name='X')
-    W = te.placeholder((w), name='W')
+    X = te.placeholder((x), name="X")
+    W = te.placeholder((w), name="W")
     x_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(X.shape)).astype(X.dtype)
     w_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(W.shape)).astype(W.dtype)
 
     def _prelu_numpy(x, W):
-        return (x < 0) * (x *W.reshape(weight_reshape)) + (x>=0) * x
+        return (x < 0) * (x * W.reshape(weight_reshape)) + (x >= 0) * x
 
     B = topi.nn.prelu(X, W, axis)
     s = te.create_schedule([B.op])
@@ -88,22 +89,27 @@ def verify_prelu(x, w, axis, weight_reshape):
     out_np = _prelu_numpy(x_np, w_np)
     tvm.testing.assert_allclose(b.asnumpy(), out_np, rtol=1e-5)
 
+
 @tvm.testing.uses_gpu
 def test_relu():
     verify_relu(10, 128, "float32")
     verify_relu(128, 64, "float16")
 
+
 @tvm.testing.uses_gpu
 def test_schedule_big_array():
-    verify_relu(1024 * 100 , 512)
+    verify_relu(1024 * 100, 512)
+
 
 def test_leaky_relu():
     verify_leaky_relu(100, 0.1)
 
+
 def test_prelu():
     verify_prelu((1, 3, 2, 2), (3,), 1, (3, 1, 1))
     verify_prelu((1, 3, 2, 2), (2,), 2, (2, 1))
-    verify_prelu((1, 3), (3,), 1, (3, ))
+    verify_prelu((1, 3), (3,), 1, (3,))
+
 
 if __name__ == "__main__":
     test_schedule_big_array()

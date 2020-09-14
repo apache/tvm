@@ -28,8 +28,7 @@ from . import _ffi_api
 
 @tvm._ffi.register_object
 class TargetKind(Object):
-    """Kind of a compilation target
-    """
+    """Kind of a compilation target"""
 
 
 @tvm._ffi.register_object
@@ -90,8 +89,7 @@ class Target(Object):
         """
         if not isinstance(tag_or_str_or_dict, (dict, str, Target)):
             raise ValueError("target has to be a string or dictionary.")
-        self.__init_handle_by_constructor__(
-            _ffi_api.Target, tag_or_str_or_dict)
+        self.__init_handle_by_constructor__(_ffi_api.Target, tag_or_str_or_dict)
 
     def __enter__(self):
         _ffi_api.TargetEnterScope(self)
@@ -152,6 +150,7 @@ class Target(Object):
 
 # TODO(@tvm-team): Deprecate the helper functions below. Encourage the usage of config dict instead.
 
+
 def _merge_opts(opts, new_opts):
     """Helper function to merge options"""
     if isinstance(new_opts, str):
@@ -163,7 +162,7 @@ def _merge_opts(opts, new_opts):
     return opts
 
 
-def cuda(model='unknown', options=None):
+def cuda(model="unknown", options=None):
     """Returns a cuda target.
 
     Parameters
@@ -173,11 +172,11 @@ def cuda(model='unknown', options=None):
     options : str or list of str
         Additional options
     """
-    opts = _merge_opts(['-model=%s' % model], options)
+    opts = _merge_opts(["-model=%s" % model], options)
     return Target(" ".join(["cuda"] + opts))
 
 
-def rocm(model='unknown', options=None):
+def rocm(model="unknown", options=None):
     """Returns a ROCM target.
 
     Parameters
@@ -191,7 +190,7 @@ def rocm(model='unknown', options=None):
     return Target(" ".join(["rocm"] + opts))
 
 
-def mali(model='unknown', options=None):
+def mali(model="unknown", options=None):
     """Returns a ARM Mali GPU target.
 
     Parameters
@@ -201,12 +200,12 @@ def mali(model='unknown', options=None):
     options : str or list of str
         Additional options
     """
-    opts = ["-device=mali", '-model=%s' % model]
+    opts = ["-device=mali", "-model=%s" % model]
     opts = _merge_opts(opts, options)
     return Target(" ".join(["opencl"] + opts))
 
 
-def intel_graphics(model='unknown', options=None):
+def intel_graphics(model="unknown", options=None):
     """Returns an Intel Graphics target.
 
     Parameters
@@ -216,13 +215,12 @@ def intel_graphics(model='unknown', options=None):
     options : str or list of str
         Additional options
     """
-    opts = ["-device=intel_graphics", "-model=%s" %
-            model, "-thread_warp_size=16"]
+    opts = ["-device=intel_graphics", "-model=%s" % model, "-thread_warp_size=16"]
     opts = _merge_opts(opts, options)
     return Target(" ".join(["opencl"] + opts))
 
 
-def arm_cpu(model='unknown', options=None):
+def arm_cpu(model="unknown", options=None):
     """Returns a ARM CPU target.
     This function will also download pre-tuned op parameters when there is none.
 
@@ -234,19 +232,27 @@ def arm_cpu(model='unknown', options=None):
         Additional options
     """
     trans_table = {
-        "pixel2":    ["-model=snapdragon835", "-mtriple=arm64-linux-android", "-mattr=+neon"],
-        "mate10":    ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "pixel2": ["-model=snapdragon835", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "mate10": ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
         "mate10pro": ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
-        "p20":       ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
-        "p20pro":    ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
-        "rasp3b":    ["-model=bcm2837", "-mtriple=armv7l-linux-gnueabihf", "-mattr=+neon"],
-        "rasp4b":    ["-model=bcm2711", "-mtriple=armv8l-linux-gnueabihf", "-mattr=+neon",
-                      "-mcpu=cortex-a72"],
-        "rasp4b64":  ["-model=bcm2711", "-mtriple=aarch64-linux-gnu", "-mattr=+neon",
-                      "-mcpu=cortex-a72"],
-        "rk3399":    ["-model=rk3399", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
-        "pynq":      ["-model=pynq", "-mtriple=armv7a-linux-eabi", "-mattr=+neon"],
-        "ultra96":   ["-model=ultra96", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
+        "p20": ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "p20pro": ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "rasp3b": ["-model=bcm2837", "-mtriple=armv7l-linux-gnueabihf", "-mattr=+neon"],
+        "rasp4b": [
+            "-model=bcm2711",
+            "-mtriple=armv8l-linux-gnueabihf",
+            "-mattr=+neon",
+            "-mcpu=cortex-a72",
+        ],
+        "rasp4b64": [
+            "-model=bcm2711",
+            "-mtriple=aarch64-linux-gnu",
+            "-mattr=+neon",
+            "-mcpu=cortex-a72",
+        ],
+        "rk3399": ["-model=rk3399", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
+        "pynq": ["-model=pynq", "-mtriple=armv7a-linux-eabi", "-mattr=+neon"],
+        "ultra96": ["-model=ultra96", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
@@ -263,18 +269,19 @@ def rasp(options=None):
     options : str or list of str
         Additional options
     """
-    warnings.warn('tvm.target.rasp() is going to be deprecated. '
-                  'Please use tvm.target.arm_cpu("rasp3b")')
-    return arm_cpu('rasp3b', options)
+    warnings.warn(
+        "tvm.target.rasp() is going to be deprecated. " 'Please use tvm.target.arm_cpu("rasp3b")'
+    )
+    return arm_cpu("rasp3b", options)
 
 
-def vta(model='unknown', options=None):
-    opts = ["-device=vta", '-keys=vta,cpu', '-model=%s' % model]
+def vta(model="unknown", options=None):
+    opts = ["-device=vta", "-keys=vta,cpu", "-model=%s" % model]
     opts = _merge_opts(opts, options)
     return Target(" ".join(["ext_dev"] + opts))
 
 
-def bifrost(model='unknown', options=None):
+def bifrost(model="unknown", options=None):
     """Return an ARM Mali GPU target (Bifrost architecture).
 
     Parameters
@@ -282,12 +289,12 @@ def bifrost(model='unknown', options=None):
     options : str or list of str
         Additional options
     """
-    opts = ["-device=bifrost", '-model=%s' % model]
+    opts = ["-device=bifrost", "-model=%s" % model]
     opts = _merge_opts(opts, options)
     return Target(" ".join(["opencl"] + opts))
 
 
-def hexagon(cpu_ver='v66', sim_args=None, llvm_args=None, hvx=128):
+def hexagon(cpu_ver="v66", sim_args=None, llvm_args=None, hvx=128):
     """Returns a Hexagon target.
 
     Parameters
@@ -309,87 +316,95 @@ def hexagon(cpu_ver='v66', sim_args=None, llvm_args=None, hvx=128):
     # llvm -mtriple=hexagon -mcpu=hexagonv66 -mattr=+hvxv66,+hvx-length128b
 
     # Check for valid codegen cpu
-    valid_hex = ['v60', 'v62', 'v65', 'v66', 'v67', 'v67t']
+    valid_hex = ["v60", "v62", "v65", "v66", "v67", "v67t"]
     try:
-        cpu_ver = cpu_ver[cpu_ver.index('v'):].lower()
+        cpu_ver = cpu_ver[cpu_ver.index("v") :].lower()
         assert 3 <= len(cpu_ver) <= 4
     except:
-        msg = '{} is not a valid Hexagon version\nvalid versions include {}'
+        msg = "{} is not a valid Hexagon version\nvalid versions include {}"
         raise ValueError(msg.format(cpu_ver, valid_hex)) from None
 
     assert hvx in [0, 64, 128]
 
     # Target string
     def create_target(cpu_ver):
-        target = ' -mtriple=hexagon'
-        mcpu = ' -mcpu=hexagon' + cpu_ver
-        mattr = ''
+        target = " -mtriple=hexagon"
+        mcpu = " -mcpu=hexagon" + cpu_ver
+        mattr = ""
         # HVX enable
         if hvx:
-            mattr = ' -mattr=+hvx' + cpu_ver + ',+hvx-length' + str(hvx) + 'b'
+            mattr = " -mattr=+hvx" + cpu_ver + ",+hvx-length" + str(hvx) + "b"
         return target + mcpu + mattr
 
     # Simulator string
     def create_sim(cpu_ver, sim_args):
         def validate_hvx_length(codegen_hvx, sim_args):
-            if sim_args and '--hvx_length' in sim_args:
+            if sim_args and "--hvx_length" in sim_args:
                 # If --hvx_length was specified, check HVX length of sim
                 # vs codegen
-                i = sim_args.index('hvx_length') + len('hvx_length') + 1
-                sim_hvx = sim_args[i:i+3]
+                i = sim_args.index("hvx_length") + len("hvx_length") + 1
+                sim_hvx = sim_args[i : i + 3]
                 if sim_hvx != str(codegen_hvx):
-                    print('WARNING: sim hvx {} and codegen hvx {} mismatch!'
-                          .format(sim_hvx, codegen_hvx))
+                    print(
+                        "WARNING: sim hvx {} and codegen hvx {} mismatch!".format(
+                            sim_hvx, codegen_hvx
+                        )
+                    )
             elif codegen_hvx != 0:
                 # If --hvx_length was not given, add it if HVX is enabled
-                sim_args = sim_args + ' ' if isinstance(sim_args, str) else ''
-                sim_args += '--hvx_length ' + str(codegen_hvx)
-            return sim_args or ''
+                sim_args = sim_args + " " if isinstance(sim_args, str) else ""
+                sim_args += "--hvx_length " + str(codegen_hvx)
+            return sim_args or ""
 
         if not sim_args:
-            return cpu_ver + ' ' + validate_hvx_length(hvx, sim_args)
+            return cpu_ver + " " + validate_hvx_length(hvx, sim_args)
 
-        sim_cpu = cpu_ver + ' '
+        sim_cpu = cpu_ver + " "
 
         # Add user defined args
         if isinstance(sim_args, list):
-            sim_args = ' '.join(sim_args)
+            sim_args = " ".join(sim_args)
 
         # Check for supplied sim cpu version
-        if 'v6' in sim_args:
-            sim_cpu = ''
+        if "v6" in sim_args:
+            sim_cpu = ""
 
             # Regex match for allowed cpus
-            valid_cpu_str_regex = r'(?P<pre>--.*\s)?(--m)?' +                 \
-                r'(?P<base_version>v6[25678])(?P<sub_version>[a-z])?' +       \
-                r'(?P<l2_size>_[0-9]+)?(?P<rev>_rev[0-9])?\s?(?P<post>--.*)?'
+            valid_cpu_str_regex = (
+                r"(?P<pre>--.*\s)?(--m)?"
+                + r"(?P<base_version>v6[25678])(?P<sub_version>[a-z])?"
+                + r"(?P<l2_size>_[0-9]+)?(?P<rev>_rev[0-9])?\s?(?P<post>--.*)?"
+            )
             m = re.match(valid_cpu_str_regex, sim_args.lower())
             if not m:
-                raise ValueError(
-                    'Invalid simulator argument string "{}"'.format(sim_args))
+                raise ValueError('Invalid simulator argument string "{}"'.format(sim_args))
 
             # Parse options into correct order
-            cpu_attr = {x: str(m.groupdict()[x] or '') for x in m.groupdict()}
-            sim_args = cpu_attr['base_version'] +  \
-                cpu_attr['sub_version'] +  \
-                cpu_attr['l2_size'] +       \
-                cpu_attr['rev'] + ' ' +     \
-                cpu_attr['pre'] + cpu_attr['post']
+            cpu_attr = {x: str(m.groupdict()[x] or "") for x in m.groupdict()}
+            sim_args = (
+                cpu_attr["base_version"]
+                + cpu_attr["sub_version"]
+                + cpu_attr["l2_size"]
+                + cpu_attr["rev"]
+                + " "
+                + cpu_attr["pre"]
+                + cpu_attr["post"]
+            )
 
-        return sim_cpu + ' ' + validate_hvx_length(hvx, sim_args)
+        return sim_cpu + " " + validate_hvx_length(hvx, sim_args)
 
     # LLVM string
     def create_llvm(llvm_args):
         # TVM's option parser doesn't allow '=' in values, but '=' can
         # appear in LLVM flags. Replace it with '@', since it's unlikely
         # that '@' will be used in another context.
-        if llvm_args is None or len(llvm_args.replace(' ', '')) == 0:
-            return ''
-        args = [s.replace('=', '@') for s in llvm_args.split()]
-        return '--llvm-options=' + ','.join(args)
+        if llvm_args is None or len(llvm_args.replace(" ", "")) == 0:
+            return ""
+        args = [s.replace("=", "@") for s in llvm_args.split()]
+        return "--llvm-options=" + ",".join(args)
 
     # Sim args
-    os.environ['HEXAGON_SIM_ARGS'] = create_sim(cpu_ver, sim_args)
+    os.environ["HEXAGON_SIM_ARGS"] = create_sim(cpu_ver, sim_args)
 
     target_str = create_target(cpu_ver)
     llvm_str = create_llvm(llvm_args)
@@ -399,10 +414,8 @@ def hexagon(cpu_ver='v66', sim_args=None, llvm_args=None, hvx=128):
 
 
 def create(target):
-    """Deprecated. Use the constructor of :py:mod:`tvm.target.Target` directly.
-    """
-    warnings.warn(
-        'tvm.target.create() is being deprecated. Please use tvm.target.Target() instead')
+    """Deprecated. Use the constructor of :py:mod:`tvm.target.Target` directly."""
+    warnings.warn("tvm.target.create() is being deprecated. Please use tvm.target.Target() instead")
     return Target(target)
 
 

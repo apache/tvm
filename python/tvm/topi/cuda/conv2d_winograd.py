@@ -27,7 +27,8 @@ from ..util import get_const_int, get_const_tuple, traverse_inline
 from ..nn.winograd_util import winograd_transform_matrices
 
 
-logger = logging.getLogger('conv2d_winograd')
+logger = logging.getLogger("conv2d_winograd")
+
 
 def _infer_tile_size(data, kernel):
     N, CI, H, W = get_const_tuple(data.shape)
@@ -36,8 +37,8 @@ def _infer_tile_size(data, kernel):
         return 4
     return 2
 
-def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
-                  pre_computed):
+
+def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed):
     """Compute declaration for winograd"""
     tile_size = _infer_tile_size(data, kernel)
 
@@ -49,7 +50,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
         dilation_h, dilation_w = dilation
     HSTR, WSTR = (strides, strides) if isinstance(strides, int) else strides
 
-    if not pre_computed: # kernel tensor is raw tensor, do strict check
+    if not pre_computed:  # kernel tensor is raw tensor, do strict check
         if dilation_h != 1 or dilation_w != 1:
             kernel = nn.dilate(kernel, (1, 1, dilation_h, dilation_w))
         CO, CI, KH, KW = get_const_tuple(kernel.shape)
@@ -71,55 +72,75 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
 
     H = (H + pt + pb - KH) // HSTR + 1
     W = (W + pl + pr - KW) // WSTR + 1
-    nH, nW = (H + m-1) // m, (W + m-1) // m
+    nH, nW = (H + m - 1) // m, (W + m - 1) // m
     P = N * nH * nW
 
     # transform kernel
     if not pre_computed:
-        r_kh = te.reduce_axis((0, KH), name='r_kh')
-        r_kw = te.reduce_axis((0, KW), name='r_kw')
-        kernel_pack = te.compute((alpha, alpha, CI, CO), lambda eps, nu, ci, co:
-                                 te.sum(kernel[co][ci][r_kh][r_kw] *
-                                        G[eps][r_kh] * G[nu][r_kw],
-                                        axis=[r_kh, r_kw]), name='kernel_pack')
+        r_kh = te.reduce_axis((0, KH), name="r_kh")
+        r_kw = te.reduce_axis((0, KW), name="r_kw")
+        kernel_pack = te.compute(
+            (alpha, alpha, CI, CO),
+            lambda eps, nu, ci, co: te.sum(
+                kernel[co][ci][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]
+            ),
+            name="kernel_pack",
+        )
     else:
         kernel_pack = kernel
 
     idxdiv = tvm.tir.indexdiv
     idxmod = tvm.tir.indexmod
     # pack input tile
-    input_tile = te.compute((CI, P, alpha, alpha), lambda c, p, eps, nu:
-                            data_pad[idxdiv(p, (nH * nW))][c][idxmod(idxdiv(p, nW), nH) * m + eps]
-                            [idxmod(p, nW) * m + nu], name='d')
+    input_tile = te.compute(
+        (CI, P, alpha, alpha),
+        lambda c, p, eps, nu: data_pad[idxdiv(p, (nH * nW))][c][
+            idxmod(idxdiv(p, nW), nH) * m + eps
+        ][idxmod(p, nW) * m + nu],
+        name="d",
+    )
 
     # transform data
-    r_a = te.reduce_axis((0, alpha), 'r_a')
-    r_b = te.reduce_axis((0, alpha), 'r_a')
-    data_pack = te.compute((alpha, alpha, CI, P), lambda eps, nu, ci, p:
-                           te.sum(input_tile[ci][p][r_a][r_b] * B[r_a][eps] * B[r_b][nu],
-                                  axis=[r_a, r_b]), name='data_pack')
+    r_a = te.reduce_axis((0, alpha), "r_a")
+    r_b = te.reduce_axis((0, alpha), "r_a")
+    data_pack = te.compute(
+        (alpha, alpha, CI, P),
+        lambda eps, nu, ci, p: te.sum(
+            input_tile[ci][p][r_a][r_b] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]
+        ),
+        name="data_pack",
+    )
 
     # do batch gemm
-    ci = te.reduce_axis((0, CI), name='ci')
-    bgemm = te.compute((alpha, alpha, CO, P), lambda eps, nu, co, p:
-                       te.sum(kernel_pack[eps][nu][ci][co] *
-                              data_pack[eps][nu][ci][p],
-                              axis=[ci]), name='bgemm')
+    ci = te.reduce_axis((0, CI), name="ci")
+    bgemm = te.compute(
+        (alpha, alpha, CO, P),
+        lambda eps, nu, co, p: te.sum(
+            kernel_pack[eps][nu][ci][co] * data_pack[eps][nu][ci][p], axis=[ci]
+        ),
+        name="bgemm",
+    )
 
     # inverse transform
-    r_a = te.reduce_axis((0, alpha), 'r_a')
-    r_b = te.reduce_axis((0, alpha), 'r_a')
-    inverse = te.compute((CO, P, m, m), lambda co, p, vh, vw:
-                         te.sum(bgemm[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw],
-                                axis=[r_a, r_b]), name='inverse')
+    r_a = te.reduce_axis((0, alpha), "r_a")
+    r_b = te.reduce_axis((0, alpha), "r_a")
+    inverse = te.compute(
+        (CO, P, m, m),
+        lambda co, p, vh, vw: te.sum(
+            bgemm[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
+        ),
+        name="inverse",
+    )
 
     # output
-    output = te.compute((N, CO, H, W), lambda n, co, h, w:
-                        inverse[co,
-                                n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
-                                idxmod(h, m),
-                                idxmod(w, m)],
-                        name='output', tag='conv2d_nchw_winograd')
+    output = te.compute(
+        (N, CO, H, W),
+        lambda n, co, h, w: inverse[
+            co, n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m), idxmod(h, m), idxmod(w, m)
+        ],
+        name="output",
+        tag="conv2d_nchw_winograd",
+    )
     cfg.add_flop(2 * N * CO * H * W * CI * KH * KW)
 
     return output
@@ -137,7 +158,7 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     # data transform
     s[B].compute_inline()
 
-    data_l = s.cache_write(data_pack, 'local')
+    data_l = s.cache_write(data_pack, "local")
     eps, nu, c, p = s[data_l].op.axis
     r_a, r_b = s[data_l].op.reduce_axis
     for axis in [eps, nu, r_a, r_b]:
@@ -162,8 +183,8 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
         if autotvm.GLOBAL_SCOPE.in_tuning:
             # skip this part during tuning to make recrods accurate
             # this part will be pre-computed during pre-compute optimization pass
-            s[G].pragma(s[G].op.axis[0], 'debug_skip_region')
-            s[kernel_pack].pragma(eps, 'debug_skip_region')
+            s[G].pragma(s[G].op.axis[0], "debug_skip_region")
+            s[kernel_pack].pragma(eps, "debug_skip_region")
         else:
             s[G].compute_inline()
             r_a, r_b = s[kernel_pack].op.reduce_axis
@@ -186,14 +207,15 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     rc = s[bgemm].op.reduce_axis[0]
     alpha = get_const_int(b1.dom.extent)
 
-    cfg.define_split("tile_b", cfg.axis(alpha * alpha), num_outputs=4,
-                     filter=lambda x: x.size[-3:] == [1, 1, 1])
+    cfg.define_split(
+        "tile_b", cfg.axis(alpha * alpha), num_outputs=4, filter=lambda x: x.size[-3:] == [1, 1, 1]
+    )
     cfg.define_split("tile_y", y, num_outputs=4)
     cfg.define_split("tile_x", x, num_outputs=4)
     cfg.define_split("tile_rc", rc, num_outputs=2)
     cfg.define_knob("auto_unroll_max_step", [0, 128, 1500])
     target = tvm.target.Target.current()
-    if target.kind.name in ['nvptx', 'rocm']:
+    if target.kind.name in ["nvptx", "rocm"]:
         cfg.define_knob("unroll_explicit", [1])
     else:
         cfg.define_knob("unroll_explicit", [0, 1])
@@ -203,9 +225,9 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     C = bgemm
     A0, B0 = kernel_pack, data_pack
 
-    OL = s.cache_write(C, 'local')
-    AA = s.cache_read(A0, 'shared', [OL])
-    BB = s.cache_read(B0, 'shared', [OL])
+    OL = s.cache_write(C, "local")
+    AA = s.cache_read(A0, "shared", [OL])
+    BB = s.cache_read(B0, "shared", [OL])
 
     b = s[bgemm].fuse(b1, b2)
 
@@ -229,8 +251,8 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     s[OL].compute_at(s[C], tx)
     b1, b2, y, x = s[OL].op.axis
     b = s[OL].fuse(b1, b2)
-    rc, = s[OL].op.reduce_axis
-    rco, rci = cfg['tile_rc'].apply(s, OL, rc)
+    (rc,) = s[OL].op.reduce_axis
+    rco, rci = cfg["tile_rc"].apply(s, OL, rc)
     s[OL].reorder(rco, rci, b, y, x)
 
     s[AA].compute_at(s[OL], rco)
@@ -246,15 +268,15 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
         s[load].bind(ty, te.thread_axis("threadIdx.y"))
         s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
-    s[C].pragma(bgemm_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
-    s[C].pragma(bgemm_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
+    s[C].pragma(bgemm_scope, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+    s[C].pragma(bgemm_scope, "unroll_explicit", cfg["unroll_explicit"].val)
 
     # schedule inverse, output and fusion
     if output.op in s.outputs:
         OL = None
     else:
         OL = output
-        s[OL].set_scope('local')
+        s[OL].set_scope("local")
         output = s.outputs[0]
 
     m = alpha - 3 + 1
@@ -280,17 +302,20 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
 
     return s
 
+
 @autotvm.register_topi_compute("conv2d_nchw_winograd.cuda")
 def conv2d_nchw_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    return winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
-                         pre_computed=False)
+    return winograd_cuda(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed=False
+    )
+
 
 @autotvm.register_topi_schedule("conv2d_nchw_winograd.cuda")
 def schedule_conv2d_nchw_winograd(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if 'conv2d_nchw_winograd' in op.tag:
+        if "conv2d_nchw_winograd" in op.tag:
             schedule_winograd_cuda(cfg, s, op.output(0), pre_computed=False)
 
     traverse_inline(s, outs[0].op, _callback)
@@ -298,10 +323,12 @@ def schedule_conv2d_nchw_winograd(cfg, outs):
 
 
 @autotvm.register_topi_compute("conv2d_nchw_winograd_without_weight_transform.cuda")
-def conv2d_nchw_winograd_without_weight_transform(cfg, data, kernel, strides,
-                                                  padding, dilation, out_dtype):
-    return winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
-                         pre_computed=True)
+def conv2d_nchw_winograd_without_weight_transform(
+    cfg, data, kernel, strides, padding, dilation, out_dtype
+):
+    return winograd_cuda(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed=True
+    )
 
 
 @autotvm.register_topi_schedule("conv2d_nchw_winograd_without_weight_transform.cuda")
@@ -310,7 +337,7 @@ def schedule_conv2d_nchw_winograd_without_weight_transform(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if 'conv2d_nchw_winograd' in op.tag:
+        if "conv2d_nchw_winograd" in op.tag:
             schedule_winograd_cuda(cfg, s, op.output(0), pre_computed=True)
 
     traverse_inline(s, outs[0].op, _callback)

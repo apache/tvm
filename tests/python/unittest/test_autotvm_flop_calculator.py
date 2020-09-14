@@ -22,10 +22,12 @@ import numpy as np
 
 from tvm.autotvm.task.task import compute_flop
 
+
 def random_dtypes():
     """Return pair of (input, accumulator) dtypes"""
     candidates = [("float32", "float32"), ("float16", "float32"), ("int8", "int32")]
     return candidates[np.random.choice(len(candidates))]
+
 
 def test_conv():
     for i in range(5):
@@ -44,13 +46,18 @@ def test_conv():
         OH = (H - KH) + 1
         OW = (W - KW) + 1
 
-        C = te.compute((N, CO, OH, OW), lambda n, co, h, w:
-        te.sum(D[n][ci][h][w].astype(acc_dtype) * K[co][ci][h][w].astype(acc_dtype),
-                axis=[ci, kh, kw]))
+        C = te.compute(
+            (N, CO, OH, OW),
+            lambda n, co, h, w: te.sum(
+                D[n][ci][h][w].astype(acc_dtype) * K[co][ci][h][w].astype(acc_dtype),
+                axis=[ci, kh, kw],
+            ),
+        )
 
         s = te.create_schedule([C.op])
 
         assert compute_flop(s) == 2 * N * CO * OH * OW * CI * KH * KW
+
 
 def test_pack_gemm():
     for i in range(5):
@@ -66,12 +73,19 @@ def test_pack_gemm():
 
         A_pack = te.compute((N // bn, L, bn), lambda i, j, k: A[i * bn + k][j])
         B_pack = te.compute((M // bn, L, bn), lambda i, j, k: B[i * bn + k][j])
-        C_pack = te.compute((N // bn, M // bn, bn, bn), lambda i, j, ii, jj:
-        te.sum(A_pack[i, k, ii].astype(acc_dtype) * B_pack[j, k, jj].astype(acc_dtype), axis=[k]))
-        C = te.compute((N, M), lambda i, j: C_pack[idxd(i, bn)][idxd(j, bn)][idxm(i, bn)][idxm(j, bn)])
+        C_pack = te.compute(
+            (N // bn, M // bn, bn, bn),
+            lambda i, j, ii, jj: te.sum(
+                A_pack[i, k, ii].astype(acc_dtype) * B_pack[j, k, jj].astype(acc_dtype), axis=[k]
+            ),
+        )
+        C = te.compute(
+            (N, M), lambda i, j: C_pack[idxd(i, bn)][idxd(j, bn)][idxm(i, bn)][idxm(j, bn)]
+        )
 
         s = te.create_schedule([C.op])
         assert compute_flop(s) == 2 * N * L * M
+
 
 def test_outer_dot():
     for i in range(5):
@@ -84,6 +98,7 @@ def test_outer_dot():
 
         s = te.create_schedule([C.op])
         assert compute_flop(s) == N * M
+
 
 def test_max_pool():
     for i in range(5):
@@ -101,12 +116,13 @@ def test_max_pool():
         OW = (W - KW) + 1
 
         C = te.compute(
-            (N, CO, OH, OW),
-            lambda n, co, h, w: tvm.te.max(D[n][co][h + kh][w + kw], axis=[kh, kw]))
+            (N, CO, OH, OW), lambda n, co, h, w: tvm.te.max(D[n][co][h + kh][w + kw], axis=[kh, kw])
+        )
 
         s = te.create_schedule([C.op])
 
         assert compute_flop(s) == N * CO * OH * OW * KH * KW
+
 
 def test_average_pool():
     for i in range(5):
@@ -123,15 +139,17 @@ def test_average_pool():
         OH = (H - KH) + 1
         OW = (W - KW) + 1
 
-
         C = te.compute(
             (N, CO, OH, OW),
             lambda n, co, h, w: te.sum(
-                te.div(D[n][co][h + kh][w + kw].astype(acc_dtype), (KW * KH)), axis=[kh, kw]))
+                te.div(D[n][co][h + kh][w + kw].astype(acc_dtype), (KW * KH)), axis=[kh, kw]
+            ),
+        )
 
         s = te.create_schedule([C.op])
 
         assert compute_flop(s) == 2 * N * CO * OH * OW * KH * KW
+
 
 def test_move():
     """No float number operation in simple move. So the estimator should raise an error """
@@ -147,7 +165,8 @@ def test_move():
     except RuntimeError:
         pass
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test_conv()
     test_pack_gemm()
     test_outer_dot()

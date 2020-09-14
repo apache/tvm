@@ -28,20 +28,25 @@ import tvm.testing
 
 _dense_implement = {
     "generic": [(topi.nn.dense, topi.generic.schedule_dense)],
-    "cpu": [(topi.x86.dense_nopack, topi.x86.schedule_dense_nopack),
-            (topi.x86.dense_pack, topi.x86.schedule_dense_pack)],
-    "gpu": [(topi.cuda.dense_small_batch, topi.cuda.schedule_dense_small_batch),
-            (topi.cuda.dense_large_batch, topi.cuda.schedule_dense_large_batch)],
+    "cpu": [
+        (topi.x86.dense_nopack, topi.x86.schedule_dense_nopack),
+        (topi.x86.dense_pack, topi.x86.schedule_dense_pack),
+    ],
+    "gpu": [
+        (topi.cuda.dense_small_batch, topi.cuda.schedule_dense_small_batch),
+        (topi.cuda.dense_large_batch, topi.cuda.schedule_dense_large_batch),
+    ],
     "mali": [(topi.mali.dense, topi.mali.schedule_dense)],
     "bifrost": [(topi.bifrost.dense, topi.bifrost.schedule_dense)],
     "rocm": [(topi.rocm.dense, topi.rocm.schedule_dense)],
     "hls": [(topi.nn.dense, topi.hls.schedule_dense)],
 }
 
+
 def verify_dense(batch, in_dim, out_dim, use_bias=True):
-    A = te.placeholder((batch, in_dim), name='A')
-    B = te.placeholder((out_dim, in_dim), name='B')
-    C = te.placeholder((out_dim,), name='C')
+    A = te.placeholder((batch, in_dim), name="A")
+    B = te.placeholder((out_dim, in_dim), name="B")
+    C = te.placeholder((out_dim,), name="C")
     dtype = A.dtype
 
     # use memoize to pickle the test data for next time use
@@ -55,6 +60,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
         else:
             d_np = np.maximum(np.dot(a_np, b_np.T), 0.0)
         return (a_np, b_np, c_np, d_np)
+
     # get the test data
     a_np, b_np, c_np, d_np = get_ref_data()
 
@@ -78,11 +84,11 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
 
 
 def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
-    dtype = 'int8'
-    out_dtype = 'int32'
-    A = te.placeholder((batch, in_dim), name='A', dtype=dtype)
-    B = te.placeholder((out_dim, in_dim), name='B', dtype=dtype)
-    C = te.placeholder((out_dim,), name='C', dtype=out_dtype)
+    dtype = "int8"
+    out_dtype = "int32"
+    A = te.placeholder((batch, in_dim), name="A", dtype=dtype)
+    B = te.placeholder((out_dim, in_dim), name="B", dtype=dtype)
+    C = te.placeholder((out_dim,), name="C", dtype=out_dtype)
 
     # use memoize to pickle the test data for next time use
     @memoize("topi.tests.test_topi_dense_int8")
@@ -118,7 +124,7 @@ def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
         f(a, b, c, d)
         tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)
 
-    for device in ['cuda']:
+    for device in ["cuda"]:
         check_device(device)
 
 

@@ -25,10 +25,8 @@ from .. import nn
 from ..util import get_const_tuple, traverse_inline
 
 
-
 @autotvm.register_topi_compute("conv2d_transpose_nchw.cuda")
-def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype,
-                          output_padding):
+def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype, output_padding):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -60,53 +58,65 @@ def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype,
     assert outpad_height < stride_height and outpad_width < stride_width
     cfg.stride = stride
     pad_top, pad_left, pad_bottom, pad_right = nn.get_pad_tuple(
-        padding, (kernel_height, kernel_width))
+        padding, (kernel_height, kernel_width)
+    )
 
-    out_width = (inp_width - 1) * stride_width + \
-        kernel_width - pad_left - pad_right + outpad_width
+    out_width = (inp_width - 1) * stride_width + kernel_width - pad_left - pad_right + outpad_width
     pad_left = kernel_width - 1 - pad_left
     pad_right = kernel_width - 1 - pad_right + outpad_width
     dilated_width = stride_width * (inp_width - 1) + 1
 
-    out_height = (inp_height - 1) * stride_height + \
-        kernel_height - pad_top - pad_bottom + outpad_height
+    out_height = (
+        (inp_height - 1) * stride_height + kernel_height - pad_top - pad_bottom + outpad_height
+    )
     pad_top = kernel_height - 1 - pad_top
     pad_bottom = kernel_height - 1 - pad_bottom + outpad_height
     dilated_height = stride_height * (inp_height - 1) + 1
 
     # compute pad
     data = te.compute(
-        (batch, inp_channels,
-         pad_top + dilated_height + pad_bottom,
-         pad_left + dilated_width + pad_right),
+        (
+            batch,
+            inp_channels,
+            pad_top + dilated_height + pad_bottom,
+            pad_left + dilated_width + pad_right,
+        ),
         lambda n, c, y, x: tvm.tir.if_then_else(
-            tvm.tir.all(x >= pad_left,
-                        x < pad_left + dilated_width,
-                        tvm.tir.indexmod(x - pad_left, stride_width).equal(0),
-                        y >= pad_top,
-                        y < pad_top + dilated_height,
-                        tvm.tir.indexmod(y - pad_top, stride_height).equal(0)),
-            data[n, c,
-                 tvm.tir.indexdiv(y - pad_top, stride_height),
-                 tvm.tir.indexdiv(x - pad_left, stride_width)],
-            tvm.tir.const(0., "float32")),
-        name='data_pad')
+            tvm.tir.all(
+                x >= pad_left,
+                x < pad_left + dilated_width,
+                tvm.tir.indexmod(x - pad_left, stride_width).equal(0),
+                y >= pad_top,
+                y < pad_top + dilated_height,
+                tvm.tir.indexmod(y - pad_top, stride_height).equal(0),
+            ),
+            data[
+                n,
+                c,
+                tvm.tir.indexdiv(y - pad_top, stride_height),
+                tvm.tir.indexdiv(x - pad_left, stride_width),
+            ],
+            tvm.tir.const(0.0, "float32"),
+        ),
+        name="data_pad",
+    )
 
     # compute transposed conv
-    dc = te.reduce_axis((0, inp_channels), name='dc')
-    dh = te.reduce_axis((0, kernel_height), name='dh')
-    dw = te.reduce_axis((0, kernel_width), name='dw')
+    dc = te.reduce_axis((0, inp_channels), name="dc")
+    dh = te.reduce_axis((0, kernel_height), name="dh")
+    dw = te.reduce_axis((0, kernel_width), name="dw")
     data_out = te.compute(
         (batch, out_channels, out_height, out_width),
         lambda b, c, h, w: te.sum(
-            data[b, dc, h + dh, w + dw].astype(out_dtype) *
-            kernel[dc,
-                   c,
-                   kernel_height - 1 - dh,
-                   kernel_width - 1 - dw].astype(out_dtype),
-            axis=[dc, dh, dw]), tag="conv2d_transpose_nchw")
+            data[b, dc, h + dh, w + dw].astype(out_dtype)
+            * kernel[dc, c, kernel_height - 1 - dh, kernel_width - 1 - dw].astype(out_dtype),
+            axis=[dc, dh, dw],
+        ),
+        tag="conv2d_transpose_nchw",
+    )
 
     return data_out
+
 
 @autotvm.register_topi_schedule("conv2d_transpose_nchw.cuda")
 def schedule_conv2d_transpose_nchw(cfg, outs):
@@ -161,7 +171,7 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
         cfg["auto_unroll_max_step"] = OtherOptionEntity(1500)
 
     def _callback(op):
-        if op.tag == 'conv2d_transpose_nchw':
+        if op.tag == "conv2d_transpose_nchw":
             pad_data = op.input_tensors[0]
             kernel = op.input_tensors[1]
             conv = op.output(0)
@@ -177,7 +187,7 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
             cfg.define_knob("auto_unroll_max_step", [64, 512, 1500])
 
             target = tvm.target.Target.current()
-            if target.kind.name in ['nvptx', 'rocm']:
+            if target.kind.name in ["nvptx", "rocm"]:
                 cfg.define_knob("unroll_explicit", [1])
             else:
                 cfg.define_knob("unroll_explicit", [0, 1])
@@ -188,21 +198,21 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
 
             ##### space definition end #####
 
-            if isinstance(kernel.op, tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
+            if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
             if conv.op in s.outputs:
                 output = conv
-                OL = s.cache_write(conv, 'local')
+                OL = s.cache_write(conv, "local")
             else:
                 output = s.outputs[0].output(0)
-                s[conv].set_scope('local')
+                s[conv].set_scope("local")
                 OL = conv
 
             # create cache stage
-            s[pad_data].set_scope('shared')
+            s[pad_data].set_scope("shared")
             AA = pad_data
-            WW = s.cache_read(kernel, 'shared', [OL])
+            WW = s.cache_read(kernel, "shared", [OL])
 
             # tile and bind spatial axes
             n, f, y, x = s[output].op.axis
@@ -221,7 +231,7 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
             s[output].bind(vy, te.thread_axis("vthread"))
             s[output].bind(vx, te.thread_axis("vthread"))
 
-            cfg.define_knob("fuse_yx", [0, 1]) # fuse ty,tx or tn,tf
+            cfg.define_knob("fuse_yx", [0, 1])  # fuse ty,tx or tn,tf
 
             if cfg["fuse_yx"].val:
                 s[output].bind(tn, te.thread_axis("threadIdx.z"))
@@ -248,7 +258,7 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
             # tile reduction axes
             n, f, y, x = s[OL].op.axis
             rc, ry, rx = s[OL].op.reduce_axis
-            rco, rcm, rci = cfg['tile_rc'].apply(s, OL, rc)
+            rco, rcm, rci = cfg["tile_rc"].apply(s, OL, rc)
             s[OL].reorder(rco, rcm, ry, rx, rci, n, f, y, x)
 
             s[AA].compute_at(s[OL], rx)
@@ -265,8 +275,8 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
                 s[load].bind(ty, te.thread_axis("threadIdx.y"))
                 s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
-            s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
-            s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
+            s[output].pragma(kernel_scope, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+            s[output].pragma(kernel_scope, "unroll_explicit", cfg["unroll_explicit"].val)
 
     traverse_inline(s, outs[0].op, _callback)
 
