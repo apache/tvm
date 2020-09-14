@@ -121,6 +121,7 @@ def verify_with_ort_with_inputs(
     targets=None,
     use_vm=False,
     opset=None,
+    freeze_params=False,
     dtype="float32",
     rtol=1e-5,
     atol=1e-5,
@@ -141,7 +142,9 @@ def verify_with_ort_with_inputs(
         ctx = tvm.context(target, 0)
 
         if use_vm:
-            tvm_out = get_tvm_output_with_vm(model, inputs, target, ctx, opset=opset)
+            tvm_out = get_tvm_output_with_vm(
+                model, inputs, target, ctx, opset=opset, freeze_params=freeze_params
+            )
         else:
             tvm_out = get_tvm_output(model, inputs, target, ctx, out_shape, dtype, opset=opset)
 
@@ -155,6 +158,7 @@ def verify_with_ort(
     targets=None,
     use_vm=False,
     opset=None,
+    freeze_params=False,
     dtype="float32",
     rtol=1e-5,
     atol=1e-5,
@@ -167,6 +171,7 @@ def verify_with_ort(
         targets=targets,
         use_vm=use_vm,
         opset=opset,
+        freeze_params=freeze_params,
         dtype=dtype,
         rtol=rtol,
         atol=atol,
@@ -2352,7 +2357,6 @@ def test_batch_norm_dynamic_subgraph():
         inshapes = [in_shape, o_shape, in_shape[1], in_shape[1], in_shape[1], in_shape[1]]
         verify_with_ort(model, inshapes, in_shape, use_vm=True)
 
-
     verify_batch_norm_dynamic_subgraph([16, 16, 10, 10], [160, 160])
 
 
@@ -3246,8 +3250,7 @@ def test_resize():
 
         model = helper.make_model(graph, producer_name="resize_test")
 
-        verify_with_ort(model, [ishape], oshape, use_vm=True, opset=11)
-
+        verify_with_ort(model, [ishape], oshape, use_vm=True, opset=11, freeze_params=True)
 
     # upsampling
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")

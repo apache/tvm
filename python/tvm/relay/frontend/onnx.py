@@ -2247,7 +2247,7 @@ class GraphProto:
         # now return the outputs
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-        ## Maintain the order of inputs and parametersfrom the ONNX graph, but only include
+        ## Maintain the order of inputs and parameters from the ONNX graph, but only include
         ## those parameters that are needed to execute the relay graph
         free_vars = analysis.free_vars(outputs)
         nodes = {v: k for k, v in self._nodes.items()}
