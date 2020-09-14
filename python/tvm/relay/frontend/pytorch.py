@@ -2189,7 +2189,8 @@ def _roi_align(prelude):
         aligned = False if len(inputs) < 7 else inputs[6]
 
         if aligned:
-            data -= _expr.const(0.5)
+            # boxes[:,1:] -= 0.5/spatial_scale
+            boxes-=_expr.const([0]+[0.5/spatial_scale]*4)
 
         return _op.vision.roi_align(data, boxes, output_size, spatial_scale, sample_ratio)
     return _impl
