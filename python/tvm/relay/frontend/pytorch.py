@@ -185,7 +185,7 @@ def _arange():
             # dtype is a tvm dtype
             if isinstance(val, _expr.Expr):
                 try:
-                    ret = _infer_value(val, {}).asnumpy()
+                    ret = _infer_value(_op.cast(val, dtype), {}).asnumpy()
                     ret = _expr.const(ret, dtype)
                 except Exception:
                     ret = _op.cast(val, dtype)
@@ -211,9 +211,14 @@ def _arange():
                 dtype = "float32"
             else:
                 dtype = "int64"
-            start = _get_value(0, dtype)
-            stop = _get_value(inputs[0], dtype)
-            step = _get_value(1, dtype)
+            if inputs[1] is not None:
+                start = _get_value(inputs[0], dtype)
+                stop = _get_value(inputs[1], dtype)
+                step = _get_value(inputs[2], dtype)
+            else:
+                start = _expr.const(0, dtype)
+                stop = _get_value(inputs[0], dtype)
+                step = _expr.const(1, dtype)
         elif len(inputs) == 7:
             types = [_get_type(inputs[i], input_types[i]) for i in range(3)]
             if inputs[3] is not None:
@@ -222,9 +227,14 @@ def _arange():
                 dtype = "float32"
             else:
                 dtype = "int64"
-            start = _get_value(inputs[0], dtype)
-            stop = _get_value(inputs[1], dtype)
-            step = _get_value(inputs[2], dtype)
+            if inputs[1] is not None:
+                start = _get_value(inputs[0], dtype)
+                stop = _get_value(inputs[1], dtype)
+                step = _get_value(inputs[2], dtype)
+            else:
+                start = _expr.const(0, dtype)
+                stop = _get_value(inputs[0], dtype)
+                step = _expr.const(1, dtype)
         else:
             msg = "Unknown number of arguments (%d) to parse." % (len(inputs))
             raise AssertionError(msg)
@@ -360,7 +370,7 @@ def _slice():
                     end = _op.scatter(end, _op.expand_dims(_expr.const(dim), axis=0),
                                       _op.expand_dims(target_end, axis=0), axis=0)
         else:
-            end = _op.shape_of(data)
+            end = _op.cast(_op.shape_of(data), axis_dtype)
             if not isinstance(target_end, tvm.tir.Any):
                 ttype = _infer_type(target_end).checked_type.dtype
                 if str(ttype) != axis_dtype:
@@ -2189,8 +2199,7 @@ def _roi_align(prelude):
         aligned = False if len(inputs) < 7 else inputs[6]
 
         if aligned:
-            # boxes[:,1:] -= 0.5/spatial_scale
-            boxes-=_expr.const([0]+[0.5/spatial_scale]*4)
+            boxes -= _expr.const(0.5 / spatial_scale)
 
         return _op.vision.roi_align(data, boxes, output_size, spatial_scale, sample_ratio)
     return _impl
