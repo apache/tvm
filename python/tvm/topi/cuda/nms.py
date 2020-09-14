@@ -194,7 +194,6 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     return [valid_count, out, out_indices]
 
 
-<<<<<<< HEAD
 def rearrange_indices_out_ir(data, output, valid_box_count):
     """Low level IR to get rearrange_indices_out.
     Parameters
@@ -277,10 +276,6 @@ def rearrange_indices_out(data):
     return [output, valid_box_count]
 
 
-def nms_ir(data, sorted_index, valid_count, out, box_indices,
-           max_output_size, iou_threshold, force_suppress,
-           top_k, coord_start, id_index, score_index):
-=======
 def nms_ir(
     data,
     sorted_index,
@@ -295,7 +290,6 @@ def nms_ir(
     id_index,
     score_index,
 ):
->>>>>>> upstream/master
     """Low level IR routing for transform location in multibox_detection operator.
 
     Parameters
