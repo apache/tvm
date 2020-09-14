@@ -66,6 +66,26 @@ std::string GenerateUntarCommand(const std::string& tar_file, const std::string&
 
 namespace tvm {
 namespace runtime {
+
+/*!
+ * \brief CleanDir Removes the files from the directory
+ * \param dirname THe name of the directory
+ */
+void CleanDir(const std::string& dirname);
+
+/*!
+ * \brief buld a shared library if necessary
+ *
+ *        This function will automatically call
+ *        cc.create_shared if the path is in format .o or .tar
+ *        High level handling for .o and .tar file.
+ *        We support this to be consistent with RPC module load.
+ * \param file_in The input file path.
+ *
+ * \return The name of the shared library.
+ */
+std::string BuildSharedLibrary(std::string file_in);
+
 RPCEnv::RPCEnv() {
 #ifndef _WIN32
   char cwd[PATH_MAX];
@@ -79,17 +99,29 @@ RPCEnv::RPCEnv() {
 #endif
 
   mkdir(base_.c_str(), 0777);
-  TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath").set_body([](TVMArgs args, TVMRetValue* rv) {
-    static RPCEnv env;
-    *rv = env.GetPath(args[0]);
+  TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath").set_body([this](TVMArgs args, TVMRetValue* rv) {
+    *rv = this->GetPath(args[0]);
   });
 
-  TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module").set_body([](TVMArgs args, TVMRetValue* rv) {
-    static RPCEnv env;
-    std::string file_name = env.GetPath(args[0]);
-    *rv = Load(&file_name, "");
+  TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module").set_body([this](TVMArgs args, TVMRetValue* rv) {
+    std::string file_name = this->GetPath(args[0]);
+    file_name = BuildSharedLibrary(file_name);
+    *rv = Module::LoadFromFile(file_name, "");
     LOG(INFO) << "Load module from " << file_name << " ...";
   });
+
+  TVM_REGISTER_GLOBAL("tvm.rpc.server.download_linked_module")
+      .set_body([this](TVMArgs args, TVMRetValue* rv) {
+        std::string file_name = this->GetPath(args[0]);
+        file_name = BuildSharedLibrary(file_name);
+        std::string bin;
+        LoadBinaryFromFile(file_name, &bin);
+        TVMByteArray binarr;
+        binarr.data = bin.data();
+        binarr.size = bin.length();
+        *rv = binarr;
+        LOG(INFO) << "Send linked module " << file_name << " to client";
+      });
 }
 /*!
  * \brief GetPath To get the work path from packed function
@@ -200,7 +232,7 @@ void LinuxShared(const std::string output, const std::vector<std::string>& files
 void WindowsShared(const std::string& output, const std::vector<std::string>& files,
                    const std::string& options = "", const std::string& cc = "clang") {
   std::string cmd = cc;
-  cmd += " -O2 -flto=full -fuse-ld=lld-link -Wl,/EXPORT:__tvm_main__ -shared ";
+  cmd += " -O2 -flto=full -fuse-ld=lld-link -shared ";
   cmd += " -o " + output;
   for (const auto& file : files) {
     cmd += " " + file;
@@ -229,27 +261,14 @@ void CreateShared(const std::string& output, const std::vector<std::string>& fil
 #endif
 }
 
-/*!
- * \brief Load Load module from file
-          This function will automatically call
-          cc.create_shared if the path is in format .o or .tar
-          High level handling for .o and .tar file.
-          We support this to be consistent with RPC module load.
- * \param fileIn The input file, file name will be updated
- * \param fmt The format of file
- * \return Module The loaded module
- */
-Module Load(std::string* fileIn, const std::string& fmt) {
-  const std::string& file = *fileIn;
+std::string BuildSharedLibrary(std::string file) {
   if (support::EndsWith(file, ".so") || support::EndsWith(file, ".dll")) {
-    return Module::LoadFromFile(file, fmt);
+    return file;
   }
 
   std::string file_name = file + ".so";
   if (support::EndsWith(file, ".o")) {
-    std::vector<std::string> files;
-    files.push_back(file);
-    CreateShared(file_name, files);
+    CreateShared(file_name, {file});
   } else if (support::EndsWith(file, ".tar")) {
     const std::string tmp_dir = "./rpc/tmp/";
     mkdir(tmp_dir.c_str(), 0777);
@@ -267,8 +286,7 @@ Module Load(std::string* fileIn, const std::string& fmt) {
   } else {
     file_name = file;
   }
-  *fileIn = file_name;
-  return Module::LoadFromFile(file_name, fmt);
+  return file_name;
 }
 
 /*!

@@ -159,20 +159,23 @@ def test_rpc_echo():
     check(rpc.LocalSession())
 
     check(client)
-    # Test minrpc server.
-    temp = util.tempdir()
-    minrpc_exec = temp.relpath("minrpc")
-    tvm.rpc.with_minrpc(cc.create_executable)(minrpc_exec, [])
-    check(rpc.PopenSession(minrpc_exec))
-    # minrpc on the remote
-    server = rpc.Server("localhost")
-    client = rpc.connect(
-        server.host,
-        server.port,
-        session_constructor_args=["rpc.PopenSession", open(minrpc_exec, "rb").read()],
-    )
-    check(client)
-
+    def check_minrpc():
+        if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
+            return
+        # Test minrpc server.
+        temp = util.tempdir()
+        minrpc_exec = temp.relpath("minrpc")
+        tvm.rpc.with_minrpc(cc.create_executable)(minrpc_exec, [])
+        check(rpc.PopenSession(minrpc_exec))
+        # minrpc on the remote
+        server = rpc.Server("localhost")
+        client = rpc.connect(
+            server.host,
+            server.port,
+            session_constructor_args=["rpc.PopenSession", open(minrpc_exec, "rb").read()],
+        )
+        check(client)
+    check_minrpc()
 
 def test_rpc_file_exchange():
     if not tvm.runtime.enabled("rpc"):
@@ -220,8 +223,21 @@ def test_rpc_remote_module():
         print("%g secs/op" % cost)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
+        # Download the file from the remote
+        path_tar = temp.relpath("dev_lib.tar")
+        f.export_library(path_tar)
+        remote.upload(path_tar)
+        local_download_path = temp.relpath("dev_lib.download.so")
+        with open(local_download_path, "wb") as fo:
+            fo.write(remote.download_linked_module("dev_lib.tar"))
+        fupdated = tvm.runtime.load_module(local_download_path)
+        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), tvm.cpu(0))
+        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), tvm.cpu(0))
+        fupdated(a, b)
+        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+
     def check_minrpc():
-        if tvm.get_global_func("rpc.PopenSession", allow_missing=True) is None:
+        if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
             return
         # export to minrpc
         temp = util.tempdir()

@@ -67,9 +67,11 @@ void Verify(tvm::runtime::Module mod, std::string fname) {
     CHECK_EQ(static_cast<float*>(y->data)[i], i + 1.0f);
   }
   LOG(INFO) << "Finish verification...";
+  TVMArrayFree(x);
+  TVMArrayFree(y);
 }
 
-int main(void) {
+void DeploySingleOp() {
   // Normally we can directly
   tvm::runtime::Module mod_dylib = tvm::runtime::Module::LoadFromFile("lib/test_addone_dll.so");
   LOG(INFO) << "Verify dynamic loading from test_addone_dll.so";
@@ -79,5 +81,44 @@ int main(void) {
   LOG(INFO) << "Verify load function from system lib";
   tvm::runtime::Module mod_syslib = (*tvm::runtime::Registry::Get("runtime.SystemLib"))();
   Verify(mod_syslib, "addonesys");
+}
+
+void DeployGraphRuntime() {
+  LOG(INFO) << "Running graph runtime...";
+  // load in the library
+  DLContext ctx{kDLCPU, 0};
+  tvm::runtime::Module mod_factory = tvm::runtime::Module::LoadFromFile("lib/test_relay_add.so");
+  // create the graph runtime module
+  tvm::runtime::Module gmod = mod_factory.GetFunction("default")(ctx);
+  tvm::runtime::PackedFunc set_input = gmod.GetFunction("set_input");
+  tvm::runtime::PackedFunc get_output = gmod.GetFunction("get_output");
+  tvm::runtime::PackedFunc run = gmod.GetFunction("run");
+
+  // Use the C++ API
+  tvm::runtime::NDArray x = tvm::runtime::NDArray::Empty({2, 2}, DLDataType{kDLFloat, 32, 1}, ctx);
+  tvm::runtime::NDArray y = tvm::runtime::NDArray::Empty({2, 2}, DLDataType{kDLFloat, 32, 1}, ctx);
+
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 2; ++j) {
+      static_cast<float*>(x->data)[i * 2 + j] = i * 2 + j;
+    }
+  }
+  // set the right input
+  set_input("x", x);
+  // run the code
+  run();
+  // get the output
+  get_output(0, y);
+
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 2; ++j) {
+      CHECK_EQ(static_cast<float*>(y->data)[i * 2 + j], i * 2 + j + 1);
+    }
+  }
+}
+
+int main(void) {
+  DeploySingleOp();
+  DeployGraphRuntime();
   return 0;
 }

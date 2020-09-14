@@ -67,12 +67,14 @@ We do encourage everyone to work anything they are interested in.
 - [Jian Weng](https://github.com/were): @were: - hybrid script
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene - runtime, topi, frontends
 - [Eddie Yan](https://github.com/eqy) (PPMC): @eqy - runtime, autotvm, rpc, topi
+- [Hao Yu](https://github.com/comaniac): @comaniac - relay, byoc, ansor
 - [Lianmin Zheng](https://github.com/merrymercy) (PPMC): @merrymercy - autotvm, topi, relay
 
 ## Reviewers
 
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri
 - [Matthew Barrett](https://github.com/mbaret): @mbaret
+- [Luke Hutton](https://github.com/lhutton1): @lhutton1
 - [Arnaud Bergeron](https://github.com/abergeron): @abergeron
 - [Matthew Brookhart](https://github.com/mbrookhart): @mbrookhart
 - [Tianqi Chen](https://github.com/tqchen): @tqchen

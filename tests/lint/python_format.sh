@@ -1,3 +1,4 @@
+#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,37 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[tool.black]
-line-length = 100
-target-version = ['py36']
-include = '(\.pyi?$)'
-exclude = '''
 
-(
-  /(
-      \.github
-    | \.tvm
-    | \.tvm_test_data
-    | \.vscode
-    | \.venv
-    | 3rdparty\/
-    | build\/
-    | cmake\/
-    | conda\/
-    | docker\/
-    | docs\/
-    | golang\/
-    | include\/
-    | jvm\/
-    | licenses\/
-    | nnvm\/
-    | rust\/
-    | src\/
-    | vta\/
-    | web\/
-  )/|python/topi/python/test_topi_pooling.py
-   |python/tvm/topi/testing/pool3d_python.py
-   |tests/lint/add_asf_header.py
-   |tests/lint/check_file_type.py
-)
-'''
+./tests/lint/git-black.sh HEAD~1
+./tests/lint/git-black.sh origin/master

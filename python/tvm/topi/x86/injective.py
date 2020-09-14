@@ -47,8 +47,14 @@ def schedule_injective_from_existing(sch, out):
     # Vectorize the inner most for loop. Tiling first to get a const extent
     if len(sch[out].op.axis) >= 1:
         l = sch[out].op.axis[-1]
-        _, li = sch[out].split(l, factor=16)
+        lo, li = sch[out].split(l, factor=16)
         sch[out].vectorize(li)
+
+        # for 1D loop, the above split will break the parallel axis
+        # Need to make the outer loop parallel again
+        if len(sch[out].op.axis) == 1:
+            sch[out].parallel(lo)
+
     return sch
 
 
