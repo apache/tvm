@@ -3398,3 +3398,9 @@ if __name__ == "__main__":
 
     # Test bert model
     test_forward_pretrained_bert_base_uncased()
+
+    # Test object detection models
+    from test_object_detection import test_detection_models
+
+    test_detection_models(0)
+    test_detection_models(1)
