@@ -23,21 +23,23 @@ from ..util import traverse_inline
 from .. import nn
 from .conv3d import conv3d_ncdhw, schedule_conv3d_ncdhw
 
+
 def conv3d_transpose_ncdhw(data, kernel, strides, padding, out_dtype, output_padding):
-    data_pad, kernel_transform = \
-        nn.conv3d_transpose_ncdhw_preprocess(data, kernel, strides, padding,
-                                             out_dtype, output_padding)
+    data_pad, kernel_transform = nn.conv3d_transpose_ncdhw_preprocess(
+        data, kernel, strides, padding, out_dtype, output_padding
+    )
 
     # reuse conv3d_ncdhw implementation
-    return conv3d_ncdhw(data_pad, kernel_transform, (1, 1, 1),
-                        (0, 0, 0), (1, 1, 1), out_dtype)
+    return conv3d_ncdhw(data_pad, kernel_transform, (1, 1, 1), (0, 0, 0), (1, 1, 1), out_dtype)
+
 
 def schedule_conv3d_transpose_ncdhw(outs):
     """Create schedule for tensors"""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = schedule_conv3d_ncdhw(outs)
+
     def _callback(op):
-        if 'unpack_ncdhwc' in op.tag:
+        if "unpack_ncdhwc" in op.tag:
             conv_out = op.input_tensors[0]
             # retrieve data
             data_vec = conv_out.op.input_tensors[0]

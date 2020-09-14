@@ -31,27 +31,26 @@ def test_task_tuner_without_measurement():
     """test task and tuner without measurement"""
     task, _ = get_sample_task()
 
-    measure_option = autotvm.measure_option(
-        builder=autotvm.LocalBuilder(),
-        runner=DummyRunner()
-    )
+    measure_option = autotvm.measure_option(builder=autotvm.LocalBuilder(), runner=DummyRunner())
 
     logging.info("%s", task.config_space)
 
-    for tuner_class in [autotvm.tuner.RandomTuner,
-                        autotvm.tuner.GridSearchTuner,
-                        autotvm.tuner.GATuner,
-                        autotvm.tuner.XGBTuner]:
+    for tuner_class in [
+        autotvm.tuner.RandomTuner,
+        autotvm.tuner.GridSearchTuner,
+        autotvm.tuner.GATuner,
+        autotvm.tuner.XGBTuner,
+    ]:
         tuner = tuner_class(task)
         tuner.tune(n_trial=10, measure_option=measure_option)
         assert tuner.best_flops > 1
+
 
 def test_check_correctness():
     task, target = get_sample_task()
 
     measure_option = autotvm.measure_option(
-        builder=autotvm.LocalBuilder(),
-        runner=autotvm.LocalRunner(check_correctness=True)
+        builder=autotvm.LocalBuilder(), runner=autotvm.LocalRunner(check_correctness=True)
     )
 
     def _callback_correct(tuner, measure_inputs, measure_results):
@@ -59,24 +58,22 @@ def test_check_correctness():
             assert res.error_no == 0
 
     tuner = autotvm.tuner.RandomTuner(task)
-    tuner.tune(n_trial=2, measure_option=measure_option,
-               callbacks=[_callback_correct])
+    tuner.tune(n_trial=2, measure_option=measure_option, callbacks=[_callback_correct])
 
     # a bad template
     n = 128
-    target = tvm.target.create("llvm -device=bad_device")
-    task = autotvm.task.create("testing/bad_matmul", args=(n, n, n, 'float32'), target=target)
+    target = tvm.target.Target("llvm -device=bad_device")
+    task = autotvm.task.create("testing/bad_matmul", args=(n, n, n, "float32"), target=target)
 
     def _callback_wrong(tuner, measure_inputs, measure_results):
         for _, res in zip(measure_inputs, measure_results):
             assert res.error_no == MeasureErrorNo.WRONG_ANSWER
 
     tuner = autotvm.tuner.RandomTuner(task)
-    tuner.tune(n_trial=2, measure_option=measure_option,
-               callbacks=[_callback_wrong])
+    tuner.tune(n_trial=2, measure_option=measure_option, callbacks=[_callback_wrong])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     test_task_tuner_without_measurement()

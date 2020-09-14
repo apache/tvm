@@ -110,8 +110,7 @@ Array<Tensor> Gradient(const Tensor& output, const Array<Tensor>& inputs,
         // No reverse dependencies means that the output does not depend on this tensor,
         // return a zero tensor of the appropriate shape
         // (i.e., output shape + tensor shape, aka shape of Jacobian)
-        Array<PrimExpr> result_shape(head->shape.begin(),
-                                     head->shape.end() + (-output->shape.size()));
+        Array<PrimExpr> result_shape(head->shape.begin(), head->shape.end() - output->shape.size());
         for (auto e : tensor->shape) {
           result_shape.push_back(e);
         }

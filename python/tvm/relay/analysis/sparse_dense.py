@@ -27,10 +27,14 @@ import tvm
 from . import _ffi_api
 
 
-SparseAnalysisResult = namedtuple("SparseAnalysisResult", [
-    "weight_name",
-    "weight_shape",
-])
+SparseAnalysisResult = namedtuple(
+    "SparseAnalysisResult",
+    [
+        "weight_name",
+        "weight_shape",
+    ],
+)
+
 
 def _search_dense_op_weight(expr):
     """Search name of weight in all ```nn.dense``` operator
@@ -80,14 +84,16 @@ def process_params(expr, params, block_size, sparsity_threshold):
             # remove dense weight
             del params[name]
             memo.weight_name.append(name)
-            memo.weight_shape.append(list(sparse_weight.data.shape) +
-                                     list(sparse_weight.indices.shape) +
-                                     list(sparse_weight.indptr.shape))
+            memo.weight_shape.append(
+                list(sparse_weight.data.shape)
+                + list(sparse_weight.indices.shape)
+                + list(sparse_weight.indptr.shape)
+            )
             params[name + ".data"] = tvm.nd.array(sparse_weight.data)
             params[name + ".indices"] = tvm.nd.array(sparse_weight.indices)
             params[name + ".indptr"] = tvm.nd.array(sparse_weight.indptr)
     ret = SparseAnalysisResult(
         weight_name=tvm.runtime.convert(memo.weight_name),
-        weight_shape=tvm.runtime.convert(memo.weight_shape)
+        weight_shape=tvm.runtime.convert(memo.weight_shape),
     )
     return ret

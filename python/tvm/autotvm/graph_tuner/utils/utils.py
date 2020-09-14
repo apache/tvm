@@ -20,6 +20,7 @@ import tvm
 from tvm import relay
 from tvm.relay import transform
 
+
 def has_multiple_inputs(node_list, node_idx, input_names, opt_out_op):
     """Check whether a node has multiple input nodes
     except variable nodes.
@@ -46,15 +47,13 @@ def has_multiple_inputs(node_list, node_idx, input_names, opt_out_op):
         in_idx = in_idx[0]
         in_node = node_list[in_idx]
         # Exclude parameter nodes
-        if(in_node["op"] is not None and in_node["op"].name in opt_out_op):
+        if in_node["op"] is not None and in_node["op"].name in opt_out_op:
             increase = False
             for t_idx in in_node["inputs"]:
-                increase = has_multiple_inputs(node_list, t_idx[0], \
-                        input_names, opt_out_op)
+                increase = has_multiple_inputs(node_list, t_idx[0], input_names, opt_out_op)
             if increase:
                 num_inputs += 1
-        elif in_node["op"] is not None or \
-                ("name" in in_node and in_node["name"] in input_names):
+        elif in_node["op"] is not None or ("name" in in_node and in_node["name"] in input_names):
             num_inputs += 1
     return num_inputs > 1
 
@@ -78,13 +77,23 @@ def is_boundary_node(node_entry, input_names):
         whether node is a boundary node.
     """
     # Operators dependent on original layouts.
-    _LAYOUT_FIXED_OP = [relay.op.get(name) for name in (
-        "nn.batch_flatten", "transpose", "reshape", "vision.multibox_prior",
-        "vision.multibox_transform_loc", "where", "vision.non_max_suppression",
-        "strided_slice")]
+    _LAYOUT_FIXED_OP = [
+        relay.op.get(name)
+        for name in (
+            "nn.batch_flatten",
+            "transpose",
+            "reshape",
+            "vision.multibox_prior",
+            "vision.multibox_transform_loc",
+            "where",
+            "vision.non_max_suppression",
+            "strided_slice",
+        )
+    ]
 
-    out = node_entry["op"] in _LAYOUT_FIXED_OP or \
-          ("name" in node_entry and node_entry["name"] in input_names)
+    out = node_entry["op"] in _LAYOUT_FIXED_OP or (
+        "name" in node_entry and node_entry["name"] in input_names
+    )
     return out
 
 
@@ -128,12 +137,13 @@ def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
     if input_shapes is None:
         return expr
     if isinstance(input_dtypes, str):
-        input_dtypes = {key : input_dtypes for key in input_shapes.keys()}
+        input_dtypes = {key: input_dtypes for key in input_shapes.keys()}
 
     updated_input_dict = {}
     for input_name in input_shapes.keys():
-        updated_input = relay.var(input_name, shape=input_shapes[input_name],
-                                  dtype=input_dtypes[input_name])
+        updated_input = relay.var(
+            input_name, shape=input_shapes[input_name], dtype=input_dtypes[input_name]
+        )
         updated_input_dict[input_name] = updated_input
 
     rebind_dict = {}

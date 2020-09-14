@@ -29,3 +29,4 @@ tvm-rt = { path = "../../../tvm-rt" }
 
 [build-dependencies]
 ar = "0.6"
+anyhow = "^1.0"

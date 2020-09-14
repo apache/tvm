@@ -30,14 +30,18 @@ def consistent_equal(x, y, map_free_vars=False):
     if struct_equal0 != struct_equal1:
         raise ValueError(
             "Non-communicative {} vs {}, sequal0={}, sequal1={}".format(
-                x, y, struct_equal0, struct_equal1))
+                x, y, struct_equal0, struct_equal1
+            )
+        )
 
     # NOTE: hash colision can happen but should be rare.
     # we can confirm that hash colison doesn't happen for our testcases
     if struct_equal0 != (xhash == yhash):
         raise ValueError(
             "Inconsistent {} vs {}, sequal={}, xhash={}, yhash={}".format(
-                x, y, struct_equal0, xhash, yhash))
+                x, y, struct_equal0, xhash, yhash
+            )
+        )
     return struct_equal0
 
 
@@ -51,8 +55,7 @@ def test_exprs():
     zx = vx + vx
     zy = vy + vy
 
-    assert consistent_equal(zx * zx, (vx + vx) * (vx + vx),
-                            map_free_vars=False)
+    assert consistent_equal(zx * zx, (vx + vx) * (vx + vx), map_free_vars=False)
 
     # test assert trigger.
     with pytest.raises(ValueError):
@@ -68,11 +71,9 @@ def test_exprs():
     assert consistent_equal(vx + vy + vz, vy + vz + vx, map_free_vars=True)
     assert not consistent_equal(vx + 1, vy + 1, map_free_vars=False)
     # Defintition remap
-    assert consistent_equal(tvm.tir.Let(vx, 1, vx - 1),
-                            tvm.tir.Let(vy, 1, vy - 1))
+    assert consistent_equal(tvm.tir.Let(vx, 1, vx - 1), tvm.tir.Let(vy, 1, vy - 1))
     # Default same address free var remap
-    assert consistent_equal(tvm.tir.Let(vx, 1, vx // vz),
-                            tvm.tir.Let(vy, 1, vy // vz))
+    assert consistent_equal(tvm.tir.Let(vx, 1, vx // vz), tvm.tir.Let(vy, 1, vy // vz))
 
     assert consistent_equal(zx * zx, zx * zx)
     assert consistent_equal(zx * zx, zy * zy, map_free_vars=True)
@@ -80,21 +81,17 @@ def test_exprs():
 
 
 def test_prim_func():
-    x = te.var('x')
-    y = te.var('y')
+    x = te.var("x")
+    y = te.var("y")
     # counter example of same equality
-    func0 = tvm.tir.PrimFunc(
-        [x, y], tvm.tir.Evaluate(x + y))
-    func1 = tvm.tir.PrimFunc(
-        [x, y], tvm.tir.Evaluate(y + x))
+    func0 = tvm.tir.PrimFunc([x, y], tvm.tir.Evaluate(x + y))
+    func1 = tvm.tir.PrimFunc([x, y], tvm.tir.Evaluate(y + x))
     assert not consistent_equal(func0, func1)
 
     # new cases
     b = tvm.tir.decl_buffer((x,), "float32")
-    stmt = tvm.tir.LetStmt(
-        x, 10, tvm.tir.Evaluate(x + 1))
-    func0 = tvm.tir.PrimFunc(
-        [x, y, b], stmt)
+    stmt = tvm.tir.LetStmt(x, 10, tvm.tir.Evaluate(x + 1))
+    func0 = tvm.tir.PrimFunc([x, y, b], stmt)
     # easiest way to deep copy is via save/load
     func1 = tvm.ir.load_json(tvm.ir.save_json(func0))
     tvm.ir.assert_structural_equal(func0, func1)
@@ -109,6 +106,7 @@ def test_prim_func():
     mod1 = tvm.IRModule.from_expr(func1)
     tvm.ir.assert_structural_equal(mod0, mod1)
 
+
 def test_array():
     x = np.arange(10)
     nx = tvm.nd.array(x)
@@ -116,6 +114,7 @@ def test_array():
     nz = tvm.nd.array(x.reshape(2, 5))
     assert consistent_equal(nx, ny)
     assert not consistent_equal(nx, nz)
+
 
 def test_env_func():
     @tvm.register_func("test.sequal.env_func")
@@ -125,7 +124,6 @@ def test_env_func():
     x = tvm.ir.EnvFunc.get("test.sequal.env_func")
     y = tvm.ir.EnvFunc.get("test.sequal.env_func")
     assert consistent_equal(y, x)
-
 
 
 def test_attrs():
@@ -143,16 +141,17 @@ def test_attrs():
 
 
 def test_stmt():
-    x = te.var('x')
-    y = te.var('y')
+    x = te.var("x")
+    y = te.var("y")
     n = 128
-    A = te.placeholder((n, n), name='A')
-    B = te.placeholder((n, n), name='B')
-    ii = te.var('i')
-    jj = te.var('j')
+    A = te.placeholder((n, n), name="A")
+    B = te.placeholder((n, n), name="B")
+    ii = te.var("i")
+    jj = te.var("j")
 
-    Ab = tvm.tir.decl_buffer((n,), name='A')
+    Ab = tvm.tir.decl_buffer((n,), name="A")
     n = te.var("n")
+
     def func2():
         ib = tvm.tir.ir_builder.create()
         A = ib.buffer_ptr(Ab)

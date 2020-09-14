@@ -23,12 +23,12 @@ from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _return_ha
 
 
 TVMPyCapsuleDestructor = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
-_c_str_dltensor = c_str('dltensor')
-_c_str_used_dltensor = c_str('used_dltensor')
+_c_str_dltensor = c_str("dltensor")
+_c_str_used_dltensor = c_str("used_dltensor")
 
 
 # used for PyCapsule manipulation
-if hasattr(ctypes, 'pythonapi'):
+if hasattr(ctypes, "pythonapi"):
     ctypes.pythonapi.PyCapsule_GetName.restype = ctypes.c_char_p
     ctypes.pythonapi.PyCapsule_GetPointer.restype = ctypes.c_void_p
     ctypes.pythonapi.PyCapsule_New.restype = ctypes.py_object
@@ -57,11 +57,13 @@ def _dlpack_deleter(pycapsule):
         _LIB.TVMDLManagedTensorCallDeleter(ptr)
         ctypes.pythonapi.PyCapsule_SetDestructor(dltensor, TVMPyCapsuleDestructor(0))
 
+
 _c_dlpack_deleter = TVMPyCapsuleDestructor(_dlpack_deleter)
 
 
 class NDArrayBase(object):
     """A simple Device/CPU Array object in runtime."""
+
     __slots__ = ["handle", "is_view"]
     # pylint: disable=no-member
     def __init__(self, handle, is_view=False):
@@ -120,7 +122,9 @@ def _make_array(handle, is_view, is_container):
     ret.is_view = is_view
     return ret
 
+
 _TVM_COMPATS = ()
+
 
 def _reg_extension(cls, fcreate):
     global _TVM_COMPATS
@@ -130,13 +134,17 @@ def _reg_extension(cls, fcreate):
         RETURN_SWITCH[cls._tvm_tcode] = fret
         C_TO_PY_ARG_SWITCH[cls._tvm_tcode] = _wrap_arg_func(fret, cls._tvm_tcode)
 
+
 _TVM_ND_CLS = {}
+
 
 def _register_ndarray(index, cls):
     global _TVM_ND_CLS
     _TVM_ND_CLS[index] = cls
 
+
 _CLASS_NDARRAY = None
+
 
 def _set_class_ndarray(cls):
     global _CLASS_NDARRAY

@@ -34,8 +34,9 @@ def _match_pragma(stmt, key):
     key : str
         The pragma key
     """
-    return ((stmt.attr_key == "pragma_" + key) or
-            (stmt.attr_key == "pragma_scope" and stmt.value.value == key))
+    return (stmt.attr_key == "pragma_" + key) or (
+        stmt.attr_key == "pragma_scope" and stmt.value.value == key
+    )
 
 
 def FoldUopLoop():
@@ -51,6 +52,7 @@ def FoldUopLoop():
     fpass : tvm.transform.Pass
         The pass
     """
+
     def _fold_outermost_loop(body):
         stmt = body
         if not isinstance(stmt, tvm.tir.For):
@@ -68,8 +70,7 @@ def FoldUopLoop():
                 args = []
                 args += op.args[:base_args]
                 for i in range(3):
-                    m = tvm.arith.detect_linear_equation(
-                        op.args[i + base_args], [loop_var])
+                    m = tvm.arith.detect_linear_equation(op.args[i + base_args], [loop_var])
                     if not m:
                         fail[0] = True
                         return op
@@ -81,32 +82,34 @@ def FoldUopLoop():
                     else:
                         gemm_offsets[i] = m[0]
                         args.append(m[1])
-                args += op.args[base_args+3:]
+                args += op.args[base_args + 3 :]
                 return tvm.tir.call_intrin("int32", builtin_uop_push, *args)
             if op.op.name not in ("tir.vta.command_handle", "tir.tvm_thread_context"):
                 raise RuntimeError("unexpected op %s" % op)
             return op
 
-        ret = tvm.tir.stmt_functor.ir_transform(
-            stmt.body, None, _post_order, ["tir.Call"])
+        ret = tvm.tir.stmt_functor.ir_transform(stmt.body, None, _post_order, ["tir.Call"])
 
         if not fail[0] and all(x is not None for x in gemm_offsets):
+
             def _visit(op):
                 if op.same_as(loop_var):
                     fail[0] = True
+
             tvm.tir.stmt_functor.post_order_visit(ret, _visit)
             if not fail[0]:
-                begin = tvm.tir.call_extern(
-                    "int32", "VTAUopLoopBegin", stmt.extent, *gemm_offsets)
+                begin = tvm.tir.call_extern("int32", "VTAUopLoopBegin", stmt.extent, *gemm_offsets)
                 end = tvm.tir.call_extern("int32", "VTAUopLoopEnd")
                 return [begin, ret, end]
         raise ValueError("Failed to fold the GEMM instructions..")
 
     def _do_fold(stmt):
         env = get_env()
-        if (stmt.attr_key == "coproc_uop_scope" and
-                isinstance(stmt.value, tvm.tir.StringImm) and
-                stmt.value.value == env.dev.vta_push_uop.value):
+        if (
+            stmt.attr_key == "coproc_uop_scope"
+            and isinstance(stmt.value, tvm.tir.StringImm)
+            and stmt.value.value == env.dev.vta_push_uop.value
+        ):
             body = stmt.body
             begins = []
             ends = []
@@ -127,16 +130,15 @@ def FoldUopLoop():
                 return stmt
             ends = list(reversed(ends))
             body = tvm.tir.stmt_seq(*(begins + [body] + ends))
-            return tvm.tir.AttrStmt(
-                stmt.node, stmt.attr_key, stmt.value, body)
+            return tvm.tir.AttrStmt(stmt.node, stmt.attr_key, stmt.value, body)
         return None
 
     def _ftransform(f, mod, ctx):
-        return f.with_body(tvm.tir.stmt_functor.ir_transform(
-            f.body, _do_fold, None, ["tir.AttrStmt"]))
+        return f.with_body(
+            tvm.tir.stmt_functor.ir_transform(f.body, _do_fold, None, ["tir.AttrStmt"])
+        )
 
-    return tvm.tir.transform.prim_func_pass(
-        _ftransform, opt_level=0, name="tir.vta.FoldUopLoop")
+    return tvm.tir.transform.prim_func_pass(_ftransform, opt_level=0, name="tir.vta.FoldUopLoop")
 
 
 def CPUAccessRewrite():
@@ -152,9 +154,11 @@ def CPUAccessRewrite():
     fpass : tvm.transform.Pass
         The pass
     """
+
     def _ftransform(f, mod, ctx):
         rw_info = {}
         env = get_env()
+
         def _post_order(op):
             if isinstance(op, tvm.tir.Allocate):
                 buffer_var = op.buffer_var
@@ -162,44 +166,47 @@ def CPUAccessRewrite():
                     return None
                 new_var = rw_info[buffer_var]
                 let_stmt = tvm.tir.LetStmt(
-                    new_var, tvm.tir.call_extern(
-                        "handle", "VTABufferCPUPtr",
-                        env.dev.command_handle,
-                        buffer_var), op.body)
-                alloc = tvm.tir.Allocate(
-                    buffer_var, op.dtype, op.extents,
-                    op.condition, let_stmt)
+                    new_var,
+                    tvm.tir.call_extern(
+                        "handle", "VTABufferCPUPtr", env.dev.command_handle, buffer_var
+                    ),
+                    op.body,
+                )
+                alloc = tvm.tir.Allocate(buffer_var, op.dtype, op.extents, op.condition, let_stmt)
                 del rw_info[buffer_var]
                 return alloc
             if isinstance(op, tvm.tir.Load):
                 buffer_var = op.buffer_var
                 if not buffer_var in rw_info:
-                    rw_info[buffer_var] = te.var(
-                        buffer_var.name + "_ptr", "handle")
+                    rw_info[buffer_var] = te.var(buffer_var.name + "_ptr", "handle")
                 new_var = rw_info[buffer_var]
                 return tvm.tir.Load(op.dtype, new_var, op.index)
             if isinstance(op, tvm.tir.Store):
                 buffer_var = op.buffer_var
                 if not buffer_var in rw_info:
-                    rw_info[buffer_var] = te.var(
-                        buffer_var.name + "_ptr", "handle")
+                    rw_info[buffer_var] = te.var(buffer_var.name + "_ptr", "handle")
                 new_var = rw_info[buffer_var]
                 return tvm.tir.Store(new_var, op.value, op.index)
             raise RuntimeError("not reached")
 
         stmt_in = f.body
         stmt = tvm.tir.stmt_functor.ir_transform(
-            stmt_in, None, _post_order, ["tir.Allocate", "tir.Load", "tir.Store"])
+            stmt_in, None, _post_order, ["tir.Allocate", "tir.Load", "tir.Store"]
+        )
 
         for buffer_var, new_var in rw_info.items():
             stmt = tvm.tir.LetStmt(
-                new_var, tvm.tir.call_extern(
-                    "handle", "VTABufferCPUPtr",
-                    env.dev.command_handle,
-                    buffer_var), stmt)
+                new_var,
+                tvm.tir.call_extern(
+                    "handle", "VTABufferCPUPtr", env.dev.command_handle, buffer_var
+                ),
+                stmt,
+            )
         return f.with_body(stmt)
+
     return tvm.tir.transform.prim_func_pass(
-        _ftransform, opt_level=0, name="tir.vta.CPUAccessRewrite")
+        _ftransform, opt_level=0, name="tir.vta.CPUAccessRewrite"
+    )
 
 
 def LiftAllocToScopeBegin():
@@ -210,23 +217,22 @@ def LiftAllocToScopeBegin():
     fpass : tvm.transform.Pass
         The pass
     """
+
     def _ftransform(f, mod, ctx):
         lift_stmt = [[]]
+
         def _merge_block(slist, body):
             for op in slist:
                 if op.body == body:
                     body = op
                 elif isinstance(op, tvm.tir.Allocate):
-                    body = tvm.tir.Allocate(
-                        op.buffer_var, op.dtype,
-                        op.extents, op.condition, body)
+                    body = tvm.tir.Allocate(op.buffer_var, op.dtype, op.extents, op.condition, body)
                 elif isinstance(op, tvm.tir.AttrStmt):
-                    body = tvm.tir.AttrStmt(
-                        op.node, op.attr_key, op.value, body)
+                    body = tvm.tir.AttrStmt(op.node, op.attr_key, op.value, body)
                 elif isinstance(op, tvm.tir.For):
                     body = tvm.tir.For(
-                        op.loop_var, op.min, op.extent, op.for_type,
-                        op.device_api, body)
+                        op.loop_var, op.min, op.extent, op.for_type, op.device_api, body
+                    )
                 else:
                     raise RuntimeError("unexpected op")
             del slist[:]
@@ -253,14 +259,17 @@ def LiftAllocToScopeBegin():
             if isinstance(op, tvm.tir.For):
                 return _merge_block(lift_stmt.pop() + [op], op.body)
             raise RuntimeError("not reached")
+
         stmt_in = f.body
         stmt = tvm.tir.stmt_functor.ir_transform(
-            stmt_in, _pre_order, _post_order, ["tir.Allocate", "tir.AttrStmt", "tir.For"])
+            stmt_in, _pre_order, _post_order, ["tir.Allocate", "tir.AttrStmt", "tir.For"]
+        )
         assert len(lift_stmt) == 1
         return f.with_body(_merge_block(lift_stmt[0], stmt))
 
     return tvm.tir.transform.prim_func_pass(
-        _ftransform, opt_level=0, name="tir.vta.LiftAllocToScopeBegin")
+        _ftransform, opt_level=0, name="tir.vta.LiftAllocToScopeBegin"
+    )
 
 
 def InjectSkipCopy():
@@ -271,17 +280,18 @@ def InjectSkipCopy():
     fpass : tvm.transform.Pass
         The pass
     """
+
     def _do_fold(stmt):
         if _match_pragma(stmt, "skip_dma_copy"):
             return tvm.tir.Evaluate(0)
         return None
 
     def _ftransform(f, mod, ctx):
-        return f.with_body(tvm.tir.stmt_functor.ir_transform(
-            f.body, _do_fold, None, ["tir.AttrStmt"]))
+        return f.with_body(
+            tvm.tir.stmt_functor.ir_transform(f.body, _do_fold, None, ["tir.AttrStmt"])
+        )
 
-    return tvm.tir.transform.prim_func_pass(
-        _ftransform, opt_level=0, name="tir.vta.InjectSkipCopy")
+    return tvm.tir.transform.prim_func_pass(_ftransform, opt_level=0, name="tir.vta.InjectSkipCopy")
 
 
 def InjectCoProcSync():
@@ -292,27 +302,33 @@ def InjectCoProcSync():
     fpass : tvm.transform.Pass
         The pass
     """
+
     def _ftransform(f, *_):
         success = [False]
+
         def _do_fold(stmt):
             if _match_pragma(stmt, "coproc_sync"):
                 success[0] = True
-                sync = tvm.tir.Call(
-                    "int32", "vta.coproc_sync", [])
+                sync = tvm.tir.Call("int32", "vta.coproc_sync", [])
                 return tvm.tir.SeqStmt([stmt.body, tvm.tir.Evaluate(sync)])
             if _match_pragma(stmt, "trim_loop"):
                 op = stmt.body
                 assert isinstance(op, tvm.tir.For)
-                return tvm.tir.For(
-                    op.loop_var, op.min, 2, op.for_type,
-                    op.device_api, op.body)
+                return tvm.tir.For(op.loop_var, op.min, 2, op.for_type, op.device_api, op.body)
             return None
-        return f.with_body(tvm.tir.stmt_functor.ir_transform(
-            f.body, None, _do_fold, ["tir.AttrStmt"]))
+
+        return f.with_body(
+            tvm.tir.stmt_functor.ir_transform(f.body, None, _do_fold, ["tir.AttrStmt"])
+        )
+
     return tvm.transform.Sequential(
-        [tvm.tir.transform.prim_func_pass(_ftransform, 0, "tir.vta.InjectCoProcSync"),
-         tvm.tir.transform.CoProcSync()],
-        opt_level=0, name="tir.vta.InjectCoProcSync")
+        [
+            tvm.tir.transform.prim_func_pass(_ftransform, 0, "tir.vta.InjectCoProcSync"),
+            tvm.tir.transform.CoProcSync(),
+        ],
+        opt_level=0,
+        name="tir.vta.InjectCoProcSync",
+    )
 
 
 def InjectDMAIntrin():
@@ -332,7 +348,8 @@ def InjectDMAIntrin():
         for i in reversed(range(ndim)):
             if not util.equal_const_int(size - buf.strides[i], 0):
                 raise RuntimeError(
-                    "Cannot prove compact: shape=%s, strides=%s" % (buf.shape, buf.strides))
+                    "Cannot prove compact: shape=%s, strides=%s" % (buf.shape, buf.strides)
+                )
             size = size * buf.shape[i]
 
     def _fold_buffer_dim(buf, scope, elem_block):
@@ -347,8 +364,9 @@ def InjectDMAIntrin():
                 base = i + 1
                 break
         if base == 0:
-            raise RuntimeError("scope %s need to have block=%d, shape=%s" % (
-                scope, elem_block, buf.shape))
+            raise RuntimeError(
+                "scope %s need to have block=%d, shape=%s" % (scope, elem_block, buf.shape)
+            )
         shape = [elem_block]
         strides = [1]
 
@@ -363,8 +381,9 @@ def InjectDMAIntrin():
             next_base = base
             if not util.equal_const_int(idxm(x_stride, elem_block), 0):
                 raise RuntimeError(
-                    "scope %s need to have block=%d, shape=%s, strides=%s" % (
-                        scope, elem_block, buf.shape, buf.strides))
+                    "scope %s need to have block=%d, shape=%s, strides=%s"
+                    % (scope, elem_block, buf.shape, buf.strides)
+                )
             for i in range(base, ndim + 1):
                 k = ndim - i
                 if not util.equal_const_int(x_size * x_stride - buf.strides[k], 0):
@@ -383,8 +402,7 @@ def InjectDMAIntrin():
     def _get_2d_pattern(buf, elem_width, elem_bytes, dtype, scope, allow_fold):
         elem_block = elem_bytes * 8 // elem_width
         if buf.dtype != dtype:
-            raise RuntimeError("Expect buffer type to be %s instead of %s" %
-                               (dtype, buf.dtype))
+            raise RuntimeError("Expect buffer type to be %s instead of %s" % (dtype, buf.dtype))
         shape, strides = buf.shape, buf.strides
         if not util.equal_const_int(idxm(buf.elem_offset, elem_block), 0):
             raise RuntimeError("scope %s need to have block=%d" % (scope, elem_block))
@@ -397,8 +415,12 @@ def InjectDMAIntrin():
         def raise_error():
             """Internal function to raise error """
             raise RuntimeError(
-                ("Scope[%s]: cannot detect 2d pattern with elem_block=%d:" +
-                 " shape=%s, strides=%s") % (scope, elem_block, buf.shape, buf.strides))
+                (
+                    "Scope[%s]: cannot detect 2d pattern with elem_block=%d:"
+                    + " shape=%s, strides=%s"
+                )
+                % (scope, elem_block, buf.shape, buf.strides)
+            )
 
         ndim = len(shape)
 
@@ -463,7 +485,6 @@ def InjectDMAIntrin():
 
         raise_error()
 
-
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # FIXME: pad_value is ignored...
         env = get_env()
@@ -482,15 +503,24 @@ def InjectDMAIntrin():
                 raise RuntimeError("Do not support copy %s->dram" % (src.scope))
             _check_compact(src)
             x_size, y_size, x_stride, offset = _get_2d_pattern(
-                dst, elem_width, elem_bytes, data_type, src.scope, allow_fold=True)
+                dst, elem_width, elem_bytes, data_type, src.scope, allow_fold=True
+            )
             irb = tvm.tir.ir_builder.create()
-            irb.scope_attr(env.dev.vta_axis, "coproc_scope",
-                           env.dev.get_task_qid(task_qid))
-            irb.emit(tvm.tir.call_extern(
-                "int32", "VTAStoreBuffer2D",
-                env.dev.command_handle,
-                src.access_ptr("r", "int32"),
-                mem_type, dst.data, offset, x_size, y_size, x_stride))
+            irb.scope_attr(env.dev.vta_axis, "coproc_scope", env.dev.get_task_qid(task_qid))
+            irb.emit(
+                tvm.tir.call_extern(
+                    "int32",
+                    "VTAStoreBuffer2D",
+                    env.dev.command_handle,
+                    src.access_ptr("r", "int32"),
+                    mem_type,
+                    dst.data,
+                    offset,
+                    x_size,
+                    y_size,
+                    x_stride,
+                )
+            )
             return irb.get()
         elif src.scope == "global":
             if dst.scope == env.acc_scope:
@@ -550,20 +580,30 @@ def InjectDMAIntrin():
 
             _check_compact(dst)
             x_size, y_size, x_stride, offset = _get_2d_pattern(
-                src, elem_width, elem_bytes, data_type,
-                dst.scope, allow_fold=allow_fold)
+                src, elem_width, elem_bytes, data_type, dst.scope, allow_fold=allow_fold
+            )
 
             irb = tvm.tir.ir_builder.create()
-            irb.scope_attr(env.dev.vta_axis, "coproc_scope",
-                           env.dev.get_task_qid(task_qid))
+            irb.scope_attr(env.dev.vta_axis, "coproc_scope", env.dev.get_task_qid(task_qid))
 
-            irb.emit(tvm.tir.call_extern(
-                "int32", "VTALoadBuffer2D",
-                env.dev.command_handle,
-                src.data, offset, x_size, y_size, x_stride,
-                x_pad_before, y_pad_before,
-                x_pad_after, y_pad_after,
-                dst.access_ptr("r", "int32"), mem_type))
+            irb.emit(
+                tvm.tir.call_extern(
+                    "int32",
+                    "VTALoadBuffer2D",
+                    env.dev.command_handle,
+                    src.data,
+                    offset,
+                    x_size,
+                    y_size,
+                    x_stride,
+                    x_pad_before,
+                    y_pad_before,
+                    x_pad_after,
+                    y_pad_after,
+                    dst.access_ptr("r", "int32"),
+                    mem_type,
+                )
+            )
             return irb.get()
 
         else:
@@ -586,28 +626,43 @@ def _get_gemm_intrin_buffer():
     assert out_lanes == env.BATCH * env.BLOCK_OUT
     out_shape = (env.BATCH, env.BLOCK_OUT)
     assert out_shape[0] * out_shape[1] == out_lanes
-    wgt = te.placeholder((wgt_shape[0], wgt_shape[1]),
-                         dtype="int%d" % env.WGT_WIDTH,
-                         name=env.wgt_scope)
-    inp = te.placeholder((inp_shape[0], inp_shape[1]),
-                         dtype="int%d" % env.INP_WIDTH,
-                         name=env.inp_scope)
+    wgt = te.placeholder(
+        (wgt_shape[0], wgt_shape[1]), dtype="int%d" % env.WGT_WIDTH, name=env.wgt_scope
+    )
+    inp = te.placeholder(
+        (inp_shape[0], inp_shape[1]), dtype="int%d" % env.INP_WIDTH, name=env.inp_scope
+    )
     k = te.reduce_axis((0, wgt_shape[1]), name="k")
     out_dtype = "int%d" % env.ACC_WIDTH
-    out = te.compute((out_shape[0], out_shape[1]),
-                     lambda i, j: te.sum(inp[i, k].astype(out_dtype) *
-                                         wgt[j, k].astype(out_dtype),
-                                         axis=[k]),
-                     name="out")
+    out = te.compute(
+        (out_shape[0], out_shape[1]),
+        lambda i, j: te.sum(inp[i, k].astype(out_dtype) * wgt[j, k].astype(out_dtype), axis=[k]),
+        name="out",
+    )
     wgt_layout = tvm.tir.decl_buffer(
-        wgt.shape, wgt.dtype, env.wgt_scope,
-        scope=env.wgt_scope, offset_factor=wgt_lanes, data_alignment=wgt_lanes)
+        wgt.shape,
+        wgt.dtype,
+        env.wgt_scope,
+        scope=env.wgt_scope,
+        offset_factor=wgt_lanes,
+        data_alignment=wgt_lanes,
+    )
     inp_layout = tvm.tir.decl_buffer(
-        inp.shape, inp.dtype, env.inp_scope,
-        scope=env.inp_scope, offset_factor=inp_lanes, data_alignment=inp_lanes)
+        inp.shape,
+        inp.dtype,
+        env.inp_scope,
+        scope=env.inp_scope,
+        offset_factor=inp_lanes,
+        data_alignment=inp_lanes,
+    )
     out_layout = tvm.tir.decl_buffer(
-        out.shape, out.dtype, env.acc_scope,
-        scope=env.acc_scope, offset_factor=out_lanes, data_alignment=out_lanes)
+        out.shape,
+        out.dtype,
+        env.acc_scope,
+        scope=env.acc_scope,
+        offset_factor=out_lanes,
+        data_alignment=out_lanes,
+    )
 
     return wgt_layout, inp_layout, out_layout
 
@@ -620,6 +675,7 @@ def InjectConv2DTransposeSkip():
     fpass : tvm.transform.Pass
         The pass
     """
+
     def _ftransform(func, mod, ctx):
         env = get_env()
         dwgt, dinp, dout = _get_gemm_intrin_buffer()
@@ -644,11 +700,20 @@ def InjectConv2DTransposeSkip():
                     dev = env.dev
                     irb.scope_attr(dev.vta_axis, "coproc_scope", dev.get_task_qid(dev.QID_COMPUTE))
                     irb.scope_attr(dev.vta_axis, "coproc_uop_scope", dev.vta_push_uop)
-                    irb.emit(tvm.tir.call_intrin("int32", "tir.vta.uop_push",
-                                                 0, 1,
-                                                 dout.access_ptr("rw", "int32"),
-                                                 0, 0,
-                                                 0, 0, 0))
+                    irb.emit(
+                        tvm.tir.call_intrin(
+                            "int32",
+                            "tir.vta.uop_push",
+                            0,
+                            1,
+                            dout.access_ptr("rw", "int32"),
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                        )
+                    )
                     inner = irb.get()
                     # TODO(@tmoreau89): This is only a temporary fix, please take a look.
                     body = op.body.body
@@ -658,8 +723,11 @@ def InjectConv2DTransposeSkip():
                     res_buffer = body.buffer
                     tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, env.BLOCK_OUT)
                     inner = tvm.tir.AttrStmt(
-                        [dout, res_buffer], 'buffer_bind_scope',
-                        tvm.tir.call_intrin('handle', 'tir.tvm_tuple', *tpl), inner)
+                        [dout, res_buffer],
+                        "buffer_bind_scope",
+                        tvm.tir.call_intrin("handle", "tir.tvm_tuple", *tpl),
+                        inner,
+                    )
                     return inner
                 else:
                     conv_call, data_call, kernel_call = calls[-3:]
@@ -670,48 +738,79 @@ def InjectConv2DTransposeSkip():
                     if selects:
                         condition = selects[0].condition
                     else:
-                        condition = tvm.tir.const(1, 'int')
+                        condition = tvm.tir.const(1, "int")
 
                     # create inner most block
                     irb = tvm.tir.ir_builder.create()
                     with irb.if_scope(condition):
                         dev = env.dev
                         irb.scope_attr(
-                            dev.vta_axis, "coproc_scope", dev.get_task_qid(dev.QID_COMPUTE))
+                            dev.vta_axis, "coproc_scope", dev.get_task_qid(dev.QID_COMPUTE)
+                        )
                         irb.scope_attr(dev.vta_axis, "coproc_uop_scope", dev.vta_push_uop)
-                        irb.emit(tvm.tir.call_intrin("int32", "tir.vta.uop_push",
-                                                     0, 0,
-                                                     dout.access_ptr("rw", "int32"),
-                                                     dinp.access_ptr("r", "int32"),
-                                                     dwgt.access_ptr("r", "int32"),
-                                                     0, 0, 0))
+                        irb.emit(
+                            tvm.tir.call_intrin(
+                                "int32",
+                                "tir.vta.uop_push",
+                                0,
+                                0,
+                                dout.access_ptr("rw", "int32"),
+                                dinp.access_ptr("r", "int32"),
+                                dwgt.access_ptr("r", "int32"),
+                                0,
+                                0,
+                                0,
+                            )
+                        )
                     inner = irb.get()
 
                     args = conv_call.indices
-                    tpl = (args[0], 1, args[1], 1, args[2], 1, args[3],
-                           1, 0, 1, 0, env.BLOCK_OUT)
+                    tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, env.BLOCK_OUT)
                     inner = tvm.tir.AttrStmt(
-                        [dout, res_tensor], 'buffer_bind_scope',
-                        tvm.tir.call_intrin('handle', 'tir.tvm_tuple', *tpl), inner)
+                        [dout, res_tensor],
+                        "buffer_bind_scope",
+                        tvm.tir.call_intrin("handle", "tir.tvm_tuple", *tpl),
+                        inner,
+                    )
                     args = kernel_call.indices
-                    tpl = (args[0], 1, args[1], 1, args[2], 1, args[3],
-                           1, 0, env.BLOCK_OUT, 0, env.BLOCK_IN)
+                    tpl = (
+                        args[0],
+                        1,
+                        args[1],
+                        1,
+                        args[2],
+                        1,
+                        args[3],
+                        1,
+                        0,
+                        env.BLOCK_OUT,
+                        0,
+                        env.BLOCK_IN,
+                    )
                     inner = tvm.tir.AttrStmt(
-                        [dwgt, kernel_tensor], 'buffer_bind_scope',
-                        tvm.tir.call_intrin('handle', 'tir.tvm_tuple', *tpl), inner)
+                        [dwgt, kernel_tensor],
+                        "buffer_bind_scope",
+                        tvm.tir.call_intrin("handle", "tir.tvm_tuple", *tpl),
+                        inner,
+                    )
                     args = data_call.indices
-                    tpl = (args[0], 1, args[1], 1, args[2], 1, args[3],
-                           1, 0, 1, 0, env.BLOCK_IN)
+                    tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, env.BLOCK_IN)
                     inner = tvm.tir.AttrStmt(
-                        [dinp, pad_data_tensor], 'buffer_bind_scope',
-                        tvm.tir.call_intrin('handle', 'tir.tvm_tuple', *tpl), inner)
+                        [dinp, pad_data_tensor],
+                        "buffer_bind_scope",
+                        tvm.tir.call_intrin("handle", "tir.tvm_tuple", *tpl),
+                        inner,
+                    )
                     return inner
             return None
 
-        return func.with_body(tvm.tir.stmt_functor.ir_transform(
-            func.body, _do_fold, None, ["tir.AttrStmt"]))
+        return func.with_body(
+            tvm.tir.stmt_functor.ir_transform(func.body, _do_fold, None, ["tir.AttrStmt"])
+        )
+
     return tvm.tir.transform.prim_func_pass(
-        _ftransform, opt_level=0, name="tir.vta.InjectConv2DTrasnposeSkip")
+        _ftransform, opt_level=0, name="tir.vta.InjectConv2DTrasnposeSkip"
+    )
 
 
 def AnnotateALUCoProcScope():
@@ -722,25 +821,32 @@ def AnnotateALUCoProcScope():
     fpass : tvm.transform.Pass
         The pass
     """
+
     def _ftransform(func, mod, ctx):
         env = get_env()
+
         def _do_fold(stmt):
             if _match_pragma(stmt, "alu"):
                 irb = tvm.tir.ir_builder.create()
-                irb.scope_attr(env.dev.vta_axis, "coproc_scope",
-                               env.dev.get_task_qid(env.dev.QID_COMPUTE))
-                irb.scope_attr(env.dev.vta_axis, "coproc_uop_scope",
-                               tvm.tir.StringImm("VTAPushALUOp"))
+                irb.scope_attr(
+                    env.dev.vta_axis, "coproc_scope", env.dev.get_task_qid(env.dev.QID_COMPUTE)
+                )
+                irb.scope_attr(
+                    env.dev.vta_axis, "coproc_uop_scope", tvm.tir.StringImm("VTAPushALUOp")
+                )
                 irb.emit(stmt)
                 return irb.get()
             if _match_pragma(stmt, "skip_alu"):
                 return tvm.tir.Evaluate(0)
             return stmt
 
-        return func.with_body(tvm.tir.stmt_functor.ir_transform(
-            func.body, None, _do_fold, ["tir.AttrStmt"]))
+        return func.with_body(
+            tvm.tir.stmt_functor.ir_transform(func.body, None, _do_fold, ["tir.AttrStmt"])
+        )
+
     return tvm.tir.transform.prim_func_pass(
-        _ftransform, opt_level=0, name="tir.vta.AnnotateALUCoProcScope")
+        _ftransform, opt_level=0, name="tir.vta.AnnotateALUCoProcScope"
+    )
 
 
 def InjectALUIntrin():
@@ -751,6 +857,7 @@ def InjectALUIntrin():
     fpass : tvm.transform.Pass
         The pass
     """
+
     def _ftransform(func, mod, ctx):
         env = get_env()
         idxm = tvm.tir.indexmod
@@ -834,25 +941,27 @@ def InjectALUIntrin():
                     lhs = loop_body.value.a
                     rhs = loop_body.value.b
                 elif isinstance(loop_body.value, tvm.tir.Call):
-                    if loop_body.value.op.name == 'tir.shift_left':
+                    if loop_body.value.op.name == "tir.shift_left":
                         alu_opcode = env.dev.ALU_OPCODE_SHR
                         lhs = loop_body.value.args[0]
                         rhs = analyzer.simplify(-loop_body.value.args[1])
-                    elif loop_body.value.op.name == 'tir.shift_right':
+                    elif loop_body.value.op.name == "tir.shift_right":
                         alu_opcode = env.dev.ALU_OPCODE_SHR
                         lhs = loop_body.value.args[0]
                         rhs = loop_body.value.args[1]
                     else:
                         raise RuntimeError(
-                            "Function call not recognized %s" % (loop_body.value.name))
+                            "Function call not recognized %s" % (loop_body.value.name)
+                        )
                 elif isinstance(loop_body.value, tvm.tir.Load):
                     alu_opcode = env.dev.ALU_OPCODE_SHR
                     lhs = loop_body.value
                     rhs = tvm.tir.const(0, "int32")
                 else:
                     raise RuntimeError(
-                        "Expression not recognized %s, %s, %s" % (
-                            type(loop_body.value), str(loop_body.value), str(stmt)))
+                        "Expression not recognized %s, %s, %s"
+                        % (type(loop_body.value), str(loop_body.value), str(stmt))
+                    )
 
                 # Derive array index coefficients
                 dst_coeff = tvm.arith.detect_linear_equation(dst_idx, indices)
@@ -900,11 +1009,11 @@ def InjectALUIntrin():
                 assert len(dst_coeff) > 1
                 assert len(extents) != 0
                 assert tvm.ir.structural_equal(
-                    analyzer.simplify(
-                        idxm(src_coeff[-1], env.BATCH * env.BLOCK_OUT)), 0)
+                    analyzer.simplify(idxm(src_coeff[-1], env.BATCH * env.BLOCK_OUT)), 0
+                )
                 assert tvm.ir.structural_equal(
-                    analyzer.simplify(
-                        idxm(dst_coeff[-1], env.BATCH * env.BLOCK_OUT)), 0)
+                    analyzer.simplify(idxm(dst_coeff[-1], env.BATCH * env.BLOCK_OUT)), 0
+                )
                 assert tvm.ir.structural_equal(src_coeff[-2], 1)
                 assert tvm.ir.structural_equal(dst_coeff[-2], 1)
                 if env.BATCH > 1:
@@ -927,10 +1036,8 @@ def InjectALUIntrin():
                     extents = extents[:-2]
                 src_coeff.append(src_offset)
                 dst_coeff.append(dst_offset)
-                src_coeff = [
-                    analyzer.simplify(c // (env.BATCH * env.BLOCK_OUT)) for c in src_coeff]
-                dst_coeff = [
-                    analyzer.simplify(c // (env.BATCH * env.BLOCK_OUT)) for c in dst_coeff]
+                src_coeff = [analyzer.simplify(c // (env.BATCH * env.BLOCK_OUT)) for c in src_coeff]
+                dst_coeff = [analyzer.simplify(c // (env.BATCH * env.BLOCK_OUT)) for c in dst_coeff]
 
                 # Flatten the outer loops
                 if extents:
@@ -939,25 +1046,35 @@ def InjectALUIntrin():
                 # Insert ALU micro-ops
                 irb = tvm.tir.ir_builder.create()
                 for idx, extent in enumerate(extents):
-                    irb.emit(tvm.tir.call_extern(
-                        "int32", "VTAUopLoopBegin",
-                        extent, dst_coeff[idx], src_coeff[idx], 0))
+                    irb.emit(
+                        tvm.tir.call_extern(
+                            "int32", "VTAUopLoopBegin", extent, dst_coeff[idx], src_coeff[idx], 0
+                        )
+                    )
                 use_imm = int(use_imm)
-                irb.emit(tvm.tir.call_intrin(
-                    "int32", "tir.vta.uop_push",
-                    1, 0,
-                    dst_coeff[len(dst_coeff)-1],
-                    src_coeff[len(src_coeff)-1],
-                    0,
-                    alu_opcode, use_imm, imm_val))
+                irb.emit(
+                    tvm.tir.call_intrin(
+                        "int32",
+                        "tir.vta.uop_push",
+                        1,
+                        0,
+                        dst_coeff[len(dst_coeff) - 1],
+                        src_coeff[len(src_coeff) - 1],
+                        0,
+                        alu_opcode,
+                        use_imm,
+                        imm_val,
+                    )
+                )
                 for extent in extents:
-                    irb.emit(tvm.tir.call_extern(
-                        "int32", "VTAUopLoopEnd"))
+                    irb.emit(tvm.tir.call_extern("int32", "VTAUopLoopEnd"))
                 return irb.get()
             return stmt
 
-        return func.with_body(tvm.tir.stmt_functor.ir_transform(
-            func.body, None, _do_fold, ["tir.AttrStmt"]))
+        return func.with_body(
+            tvm.tir.stmt_functor.ir_transform(func.body, None, _do_fold, ["tir.AttrStmt"])
+        )
 
     return tvm.tir.transform.prim_func_pass(
-        _ftransform, opt_level=0, name="tir.vta.InjectALUIntrin")
+        _ftransform, opt_level=0, name="tir.vta.InjectALUIntrin"
+    )

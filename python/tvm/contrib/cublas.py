@@ -42,10 +42,15 @@ def matmul(lhs, rhs, transa=False, transb=False, dtype=None):
     m = rhs.shape[0] if transb else rhs.shape[1]
     dtype = dtype if dtype is not None else lhs.dtype
     return te.extern(
-        (n, m), [lhs, rhs],
+        (n, m),
+        [lhs, rhs],
         lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.cublas.matmul",
-            ins[0], ins[1], outs[0], transa, transb), dtype=dtype, name="C")
+            "tvm.contrib.cublas.matmul", ins[0], ins[1], outs[0], transa, transb
+        ),
+        dtype=dtype,
+        name="C",
+    )
+
 
 def batch_matmul(lhs, rhs, transa=False, transb=False, dtype=None):
     """Create an extern op that compute batch matrix mult of A and rhs with cuBLAS
@@ -71,7 +76,11 @@ def batch_matmul(lhs, rhs, transa=False, transb=False, dtype=None):
     m = rhs.shape[1] if transb else rhs.shape[2]
     dtype = dtype if dtype is not None else lhs.dtype
     return te.extern(
-        (b, n, m), [lhs, rhs],
+        (b, n, m),
+        [lhs, rhs],
         lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.cublas.batch_matmul",
-            ins[0], ins[1], outs[0], transa, transb), dtype=dtype, name="C")
+            "tvm.contrib.cublas.batch_matmul", ins[0], ins[1], outs[0], transa, transb
+        ),
+        dtype=dtype,
+        name="C",
+    )

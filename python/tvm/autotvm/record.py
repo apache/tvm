@@ -30,7 +30,8 @@ import itertools
 from collections import OrderedDict
 import numpy as np
 
-from .. import build, lower, target as _target
+from .. import build, lower
+from ..target import Target
 from .. import __version__
 from . import task
 from .task import ConfigEntity, ApplyHistoryBest
@@ -38,7 +39,7 @@ from .measure import MeasureInput, MeasureResult
 
 AUTOTVM_LOG_VERSION = 0.2
 _old_version_warning = True
-logger = logging.getLogger('autotvm')
+logger = logging.getLogger("autotvm")
 
 try:  # convert unicode to str for python2
     _unicode = unicode
@@ -52,7 +53,7 @@ except NameError:
 
 
 def measure_str_key(inp, include_config=True):
-    """ get unique str key for MeasureInput
+    """get unique str key for MeasureInput
 
     Parameters
     ----------
@@ -67,11 +68,12 @@ def measure_str_key(inp, include_config=True):
         The str representation of key
     """
     config_str = str(inp.config) if include_config else ""
-    return "".join([str(inp.target), inp.task.name, str(inp.task.args),
-                    str(inp.task.kwargs), config_str])
+    return "".join(
+        [str(inp.target), inp.task.name, str(inp.task.args), str(inp.task.kwargs), config_str]
+    )
 
 
-def encode(inp, result, protocol='json'):
+def encode(inp, result, protocol="json"):
     """encode (MeasureInput, MeasureResult) pair to a string
 
     Parameters
@@ -88,38 +90,39 @@ def encode(inp, result, protocol='json'):
         a row in the logger file
     """
 
-    if protocol == 'json':
+    if protocol == "json":
         json_dict = {
-            "input": (str(inp.target),
-                      inp.task.name, inp.task.args, inp.task.kwargs),
-
+            "input": (str(inp.target), inp.task.name, inp.task.args, inp.task.kwargs),
             "config": inp.config.to_json_dict(),
-
-            "result": (result.costs if result.error_no == 0 else (1e9,),
-                       result.error_no,
-                       result.all_cost,
-                       result.timestamp),
-
+            "result": (
+                result.costs if result.error_no == 0 else (1e9,),
+                result.error_no,
+                result.all_cost,
+                result.timestamp,
+            ),
             "version": AUTOTVM_LOG_VERSION,
-
-            "tvm_version": __version__
+            "tvm_version": __version__,
         }
         return json.dumps(json_dict)
-    if protocol == 'pickle':
-        row = (str(inp.target),
-               str(base64.b64encode(pickle.dumps([inp.task.name,
-                                                  inp.task.args,
-                                                  inp.task.kwargs])).decode()),
-               str(base64.b64encode(pickle.dumps(inp.config)).decode()),
-               str(base64.b64encode(pickle.dumps(tuple(result))).decode()),
-               str(AUTOTVM_LOG_VERSION),
-               str(__version__))
-        return '\t'.join(row)
+    if protocol == "pickle":
+        row = (
+            str(inp.target),
+            str(
+                base64.b64encode(
+                    pickle.dumps([inp.task.name, inp.task.args, inp.task.kwargs])
+                ).decode()
+            ),
+            str(base64.b64encode(pickle.dumps(inp.config)).decode()),
+            str(base64.b64encode(pickle.dumps(tuple(result))).decode()),
+            str(AUTOTVM_LOG_VERSION),
+            str(__version__),
+        )
+        return "\t".join(row)
 
     raise RuntimeError("Invalid log protocol: " + protocol)
 
 
-def decode(row, protocol='json'):
+def decode(row, protocol="json"):
     """Decode encoded record string to python object
 
     Parameters
@@ -138,9 +141,9 @@ def decode(row, protocol='json'):
     # pylint: disable=unused-variable
     global _old_version_warning
 
-    if protocol == 'json':
+    if protocol == "json":
         row = json.loads(row)
-        if 'v' in row and row['v'] == 0.1:
+        if "v" in row and row["v"] == 0.1:
             if _old_version_warning:
                 logger.warning("AutoTVM log version 0.1 is no longer supported.")
                 _old_version_warning = False
@@ -149,13 +152,13 @@ def decode(row, protocol='json'):
         tgt, task_name, task_args, task_kwargs = row["input"]
         tgt = str(tgt)
         if "-target" in tgt:
-            logger.warning("\"-target\" is deprecated, use \"-mtriple\" instead.")
+            logger.warning('"-target" is deprecated, use "-mtriple" instead.')
             tgt = tgt.replace("-target", "-mtriple")
-        tgt = _target.create(str(tgt))
+        tgt = Target(str(tgt))
 
         def clean_json_to_python(x):
             """1. Convert all list in x to tuple (hashable)
-               2. Convert unicode to str for python2
+            2. Convert unicode to str for python2
             """
             if isinstance(x, list):
                 return tuple([clean_json_to_python(a) for a in x])
@@ -172,14 +175,14 @@ def decode(row, protocol='json'):
         config.cost = np.mean(result.costs)
 
         return inp, result
-    if protocol == 'pickle':
+    if protocol == "pickle":
         items = row.split("\t")
         if len(items) == 4:
             if _old_version_warning:
                 logger.warning("AutoTVM log version 0.1 is no longer supported.")
                 _old_version_warning = False
             return None
-        tgt = _target.create(items[0])
+        tgt = Target(items[0])
         task_tuple = pickle.loads(base64.b64decode(items[1].encode()))
         config = pickle.loads(base64.b64decode(items[2].encode()))
         result = MeasureResult(*pickle.loads(base64.b64decode(items[3].encode())))
@@ -205,7 +208,7 @@ def load_from_file(filename):
     result: autotvm.tuner.MeasureResult
     """
     for row in open(filename):
-        if row and not row.startswith('#'):
+        if row and not row.startswith("#"):
             ret = decode(row)
             if ret is None:
                 continue
@@ -252,15 +255,16 @@ def split_workload(in_file, clean=True):
 
             # write to file
             logger.info("Key: %s\tValid: %d\tDup: %d\t", k, len(cleaned), len(v) - len(cleaned))
-            with open(args.i + ".%03d.wkl" % i, 'w') as fout:
+            with open(args.i + ".%03d.wkl" % i, "w") as fout:
                 for inp, res in cleaned:
-                    fout.write(encode(inp, res) + '\n')
+                    fout.write(encode(inp, res) + "\n")
     else:
         for i, (k, v) in enumerate(wkl_dict.items()):
             logger.info("Key: %s\tNum: %d", k, len(v))
-            with open(args.i + ".%03d.wkl" % i, 'w') as fout:
+            with open(args.i + ".%03d.wkl" % i, "w") as fout:
                 for inp, res in v:
-                    fout.write(encode(inp, res) + '\n')
+                    fout.write(encode(inp, res) + "\n")
+
 
 def pick_best(in_file, out_file):
     """
@@ -291,12 +295,13 @@ def pick_best(in_file, out_file):
         best_set.add(measure_str_key(v[0]))
 
     logger.info("Extract %d best records from the %s", len(best_set), in_file)
-    fout = open(out_file, 'w') if isinstance(out_file, str) else out_file
+    fout = open(out_file, "w") if isinstance(out_file, str) else out_file
 
     for inp, res in context_clone:
         if measure_str_key(inp) in best_set:
             fout.write(encode(inp, res) + "\n")
             best_set.remove(measure_str_key(inp))
+
 
 """
 Usage:
@@ -311,23 +316,23 @@ e.g. python -m tvm.autotvm.record --mode pick --i collect.log
 * Split a log file into separate files, each of which contains only a single wkl
 e.g. python -m tvm.autotvm.record --mode split --i collect.log
 """
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=['read', 'pick', 'split'], default='read')
+    parser.add_argument("--mode", choices=["read", "pick", "split"], default="read")
     parser.add_argument("--i", type=str, help="input file")
-    parser.add_argument("--o", type=str, default=None, help='output file')
+    parser.add_argument("--o", type=str, default=None, help="output file")
     parser.add_argument("--begin", type=int, default=0)
     parser.add_argument("--end", type=int, default=5)
-    parser.add_argument("--ir", action='store_true')
-    parser.add_argument("--code", action='store_true')
+    parser.add_argument("--ir", action="store_true")
+    parser.add_argument("--code", action="store_true")
 
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
-    if args.mode == 'pick':
+    if args.mode == "pick":
         args.o = args.o or args.i + ".best.log"
         pick_best(args.i, args.o)
-    elif args.mode == 'read':
+    elif args.mode == "read":
         for i, (inp, result) in enumerate(load_from_file(args.i)):
             if args.begin <= i < args.end:
                 with inp.target:
@@ -345,5 +350,5 @@ if __name__ == '__main__':
                     with inp.target:
                         func = build(s, arg_bufs)
                         print(func.imported_modules[0].get_source())
-    elif args.mode == 'split':
+    elif args.mode == "split":
         split_workload(args.i)

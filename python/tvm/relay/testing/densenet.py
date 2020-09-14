@@ -25,42 +25,54 @@ from tvm import relay
 from . import layers
 from .init import create_workload
 
+
 def _make_dense_layer(data, growth_rate, bn_size, index):
     """Single densenet layer."""
     bn1 = layers.batch_norm_infer(data, name="batch_1_%s" % index)
     relu1 = relay.nn.relu(bn1)
-    conv1 = layers.conv2d(relu1, channels=bn_size * growth_rate,
-                          kernel_size=(1, 1), name="conv2d_1_%s" % index)
+    conv1 = layers.conv2d(
+        relu1, channels=bn_size * growth_rate, kernel_size=(1, 1), name="conv2d_1_%s" % index
+    )
     bn2 = layers.batch_norm_infer(conv1, name="batch_2_" + index)
     relu2 = relay.nn.relu(bn2)
-    conv2 = layers.conv2d(relu2, channels=growth_rate, kernel_size=(3, 3),
-                          padding=(1, 1), name="conv2d_2_%s" % index)
+    conv2 = layers.conv2d(
+        relu2, channels=growth_rate, kernel_size=(3, 3), padding=(1, 1), name="conv2d_2_%s" % index
+    )
     return conv2
+
 
 def _make_dense_block(data, num_layers, bn_size, growth_rate, index):
     """Makes a block of dense layers of the specified size."""
     layer_out = data
     for i in range(num_layers):
-        layer_out = _make_dense_layer(layer_out, growth_rate, bn_size,
-                                      "%s_%s" % (index, i))
+        layer_out = _make_dense_layer(layer_out, growth_rate, bn_size, "%s_%s" % (index, i))
     return layer_out
+
 
 def _make_transition(data, num_output_features, index):
     """Transition between layers."""
     bn = layers.batch_norm_infer(data, name="batch_t_%s" % index)
     relu = relay.nn.relu(bn)
-    conv = layers.conv2d(relu, channels=num_output_features,
-                         kernel_size=(1, 1), name="conv_t_%s" % index)
+    conv = layers.conv2d(
+        relu, channels=num_output_features, kernel_size=(1, 1), name="conv_t_%s" % index
+    )
     return relay.nn.avg_pool2d(conv, pool_size=(2, 2), strides=(2, 2))
 
-def _make_dense_net(num_init_features, growth_rate, block_config,
-                    data_shape, data_dtype, bn_size=4, classes=1000):
+
+def _make_dense_net(
+    num_init_features, growth_rate, block_config, data_shape, data_dtype, bn_size=4, classes=1000
+):
     """Builds up a densenet."""
-    data = relay.Var("data", relay.TensorType(data_shape, data_dtype)) # (bn_size, 3, 224, 224)))
-    conv1 = layers.conv2d(data, channels=num_init_features,
-                          kernel_size=(7, 7), strides=(2, 2), padding=(3, 3),
-                          name='conv1')
-    bn1 = layers.batch_norm_infer(conv1, name='batch1')
+    data = relay.Var("data", relay.TensorType(data_shape, data_dtype))  # (bn_size, 3, 224, 224)))
+    conv1 = layers.conv2d(
+        data,
+        channels=num_init_features,
+        kernel_size=(7, 7),
+        strides=(2, 2),
+        padding=(3, 3),
+        name="conv1",
+    )
+    bn1 = layers.batch_norm_infer(conv1, name="batch1")
     relu1 = relay.nn.relu(bn1)
     mp = relay.nn.max_pool2d(relu1, pool_size=(3, 3), strides=(2, 2), padding=(1, 1))
 
@@ -68,21 +80,23 @@ def _make_dense_net(num_init_features, growth_rate, block_config,
     layer_out = mp
     for i, num_layers in enumerate(block_config):
         layer_out = _make_dense_block(layer_out, num_layers, growth_rate, bn_size, i)
-        num_features = num_features + num_layers*growth_rate
+        num_features = num_features + num_layers * growth_rate
         if i != len(block_config) - 1:
             layer_out = _make_transition(layer_out, num_features // 2, i)
             num_features = num_features // 2
-    bn2 = layers.batch_norm_infer(layer_out, name='batch2')
+    bn2 = layers.batch_norm_infer(layer_out, name="batch2")
     relu2 = relay.nn.relu(bn2)
     avg = relay.nn.avg_pool2d(relu2, pool_size=(7, 7))
     flat = relay.nn.batch_flatten(avg)
 
-    ret = layers.dense_add_bias(flat, units=classes, name='dense')
+    ret = layers.dense_add_bias(flat, units=classes, name="dense")
 
     return relay.Function(relay.analysis.free_vars(ret), ret)
 
-def get_workload(densenet_size=121, classes=1000, batch_size=4,
-                 image_shape=(3, 224, 224), dtype='float32'):
+
+def get_workload(
+    densenet_size=121, classes=1000, batch_size=4, image_shape=(3, 224, 224), dtype="float32"
+):
     """Gets benchmark workload for densenet.
 
     Parameters
@@ -111,13 +125,16 @@ def get_workload(densenet_size=121, classes=1000, batch_size=4,
     params : dict of str to NDArray
         The benchmark paraeters.
     """
-    specs = {121: (64, 32, [6, 12, 24, 16]),
-             161: (96, 48, [6, 12, 36, 24]),
-             169: (69, 32, [6, 12, 32, 32]),
-             201: (64, 32, [6, 12, 48, 32])}
+    specs = {
+        121: (64, 32, [6, 12, 24, 16]),
+        161: (96, 48, [6, 12, 36, 24]),
+        169: (69, 32, [6, 12, 32, 32]),
+        201: (64, 32, [6, 12, 48, 32]),
+    }
 
     num_init_features, growth_rate, block_config = specs[densenet_size]
     data_shape = tuple([batch_size] + list(image_shape))
-    net = _make_dense_net(num_init_features, growth_rate, block_config,
-                          data_shape, dtype, batch_size, classes)
+    net = _make_dense_net(
+        num_init_features, growth_rate, block_config, data_shape, dtype, batch_size, classes
+    )
     return create_workload(net)

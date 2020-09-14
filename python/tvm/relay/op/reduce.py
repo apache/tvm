@@ -22,6 +22,7 @@ from .tensor import sqrt, log, exp
 from .transform import squeeze
 from ..expr import Tuple, TupleWrapper
 
+
 def argmax(data, axis=None, keepdims=False, exclude=False):
     """Returns the indices of the maximum values along an axis.
 
@@ -51,6 +52,7 @@ def argmax(data, axis=None, keepdims=False, exclude=False):
     """
     axis = [axis] if isinstance(axis, int) else axis
     return _make.argmax(data, axis, keepdims, exclude)
+
 
 def argmin(data, axis=None, keepdims=False, exclude=False):
     """Returns the indices of the minimum values along an axis.
@@ -219,7 +221,7 @@ def any(data, axis=None, keepdims=False, exclude=False):
 
 
 def max(data, axis=None, keepdims=False, exclude=False):
-    """ Computes the max of array elements over given axes.
+    """Computes the max of array elements over given axes.
 
     Parameters
     ----------

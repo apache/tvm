@@ -16,11 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, trailing-whitespace
 """Schedule for softmax operator"""
-from tvm import target as target_
+from tvm.target import Target
 from tvm import te
 from tvm.contrib import cudnn
 from .. import generic
 from .injective import schedule_injective_from_existing
+
 
 def schedule_softmax(outs):
     """Schedule for softmax op.
@@ -39,20 +40,24 @@ def schedule_softmax(outs):
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
     softmax = outs[0]
-    tgt = target_.Target.current(allow_none=False)
+    tgt = Target.current(allow_none=False)
 
     op_tag = softmax.op.tag
-    if op_tag == 'softmax_output':
+    if op_tag == "softmax_output":
         expsum = softmax.op.input_tensors[1]
         exp = softmax.op.input_tensors[0]
         max_elem = s[exp].op.input_tensors[1]
-    elif op_tag == 'log_softmax_output':
+    elif op_tag == "log_softmax_output":
         exp = None
         max_elem = softmax.op.input_tensors[1]
         expsum = softmax.op.input_tensors[2]
     else:
-        raise ValueError('Tag is expected to be softmax_output or log_softmax_output. \
-                         Got {0}'.format(op_tag))
+        raise ValueError(
+            "Tag is expected to be softmax_output or log_softmax_output. \
+                         Got {0}".format(
+                op_tag
+            )
+        )
 
     # The nvptx and rocm backends only supports 32-bits warp shuffle
     # instructions.

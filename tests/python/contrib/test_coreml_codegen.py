@@ -40,8 +40,8 @@ def _create_graph():
     shape = (10, 10)
     mod = tvm.IRModule()
 
-    x = relay.var('x', shape=shape)
-    y = relay.var('y', shape=shape)
+    x = relay.var("x", shape=shape)
+    y = relay.var("y", shape=shape)
     z = x + x
     p = y * y
     func = relay.Function([x, y], p - z)
@@ -78,8 +78,8 @@ def _create_graph_annotated():
     mod[gv2] = func2
 
     # body
-    x = relay.var('x', shape=shape)
-    y = relay.var('y', shape=shape)
+    x = relay.var("x", shape=shape)
+    y = relay.var("y", shape=shape)
     func = relay.Function([x, y], gv0(y) - gv2(x))
     mod["main"] = func
 
@@ -97,17 +97,17 @@ def test_annotate():
 
 @pytest.mark.skipif(not _has_xcode(), reason="Xcode is not available")
 def test_compile_and_run():
-    ctx=tvm.cpu()
-    target="llvm"
-    tol=1e-3
+    ctx = tvm.cpu()
+    target = "llvm"
+    tol = 1e-3
 
     with relay.build_config(opt_level=3):
         json, lib, params = relay.build(_create_graph_annotated(), target=target)
     m = tvm.contrib.graph_runtime.create(json, lib, ctx)
 
     shape = (10, 10)
-    x_data = np.random.rand(*shape).astype('float32')
-    y_data = np.random.rand(*shape).astype('float32')
+    x_data = np.random.rand(*shape).astype("float32")
+    y_data = np.random.rand(*shape).astype("float32")
 
     m.set_input("x", x_data)
     m.set_input("y", y_data)
@@ -120,8 +120,8 @@ def test_compile_and_run():
     tvm.testing.assert_allclose(out.asnumpy(), expected, rtol=tol, atol=tol)
 
 
-@mock.patch('tvm.contrib.coreml_runtime.create')
-@mock.patch('tvm.contrib.xcode.compile_coreml')
+@mock.patch("tvm.contrib.coreml_runtime.create")
+@mock.patch("tvm.contrib.xcode.compile_coreml")
 def _construct_model(func, m1, m2):
     mod = tvm.IRModule()
     mod["main"] = func
@@ -131,14 +131,13 @@ def _construct_model(func, m1, m2):
     fcompile = tvm._ffi.get_global_func("relay.ext.coremlcompiler")
 
     for var, func in mod.functions.items():
-        if func.attrs and 'Compiler' in func.attrs and \
-           func.attrs['Compiler'] == 'coremlcompiler':
+        if func.attrs and "Compiler" in func.attrs and func.attrs["Compiler"] == "coremlcompiler":
             fcompile(func)
 
 
 def test_add():
     shape = (10, 10)
-    x = relay.var('x', shape=shape)
+    x = relay.var("x", shape=shape)
     y = x + x
     func = relay.Function([x], y)
     _construct_model(func)
@@ -146,7 +145,7 @@ def test_add():
 
 def test_multiply():
     shape = (10, 10)
-    x = relay.var('x', shape=shape)
+    x = relay.var("x", shape=shape)
     y = x * x
     func = relay.Function([x], y)
     _construct_model(func)
@@ -154,7 +153,7 @@ def test_multiply():
 
 def test_clip():
     shape = (10, 10)
-    x = relay.var('x', shape=shape)
+    x = relay.var("x", shape=shape)
     y = relay.clip(x, a_min=0.0, a_max=1.0)
     func = relay.Function([x], y)
     _construct_model(func)
@@ -162,7 +161,7 @@ def test_clip():
 
 def test_batch_flatten():
     shape = (10, 10, 10)
-    x = relay.var('x', shape=shape)
+    x = relay.var("x", shape=shape)
     y = relay.nn.batch_flatten(x)
     func = relay.Function([x], y)
     _construct_model(func)
@@ -170,7 +169,7 @@ def test_batch_flatten():
 
 def test_expand_dims():
     shape = (10, 10)
-    x = relay.var('x', shape=shape)
+    x = relay.var("x", shape=shape)
     y = relay.expand_dims(x, axis=0)
     func = relay.Function([x], y)
     _construct_model(func)
@@ -182,7 +181,7 @@ def test_expand_dims():
 
 def test_relu():
     shape = (10, 10)
-    x = relay.var('x', shape=shape)
+    x = relay.var("x", shape=shape)
     y = relay.nn.relu(x)
     func = relay.Function([x], y)
     _construct_model(func)
@@ -190,15 +189,15 @@ def test_relu():
 
 def test_softmax():
     shape = (10, 10)
-    x = relay.var('x', shape=shape)
+    x = relay.var("x", shape=shape)
     y = relay.nn.softmax(x, axis=1)
     func = relay.Function([x], y)
     _construct_model(func)
 
 
 def test_conv2d():
-    x = relay.var('x', shape=(1,3,224,224))
-    w = relay.const(np.zeros((16,3,3,3), dtype='float32'))
+    x = relay.var("x", shape=(1, 3, 224, 224))
+    w = relay.const(np.zeros((16, 3, 3, 3), dtype="float32"))
     y = relay.nn.conv2d(x, w, strides=[2, 2], padding=[1, 1, 1, 1], kernel_size=[3, 3])
     func = relay.Function([x], y)
     _construct_model(func)
@@ -206,7 +205,7 @@ def test_conv2d():
 
 def test_global_avg_pool2d():
     shape = (10, 10, 10, 10)
-    x = relay.var('x', shape=shape)
+    x = relay.var("x", shape=shape)
     y = relay.nn.global_avg_pool2d(x)
     func = relay.Function([x], y)
     _construct_model(func)

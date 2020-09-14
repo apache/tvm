@@ -31,10 +31,7 @@ from tvm import relay
 from . import _ffi_api
 
 
-def build_config(opt_level=2,
-                 required_pass=None,
-                 disabled_pass=None,
-                 trace=None):
+def build_config(opt_level=2, required_pass=None, disabled_pass=None, trace=None):
     """Configure the build behavior by setting config variables. This function
     will be deprecated in TVM v0.7. Instead, we should directly use
     tvm.transform.PassContext.
@@ -76,8 +73,11 @@ def build_config(opt_level=2,
     pass_context: PassContext
         The pass context for optimizations.
     """
-    warnings.warn("relay.build_config will be deprecated. Please use \
-                  tvm.transform.PassContext directly", DeprecationWarning)
+    warnings.warn(
+        "relay.build_config will be deprecated. Please use \
+                  tvm.transform.PassContext directly",
+        DeprecationWarning,
+    )
     return tvm.transform.PassContext(opt_level, required_pass, disabled_pass, trace)
 
 
@@ -133,6 +133,7 @@ def BackwardFoldScaleAxis():
     """
     return _ffi_api.BackwardFoldScaleAxis()
 
+
 def RemoveUnusedFunctions(entry_functions=None):
     """Remove unused global relay functions in a relay module.
 
@@ -147,8 +148,9 @@ def RemoveUnusedFunctions(entry_functions=None):
         The registered pass to remove unused functions.
     """
     if entry_functions is None:
-        entry_functions = ['main']
+        entry_functions = ["main"]
     return _ffi_api.RemoveUnusedFunctions(entry_functions)
+
 
 def ForwardFoldScaleAxis():
     """Fold the scaling of axis into weights of conv2d/dense.
@@ -180,7 +182,7 @@ def SimplifyInference():
 
 
 def FastMath():
-    """ Converts the expensive non linear functions to their fast but approximate counterparts.
+    """Converts the expensive non linear functions to their fast but approximate counterparts.
 
     Returns
     -------
@@ -218,6 +220,7 @@ def DeadCodeElimination(inline_once=False):
     """
     return _ffi_api.DeadCodeElimination(inline_once)
 
+
 def LazyGradientInit():
     """Reduces memory usage of gradient tensors
 
@@ -231,6 +234,7 @@ def LazyGradientInit():
         by lazily allocating 0 or one filled tensors.
     """
     return _ffi_api.LazyGradientInit()
+
 
 def FoldConstant():
     """Fold the constant expressions in a Relay program.
@@ -320,6 +324,7 @@ def CombineParallelDense(min_num_branches=3, to_batch=True):
     """
     return _ffi_api.CombineParallelDense(min_num_branches, to_batch)
 
+
 def CombineParallelBatchMatmul(min_num_branches=3):
     """Combine multiple batch matmul operators into one. For example:
 
@@ -362,11 +367,9 @@ def BatchingOps():
     ret: tvm.transform.Pass
         The sequential pass which apply batching for different operator types.
     """
-    return tvm.transform.Sequential([
-        CombineParallelConv2D(),
-        CombineParallelDense(),
-        CombineParallelBatchMatmul()
-    ])
+    return tvm.transform.Sequential(
+        [CombineParallelConv2D(), CombineParallelDense(), CombineParallelBatchMatmul()]
+    )
 
 
 def AlterOpLayout():
@@ -384,7 +387,7 @@ def AlterOpLayout():
 
 
 def ConvertLayout(desired_layouts):
-    """ Given a dest layout, this pass transforms the expr such that most of the ops input data
+    """Given a dest layout, this pass transforms the expr such that most of the ops input data
     layout is changed to the dest layout. In ideal situation, there are only 2 layout transforms,
     one at the start and one at the end.
 
@@ -515,6 +518,7 @@ def ToANormalForm():
     """
     return _ffi_api.ToANormalForm()
 
+
 def ToANormalFormExpr(e):
     """ToANormalForm, but on expression level.
 
@@ -529,6 +533,7 @@ def ToANormalFormExpr(e):
         The transformed expresion.
     """
     return _ffi_api.ToANormalFormExpr(e)
+
 
 def ToBasicBlockNormalForm():
     """Turn an expression to Basic Block Normal Form.
@@ -661,7 +666,6 @@ def PartitionGraph():
     return _ffi_api.PartitionGraph()
 
 
-
 def AnnotateTarget(targets):
     """Annotate ops in an experession with a provied compiler/target and then
     use it for codegen.
@@ -706,7 +710,7 @@ def Inline():
     return _ffi_api.Inline()
 
 
-def gradient(expr, mod=None, mode='higher_order'):
+def gradient(expr, mod=None, mode="higher_order"):
     """
     Transform the input function,
     returning a function that calculate the original result,
@@ -730,11 +734,39 @@ def gradient(expr, mod=None, mode='higher_order'):
     expr : tvm.relay.Expr
       The transformed expression.
     """
-    if mode == 'first_order':
+    if mode == "first_order":
         return _ffi_api.first_order_gradient(expr, mod)
-    if mode == 'higher_order':
+    if mode == "higher_order":
         return _ffi_api.gradient(expr, mod)
-    raise Exception('unknown mode')
+    raise Exception("unknown mode")
+
+
+def Defunctionalization(func, mod):
+    """
+    Performs defunctionalization on func,
+    transforming func from a higher-order program to a first-order program.
+
+    At each call site, the function is cloned and type parameters are substituted in.
+    Function arguments are encoded as datatypes
+    and additional apply functions are used for application.
+
+    Parameters
+    ----------
+    func : tvm.relay.Function
+        The input function, which should not be polymorphic or be higher-order.
+        This is because all types must be known and we can't encode function arguments
+        to the program itself.
+
+    mod : tvm.IRModule
+        The IRModule containing function and type definitions,
+        which is also mutated during this pass.
+
+    Returns
+    -------
+    expr : tvm.relay.Function
+      The output function.
+    """
+    return _ffi_api.Defunctionalization(func, mod)
 
 
 def to_cps(func, mod=None):
@@ -782,8 +814,10 @@ def un_cps(func):
 
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass"""
+
     class PyFunctionPass(FunctionPass):
         """Internal wrapper class to create a class instance."""
+
         def __init__(self, *args, **kwargs):
             # initialize handle in cass pass_cls creation failed.fg
             self.handle = None
@@ -792,8 +826,8 @@ def _wrap_class_function_pass(pass_cls, pass_info):
             # avoid a cyclic dependency
             def _pass_func(func, mod, ctx):
                 return inst.transform_function(func, mod, ctx)
-            self.__init_handle_by_constructor__(
-                _ffi_api.MakeFunctionPass, _pass_func, pass_info)
+
+            self.__init_handle_by_constructor__(_ffi_api.MakeFunctionPass, _pass_func, pass_info)
             self._inst = inst
 
         def __getattr__(self, name):
@@ -890,8 +924,7 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
 
     required = required if required else []
     if not isinstance(required, (list, tuple)):
-        raise TypeError("Required is expected to be the type of " +
-                        "list/tuple.")
+        raise TypeError("Required is expected to be the type of " + "list/tuple.")
 
     def create_function_pass(pass_arg):
         """Internal function that creates a function pass"""
@@ -927,6 +960,7 @@ class ChangeBatch:
     pass: FunctionPass
       The pass.
     """
+
     def __init__(self, data, batch_size=16):
         self.data = data
         self.batch_size = batch_size
@@ -934,6 +968,7 @@ class ChangeBatch:
     def transform_function(self, func, mod, ctx):
         func = relay.Function(func.params, func.body, None, func.type_params, func.attrs)
         change_batch = self
+
         class ChangeBatchMutator(tvm.relay.ExprMutator):
             def visit_var(self, var):
                 if var in change_batch.data:
@@ -942,6 +977,7 @@ class ChangeBatch:
                     new_shape[change_batch.data[var]] = change_batch.batch_size
                     return relay.Var(var.name_hint, relay.TensorType(new_shape, ty.dtype))
                 return var
+
         return ChangeBatchMutator().visit(func)
 
 

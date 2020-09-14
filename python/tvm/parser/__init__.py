@@ -17,11 +17,14 @@
 """The under development unified IR parsing infrastructure."""
 from . import _ffi_api
 
+
 def parse(source, source_name="from_string"):
     return _ffi_api.ParseModule(source_name, source)
 
+
 def parse_expr(source):
     return _ffi_api.ParseExpr("string", source)
+
 
 def fromtext(source, source_name="from_string"):
     return parse(source, source_name)

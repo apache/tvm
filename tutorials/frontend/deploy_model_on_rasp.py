@@ -104,34 +104,40 @@ from PIL import Image
 import numpy as np
 
 # one line to get the model
-block = get_model('resnet18_v1', pretrained=True)
+block = get_model("resnet18_v1", pretrained=True)
 
 ######################################################################
 # In order to test our model, here we download an image of cat and
 # transform its format.
-img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-img_name = 'cat.png'
-img_path = download_testdata(img_url, img_name, module='data')
+img_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
+img_name = "cat.png"
+img_path = download_testdata(img_url, img_name, module="data")
 image = Image.open(img_path).resize((224, 224))
 
+
 def transform_image(image):
-    image = np.array(image) - np.array([123., 117., 104.])
+    image = np.array(image) - np.array([123.0, 117.0, 104.0])
     image /= np.array([58.395, 57.12, 57.375])
     image = image.transpose((2, 0, 1))
     image = image[np.newaxis, :]
     return image
+
 
 x = transform_image(image)
 
 ######################################################################
 # synset is used to transform the label from number of ImageNet class to
 # the word human can understand.
-synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
-                      '4d0b62f3d01426887599d4f7ede23ee5/raw/',
-                      '596b27d23537e5a1b5751d2b0481ef172f58b539/',
-                      'imagenet1000_clsid_to_human.txt'])
-synset_name = 'imagenet1000_clsid_to_human.txt'
-synset_path = download_testdata(synset_url, synset_name, module='data')
+synset_url = "".join(
+    [
+        "https://gist.githubusercontent.com/zhreshold/",
+        "4d0b62f3d01426887599d4f7ede23ee5/raw/",
+        "596b27d23537e5a1b5751d2b0481ef172f58b539/",
+        "imagenet1000_clsid_to_human.txt",
+    ]
+)
+synset_name = "imagenet1000_clsid_to_human.txt"
+synset_path = download_testdata(synset_url, synset_name, module="data")
 with open(synset_path) as f:
     synset = eval(f.read())
 
@@ -140,7 +146,7 @@ with open(synset_path) as f:
 # It's as easy as several lines.
 
 # We support MXNet static graph(symbol) and HybridBlock in mxnet.gluon
-shape_dict = {'data': x.shape}
+shape_dict = {"data": x.shape}
 mod, params = relay.frontend.from_mxnet(block, shape_dict)
 # we want a probability so add a softmax operator
 func = mod["main"]
@@ -173,11 +179,11 @@ data_shape = (batch_size,) + image_shape
 local_demo = True
 
 if local_demo:
-    target = tvm.target.create('llvm')
+    target = tvm.target.Target("llvm")
 else:
-    target = tvm.target.arm_cpu('rasp3b')
+    target = tvm.target.arm_cpu("rasp3b")
     # The above line is a simple form of
-    # target = tvm.target.create('llvm -device=arm_cpu -model=bcm2837 -mtriple=armv7l-linux-gnueabihf -mattr=+neon')
+    # target = tvm.target.Target('llvm -device=arm_cpu -model=bcm2837 -mtriple=armv7l-linux-gnueabihf -mattr=+neon')
 
 with tvm.transform.PassContext(opt_level=3):
     lib = relay.build(func, target, params=params)
@@ -188,7 +194,7 @@ with tvm.transform.PassContext(opt_level=3):
 
 # Save the library at local temporary directory.
 tmp = util.tempdir()
-lib_fname = tmp.relpath('net.tar')
+lib_fname = tmp.relpath("net.tar")
 lib.export_library(lib_fname)
 
 ######################################################################
@@ -202,23 +208,23 @@ if local_demo:
     remote = rpc.LocalSession()
 else:
     # The following is my environment, change this to the IP address of your target device
-    host = '10.77.1.162'
+    host = "10.77.1.162"
     port = 9090
     remote = rpc.connect(host, port)
 
 # upload the library to remote device and load it
 remote.upload(lib_fname)
-rlib = remote.load_module('net.tar')
+rlib = remote.load_module("net.tar")
 
 # create the remote runtime module
 ctx = remote.cpu(0)
-module = runtime.GraphModule(rlib['default'](ctx))
+module = runtime.GraphModule(rlib["default"](ctx))
 # set input data
-module.set_input('data', tvm.nd.array(x.astype('float32')))
+module.set_input("data", tvm.nd.array(x.astype("float32")))
 # run
 module.run()
 # get output
 out = module.get_output(0)
 # get top1 result
 top1 = np.argmax(out.asnumpy())
-print('TVM prediction top-1: {}'.format(synset[top1]))
+print("TVM prediction top-1: {}".format(synset[top1]))

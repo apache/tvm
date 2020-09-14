@@ -26,12 +26,7 @@ from collections import namedtuple
 import tvm.testing
 
 
-def get_tvm_output(model,
-                   input_data,
-                   target,
-                   ctx,
-                   output_shape,
-                   output_dtype='float32'):
+def get_tvm_output(model, input_data, target, ctx, output_shape, output_dtype="float32"):
     """ Generic function to execute and get tvm output"""
     # supporting multiple inputs in caffe2 in a bit tricky,
     # because the input names can appear at the beginning or end of model.predict_net.external_input
@@ -42,7 +37,8 @@ def get_tvm_output(model,
     shape_dict = {input_names: input_data.shape}
     dtype_dict = {input_names: input_data.dtype}
     mod, params = relay.frontend.from_caffe2(
-        model.init_net, model.predict_net, shape_dict, dtype_dict)
+        model.init_net, model.predict_net, shape_dict, dtype_dict
+    )
     with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(mod, target, params=params)
 
@@ -63,12 +59,11 @@ def get_tvm_output(model,
             tvm_output_list.append(tvm_output.asnumpy())
         return tvm_output_list
     else:
-        tvm_output = m.get_output(0, tvm.nd.empty((output_shape),
-                                                  output_dtype))
+        tvm_output = m.get_output(0, tvm.nd.empty((output_shape), output_dtype))
         return tvm_output.asnumpy()
 
 
-def get_caffe2_output(model, x, dtype='float32'):
+def get_caffe2_output(model, x, dtype="float32"):
     workspace.RunNetOnce(model.init_net)
 
     input_blob = model.predict_net.op[0].input[0]
@@ -81,7 +76,7 @@ def get_caffe2_output(model, x, dtype='float32'):
 
 
 def verify_caffe2_forward_impl(model, data_shape, out_shape):
-    dtype = 'float32'
+    dtype = "float32"
     data = np.random.uniform(size=data_shape).astype(dtype)
     c2_out = get_caffe2_output(model, data, dtype)
     for target, ctx in tvm.testing.enabled_targets():
@@ -104,43 +99,47 @@ def test_forward_vgg19():
     verify_caffe2_forward_impl(c2_vgg19, (1, 3, 224, 224), (1, 1000))
 
 
-Model = namedtuple('Model', ['init_net', 'predict_net'])
+Model = namedtuple("Model", ["init_net", "predict_net"])
 
 
 @tvm.testing.uses_gpu
 def test_elementwise_add():
     data_shape = (1, 16, 9, 9)
     init_net = caffe2_pb2.NetDef()
-    init_net.name = 'test_init_net'
-    init_net.external_output[:] = ['A', 'B']
-    init_net.op.extend([
-        core.CreateOperator(
-            'GivenTensorFill',
-            [],
-            ['A'],
-            shape=data_shape,
-            values=np.random.uniform(size=data_shape).flatten().tolist(),
-        ),
-        core.CreateOperator(
-            'GivenTensorFill',
-            [],
-            ['B'],
-            shape=data_shape,
-            values=np.random.uniform(size=data_shape).flatten().tolist(),
-        ),
-    ])
+    init_net.name = "test_init_net"
+    init_net.external_output[:] = ["A", "B"]
+    init_net.op.extend(
+        [
+            core.CreateOperator(
+                "GivenTensorFill",
+                [],
+                ["A"],
+                shape=data_shape,
+                values=np.random.uniform(size=data_shape).flatten().tolist(),
+            ),
+            core.CreateOperator(
+                "GivenTensorFill",
+                [],
+                ["B"],
+                shape=data_shape,
+                values=np.random.uniform(size=data_shape).flatten().tolist(),
+            ),
+        ]
+    )
 
     predict_net = caffe2_pb2.NetDef()
-    predict_net.name = 'test_predict_net'
-    predict_net.external_input[:] = ['A', 'B']
-    predict_net.external_output[:] = ['C']
-    predict_net.op.extend([
-        core.CreateOperator(
-            'Add',
-            ['A', 'B'],
-            ['C'],
-        )
-    ])
+    predict_net.name = "test_predict_net"
+    predict_net.external_input[:] = ["A", "B"]
+    predict_net.external_output[:] = ["C"]
+    predict_net.op.extend(
+        [
+            core.CreateOperator(
+                "Add",
+                ["A", "B"],
+                ["C"],
+            )
+        ]
+    )
 
     model = Model(init_net, predict_net)
     verify_caffe2_forward_impl(model, data_shape, data_shape)
@@ -150,37 +149,41 @@ def test_elementwise_add():
 def test_elementwise_add_with_broadcast():
     data_shape = (1, 16, 9, 9)
     init_net = caffe2_pb2.NetDef()
-    init_net.name = 'test_init_net'
-    init_net.external_output[:] = ['A', 'B']
-    init_net.op.extend([
-        core.CreateOperator(
-            'GivenTensorFill',
-            [],
-            ['A'],
-            shape=data_shape,
-            values=np.random.uniform(size=data_shape).flatten().tolist(),
-        ),
-        core.CreateOperator(
-            'GivenTensorFill',
-            [],
-            ['B'],
-            shape=(1,),
-            values=np.random.uniform(size=1).flatten().tolist(),
-        ),
-    ])
+    init_net.name = "test_init_net"
+    init_net.external_output[:] = ["A", "B"]
+    init_net.op.extend(
+        [
+            core.CreateOperator(
+                "GivenTensorFill",
+                [],
+                ["A"],
+                shape=data_shape,
+                values=np.random.uniform(size=data_shape).flatten().tolist(),
+            ),
+            core.CreateOperator(
+                "GivenTensorFill",
+                [],
+                ["B"],
+                shape=(1,),
+                values=np.random.uniform(size=1).flatten().tolist(),
+            ),
+        ]
+    )
 
     predict_net = caffe2_pb2.NetDef()
-    predict_net.name = 'test_predict_net'
-    predict_net.external_input[:] = ['A', 'B']
-    predict_net.external_output[:] = ['C']
-    predict_net.op.extend([
-        core.CreateOperator(
-            'Add',
-            ['A', 'B'],
-            ['C'],
-            broadcast=1,
-        )
-    ])
+    predict_net.name = "test_predict_net"
+    predict_net.external_input[:] = ["A", "B"]
+    predict_net.external_output[:] = ["C"]
+    predict_net.op.extend(
+        [
+            core.CreateOperator(
+                "Add",
+                ["A", "B"],
+                ["C"],
+                broadcast=1,
+            )
+        ]
+    )
 
     model = Model(init_net, predict_net)
     verify_caffe2_forward_impl(model, data_shape, data_shape)
@@ -190,49 +193,59 @@ def test_elementwise_add_with_broadcast():
 def test_normalize_yuv():
     data_shape = (1, 3, 96, 96)
     init_net = caffe2_pb2.NetDef()
-    init_net.name = 'test_init_net'
-    init_net.external_output[:] = ['A', 'mean', 'std']
-    init_net.op.extend([
-        core.CreateOperator(
-            'GivenTensorFill',
-            [],
-            ['A'],
-            shape=data_shape,
-            values=np.random.uniform(size=data_shape).flatten().tolist(),
-        ),
-        core.CreateOperator(
-            'GivenTensorFill',
-            [],
-            ['mean'],
-            shape=(1, 3,),
-            values=np.random.uniform(size=3).flatten().tolist(),
-        ),
-        core.CreateOperator(
-            'GivenTensorFill',
-            [],
-            ['std'],
-            shape=(1, 3,),
-            values=np.random.uniform(size=3).flatten().tolist(),
-        ),
-    ])
+    init_net.name = "test_init_net"
+    init_net.external_output[:] = ["A", "mean", "std"]
+    init_net.op.extend(
+        [
+            core.CreateOperator(
+                "GivenTensorFill",
+                [],
+                ["A"],
+                shape=data_shape,
+                values=np.random.uniform(size=data_shape).flatten().tolist(),
+            ),
+            core.CreateOperator(
+                "GivenTensorFill",
+                [],
+                ["mean"],
+                shape=(
+                    1,
+                    3,
+                ),
+                values=np.random.uniform(size=3).flatten().tolist(),
+            ),
+            core.CreateOperator(
+                "GivenTensorFill",
+                [],
+                ["std"],
+                shape=(
+                    1,
+                    3,
+                ),
+                values=np.random.uniform(size=3).flatten().tolist(),
+            ),
+        ]
+    )
 
     predict_net = caffe2_pb2.NetDef()
-    predict_net.name = 'test_predict_net'
-    predict_net.external_input[:] = ['A', 'mean', 'std']
-    predict_net.external_output[:] = ['C']
-    predict_net.op.extend([
-        core.CreateOperator(
-            'NormalizePlanarYUV',
-            ['A', 'mean', 'std'],
-            ['C'],
-        )
-    ])
+    predict_net.name = "test_predict_net"
+    predict_net.external_input[:] = ["A", "mean", "std"]
+    predict_net.external_output[:] = ["C"]
+    predict_net.op.extend(
+        [
+            core.CreateOperator(
+                "NormalizePlanarYUV",
+                ["A", "mean", "std"],
+                ["C"],
+            )
+        ]
+    )
 
     model = Model(init_net, predict_net)
     verify_caffe2_forward_impl(model, data_shape, data_shape)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_forward_squeezenet1_1()
     test_forward_resnet50()
     test_forward_vgg19()

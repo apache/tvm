@@ -19,6 +19,7 @@ from tvm import te
 import numpy as np
 from tvm.contrib.dlpack import to_pytorch_func
 
+
 def test():
     a = np.random.randn(1337)
     tvm_a = tvm.nd.array(a)
@@ -33,23 +34,25 @@ def test():
         np.testing.assert_equal(x.numpy(), tvm_x.asnumpy())
         y = tvm.nd.from_dlpack(tvm_x.to_dlpack())
         np.testing.assert_equal(y.asnumpy(), tvm_x.asnumpy())
-        np.testing.assert_equal(torch.utils.dlpack.from_dlpack(y.to_dlpack()).numpy(), tvm_x.asnumpy())
+        np.testing.assert_equal(
+            torch.utils.dlpack.from_dlpack(y.to_dlpack()).numpy(), tvm_x.asnumpy()
+        )
 
         n = tvm.runtime.convert(137)
-        xx = torch.rand(137,137)
-        yy = torch.rand(137,137)
-        zz2 = torch.empty(137,137)
+        xx = torch.rand(137, 137)
+        yy = torch.rand(137, 137)
+        zz2 = torch.empty(137, 137)
         zz = xx.mm(yy)
-        XX = te.placeholder((n,n), name='X')
-        YY = te.placeholder((n,n), name='Y')
+        XX = te.placeholder((n, n), name="X")
+        YY = te.placeholder((n, n), name="Y")
 
-        k = te.reduce_axis((0, n), name='k')
-        ZZ = te.compute((n,n), lambda i,j : te.sum(XX[i,k]*YY[k,j], axis=k))
+        k = te.reduce_axis((0, n), name="k")
+        ZZ = te.compute((n, n), lambda i, j: te.sum(XX[i, k] * YY[k, j], axis=k))
         s = te.create_schedule(ZZ.op)
-        f = tvm.build(s, [XX, YY, ZZ], target_host='llvm', name='f')
+        f = tvm.build(s, [XX, YY, ZZ], target_host="llvm", name="f")
 
         f_pytorch = to_pytorch_func(f)
-        zz2 = torch.empty(137,137)
+        zz2 = torch.empty(137, 137)
         f_pytorch(xx, yy, zz2)
         tvm.testing.assert_allclose(zz.numpy(), zz2.numpy(), rtol=1e-6)
 
@@ -57,5 +60,5 @@ def test():
         pass
 
 
-if __name__ ==  '__main__':
+if __name__ == "__main__":
     test()

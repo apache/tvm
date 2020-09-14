@@ -24,6 +24,7 @@ from tvm import te
 from tvm.contrib import graph_runtime, util
 from tvm import topi
 
+
 def get_simplex_graph(host_dev_type, device_dev_type):
     r""" Return the hand-crafted json object where only one copy node is
     inserted. This node copies data from the target device to cpu.
@@ -52,14 +53,15 @@ def get_simplex_graph(host_dev_type, device_dev_type):
     var_a = {"op": "null", "name": "A", "inputs": []}
     var_b = {"op": "null", "name": "B", "inputs": []}
     elemwise_add = {
-        "op": "tvm_op", "name": "elemwise_add",
+        "op": "tvm_op",
+        "name": "elemwise_add",
         "attrs": {
             "flatten_data": "1",
             "func_name": "elemwise_add",
             "num_inputs": "2",
-            "num_outputs": "1"
+            "num_outputs": "1",
         },
-        "inputs": [[0, 0, 0], [1, 0, 0]]
+        "inputs": [[0, 0, 0], [1, 0, 0]],
     }
     copy = {
         "op": "tvm_op",
@@ -68,20 +70,21 @@ def get_simplex_graph(host_dev_type, device_dev_type):
             "flatten_data": "0",
             "func_name": "__copy",
             "num_inputs": "1",
-            "num_outputs": "1"
+            "num_outputs": "1",
         },
-        "inputs": [[2, 0, 0]]
+        "inputs": [[2, 0, 0]],
     }
     var_c = {"op": "null", "name": "C", "inputs": []}
     elemwise_sub = {
-        "op": "tvm_op", "name": "elemwise_sub",
+        "op": "tvm_op",
+        "name": "elemwise_sub",
         "attrs": {
             "flatten_data": "0",
             "func_name": "elemwise_sub",
             "num_inputs": "2",
-            "num_outputs": "1"
+            "num_outputs": "1",
         },
-        "inputs": [[3, 0, 0], [4, 0, 0]]
+        "inputs": [[3, 0, 0], [4, 0, 0]],
     }
 
     # Group the nodes.
@@ -93,20 +96,29 @@ def get_simplex_graph(host_dev_type, device_dev_type):
     attrs = {
         "storage_id": ["list_int", [3, 4, 0, 1, 5, 2]],
         "shape": ["list_shape", [shape, shape, shape, shape, shape, shape]],
-        "device_index": ["list_int", [device_dev_type, device_dev_type,
-                                      device_dev_type, host_dev_type,
-                                      host_dev_type, host_dev_type]],
+        "device_index": [
+            "list_int",
+            [
+                device_dev_type,
+                device_dev_type,
+                device_dev_type,
+                host_dev_type,
+                host_dev_type,
+                host_dev_type,
+            ],
+        ],
         "dtype": ["list_int", [0, 0, 0, 0, 0, 0]],
-        "dltype": ["list_str", ["float32", "float32", "float32",
-                                "float32", "float32", "float32"]]
+        "dltype": ["list_str", ["float32", "float32", "float32", "float32", "float32", "float32"]],
     }
 
     # Construct the graph.
-    graph = {"nodes": nodes,
-             "arg_nodes": arg_nodes,
-             "node_row_ptr": node_row_ptr,
-             "heads": heads,
-             "attrs": attrs}
+    graph = {
+        "nodes": nodes,
+        "arg_nodes": arg_nodes,
+        "node_row_ptr": node_row_ptr,
+        "heads": heads,
+        "attrs": attrs,
+    }
     return json.dumps(graph)
 
 
@@ -135,12 +147,12 @@ def test_simplex_data_transferring():
         # Create module for add whose target is the device.
         tensor_a = te.placeholder(shape, name="A")
         tensor_b = te.placeholder(shape, name="B")
-        elemwise_add = te.compute(shape, lambda *i: tensor_a(*i)
-                                   + tensor_b(*i), name="elemwise_add")
+        elemwise_add = te.compute(
+            shape, lambda *i: tensor_a(*i) + tensor_b(*i), name="elemwise_add"
+        )
         target = topi.cpp.TEST_create_target(device)
         schedule_add = topi.cpp.cuda.schedule_injective(target, [elemwise_add])
-        lower_add = tvm.lower(schedule_add, [tensor_a, tensor_b, elemwise_add],
-                              name="elemwise_add")
+        lower_add = tvm.lower(schedule_add, [tensor_a, tensor_b, elemwise_add], name="elemwise_add")
 
         # Insert copy. Neither compute nor schedule is required for the copy
         # node. The compute will be performed at runtime which is just data
@@ -149,33 +161,30 @@ def test_simplex_data_transferring():
 
         # Create module for sub whose target is the host.
         tensor_c = te.placeholder(shape, name="C")
-        elemwise_sub = te.compute(shape, lambda *i: tensor_copy(*i)
-                                   - tensor_c(*i), name="elemwise_sub")
+        elemwise_sub = te.compute(
+            shape, lambda *i: tensor_copy(*i) - tensor_c(*i), name="elemwise_sub"
+        )
         schedule_sub = te.create_schedule(elemwise_sub.op)
-        lower_sub = tvm.lower(schedule_sub, [tensor_copy, tensor_c,
-                                             elemwise_sub],
-                              name="elemwise_sub")
+        lower_sub = tvm.lower(
+            schedule_sub, [tensor_copy, tensor_c, elemwise_sub], name="elemwise_sub"
+        )
 
         target_flist = {target_device: lower_add, target_host: lower_sub}
         mhost = tvm.build(target_flist, target_host=target_host)
         ctx = [host_ctx, device_ctx]
         mod = graph_runtime.create(graph, mhost, ctx)
         params = {}
-        params["A"] = tensor_a = np.random.uniform(
-            size=shape).astype(tensor_a.dtype)
-        params["B"] = tensor_b = np.random.uniform(
-            size=shape).astype(tensor_b.dtype)
-        params["C"] = tensor_c = np.random.uniform(
-            size=shape).astype(tensor_c.dtype)
+        params["A"] = tensor_a = np.random.uniform(size=shape).astype(tensor_a.dtype)
+        params["B"] = tensor_b = np.random.uniform(size=shape).astype(tensor_b.dtype)
+        params["C"] = tensor_c = np.random.uniform(size=shape).astype(tensor_c.dtype)
         mod.set_input(**params)
         mod.run()
         out = mod.get_output(0, tvm.nd.empty(shape))
-        np.testing.assert_equal(
-            out.asnumpy(), (tensor_a + tensor_b) - tensor_c)
+        np.testing.assert_equal(out.asnumpy(), (tensor_a + tensor_b) - tensor_c)
 
     dev_tar = {"cuda": "cuda", "opencl": "opencl"}
     for device, target in dev_tar.items():
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             check_device(device, target)
 
 
@@ -211,14 +220,15 @@ def get_duplex_graph(host_dev_type, device_dev_type):
     var_a = {"op": "null", "name": "A", "inputs": []}
     var_b = {"op": "null", "name": "B", "inputs": []}
     elemwise_add0 = {
-        "op": "tvm_op", "name": "elemwise_add0",
+        "op": "tvm_op",
+        "name": "elemwise_add0",
         "attrs": {
             "flatten_data": "1",
             "func_name": "elemwise_add0",
             "num_inputs": "2",
-            "num_outputs": "1"
+            "num_outputs": "1",
         },
-        "inputs": [[0, 0, 0], [1, 0, 0]]
+        "inputs": [[0, 0, 0], [1, 0, 0]],
     }
     copy_add_sub = {
         "op": "tvm_op",
@@ -227,20 +237,21 @@ def get_duplex_graph(host_dev_type, device_dev_type):
             "flatten_data": "0",
             "func_name": "__copy",
             "num_inputs": "1",
-            "num_outputs": "1"
+            "num_outputs": "1",
         },
-        "inputs": [[2, 0, 0]]
+        "inputs": [[2, 0, 0]],
     }
     var_c = {"op": "null", "name": "C", "inputs": []}
     elemwise_sub = {
-        "op": "tvm_op", "name": "elemwise_sub",
+        "op": "tvm_op",
+        "name": "elemwise_sub",
         "attrs": {
             "flatten_data": "0",
             "func_name": "elemwise_sub",
             "num_inputs": "2",
-            "num_outputs": "1"
+            "num_outputs": "1",
         },
-        "inputs": [[3, 0, 0], [4, 0, 0]]
+        "inputs": [[3, 0, 0], [4, 0, 0]],
     }
     copy_sub_add = {
         "op": "tvm_op",
@@ -249,50 +260,81 @@ def get_duplex_graph(host_dev_type, device_dev_type):
             "flatten_data": "0",
             "func_name": "__copy",
             "num_inputs": "1",
-            "num_outputs": "1"
+            "num_outputs": "1",
         },
-        "inputs": [[5, 0, 0]]
+        "inputs": [[5, 0, 0]],
     }
     var_d = {"op": "null", "name": "D", "inputs": []}
     elemwise_add1 = {
-        "op": "tvm_op", "name": "elemwise_add1",
+        "op": "tvm_op",
+        "name": "elemwise_add1",
         "attrs": {
             "flatten_data": "0",
             "func_name": "elemwise_add1",
             "num_inputs": "2",
-            "num_outputs": "1"
+            "num_outputs": "1",
         },
-        "inputs": [[6, 0, 0], [7, 0, 0]]
+        "inputs": [[6, 0, 0], [7, 0, 0]],
     }
 
     # Group the nodes.
-    nodes = [var_a, var_b, elemwise_add0, copy_add_sub, var_c, elemwise_sub,
-             copy_sub_add, var_d, elemwise_add1]
+    nodes = [
+        var_a,
+        var_b,
+        elemwise_add0,
+        copy_add_sub,
+        var_c,
+        elemwise_sub,
+        copy_sub_add,
+        var_d,
+        elemwise_add1,
+    ]
     arg_nodes = [0, 1, 4, 7]
     node_row_ptr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     heads = [[8, 0, 0]]
     shape = (4,)
     attrs = {
         "storage_id": ["list_int", [4, 5, 0, 1, 6, 2, 0, 7, 3]],
-        "shape": ["list_shape", [shape, shape, shape, shape, shape, shape,
-                                 shape, shape, shape]],
-        "device_index": ["list_int", [device_dev_type, device_dev_type,
-                                      device_dev_type,
-                                      host_dev_type, host_dev_type, host_dev_type,
-                                      device_dev_type, device_dev_type,
-                                      device_dev_type]],
+        "shape": ["list_shape", [shape, shape, shape, shape, shape, shape, shape, shape, shape]],
+        "device_index": [
+            "list_int",
+            [
+                device_dev_type,
+                device_dev_type,
+                device_dev_type,
+                host_dev_type,
+                host_dev_type,
+                host_dev_type,
+                device_dev_type,
+                device_dev_type,
+                device_dev_type,
+            ],
+        ],
         "dtype": ["list_int", [0, 0, 0, 0, 0, 0, 0, 0, 0]],
-        "dltype": ["list_str", ["float32", "float32", "float32",
-                                "float32", "float32", "float32",
-                                "float32", "float32", "float32"]]
+        "dltype": [
+            "list_str",
+            [
+                "float32",
+                "float32",
+                "float32",
+                "float32",
+                "float32",
+                "float32",
+                "float32",
+                "float32",
+                "float32",
+            ],
+        ],
     }
 
     # Construct the graph.
-    graph = {"nodes": nodes,
-             "arg_nodes": arg_nodes,
-             "node_row_ptr": node_row_ptr,
-             "heads": heads,
-             "attrs": attrs}
+    graph = {
+        "nodes": nodes,
+        "arg_nodes": arg_nodes,
+        "node_row_ptr": node_row_ptr,
+        "heads": heads,
+        "attrs": attrs,
+    }
     return json.dumps(graph)
 
 
@@ -330,52 +372,47 @@ def test_duplex_data_transferring():
         tensor_a = te.placeholder(shape, name="A")
         tensor_b = te.placeholder(shape, name="B")
         tensor_d = te.placeholder(shape, name="D")
-        elemwise_add0 = te.compute(shape, lambda *i: tensor_a(*i)
-                                    + tensor_b(*i), name="elemwise_add0")
-        elemwise_add1 = te.compute(shape, lambda *i: copy_sub_add(*i)
-                                    + tensor_d(*i), name="elemwise_add1")
+        elemwise_add0 = te.compute(
+            shape, lambda *i: tensor_a(*i) + tensor_b(*i), name="elemwise_add0"
+        )
+        elemwise_add1 = te.compute(
+            shape, lambda *i: copy_sub_add(*i) + tensor_d(*i), name="elemwise_add1"
+        )
         target = topi.cpp.TEST_create_target(device)
-        add_schedule0 = topi.cpp.cuda.schedule_injective(
-            target, [elemwise_add0])
+        add_schedule0 = topi.cpp.cuda.schedule_injective(target, [elemwise_add0])
         lower_add0 = tvm.lower(
-            add_schedule0, [tensor_a, tensor_b, elemwise_add0],
-            name="elemwise_add0")
-        add_schedule1 = topi.cpp.cuda.schedule_injective(
-            target, [elemwise_add1])
+            add_schedule0, [tensor_a, tensor_b, elemwise_add0], name="elemwise_add0"
+        )
+        add_schedule1 = topi.cpp.cuda.schedule_injective(target, [elemwise_add1])
         lower_add1 = tvm.lower(
-            add_schedule1, [tensor_d, copy_sub_add, elemwise_add1],
-            name="elemwise_add1")
+            add_schedule1, [tensor_d, copy_sub_add, elemwise_add1], name="elemwise_add1"
+        )
         # Create module for sub whose target is the host.
         tensor_c = te.placeholder(shape, name="C")
-        elemwise_sub = te.compute(shape, lambda *i: copy_add_sub(*i)
-                                   - tensor_c(*i), name="elemwise_sub")
+        elemwise_sub = te.compute(
+            shape, lambda *i: copy_add_sub(*i) - tensor_c(*i), name="elemwise_sub"
+        )
         sub_schedule = te.create_schedule(elemwise_sub.op)
-        lower_sub = tvm.lower(sub_schedule, [copy_add_sub, tensor_c,
-                                             elemwise_sub],
-                              name="elemwise_sub")
+        lower_sub = tvm.lower(
+            sub_schedule, [copy_add_sub, tensor_c, elemwise_sub], name="elemwise_sub"
+        )
 
         lower_add0.update(lower_add1)
-        target_flist = {target_device: lower_add0, target_host:
-                        lower_sub}
+        target_flist = {target_device: lower_add0, target_host: lower_sub}
         mhost = tvm.build(target_flist, target_host=target_host)
         ctx = [host_ctx, device_ctx]
         params = {}
-        params["A"] = tensor_a = np.random.uniform(
-            size=shape).astype(tensor_a.dtype)
-        params["B"] = tensor_b = np.random.uniform(
-            size=shape).astype(tensor_b.dtype)
-        params["C"] = tensor_c = np.random.uniform(
-            size=shape).astype(tensor_c.dtype)
-        params["D"] = tensor_d = np.random.uniform(
-            size=shape).astype(tensor_d.dtype)
+        params["A"] = tensor_a = np.random.uniform(size=shape).astype(tensor_a.dtype)
+        params["B"] = tensor_b = np.random.uniform(size=shape).astype(tensor_b.dtype)
+        params["C"] = tensor_c = np.random.uniform(size=shape).astype(tensor_c.dtype)
+        params["D"] = tensor_d = np.random.uniform(size=shape).astype(tensor_d.dtype)
 
         def check_verify():
             mod = graph_runtime.create(graph, mhost, ctx)
             mod.set_input(**params)
             mod.run()
             out = mod.get_output(0, tvm.nd.empty(shape))
-            np.testing.assert_equal(
-                out.asnumpy(), tensor_a + tensor_b - tensor_c + tensor_d)
+            np.testing.assert_equal(out.asnumpy(), tensor_a + tensor_b - tensor_c + tensor_d)
 
         def check_load_module():
             temp = util.tempdir()
@@ -389,16 +426,16 @@ def test_duplex_data_transferring():
             mod.set_input(**params)
             mod.run()
             out = mod.get_output(0, tvm.nd.empty(shape))
-            np.testing.assert_equal(
-                out.asnumpy(), tensor_a + tensor_b - tensor_c + tensor_d)
+            np.testing.assert_equal(out.asnumpy(), tensor_a + tensor_b - tensor_c + tensor_d)
 
         check_verify()
         check_load_module()
 
     dev_tar = {"cuda": "cuda", "opencl": "opencl"}
     for device, target in dev_tar.items():
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             check_device(device, target)
+
 
 if __name__ == "__main__":
     test_simplex_data_transferring()

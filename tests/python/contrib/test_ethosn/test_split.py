@@ -62,7 +62,13 @@ def test_split_failure():
         ((1, 4, 4, 4), "int8", 4, 2, "dtype='int8', dtype must be either uint8 or int32;"),
         ((2, 4, 4, 4), "uint8", 4, 2, "batch size=2, batch size must = 1;"),
         ((1, 4, 4, 4), "uint8", 1, 0, "Split cannot be performed along batch axis (axis 0);"),
-        ((1, 4, 4, 4), "uint8", 4, 3, "Split along the channels dimension (axis 3) requires all output sizes (specified in splitInfo.m_Sizes) to be multiples of 16;"),
+        (
+            (1, 4, 4, 4),
+            "uint8",
+            4,
+            3,
+            "Split along the channels dimension (axis 3) requires all output sizes (specified in splitInfo.m_Sizes) to be multiples of 16;",
+        ),
     ]
 
     for shape, dtype, splits, axis, err_msg in trials:

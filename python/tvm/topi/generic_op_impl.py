@@ -82,6 +82,7 @@ def _make_bop(broadcast_bop, orig_bop):
         if not isinstance(lhs, te.tensor.Tensor) and not isinstance(rhs, te.tensor.Tensor):
             return orig_bop(lhs, rhs)
         return broadcast_bop(lhs, rhs)
+
     _tensor_bop_impl.__doc__ = _tensor_bop_impl.__doc__.format(op=name)
     return _tensor_bop_impl
 
@@ -97,5 +98,6 @@ def _bind_generic_ops():
         tvm.tir.generic.multiply = _make_bop(_broadcast.multiply, tvm.tir.generic.multiply)
         tvm.tir.generic.divide = _make_bop(_broadcast.divide, tvm.tir.generic.divide)
         tvm.tir.generic.cast = _math.cast
+
 
 _bind_generic_ops()

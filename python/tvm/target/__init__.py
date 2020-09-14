@@ -51,11 +51,12 @@ The list of options include:
    It is useful in environments where dynamic loading api like dlopen is banned.
    The system lib will be available as long as the result code is linked by the program.
 
-We can use :py:func:`tvm.target.create` to create a tvm.target.Target from the target string.
+We can use :py:func:`tvm.target.Target` to create a tvm.target.Target from the target string.
 We can also use other specific function in this module to create specific targets.
 """
 from .target import Target, create
 from .target import cuda, rocm, mali, intel_graphics, arm_cpu, rasp, vta, bifrost, hexagon
+from .tag import list_tags
 from .generic_func import GenericFunc
 from .generic_func import generic_func, get_native_generic_func, override_native_generic_func
 from . import datatype

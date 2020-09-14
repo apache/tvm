@@ -16,7 +16,7 @@
 # under the License.
 
 """FFI for C++ TOPI ops and schedules"""
-from .impl import * #pylint: disable=wildcard-import
+from .impl import *  # pylint: disable=wildcard-import
 from . import cuda
 from . import nn
 from . import vision

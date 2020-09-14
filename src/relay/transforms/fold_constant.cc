@@ -105,7 +105,23 @@ class ConstantFolder : public ExprMutator {
     }
   }
 
+  bool inside_primitive = false;
+  Expr VisitExpr_(const FunctionNode* op) final {
+    if (op->HasNonzeroAttr(attr::kPrimitive)) {
+      CHECK_EQ(inside_primitive, false);
+      inside_primitive = true;
+      auto ret = ExprMutator::VisitExpr_(op);
+      inside_primitive = false;
+      return ret;
+    } else {
+      return ExprMutator::VisitExpr_(op);
+    }
+  }
+
   Expr VisitExpr_(const CallNode* call) final {
+    if (inside_primitive) {
+      return GetRef<Expr>(call);
+    }
     static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
 
     std::unordered_set<std::string> skip_list{"zeros_like", "ones_like", "full_like", "full"};
@@ -222,7 +238,7 @@ class ConstantFolder : public ExprMutator {
     DLContext ctx;
     ctx.device_type = kDLCPU;
     ctx.device_id = 0;
-    Target target = Target::Create("llvm");
+    Target target = Target("llvm");
     // use a fresh build context
     // in case we are already in a build context.
     // needed for both execution and creation(due to JIT)

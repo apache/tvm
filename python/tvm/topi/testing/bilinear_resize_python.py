@@ -20,12 +20,13 @@ import math
 import numpy as np
 from tvm.topi.util import nchw_pack_layout
 
+
 def bilinear_resize_python(image, out_size, layout, coordinate_transformation_mode="align_corners"):
     """ Bilinear scaling using python"""
     (new_h, new_w) = out_size
     (ib, ic) = (1, 1)
 
-    if layout == 'NHWC':
+    if layout == "NHWC":
         (batch, h, w, channel) = image.shape
         scaled_image = np.ones((batch, new_h, new_w, channel))
     # NCHWinic
@@ -37,8 +38,8 @@ def bilinear_resize_python(image, out_size, layout, coordinate_transformation_mo
         scaled_image = np.ones((batch, channel, new_h, new_w))
 
     if coordinate_transformation_mode == "align_corners":
-        height_scale = np.float32(h-1) / np.float32(out_size[0]-1)
-        width_scale = np.float32(w-1) / np.float32(out_size[1]-1)
+        height_scale = np.float32(h - 1) / np.float32(out_size[0] - 1)
+        width_scale = np.float32(w - 1) / np.float32(out_size[1] - 1)
     else:
         height_scale = np.float32(h) / np.float32(out_size[0])
         width_scale = np.float32(w) / np.float32(out_size[1])
@@ -67,7 +68,7 @@ def bilinear_resize_python(image, out_size, layout, coordinate_transformation_mo
                 x0 = max(x0, 0)
                 x_lerp = in_x - math.floor(in_x)
 
-                if layout == 'NHWC':
+                if layout == "NHWC":
                     A = image[b][y0][x0][i]
                     B = image[b][y0][x1][i]
                     C = image[b][y1][x0][i]
@@ -88,7 +89,7 @@ def bilinear_resize_python(image, out_size, layout, coordinate_transformation_mo
 
                 pixel = np.float32(_lerp(top, bottom, y_lerp))
 
-                if layout == 'NHWC':
+                if layout == "NHWC":
                     scaled_image[b][j][k][i] = pixel
                 elif nchw_pack_layout(layout):
                     scaled_image[b][i][j][k][m][n] = pixel

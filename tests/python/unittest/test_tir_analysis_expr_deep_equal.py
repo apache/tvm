@@ -17,9 +17,10 @@
 import tvm
 from tvm import te
 
+
 def test_equal_expr():
-    x = te.var('x')
-    y = te.var('y')
+    x = te.var("x")
+    y = te.var("y")
 
     def func1():
         return x + y + 1

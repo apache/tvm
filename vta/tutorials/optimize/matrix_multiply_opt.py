@@ -105,62 +105,49 @@ assert in_channels % env.BLOCK_IN == 0
 assert out_channels % env.BLOCK_OUT == 0
 
 # Let's derive the tiled input tensor shapes
-data_shape = (batch_size // env.BATCH,
-              in_channels // env.BLOCK_IN,
-              env.BATCH,
-              env.BLOCK_IN)
-weight_shape = (out_channels // env.BLOCK_OUT,
-                in_channels // env.BLOCK_IN,
-                env.BLOCK_OUT,
-                env.BLOCK_IN)
-output_shape = (batch_size // env.BATCH,
-                out_channels // env.BLOCK_OUT,
-                env.BATCH,
-                env.BLOCK_OUT)
+data_shape = (batch_size // env.BATCH, in_channels // env.BLOCK_IN, env.BATCH, env.BLOCK_IN)
+weight_shape = (
+    out_channels // env.BLOCK_OUT,
+    in_channels // env.BLOCK_IN,
+    env.BLOCK_OUT,
+    env.BLOCK_IN,
+)
+output_shape = (batch_size // env.BATCH, out_channels // env.BLOCK_OUT, env.BATCH, env.BLOCK_OUT)
 num_ops = in_channels * out_channels * batch_size * 2
 
 # Reduction axes
-ic = te.reduce_axis((0, in_channels // env.BLOCK_IN), name='ic')
-ic_tns = te.reduce_axis((0, env.BLOCK_IN), name='ic_tns')
+ic = te.reduce_axis((0, in_channels // env.BLOCK_IN), name="ic")
+ic_tns = te.reduce_axis((0, env.BLOCK_IN), name="ic_tns")
 
 # Input placeholder tensors
 data = te.placeholder(data_shape, name="data", dtype=env.inp_dtype)
 weight = te.placeholder(weight_shape, name="weight", dtype=env.wgt_dtype)
 
 # Copy buffers
-data_buf = te.compute(data_shape,
-                       lambda *i: data(*i),
-                       "data_buf")
-weight_buf = te.compute(weight_shape,
-                         lambda *i: weight(*i),
-                         "weight_buf")
+data_buf = te.compute(data_shape, lambda *i: data(*i), "data_buf")
+weight_buf = te.compute(weight_shape, lambda *i: weight(*i), "weight_buf")
 
 # Declare matrix multiply computation
-res_gemm = te.compute(output_shape,
-                       lambda bo, co, bi, ci: te.sum(
-                            data_buf[bo, ic, bi, ic_tns].astype(env.acc_dtype) *
-                            weight_buf[co, ic, ci, ic_tns].astype(env.acc_dtype),
-                            axis=[ic, ic_tns]),
-                       name="res_gem")
+res_gemm = te.compute(
+    output_shape,
+    lambda bo, co, bi, ci: te.sum(
+        data_buf[bo, ic, bi, ic_tns].astype(env.acc_dtype)
+        * weight_buf[co, ic, ci, ic_tns].astype(env.acc_dtype),
+        axis=[ic, ic_tns],
+    ),
+    name="res_gem",
+)
 
 # Add shift stage for fix-point normalization
-res_shr = te.compute(output_shape,
-                      lambda *i: res_gemm(*i) >> env.INP_WIDTH,
-                      name="res_shr")
+res_shr = te.compute(output_shape, lambda *i: res_gemm(*i) >> env.INP_WIDTH, name="res_shr")
 
 # Apply clipping between (0, input max value)
-inp_max = (1<<(env.INP_WIDTH-1))-1
-res_max = te.compute(output_shape,
-                      lambda *i: tvm.te.max(res_shr(*i), 0),
-                      "res_max")
-res_min = te.compute(output_shape,
-                      lambda *i: tvm.te.min(res_max(*i), inp_max),
-                      "res_min")
+inp_max = (1 << (env.INP_WIDTH - 1)) - 1
+res_max = te.compute(output_shape, lambda *i: tvm.te.max(res_shr(*i), 0), "res_max")
+res_min = te.compute(output_shape, lambda *i: tvm.te.min(res_max(*i), inp_max), "res_min")
 
 # Apply typecast to input data type before sending results back
-res = te.compute(output_shape,
-                  lambda *i: res_min(*i).astype(env.inp_dtype),
-                  name="res")
+res = te.compute(output_shape, lambda *i: res_min(*i).astype(env.inp_dtype), name="res")
 
 ######################################################################
 # Scheduling the Computation
@@ -333,20 +320,16 @@ f = remote.load_module("gemm.o")
 ctx = remote.ext_dev(0)
 
 # Initialize the data and weight arrays randomly in the int range of (-128, 128]
-data_np = np.random.randint(
-    -128, 128, size=(batch_size, in_channels)).astype(data.dtype)
-weight_np = np.random.randint(
-    -128, 128, size=(out_channels, in_channels)).astype(weight.dtype)
+data_np = np.random.randint(-128, 128, size=(batch_size, in_channels)).astype(data.dtype)
+weight_np = np.random.randint(-128, 128, size=(out_channels, in_channels)).astype(weight.dtype)
 
 # Apply packing to the data and weight arrays from a 2D to a 4D packed layout
-data_packed = data_np.reshape(batch_size // env.BATCH,
-                              env.BATCH,
-                              in_channels // env.BLOCK_IN,
-                              env.BLOCK_IN).transpose((0, 2, 1, 3))
-weight_packed = weight_np.reshape(out_channels // env.BLOCK_OUT,
-                                  env.BLOCK_OUT,
-                                  in_channels // env.BLOCK_IN,
-                                  env.BLOCK_IN).transpose((0, 2, 1, 3))
+data_packed = data_np.reshape(
+    batch_size // env.BATCH, env.BATCH, in_channels // env.BLOCK_IN, env.BLOCK_IN
+).transpose((0, 2, 1, 3))
+weight_packed = weight_np.reshape(
+    out_channels // env.BLOCK_OUT, env.BLOCK_OUT, in_channels // env.BLOCK_IN, env.BLOCK_IN
+).transpose((0, 2, 1, 3))
 
 # Format the input/output arrays with tvm.nd.array to the DLPack standard
 data_nd = tvm.nd.array(data_packed, ctx)
@@ -361,15 +344,13 @@ if env.TARGET in ["sim", "tsim"]:
 f(data_nd, weight_nd, res_nd)
 
 # Verify against numpy implementation
-res_ref = np.dot(data_np.astype(env.acc_dtype),
-                 weight_np.T.astype(env.acc_dtype))
+res_ref = np.dot(data_np.astype(env.acc_dtype), weight_np.T.astype(env.acc_dtype))
 res_ref = res_ref >> env.INP_WIDTH
 res_ref = np.clip(res_ref, 0, inp_max)
 res_ref = res_ref.astype(res.dtype)
-res_ref = res_ref.reshape(batch_size // env.BATCH,
-                          env.BATCH,
-                          out_channels // env.BLOCK_OUT,
-                          env.BLOCK_OUT).transpose((0, 2, 1, 3))
+res_ref = res_ref.reshape(
+    batch_size // env.BATCH, env.BATCH, out_channels // env.BLOCK_OUT, env.BLOCK_OUT
+).transpose((0, 2, 1, 3))
 np.testing.assert_equal(res_ref, res_nd.asnumpy())
 
 # Print stats

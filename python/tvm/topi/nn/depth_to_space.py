@@ -22,7 +22,7 @@ from tvm import te
 from .. import tag
 
 
-def depth_to_space(data, block_size, layout='NCHW', mode='DCR'):
+def depth_to_space(data, block_size, layout="NCHW", mode="DCR"):
     """Perform depth to space transformation on the data
 
     Parameters
@@ -46,23 +46,21 @@ def depth_to_space(data, block_size, layout='NCHW', mode='DCR'):
     output : tvm.te.Tensor
         Output of shape [N, C / block_size**2, H * block_size, W * block_size]
     """
-    if layout == 'NCHW':
+    if layout == "NCHW":
         in_n, in_c, in_h, in_w = data.shape
         channel_factor = tvm.tir.truncdiv(in_c, (block_size * block_size))
-        output_shape = [in_n, channel_factor,
-                        in_h * block_size, in_w * block_size]
-    elif layout == 'NHWC':
+        output_shape = [in_n, channel_factor, in_h * block_size, in_w * block_size]
+    elif layout == "NHWC":
         in_n, in_h, in_w, in_c = data.shape
         channel_factor = tvm.tir.truncdiv(in_c, (block_size * block_size))
-        output_shape = [in_n, in_h * block_size,
-                        in_w * block_size, channel_factor]
+        output_shape = [in_n, in_h * block_size, in_w * block_size, channel_factor]
     else:
         raise ValueError("Only NCHW and NHWC layouts are currently supported.")
 
     def _get_indices(*indices):
-        if layout == 'NCHW':
+        if layout == "NCHW":
             n, c, y, x = indices
-        elif layout == 'NHWC':
+        elif layout == "NHWC":
             n, y, x, c = indices
         return n, c, y, x
 
@@ -76,7 +74,7 @@ def depth_to_space(data, block_size, layout='NCHW', mode='DCR'):
         else:
             channel_idx = (c * block_size * block_size) + ((block_size * idx_y) + idx_x)
 
-        if layout == 'NCHW':
+        if layout == "NCHW":
             output = data(n, channel_idx, block_y, block_x)
         else:
             output = data(n, block_y, block_x, channel_idx)
@@ -86,4 +84,4 @@ def depth_to_space(data, block_size, layout='NCHW', mode='DCR'):
         n, c, y, x = _get_indices(*indices)
         return _get_pixel(n, c, y, x)
 
-    return te.compute(output_shape, _compute, name='depth_to_space', tag=tag.INJECTIVE)
+    return te.compute(output_shape, _compute, name="depth_to_space", tag=tag.INJECTIVE)

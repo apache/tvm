@@ -21,10 +21,10 @@ import numpy as np
 
 
 def test_static_callback():
-    dtype = 'int64'
-    n = te.size_var('n')
-    Ab = tvm.tir.decl_buffer((n, ), dtype)
-    i = te.size_var('i')
+    dtype = "int64"
+    n = te.size_var("n")
+    Ab = tvm.tir.decl_buffer((n,), dtype)
+    i = te.size_var("i")
     ib = tvm.tir.ir_builder.create()
     A = ib.buffer_ptr(Ab)
     cp = te.thread_axis((0, 1), "cop")
@@ -34,24 +34,22 @@ def test_static_callback():
         A[i] = A[i] + 1
     stmt = ib.get()
 
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "ramp")
-    )
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "ramp"))
     f = tvm.driver.build(mod, target="llvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f(a)
     f(a)
     np.testing.assert_equal(a.asnumpy(), np.ones(a.shape[0]))
 
+
 def test_static_init():
-    dtype = 'int64'
-    n = te.size_var('n')
-    Ab = tvm.tir.decl_buffer((n, ), dtype)
-    i = te.size_var('i')
+    dtype = "int64"
+    n = te.size_var("n")
+    Ab = tvm.tir.decl_buffer((n,), dtype)
+    i = te.size_var("i")
     ib = tvm.tir.ir_builder.create()
     handle = tvm.tir.call_intrin("handle", "tir.tvm_static_handle")
-    ib.emit(
-        tvm.tir.call_packed("test_static_callback", handle, Ab))
+    ib.emit(tvm.tir.call_packed("test_static_callback", handle, Ab))
 
     @tvm.register_func("test_static_callback")
     def test_cb(sh, A):
@@ -59,8 +57,7 @@ def test_static_init():
         return sh
 
     stmt = ib.get()
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "ramp"))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "ramp"))
     f = tvm.driver.build(mod, target="llvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f(a)

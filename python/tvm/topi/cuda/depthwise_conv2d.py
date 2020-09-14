@@ -29,6 +29,7 @@ def depthwise_conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dty
     """Compute depthwise_conv2d with NCHW layout."""
     return nn.depthwise_conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
 
+
 @autotvm.register_topi_schedule("depthwise_conv2d_nchw.cuda")
 def schedule_depthwise_conv2d_nchw(cfg, outs):
     """Schedule for depthwise_conv2d nchw forward.
@@ -48,7 +49,7 @@ def schedule_depthwise_conv2d_nchw(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == 'depthwise_conv2d_nchw':
+        if op.tag == "depthwise_conv2d_nchw":
             pad_data = op.input_tensors[0]
             kernel = op.input_tensors[1]
             conv = op.output(0)
@@ -61,7 +62,7 @@ def schedule_depthwise_conv2d_nchw(cfg, outs):
             cfg.define_knob("auto_unroll_max_step", [0, 256, 1500])
 
             target = tvm.target.Target.current()
-            if target.kind.name in ['nvptx', 'rocm']:
+            if target.kind.name in ["nvptx", "rocm"]:
                 cfg.define_knob("unroll_explicit", [1])
             else:
                 cfg.define_knob("unroll_explicit", [0, 1])
@@ -69,29 +70,30 @@ def schedule_depthwise_conv2d_nchw(cfg, outs):
             # fallback support
             if cfg.is_fallback:
                 ref_log = autotvm.tophub.load_reference_log(
-                    target.kind.name, target.model, 'depthwise_conv2d_nchw.cuda')
+                    target.kind.name, target.model, "depthwise_conv2d_nchw.cuda"
+                )
                 cfg.fallback_with_reference_log(ref_log)
                 # TODO(lmzheng): A bug here, set unroll_explicit to False as workaround
-                cfg['unroll_explicit'].val = 0
+                cfg["unroll_explicit"].val = 0
             ##### space definition end #####
 
             s[pad_data].compute_inline()
-            if isinstance(kernel.op, tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
+            if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
             if conv.op in s.outputs:
                 output = conv
-                OL = s.cache_write(conv, 'local')
+                OL = s.cache_write(conv, "local")
             else:
                 output = s.outputs[0].output(0)
-                s[conv].set_scope('local')
+                s[conv].set_scope("local")
                 OL = conv
 
             # create cache stage
-            AA = s.cache_read(pad_data, 'shared', [OL])
-            WW = s.cache_read(kernel, 'shared', [OL])
-            AL = s.cache_read(AA, 'local', [OL])
-            WL = s.cache_read(WW, 'local', [OL])
+            AA = s.cache_read(pad_data, "shared", [OL])
+            WW = s.cache_read(kernel, "shared", [OL])
+            AL = s.cache_read(AA, "local", [OL])
+            WL = s.cache_read(WW, "local", [OL])
 
             # tile and bind spatial axes
             n, f, y, x = s[output].op.axis
@@ -128,11 +130,12 @@ def schedule_depthwise_conv2d_nchw(cfg, outs):
                 s[load].bind(ty, te.thread_axis("threadIdx.y"))
                 s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
-            s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
-            s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
+            s[output].pragma(kernel_scope, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+            s[output].pragma(kernel_scope, "unroll_explicit", cfg["unroll_explicit"].val)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
 
 def schedule_depthwise_conv2d_nhwc(outs):
     """Schedule for depthwise_conv2d nhwc forward.
@@ -203,10 +206,10 @@ def schedule_depthwise_conv2d_nhwc(outs):
                 if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule depthwise_conv2d
-        if OP.tag == 'depthwise_conv2d_nhwc':
+        if OP.tag == "depthwise_conv2d_nhwc":
             PaddedInput = OP.input_tensors[0]
             Filter = OP.input_tensors[1]
-            if isinstance(Filter.op, tvm.te.ComputeOp) and 'dilate' in Filter.op.tag:
+            if isinstance(Filter.op, tvm.te.ComputeOp) and "dilate" in Filter.op.tag:
                 s[Filter].compute_inline()
             DepthwiseConv2d = OP.output(0)
             _schedule(PaddedInput, Filter, DepthwiseConv2d)
@@ -250,7 +253,7 @@ def schedule_depthwise_conv2d_backward_input_nhwc(outs):
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
-        if OP.tag == 'depthwise_conv2d_backward_input_nhwc':
+        if OP.tag == "depthwise_conv2d_backward_input_nhwc":
             Padded_out_grad = OP.input_tensors[0]
             Dilated_out_grad = Padded_out_grad.op.input_tensors[0]
             s[Dilated_out_grad].compute_inline()
@@ -261,6 +264,7 @@ def schedule_depthwise_conv2d_backward_input_nhwc(outs):
 
     traverse(outs[0].op)
     return s
+
 
 def schedule_depthwise_conv2d_backward_weight_nhwc(outs):
     """Schedule for depthwise_conv2d nhwc backward wrt weight.
@@ -303,7 +307,7 @@ def schedule_depthwise_conv2d_backward_weight_nhwc(outs):
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
-        if OP.tag == 'depthwise_conv2d_backward_weight_nhwc':
+        if OP.tag == "depthwise_conv2d_backward_weight_nhwc":
             Padded_in = OP.input_tensors[1]
             s[Padded_in].compute_inline()
             Weight_grad = OP.output(0)

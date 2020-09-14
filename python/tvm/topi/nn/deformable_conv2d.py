@@ -23,8 +23,10 @@ from .util import get_pad_tuple
 from ..util import get_const_tuple
 from ..cpp.util import bilinear_sample_nchw
 
-def deformable_conv2d_nchw(data, offset, kernel, strides, padding, dilation, deformable_groups,
-                           groups, out_dtype):
+
+def deformable_conv2d_nchw(
+    data, offset, kernel, strides, padding, dilation, deformable_groups, groups, out_dtype
+):
     """Deformable conv2D operator in NCHW layout.
 
     The deformable convolution operation is described in https://arxiv.org/abs/1703.06211
@@ -84,11 +86,10 @@ def deformable_conv2d_nchw(data, offset, kernel, strides, padding, dilation, def
 
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
-    pad_top, pad_left, _, _ = get_pad_tuple(
-        padding, (dilated_kernel_h, dilated_kernel_w))
-    rc = te.reduce_axis((0, in_channel), name='rc')
-    ry = te.reduce_axis((0, kernel_h), name='ry')
-    rx = te.reduce_axis((0, kernel_w), name='rx')
+    pad_top, pad_left, _, _ = get_pad_tuple(padding, (dilated_kernel_h, dilated_kernel_w))
+    rc = te.reduce_axis((0, in_channel), name="rc")
+    ry = te.reduce_axis((0, kernel_h), name="ry")
+    rx = te.reduce_axis((0, kernel_w), name="rx")
 
     zero = tvm.tir.const(0.0, data.dtype)
 
@@ -97,19 +98,35 @@ def deformable_conv2d_nchw(data, offset, kernel, strides, padding, dilation, def
         val = bilinear_sample_nchw(data, (n, c, h, w), in_height - 1, in_width - 1)
         return tvm.tir.if_then_else(outside, zero, val)
 
-    data_deform = \
-        te.compute((batch, in_channel, kernel_h, kernel_w, out_height, out_width),
-                   lambda n, c, kh, kw, y, x:
-                   _bilinear(n, c,
-                             y * stride_h - pad_top + kh * dilation_h +
-                             offset[n, c // ic_per_dgroup * (kernel_w*kernel_h*2) +
-                                    (kh * kernel_w + kw) * 2, y, x],
-                             x * stride_w - pad_left + kw * dilation_w +
-                             offset[n, c // ic_per_dgroup * (kernel_w*kernel_h*2) +
-                                    (kh * kernel_w + kw) * 2 + 1, y, x]), tag="data_deform")
+    data_deform = te.compute(
+        (batch, in_channel, kernel_h, kernel_w, out_height, out_width),
+        lambda n, c, kh, kw, y, x: _bilinear(
+            n,
+            c,
+            y * stride_h
+            - pad_top
+            + kh * dilation_h
+            + offset[
+                n, c // ic_per_dgroup * (kernel_w * kernel_h * 2) + (kh * kernel_w + kw) * 2, y, x
+            ],
+            x * stride_w
+            - pad_left
+            + kw * dilation_w
+            + offset[
+                n,
+                c // ic_per_dgroup * (kernel_w * kernel_h * 2) + (kh * kernel_w + kw) * 2 + 1,
+                y,
+                x,
+            ],
+        ),
+        tag="data_deform",
+    )
     return te.compute(
         (batch, out_channel, out_height, out_width),
         lambda n, f, y, x: te.sum(
-            data_deform[n, rc, ry, rx, y, x].astype(out_dtype) *
-            kernel[f, rc, ry, rx].astype(out_dtype),
-            axis=[rc, ry, rx]), tag="deformable_conv2d_nchw")
+            data_deform[n, rc, ry, rx, y, x].astype(out_dtype)
+            * kernel[f, rc, ry, rx].astype(out_dtype),
+            axis=[rc, ry, rx],
+        ),
+        tag="deformable_conv2d_nchw",
+    )
