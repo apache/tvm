@@ -32,8 +32,8 @@
 #include <utility>
 
 #include "../../support/ring_buffer.h"
+#include "../minrpc/rpc_reference.h"
 #include "rpc_channel.h"
-#include "rpc_protocol.h"
 #include "rpc_session.h"
 
 namespace tvm {

@@ -236,7 +236,8 @@ def dense_blas_common(cfg, data, weight, bias, out_dtype, lib):
     """Compute dense using a BLAS library"""
     M, K = get_const_tuple(data.shape)
     N, _ = get_const_tuple(weight.shape)
-    cfg.add_flop(M * K * N * 2)
+    if isinstance(M, int) and isinstance(K, int) and isinstance(N, int):
+        cfg.add_flop(M * K * N * 2)
     if data.dtype == "uint8" and weight.dtype == "int8" and out_dtype == "int32":
         if not hasattr(lib, "matmul_u8s8s32"):
             raise NotImplementedError(

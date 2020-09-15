@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <tvm/runtime/c_runtime_api.h>
@@ -27,6 +28,11 @@
 #ifdef ENABLE_TVM_ABORT_BACKTRACE
 #include "backtrace.h"
 #endif
+
+#define CRT_MEMORY_NUM_PAGES 16384
+#define CRT_MEMORY_PAGE_SIZE_LOG2 10
+
+static uint8_t g_crt_memory[CRT_MEMORY_NUM_PAGES * (1 << CRT_MEMORY_PAGE_SIZE_LOG2)];
 
 /*! \brief macro to do C API call */
 #define TVM_CCALL(func)                                                              \
@@ -56,7 +62,7 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
   ctx.device_id = device_id;
 
   // declare pointers
-  TVM_CCALL(TVMInitializeRuntime());
+  TVM_CCALL(TVMInitializeRuntime(g_crt_memory, sizeof(g_crt_memory), CRT_MEMORY_PAGE_SIZE_LOG2));
   TVMPackedFunc pf;
   TVMArgs args = TVMArgs_Create(NULL, NULL, 0);
   TVM_CCALL(TVMPackedFunc_InitGlobalFunc(&pf, "runtime.SystemLib", &args));
@@ -90,7 +96,14 @@ TVM_DLL void tvm_runtime_get_output(void* runtime, int32_t index, DLTensor* tens
   TVMGraphRuntime_GetOutput(graph_runtime, index, tensor);
 }
 
-void __attribute__((noreturn)) TVMPlatformAbort(int error_code) {
+void TVMLogf(const char* msg, ...) {
+  va_list args;
+  va_start(args, msg);
+  vfprintf(stderr, msg, args);
+  va_end(args);
+}
+
+void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t error_code) {
   fprintf(stderr, "TVMPlatformAbort: %d\n", error_code);
 #ifdef ENABLE_TVM_ABORT_BACKTRACE
   tvm_platform_abort_backtrace();
