@@ -440,14 +440,7 @@ def _take():
 def _topk():
     def _impl(inputs, input_types):
         data = inputs[0]
-        if isinstance(inputs[0], _expr.Expr):
-            try:
-                k = _infer_value(inputs[1], {}).asnumpy().tolist()
-                k = _expr.const(k)
-            except Exception:
-                k = inputs[1]
-        else:
-            k = inputs[1]
+        k = inputs[1]
         axis = int(inputs[2])
         is_ascend = not bool(inputs[3])
         sort = bool(inputs[4])
