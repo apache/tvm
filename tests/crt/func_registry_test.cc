@@ -22,6 +22,8 @@
 #include <tvm/runtime/crt/func_registry.h>
 #include <tvm/runtime/crt/internal/common/func_registry.h>
 
+#include "platform.cc"
+
 typedef struct {
   const char* a;
   const char* b;
