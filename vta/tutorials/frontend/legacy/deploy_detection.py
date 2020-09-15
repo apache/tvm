@@ -242,9 +242,9 @@ with autotvm.tophub.context(target):
 
     # Send the inference library over to the remote RPC server
     temp = util.tempdir()
-    lib.save(temp.relpath("graphlib.o"))
-    remote.upload(temp.relpath("graphlib.o"))
-    lib = remote.load_module("graphlib.o")
+    lib.export_library(temp.relpath("graphlib.tar"))
+    remote.upload(temp.relpath("graphlib.tar"))
+    lib = remote.load_module("graphlib.tar")
 
     # Graph runtime
     m = graph_runtime.GraphModule(lib["default"](ctx))
