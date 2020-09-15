@@ -53,7 +53,7 @@ def add_compile_parser(subparsers):
         "--dump-code",
         metavar="FORMAT",
         default="",
-        help="comma separarated list of formats to export, e.g. 'asm,ll,relay' "
+        help="comma separarated list of formats to export, e.g. 'asm,ll,relay' ",
     )
     parser.add_argument(
         "--model-format",
@@ -69,26 +69,24 @@ def add_compile_parser(subparsers):
     parser.add_argument(
         "--target",
         help="compilation target as plain string, inline JSON or path to a JSON file",
-        required=True
+        required=True,
     )
     parser.add_argument(
         "--tuning-records",
         metavar="PATH",
         default="",
-        help="path to an auto-tuning log file by AutoTVM. If not presented, " \
-             "the fallback/tophub configs will be used"
+        help="path to an auto-tuning log file by AutoTVM. If not presented, "
+        "the fallback/tophub configs will be used",
     )
-    parser.add_argument(
-        "-v", "--verbose", action="count", default=0, help="increase verbosity"
-    )
-    #TODO (@leandron) This is a path to a physical file, but
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity")
+    # TODO (@leandron) This is a path to a physical file, but
     #     can be improved in future to add integration with a modelzoo
     #     or URL, for example.
     parser.add_argument("FILE", help="path to the input model file")
 
 
 def drive_compile(args):
-    """ Invoke tvmc.compiler module with command line arguments
+    """Invoke tvmc.compiler module with command line arguments
 
     Parameters
     ----------
@@ -120,13 +118,13 @@ def drive_compile(args):
 
 
 def compile_model(
-        path,
-        target,
-        dump_code=None,
-        target_host=None,
-        model_format=None,
-        tuning_records=None,
-        alter_layout=None,
+    path,
+    target,
+    dump_code=None,
+    target_host=None,
+    model_format=None,
+    tuning_records=None,
+    alter_layout=None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -169,7 +167,7 @@ def compile_model(
         Dictionary containing the dumps specified.
 
     """
-    dump_code = [x.strip() for x in  dump_code.split(',')] if dump_code else None
+    dump_code = [x.strip() for x in dump_code.split(",")] if dump_code else None
     mod, params = frontends.load_model(path, model_format)
 
     if alter_layout:
@@ -184,7 +182,7 @@ def compile_model(
     # TODO(@leandron) We don't have an API to collect a list of supported
     #       targets yet
     logging.debug("creating target from input: %s", target)
-    tvm_target = tvm.target.create(target)
+    tvm_target = tvm.target.Target(target)
     target_host = target_host or ""
 
     if tuning_records and os.path.exists(tuning_records):

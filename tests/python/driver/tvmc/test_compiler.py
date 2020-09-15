@@ -40,7 +40,7 @@ def test_save_dumps(tmpdir_factory):
 
 
 def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
-    pytest.importorskip('tflite')
+    pytest.importorskip("tflite")
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         tflite_mobilenet_v1_1_quant,
@@ -57,10 +57,11 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
-@pytest.mark.skipif(not shutil.which("aarch64-linux-gnu-gcc"),
-    reason="cross-compilation toolchain not installed")
+@pytest.mark.skipif(
+    not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
+)
 def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
-    pytest.importorskip('tflite')
+    pytest.importorskip("tflite")
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         tflite_mobilenet_v1_1_quant,
@@ -77,7 +78,7 @@ def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
 
 def test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
-    pytest.importorskip('tensorflow')
+    pytest.importorskip("tensorflow")
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         keras_resnet50, target="llvm", dump_code="ll"
@@ -92,11 +93,12 @@ def test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
-@pytest.mark.skipif(not shutil.which("aarch64-linux-gnu-gcc"),
-    reason="cross-compilation toolchain not installed")
+@pytest.mark.skipif(
+    not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
+)
 def test_cross_compile_aarch64_keras_module(keras_resnet50):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
-    pytest.importorskip('tensorflow')
+    pytest.importorskip("tensorflow")
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         keras_resnet50,
@@ -114,7 +116,7 @@ def test_cross_compile_aarch64_keras_module(keras_resnet50):
 
 def test_compile_onnx_module(onnx_resnet50):
     # some CI environments wont offer onnx, so skip in case it is not present
-    pytest.importorskip('onnx')
+    pytest.importorskip("onnx")
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         onnx_resnet50, target="llvm", dump_code="ll"
@@ -129,11 +131,12 @@ def test_compile_onnx_module(onnx_resnet50):
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
-@pytest.mark.skipif(not shutil.which("aarch64-linux-gnu-gcc"),
-    reason="cross-compilation toolchain not installed")
+@pytest.mark.skipif(
+    not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
+)
 def test_cross_compile_aarch64_onnx_module(onnx_resnet50):
     # some CI environments wont offer onnx, so skip in case it is not present
-    pytest.importorskip('onnx')
+    pytest.importorskip("onnx")
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         onnx_resnet50,

@@ -26,9 +26,10 @@ from tvm.driver.tvmc.common import convert_graph_layout
 
 # Support functions
 
+
 def download_and_untar(model_url, model_sub_path, temp_dir):
     model_tar_name = os.path.basename(model_url)
-    model_path = download_testdata(model_url, model_tar_name, module=['tvmc'])
+    model_path = download_testdata(model_url, model_tar_name, module=["tvmc"])
 
     if model_path.endswith("tgz") or model_path.endswith("gz"):
         tar = tarfile.open(model_path)
@@ -42,9 +43,11 @@ def get_sample_compiled_module(target_dir):
     """Support function that retuns a TFLite compiled module"""
     base_url = "https://storage.googleapis.com/download.tensorflow.org/models"
     model_url = "mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz"
-    model_file = download_and_untar("{}/{}".format(base_url, model_url),
+    model_file = download_and_untar(
+        "{}/{}".format(base_url, model_url),
         "mobilenet_v1_1.0_224_quant.tflite",
-        temp_dir=target_dir)
+        temp_dir=target_dir,
+    )
 
     return tvmc.compiler.compile_model(model_file, targets=["llvm"])
 
@@ -56,9 +59,11 @@ def get_sample_compiled_module(target_dir):
 def tflite_mobilenet_v1_1_quant(tmpdir_factory):
     base_url = "https://storage.googleapis.com/download.tensorflow.org/models"
     model_url = "mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz"
-    model_file = download_and_untar("{}/{}".format(base_url, model_url),
+    model_file = download_and_untar(
+        "{}/{}".format(base_url, model_url),
         "mobilenet_v1_1.0_224_quant.tflite",
-        temp_dir=tmpdir_factory.mktemp("data"))
+        temp_dir=tmpdir_factory.mktemp("data"),
+    )
 
     return model_file
 
@@ -67,9 +72,11 @@ def tflite_mobilenet_v1_1_quant(tmpdir_factory):
 def pb_mobilenet_v1_1_quant(tmpdir_factory):
     base_url = "https://storage.googleapis.com/download.tensorflow.org/models"
     model_url = "mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224.tgz"
-    model_file = download_and_untar("{}/{}".format(base_url, model_url),
+    model_file = download_and_untar(
+        "{}/{}".format(base_url, model_url),
         "mobilenet_v1_1.0_224_frozen.pb",
-        temp_dir=tmpdir_factory.mktemp("data"))
+        temp_dir=tmpdir_factory.mktemp("data"),
+    )
 
     return model_file
 
@@ -84,7 +91,7 @@ def keras_resnet50(tmpdir_factory):
         return ""
 
     model_file_name = "{}/{}".format(tmpdir_factory.mktemp("data"), "resnet50.h5")
-    model = ResNet50(include_top=True, weights='imagenet', input_shape=(224, 224, 3), classes=1000)
+    model = ResNet50(include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000)
     model.save(model_file_name)
 
     return model_file_name
@@ -94,7 +101,9 @@ def keras_resnet50(tmpdir_factory):
 def onnx_resnet50():
     base_url = "https://github.com/onnx/models/raw/master/vision/classification/resnet/model"
     file_to_download = "resnet50-v2-7.onnx"
-    model_file = download_testdata("{}/{}".format(base_url, file_to_download), file_to_download, module=['tvmc'])
+    model_file = download_testdata(
+        "{}/{}".format(base_url, file_to_download), file_to_download, module=["tvmc"]
+    )
 
     return model_file
 
@@ -104,7 +113,7 @@ def tflite_compiled_module_as_tarfile(tmpdir_factory):
     target_dir = tmpdir_factory.mktemp("data")
     graph, lib, params, _ = get_sample_compiled_module(target_dir)
 
-    module_file = os.path.join(target_dir, 'mock.tar')
+    module_file = os.path.join(target_dir, "mock.tar")
     tvmc.compiler.save_module(module_file, graph, lib, params)
 
     return module_file

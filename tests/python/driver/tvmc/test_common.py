@@ -26,20 +26,22 @@ from tvm.driver import tvmc
 
 def test_compile_tflite_module_nhwc_to_nchw(tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer TFLite, so skip in case it is not present
-    pytest.importorskip('tflite')
+    pytest.importorskip("tflite")
 
     before, _ = tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant)
 
-    expected_layout="NCHW"
+    expected_layout = "NCHW"
     after = tvmc.common.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
+
     def _is_layout_transform(node):
         if isinstance(node, tvm.relay.expr.Call):
             layout_transform_calls.append(
-                node.op.name == "layout_transform" \
-                and node.attrs.src_layout == 'NHWC' \
-                and node.attrs.dst_layout == 'NCHW')
+                node.op.name == "layout_transform"
+                and node.attrs.src_layout == "NHWC"
+                and node.attrs.dst_layout == "NCHW"
+            )
 
     tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
 
@@ -48,20 +50,22 @@ def test_compile_tflite_module_nhwc_to_nchw(tflite_mobilenet_v1_1_quant):
 
 def test_compile_onnx_module_nchw_to_nhwc(onnx_resnet50):
     # some CI environments wont offer ONNX, so skip in case it is not present
-    pytest.importorskip('onnx')
+    pytest.importorskip("onnx")
 
     before, _ = tvmc.frontends.load_model(onnx_resnet50)
 
-    expected_layout="NHWC"
+    expected_layout = "NHWC"
     after = tvmc.common.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
+
     def _is_layout_transform(node):
         if isinstance(node, tvm.relay.expr.Call):
             layout_transform_calls.append(
-                node.op.name == "layout_transform" \
-                and node.attrs.src_layout == 'NCHW' \
-                and node.attrs.dst_layout == 'NHWC')
+                node.op.name == "layout_transform"
+                and node.attrs.src_layout == "NCHW"
+                and node.attrs.dst_layout == "NHWC"
+            )
 
     tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
 
@@ -70,20 +74,22 @@ def test_compile_onnx_module_nchw_to_nhwc(onnx_resnet50):
 
 def test_compile_tflite_module__same_layout__nhwc_to_nhwc(tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer TFLite, so skip in case it is not present
-    pytest.importorskip('tflite')
+    pytest.importorskip("tflite")
 
     before, _ = tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant)
 
-    expected_layout="NHWC"
+    expected_layout = "NHWC"
     after = tvmc.common.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
+
     def _is_layout_transform(node):
         if isinstance(node, tvm.relay.expr.Call):
             layout_transform_calls.append(
-                node.op.name == "layout_transform" \
-                and node.attrs.src_layout == 'NHWC' \
-                and node.attrs.dst_layout == 'NHWC')
+                node.op.name == "layout_transform"
+                and node.attrs.src_layout == "NHWC"
+                and node.attrs.dst_layout == "NHWC"
+            )
 
     tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
 
@@ -92,20 +98,22 @@ def test_compile_tflite_module__same_layout__nhwc_to_nhwc(tflite_mobilenet_v1_1_
 
 def test_compile_onnx_module__same_layout__nchw_to_nchw(onnx_resnet50):
     # some CI environments wont offer ONNX, so skip in case it is not present
-    pytest.importorskip('onnx')
+    pytest.importorskip("onnx")
 
     before, _ = tvmc.frontends.load_model(onnx_resnet50)
 
-    expected_layout="NCHW"
+    expected_layout = "NCHW"
     after = tvmc.common.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
+
     def _is_layout_transform(node):
         if isinstance(node, tvm.relay.expr.Call):
             layout_transform_calls.append(
-                node.op.name == "layout_transform" \
-                and node.attrs.src_layout == 'NCHW' \
-                and node.attrs.dst_layout == 'NCHW')
+                node.op.name == "layout_transform"
+                and node.attrs.src_layout == "NCHW"
+                and node.attrs.dst_layout == "NCHW"
+            )
 
     tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
 

@@ -114,20 +114,13 @@ class KerasFrontend(Frontend):
         in_shapes = []
         for layer in model._input_layers:
             if tf.executing_eagerly():
-                in_shapes.append(
-                    tuple(dim if dim is not None else 1 for dim in layer.input.shape)
-                )
+                in_shapes.append(tuple(dim if dim is not None else 1 for dim in layer.input.shape))
             else:
                 in_shapes.append(
-                    tuple(
-                        dim.value if dim.value is not None else 1
-                        for dim in layer.input.shape
-                    )
+                    tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape)
                 )
 
-        inputs = [
-            np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes
-        ]
+        inputs = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
         shape_dict = {name: x.shape for (name, x) in zip(model.input_names, inputs)}
         return relay.frontend.from_keras(model, shape_dict, layout="NHWC")
 
@@ -307,9 +300,7 @@ class PyTorchFrontend(Frontend):
         input_shapes = [inp.type().sizes() for inp in inputs]
 
         traced_model.eval()  # Switch to inference mode
-        input_shapes = [
-            ("input{}".format(idx), shape) for idx, shape in enumerate(shapes)
-        ]
+        input_shapes = [("input{}".format(idx), shape) for idx, shape in enumerate(shapes)]
         logging.debug("relay.frontend.from_pytorch")
         return relay.frontend.from_pytorch(traced_model, input_shapes)
 
@@ -358,7 +349,8 @@ def get_frontend_by_name(name):
             return frontend()
 
     raise TVMCException(
-        "unrecognized frontend '{0}'. Choose from: {1}".format(name, get_frontend_names()))
+        "unrecognized frontend '{0}'. Choose from: {1}".format(name, get_frontend_names())
+    )
 
 
 def guess_frontend(path):
