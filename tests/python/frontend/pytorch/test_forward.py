@@ -2426,10 +2426,21 @@ def test_forward_copy_():
         def forward(self, *args):
             return torch.Tensor.copy_(args[0], args[1])
 
-    src_tensor = torch.rand((5))
+    class CopyInPlace(Module):
+        def __init__(self):
+            super(CopyInPlace, self).__init__()
+
+        def forward(self, *args):
+            a = args[0]
+            b = args[1]
+            c = torch.Tensor.copy_(a, b)
+            return a
+
+    src_tensor = torch.rand(5)
     tgt_tensor = torch.rand((2, 3, 5))
-    verify_model(Copy().float().eval(), input_data=[tgt_tensor, src_tensor])
-    verify_model(Copy().float().eval(), input_data=[tgt_tensor, src_tensor + tgt_tensor])
+    for copy in [Copy, CopyInPlace]:
+        verify_model(copy().float().eval(), input_data=[tgt_tensor, src_tensor])
+        verify_model(copy().float().eval(), input_data=[tgt_tensor, src_tensor + tgt_tensor])
 
 
 @tvm.testing.uses_gpu
