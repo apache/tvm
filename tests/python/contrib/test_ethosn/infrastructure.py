@@ -15,14 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Expose Ethos test functions to the Python front end"""
+"""Ethos-N test functions"""
 
 from __future__ import absolute_import, print_function
 import tvm
 from tvm import relay
 from tvm.contrib import util, graph_runtime, download
-from tvm.relay.testing import run_opt_pass
-from enum import Enum
 from hashlib import md5
 from itertools import zip_longest, combinations
 import numpy as np
@@ -31,6 +29,25 @@ import os
 
 from . import _infrastructure
 from tvm.relay.op.contrib import get_pattern_table
+
+
+def get_real_image(im_height, im_width):
+    repo_base = "https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/"
+    img_name = "elephant-299.jpg"
+    image_url = os.path.join(repo_base, img_name)
+    img_path = download.download_testdata(image_url, img_name, module="data")
+    image = Image.open(img_path).resize((im_height, im_width))
+    x = np.array(image).astype("uint8")
+    data = np.reshape(x, (1, im_height, im_width, 3))
+    return data
+
+
+def assert_lib_hash(lib, golden):
+    temp = util.tempdir()
+    path = temp.relpath("lib.cmm")
+    lib.imported_modules[1].save(path)
+    lib_hash = md5(open(path, "rb").read()).hexdigest()
+    assert lib_hash == golden, "Expected hash: {} Got hash: {}".format(golden, lib_hash)
 
 
 def make_module(func, params):
@@ -177,3 +194,54 @@ def test_error(mod, params, err_msg):
 
     assert caught is not None
     assert err_msg in caught, caught
+
+
+def get_conv2d(var, shape):
+    """Standard convolution to test activation functions"""
+
+    weight_shape = (1, 1, shape[3], 1)
+    w = tvm.nd.array(np.ones(weight_shape, "uint8"))
+    weights = relay.const(w, "uint8")
+    conv = relay.qnn.op.conv2d(
+        var,
+        weights,
+        input_zero_point=relay.const(0, "int32"),
+        kernel_zero_point=relay.const(0, "int32"),
+        input_scale=relay.const(1.0, "float32"),
+        kernel_scale=relay.const(1.0, "float32"),
+        kernel_size=(1, 1),
+        channels=1,
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+    )
+    b = tvm.nd.array(np.zeros((shape[0],), "int32"))
+    biasc = relay.const(b, "int32")
+    bias = relay.nn.bias_add(conv, biasc, axis=0)
+    req = relay.qnn.op.requantize(
+        bias,
+        relay.const(1.0, "float32"),  # input zero scale
+        relay.const(0, "int32"),  # input zero point
+        relay.const(1.1, "float32"),  # output zero scale
+        relay.const(0, "int32"),  # output zero point
+        out_dtype="uint8",
+    )
+    params = {"w": w, "b": b}
+    return req, params
+
+
+def get_conv2d_qnn_params(input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, channels):
+    input_max = input_sc * (255 - input_zp)
+    input_min = -input_sc * input_zp
+    kernel_max = kernel_sc * (255 - kernel_zp)
+    kernel_min = -kernel_sc * kernel_zp
+    output_limits = [
+        kernel_max * kernel_h * kernel_w * channels * input_max,
+        kernel_min * kernel_h * kernel_w * channels * input_max,
+        kernel_min * kernel_h * kernel_w * channels * input_min,
+        kernel_max * kernel_h * kernel_w * channels * input_min,
+    ]
+    output_max = max(output_limits)
+    output_min = min(output_limits)
+    output_sc = (output_max - output_min) / 255
+    output_zp = -int(output_min / output_sc)
+    return output_zp, output_sc
