@@ -746,6 +746,11 @@ reg.register_strategy("nn.correlation", strategy.correlation_strategy)
 reg.register_pattern("nn.correlation", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+# space_to_batch_nd and batch_to_space_nd
+reg.register_injective_schedule("nn.space_to_batch_nd")
+reg.register_injective_schedule("nn.batch_to_space_nd")
+
+
 #####################
 #  Shape functions  #
 #####################
