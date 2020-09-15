@@ -234,9 +234,7 @@ with autotvm.tophub.context(target):
 
     # Compile Relay program with AlterOpLayout disabled
     with vta.build_config(disabled_pass={"AlterOpLayout"}):
-        graph, lib, params = relay.build(
-            mod, target=target, params=params, target_host=env.target_host
-        )
+        lib = relay.build(mod, target=target, params=params, target_host=env.target_host)
 
     # Measure Relay build time
     build_time = time.time() - build_start
@@ -249,7 +247,7 @@ with autotvm.tophub.context(target):
     lib = remote.load_module("graphlib.o")
 
     # Graph runtime
-    m = graph_runtime.create(graph, lib, ctx)
+    m = graph_runtime.GraphModule(lib["default"](ctx))
 
 ####################################
 # Perform image detection inference.
@@ -271,7 +269,6 @@ data = np.repeat(data, env.BATCH, axis=0)
 
 # Set the network parameters and inputs
 m.set_input("data", data)
-m.set_input(**params)
 
 # Perform inference and gather execution statistics
 # More on: :py:method:`tvm.runtime.Module.time_evaluator`
