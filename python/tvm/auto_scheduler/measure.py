@@ -60,7 +60,7 @@ from .utils import (
 # The maximum length of error message
 MAX_ERROR_MSG_LEN = 512
 
-# We use fork and a global variable to copy arguments between processings.
+# We use fork and a global variable to copy arguments between processes.
 # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
 GLOBAL_BUILD_ARGUMENTS = None
 GLOBAL_RUN_ARGUMENTS = None
@@ -475,7 +475,7 @@ def local_build_worker(index):
     """
     global GLOBAL_BUILD_ARGUMENTS
 
-    # We use fork and a global variable to copy arguments between processings.
+    # We use fork and a global variable to copy arguments between processes.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
     if not GLOBAL_BUILD_ARGUMENTS:
         raise ValueError("GLOBAL_BUILD_ARGUMENTS not found")
@@ -563,7 +563,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     res : List[BuildResult]
         The build results of these MeasureInputs.
     """
-    # We use fork and a global variable to copy arguments between processings.
+    # We use fork and a global variable to copy arguments between processes.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
     global GLOBAL_BUILD_ARGUMENTS
 

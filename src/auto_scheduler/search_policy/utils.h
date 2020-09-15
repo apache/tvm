@@ -302,7 +302,7 @@ inline int64_t GetExtent(const Iterator& it) {
 }
 
 /*! \brief Compute the product of lengths of all space iters and all reduce iters, respectively. */
-inline std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLengh(const Stage& stage) {
+inline std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const Stage& stage) {
   int64_t cum_space_len = 1, cum_reduce_len = 1;
   for (const auto& iter : stage->iters) {
     if (iter->iter_kind == IteratorKind::kSpatial) {
@@ -321,7 +321,7 @@ inline bool NeedsRfactor(const SearchTask& task, const State& state, int stage_i
     // Compute the product of lengths of all space iters and all reduce iters
     int cum_space_len, cum_reduce_len;
     std::tie(cum_space_len, cum_reduce_len) =
-        GetCumulativeSpaceAndReductionLengh(state->stages[stage_id]);
+        GetCumulativeSpaceAndReductionLength(state->stages[stage_id]);
 
     if (NeedsMultilevelTiling(task, state, stage_id)) {
       // Do not use rfactor if we have enough parallelism on space iters
@@ -635,7 +635,7 @@ class SplitFactorizationMemo {
   const std::vector<int>& GetFactors(int n);
 
  private:
-  void DfsEnumerate(int now, int remaining_lenght, int max_innermost_factor);
+  void DfsEnumerate(int now, int remaining_length, int max_innermost_factor);
 
   std::unordered_map<QueryKey, Array<Array<Integer>>> memory_;
 
@@ -645,12 +645,12 @@ class SplitFactorizationMemo {
   std::unordered_map<int, std::vector<int>> factor_memory_;
 };
 
-/*! \brief Get the indexes of SplitStep that processes on spatial iteratior. */
+/*! \brief Get the indexes of SplitStep that processes on spatial iterator. */
 Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id);
 
 // Apply multi-level tiling structure according to a string format,
-// where "S" stands a space level, "R" stands for a reudciton level.
-// For example, if the format is "SSRSRS", the we will
+// where "S" stands a space level, "R" stands for a reduction level.
+// For example, if the format is "SSRSRS", then we will
 // use tiling structure:  space_L0, space_L1, reduce_L0, space_L2, reduce_L1, space_L3
 // For example, if apply "SSRSRS" to matrix multiplication,
 // we have space iterators i and j, reduce iterator k.

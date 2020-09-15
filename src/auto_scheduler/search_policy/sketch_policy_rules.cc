@@ -325,7 +325,7 @@ SketchGenerationRule::ConditionKind RuleCrossThreadReduction::MeetCondition(
     // Compute the product of lengths of all space iters and all reduce iters
     int cum_space_len, cum_reduce_len;
     std::tie(cum_space_len, cum_reduce_len) =
-        GetCumulativeSpaceAndReductionLengh(state->stages[stage_id]);
+        GetCumulativeSpaceAndReductionLength(state->stages[stage_id]);
 
     if (NeedsMultilevelTiling(policy.search_task, state, stage_id)) {
       // Do rfactor if we do not have enough parallelism on space iters
@@ -728,7 +728,7 @@ PopulationGenerationRule::ResultKind InitVectorization::Apply(SketchPolicyNode* 
     int num_fusible = 0;
     while (num_fusible < static_cast<int>(stage->iters.size())) {
       int iter_id = static_cast<int>(stage->iters.size()) - 1 - num_fusible;
-      // Stop if this iterator has been a compute at attatch point
+      // Stop if this iterator has been a compute at attach point
       if ((*state)->attach_map->iter_to_attached_stages.count(std::make_pair(stage_id, iter_id))) {
         break;
       }
@@ -823,7 +823,7 @@ PopulationGenerationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* pol
           state->bind(stage_id, fused_it, IteratorAnnotation::kThreadX);
         } else {
           // Set threadIdx.x = default_warp_size by default.
-          // The later EvolutionarySearch will try more possiblity
+          // The later EvolutionarySearch will try more possibility
           const auto& split_its = state->split(
               stage_id, fused_it, {Integer(policy->search_task->hardware_params->warp_size)});
           state->bind(stage_id, split_its[0], IteratorAnnotation::kBlockX);
@@ -910,7 +910,7 @@ PopulationGenerationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* pol
       // Fuse all iterators to do cooperative fetching
       Iterator fused = state->fuse(stage_id, (*state)->stages[stage_id]->iters);
       // Split out an extra iterator for vectorization
-      // The later EvolutionarySearch will try more possiblity
+      // The later EvolutionarySearch will try more possibility
       const auto& iters0 = state->split(stage_id, fused, {Integer(1)});
       state->vectorize(stage_id, iters0[1]);
       // Follow split to keep a same thread extent with the root stage
