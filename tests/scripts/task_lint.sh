@@ -39,9 +39,8 @@ tests/lint/cpplint.sh
 echo "clang-format check..."
 tests/lint/clang_format.sh
 
-# TODO(@jroesch): enable black check
-# echo "black check..."
-# tests/lint/python_format.sh
+echo "black check..."
+tests/lint/python_format.sh
 
 echo "Linting the Python code..."
 tests/lint/pylint.sh
