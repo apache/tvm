@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument
 """GEMM schedules for Mali Bifrost"""
+from tvm import te
+
 from .transforms import tile_and_bind, tile_and_bind3d, interleave_transpose, transpose_interleave
 from .. import util
 
