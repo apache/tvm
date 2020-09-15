@@ -1755,6 +1755,14 @@ def _identity():
 
     return _impl
 
+def _copy_():
+    def _impl(inputs, input_types):
+        # use add to help handle broadcasting
+        rel = _op.zeros_like(inputs[0])
+        return _op.add(rel, inputs[1])
+
+    return _impl
+
 
 def _none():
     def _impl(inputs, input_types):
@@ -2630,6 +2638,8 @@ def _get_convert_map(prelude, default_dtype):
         "aten::isinf": _unary("isinf"),
         "aten::isnan": _unary("isnan"),
         "aten::clamp": _clamp(),
+        "aten::clamp_": _clamp(),
+        "aten::copy_": _copy_(),
         "aten::detach": _identity(),
         "aten::upsample_bilinear2d": _upsample("bilinear", prelude),
         "aten::upsample_nearest2d": _upsample("nearest_neighbor", prelude),

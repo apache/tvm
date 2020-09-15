@@ -2399,6 +2399,41 @@ def test_forward_clamp():
 
 
 @tvm.testing.uses_gpu
+def test_forward_clamp_():
+    torch.set_grad_enabled(False)
+
+    class ClampInPlace(Module):
+        def __init__(self, min, max):
+            super(ClampInPlace, self).__init__()
+            self.min = min
+            self.max = max
+
+        def forward(self, *args):
+            return torch.clamp_(args[0], self.min, self.max)
+
+    for ishape, min, max in (([4, 8], 0.1, 0.9), ([7, 6], 0.2, 0.5)):
+        input_data = torch.rand(ishape).float()
+        verify_model(ClampInPlace(min, max).float().eval(),
+                     input_data=input_data)
+
+@tvm.testing.uses_gpu
+def test_forward_copy_():
+    torch.set_grad_enabled(False)
+
+    class Copy(Module):
+        def __init__(self):
+            super(Copy, self).__init__()
+
+        def forward(self, *args):
+            return torch.Tensor.copy_(args[0], args[1])
+
+    src_tensor = torch.rand((5))
+    tgt_tensor = torch.rand((2, 3, 5))
+    verify_model(Copy().float().eval(), input_data=[tgt_tensor, src_tensor])
+    verify_model(Copy().float().eval(), input_data=[tgt_tensor, src_tensor + tgt_tensor])
+
+
+@tvm.testing.uses_gpu
 def test_forward_ones():
     torch.set_grad_enabled(False)
 
@@ -3323,6 +3358,8 @@ if __name__ == "__main__":
     test_forward_pow()
     test_forward_unary()
     test_forward_clamp()
+    test_forward_clamp_()
+    test_forward_copy_()
     test_forward_logical_not()
     test_forward_bitwise_not()
     test_forward_bitwise_xor()
