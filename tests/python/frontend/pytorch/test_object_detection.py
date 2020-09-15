@@ -100,7 +100,6 @@ def test_detection_models(model_index, score_threshold=0.9):
 
     scripted_model = generate_jit_model(model_index)
     mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
-    print(mod["main"])
 
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["FoldScaleAxis"]):
         vm_exec = relay.vm.compile(mod, target=target, params=params)
