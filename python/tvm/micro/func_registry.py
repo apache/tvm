@@ -58,7 +58,7 @@ def graph_json_to_c_func_registry(graph_path, func_registry_path):
     lines.append("static TVMBackendPackedCFunc funcs[] = {")
 
     for f in funcs:
-        lines.append(f"    &{f},")
+        lines.append(f"    (TVMBackendPackedCFunc) &{f},")
 
     lines += [
         "};",
