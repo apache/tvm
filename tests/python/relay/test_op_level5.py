@@ -495,9 +495,19 @@ def test_non_max_suppression():
 
 @tvm.testing.uses_gpu
 def test_non_max_suppression_gpu():
-    def verify_nms(x0_data, x1_data, x2_data, x3_data, dshape, ref_res,
-                   ref_indices_res, iou_threshold=0.5, force_suppress=True,
-                   top_k=-1, check_type_only=False):
+    def verify_nms(
+        x0_data,
+        x1_data,
+        x2_data,
+        x3_data,
+        dshape,
+        ref_res,
+        ref_indices_res,
+        iou_threshold=0.5,
+        force_suppress=True,
+        top_k=-1,
+        check_type_only=False
+    ):
         x0 = relay.var("x0", relay.ty.TensorType(dshape, "float32"))
         x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int32"))
         x2 = relay.var("x2", relay.ty.TensorType((dshape[0], dshape[1]), "int32"))
@@ -522,23 +532,44 @@ def test_non_max_suppression_gpu():
             tvm.testing.assert_allclose(op_indices_res2[0].asnumpy(), ref_indices_res, rtol=1e-5)
 
     # data after get_valid_counts
-    np_data = np.array([[[0, 0.8, 1, 20, 25, 45], 
-                         [1, 0.7, 2, 21, 26, 45],
-                         [-1, -1, -1, -1, -1, -1], 
-                         [2, 0.9, 35, 61, 52, 79],
-                         [1, 0.5, 100, 60, 70, 110]]]).astype("float32")
+    np_data = np.array(
+        [
+            [
+                [0, 0.8, 1, 20, 25, 45], 
+                [1, 0.7, 2, 21, 26, 45],
+                [-1, -1, -1, -1, -1, -1], 
+                [2, 0.9, 35, 61, 52, 79],
+                [1, 0.5, 100, 60, 70, 110]
+            ]
+        ]
+    ).astype("float32")
     np_indices = np.array([[0, 1, -1, 3, 4]]).astype("int32")
     np_valid_count = np.array([4]).astype("int32")
     np_max_output_size = -1
     num_anchors = 5
     dshape = (1, num_anchors, 6)
-    np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
-                           [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
-                           [-1, -1, -1, -1, -1, -1]]])
+    np_result = np.array(
+        [
+            [
+                [2, 0.9, 35, 61, 52, 79],
+                [0, 0.8, 1, 20, 25, 45],
+                [-1, -1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1, -1]
+            ]
+        ]
+    )
     np_indices_result = np.array([[3, 0, -1, -1, -1]])
-    verify_nms(np_data, np_valid_count, np_indices, 
-               np_max_output_size, dshape, np_result,
-               np_indices_result)
+    verify_nms(
+        np_data,
+        np_valid_count,
+        np_indices,
+        np_max_output_size,
+        dshape, 
+        np_result,
+        np_indices_result,
+        top_k=2,
+    )
 
 @tvm.testing.uses_gpu
 def test_multibox_transform_loc():
