@@ -46,16 +46,20 @@ fi
 echo "Version Information: $(black --version)"
 
 # Compute Python files which changed to compare.
-IFS=$'\n' read -a FILES -d'\n' < <(git diff --name-only HEAD $1 -- "*.py" "*.pyi") || true
-echo "read returned $?"
+IFS=$'\n' read -a FILES -d'\n' < <(git diff --name-only $1 -- "*.py" "*.pyi") || true
+echo "Read returned $?"
+if [ -z ${FILES+x} ]; then
+    echo "No changes in Python files"
+    exit 0
+fi
 echo "Files: $FILES"
 
 if [[ ${INPLACE_FORMAT} -eq 1 ]]; then
-    echo "Running black on Python files against revision" $1):
+    echo "Running black on Python files against revision" $1:
     CMD=( "black" "${FILES[@]}" )
     echo "${CMD[@]}"
     "${CMD[@]}"
 else
     echo "Running black in checking mode"
-    black --diff --check
+    black --diff --check ${FILES[@]}
 fi
