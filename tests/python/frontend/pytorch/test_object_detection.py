@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=import-self, invalid-name, unused-argument
 """Test torch vision fasterrcnn and maskrcnn models"""
+import numpy as np
 import torch
 import torchvision
 import cv2
@@ -31,6 +32,7 @@ in_size = 512
 
 def process_image(img):
     img = cv2.imread(img).astype("float32")
+    img = cv2.resize(img, (in_size, in_size))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img = torch.from_numpy(img/255.).permute(2,0,1).float()
     img = torch.unsqueeze(img, axis=0)
@@ -68,7 +70,7 @@ def generate_jit_model(index, img):
     model = TraceWrapper(model_func(pretrained=True))
 
     model.eval()
-    inp = process_image(img)
+    inp = torch.Tensor(np.random.uniform(0.0, 250.0,size=(1, 3, in_size, in_size)))
 
     with torch.no_grad():
         out = model(inp)
