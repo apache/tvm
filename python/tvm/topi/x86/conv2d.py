@@ -140,6 +140,17 @@ def _pack_data(cfg, data, kernel):
     ic_chunk = ic // ic_bn
     oc_chunk = oc // oc_bn
 
+    # Handle dynamic shape to pass tuning dispatch.
+    if isinstance(n, tvm.tir.Any):
+        n = tvm.te.size_var("n")
+    if isinstance(ih, tvm.tir.Any):
+        ih = tvm.te.size_var("ih")
+    if isinstance(iw, tvm.tir.Any):
+        iw = tvm.te.size_var("iw")
+    if isinstance(ic, tvm.tir.Any):
+        raise RuntimeError("Dynamic input channel is not supported for conv2d.")
+
+
     data = te.compute(
         (n, ic_chunk, ih, iw, ic_bn),
         lambda bs, c, h, w, vc: data[bs, c * ic_bn + vc, h, w],
