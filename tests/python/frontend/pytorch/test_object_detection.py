@@ -62,7 +62,7 @@ class TraceWrapper(torch.nn.Module):
         return dict_to_tuple(out[0])
 
 
-def generate_jit_model(index, img):
+def generate_jit_model(index):
     model_funcs = [torchvision.models.detection.fasterrcnn_resnet50_fpn,
                    torchvision.models.detection.maskrcnn_resnet50_fpn]
 
@@ -79,7 +79,6 @@ def generate_jit_model(index, img):
         script_out = script_module(inp)
 
         assert len(out[0]) > 0 and len(script_out[0]) > 0
-        torch._C._jit_pass_inline(script_module.graph)
         return script_module
 
 
@@ -94,9 +93,10 @@ def test_detection_models(model_index, score_threshold=0.9):
     input_name = 'input0'
     shape_list = [(input_name, input_shape)]
 
-    scripted_model = generate_jit_model(model_index, img)
+    scripted_model = generate_jit_model(model_index)
     mod, params = relay.frontend.from_pytorch(scripted_model,
                                               shape_list)
+    print(mod["main"])
 
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["FoldScaleAxis"]):
         vm_exec = relay.vm.compile(mod, target=target, params=params)

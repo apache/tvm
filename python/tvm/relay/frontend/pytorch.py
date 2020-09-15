@@ -440,10 +440,17 @@ def _take():
 def _topk():
     def _impl(inputs, input_types):
         data = inputs[0]
-        k = inputs[1]
         axis = int(inputs[2])
         is_ascend = not bool(inputs[3])
         sort = bool(inputs[4])
+
+        if isinstance(inputs[1], _expr.Expr):
+            try:
+                k = _infer_value(inputs[1], {}).asnumpy().tolist()
+            except Exception:
+                k = inputs[1]
+        else:
+            k = inputs[1]
 
         if not sort:
             msg = "Currently supports only sorted output for topk operator."
@@ -3249,6 +3256,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_d
 
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
+    print(graph)
 
     if custom_convert_map:
         convert_map.update(custom_convert_map)
