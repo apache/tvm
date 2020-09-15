@@ -22,7 +22,7 @@ InferBound Pass
 *******************************************
 
 
-The InferBound pass is run after normalize, and before ScheduleOps `build_module.py <https://github.com/apache/incubator-tvm/blob/master/python/tvm/build_module.py>`_. The main job of InferBound is to create the bounds map, which specifies a Range for each IterVar in the program. These bounds are then passed to ScheduleOps, where they are used to set the extents of For loops, see `MakeLoopNest <https://github.com/apache/incubator-tvm/blob/master/src/op/op_util.cc>`_, and to set the sizes of allocated buffers (`BuildRealize <https://github.com/apache/incubator-tvm/blob/master/src/op/compute_op.cc>`_), among other uses.
+The InferBound pass is run after normalize, and before ScheduleOps `build_module.py <https://github.com/apache/incubator-tvm/blob/master/python/tvm/driver/build_module.py>`_. The main job of InferBound is to create the bounds map, which specifies a Range for each IterVar in the program. These bounds are then passed to ScheduleOps, where they are used to set the extents of For loops, see `MakeLoopNest <https://github.com/apache/incubator-tvm/blob/master/src/te/operation/op_util.cc>`_, and to set the sizes of allocated buffers (`BuildRealize <https://github.com/apache/incubator-tvm/blob/master/src/te/operation/compute_op.cc>`_), among other uses.
 
 The output of InferBound is a map from IterVar to Range:
 
@@ -53,9 +53,9 @@ Therefore, let's review the Range and IterVar classes:
    	};
    }
 
-Note that IterVarNode also contains a Range ``dom``. This ``dom`` may or may not have a meaningful value, depending on when the IterVar was created. For example, when ``tvm.compute`` is called, an `IterVar is created <https://github.com/apache/incubator-tvm/blob/master/src/op/compute_op.cc>`_ for each axis and reduce axis, with dom's equal to the shape supplied in the call to ``tvm.compute``.
+Note that IterVarNode also contains a Range ``dom``. This ``dom`` may or may not have a meaningful value, depending on when the IterVar was created. For example, when ``tvm.compute`` is called, an `IterVar is created <https://github.com/apache/incubator-tvm/blob/master/src/te/operation/compute_op.cc>`_ for each axis and reduce axis, with dom's equal to the shape supplied in the call to ``tvm.compute``.
 
-On the other hand, when ``tvm.split`` is called, `IterVars are created <https://github.com/apache/incubator-tvm/blob/master/src/schedule/schedule_lang.cc>`_ for the inner and outer axes, but these IterVars are not given a meaningful ``dom`` value.
+On the other hand, when ``tvm.split`` is called, `IterVars are created <https://github.com/apache/incubator-tvm/blob/master/src/te/schedule/schedule_lang.cc>`_ for the inner and outer axes, but these IterVars are not given a meaningful ``dom`` value.
 
 In any case, the ``dom`` member of an IterVar is never modified during InferBound. However, keep in mind that the ``dom`` member of an IterVar is sometimes used as default value for the Ranges InferBound computes.
 
@@ -117,7 +117,7 @@ Tensors haven't been mentioned yet, but in the context of TVM, a Tensor represen
    	int value_index;
    };
 
-In the Operation class declaration above, we can see that each operation also has a list of InputTensors. Thus the stages of the schedule form a DAG, where each stage is a node in the graph. There is an edge in the graph from Stage A to Stage B, if the operation of Stage B has an input tensor whose source operation is the op of Stage A. Put simply, there is an edge from A to B, if B consumes a tensor produced by A. See the diagram below. This graph is created at the beginning of InferBound, by a call to `CreateReadGraph <https://github.com/apache/incubator-tvm/blob/master/src/schedule/bound.cc>`_.
+In the Operation class declaration above, we can see that each operation also has a list of InputTensors. Thus the stages of the schedule form a DAG, where each stage is a node in the graph. There is an edge in the graph from Stage A to Stage B, if the operation of Stage B has an input tensor whose source operation is the op of Stage A. Put simply, there is an edge from A to B, if B consumes a tensor produced by A. See the diagram below. This graph is created at the beginning of InferBound, by a call to `CreateReadGraph <https://github.com/apache/incubator-tvm/blob/master/src/te/schedule/bound.cc>`_.
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/stage_graph.png
     :align: center

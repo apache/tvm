@@ -164,7 +164,7 @@ print("Test accuracy of DGL results: {:.2%}".format(acc))
 # Define Graph Convolution Layer in Relay
 # ---------------------------------------
 # To run GCN on TVM, we first need to implement Graph Convolution Layer.
-# You may refer to https://github.com/dmlc/dgl/blob/master/python/dgl/nn/mxnet/conv.py for a GraphConv Layer implemented in DGL with MXNet Backend
+# You may refer to https://github.com/dmlc/dgl/blob/master/python/dgl/nn/mxnet/conv/graphconv.py for a GraphConv Layer implemented in DGL with MXNet Backend
 #
 # The layer is defined with below operations, note that we apply two transposes to keep adjacency matrix on right hand side of sparse_dense operator,
 # this method is temporary and will be updated in next few weeks when we have sparse matrix transpose and support for left sparse operator.
