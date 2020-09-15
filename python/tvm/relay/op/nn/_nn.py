@@ -774,6 +774,49 @@ def conv2d_NCHWc_shape_func(attrs, inputs, _):
 
 
 @script
+def _conv2d_transpose_nchw_shape_func(dshape, kshape, strides,
+                                      padding, dilation, output_padding):
+    out = output_tensor((dshape.shape[0],), "int64")
+    kheight = kshape[2]
+    kwidth = kshape[3]
+    dilated_kh = (kheight - 1) * dilation[0] + 1
+    dilated_kw = (kwidth - 1) * dilation[1] + 1
+
+    out_height = strides[0] * (dshape[2] - 1) + dilated_kh - \
+                 2 * padding[0] + output_padding[0]
+    out_width = strides[1] * (dshape[3] - 1) + dilated_kw - \
+                2 * padding[1] + output_padding[1]
+
+    out[0] = dshape[0]
+    out[1] = kshape[1]
+    out[2] = out_height
+    out[3] = out_width
+    return out
+
+
+@reg.register_shape_func("nn.conv2d_transpose", False)
+def conv2d_transpose_nchw_shape_func(attrs, inputs, _):
+    """
+    Shape function for conv2d_transpose op.
+    """
+    strides = get_const_tuple(attrs.strides)
+    padding = get_const_tuple(attrs.padding)
+    dilation = get_const_tuple(attrs.dilation)
+    output_padding = get_const_tuple(attrs.output_padding)
+
+    return [
+        _conv2d_transpose_nchw_shape_func(
+            inputs[0],
+            inputs[1],
+            convert(strides),
+            convert(padding),
+            convert(dilation),
+            convert(output_padding)
+        )
+    ]
+
+
+@script
 def _pool2d_shape_func(data_shape, pool_size, strides, padding, height_axis, width_axis):
     out = output_tensor((data_shape.shape[0],), "int64")
     for i in const_range(data_shape.shape[0]):

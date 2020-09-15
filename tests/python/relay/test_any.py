@@ -36,9 +36,10 @@ def any_dims(ndim):
     return tuple(shape)
 
 
-def check_result(args, mod, expected, flatten=False, assert_shape=False, only_vm=False):
+def check_result(args, mod, expected, flatten=False, assert_shape=False, only_vm=False, targets=None):
     for kind in ["debug", "vm"]:
-        for tgt, ctx in tvm.testing.enabled_targets():
+        targets = targets or tvm.testing.enabled_targets()
+        for tgt, ctx in targets:
             if kind == "debug" and (only_vm or ctx.device_type != tvm.cpu().device_type):
                 continue
             ex = relay.create_executor(kind, mod=mod, ctx=ctx, target=tgt)
@@ -454,11 +455,10 @@ def verify_any_conv2d_NCHWc(
     check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
 
 
-# TODO(@kevinthesun): Need to fix the compute in conv2d_NCHWc to support any
-@pytest.mark.skip
+# TODO(@kevinthesun): Support dynamic input height and width.
 def test_any_conv2d_NCHWc():
     verify_any_conv2d_NCHWc(
-        (relay.Any(), 8, relay.Any(), relay.Any(), 8),
+        (relay.Any(), 8, 224, 224, 8),
         (8, 8, 3, 3, 8, 8),
         (1, 1),
         (1, 1),
@@ -470,7 +470,7 @@ def test_any_conv2d_NCHWc():
         (1, 8, 224, 224, 8),
     )
     verify_any_conv2d_NCHWc(
-        (relay.Any(), 8, relay.Any(), relay.Any(), 8),
+        (relay.Any(), 8, 224, 224, 8),
         (8, 8, 3, 3, 8, 8),
         (1, 1),
         (1, 1),
@@ -478,8 +478,66 @@ def test_any_conv2d_NCHWc():
         "NCHW8c",
         "OIHW8i8o",
         "NCHW8c",
-        (1, 8, 224, 224, 8),
-        (1, 8, 222, 222, 8),
+        (2, 8, 224, 224, 8),
+        (2, 8, 222, 222, 8),
+    )
+
+
+def verify_any_conv2d_transpose_nchw(
+        data_shape,
+        kernel_shape,
+        strides,
+        padding,
+        dilation,
+        groups,
+        static_data_shape,
+        ref_out_shape,
+        output_padding,
+):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    kernel = relay.var("kernel", shape=kernel_shape, dtype=dtype)
+    y = relay.nn.conv2d_transpose(
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        groups,
+        kernel_size=kernel_shape[2:4],
+        output_padding=output_padding,
+    )
+    mod["main"] = relay.Function([data, kernel], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
+    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True,
+                 targets=[('llvm', tvm.cpu())])
+
+
+# TODO(@kevinthesun): Support dynamic input height and width.
+def test_any_conv2d_transpose_nchw():
+    verify_any_conv2d_transpose_nchw(
+        (relay.Any(), 64, 224, 224),
+        (64, 192, 3, 3),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        1,
+        (2, 64, 224, 224),
+        (2, 192, 224, 224),
+        (0, 0),
+    )
+    verify_any_conv2d_transpose_nchw(
+        (relay.Any(), 32, 224, 224),
+        (32, 64, 3, 3),
+        (2, 2),
+        (1, 1),
+        (1, 1),
+        1,
+        (1, 32, 224, 224),
+        (1, 64, 448, 448),
+        (1, 1)
     )
 
 
@@ -1082,6 +1140,45 @@ def test_any_adv_index():
     np_index = np.random.uniform(0, np_data_shape[0], size=np_index_shape).astype("int64")
     ref_res = np_data[tuple([np_index, np_index])]
     check_result([np_data, np_index, np_index], mod, ref_res)
+
+
+def verify_any_repeat(data_shape, np_dshape, repeats, axis):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    y = relay.repeat(data, repeats, axis)
+    mod["main"] = relay.Function([data], y)
+    np_data = np.random.uniform(size=np_dshape).astype(dtype)
+    ref_res = np.repeat(np_data, repeats, axis)
+    check_result([np_data], mod, ref_res)
+
+@tvm.testing.uses_gpu
+def test_any_repeat():
+    verify_any_repeat(any_dims(2), (1, 2), 2, 0)
+    verify_any_repeat(any_dims(1), (3,), 3, -1)
+    verify_any_repeat(any_dims(4), (2, 1, 1, 4), 4, 2)
+
+
+def verify_any_stack(data_shape, np_dshape, num_data, axis):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    inputs = []
+    for i in range(num_data):
+        inputs.append(relay.var("data{}".format(i), shape=data_shape, dtype=dtype))
+    y = relay.stack(inputs, axis)
+    mod["main"] = relay.Function(inputs, y)
+    np_inputs = []
+    for _ in range(num_data):
+        np_inputs.append(np.random.uniform(size=np_dshape).astype(dtype))
+    ref_res = np.stack(np_inputs, axis)
+    check_result(np_inputs, mod, ref_res)
+
+
+@tvm.testing.uses_gpu
+def test_any_stack():
+    verify_any_stack(any_dims(2), (1, 2), 3, 0)
+    verify_any_stack(any_dims(1), (3,), 4, -1)
+    verify_any_stack(any_dims(4), (2, 1, 1, 4), 2, 2)
 
 
 if __name__ == "__main__":
