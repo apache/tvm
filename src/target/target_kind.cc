@@ -218,6 +218,7 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<String>("runtime")
+    .add_attr_option<String>("mcpu")
     .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("cuda", kDLGPU)
