@@ -2415,6 +2415,7 @@ def test_forward_clamp_():
         input_data = torch.rand(ishape).float()
         verify_model(ClampInPlace(min, max).float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_copy_():
     torch.set_grad_enabled(False)
@@ -2940,7 +2941,6 @@ def test_forward_addcmul():
     verify_model(Addcmul2().float().eval(), input_data=[input_data, t1, t2])
 
 
-@tvm.testing.uses_gpu
 def test_forward_true_divide():
     torch.set_grad_enabled(False)
 
