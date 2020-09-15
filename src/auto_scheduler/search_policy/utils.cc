@@ -350,15 +350,15 @@ const Array<Array<Integer>>& SplitFactorizationMemo::GetFactorizationSchemes(
   return *results_;
 }
 
-void SplitFactorizationMemo::DfsEnumerate(int now, int remaining_lenght, int max_innermost_factor) {
+void SplitFactorizationMemo::DfsEnumerate(int now, int remaining_length, int max_innermost_factor) {
   if (now == n_lengths_) {
     if (tmp_stack_.back().as<IntImmNode>()->value <= max_innermost_factor) {
       results_->push_back(tmp_stack_);
     }
   } else {
-    for (const auto& f : GetFactors(remaining_lenght)) {
+    for (const auto& f : GetFactors(remaining_length)) {
       tmp_stack_.Set(now, Integer(f));
-      DfsEnumerate(now + 1, remaining_lenght / f, max_innermost_factor);
+      DfsEnumerate(now + 1, remaining_length / f, max_innermost_factor);
     }
   }
 }

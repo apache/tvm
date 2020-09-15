@@ -53,11 +53,11 @@ class AccessAnalyzerNode : public Object {
   using OperationMap = std::unordered_map<te::Operation, T, ObjectPtrHash, ObjectPtrEqual>;
 
   /*! \brief Map an operation to all operations it reads from.
-   * For each operation pair, use a two-dimentional array for multiple multi-dimentional accesses
+   * For each operation pair, use a two-dimensional array for multiple multi-dimensional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
   OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_from;
   /*! \brief Map an operation to all operations it is read by.
-   * For each operation pair, use a two-dimentional array for multiple multi-dimentional accesses
+   * For each operation pair, use a two-dimensional array for multiple multi-dimensional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
   OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_by;
   /*! \brief Store the number of common outer iterators for operation pairs that have
@@ -67,7 +67,7 @@ class AccessAnalyzerNode : public Object {
    *  (e.g., injective, broadcast and elementwise ops without reduction) */
   OperationMap<bool> is_simple_access;
   /*! \brief Store whether the operation is strictly inlineable
-   * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations)
+   * (e.g., injective, broadcast and elementwise without reduction, branch or expensive operations)
    */
   OperationMap<bool> is_strictly_inlineable;
   /*! \brief Store whether the operation needs multi-level tiling
@@ -98,8 +98,8 @@ class AccessAnalyzer : public ObjectRef {
   TVM_DLL bool IsSimpleAccess(const te::Operation& op) const;
 
   /*!
-   * \brief Return whether this operation is strictly inlinable
-   * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations)
+   * \brief Return whether this operation is strictly inlineable
+   * (e.g., injective, broadcast and elementwise without reduction, branch or expensive operations)
    * \param op The operation
    */
   TVM_DLL bool IsStrictlyInlineable(const te::Operation& op) const;
@@ -265,7 +265,7 @@ class ComputeDAG : public ObjectRef {
    * \brief Since some steps may change the ComputeDAG (e.g. CacheRead/CacheWrite), the initial
    * ComputeDAG may not be up-to-date. This function replays the given transform steps from the
    * initial state and returns an up-to-date ComputeDAG.
-   * \param steps The steps to be replaied. Usually we'll filter out the unused steps to speed up
+   * \param steps The steps to be replayed. Usually we'll filter out the unused steps to speed up
    * the replay process, since we only intend to get a ComputeDAG with the up-to-date op stage
    * structure.
    * \return The up-to-date ComputeDAG.
