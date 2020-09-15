@@ -2413,8 +2413,7 @@ def test_forward_clamp_():
 
     for ishape, min, max in (([4, 8], 0.1, 0.9), ([7, 6], 0.2, 0.5)):
         input_data = torch.rand(ishape).float()
-        verify_model(ClampInPlace(min, max).float().eval(),
-                     input_data=input_data)
+        verify_model(ClampInPlace(min, max).float().eval(), input_data=input_data)
 
 @tvm.testing.uses_gpu
 def test_forward_copy_():
@@ -2931,6 +2930,22 @@ def test_forward_addcmul():
 
 
 @tvm.testing.uses_gpu
+def test_forward_true_divide():
+    torch.set_grad_enabled(False)
+
+    class TrueDivide(Module):
+        def forward(self, *args):
+            return torch.true_divide(args[0], args[1])
+
+    dividend = torch.rand([5, 3]).float()
+    # divisor could be either tensor or scalar
+    divisor_tensor = torch.rand([5, 3]).float()
+    divisor_scalar = divisor = torch.tensor(1.0, dtype=torch.float32)
+    verify_model(TrueDivide().float().eval(), input_data=[dividend, divisor_tensor])
+    verify_model(TrueDivide().float().eval(), input_data=[dividend, divisor_scalar])
+
+
+@tvm.testing.uses_gpu
 def test_forward_traced_function():
     def fn(t1, t2):
         return t1 + t2
@@ -3343,6 +3358,7 @@ if __name__ == "__main__":
     test_forward_where()
     test_forward_addcdiv()
     test_forward_addcmul()
+    test_forward_true_divide()
     test_forward_clone()
     test_forward_softplus()
     test_forward_softsign()

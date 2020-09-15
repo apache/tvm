@@ -1755,6 +1755,7 @@ def _identity():
 
     return _impl
 
+
 def _copy_():
     def _impl(inputs, input_types):
         # use add to help handle broadcasting
@@ -2517,6 +2518,7 @@ def _get_convert_map(prelude, default_dtype):
         "aten::div": _elemwise("divide"),
         "aten::div_": _elemwise("divide"),
         "aten::floor_divide": _elemwise("floor_divide"),
+        "aten::true_divide": _elemwise("divide"),
         "aten::addcdiv": _addcdiv(),
         "aten::addcmul": _addcmul(),
         "aten::ones": _ones(default_dtype),
