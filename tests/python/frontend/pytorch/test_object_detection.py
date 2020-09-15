@@ -30,11 +30,12 @@ from tvm.contrib.download import download
 
 in_size = 512
 
+
 def process_image(img):
     img = cv2.imread(img).astype("float32")
     img = cv2.resize(img, (in_size, in_size))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    img = torch.from_numpy(img/255.).permute(2,0,1).float()
+    img = torch.from_numpy(img / 255.0).permute(2, 0, 1).float()
     img = torch.unsqueeze(img, axis=0)
 
     return img
@@ -63,14 +64,16 @@ class TraceWrapper(torch.nn.Module):
 
 
 def generate_jit_model(index):
-    model_funcs = [torchvision.models.detection.fasterrcnn_resnet50_fpn,
-                   torchvision.models.detection.maskrcnn_resnet50_fpn]
+    model_funcs = [
+        torchvision.models.detection.fasterrcnn_resnet50_fpn,
+        torchvision.models.detection.maskrcnn_resnet50_fpn,
+    ]
 
     model_func = model_funcs[index]
     model = TraceWrapper(model_func(pretrained=True))
 
     model.eval()
-    inp = torch.Tensor(np.random.uniform(0.0, 250.0,size=(1, 3, in_size, in_size)))
+    inp = torch.Tensor(np.random.uniform(0.0, 250.0, size=(1, 3, in_size, in_size)))
 
     with torch.no_grad():
         out = model(inp)
@@ -84,18 +87,19 @@ def generate_jit_model(index):
 
 def test_detection_models(model_index, score_threshold=0.9):
     img = "test_street_small.jpg"
-    img_url = "https://raw.githubusercontent.com/dmlc/web-data/" \
-              "master/gluoncv/detection/street_small.jpg"
+    img_url = (
+        "https://raw.githubusercontent.com/dmlc/web-data/"
+        "master/gluoncv/detection/street_small.jpg"
+    )
     download(img_url, img)
 
     input_shape = (1, 3, in_size, in_size)
     target = "llvm"
-    input_name = 'input0'
+    input_name = "input0"
     shape_list = [(input_name, input_shape)]
 
     scripted_model = generate_jit_model(model_index)
-    mod, params = relay.frontend.from_pytorch(scripted_model,
-                                              shape_list)
+    mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
     print(mod["main"])
 
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["FoldScaleAxis"]):
@@ -127,7 +131,7 @@ def test_detection_models(model_index, score_threshold=0.9):
         if score >= score_threshold:
             num_tvm_valid_scores += 1
 
-    assert num_pt_valid_scores == num_tvm_valid_scores, \
-        "Output mismatch: Under score threshold {}, Pytorch has {} valid " \
-        "boxes while TVM has {}.".format(score_threshold, num_pt_valid_scores,
-                                         num_tvm_valid_scores)
+    assert num_pt_valid_scores == num_tvm_valid_scores, (
+        "Output mismatch: Under score threshold {}, Pytorch has {} valid "
+        "boxes while TVM has {}.".format(score_threshold, num_pt_valid_scores, num_tvm_valid_scores)
+    )

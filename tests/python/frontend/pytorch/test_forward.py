@@ -182,7 +182,7 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
 
     with torch.no_grad():
         baseline_outputs = baseline_model(*baseline_input)
-    
+
     if isinstance(baseline_outputs, tuple):
         baseline_outputs = tuple(out.cpu().numpy() for out in baseline_outputs)
     else:
@@ -1682,6 +1682,7 @@ def test_forward_nms():
 def test_forward_roi_align():
     """ROI align"""
     torch.set_grad_enabled(False)
+
     class ROIAlgin(Module):
         def __init__(self, output_sizes, spatial_scale=1.0, sampling_ratio=-1, aligned=False):
             super().__init__()
@@ -1691,15 +1692,19 @@ def test_forward_roi_align():
             self.output_sizes = output_sizes
 
         def forward(self, *args):
-            return torchvision.ops.roi_align(args[0], args[1], self.output_sizes,
-                                             self.spatial_scale, self.sampling_ratio,
-                                             self.aligned)
+            return torchvision.ops.roi_align(
+                args[0],
+                args[1],
+                self.output_sizes,
+                self.spatial_scale,
+                self.sampling_ratio,
+                self.aligned,
+            )
 
     in_data = torch.Tensor(np.random.uniform(size=(1, 8, 100, 100)))
     in_boxes = torch.Tensor(np.random.uniform(0.0, 100.0, size=(35, 4)))
     in_batch = torch.zeros((35, 1), dtype=torch.float)
     in_boxes = torch.cat([in_batch, in_boxes], dim=1)
-
 
     verify_model(ROIAlgin(7), [in_data, in_boxes])
     verify_model(ROIAlgin((10, 10), 0.7, 5), [in_data, in_boxes])
@@ -1744,6 +1749,7 @@ def test_conv3d_transpose():
             torch.nn.ConvTranspose3d(in_channels=8, out_channels=5, kernel_size=1, stride=2).eval(),
             inp,
         )
+
 
 # Model tests
 @tvm.testing.uses_gpu
@@ -3076,7 +3082,7 @@ def test_forward_nonzero():
             return torch.nonzero(data, as_tuple=self.as_tuple)
 
     inp = torch.Tensor(np.array([[0, 1, 0], [2, 0, 9], [-1, -1, 0]]).astype("float32"))
-    verify_trace_model(Nonzero(), [inp], ['llvm'])
+    verify_trace_model(Nonzero(), [inp], ["llvm"])
 
 
 def test_forward_scatter():
