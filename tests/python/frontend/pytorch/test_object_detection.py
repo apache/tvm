@@ -137,5 +137,6 @@ def test_detection_models(model_index, score_threshold=0.9):
         "boxes while TVM has {}.".format(score_threshold, num_pt_valid_scores, num_tvm_valid_scores)
     )
 
+
 def run_test():
     test_detection_models(1)

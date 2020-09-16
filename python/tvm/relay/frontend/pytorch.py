@@ -1236,33 +1236,30 @@ def _flatten():
     return _impl
 
 
-def _dense():
+def _addmm():
     def _impl(inputs, input_types):
-        data = inputs[1]
+        input_mat = inputs[0]
+        mat1 = inputs[1]
         data_type = input_types[1]
-        weight = inputs[2]
+        mat2 = inputs[2]
 
         beta = inputs[3]
         alpha = inputs[4]
 
         if not isinstance(alpha, _expr.Expr) and alpha != 1:
             alpha = _create_typed_const(alpha, data_type)
-            data *= alpha
+            mat1 *= alpha
 
         if not isinstance(beta, _expr.Expr) and beta != 1:
             beta = _create_typed_const(beta, data_type)
-            weight *= beta
+            mat2 *= beta
 
-        weight_out = _op.transform.transpose(weight, axes=[1, 0])
+        transposed_mat2 = _op.transform.transpose(mat2, axes=[1, 0])
 
-        units = _infer_shape(weight_out)[0]
-        dense_out = _op.nn.dense(data, weight_out, units=units)
+        units = _infer_shape(transposed_mat2)[0]
+        dense_out = _op.nn.dense(mat1, transposed_mat2, units=units)
 
-        if isinstance(inputs[0], _expr.Expr):
-            bias = inputs[0]
-            return _op.nn.bias_add(dense_out, bias)
-        else:
-            return dense_out + _expr.const(inputs[0])
+        return dense_out + input_mat
 
     return _impl
 
@@ -2567,7 +2564,7 @@ def _get_convert_map(prelude, default_dtype):
         "aten::transpose_": _transpose(prelude),
         "aten::t": _transpose(prelude),
         "aten::flatten": _flatten(),
-        "aten::addmm": _dense(),
+        "aten::addmm": _addmm(),
         "aten::size": _size(prelude),
         "aten::view": _view(),
         "aten::reshape": _reshape(),
