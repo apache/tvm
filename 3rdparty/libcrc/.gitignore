@@ -10,7 +10,8 @@ examples/obj/*.obj
 examples/obj/*.o
 precalc/obj/*.obj
 precalc/obj/*.o
-tab/*.inc
+tab/gentab32.inc
+tab/gentab64.inc
 make.exe
 testall.exe
 testall
