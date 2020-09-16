@@ -115,6 +115,7 @@ def run_tvm_graph(
     layout=None,
     disabled_pass=None,
     ignore_in_shape=False,
+    serialize=False,
 ):
     """ Generic function to compile on relay and execute on tvm """
     input_data = convert_to_list(input_data)
@@ -150,6 +151,9 @@ def run_tvm_graph(
     elif mode == "vm":
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
             vm_exec = relay.vm.compile(mod, target="llvm", params=params)
+        if serialize:
+            code, lib = vm_exec.save()
+            vm_exec = tvm.runtime.vm.Executable.load_exec(code, lib)
         vm = VirtualMachine(vm_exec, tvm.cpu())
         inputs = {}
         for e, i in zip(input_node, input_data):
@@ -2892,6 +2896,7 @@ def _test_ssd_impl():
                     out_names=out_node,
                     mode="vm",
                     disabled_pass=["FoldScaleAxis"],
+                    serialize=True,
                 )
                 for i in range(len(out_node)):
                     tvm.testing.assert_allclose(tvm_output[i], tf_output[i], rtol=1e-3, atol=1e-3)
