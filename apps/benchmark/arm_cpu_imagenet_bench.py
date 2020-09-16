@@ -40,7 +40,7 @@ def evaluate_network(network, target, target_host, repeat):
 
     print_progress("%-20s building..." % network)
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = relay.build(net, target=target, target_host=target_host, params=params)
+        lib = relay.build(net, target=target, target_host=target_host, params=params)
 
     tmp = tempdir()
     if "android" in str(target):
@@ -58,10 +58,9 @@ def evaluate_network(network, target, target_host, repeat):
     remote.upload(tmp.relpath(filename))
 
     rlib = remote.load_module(filename)
-    module = runtime.create(graph, rlib, ctx)
+    module = runtime.GraphModule(rlib["default"](ctx))
     data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
     module.set_input("data", data_tvm)
-    module.set_input(**params)
 
     # evaluate
     print_progress("%-20s evaluating..." % network)

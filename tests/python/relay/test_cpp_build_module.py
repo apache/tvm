@@ -44,13 +44,12 @@ def test_basic_build():
     func_in_mod = mod["main"]
     assert mod["main"] == func_in_mod, "cannot compare function to itself"
 
-    g_json, mmod, params = relay.build(mod, targets, "llvm", params=params)
+    lib = relay.build(mod, targets, "llvm", params=params)
     assert mod["main"] == func_in_mod, "relay.build changed module in-place"
 
     # test
-    rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)
+    rt = tvm.contrib.graph_runtime.GraphModule(lib["default"](ctx))
     rt.set_input("a", A)
-    rt.load_params(relay.save_param_dict(params))
     rt.run()
     out = rt.get_output(0)
 

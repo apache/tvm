@@ -47,6 +47,12 @@ def create(graph_json_str, libmod, ctx):
     -------
     graph_module : GraphModule
         Runtime graph module that can be used to execute the graph.
+
+    Note
+    ----
+    See also :py:class:`tvm.contrib.graph_runtime.GraphModule`
+    for examples to directly construct a GraphModule from an exported
+    relay compiled library.
     """
     assert isinstance(graph_json_str, string_types)
 
@@ -121,6 +127,27 @@ class GraphModule(object):
     ----------
     module : tvm.runtime.Module
         The internal tvm module that holds the actual graph functions.
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+        import tvm
+        from tvm import relay
+        from tvm.contrib import graph_runtime
+
+        # build the library using graph runtime
+        lib = relay.build(...)
+        lib.export_library("compiled_lib.so")
+        # load it back as a runtime
+        lib:tvm.runtime.Module = tvm.runtime.load_module("compiled_lib.so")
+        # Call the library factory function for default and create
+        # a new runtime.Module, wrap with graph module.
+        gmod = graph_runtime.GraphModule(lib["default"](ctx))
+        # use the gmod
+        gmod.set_input("x", data)
+        gmod.run()
     """
 
     def __init__(self, module):

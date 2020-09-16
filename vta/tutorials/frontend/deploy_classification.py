@@ -197,9 +197,7 @@ with autotvm.tophub.context(target):
             )
     else:
         with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
-            graph, lib, params = relay.build(
-                relay_prog, target=target, params=params, target_host=env.target_host
-            )
+            lib = relay.build(relay_prog, target=target, params=params, target_host=env.target_host)
 
     # Measure Relay build time
     build_time = time.time() - build_start
@@ -207,12 +205,12 @@ with autotvm.tophub.context(target):
 
     # Send the inference library over to the remote RPC server
     temp = util.tempdir()
-    lib.save(temp.relpath("graphlib.o"))
-    remote.upload(temp.relpath("graphlib.o"))
-    lib = remote.load_module("graphlib.o")
+    lib.export_library(temp.relpath("graphlib.tar"))
+    remote.upload(temp.relpath("graphlib.tar"))
+    lib = remote.load_module("graphlib.tar")
 
     # Graph runtime
-    m = graph_runtime.create(graph, lib, ctx)
+    m = graph_runtime.GraphModule(lib["default"](ctx))
 
 ######################################################################
 # Perform image classification inference
@@ -243,7 +241,6 @@ image = image[np.newaxis, :]
 image = np.repeat(image, env.BATCH, axis=0)
 
 # Set the network parameters and inputs
-m.set_input(**params)
 m.set_input("data", image)
 
 # Perform inference and gather execution statistics

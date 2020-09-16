@@ -34,14 +34,13 @@ def benchmark(network, target):
     net, params, input_shape, output_shape = get_network(network, batch_size=1)
 
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = relay.build(net, target=target, params=params)
+        lib = relay.build(net, target=target, params=params)
 
     # create runtime
     ctx = tvm.context(str(target), 0)
-    module = runtime.create(graph, lib, ctx)
+    module = runtime.GraphModule(lib["default"](ctx))
     data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
     module.set_input("data", data_tvm)
-    module.set_input(**params)
 
     # evaluate
     ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=args.repeat)
