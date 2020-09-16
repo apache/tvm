@@ -16,7 +16,7 @@
  *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -33,6 +33,10 @@
 
 #ifndef DEF_LIBCRC_CHECKSUM_H
 #define DEF_LIBCRC_CHECKSUM_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stddef.h>
 #include <stdint.h>
@@ -104,5 +108,9 @@ uint16_t		update_crc_sick(    uint16_t crc, unsigned char c, unsigned char prev_
 
 extern const uint32_t	crc_tab32[];
 extern const uint64_t	crc_tab64[];
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
 
 #endif  // DEF_LIBCRC_CHECKSUM_H
