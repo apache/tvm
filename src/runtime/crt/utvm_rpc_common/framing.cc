@@ -23,12 +23,11 @@
  */
 
 #include <string.h>
+#include <checksum.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
 
 #include "crt_config.h"
-
-#include <checksum.h>
 
 // For debugging purposes, Framer logs can be enabled, but this should only be done when
 // running from the host. This is done differently from TVMLogf() because TVMLogf() uses the
