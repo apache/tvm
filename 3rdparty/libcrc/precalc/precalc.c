@@ -16,7 +16,7 @@
  *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -40,8 +40,9 @@
 #include <string.h>
 #include "precalc.h"
 
-#define TYPE_CRC32		1
-#define TYPE_CRC64		2
+#define TYPE_CRCCCITT	1
+#define TYPE_CRC32		2
+#define TYPE_CRC64		3
 
 /*
  * Functions in this source file with local scope
@@ -107,7 +108,8 @@ static int generate_table( const char *typename, const char *filename ) {
 		return 2;
 	}
 
-	if      ( ! strcmp( typename, "--crc64" ) ) type = TYPE_CRC64;
+	if      ( ! strcmp( typename, "--crc16-ccitt" ) ) type = TYPE_CRCCCITT;
+	else if ( ! strcmp( typename, "--crc64" ) ) type = TYPE_CRC64;
 	else if ( ! strcmp( typename, "--crc32" ) ) type = TYPE_CRC32;
 	else {
 
@@ -120,6 +122,7 @@ static int generate_table( const char *typename, const char *filename ) {
 
 	switch ( type ) {
 
+		case TYPE_CRCCCITT : init_crcccitt_tab(); tabname = "crc_tabccitt"; bits = 16; break;
 		case TYPE_CRC32 : init_crc32_tab(); tabname = "crc_tab32"; bits = 32; break;
 		case TYPE_CRC64 : init_crc64_tab(); tabname = "crc_tab64"; bits = 64; break;
 	}

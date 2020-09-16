@@ -1,11 +1,11 @@
 /*
  * Library: libcrc
- * File:    precalc/precalc.h
+ * File:    precalc/crcccitt_table.c
  * Author:  Lammert Bies
  *
  * This file is licensed under the MIT License as stated below
  *
- * Copyright (c) 2008-2016 Lammert Bies
+ * Copyright (c) 1999-2016 Lammert Bies
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,25 +27,43 @@
  *
  * Description
  * -----------
- * The source file precalc/precalc.h contains definitions and prototypes that
- * are used by the precalc program which calculates the static lookup tables
- * for the several CRC algorithms in the library.
+ * The source file precalc/crcccitt_table.c contains the routines to calculate the
+ * values in the lookup table used to calculate 32 bit CRC values.
  */
 
 #include <stdbool.h>
-#include <stdint.h>
+#include <stdlib.h>
+#include "checksum.h"
+#include "precalc.h"
 
 /*
- * Global functions used in the precalc program
+ * void init_crcccitt_tab( void );
+ *
+ * For optimal speed, the CRCCCITT calculation uses a table with pre-calculated
+ * bit patterns which are used in the XOR operations in the program.
  */
 
-void			init_crcccitt_tab( void );
-void			init_crc32_tab( void );
-void			init_crc64_tab( void );
-int			main( int argc, char *argv[] );
+void init_crcccitt_tab( void ) {
 
-/*
- * Global variables used in the precalc program
- */
+	uint16_t i;
+	uint16_t j;
+	uint16_t crc;
+	uint16_t c;
 
-extern uint64_t		crc_tab_precalc[256];
+	for (i=0; i<256; i++) {
+
+		crc = 0;
+		c   = i << 8;
+
+		for (j=0; j<8; j++) {
+
+			if ( (crc ^ c) & 0x8000 ) crc = ( crc << 1 ) ^ CRC_POLY_CCITT;
+			else                      crc =   crc << 1;
+
+			c = c << 1;
+		}
+
+		crc_tab_precalc[i] = crc;
+	}
+
+}  /* init_crcccitt_tab */

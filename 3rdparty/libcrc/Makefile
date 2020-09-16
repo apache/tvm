@@ -183,11 +183,13 @@ testall${EXEEXT} :					\
 
 ${BINDIR}prc${EXEEXT} :					\
 		${GENDIR}${OBJDIR}precalc${OBJEXT}	\
+		${GENDIR}${OBJDIR}crc16_table${OBJEXT}	\
 		${GENDIR}${OBJDIR}crc32_table${OBJEXT}	\
 		${GENDIR}${OBJDIR}crc64_table${OBJEXT}	\
 		Makefile
 	${LINK}	${XFLAG}${BINDIR}prc${EXEEXT}		\
 		${GENDIR}${OBJDIR}precalc${OBJEXT}	\
+		${GENDIR}${OBJDIR}crc16_table${OBJEXT}	\
 		${GENDIR}${OBJDIR}crc32_table${OBJEXT}	\
 		${GENDIR}${OBJDIR}crc64_table${OBJEXT}
 	${STRIP} ${BINDIR}prc${EXEEXT}
@@ -238,6 +240,9 @@ ${LIBDIR}libcrc${LIBEXT} :			\
 # Lookup table include file dependencies
 #
 
+${TABDIR}gentab_ccitt.inc		: ${BINDIR}prc${EXEEXT}
+	${BINDIR}prc --crc16-ccitt ${TABDIR}gentab_ccitt.inc
+
 ${TABDIR}gentab32.inc			: ${BINDIR}prc${EXEEXT}
 	${BINDIR}prc --crc32 ${TABDIR}gentab32.inc
 
@@ -256,7 +261,7 @@ ${OBJDIR}crc32${OBJEXT}			: ${SRCDIR}crc32.c ${INCDIR}checksum.h ${TABDIR}gentab
 
 ${OBJDIR}crc64${OBJEXT}			: ${SRCDIR}crc64.c ${INCDIR}checksum.h ${TABDIR}gentab64.inc
 
-${OBJDIR}crcccitt${OBJEXT}		: ${SRCDIR}crcccitt.c ${INCDIR}checksum.h
+${OBJDIR}crcccitt${OBJEXT}		: ${SRCDIR}crcccitt.c ${INCDIR}checksum.h ${TABDIR}gentab_ccitt.inc
 
 ${OBJDIR}crcdnp${OBJEXT}		: ${SRCDIR}crcdnp.c ${INCDIR}checksum.h
 

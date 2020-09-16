@@ -16,7 +16,7 @@
  *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -35,11 +35,9 @@
 #include <stdlib.h>
 #include "checksum.h"
 
-static uint16_t		crc_ccitt_generic( const unsigned char *input_str, size_t num_bytes, uint16_t start_value );
-static void             init_crcccitt_tab( void );
+#include "../tab/gentab_ccitt.inc"
 
-static bool             crc_tabccitt_init       = false;
-static uint16_t         crc_tabccitt[256];
+static uint16_t		crc_ccitt_generic( const unsigned char *input_str, size_t num_bytes, uint16_t start_value );
 
 /*
  * uint16_t crc_xmodem( const unsigned char *input_str, size_t num_bytes );
@@ -96,8 +94,6 @@ static uint16_t crc_ccitt_generic( const unsigned char *input_str, size_t num_by
 	const unsigned char *ptr;
 	size_t a;
 
-	if ( ! crc_tabccitt_init ) init_crcccitt_tab();
-
 	crc = start_value;
 	ptr = input_str;
 
@@ -119,44 +115,6 @@ static uint16_t crc_ccitt_generic( const unsigned char *input_str, size_t num_by
 
 uint16_t update_crc_ccitt( uint16_t crc, unsigned char c ) {
 
-	if ( ! crc_tabccitt_init ) init_crcccitt_tab();
-
 	return (crc << 8) ^ crc_tabccitt[ ((crc >> 8) ^ (uint16_t) c) & 0x00FF ];
 
 }  /* update_crc_ccitt */
-
-/*
- * static void init_crcccitt_tab( void );
- *
- * For optimal performance, the routine to calculate the CRC-CCITT uses a
- * lookup table with pre-compiled values that can be directly applied in the
- * XOR action. This table is created at the first call of the function by the
- * init_crcccitt_tab() routine.
- */
-
-static void init_crcccitt_tab( void ) {
-
-	uint16_t i;
-	uint16_t j;
-	uint16_t crc;
-	uint16_t c;
-
-	for (i=0; i<256; i++) {
-
-		crc = 0;
-		c   = i << 8;
-
-		for (j=0; j<8; j++) {
-
-			if ( (crc ^ c) & 0x8000 ) crc = ( crc << 1 ) ^ CRC_POLY_CCITT;
-			else                      crc =   crc << 1;
-
-			c = c << 1;
-		}
-
-		crc_tabccitt[i] = crc;
-	}
-
-	crc_tabccitt_init = true;
-
-}  /* init_crcccitt_tab */
