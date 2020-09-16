@@ -219,6 +219,7 @@ def intel_graphics(model="unknown", options=None):
     opts = _merge_opts(opts, options)
     return Target(" ".join(["opencl"] + opts))
 
+
 def micro(hardware="unknown", options=None):
     """Returns a microTVM target.
 
@@ -238,6 +239,7 @@ def micro(hardware="unknown", options=None):
     # NOTE: in the future, the default micro target will be LLVM except when
     # external dependencies are present.
     return Target(" ".join(["c"] + opts))
+
 
 def arm_cpu(model="unknown", options=None):
     """Returns a ARM CPU target.
