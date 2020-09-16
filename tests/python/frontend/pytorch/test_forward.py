@@ -3095,7 +3095,8 @@ def test_forward_scatter():
     in_data = torch.zeros(3, 5)
     in_index = torch.tensor([[0, 1, 2, 0, 0], [2, 0, 0, 1, 2]])
     in_src = torch.rand(2, 5)
-    verify_model(Scatter(), input_data=[in_data, in_index, in_src])
+    # TODO: add scatter gpu schedule to enable gpu test.
+    verify_trace_model(Scatter(), [in_data, in_index, in_src], ["llvm"])
 
     in_data = torch.zeros(2, 4)
     in_index = torch.tensor([[2], [3]])
