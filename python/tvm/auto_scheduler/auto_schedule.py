@@ -167,7 +167,7 @@ def create_task(func, args, target, target_host=None, hardware_params=None):
     func : Union[Function, str]
         The function that returns the compute declaration Tensors.
         Can be the a function or the function name.
-    args : Args
+    args : Union[Tuple[Any, ...], List[Any]]
         The args of the function.
     target : tvm.target.Target
         The target device of this search task.
@@ -178,7 +178,7 @@ def create_task(func, args, target, target_host=None, hardware_params=None):
 
     Returns
     -------
-        task : the created task
+        SearchTask: the created task
     """
     workload_key = make_workload_key(func, args)
     dag = ComputeDAG(workload_key)
