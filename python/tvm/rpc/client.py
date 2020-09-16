@@ -193,7 +193,8 @@ class RPCSession(object):
         """
         if "download_linked_module" not in self._remote_funcs:
             self._remote_funcs["download_linked_module"] = self.get_function(
-                "tvm.rpc.server.download_linked_module")
+                "tvm.rpc.server.download_linked_module"
+            )
         return self._remote_funcs["download_linked_module"](path)
 
     def cpu(self, dev_id=0):

@@ -41,7 +41,7 @@ class NoDefaultToolchainMatchedError(Exception):
 class Compiler(metaclass=abc.ABCMeta):
     """The compiler abstraction used with micro TVM."""
 
-    TVM_TARGET_RE = re.compile(r'^// tvm target: (.*)$')
+    TVM_TARGET_RE = re.compile(r"^// tvm target: (.*)$")
 
     @classmethod
     def _target_from_sources(cls, sources):
@@ -68,36 +68,39 @@ class Compiler(metaclass=abc.ABCMeta):
 
         if len(target_strs) != 1:
             raise DetectTargetError(
-                'autodetecting cross-compiler: could not extract TVM target from C source; regex '
-                f'{cls.TVM_TARGET_RE.pattern} does not match any line in sources: '
-                f'{", ".join(sources)}')
+                "autodetecting cross-compiler: could not extract TVM target from C source; regex "
+                f"{cls.TVM_TARGET_RE.pattern} does not match any line in sources: "
+                f'{", ".join(sources)}'
+            )
 
         target_str = next(iter(target_strs))
         return tvm.target.create(target_str)
 
     # Maps regexes identifying CPUs to the default toolchain prefix for that CPU.
     TOOLCHAIN_PREFIX_BY_CPU_REGEX = {
-        r'cortex-[am].*': 'arm-none-eabi-',
-        'x86[_-]64': '',
-        'native': '',
+        r"cortex-[am].*": "arm-none-eabi-",
+        "x86[_-]64": "",
+        "native": "",
     }
 
     def _autodetect_toolchain_prefix(self, target):
         matches = []
         for regex, prefix in self.TOOLCHAIN_PREFIX_BY_CPU_REGEX.items():
-            if re.match(regex, target.attrs['mcpu']):
+            if re.match(regex, target.attrs["mcpu"]):
                 matches.append(prefix)
 
         if matches:
             if len(matches) != 1:
                 raise NoDefaultToolchainMatchedError(
                     f'{opt} matched more than 1 default toolchain prefix: {", ".join(matches)}. '
-                    'Specify cc.cross_compiler to create_micro_library()')
+                    "Specify cc.cross_compiler to create_micro_library()"
+                )
 
             return matches[0]
 
         raise NoDefaultToolchainMatchedError(
-            f'target {str(target)} did not match any default toolchains')
+            f"target {str(target)} did not match any default toolchains"
+        )
 
     def _defaults_from_target(self, target):
         """Determine the default compiler options from the target specified.
@@ -113,9 +116,9 @@ class Compiler(metaclass=abc.ABCMeta):
         """
         opts = []
         # TODO use march for arm(https://gcc.gnu.org/onlinedocs/gcc/ARM-Options.html)?
-        if target.attrs.get('mcpu'):
+        if target.attrs.get("mcpu"):
             opts.append(f'-march={target.attrs["mcpu"]}')
-        if target.attrs.get('mfpu'):
+        if target.attrs.get("mfpu"):
             opts.append(f'-mfpu={target.attrs["mfpu"]}')
 
         return opts
@@ -203,61 +206,64 @@ class DefaultCompiler(Compiler):
         except DetectTargetError:
             assert self.target is not None, (
                 "Must specify target= to constructor when compiling sources which don't specify a "
-                "target")
+                "target"
+            )
 
             target = self.target
 
         if self.target is not None and str(self.target) != str(target):
             raise IncompatibleTargetError(
-                f'auto-detected target {target} differs from configured {self.target}')
+                f"auto-detected target {target} differs from configured {self.target}"
+            )
 
         prefix = self._autodetect_toolchain_prefix(target)
         outputs = []
         for src in sources:
             src_base, src_ext = os.path.splitext(os.path.basename(src))
 
-            compiler_name = {'.c': 'gcc', '.cc': 'g++', '.cpp': 'g++'}[src_ext]
-            args = [prefix + compiler_name, '-g']
+            compiler_name = {".c": "gcc", ".cc": "g++", ".cpp": "g++"}[src_ext]
+            args = [prefix + compiler_name, "-g"]
             args.extend(self._defaults_from_target(target))
 
-            args.extend(options.get(f'{src_ext[1:]}flags', []))
+            args.extend(options.get(f"{src_ext[1:]}flags", []))
 
-            for include_dir in options.get('include_dirs', []):
-                args.extend(['-I', include_dir])
+            for include_dir in options.get("include_dirs", []):
+                args.extend(["-I", include_dir])
 
-            output_filename = f'{src_base}.o'
+            output_filename = f"{src_base}.o"
             output_abspath = os.path.join(output, output_filename)
-            binutil.run_cmd(args + ['-c', '-o', output_abspath, src])
+            binutil.run_cmd(args + ["-c", "-o", output_abspath, src])
             outputs.append(output_abspath)
 
-        output_filename = f'{os.path.basename(output)}.a'
+        output_filename = f"{os.path.basename(output)}.a"
         output_abspath = os.path.join(output, output_filename)
-        binutil.run_cmd([prefix + 'ar', '-r', output_abspath] + outputs)
-        binutil.run_cmd([prefix + 'ranlib', output_abspath])
+        binutil.run_cmd([prefix + "ar", "-r", output_abspath] + outputs)
+        binutil.run_cmd([prefix + "ranlib", output_abspath])
 
         return tvm.micro.MicroLibrary(output, [output_filename])
 
     def binary(self, output, objects, options=None, link_main=True, main_options=None):
         assert self.target is not None, (
-            'must specify target= to constructor, or compile sources which specify the target '
-            'first')
+            "must specify target= to constructor, or compile sources which specify the target "
+            "first"
+        )
 
-        args = [self._autodetect_toolchain_prefix(self.target) + 'g++']
+        args = [self._autodetect_toolchain_prefix(self.target) + "g++"]
         args.extend(self._defaults_from_target(self.target))
         if options is not None:
-            args.extend(options.get('ldflags', []))
+            args.extend(options.get("ldflags", []))
 
-            for include_dir in options.get('include_dirs', []):
-                args.extend(['-I', include_dir])
+            for include_dir in options.get("include_dirs", []):
+                args.extend(["-I", include_dir])
 
         output_filename = os.path.basename(output)
         output_abspath = os.path.join(output, output_filename)
-        args.extend(['-g', '-o', output_abspath])
+        args.extend(["-g", "-o", output_abspath])
 
         if link_main:
-            host_main_srcs = glob.glob(os.path.join(build.CRT_ROOT_DIR, 'host', '*.cc'))
+            host_main_srcs = glob.glob(os.path.join(build.CRT_ROOT_DIR, "host", "*.cc"))
             if main_options:
-                main_lib = self.library(os.path.join(output, 'host'), host_main_srcs, main_options)
+                main_lib = self.library(os.path.join(output, "host"), host_main_srcs, main_options)
                 for lib_name in main_lib.library_files:
                     args.append(main_lib.abspath(lib_name))
             else:
@@ -311,8 +317,10 @@ class HostFlasher(Flasher):
     def flash(self, micro_binary):
         if self.debug:
             gdb_wrapper = debugger.GdbTransportDebugger(
-                [micro_binary.abspath(micro_binary.binary_file)])
+                [micro_binary.abspath(micro_binary.binary_file)]
+            )
             return transport.DebugWrapperTransport(
-                debugger=gdb_wrapper, transport=gdb_wrapper.Transport())
+                debugger=gdb_wrapper, transport=gdb_wrapper.Transport()
+            )
 
         return transport.SubprocessTransport([micro_binary.abspath(micro_binary.binary_file)])

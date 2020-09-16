@@ -25,28 +25,34 @@ from . import compiler
 class MicroLibrary(artifact.Artifact):
     """An Artifact that describes a compiled static library."""
 
-    ARTIFACT_TYPE = 'micro_library'
+    ARTIFACT_TYPE = "micro_library"
 
     @classmethod
     def from_unarchived(cls, base_dir, labelled_files, metadata):
-        library_files = labelled_files['library_files']
-        del labelled_files['library_files']
+        library_files = labelled_files["library_files"]
+        del labelled_files["library_files"]
 
         debug_files = None
-        if 'debug_files' in labelled_files:
-            debug_files = labelled_files['debug_files']
-            del labelled_files['debug_files']
+        if "debug_files" in labelled_files:
+            debug_files = labelled_files["debug_files"]
+            del labelled_files["debug_files"]
 
-        return cls(base_dir, library_files, debug_files=debug_files, labelled_files=labelled_files,
-                   metadata=metadata)
+        return cls(
+            base_dir,
+            library_files,
+            debug_files=debug_files,
+            labelled_files=labelled_files,
+            metadata=metadata,
+        )
 
-    def __init__(self, base_dir, library_files, debug_files=None, labelled_files=None,
-                 metadata=None):
+    def __init__(
+        self, base_dir, library_files, debug_files=None, labelled_files=None, metadata=None
+    ):
         labelled_files = {} if labelled_files is None else dict(labelled_files)
         metadata = {} if metadata is None else dict(metadata)
-        labelled_files['library_files'] = library_files
+        labelled_files["library_files"] = library_files
         if debug_files is not None:
-            labelled_files['debug_files'] = debug_files
+            labelled_files["debug_files"] = debug_files
 
         super(MicroLibrary, self).__init__(base_dir, labelled_files, metadata)
 
@@ -68,13 +74,13 @@ def create_micro_library(output, objects, options=None):
     """
     temp_dir = util.tempdir()
     comp = compiler.DefaultCompiler()
-    output = temp_dir.relpath('micro-library.o')
+    output = temp_dir.relpath("micro-library.o")
     comp.library(output, objects, options=options)
 
-    with open(output, 'rb') as output_f:
+    with open(output, "rb") as output_f:
         elf_data = output_f.read()
 
     # TODO(areusch): Define a mechanism to determine compiler and linker flags for each lib
     # enabled by the target str, and embed here.
-    micro_lib = MicroLibrary('', elf_data, {'target': comp.target.str()})
+    micro_lib = MicroLibrary("", elf_data, {"target": comp.target.str()})
     micro_lib.save(output)
