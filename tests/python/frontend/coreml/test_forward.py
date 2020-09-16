@@ -36,11 +36,10 @@ def get_tvm_output(
     func, x, params, target, ctx, out_shape=(1, 1000), input_name="image", dtype="float32"
 ):
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = relay.build(func, target, params=params)
-    m = graph_runtime.create(graph, lib, ctx)
+        lib = relay.build(func, target, params=params)
+    m = graph_runtime.GraphModule(lib["default"](ctx))
     # set inputs
     m.set_input(input_name, tvm.nd.array(x.astype(dtype)))
-    m.set_input(**params)
     m.run()
     # get outputs
     out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
@@ -87,11 +86,11 @@ def run_tvm_graph(
 
     mod, params = relay.frontend.from_coreml(coreml_model, shape_dict)
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = relay.build(mod, target, params=params)
+        lib = relay.build(mod, target, params=params)
 
     from tvm.contrib import graph_runtime
 
-    m = graph_runtime.create(graph, lib, ctx)
+    m = graph_runtime.GraphModule(lib["default"](ctx))
     # set inputs
     if isinstance(input_data, list):
         for i, e in enumerate(input_name):
@@ -99,7 +98,6 @@ def run_tvm_graph(
     else:
         m.set_input(input_name, tvm.nd.array(input_data.astype(input_data.dtype)))
 
-    m.set_input(**params)
     # execute
     m.run()
     # get outputs

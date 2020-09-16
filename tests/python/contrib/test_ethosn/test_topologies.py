@@ -243,7 +243,7 @@ def test_input_tuples():
             mod = tei.make_module(model, {})
         else:
             mod = tei.make_ethosn_partition(model)
-        graph, lib, params = tei.build(mod, {}, npu=False)
-        outputs.append(tei.run(graph, lib, {}, inputs, 1, npu=npu))
+        lib = tei.build(mod, {}, npu=False)
+        outputs.append(tei.run(lib, inputs, 1, npu=npu))
 
     tei.verify(outputs, 0)
