@@ -174,12 +174,12 @@ Method 1
 
    Set the environment variable `PYTHONPATH` to tell python where to find
    the library. For example, assume we cloned `tvm` on the home directory
-   `~`. then we can added the following line in `~/.bashrc`.
+   `~` then we can added the following line in `~/.bashrc`.
    The changes will be immediately reflected once you pull the code and rebuild the project (no need to call ``setup`` again)
 
    .. code:: bash
 
-       export TVM_HOME=/path/to/tvm
+       export TVM_HOME=~/tvm
        export PYTHONPATH=$TVM_HOME/python:${PYTHONPATH}
 
 
@@ -205,7 +205,7 @@ like ``virtualenv``.
 
    .. code:: bash
 
-       pip3 install --user numpy decorator attrs
+       pip3 install --user numpy decorator attrs typed_ast pytest
 
    * If you want to use RPC Tracker
 
@@ -242,7 +242,7 @@ tests in TVM. The easiest way to install GTest is from source.
        cd build
        cmake ..
        make
-       make install
+       sudo make install
 
 
 After installing GTest, the C++ tests can be built and started with ``./tests/scripts/task_cpp_unittest.sh`` or just built with ``make cpptest``.
