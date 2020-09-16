@@ -20,7 +20,7 @@ Using the template-free auto-scheduler on CPU
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, \
             `Chengfan Jia <https://github.com/jcf94/>`_
 
-Different from the exiting :ref:`autotvm <tutorials-autotvm-sec>` which relies on 
+Different from the existing :ref:`autotvm <tutorials-autotvm-sec>` which relies on 
 manual templates to define the search space, the auto-scheduler does not require any templates.
 The auto-scheduler is template-free, so users only need to write the computation declaration without
 any schedule commands or templates.

@@ -593,7 +593,7 @@ PopulationGenerationRule::ResultKind MutateComputeLocationCommon(SketchPolicyNod
 
 PopulationGenerationRule::ResultKind InitChangeComputeLocation::Apply(SketchPolicyNode* policy,
                                                                       State* state) const {
-  return MutateComputeLocationCommon(policy, state, false);
+  return MutateComputeLocationCommon(policy, state, true);
 }
 
 PopulationGenerationRule::ResultKind InitParallel::Apply(SketchPolicyNode* policy,
@@ -1059,7 +1059,7 @@ PopulationGenerationRule::ResultKind MutateMaxUnrollFactor::Apply(SketchPolicyNo
 
 PopulationGenerationRule::ResultKind MutateComputeLocation::Apply(SketchPolicyNode* policy,
                                                                   State* state) const {
-  return MutateComputeLocationCommon(policy, state, true);
+  return MutateComputeLocationCommon(policy, state, false);
 }
 
 PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* policy,

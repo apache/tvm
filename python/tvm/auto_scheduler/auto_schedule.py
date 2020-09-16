@@ -92,27 +92,27 @@ class TuningOptions(Object):
     Parameters
     ----------
     num_measure_trials: int = 0
-      The number of measurement trials.
-      The search policy measures `num_measure_trials` schedules in total and returns the best one
-      among them.
-      With `num_measure_trials` == 0, the policy will do the schedule search but won't involve
-      measurement. This can be used to get a runnable schedule quickly without auto-tuning.
+        The number of measurement trials.
+        The search policy measures `num_measure_trials` schedules in total and returns the best one
+        among them.
+        With `num_measure_trials` == 0, the policy will do the schedule search but won't involve
+        measurement. This can be used to get a runnable schedule quickly without auto-tuning.
     early_stopping: Optional[int]
-      Stop the tuning early if getting no improvement after n measurements.
+        Stop the tuning early if getting no improvement after n measurements.
     num_measures_per_round: int = 64
-      The number of schedules to be measured at each search round.
-      The whole schedule search process will try a total number of `num_measure_trials` in several
-      rounds.
+        The number of schedules to be measured at each search round.
+        The whole schedule search process will try a total number of `num_measure_trials` in several
+        rounds.
     verbose: int = 1
-      Verbosity level. 0 for silent, 1 to output information during schedule search.
+        Verbosity level. 0 for silent, 1 to output information during schedule search.
     builder: Union[ProgramBuilder, str] = 'local'
-      ProgramBuilder which builds the program.
+        ProgramBuilder which builds the program.
     runner: Union[ProgramRunner, str] = 'local'
-      ProgramRunner which runs the program and measures time costs.
+        ProgramRunner which runs the program and measures time costs.
     measure_callbacks: Optional[List[MeasureCallback]]
-      Callback functions called after each measurement.
-      Candidates:
-        - auto_scheduler.RecordToFile
+        Callback functions called after each measurement.
+        Candidates:
+          - auto_scheduler.RecordToFile
     """
 
     def __init__(
