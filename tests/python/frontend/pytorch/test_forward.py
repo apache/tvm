@@ -3101,7 +3101,7 @@ def test_forward_scatter():
     in_index = torch.tensor([[2], [3]])
     in_src = torch.rand(2, 1)
 
-    #TODO: add scatter gpu schedule to enable gpu test.
+    # TODO: add scatter gpu schedule to enable gpu test.
     verify_trace_model(Scatter(1), [in_data, in_index, in_src], ["llvm"])
 
 
