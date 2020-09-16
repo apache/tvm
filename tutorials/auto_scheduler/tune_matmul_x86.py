@@ -50,7 +50,7 @@ def matmul_add(N, L, M, dtype):
 
     k = te.reduce_axis((0, L), name="k")
     matmul = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name="matmul")
-    out = te.compute((N, M), lambda i, j: matmul[i, j] + C[i, j], name="D")
+    out = te.compute((N, M), lambda i, j: matmul[i, j] + C[i, j], name="out")
 
     return [A, B, C, out]
 
@@ -63,7 +63,7 @@ def matmul_add(N, L, M, dtype):
 target = tvm.target.Target("llvm")
 task = auto_scheduler.create_task(matmul_add, (128, 128, 128, "float32"), target)
 
-# inspect the computational graph
+# Inspect the computational graph
 print(task.compute_dag)
 
 ######################################################################
@@ -92,6 +92,8 @@ sch, args = auto_scheduler.auto_schedule(task, tuning_options=tune_option)
 
 ######################################################################
 # We can lower schedule to see the IR after auto-scheduling.
+# The auto-scheduler correctly performs optimizations including multi-level tiling,
+# parallelization, vectorization, unrolling and fusion.
 
 print(tvm.lower(sch, args, simple_mode=True))
 
@@ -114,13 +116,14 @@ tvm.testing.assert_allclose(d_np, d_tvm.asnumpy(), rtol=1e-3)
 ######################################################################
 # Using the record file
 # ^^^^^^^^^^^^^^^^^^^^^
-# During the search, all measuremnt records is dumpped into the record
+# During the search, all measuremnt records are dumpped into the record
 # file "matmul.json". The measurement records can be used to resume the
 # search, re-apply search results and other analysis.
 #
 # Here we show an example where we load the best schedule from a file,
 # print the equivalent python schedule API, and build the binary again.
 
+# Load the measuremnt record for the best schedule
 inp, res = auto_scheduler.load_best("matmul.json", task.workload_key)
 
 # Print equivalent python schedule API. This can be used for debugging and
