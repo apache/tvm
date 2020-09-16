@@ -26,7 +26,7 @@ from . import workload_registry
 from . import feature
 
 # Shortcut
-from .auto_schedule import SearchTask, TuningOptions, HardwareParams, auto_schedule
+from .auto_schedule import SearchTask, TuningOptions, HardwareParams, create_task, auto_schedule
 from .compute_dag import ComputeDAG
 from .cost_model import RandomModel, XGBModel
 from .measure import (

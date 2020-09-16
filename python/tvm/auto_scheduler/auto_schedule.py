@@ -31,7 +31,10 @@ Candidate schedules are measured against the specific hardware target.
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import LocalBuilder, LocalRunner
+from .workload_registry import make_workload_key, workload_key_to_tensors
+from .compute_dag import ComputeDAG
 from .search_policy import EmptyPolicy
+from .utils import get_func_name
 from . import _ffi_api
 
 
@@ -155,6 +158,30 @@ class TuningOptions(Object):
             measure_callbacks,
         )
 
+def create_task(func, args, target, target_host=None, hardware_params=None):
+    """Create a search task
+
+    Parameters
+    ----------
+    func : Union[Function, str]
+        The function that returns the compute declaration Tensors.
+        Can be the a function or the function name.
+    args : Args
+        The args of the function.
+    target : tvm.target.Target
+        The target device of this search task.
+    target_host : Optional[tvm.target.Target]
+        The target host device of this search task.
+    hardware_params : Optional[HardwareParams]
+        Hardware parameters used in this search task.
+
+    Returns
+    -------
+        task : the created task
+    """
+    workload_key = make_workload_key(func, args)
+    dag = ComputeDAG(workload_key)
+    return SearchTask(dag, workload_key, target, target_host, hardware_params)
 
 def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
     """Do auto scheduling for a computation declaration.
