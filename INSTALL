@@ -1,0 +1,151 @@
+Installation instructions for the libcrc library.
+
+The libcrc library is a library with routines written in C to calculate various
+types of checksums. This includes the commonly known CRCs, but also some more
+exotic routines like a CRC implementation used in Sick sensors which uses a
+double CRC pass and routines to calculate the checksum for NMEA GPS messages.
+
+The library is licensed according to the MIT license. You can find more details
+about this license in the LICENSE file, and in the header of each source file.
+
+The routines can be used on a variety of hardware and software configurations.
+This has influenced the way the installation takes place.
+
+
+Installing the source files
+===========================
+
+First of all make sure that the library source files will be placed in a
+directory separate from your other files. This ensures that creating the
+library will not overwrite any of your existing files.
+
+
+Cloning the repository
+----------------------
+
+The easiest way is to get all up-to-date sources is to clone the full
+repository from github with the command
+
+git clone https://github.com/lammertb/libcrc.git path-to/libcrc
+
+This will create the subdirectory libcrc in the given path, and create the
+file structure inside it. Using git ensures that you have an easy way to update
+the library when the master library is updated.
+
+
+Forking the repository
+----------------------
+
+Another option is to first for the repository on github to your own account
+and from there clone working copies. These are more steps, but give you an
+easier road to send pull requests back to the master repository if you have
+made usefull additions or bug fixes in your local copy.
+
+
+Downloading a pre-packaged zip or tar file with sources
+-------------------------------------------------------
+
+Some snapshots of the libcrc library source files will be available as packaged
+compressed files in zip and tar format. The latest release in zip and tar
+format can be found at https://github.com/lammertb/libcrc/releases/latest
+
+
+Downloading a pre-compiled static library for your OS
+-----------------------------------------------------
+
+Binary versions of the library are periodically compiled for Windows, Linux and
+FreeBSD for x86 and ARM architectures and are available for download. In this
+case you can just link the library at link time, instead of compiling the
+sources yourself. Each library is packaged with the proper header file.
+
+
+
+Library format
+==============
+
+The library is provided as a statically linked library. Many libraries you find
+on the net are for dynamic linking, but it is a deliberate choice to make that
+option not available for libcrc. One reason is the size of the routines. They
+are very small and the code size needed to load the routines at run-time from
+a dynamic library would be comparable in size as the routines themselves.
+
+The second reason is version compatibility. Dynamically linked libraries are
+provided independently from the using application and functionality and ABIs
+may differ between those versions. By having the code statically linked to your
+application, you are assured that the version of the routines in the library
+always match the version needed by your application.
+
+
+Make tool chain
+===============
+
+Cross-platform compatibility was a major point when creating the library and
+selecing the tools around it. Many source code libraries are distributed based
+on the autoconf, automake, libtool toolchain. Although this toolchain is
+widely accepted in the *nix world and has been developed for cross-platform
+compatibility, my personal experience is that it often works against
+compatibility.
+
+The autoconf, automake, libtool toolchain is not available under
+Windows and for that you will often see that developers add a number of Visual
+Studio project directories in their project, one for each Visual Studio version
+they support.
+
+A second point is that this library runs on many versions of *nix flavors and
+autoconf versions on older but still supported OS versions (Centos 6.x as an
+example) are not fully compatible with newer bleeding edge operating systems.
+
+For that reason the toolchain only uses the make utility. The Makefile has been
+specifically designed for GNU make, although other make implementations may
+work. If you encounter make problems with your make implementation, the best
+bet is to download a source or precompiled binary version of GNU make for your
+operating system.
+
+Dependencies in the Makefile were created and are maintained manually where all
+depencencies including those for header files are properly mentioned. Because
+of this it is safe to speed op compilation with parallel jobs using the -j
+parameter of GNU make.
+
+
+Tested compilers
+================
+
+The source files have been compiled int the past with several versions of
+Microsoft C under MS-DOS and Windows 3.1, Watcom C/C++ 9 and 10 under Windows
+and Windows 32 and, several versions of Visual Studio upto and including
+VS 2015, several versions of GCC, CLANG and some proprietary compilers for
+microcontrollers.
+
+The routines are therefore expected to work under in a large variety of
+environments. But to be sure, the Makefile creates a testall executable in the
+root directory of the library directory structure which you can call to check
+if the implementation is properly working on your hardware/software
+combination.
+
+You should note though that through the use of uint16_t and uint32_t types in
+the current version, very old compilers may fail to compile the newest sources.
+
+
+
+Result files
+============
+
+The result file is a libcrc.a or libcrc.lib file in the lib subdirectory of
+the project. This file can be statically linked with your projects.
+
+
+
+Make command options
+====================
+
+You can call make with options to change the behavior of the process.
+
+make
+make all
+	creates both the library and the test program
+
+make clean
+	cleans up the object files, library file and testall executable
+
+
+Lammert Bies
