@@ -1230,14 +1230,16 @@ def _reshape():
 
     return _impl
 
+
 def _pixel_shuffle(prelude):
     def _impl(inputs, input_types):
         data = inputs[0]
         upscale_factor = inputs[1]
         upscale_squared = upscale_factor * upscale_factor
         b, c, h, w = _infer_shape(data)
-        assert c % upscale_squared == 0, \
-            "input channel should be divisible by square of upscale_factor"
+        assert (
+            c % upscale_squared == 0
+        ), "input channel should be divisible by square of upscale_factor"
 
         ndims = len(_infer_shape(data, prelude.mod))
         axes = list(range(ndims))
@@ -1256,7 +1258,9 @@ def _pixel_shuffle(prelude):
         axes = [0, 1, 4, 2, 5, 3]
         data = _op.transform.transpose(data, axes)
         return _op.transform.reshape(data, out_shape)
+
     return _impl
+
 
 def _clone():
     def _impl(inputs, input_types):
