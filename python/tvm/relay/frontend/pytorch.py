@@ -1238,8 +1238,6 @@ def _flatten():
 
 def _dense():
     def _impl(inputs, input_types):
-        use_bias = isinstance(inputs[0], _expr.Expr)
-
         data = inputs[1]
         data_type = input_types[1]
         weight = inputs[2]
@@ -1260,7 +1258,7 @@ def _dense():
         units = _infer_shape(weight_out)[0]
         dense_out = _op.nn.dense(data, weight_out, units=units)
 
-        if use_bias:
+        if isinstance(inputs[0], _expr.Expr):
             bias = inputs[0]
             return _op.nn.bias_add(dense_out, bias)
         else:
@@ -2338,10 +2336,7 @@ def _interpolate():
         else:
             coord_trans = "half_pixel"
 
-        def func(x):
-            return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
-
-        return func(data)
+        return _op.image.resize(data, out_size, "NCHW", method, coord_trans)
 
     return _impl
 

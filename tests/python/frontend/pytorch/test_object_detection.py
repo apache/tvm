@@ -28,7 +28,7 @@ from tvm.runtime.vm import VirtualMachine
 from tvm.contrib.download import download
 
 
-in_size = 512
+in_size = 300
 
 
 def process_image(img):
@@ -129,6 +129,8 @@ def test_detection_models(model_index, score_threshold=0.9):
     for score in tvm_scores:
         if score >= score_threshold:
             num_tvm_valid_scores += 1
+        else:
+            break
 
     assert num_pt_valid_scores == num_tvm_valid_scores, (
         "Output mismatch: Under score threshold {}, Pytorch has {} valid "
