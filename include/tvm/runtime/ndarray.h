@@ -409,7 +409,7 @@ inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
   strm->Write(tensor->dtype);
   int ndim = tensor->ndim;
   strm->WriteArray(tensor->shape, ndim);
-  int type_bytes = tensor->dtype.bits / 8;
+  int type_bytes = (tensor->dtype.bits + 7) / 8;
   int64_t num_elems = 1;
   for (int i = 0; i < ndim; ++i) {
     num_elems *= tensor->shape[i];
