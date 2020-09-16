@@ -31,10 +31,10 @@ Candidate schedules are measured against the specific hardware target.
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import LocalBuilder, LocalRunner
-from .workload_registry import make_workload_key, workload_key_to_tensors
+from .workload_registry import make_workload_key
 from .compute_dag import ComputeDAG
-from .search_policy import EmptyPolicy
-from .utils import get_func_name
+from .cost_model import XGBModel
+from .search_policy import SketchPolicy
 from . import _ffi_api
 
 
@@ -158,6 +158,7 @@ class TuningOptions(Object):
             measure_callbacks,
         )
 
+
 def create_task(func, args, target, target_host=None, hardware_params=None):
     """Create a search task
 
@@ -183,16 +184,16 @@ def create_task(func, args, target, target_host=None, hardware_params=None):
     dag = ComputeDAG(workload_key)
     return SearchTask(dag, workload_key, target, target_host, hardware_params)
 
+
 def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
-    """Do auto scheduling for a computation declaration.
+    """Run auto scheduling search for a task
 
     Parameters
     ----------
     task : SearchTask
         The SearchTask for the computation declaration.
     search_policy : Optional[SearchPolicy]
-        The search policy to be used for schedule search. Use EmptyPolicy as default, which always
-        returns an empty schedule.
+        The search policy to be used for schedule search.
     tuning_options : Optional[TuningOptions]
         Tuning and measurement options.
 
@@ -205,5 +206,9 @@ def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
             "Invalid task: " + task + " . `auto_scheduler.auto_schedule` expects a SearchTask."
         )
 
-    sch, tensors = _ffi_api.AutoSchedule(search_policy or EmptyPolicy(task), tuning_options)
+    if search_policy is None:
+        cost_model = XGBModel()
+        search_policy = SketchPolicy(task, cost_model)
+
+    sch, tensors = _ffi_api.AutoSchedule(search_policy, tuning_options)
     return sch, tensors
