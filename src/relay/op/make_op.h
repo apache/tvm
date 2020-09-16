@@ -68,6 +68,8 @@ Expr MakeSqueeze(Expr data, Array<Integer> axis);
 
 Expr MakeStack(Expr data, int axis);
 
+Expr MakeUnbind(Expr data, int axis);
+
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides,
                       String slice_mode);
 

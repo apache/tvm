@@ -65,6 +65,10 @@ TVM_REGISTER_GLOBAL("topi.stack").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = stack(args[0], args[1]);
 });
 
+TVM_REGISTER_GLOBAL("topi.unbind").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = unbind(args[0], args[1]);
+});
+
 TVM_REGISTER_GLOBAL("topi.shape").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = shape(args[0], args[1]);
 });

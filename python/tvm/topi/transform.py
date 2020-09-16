@@ -382,6 +382,23 @@ def split(ary, indices_or_sections, axis=0):
     return cpp.split(ary, indices_or_sections, axis)
 
 
+def unbind(a, axis=0):
+    """Remove a tensor dimension, get a tuple of slices along axis.
+
+    Parameters
+    ----------
+    a : tvm.te.Tensor
+
+    axis : int
+
+    Returns
+    -------
+    ret : tuple of tvm.te.Tensor
+
+    """
+    return cpp.unbind(a, axis)
+
+
 def take(a, indices, axis=None, mode="clip"):
     """Take elements from an array along an axis.
 

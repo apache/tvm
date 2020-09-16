@@ -389,6 +389,23 @@ def _slice():
     return _impl
 
 
+def _unbind():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        dim = int(inputs[1])
+        ishapes = _infer_shape(data)
+
+        if dim >= len(ishapes):
+            msg = "Please check input dim, it shouldn't" \
+                  "be greater than or equal to rank."
+            raise AttributeError(msg)
+
+        selections = ishapes[dim]
+        unbind_rel = _op.unbind(data, dim)
+        return _expr.TupleWrapper(unbind_rel, selections)
+    return _impl
+
+
 def _split():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -2521,6 +2538,7 @@ def _get_convert_map(prelude, default_dtype):
         "aten::slice": _slice(),
         "aten::split": _split(),
         "aten::split_with_sizes": _split_with_sizes(),
+        "aten::unbind": _unbind(),
         "aten::select": _select(),
         "aten::take": _take(),
         "aten::where": _where(),

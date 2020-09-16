@@ -689,6 +689,31 @@ def test_any_split():
     verify_any_split((relay.Any(), relay.Any()), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
 
 
+def verify_any_unbind(data_shape, axis, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    y = relay.unbind(data, axis)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    for kind in ["vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        for ret, ref_ret in zip(result, ref_out_shape):
+            assert ret.asnumpy().shape == ref_ret, "Shape mismatch: expect %s but got %s." % (
+                str(ref_ret),
+                str(ret.asnumpy().shape),
+            )
+
+
+@tvm.testing.uses_gpu
+def test_any_unbind():
+    verify_any_unbind((relay.Any(), 4), 1, (9, 4), [(9, 2), (9, 2)])
+    verify_any_unbind((relay.Any(), relay.Any()), 1, (9, 4), [(9, 2), (9, 2)])
+    verify_any_unbind((relay.Any(), 12), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
+    verify_any_unbind((relay.Any(), relay.Any()), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
+
+
 @tvm.testing.uses_gpu
 def test_any_batch_flatten():
     mod = tvm.IRModule()

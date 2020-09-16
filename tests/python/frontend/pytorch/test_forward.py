@@ -768,6 +768,23 @@ def test_forward_maxpool3d():
 
 
 @tvm.testing.uses_gpu
+def test_forward_unbind():
+    torch.set_grad_enabled(False)
+
+    class Unbind(Module):
+        def __init__(self, dim):
+            super(Unbind, self).__init__()
+            self.dim = dim
+
+        def forward(self, *args):
+            return torch.unbind(args[0], self.dim)
+
+    for ishape, idim in (([4, 8], 0), ([7, 6], 1), ([5, 3, 2], 2)):
+        input_data = torch.rand(ishape).float()
+        verify_model(Unbind(idim).float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_split():
     torch.set_grad_enabled(False)
     input_shape = [4, 10]
@@ -3381,6 +3398,7 @@ if __name__ == "__main__":
     test_forward_arange()
     test_forward_mesh_grid()
     test_forward_chunk()
+    test_forward_unbind()
     test_forward_split()
     test_forward_gather()
     test_upsample()

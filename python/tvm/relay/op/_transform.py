@@ -49,6 +49,7 @@ _reg.register_injective_schedule("reinterpret")
 _reg.register_injective_schedule("strided_slice")
 _reg.register_injective_schedule("slice_like")
 _reg.register_injective_schedule("split")
+_reg.register_injective_schedule("unbind")
 _reg.register_injective_schedule("take")
 _reg.register_injective_schedule("transpose")
 _reg.register_injective_schedule("stack")
@@ -711,6 +712,29 @@ def split_shape_func(attrs, inputs, _):
         _split_shape_func(inputs[0], convert(i), convert(indices_or_sections), convert(axis))
         for i in range(num_out)
     ]
+
+
+@script
+def _unbind_shape_func(data_shape, axis):
+    ele_shape = output_tensor((data_shape.shape[0] - 1,), "int64")
+    # tup_len = output_tensor((1,), "int64")
+    # tup_len[0] = data_shape[axis]
+    for i in const_range(data_shape.shape[0]):
+        if i < axis:
+            ele_shape[i] = data_shape[i]
+        elif i > axis:
+            ele_shape[i-1] = data_shape[i]
+    return ele_shape
+
+
+@_reg.register_shape_func("unbind", False)
+def unbind_shape_func(attrs, inputs, _):
+    """
+    Shape function for unbind op.
+    """
+    axis = 0 if attrs.axis is None else get_const_int(attrs.axis)
+    tup_len = 1 # todo, need to figure out data_shape[axis]
+    return [_unbind_shape_func(inputs[0], convert(axis)) for i in range(tup_len)]
 
 
 @script

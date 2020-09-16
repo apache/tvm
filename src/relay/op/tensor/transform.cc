@@ -754,7 +754,7 @@ bool ReshapeLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   if (reshape_like == nullptr) {
     return false;
   }
-  // Only check When input data has static shape.
+  // Only check when input data has static shape.
   bool is_static_shape = true;
   for (size_t i = 0; i < data->shape.size(); ++i) {
     if (!data->shape[i].as<IntImmNode>()) {
@@ -2465,6 +2465,73 @@ the entries indicate where along axis the array is split.
     .set_support_level(3)
     .add_type_rel("Split", SplitRel)
     .set_attr<FTVMCompute>("FTVMCompute", SplitCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
+// relay.unbind
+TVM_REGISTER_NODE_TYPE(UnbindAttrs);
+
+bool UnbindRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // `types` contains: [data, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  CHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
+  const auto param = attrs.as<UnbindAttrs>();
+  CHECK(param != nullptr);
+  auto axis = param->axis;
+  if (axis < 0) {
+    axis += data->shape.size();
+  }
+  CHECK_LT(axis, data->shape.size()) << "axis should be within the input dimension range.";
+  CHECK_GE(axis, 0) << "axis should be within the input dimension range.";
+
+  std::vector<Type> fields;
+  auto tuple_size = data->shape[axis].as<IntImmNode>()->value;
+  //todo (yongwww): tuple_size could be Any()
+  for (size_t i = 0; i < tuple_size; ++i) {
+    std::vector<IndexExpr> oshape;
+    // dimension axis needs to be removed
+    for (size_t i = 0; i < axis; ++i) {
+      oshape.push_back(data->shape[i]);
+    }
+    for (size_t i = axis + 1; i < data->shape.size(); ++i) {
+      oshape.push_back(data->shape[i]);
+    }
+    auto vec_type = TensorType(oshape, data->dtype);
+    fields.push_back(vec_type);
+  }
+  reporter->Assign(types[1], TupleType(Array<Type>(fields)));
+
+  return true;
+}
+
+Array<te::Tensor> UnbindCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                               const Type& out_type) {
+  const auto param = attrs.as<UnbindAttrs>();
+  CHECK(param != nullptr);
+  return Array<te::Tensor>{topi::unbind(inputs[0], param->axis)};
+
+}
+
+Expr MakeUnbind(Expr data, int axis) {
+  auto attrs = make_object<UnbindAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("unbind");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.unbind").set_body_typed(MakeUnbind);
+
+RELAY_REGISTER_OP("unbind")
+    .describe(R"code(Remove a tensor dimension, get a tuple of slices along axis.
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<UnbindAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(3)
+    .add_type_rel("Unbind", UnbindRel)
+    .set_attr<FTVMCompute>("FTVMCompute", UnbindCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // relay.slice_like

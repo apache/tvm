@@ -188,6 +188,38 @@ def verify_stack(shapes, axis):
     for device, ctx in tvm.testing.enabled_targets():
         check_device(device, ctx)
 
+def verify_unbind(shape, axis):
+    A = te.placeholder(shape=shape, name="A")
+    out_tensor = topi.unbind(A, axis=axis)
+
+    def check_device(device, ctx):
+        print("Running on target: %s" % device)
+        with tvm.target.Target(device):
+            s = tvm.topi.testing.get_injective_schedule(device)(out_tensor)
+
+        foo = tvm.build(s, [A] + list(out_tensor), device, name="unbind")
+        data_npy = np.random.normal(size=shape).astype(A.dtype)
+
+        # figure out reference out with numpy split and squeeze
+        out_split = np.split(data_npy, shape[axis], axis=axis)
+        out_npys = [np.squeeze(ele) for ele in out_split]
+
+        # tvm data
+        data_nd = tvm.nd.array(data_npy, ctx)
+        out_nds = [
+            tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=out_tensor[0].dtype) for out_npy in out_npys
+        ]
+
+        # inference with tvm
+        foo(*([data_nd] + out_nds))
+
+        # verify results
+        for out_nd, out_npy in zip(out_nds, out_npys):
+            tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
+
 
 def verify_split(src_shape, indices_or_sections, axis):
     A = te.placeholder(shape=src_shape, name="A")
@@ -886,6 +918,14 @@ def test_stack():
 
 
 @tvm.testing.uses_gpu
+def test_unbind():
+    verify_unbind((2, 3), 1)
+    verify_unbind((3, 5), 0)
+    verify_unbind((2, 12, 3), 2)
+    verify_unbind((10, 12, 24), -1)
+
+
+@tvm.testing.uses_gpu
 def test_split():
     verify_split((2, 12, 3), 3, 1)
     verify_split((2, 12, 3), [2, 4], 1)
@@ -1181,6 +1221,7 @@ if __name__ == "__main__":
     test_strided_slice()
     test_concatenate()
     test_stack()
+    test_unbind()
     test_transpose()
     test_expand_dims()
     test_reshape()

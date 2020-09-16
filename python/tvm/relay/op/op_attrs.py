@@ -223,6 +223,9 @@ class MeshgridAttrs(Attrs):
 class StackAttrs(Attrs):
     """Attributes used in stack operators"""
 
+@tvm._ffi.register_object("relay.attrs.UnbindAttrs")
+class UnbindAttrs(Attrs):
+    """Attributes used in unbind operator"""
 
 @tvm._ffi.register_object("relay.attrs.RepeatAttrs")
 class RepeatAttrs(Attrs):

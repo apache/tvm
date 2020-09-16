@@ -17,7 +17,6 @@
 
 # pylint: disable=import-outside-toplevel
 """Transform operators."""
-
 from . import _make
 from .dyn import _make as _dyn_make
 from .tensor import shape_of
@@ -799,6 +798,25 @@ def split(data, indices_or_sections, axis=0):
     else:
         ret_size = len(indices_or_sections) + 1
     return TupleWrapper(_make.split(data, indices_or_sections, axis), ret_size)
+
+
+def unbind(data, axis=0):
+    """Remove a tensor dimension, get a tuple of slices along axis.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The source array.
+
+    axis : int, optional
+        The axis to be removed.
+
+    Returns
+    -------
+    ret : List[relay.Expr]
+        The computed result.
+    """
+    return _make.unbind(data, axis)
 
 
 def strided_slice(data, begin, end, strides=None, slice_mode="end"):

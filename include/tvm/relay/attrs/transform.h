@@ -183,6 +183,15 @@ struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
   }
 };  // struct StackAttrs
 
+/*! \brief Attributes used in unbind operators */
+struct UnbindAttrs : public tvm::AttrsNode<UnbindAttrs> {
+  int axis;
+  TVM_DECLARE_ATTRS(UnbindAttrs, "relay.attrs.UnbindAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0).describe(
+        "The axis in the result array along which the dimension is removed.");
+  }
+};  // struct UnbindAttrs
+
 /*! \brief Attributes used in repeat operators */
 struct RepeatAttrs : public tvm::AttrsNode<RepeatAttrs> {
   Integer repeats;

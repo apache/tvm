@@ -781,6 +781,31 @@ def test_stack():
 
 
 @tvm.testing.uses_gpu
+def test_unbind():
+    def verify_unbind(dshape, axis=0, dtype="float32"):
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        y = relay.unbind(x, axis=axis)
+
+        # Calculate reference out with numpy split and squeeze
+        data_np = np.random.normal(size=dshape).astype(dtype)
+        res_split = np.split(data_np, dshape[axis], axis=axis)
+        ref_res = [np.squeeze(ele) for ele in res_split]
+
+        func = relay.Function([x], y)
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(*[data_np])
+                for i in range(len(ref_res)):
+                    tvm.testing.assert_allclose(op_res[i].asnumpy(), ref_res[i], rtol=1e-5)
+
+    verify_unbind((2, 3), 1)
+    verify_unbind((3, 5), 0)
+    verify_unbind((2, 12, 3), 2)
+    verify_unbind((10, 12, 24), -1)
+
+
+@tvm.testing.uses_gpu
 def test_reverse():
     def verify_reverse(dshape, axis):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
@@ -1265,6 +1290,7 @@ if __name__ == "__main__":
     test_meshgrid()
     test_reverse()
     test_stack()
+    test_unbind()
     test_tile()
     test_repeat()
     test_gather_nd()
