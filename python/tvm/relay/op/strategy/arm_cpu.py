@@ -141,12 +141,14 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_hybrid),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_hybrid),
-                        name="conv2d_NHWC_quantized_hybrid.arm_cpu")
+                        name="conv2d_NHWC_quantized_hybrid.arm_cpu",
+                    )
                 if is_aarch64 and data.dtype in ["int8", "uint8"]:
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized),
-                        name="conv2d_NHWC_quantized.arm_cpu")
+                        name="conv2d_NHWC_quantized.arm_cpu",
+                    )
                 if (not is_aarch64) or (data.dtype not in ["int8", "uint8"]):
                     # TODO
                     # This strategy errors out for quantized data types when tuning.
@@ -154,7 +156,8 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_spatial_pack),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack),
-                        name="conv2d_nhwc_spatial_pack.arm_cpu")
+                        name="conv2d_nhwc_spatial_pack.arm_cpu",
+                    )
             else:
                 raise RuntimeError(
                     "Unsupported kernel layout {} for conv2d NHWC".format(kernel_layout)
@@ -336,15 +339,17 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
 
     interleaved_compute = topi.arm_cpu.compute_conv2d_NHWC_quantized_without_transform
     hybrid_compute = topi.arm_cpu.compute_conv2d_NHWC_quantized_hybrid_without_transform
-    if layout == "NHWC" and data.dtype in ['int8', 'uint8']:
+    if layout == "NHWC" and data.dtype in ["int8", "uint8"]:
         strategy.add_implementation(
             wrap_compute_conv2d_gemm(interleaved_compute),
             wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized),
-            name="conv2d_NHWC_quantized_without_transform.arm_cpu")
+            name="conv2d_NHWC_quantized_without_transform.arm_cpu",
+        )
         strategy.add_implementation(
             wrap_compute_conv2d_gemm(hybrid_compute),
             wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_hybrid),
-            name="conv2d_NHWC_quantized_hybrid_without_transform.arm_cpu")
+            name="conv2d_NHWC_quantized_hybrid_without_transform.arm_cpu",
+        )
     else:
         raise RuntimeError(
             "Unsupported conv2d_NHWC_quantized_without_transform layout {0}"

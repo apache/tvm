@@ -31,12 +31,17 @@ from .arm_utils import is_fast_int8_on_arm
 
 logger = logging.getLogger("topi")
 
+
 def interleave_transpose_B(inputs, data, kernel, interleave_A):
     """ Return the new placeholder and the expression that represent
     the matrix B transposed and interleaved"""
 
-    assert (data.dtype == 'int8' and kernel.dtype == 'int8' or
-            data.dtype == 'uint8' and kernel.dtype == 'uint8')
+    assert (
+        data.dtype == "int8"
+        and kernel.dtype == "int8"
+        or data.dtype == "uint8"
+        and kernel.dtype == "uint8"
+    )
 
     KH, KW, IC, OC = get_const_tuple(kernel.shape)
     K = KH * KW * IC
@@ -59,13 +64,12 @@ def interleave_transpose_B(inputs, data, kernel, interleave_A):
 
     N_padded = N + pad_N
     K_padded = K + pad_K
-    new_kernel_expr = relay.nn.contrib_conv2d_gemm_weight_transform(inputs[1],
-                                                                    tile_rows_B,
-                                                                    tile_cols_B)
-    new_kernel = te.placeholder((N_padded // tile_rows_B,
-                                 K_padded // tile_cols_B,
-                                 tile_rows_B,
-                                 tile_cols_B), kernel.dtype)
+    new_kernel_expr = relay.nn.contrib_conv2d_gemm_weight_transform(
+        inputs[1], tile_rows_B, tile_cols_B
+    )
+    new_kernel = te.placeholder(
+        (N_padded // tile_rows_B, K_padded // tile_cols_B, tile_rows_B, tile_cols_B), kernel.dtype
+    )
     return new_kernel, new_kernel_expr
 
 
@@ -322,30 +326,32 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         KH, KW, IC, OC = get_const_tuple(kernel.shape)
         N = OC
         new_workload_name = "conv2d_NHWC_quantized_without_transform.arm_cpu"
-        new_kernel, new_kernel_expr = interleave_transpose_B(inputs, data,
-                                                             kernel, interleave_A=True)
-        new_workload = autotvm.task.args_to_workload([data, new_kernel,
-                                                      strides, padding, dilation,
-                                                      out_dtype, (KH, KW), OC],
-                                                     new_workload_name)
+        new_kernel, new_kernel_expr = interleave_transpose_B(
+            inputs, data, kernel, interleave_A=True
+        )
+        new_workload = autotvm.task.args_to_workload(
+            [data, new_kernel, strides, padding, dilation, out_dtype, (KH, KW), OC],
+            new_workload_name,
+        )
         dispatch_ctx.update(target, new_workload, cfg)
 
-        return relay.nn.contrib_conv2d_gemm_without_weight_transform(inputs[0],
-                                                                     new_kernel_expr,
-                                                                     **new_attrs)
+        return relay.nn.contrib_conv2d_gemm_without_weight_transform(
+            inputs[0], new_kernel_expr, **new_attrs
+        )
     if topi_tmpl == "conv2d_NHWC_quantized_hybrid.arm_cpu":
         assert data_layout == "NHWC" and kernel_layout == "HWIO"
         KH, KW, IC, OC = get_const_tuple(kernel.shape)
         N = OC
         new_workload_name = "conv2d_NHWC_quantized_hybrid_without_transform.arm_cpu"
-        new_kernel, new_kernel_expr = interleave_transpose_B(inputs, data,
-                                                             kernel, interleave_A=False)
-        new_workload = autotvm.task.args_to_workload([data, new_kernel,
-                                                      strides, padding, dilation,
-                                                      out_dtype, (KH, KW), OC],
-                                                     new_workload_name)
+        new_kernel, new_kernel_expr = interleave_transpose_B(
+            inputs, data, kernel, interleave_A=False
+        )
+        new_workload = autotvm.task.args_to_workload(
+            [data, new_kernel, strides, padding, dilation, out_dtype, (KH, KW), OC],
+            new_workload_name,
+        )
         dispatch_ctx.update(target, new_workload, cfg)
-        return relay.nn.contrib_conv2d_gemm_without_weight_transform(inputs[0],
-                                                                     new_kernel_expr,
-                                                                     **new_attrs)
+        return relay.nn.contrib_conv2d_gemm_without_weight_transform(
+            inputs[0], new_kernel_expr, **new_attrs
+        )
     return None

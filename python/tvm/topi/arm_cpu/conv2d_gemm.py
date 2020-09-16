@@ -23,44 +23,53 @@ from tvm.topi import nn
 from tvm.autotvm.task.space import AnnotateEntity, ReorderEntity, OtherOptionEntity
 from ..util import get_const_tuple, get_const_int
 from ..nn.util import get_pad_tuple
-from .tensor_intrin import gemm_quantized, gemm_quantized_impl,\
-                           mmla_4x4_int8_int8_int32, mmla_16x4_int8_int8_int32
+from .tensor_intrin import (
+    gemm_quantized,
+    gemm_quantized_impl,
+    mmla_4x4_int8_int8_int32,
+    mmla_16x4_int8_int8_int32,
+)
 from .arm_utils import is_aarch64_arm, is_fast_int8_on_arm
+
 
 def configure_knobs(cfg, M, K):
     """ Configure auto-tuning knobs for the interleaved strategy """
 
     x, y = cfg.axis(M // 4), cfg.axis(K // 16)
-    cfg.define_reorder('reorder_gemm',
-                       [x, y],
-                       policy='candidate',
-                       candidate=[[x, y],
-                                  [y, x]])
+    cfg.define_reorder("reorder_gemm", [x, y], policy="candidate", candidate=[[x, y], [y, x]])
 
     outer_loop, inner_loop = cfg.axis(4), cfg.axis(16)
-    cfg.define_annotate("A_interleaved_unroll_vec",
-                        [outer_loop, inner_loop],
-                        policy="try_unroll_vec")
+    cfg.define_annotate(
+        "A_interleaved_unroll_vec", [outer_loop, inner_loop], policy="try_unroll_vec"
+    )
 
     # Fallback configuration
     if cfg.is_fallback:
-        cfg['reorder_gemm'] = ReorderEntity([0, 1])
-        cfg['A_interleaved_unroll_vec'] = AnnotateEntity(["unroll", "vec"])
+        cfg["reorder_gemm"] = ReorderEntity([0, 1])
+        cfg["A_interleaved_unroll_vec"] = AnnotateEntity(["unroll", "vec"])
 
     if not is_fast_int8_on_arm():
-        cfg.define_knob('gemm_quantized_unroll', [True, False])
-        cfg.define_knob('gemm_quantized_interleave', [True, False])
+        cfg.define_knob("gemm_quantized_unroll", [True, False])
+        cfg.define_knob("gemm_quantized_interleave", [True, False])
 
         if cfg.is_fallback:
-            cfg['gemm_quantized_unroll'] = OtherOptionEntity(False)
-            cfg['gemm_quantized_interleave'] = OtherOptionEntity(True)
+            cfg["gemm_quantized_unroll"] = OtherOptionEntity(False)
+            cfg["gemm_quantized_interleave"] = OtherOptionEntity(True)
+
 
 # Compute function
-def compute_conv2d_gemm_without_weight_transform(cfg,
-                                                 data, B_interleaved_t,
-                                                 strides, padding, dilation,
-                                                 out_dtype, kernel_size,
-                                                 output_channels, interleave_A):
+def compute_conv2d_gemm_without_weight_transform(
+    cfg,
+    data,
+    B_interleaved_t,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    kernel_size,
+    output_channels,
+    interleave_A,
+):
     """Compute conv2d by transforming the input,
     executing GEMM and transforming the output back"""
     batches, IH, IW, IC = get_const_tuple(data.shape)
@@ -101,11 +110,16 @@ def compute_conv2d_gemm_without_weight_transform(cfg,
     if K_AREA == 1:
         A = tvm.topi.reshape(data_pad, A_shape)
     else:
-        A = te.compute(A_shape, lambda n, x, y:
-                       data_pad[n,
-                                HSTR * (x // OW) + dilation_h * ((y // IC) // KW),
-                                WSTR * (x % OW) + dilation_w * ((y // IC) % KW), y % IC],
-                       name='data_im2col')
+        A = te.compute(
+            A_shape,
+            lambda n, x, y: data_pad[
+                n,
+                HSTR * (x // OW) + dilation_h * ((y // IC) // KW),
+                WSTR * (x % OW) + dilation_w * ((y // IC) % KW),
+                y % IC,
+            ],
+            name="data_im2col",
+        )
 
     # --- Pad if necessary
     N_transformed = B_interleaved_t.shape[0]
@@ -146,64 +160,57 @@ def compute_conv2d_gemm_without_weight_transform(cfg,
         configure_knobs(cfg, M_padded, K_padded)
 
         # Pack A
-        A_interleaved = te.compute((batches,
-                                    M_padded // tile_rows_A,
-                                    K_padded // tile_cols_A,
-                                    tile_rows_A,
-                                    tile_cols_A),
-                                   lambda b, x, y, z, w: A[b,
-                                                           z + tile_rows_A * x,
-                                                           w + tile_cols_A * y],
-                                   name='A_interleaved')
+        A_interleaved = te.compute(
+            (batches, M_padded // tile_rows_A, K_padded // tile_cols_A, tile_rows_A, tile_cols_A),
+            lambda b, x, y, z, w: A[b, z + tile_rows_A * x, w + tile_cols_A * y],
+            name="A_interleaved",
+        )
         # Compute C
-        C_interleaved = te.compute((batches,
-                                    M_padded // tile_rows_A,
-                                    N_transformed,
-                                    tile_rows_A,
-                                    tile_rows_B),
-                                   lambda b, x, y, w, z:
-                                   te.sum(A_interleaved[b,
-                                                        x,
-                                                        k//tile_cols_A,
-                                                        w,
-                                                        idxm(k, tile_cols_A)].astype('int32')*
-                                          B_interleaved_t[y,
-                                                          k//tile_cols_B,
-                                                          z,
-                                                          idxm(k, tile_cols_B)].astype('int32'),
-                                          axis=k),
-                                   name='C_interleaved')
+        C_interleaved = te.compute(
+            (batches, M_padded // tile_rows_A, N_transformed, tile_rows_A, tile_rows_B),
+            lambda b, x, y, w, z: te.sum(
+                A_interleaved[b, x, k // tile_cols_A, w, idxm(k, tile_cols_A)].astype("int32")
+                * B_interleaved_t[y, k // tile_cols_B, z, idxm(k, tile_cols_B)].astype("int32"),
+                axis=k,
+            ),
+            name="C_interleaved",
+        )
         # Unpack C
-        C = te.compute((batches, M, N),
-                       lambda b, x, y:
-                       C_interleaved[b,
-                                     x // tile_rows_A,
-                                     y // tile_rows_B,
-                                     idxm(x, tile_rows_A),
-                                     idxm(y, tile_rows_B)].astype(out_dtype),
-                       name="C")
+        C = te.compute(
+            (batches, M, N),
+            lambda b, x, y: C_interleaved[
+                b, x // tile_rows_A, y // tile_rows_B, idxm(x, tile_rows_A), idxm(y, tile_rows_B)
+            ].astype(out_dtype),
+            name="C",
+        )
         zero = tvm.tir.const(0)
     else:
         # No need to pack/unpack
-        C = te.compute((batches,
-                        M_padded,
-                        N_padded),
-                       lambda b, x, y:
-                       te.sum(A[b, x, k].astype('int32')*
-                              B_interleaved_t[y//tile_rows_B,
-                                              k//tile_cols_B,
-                                              idxm(y, tile_rows_B),
-                                              idxm(k, tile_cols_B)].astype('int32'),
-                              axis=k),
-                       name='C')
-        zero = tvm.tir.const(1, C.dtype) * C[0, M_padded-1, N_padded-1] - \
-               tvm.tir.const(1, C.dtype) * C[0, M_padded-1, N_padded-1]
+        C = te.compute(
+            (batches, M_padded, N_padded),
+            lambda b, x, y: te.sum(
+                A[b, x, k].astype("int32")
+                * B_interleaved_t[
+                    y // tile_rows_B, k // tile_cols_B, idxm(y, tile_rows_B), idxm(k, tile_cols_B)
+                ].astype("int32"),
+                axis=k,
+            ),
+            name="C",
+        )
+        zero = (
+            tvm.tir.const(1, C.dtype) * C[0, M_padded - 1, N_padded - 1]
+            - tvm.tir.const(1, C.dtype) * C[0, M_padded - 1, N_padded - 1]
+        )
 
     # --- Produce the conv output
     out_shape = (batches, OH, OW, OC)
-    out = te.compute(out_shape, lambda b, x, y, z: (C(b, y + OW * x, z) + zero).astype(out_dtype),
-                     name='conv2d_gemm_output')
+    out = te.compute(
+        out_shape,
+        lambda b, x, y, z: (C(b, y + OW * x, z) + zero).astype(out_dtype),
+        name="conv2d_gemm_output",
+    )
     return out
+
 
 def schedule_conv2d_gemm(cfg, s, out, final_out):
     """ Schedule the conv2d_gemm interleaved strategy """
@@ -233,7 +240,7 @@ def schedule_conv2d_gemm(cfg, s, out, final_out):
 
     # Computation(through tensorize)
     b, xo, yo, xi, yi = C_interleaved.op.axis
-    outer_gemm, inner_gemm = cfg['reorder_gemm'].apply(s, C_interleaved, [xo, yo])
+    outer_gemm, inner_gemm = cfg["reorder_gemm"].apply(s, C_interleaved, [xo, yo])
 
     b_outer_gemm_fused = s[C_interleaved].fuse(b, outer_gemm)
     s[C_interleaved].parallel(b_outer_gemm_fused)
@@ -250,24 +257,31 @@ def schedule_conv2d_gemm(cfg, s, out, final_out):
     _, M, N = C.shape
     if is_fast_int8_on_arm():
         mmla = mmla_4x4_int8_int8_int32(in_type)
-        xi_outer, yi_outer, xi_inner, yi_inner = s[C_interleaved].tile(xi,
-                                                                       yi,
-                                                                       x_factor=8,
-                                                                       y_factor=4)
+        xi_outer, yi_outer, xi_inner, yi_inner = s[C_interleaved].tile(
+            xi, yi, x_factor=8, y_factor=4
+        )
         k_outer, k_inner = s[C_interleaved].split(k, 4)
         xi_inner_outer, xi_inner_inner = s[C_interleaved].split(xi_inner, 4)
-        s[C_interleaved].reorder(b_outer_gemm_fused, inner_gemm, xi_outer,
-                                 yi_outer, k_outer, xi_inner_outer, xi_inner_inner,
-                                 yi_inner, k_inner)
+        s[C_interleaved].reorder(
+            b_outer_gemm_fused,
+            inner_gemm,
+            xi_outer,
+            yi_outer,
+            k_outer,
+            xi_inner_outer,
+            xi_inner_inner,
+            yi_inner,
+            k_inner,
+        )
         s[C_interleaved].tensorize(xi_inner_inner, mmla)
         s[C_interleaved].unroll(xi_inner_outer)
 
     elif is_aarch64_arm():
         s[C_interleaved].reorder(yi, xi)
         K = A_interleaved_input.shape[2]
-        assert in_type in ['int8', 'uint8'], "Only int8 and uint8 gemm are supported"
-        unroll = cfg['gemm_quantized_unroll'].val
-        interleave = cfg['gemm_quantized_interleave'].val
+        assert in_type in ["int8", "uint8"], "Only int8 and uint8 gemm are supported"
+        unroll = cfg["gemm_quantized_unroll"].val
+        interleave = cfg["gemm_quantized_interleave"].val
         gemm = gemm_quantized(M, N, K, unroll, interleave, in_type, out_type)
         s[C_interleaved].pragma(
             b_outer_gemm_fused,
@@ -275,7 +289,6 @@ def schedule_conv2d_gemm(cfg, s, out, final_out):
             gemm_quantized_impl(M, N, K, unroll, interleave, in_type),
         )
         s[C_interleaved].tensorize(yi, gemm)
-
 
     # Output transform
     if out != final_out:
@@ -285,6 +298,7 @@ def schedule_conv2d_gemm(cfg, s, out, final_out):
         s[out].vectorize(inner)
     return s
 
+
 def schedule_conv2d_gemm_hybrid(cfg, s, out, final_out):
     """ Schedule the conv2d_gemm hybrid strategy """
     C = out.op.input_tensors[0]
@@ -293,7 +307,7 @@ def schedule_conv2d_gemm_hybrid(cfg, s, out, final_out):
 
     # Computation
     b, x, y = C.op.axis
-    k, = C.op.reduce_axis
+    (k,) = C.op.reduce_axis
     k_outer, k_inner = s[C].split(k, 16)
     x_outer, y_outer, x_inner, y_inner = s[C].tile(x, y, x_factor=4, y_factor=16)
     s[C].reorder(b, x_outer, y_outer, k_outer, x_inner, y_inner, k_inner)
