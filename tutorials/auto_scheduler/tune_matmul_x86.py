@@ -58,7 +58,7 @@ def matmul_add(N, L, M, dtype):
 ######################################################################
 # Create the search task
 # ^^^^^^^^^^^^^^^^^^^^^^
-# We then create the a search task with N=L=M=128 and dtype="float32"
+# We then create a search task with N=L=M=128 and dtype="float32"
 
 target = tvm.target.Target("llvm")
 task = auto_scheduler.create_task(matmul_add, (128, 128, 128, "float32"), target)
@@ -86,12 +86,12 @@ tune_option = auto_scheduler.TuningOptions(
 # ^^^^^^^^^^^^^^
 # Now we get all inputs ready. Pretty simple, isn't it?
 # We can kick off the search and let the auto-scheduler do its magic.
-# After some measurement trials, it will return the best schedule it founds.
+# After some measurement trials, it will return the best schedule it found.
 
 sch, args = auto_scheduler.auto_schedule(task, tuning_options=tune_option)
 
 ######################################################################
-# We can lower schedule to see the IR after auto-scheduling.
+# We can lower the schedule to see the IR after auto-scheduling.
 # The auto-scheduler correctly performs optimizations including multi-level tiling,
 # parallelization, vectorization, unrolling and fusion.
 
@@ -118,7 +118,7 @@ tvm.testing.assert_allclose(d_np, d_tvm.asnumpy(), rtol=1e-3)
 # ^^^^^^^^^^^^^^^^^^^^^
 # During the search, all measuremnt records are dumpped into the record
 # file "matmul.json". The measurement records can be used to resume the
-# search, re-apply search results and other analysis.
+# search, re-apply search results and perform other analyses.
 #
 # Here we show an example where we load the best schedule from a file,
 # print the equivalent python schedule API, and build the binary again.
@@ -127,7 +127,7 @@ tvm.testing.assert_allclose(d_np, d_tvm.asnumpy(), rtol=1e-3)
 inp, res = auto_scheduler.load_best("matmul.json", task.workload_key)
 
 # Print equivalent python schedule API. This can be used for debugging and
-# learning the behavior of auto-scheduler.
+# learning the behavior of the auto-scheduler.
 print(task.compute_dag.print_python_code_from_state(inp.state))
 
 # Rebuild the binary. This shows how you can apply the best schedule from a
