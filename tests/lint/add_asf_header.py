@@ -149,7 +149,9 @@ def copyright_line(line):
     # so that the copyright detector won"t detect the file itself.
     if line.find("Copyright " + "(c)") != -1:
         return True
-    if line.find("Copyright") != -1 and line.find(" by") != -1:
+    # break pattern into two lines to avoid false-negative check
+    spattern1 = "Copyright"
+    if line.find(spattern1) != -1 and line.find("by") != -1:
         return True
     return False
 
