@@ -840,7 +840,7 @@ def test_conv_roi_align_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout(desired_layouts))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n b = \n" + str(b)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_default_keyword():
