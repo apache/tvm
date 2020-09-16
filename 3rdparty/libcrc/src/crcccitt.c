@@ -31,6 +31,7 @@
  * CCITT CRC values of a string of bytes.
  */
 
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdlib.h>
 
