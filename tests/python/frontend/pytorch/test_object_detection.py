@@ -97,7 +97,7 @@ def test_detection_models():
     target = "llvm"
     input_name = "input0"
     shape_list = [(input_name, input_shape)]
-    score_threshold=0.9
+    score_threshold = 0.9
 
     scripted_model = generate_jit_model(1)
     mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
