@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Using the template-free auto-scheduler on CPU 
+Auto-scheduling a Subgraph for CPU
 =============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, \
             `Chengfan Jia <https://github.com/jcf94/>`_
@@ -74,7 +74,7 @@ print(task.compute_dag)
 #   good value for the search to converge. You can do more trials according to your time budget.
 # * In addition, we use `RecordToFile` to dump measurement records into a file `matmul.json`.
 #   The measurement records can be used to query the history best, resume the search,
-#   or do more analysis later.
+#   and do more analyses later.
 # * see :any:`auto_schedule.TuningOptions`: for more parameters
 
 tune_option = auto_scheduler.TuningOptions(
@@ -117,10 +117,11 @@ tvm.testing.assert_allclose(d_np, d_tvm.asnumpy(), rtol=1e-3)
 # Using the record file
 # ^^^^^^^^^^^^^^^^^^^^^
 # During the search, all measuremnt records are dumpped into the record
-# file "matmul.json". The measurement records can be used to resume the
-# search, re-apply search results and perform other analyses.
-#
-# Here we show an example where we load the best schedule from a file,
+# file "matmul.json". The measurement records can be used to re-apply search results,
+# resume the search, and perform other analyses.
+
+######################################################################
+# Here is an example where we load the best schedule from a file,
 # print the equivalent python schedule API, and build the binary again.
 
 # Load the measuremnt record for the best schedule
@@ -134,3 +135,39 @@ print(task.compute_dag.print_python_code_from_state(inp.state))
 # log file without reruning the search again.
 sch, args = task.compute_dag.apply_steps_from_state(inp.state)
 func = tvm.build(sch, args)
+
+######################################################################
+# A more complicated example is to resume the search.
+# In this case, we need to create the search policy and cost model by ourselves
+# and resume the status of search policy and cost model with the log file.
+# In the example below we resume the status and do more 5 trials.
+
+
+def resume_search(task, log_file):
+    cost_model = auto_scheduler.XGBModel()
+    cost_model.update_from_file(log_file)
+    search_policy = auto_scheduler.SketchPolicy(
+        task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file)]
+    )
+    tune_option = auto_scheduler.TuningOptions(
+        num_measure_trials=5, measure_callbacks=[auto_scheduler.RecordToFile(log_file)]
+    )
+    sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
+
+
+# resume_search(task, "matmul.json")
+
+######################################################################
+# .. note::
+#   We cannot run the line above because of the conflict between
+#   python's multiprocessing and tvm's thread pool.
+#   After running a tvm generated binary (L112), the python's multiprocessing
+#   library will hang forever.
+#   You have to make sure that you don't run any tvm generated binaries before
+#   calling ansor's search. To run the L156 above, you should comment out L112-114.
+#
+#   You should be careful about this problem in your applications.
+#   There are other workarounds for this problem.
+#   For example, you can start a new thread/process (with the builtin python library
+#   threading or multiprocessing) and run the tvm binaries in the new thread/process.
+#   This provides an isolation and avoids the conflict in the main thread/process.

@@ -112,7 +112,7 @@ class TuningOptions(Object):
     measure_callbacks: Optional[List[MeasureCallback]]
         Callback functions called after each measurement.
         Candidates:
-          - auto_scheduler.RecordToFile
+            - auto_scheduler.RecordToFile
     """
 
     def __init__(
