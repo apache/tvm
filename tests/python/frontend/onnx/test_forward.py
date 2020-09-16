@@ -973,6 +973,57 @@ def test_batch_matmul(target, ctx):
     verify_batch_matmul((2, 3, 4, 3), (3, 4), target, ctx)
 
 
+def verify_simple_dynamic_model(a_shape, b_shape, target, ctx):
+    def verify_model(ex, a_shape, b_shape):
+        a_array = np.random.uniform(size=a_shape).astype("float32")
+        b_array = np.random.uniform(size=b_shape).astype("float32")
+        # matmul
+        out_np = np.matmul(a_array, b_array)
+        # relu
+        out_np[out_np < 0] = 0
+
+        tvm_out = ex.evaluate()(a_array, b_array).asnumpy()
+        tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
+
+    mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
+    relu_node = helper.make_node("Relu", ["out"], ["relu"])
+
+    a_array = np.random.uniform(size=a_shape).astype("float32")
+    b_array = np.random.uniform(size=b_shape).astype("float32")
+    # matmul
+    out_np = np.matmul(a_array, b_array)
+
+    graph = helper.make_graph(
+        [mul_node, relu_node],
+        "matmul_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+        ],
+        outputs=[helper.make_tensor_value_info("relu", TensorProto.FLOAT, list(out_np.shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="matmul_test")
+
+    a_anys = [relay.Any()] * len(a_shape)
+    b_anys = [relay.Any()] * len(b_shape)
+
+    mod, params = relay.frontend.from_onnx(model, {"a": a_anys, "b": b_anys})
+
+    ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
+    verify_model(ex, a_shape, b_shape)
+    verify_model(ex, [a * 2 for a in a_shape], [b * 2 for b in b_shape])
+    verify_model(ex, [a * 3 for a in a_shape], [b * 3 for b in b_shape])
+
+
+# TODO(mbrookhart): enable cuda once VM supports heterogenous execution
+@tvm.testing.parametrize_targets("llvm")
+def test_batch_matmul_dynamic_model(target, ctx):
+    verify_simple_dynamic_model((2, 3, 4, 3), (2, 3, 3, 4), target, ctx)
+    verify_simple_dynamic_model((2, 4, 3), (3, 4), target, ctx)
+    verify_simple_dynamic_model((2, 3, 4, 3), (3, 4), target, ctx)
+
+
 def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
     in_array = np.random.uniform(size=shape).astype(dtype)
 
