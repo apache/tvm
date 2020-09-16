@@ -45,10 +45,9 @@ def get_tvm_runtime(script_module, input_name, ishape):
     with tvm.transform.PassContext(opt_level=3):
         # test on only cpu for now, torch cannot run quant models on cuda
         # also not to make CI too slow
-        json, lib, params = relay.build(mod, target="llvm", params=params)
+        lib = relay.build(mod, target="llvm", params=params)
 
-    runtime = tvm.contrib.graph_runtime.create(json, lib, tvm.cpu(0))
-    runtime.set_input(**params)
+    runtime = tvm.contrib.graph_runtime.GraphModule(lib["default"](tvm.cpu(0)))
     return runtime
 
 

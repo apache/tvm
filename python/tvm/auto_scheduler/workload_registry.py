@@ -124,7 +124,7 @@ def make_workload_key(func, args):
 
 
 def decode_workload_key_to_func_args(workload_key):
-    """Decode a workload key to the registerd function name and its corresponding args.
+    """Decode a workload key to the registered function name and its corresponding args.
 
     Parameters
     ----------

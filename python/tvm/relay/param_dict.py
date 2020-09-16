@@ -44,14 +44,13 @@ def save_param_dict(params):
     --------
     .. code-block:: python
 
-       # compile and save the modules to file.
-       graph, lib, params = tvm.relay.build(func, target=target, params=params)
-       module = graph_runtime.create(graph, lib, tvm.gpu(0))
+       # set up the parameter dict
+       params = {"param0": arr0, "param1": arr1}
        # save the parameters as byte array
        param_bytes = tvm.relay.save_param_dict(params)
        # We can serialize the param_bytes and load it back later.
        # Pass in byte array to module to directly set parameters
-       module.load_params(param_bytes)
+       graph_runtime_mod.load_params(param_bytes)
     """
     args = []
     for k, v in params.items():

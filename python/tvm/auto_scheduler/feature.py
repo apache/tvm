@@ -79,7 +79,7 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
       float features_i[size[i]];  // The features for record i
       ... // until i == n - 1
 
-      float throuputs[sizes[n]];  // The normalized throughputs for n records
+      float throughputs[sizes[n]];  // The normalized throughputs for n records
       int   task_ids[size[n+1];   // The task ids for n records
 
     }

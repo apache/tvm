@@ -233,7 +233,7 @@ def tune_and_evaluate(tuning_opt):
     with autotvm.apply_history_best(log_file):
         print("Compile...")
         with tvm.transform.PassContext(opt_level=3):
-            graph, lib, params = relay.build_module.build(mod, target=target, params=params)
+            lib = relay.build_module.build(mod, target=target, params=params)
 
         # export library
         tmp = tempdir()
@@ -242,10 +242,9 @@ def tune_and_evaluate(tuning_opt):
 
         # load parameters
         ctx = tvm.context(str(target), 0)
-        module = runtime.create(graph, lib, ctx)
+        module = runtime.GraphModule(lib["default"](ctx))
         data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
         module.set_input("data", data_tvm)
-        module.set_input(**params)
 
         # evaluate
         print("Evaluate inference time cost...")

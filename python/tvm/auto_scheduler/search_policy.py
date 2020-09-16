@@ -192,10 +192,10 @@ class SketchPolicy(SearchPolicy):
         states = _ffi_api.SketchPolicySampleInitialPopulation(self, pop_size)
         return states
 
-    def evolutionary_search(self, init_populuations, out_size):
+    def evolutionary_search(self, init_populations, out_size):
         """Evolutionary search.
         This python interface is mainly used for debugging and testing.
-        The actual search is all doen in c++.
+        The actual search is all done in c++.
         Parameters
         ----------
         init_populations: List[State]
@@ -207,5 +207,5 @@ class SketchPolicy(SearchPolicy):
         states: List[State]
             The generated states
         """
-        states = _ffi_api.SketchPolicyEvolutionarySearch(self, init_populuations, out_size)
+        states = _ffi_api.SketchPolicyEvolutionarySearch(self, init_populations, out_size)
         return states

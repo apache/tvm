@@ -143,7 +143,7 @@ class NoDaemonContext(type(multiprocessing.get_context())):
 
 class NoDaemonPool(multiprocessing.pool.Pool):
     """A no daemon pool version of multiprocessing.Pool.
-    This allows us to start new processings inside the worker function"""
+    This allows us to start new processes inside the worker function"""
 
     def __init__(self, *args, **kwargs):
         kwargs["context"] = NoDaemonContext()

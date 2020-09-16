@@ -45,9 +45,8 @@ def _get_profile_runtime(mod):
         ctx = tvm.context(target)
 
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = _build_module.build(func, target=target)
-    runtime = graph_runtime.create(graph, lib, ctx)
-    runtime.set_input(**params)
+        lib = _build_module.build(func, target=target)
+    runtime = graph_runtime.GraphModule(lib["default"](ctx))
 
     return runtime
 

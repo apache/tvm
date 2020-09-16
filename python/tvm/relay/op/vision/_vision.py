@@ -20,6 +20,8 @@ from __future__ import absolute_import
 
 from tvm import topi
 from tvm.te.hybrid import script
+from tvm.runtime import convert
+
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern
@@ -81,3 +83,18 @@ def nms_shape_func(attrs, inputs, _):
     if attrs.return_indices:
         return _nms_shape_func(inputs[0])
     return [topi.math.identity(inputs[0])]
+
+
+@script
+def _roi_align_shape_func(data_shape, rois_shape, pooled_size):
+    out = output_tensor((4,), "int64")
+    out[0] = rois_shape[0]
+    out[1] = data_shape[1]
+    out[2] = int64(pooled_size[0])
+    out[3] = int64(pooled_size[1])
+    return out
+
+@reg.register_shape_func("vision.roi_align", False)
+def roi_align_shape_func(attrs, inputs, _):
+    return [_roi_align_shape_func(inputs[0], inputs[1],
+                                  convert(attrs.pooled_size))]

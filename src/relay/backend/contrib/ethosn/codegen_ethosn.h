@@ -198,8 +198,16 @@ class ConstructNetworkVisitor : public MixedModeVisitor, private ErrorReportingP
 
   // Make a support library operand from a Call
   EthosnError MakeConvolutionLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeFullyConnectedLayer(const Call&, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeMaxPool2DLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeAvgPool2DLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeReshapeLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeAdditionLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeSigmoidLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeConcatenateLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeSplitLayer(const Call& call, sl::TensorsAndId* outs);
+  EthosnError MakeDepthToSpaceLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeReluLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
 
   /*! \brief A look-up table from Expr to layers. */
   std::map<Expr, std::vector<std::shared_ptr<sl::Operand>>> operand_table_;
