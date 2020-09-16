@@ -33,6 +33,7 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+
 #include "checksum.h"
 #include "precalc.h"
 
@@ -43,27 +44,26 @@
  * bit patterns which are used in the XOR operations in the program.
  */
 
-void init_crcccitt_tab( void ) {
+void init_crcccitt_tab(void) {
+  uint16_t i;
+  uint16_t j;
+  uint16_t crc;
+  uint16_t c;
 
-	uint16_t i;
-	uint16_t j;
-	uint16_t crc;
-	uint16_t c;
+  for (i = 0; i < 256; i++) {
+    crc = 0;
+    c = i << 8;
 
-	for (i=0; i<256; i++) {
+    for (j = 0; j < 8; j++) {
+      if ((crc ^ c) & 0x8000)
+        crc = (crc << 1) ^ CRC_POLY_CCITT;
+      else
+        crc = crc << 1;
 
-		crc = 0;
-		c   = i << 8;
+      c = c << 1;
+    }
 
-		for (j=0; j<8; j++) {
+    crc_tab_precalc[i] = crc;
+  }
 
-			if ( (crc ^ c) & 0x8000 ) crc = ( crc << 1 ) ^ CRC_POLY_CCITT;
-			else                      crc =   crc << 1;
-
-			c = c << 1;
-		}
-
-		crc_tab_precalc[i] = crc;
-	}
-
-}  /* init_crcccitt_tab */
+} /* init_crcccitt_tab */

@@ -16,7 +16,7 @@
  *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -33,6 +33,7 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+
 #include "checksum.h"
 
 /*
@@ -49,23 +50,22 @@
  * indicating the length.
  */
 
-uint64_t crc_64_ecma( const unsigned char *input_str, size_t num_bytes ) {
+uint64_t crc_64_ecma(const unsigned char* input_str, size_t num_bytes) {
+  uint64_t crc;
+  const unsigned char* ptr;
+  size_t a;
 
-	uint64_t crc;
-	const unsigned char *ptr;
-	size_t a;
+  crc = CRC_START_64_ECMA;
+  ptr = input_str;
 
-	crc = CRC_START_64_ECMA;
-	ptr = input_str;
+  if (ptr != NULL)
+    for (a = 0; a < num_bytes; a++) {
+      crc = (crc << 8) ^ crc_tab64[((crc >> 56) ^ (uint64_t)*ptr++) & 0x00000000000000FFull];
+    }
 
-	if ( ptr != NULL ) for (a=0; a<num_bytes; a++) {
+  return crc;
 
-		crc = (crc << 8) ^ crc_tab64[ ((crc >> 56) ^ (uint64_t) *ptr++) & 0x00000000000000FFull ];
-	}
-
-	return crc;
-
-}  /* crc_64_ecma */
+} /* crc_64_ecma */
 
 /*
  * uint64_t crc_64_we( const unsigned char *input_str, size_t num_bytes );
@@ -75,23 +75,22 @@ uint64_t crc_64_ecma( const unsigned char *input_str, size_t num_bytes ) {
  * parameter indicating the length.
  */
 
-uint64_t crc_64_we( const unsigned char *input_str, size_t num_bytes ) {
+uint64_t crc_64_we(const unsigned char* input_str, size_t num_bytes) {
+  uint64_t crc;
+  const unsigned char* ptr;
+  size_t a;
 
-	uint64_t crc;
-	const unsigned char *ptr;
-	size_t a;
+  crc = CRC_START_64_WE;
+  ptr = input_str;
 
-	crc = CRC_START_64_WE;
-	ptr = input_str;
+  if (ptr != NULL)
+    for (a = 0; a < num_bytes; a++) {
+      crc = (crc << 8) ^ crc_tab64[((crc >> 56) ^ (uint64_t)*ptr++) & 0x00000000000000FFull];
+    }
 
-	if ( ptr != NULL ) for (a=0; a<num_bytes; a++) {
+  return crc ^ 0xFFFFFFFFFFFFFFFFull;
 
-		crc = (crc << 8) ^ crc_tab64[ ((crc >> 56) ^ (uint64_t) *ptr++) & 0x00000000000000FFull ];
-	}
-
-	return crc ^ 0xFFFFFFFFFFFFFFFFull;
-
-}  /* crc_64_we */
+} /* crc_64_we */
 
 /*
  * uint64_t update_crc_64( uint64_t crc, unsigned char c );
@@ -100,8 +99,7 @@ uint64_t crc_64_we( const unsigned char *input_str, size_t num_bytes ) {
  * previous value of the CRC and the next byte of the data to be checked.
  */
 
-uint64_t update_crc_64( uint64_t crc, unsigned char c ) {
+uint64_t update_crc_64(uint64_t crc, unsigned char c) {
+  return (crc << 8) ^ crc_tab64[((crc >> 56) ^ (uint64_t)c) & 0x00000000000000FFull];
 
-	return (crc << 8) ^ crc_tab64[ ((crc >> 56) ^ (uint64_t) c) & 0x00000000000000FFull ];
-
-}  /* update_crc_64 */
+} /* update_crc_64 */

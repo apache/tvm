@@ -16,7 +16,7 @@
  *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -33,6 +33,7 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+
 #include "checksum.h"
 #include "precalc.h"
 
@@ -43,23 +44,22 @@
  * bit patterns which are used in the XOR operations in the program.
  */
 
-void init_crc32_tab( void ) {
+void init_crc32_tab(void) {
+  uint32_t i;
+  uint32_t j;
+  uint32_t crc;
 
-	uint32_t i;
-	uint32_t j;
-	uint32_t crc;
+  for (i = 0; i < 256; i++) {
+    crc = i;
 
-	for (i=0; i<256; i++) {
+    for (j = 0; j < 8; j++) {
+      if (crc & 0x00000001L)
+        crc = (crc >> 1) ^ CRC_POLY_32;
+      else
+        crc = crc >> 1;
+    }
 
-		crc = i;
+    crc_tab_precalc[i] = crc;
+  }
 
-		for (j=0; j<8; j++) {
-
-			if ( crc & 0x00000001L ) crc = ( crc >> 1 ) ^ CRC_POLY_32;
-			else                     crc =   crc >> 1;
-		}
-
-		crc_tab_precalc[i] = crc;
-	}
-
-}  /* init_crc32_tab */
+} /* init_crc32_tab */

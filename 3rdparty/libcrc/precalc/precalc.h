@@ -39,13 +39,13 @@
  * Global functions used in the precalc program
  */
 
-void			init_crcccitt_tab( void );
-void			init_crc32_tab( void );
-void			init_crc64_tab( void );
-int			main( int argc, char *argv[] );
+void init_crcccitt_tab(void);
+void init_crc32_tab(void);
+void init_crc64_tab(void);
+int main(int argc, char* argv[]);
 
 /*
  * Global variables used in the precalc program
  */
 
-extern uint64_t		crc_tab_precalc[256];
+extern uint64_t crc_tab_precalc[256];

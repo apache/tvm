@@ -16,7 +16,7 @@
  *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -33,6 +33,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+
 #include "checksum.h"
 
 /*
@@ -54,23 +55,22 @@
  * filled when an error occurs.
  */
 
-unsigned char * checksum_NMEA( const unsigned char *input_str, unsigned char *result ) {
+unsigned char* checksum_NMEA(const unsigned char* input_str, unsigned char* result) {
+  const unsigned char* ptr;
+  unsigned char checksum;
 
-	const unsigned char *ptr;
-	unsigned char checksum;
+  if (input_str == NULL) return NULL;
+  if (result == NULL) return NULL;
 
-	if ( input_str == NULL ) return NULL;
-	if ( result    == NULL ) return NULL;
+  checksum = 0;
+  ptr = (const unsigned char*)input_str;
 
-	checksum = 0;
-	ptr      = (const unsigned char *) input_str;
+  if (*ptr == '$') ptr++;
 
-	if ( *ptr == '$' ) ptr++;
+  while (*ptr && *ptr != '\r' && *ptr != '\n' && *ptr != '*') checksum ^= *ptr++;
 
-	while ( *ptr  &&  *ptr != '\r'  &&  *ptr != '\n'  &&  *ptr != '*' ) checksum ^= *ptr++;
+  snprintf((char*)result, 3, "%02hhX", checksum);
 
-	snprintf( (char *) result, 3, "%02hhX", checksum );
+  return result;
 
-	return result; 
-
-}  /* checksum_NMEA */
+} /* checksum_NMEA */

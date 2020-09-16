@@ -33,11 +33,12 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
-#include "checksum.h"
 
 #include "../tab/gentab_ccitt.inc"
+#include "checksum.h"
 
-static uint16_t		crc_ccitt_generic( const unsigned char *input_str, size_t num_bytes, uint16_t start_value );
+static uint16_t crc_ccitt_generic(const unsigned char* input_str, size_t num_bytes,
+                                  uint16_t start_value);
 
 /*
  * uint16_t crc_xmodem( const unsigned char *input_str, size_t num_bytes );
@@ -46,11 +47,10 @@ static uint16_t		crc_ccitt_generic( const unsigned char *input_str, size_t num_b
  * for a byte string that has been passed as a parameter.
  */
 
-uint16_t crc_xmodem( const unsigned char *input_str, size_t num_bytes ) {
+uint16_t crc_xmodem(const unsigned char* input_str, size_t num_bytes) {
+  return crc_ccitt_generic(input_str, num_bytes, CRC_START_XMODEM);
 
-	return crc_ccitt_generic( input_str, num_bytes, CRC_START_XMODEM );
-
-}  /* crc_xmodem */
+} /* crc_xmodem */
 
 /*
  * uint16_t crc_ccitt_1d0f( const unsigned char *input_str, size_t num_bytes );
@@ -60,11 +60,10 @@ uint16_t crc_xmodem( const unsigned char *input_str, size_t num_bytes ) {
  * 0x1d0f is used for the CRC.
  */
 
-uint16_t crc_ccitt_1d0f( const unsigned char *input_str, size_t num_bytes ) {
+uint16_t crc_ccitt_1d0f(const unsigned char* input_str, size_t num_bytes) {
+  return crc_ccitt_generic(input_str, num_bytes, CRC_START_CCITT_1D0F);
 
-	return crc_ccitt_generic( input_str, num_bytes, CRC_START_CCITT_1D0F );
-
-}  /* crc_ccitt_1d0f */
+} /* crc_ccitt_1d0f */
 
 /*
  * uint16_t crc_ccitt_ffff( const unsigned char *input_str, size_t num_bytes );
@@ -74,37 +73,37 @@ uint16_t crc_ccitt_1d0f( const unsigned char *input_str, size_t num_bytes ) {
  * 0xffff is used for the CRC.
  */
 
-uint16_t crc_ccitt_ffff( const unsigned char *input_str, size_t num_bytes ) {
+uint16_t crc_ccitt_ffff(const unsigned char* input_str, size_t num_bytes) {
+  return crc_ccitt_generic(input_str, num_bytes, CRC_START_CCITT_FFFF);
 
-	return crc_ccitt_generic( input_str, num_bytes, CRC_START_CCITT_FFFF );
-
-}  /* crc_ccitt_ffff */
+} /* crc_ccitt_ffff */
 
 /*
- * static uint16_t crc_ccitt_generic( const unsigned char *input_str, size_t num_bytes, uint16_t start_value );
+ * static uint16_t crc_ccitt_generic( const unsigned char *input_str, size_t num_bytes, uint16_t
+ * start_value );
  *
  * The function crc_ccitt_generic() is a generic implementation of the CCITT
  * algorithm for a one-pass calculation of the CRC for a byte string. The
  * function accepts an initial start value for the crc.
  */
 
-static uint16_t crc_ccitt_generic( const unsigned char *input_str, size_t num_bytes, uint16_t start_value ) {
+static uint16_t crc_ccitt_generic(const unsigned char* input_str, size_t num_bytes,
+                                  uint16_t start_value) {
+  uint16_t crc;
+  const unsigned char* ptr;
+  size_t a;
 
-	uint16_t crc;
-	const unsigned char *ptr;
-	size_t a;
+  crc = start_value;
+  ptr = input_str;
 
-	crc = start_value;
-	ptr = input_str;
+  if (ptr != NULL)
+    for (a = 0; a < num_bytes; a++) {
+      crc = (crc << 8) ^ crc_tabccitt[((crc >> 8) ^ (uint16_t)*ptr++) & 0x00FF];
+    }
 
-	if ( ptr != NULL ) for (a=0; a<num_bytes; a++) {
+  return crc;
 
-		crc = (crc << 8) ^ crc_tabccitt[ ((crc >> 8) ^ (uint16_t) *ptr++) & 0x00FF ];
-	}
-
-	return crc;
-
-}  /* crc_ccitt_generic */
+} /* crc_ccitt_generic */
 
 /*
  * uint16_t update_crc_ccitt( uint16_t crc, unsigned char c );
@@ -113,8 +112,7 @@ static uint16_t crc_ccitt_generic( const unsigned char *input_str, size_t num_by
  * the previous value of the CRC and the next byte of the data to be checked.
  */
 
-uint16_t update_crc_ccitt( uint16_t crc, unsigned char c ) {
+uint16_t update_crc_ccitt(uint16_t crc, unsigned char c) {
+  return (crc << 8) ^ crc_tabccitt[((crc >> 8) ^ (uint16_t)c) & 0x00FF];
 
-	return (crc << 8) ^ crc_tabccitt[ ((crc >> 8) ^ (uint16_t) c) & 0x00FF ];
-
-}  /* update_crc_ccitt */
+} /* update_crc_ccitt */

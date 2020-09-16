@@ -16,7 +16,7 @@
  *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -31,9 +31,10 @@
  * functionality of routines in the libcrc library on the current platform.
  */
 
+#include "testall.h"
+
 #include <stdio.h>
 #include <stdlib.h>
-#include "testall.h"
 
 /*
  * int main( void );
@@ -44,21 +45,23 @@
  * value is equal to the number of errors encountered.
  */
 
-int main( void ) {
+int main(void) {
+  int problems;
 
-	int problems;
+  printf("\n");
 
-	printf( "\n" );
+  problems = 0;
+  problems += test_crc(true);
+  problems += test_checksum_NMEA(true);
 
-	problems  = 0;
-	problems += test_crc( true );
-	problems += test_checksum_NMEA( true );
+  printf("\n");
 
-	printf( "\n" );
+  if (problems == 0)
+    printf("**** All tests succeeded\n\n");
+  else
+    printf("**** A TOTAL OF %d TESTS FAILED, PLEASE CORRECT THE DETECTED PROBLEMS ****\n\n",
+           problems);
 
-	if ( problems == 0 ) printf( "**** All tests succeeded\n\n" );
-	else                 printf( "**** A TOTAL OF %d TESTS FAILED, PLEASE CORRECT THE DETECTED PROBLEMS ****\n\n", problems );
+  return problems;
 
-	return problems;
-
-}  /* main (libcrc test) */
+} /* main (libcrc test) */

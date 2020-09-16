@@ -22,8 +22,8 @@
  * \brief Framing for RPC.
  */
 
-#include <string.h>
 #include <checksum.h>
+#include <string.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
 

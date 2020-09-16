@@ -16,7 +16,7 @@
  *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -33,6 +33,7 @@
  */
 
 #include <stdlib.h>
+
 #include "checksum.h"
 
 /*
@@ -42,40 +43,41 @@
  * one pass.
  */
 
-uint16_t crc_sick( const unsigned char *input_str, size_t num_bytes ) {
+uint16_t crc_sick(const unsigned char* input_str, size_t num_bytes) {
+  uint16_t crc;
+  uint16_t low_byte;
+  uint16_t high_byte;
+  uint16_t short_c;
+  uint16_t short_p;
+  const unsigned char* ptr;
+  size_t a;
 
-	uint16_t crc;
-	uint16_t low_byte;
-	uint16_t high_byte;
-	uint16_t short_c;
-	uint16_t short_p;
-	const unsigned char *ptr;
-	size_t a;
+  crc = CRC_START_SICK;
+  ptr = input_str;
+  short_p = 0;
 
-	crc     = CRC_START_SICK;
-	ptr     = input_str;
-	short_p = 0;
+  if (ptr != NULL)
+    for (a = 0; a < num_bytes; a++) {
+      short_c = 0x00FF & (uint16_t)*ptr;
 
-	if ( ptr != NULL ) for (a=0; a<num_bytes; a++) {
+      if (crc & 0x8000)
+        crc = (crc << 1) ^ CRC_POLY_SICK;
+      else
+        crc = crc << 1;
 
-		short_c = 0x00FF & (uint16_t) *ptr;
+      crc ^= (short_c | short_p);
+      short_p = short_c << 8;
 
-		if ( crc & 0x8000 ) crc = ( crc << 1 ) ^ CRC_POLY_SICK;
-		else                crc =   crc << 1;
+      ptr++;
+    }
 
-		crc    ^= ( short_c | short_p );
-		short_p = short_c << 8;
+  low_byte = (crc & 0xFF00) >> 8;
+  high_byte = (crc & 0x00FF) << 8;
+  crc = low_byte | high_byte;
 
-		ptr++;
-	}
+  return crc;
 
-	low_byte  = (crc & 0xFF00) >> 8;
-	high_byte = (crc & 0x00FF) << 8;
-	crc       = low_byte | high_byte;
-
-	return crc;
-
-}  /* crc_sick */
+} /* crc_sick */
 
 /*
  * uint16_t update_crc_sick( uint16_t crc, unsigned char c, unsigned char prev_byte );
@@ -84,19 +86,20 @@ uint16_t crc_sick( const unsigned char *input_str, size_t num_bytes ) {
  * previous value of the CRC and the next byte of the data to be checked.
  */
 
-uint16_t update_crc_sick( uint16_t crc, unsigned char c, unsigned char prev_byte ) {
+uint16_t update_crc_sick(uint16_t crc, unsigned char c, unsigned char prev_byte) {
+  uint16_t short_c;
+  uint16_t short_p;
 
-	uint16_t short_c;
-	uint16_t short_p;
+  short_c = 0x00FF & (uint16_t)c;
+  short_p = (0x00FF & (uint16_t)prev_byte) << 8;
 
-	short_c  =   0x00FF & (uint16_t) c;
-	short_p  = ( 0x00FF & (uint16_t) prev_byte ) << 8;
+  if (crc & 0x8000)
+    crc = (crc << 1) ^ CRC_POLY_SICK;
+  else
+    crc = crc << 1;
 
-	if ( crc & 0x8000 ) crc = ( crc << 1 ) ^ CRC_POLY_SICK;
-	else                crc =   crc << 1;
+  crc ^= (short_c | short_p);
 
-	crc ^= ( short_c | short_p );
+  return crc;
 
-	return crc;
-
-}  /* update_crc_sick */
+} /* update_crc_sick */
