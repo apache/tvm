@@ -1684,11 +1684,10 @@ def test_forward_roi_align():
     torch.set_grad_enabled(False)
 
     class ROIAlgin(Module):
-        def __init__(self, output_sizes, spatial_scale=1.0, sampling_ratio=-1, aligned=False):
+        def __init__(self, output_sizes, spatial_scale=1.0, sampling_ratio=-1):
             super().__init__()
             self.spatial_scale = spatial_scale
             self.sampling_ratio = sampling_ratio
-            self.aligned = aligned
             self.output_sizes = output_sizes
 
         def forward(self, *args):
@@ -1698,7 +1697,6 @@ def test_forward_roi_align():
                 self.output_sizes,
                 self.spatial_scale,
                 self.sampling_ratio,
-                self.aligned,
             )
 
     in_data = torch.Tensor(np.random.uniform(size=(1, 8, 100, 100)))
@@ -1708,7 +1706,7 @@ def test_forward_roi_align():
 
     verify_model(ROIAlgin(7), [in_data, in_boxes])
     verify_model(ROIAlgin((10, 10), 0.7, 5), [in_data, in_boxes])
-    verify_model(ROIAlgin(15, 0.9, 3, False), [in_data, in_boxes])
+    verify_model(ROIAlgin(15, 0.9, 3), [in_data, in_boxes])
 
 
 @tvm.testing.uses_gpu
@@ -3102,7 +3100,9 @@ def test_forward_scatter():
     in_data = torch.zeros(2, 4)
     in_index = torch.tensor([[2], [3]])
     in_src = torch.rand(2, 1)
-    verify_model(Scatter(1), input_data=[in_data, in_index, in_src])
+
+    #TODO: add scatter gpu schedule to enable gpu test.
+    verify_trace_model(Scatter(1), [in_data, in_index, in_src], ["llvm"])
 
 
 def test_forward_pretrained_bert_base_uncased():

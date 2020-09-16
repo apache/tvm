@@ -85,7 +85,7 @@ def generate_jit_model(index):
         return script_module
 
 
-def test_detection_models(model_index, score_threshold=0.9):
+def test_detection_models():
     img = "test_street_small.jpg"
     img_url = (
         "https://raw.githubusercontent.com/dmlc/web-data/"
@@ -97,8 +97,9 @@ def test_detection_models(model_index, score_threshold=0.9):
     target = "llvm"
     input_name = "input0"
     shape_list = [(input_name, input_shape)]
+    score_threshold=0.9
 
-    scripted_model = generate_jit_model(model_index)
+    scripted_model = generate_jit_model(1)
     mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["FoldScaleAxis"]):
@@ -136,7 +137,3 @@ def test_detection_models(model_index, score_threshold=0.9):
         "Output mismatch: Under score threshold {}, Pytorch has {} valid "
         "boxes while TVM has {}.".format(score_threshold, num_pt_valid_scores, num_tvm_valid_scores)
     )
-
-
-def run_test():
-    test_detection_models(1)
