@@ -130,8 +130,7 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
   if (IsCPUTask(node->search_task)) {
     // The default mutation rules for CPU
     auto mutate_tile_size = std::make_shared<MutateTileSize>(0.90);
-    auto mutate_auto_unroll = std::make_shared<MutateAutoUnroll>(
-            MutateAutoUnroll(0.04, {0, 16, 64, 512}));
+    auto mutate_auto_unroll = std::make_shared<MutateAutoUnroll>(0.04);
     auto mutate_compute_location = std::make_shared<MutateComputeLocation>(0.05);
     auto mutate_parallel = std::make_shared<MutateParallel>(0.01);
     node->mutation_rules.push_back(mutate_tile_size);
@@ -141,8 +140,7 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
   } else if (IsCUDATask(node->search_task)) {
     // The default mutation rules for GPU
     auto mutate_tile_size = std::make_shared<MutateTileSize>(0.90);
-    auto mutate_auto_unroll = std::make_shared<MutateAutoUnroll>(
-            MutateAutoUnroll(0.10, {0, 16, 64, 512}));
+    auto mutate_auto_unroll = std::make_shared<MutateAutoUnroll>(0.10);
     node->mutation_rules.push_back(mutate_tile_size);
     node->mutation_rules.push_back(mutate_auto_unroll);
   } else {

@@ -200,16 +200,8 @@ DEFINE_MUTATE_POPULATION_RULE(MutateParallel);
  * need tiling and are not strictly inlineable(e.g. data padding). */
 DEFINE_MUTATE_POPULATION_RULE(MutateComputeLocation);
 
-/*! \brief The rule that mutates the factor of a randomly selected auto unroll step. */
-class MutateAutoUnroll: public PopulationMutationRule {
- public:
-  MutateAutoUnroll(double weight, const std::vector<int> factor_cands) :
-    PopulationMutationRule(weight), factor_cands_(factor_cands) {}
-
-  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
-
-  const std::vector<int> factor_cands_;
-};
+/*! \brief The rule that mutates the value of a randomly selected auto unroll pragma step. */
+DEFINE_MUTATE_POPULATION_RULE(MutateAutoUnroll);
 
 }  // namespace auto_scheduler
 }  // namespace tvm

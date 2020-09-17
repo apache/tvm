@@ -34,6 +34,9 @@
 namespace tvm {
 namespace auto_scheduler {
 
+static std::vector<int> auto_unroll_configs_cpu = {0, 16, 64, 512};
+static std::vector<int> auto_unroll_configs_gpu = {0, 16, 64, 512, 1024};
+
 /********** Sketch Generation Rule **********/
 /********** RuleSkipStage **********/
 
@@ -663,9 +666,9 @@ PopulationGenerationRule::ResultKind InitParallel::Apply(SketchPolicyNode* polic
 
 PopulationGenerationRule::ResultKind InitUnroll::Apply(SketchPolicyNode* policy,
                                                        State* state) const {
-  std::vector<int> auto_unroll_configs = IsGPUTask(policy->search_task)
-                                             ? std::vector<int>({0, 16, 64, 512, 1024})
-                                             : std::vector<int>({0, 16, 64, 512});
+  std::vector<int>& auto_unroll_configs = IsCPUTask(policy->search_task)
+                                             ? auto_unroll_configs_cpu
+                                             : auto_unroll_configs_gpu;
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
     // Skip the inlined stage and placeholder stage
@@ -1042,17 +1045,20 @@ PopulationGenerationRule::ResultKind MutateAutoUnroll::Apply(SketchPolicyNode* p
     return ResultKind::kInvalid;
   }
 
-  // Random pick up one unroll factor candidate.
-  auto new_factor = std::to_string(factor_cands_[(policy->rand_gen)() % factor_cands_.size()]);
+  std::vector<int>& auto_unroll_configs = IsCPUTask(policy->search_task) 
+      ? auto_unroll_configs_cpu : auto_unroll_configs_gpu;
 
-  // Random pick up and mutate an unroll step.
+  // Randomly pick up an unroll step
   auto step_id = annotate_steps[(policy->rand_gen)() % annotate_steps.size()];
   auto ps = (*state)->transform_steps[step_id].as<PragmaStepNode>();
   CHECK(ps);
+
+  // Mutate its value to a random candidates
+  auto val = std::to_string(auto_unroll_configs[(policy->rand_gen)() % auto_unroll_configs.size()]);
   StateNode* pstate = state->CopyOnWrite();
   pstate->transform_steps.Set(step_id,
                               PragmaStep(ps->stage_id, ps->iter_id,
-                                         std::string("auto_unroll_max_step") + "$" + new_factor));
+                                         std::string("auto_unroll_max_step") + "$" + val));
   return ResultKind::kValid;
 }
 
