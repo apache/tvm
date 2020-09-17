@@ -15,35 +15,21 @@
     specific language governing permissions and limitations
     under the License.
 
-Python API
-==========
+tvm.auto_scheduler
+------------------
+.. automodule:: tvm.auto_scheduler
 
-.. toctree::
-   :maxdepth: 2
+tvm.auto_scheduler.auto_schedule
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.auto_scheduler.auto_schedule
 
-   runtime
-   ndarray
-   error
-   ir
-   target
-   tir
-   te
-   driver
-   relay/index
-   relay/frontend
-   relay/nn
-   relay/vision
-   relay/image
-   relay/transform
-   relay/analysis
-   relay/backend
-   relay/dataflow_pattern
-   relay/testing
-   autotvm
-   auto_scheduler
-   rpc
-   micro
-   contrib
-   graph_runtime
-   topi
-   vta/index
+.. autoclass:: tvm.auto_scheduler.auto_schedule.SearchTask
+
+.. autoclass:: tvm.auto_scheduler.auto_schedule.TuningOptions
+
+.. autofunction:: tvm.auto_scheduler.auto_schedule.create_task
+
+.. autofunction:: tvm.auto_scheduler.auto_schedule.auto_schedule
+
+
+
