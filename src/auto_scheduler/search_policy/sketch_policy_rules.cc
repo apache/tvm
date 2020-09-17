@@ -1027,8 +1027,8 @@ PopulationGenerationRule::ResultKind MutateTileSize::Apply(SketchPolicyNode* pol
   return ResultKind::kInvalid;
 }
 
-PopulationGenerationRule::ResultKind MutateMaxUnrollFactor::Apply(SketchPolicyNode* policy,
-                                                                  State* state) const {
+PopulationGenerationRule::ResultKind MutateAutoUnroll::Apply(SketchPolicyNode* policy,
+                                                             State* state) const {
   // Extract all auto_unroll_max_step pragma steps.
   std::vector<int> annotate_steps;
   for (size_t i = 0; i < (*state)->transform_steps.size(); ++i) {
@@ -1043,8 +1043,7 @@ PopulationGenerationRule::ResultKind MutateMaxUnrollFactor::Apply(SketchPolicyNo
   }
 
   // Random pick up one unroll factor candidate.
-  auto cands = (IsGPUTask(policy->search_task)) ? &gpu_unroll_cands_ : &cpu_unroll_cands_;
-  auto new_factor = std::to_string((*cands)[(policy->rand_gen)() % cands->size()]);
+  auto new_factor = std::to_string(factor_cands_[(policy->rand_gen)() % factor_cands_.size()]);
 
   // Random pick up and mutate an unroll step.
   auto step_id = annotate_steps[(policy->rand_gen)() % annotate_steps.size()];

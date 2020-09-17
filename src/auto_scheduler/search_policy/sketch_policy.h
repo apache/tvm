@@ -93,10 +93,10 @@ class SketchPolicyNode : public SearchPolicyNode {
   Map<String, ObjectRef> params;
   /*! \brief The rules to generate sketches. */
   std::vector<SketchGenerationRule*> sketch_rules;
-  /*! \brief The rules to generate initial states. */
+  /*! \brief The rules to generate initial population. */
   std::vector<PopulationGenerationRule*> init_rules;
-  /*! \brief The rules to mutate states. */
-  std::vector<PopulationMutationRule*> mutation_rules;
+  /*! \brief The rules to mutate states in the evolutionary search. */
+  std::vector<std::shared_ptr<PopulationMutationRule>> mutation_rules;
   /*! \brief Random generator. */
   std::mt19937 rand_gen;
   /*! \brief Memorize split space for Split. */

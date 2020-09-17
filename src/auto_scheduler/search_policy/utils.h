@@ -615,6 +615,31 @@ inline Array<State> RandomSampleStates(const Array<State>& in_states, std::mt199
   return out_states;
 }
 
+/*! \brief Compute prefix-sum probabiilty based on the given weights */
+inline void ComputePrefixSumProb(const std::vector<float>& weights, std::vector<double>* prefix_sum_probs) {
+  // Compute selection probabilities.
+  float sum = 0.0;
+  prefix_sum_probs->resize(weights.size());
+  for (size_t i = 0; i < weights.size(); ++i) {
+    sum += std::max(weights[i], 0.0f);
+    (*prefix_sum_probs)[i] = sum;
+  }
+  for (size_t i = 0; i < weights.size(); ++i) {
+    (*prefix_sum_probs)[i] /= sum;
+  }
+};
+
+/*! \brief Random choose an index according to a prefix sum probability. */
+inline int RandomChoose(const std::vector<double>& prefix_sum_probs, std::mt19937* random_gen) {
+  std::uniform_real_distribution<> dis(0.0, 1.0);
+  double x = dis(*random_gen);
+
+  CHECK(!prefix_sum_probs.empty());
+
+  return std::lower_bound(prefix_sum_probs.begin(), prefix_sum_probs.end(), x) -
+         prefix_sum_probs.begin();
+}
+
 /*! \brief Print a title */
 inline void PrintTitle(const std::string& title, int verbose) {
   StdCout(verbose) << Chars('-', 60) << "\n"
@@ -661,17 +686,6 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
 // Apply tiling structure: space, space, space, ..., with tile sizes from other SplitStep
 State FollowTiling(const State& state, int stage_id, const std::vector<int>& split_step_ids,
                    int n_split);
-
-// Random choose an index according to a prefix sum probability.
-inline int RandomChoose(const std::vector<double>& prefix_sum_probs, std::mt19937* random_gen) {
-  std::uniform_real_distribution<> dis(0.0, 1.0);
-  double x = dis(*random_gen);
-
-  CHECK(!prefix_sum_probs.empty());
-
-  return std::lower_bound(prefix_sum_probs.begin(), prefix_sum_probs.end(), x) -
-         prefix_sum_probs.begin();
-}
 
 // Prune invalid states and return the results in-place.
 void PruneInvalidState(const SearchTask& task, Array<State>* states);
