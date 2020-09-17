@@ -1385,21 +1385,24 @@ def dense(data, weight, units=None, out_dtype=""):
 
     .. math::
 
-    `Y = X * W`
+    `Y = X * W^T`
 
     Parameters
     ----------
     data : tvm.relay.Expr
-        The input data to the operator.
+        The input data to the operator,
+        of shape `(d_1, d_2, ..., d_n, units_in)`.
 
     weight : tvm.relay.Expr
-        The weight expressions.
+        The weight expressions, 2-D matrix,
+        of shape `(units, units_in)`.
 
     units : int, optional
         Number of hidden units of the dense transformation.
 
     out_dtype : str, optional
-        Specifies the output data type for mixed precision dense.
+        Specifies the output data type for mixed precision dense,
+        of shape `(d_1, d_2, ..., d_n, units)`.
 
     Returns
     -------
