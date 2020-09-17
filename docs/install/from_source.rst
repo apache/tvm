@@ -174,7 +174,7 @@ Method 1
 
    Set the environment variable `PYTHONPATH` to tell python where to find
    the library. For example, assume we cloned `tvm` on the home directory
-   `~` then we can added the following line in `~/.bashrc`.
+   `~` then we can add the following line in `~/.bashrc`.
    The changes will be immediately reflected once you pull the code and rebuild the project (no need to call ``setup`` again)
 
    .. code:: bash
