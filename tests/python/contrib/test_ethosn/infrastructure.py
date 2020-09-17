@@ -132,16 +132,15 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
             return relay.build(mod, params=params)
 
 
-def run(graph, lib, params, inputs, outputs, npu=True):
+def run(lib, inputs, outputs, npu=True):
     # Export and load lib to confirm this works
     lib_name = "mod.so"
     temp = util.tempdir()
     lib_path = temp.relpath(lib_name)
     lib.export_library(lib_path)
     lib = tvm.runtime.load_module(lib_path)
-    module = graph_runtime.create(graph, lib, tvm.cpu())
+    module = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
     module.set_input(**inputs)
-    module.set_input(**params)
     module.run()
     out = [module.get_output(i) for i in range(outputs)]
     if not npu:
@@ -152,8 +151,8 @@ def run(graph, lib, params, inputs, outputs, npu=True):
 def build_and_run(
     mod, inputs, outputs, params, ctx=tvm.cpu(), npu=True, expected_host_ops=0, npu_partitions=1
 ):
-    graph, lib, params = build(mod, params, npu, expected_host_ops, npu_partitions)
-    return run(graph, lib, params, inputs, outputs, npu)
+    lib = build(mod, params, npu, expected_host_ops, npu_partitions)
+    return run(lib, inputs, outputs, npu)
 
 
 def verify(answers, atol, rtol=1e-07, verify_saturation=True):

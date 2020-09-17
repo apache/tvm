@@ -522,10 +522,9 @@ def infer_value(input_val, params, mod=None):
 
         func = _function.Function(analysis.free_vars(input_val), input_val)
         with tvm.transform.PassContext(opt_level=0):
-            graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
+            lib = tvm.relay.build(func, target="llvm", params=params)
         ctx = tvm.cpu(0)
-        m = graph_runtime.create(graph, lib, ctx)
-        m.set_input(**params)
+        m = graph_runtime.GraphModule(lib["default"](ctx))
         m.run()
         return m.get_output(0)
     except Exception:

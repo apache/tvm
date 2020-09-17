@@ -36,7 +36,9 @@ def any_dims(ndim):
     return tuple(shape)
 
 
-def check_result(args, mod, expected, flatten=False, assert_shape=False, only_vm=False, targets=None):
+def check_result(
+    args, mod, expected, flatten=False, assert_shape=False, only_vm=False, targets=None
+):
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
         for tgt, ctx in targets:
@@ -484,15 +486,15 @@ def test_any_conv2d_NCHWc():
 
 
 def verify_any_conv2d_transpose_nchw(
-        data_shape,
-        kernel_shape,
-        strides,
-        padding,
-        dilation,
-        groups,
-        static_data_shape,
-        ref_out_shape,
-        output_padding,
+    data_shape,
+    kernel_shape,
+    strides,
+    padding,
+    dilation,
+    groups,
+    static_data_shape,
+    ref_out_shape,
+    output_padding,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
@@ -511,8 +513,9 @@ def verify_any_conv2d_transpose_nchw(
     mod["main"] = relay.Function([data, kernel], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
-    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True,
-                 targets=[('llvm', tvm.cpu())])
+    check_result(
+        [data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=[("llvm", tvm.cpu())]
+    )
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
@@ -537,7 +540,7 @@ def test_any_conv2d_transpose_nchw():
         1,
         (1, 32, 224, 224),
         (1, 64, 448, 448),
-        (1, 1)
+        (1, 1),
     )
 
 
@@ -1151,6 +1154,7 @@ def verify_any_repeat(data_shape, np_dshape, repeats, axis):
     np_data = np.random.uniform(size=np_dshape).astype(dtype)
     ref_res = np.repeat(np_data, repeats, axis)
     check_result([np_data], mod, ref_res)
+
 
 @tvm.testing.uses_gpu
 def test_any_repeat():
