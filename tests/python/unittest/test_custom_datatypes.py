@@ -108,93 +108,65 @@ def setup():
     # You can pick a code for your datatype arbitrarily, as long as it is
     # greater than 128 and has not already been chosen.
 
-    register("posites2", 131)
+    register("myfloat", 131)
 
     register_op(create_lower_func(
         {
-            (32, 32): "FloatToPosit32es2",
-            (32, 16): "FloatToPosit16es2",
-            (32, 8): 'FloatToPosit8es2',
+            (32, 32): "FloatToCustom32"
         }), 
-        "Cast", "llvm", "float", "posites2")
+        "Cast", "llvm", "float", "myfloat")
     register_op(create_lower_func(
         {
-            (32, 32): "Posit32es2ToFloat",
-            (16, 32): 'Posit16es2ToFloat',
-            (8, 32): 'Posit8es2ToFloat',
+            (32, 32): "Custom32ToFloat"
         }), 
-        "Cast", "llvm", "posites2", "float")
+        "Cast", "llvm", "myfloat", "float")
     register_op(create_lower_func({
-        32: 'Posit32es2Add',
-        16: 'Posit16es2Add',
-        8: 'Posit8es2Add'
-    }), "Add", "llvm", "posites2")
+        32: 'Custom32Add'
+    }), "Add", "llvm", "myfloat")
     register_op(create_lower_func({
-        32: 'Posit32es2Sub',
-        16: 'Posit16es2Sub',
-        8: 'Posit8es2Sub'
-    }), "Sub", "llvm", "posites2")
+        32: 'Custom32Sub',
+    }), "Sub", "llvm", "myfloat")
     register_op(create_lower_func({
-        32: 'FloatToPosit32es2',
-        16: 'FloatToPosit16es2',
-        8: 'FloatToPosit8es2'
-    }), "FloatImm", "llvm", "posites2")
+        32: 'Custom32Mul'
+    }), "Mul", "llvm", "myfloat")
     register_op(create_lower_func({
-        32: 'Posit32es2Mul',
-        16: 'Posit16es2Mul',
-        8: 'Posit8es2Mul'
-    }), "Mul", "llvm", "posites2")
+        32: 'FloatToCustom32',
+    }), "FloatImm", "llvm", "myfloat")
     register_op(create_lower_func({
-        32: 'Posit32es2Div',
-        16: 'Posit16es2Div',
-        8: 'Posit8es2Div'
-    }), "Div", "llvm", "posites2")
+        32: 'Custom32Div',
+    }), "Div", "llvm", "myfloat")
     register_op(create_lower_func({
-        32: 'Posit32es2Max',
-        16: 'Posit16es2Max',
-        8: 'Posit8es2Max'
-    }), "Max", "llvm", "posites2")
+        32: 'Custom32Max'
+    }), "Max", "llvm", "myfloat")
     register_op(create_lower_func({
-        32: 'Posit32es2Sqrt',
-        16: 'Posit16es2Sqrt',
-        8: 'Posit8es2Sqrt'
-    }), "Call", "llvm", "posites2", intrinsic_name="tir.sqrt")
+        32: 'Custom32Sqrt'
+    }), "Call", "llvm", "myfloat", intrinsic_name="tir.sqrt")
+    register_op(create_lower_func({
+        32: 'Custom32Exp'
+    }), "Call", "llvm", "myfloat", intrinsic_name="tir.exp")
+    register_op(create_lower_func({
+        32: 'Custom32Log'
+    }), "Call", "llvm", "myfloat", intrinsic_name="tir.log")
+    register_op(create_lower_func({
+        32: 'Custom32Sigmoid'
+    }), "Call", "llvm", "myfloat", intrinsic_name="tir.sigmoid")
+    register_op(create_lower_func({
+        32: 'Custom32Tanh'
+    }), "Call", "llvm", "myfloat", intrinsic_name="tir.tanh")
     register_op(lower_ite,
                 "Call",
                 "llvm",
-                "posites2",
+                "myfloat",
                 intrinsic_name="tir.if_then_else")
     register_op(lower_call_pure_extern,
                 "Call",
                 "llvm",
-                "posites2",
+                "myfloat",
                 intrinsic_name="tir.call_pure_extern")
-    register_op(create_lower_func({
-        32: 'Posit32es2Exp',
-        16: 'Posit16es2Exp',
-        8: 'Posit8es2Exp'
-    }), "Call", "llvm", "posites2", intrinsic_name="tir.exp")
-    register_op(create_lower_func({
-        32: 'Posit32es2Log',
-        16: 'Posit16es2Log',
-        8: 'Posit8es2Log'
-    }), "Call", "llvm", "posites2", intrinsic_name="tir.log")
-    register_op(create_lower_func({
-        32: 'Posit32es2Sigmoid',
-        16: 'Posit16es2Sigmoid',
-        8: 'Posit8es2Sigmoid'
-    }), "Call", "llvm", "posites2", intrinsic_name="tir.sigmoid")
-    register_op(create_lower_func({
-        32: 'Posit32es2Tanh',
-        16: 'Posit16es2Tanh',
-        8: 'Posit8es2Tanh'
-    }), "Call", "llvm", "posites2", intrinsic_name="tir.tanh")
 
     register_min_func(create_min_lower_func({
-        32: 'MinPosit32es2',
-        16: 'MinPosit16es2',
-        8: 'MinPosit8es2'
-    }, "posites2"), "posites2")
+        32: 'MinCustom32'
+    }, "myfloat"), "myfloat")
 
 def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
     """Run the same op, but with two different datatypes"""
@@ -365,17 +337,17 @@ def run_conv2d(src_dtype, dst_dtype, rtol=1e-7, atol=1e-4):
 
 
 def test_ops():
-    run_ops('float32', 'custom[posites2]8', rtol=1, atol=1)
-    run_ops('float32', 'custom[posites2]16', rtol=0.01, atol=1)
-    run_ops('float32', 'custom[posites2]32', rtol=1e-6, atol=1e-6)
+    # run_ops('float32', 'custom[myfloat]8', rtol=1, atol=1)
+    # run_ops('float32', 'custom[myfloat]16', rtol=0.01, atol=1)
+    run_ops('float32', 'custom[myfloat]32', rtol=1e-6, atol=1e-6)
 
 def test_conv2d():
-    run_conv2d('float32', 'custom[posites2]8', rtol=1, atol=1)
-    run_conv2d('float32', 'custom[posites2]16', rtol=0.01, atol=1)
-    run_conv2d('float32', 'custom[posites2]32')
+    # run_conv2d('float32', 'custom[myfloat]8', rtol=1, atol=1)
+    # run_conv2d('float32', 'custom[myfloat]16', rtol=0.01, atol=1)
+    run_conv2d('float32', 'custom[myfloat]32', rtol=1e-6, atol=1e-6)
 
 def test_batchnorm():
-    def run_batchnorm(src_dtype, dst_dtype, rtol=1e-4, atol=1e-4):
+    def run_batchnorm(src_dtype, dst_dtype, rtol=1e-6, atol=1e-6):
         shape = (3, 32, 32)
         t = relay.TensorType(shape, src_dtype)
         x = relay.var("x", t)
@@ -388,9 +360,9 @@ def test_batchnorm():
         zero_data = np.zeros((32), 'float32')
         compare(module, (x_data, zero_data, zero_data, zero_data, zero_data), src_dtype, dst_dtype, rtol, atol)
 
-    run_batchnorm('float32', 'custom[posites2]8', rtol=1, atol=1)
-    run_batchnorm('float32', 'custom[posites2]16', rtol=0.01, atol=1)
-    run_batchnorm('float32', 'custom[posites2]32')
+    # run_batchnorm('float32', 'custom[myfloat]8', rtol=1, atol=1)
+    # run_batchnorm('float32', 'custom[myfloat]16', rtol=0.01, atol=1)
+    run_batchnorm('float32', 'custom[myfloat]32', rtol=1e-6, atol=1e-6)
 
 @pytest.mark.skip('skip because mxnet python package not available')
 def test_models():
@@ -404,7 +376,7 @@ def test_models():
     # don't match pretrained weights
     run_model(get_mobilenet, (get_cat_image((224, 224)), ),
               'float32',
-              'custom[posites2]32')
+              'custom[myfloat]32')
     # runs on the order of minutes...
     # run_model(get_inception, (get_cat_image((229, 229)), ),
     #           'float32',
