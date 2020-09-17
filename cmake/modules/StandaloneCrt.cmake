@@ -32,9 +32,10 @@ if(USE_MICRO)
 
   function(tvm_crt_define_targets)
     # Build an isolated build directory, separate from the TVM tree.
-    set(CRC16_PATH "3rdparty/mbed-os/targets/TARGET_NORDIC/TARGET_NRF5x/TARGET_SDK_11/libraries/crc16")
     list(APPEND CRT_FILE_COPY_JOBS
-         "${CRC16_PATH} *.h -> include *.c -> src/runtime/crt/utvm_rpc_common"
+         "3rdparty/libcrc/include *.h -> include"
+         "3rdparty/libcrc/src crcccitt.c -> src/runtime/crt/utvm_rpc_common"
+         "3rdparty/libcrc/tab gentab_ccitt.inc -> src/runtime/crt/tab"
          "3rdparty/dlpack/include *.h -> include"
          "3rdparty/dmlc-core/include *.h -> include"
          "include/tvm/runtime c_*_api.h -> include/tvm/runtime"

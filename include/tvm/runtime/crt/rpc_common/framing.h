@@ -25,7 +25,6 @@
 #ifndef TVM_RUNTIME_CRT_RPC_COMMON_FRAMING_H_
 #define TVM_RUNTIME_CRT_RPC_COMMON_FRAMING_H_
 
-#include <crc16.h>
 #include <inttypes.h>
 #include <stddef.h>
 #include <tvm/runtime/crt/error_codes.h>
@@ -34,6 +33,8 @@
 namespace tvm {
 namespace runtime {
 namespace micro_rpc {
+
+uint16_t crc16_compute(const uint8_t* data, size_t data_size_bytes, uint16_t* previous_crc);
 
 enum class Escape : uint8_t { kEscapeStart = 0xff, kEscapeNop = 0xfe, kPacketStart = 0xfd };
 

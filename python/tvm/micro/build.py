@@ -60,10 +60,7 @@ CRT_ROOT_DIR = os.path.join(TVM_ROOT_DIR, "src", "runtime", "crt")
 
 
 RUNTIME_LIB_SRC_DIRS = [os.path.join(CRT_ROOT_DIR, n) for n in CRT_RUNTIME_LIB_NAMES] + [
-    os.path.join(
-        TVM_ROOT_DIR,
-        "3rdparty/mbed-os/targets/TARGET_NORDIC/TARGET_NRF5x/TARGET_SDK_11/" "libraries/crc16",
-    )
+    os.path.join(TVM_ROOT_DIR, "3rdparty/libcrc/src")
 ]
 
 
@@ -76,8 +73,7 @@ _CRT_DEFAULT_OPTIONS = {
     "include_dirs": [
         f"{TVM_ROOT_DIR}/include",
         f"{TVM_ROOT_DIR}/3rdparty/dlpack/include",
-        f"{TVM_ROOT_DIR}/3rdparty/mbed-os/targets/TARGET_NORDIC/TARGET_NRF5x/"
-        "TARGET_SDK_11/libraries/crc16/",
+        f"{TVM_ROOT_DIR}/3rdparty/libcrc/include",
         f"{TVM_ROOT_DIR}/3rdparty/dmlc-core/include",
         f"{CRT_ROOT_DIR}/include",
     ],
