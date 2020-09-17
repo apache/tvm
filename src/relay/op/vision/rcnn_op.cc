@@ -71,7 +71,7 @@ Array<Array<Layout> > ROIAlignInferCorrectLayout(const Attrs& attrs,
 
   // Layout inference needs to define the layout for all inputs and output data layouts.
   // For roi_align, the second inputs is 2-D tensor with shape [num_roi, 5].
-  // So, we set the layouts as "N5".
+  // So, we set the layout as "N5".
   return Array<Array<Layout> >{{data_layout, Layout("N5")}, {data_layout}};
 }
 
