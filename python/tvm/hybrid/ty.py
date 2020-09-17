@@ -37,7 +37,7 @@ class ConcreteType(TypeGeneric):
         self.type = vtype
 
     def evaluate(self):
-        return self.type
+        return tvm.ir.PrimType(self.type)
 
 
 class GenericPtrType(TypeGeneric):
@@ -61,7 +61,7 @@ class GenericTupleType(TypeGeneric):
         return ConcreteType(tvm.ir.TupleType([vtype.evaluate() for vtype in vtypes]))
 
 
-int32 = ConcreteType(tvm.ir.PrimType("int32"))
-handle = ConcreteType(tvm.ir.PrimType("handle"))
+int32 = ConcreteType("int32")
+handle = ConcreteType("handle")
 Ptr = GenericPtrType()
 Tuple = GenericTupleType()
