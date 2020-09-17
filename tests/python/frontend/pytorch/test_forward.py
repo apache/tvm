@@ -1679,6 +1679,36 @@ def test_forward_nms():
         verify_trace_model(NonMaxSupression(iou_thres), [in_boxes, in_scores], targets)
 
 
+def test_forward_roi_align():
+    """ROI align"""
+    torch.set_grad_enabled(False)
+
+    class ROIAlgin(Module):
+        def __init__(self, output_sizes, spatial_scale=1.0, sampling_ratio=-1):
+            super().__init__()
+            self.spatial_scale = spatial_scale
+            self.sampling_ratio = sampling_ratio
+            self.output_sizes = output_sizes
+
+        def forward(self, *args):
+            return torchvision.ops.roi_align(
+                args[0],
+                args[1],
+                self.output_sizes,
+                self.spatial_scale,
+                self.sampling_ratio,
+            )
+
+    in_data = torch.Tensor(np.random.uniform(size=(1, 8, 100, 100)))
+    in_boxes = torch.Tensor(np.random.uniform(0.0, 100.0, size=(35, 4)))
+    in_batch = torch.zeros((35, 1), dtype=torch.float)
+    in_boxes = torch.cat([in_batch, in_boxes], dim=1)
+
+    verify_model(ROIAlgin(7), [in_data, in_boxes])
+    verify_model(ROIAlgin((10, 10), 0.7, 5), [in_data, in_boxes])
+    verify_model(ROIAlgin(15, 0.9, 3), [in_data, in_boxes])
+
+
 @tvm.testing.uses_gpu
 def test_conv3d():
     for ishape in [(1, 32, 16, 16, 16), (1, 32, 9, 15, 15), (1, 32, 13, 7, 7)]:
@@ -3025,6 +3055,57 @@ def test_stack_dynamic():
     verify_script_model(Stack(), [(8, 8, 8)], _get_default_vm_targets())
 
 
+def test_forward_unbind():
+    class Unbind(torch.nn.Module):
+        def __init__(self, axis=0):
+            super().__init__()
+            self.axis = axis
+
+        def forward(self, x):
+            return torch.unbind(x, self.axis)
+
+    inp = torch.randn(8, 8, 8)
+    verify_model(Unbind(0), input_data=inp)
+    verify_model(Unbind(1), input_data=inp)
+    verify_model(Unbind(2), input_data=inp)
+
+
+def test_forward_nonzero():
+    class Nonzero(Module):
+        def __init__(self, as_tuple=False):
+            super().__init__()
+            self.as_tuple = as_tuple
+
+        def forward(self, data):
+            return torch.nonzero(data, as_tuple=self.as_tuple)
+
+    inp = torch.Tensor(np.array([[0, 1, 0], [2, 0, 9], [-1, -1, 0]]).astype("float32"))
+    verify_trace_model(Nonzero(), [inp], ["llvm"])
+
+
+def test_forward_scatter():
+    class Scatter(Module):
+        def __init__(self, dim=0):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, data, index, src):
+            return torch.scatter(data, dim=self.dim, index=index, src=src)
+
+    in_data = torch.zeros(3, 5)
+    in_index = torch.tensor([[0, 1, 2, 0, 0], [2, 0, 0, 1, 2]])
+    in_src = torch.rand(2, 5)
+    # TODO: add scatter gpu schedule to enable gpu test.
+    verify_trace_model(Scatter(), [in_data, in_index, in_src], ["llvm"])
+
+    in_data = torch.zeros(2, 4)
+    in_index = torch.tensor([[2], [3]])
+    in_src = torch.rand(2, 1)
+
+    # TODO: add scatter gpu schedule to enable gpu test.
+    verify_trace_model(Scatter(1), [in_data, in_index, in_src], ["llvm"])
+
+
 def test_forward_pretrained_bert_base_uncased():
     ######################################################################
     # This is an example how to run BERT models using TVM
@@ -3264,6 +3345,7 @@ if __name__ == "__main__":
     test_upsample()
     test_forward_upsample3d()
     test_forward_nms()
+    test_forward_roi_align()
     test_to()
     test_flatten()
     test_type_as()
@@ -3285,6 +3367,9 @@ if __name__ == "__main__":
     test_logsumexp()
     test_stack()
     test_stack_dynamic()
+    test_forward_unbind()
+    test_forward_nonzero()
+    test_forward_scatter()
 
     # Model tests
     test_resnet18()
@@ -3314,7 +3399,7 @@ if __name__ == "__main__":
     test_simple_rnn()
 
     # More complex recurrent models
-    from lstm_test import test_custom_lstm
+    from test_lstm import test_custom_lstm
 
     test_custom_lstm()
 
