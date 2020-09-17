@@ -67,19 +67,12 @@ Array<Array<Layout> > ROIAlignInferCorrectLayout(const Attrs& attrs,
                                                  const Array<tvm::relay::Type>& old_in_types) {
   // NOTE: Discard "const" qualifier here.
   T* params = const_cast<T*>(attrs.as<T>());
-
-  if (new_in_layouts.defined()) {
-    // Set the roi_align with the new layout.
-    CHECK_EQ(new_in_layouts.size(), 2);
-    params->layout = new_in_layouts[0].name();
-  }
-
-  Layout inferred_layout(params->layout);
+  Layout data_layout = params->layout;
 
   // Layout inference needs to define the layout for all inputs and output data layouts.
   // For roi_align, the second inputs is 2-D tensor with shape [num_roi, 5].
   // So, we set the layouts as "N5".
-  return Array<Array<Layout> >{{inferred_layout, Layout("N5")}, {inferred_layout}};
+  return Array<Array<Layout> >{{data_layout, Layout("N5")}, {data_layout}};
 }
 
 Expr MakeROIAlign(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spatial_scale,
