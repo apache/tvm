@@ -175,7 +175,7 @@ DEFINE_INIT_POPULATION_RULE(InitThreadBind);
 class PopulationMutationRule : public PopulationGenerationRule {
  public:
   /* \brief The constructor
-   * \param selection_weight the probabiliy of applying this rule is 
+   * \param selection_weight the probabiliy of applying this rule is
    *        proportional to this weight
    */
   PopulationMutationRule(double selection_weight) : weight(selection_weight) {}

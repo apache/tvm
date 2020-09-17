@@ -372,7 +372,7 @@ inline bool HasSingleElementwiseMatchedConsumer(const SearchTask& task, const St
     *target_stage_id = *consumers.begin();
     if (ElementwiseMatch(task, state, stage_id, *target_stage_id) &&
         (!(HasReduceIter(state->stages[stage_id]) &&
-          HasReduceIter(state->stages[*target_stage_id]))) &&
+           HasReduceIter(state->stages[*target_stage_id]))) &&
         (!StrEndsWith(state->stages[*target_stage_id]->op->name, ".shared"))) {
       return true;
     }
@@ -617,7 +617,8 @@ inline Array<State> RandomSampleStates(const Array<State>& in_states, std::mt199
 }
 
 /*! \brief Compute prefix-sum probabiilty based on the given weights */
-inline void ComputePrefixSumProb(const std::vector<float>& weights, std::vector<double>* prefix_sum_probs) {
+inline void ComputePrefixSumProb(const std::vector<float>& weights,
+                                 std::vector<double>* prefix_sum_probs) {
   // Compute selection probabilities.
   float sum = 0.0;
   prefix_sum_probs->resize(weights.size());

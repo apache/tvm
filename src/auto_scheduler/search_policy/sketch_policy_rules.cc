@@ -666,9 +666,8 @@ PopulationGenerationRule::ResultKind InitParallel::Apply(SketchPolicyNode* polic
 
 PopulationGenerationRule::ResultKind InitUnroll::Apply(SketchPolicyNode* policy,
                                                        State* state) const {
-  std::vector<int>& auto_unroll_configs = IsGPUTask(policy->search_task)
-                                             ? auto_unroll_configs_gpu
-                                             : auto_unroll_configs_cpu;
+  std::vector<int>& auto_unroll_configs =
+      IsGPUTask(policy->search_task) ? auto_unroll_configs_gpu : auto_unroll_configs_cpu;
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
     // Skip the inlined stage and placeholder stage
@@ -1049,8 +1048,8 @@ PopulationGenerationRule::ResultKind MutateAutoUnroll::Apply(SketchPolicyNode* p
     return ResultKind::kInvalid;
   }
 
-  std::vector<int>& auto_unroll_configs = IsGPUTask(policy->search_task)
-      ? auto_unroll_configs_gpu : auto_unroll_configs_cpu;
+  std::vector<int>& auto_unroll_configs =
+      IsGPUTask(policy->search_task) ? auto_unroll_configs_gpu : auto_unroll_configs_cpu;
 
   // Randomly pick up an unroll step
   auto step_id = annotate_steps[(policy->rand_gen)() % annotate_steps.size()];
@@ -1060,9 +1059,8 @@ PopulationGenerationRule::ResultKind MutateAutoUnroll::Apply(SketchPolicyNode* p
   // Mutate its value to a random candidates
   auto val = std::to_string(auto_unroll_configs[(policy->rand_gen)() % auto_unroll_configs.size()]);
   StateNode* pstate = state->CopyOnWrite();
-  pstate->transform_steps.Set(step_id,
-                              PragmaStep(ps->stage_id, ps->iter_id,
-                                         std::string("auto_unroll_max_step") + "$" + val));
+  pstate->transform_steps.Set(step_id, PragmaStep(ps->stage_id, ps->iter_id,
+                                                  std::string("auto_unroll_max_step") + "$" + val));
   return ResultKind::kValid;
 }
 

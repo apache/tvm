@@ -445,12 +445,9 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
     // Print statistical information
     if (k % 5 == 0 || k == num_iters) {
       StdCout(verbose) << "GA Iter: " << k << std::fixed << std::setprecision(4)
-                       << "\tMax score: " << max_score
-                       << "\tMin score: " << heap.front().second
-                       << "\t#Pop: " << pnow->size()
-                       << "\t#M+: " << mutation_success_ct / (k+1)
-                       << "\t#M-: " << mutation_fail_ct / (k+1)
-                       << std::endl;
+                       << "\tMax score: " << max_score << "\tMin score: " << heap.front().second
+                       << "\t#Pop: " << pnow->size() << "\t#M+: " << mutation_success_ct / (k + 1)
+                       << "\t#M-: " << mutation_fail_ct / (k + 1) << std::endl;
     }
     if (k == num_iters) {
       break;
@@ -476,7 +473,8 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
       }
     }
 
-    std::swap(pnext, pnow); pnext->clear();
+    std::swap(pnext, pnow);
+    pnext->clear();
   }
 
   // Copy best states in the heap to out_states
@@ -485,11 +483,12 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
     best_states.push_back(std::move(item.first));
   }
 
-  double duration = std::chrono::duration_cast<std::chrono::duration<double> >(
-      std::chrono::high_resolution_clock::now() - tic_begin).count();
+  double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
+                        std::chrono::high_resolution_clock::now() - tic_begin)
+                        .count();
   StdCout(verbose) << "EvolutionarySearch\t\t#s: " << best_states.size()
-                   << "\tTime elapsed: "
-                   << std::fixed << std::setprecision(2) << duration << std::endl;
+                   << "\tTime elapsed: " << std::fixed << std::setprecision(2) << duration
+                   << std::endl;
   return best_states;
 }
 
@@ -542,8 +541,8 @@ Array<MeasureInput> SketchPolicyNode::PickStatesWithEpsGreedy(const Array<State>
 }
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicy")
-    .set_body_typed([](SearchTask task, CostModel program_cost_model,
-                       Map<String, ObjectRef> params, int seed, int verbose,
+    .set_body_typed([](SearchTask task, CostModel program_cost_model, Map<String, ObjectRef> params,
+                       int seed, int verbose,
                        Optional<Array<SearchCallback>> init_search_callbacks) {
       return SketchPolicy(task, program_cost_model, params, seed, verbose, init_search_callbacks);
     });
