@@ -157,7 +157,9 @@ mod, params = relay.frontend.from_tflite(
 #
 TARGET = tvm.target.target.micro("host")
 
-with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True},disabled_pass=["FuseOps"]):
+with tvm.transform.PassContext(
+    opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["FuseOps"]
+):
     graph, c_mod, c_params = relay.build(mod, target=TARGET, params=params)
 
 
@@ -173,11 +175,16 @@ compiler = tvm.micro.DefaultCompiler(target=TARGET)
 opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
 
 micro_binary = tvm.micro.build_static_runtime(
-  # the x86 compiler *expects* you to give the exact same dictionary for both
-  # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
-  # the binary compiler is expecting those mutations to be in bin_opts.
-  # TODO(weberlo) fix this very bizarre behavior
-  workspace, compiler, c_mod, lib_opts=opts["bin_opts"], bin_opts=opts["bin_opts"])
+    # the x86 compiler *expects* you to give the exact same dictionary for both
+    # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
+    # the binary compiler is expecting those mutations to be in bin_opts.
+    # TODO(weberlo) fix this very bizarre behavior
+    workspace,
+    compiler,
+    c_mod,
+    lib_opts=opts["bin_opts"],
+    bin_opts=opts["bin_opts"],
+)
 
 
 ######################################################################
@@ -191,7 +198,8 @@ micro_binary = tvm.micro.build_static_runtime(
 flasher = compiler.flasher()
 with tvm.micro.Session(binary=micro_binary, flasher=flasher) as session:
     graph_mod = tvm.micro.create_local_graph_runtime(
-        graph, session.get_system_lib(), session.context)
+        graph, session.get_system_lib(), session.context
+    )
 
     # Set the model parameters using the lowered parameters produced by `relay.build`.
     graph_mod.set_input(**c_params)
@@ -203,4 +211,4 @@ with tvm.micro.Session(binary=micro_binary, flasher=flasher) as session:
     graph_mod.run()
 
     tvm_output = graph_mod.get_output(0).asnumpy()
-    print("result is: "+str(tvm_output))
+    print("result is: " + str(tvm_output))

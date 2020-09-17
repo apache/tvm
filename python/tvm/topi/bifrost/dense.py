@@ -23,7 +23,7 @@ from .. import nn
 from ..util import traverse_inline
 
 
-@autotvm.register_topi_compute("dense.biforst")
+@autotvm.register_topi_compute("dense.bifrost")
 def dense(_, data, weight, bias=None, out_dtype=None):
     """Dense operator on Biforst"""
     return nn.dense(data, weight, bias, out_dtype)

@@ -46,8 +46,9 @@ class Session:
           micro_mod = sess.create_micro_mod(c_mod)
     """
 
-    def __init__(self, binary=None, flasher=None, transport_context_manager=None,
-                 session_name='micro-rpc'):
+    def __init__(
+        self, binary=None, flasher=None, transport_context_manager=None, session_name="micro-rpc"
+    ):
         """Configure a new session.
 
         Parameters
@@ -73,7 +74,7 @@ class Session:
         self._graph_runtime = None
 
     def get_system_lib(self):
-        return self._rpc.get_function('runtime.SystemLib')()
+        return self._rpc.get_function("runtime.SystemLib")()
 
     def __enter__(self):
         """Initialize this session and establish an RPC session with the on-device RPC server.
@@ -88,9 +89,11 @@ class Session:
             time.sleep(3.0)
 
         self.transport = TransportLogger(
-            self.session_name, self.transport_context_manager, level=logging.INFO).__enter__()
-        self._rpc = RPCSession(_rpc_connect(
-            self.session_name, self.transport.write, self.transport.read))
+            self.session_name, self.transport_context_manager, level=logging.INFO
+        ).__enter__()
+        self._rpc = RPCSession(
+            _rpc_connect(self.session_name, self.transport.write, self.transport.read)
+        )
         self.context = self._rpc.cpu(0)
         return self
 
@@ -120,5 +123,4 @@ def create_local_graph_runtime(graph_json_str, mod, ctx):
     """
     device_type_id = [ctx.device_type, ctx.device_id]
     fcreate = get_global_func("tvm.graph_runtime.create")
-    return graph_runtime.GraphModule(fcreate(
-        graph_json_str, mod, *device_type_id))
+    return graph_runtime.GraphModule(fcreate(graph_json_str, mod, *device_type_id))

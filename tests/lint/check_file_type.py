@@ -164,8 +164,9 @@ def copyright_line(line):
     # so that the copyright detector won't detect the file itself.
     if line.find("Copyright " + "(c)") != -1:
         return True
-    if (line.find("Copyright") != -1 and
-            line.find(" by") != -1):
+    # break pattern into two lines to avoid false-negative check
+    spattern1 = "Copyright"
+    if line.find(spattern1) != -1 and line.find("by") != -1:
         return True
     return False
 
@@ -192,8 +193,7 @@ def check_asf_copyright(fname):
 
 def main():
     cmd = ["git", "ls-files"]
-    proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
     assert proc.returncode == 0, f'{" ".join(cmd)} errored: {out}'
     res = out.decode("utf-8")
@@ -208,9 +208,11 @@ def main():
         report = "------File type check report----\n"
         report += "\n".join(error_list)
         report += "\nFound %d files that are now allowed\n" % len(error_list)
-        report += ("We do not check in binary files into the repo.\n"
-                   "If necessary, please discuss with committers and"
-                   "modify tests/lint/check_file_type.py to enable the file you need.\n")
+        report += (
+            "We do not check in binary files into the repo.\n"
+            "If necessary, please discuss with committers and"
+            "modify tests/lint/check_file_type.py to enable the file you need.\n"
+        )
         sys.stderr.write(report)
         sys.stderr.flush()
         sys.exit(-1)
@@ -224,7 +226,9 @@ def main():
     if asf_copyright_list:
         report = "------File type check report----\n"
         report += "\n".join(asf_copyright_list) + "\n"
-        report += "------Found %d files that has ASF header with copyright message----\n" % len(asf_copyright_list)
+        report += "------Found %d files that has ASF header with copyright message----\n" % len(
+            asf_copyright_list
+        )
         report += "--- Files with ASF header do not need Copyright lines.\n"
         report += "--- Contributors retain copyright to their contribution by default.\n"
         report += "--- If a file comes with a different license, consider put it under the 3rdparty folder instead.\n"

@@ -22,6 +22,7 @@
  * \brief Framing for RPC.
  */
 
+#include <checksum.h>
 #include <string.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
@@ -43,6 +44,15 @@
 namespace tvm {
 namespace runtime {
 namespace micro_rpc {
+
+uint16_t crc16_compute(const uint8_t* data, size_t data_size_bytes, uint16_t* previous_crc) {
+  uint16_t crc = (previous_crc != nullptr ? *previous_crc : 0xffff);
+  for (size_t i = 0; i < data_size_bytes; ++i) {
+    crc = update_crc_ccitt(crc, data[i]);
+  }
+
+  return crc;
+}
 
 template <typename E>
 static constexpr uint8_t to_integral(E e) {
@@ -131,7 +141,7 @@ tvm_crt_error_t Unframer::ConsumeInput(uint8_t* buffer, size_t buffer_size_bytes
         // escape byte has already been parsed, update the CRC include only the escape byte. This
         // readies the unframer to consume the kPacketStart byte on the next Write() call.
         uint8_t escape_start = to_integral(Escape::kEscapeStart);
-        crc_ = crc16_compute(&escape_start, 1, NULL);
+        crc_ = crc16_compute(&escape_start, 1, nullptr);
         to_return = kTvmErrorFramingShortPacket;
         saw_escape_start_ = true;
 

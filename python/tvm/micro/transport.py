@@ -106,20 +106,20 @@ class TransportLogger(Transport):
         self.level = level
 
     # Construct PRINTABLE to exclude whitespace from string.printable.
-    PRINTABLE = (string.digits + string.ascii_letters + string.punctuation)
+    PRINTABLE = string.digits + string.ascii_letters + string.punctuation
 
     @classmethod
     def _to_hex(cls, data):
         lines = []
         if not data:
-            lines.append('')
+            lines.append("")
             return lines
 
         for i in range(0, (len(data) + 15) // 16):
-            chunk = data[i * 16:(i + 1) * 16]
-            hex_chunk = ' '.join(f'{c:02x}' for c in chunk)
-            ascii_chunk = ''.join((chr(c) if chr(c) in cls.PRINTABLE else '.') for c in chunk)
-            lines.append(f'{i * 16:04x}  {hex_chunk:47}  {ascii_chunk}')
+            chunk = data[i * 16 : (i + 1) * 16]
+            hex_chunk = " ".join(f"{c:02x}" for c in chunk)
+            ascii_chunk = "".join((chr(c) if chr(c) in cls.PRINTABLE else ".") for c in chunk)
+            lines.append(f"{i * 16:04x}  {hex_chunk:47}  {ascii_chunk}")
 
         if len(lines) == 1:
             lines[0] = lines[0][6:]
@@ -127,22 +127,29 @@ class TransportLogger(Transport):
         return lines
 
     def open(self):
-        self.logger.log(self.level, 'opening transport')
+        self.logger.log(self.level, "opening transport")
         self.child.open()
 
     def close(self):
-        self.logger.log(self.level, 'closing transport')
+        self.logger.log(self.level, "closing transport")
         return self.child.close()
 
     def read(self, n):
         data = self.child.read(n)
         hex_lines = self._to_hex(data)
         if len(hex_lines) > 1:
-            self.logger.log(self.level, '%s read %4d B -> [%d B]:\n%s',
-                            self.name, n, len(data), '\n'.join(hex_lines))
+            self.logger.log(
+                self.level,
+                "%s read %4d B -> [%d B]:\n%s",
+                self.name,
+                n,
+                len(data),
+                "\n".join(hex_lines),
+            )
         else:
-            self.logger.log(self.level, '%s read %4d B -> [%d B]: %s',
-                            self.name, n, len(data), hex_lines[0])
+            self.logger.log(
+                self.level, "%s read %4d B -> [%d B]: %s", self.name, n, len(data), hex_lines[0]
+            )
 
         return data
 
@@ -150,11 +157,17 @@ class TransportLogger(Transport):
         bytes_written = self.child.write(data)
         hex_lines = self._to_hex(data[:bytes_written])
         if len(hex_lines) > 1:
-            self.logger.log(self.level, '%s write      <- [%d B]:\n%s',
-                            self.name, bytes_written, '\n'.join(hex_lines))
+            self.logger.log(
+                self.level,
+                "%s write      <- [%d B]:\n%s",
+                self.name,
+                bytes_written,
+                "\n".join(hex_lines),
+            )
         else:
-            self.logger.log(self.level, '%s write      <- [%d B]: %s',
-                            self.name, bytes_written, hex_lines[0])
+            self.logger.log(
+                self.level, "%s write      <- [%d B]: %s", self.name, bytes_written, hex_lines[0]
+            )
 
         return bytes_written
 
@@ -168,9 +181,9 @@ class SubprocessTransport(Transport):
         self.popen = None
 
     def open(self):
-        self.kwargs['stdout'] = subprocess.PIPE
-        self.kwargs['stdin'] = subprocess.PIPE
-        self.kwargs['bufsize'] = 0
+        self.kwargs["stdout"] = subprocess.PIPE
+        self.kwargs["stdin"] = subprocess.PIPE
+        self.kwargs["bufsize"] = 0
         self.popen = subprocess.Popen(self.args, **self.kwargs)
         self.stdin = self.popen.stdin
         self.stdout = self.popen.stdout

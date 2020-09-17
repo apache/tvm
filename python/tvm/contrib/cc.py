@@ -204,6 +204,7 @@ def _linux_compile(output, objects, options, compile_cmd="g++", compile_shared=F
         msg += "\nCommand line: " + " ".join(cmd)
         raise RuntimeError(msg)
 
+
 def _windows_shared(output, objects, options):
     cmd = ["clang"]
     cmd += ["-O2", "-flto=full", "-fuse-ld=lld-link"]

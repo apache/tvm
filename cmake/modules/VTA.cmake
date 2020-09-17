@@ -25,11 +25,14 @@ else()
   set(VTA_HW_PATH $ENV{VTA_HW_PATH})
 endif()
 
-message(STATUS "VTA build with VTA_HW_PATH=" ${VTA_HW_PATH})
-
 if(MSVC)
   message(STATUS "VTA build is skipped in Windows..")
+elseif(NOT EXISTS ${VTA_HW_PATH})
+  if (USE_VTA_TSIM OR USE_VTA_FSIM OR USE_UFPGA)
+    message(FATAL_ERROR "VTA path " ${VTA_HW_PATH} " does not exist")
+  endif()
 elseif(PYTHON)
+  message(STATUS "VTA build with VTA_HW_PATH=" ${VTA_HW_PATH})
   set(VTA_CONFIG ${PYTHON} ${VTA_HW_PATH}/config/vta_config.py)
 
   if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/vta_config.json)

@@ -759,6 +759,7 @@ def _repeat_shape_func(data_shape, repeats, axis):
 
     return out
 
+
 @_reg.register_shape_func("repeat", False)
 def repeat_shape_func(attrs, inputs, _):
     """
@@ -788,6 +789,7 @@ def _stack_shape_func(data_shape, axis, num_inputs):
             out[i] = data_shape[i - 1]
 
     return out
+
 
 @_reg.register_shape_func("stack", False)
 def stack_shape_func(attrs, inputs, _):
