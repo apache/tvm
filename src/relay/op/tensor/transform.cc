@@ -310,7 +310,9 @@ bool StackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     CHECK_EQ(e_dtype, dtype) << "relay.stack requires all tensors have the same dtype";
     for (size_t j = 0; j < first->shape.size(); ++j) {
       if (j == static_cast<size_t>(axis)) continue;
-      if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
+      if (first->shape[j].as<AnyNode>() || e->shape[j].as<AnyNode>() ||
+          reporter->AssertEQ(first->shape[j], e->shape[j]))
+        continue;
       throw Error(
           "relay.stack requires all tensors have the same shape "
           "on non-stacking axes");
@@ -1292,7 +1294,11 @@ bool RepeatRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   for (int i = 0; i < pivot; ++i) {
     oshape.emplace_back(data->shape[i]);
   }
-  oshape.emplace_back(data->shape[pivot] * repeats);
+  if (data->shape[pivot].as<AnyNode>()) {
+    oshape.emplace_back(Any());
+  } else {
+    oshape.emplace_back(data->shape[pivot] * repeats);
+  }
   for (int i = pivot + 1; i < ndim; ++i) {
     oshape.emplace_back(data->shape[i]);
   }
@@ -3243,7 +3249,6 @@ RELAY_REGISTER_OP("adv_index")
     .add_type_rel("AdvIndex", AdvIndexRel)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute", AdvIndexCompute);
 
 }  // namespace relay

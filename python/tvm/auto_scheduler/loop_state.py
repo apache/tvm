@@ -18,7 +18,6 @@
 
 """
 The definition of the "state" in the search.
-
 Each LoopState corresponds to a schedule for its ComputeDAG.
 A LoopState consists of: 1. a current loop structure; 2. a list of transformation steps used to
 construct the loop structure.
@@ -29,7 +28,6 @@ During the schedule search process, the loop structure can provide search policy
 information on how to manipulate the current state.
 The transform history is a sequence of `TransformStep` which will finally be mapped to TVM
 schedule primitives. The steps are also used for the serialization of a state.
-
 The LoopState can be seen as a lightweight loop structure IR specifically for schedule search.
 We don't use the existing TVM IR but to extend a new structure on it is because:
 1. We want fast incremental change to the loop structures. The search policy needs to get the
@@ -37,7 +35,6 @@ immediate loop structures update rather than after TVM lowering;
 2. We want serializable transform history for replay, backtracking, and mutation;
 3. We may create some macro schedule primitives that represent the combination of several
 TVM schedule primitives.
-
 When the search is finished, we will lower the state to TVM IR with TVM's schedule primitives.
 Since we share a lot of common objects during search, the transformation is implemented in
 copy on write style. All objects are immutable, which is similar to TVM IR.
@@ -75,16 +72,13 @@ class State:
     """
     A state in the search process. It consists of the current loop structure
     and a list of transformation steps used to construct it.
-
     Each State corresponds to a specific schedule for its ComputeDAG.
-
     Parameters
     ----------
     state_object : StateObject
         The StateObject corresponding to C++ internal State object.
     dag : ComputeDAG
         The original ComputeDAG of this State.
-
     Notes
     -----
     This is a wrapper class of StateObject to deal with copy-on-write property
@@ -144,7 +138,6 @@ class State:
     def bind(self, stage, iterator, thread_name):
         """Schedule primitive corresponding to `te.Stage.bind`.
         See also the `te.Stage` for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -161,7 +154,6 @@ class State:
             - threadIdx.y
             - blockIdx.z
             - threadIdx.z
-
         Returns
         -------
         res_it : Iterator
@@ -181,7 +173,6 @@ class State:
     def parallel(self, stage, iterator):
         """Schedule primitive corresponding to `te.Stage.parallel`.
         See also the `te.Stage` for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -189,7 +180,6 @@ class State:
             or output tensor of the stage.
         iterator : Iterator
             The iterator to be paralleled.
-
         Returns
         -------
         res_it : Iterator
@@ -203,7 +193,6 @@ class State:
     def unroll(self, stage, iterator, max_unroll=None):
         """Schedule primitive corresponding to `te.Stage.unroll`.
         See also the `te.Stage` for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -213,7 +202,6 @@ class State:
             The iterator to be unrolled.
         max_unroll : Optional[int]
             The max unroll limit. Iterator with extent larger than this limit will be skipped.
-
         Returns
         -------
         res_it : Iterator
@@ -230,7 +218,6 @@ class State:
     def vectorize(self, stage, iterator):
         """Schedule primitive corresponding to `te.Stage.vectorize`.
         See also the `te.Stage` for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -238,7 +225,6 @@ class State:
             or output tensor of the stage.
         iterator : Iterator
             The iterator to be vectorized.
-
         Returns
         -------
         res_it : Iterator
@@ -252,7 +238,6 @@ class State:
     def fuse(self, stage, iters):
         """Schedule primitive corresponding to `te.Stage.fuse`.
         See also the `te.Stage` for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -260,12 +245,10 @@ class State:
             or output tensor of the stage.
         iters : List[Iterator]
             The iterators to be fused.
-
         Returns
         -------
         res_it : Iterator
             The fused Iterator.
-
         Notes
         -----
         If the iterators to be fused have stages attached at them(by compute_at), the fused
@@ -279,7 +262,6 @@ class State:
     def pragma(self, stage, iterator, pragma_type):
         """Schedule primitive corresponding to `te.Stage.pragma`.
         See also the `te.Stage` for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -297,7 +279,6 @@ class State:
     def reorder(self, stage, order):
         """Schedule primitive corresponding to `te.Stage.reorder`.
         See also the `te.Stage` for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -313,10 +294,8 @@ class State:
     def split(self, stage, iterator, lengths, inner_to_outer=True):
         """Schedule primitive corresponding to `te.Stage.split`.
         See also the `te.Stage` for more details.
-
         This API supports multiple split factors. (e.g. with 2 split factors, the original iterator
         will be split to 3 parts, use `inner_to_outer` to control the split order)
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -328,12 +307,10 @@ class State:
             The multiple split factors. Can be None to be filled by search policy.
         inner_to_outer: boolean = True
             Whether the factor go from inner to outer, or from outer to inner.
-
         Returns
         -------
         res_its : List[Iterator]
             The splitted new Iterators.
-
         Notes
         -----
         If we do split on an iterator which has stages attached at it(by compute_at), the inner
@@ -346,9 +323,7 @@ class State:
 
     def follow_split(self, stage, iterator, src_step_id, n_split):
         """The schedule primitive similar to split, but uses split factors from previous steps.
-
         This step splits the iterator by the same factors as the given SplitStep.
-
         Notes
         ------
             This step is useful in a scenario that we have subgraph Dense -> Relu,
@@ -356,7 +331,6 @@ class State:
             the same tiling structure of common outer loops.
             The follow_split step could be used here to split the Dense stage and makes sure its
             splitting factors are the same as the given split step for the ReLU stage.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -368,7 +342,6 @@ class State:
             The index of the split step to be followed in the history.
         n_split : int
             The number of split level.
-
         Returns
         -------
         res_its : List[Iterator]
@@ -382,10 +355,8 @@ class State:
 
     def follow_fused_split(self, stage, iterator, src_step_ids, level, factor_or_nparts):
         """Schedule primitive extends to split step.
-
         This step is used to split an iterator by the same factors
         as the given list of SplitSteps and FuseSteps.
-
         Notes
         ------
             This step is useful in a scenario that we have a subgraph
@@ -400,7 +371,6 @@ class State:
             axis is bound to an iterator generated by split & fuse step.
             The follow_fused_step is used split the iterator to 2 parts, while the split factor
             matches the final extent of the threadIdx.x bound iterator.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -415,7 +385,6 @@ class State:
         factor_or_nparts : bool
             True to use `factor` for split from inner to outer,
             False to use `nparts` for split from outer to inner.
-
         Returns
         -------
         res_its : List[Iterator]
@@ -435,7 +404,6 @@ class State:
     def storage_align(self, stage, iterator, factor, offset):
         """Schedule primitive corresponding to `te.Stage.storage_align`.
         See also the `te.Stage` for  more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -455,7 +423,6 @@ class State:
     def compute_at(self, stage, target_stage, target_iter):
         """Schedule primitive corresponding to `te.Stage.compute_at`.
         See also the `te.Stage` for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -466,7 +433,6 @@ class State:
             or output tensor of the stage.
         target_iter : Iterator
             The target Iterator of compute_at.
-
         Notes
         -----
         After compute_at, we need careful dependency analysis to compute the accurate bound
@@ -484,7 +450,6 @@ class State:
     def compute_inline(self, stage):
         """Schedule primitive corresponding to `te.Stage.compute_inline`, see also the `te.Stage`
         for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -498,13 +463,11 @@ class State:
     def compute_root(self, stage):
         """Schedule primitive corresponding to `te.Stage.compute_root`.
         Ssee also the `te.Stage` for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
             The Stage to be marked compute at root, which can be specified by the integer index,
             Operation, or output tensor of the stage.
-
         Notes
         -----
         After compute_root, we need careful dependency analysis to compute the accurate bound
@@ -519,7 +482,6 @@ class State:
     def cache_read(self, stage, scope_name, reader_stages):
         """Schedule primitive corresponding to `te.Schedule.cache_read`.
         See also the `te.Schedule` for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -530,12 +492,10 @@ class State:
         reader_stages : List[Union[int, Operation, Tensor]]
             The reader stages. Each of the list can be specified by the integer index, Operation,
             or output tensor of the stage.
-
         Returns
         -------
         new_stage_op : Operator
             The Operator of the new added stage.
-
         Notes
         -----
         Cache read step will insert an extra stage to the original ComputeDAG (at the back of the
@@ -558,7 +518,6 @@ class State:
     def cache_write(self, stage, scope_name):
         """Schedule primitive corresponding to `te.Schedule.cache_write`.
         See also the `te.Schedule` for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -566,12 +525,10 @@ class State:
             or output tensor of the stage.
         scope_name : str
             The scope name of the newly added compute stage.
-
         Returns
         -------
         new_stage_op : Operator
             The Operator of the new added stage.
-
         Notes
         -----
         Cache write step will insert an extra stage to the original ComputeDAG (in the front of the
@@ -590,7 +547,6 @@ class State:
     def rfactor(self, stage, iterator, factor_iter_id):
         """Schedule primitive corresponding to `te.Schedule.rfactor`.
         See also the `te.Schedule` for more details.
-
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
@@ -600,12 +556,10 @@ class State:
             The reduction iterator to be factored.
         factor_iter_id : int
             The position where the new iterator is placed.
-
         Returns
         -------
         new_stage_op : Operator
             The Operator of the new added stage.
-
         Notes
         -----
         Rfactor step will insert an extra stage to the original ComputeDAG (in the front of the

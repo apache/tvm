@@ -88,11 +88,10 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
         shape_dict = {name: x.shape for (name, x) in zip(keras_model.input_names, xs)}
         mod, params = relay.frontend.from_keras(keras_model, shape_dict, layout=layout)
         with tvm.transform.PassContext(opt_level=2):
-            graph, lib, params = relay.build(mod, target, params=params)
-        m = graph_runtime.create(graph, lib, ctx)
+            lib = relay.build(mod, target, params=params)
+        m = graph_runtime.GraphModule(lib["default"](ctx))
         for name, x in zip(keras_model.input_names, xs):
             m.set_input(name, tvm.nd.array(x.astype(dtype)))
-        m.set_input(**params)
         m.run()
         return [m.get_output(i).asnumpy() for i in range(m.get_num_outputs())]
 

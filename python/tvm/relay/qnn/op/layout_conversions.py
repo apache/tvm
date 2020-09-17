@@ -63,7 +63,8 @@ def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layouts):
         return relay.qnn.op.conv2d(*inputs, **new_attrs)
     if desired_data_layout == "NHWC":
         # Check for depthwise convolution.
-        data_info, weight_info = tinfos
+        data_info = tinfos[0]
+        weight_info = tinfos[1]
         if is_depthwise_conv2d(
             data_info.shape,
             attrs["data_layout"],

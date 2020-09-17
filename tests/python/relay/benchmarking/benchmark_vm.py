@@ -40,12 +40,11 @@ def benchmark_execution(
         mod, data, params, target, ctx, dtype="float32", number=2, repeat=20
     ):
         with tvm.transform.PassContext(opt_level=3):
-            graph, lib, params = relay.build(mod, target, params=params)
+            lib = relay.build(mod, target, params=params)
 
-        m = graph_runtime.create(graph, lib, ctx)
+        m = graph_runtime.GraphModule(lib["default"](ctx))
         # set inputs
         m.set_input("data", data)
-        m.set_input(**params)
         m.run()
         out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
 

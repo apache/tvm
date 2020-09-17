@@ -764,12 +764,11 @@ def test_hoisting_op_conv():
     params = {"w": tvm.nd.array(kernel)}
     for target, ctx in enabled_targets():
         with tvm.transform.PassContext(opt_level=3):
-            graph, lib, params = relay.build_module.build(mod, target=target, params=params)
-            m = tvm.contrib.graph_runtime.create(graph, lib, ctx)
+            lib = relay.build_module.build(mod, target=target, params=params)
+            m = tvm.contrib.graph_runtime.GraphModule(lib["default"](ctx))
             x = np.random.uniform(size=dshape)
             data_tvm = tvm.nd.array(data)
             m.set_input("x", data_tvm)
-            m.set_input(**params)
             m.run()
             e = m.module.time_evaluator("run", ctx, number=300, repeat=3)
             t1 = e(data_tvm).results
@@ -779,8 +778,8 @@ def test_hoisting_op_conv():
         with tvm.transform.PassContext(
             opt_level=3, config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
         ):
-            graph, lib, params = relay.build_module.build(mod, target=target, params=params)
-            m = tvm.contrib.graph_runtime.create(graph, lib, ctx)
+            lib = relay.build_module.build(mod, target=target, params=params)
+            m = tvm.contrib.graph_runtime.GraphModule(lib["default"](ctx))
             x = np.random.uniform(size=dshape)
             data_tvm = tvm.nd.array(data)
             m.set_input("x", data_tvm)

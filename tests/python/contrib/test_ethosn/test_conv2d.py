@@ -113,24 +113,6 @@ def _get_model(
     return req, params
 
 
-def _get_conv2d_qnn_params(input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, channels):
-    input_max = input_sc * (255 - input_zp)
-    input_min = -input_sc * input_zp
-    kernel_max = kernel_sc * (255 - kernel_zp)
-    kernel_min = -kernel_sc * kernel_zp
-    output_limits = [
-        kernel_max * kernel_h * kernel_w * channels * input_max,
-        kernel_min * kernel_h * kernel_w * channels * input_max,
-        kernel_min * kernel_h * kernel_w * channels * input_min,
-        kernel_max * kernel_h * kernel_w * channels * input_min,
-    ]
-    output_max = max(output_limits)
-    output_min = min(output_limits)
-    output_sc = (output_max - output_min) / 255
-    output_zp = -int(output_min / output_sc)
-    return output_zp, output_sc
-
-
 def test_conv2d():
     if not ethosn_available():
         return
@@ -171,7 +153,7 @@ def test_conv2d():
             input_sc = np.random.random() * 2
             kernel_zp = np.random.randint(0, 255)
             kernel_sc = np.random.random() * 2
-            output_zp, output_sc = _get_conv2d_qnn_params(
+            output_zp, output_sc = tei.get_conv2d_qnn_params(
                 input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, shape[3]
             )
             model, params = _get_model(
