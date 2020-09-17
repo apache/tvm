@@ -2912,6 +2912,7 @@ def test_forward_addcmul():
     t2 = torch.rand([1, 3]).float()
     verify_model(Addcmul2().float().eval(), input_data=[input_data, t1, t2])
 
+
 @tvm.testing.uses_gpu
 def test_forward_true_divide():
     torch.set_grad_enabled(False)
@@ -2924,10 +2925,12 @@ def test_forward_true_divide():
     # divisor could be either tensor or scalar
     divisor_tensor = torch.rand([5, 3]).float() + 0.5
     divisor_scalar = torch.tensor(1.0, dtype=torch.float32)
-    verify_model(TrueDivide().float().eval(),
-                 input_data=[dividend, divisor_tensor], atol=1e-4, rtol=1e-4)
-    verify_model(TrueDivide().float().eval(),
-                 input_data=[dividend, divisor_scalar], atol=1e-4, rtol=1e-4)
+    verify_model(
+        TrueDivide().float().eval(), input_data=[dividend, divisor_tensor], atol=1e-4, rtol=1e-4
+    )
+    verify_model(
+        TrueDivide().float().eval(), input_data=[dividend, divisor_scalar], atol=1e-4, rtol=1e-4
+    )
 
 
 @tvm.testing.uses_gpu
