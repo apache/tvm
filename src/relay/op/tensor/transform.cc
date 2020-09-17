@@ -2487,16 +2487,28 @@ bool UnbindRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK_GE(axis, 0) << "axis should be within the input dimension range.";
 
   std::vector<Type> fields;
-  auto tuple_size = data->shape[axis].as<IntImmNode>()->value;
-  //todo (yongwww): tuple_size could be Any()
+  if (data->shape[axis].as<AnyNode>()) {
+    // todo (yongwww): add dynamic support
+    LOG(FATAL) << "Dynamism is not supported on dimension " << axis;
+  }
+
+  auto tuple_size = static_cast<size_t>(data->shape[axis].as<IntImmNode>()->value);
   for (size_t i = 0; i < tuple_size; ++i) {
     std::vector<IndexExpr> oshape;
     // dimension axis needs to be removed
-    for (size_t i = 0; i < axis; ++i) {
-      oshape.push_back(data->shape[i]);
+    for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
+      if (data->shape[i].as<AnyNode>()) {
+        oshape.push_back(Any());
+      } else {
+        oshape.push_back(data->shape[i]);
+      }
     }
     for (size_t i = axis + 1; i < data->shape.size(); ++i) {
-      oshape.push_back(data->shape[i]);
+      if (data->shape[i].as<AnyNode>()) {
+        oshape.push_back(Any());
+      } else {
+        oshape.push_back(data->shape[i]);
+      }
     }
     auto vec_type = TensorType(oshape, data->dtype);
     fields.push_back(vec_type);
@@ -2507,11 +2519,10 @@ bool UnbindRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 Array<te::Tensor> UnbindCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                               const Type& out_type) {
+                                const Type& out_type) {
   const auto param = attrs.as<UnbindAttrs>();
   CHECK(param != nullptr);
   return Array<te::Tensor>{topi::unbind(inputs[0], param->axis)};
-
 }
 
 Expr MakeUnbind(Expr data, int axis) {

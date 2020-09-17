@@ -396,13 +396,13 @@ def _unbind():
         ishapes = _infer_shape(data)
 
         if dim >= len(ishapes):
-            msg = "Please check input dim, it shouldn't" \
-                  "be greater than or equal to rank."
+            msg = "Please check input dim, it shouldn't be greater than or equal to rank."
             raise AttributeError(msg)
 
         selections = ishapes[dim]
         unbind_rel = _op.unbind(data, dim)
         return _expr.TupleWrapper(unbind_rel, selections)
+
     return _impl
 
 
@@ -2221,28 +2221,6 @@ def _roi_align(prelude):
     return _impl
 
 
-def _unbind():
-    def _impl(inputs, input_types):
-        data = inputs[0]
-        dim = int(inputs[1])
-        ishapes = _infer_shape(data)
-        if dim >= len(ishapes):
-            msg = "Please check input dim, it shouldn't" "be greater than or equal to rank."
-            raise AttributeError(msg)
-
-        selections = ishapes[dim]
-        res_split = _op.split(data, selections, dim)
-        # squeeze each split piece to get same shape as aten::unbind
-        # TODO (yongwww): add new op to avoid the squeeze overhead
-        ret = []
-        for i in range(selections):
-            ret.append(_op.transform.squeeze(res_split[i], axis=[dim]))
-        ret = _expr.TupleWrapper(_expr.Tuple(ret), selections)
-        return ret
-
-    return _impl
-
-
 def _shape_as_tensor(prelude):
     def _impl(inputs, input_types):
         is_symbolic_shape = False
@@ -2678,7 +2656,6 @@ def _get_convert_map(prelude, default_dtype):
         "torchvision::nms": _nms(prelude),
         "aten::logsumexp": _logsumexp(),
         "torchvision::roi_align": _roi_align(prelude),
-        "aten::unbind": _unbind(),
         "aten::__and__": _logical_and(),
         "aten::_shape_as_tensor": _shape_as_tensor(prelude),
         "aten::nonzero": _nonzero(False),

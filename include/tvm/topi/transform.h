@@ -487,7 +487,7 @@ inline Array<Tensor> unbind(const Tensor& x, int axis, std::string name = "T_unb
   }
   CHECK_LT(axis, x->shape.size()) << "axis out of bounds";
 
-  int src_axis_size = static_cast<int>(x->shape[axis].as<IntImmNode>()->value);
+  size_t src_axis_size = static_cast<size_t>(x->shape[axis].as<IntImmNode>()->value);
 
   Array<Array<PrimExpr> > out_shapes;
   for (size_t i = 0; i < src_axis_size; ++i) {
