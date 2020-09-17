@@ -74,3 +74,31 @@ function(assign_source_group group)
         source_group("${group}\\${_source_path_msvc}" FILES "${_source}")
     endforeach()
 endfunction(assign_source_group)
+
+cmake_policy(SET CMP0057 NEW) # Needed for IN_LIST used in conditional
+function(DECOMPOSE_ARG SOURCE_VALUE)
+  set(options)
+  set(oneValueArgs ENABLE_VALUE COMMAND_VALUE)
+  set(multiValueArgs)
+  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  # First check if SOURCE_VALUE is executable
+  execute_process(COMMAND ${SOURCE_VALUE}
+    RESULT_VARIABLE exit_code
+    OUTPUT_VARIABLE dummy
+    OUTPUT_QUIET ERROR_QUIET)
+  string(TOUPPER ${SOURCE_VALUE} UPPER_CASE_SOURCE_VALUE)
+  set(FALSE_VALUES OFF 0 NO FALSE N IGNORE NOTFOUND)
+  if(${SOURCE_VALUE})
+    # If not executable, is it true
+    set(${ARG_ENABLE_VALUE} ON PARENT_SCOPE)
+    unset(${ARG_COMMAND_VALUE} PARENT_SCOPE)
+  elseif(${UPPER_CASE_SOURCE_VALUE} IN_LIST FALSE_VALUES)
+    set(${ARG_ENABLE_VALUE} OFF PARENT_SCOPE)
+    unset(${ARG_COMMAND_VALUE} PARENT_SCOPE)
+  elseif(${exit_code} MATCHES [0-9]+)
+    set(${ARG_ENABLE_VALUE} ON PARENT_SCOPE)
+    set(${ARG_COMMAND_VALUE} ${SOURCE_VALUE} PARENT_SCOPE)
+  else()
+    message(FATAL_ERROR "argument for cmake flag neither a command nor a boolean")
+  endif()
+endfunction(DECOMPOSE_ARG)

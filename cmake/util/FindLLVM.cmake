@@ -19,10 +19,13 @@
 # Enhanced version of find llvm.
 #
 # Usage:
-#   find_llvm(${USE_LLVM})
+#   find_llvm(${USE_LLVM} [${LLVM_VERSION}])
 #
 # - When USE_LLVM=ON, use auto search
 # - When USE_LLVM=/path/to/llvm-config, use corresponding config
+# - The optional LLVM_VERSION=<required version> which will find a matching version
+#      If LLVM_VERSION=10 then it will find 10.X.X, any version of 10
+#      If LLVM_VERSION=10.2 then it will find 10.2.X
 #
 # Provide variables:
 # - LLVM_INCLUDE_DIRS
@@ -32,19 +35,23 @@
 # - TVM_INFO_LLVM_VERSION
 #
 macro(find_llvm use_llvm)
-  set(LLVM_CONFIG ${use_llvm})
-  if(LLVM_CONFIG STREQUAL "ON")
-    find_package(LLVM REQUIRED CONFIG)
+  if(${ARGC} EQUAL 2)
+    set(llvm_version_required ${ARGV1})
+  endif()
+  decompose_arg(${use_llvm}
+    ENABLE_VALUE ENABLED
+    COMMAND_VALUE LLVM_CONFIG)
+
+  if(ENABLED AND NOT LLVM_CONFIG)
+    find_package(LLVM ${llvm_version_required} REQUIRED CONFIG)
     llvm_map_components_to_libnames(LLVM_LIBS "all")
     if (NOT LLVM_LIBS)
       message(STATUS "Not found - LLVM_LIBS")
       message(STATUS "Fall back to using llvm-config")
-      set(LLVM_CONFIG "llvm-config")
-    else()
-      set(LLVM_CONFIG "ON")
+      set(LLVM_CONFIG "${LLVM_TOOLS_BINARY_DIR}/llvm-config")
     endif()
   endif()
-  if(LLVM_CONFIG STREQUAL "ON")
+  if(LLVM_LIBS)
     list (FIND LLVM_LIBS "LLVM" _llvm_dynlib_index)
     if (${_llvm_dynlib_index} GREATER -1)
       set(LLVM_LIBS LLVM)
@@ -55,7 +62,7 @@ macro(find_llvm use_llvm)
     endif()
     set(TVM_LLVM_VERSION ${LLVM_VERSION_MAJOR}${LLVM_VERSION_MINOR})
     set(TVM_INFO_LLVM_VERSION "${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}")
-  elseif(NOT LLVM_CONFIG STREQUAL "OFF")
+  elseif(LLVM_CONFIG)
     # use llvm config
     message(STATUS "Use llvm-config=" ${LLVM_CONFIG})
     separate_arguments(LLVM_CONFIG)
@@ -145,7 +152,7 @@ macro(find_llvm use_llvm)
       list(APPEND LLVM_LIBS "${__flag}")
     endforeach()
   endif()
-  if(NOT LLVM_CONFIG STREQUAL "OFF")
+  if(${ENABLED})
     message(STATUS "Found LLVM_INCLUDE_DIRS=" "${LLVM_INCLUDE_DIRS}")
     message(STATUS "Found LLVM_DEFINITIONS=" "${LLVM_DEFINITIONS}")
     message(STATUS "Found LLVM_LIBS=" "${LLVM_LIBS}")

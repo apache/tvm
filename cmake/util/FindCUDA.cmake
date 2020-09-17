@@ -37,7 +37,7 @@
 #
 macro(find_cuda use_cuda)
   set(__use_cuda ${use_cuda})
-  if(__use_cuda STREQUAL "ON")
+  if(${__use_cuda})
     find_package(CUDA QUIET)
   elseif(IS_DIRECTORY ${__use_cuda})
     set(CUDA_TOOLKIT_ROOT_DIR ${__use_cuda})

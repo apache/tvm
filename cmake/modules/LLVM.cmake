@@ -18,7 +18,10 @@
 # LLVM rules
 add_definitions(-DDMLC_USE_FOPEN64=0)
 
-if(NOT USE_LLVM STREQUAL "OFF")
+decompose_arg(${USE_LLVM}
+  ENABLE_VALUE ENABLED
+  COMMAND_VALUE LLVM_CONFIG)
+if(${ENABLED})
   find_llvm(${USE_LLVM})
   include_directories(${LLVM_INCLUDE_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
