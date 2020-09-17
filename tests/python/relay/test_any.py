@@ -41,6 +41,7 @@ def check_result(
 ):
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
+        print(targets)
         for tgt, ctx in targets:
             if kind == "debug" and (only_vm or ctx.device_type != tvm.cpu().device_type):
                 continue
@@ -421,6 +422,48 @@ def test_any_reshape_like():
     data_np = np.random.uniform(size=(3, 3, 10)).astype(dtype)
     shape_like_np = np.random.uniform(size=(3, 5, 6)).astype(dtype)
     check_result([data_np, shape_like_np], mod, shape_like_np.shape, assert_shape=True)
+
+
+def verify_any_conv2d(
+    data_shape,
+    kernel_shape,
+    strides,
+    padding,
+    dilation,
+    static_data_shape,
+    ref_out_shape,
+):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    kernel = relay.var("kernel", shape=kernel_shape, dtype=dtype)
+    y = relay.nn.conv2d(data, kernel, strides, padding, dilation, kernel_size=kernel_shape[2:4])
+    mod["main"] = relay.Function([data, kernel], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
+    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
+
+
+# TODO(@kevinthesun): Support dynamic input height and width.
+def test_any_conv2d():
+    verify_any_conv2d(
+        (relay.Any(), 64, 224, 224),
+        (64, 64, 3, 3),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 64, 224, 224),
+        (1, 64, 224, 224),
+    )
+    verify_any_conv2d(
+        (relay.Any(), 64, 224, 224),
+        (64, 64, 3, 3),
+        (1, 1),
+        (1, 1),
+        (2, 2),
+        (2, 64, 224, 224),
+        (2, 64, 222, 222),
+    )
 
 
 def verify_any_conv2d_NCHWc(

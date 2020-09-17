@@ -722,6 +722,48 @@ reg.register_pattern("nn.correlation", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @script
+def _conv2d_shape_func(dshape, kshape, strides, padding, dilation):
+    out = output_tensor((dshape.shape[0],), "int64")
+    height = dshape[2]
+    width = dshape[3]
+    kheight = kshape[2]
+    kwidth = kshape[3]
+    dilated_kh = (kheight - 1) * dilation[0] + 1
+    dilated_kw = (kwidth - 1) * dilation[1] + 1
+
+    oc = kshape[0]
+
+    out_height = (height + 2 * padding[0] - dilated_kh) // strides[0] + 1
+    out_width = (width + 2 * padding[1] - dilated_kw) // strides[1] + 1
+
+    out[0] = dshape[0]
+    out[1] = oc
+    out[2] = out_height
+    out[3] = out_width
+    return out
+
+
+@reg.register_shape_func("nn.conv2d", False)
+def conv2d_shape_func(attrs, inputs, _):
+    """
+    Shape function for contrib_conv2d_NCHWc op.
+    """
+    strides = get_const_tuple(attrs.strides)
+    padding = get_const_tuple(attrs.padding)
+    dilation = get_const_tuple(attrs.dilation)
+
+    return [
+        _conv2d_shape_func(
+            inputs[0],
+            inputs[1],
+            convert(strides),
+            convert(padding),
+            convert(dilation),
+        )
+    ]
+
+
+@script
 def _conv2d_NCHWc_shape_func(dshape, kshape, strides, padding, dilation, oc_bn):
     out = output_tensor((dshape.shape[0],), "int64")
     ic_chunk = dshape[1]
