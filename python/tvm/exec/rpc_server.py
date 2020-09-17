@@ -25,7 +25,6 @@ import multiprocessing
 import sys
 import logging
 import tvm
-from tvm import micro
 from .. import rpc
 
 
@@ -70,6 +69,8 @@ def init_utvm(args):
     args : argparse.Namespace
         parsed args from command-line invocation
     """
+    from tvm import micro  # pylint: disable=import-outside-toplevel
+
     if args.utvm_dev_config and args.utvm_dev_id:
         raise RuntimeError("only one of --utvm-dev-config and --utvm-dev-id allowed")
 
