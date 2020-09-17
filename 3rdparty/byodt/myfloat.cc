@@ -21,24 +21,24 @@
  * \file 3rdparty/byodt/my-custom-datatype.cc
  * \brief Example Custom Datatype with the Bring Your Own Datatypes (BYODT) framework.
  * This is a toy example that under the hood simulates floats.
- * 
+ *
  * Users interested in using the BYODT framework can use this file as a template.
- * 
+ *
  * TODO(@gussmith23 @hypercubestart) Link to BYODT docs when they exist?
  */
 #include <tvm/runtime/c_runtime_api.h>
 
+#include <cmath>
 #include <cstdint>
 #include <limits>
-#include <cmath>
 
 // Custom datatypes are stored as bits in a uint of the appropriate bit length.
-// Thus, when TVM calls these C functions, 
+// Thus, when TVM calls these C functions,
 // the arguments of are uints that need to reinterpreted as your custom datatype.
-// 
+//
 // When returning, your custom datatype needs to be re-wrapped into a uint,
 // which can be thought of as just a wrapper for the raw bits that represent your custom datatype.
-template<class T>
+template <class T>
 TVM_DLL T Uint32ToCustom32(uint32_t in) {
   // This is a helper function to interpret the uint as your custom dataype.
   // The following line should be replaced with the appropriate function
@@ -47,7 +47,7 @@ TVM_DLL T Uint32ToCustom32(uint32_t in) {
   return *custom;
 }
 
-template<class T>
+template <class T>
 TVM_DLL uint32_t Custom32ToUint32(T in) {
   // This is a helper function to wrap your custom datatype in a uint.
   // the following line should be replaced with the appropriate function
@@ -68,7 +68,7 @@ TVM_DLL float Custom32ToFloat(uint32_t in) {
   float custom_datatype = Uint32ToCustom32<float>(in);
   // our custom datatype is float, so the following redundant cast to float
   // is to remind users to cast their own custom datatype to float
-  return (float) custom_datatype; 
+  return (float)custom_datatype;
 }
 
 TVM_DLL uint32_t FloatToCustom32(float in) {
