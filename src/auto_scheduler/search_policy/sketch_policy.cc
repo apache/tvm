@@ -67,12 +67,12 @@ static InitThreadBind init_thread_bind;
 /********** Sketch policy **********/
 TVM_REGISTER_NODE_TYPE(SketchPolicyNode);
 
-SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
+SketchPolicy::SketchPolicy(SearchTask task, CostModel program_cost_model,
                            Map<String, ObjectRef> params, int seed, int verbose,
                            Optional<Array<SearchCallback>> init_search_callbacks) {
   auto node = make_object<SketchPolicyNode>();
   node->search_task = std::move(task);
-  node->schedule_cost_model = std::move(schedule_cost_model);
+  node->program_cost_model = std::move(program_cost_model);
   node->rand_gen = std::mt19937(seed);
   node->params = std::move(params);
   node->verbose = verbose;
@@ -87,18 +87,32 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
     node->RunCallbacks(init_search_callbacks.value());
   }
 
-  // Notice: Some rules require us to skip all the rest rules after they are applied.
-  // So the rules below should be ordered carefully.
+  // NOTE: There are strong dependency among the rules below,
+  // so the order to push them into the vector should be consid carefully.
   if (IsCPUTask(node->search_task)) {
-    // The default sketch rules for CPU policy
+    // Sketch Generation Rules
     node->sketch_rules.push_back(&rule_always_inline);
     node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
     node->sketch_rules.push_back(&rule_add_rfactor);
     node->sketch_rules.push_back(&rule_add_cache_write_stage);
     node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
     node->sketch_rules.push_back(&rule_multi_level_tiling);
-  } else if (IsCUDATask(node->search_task)) {
-    // The default sketch rules for CUDA policy
+    node->sketch_rules.push_back(&rule_skip_stage);
+
+    // Initial Population Generation Rules
+    node->init_rules.push_back(&init_fill_tile_size);
+    node->init_rules.push_back(&init_change_compute_location);
+    node->init_rules.push_back(&init_parallel);
+    node->init_rules.push_back(&init_unroll);
+    node->init_rules.push_back(&init_vectorization);
+
+    // Mutation Rules for Evolutionary Search
+    node->mutation_rules.push_back(std::make_shared<MutateTileSize>(0.90));
+    node->mutation_rules.push_back(std::make_shared<MutateAutoUnroll>(0.04));
+    node->mutation_rules.push_back(std::make_shared<MutateComputeLocation>(0.05));
+    node->mutation_rules.push_back(std::make_shared<MutateParallel>(0.01));
+  } else if (IsGPUTask(node->search_task)) {
+    // Sketch Generation Rules
     node->sketch_rules.push_back(&rule_add_cache_read_stage);
     node->sketch_rules.push_back(&rule_always_inline);
     node->sketch_rules.push_back(&rule_special_compute_location_gpu);
@@ -107,44 +121,18 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
     node->sketch_rules.push_back(&rule_add_cache_write_stage);
     node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
     node->sketch_rules.push_back(&rule_multi_level_tiling);
-  } else {
-    LOG(FATAL) << "No default sketch rules for target: " << task->target;
-  }
-  node->sketch_rules.push_back(&rule_skip_stage);  // This should always be the last rule
+    node->sketch_rules.push_back(&rule_skip_stage);
 
-  node->init_rules.push_back(&init_fill_tile_size);  // This should always be the first rule
-  if (IsCPUTask(node->search_task)) {
-    // The default init population rules for CPU policy
-    node->init_rules.push_back(&init_change_compute_location);
-    node->init_rules.push_back(&init_parallel);
-    node->init_rules.push_back(&init_unroll);
-    node->init_rules.push_back(&init_vectorization);
-  } else if (IsCUDATask(node->search_task)) {
-    // The default init population rules for CUDA policy
+    // Initial Population Generation Rules
+    node->init_rules.push_back(&init_fill_tile_size);
     node->init_rules.push_back(&init_thread_bind);
     node->init_rules.push_back(&init_unroll);
-  } else {
-    LOG(FATAL) << "No default init rules for target: " << task->target;
-  }
 
-  if (IsCPUTask(node->search_task)) {
-    // The default mutation rules for CPU
-    auto mutate_tile_size = std::make_shared<MutateTileSize>(0.90);
-    auto mutate_auto_unroll = std::make_shared<MutateAutoUnroll>(0.04);
-    auto mutate_compute_location = std::make_shared<MutateComputeLocation>(0.05);
-    auto mutate_parallel = std::make_shared<MutateParallel>(0.01);
-    node->mutation_rules.push_back(mutate_tile_size);
-    node->mutation_rules.push_back(mutate_auto_unroll);
-    node->mutation_rules.push_back(mutate_compute_location);
-    node->mutation_rules.push_back(mutate_parallel);
-  } else if (IsCUDATask(node->search_task)) {
-    // The default mutation rules for GPU
-    auto mutate_tile_size = std::make_shared<MutateTileSize>(0.90);
-    auto mutate_auto_unroll = std::make_shared<MutateAutoUnroll>(0.10);
-    node->mutation_rules.push_back(mutate_tile_size);
-    node->mutation_rules.push_back(mutate_auto_unroll);
+    // Mutation Rules for Evolutionary Search
+    node->mutation_rules.push_back(std::make_shared<MutateTileSize>(0.90));
+    node->mutation_rules.push_back(std::make_shared<MutateAutoUnroll>(0.10));
   } else {
-    LOG(FATAL) << "No default mutation rules for target: " << task->target;
+    LOG(FATAL) << "No default sketch rules for target: " << task->target;
   }
 
   data_ = std::move(node);
@@ -173,7 +161,7 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
       if (!inputs.empty()) {
         // Retrain cost models before the next search round
         PrintTitle("Train cost model", verbose);
-        schedule_cost_model->Update(inputs, results);
+        program_cost_model->Update(inputs, results);
       }
 
       // Search one round to get promising states
@@ -246,14 +234,16 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
                static_cast<int>(
                    GetDoubleParam(params, SketchParamKey::EvolutionarySearch::use_measured_ratio) *
                    population));
-  bool is_cost_model_reasonable = !schedule_cost_model->IsInstance<RandomModelNode>();
+  bool is_cost_model_reasonable = !program_cost_model->IsInstance<RandomModelNode>();
 
   // 1. Generate sketches
-  const Array<State>& sketches = GenerateSketches();
+  if (sketch_cache_.empty()) {
+    sketch_cache_ = GenerateSketches();
+  }
 
   // 2. Sample the init population
   Array<State> init_population = SampleInitPopulation(
-      sketches, is_cost_model_reasonable ? population - num_use_measured : population);
+      sketch_cache_, is_cost_model_reasonable ? population - num_use_measured : population);
 
   // 3. If the cost model is useless (i.e. RandomCostModel), just random pick some generated
   // states, else perform evolutionary search
@@ -426,7 +416,7 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
     // Maintain the heap
     *pnow = search_task->compute_dag.InferBound(*pnow);
     PruneInvalidState(search_task, pnow);
-    schedule_cost_model->Predict(search_task, *pnow, &pop_scores);
+    program_cost_model->Predict(search_task, *pnow, &pop_scores);
 
     for (size_t i = 0; i < pnow->size(); ++i) {
       const State& state = (*pnow)[i];
@@ -552,10 +542,10 @@ Array<MeasureInput> SketchPolicyNode::PickStatesWithEpsGreedy(const Array<State>
 }
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicy")
-    .set_body_typed([](SearchTask task, CostModel schedule_cost_model,
+    .set_body_typed([](SearchTask task, CostModel program_cost_model,
                        Map<String, ObjectRef> params, int seed, int verbose,
                        Optional<Array<SearchCallback>> init_search_callbacks) {
-      return SketchPolicy(task, schedule_cost_model, params, seed, verbose, init_search_callbacks);
+      return SketchPolicy(task, program_cost_model, params, seed, verbose, init_search_callbacks);
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicyGenerateSketches")

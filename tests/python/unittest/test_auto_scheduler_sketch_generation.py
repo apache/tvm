@@ -25,6 +25,7 @@ from tvm.auto_scheduler.loop_state import Stage
 
 from test_auto_scheduler_common import (
     matmul_auto_scheduler_test,
+    double_matmul_auto_scheduler_test,
     conv2d_nchw_bn_relu_auto_scheduler_test,
     max_pool2d_auto_scheduler_test,
     min_nm_auto_scheduler_test,
@@ -116,6 +117,9 @@ def test_cpu_matmul_sketch():
     assert_compute_at_condition(sketches[4].stages[2], "iter")
     assert sketches[3] != sketches[4]
 
+    sketches = generate_sketches(double_matmul_auto_scheduler_test, (512,), "llvm")
+    assert len(sketches) == 9
+    assert_is_tiled(sketches[8].stages[5])
 
 def test_cpu_conv2d_bn_relu_sketch():
     sketches = generate_sketches(
@@ -381,6 +385,7 @@ if __name__ == "__main__":
     test_cpu_min_sketch()
     test_cpu_softmax_sketch()
     test_cpu_conv2d_winograd_sketch()
+    exit(0)
     test_cuda_matmul_sketch()
     test_cuda_conv2d_bn_relu_sketch()
     test_cuda_max_pool2d_sketch()

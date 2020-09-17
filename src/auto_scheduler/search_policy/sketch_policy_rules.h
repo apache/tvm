@@ -138,6 +138,9 @@ class PopulationGenerationRule {
    * \return The result of this rule, indicate if there's any valid state generated.
    */
   virtual ResultKind Apply(SketchPolicyNode* policy, State* state) const = 0;
+
+  /*! \brief The deconstructor */
+  virtual ~PopulationGenerationRule() = default;
 };
 
 // A helper to define population initialization rules

@@ -57,7 +57,7 @@ def search_common(
             search_policy = auto_scheduler.EmptyPolicy(task)
         elif search_policy == "sketch":
             search_policy = auto_scheduler.SketchPolicy(
-                task, schedule_cost_model=cost_model, init_search_callbacks=init_search_callbacks
+                task, program_cost_model=cost_model, init_search_callbacks=init_search_callbacks
             )
 
         tuning_options = auto_scheduler.TuningOptions(
