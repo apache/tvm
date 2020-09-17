@@ -102,8 +102,8 @@ def test_compile_and_run():
     tol = 1e-3
 
     with relay.build_config(opt_level=3):
-        json, lib, params = relay.build(_create_graph_annotated(), target=target)
-    m = tvm.contrib.graph_runtime.create(json, lib, ctx)
+        lib = relay.build(_create_graph_annotated(), target=target)
+    m = tvm.contrib.graph_runtime.GraphModule(lib["default"](ctx))
 
     shape = (10, 10)
     x_data = np.random.rand(*shape).astype("float32")
@@ -111,7 +111,6 @@ def test_compile_and_run():
 
     m.set_input("x", x_data)
     m.set_input("y", y_data)
-    m.set_input(**params)
     m.run()
     out = tvm.nd.empty(shape, ctx=ctx)
     out = m.get_output(0, out)

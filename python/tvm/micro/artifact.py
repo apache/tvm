@@ -63,10 +63,10 @@ class Artifact:
             The unarchived artifact.
         """
         if os.path.exists(base_dir):
-            raise ValueError(f'base_dir exists: {base_dir}')
+            raise ValueError(f"base_dir exists: {base_dir}")
 
         base_dir_parent, base_dir_name = os.path.split(base_dir)
-        temp_dir = os.path.join(base_dir_parent, f'__tvm__{base_dir_name}')
+        temp_dir = os.path.join(base_dir_parent, f"__tvm__{base_dir_name}")
         os.mkdir(temp_dir)
         try:
             with tarfile.open(archive_path) as tar_f:
@@ -75,32 +75,36 @@ class Artifact:
                 temp_dir_contents = os.listdir(temp_dir)
                 if len(temp_dir_contents) != 1:
                     raise ArtifactBadArchiveError(
-                        'Expected exactly 1 subdirectory at root of archive, got '
-                        f'{temp_dir_contents!r}')
+                        "Expected exactly 1 subdirectory at root of archive, got "
+                        f"{temp_dir_contents!r}"
+                    )
 
-                metadata_path = os.path.join(temp_dir, temp_dir_contents[0], 'metadata.json')
+                metadata_path = os.path.join(temp_dir, temp_dir_contents[0], "metadata.json")
                 if not metadata_path:
-                    raise ArtifactBadArchiveError('No metadata.json found in archive')
+                    raise ArtifactBadArchiveError("No metadata.json found in archive")
 
                 with open(metadata_path) as metadata_f:
                     metadata = json.load(metadata_f)
 
-                version = metadata.get('version')
+                version = metadata.get("version")
                 if version != cls.ENCODING_VERSION:
                     raise ArtifactBadArchiveError(
-                        f'archive version: expect {cls.EXPECTED_VERSION}, found {version}')
+                        f"archive version: expect {cls.EXPECTED_VERSION}, found {version}"
+                    )
 
                 os.rename(os.path.join(temp_dir, temp_dir_contents[0]), base_dir)
 
                 artifact_cls = cls
                 for sub_cls in cls.__subclasses__():
-                    if (sub_cls.ARTIFACT_TYPE is not None and
-                            sub_cls.ARTIFACT_TYPE == metadata.get('artifact_type')):
+                    if sub_cls.ARTIFACT_TYPE is not None and sub_cls.ARTIFACT_TYPE == metadata.get(
+                        "artifact_type"
+                    ):
                         artifact_cls = sub_cls
                         break
 
                 return artifact_cls.from_unarchived(
-                    base_dir, metadata['labelled_files'], metadata['metadata'])
+                    base_dir, metadata["labelled_files"], metadata["metadata"]
+                )
         finally:
             shutil.rmtree(temp_dir)
 
@@ -128,7 +132,7 @@ class Artifact:
             for f in files:
                 f_path = os.path.join(self.base_dir, f)
                 if not os.path.lexists(f_path):
-                    raise ArtifactFileNotFoundError(f'{f} (label {label}): not found at {f_path}')
+                    raise ArtifactFileNotFoundError(f"{f} (label {label}): not found at {f_path}")
 
                 if os.path.islink(f_path):
                     link_path = os.path.readlink(f_path)
@@ -140,7 +144,8 @@ class Artifact:
                     link_fullpath = os.path.realpath(link_fullpath)
                     if not link_fullpath.startswith(self.base_dir):
                         raise ArtifactBadSymlinkError(
-                            f'{f} (label {label}): symlink points outside artifact tree')
+                            f"{f} (label {label}): symlink points outside artifact tree"
+                        )
 
     def abspath(self, rel_path):
         """Return absolute path to the member with the given relative path."""
@@ -168,29 +173,37 @@ class Artifact:
             The value of archive_path, after potentially making the computation describe above.
         """
         if os.path.isdir(archive_path):
-            archive_path = os.path.join(archive_path, f'{os.path.basename(self.base_dir)}.tar')
+            archive_path = os.path.join(archive_path, f"{os.path.basename(self.base_dir)}.tar")
 
         archive_name = os.path.splitext(os.path.basename(archive_path))[0]
-        with tarfile.open(archive_path, 'w') as tar_f:
+        with tarfile.open(archive_path, "w") as tar_f:
+
             def _add_file(name, data, f_type):
                 tar_info = tarfile.TarInfo(name=name)
                 tar_info.type = f_type
-                data_bytes = bytes(data, 'utf-8')
+                data_bytes = bytes(data, "utf-8")
                 tar_info.size = len(data)
                 tar_f.addfile(tar_info, io.BytesIO(data_bytes))
 
-            _add_file(f'{archive_name}/metadata.json',
-                      json.dumps({'version': self.ENCODING_VERSION,
-                                  'labelled_files': self.labelled_files,
-                                  'metadata': self.metadata},
-                                 indent=2,
-                                 sort_keys=True),
-                      tarfile.REGTYPE)
+            _add_file(
+                f"{archive_name}/metadata.json",
+                json.dumps(
+                    {
+                        "version": self.ENCODING_VERSION,
+                        "labelled_files": self.labelled_files,
+                        "metadata": self.metadata,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                ),
+                tarfile.REGTYPE,
+            )
             for dir_path, _, files in os.walk(self.base_dir):
                 for f in files:
                     file_path = os.path.join(dir_path, f)
                     archive_file_path = os.path.join(
-                        archive_name, os.path.relpath(file_path, self.base_dir))
+                        archive_name, os.path.relpath(file_path, self.base_dir)
+                    )
                     if not os.path.islink(file_path):
                         tar_f.add(file_path, archive_file_path, recursive=False)
                         continue

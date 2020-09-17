@@ -82,8 +82,8 @@ enum class BufferAccessType : int { kRead = 0, kWrite = 1, kReadWrite = 2, kUnkn
 struct BufferAccess {
   // data reuse type
   BufferAccessType acc_type{BufferAccessType::kUnknownRW};
-  // Use a two-dimentional array to store multiple multi-dimentional accesses.
-  // The innermost vector stores the multi-dimentional indices of one access.
+  // Use a two-dimensional array to store multiple multi-dimensional accesses.
+  // The innermost vector stores the multi-dimensional indices of one access.
   std::vector<std::vector<PrimExpr>> indices;
 };
 
@@ -131,7 +131,7 @@ struct FeatureSet {
   float vec_num;                    // The number of vectorized iterators
   float vec_prod;                   // The product of the lengths of vectorized iterators
   float vec_len;                    // The length of the innermost vectorized iterator
-  AnnotationPosType vec_type;       // The type of vectorizatoin position
+  AnnotationPosType vec_type;       // The type of vectorization position
   float unroll_num;                 // The number of unrolled iterators
   float unroll_prod;                // The product of the lengths of vectorized iterators
   float unroll_len;                 // The length of the innermost unrolled iterator
@@ -158,12 +158,12 @@ struct FeatureSet {
 
   // Group 4: Allocation related features
   float alloc_size;        // The size of allocated buffer in bytes
-  float alloc_outer_prod;  // The product of lenghts of loops outside the scope of the allocation
-  float alloc_inner_prod;  // The product of lenghts of loops inside the score of the allocation
+  float alloc_outer_prod;  // The product of lengths of loops outside the scope of the allocation
+  float alloc_inner_prod;  // The product of lengths of loops inside the score of the allocation
   float alloc_prod;        // alloc_outer_prod * alloc_inner_prod
 
   // Group 5: Outer scope related features
-  float outer_prod;            // The product of lenghts of outer loops
+  float outer_prod;            // The product of lengths of outer loops
   float num_loops;             // The number of outer loops
   float auto_unroll_max_step;  // The value of pragma "auto_unroll_max_step"
 };
@@ -221,7 +221,7 @@ AnnotationPosType GetAnnotationPosEncoding(const Var& var, const Array<PrimExpr>
       }
     } else {
       // If the axis is not found in both spatial args and reduce axis,
-      // then this stage must compute_at somewhere under this aixs and this axis is simplified out
+      // then this stage must compute_at somewhere under this axis and this axis is simplified out
       // We assume it is an outer spatial
       return AnnotationPosType::kPosOuterSpatial;
     }
@@ -1516,7 +1516,7 @@ void GetPerStoreFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
  *   float features_i[size[i]];  // The features for record i
  *   ... // until i == n - 1
  *
- *   float throuputs[sizes[n]];  // The normalized throughputs for n records
+ *   float throughputs[sizes[n]];  // The normalized throughputs for n records
  *   int   task_ids[size[n+1];   // The task ids for n records
  *
  * }

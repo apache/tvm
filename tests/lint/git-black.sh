@@ -46,7 +46,7 @@ fi
 echo "Version Information: $(black --version)"
 
 # Compute Python files which changed to compare.
-IFS=$'\n' read -a FILES -d'\n' < <(git diff --name-only $1 -- "*.py" "*.pyi") || true
+IFS=$'\n' read -a FILES -d'\n' < <(git diff --name-only --diff-filter=ACMRTUX $1 -- "*.py" "*.pyi") || true
 echo "Read returned $?"
 if [ -z ${FILES+x} ]; then
     echo "No changes in Python files"

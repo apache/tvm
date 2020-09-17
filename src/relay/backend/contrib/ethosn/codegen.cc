@@ -83,6 +83,34 @@ void InferTensorsVisitor::InferCall(const CallNode* cn) {
     ConvolutionParams params;
     err += EthosnAPI::QnnConv2d(cn->op.as<FunctionNode>()->body, &params);
     tensor_table_[cn->args[0]] = {params.activation_info};
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_fc")) {
+    FullyConnectedParams params;
+    err += EthosnAPI::QnnFullyConnected(cn->op.as<FunctionNode>()->body, &params);
+    tensor_table_[cn->args[0]] = {params.input_info};
+  } else if (IsEthosnOp(call, "nn.max_pool2d")) {
+    MaxPool2DParams params;
+    params.input_info = GetTensorInfo(tensor_table_, call);
+    err += EthosnAPI::MaxPool2D(call, &params);
+    tensor_table_[cn->args[0]] = {params.input_info};
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_avg_pool2d")) {
+    AvgPool2DParams params;
+    params.input_info = GetTensorInfo(tensor_table_, call);
+    err += EthosnAPI::AvgPool2D(cn->op.as<FunctionNode>()->body, &params);
+    tensor_table_[cn->args[0]] = {params.input_info};
+  } else if (IsEthosnOp(call, "reshape")) {
+    ReshapeParams params;
+    params.input_info = GetTensorInfo(tensor_table_, call);
+    err += EthosnAPI::Reshape(call, &params);
+    tensor_table_[cn->args[0]] = {params.input_info};
+  } else if (IsEthosnOp(call, "qnn.add")) {
+    AdditionParams params;
+    err += EthosnAPI::Addition(call, &params);
+    tensor_table_[cn->args[0]] = {params.lhs_info};
+    tensor_table_[cn->args[1]] = {params.rhs_info};
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_sigmoid")) {
+    SigmoidParams params;
+    err += EthosnAPI::Sigmoid(cn->op.as<FunctionNode>()->body, &params);
+    tensor_table_[cn->args[0]] = {params.input_info};
   } else if (IsEthosnOp(call, "qnn.concatenate")) {
     ConcatenateParams params;
     err = EthosnAPI::Concatenate(call, &params);
@@ -91,6 +119,16 @@ void InferTensorsVisitor::InferCall(const CallNode* cn) {
     SplitParams params;
     params.input_info = GetTensorInfo(tensor_table_, call);
     err = EthosnAPI::Split(call, &params);
+    tensor_table_[cn->args[0]] = {params.input_info};
+  } else if (IsEthosnOp(call, "nn.depth_to_space")) {
+    DepthToSpaceParams params;
+    params.input_info = GetTensorInfo(tensor_table_, call);
+    err += EthosnAPI::DepthToSpace(call, &params);
+    tensor_table_[cn->args[0]] = {params.input_info};
+  } else if (IsEthosnOp(call, "clip")) {
+    ReluParams params;
+    params.input_info = GetTensorInfo(tensor_table_, call);
+    err = EthosnAPI::Relu(call, &params);
     tensor_table_[cn->args[0]] = {params.input_info};
   } else {
     err = EthosnError("unknown operator");
@@ -198,12 +236,36 @@ sl::TensorsAndId ConstructNetworkVisitor::HandleCall(const CallNode* cn) {
   if (IsEthosnFunc(call, "ethos-n.qnn_conv2d")) {
     if ((err = MakeConvolutionLayer(call, &tensor))) ReportFatalError(call, err);
     return MakeOps(tensor);
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_fc")) {
+    if ((err = MakeFullyConnectedLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
+  } else if (IsEthosnOp(call, "nn.max_pool2d")) {
+    if ((err = MakeMaxPool2DLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_avg_pool2d")) {
+    if ((err = MakeAvgPool2DLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
+  } else if (IsEthosnOp(call, "reshape")) {
+    if ((err = MakeReshapeLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
+  } else if (IsEthosnOp(call, "qnn.add")) {
+    if ((err = MakeAdditionLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_sigmoid")) {
+    if ((err = MakeSigmoidLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
   } else if (IsEthosnOp(call, "qnn.concatenate")) {
     if ((err = MakeConcatenateLayer(call, &tensor))) ReportFatalError(call, err);
     return MakeOps(tensor);
   } else if (IsEthosnOp(call, "split")) {
     if ((err = MakeSplitLayer(call, &tensors))) ReportFatalError(call, err);
     return tensors;
+  } else if (IsEthosnOp(call, "nn.depth_to_space")) {
+    if ((err = MakeDepthToSpaceLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
+  } else if (IsEthosnOp(call, "clip")) {
+    if ((err = MakeReluLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
   } else {
     ReportFatalError(call, EthosnError("unknown operator"));
     return {};
@@ -266,6 +328,115 @@ EthosnError ConstructNetworkVisitor::MakeConvolutionLayer(const Call& call,
   return EthosnError();
 }
 
+EthosnError ConstructNetworkVisitor::MakeFullyConnectedLayer(const Call& call,
+                                                             sl::TensorAndId<sl::Operand>* out) {
+  FullyConnectedParams params;
+  if (auto err = EthosnAPI::QnnFullyConnected(call->op.as<FunctionNode>()->body, &params)) {
+    return err;
+  }
+
+  auto weights = AddConstant(network_, params.weights_info, params.raw_weights).tensor;
+  auto bias = AddConstant(network_, params.bias_info, params.raw_bias).tensor;
+  try {
+    auto input =
+        AddReshape(network_, *operand_table_[call->args[0]][0], params.input_info.m_Dimensions)
+            .tensor;
+    *out = AddFullyConnected(network_, *input, *bias, *weights, params.fc_info);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
+EthosnError ConstructNetworkVisitor::MakeMaxPool2DLayer(const Call& call,
+                                                        sl::TensorAndId<sl::Operand>* out) {
+  MaxPool2DParams params;
+  params.input_info = GetTensorInfo(tensor_table_, call);
+  if (auto err = EthosnAPI::MaxPool2D(call, &params)) {
+    return err;
+  }
+
+  auto input = operand_table_[call->args[0]][0];
+
+  try {
+    *out = AddPooling(network_, *input, params.pool_info);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
+EthosnError ConstructNetworkVisitor::MakeAvgPool2DLayer(const Call& call,
+                                                        sl::TensorAndId<sl::Operand>* out) {
+  AvgPool2DParams params;
+  params.input_info = GetTensorInfo(tensor_table_, call);
+  if (auto err = EthosnAPI::AvgPool2D(call->op.as<FunctionNode>()->body, &params)) {
+    return err;
+  }
+
+  auto input = operand_table_[call->args[0]][0];
+
+  try {
+    *out = AddPooling(network_, *input, params.pool_info);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
+EthosnError ConstructNetworkVisitor::MakeReshapeLayer(const Call& call,
+                                                      sl::TensorAndId<sl::Operand>* out) {
+  ReshapeParams params;
+  params.input_info = GetTensorInfo(tensor_table_, call);
+  if (auto err = EthosnAPI::Reshape(call, &params)) {
+    return err;
+  }
+
+  auto input = operand_table_[call->args[0]][0];
+
+  try {
+    *out = AddReshape(network_, *input, params.new_shape);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
+EthosnError ConstructNetworkVisitor::MakeAdditionLayer(const Call& call,
+                                                       sl::TensorAndId<sl::Operand>* out) {
+  AdditionParams params;
+  if (auto err = EthosnAPI::Addition(call, &params)) {
+    return err;
+  }
+
+  auto lhs = operand_table_[call->args[0]][0];
+  auto rhs = operand_table_[call->args[1]][0];
+
+  try {
+    *out = AddAddition(network_, *lhs, *rhs, params.output_quantization_info);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
+EthosnError ConstructNetworkVisitor::MakeSigmoidLayer(const Call& call,
+                                                      sl::TensorAndId<sl::Operand>* out) {
+  SigmoidParams params;
+  if (auto err = EthosnAPI::Sigmoid(call->op.as<FunctionNode>()->body, &params)) {
+    return err;
+  }
+
+  auto input = operand_table_[call->args[0]][0];
+
+  try {
+    *out = AddSigmoid(network_, *input);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
 EthosnError ConstructNetworkVisitor::MakeConcatenateLayer(const Call& call,
                                                           sl::TensorAndId<sl::Operand>* out) {
   ConcatenateParams params;
@@ -298,6 +469,42 @@ EthosnError ConstructNetworkVisitor::MakeSplitLayer(const Call& call, sl::Tensor
 
   try {
     *outs = AddSplit(network_, *input, params.split_info);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
+EthosnError ConstructNetworkVisitor::MakeDepthToSpaceLayer(const Call& call,
+                                                           sl::TensorAndId<sl::Operand>* out) {
+  DepthToSpaceParams params;
+  params.input_info = GetTensorInfo(tensor_table_, call);
+  if (auto err = EthosnAPI::DepthToSpace(call, &params)) {
+    return err;
+  }
+
+  auto input = operand_table_[call->args[0]][0];
+
+  try {
+    *out = AddDepthToSpace(network_, *input, params.depth_info);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
+EthosnError ConstructNetworkVisitor::MakeReluLayer(const Call& call,
+                                                   sl::TensorAndId<sl::Operand>* out) {
+  ReluParams params;
+  params.input_info = GetTensorInfo(tensor_table_, call);
+  if (auto err = EthosnAPI::Relu(call, &params)) {
+    return err;
+  }
+
+  auto input = operand_table_[call->args[0]][0];
+
+  try {
+    *out = AddRelu(network_, *input, params.relu_info);
   } catch (const sl::NotSupportedException& e) {
     return EthosnError(e.what());
   }

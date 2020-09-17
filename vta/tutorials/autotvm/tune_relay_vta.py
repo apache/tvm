@@ -413,12 +413,12 @@ def tune_and_evaluate(tuning_opt):
         print("Compile...")
         if target.device_name != "vta":
             with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
-                graph, lib, params = relay.build(
+                lib = relay.build(
                     relay_prog, target=target, params=params, target_host=env.target_host
                 )
         else:
             with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
-                graph, lib, params = relay.build(
+                lib = relay.build(
                     relay_prog, target=target, params=params, target_host=env.target_host
                 )
 
@@ -431,11 +431,10 @@ def tune_and_evaluate(tuning_opt):
 
         # Generate the graph runtime
         ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
-        m = graph_runtime.create(graph, lib, ctx)
+        m = graph_runtime.GraphModule(lib["default"](ctx))
 
         # upload parameters to device
         image = tvm.nd.array((np.random.uniform(size=(1, 3, 224, 224))).astype("float32"))
-        m.set_input(**params)
         m.set_input("data", image)
 
         # evaluate

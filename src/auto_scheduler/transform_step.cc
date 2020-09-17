@@ -900,7 +900,7 @@ SplitStep::SplitStep(int stage_id, int iter_id, Optional<PrimExpr> extent,
                      const Array<Optional<Integer>>& lengths, bool inner_to_outer) {
   auto node = make_object<SplitStepNode>();
   node->stage_id = stage_id;
-  // Extent can be a unreducible expression in some special cases
+  // Extent can be a irreducible expression in some special cases
   if (extent && extent.value()->IsInstance<IntImmNode>()) {
     node->extent = tvm::Downcast<Integer>(extent.value());
   }

@@ -126,10 +126,10 @@ def load_best(filename, workload_key=None, target=None):
         File name to load log from.
     workload_key : Optional[str]
         The workload key of the compute declaration.
-        With `None`, this retuns the best measure pair of all workloads.
+        With `None`, this returns the best measure pair of all workloads.
     target : Optional[tvm.target.Target]
         The target device.
-        With `None`, this retuns the best measure pair of all target devices.
+        With `None`, this returns the best measure pair of all target devices.
 
     Returns
     -------

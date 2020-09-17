@@ -98,7 +98,7 @@ print(mod.astext(show_meta_data=False))
 opt_level = 3
 target = tvm.target.cuda()
 with tvm.transform.PassContext(opt_level=opt_level):
-    graph, lib, params = relay.build(mod, target, params=params)
+    lib = relay.build(mod, target, params=params)
 
 #####################################################################
 # Run the generate library
@@ -109,10 +109,9 @@ with tvm.transform.PassContext(opt_level=opt_level):
 ctx = tvm.gpu()
 data = np.random.uniform(-1, 1, size=data_shape).astype("float32")
 # create module
-module = graph_runtime.create(graph, lib, ctx)
+module = graph_runtime.GraphModule(lib["default"](ctx))
 # set input and parameters
 module.set_input("data", data)
-module.set_input(**params)
 # run
 module.run()
 # get output
@@ -135,22 +134,15 @@ from tvm.contrib import util
 temp = util.tempdir()
 path_lib = temp.relpath("deploy_lib.tar")
 lib.export_library(path_lib)
-with open(temp.relpath("deploy_graph.json"), "w") as fo:
-    fo.write(graph)
-with open(temp.relpath("deploy_param.params"), "wb") as fo:
-    fo.write(relay.save_param_dict(params))
 print(temp.listdir())
 
 ####################################################
 
 # load the module back.
-loaded_json = open(temp.relpath("deploy_graph.json")).read()
 loaded_lib = tvm.runtime.load_module(path_lib)
-loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
 input_data = tvm.nd.array(np.random.uniform(size=data_shape).astype("float32"))
 
-module = graph_runtime.create(loaded_json, loaded_lib, ctx)
-module.load_params(loaded_params)
+module = graph_runtime.GraphModule(loaded_lib["default"](ctx))
 module.run(data=input_data)
 out_deploy = module.get_output(0).asnumpy()
 

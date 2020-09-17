@@ -104,9 +104,7 @@ def test_mobilenet():
 
     def run(mod, target):
         with relay.build_config(opt_level=3):
-            graph, lib, _params = relay.build(
-                mod, target=target, target_host=target_host, params=params
-            )
+            lib = relay.build(mod, target=target, target_host=target_host, params=params)
         path_dso = temp.relpath("deploy.dylib")
         lib.export_library(path_dso, xcode.create_dylib, arch=arch, sdk=sdk)
         xcode.codesign(path_dso)
@@ -122,10 +120,9 @@ def test_mobilenet():
         else:
             ctx = remote.cpu(0)
         lib = remote.load_module("deploy.dylib")
-        m = graph_runtime.create(graph, lib, ctx)
+        m = graph_runtime.GraphModule(lib["default"](ctx))
 
         m.set_input("data", tvm.nd.array(image, ctx))
-        m.set_input(**_params)
         m.run()
         tvm_output = m.get_output(0)
         top1 = np.argmax(tvm_output.asnumpy()[0])

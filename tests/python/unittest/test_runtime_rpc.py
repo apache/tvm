@@ -159,6 +159,7 @@ def test_rpc_echo():
     check(rpc.LocalSession())
 
     check(client)
+
     def check_minrpc():
         if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
             return
@@ -175,7 +176,9 @@ def test_rpc_echo():
             session_constructor_args=["rpc.PopenSession", open(minrpc_exec, "rb").read()],
         )
         check(client)
+
     check_minrpc()
+
 
 def test_rpc_file_exchange():
     if not tvm.runtime.enabled("rpc"):

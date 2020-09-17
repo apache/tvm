@@ -100,9 +100,9 @@ void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int
 
 /*!
  * \brief Get per-store features from measurement input/result pairs
- * \param inputs The meaurement inputs
+ * \param inputs The measurement inputs
  * \param results The measurement results
- * \param skip_first_n_feature_extraction Skip feature extraction for the first n meaurement pairs
+ * \param skip_first_n_feature_extraction Skip feature extraction for the first n measurement pairs
  * \param max_n_bufs The maximum number of extracted buffers for one statement
  * \param features The returned feature vector. The innermost vector contains the
  * feature vectors for all BufferStoreNode statements

@@ -94,7 +94,7 @@ def _roi_align_shape_func(data_shape, rois_shape, pooled_size):
     out[3] = int64(pooled_size[1])
     return out
 
+
 @reg.register_shape_func("vision.roi_align", False)
 def roi_align_shape_func(attrs, inputs, _):
-    return [_roi_align_shape_func(inputs[0], inputs[1],
-                                  convert(attrs.pooled_size))]
+    return [_roi_align_shape_func(inputs[0], inputs[1], convert(attrs.pooled_size))]

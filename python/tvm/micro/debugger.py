@@ -60,7 +60,7 @@ class GdbDebugger(Debugger):
                 try:
                     callback()
                 except Exception:  # pylint: disable=broad-except
-                    logging.warn('on_terminate_callback raised exception', exc_info=True)
+                    logging.warn("on_terminate_callback raised exception", exc_info=True)
 
     def start(self):
         kwargs = self.popen_kwargs()
@@ -95,27 +95,33 @@ class GdbTransportDebugger(GdbDebugger):
         os.set_inheritable(stdout_write, True)
 
         sysname = os.uname()[0]
-        if sysname == 'Darwin':
-            args = ['lldb',
-                    '-O', f'target create {self.args[0]}',
-                    '-O', f'settings set target.input-path /dev/fd/{stdin_read}',
-                    '-O', f'settings set target.output-path /dev/fd/{stdout_write}']
+        if sysname == "Darwin":
+            args = [
+                "lldb",
+                "-O",
+                f"target create {self.args[0]}",
+                "-O",
+                f"settings set target.input-path /dev/fd/{stdin_read}",
+                "-O",
+                f"settings set target.output-path /dev/fd/{stdout_write}",
+            ]
             if len(self.args) > 1:
                 args.extend(
-                    ['-O', 'settings set target.run-args {}'.format(' '.join(self.args[1:]))])
-        elif sysname == 'Linux':
-            args = (['gdb', '--args'] +
-                    self.args +
-                    ['</dev/fd/{stdin_read}', '>/dev/fd/{stdout_write}'])
+                    ["-O", "settings set target.run-args {}".format(" ".join(self.args[1:]))]
+                )
+        elif sysname == "Linux":
+            args = (
+                ["gdb", "--args"] + self.args + ["</dev/fd/{stdin_read}", ">/dev/fd/{stdout_write}"]
+            )
         else:
-            raise NotImplementedError(f'System {sysname} is not yet supported')
+            raise NotImplementedError(f"System {sysname} is not yet supported")
 
-        self.stdin = os.fdopen(stdin_write, 'wb', buffering=0)
-        self.stdout = os.fdopen(stdout_read, 'rb', buffering=0)
+        self.stdin = os.fdopen(stdin_write, "wb", buffering=0)
+        self.stdout = os.fdopen(stdout_read, "rb", buffering=0)
 
         return {
-            'args': args,
-            'pass_fds': [stdin_read, stdout_write],
+            "args": args,
+            "pass_fds": [stdin_read, stdout_write],
         }
 
     def _wait_for_process_death(self):
@@ -156,8 +162,9 @@ class GdbTransportDebugger(GdbDebugger):
 class GdbRemoteDebugger(GdbDebugger):
     """A Debugger that invokes GDB and attaches to a remote GDBserver-based target."""
 
-    def __init__(self, gdb_binary, remote_hostport, debug_binary, wrapping_context_manager=None,
-                 **popen_kw):
+    def __init__(
+        self, gdb_binary, remote_hostport, debug_binary, wrapping_context_manager=None, **popen_kw
+    ):
         super(GdbRemoteDebugger, self).__init__()
         self.gdb_binary = gdb_binary
         self.remote_hostport = remote_hostport
@@ -167,9 +174,13 @@ class GdbRemoteDebugger(GdbDebugger):
 
     def popen_kwargs(self):
         kwargs = {
-            'args': [self.gdb_binary,
-                     '-iex', f'file {self.debug_binary}',
-                     '-iex', f'target remote {self.remote_hostport}'],
+            "args": [
+                self.gdb_binary,
+                "-iex",
+                f"file {self.debug_binary}",
+                "-iex",
+                f"target remote {self.remote_hostport}",
+            ],
         }
         kwargs.update(self.popen_kw)
 

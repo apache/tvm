@@ -40,13 +40,12 @@ def get_tvm_output(model, input_data, target, ctx, output_shape, output_dtype="f
         model.init_net, model.predict_net, shape_dict, dtype_dict
     )
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = relay.build(mod, target, params=params)
+        lib = relay.build(mod, target, params=params)
 
-    m = graph_runtime.create(graph, lib, ctx)
+    m = graph_runtime.GraphModule(lib["default"](ctx))
 
     # set inputs
     m.set_input(input_names, tvm.nd.array(input_data.astype(input_data.dtype)))
-    m.set_input(**params)
 
     # execute
     m.run()
