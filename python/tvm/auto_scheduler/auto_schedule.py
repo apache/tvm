@@ -31,7 +31,10 @@ Candidate schedules are measured against the specific hardware target.
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import LocalBuilder, LocalRunner
-from .search_policy import EmptyPolicy
+from .workload_registry import make_workload_key
+from .compute_dag import ComputeDAG
+from .cost_model import XGBModel
+from .search_policy import SketchPolicy
 from . import _ffi_api
 
 
@@ -89,26 +92,26 @@ class TuningOptions(Object):
     Parameters
     ----------
     num_measure_trials: int = 0
-      The number of measurement trials.
-      The search policy measures `num_measure_trials` schedules in total and returns the best one
-      among them.
-      With `num_measure_trials` == 0, the policy will do the schedule search but won't involve
-      measurement. This can be used to get a runnable schedule quickly without auto-tuning.
+        The number of measurement trials.
+        The search policy measures `num_measure_trials` schedules in total and returns the best one
+        among them.
+        With `num_measure_trials` == 0, the policy will do the schedule search but won't involve
+        measurement. This can be used to get a runnable schedule quickly without auto-tuning.
     early_stopping: Optional[int]
-      Stop the tuning early if getting no improvement after n measurements.
+        Stop the tuning early if getting no improvement after n measurements.
     num_measures_per_round: int = 64
-      The number of schedules to be measured at each search round.
-      The whole schedule search process will try a total number of `num_measure_trials` in several
-      rounds.
+        The number of schedules to be measured at each search round.
+        The whole schedule search process will try a total number of `num_measure_trials` in several
+        rounds.
     verbose: int = 1
-      Verbosity level. 0 for silent, 1 to output information during schedule search.
+        Verbosity level. 0 for silent, 1 to output information during schedule search.
     builder: Union[ProgramBuilder, str] = 'local'
-      ProgramBuilder which builds the program.
+        ProgramBuilder which builds the program.
     runner: Union[ProgramRunner, str] = 'local'
-      ProgramRunner which runs the program and measures time costs.
+        ProgramRunner which runs the program and measures time costs.
     measure_callbacks: Optional[List[MeasureCallback]]
-      Callback functions called after each measurement.
-      Candidates:
+        Callback functions called after each measurement.
+        Candidates:
         - auto_scheduler.RecordToFile
     """
 
@@ -156,16 +159,41 @@ class TuningOptions(Object):
         )
 
 
+def create_task(func, args, target, target_host=None, hardware_params=None):
+    """Create a search task
+
+    Parameters
+    ----------
+    func : Union[Function, str]
+        The function that returns the compute declaration Tensors.
+        Can be the a function or the function name.
+    args : Union[Tuple[Any, ...], List[Any]]
+        The args of the function.
+    target : tvm.target.Target
+        The target device of this search task.
+    target_host : Optional[tvm.target.Target]
+        The target host device of this search task.
+    hardware_params : Optional[HardwareParams]
+        Hardware parameters used in this search task.
+
+    Returns
+    -------
+        SearchTask: the created task
+    """
+    workload_key = make_workload_key(func, args)
+    dag = ComputeDAG(workload_key)
+    return SearchTask(dag, workload_key, target, target_host, hardware_params)
+
+
 def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
-    """Do auto scheduling for a computation declaration.
+    """Run auto scheduling search for a task
 
     Parameters
     ----------
     task : SearchTask
         The SearchTask for the computation declaration.
     search_policy : Optional[SearchPolicy]
-        The search policy to be used for schedule search. Use EmptyPolicy as default, which always
-        returns an empty schedule.
+        The search policy to be used for schedule search.
     tuning_options : Optional[TuningOptions]
         Tuning and measurement options.
 
@@ -178,5 +206,9 @@ def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
             "Invalid task: " + task + " . `auto_scheduler.auto_schedule` expects a SearchTask."
         )
 
-    sch, tensors = _ffi_api.AutoSchedule(search_policy or EmptyPolicy(task), tuning_options)
+    if search_policy is None:
+        cost_model = XGBModel()
+        search_policy = SketchPolicy(task, cost_model)
+
+    sch, tensors = _ffi_api.AutoSchedule(search_policy, tuning_options)
     return sch, tensors
