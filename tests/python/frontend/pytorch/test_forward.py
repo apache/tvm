@@ -2417,34 +2417,6 @@ def test_forward_clamp_():
 
 
 @tvm.testing.uses_gpu
-def test_forward_copy_():
-    torch.set_grad_enabled(False)
-
-    class Copy(Module):
-        def __init__(self):
-            super(Copy, self).__init__()
-
-        def forward(self, *args):
-            return torch.Tensor.copy_(args[0], args[1])
-
-    class CopyInPlace(Module):
-        def __init__(self):
-            super(CopyInPlace, self).__init__()
-
-        def forward(self, *args):
-            a = args[0]
-            b = args[1]
-            c = torch.Tensor.copy_(a, b)
-            return a
-
-    src_tensor = torch.rand(5)
-    tgt_tensor = torch.rand((2, 3, 5))
-    for copy in [Copy, CopyInPlace]:
-        verify_model(copy().float().eval(), input_data=[tgt_tensor, src_tensor])
-        verify_model(copy().float().eval(), input_data=[tgt_tensor, src_tensor + tgt_tensor])
-
-
-@tvm.testing.uses_gpu
 def test_forward_ones():
     torch.set_grad_enabled(False)
 
@@ -2940,7 +2912,7 @@ def test_forward_addcmul():
     t2 = torch.rand([1, 3]).float()
     verify_model(Addcmul2().float().eval(), input_data=[input_data, t1, t2])
 
-
+@tvm.testing.uses_gpu
 def test_forward_true_divide():
     torch.set_grad_enabled(False)
 
@@ -2950,10 +2922,12 @@ def test_forward_true_divide():
 
     dividend = torch.rand([5, 3]).float()
     # divisor could be either tensor or scalar
-    divisor_tensor = torch.rand([5, 3]).float()
-    divisor_scalar = divisor = torch.tensor(1.0, dtype=torch.float32)
-    verify_model(TrueDivide().float().eval(), input_data=[dividend, divisor_tensor])
-    verify_model(TrueDivide().float().eval(), input_data=[dividend, divisor_scalar])
+    divisor_tensor = torch.rand([5, 3]).float() + 0.5
+    divisor_scalar = torch.tensor(1.0, dtype=torch.float32)
+    verify_model(TrueDivide().float().eval(),
+                 input_data=[dividend, divisor_tensor], atol=1e-4, rtol=1e-4)
+    verify_model(TrueDivide().float().eval(),
+                 input_data=[dividend, divisor_scalar], atol=1e-4, rtol=1e-4)
 
 
 @tvm.testing.uses_gpu
@@ -3386,7 +3360,6 @@ if __name__ == "__main__":
     test_forward_unary()
     test_forward_clamp()
     test_forward_clamp_()
-    test_forward_copy_()
     test_forward_logical_not()
     test_forward_bitwise_not()
     test_forward_bitwise_xor()
