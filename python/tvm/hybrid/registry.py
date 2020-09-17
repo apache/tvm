@@ -34,6 +34,7 @@ class Registry(object):
     """Registration map
     All these maps are static
     """
+
     functions = dict()
 
     @staticmethod
@@ -66,8 +67,12 @@ class Registry(object):
     @staticmethod
     def is_registered(func):
         """check whether a function is registered"""
-        return (Registry.is_intrin(func) or Registry.is_with_scope(func)
-                or Registry.is_for_scope(func) or Registry.is_special_stmt(func))
+        return (
+            Registry.is_intrin(func)
+            or Registry.is_with_scope(func)
+            or Registry.is_for_scope(func)
+            or Registry.is_special_stmt(func)
+        )
 
 
 class CallArgumentReader(object):
@@ -106,7 +111,7 @@ class CallArgumentReader(object):
     def get_varargs(self, pos):
         """Get corresponding variable argument from argument list"""
         if len(self.args) >= pos and len(self.kwargs) == 0:
-            return self.args[pos - 1:]
+            return self.args[pos - 1 :]
         return []
 
     def auto_insert_body(self, pos, body):
@@ -213,47 +218,58 @@ def get_arg_list(origin_func, category, with_var=False):
             if len(args) < 3 or args[0] != "parser" or args[1] != "node" or args[2] != "body":
                 raise RuntimeError(
                     "TVM Hybrid Script register error : the first three arguments of "
-                    "this with scope handler must be parser, node, body")
+                    "this with scope handler must be parser, node, body"
+                )
             args = args[3:]
         else:
             if len(args) < 2 or args[0] != "parser" or args[1] != "node":
                 raise RuntimeError(
                     "TVM Hybrid Script register error : the first two arguments of "
-                    "this with scope handler must be parser, node")
+                    "this with scope handler must be parser, node"
+                )
             args = args[2:]
     elif category == Category.FOR_SCOPE:
-        if len(args) < 4 or args[0] != "parser" or \
-                args[1] != "node" or args[2] != "body" or args[3] != "loop_vars":
+        if (
+            len(args) < 4
+            or args[0] != "parser"
+            or args[1] != "node"
+            or args[2] != "body"
+            or args[3] != "loop_vars"
+        ):
             raise RuntimeError(
                 "TVM Hybrid Script register error : the first three arguments of for scope handler"
-                "must be parser, node, body, loop_vars")
+                "must be parser, node, body, loop_vars"
+            )
         args = args[4:]
     elif category == Category.SPECIAL_STMT:
         if len(args) < 2 or args[0] != "parser" or args[1] != "node":
             raise RuntimeError(
                 "TVM Hybrid Script register error : the first three arguments of special stmt"
-                "must be parser, node")
+                "must be parser, node"
+            )
         args = args[2:]
 
     if full_arg_spec.varkw is not None:
         raise RuntimeError(
-            "TVM Hybrid Script register error : variable keyword argument is not supported now")
+            "TVM Hybrid Script register error : variable keyword argument is not supported now"
+        )
     if not len(full_arg_spec.kwonlyargs) == 0:
         raise RuntimeError(
-            "TVM Hybrid Script register error : keyword only argument is not supported now")
+            "TVM Hybrid Script register error : keyword only argument is not supported now"
+        )
 
     pos_only = list()
     for arg in args[: len(args) - len(defaults)]:
         pos_only.append(arg)
     kwargs = list()
-    for default, arg in zip(defaults, args[len(args) - len(defaults):]):
+    for default, arg in zip(defaults, args[len(args) - len(defaults) :]):
         kwargs.append((arg, default))
 
     return pos_only, kwargs, full_arg_spec.varargs
 
 
 def register_intrin(name=None):
-    """ Decorator to register function under category intrin
+    """Decorator to register function under category intrin
     Parameters
     ----------
     name: str, optional
@@ -269,9 +285,12 @@ def register_intrin(name=None):
 
     def decorate(origin_func):
         func_name = "tir." + origin_func.__qualname__ if name is None else name
-        Registry.functions[func_name] = \
-            func_wrapper(func_name, origin_func, get_arg_list(origin_func, Category.INTRIN),
-                         Category.INTRIN), Category.INTRIN
+        Registry.functions[func_name] = (
+            func_wrapper(
+                func_name, origin_func, get_arg_list(origin_func, Category.INTRIN), Category.INTRIN
+            ),
+            Category.INTRIN,
+        )
         return origin_func
 
     return decorate
@@ -298,11 +317,17 @@ def register_with_scope(concise=False, with_var=False, name=None):
     def decorate(origin_func):
         """Register function under category with_scope"""
         func_name = "tir." + origin_func.__qualname__ if name is None else name
-        Registry.functions[func_name] = \
-            func_wrapper(func_name, origin_func,
-                         get_arg_list(origin_func, Category.WITH_SCOPE, with_var),
-                         Category.WITH_SCOPE, concise=concise, with_var=with_var), \
-            Category.WITH_SCOPE
+        Registry.functions[func_name] = (
+            func_wrapper(
+                func_name,
+                origin_func,
+                get_arg_list(origin_func, Category.WITH_SCOPE, with_var),
+                Category.WITH_SCOPE,
+                concise=concise,
+                with_var=with_var,
+            ),
+            Category.WITH_SCOPE,
+        )
         return origin_func
 
     return decorate
@@ -318,16 +343,22 @@ def register_for_scope(name=None):
 
     def decorate(origin_func):
         func_name = "tir." + origin_func.__qualname__ if name is None else name
-        Registry.functions[func_name] = \
-            func_wrapper(func_name, origin_func, get_arg_list(origin_func, Category.FOR_SCOPE),
-                         Category.FOR_SCOPE), Category.FOR_SCOPE
+        Registry.functions[func_name] = (
+            func_wrapper(
+                func_name,
+                origin_func,
+                get_arg_list(origin_func, Category.FOR_SCOPE),
+                Category.FOR_SCOPE,
+            ),
+            Category.FOR_SCOPE,
+        )
         return origin_func
 
     return decorate
 
 
 def register_special_stmt(name=None):
-    """ Decorator to register function under category special_stmt
+    """Decorator to register function under category special_stmt
     Parameters
     ----------
     name: str, optional
@@ -346,9 +377,15 @@ def register_special_stmt(name=None):
 
     def decorate(origin_func):
         func_name = "tir." + origin_func.__qualname__ if name is None else name
-        Registry.functions[func_name] = \
-            func_wrapper(func_name, origin_func, get_arg_list(origin_func, Category.SPECIAL_STMT),
-                         Category.SPECIAL_STMT), Category.SPECIAL_STMT
+        Registry.functions[func_name] = (
+            func_wrapper(
+                func_name,
+                origin_func,
+                get_arg_list(origin_func, Category.SPECIAL_STMT),
+                Category.SPECIAL_STMT,
+            ),
+            Category.SPECIAL_STMT,
+        )
         return origin_func
 
     return decorate

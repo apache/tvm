@@ -32,10 +32,21 @@ from .registry import register_special_stmt
 
 
 @register_special_stmt()
-def match_buffer(parser, node, param, shape, dtype="float32", data=None, strides=None,
-                 elem_offset=None, scope="global", align=-1,
-                 offset_factor=0, buffer_type="default"):
-    """ Special function match_buffer(var, shape, dtype, data, strides, elem_offset, scope, align,
+def match_buffer(
+    parser,
+    node,
+    param,
+    shape,
+    dtype="float32",
+    data=None,
+    strides=None,
+    elem_offset=None,
+    scope="global",
+    align=-1,
+    offset_factor=0,
+    buffer_type="default",
+):
+    """Special function match_buffer(var, shape, dtype, data, strides, elem_offset, scope, align,
                                       offset_factor, buffer_type)
     Example
     -------
@@ -49,16 +60,37 @@ def match_buffer(parser, node, param, shape, dtype="float32", data=None, strides
         strides = []
     align = align.value if not isinstance(align, int) else align
     offset_factor = offset_factor.value if not isinstance(offset_factor, int) else offset_factor
-    buffer = tvm.tir.decl_buffer(shape, dtype, parser.target[0], data, strides, elem_offset,
-                                 scope, align, offset_factor, buffer_type)
+    buffer = tvm.tir.decl_buffer(
+        shape,
+        dtype,
+        parser.target[0],
+        data,
+        strides,
+        elem_offset,
+        scope,
+        align,
+        offset_factor,
+        buffer_type,
+    )
     parser.buffer_map[param] = buffer
     return buffer
 
 
 @register_special_stmt()
-def buffer_decl(parser, node, shape, dtype="float32", data=None, strides=None, elem_offset=None,
-                scope="global", align=-1, offset_factor=0, buffer_type="default"):
-    """ Special function buffer_decl(shape, dtype, data, strides, elem_offset, scope, align,
+def buffer_decl(
+    parser,
+    node,
+    shape,
+    dtype="float32",
+    data=None,
+    strides=None,
+    elem_offset=None,
+    scope="global",
+    align=-1,
+    offset_factor=0,
+    buffer_type="default",
+):
+    """Special function buffer_decl(shape, dtype, data, strides, elem_offset, scope, align,
                                          offset_factor, buffer_type)
     Example
     -------
@@ -70,8 +102,18 @@ def buffer_decl(parser, node, shape, dtype="float32", data=None, strides=None, e
         strides = []
     align = align.value if not isinstance(align, int) else align
     offset_factor = offset_factor.value if not isinstance(offset_factor, int) else offset_factor
-    buffer = tvm.tir.decl_buffer(shape, dtype, parser.target[0], data, strides, elem_offset,
-                                 scope, align, offset_factor, buffer_type)
+    buffer = tvm.tir.decl_buffer(
+        shape,
+        dtype,
+        parser.target[0],
+        data,
+        strides,
+        elem_offset,
+        scope,
+        align,
+        offset_factor,
+        buffer_type,
+    )
     return buffer
 
 
@@ -91,7 +133,7 @@ def env_thread(parser, node, env_name):
 
 @register_special_stmt()
 def func_attr(parser, node, dict_attr):
-    """ Special function for declaring the DictAttr of PrimFunc
+    """Special function for declaring the DictAttr of PrimFunc
     Example
     -------
     .. code-block:: python

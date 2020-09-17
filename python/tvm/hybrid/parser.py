@@ -77,11 +77,7 @@ class HybridParser(ast.NodeVisitor):
         ast.Or: tir.Or,
     }
 
-    _unaryop_maker = {
-        ast.USub: operator.neg,
-        ast.Invert: operator.invert,
-        ast.Not: tir.Not
-    }
+    _unaryop_maker = {ast.USub: operator.neg, ast.Invert: operator.invert, ast.Not: tir.Not}
 
     def __init__(self, src, base_lienno):
         self.params = None
@@ -90,7 +86,7 @@ class HybridParser(ast.NodeVisitor):
         self.scope_emitter = None
         self.var_env_dict = None
 
-        self.src = src.split('\n')
+        self.src = src.split("\n")
         self.base_lineno = base_lienno
         self.current_lineno = 0
         self.current_col_offset = 0
@@ -110,10 +106,12 @@ class HybridParser(ast.NodeVisitor):
     @staticmethod
     def is_meta(node):
         """Judge whether an AST node is META"""
-        return (isinstance(node, ast.Assign)
-                and len(node.targets) == 1
-                and isinstance(node.targets[0], ast.Name)
-                and node.targets[0].id == "__tvm_meta__")
+        return (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "__tvm_meta__"
+        )
 
     def init_meta(self, meta_dict):
         if meta_dict is not None:
@@ -128,7 +126,7 @@ class HybridParser(ast.NodeVisitor):
         if hasattr(node, "col_offset"):
             self.current_col_offset = node.col_offset
 
-        method = 'visit_' + node.__class__.__name__
+        method = "visit_" + node.__class__.__name__
         visitor = getattr(self, method, self.generic_visit)
         visit_res = visitor(node)
 
@@ -139,14 +137,23 @@ class HybridParser(ast.NodeVisitor):
     def wrap_line_col(self, message, lineno, col_offset):
         """Wrap the message with line number and column offset"""
         src_line = self.src[lineno - self.base_lineno]
-        leading_space = len(src_line) - len(src_line.lstrip(' '))
+        leading_space = len(src_line) - len(src_line.lstrip(" "))
         col_offset = col_offset - leading_space
         src_line = src_line[leading_space:]
-        return "\n  " + src_line + "\n  " + " " * col_offset + "^\n" + "ParserError in line " \
-               + str(lineno) + " : " + message
+        return (
+            "\n  "
+            + src_line
+            + "\n  "
+            + " " * col_offset
+            + "^\n"
+            + "ParserError in line "
+            + str(lineno)
+            + " : "
+            + message
+        )
 
     def report_error(self, message, lineno=None, col_offset=None):
-        """ Report an error occur in line lineno and column col_offset
+        """Report an error occur in line lineno and column col_offset
         Parameters
         ----------
         message : str
@@ -179,14 +186,14 @@ class HybridParser(ast.NodeVisitor):
         return tvm.ir.TupleType([]) if res_type is None else res_type.evaluate()
 
     def generic_visit(self, node):
-        """ Override method in ast.NodeVisitor.
+        """Override method in ast.NodeVisitor.
         To directly filter out invalidate type of stmt.
         """
 
         self.report_error(type(node).__name__ + " AST node is not supported now")
 
     def visit_Module(self, node):
-        """ Module visitor
+        """Module visitor
         AST abstract grammar:
             Module(stmt* body, type_ignore* type_ignore)
         By now we support two format of hybrid script shown below.
@@ -261,6 +268,7 @@ class HybridParser(ast.NodeVisitor):
             if isinstance(body_element, ast.FunctionDef):
                 self.visit(body_element)
         from .utils import create_module
+
         return create_module(self.functions)
 
     def visit_FunctionDef(self, node):
@@ -337,8 +345,9 @@ class HybridParser(ast.NodeVisitor):
                 if len(indexes) != 1:
                     self.report_error("Invalid Store stmt")
                 # Store
-                return tvm.tir.Store(symbol, tvm.runtime.convert(rhs), indexes[0],
-                                     tvm.runtime.convert(True))
+                return tvm.tir.Store(
+                    symbol, tvm.runtime.convert(rhs), indexes[0], tvm.runtime.convert(True)
+                )
         else:
             self.report_error("Unsupported Assign stmt")
 
@@ -390,8 +399,10 @@ class HybridParser(ast.NodeVisitor):
         kw_args = {kw_arg[0]: kw_arg[1] for kw_arg in kw_args}
 
         old_lineno, old_col_offset = self.current_lineno, self.current_col_offset
-        self.current_lineno, self.current_col_offset = \
-            self.base_lineno + node.iter.lineno - 1, node.iter.col_offset
+        self.current_lineno, self.current_col_offset = (
+            self.base_lineno + node.iter.lineno - 1,
+            node.iter.col_offset,
+        )
         res = func(self, node, args, kw_args)
         self.current_lineno, self.current_col_offset = old_lineno, old_col_offset
         return res
@@ -435,8 +446,10 @@ class HybridParser(ast.NodeVisitor):
         kw_args = {kw_arg[0]: kw_arg[1] for kw_arg in kw_args}
 
         old_lineno, old_col_offset = self.current_lineno, self.current_col_offset
-        self.current_lineno, self.current_col_offset = \
-            self.base_lineno + func_call.lineno - 1, func_call.col_offset
+        self.current_lineno, self.current_col_offset = (
+            self.base_lineno + func_call.lineno - 1,
+            func_call.col_offset,
+        )
         res = func(self, node, args, kw_args)
         self.current_lineno, self.current_col_offset = old_lineno, old_col_offset
         return res

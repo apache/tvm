@@ -88,9 +88,13 @@ def allocate(parser, node, extents, dtype, scope, condition=True):
 def launch_thread(parser, node, body, env_var, extent):
     extent = tvm.runtime.convert(extent)
     return tvm.tir.AttrStmt(
-        tvm.tir.IterVar(None, env_var, getattr(tvm.tir.IterVar, "ThreadIndex"),
-                        parser.var_env_dict[env_var]),
-        "thread_extent", extent, body)
+        tvm.tir.IterVar(
+            None, env_var, getattr(tvm.tir.IterVar, "ThreadIndex"), parser.var_env_dict[env_var]
+        ),
+        "thread_extent",
+        extent,
+        body,
+    )
 
 
 @register_with_scope(concise=True)
@@ -98,8 +102,9 @@ def realize(parser, node, body, buffer_bounds, scope, condition=True):
     """ With scope handler function tir.realize(buffer_bounds, scope, condition) """
     buffer, bounds = buffer_bounds
     scope = tvm.runtime.convert(scope)
-    return tvm.tir.AttrStmt(buffer, "realize_scope", scope,
-                            tvm.tir.BufferRealize(buffer, bounds, condition, body))
+    return tvm.tir.AttrStmt(
+        buffer, "realize_scope", scope, tvm.tir.BufferRealize(buffer, bounds, condition, body)
+    )
 
 
 @register_with_scope(concise=True)
