@@ -416,7 +416,7 @@ target_include_directories(
 target_include_directories(
   tvm_objs
   PUBLIC "topi/include")
-set(CRC16_INCLUDE_PATH "3rdparty/mbed-os/targets/TARGET_NORDIC/TARGET_NRF5x/TARGET_SDK_11/libraries/crc16")
+set(CRC16_INCLUDE_PATH "3rdparty/libcrc/include")
 target_include_directorieS(
   tvm_objs
   PRIVATE "${CRC16_INCLUDE_PATH}")
