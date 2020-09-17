@@ -15,27 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 """Hybrid Script Parser Special Stmt Functions
-
 This module provides the functions registered into parser under special_stmt category.
 special_stmt functions don't correspond to an IRNode in the AST directly. It is usually
 used for some information that is not suitable to be printed directly.
-
 special_stmt can appear as 2 formats
-
 .. code-block:: python
-
     target = tir.name():
     tir.name()
-
+When registering a special stmt, the first two arguments must be parser, node
 """
-# pylint: disable=unused-argument
+# pylint: disable=unused-argument, no-self-argument, inconsistent-return-statements
+
 import tvm.tir
 from tvm import te
 from .registry import register_special_stmt
 
 
-@register_special_stmt
-def buffer_bind(
+@register_special_stmt()
+def match_buffer(
     parser,
     node,
     param,
@@ -49,15 +46,12 @@ def buffer_bind(
     offset_factor=0,
     buffer_type="default",
 ):
-    """Special function buffer_bind(var, shape, dtype, data, strides, elem_offset, scope, align,
-                                     offset_factor, buffer_type)
-
+    """Special function match_buffer(var, shape, dtype, data, strides, elem_offset, scope, align,
+                                      offset_factor, buffer_type)
     Example
     -------
     .. code-block:: python
-
-        A = tir.buffer_bind(a, (128, 128), dtype="float32")
-
+        A = tir.match_buffer(a, (128, 128), dtype="float32")
     """
 
     if param not in parser.params:
@@ -69,7 +63,7 @@ def buffer_bind(
     buffer = tvm.tir.decl_buffer(
         shape,
         dtype,
-        parser._assign_target,
+        parser.target[0],
         data,
         strides,
         elem_offset,
@@ -82,7 +76,7 @@ def buffer_bind(
     return buffer
 
 
-@register_special_stmt
+@register_special_stmt()
 def buffer_decl(
     parser,
     node,
@@ -98,14 +92,12 @@ def buffer_decl(
 ):
     """Special function buffer_decl(shape, dtype, data, strides, elem_offset, scope, align,
                                          offset_factor, buffer_type)
-
     Example
     -------
     .. code-block:: python
-
         A = tir.buffer_decl((128, 128), dtype="float32")
-
     """
+
     if strides is None:
         strides = []
     align = align.value if not isinstance(align, int) else align
@@ -113,7 +105,7 @@ def buffer_decl(
     buffer = tvm.tir.decl_buffer(
         shape,
         dtype,
-        parser._assign_target,
+        parser.target[0],
         data,
         strides,
         elem_offset,
@@ -125,20 +117,26 @@ def buffer_decl(
     return buffer
 
 
-@register_special_stmt
+@register_special_stmt()
 def var(parser, node, dtype):
     """ Special function for defining a Var"""
-    return te.var(parser._assign_target, dtype)
+    return te.var(parser.target[0], dtype)
 
 
-@register_special_stmt
+@register_special_stmt()
+def env_thread(parser, node, env_name):
+    """ Bind a var to thread env """
+    v = te.var(parser.target[0])
+    parser.var_env_dict[v] = env_name
+    return v
+
+
+@register_special_stmt()
 def func_attr(parser, node, dict_attr):
     """Special function for declaring the DictAttr of PrimFunc
-
     Example
     -------
     .. code-block:: python
-
          tir.func_attr({"tir.noalias": True, "global_symbol"})
     """
 
