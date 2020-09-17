@@ -17,5 +17,4 @@
 """FFI APIs for tvm.hybrid"""
 import tvm._ffi
 
-
-tvm._ffi._init_api("tir.hybrid", __name__)
+tvm._ffi._init_api("hybrid", __name__)
