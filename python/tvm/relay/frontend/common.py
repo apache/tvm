@@ -563,6 +563,14 @@ def infer_value_simulated(input_val, params):
     return output_value
 
 
+def try_infer_value(val, on_success, on_failure):
+    try:
+        ret = infer_value(val, {}).asnumpy()
+        return on_success(ret), True
+    except Exception:
+        return on_failure(), False
+
+
 def new_var(name_hint, type_annotation=None, shape=None, dtype="float32"):
     return _expr.var(name_hint, type_annotation, shape, dtype)
 
