@@ -312,6 +312,8 @@ def evaluate(func, dataset, ctx=tvm.cpu(), target='llvm'):
         runtime.run()
         for i in range(num_outputs):
             output = runtime.get_output(i).asnumpy()
+            if len(output.shape) == 0:
+                output = np.array([output])
             outputs[i].append(output)
     return outputs
 
