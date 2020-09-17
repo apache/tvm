@@ -158,6 +158,7 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
     nH, nW = (H + m - 1) // m, (W + m - 1) // m
     P = N * nH * nW
 
+    # TODO(@kevinthesun): Support tuning/optimization for dynamic shape.
     tile_p = P if isinstance(N, int) else nH * nW
     cfg.define_split("tile_p", cfg.axis(tile_p), num_outputs=2, filter=lambda x: x.size[-1] <= 16)
     cfg.define_split("tile_k", cfg.axis(K), num_outputs=2, filter=lambda x: x.size[-1] <= 16)

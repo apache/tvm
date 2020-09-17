@@ -89,6 +89,7 @@ def _decl_spatial_pack(
     data_pad = pad(dilated_input, [0, 0, bpad_top, bpad_left], [0, 0, bpad_bottom, bpad_right])
 
     # ==================== define configuration space ====================
+    # TODO(@kevinthesun): Support tuning/optimization for dynamic shape.
     n_tuning_axis = N if isinstance(N, int) else 1
     n, co, oh, ow = cfg.axis(n_tuning_axis), cfg.axis(CO), cfg.axis(OH), cfg.axis(OW)
     ci, kh, kw = cfg.reduce_axis(CI), cfg.reduce_axis(KH), cfg.reduce_axis(KW)

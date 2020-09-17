@@ -58,6 +58,7 @@ def conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding, dilation, out_
     data_pad = nn.pad(data, [0, 0, pad_top, pad_left], [0, 0, pad_bottom, pad_right])
 
     # ==================== define configuration space ====================
+    # TODO(@kevinthesun): Support tuning/optimization for dynamic shape.
     n_tuning_axis = N if isinstance(N, int) else 1
     n, co, oh, ow = cfg.axis(n_tuning_axis), cfg.axis(CO), cfg.axis(OH), cfg.axis(OW)
     ci, kh, kw = cfg.reduce_axis(CI), cfg.reduce_axis(KH), cfg.reduce_axis(KW)

@@ -41,7 +41,6 @@ def check_result(
 ):
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
-        print(targets)
         for tgt, ctx in targets:
             if kind == "debug" and (only_vm or ctx.device_type != tvm.cpu().device_type):
                 continue
@@ -445,6 +444,7 @@ def verify_any_conv2d(
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
+# TODO(@kevinthesun): Support gpu to enable gpu tests.
 def test_any_conv2d():
     verify_any_conv2d(
         (relay.Any(), 64, 224, 224),
@@ -501,6 +501,7 @@ def verify_any_conv2d_NCHWc(
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
+# TODO(@kevinthesun): Support gpu to enable gpu tests.
 def test_any_conv2d_NCHWc():
     verify_any_conv2d_NCHWc(
         (relay.Any(), 8, 224, 224, 8),
@@ -562,6 +563,7 @@ def verify_any_conv2d_transpose_nchw(
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
+# TODO(@kevinthesun): Support gpu to enable gpu tests.
 def test_any_conv2d_transpose_nchw():
     verify_any_conv2d_transpose_nchw(
         (relay.Any(), 64, 224, 224),
