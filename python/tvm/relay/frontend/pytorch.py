@@ -2306,7 +2306,7 @@ def _interpolate():
         elif isinstance(inputs[1], list):
             out_size = []
             for i in [0, 1]:
-                size, success = try_infer_value(
+                size, _ = try_infer_value(
                     inputs[1][i],
                     lambda ret: ret.astype(np.int),
                     lambda: _op.expand_dims(inputs[1][i], axis=0),
