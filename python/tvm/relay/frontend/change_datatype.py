@@ -21,6 +21,7 @@ from ..expr_functor import ExprMutator
 from ..transform.transform import function_pass
 from ..expr import var, bind
 
+
 @function_pass(opt_level=0)
 class ChangeDatatype(ExprMutator):
     """Mutator for changing the datatype of Relay programs.
@@ -57,6 +58,7 @@ class ChangeDatatype(ExprMutator):
         Module where all nodes of dtype `src` have been changed to have dtype
         `dst`.
     """
+
     def __init__(self, src, dst):
         self.src = src
         self.dst = dst
@@ -101,4 +103,5 @@ class ChangeDatatype(ExprMutator):
             # You could change the return type, if you use None it will re-infer.
             None,
             type_params=fn.type_params,
-            attrs=fn.attrs)
+            attrs=fn.attrs,
+        )

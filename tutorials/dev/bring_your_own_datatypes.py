@@ -59,8 +59,8 @@ import tvm
 from tvm import relay
 
 # Our basic program: Z = X + Y
-x = relay.var('x', shape=(3, ), dtype='float32')
-y = relay.var('y', shape=(3, ), dtype='float32')
+x = relay.var("x", shape=(3,), dtype="float32")
+y = relay.var("y", shape=(3,), dtype="float32")
 z = x + y
 program = relay.Function([x, y], z)
 module = tvm.IRModule.from_expr(program)
@@ -69,10 +69,11 @@ module = tvm.IRModule.from_expr(program)
 # Now, we create random inputs to feed into this program using numpy:
 
 import numpy as np
+
 np.random.seed(23)  # for reproducibility
 
-x_input = np.random.rand(3).astype('float32')
-y_input = np.random.rand(3).astype('float32')
+x_input = np.random.rand(3).astype("float32")
+y_input = np.random.rand(3).astype("float32")
 print("x: {}".format(x_input))
 print("y: {}".format(y_input))
 
@@ -96,30 +97,30 @@ print("z: {}".format(z_output))
 
 try:
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        x_posit = relay.cast(x, dtype='custom[posit]16')
-        y_posit = relay.cast(y, dtype='custom[posit]16')
+        x_posit = relay.cast(x, dtype="custom[posit]16")
+        y_posit = relay.cast(y, dtype="custom[posit]16")
         z_posit = x_posit + y_posit
-        z = relay.cast(z_posit, dtype='float32')
+        z = relay.cast(z_posit, dtype="float32")
 except tvm.TVMError as e:
     # Print last line of error
-    print(str(e).split('\n')[-1])
+    print(str(e).split("\n")[-1])
 
 ######################################################################
 # Trying to generate this program throws an error from TVM.
 # TVM does not know how to handle any custom datatype out of the box!
 # We first have to register the custom type with TVM, giving it a name and a type code:
 
-tvm.target.datatype.register('posit', 150)
+tvm.target.datatype.register("posit", 150)
 
 ######################################################################
 # Note that the type code, 150, is currently chosen manually by the user.
 # See ``TVMTypeCode::kCustomBegin`` in `include/tvm/runtime/c_runtime_api.h <https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/data_type.h>`_.
 # Now we can generate our program again:
 
-x_posit = relay.cast(x, dtype='custom[posit]16')
-y_posit = relay.cast(y, dtype='custom[posit]16')
+x_posit = relay.cast(x, dtype="custom[posit]16")
+y_posit = relay.cast(y, dtype="custom[posit]16")
 z_posit = x_posit + y_posit
-z = relay.cast(z_posit, dtype='float32')
+z = relay.cast(z_posit, dtype="float32")
 program = relay.Function([x, y], z)
 module = tvm.IRModule.from_expr(program)
 
@@ -131,12 +132,12 @@ print(program)
 # Now that we can express our program without errors, let's try running it!
 try:
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        ex = relay.create_executor('graph', mod=module)
+        ex = relay.create_executor("graph", mod=module)
         z_output_posit = ex.evaluate()(x_input, y_input)
         print("z: {}".format(z_output_posit))
 except tvm.TVMError as e:
     # Print last line of error
-    print(str(e).split('\n')[-1])
+    print(str(e).split("\n")[-1])
 
 ######################################################################
 # Now, trying to compile this program throws an error.
@@ -149,13 +150,19 @@ except tvm.TVMError as e:
 #
 # To fix this error, we simply need to specify a lowering function:
 
-tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func(
-{
-    (32, 32): "FloatToPosit32es2", # cast from float32 to posit32
-    (32, 16): "FloatToPosit16es2", # cast from float32 to posit16
-    (32, 8): 'FloatToPosit8es2', # cast from float32 to posit8
-}), 
-"Cast", "llvm", "float", "posit")
+tvm.target.datatype.register_op(
+    tvm.target.datatype.create_lower_func(
+        {
+            (32, 32): "FloatToPosit32es2",  # cast from float32 to posit32
+            (32, 16): "FloatToPosit16es2",  # cast from float32 to posit16
+            (32, 8): "FloatToPosit8es2",  # cast from float32 to posit8
+        }
+    ),
+    "Cast",
+    "llvm",
+    "float",
+    "posit",
+)
 
 ######################################################################
 # The ``register_op(...)`` call takes a lowering function, and a number of parameters which specify exactly the operation which should be lowered with the provided lowering function.
@@ -173,32 +180,41 @@ tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func(
 # We can now re-try running the program:
 try:
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        ex = relay.create_executor('graph', mod=module)
+        ex = relay.create_executor("graph", mod=module)
         z_output_posit = ex.evaluate()(x_input, y_input)
         print("z: {}".format(z_output_posit))
 except tvm.TVMError as e:
     # Print last line of error
-    print(str(e).split('\n')[-1])
+    print(str(e).split("\n")[-1])
 
 ######################################################################
 # This new error tells us that the ``Add`` lowering function is not found, which is good news, as it's no longer complaining about the ``Cast``!
 # We know what to do from here: we just need to register the lowering functions for the other operations in our program.
-# 
+#
 # Note that for ``Add``, ``create_lower_func`` takes in a dict where the key is an integer.
 # For ``Cast`` operations, we require a 2-tuple to specify the ``src_bit_length`` and the ``dest_bit_length``,
 # while for all other operations, the bit length is the same between the operands so we only require one integer to specify ``bit_length``.
-tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
-    32: 'Posit32es2Add',
-    16: 'Posit16es2Add',
-    8: 'Posit8es2Add'
-}), "Add", "llvm", "posit")
-tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func(
-{
-    (32, 32): "Posit32es2ToFloat",
-    (16, 32): 'Posit16es2ToFloat',
-    (8, 32): 'Posit8es2ToFloat',
-}), 
-"Cast", "llvm", "posit", "float")
+tvm.target.datatype.register_op(
+    tvm.target.datatype.create_lower_func(
+        {32: "Posit32es2Add", 16: "Posit16es2Add", 8: "Posit8es2Add"}
+    ),
+    "Add",
+    "llvm",
+    "posit",
+)
+tvm.target.datatype.register_op(
+    tvm.target.datatype.create_lower_func(
+        {
+            (32, 32): "Posit32es2ToFloat",
+            (16, 32): "Posit16es2ToFloat",
+            (8, 32): "Posit8es2ToFloat",
+        }
+    ),
+    "Cast",
+    "llvm",
+    "posit",
+    "float",
+)
 
 # Now, we can run our program without errors.
 with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
@@ -218,30 +234,35 @@ print("z (posit16):\t{}".format(z_output_posit))
 # ------------------------------------
 #
 # We will first choose the model which we would like to run with posits.
-# In this case we use `Mobilenet <https://arxiv.org/abs/1704.04861>`_. 
-# We choose Mobilenet due to its small size. 
+# In this case we use `Mobilenet <https://arxiv.org/abs/1704.04861>`_.
+# We choose Mobilenet due to its small size.
 # In this alpha state of the Bring Your Own Datatypes framework, we have not implemented any software optimizations for running software emulations of custom datatypes; the result is poor performance due to many calls into our datatype emulation library.
 #
 # First let us define two helper functions to get the mobilenet model and a cat image.
 
+
 def get_mobilenet():
     dshape = (1, 3, 224, 224)
     from mxnet.gluon.model_zoo.vision import get_model
-    block = get_model('mobilenet0.25', pretrained=True)
-    shape_dict = {'data': dshape}
+
+    block = get_model("mobilenet0.25", pretrained=True)
+    shape_dict = {"data": dshape}
     return relay.frontend.from_mxnet(block, shape_dict)
+
 
 def get_cat_image():
     from tvm.contrib.download import download_testdata
     from PIL import Image
-    url = 'https://gist.githubusercontent.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/fa7ef0e9c9a5daea686d6473a62aacd1a5885849/cat.png'
-    dst = 'cat.png'
-    real_dst = download_testdata(url, dst, module='data')
+
+    url = "https://gist.githubusercontent.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/fa7ef0e9c9a5daea686d6473a62aacd1a5885849/cat.png"
+    dst = "cat.png"
+    real_dst = download_testdata(url, dst, module="data")
     img = Image.open(real_dst).resize((224, 224))
     # CoreML's standard model image format is BGR
     img_bgr = np.array(img)[:, :, ::-1]
     img = np.transpose(img_bgr, (2, 0, 1))[np.newaxis, :]
-    return np.asarray(img, dtype='float32')
+    return np.asarray(img, dtype="float32")
+
 
 module, params = get_mobilenet()
 
@@ -257,20 +278,22 @@ print(result.flatten()[:10])
 ######################################################################
 # Now, we would like to change the model to use posits internally. To do so, we need to convert the network. To do this, we first define a function which will help us convert tensors:
 
+
 def convert_ndarray(dst_dtype, array):
     """Converts an NDArray into the specified datatype"""
-    x = relay.var('x', shape=array.shape, dtype=str(array.dtype))
+    x = relay.var("x", shape=array.shape, dtype=str(array.dtype))
     cast = relay.Function([x], x.astype(dst_dtype))
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        return relay.create_executor('graph').evaluate(cast)(array)
+        return relay.create_executor("graph").evaluate(cast)(array)
+
 
 ######################################################################
 # Now, to actually convert the entire network, we have written `a pass in Relay <https://github.com/gussmith23/tvm/blob/ea174c01c54a2529e19ca71e125f5884e728da6e/python/tvm/relay/frontend/change_datatype.py#L21>`_ which simply converts all nodes within the model to use the new datatype.
 
 from tvm.relay.frontend.change_datatype import ChangeDatatype
 
-src_dtype = 'float32'
-dst_dtype = 'custom[posit]16'
+src_dtype = "float32"
+dst_dtype = "custom[posit]16"
 
 # Currently, custom datatypes only work if you run simplify_inference beforehand
 module = tvm.relay.transform.SimplifyInference()(module)
@@ -280,7 +303,7 @@ module = tvm.relay.transform.InferType()(module)
 
 # Change datatype from float to posit and re-infer types
 cdtype = ChangeDatatype(src_dtype, dst_dtype)
-expr = cdtype.visit(module['main'])
+expr = cdtype.visit(module["main"])
 module = tvm.relay.transform.InferType()(module)
 
 # We also convert the parameters:
@@ -295,7 +318,7 @@ try:
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
         result_posit = ex.evaluate(expr)(input, **params)
 except tvm.TVMError as e:
-    print(str(e).split('\n')[-1])
+    print(str(e).split("\n")[-1])
 
 ######################################################################
 # When we attempt to run the model, we get a familiar error telling us that more funcions need to be registerd for posits.
@@ -303,71 +326,95 @@ except tvm.TVMError as e:
 # Because this is a neural network, many more operations are required.
 # Here, we register all the needed functions:
 
-tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
-    32: 'FloatToPosit32es2',
-    16: 'FloatToPosit16es2',
-    8: 'FloatToPosit8es2'
-}), "FloatImm", "llvm", "posit")
+tvm.target.datatype.register_op(
+    tvm.target.datatype.create_lower_func(
+        {32: "FloatToPosit32es2", 16: "FloatToPosit16es2", 8: "FloatToPosit8es2"}
+    ),
+    "FloatImm",
+    "llvm",
+    "posit",
+)
 
-tvm.target.datatype.register_op(tvm.target.datatype.lower_ite,
-            "Call",
-            "llvm",
-            "posit",
-            intrinsic_name="tir.if_then_else")
+tvm.target.datatype.register_op(
+    tvm.target.datatype.lower_ite, "Call", "llvm", "posit", intrinsic_name="tir.if_then_else"
+)
 
-tvm.target.datatype.register_op(tvm.target.datatype.lower_call_pure_extern,
-            "Call",
-            "llvm",
-            "posit",
-            intrinsic_name="tir.call_pure_extern")
+tvm.target.datatype.register_op(
+    tvm.target.datatype.lower_call_pure_extern,
+    "Call",
+    "llvm",
+    "posit",
+    intrinsic_name="tir.call_pure_extern",
+)
 
-tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
-    32: 'Posit32es2Mul',
-    16: 'Posit16es2Mul',
-    8: 'Posit8es2Mul'
-}), "Mul", "llvm", "posit")
-tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
-    32: 'Posit32es2Div',
-    16: 'Posit16es2Div',
-    8: 'Posit8es2Div'
-}), "Div", "llvm", "posit")
+tvm.target.datatype.register_op(
+    tvm.target.datatype.create_lower_func(
+        {32: "Posit32es2Mul", 16: "Posit16es2Mul", 8: "Posit8es2Mul"}
+    ),
+    "Mul",
+    "llvm",
+    "posit",
+)
+tvm.target.datatype.register_op(
+    tvm.target.datatype.create_lower_func(
+        {32: "Posit32es2Div", 16: "Posit16es2Div", 8: "Posit8es2Div"}
+    ),
+    "Div",
+    "llvm",
+    "posit",
+)
 
-tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
-    32: 'Posit32es2Sqrt',
-    16: 'Posit16es2Sqrt',
-    8: 'Posit8es2Sqrt'
-}), "Call", "llvm", "posit", intrinsic_name="tir.sqrt")
+tvm.target.datatype.register_op(
+    tvm.target.datatype.create_lower_func(
+        {32: "Posit32es2Sqrt", 16: "Posit16es2Sqrt", 8: "Posit8es2Sqrt"}
+    ),
+    "Call",
+    "llvm",
+    "posit",
+    intrinsic_name="tir.sqrt",
+)
 
-tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
-    32: 'Posit32es2Sub',
-    16: 'Posit16es2Sub',
-    8: 'Posit8es2Sub'
-}), "Sub", "llvm", "posit")
+tvm.target.datatype.register_op(
+    tvm.target.datatype.create_lower_func(
+        {32: "Posit32es2Sub", 16: "Posit16es2Sub", 8: "Posit8es2Sub"}
+    ),
+    "Sub",
+    "llvm",
+    "posit",
+)
 
-tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
-    32: 'Posit32es2Exp',
-    16: 'Posit16es2Exp',
-    8: 'Posit8es2Exp'
-}), "Call", "llvm", "posit", intrinsic_name="tir.exp")
+tvm.target.datatype.register_op(
+    tvm.target.datatype.create_lower_func(
+        {32: "Posit32es2Exp", 16: "Posit16es2Exp", 8: "Posit8es2Exp"}
+    ),
+    "Call",
+    "llvm",
+    "posit",
+    intrinsic_name="tir.exp",
+)
 
-tvm.target.datatype.register_op(tvm.target.datatype.create_lower_func({
-    32: 'Posit32es2Max',
-    16: 'Posit16es2Max',
-    8: 'Posit8es2Max'
-}), "Max", "llvm", "posit")
+tvm.target.datatype.register_op(
+    tvm.target.datatype.create_lower_func(
+        {32: "Posit32es2Max", 16: "Posit16es2Max", 8: "Posit8es2Max"}
+    ),
+    "Max",
+    "llvm",
+    "posit",
+)
 
-tvm.target.datatype.register_min_func(tvm.target.datatype.create_min_lower_func({
-    32: 'MinPosit32es2',
-    16: 'MinPosit16es2',
-    8: 'MinPosit8es2'
-}, "posit"), "posit")
+tvm.target.datatype.register_min_func(
+    tvm.target.datatype.create_min_lower_func(
+        {32: "MinPosit32es2", 16: "MinPosit16es2", 8: "MinPosit8es2"}, "posit"
+    ),
+    "posit",
+)
 
 ######################################################################
 # Note we are making use of two new functions: ``register_min_func`` and ``create_min_lower_func``.
-# 
+#
 # ``register_min_func`` takes in an integer ``num_bits`` for the bit length, and should return an operation
 # representing the minimum finite representable value for the custom data type with the specified bit length.
-#  
+#
 # Similar to ``register_op`` and ``create_lower_func``, the ``create_min_lower_func`` handles the general case
 # where the minimum representable custom datatype value is implemented using calls to an external library.
 #
@@ -382,7 +429,4 @@ with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
 
 # Again, note that the output using 16-bit posits is understandably different from that of 32-bit floats,
 # but is still within a sane distance:
-np.testing.assert_allclose(result,
-                           result_posit,
-                           rtol=1e-2,
-                           atol=1e-1)
+np.testing.assert_allclose(result, result_posit, rtol=1e-2, atol=1e-1)
