@@ -33,7 +33,7 @@ logger = logging.getLogger("topi")
 
 
 def interleave_transpose_B(inputs, data, kernel, interleave_A):
-    """ Return the new placeholder and the expression that represent
+    """Return the new placeholder and the expression that represent
     the matrix B transposed and interleaved"""
 
     assert (
