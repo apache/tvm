@@ -59,6 +59,9 @@ TVM_FFI=ctypes python3 -m pytest tests/python/contrib
 
 TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" TVM_FFI=ctypes python3 -m pytest tests/python/relay
 
+# Command line driver test
+TVM_FFI=ctypes python3 -m pytest tests/python/driver
+
 # Do not enable OpenGL
 # TVM_FFI=cython python -m pytest tests/webgl
 # TVM_FFI=ctypes python3 -m pytest tests/webgl

@@ -19,10 +19,9 @@
 
 /*!
  * \file printer/tir_hybrid_printer.cc
- * \brief Printer class to print Te IR to python syntax script
+ * \brief Printer class to print Tensor IR to python syntax script
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/registry.h>
@@ -34,6 +33,7 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include <algorithm>
+#include <utility>
 
 #include "doc.h"
 #include "meta_data.h"
@@ -48,7 +48,7 @@ class TIRHybridPrinter : public StmtFunctor<Doc(const Stmt&)>,
  public:
   explicit TIRHybridPrinter(bool show_meta,
                             runtime::TypedPackedFunc<std::string(Stmt)> annotate = nullptr)
-      : show_meta_(show_meta), annotate_(annotate), meta_collector_(&meta_) {}
+      : show_meta_(show_meta), annotate_(std::move(annotate)), meta_collector_(&meta_) {}
 
   /*! \brief Print the node */
   TVM_DLL Doc Print(const ObjectRef& node);
@@ -68,6 +68,8 @@ class TIRHybridPrinter : public StmtFunctor<Doc(const Stmt&)>,
   std::unordered_set<const VarNode*> var_not_in_headers;
   /*! \brief buffer collector (buffer defined in BufferMap and BufferAllocation)*/
   std::unordered_set<const BufferNode*> buf_not_in_headers;
+  /*! \breif Map from Var to thread env name */
+  std::unordered_map<Var, String, ObjectPtrHash, ObjectPtrEqual> var_env_map_;
   /*! \brief Map from Var to Doc */
   std::unordered_map<Var, Doc, ObjectPtrHash, ObjectPtrEqual> memo_var_;
   /*! \brief Map from Buffer to Doc */
@@ -356,7 +358,11 @@ Doc TIRHybridPrinter::VisitExpr_(const StringImmNode* op) { return Doc::StrLiter
 
 Doc TIRHybridPrinter::VisitExpr_(const CastNode* op) {
   Doc doc;
-  doc << "tir.cast(" << PrintDType(op->dtype) << ", " << Print(op->value) << ")";
+  if (cast(op->dtype, op->value)->IsInstance<CastNode>()) {
+    doc << Print(op->value) << ".astype(" << PrintDType(op->dtype) << ")";
+  } else {
+    doc << "tir.cast(" << Print(op->value) << ", " << PrintDType(op->dtype) << ")";
+  }
   return doc;
 }
 
@@ -509,6 +515,70 @@ Doc TIRHybridPrinter::VisitStmt_(const LetStmtNode* op) {
 
 Doc TIRHybridPrinter::VisitStmt_(const AttrStmtNode* op) {
   Doc doc;
+  // merge attr with allocate when possible
+  if (op->node->IsInstance<VarNode>() && op->attr_key == "storage_scope" &&
+      op->body->IsInstance<AllocateNode>()) {
+    const auto* alloc = Downcast<Allocate>(op->body).get();
+    if (alloc->buffer_var.same_as(op->node)) {
+      var_not_in_headers.insert(alloc->buffer_var.get());
+      if (current_num_ != num_child_ - 1) {
+        doc << "with tir.allocate(" << Print(alloc->extents) << ", " << PrintDType(alloc->dtype)
+            << ", " << Print(op->value);
+        if (!is_one(alloc->condition)) {
+          doc << ", " << Print(alloc->condition);
+        }
+        doc << ") as " << Print(op->node) << ":";
+        doc << Doc::Indent(4, Doc::NewLine() << PrintBody(alloc->body));
+      } else {
+        doc << Print(op->node) << " = tir.allocate(" << Print(alloc->extents) << ", "
+            << PrintDType(alloc->dtype) << ", " << Print(op->value);
+        if (!is_one(alloc->condition)) {
+          doc << ", " << Print(alloc->condition);
+        }
+        doc << ")" << Doc::NewLine() << PrintBody(alloc->body);
+      }
+      return doc;
+    }
+  }
+  // merge attr with realize when possible
+  if (op->node->IsInstance<BufferNode>() && op->attr_key == "realize_scope" &&
+      op->body->IsInstance<BufferRealizeNode>()) {
+    const auto* realize = Downcast<BufferRealize>(op->body).get();
+    if (realize->buffer.same_as(op->node)) {
+      if (current_num_ != num_child_ - 1) {
+        doc << "with tir.realize(" << Print(realize->buffer) << Print(realize->bounds) << ", "
+            << Print(op->value);
+        if (!is_one(realize->condition)) {
+          doc << ", " << Print(realize->condition);
+        }
+        doc << "):" << Doc::Indent(4, Doc::NewLine() << PrintBody(realize->body));
+      } else {
+        doc << "tir.realize(" << Print(realize->buffer) << Print(realize->bounds) << ", "
+            << Print(op->value);
+        if (!is_one(realize->condition)) {
+          doc << ", " << Print(realize->condition);
+        }
+        doc << ")" << Doc::NewLine() << PrintBody(realize->body);
+      }
+      return doc;
+    }
+  }
+  // concise thread env
+  if (op->node->IsInstance<IterVarNode>() && op->attr_key == "thread_extent") {
+    const auto* iter_var = Downcast<IterVar>(op->node).get();
+    CHECK(!iter_var->dom.defined());
+    var_not_in_headers.insert(iter_var->var.get());
+    var_env_map_[iter_var->var] = iter_var->thread_tag;
+    if (current_num_ != num_child_ - 1) {
+      doc << "with tir.launch_thread(" << Print(iter_var->var) << ", " << Print(op->value) << "):";
+      doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
+    } else {
+      doc << "tir.launch_thread(" << Print(iter_var->var) << ", " << Print(op->value) << ")";
+      doc << Doc::NewLine() << PrintBody(op->body);
+    }
+    return doc;
+  }
+  // default
   if (current_num_ != num_child_ - 1) {
     doc << "with tir.attr(" << Print(op->node) << ", " << Doc::StrLiteral(op->attr_key) << ", "
         << Print(op->value) << "):";
@@ -545,35 +615,13 @@ Doc TIRHybridPrinter::VisitStmt_(const StoreNode* op) {
 }
 
 Doc TIRHybridPrinter::VisitStmt_(const BufferRealizeNode* op) {
-  Doc doc;
-  if (current_num_ != num_child_ - 1) {
-    doc << "with tir.realize(" << Print(op->buffer) << Print(op->bounds);
-    if (!is_one(op->condition)) {
-      doc << ", " << Print(op->condition);
-    }
-    doc << "):" << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
-  } else {
-    doc << "tir.realize(" << Print(op->buffer) << Print(op->bounds);
-    if (!is_one(op->condition)) {
-      doc << ", " << Print(op->condition);
-    }
-    doc << ")" << Doc::NewLine() << PrintBody(op->body);
-  }
-  return doc;
+  LOG(FATAL) << "Hybrid Printer Internal Error: All the BufferRealize should be folded with Attr";
+  return Doc();
 }
 
 Doc TIRHybridPrinter::VisitStmt_(const AllocateNode* op) {
-  Doc doc;
-  if (current_num_ != num_child_ - 1) {
-    doc << "with tir.allocate(" << Print(op->buffer_var) << ", " << PrintDType(op->dtype) << ", "
-        << Print(op->extents) << "):";
-    doc << Doc::Indent(4, PrintBody(op->body));
-  } else {
-    doc << "tir.allocate(" << Print(op->buffer_var) << ", " << PrintDType(op->dtype) << ", "
-        << Print(op->extents) << ")";
-    doc << Doc::NewLine() << PrintBody(op->body);
-  }
-  return doc;
+  LOG(FATAL) << "Hybrid Printer Internal Error: All the Allocate should be folded with Attr";
+  return Doc();
 }
 
 Doc TIRHybridPrinter::VisitStmt_(const IfThenElseNode* op) {
@@ -618,12 +666,10 @@ inline const char* ForType2String(ForType t) {
 Doc TIRHybridPrinter::VisitStmt_(const ForNode* op) {
   Doc doc;
   var_not_in_headers.insert(op->loop_var.get());
-  doc << "for " << Print(op->loop_var) << " in tir.range(" << Print(op->min) << ", "
-      << Print(op->min + op->extent);
-  if (op->for_type != ForType::Serial) {
-    doc << ", " << Doc::StrLiteral(ForType2String(op->for_type));
-  }
-  doc << "):" << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
+  doc << "for " << Print(op->loop_var)
+      << " in tir." + std::string(ForType2String(op->for_type)) + "(" << Print(op->min) << ", "
+      << Print(op->min + op->extent)
+      << "):" << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
   return doc;
 }
 
@@ -734,7 +780,7 @@ Doc TIRHybridPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   // print buffer_bind
   for (const auto& it : op->buffer_map) {
     buf_not_in_headers.insert(it.second.get());
-    body << Print(it.second) << " = tir.buffer_bind(";
+    body << Print(it.second) << " = tir.match_buffer(";
     body << Print(it.first) << ", " << memo_buf_decl_[it.second];
     body << ")" << Doc::NewLine();
   }
@@ -785,8 +831,14 @@ Doc TIRHybridPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
       vars.push_back(it.first.get());
     }
   }
-  if (!vars.empty()) {
+  if (!var_env_map_.empty()) {
     header_var << Doc::NewLine() << "# var definition";
+    for (const auto& it : var_env_map_) {
+      header_var << Doc::NewLine() << Print(it.first) << " = tir.env_thread("
+                 << Doc::StrLiteral(it.second) << ")";
+    }
+  }
+  if (!vars.empty()) {
     std::sort(vars.begin(), vars.end(), [&](const VarNode* a, const VarNode* b) {
       return memo_var_[GetRef<Var>(a)].str() < memo_var_[GetRef<Var>(b)].str();
     });
@@ -834,7 +886,7 @@ Doc TIRHybridPrinter::PrintBuffer(const BufferNode* op) {
   return meta_.InMeta(buffer) ? meta_.GetMetaNode(buffer) : AllocBuf(buffer);
 }
 
-TVM_REGISTER_GLOBAL("tir.hybrid.AsHybrid")
+TVM_REGISTER_GLOBAL("hybrid.AsHybrid")
     .set_body_typed<std::string(const ObjectRef&, bool)>([](const ObjectRef& functions,
                                                             bool show_meta) {
       CHECK(functions.as<PrimFuncNode>() != nullptr || functions.as<IRModuleNode>() != nullptr);

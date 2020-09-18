@@ -21,15 +21,14 @@ import sys
 from scipy.stats import t as tdistr
 import numpy as np
 import torch
+import torchvision
 from torch.nn import Module
 import tvm
-import torchvision
-
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.contrib.nvcc import have_fp16
 import tvm.testing
-
+from packaging import version as package_version
 
 sys.setrecursionlimit(10000)
 
@@ -2399,6 +2398,24 @@ def test_forward_clamp():
 
 
 @tvm.testing.uses_gpu
+def test_forward_clamp_():
+    torch.set_grad_enabled(False)
+
+    class ClampInPlace(Module):
+        def __init__(self, min, max):
+            super(ClampInPlace, self).__init__()
+            self.min = min
+            self.max = max
+
+        def forward(self, *args):
+            return torch.clamp_(args[0], self.min, self.max)
+
+    for ishape, min, max in (([4, 8], 0.1, 0.9), ([7, 6], 0.2, 0.5)):
+        input_data = torch.rand(ishape).float()
+        verify_model(ClampInPlace(min, max).float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_ones():
     torch.set_grad_enabled(False)
 
@@ -2896,6 +2913,28 @@ def test_forward_addcmul():
 
 
 @tvm.testing.uses_gpu
+def test_forward_true_divide():
+    if package_version.parse(torch.__version__) < package_version.parse("1.5.0"):
+        return
+    torch.set_grad_enabled(False)
+
+    class TrueDivide(Module):
+        def forward(self, *args):
+            return torch.true_divide(args[0], args[1])
+
+    dividend = torch.rand([5, 3]).float()
+    # divisor could be either tensor or scalar
+    divisor_tensor = torch.rand([5, 3]).float() + 0.5
+    divisor_scalar = torch.tensor(1.0, dtype=torch.float32)
+    verify_model(
+        TrueDivide().float().eval(), input_data=[dividend, divisor_tensor], atol=1e-4, rtol=1e-4
+    )
+    verify_model(
+        TrueDivide().float().eval(), input_data=[dividend, divisor_scalar], atol=1e-4, rtol=1e-4
+    )
+
+
+@tvm.testing.uses_gpu
 def test_forward_traced_function():
     def fn(t1, t2):
         return t1 + t2
@@ -3308,6 +3347,7 @@ if __name__ == "__main__":
     test_forward_where()
     test_forward_addcdiv()
     test_forward_addcmul()
+    test_forward_true_divide()
     test_forward_clone()
     test_forward_softplus()
     test_forward_softsign()
@@ -3323,6 +3363,7 @@ if __name__ == "__main__":
     test_forward_pow()
     test_forward_unary()
     test_forward_clamp()
+    test_forward_clamp_()
     test_forward_logical_not()
     test_forward_bitwise_not()
     test_forward_bitwise_xor()

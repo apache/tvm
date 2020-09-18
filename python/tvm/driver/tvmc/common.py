@@ -17,7 +17,49 @@
 """
 Common utility functions shared by TVMC modules.
 """
+from tvm import relay
+from tvm import transform
 
 
 class TVMCException(Exception):
     """TVMC Exception"""
+
+
+def convert_graph_layout(mod, desired_layout):
+    """Alter the layout of the input graph.
+
+    Parameters
+    ----------
+    mod : tvm.relay.Module
+        The relay module to convert.
+    desired_layout : str
+        The layout to convert to.
+
+    Returns
+    -------
+    mod : tvm.relay.Module
+        The converted module.
+    """
+
+    # Assume for the time being that graphs only have
+    # conv2d as heavily-sensitive operators.
+    desired_layouts = {
+        "nn.conv2d": [desired_layout, "default"],
+        "qnn.conv2d": [desired_layout, "default"],
+    }
+
+    # Convert the layout of the graph where possible.
+    seq = transform.Sequential(
+        [
+            relay.transform.RemoveUnusedFunctions(),
+            relay.transform.ConvertLayout(desired_layouts),
+        ]
+    )
+
+    with transform.PassContext(opt_level=3):
+        try:
+            return seq(mod)
+        except Exception as err:
+            raise TVMCException(
+                "Error converting layout to {0}: {1}".format(desired_layout, str(err))
+            )
