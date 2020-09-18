@@ -380,6 +380,8 @@ def sparse_dense_strategy_cpu(attrs, inputs, out_type, target):
 def roi_align_strategy_cpu(attrs, inputs, out_type, target):
     """roi_align x86 strategy"""
     strategy = _op.OpStrategy()
+    layout = attrs.layout
+    assert layout == "NCHW", "only support nchw for now"
     strategy.add_implementation(
         wrap_compute_roi_align(topi.x86.roi_align_nchw),
         wrap_topi_schedule(topi.generic.schedule_roi_align),
