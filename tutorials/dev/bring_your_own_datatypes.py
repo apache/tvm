@@ -44,8 +44,9 @@ If you'd like to learn more, read through John Gustafson's `Beating Floating Poi
 Setup
 -----
 
-First, clone the `Stillwater Universal <https://github.com/stillwater-sc/universal>`_ repository into the ``3rdparty/`` folder.
-Then, build TVM again with ``set (USE_POSIT ON)`` in the ``config.cmake`` folder.
+First, clone the `Stillwater Universal <https://github.com/stillwater-sc/universal>`_ repository anywhere you like.
+Then, build TVM again with ``set (USE_POSIT ON)`` and ``set (UNIVERSAL_PATH ${UNIVERSAL_PATH})`` in the ``config.cmake`` file.
+``UNIVERSAL_PATH`` should point to the ``include`` subdirectory of universal, for example, if you cloned into your /universal/ folder, you would do ``set (UNIVERSAL_PATH /universal/include/)``.
 
 The ``USE_POSIT`` flag includes the Universal repository and the posit wrapper we have built, located at 3rdparty/posit/posit-wrapper.cc.
 If you would like to try this with your own datatype library, first bring the library's functions into the process space with ``CDLL``:

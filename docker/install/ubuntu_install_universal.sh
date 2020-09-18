@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,12 +16,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(USE_POSIT)
-  message(STATUS "Build with contrib.posit")
-  if (NOT UNIVERSAL_PATH)
-    message(FATAL_ERROR "Fail to get Universal path")
-  endif(UNIVERSAL_PATH)
-  
-  include_directories(${UNIVERSAL_PATH})
-  list(APPEND RUNTIME_SRCS 3rdparty/posit/posit-wrapper.cc)
-endif(USE_POSIT)
+set -e
+set -u
+set -o pipefail
+
+git clone https://github.com/stillwater-sc/universal.git UNIVERSAL
+
+# Use specific versioning tag.
+(cd UNIVERSAL && git checkout e32899d551b53d758865fabd5fdd69eed35bfb0f)

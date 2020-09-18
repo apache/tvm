@@ -56,6 +56,10 @@ RUN bash /install/ubuntu_install_nnpack.sh
 
 ENV PATH $PATH:$CARGO_HOME/bin:/usr/lib/go-1.10/bin
 
+# BYODT deps
+COPY install/ubuntu_install_universal.sh /install/ubuntu_install_universal.sh
+RUN bash /install/ubuntu_install_universal.sh
+
 # ANTLR deps
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
 RUN bash /install/ubuntu_install_java.sh
