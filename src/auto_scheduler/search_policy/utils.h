@@ -536,6 +536,22 @@ inline Iterator GetLastReduceIteratorInOutermostReduceTile(const Stage& stage) {
   return stage->iters[0];
 }
 
+/*! \brief Get the target stage id of a history step in the new state.
+ * We need this because the stage_id in the history may be stale due to later steps */
+inline int GetTargetStageIDInState(const State& s, int step_id) {
+  int stage_inc = 0;
+
+  for (size_t i = step_id + 1; i < s->transform_steps.size(); ++i) {
+    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
+        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
+        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+      if (s->transform_steps[i]->stage_id <= s->transform_steps[step_id]->stage_id + stage_inc)
+        stage_inc++;
+    }
+  }
+  return s->transform_steps[step_id]->stage_id + stage_inc;
+}
+
 /*! \brief Get all split steps for one stage. */
 inline void GetSplitStepIds(const State& s, int stage_id, std::vector<int>* split_step_ids) {
   for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
@@ -674,6 +690,10 @@ class SplitFactorizationMemo {
 
 /*! \brief Get the indexes of SplitStep that processes on spatial iterator. */
 Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id);
+
+/*! \brief Get the possible compute locations for a stage. */
+std::vector<std::pair<int, int>> GetComputeLocationCandidates(
+    const SearchTask& task, const State& state, int stage_id);
 
 // Apply multi-level tiling structure according to a string format,
 // where "S" stands a space level, "R" stands for a reduction level.
