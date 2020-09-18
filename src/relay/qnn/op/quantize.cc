@@ -38,27 +38,31 @@ TVM_REGISTER_NODE_TYPE(QuantizeAttrs);
 
 bool QuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
+  // types = [data_type, scale_type, zp_type, ret_type]
   ICHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
-
+  
   if (data == nullptr) {
     return false;
   }
 
   const auto input_dtype = data->dtype;
-  ICHECK(input_dtype == DataType::Float(32))
-      << "Input type should be one of float32 but was " << input_dtype;
+  ICHECK(input_dtype == DataType::Float(32) || input_dtype == DataType::Int(32))
+      << "Input type should be one of float32 or int32 but was " << input_dtype;
 
   const auto* quantize_attrs = attrs.as<QuantizeAttrs>();
-  int axis = quantize_attrs->axis;
-  axis = (axis == -1) ? data->shape.size() - 1 : axis;
-  ICHECK_LT(axis, static_cast<int>(data->shape.size()))
-      << "axis " << quantize_attrs->axis << " is out of range";
-  ICHECK_GE(axis, 0) << "axis " << quantize_attrs->axis << " is out of range";
 
-  // Check and assign types for scale and zero points.
-  AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
-  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // zero point
+  // Assign type to scale and zero point if they're channelwise.
+  if (data->shape.size() != 0) {
+    int axis = quantize_attrs->axis;
+    axis = (axis == -1) ? data->shape.size() - 1 : axis;
+    ICHECK_LT(axis, static_cast<int>(data->shape.size()))
+        << "axis " << quantize_attrs->axis << " is out of range";
+    ICHECK_GE(axis, 0) << "axis " << quantize_attrs->axis << " is out of range";
+    // Check and assign types for scale and zero points.
+    AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
+    AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // zero point
+  }
 
   const Array<tvm::PrimExpr> oshape = data->shape;
   const DataType out_dtype = quantize_attrs->out_dtype;

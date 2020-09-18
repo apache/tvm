@@ -93,10 +93,10 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     int e_ndim = static_cast<int>(e->shape.size());
     const DataType& e_dtype = e->dtype;
     if (e_ndim != ndim) {
-      throw Error("relay.concatenate requires all tensors have the same ndim");
+      throw Error("relay.concatenate requires all tensors to have the same ndim");
     }
     if (e_dtype != dtype) {
-      throw Error("relay.concatenate requires all tensors have the same dtype");
+      throw Error("relay.concatenate requires all tensors to have the same dtype");
     }
   }
 

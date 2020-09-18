@@ -44,36 +44,45 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (data == nullptr) {
     return false;
   }
-
+  
   const auto input_dtype = data->dtype;
   ICHECK(input_dtype == DataType::Int(8) || input_dtype == DataType::UInt(8) ||
          input_dtype == DataType::Int(32))
       << "Input type should be one of the quantized types [unit8, int8, int32] but was "
       << input_dtype;
 
-  const auto* dequantize_attrs = attrs.as<DequantizeAttrs>();
-  int axis = dequantize_attrs->axis;
-  axis = (axis == -1) ? data->shape.size() - 1 : axis;
-  ICHECK_LT(axis, static_cast<int>(data->shape.size()))
-      << "axis " << dequantize_attrs->axis << " is out of range";
-  ICHECK_GE(axis, 0) << "axis " << dequantize_attrs->axis << " is out of range";
+  const DequantizeAttrs* dequantize_attrs = attrs.as<DequantizeAttrs>();
+  DataType out_dtype = dequantize_attrs->out_dtype;
+  CHECK(out_dtype == DataType::Float(32) || out_dtype == DataType::Int(32))
+    << "out_dtype for dequantize must be float32 or int32, but got " << out_dtype;
 
-  // Check and assign types for scale and zero points.
-  AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
-  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // zero point
+  // Assign type to scale and zero point if they're channelwise.
+  if (data->shape.size() != 0) {
+    int axis = dequantize_attrs->axis;
+    axis = (axis == -1) ? data->shape.size() - 1 : axis;
+    ICHECK_LT(axis, static_cast<int>(data->shape.size()))
+        << "axis " << dequantize_attrs->axis << " is out of range";
+    ICHECK_GE(axis, 0) << "axis " << dequantize_attrs->axis << " is out of range";
+
+    // Check and assign types for scale and zero points.
+    AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
+    AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // zero point
+  }
 
   const Array<tvm::PrimExpr> oshape = data->shape;
-  // assign output type, output will always be float 32.
-  reporter->Assign(types[3], TensorType(oshape, DataType::Float(32)));
+  // assign output type based on out_dtype attribute.
+  reporter->Assign(types[3], TensorType(oshape, out_dtype));
   return true;
 }
 
-Expr MakeDequantize(Expr data, Expr input_scale, Expr input_zero_point, int axis) {
+Expr MakeDequantize(Expr data, Expr input_scale, Expr input_zero_point, int axis,
+                    DataType out_dtype) {
   // real_value = scale * (quantized_value - zero_point)
   // A more detailed explanation can be found here -
   // https://github.com/google/gemmlowp/blob/master/doc/quantization.md
   auto attrs = make_object<DequantizeAttrs>();
   attrs->axis = axis;
+  attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("qnn.dequantize");
   return Call(op, {data, input_scale, input_zero_point}, Attrs(attrs), {});
 }
@@ -82,6 +91,7 @@ Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& input_zero_point, const Array<tvm::relay::Type>& types,
                      const DequantizeAttrs* attrs) {
   const auto axis = attrs->axis;
+  const DataType out_dtype = attrs->out_dtype;
 
   ICHECK_EQ(types.size(), 4);
   auto in_type = types[0];
@@ -105,6 +115,10 @@ Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
 
   auto shift = Subtract(Cast(input_tensor, DataType::Int(32)), expanded_input_zero_point);
   auto scaled_output = Multiply(Cast(shift, DataType::Float(32)), expanded_input_scale);
+
+  if (out_dtype != DataType::Float(32)) {
+    scaled_output = Cast(scaled_output, out_dtype);
+  }
   return scaled_output;
 }
 

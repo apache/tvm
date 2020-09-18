@@ -799,7 +799,7 @@ class DFPatternCallback:
         self.pattern = None
         self.require_type = require_type
 
-    def rewrite(self, expr: Expr) -> Expr:
+    def rewrite(self, expr: Expr, allow_overlapping_groups: bool = False) -> Expr:
         """
         Rewrite expression with this callback
 
@@ -813,7 +813,7 @@ class DFPatternCallback:
         result : tvm.relay.Expr
             The Expression with matched subgraphs rewritten by the callbacks.
         """
-        return rewrite(self, expr)
+        return rewrite(self, expr, allow_overlapping_groups = allow_overlapping_groups)
 
     def callback(self, pre: Expr, post: Expr, node_map: tvm.ir.container.Map) -> Expr:
         """
@@ -843,7 +843,8 @@ class _DFPatternCallback(Object):
         self.__init_handle_by_constructor__(ffi.DFPatternCallback, pattern, callback, require_type)
 
 
-def rewrite(callbacks, expr: Expr, mod: Optional[_ir.IRModule] = None) -> Expr:
+def rewrite(callbacks, expr: Expr, mod: Optional[_ir.IRModule] = None,
+            allow_overlapping_groups: bool = False) -> Expr:
     """
     Rewrite expression with the given callbacks.
 
@@ -868,8 +869,7 @@ def rewrite(callbacks, expr: Expr, mod: Optional[_ir.IRModule] = None) -> Expr:
     for callback in callbacks:
         assert callback.pattern is not None
         tmp.append(_DFPatternCallback(callback.pattern, callback.callback, callback.require_type))
-
-    return ffi.rewrite(tmp, expr, mod)
+    return ffi.rewrite(tmp, expr, mod, allow_overlapping_groups)
 
 
 def partition(

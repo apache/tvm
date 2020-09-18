@@ -19,11 +19,10 @@
 
 from __future__ import absolute_import as _abs
 from tvm.relay.expr import Tuple, TupleWrapper
-from tvm.relay.op.nn.utils import get_pad_tuple2d
-from . import _make
+from tvm.relay.op.nn.util import get_pad_tuple2d
 from ... import op as reg
 from ...op import OpPattern
-
+from . import _make
 
 def requantize(
     data,
@@ -118,7 +117,7 @@ def quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
     return _make.quantize(data, output_scale, output_zero_point, axis, out_dtype)
 
 
-def dequantize(data, input_scale, input_zero_point, axis=-1):
+def dequantize(data, input_scale, input_zero_point, axis=-1, out_dtype="float32"):
     r"""Dequantize op
     This operator takes quantized int8 and unit8 as input and produces
     dequantized float32 as output. The output shape is the same as input shape. The input
@@ -134,13 +133,15 @@ def dequantize(data, input_scale, input_zero_point, axis=-1):
         The input scale.
     axis : int
         The channel axis for quantization. Default value is -1 which corresponds to the last axis.
+    out_dtype : str, optional
+        The output type to dequantize to. Can be either float32 or int32.
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
 
-    return _make.dequantize(data, input_scale, input_zero_point, axis)
+    return _make.dequantize(data, input_scale, input_zero_point, axis, out_dtype)
 
 
 def concatenate(data, input_scales, input_zero_points, output_scale, output_zero_point, axis):

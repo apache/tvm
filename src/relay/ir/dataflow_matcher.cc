@@ -22,6 +22,8 @@
  * \brief The dataflow pattern matcher for Relay.
  */
 
+#include "dataflow_matcher.h"
+
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/dataflow_matcher.h>
 #include <tvm/relay/expr_functor.h>
@@ -33,45 +35,6 @@
 
 namespace tvm {
 namespace relay {
-
-// Pattern Matcher
-
-class DominatorMatcher;
-
-class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Expr&)> {
- public:
-  explicit DFPatternMatcher(const Expr& root_expr) : expr_graph_(CreateIndexedGraph(root_expr)) {}
-  bool Match(const DFPattern& pattern, const Expr& expr);
-  Map<DFPattern, Array<Expr>> GetMemo() { return Map<DFPattern, Array<Expr>>(memo_); }
-  const IndexedGraph<Expr> expr_graph_;
-
- protected:
-  bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override;
-  bool VisitDFPattern_(const AltPatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const AttrPatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const CallPatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const ConstantPatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const ExprPatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const FunctionPatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const IfPatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const LetPatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const TuplePatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const TypePatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const VarPatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const WildcardPatternNode* op, const Expr& expr) override;
-
-  void ClearMap(size_t watermark);
-  bool MatchesPath(const DominatorPatternNode* op, const Expr& expr);
-  bool DominatesParent(const DominatorPatternNode* op, const Expr& expr);
-
-  std::unordered_map<DFPattern, Array<Expr>, ObjectPtrHash, ObjectPtrEqual> memo_;
-  std::vector<DFPattern> matched_nodes_;
-  bool memoize_ = true;
-};
 
 bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
   memo_.clear();
@@ -536,6 +499,8 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.match").set_body_typed(MatchPattern)
 class PatternGrouper {
  public:
   /*! \brief Internal Group class for storing analysis */
+  PatternGrouper(bool allow_overlapping_groups = false)
+      : allow_overlapping_groups_(allow_overlapping_groups) {}
   struct Group {
     Expr root_node;
     int gid;
@@ -664,8 +629,10 @@ class PatternGrouper {
       // Don't treat fuzzy Dominator patterns input variables for partition
       if (auto op = node->ref_.as<DominatorPatternNode>()) {
         for (auto fuzzy_op : {op->parent, op->path}) {
-          for (auto match : node_map[fuzzy_op]) {
-            fuzzy_matches.insert(match);
+          if (node_map.count(fuzzy_op)) {
+            for (auto match : node_map[fuzzy_op]) {
+              fuzzy_matches.insert(match);
+            }
           }
         }
       }
@@ -711,38 +678,40 @@ class PatternGrouper {
     // used to determine Group overlap in other passes
     auto extractor = MatchExtractor(inputs);
     auto body = extractor.Mutate(expr);
-
+    
     group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
     group.name = extractor.GetName();
-    // Check to make sure we aren't overlapping with another group or creating an invalid fusion
-    // The MatchExtractor will create a new graph by replacing nodes that match the inputs of the
-    // pattern with the input FunctionVar* Variables. The resulting memoization map will only
-    // contain nodes in the expression that matched the pattern. If a non-input node of the pattern
-    // (i.e., some piece of computation) overlaps with the nodes in a previous group, we'll have a
-    // situation where we try to rewrite the same node twice in the second rewriting or parition
-    // pass. This isn't valid, so we check for it here. We ignore Ops, functions, and constants
-    // because they exist more globally outside of the fusion.
-    // Similiarly, if interior nodes in a group are used outside of the group fusing to a single
-    // output would create an invalid graph tranformation, so we block the creation of such groups.
-    auto memo = extractor.GetMemo();
-    for (auto kv : memo) {
-      // Check to ensure that this node isn't an input or a global
-      if (inputs.count(kv.first) == 0 && kv.first.as<OpNode>() == nullptr &&
-          kv.first.as<FunctionNode>() == nullptr && kv.first.as<ConstantNode>() == nullptr) {
-        if (gid_assignments_.count(kv.first) != 0) {
-          // check to see if the node is use in other groups
-          // Exit due to overlapping partitions
-          return;
-        } else if (kv.second != body) {
-          // if the node isn't the ouput of the group
-          auto node = matcher_->expr_graph_.node_map_.at(kv.first);
-          for (auto* output : node->outputs_) {
-            // and the node is used by nodes outside of the group
-            if (memo.count(output->ref_) == 0 &&
-                !matcher_->expr_graph_.node_map_.at(expr)->Dominates(output)) {
-              // Exit because nodes in this pattern's body are used outside the pattern
-              // fusing it would be invalid
-              return;
+    if (!allow_overlapping_groups_) {
+      // Check to make sure we aren't overlapping with another group or creating an invalid fusion
+      // The MatchExtractor will create a new graph by replacing nodes that match the inputs of the
+      // pattern with the input FunctionVar* Variables. The resulting memoization map will only
+      // contain nodes in the expression that matched the pattern. If a non-input node of the
+      // pattern (i.e., some piece of computation) overlaps with the nodes in a previous group,
+      // we'll have a situation where we try to rewrite the same node twice in the second rewriting
+      // or parition pass. This isn't valid, so we check for it here. We ignore Ops, functions, and
+      // constants because they exist more globally outside of the fusion. Similiarly, if interior
+      // nodes in a group are used outside of the group fusing to a single output would create an
+      // invalid graph tranformation, so we block the creation of such groups.
+      auto memo = extractor.GetMemo();
+      for (auto kv : memo) {
+        // Check to ensure that this node isn't an input or a global
+        if (inputs.count(kv.first) == 0 && kv.first.as<OpNode>() == nullptr &&
+            kv.first.as<FunctionNode>() == nullptr && kv.first.as<ConstantNode>() == nullptr) {
+          if (gid_assignments_.count(kv.first) != 0) {
+            // check to see if the node is use in other groups
+            // Exit due to overlapping partitions
+            return;
+          } else if (kv.second != body) {
+            // if the node isn't the ouput of the group
+            auto node = matcher_->expr_graph_.node_map_.at(kv.first);
+            for (auto* output : node->outputs_) {
+              // and the node is used by nodes outside of the group
+              if (memo.count(output->ref_) == 0 &&
+                  !matcher_->expr_graph_.node_map_.at(expr)->Dominates(output)) {
+                // Exit because nodes in this pattern's body are used outside the pattern
+                // fusing it would be invalid
+                return;
+              }
             }
           }
         }
@@ -796,6 +765,7 @@ class PatternGrouper {
   IndexedGraph<DFPattern> pattern_graph_;
   int gid_ = 0;
   int graph_number_ = 0;
+  bool allow_overlapping_groups_ = false;
 };
 
 // Rewrite
@@ -823,7 +793,8 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.DFPatternCallback")
  */
 class PatternRewriter : protected MixedModeMutator {
  public:
-  PatternRewriter(IRModule mod) : mod_(mod) {}
+  PatternRewriter(IRModule mod, bool allow_overlapping_groups)
+      : mod_(mod), allow_overlapping_groups_(allow_overlapping_groups) {}
   /*! \brief Rewrite can take a number of callbacks and will repeatedly rewrite the graph with the
    * callbacks until it stops changing */
   Expr Rewrite(const Array<DFPatternCallback>& callbacks, const Expr& pre) {
@@ -841,7 +812,7 @@ class PatternRewriter : protected MixedModeMutator {
         if (callback_->require_type) {
           post = InferTypeWithModule(post, mod_);
         }
-        auto grouper = PatternGrouper();
+        auto grouper = PatternGrouper(allow_overlapping_groups_);
         groups_ = grouper.GroupMatches(callback_->pattern, post);
         gid_assignments_ = grouper.GetGIDAssignments();
         memo_.clear();
@@ -880,10 +851,12 @@ class PatternRewriter : protected MixedModeMutator {
   DFPatternCallback callback_;
   std::unordered_map<int, PatternGrouper::Group> groups_;
   std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
+  bool allow_overlapping_groups_ = false;
 };
 
-Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr, IRModule mod) {
-  return PatternRewriter(mod).Rewrite(callbacks, expr);
+Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr, IRModule mod,
+                     int allow_overlapping_groups) {
+  return PatternRewriter(mod, allow_overlapping_groups).Rewrite(callbacks, expr);
 }
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.rewrite").set_body_typed(RewritePatterns);
