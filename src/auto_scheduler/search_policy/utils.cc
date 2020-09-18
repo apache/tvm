@@ -67,9 +67,8 @@ Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id) {
   return spatial_split_step_ids;
 }
 
-
-std::vector<std::pair<int, int>> GetComputeLocationCandidates(
-    const SearchTask& task, const State& state, int stage_id) {
+std::vector<std::pair<int, int>> GetComputeLocationCandidates(const SearchTask& task,
+                                                              const State& state, int stage_id) {
   int target_stage_id = GetSingleConsumerId(task, state, stage_id);
   if (target_stage_id < 0) {
     return {};

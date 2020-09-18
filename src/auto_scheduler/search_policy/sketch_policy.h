@@ -34,6 +34,7 @@
 #include <tvm/auto_scheduler/cost_model.h>
 #include <tvm/auto_scheduler/search_policy.h>
 
+#include <memory>
 #include <set>
 #include <string>
 #include <unordered_set>

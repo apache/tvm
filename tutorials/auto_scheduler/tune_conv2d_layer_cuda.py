@@ -74,13 +74,13 @@ print(task.compute_dag)
 
 ######################################################################
 # Next, we set parameters for the auto-scheduler. These parameters
-# mainly specify how we do the measurement.
+# mainly specify how we do the measurement during the search and auto-tuning.
 #
 # * `measure_ctx` launches a different process for measurement. This
-#   provides an isolation. It can protect the master process from any crashes
+#   provides an isolation. It can protect the master process from GPU crashes
 #   happended during measurement and avoid other runtime conflicts.
 # * `min_repeat_ms` defines the minimum duration of one "repeat" in every measurement.
-#   This can warmup the GPU, which is necessary to get reliable measurement results.
+#   This can warmup the GPU, which is necessary to get accurate measurement results.
 # * `num_measure_trials` is the number of measurement trials we can use during the search.
 #   We only make 10 trials in this tutorial for a fast demonstration. In practice, 1000 is a
 #   good value for the search to converge. You can do more trials according to your time budget.
@@ -109,7 +109,7 @@ sch, args = auto_scheduler.auto_schedule(task, tuning_options=tune_option)
 ######################################################################
 # We can lower the schedule to see the IR after auto-scheduling.
 # The auto-scheduler correctly performs optimizations including multi-level tiling,
-# parallelization, vectorization, unrolling and fusion.
+# cooperative fetching, unrolling and operator fusion.
 
 print(tvm.lower(sch, args, simple_mode=True))
 
@@ -172,6 +172,7 @@ func = tvm.build(sch, args, target)
 # and resume the status of search policy and cost model with the log file.
 # In the example below we resume the status and do more 5 trials.
 
+
 log_file = "conv2d.json"
 cost_model = auto_scheduler.XGBModel()
 cost_model.update_from_file(log_file)
@@ -185,4 +186,5 @@ tune_option = auto_scheduler.TuningOptions(
 )
 sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
 
+# kill the measurement process
 del measure_ctx

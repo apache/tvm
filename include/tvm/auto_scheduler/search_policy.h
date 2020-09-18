@@ -65,6 +65,7 @@
 #include <tvm/auto_scheduler/search_task.h>
 #include <tvm/node/node.h>
 
+#include <string>
 #include <unordered_set>
 #include <vector>
 

@@ -178,7 +178,7 @@ class PopulationMutationRule : public PopulationGenerationRule {
    * \param selection_weight the probabiliy of applying this rule is
    *        proportional to this weight
    */
-  PopulationMutationRule(double selection_weight) : weight(selection_weight) {}
+  explicit PopulationMutationRule(double selection_weight) : weight(selection_weight) {}
 
   /* \brief The weight of this rule */
   double weight;
@@ -188,7 +188,7 @@ class PopulationMutationRule : public PopulationGenerationRule {
 #define DEFINE_MUTATE_POPULATION_RULE(rule_name)                          \
   class rule_name : public PopulationMutationRule {                       \
    public:                                                                \
-    rule_name(double weight) : PopulationMutationRule(weight) {}          \
+    explicit rule_name(double weight) : PopulationMutationRule(weight) {} \
     ResultKind Apply(SketchPolicyNode* policy, State* state) const final; \
   };
 

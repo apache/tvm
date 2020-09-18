@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <limits>
+#include <memory>
 #include <queue>
 #include <set>
 #include <string>
@@ -88,7 +89,7 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel program_cost_model,
   }
 
   // NOTE: There are strong dependency among the rules below,
-  // so the order to push them into the vector should be consid carefully.
+  // so the order to push them into the vector should be considered carefully.
   if (IsCPUTask(node->search_task)) {
     // Sketch Generation Rules
     node->sketch_rules.push_back(&rule_always_inline);

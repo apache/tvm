@@ -96,7 +96,7 @@ sch, args = auto_scheduler.auto_schedule(task, tuning_options=tune_option)
 ######################################################################
 # We can lower the schedule to see the IR after auto-scheduling.
 # The auto-scheduler correctly performs optimizations including multi-level tiling,
-# parallelization, vectorization, unrolling and fusion.
+# parallelization, vectorization, unrolling and operator fusion.
 
 print(tvm.lower(sch, args, simple_mode=True))
 

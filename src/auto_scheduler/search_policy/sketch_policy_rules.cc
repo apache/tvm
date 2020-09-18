@@ -492,8 +492,8 @@ PopulationGenerationRule::ResultKind InitChangeComputeLocation::Apply(SketchPoli
       continue;
     }
 
-    std::vector<std::pair<int, int>> candidates
-      = GetComputeLocationCandidates(policy->search_task, *state, stage_id);
+    std::vector<std::pair<int, int>> candidates =
+        GetComputeLocationCandidates(policy->search_task, *state, stage_id);
 
     int choice = (policy->rand_gen)() % (candidates.size() + 2);
 
@@ -958,23 +958,23 @@ PopulationGenerationRule::ResultKind MutateTileSize::Apply(SketchPolicyNode* pol
 PopulationGenerationRule::ResultKind MutateAutoUnroll::Apply(SketchPolicyNode* policy,
                                                              State* state) const {
   // Extract all auto_unroll_max_step pragma steps.
-  std::vector<int> annotate_steps;
+  std::vector<int> pragma_steps;
   for (size_t i = 0; i < (*state)->transform_steps.size(); ++i) {
     if (auto ps = (*state)->transform_steps[i].as<PragmaStepNode>()) {
       if (StrStartsWith(ps->pragma_type, "auto_unroll_max_step")) {
-        annotate_steps.push_back(i);
+        pragma_steps.push_back(i);
       }
     }
   }
-  if (annotate_steps.empty()) {
+  if (pragma_steps.empty()) {
     return ResultKind::kInvalid;
   }
 
   std::vector<int>& auto_unroll_configs =
       IsGPUTask(policy->search_task) ? auto_unroll_configs_gpu : auto_unroll_configs_cpu;
 
-  // Randomly pick up an unroll step
-  auto step_id = annotate_steps[(policy->rand_gen)() % annotate_steps.size()];
+  // Randomly pick up an auto unroll pragma step
+  auto step_id = pragma_steps[(policy->rand_gen)() % pragma_steps.size()];
   auto ps = (*state)->transform_steps[step_id].as<PragmaStepNode>();
   CHECK(ps);
 
@@ -1018,8 +1018,8 @@ PopulationGenerationRule::ResultKind MutateComputeLocation::Apply(SketchPolicyNo
   int stage_inc = GetTargetStageIDInState(*state, step_id) - ps->stage_id;
   CHECK(ps != nullptr);
 
-  std::vector<std::pair<int, int>> candidates
-      = GetComputeLocationCandidates(policy->search_task, *state, ps->stage_id + stage_inc);
+  std::vector<std::pair<int, int>> candidates =
+      GetComputeLocationCandidates(policy->search_task, *state, ps->stage_id + stage_inc);
 
   if (candidates.empty()) {
     return PopulationGenerationRule::ResultKind::kInvalid;
@@ -1039,8 +1039,8 @@ PopulationGenerationRule::ResultKind MutateComputeLocation::Apply(SketchPolicyNo
       tmp_s.CopyOnWrite()->transform_steps.push_back((*state)->transform_steps[s]);
     }
     try {
-        StepApplyToState(tmp_s->transform_steps.back(), &tmp_s, policy->search_task->compute_dag);
-    } catch (dmlc::Error &e) {
+      StepApplyToState(tmp_s->transform_steps.back(), &tmp_s, policy->search_task->compute_dag);
+    } catch (dmlc::Error& e) {
       return PopulationGenerationRule::ResultKind::kInvalid;
     }
   }

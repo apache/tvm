@@ -645,7 +645,7 @@ inline void ComputePrefixSumProb(const std::vector<float>& weights,
   for (size_t i = 0; i < weights.size(); ++i) {
     (*prefix_sum_probs)[i] /= sum;
   }
-};
+}
 
 /*! \brief Random choose an index according to a prefix sum probability. */
 inline int RandomChoose(const std::vector<double>& prefix_sum_probs, std::mt19937* random_gen) {
@@ -692,8 +692,8 @@ class SplitFactorizationMemo {
 Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id);
 
 /*! \brief Get the possible compute locations for a stage. */
-std::vector<std::pair<int, int>> GetComputeLocationCandidates(
-    const SearchTask& task, const State& state, int stage_id);
+std::vector<std::pair<int, int>> GetComputeLocationCandidates(const SearchTask& task,
+                                                              const State& state, int stage_id);
 
 // Apply multi-level tiling structure according to a string format,
 // where "S" stands a space level, "R" stands for a reduction level.
