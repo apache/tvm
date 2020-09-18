@@ -39,6 +39,7 @@ _group_conv2d_nhwc_implement = {
     "generic": (topi.nn.group_conv2d_nhwc, topi.generic.schedule_group_conv2d_nhwc),
 }
 
+
 def verify_group_conv2d_nchw(
     batch,
     in_channel,

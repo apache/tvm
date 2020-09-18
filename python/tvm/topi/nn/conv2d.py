@@ -880,30 +880,36 @@ def group_conv2d_nhwc(Input, Filter, stride, padding, dilation, groups, out_dtyp
     assert in_channel % groups == 0, "input channels must divide group size"
     assert num_filter % groups == 0, "output channels must divide group size"
 
-    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (kernel_h, kernel_w))
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding, (kernel_h, kernel_w))
     # compute the output shape
     out_channel = num_filter
     out_height = simplify(
-        (in_height - (kernel_h - 1) * dilation_h - 1 + pad_top + pad_down) // stride_h + 1)
+        (in_height - (kernel_h - 1) * dilation_h - 1 + pad_top + pad_down) // stride_h + 1
+    )
     out_width = simplify(
-        (in_width - (kernel_w - 1) * dilation_w - 1 + pad_left + pad_right) // stride_w + 1)
+        (in_width - (kernel_w - 1) * dilation_w - 1 + pad_left + pad_right) // stride_w + 1
+    )
     # compute graph
     pad_before = [0, pad_top, pad_left, 0]
     pad_after = [0, pad_down, pad_right, 0]
     temp = pad(Input, pad_before, pad_after, name="pad_temp")
-    ry = te.reduce_axis((0, kernel_h), name='ry')
-    rx = te.reduce_axis((0, kernel_w), name='rx')
-    rc = te.reduce_axis((0, in_channel // groups), name='rc')
+    ry = te.reduce_axis((0, kernel_h), name="ry")
+    rx = te.reduce_axis((0, kernel_w), name="rx")
+    rc = te.reduce_axis((0, in_channel // groups), name="rc")
     return te.compute(
         (batch, out_height, out_width, out_channel),
         lambda nn, yy, xx, ff: te.sum(
-            temp[nn,
-                 yy * stride_h + ry * dilation_h,
-                 xx * stride_w + rx * dilation_w,
-                 ff // (num_filter//groups) * (in_channel//groups) + rc].astype(out_dtype) *
-            Filter[ry, rx, rc, ff].astype(out_dtype),
-            axis=[ry, rx, rc]), tag='group_conv2d_nhwc')
+            temp[
+                nn,
+                yy * stride_h + ry * dilation_h,
+                xx * stride_w + rx * dilation_w,
+                ff // (num_filter // groups) * (in_channel // groups) + rc,
+            ].astype(out_dtype)
+            * Filter[ry, rx, rc, ff].astype(out_dtype),
+            axis=[ry, rx, rc],
+        ),
+        tag="group_conv2d_nhwc",
+    )
 
 
 def unpack_NCHWc_to_nchw(packed_out, out_dtype):
