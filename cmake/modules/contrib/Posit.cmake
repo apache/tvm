@@ -19,7 +19,7 @@ if(USE_POSIT)
   message(STATUS "Build with contrib.posit")
   if (NOT UNIVERSAL_PATH)
     message(FATAL_ERROR "Fail to get Universal path")
-  endif(UNIVERSAL_PATH)
+  endif(NOT UNIVERSAL_PATH)
   
   include_directories(${UNIVERSAL_PATH})
   list(APPEND RUNTIME_SRCS 3rdparty/posit/posit-wrapper.cc)
