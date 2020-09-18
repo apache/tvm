@@ -18,6 +18,7 @@
 # pylint: disable=import-outside-toplevel
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 import numpy as np
+import logging
 import tvm
 from tvm.ir import IRModule
 
@@ -31,6 +32,9 @@ from .. import vision as _vision
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels
 from .common import infer_type, get_name
+
+
+logger = logging.getLogger("onnx_frontend")
 
 __all__ = ["from_onnx"]
 
@@ -236,21 +240,29 @@ class Pool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        input_shape = infer_shape(inputs[0])
+        data = inputs[0]
+        input_shape = infer_shape(data)
+        ndim = len(input_shape)
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
-                pad_tuple = []
-                for axis in range(len(input_shape) - 2):
-                    axis_shape = input_shape[2 + axis]
-                    stride = attr["strides"][axis]
-                    kernel = attr["kernel_shape"][axis]
-                    pad = get_pad_pair(axis_shape, kernel, stride)
-                    pad_tuple.append(pad)
-                pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
-                attr["pads"] = pad_tuple
+                if cls.name == "avg_pool":
+                    pad_tuple = []
+                    for axis in range(len(input_shape) - 2):
+                        axis_shape = input_shape[2 + axis]
+                        stride = attr["strides"][axis]
+                        kernel = attr["kernel_shape"][axis]
+                        pad = get_pad_pair(axis_shape, kernel, stride)
+                        pad_tuple.append(pad)
+                    pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
+                    attr["pads"] = pad_tuple
+                else:
+                    logger.warning(
+                        "Performing dynamic autopadding on Pool. Pool kernels don't currently support dynamic shapes."
+                    )
+                    data = autopad(data, attr["strides"], attr["kernel_shape"], [1] * ndim, ndim)
             elif attr["auto_pad"] == "VALID":
-                attr["pads"] = 0
+                attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
                 pass
             else:
@@ -270,7 +282,7 @@ class Pool(OnnxOpConverter):
             transforms={"kernel_shape": "pool_size", "pads": ("padding", 0)},
             ignores=["dilations", "storage_order"],
             custom_check=dimension_constraint(),
-        )(inputs, attr, params)
+        )([data], attr, params)
 
 
 class Absolute(Unary):
@@ -311,29 +323,69 @@ class InstanceNorm(OnnxOpConverter):
         return AttrCvt(op_name="instance_norm")(inputs, attr, params)
 
 
+def autopad(data, strides, kernel_shape, dilations, ndim, pad_type="constant", deconv=False):
+    """
+    Perform autopadding with dynamic input shapes
+    """
+    # get attributes as constants
+    strides = _op.const(np.array(strides), dtype="int64")
+    dilated_kernel_shape = _op.const(
+        np.array(
+            [(kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)]
+        ),
+        dtype="int64",
+    )
+    shape = _op.strided_slice(_op.shape_of(data, dtype="int64"), [2], [ndim])
+    # get input shape
+
+    # set up integer constants
+    zero = _op.const(0, dtype="int64")
+    one = _op.const(1, dtype="int64")
+    two = _op.const(2, dtype="int64")
+
+    # Calculate total padding
+    mod = _op.mod(shape, strides)
+
+    left = _op.maximum(dilated_kernel_shape - strides, zero)
+    right = _op.maximum(dilated_kernel_shape - mod, zero)
+
+    total_pad = _op.where(_op.equal(mod, zero), left, right)
+    if deconv:
+        total_pad = _op.const(np.array(kernel_shape), dtype="int64") - one - total_pad
+
+    # split total padding into before and after
+    pad_before = _op.floor_divide(total_pad, two)
+    pad_after = total_pad - pad_before
+
+    # combine
+    pad = _op.concatenate(
+        [_op.reshape(pad_before, [-1, 1]), _op.reshape(pad_after, [-1, 1])], axis=1
+    )
+
+    # pad N and C with zeros
+    pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
+
+    return _op.nn.pad(data, pad, _op.const(0.0), pad_type)
+
+
 class Conv(OnnxOpConverter):
     """Operator converter for Conv."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # Use shape of input to determine convolution type.
-        input_shape = infer_shape(inputs[0])
+        data = inputs[0]
+        input_shape = infer_shape(data)
+        ndim = len(input_shape)
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
-                pad_tuple = []
-                for axis in range(len(input_shape) - 2):
-                    axis_shape = input_shape[2 + axis]
-                    stride = attr["strides"][axis]
-                    kernel = attr["kernel_shape"][axis]
-                    dilation = attr["dilations"][axis]
-                    dilated_kernel = (kernel - 1) * dilation + 1
-                    pad = get_pad_pair(axis_shape, dilated_kernel, stride)
-                    pad_tuple.append(pad)
-                pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
-                attr["pads"] = pad_tuple
+                logger.warning(
+                    "Performing dynamic autopadding on Conv. Conv kernels don't currently support dynamic shapes."
+                )
+                data = autopad(data, attr["strides"], attr["kernel_shape"], attr["dilations"], ndim)
             elif attr["auto_pad"] == "VALID":
-                attr["pads"] = tuple([0 for i in range(len(input_shape) - 2)])
+                attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
                 pass
             else:
@@ -361,7 +413,7 @@ class Conv(OnnxOpConverter):
                 "group": ("groups", 1),
             },
             custom_check=dimension_constraint(),
-        )(inputs[:2], attr, params)
+        )([data, inputs[1]], attr, params)
 
         use_bias = len(inputs) == 3
         if use_bias:
@@ -380,21 +432,25 @@ class ConvTranspose(OnnxOpConverter):
         groups = attr.pop("group")
         attr["groups"] = groups
         # infer pads for auto_pad
+        data = inputs[0]
+        input_shape = infer_shape(data)
+        ndim = len(input_shape)
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
-                input_shape = infer_shape(inputs[0])
-                in_h, in_w = input_shape[2], input_shape[3]
-                stride_h, stride_w = attr["strides"]
-                kernel_h, kernel_w = attr["kernel_shape"]
-                dilation_h, dilation_w = attr["dilations"]
-                dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
-                dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
-                pad_v = get_pad_pair(in_h, dilated_kernel_h, stride_h)
-                pad_h = get_pad_pair(in_w, dilated_kernel_w, stride_w)
-                attr["pads"] = (pad_v[0], pad_h[0], pad_v[1], pad_h[1])
+                logger.warning(
+                    "Performing dynamic autopadding on ConvTranspose. ConvTranspose kernels don't currently support dynamic shapes."
+                )
+                data = autopad(
+                    data,
+                    attr["strides"],
+                    attr["kernel_shape"],
+                    attr["dilations"],
+                    ndim,
+                    deconv=True,
+                )
             elif attr["auto_pad"] == "VALID":
-                attr["pads"] = (0, 0)
+                attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
                 pass
             else:
@@ -406,12 +462,13 @@ class ConvTranspose(OnnxOpConverter):
             op_name=dimension_picker("conv", "_transpose"),
             transforms={
                 "kernel_shape": "kernel_size",
-                "dilations": ("dilation", (0, 0)),
-                "pads": ("padding", (0, 0), revert_caffe2_pad),
+                "dilations": ("dilation", 1),
+                "pads": ("padding", 0),
+                "group": ("groups", 1),
             },
             disables=["output_shape"],
             custom_check=dimension_constraint(),
-        )(inputs[:2], attr, params)
+        )([data, inputs[1]], attr, params)
         use_bias = len(inputs) == 3
         if use_bias:
             out = _op.nn.bias_add(out, inputs[2])
@@ -546,23 +603,19 @@ class LpPool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        input_shape = infer_shape(inputs[0])
         dtype = infer_type(inputs[0]).checked_type.dtype
-
+        data = inputs[0]
+        input_shape = infer_shape(data)
+        ndim = len(input_shape)
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
-                pad_tuple = []
-                for axis in range(len(input_shape) - 2):
-                    axis_shape = input_shape[2 + axis]
-                    stride = attr["strides"][axis]
-                    kernel = attr["kernel_shape"][axis]
-                    pad = get_pad_pair(axis_shape, kernel, stride)
-                    pad_tuple.append(pad)
-                pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
-                attr["pads"] = pad_tuple
+                logger.warning(
+                    "Performing dynamic autopadding on LpPool. LpPool kernels don't currently support dynamic shapes."
+                )
+                data = autopad(data, attr["strides"], attr["kernel_shape"], [1] * ndim, ndim)
             elif attr["auto_pad"] == "VALID":
-                attr["pads"] = 0
+                attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
                 pass
             else:
@@ -579,7 +632,7 @@ class LpPool(OnnxOpConverter):
 
         p = _expr.const(attr["p"], dtype)
         reci_p = _expr.const(1.0 / attr["p"], dtype)
-        inputs[0] = _op.power(inputs[0], p)
+        data = _op.power(data, p)
 
         out = AttrCvt(
             op_name=dimension_picker("avg_pool"),
@@ -587,7 +640,7 @@ class LpPool(OnnxOpConverter):
             extras={"count_include_pad": True},
             ignores=["p"],
             custom_check=dimension_constraint(),
-        )(inputs, attr, params)
+        )([data], attr, params)
         kernels = attr["kernel_shape"]
         out = _op.abs(out) * _expr.const(np.prod(kernels).astype(dtype))
         return _op.power(out, reci_p)

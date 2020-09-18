@@ -42,7 +42,9 @@ def get_input_data_shape_dict(graph_def, input_data):
     return input_names, shape_dict
 
 
-def get_tvm_output_with_vm(graph_def, input_data, target, ctx, opset=None, freeze_params=False):
+def get_tvm_output_with_vm(
+    graph_def, input_data, target, ctx, opset=None, freeze_params=False, convert_to_static=False
+):
     """ Generic function to execute and get tvm output with vm executor"""
     if not isinstance(input_data, list):
         input_data = [input_data]
@@ -51,6 +53,10 @@ def get_tvm_output_with_vm(graph_def, input_data, target, ctx, opset=None, freez
     mod, params = relay.frontend.from_onnx(
         graph_def, shape_dict, opset=opset, freeze_params=freeze_params
     )
+    if convert_to_static:
+        from tvm.relay import transform
+
+        mod = transform.DynamicToStatic()(mod)
 
     ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
     result = ex.evaluate()(*input_data)
@@ -122,6 +128,7 @@ def verify_with_ort_with_inputs(
     use_vm=False,
     opset=None,
     freeze_params=False,
+    convert_to_static=False,
     dtype="float32",
     rtol=1e-5,
     atol=1e-5,
@@ -140,10 +147,15 @@ def verify_with_ort_with_inputs(
 
     for target in targets:
         ctx = tvm.context(target, 0)
-
         if use_vm:
             tvm_out = get_tvm_output_with_vm(
-                model, inputs, target, ctx, opset=opset, freeze_params=freeze_params
+                model,
+                inputs,
+                target,
+                ctx,
+                opset=opset,
+                freeze_params=freeze_params,
+                convert_to_static=convert_to_static,
             )
         else:
             tvm_out = get_tvm_output(model, inputs, target, ctx, out_shape, dtype, opset=opset)
@@ -159,6 +171,7 @@ def verify_with_ort(
     use_vm=False,
     opset=None,
     freeze_params=False,
+    convert_to_static=False,
     dtype="float32",
     rtol=1e-5,
     atol=1e-5,
@@ -172,6 +185,7 @@ def verify_with_ort(
         use_vm=use_vm,
         opset=opset,
         freeze_params=freeze_params,
+        convert_to_static=convert_to_static,
         dtype=dtype,
         rtol=rtol,
         atol=atol,
@@ -2470,7 +2484,7 @@ def verify_conv(
 
     model = helper.make_model(graph, producer_name="conv_test")
 
-    verify_with_ort(model, [x_shape, w_shape], y_shape)
+    verify_with_ort(model, [x_shape, w_shape], y_shape, use_vm=True, convert_to_static=True)
 
 
 @tvm.testing.uses_gpu
@@ -2555,6 +2569,68 @@ def test_conv():
         )
 
 
+def verify_convtranspose_with_padding(
+    x_shape,
+    w_shape,
+    y_shape,
+    padding,
+    kernel_shape,
+    strides,
+    dilations,
+    auto_pad="NOTSET",
+    unset_pad=False,
+):
+    if unset_pad:
+        node = helper.make_node(
+            "ConvTranspose",
+            inputs=["x", "W"],
+            outputs=["y"],
+            kernel_shape=kernel_shape,
+            # Default values for other attributes:
+            strides=strides,
+            dilations=dilations,
+            group=1,
+        )
+    elif padding is None:
+        node = helper.make_node(
+            "ConvTranspose",
+            inputs=["x", "W"],
+            outputs=["y"],
+            kernel_shape=kernel_shape,
+            # Default values for other attributes:
+            strides=strides,
+            dilations=dilations,
+            group=1,
+            auto_pad=auto_pad,
+        )
+    else:
+        node = helper.make_node(
+            "ConvTranspose",
+            inputs=["x", "W"],
+            outputs=["y"],
+            kernel_shape=kernel_shape,
+            # Default values for other attributes:
+            strides=strides,
+            dilations=dilations,
+            group=1,
+            pads=padding,
+        )
+
+    graph = helper.make_graph(
+        [node],
+        "convtranspose_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
+            helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape)),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="conv_test")
+
+    verify_with_ort(model, [x_shape, w_shape], y_shape, use_vm=True, convert_to_static=True)
+
+
 def verify_convtranspose(x_shape, w_shape, y_shape, p):
     node = onnx.helper.make_node(
         "ConvTranspose",
@@ -2589,6 +2665,87 @@ def test_convtranspose():
     # [1, 2, 1, 2] list for pads
     verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2])
 
+    def repeat(N, D):
+        return tuple([N for _ in range(D)])
+
+    # TODO(mbrookhart): onnxruntime doesn't support conv3d_transpose, find something else to test against
+    for D in [1, 2]:
+        # Convolution with padding
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            (1, 1) + repeat(5, D),
+            2 * repeat(1, D),
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+        )
+        # Convolution without padding
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            (1, 1) + repeat(7, D),
+            2 * repeat(0, D),
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+        )
+        # Convolution with autopadding
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            (1, 1) + repeat(5, D),
+            None,
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+            auto_pad="SAME_UPPER",
+        )
+        # Convolution with valid autopadding
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            (1, 1) + repeat(7, D),
+            None,
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+            auto_pad="VALID",
+        )
+        # Convolution with unset padding
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            (1, 1) + repeat(7, D),
+            2 * repeat(0, D),
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+            True,
+        )
+        # Convolution with non uniform stride
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            (1, 1) + repeat(9, D),
+            None,
+            repeat(3, D),
+            repeat(2, D),
+            repeat(1, D),
+            auto_pad="SAME_UPPER",
+        )
+        # Convolution with dilation
+        # TODO(mbrookhart): Relay doesn't currently support convtranspose with dilation
+        # verify_convtranspose_with_padding(
+        #     (1, 1) + repeat(5, D),
+        #     (1, 1) + repeat(3, D),
+        #     (1, 1) + repeat(5, D),
+        #     2 * repeat(2, D),
+        #     repeat(3, D),
+        #     repeat(1, D),
+        #     repeat(2, D),
+        # )
+
 
 @tvm.testing.uses_gpu
 def test_unsqueeze_constant():
@@ -2612,6 +2769,7 @@ def test_unsqueeze_constant():
 
 
 def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_pad="NOTSET"):
+    print(x_shape, kernel_shape, strides, mode, pads, auto_pad)
     x_np = np.random.uniform(size=x_shape).astype("float32")
 
     if mode == "max":
@@ -2643,7 +2801,7 @@ def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_p
     )
 
     model = helper.make_model(graph, producer_name="pooling_test")
-    verify_with_ort(model, [x_shape], out_shape)
+    verify_with_ort(model, [x_shape], out_shape, use_vm=True, convert_to_static=True)
 
 
 @tvm.testing.uses_gpu
@@ -2893,7 +3051,7 @@ def verify_lppool(x_shape, kernel_shape, p, strides, pads, out_shape, auto_pad="
     )
 
     model = helper.make_model(graph, producer_name="lppool_test")
-    verify_with_ort(model, [x_shape], out_shape)
+    verify_with_ort(model, [x_shape], out_shape, use_vm=True, convert_to_static=True)
 
 
 @tvm.testing.uses_gpu
