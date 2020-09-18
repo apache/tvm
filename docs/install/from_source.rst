@@ -205,7 +205,7 @@ like ``virtualenv``.
 
    .. code:: bash
 
-       pip3 install --user numpy decorator attrs typed_ast pytest
+       pip3 install --user numpy decorator attrs
 
    * If you want to use RPC Tracker
 
