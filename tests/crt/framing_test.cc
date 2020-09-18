@@ -146,7 +146,7 @@ class UnframerTest : public ::testing::Test {
 
 TEST_F(UnframerTest, PacketTooLong) {
   const uint8_t escape[2] = {uint8_t(Escape::kEscapeStart), uint8_t(Escape::kPacketStart)};
-  uint16_t crc = crc16_compute(escape, sizeof(escape), nullptr);
+  uint16_t crc = tvm::runtime::micro_rpc::crc16_compute(escape, sizeof(escape), nullptr);
   size_t bytes_consumed;
   EXPECT_EQ(kTvmErrorNoError, unframer_.Write(escape, sizeof(escape), &bytes_consumed));
   EXPECT_EQ(sizeof(escape), bytes_consumed);
@@ -156,7 +156,7 @@ TEST_F(UnframerTest, PacketTooLong) {
   for (size_t i = 0; i < sizeof(packet_length); i++) {
     ASSERT_NE('\xff', packet_length_bytes[i]);
   }
-  crc = crc16_compute(packet_length_bytes, sizeof(packet_length), &crc);
+  crc = tvm::runtime::micro_rpc::crc16_compute(packet_length_bytes, sizeof(packet_length), &crc);
   EXPECT_EQ(kTvmErrorNoError,
             unframer_.Write(packet_length_bytes, sizeof(packet_length), &bytes_consumed));
   EXPECT_EQ(sizeof(packet_length), bytes_consumed);
@@ -168,7 +168,7 @@ TEST_F(UnframerTest, PacketTooLong) {
       long_payload[i] = 0;
     }
   }
-  crc = crc16_compute(long_payload, sizeof(long_payload), &crc);
+  crc = tvm::runtime::micro_rpc::crc16_compute(long_payload, sizeof(long_payload), &crc);
   EXPECT_EQ(kTvmErrorWriteStreamShortWrite,
             unframer_.Write(long_payload, sizeof(long_payload), &bytes_consumed));
   EXPECT_EQ(write_stream_.capacity(), bytes_consumed);

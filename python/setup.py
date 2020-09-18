@@ -166,7 +166,21 @@ setup(
     ],
     extras_require={
         "test": ["pillow<7", "matplotlib"],
-        "extra_feature": ["tornado", "psutil", "xgboost>=1.1.0", "mypy", "orderedset"],
+        "extra_feature": [
+            "tornado",
+            "psutil",
+            "xgboost>=1.1.0",
+            "mypy",
+            "orderedset",
+        ],
+        "tvmc": [
+            "tensorflow>=2.1.0",
+            "tflite>=2.1.0",
+            "onnx>=1.7.0",
+            "onnxruntime>=1.0.0",
+            "torch>=1.4.0",
+            "torchvision>=0.5.0",
+        ],
     },
     packages=find_packages(),
     package_dir={"tvm": "tvm"},

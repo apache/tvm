@@ -19,7 +19,6 @@
 # pylint: disable=unnecessary-comprehension, unused-argument, import-outside-toplevel
 # pylint: disable=unused-import
 import json
-import numbers
 import operator
 from typed_ast import ast3 as ast
 
@@ -30,9 +29,10 @@ from tvm.ir import GlobalVar
 from tvm.tir import all as _all
 from tvm.tir import expr as _expr
 
-from . import scope_emitter, special_stmt, scope_handler, intrin
+from . import scope_emitter, special_stmt, scope_handler, intrin, ty
 from .meta_unparser import MetaUnparser
 from .registry import Registry
+from . import _ffi_api
 
 
 class HybridParserError(RuntimeError):
@@ -45,13 +45,14 @@ class HybridParser(ast.NodeVisitor):
     1. To support new types of AST nodes. Add a function visit_xxx().
     2. To support new functions
         We divide allowed function calls in hybrid script into 3 categories,
-        which is scope_handler, intrin and special_stmt.
-        1) scope_handler: scope_handler functions correspond to StmtNodes without body, which can be
-        further classified into 2 categories: with scope handler can for scope handlers
-        2) intrin: intrin functions corresponds to the remaining IRNodes (StmtNodes without body,
-        PrimExprNodes and more)
-        3) special_stmt: special_stmt functions don't correspond to an IRNode in the AST directly.
-        It is usually used for some information that is not suitable to be printed directly.
+        which is intrin, scope_handler and special_stmt.
+        1) intrin functions ought to have return value.
+        User can also register intrin category function into parser.
+        2) scope_handler functions have no return value and accepts parser and AST node
+        as its arguments, which is used in for scope and with scope.
+        3) special_stmt functions have return value and accepts parser and AST node as its arguments
+        When visiting Call node, we check special_stmt registry at first. If no registered function
+        is found, we then check intrin.
         When visiting With node, we check with_scope registry.
         When visiting For node, we check for_scope registry.
     """
@@ -83,6 +84,7 @@ class HybridParser(ast.NodeVisitor):
         self.buffer_map = None
         self.dict_attr = None
         self.scope_emitter = None
+        self.var_env_dict = None
 
         self.src = src.split("\n")
         self.base_lineno = base_lienno
@@ -91,9 +93,7 @@ class HybridParser(ast.NodeVisitor):
         self.meta = None
 
         self.functions = {}
-
-        self._in_with_func_arg = False
-        self._assign_target = None
+        self.target = None
 
     def init_function_parsing_env(self):
         """Initialize function parsing environment"""
@@ -101,6 +101,7 @@ class HybridParser(ast.NodeVisitor):
         self.buffer_map = {}  # buffer map
         self.dict_attr = {}  # dict attr
         self.scope_emitter = scope_emitter.ScopeEmitter(self)  # scope emitter
+        self.var_env_dict = {}  # map from var to thread env name
 
     @staticmethod
     def is_meta(node):
@@ -169,15 +170,6 @@ class HybridParser(ast.NodeVisitor):
             col_offset = self.current_col_offset
         raise HybridParserError(self.wrap_line_col(message, lineno, col_offset))
 
-    def get_type_name(self, vtype):
-        if (
-            isinstance(vtype, ast.Attribute)
-            and isinstance(vtype.value, ast.Name)
-            and vtype.value.id == "ty"
-        ):
-            return vtype.attr
-        self.report_error("invalid type annotation")
-
     def get_body(self):
         body = []
         while len(self.scope_emitter.node_stack[-1]) > 0:
@@ -186,31 +178,19 @@ class HybridParser(ast.NodeVisitor):
                 body.append(res)
         return tvm.tir.SeqStmt(body) if len(body) > 1 else body[0]
 
-    def parse_type(self, vtype):
-        """ Parse type annotation AST into Type object """
-        if isinstance(vtype, ast.NameConstant) and vtype.value is None:
-            return tvm.ir.TupleType([])
-        elif isinstance(vtype, ast.Attribute):
-            return tvm.ir.PrimType(self.get_type_name(vtype))
-        elif isinstance(vtype, ast.Subscript) and isinstance(vtype.slice, ast.Index):
-            type_name = self.get_type_name(vtype.value)
-            if isinstance(vtype.slice.value, ast.Tuple):
-                args = [self.parse_type(element) for element in vtype.slice.value.elts]
-            else:
-                args = [self.parse_type(vtype.slice.value)]
-            if type_name == "Ptr":
-                return tvm.ir.PointerType(*args)
-            elif type_name == "Tuple":
-                return tvm.ir.TupleType(args)
-
-        self.report_error("invalid type annotation")
+    def get_type(self, type_node):
+        """ Parse type """
+        if type_node is None:
+            self.report_error("missing type annotation")
+        res_type = self.visit(type_node)
+        return tvm.ir.TupleType([]) if res_type is None else res_type.evaluate()
 
     def generic_visit(self, node):
         """Override method in ast.NodeVisitor.
         To directly filter out invalidate type of stmt.
         """
 
-        self.report_error(type(node).__name__ + " stmt is not supported now")
+        self.report_error(type(node).__name__ + " AST node is not supported now")
 
     def visit_Module(self, node):
         """Module visitor
@@ -304,7 +284,7 @@ class HybridParser(ast.NodeVisitor):
         self.init_function_parsing_env()
         # add parameters of function
         for arg in node.args.args:
-            arg_var = tvm.te.var(arg.arg, self.parse_type(arg.annotation))
+            arg_var = tvm.te.var(arg.arg, self.get_type(arg.annotation))
             self.scope_emitter.update_symbol(arg.arg, arg_var)
             self.params.append(arg_var)
 
@@ -315,7 +295,7 @@ class HybridParser(ast.NodeVisitor):
         func = tvm.tir.PrimFunc(
             self.params,
             self.get_body(),
-            ret_type=self.parse_type(node.returns),
+            ret_type=self.get_type(node.returns),
             buffer_map=self.buffer_map,
             attrs=tvm.ir.make_node("DictAttrs", **self.dict_attr),
         )
@@ -326,12 +306,15 @@ class HybridParser(ast.NodeVisitor):
         """Assign visitor
         AST abstract grammar:
             Assign(expr* targets, expr value, string? type_comment)
-        By now only 2 types of Assign is supported:
-            1. special stmts that appear as assign stmt
+        By now only 3 types of Assign is supported:
+            1. special stmts with return value
                 1.1 Buffer = tir.buffer_bind()/tir.buffer_decl()
                 1.2 Var = tir.var()
+                1.3 Var = tir.env_thread()
             2. (BufferStore) Buffer[PrimExpr, PrimExpr, ..., PrimExpr] = PrimExpr
-            3. (Store) Var[PrimExpr] = PrimExpr
+            3. (Store)       Var[PrimExpr] = PrimExpr
+            4. with scope handlers with concise scoping and var def
+                4.1 var = tir.alloc_with_scope()
         """
 
         if not len(node.targets) == 1:
@@ -339,22 +322,29 @@ class HybridParser(ast.NodeVisitor):
         target = node.targets[0]
 
         if isinstance(target, ast.Name):
-            # scenario 1
-            self._assign_target = target.id
-            rhs = self.visit(node.value)
+            # scenario 1&4
+            self.target = [target.id]
             if not isinstance(node.value, ast.Call):
-                self.report_error("Unsupported Assign stmt")
-            self.scope_emitter.update_symbol(target.id, rhs)
+                self.report_error("Unsupported assign stmt")
+            func = self.visit(node.value.func)
+            if Registry.is_with_scope(func):
+                # scenario 4
+                return self.visit(node.value)
+            else:
+                # scenario 1
+                rhs = self.visit(node.value)
+                self.scope_emitter.update_symbol(target.id, rhs)
         elif isinstance(target, ast.Subscript):
             # scenario 2&3
             symbol, indexes = self.visit(target)
-            self._assign_target = (symbol, indexes)
             rhs = self.visit(node.value)
             if isinstance(symbol, tvm.tir.Buffer):
+                # BufferStore
                 return tvm.tir.BufferStore(symbol, tvm.runtime.convert(rhs), indexes)
             else:
                 if len(indexes) != 1:
                     self.report_error("Invalid Store stmt")
+                # Store
                 return tvm.tir.Store(
                     symbol, tvm.runtime.convert(rhs), indexes[0], tvm.runtime.convert(True)
                 )
@@ -370,7 +360,7 @@ class HybridParser(ast.NodeVisitor):
 
         if isinstance(node.target, ast.Name):
             value = self.visit(node.value)
-            var = tvm.te.var(node.target.id, self.parse_type(node.annotation))
+            var = tvm.te.var(node.target.id, self.get_type(node.annotation))
             self.scope_emitter.update_symbol(var.name, var)
             return tvm.tir.LetStmt(var, value, self.visit(self.scope_emitter.node_stack[-1].pop()))
         else:
@@ -394,40 +384,26 @@ class HybridParser(ast.NodeVisitor):
         AST abstract grammar:
             For(expr target, expr iter, stmt* body, stmt* orelse, string? type_comment)
         By now only 1 type of For is supported:
-            1. for name in tir.range(begin, end, for_type)
+            1. for name in tir.serial/parallel/vectorized/unroll(begin, end)
         """
 
-        if not isinstance(node.target, ast.Name):
-            self.report_error("The loop variable should be a name variable")
-        # check node.iter, which is a tir Call
+        # check node.iter, which is a Call
         if not isinstance(node.iter, ast.Call):
             self.report_error("The loop iter should be a Call")
-        if (
-            not isinstance(node.iter.func, ast.Attribute)
-            or not isinstance(node.iter.func.value, ast.Name)
-            or node.iter.func.value.id != "tir"
-        ):
-            self.report_error("The loop iter Call should be tir.name()")
-
-        func_name = node.iter.func.attr
+        func = self.visit(node.iter.func)
+        if not Registry.is_for_scope(func):
+            self.report_error("Function not allowed in for scope")
         # collect arguments
         args = [self.visit(arg) for arg in node.iter.args]
         kw_args = [self.visit(keyword) for keyword in node.iter.keywords]
         kw_args = {kw_arg[0]: kw_arg[1] for kw_arg in kw_args}
-        # All the functions supported in For stmt are registered in scope_handler.ForScope
-        if func_name not in Registry.for_scope:
-            self.report_error(
-                "Function " + func_name + " used in For stmt is not supported now",
-                self.current_lineno,
-                node.iter.col_offset,
-            )
 
         old_lineno, old_col_offset = self.current_lineno, self.current_col_offset
         self.current_lineno, self.current_col_offset = (
             self.base_lineno + node.iter.lineno - 1,
             node.iter.col_offset,
         )
-        res = Registry.for_scope.get(func_name)(self, node, args, kw_args)
+        res = func(self, node, args, kw_args)
         self.current_lineno, self.current_col_offset = old_lineno, old_col_offset
         return res
 
@@ -436,37 +412,45 @@ class HybridParser(ast.NodeVisitor):
         AST abstract grammar:
             With(withitem* items, stmt* body, string? type_comment)
             withitem = (expr context_expr, expr? optional_vars)
-        By now only 1 type of With is supported:
-            1. with tir.let/tir.Assert()/tir.attr()/tir.allocate()/tir.realize()
+        By now 2 types of With is supported:
+            1. with tir.allocate() as targets:
+            2. with tir.let()/tir.Assert()/tir.attr()//tir.realize()
         """
-
-        if len(node.items) != 1:
+        if not len(node.items) == 1:
             self.report_error("Only one with element is supported now")
         if not isinstance(node.items[0].context_expr, ast.Call):
             self.report_error("The context expression of with should be a Call")
-        func_call = node.items[0].context_expr
-        if (
-            not isinstance(func_call.func, ast.Attribute)
-            or not isinstance(func_call.func.value, ast.Name)
-            or func_call.func.value.id != "tir"
-        ):
-            self.report_error("The context expression of with should be tir.name()")
 
-        func_name = func_call.func.attr
-        # collect arguments
+        func_call = node.items[0].context_expr
+        func_node = func_call.func
+        func = self.visit(func_node)
+
+        if not Registry.is_with_scope(func):
+            self.report_error("Function not allowed in with scope")
+
+        self.target = []
+        if node.items[0].optional_vars is not None:
+            # preprocess optional var names
+            if isinstance(node.items[0].optional_vars, ast.Name):
+                self.target = [node.items[0].optional_vars.id]
+            elif isinstance(node.items[0].optional_vars, (ast.List, ast.Tuple)):
+                for var in node.items[0].optional_vars.elts:
+                    if not isinstance(var, ast.Name):
+                        self.report_error("Invalid optional var definition")
+                self.target = [var.id for var in node.items[0].optional_vars.elts]
+            else:
+                self.report_error("Invalid optional var definition")
+        # parse other arguments
         args = [self.visit(arg) for arg in func_call.args]
         kw_args = [self.visit(keyword) for keyword in func_call.keywords]
         kw_args = {kw_arg[0]: kw_arg[1] for kw_arg in kw_args}
-        if func_name not in Registry.with_scope:
-            self.report_error("Function " + func_name + " used in With stmt is not supported now")
 
-        # All the functions supported in With stmt are registered in scope_handler.WithScope
         old_lineno, old_col_offset = self.current_lineno, self.current_col_offset
         self.current_lineno, self.current_col_offset = (
             self.base_lineno + func_call.lineno - 1,
             func_call.col_offset,
         )
-        res = Registry.with_scope.get(func_name)(self, node, args, kw_args)
+        res = func(self, node, args, kw_args)
         self.current_lineno, self.current_col_offset = old_lineno, old_col_offset
         return res
 
@@ -498,49 +482,41 @@ class HybridParser(ast.NodeVisitor):
         AST abstract grammar:
             Call(expr func, expr* args, keyword* keywords)
             keyword = (identifier? arg, expr value)
+        All the functions used outside With and For are registered in special_stmt or intrin
         """
 
+        func = self.visit(node.func)
         # collect arguments
         args = [self.visit(arg) for arg in node.args]
         kw_args = [self.visit(keyword) for keyword in node.keywords]
         kw_args = {kw_arg[0]: kw_arg[1] for kw_arg in kw_args}
 
-        maybe_intrin = False
-        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
-            if node.func.value.id == "tir":
-                func_name = node.func.attr
-                maybe_intrin = True
+        if callable(func):
+            if Registry.is_registered(func):
+                return func(self, node, args, kw_args)
             else:
-                self.report_error("Unsupported Attribute typed function call")
-        else:
-            self.report_error("Unsupported function call")
+                return func(*args, **kw_args)
+        elif isinstance(func, tvm.tir.op.Op):
+            return tvm.tir.Call(kw_args["dtype"], func, args)
 
-        if func_name in Registry.special_stmt:
-            return Registry.special_stmt.get(func_name)(self, node, args, kw_args)
-        if func_name in Registry.intrin:
-            return Registry.intrin.get(func_name)(self, node, args, kw_args)
-        if func_name in Registry.with_scope:
-            return Registry.with_scope.get(func_name)(self, node, args, kw_args)
-        if maybe_intrin:
-            return tvm.tir.Call(kw_args["dtype"], tvm.ir.op.Op.get("tir." + func_name), args)
-
-        self.report_error("Function " + func_name + " is not supported now")
+        self.report_error("Unsupported function call")
 
     def visit_Expr(self, node):
         """Expr visitor
         AST abstract grammar:
             Expr(expr value)
-
-        Now only 2 types of Expr stmt is allowed:
-            1. Concise mode of with scope handlers
-                tir.attr()/tir.assert()/tir.allocate()/tir.realize()
-            2. special stmts appear as a call
-                tir.set_func_attr()
+        Now only 3 types of `Expr` stmt is allowed:
+            1. reducer.step()/tir.store()
+            2. tir.attr()/tir.assert()/tir.allocate()/tir.realize()
+            3. tir.set_func_attr()
         """
 
         if not isinstance(node.value, ast.Call):
             self.report_error("Unsupported Expr stmt")
-        return self.visit(node.value)
+        res = self.visit(node.value)
+        if res is None or isinstance(res, tvm.tir.Stmt):
+            return res
+        self.report_error("Invalid Expr stmt")
 
     def visit_BinOp(self, node):
         """BinOp visitor
@@ -602,16 +578,14 @@ class HybridParser(ast.NodeVisitor):
             2. meta[type_key][index], Meta info access
         """
 
-        if isinstance(node.value, (ast.Name, ast.Attribute)):
-            symbol = self.visit(node.value)
+        symbol = self.visit(node.value)
+        if symbol is None:
+            self.report_error(node.value.id + " is not defined")
+        if isinstance(symbol, (tvm.tir.expr.Var, tvm.tir.Buffer)):
             if isinstance(node.slice, ast.Index):
-                # BufferLoad & BufferStore
-                if isinstance(node.slice.value, ast.Tuple):
-                    # Buffer/Var[index, index, ...]
-                    indexes = [self.visit(element) for element in node.slice.value.elts]
-                else:
-                    # Buffer/Var[index]
-                    indexes = [self.visit(node.slice.value)]
+                # BufferLoad & BufferStore, Buffer/Var[index, index, ...]
+                indexes = self.visit(node.slice.value)
+                indexes = list(indexes) if isinstance(indexes, tuple) else [indexes]
                 if isinstance(node.ctx, ast.Load):
                     if isinstance(symbol, tir.expr.Var):
                         return tvm.tir.Load("float32", symbol, indexes, True)
@@ -643,42 +617,11 @@ class HybridParser(ast.NodeVisitor):
                         extent = ana.simplify(extent)
                     doms.append(tvm.ir.Range.from_min_extent(lower, extent))
                 return symbol, doms
-
-        elif (
-            isinstance(node.value, ast.Subscript)
-            and isinstance(node.value.value, ast.Name)
-            and node.value.value.id == "meta"
-        ):
-            # meta[type_key][index]
-            if not (
-                isinstance(node.slice, ast.Index) and isinstance(node.slice.value, ast.Num)
-            ) or not (
-                isinstance(node.value.slice, ast.Index)
-                and isinstance(node.value.slice.value, ast.Name)
-            ):
-                self.report_error("The meta access format ought to be meta[type_key][index]")
-            type_key = node.value.slice.value.id
-            index = node.slice.value.n
-            node_list = self.meta[type_key]
-            if node_list is None:
-                self.report_error("type_key " + type_key + " in meta not found")
-            if len(node_list) <= index:
-                self.report_error("index " + index + " out of range " + len(node_list))
-            return node_list[index]
         else:
-            self.report_error("Only buffer variable and meta can be subscriptable")
-
-    def visit_Name(self, node):
-        """Name visitor
-        AST abstract grammar:
-            Name(identifier id, expr_context ctx)
-        """
-
-        name = node.id
-        symbol = self.scope_emitter.lookup_symbol(name)
-        if symbol is None:
-            self.report_error("Unknown symbol %s" % name)
-        return symbol
+            res = symbol[self.visit(slice)]
+            if res is None:
+                self.report_error("Only buffer variable and meta can be subscriptable")
+            return res
 
     def visit_Attribute(self, node):
         """Attribute visitor
@@ -686,15 +629,28 @@ class HybridParser(ast.NodeVisitor):
             Attribute(expr value, identifier attr, expr_context ctx)
         """
 
-        if not isinstance(node.value, ast.Name):
-            self.report_error("The value of Attribute ought to a Name")
-        name = node.value.id
-        symbol = self.scope_emitter.lookup_symbol(name)
-        if symbol is None or not isinstance(symbol, tvm.tir.Buffer):
+        if isinstance(node.value, ast.Name):
+            if node.value.id == "tir":
+                func_name = "tir." + node.attr
+                res = Registry.look_up_function(func_name)
+                if res is not None:
+                    return res
+                try:
+                    return tvm.ir.op.Op.get(func_name)
+                except AttributeError:
+                    self.report_error("Unregistered function tir." + node.attr)
+            elif node.value.id == "ty":
+                if not hasattr(ty, node.attr):
+                    self.report_error("invalid type annotation ty." + node.attr)
+                return getattr(ty, node.attr)
+
+        symbol = self.visit(node.value)
+        if symbol is None:
             self.report_error("Unsupported Attribute expression")
         if not hasattr(symbol, node.attr):
             self.report_error("Type " + type(symbol) + " has not attr " + node.attr)
-        return getattr(symbol, node.attr)
+        res = getattr(symbol, node.attr)
+        return res
 
     def visit_Dict(self, node):
         """Dict visitor
@@ -731,20 +687,32 @@ class HybridParser(ast.NodeVisitor):
 
         return node.arg, self.visit(node.value)
 
-    def visit_NameConstant(self, node):
-        return tvm.runtime.convert(node.value)
+    def visit_Name(self, node):
+        """Name visitor
+        AST abstract grammar:
+            Name(identifier id, expr_context ctx)
+        """
 
+        name = node.id
+        if name == "meta":
+            return self.meta
+        symbol = Registry.look_up_function(name)
+        if symbol is not None:
+            return symbol
+        symbol = self.scope_emitter.lookup_symbol(name)
+        if symbol is not None:
+            return symbol
+        self.report_error("Unknown identifier %s" % name)
+
+    # note that after Python3.8, ast.NameConstant, ast.Num, ast.Str are no longer used
     def visit_Constant(self, node):
-        return tvm.runtime.convert(node.value)
+        return node.value
+
+    def visit_NameConstant(self, node):
+        return node.value
 
     def visit_Num(self, node):
-        if isinstance(node.n, numbers.Integral):
-            dtype = "int32"
-        elif isinstance(node.n, float):
-            dtype = "float32"
-        else:
-            self.report_error("The data type should be one of (int, float)")
-        return tvm.tir.const(node.n, dtype)
+        return node.n
 
     def visit_Str(self, node):
         return node.s
@@ -787,4 +755,4 @@ def from_source(src, func_lineno=0):
         raise HybridParserError(inject_e)
 
 
-tvm._ffi._init_api("tvm.hybrid.parser")
+tvm._ffi._init_api("hybrid", __name__)

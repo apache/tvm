@@ -68,6 +68,11 @@ def _decl_spatial_pack(
     out_dtype = out_dtype or data.dtype
 
     N, CI, IH, IW = get_const_tuple(data.shape)
+    if isinstance(N, tvm.tir.Any):
+        N = tvm.te.size_var("n")
+    if not isinstance(IH, int) or not isinstance(IW, int):
+        raise RuntimeError("ARM winograd conv2d doesn't support dynamic input height or width.")
+
     _, CO, KH, KW = get_const_tuple(kernel.shape)
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     opad_h, opad_w = output_padding
@@ -84,7 +89,9 @@ def _decl_spatial_pack(
     data_pad = pad(dilated_input, [0, 0, bpad_top, bpad_left], [0, 0, bpad_bottom, bpad_right])
 
     # ==================== define configuration space ====================
-    n, co, oh, ow = cfg.axis(N), cfg.axis(CO), cfg.axis(OH), cfg.axis(OW)
+    # TODO(@kevinthesun): Support tuning/optimization for dynamic shape.
+    n_tuning_axis = N if isinstance(N, int) else 1
+    n, co, oh, ow = cfg.axis(n_tuning_axis), cfg.axis(CO), cfg.axis(OH), cfg.axis(OW)
     ci, kh, kw = cfg.reduce_axis(CI), cfg.reduce_axis(KH), cfg.reduce_axis(KW)
 
     if num_tile == 2:  # for arm cpu

@@ -208,14 +208,13 @@ def tune_and_evaluate(tuning_opt):
     with autotvm.apply_graph_best(graph_opt_sch_file):
         print("Compile...")
         with tvm.transform.PassContext(opt_level=3):
-            graph, lib, params = relay.build_module.build(mod, target=target, params=params)
+            lib = relay.build_module.build(mod, target=target, params=params)
 
         # upload parameters to device
         ctx = tvm.cpu()
         data_tvm = tvm.nd.array((np.random.uniform(size=data_shape)).astype(dtype))
-        module = runtime.create(graph, lib, ctx)
+        module = runtime.GraphModule(lib["default"](ctx))
         module.set_input(input_name, data_tvm)
-        module.set_input(**params)
 
         # evaluate
         print("Evaluate inference time cost...")

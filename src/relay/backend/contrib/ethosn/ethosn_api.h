@@ -54,6 +54,40 @@ struct ConvolutionParams {
   bool is_depthwise = false;
 };
 
+struct FullyConnectedParams {
+  sl::FullyConnectedInfo fc_info;
+  sl::TensorInfo input_info;
+  sl::TensorInfo weights_info;
+  sl::TensorInfo bias_info;
+  void* raw_weights = nullptr;
+  void* raw_bias = nullptr;
+};
+
+struct MaxPool2DParams {
+  sl::PoolingInfo pool_info = sl::PoolingInfo(0, 0, 0, 0, sl::Padding(), sl::PoolingType::MAX);
+  sl::TensorInfo input_info;
+};
+
+struct AvgPool2DParams {
+  sl::PoolingInfo pool_info = sl::PoolingInfo(0, 0, 0, 0, sl::Padding(), sl::PoolingType::AVG);
+  sl::TensorInfo input_info;
+};
+
+struct ReshapeParams {
+  sl::TensorShape new_shape{};
+  sl::TensorInfo input_info;
+};
+
+struct AdditionParams {
+  sl::QuantizationInfo output_quantization_info;
+  sl::TensorInfo lhs_info;
+  sl::TensorInfo rhs_info;
+};
+
+struct SigmoidParams {
+  sl::TensorInfo input_info;
+};
+
 struct ConcatenateParams {
   sl::QuantizationInfo qInfo;
   sl::ConcatenationInfo concat_info = sl::ConcatenationInfo(1, qInfo);
@@ -62,6 +96,16 @@ struct ConcatenateParams {
 
 struct SplitParams {
   sl::SplitInfo split_info = sl::SplitInfo(0, {});
+  sl::TensorInfo input_info;
+};
+
+struct DepthToSpaceParams {
+  sl::DepthToSpaceInfo depth_info = sl::DepthToSpaceInfo(0);
+  sl::TensorInfo input_info;
+};
+
+struct ReluParams {
+  sl::ReluInfo relu_info;
   sl::TensorInfo input_info;
 };
 
@@ -127,13 +171,29 @@ class EthosnAPI {
  public:
   /*! \brief Extract the Support Library convolution params from an ethos-n.qnn_conv2d func */
   static EthosnError QnnConv2d(const Expr& expr, ConvolutionParams* params);
+  /*! \brief Extract the Support Library dense params from an ethos-n.qnn_fc func */
+  static EthosnError QnnFullyConnected(const Expr& expr, FullyConnectedParams* params);
+  /*! \brief Extract the Support Library max_pool2d params from a Relay max_pool2d call */
+  static EthosnError MaxPool2D(const Expr& expr, MaxPool2DParams* params);
+  /*! \brief Extract the Support Library avg_pool params from a Relay ethos-n.qnn_avg_pool2d func */
+  static EthosnError AvgPool2D(const Expr& expr, AvgPool2DParams* params);
+  /*! \brief Extract the Support Library reshape params from a Relay reshape call */
+  static EthosnError Reshape(const Expr& expr, ReshapeParams* params);
+  /*! \brief Extract the Support Library addition params from a Relay qnn.addition call */
+  static EthosnError Addition(const Expr& expr, AdditionParams* params);
+  /*! \brief Extract the Support Library sigmoid params from a Relay an ethos-n.qnn_sigmoid func */
+  static EthosnError Sigmoid(const Expr& expr, SigmoidParams* params);
   /*! \brief Extract the Support Library concatenate params from a Relay qnn.concatenate call */
   static EthosnError Concatenate(const Expr& expr, ConcatenateParams* params);
   /*! \brief Extract the Support Library split params from a Relay split call */
   static EthosnError Split(const Expr& expr, SplitParams* params);
+  /*! \brief Extract the Support Library depth_to_space params from a Relay depth_to_space call */
+  static EthosnError DepthToSpace(const Expr& expr, DepthToSpaceParams* params);
+  /*! \brief Extract the Support Library relu params from a Relay relu call */
+  static EthosnError Relu(const Expr& expr, ReluParams* params);
 
  private:
-  /*! \brief Convert a TVM tensor shape to a SL tensor shape */
+  /*! \brief Convert a TVM IndexExpr array to a SL tensor shape */
   static EthosnError Tvm2Npu(const Array<IndexExpr>& shape, sl::TensorShape* npu_shape);
   /*! \brief Convert a TVM data type to a SL data type */
   static EthosnError Tvm2Npu(const tvm::DataType& dtype, sl::DataType* data_type);
@@ -143,10 +203,19 @@ class EthosnAPI {
   static EthosnError Tvm2Npu(const Array<IndexExpr>& strides, sl::Stride* npu_stride);
   /*! \brief Convert TVM data format to SL data format */
   static EthosnError Tvm2Npu(const std::string& dformat, sl::DataFormat* data_format);
+  /*! \brief Convert TVM size array for pooling size to x and y values */
+  static EthosnError Tvm2Npu(const Array<IndexExpr>& size, uint32_t* x, uint32_t* y);
   /*! \brief Convert TVM quantization info to SL quantization info */
   static EthosnError Tvm2Npu(int32_t zero_point, float scale, sl::QuantizationInfo* npu_qinfo);
   /*! \brief Convert TVM 2D padding to SL padding */
   static EthosnError Tvm2Npu(const Array<Array<Integer>>& padding, sl::Padding* npu_padding);
+  /*! \brief Convert a TVM Integer array to a SL tensor shape */
+  static EthosnError Tvm2Npu(const Array<Integer>& shape, sl::TensorShape* npu_shape);
+  /*! \brief Convert a TVM pooling call to SL pooling information */
+  static EthosnError Pool2d(const Call& pool, Array<IndexExpr> size, Array<IndexExpr> strides,
+                            Array<IndexExpr> padding, sl::PoolingType pooling_type,
+                            sl::PoolingInfo* pool_info, sl::TensorInfo* input_info,
+                            std::string layout);
 
   // Convert an array of IntImmNodes into ValueT
   // IndexT type of Array indexing variable

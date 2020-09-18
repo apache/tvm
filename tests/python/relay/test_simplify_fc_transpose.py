@@ -29,16 +29,15 @@ from tvm.relay.data_dep_optimization import simplify_fc_transpose
 
 def run_func(func, params, x):
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, new_params = relay.build(func, "llvm", params=params)
+        lib = relay.build(func, "llvm", params=params)
 
     from tvm.contrib import graph_runtime
 
     ctx = tvm.cpu(0)
     dtype = "float32"
-    m = graph_runtime.create(graph, lib, ctx)
+    m = graph_runtime.GraphModule(lib["default"](ctx))
     # set inputs
     m.set_input("data", tvm.nd.array(x.astype(dtype)))
-    m.set_input(**new_params)
     # execute
     m.run()
     # get outputs

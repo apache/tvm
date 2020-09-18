@@ -749,6 +749,57 @@ def test_qnn_conv_add_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_qnn_conv_nhwc_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56), dtype="int8")
+        weight = relay.var("weight", shape=(64, 64, 3, 3), dtype="int8")
+        y = relay.qnn.op.conv2d(
+            x,
+            weight,
+            relay.const(1, "int32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "float32"),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        y = relay.nn.relu(y)
+        y = relay.Function([x, weight], y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56), dtype="int8")
+        weight = relay.var("weight", shape=(64, 64, 3, 3), dtype="int8")
+        x = relay.layout_transform(x, "NCHW", "NHWC")
+        weight = relay.layout_transform(weight, "OIHW", "HWIO")
+        y = relay.qnn.op.conv2d(
+            x,
+            weight,
+            relay.const(1, "int32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "float32"),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, "NHWC", "NCHW")
+        y = relay.Function(relay.analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({"qnn.conv2d": ["NHWC", "default"]}))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_conv_convert_kernel_layout():
     """ Check that convolution kernel layout is correctly transformed. """
 
@@ -785,6 +836,59 @@ def test_conv_convert_kernel_layout():
 
     a = before()
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NHWC", "OHWI"]}))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
+def test_conv_roi_align_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var("weight1", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(
+            x,
+            weight1,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        rois = relay.var("rois", shape=(32, 5))
+        y = relay.vision.roi_align(
+            y, rois, pooled_size=(14, 14), spatial_scale=0.0625, sample_ratio=2, layout="NCHW"
+        )
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var("weight1", shape=(64, 64, 3, 3))
+        x = relay.layout_transform(x, "NCHW", "NHWC")
+        weight1 = relay.layout_transform(weight1, "OIHW", "HWIO")
+        y = relay.nn.conv2d(
+            x,
+            weight1,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        rois = relay.var("rois", shape=(32, 5))
+        y = relay.vision.roi_align(
+            y, rois, pooled_size=(14, 14), spatial_scale=0.0625, sample_ratio=2, layout="NHWC"
+        )
+        ret = relay.layout_transform(y, "NHWC", "NCHW")
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before()
+    desired_layouts = {
+        "nn.conv2d": ["NHWC", "HWIO"],
+        "vision.roi_align": ["NHWC", "default"],
+    }
+    a = run_opt_pass(a, transform.ConvertLayout(desired_layouts))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -951,7 +1055,9 @@ if __name__ == "__main__":
     test_qnn_conv_requantize_convert_layout()
     test_qnn_conv_concat_convert_layout()
     test_qnn_conv_add_convert_layout()
+    test_qnn_conv_nhwc_convert_layout()
     test_conv_convert_kernel_layout()
     test_conv_transpose_convert_layout()
+    test_conv_roi_align_convert_layout()
     test_default_keyword()
     test_different_ops_convert_layout()

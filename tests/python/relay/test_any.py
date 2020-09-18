@@ -36,7 +36,9 @@ def any_dims(ndim):
     return tuple(shape)
 
 
-def check_result(args, mod, expected, flatten=False, assert_shape=False, only_vm=False, targets=None):
+def check_result(
+    args, mod, expected, flatten=False, assert_shape=False, only_vm=False, targets=None
+):
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
         for tgt, ctx in targets:
@@ -421,6 +423,49 @@ def test_any_reshape_like():
     check_result([data_np, shape_like_np], mod, shape_like_np.shape, assert_shape=True)
 
 
+def verify_any_conv2d(
+    data_shape,
+    kernel_shape,
+    strides,
+    padding,
+    dilation,
+    static_data_shape,
+    ref_out_shape,
+):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    kernel = relay.var("kernel", shape=kernel_shape, dtype=dtype)
+    y = relay.nn.conv2d(data, kernel, strides, padding, dilation, kernel_size=kernel_shape[2:4])
+    mod["main"] = relay.Function([data, kernel], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
+    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
+
+
+# TODO(@kevinthesun): Support dynamic input height and width.
+# TODO(@kevinthesun): Support gpu to enable gpu tests.
+def test_any_conv2d():
+    verify_any_conv2d(
+        (relay.Any(), 64, 224, 224),
+        (64, 64, 3, 3),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 64, 224, 224),
+        (1, 64, 224, 224),
+    )
+    verify_any_conv2d(
+        (relay.Any(), 64, 224, 224),
+        (64, 64, 3, 3),
+        (1, 1),
+        (1, 1),
+        (2, 2),
+        (2, 64, 224, 224),
+        (2, 64, 222, 222),
+    )
+
+
 def verify_any_conv2d_NCHWc(
     data_shape,
     kernel_shape,
@@ -456,6 +501,7 @@ def verify_any_conv2d_NCHWc(
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
+# TODO(@kevinthesun): Support gpu to enable gpu tests.
 def test_any_conv2d_NCHWc():
     verify_any_conv2d_NCHWc(
         (relay.Any(), 8, 224, 224, 8),
@@ -484,15 +530,15 @@ def test_any_conv2d_NCHWc():
 
 
 def verify_any_conv2d_transpose_nchw(
-        data_shape,
-        kernel_shape,
-        strides,
-        padding,
-        dilation,
-        groups,
-        static_data_shape,
-        ref_out_shape,
-        output_padding,
+    data_shape,
+    kernel_shape,
+    strides,
+    padding,
+    dilation,
+    groups,
+    static_data_shape,
+    ref_out_shape,
+    output_padding,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
@@ -511,11 +557,13 @@ def verify_any_conv2d_transpose_nchw(
     mod["main"] = relay.Function([data, kernel], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
-    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True,
-                 targets=[('llvm', tvm.cpu())])
+    check_result(
+        [data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=[("llvm", tvm.cpu())]
+    )
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
+# TODO(@kevinthesun): Support gpu to enable gpu tests.
 def test_any_conv2d_transpose_nchw():
     verify_any_conv2d_transpose_nchw(
         (relay.Any(), 64, 224, 224),
@@ -537,7 +585,7 @@ def test_any_conv2d_transpose_nchw():
         1,
         (1, 32, 224, 224),
         (1, 64, 448, 448),
-        (1, 1)
+        (1, 1),
     )
 
 
@@ -1151,6 +1199,7 @@ def verify_any_repeat(data_shape, np_dshape, repeats, axis):
     np_data = np.random.uniform(size=np_dshape).astype(dtype)
     ref_res = np.repeat(np_data, repeats, axis)
     check_result([np_data], mod, ref_res)
+
 
 @tvm.testing.uses_gpu
 def test_any_repeat():

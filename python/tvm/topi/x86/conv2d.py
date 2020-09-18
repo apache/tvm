@@ -150,7 +150,6 @@ def _pack_data(cfg, data, kernel):
     if isinstance(ic, tvm.tir.Any):
         raise RuntimeError("Dynamic input channel is not supported for conv2d.")
 
-
     data = te.compute(
         (n, ic_chunk, ih, iw, ic_bn),
         lambda bs, c, h, w, vc: data[bs, c * ic_bn + vc, h, w],

@@ -44,7 +44,6 @@ class XGBDMatrixContext:
     def get(self, key, matrix, default=None):
         """
         Get an attribute of a xgb.DMatrix
-
         Parameters
         ----------
         key: str
@@ -59,7 +58,6 @@ class XGBDMatrixContext:
     def set(self, key, matrix, value):
         """
         Set an attribute for a xgb.DMatrix
-
         Parameters
         ----------
         key: str
@@ -77,15 +75,12 @@ dmatrix_context = XGBDMatrixContext()
 
 class XGBModel(PythonBasedModel):
     """Train a XGBoost model to predict the normalized throughputs of programs.
-
     Let the normalized throughput be the score of a program (higher is better). We predict
     the (approximiate) score of a program = the sum of the scores of all stages in this program.
     i.e. score(P) = score_s0 + score_s1 + ... + score_sn,
     where score_si is the score of Stage i in Program P.
-
     We extract feature for each stage and let the xgboost predict the score for each stage.
     We then sum up the predictions as the score of the whole program.
-
     We use RMSE as the loss function.  i.e. loss(P, y) = 1/2 * (score(P) - y)^2,
     where P is the program and y is the normalized throughput according to
     the ground truth (measurement).
@@ -123,7 +118,6 @@ class XGBModel(PythonBasedModel):
     def update(self, inputs, results):
         """Update the cost model according to new measurement results (training data).
         XGBoost does not support incremental training, so we re-train a new model every time.
-
         Parameters
         ----------
         inputs : List[MeasureInput]
@@ -175,14 +169,12 @@ class XGBModel(PythonBasedModel):
 
     def predict(self, task, states):
         """Predict the scores of states
-
         Parameters
         ----------
         search_task : SearchTask
             The search task of states
         statse : List[State]
             The input states
-
         Returns
         -------
         scores: List[float]
@@ -205,24 +197,20 @@ class XGBModel(PythonBasedModel):
 
     def predict_stages(self, task, states):
         """Predict the scores of all stages in states. This is the breakdown version of `predict`.
-
         Parameters
         ----------
         search_task : SearchTask
             The search task of states
         statse : List[State]
             The input states
-
         Returns
         -------
         scores: List[float]
             The predicted scores for all stages in all states in the packed format
-
         Note
         ----
         For faster data copy between c++ and python, the python part returns scores in a
         single flatten array using a packed format. The c++ part then unpacks the flatten array.
-
         The packed format is:
         {
           float  scores[N];                 // scores[i] is the score for states[i].
@@ -269,7 +257,6 @@ class XGBModel(PythonBasedModel):
     def update_from_file(self, file_name, n_lines=None):
         """Load measure records from a log file to update the cost model.
         This function can be used to pre-train the cost model with history log files.
-
         Parameters
         ----------
         file_name: str
@@ -283,7 +270,6 @@ class XGBModel(PythonBasedModel):
 
     def save(self, file_name: str):
         """Save the model to a file
-
         Parameters
         ----------
         file_name: str
@@ -293,7 +279,6 @@ class XGBModel(PythonBasedModel):
 
     def load(self, file_name: str):
         """Load the model from a file
-
         Parameters
         ----------
         file_name: str
@@ -307,12 +292,10 @@ class XGBModel(PythonBasedModel):
 
 def feature_to_pack_sum_xgbmatrix(xs):
     """Convert an extracted multi-stage feature vector to a xgbmatrx in pack-sum format
-
     Parameters
     ----------
     xs: np.ndarray
         The feature vector
-
     Returns
     -------
     dmatrix: xgb.DMatrix
@@ -333,7 +316,6 @@ def feature_to_pack_sum_xgbmatrix(xs):
 
 def pack_sum_xgbmatrix(xs, ys, gids=None, weights=None):
     """Convert (feature, label) pairs into a xgb matrix with pack-sum format
-
     Parameters
     ----------
     xs: np.ndarray
@@ -344,7 +326,6 @@ def pack_sum_xgbmatrix(xs, ys, gids=None, weights=None):
         Group id (task id)
     weights: Optional[np.ndarray]
         The weight of samples
-
     Returns
     -------
     dmatrix: xgb.DMatrix
@@ -390,14 +371,12 @@ def pack_sum_xgbmatrix(xs, ys, gids=None, weights=None):
 
 def predict_throughput_pack_sum(raw_preds, pack_ids):
     """Predict the throughputs for predictions in pack-sum format
-
     Parameters
     ----------
     raw_preds: np.ndarray
         The raw predictions
     pack_ids: List[int]
         The pack id for predictions
-
     Returns
     -------
     throughputs: np.ndarray
@@ -410,14 +389,12 @@ def predict_throughput_pack_sum(raw_preds, pack_ids):
 def pack_sum_square_error(preds, dtrain):
     """Implement square error loss on pack-sum format as
      a custom objective function for xgboost.
-
     Parameters
     ----------
     preds: np.ndarray
         The predicitons
     dtrain: xgb.DMatrix
         The training set
-
     Returns
     -------
     gradient: np.ndarray
@@ -441,14 +418,12 @@ def pack_sum_square_error(preds, dtrain):
 
 def pack_sum_rmse(raw_preds, labels):
     """Evaluate RMSE (rooted mean square error) in the pack-sum format
-
     Parameters
     ----------
     raw_preds: np.ndarray
         The raw prediction
     labels: xgb.DMatrix
         The groud-truth label matrix
-
     Returns
     -------
     name: str
@@ -462,12 +437,10 @@ def pack_sum_rmse(raw_preds, labels):
 
 def pack_sum_average_peak_score(N):
     """Return the evaluation function for average-peak-score@N
-
     Parameters
     ----------
     N: int
         The "N" in "average-peak-score@N"
-
     Returns
     -------
     The evaluation function
@@ -475,14 +448,12 @@ def pack_sum_average_peak_score(N):
 
     def feval(preds, labels):
         """Evaluate average-peak-score@N in the pack-sum format
-
         Parameters
         ----------
         raw_preds: np.ndarray
             The raw prediction
         labels: xgb.DMatrix
             The groud-truth label matrix
-
         Returns
         -------
         name: str

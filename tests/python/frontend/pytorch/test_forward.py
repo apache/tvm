@@ -21,15 +21,14 @@ import sys
 from scipy.stats import t as tdistr
 import numpy as np
 import torch
+import torchvision
 from torch.nn import Module
 import tvm
-import torchvision
-
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.contrib.nvcc import have_fp16
 import tvm.testing
-
+from packaging import version as package_version
 
 sys.setrecursionlimit(10000)
 
@@ -182,7 +181,7 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
 
     with torch.no_grad():
         baseline_outputs = baseline_model(*baseline_input)
-    
+
     if isinstance(baseline_outputs, tuple):
         baseline_outputs = tuple(out.cpu().numpy() for out in baseline_outputs)
     else:
@@ -1679,6 +1678,36 @@ def test_forward_nms():
         verify_trace_model(NonMaxSupression(iou_thres), [in_boxes, in_scores], targets)
 
 
+def test_forward_roi_align():
+    """ROI align"""
+    torch.set_grad_enabled(False)
+
+    class ROIAlgin(Module):
+        def __init__(self, output_sizes, spatial_scale=1.0, sampling_ratio=-1):
+            super().__init__()
+            self.spatial_scale = spatial_scale
+            self.sampling_ratio = sampling_ratio
+            self.output_sizes = output_sizes
+
+        def forward(self, *args):
+            return torchvision.ops.roi_align(
+                args[0],
+                args[1],
+                self.output_sizes,
+                self.spatial_scale,
+                self.sampling_ratio,
+            )
+
+    in_data = torch.Tensor(np.random.uniform(size=(1, 8, 100, 100)))
+    in_boxes = torch.Tensor(np.random.uniform(0.0, 100.0, size=(35, 4)))
+    in_batch = torch.zeros((35, 1), dtype=torch.float)
+    in_boxes = torch.cat([in_batch, in_boxes], dim=1)
+
+    verify_model(ROIAlgin(7), [in_data, in_boxes])
+    verify_model(ROIAlgin((10, 10), 0.7, 5), [in_data, in_boxes])
+    verify_model(ROIAlgin(15, 0.9, 3), [in_data, in_boxes])
+
+
 @tvm.testing.uses_gpu
 def test_conv3d():
     for ishape in [(1, 32, 16, 16, 16), (1, 32, 9, 15, 15), (1, 32, 13, 7, 7)]:
@@ -2369,6 +2398,24 @@ def test_forward_clamp():
 
 
 @tvm.testing.uses_gpu
+def test_forward_clamp_():
+    torch.set_grad_enabled(False)
+
+    class ClampInPlace(Module):
+        def __init__(self, min, max):
+            super(ClampInPlace, self).__init__()
+            self.min = min
+            self.max = max
+
+        def forward(self, *args):
+            return torch.clamp_(args[0], self.min, self.max)
+
+    for ishape, min, max in (([4, 8], 0.1, 0.9), ([7, 6], 0.2, 0.5)):
+        input_data = torch.rand(ishape).float()
+        verify_model(ClampInPlace(min, max).float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_ones():
     torch.set_grad_enabled(False)
 
@@ -2866,6 +2913,28 @@ def test_forward_addcmul():
 
 
 @tvm.testing.uses_gpu
+def test_forward_true_divide():
+    if package_version.parse(torch.__version__) < package_version.parse("1.5.0"):
+        return
+    torch.set_grad_enabled(False)
+
+    class TrueDivide(Module):
+        def forward(self, *args):
+            return torch.true_divide(args[0], args[1])
+
+    dividend = torch.rand([5, 3]).float()
+    # divisor could be either tensor or scalar
+    divisor_tensor = torch.rand([5, 3]).float() + 0.5
+    divisor_scalar = torch.tensor(1.0, dtype=torch.float32)
+    verify_model(
+        TrueDivide().float().eval(), input_data=[dividend, divisor_tensor], atol=1e-4, rtol=1e-4
+    )
+    verify_model(
+        TrueDivide().float().eval(), input_data=[dividend, divisor_scalar], atol=1e-4, rtol=1e-4
+    )
+
+
+@tvm.testing.uses_gpu
 def test_forward_traced_function():
     def fn(t1, t2):
         return t1 + t2
@@ -3023,6 +3092,57 @@ def test_stack_dynamic():
             return torch.stack(tensor_list, dim=0)
 
     verify_script_model(Stack(), [(8, 8, 8)], _get_default_vm_targets())
+
+
+def test_forward_unbind():
+    class Unbind(torch.nn.Module):
+        def __init__(self, axis=0):
+            super().__init__()
+            self.axis = axis
+
+        def forward(self, x):
+            return torch.unbind(x, self.axis)
+
+    inp = torch.randn(8, 8, 8)
+    verify_model(Unbind(0), input_data=inp)
+    verify_model(Unbind(1), input_data=inp)
+    verify_model(Unbind(2), input_data=inp)
+
+
+def test_forward_nonzero():
+    class Nonzero(Module):
+        def __init__(self, as_tuple=False):
+            super().__init__()
+            self.as_tuple = as_tuple
+
+        def forward(self, data):
+            return torch.nonzero(data, as_tuple=self.as_tuple)
+
+    inp = torch.Tensor(np.array([[0, 1, 0], [2, 0, 9], [-1, -1, 0]]).astype("float32"))
+    verify_trace_model(Nonzero(), [inp], ["llvm"])
+
+
+def test_forward_scatter():
+    class Scatter(Module):
+        def __init__(self, dim=0):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, data, index, src):
+            return torch.scatter(data, dim=self.dim, index=index, src=src)
+
+    in_data = torch.zeros(3, 5)
+    in_index = torch.tensor([[0, 1, 2, 0, 0], [2, 0, 0, 1, 2]])
+    in_src = torch.rand(2, 5)
+    # TODO: add scatter gpu schedule to enable gpu test.
+    verify_trace_model(Scatter(), [in_data, in_index, in_src], ["llvm"])
+
+    in_data = torch.zeros(2, 4)
+    in_index = torch.tensor([[2], [3]])
+    in_src = torch.rand(2, 1)
+
+    # TODO: add scatter gpu schedule to enable gpu test.
+    verify_trace_model(Scatter(1), [in_data, in_index, in_src], ["llvm"])
 
 
 def test_forward_pretrained_bert_base_uncased():
@@ -3227,6 +3347,7 @@ if __name__ == "__main__":
     test_forward_where()
     test_forward_addcdiv()
     test_forward_addcmul()
+    test_forward_true_divide()
     test_forward_clone()
     test_forward_softplus()
     test_forward_softsign()
@@ -3242,6 +3363,7 @@ if __name__ == "__main__":
     test_forward_pow()
     test_forward_unary()
     test_forward_clamp()
+    test_forward_clamp_()
     test_forward_logical_not()
     test_forward_bitwise_not()
     test_forward_bitwise_xor()
@@ -3264,6 +3386,7 @@ if __name__ == "__main__":
     test_upsample()
     test_forward_upsample3d()
     test_forward_nms()
+    test_forward_roi_align()
     test_to()
     test_flatten()
     test_type_as()
@@ -3285,6 +3408,9 @@ if __name__ == "__main__":
     test_logsumexp()
     test_stack()
     test_stack_dynamic()
+    test_forward_unbind()
+    test_forward_nonzero()
+    test_forward_scatter()
 
     # Model tests
     test_resnet18()
@@ -3314,7 +3440,7 @@ if __name__ == "__main__":
     test_simple_rnn()
 
     # More complex recurrent models
-    from lstm_test import test_custom_lstm
+    from test_lstm import test_custom_lstm
 
     test_custom_lstm()
 

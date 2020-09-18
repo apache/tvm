@@ -199,17 +199,15 @@ def run_tvm_graph(
         return vmobj_to_list(result)
     else:
         with tvm.transform.PassContext(opt_level=3):
-            graph, lib, params = relay.build(mod, target, params=params)
+            lib = relay.build(mod, target, params=params)
 
         ctx = tvm.context(target, 0)
         from tvm.contrib import graph_runtime
 
-        m = graph_runtime.create(graph, lib, ctx)
+        m = graph_runtime.GraphModule(lib["default"](ctx))
         # set inputs
         for i, e in enumerate(input_node):
             m.set_input(e, tvm.nd.array(input_data[i].astype(input_data[i].dtype)))
-
-        m.set_input(**params)
         # execute
         m.run()
         # get outputs

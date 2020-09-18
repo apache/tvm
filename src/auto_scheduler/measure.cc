@@ -185,15 +185,15 @@ Array<MeasureResult> RPCRunnerNode::Run(const Array<MeasureInput>& inputs,
 /********** ProgramMeasurer **********/
 ProgramMeasurer::ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
                                  Optional<Array<MeasureCallback>> callbacks, int verbose,
-                                 int max_continous_error) {
+                                 int max_continuous_error) {
   auto node = make_object<ProgramMeasurerNode>();
   node->builder = std::move(builder);
   node->runner = std::move(runner);
   node->callbacks = std::move(callbacks);
   node->verbose = verbose;
-  node->max_continous_error = max_continous_error < 0
-                                  ? ProgramMeasurerNode::DEFAULT_MAX_CONTINOUS_ERROR
-                                  : max_continous_error;
+  node->max_continuous_error = max_continuous_error < 0
+                                   ? ProgramMeasurerNode::DEFAULT_MAX_CONTINUOUS_ERROR
+                                   : max_continuous_error;
   data_ = std::move(node);
 }
 
@@ -264,7 +264,7 @@ void ProgramMeasurerNode::Measure(const SearchTask& task, const SearchPolicy& po
       results->push_back(res);
     }
 
-    if (error_ct > max_continous_error) {
+    if (error_ct > max_continuous_error) {
       LOG(FATAL) << "Too many errors happened during tuning";
     }
   }

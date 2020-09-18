@@ -35,8 +35,12 @@ class ClassFactory:
     # When not None, the superclass from which all cls must derive.
     SUPERCLASS = None
 
-    def __init__(self, cls: typing.Callable, init_args: typing.List[JsonSerializable],
-                 init_kw: typing.Dict[str, JsonSerializable]):
+    def __init__(
+        self,
+        cls: typing.Callable,
+        init_args: typing.List[JsonSerializable],
+        init_kw: typing.Dict[str, JsonSerializable],
+    ):
         self.cls = cls
         self.init_args = init_args
         self.init_kw = init_kw
@@ -55,13 +59,15 @@ class ClassFactory:
 
     @property
     def to_json(self):
-        return json.dumps({
-            'cls': '.'.join([self.cls.__module__, self.cls.__name__]),
-            'init_args': self.init_args,
-            'init_kw': self.init_kw,
-        })
+        return json.dumps(
+            {
+                "cls": ".".join([self.cls.__module__, self.cls.__name__]),
+                "init_args": self.init_args,
+                "init_kw": self.init_kw,
+            }
+        )
 
-    EXPECTED_KEYS = ('cls', 'init_args', 'init_kw')
+    EXPECTED_KEYS = ("cls", "init_args", "init_kw")
 
     @classmethod
     def from_json(cls, data):
@@ -84,14 +90,15 @@ class ClassFactory:
         """
         obj = json.loads(data)
         if not isinstance(obj, dict):
-            raise SerializedFactoryError(f'deserialized json payload: want dict, got: {obj!r}')
+            raise SerializedFactoryError(f"deserialized json payload: want dict, got: {obj!r}")
 
         for key in cls.EXPECTED_KEYS:
             if key not in obj:
                 raise SerializedFactoryError(
-                    f'deserialized json payload: expect key {key}, got: {obj!r}')
+                    f"deserialized json payload: expect key {key}, got: {obj!r}"
+                )
 
-        cls_package_name, cls_name = obj['cls'].rsplit('.', 1)
+        cls_package_name, cls_name = obj["cls"].rsplit(".", 1)
         cls_package = importlib.import_module(cls_package_name)
         cls_obj = getattr(cls_package, cls_name)
-        return cls(cls_obj, obj['init_args'], obj['init_kw'])
+        return cls(cls_obj, obj["init_args"], obj["init_kw"])
