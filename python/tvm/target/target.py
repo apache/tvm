@@ -231,9 +231,7 @@ def micro(hardware="unknown", options=None):
     options : str or list of str
         Additional options
     """
-    trans_table = {
-        "host": ["-mcpu=native"],
-    }
+    trans_table = {"host": ["-mcpu=native"]}
     opts = _merge_opts(trans_table[hardware] + ["-runtime=c", "--system-lib"], options)
 
     # NOTE: in the future, the default micro target will be LLVM except when
@@ -274,6 +272,23 @@ def arm_cpu(model="unknown", options=None):
         "rk3399": ["-model=rk3399", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
         "pynq": ["-model=pynq", "-mtriple=armv7a-linux-eabi", "-mattr=+neon"],
         "ultra96": ["-model=ultra96", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
+        "beagleai": [
+            "-model=beagleai",
+            "-mtriple=armv7a-linux-gnueabihf",
+            "-mattr=+neon,+vfp4,+thumb2",
+            "-mcpu=cortex-a15",
+        ],
+        "stm32mp1": [
+            "-model=stm32mp1",
+            "-mtriple=armv7a-linux-gnueabihf",
+            "-mattr=+neon,+vfp4,+thumb2",
+        ],
+        "thunderx": [
+            "-model=thunderx",
+            "-mtriple=aarch64-linux-gnu",
+            "-mattr=+neon,+crc,+lse",
+            "-mcpu=thunderxt88",
+        ],
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
