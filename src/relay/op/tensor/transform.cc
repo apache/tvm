@@ -1676,7 +1676,9 @@ bool WhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* condition = types[0].as<TensorTypeNode>();
   const auto* x = types[1].as<TensorTypeNode>();
   const auto* y = types[2].as<TensorTypeNode>();
-  CHECK(condition != nullptr && x != nullptr && y != nullptr);
+  if (!(condition != nullptr && x != nullptr && y != nullptr)) {
+    return false;
+  }
 
   const auto& cond_shape = condition->shape;
   const auto& x_shape = x->shape;
