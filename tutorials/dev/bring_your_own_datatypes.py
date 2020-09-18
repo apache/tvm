@@ -41,8 +41,13 @@ In this section, we will use an example library, `Stillwater Universal <https://
 We won't go into much detail about the datatype itself.
 If you'd like to learn more, read through John Gustafson's `Beating Floating Point at its Own Game <https://posithub.org/docs/BeatingFloatingPoint.pdf>`_.
 
-The Universal library is included as a 3rd party library in TVM already.
-We have built a wrapper around the library, located at 3rdparty/posit/posit-wrapper.cc.
+Setup
+-----
+
+First, clone the `Stillwater Universal <https://github.com/stillwater-sc/universal>`_ repository into the ``3rdparty/`` folder.
+Then, build TVM again with ``set (USE_POSIT ON)`` in the ``config.cmake`` folder.
+
+The ``USE_POSIT`` flag includes the Universal repository and the posit wrapper we have built, located at 3rdparty/posit/posit-wrapper.cc.
 If you would like to try this with your own datatype library, first bring the library's functions into the process space with ``CDLL``:
 
 .. code-block :: python
