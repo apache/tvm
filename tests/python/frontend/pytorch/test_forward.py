@@ -21,15 +21,14 @@ import sys
 from scipy.stats import t as tdistr
 import numpy as np
 import torch
+import torchvision
 from torch.nn import Module
 import tvm
-import torchvision
-
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.contrib.nvcc import have_fp16
 import tvm.testing
-
+from packaging import version as package_version
 
 sys.setrecursionlimit(10000)
 
@@ -2915,6 +2914,8 @@ def test_forward_addcmul():
 
 @tvm.testing.uses_gpu
 def test_forward_true_divide():
+    if package_version.parse(torch.__version__) < package_version.parse("1.5.0"):
+        return
     torch.set_grad_enabled(False)
 
     class TrueDivide(Module):
