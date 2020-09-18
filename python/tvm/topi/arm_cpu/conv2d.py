@@ -115,6 +115,10 @@ def schedule_conv2d_nchw_winograd(cfg, outs):
 
 def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, tile_size):
     N, CI, IH, IW = get_const_tuple(data.shape)
+    if isinstance(N, tvm.tir.Any):
+        N = tvm.te.size_var("n")
+    if not isinstance(IH, int) or not isinstance(IW, int):
+        raise RuntimeError("ARM winograd conv2d doesn't support dynamic input height or width.")
 
     if isinstance(dilation, int):
         dilation_h = dilation_w = dilation
@@ -154,7 +158,9 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
     nH, nW = (H + m - 1) // m, (W + m - 1) // m
     P = N * nH * nW
 
-    cfg.define_split("tile_p", cfg.axis(P), num_outputs=2, filter=lambda x: x.size[-1] <= 16)
+    # TODO(@kevinthesun): Support tuning/optimization for dynamic shape.
+    tile_p = P if isinstance(N, int) else nH * nW
+    cfg.define_split("tile_p", cfg.axis(tile_p), num_outputs=2, filter=lambda x: x.size[-1] <= 16)
     cfg.define_split("tile_k", cfg.axis(K), num_outputs=2, filter=lambda x: x.size[-1] <= 16)
     VP = cfg["tile_p"].size[-1]
     VK = cfg["tile_k"].size[-1]
@@ -236,7 +242,8 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
     )
 
     # we have to manually assign effective GFLOP for winograd
-    cfg.add_flop(2 * N * K * H * W * KH * KW * C)
+    if isinstance(N, int):
+        cfg.add_flop(2 * N * K * H * W * KH * KW * C)
     return output
 
 
