@@ -122,6 +122,7 @@ def test_cpu_matmul_sketch():
     assert len(sketches) == 9
     assert_is_tiled(sketches[8].stages[5])
 
+
 def test_cpu_conv2d_bn_relu_sketch():
     sketches = generate_sketches(
         conv2d_nchw_bn_relu_auto_scheduler_test, (1, 56, 56, 512, 512, 3, 1, 1), "llvm"

@@ -65,9 +65,7 @@ target = tvm.target.Target("cuda")
 
 # the last layer in resnet
 N, H, W, CO, CI, KH, KW, strides, padding = 1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)
-task = auto_scheduler.create_task(
-    conv2d_layer, (N, H, W, CO, CI, KH, KW, strides, padding), target
-)
+task = auto_scheduler.create_task(conv2d_layer, (N, H, W, CO, CI, KH, KW, strides, padding), target)
 
 # Inspect the computational graph
 print(task.compute_dag)
@@ -87,14 +85,14 @@ print(task.compute_dag)
 # * In addition, we use `RecordToFile` to dump measurement records into a file `conv2d.json`.
 #   The measurement records can be used to query the history best, resume the search,
 #   and do more analyses later.
-# * see :any:`auto_scheduler.auto_schedule.TuningOptions`:, 
+# * see :any:`auto_scheduler.auto_schedule.TuningOptions`:,
 #   :any:`auto_scheduler.measure.LocalRPCMeasureContext` for more parameters.
 
 measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
 tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=10,
     runner=measure_ctx.runner,
-    measure_callbacks=[auto_scheduler.RecordToFile("conv2d.json")]
+    measure_callbacks=[auto_scheduler.RecordToFile("conv2d.json")],
 )
 
 ######################################################################
@@ -139,8 +137,10 @@ tvm.testing.assert_allclose(out_np, out_tvm.asnumpy(), rtol=1e-3)
 
 # Evaluate execution time
 evaluator = func.time_evaluator(func.entry_name, ctx, min_repeat_ms=500)
-print("Execution time of this operator: %.3f ms" %
-      (evaluator(data_tvm, weight_tvm, bias_tvm, out_tvm).mean * 1000))
+print(
+    "Execution time of this operator: %.3f ms" %
+    (evaluator(data_tvm, weight_tvm, bias_tvm, out_tvm).mean * 1000)
+)
 
 ######################################################################
 # Using the record file
@@ -182,7 +182,7 @@ search_policy = auto_scheduler.SketchPolicy(
 tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=5,
     runner=measure_ctx.runner,
-    measure_callbacks=[auto_scheduler.RecordToFile(log_file)]
+    measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
 )
 sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
 

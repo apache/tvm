@@ -30,6 +30,7 @@ try:
 except ImportError:
     raise ImportError("micro tvm is not enabled. Set USE_MICRO to ON in config.cmake")
 
+
 class Session:
     """MicroTVM Device Session
 

@@ -123,8 +123,11 @@ tvm.testing.assert_allclose(out_np, out_tvm.asnumpy(), rtol=1e-3)
 
 # Evaluate execution time.
 evaluator = func.time_evaluator(func.entry_name, ctx, min_repeat_ms=500)
-print("Execution time of this operator: %.3f ms" %
-      (evaluator(a_tvm, b_tvm, c_tvm, out_tvm).mean * 1000))
+print(
+    "Execution time of this operator: %.3f ms"
+    % (evaluator(a_tvm, b_tvm, c_tvm, out_tvm).mean * 1000)
+)
+ 
 
 ######################################################################
 # Using the record file
@@ -169,16 +172,16 @@ def resume_search(task, log_file):
     sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
 
 
-#resume_search(task, "matmul.json")
+# resume_search(task, "matmul.json")
 
 ######################################################################
 # .. note::
 #   We cannot run the line above because of the conflict between
 #   python's multiprocessing and tvm's thread pool.
-#   After running a tvm generated binary the python's multiprocessing library 
-#   will hang forever. You have to make sure that you don't run any tvm 
+#   After running a tvm generated binary the python's multiprocessing library
+#   will hang forever. You have to make sure that you don't run any tvm
 #   generated binaries before calling auot-scheduler's search.
-#   To run the function above, you should comment out all code in 
+#   To run the function above, you should comment out all code in
 #   "Check correctness and evaluate performance" section.
 #
 #   You should be careful about this problem in your applications.

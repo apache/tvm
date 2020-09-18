@@ -41,17 +41,13 @@ def matmul_auto_scheduler_test(N, M, K):
 
 @auto_scheduler.register_workload
 def double_matmul_auto_scheduler_test(N):
-    A = te.placeholder((N, N), name='A', dtype='float32')
-    B = te.placeholder((N, N), name='B', dtype='float32')
-    C = te.placeholder((N, N), name='C', dtype='float32')
-    k = te.reduce_axis((0, N), name='k')
-    D = te.compute((N, N),
-                   lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]),
-                   name='D')
-    k = te.reduce_axis((0, N), name='k')
-    E = te.compute((N, N),
-                   lambda i, j: te.sum(D[i][k] * C[k][j], axis=[k]),
-                   name='E')
+    A = te.placeholder((N, N), name="A", dtype="float32")
+    B = te.placeholder((N, N), name="B", dtype="float32")
+    C = te.placeholder((N, N), name="C", dtype="float32")
+    k = te.reduce_axis((0, N), name="k")
+    D = te.compute((N, N), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name="D")
+    k = te.reduce_axis((0, N), name="k")
+    E = te.compute((N, N), lambda i, j: te.sum(D[i][k] * C[k][j], axis=[k]), name="E")
 
     return [A, B, C, E]
 
