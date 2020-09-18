@@ -20,6 +20,7 @@ set -e
 set -u
 set -o pipefail
 
+cd /
 git clone https://github.com/stillwater-sc/universal.git UNIVERSAL
 
 # Use specific versioning tag.
