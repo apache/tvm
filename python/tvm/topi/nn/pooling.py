@@ -16,14 +16,10 @@
 # under the License.
 """TVM operator pooling compute."""
 from __future__ import absolute_import
-import tvm
 from .. import cpp
 
+POOL_TYPE_CODE = {"avg": 0, "max": 1}
 
-POOL_TYPE_CODE = {
-    "avg": 0,
-    "max": 1
-}
 
 def global_pool(data, pool_type, layout="NCHW"):
     """Perform global pooling on height and width dimension of data.
@@ -61,7 +57,7 @@ def global_pool(data, pool_type, layout="NCHW"):
 
 
 def pool(
-    data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCHW", count_include_pad=True
+        data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCHW", count_include_pad=True
 ):
     """Perform pooling on height and width dimension of data.
        It decides the height and width dimension according to the layout string,
@@ -108,91 +104,6 @@ def pool(
     output : tvm.te.Tensor
         n-D in the same layout
     """
-<<<<<<< HEAD
-    return cpp.nn.pool(data, kernel, stride, padding,
-                       POOL_TYPE_CODE[pool_type], ceil_mode, layout, count_include_pad)
-
-@tvm.target.generic_func
-def max_pool2d_alter_layout(attrs, inputs, tinfos):
-    #pylint: disable=unused-argument
-    """Change max pool2d layout.
-
-    Parameters
-    ----------
-    attrs : nnvm.top.AttrDict
-        Attributes of current convolution
-    inputs : nnvm.symbol
-        Grouped input symbols
-    tinfos : list
-        Input shape and dtype
-    """
-    # not to change by default
-    return None
-
-
-@tvm.target.generic_func
-def avg_pool2d_alter_layout(attrs, inputs, tinfos):
-    #pylint: disable=unused-argument
-    """Change average pool2d layout.
-
-    Parameters
-    ----------
-    attrs : nnvm.top.AttrDict
-        Attributes of current convolution
-    inputs : nnvm.symbol
-        Grouped input symbols
-    tinfos : list
-        Input shape and dtype
-    """
-    # not to change by default
-    return None
-
-
-@tvm.target.generic_func
-def global_max_pool2d_alter_layout(attrs, inputs, tinfos):
-    #pylint: disable=unused-argument
-    """Change global max pool2d layout.
-
-    Parameters
-    ----------
-    attrs : nnvm.top.AttrDict
-        Attributes of current convolution
-    inputs : nnvm.symbol
-        Grouped input symbols
-    tinfos : list
-        Input shape and dtype
-    """
-    # not to change by default
-    return None
-
-
-@tvm.target.generic_func
-def global_avg_pool2d_alter_layout(attrs, inputs, tinfos):
-    #pylint: disable=unused-argument
-    """Change global average pool2d layout.
-
-    Parameters
-    ----------
-    attrs : nnvm.top.AttrDict
-        Attributes of current convolution
-    inputs : nnvm.symbol
-        Grouped input symbols
-    tinfos : list
-        Input shape and dtype
-    """
-    # not to change by default
-    return None
-
-def pool_grad(grads,
-              data,
-              kernel,
-              stride,
-              padding,
-              pool_type,
-              ceil_mode=False,
-              layout="NCHW",
-              count_include_pad=True):
-=======
     return cpp.nn.pool(
         data,
         kernel,
@@ -206,17 +117,16 @@ def pool_grad(grads,
 
 
 def pool_grad(
-    grads,
-    data,
-    kernel,
-    stride,
-    padding,
-    pool_type,
-    ceil_mode=False,
-    layout="NCHW",
-    count_include_pad=True,
+        grads,
+        data,
+        kernel,
+        stride,
+        padding,
+        pool_type,
+        ceil_mode=False,
+        layout="NCHW",
+        count_include_pad=True,
 ):
->>>>>>> f13fed5... [Format] Convert all Python code w/o CI (#6448)
     """Gradient of pooling on height and width dimension of data.
        It decides the height and width dimension according to the layout string,
        in which 'W' and 'H' means width and height respectively.
@@ -325,7 +235,7 @@ def adaptive_pool3d(data, output_size, pool_type, layout="NCDHW"):
 
 
 def pool1d(
-    data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCW", count_include_pad=True
+        data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCW", count_include_pad=True
 ):
     """Perform pooling on width dimension of data.
        Width axis is determined according to the layout string.
@@ -393,14 +303,14 @@ def pool1d(
 
 
 def pool3d(
-    data,
-    kernel,
-    stride,
-    padding,
-    pool_type,
-    ceil_mode=False,
-    layout="NCDHW",
-    count_include_pad=True,
+        data,
+        kernel,
+        stride,
+        padding,
+        pool_type,
+        ceil_mode=False,
+        layout="NCDHW",
+        count_include_pad=True,
 ):
     """Perform pooling on depth, height and width dimension of data.
        It decides the depth, height and width dimension according to the layout string,
