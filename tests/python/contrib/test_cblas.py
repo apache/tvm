@@ -24,14 +24,15 @@ from tvm.contrib import mkl
 from tvm.contrib import mkldnn
 import tvm.testing
 
+
 def verify_matmul_add(m, l, n, lib, transa=False, transb=False, dtype="float32"):
-    bias = te.var('bias', dtype=dtype)
+    bias = te.var("bias", dtype=dtype)
     ashape = (l, n) if transa else (n, l)
     bshape = (m, l) if transb else (l, m)
-    A = te.placeholder(ashape, name='A', dtype=dtype)
-    B = te.placeholder(bshape, name='B', dtype=dtype)
+    A = te.placeholder(ashape, name="A", dtype=dtype)
+    B = te.placeholder(bshape, name="B", dtype=dtype)
     C = lib.matmul(A, B, transa, transb)
-    D = te.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
+    D = te.compute(C.shape, lambda i, j: C[i, j] + bias, name="D")
     s = te.create_schedule(D.op)
 
     def get_numpy(a, b, bb, transa, transb):
@@ -56,8 +57,11 @@ def verify_matmul_add(m, l, n, lib, transa=False, transb=False, dtype="float32")
         bb = 10.0
         f(a, b, d, bb)
         tvm.testing.assert_allclose(
-            d.asnumpy(), get_numpy(a.asnumpy(), b.asnumpy(), bb, transa, transb), rtol=1e-5)
+            d.asnumpy(), get_numpy(a.asnumpy(), b.asnumpy(), bb, transa, transb), rtol=1e-5
+        )
+
     verify()
+
 
 def test_matmul_add():
     verify_matmul_add(235, 128, 1024, cblas)
@@ -85,19 +89,20 @@ def test_matmul_add():
     verify_matmul_add(1, 16, 3, mkldnn, False, False)
     verify_matmul_add(1, 16, 3, mkldnn, True, True)
 
+
 def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):
     if not tvm.get_global_func("tvm.contrib.mkl.matmul_u8s8s32", True):
         pytest.skip("Quantized dense is supported only for MKL. TVM GPU CI uses openblas")
     data_dtype = "uint8"
     kernel_dtype = "int8"
     out_dtype = "int32"
-    bias = te.var('bias', dtype=out_dtype)
+    bias = te.var("bias", dtype=out_dtype)
     ashape = (l, n) if transa else (n, l)
     bshape = (m, l) if transb else (l, m)
-    A = te.placeholder(ashape, name='A', dtype=data_dtype)
-    B = te.placeholder(bshape, name='B', dtype=kernel_dtype)
+    A = te.placeholder(ashape, name="A", dtype=data_dtype)
+    B = te.placeholder(bshape, name="B", dtype=kernel_dtype)
     C = mkl.matmul_u8s8s32(A, B, transa, transb, dtype=out_dtype)
-    D = te.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
+    D = te.compute(C.shape, lambda i, j: C[i, j] + bias, name="D")
     s = te.create_schedule(D.op)
 
     def get_numpy(a, b, bb, transa, transb):
@@ -122,10 +127,13 @@ def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):
         bb = 10
         f(a, b, d, bb)
         tvm.testing.assert_allclose(
-                d.asnumpy(),
-                get_numpy(a.asnumpy().astype('int32'), b.asnumpy().astype('int32'), bb, transa, transb),
-                rtol=1e-5)
+            d.asnumpy(),
+            get_numpy(a.asnumpy().astype("int32"), b.asnumpy().astype("int32"), bb, transa, transb),
+            rtol=1e-5,
+        )
+
     verify()
+
 
 def test_quantized_matmul_add():
     verify_quantized_matmul_add(235, 128, 1024)
@@ -137,13 +145,16 @@ def test_quantized_matmul_add():
     verify_quantized_matmul_add(1, 16, 3, False, True)
     verify_quantized_matmul_add(1, 16, 3, True, True)
 
-def verify_batch_matmul(batch, m, l, n, lib, transa=False, transb=False, iterative=False, dtype="float32"):
+
+def verify_batch_matmul(
+    batch, m, l, n, lib, transa=False, transb=False, iterative=False, dtype="float32"
+):
     ashape = (batch, l, n) if transa else (batch, n, l)
     bshape = (batch, m, l) if transb else (batch, l, m)
-    A = te.placeholder(ashape, name='A', dtype=dtype)
-    B = te.placeholder(bshape, name='B', dtype=dtype)
+    A = te.placeholder(ashape, name="A", dtype=dtype)
+    B = te.placeholder(bshape, name="B", dtype=dtype)
     C = cblas.batch_matmul(A, B, transa, transb)
-    D = te.compute(C.shape, lambda k, i, j: C[k, i,j], name="D")
+    D = te.compute(C.shape, lambda k, i, j: C[k, i, j], name="D")
     s = te.create_schedule(D.op)
 
     def get_numpy(a, b, transa, transb):
@@ -167,8 +178,11 @@ def verify_batch_matmul(batch, m, l, n, lib, transa=False, transb=False, iterati
         d = tvm.nd.array(np.zeros((batch, n, m), dtype=D.dtype), ctx)
         f(a, b, d)
         tvm.testing.assert_allclose(
-            d.asnumpy(), get_numpy(a.asnumpy(), b.asnumpy(), transa, transb), rtol=1e-5)
+            d.asnumpy(), get_numpy(a.asnumpy(), b.asnumpy(), transa, transb), rtol=1e-5
+        )
+
     verify()
+
 
 def test_batch_matmul():
     verify_batch_matmul(16, 235, 128, 1024, cblas)
@@ -189,6 +203,7 @@ def test_batch_matmul():
     verify_batch_matmul(1, 1, 16, 3, mkl, False, False)
     verify_batch_matmul(1, 1, 16, 3, mkl, True, True)
     verify_batch_matmul(1, 1, 16, 3, mkl, iterative=True)
+
 
 if __name__ == "__main__":
     test_matmul_add()

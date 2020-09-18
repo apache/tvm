@@ -19,7 +19,8 @@
 from __future__ import absolute_import as _abs
 from . import _make
 
-def alloc_tensor(storage, offset, shape, dtype='float32', assert_shape=None):
+
+def alloc_tensor(storage, offset, shape, dtype="float32", assert_shape=None):
     """Allocate a tensor with the provided shape, and dtype.
 
     Parameters
@@ -45,7 +46,8 @@ def alloc_tensor(storage, offset, shape, dtype='float32', assert_shape=None):
     """
     return _make.alloc_tensor(storage, offset, shape, dtype, assert_shape)
 
-def alloc_storage(size, alignment, ctx, dtype_hint='float32'):
+
+def alloc_storage(size, alignment, ctx, dtype_hint="float32"):
     """Allocate a piece of tensor storage.
 
     Parameters
@@ -64,6 +66,7 @@ def alloc_storage(size, alignment, ctx, dtype_hint='float32'):
     """
     return _make.alloc_storage(size, alignment, ctx, dtype_hint)
 
+
 def flatten_tuple_type(ty):
     """Return a sequence of the types contained in the tuple type in order.
 
@@ -78,6 +81,7 @@ def flatten_tuple_type(ty):
         The types in their linear order.
     """
     return _make.FlattenTupleType(ty)
+
 
 def from_tuple_type(ty, expr):
     """Convert an expression with the given type into a sequence of expressions.
@@ -98,6 +102,7 @@ def from_tuple_type(ty, expr):
         The list of sub-expressions.
     """
     return _make.FromTupleType(ty, expr)
+
 
 def to_tuple_type(ty, exprs):
     """Pack the sequence of expressions into the nested tuple type.

@@ -17,9 +17,15 @@
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.analysis import (free_vars, free_type_vars,
-                                bound_vars, bound_type_vars,
-                                all_vars, all_type_vars)
+from tvm.relay.analysis import (
+    free_vars,
+    free_type_vars,
+    bound_vars,
+    bound_type_vars,
+    all_vars,
+    all_type_vars,
+)
+
 
 def assert_vars_match(actual, expected):
     assert len(actual) == len(expected)
@@ -43,7 +49,7 @@ def test_free_vars():
 
 
 def test_free_vars_tuple():
-    t = relay.Var('t')
+    t = relay.Var("t")
     fv = free_vars(relay.Tuple([t, t]))
     assert len(fv) == 1
     assert fv[0] == t
@@ -86,26 +92,30 @@ def test_match_vars():
     mod = tvm.IRModule()
     p = relay.prelude.Prelude(mod)
 
-    x = relay.Var('x')
-    y = relay.Var('y')
-    z = relay.Var('z')
+    x = relay.Var("x")
+    y = relay.Var("y")
+    z = relay.Var("z")
 
-    match1 = relay.Match(p.nil(), [
-        relay.Clause(relay.PatternConstructor(p.nil), z),
-        relay.Clause(relay.PatternConstructor(p.cons,
-                                              [relay.PatternVar(x),
-                                               relay.PatternVar(y)]),
-                     p.cons(x, y))
-    ])
+    match1 = relay.Match(
+        p.nil(),
+        [
+            relay.Clause(relay.PatternConstructor(p.nil), z),
+            relay.Clause(
+                relay.PatternConstructor(p.cons, [relay.PatternVar(x), relay.PatternVar(y)]),
+                p.cons(x, y),
+            ),
+        ],
+    )
 
-    match2 = relay.Match(p.nil(), [
-        relay.Clause(relay.PatternConstructor(p.cons, [
-            relay.PatternWildcard(),
-            relay.PatternVar(x)
-        ]),
-                     y),
-        relay.Clause(relay.PatternWildcard(), z)
-    ])
+    match2 = relay.Match(
+        p.nil(),
+        [
+            relay.Clause(
+                relay.PatternConstructor(p.cons, [relay.PatternWildcard(), relay.PatternVar(x)]), y
+            ),
+            relay.Clause(relay.PatternWildcard(), z),
+        ],
+    )
 
     assert_vars_match(bound_vars(match1), [x, y])
     assert_vars_match(free_vars(match1), [z])

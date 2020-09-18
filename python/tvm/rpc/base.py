@@ -28,9 +28,9 @@ import logging
 from .._ffi.base import py_str
 
 # Magic header for RPC data plane
-RPC_MAGIC = 0xff271
+RPC_MAGIC = 0xFF271
 # magic header for RPC tracker(control plane)
-RPC_TRACKER_MAGIC = 0x2f271
+RPC_TRACKER_MAGIC = 0x2F271
 # sucess response
 RPC_CODE_SUCCESS = RPC_MAGIC + 0
 # duplicate key in proxy
@@ -38,10 +38,12 @@ RPC_CODE_DUPLICATE = RPC_MAGIC + 1
 # cannot found matched key in server
 RPC_CODE_MISMATCH = RPC_MAGIC + 2
 
-logger = logging.getLogger('RPCServer')
+logger = logging.getLogger("RPCServer")
+
 
 class TrackerCode(object):
     """Enumeration code for the RPC tracker"""
+
     FAIL = -1
     SUCCESS = 0
     PING = 1
@@ -51,6 +53,7 @@ class TrackerCode(object):
     UPDATE_INFO = 5
     SUMMARY = 6
     GET_PENDING_MATCHKEYS = 7
+
 
 RPC_SESS_MASK = 128
 
@@ -168,8 +171,8 @@ def connect_with_retry(addr, timeout=60, retry_period=5):
                 raise sock_err
             period = time.time() - tstart
             if period > timeout:
-                raise RuntimeError(
-                    "Failed to connect to server %s" % str(addr))
-            logger.warning("Cannot connect to tracker %s, retry in %g secs...",
-                           str(addr), retry_period)
+                raise RuntimeError("Failed to connect to server %s" % str(addr))
+            logger.warning(
+                "Cannot connect to tracker %s, retry in %g secs...", str(addr), retry_period
+            )
             time.sleep(retry_period)

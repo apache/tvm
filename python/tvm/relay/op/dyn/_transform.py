@@ -29,10 +29,11 @@ _reg.register_injective_schedule("dyn.one_hot")
 _reg.register_injective_schedule("dyn.full")
 _reg.register_injective_schedule("dyn.strided_slice")
 
+
 @script
 def _reshape_shape_func_input_data(data, newshape, ndim):
-    out = output_tensor((ndim, ), "int64")
-    data_shape = allocate((len(data.shape), ), "int64")
+    out = output_tensor((ndim,), "int64")
+    data_shape = allocate((len(data.shape),), "int64")
     for x in const_range(len(data.shape)):
         data_shape[x] = int64(data.shape[x])
     src_idx = 0
@@ -60,8 +61,7 @@ def _reshape_shape_func_input_data(data, newshape, ndim):
         elif newshape[i] == -2:
             assert False, "Value -2 is not valid in newshape argument of dynamic reshape"
         elif newshape[i] == -3:
-            assert data_shape.shape[0] - src_idx > 1, \
-                "Not enough dims in input shape for -3"
+            assert data_shape.shape[0] - src_idx > 1, "Not enough dims in input shape for -3"
             out[dst_idx] = data_shape[src_idx] * data_shape[src_idx + 1]
             src_idx += 2
             dst_idx += 1
@@ -93,7 +93,7 @@ def dynamic_reshape_shape_func(attrs, inputs, out_ndims):
 
 @script
 def _tile_shape_func(data, reps, ndim, tndim, rndim):
-    out = output_tensor((tndim, ), "int64")
+    out = output_tensor((tndim,), "int64")
 
     if ndim == rndim:
         for i in const_range(tndim):
@@ -130,7 +130,7 @@ def tile_shape_func(attrs, inputs, _):
 @script
 def _onehot_shape_func(dshape, k, axis):
     ndim = len(dshape) + 1
-    out = output_tensor((ndim, ), "int64")
+    out = output_tensor((ndim,), "int64")
     for i in const_range(axis):
         out[i] = int64(dshape[i])
     out[axis] = int64(k[0])
@@ -149,8 +149,7 @@ def one_hot_shape_func(attrs, inputs, _):
 
 
 @script
-def _strided_slice_shape_func_input_data(data, begin, end, strides,
-                                         slice_mode):
+def _strided_slice_shape_func_input_data(data, begin, end, strides, slice_mode):
     ndim = len(data.shape)
     out = output_tensor((ndim,), "int64")
     for i in const_range(ndim):
@@ -188,6 +187,7 @@ def _strided_slice_shape_func_input_data(data, begin, end, strides,
 
         out[i] = int64(ceil_div(slice_range, step))
     return out
+
 
 @_reg.register_shape_func("dyn.strided_slice", True)
 def strided_slice_shape_func(attrs, inputs, _):

@@ -34,6 +34,7 @@ register_pattern("argsort", OpPattern.OPAQUE)
 register_strategy("topk", strategy.topk_strategy)
 register_pattern("topk", OpPattern.OPAQUE)
 
+
 @script
 def _topk_shape_func_input_shape(data_shape, k, axis):
     ndim = data_shape.shape[0]
@@ -53,6 +54,7 @@ def _topk_shape_func_input_shape(data_shape, k, axis):
                 indices_out[i] = int64(k)
     return val_out, indices_out
 
+
 @_reg.register_shape_func("topk", False)
 def topk_shape_func(attrs, inputs, _):
     """
@@ -61,8 +63,7 @@ def topk_shape_func(attrs, inputs, _):
     axis = attrs.axis
     if axis < 0:
         axis += inputs[0].shape[0]
-    val_out, indices_out = \
-        _topk_shape_func_input_shape(inputs[0], attrs.k, convert(axis))
+    val_out, indices_out = _topk_shape_func_input_shape(inputs[0], attrs.k, convert(axis))
     ret_type = attrs.ret_type
     if ret_type == "both":
         ret = [val_out, indices_out]

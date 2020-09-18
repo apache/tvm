@@ -21,6 +21,7 @@ import tvm
 from tvm import te
 from tvm.contrib import util, clang
 
+
 def gemm_quantized_4_4_batched():
     return """
            // First half
@@ -114,6 +115,7 @@ def gemm_quantized_4_4_batched():
            "uadalp v31.4s, v15.8h\\n"
     """
 
+
 def gemm_quantized_4_4_interleaved():
     return """
              // First half
@@ -200,23 +202,23 @@ def gemm_quantized_4_4_interleaved():
     """
 
 
-def gemm_quantized_impl(M, N, K, unroll, interleave, data_type='uint8'):
-    """ Assembly implementation of a blocked gemv. Given
+def gemm_quantized_impl(M, N, K, unroll, interleave, data_type="uint8"):
+    """Assembly implementation of a blocked gemv. Given
     a block a of shape (4, k) and a block b' of shape (4, k)
-    produces the output block c = a*b of shape (4,4) """
+    produces the output block c = a*b of shape (4,4)"""
 
     stepA = min(4, M)
     stepB = min(4, N)
-    assert data_type in ['uint8', 'int8'], 'Only uint8/int8 supported for this implementation'
+    assert data_type in ["uint8", "int8"], "Only uint8/int8 supported for this implementation"
 
-    signature = """extern "C" int gemm_quantized_{0}_{0}_int32_{1}_{2}""".format(data_type,
-                                                                                 stepA,
-                                                                                 stepB)
+    signature = """extern "C" int gemm_quantized_{0}_{0}_int32_{1}_{2}""".format(
+        data_type, stepA, stepB
+    )
     if unroll:
-        signature += ("_" + str(K))
+        signature += "_" + str(K)
 
     if interleave:
-        signature += ("_interleaved")
+        signature += "_interleaved"
 
     signature += """(int *c_buffer,
                       unsigned char *a_buffer,
@@ -291,10 +293,12 @@ def gemm_quantized_impl(M, N, K, unroll, interleave, data_type='uint8'):
     blockB = min(64, N * 16)
     main_loop += """// Increment pointers
                     "add %[a_ptr], %[a_ptr], #{0}\\n"
-                    "add %[b_ptr], %[b_ptr], #{1}\\n" """.format(blockA, blockB)
+                    "add %[b_ptr], %[b_ptr], #{1}\\n" """.format(
+        blockA, blockB
+    )
 
     if unroll:
-        k = int(K//16)
+        k = int(K // 16)
         for l in range(0, k):
             cc_code += main_loop
     else:
@@ -363,17 +367,17 @@ def gemm_quantized_impl(M, N, K, unroll, interleave, data_type='uint8'):
         }
     """
 
-    if data_type == 'int8':
-        cc_code = cc_code.replace('unsigned char', 'char')
-        cc_code = cc_code.replace('umull', 'smull')
-        cc_code = cc_code.replace('uadalp', 'sadalp')
+    if data_type == "int8":
+        cc_code = cc_code.replace("unsigned char", "char")
+        cc_code = cc_code.replace("umull", "smull")
+        cc_code = cc_code.replace("uadalp", "sadalp")
 
     temp = util.tempdir()
     ll_path = temp.relpath("temp.ll")
     # Create LLVM ir from c source code
-    ll_code = clang.create_llvm(cc_code,
-                                options=["--target=aarch64-linux-gnu -mattr=+neon"],
-                                output=ll_path)
+    ll_code = clang.create_llvm(
+        cc_code, options=["--target=aarch64-linux-gnu -mattr=+neon"], output=ll_path
+    )
     return ll_code
 
 
@@ -407,29 +411,44 @@ def gemm_quantized(M, N, K, unroll, interleave, in_type, out_type):
     intrin : TensorIntrin
         The ARM uint8/int8 TensorIntrin that can be used in tensorizing schedule
     """
-    A = te.placeholder((K // 16, te.var("m"), 16), dtype=in_type, name='A')
-    B = te.placeholder((K // 16, te.var("n"), 16), dtype=in_type, name='B')
+    A = te.placeholder((K // 16, te.var("m"), 16), dtype=in_type, name="A")
+    B = te.placeholder((K // 16, te.var("n"), 16), dtype=in_type, name="B")
 
     idxm = tvm.tir.indexmod
 
     k = te.reduce_axis((0, K), "k")
 
-    C = te.compute((te.var("m"), te.var("n")),
-                   lambda x, y: te.sum(A[k // 16, x, idxm(k, 16)].astype(out_type) *
-                                       B[k // 16, y, idxm(k, 16)].astype(out_type),
-                                       axis=k), name="C")
+    C = te.compute(
+        (te.var("m"), te.var("n")),
+        lambda x, y: te.sum(
+            A[k // 16, x, idxm(k, 16)].astype(out_type)
+            * B[k // 16, y, idxm(k, 16)].astype(out_type),
+            axis=k,
+        ),
+        name="C",
+    )
 
-    a_buffer = tvm.tir.decl_buffer(A.shape, dtype=in_type, name="a_buffer",
-                                   offset_factor=1, strides=[te.var('sa_1'), te.var('sa_2'), 1])
+    a_buffer = tvm.tir.decl_buffer(
+        A.shape,
+        dtype=in_type,
+        name="a_buffer",
+        offset_factor=1,
+        strides=[te.var("sa_1"), te.var("sa_2"), 1],
+    )
 
-    b_buffer = tvm.tir.decl_buffer(B.shape, dtype=in_type, name="b_buffer",
-                                   offset_factor=1, strides=[te.var('sb_1'), te.var('sb_2'), 1])
+    b_buffer = tvm.tir.decl_buffer(
+        B.shape,
+        dtype=in_type,
+        name="b_buffer",
+        offset_factor=1,
+        strides=[te.var("sb_1"), te.var("sb_2"), 1],
+    )
 
-    c_buffer = tvm.tir.decl_buffer(C.shape, dtype=out_type, name="c_buffer",
-                                   offset_factor=1, strides=[te.var('sc'), 1])
+    c_buffer = tvm.tir.decl_buffer(
+        C.shape, dtype=out_type, name="c_buffer", offset_factor=1, strides=[te.var("sc"), 1]
+    )
 
     def _intrin_func(ins, outs):
-
         def _instr():
             ib = tvm.tir.ir_builder.create()
             aa, bb = ins
@@ -438,27 +457,34 @@ def gemm_quantized(M, N, K, unroll, interleave, in_type, out_type):
             stepB = min(4, N)
             intrin_name = "gemm_quantized_{0}_{0}_int32_{1}_{2}".format(in_type, stepA, stepB)
             if unroll:
-                intrin_name += ("_" + str(K))
+                intrin_name += "_" + str(K)
             if interleave:
                 intrin_name += "_interleaved"
-            ib.emit(tvm.tir.call_extern("int32",
-                                        intrin_name,
-                                        outs[0].access_ptr("w"),
-                                        a_buffer.access_ptr("r"),
-                                        b_buffer.access_ptr("r"),
-                                        K))
+            ib.emit(
+                tvm.tir.call_extern(
+                    "int32",
+                    intrin_name,
+                    outs[0].access_ptr("w"),
+                    a_buffer.access_ptr("r"),
+                    b_buffer.access_ptr("r"),
+                    K,
+                )
+            )
             return ib.get()
 
         # body, reset, update
         return _instr()
 
     buffer_params = {"offset_factor": 1}
-    return te.decl_tensor_intrin(C.op, _intrin_func,
-                                 binds={A:a_buffer, B:b_buffer, C:c_buffer},
-                                 default_buffer_params=buffer_params)
+    return te.decl_tensor_intrin(
+        C.op,
+        _intrin_func,
+        binds={A: a_buffer, B: b_buffer, C: c_buffer},
+        default_buffer_params=buffer_params,
+    )
 
 
-def dot_int8_int8_int32(int32_lanes, dtype='uint'):
+def dot_int8_int8_int32(int32_lanes, dtype="uint"):
     """
     Int8 dot product by every 4 elements using ARM v8.2 udot.
     This function takes two arrays of int8 datatype -- data[4] and
@@ -496,50 +522,58 @@ def dot_int8_int8_int32(int32_lanes, dtype='uint'):
     """
     num_int8_elements = 4  # 4 int8 elements in int32
 
-    data = te.placeholder((num_int8_elements,), dtype='%s8' % dtype, name='data')
-    kernel = te.placeholder((int32_lanes, num_int8_elements), dtype='%s8' % dtype, name='kernel')
+    data = te.placeholder((num_int8_elements,), dtype="%s8" % dtype, name="data")
+    kernel = te.placeholder((int32_lanes, num_int8_elements), dtype="%s8" % dtype, name="kernel")
 
-    k = te.reduce_axis((0, num_int8_elements), name='k')
-    C = te.compute((int32_lanes,),
-                   lambda i: te.sum(data[k].astype('%s32' % dtype) *
-                                    kernel[i, k].astype('%s32' % dtype),
-                                    axis=k), name="C")
+    k = te.reduce_axis((0, num_int8_elements), name="k")
+    C = te.compute(
+        (int32_lanes,),
+        lambda i: te.sum(
+            data[k].astype("%s32" % dtype) * kernel[i, k].astype("%s32" % dtype), axis=k
+        ),
+        name="C",
+    )
 
-    a_buffer = tvm.tir.decl_buffer(data.shape, dtype='%s8' % dtype, name="a_buffer",
-                                   offset_factor=1,
-                                   strides=[1])
-    b_buffer = tvm.tir.decl_buffer(kernel.shape, dtype='%s8' % dtype, name="b_buffer",
-                                   offset_factor=1,
-                                   strides=[te.var('s'), 1])
+    a_buffer = tvm.tir.decl_buffer(
+        data.shape, dtype="%s8" % dtype, name="a_buffer", offset_factor=1, strides=[1]
+    )
+    b_buffer = tvm.tir.decl_buffer(
+        kernel.shape,
+        dtype="%s8" % dtype,
+        name="b_buffer",
+        offset_factor=1,
+        strides=[te.var("s"), 1],
+    )
 
     def _intrin_func(ins, outs):
         def _instr(index):
             ib = tvm.tir.ir_builder.create()
             if index == 1:
-                ib.emit(outs[0].vstore(0, tvm.tir.const(0, '%s32x%d' % (dtype, int32_lanes))))
+                ib.emit(outs[0].vstore(0, tvm.tir.const(0, "%s32x%d" % (dtype, int32_lanes))))
                 return ib.get()
 
-            dtype_a = '%s8x%d' % (dtype, num_int8_elements)
-            dtype_b = '%s8x%d' % (dtype, int32_lanes * num_int8_elements)
-            dtype_c = '%s32x%d' % (dtype, int32_lanes)
+            dtype_a = "%s8x%d" % (dtype, num_int8_elements)
+            dtype_b = "%s8x%d" % (dtype, int32_lanes * num_int8_elements)
+            dtype_c = "%s32x%d" % (dtype, int32_lanes)
 
             a_int8 = ins[0].vload([0], dtype_a)
-            re_int32 = tvm.tir.call_intrin('%s32' % dtype, 'tir.reinterpret', a_int8)
+            re_int32 = tvm.tir.call_intrin("%s32" % dtype, "tir.reinterpret", a_int8)
             # broadcast a
             vec_ai32 = re_int32.astype(dtype_c)
 
-            vec_a = tvm.tir.call_intrin(dtype_b, 'tir.reinterpret', vec_ai32)
+            vec_a = tvm.tir.call_intrin(dtype_b, "tir.reinterpret", vec_ai32)
             vec_b = ins[1].vload([0, 0], dtype_b)
             vec_c = outs[0].vload([0], dtype_c)
 
-            inst = 'udot' if dtype == 'uint' else 'sdot'
-            inst = 'llvm.aarch64.neon.%s.v%di32.v%di8' % (
-                inst, int32_lanes, int32_lanes * num_int8_elements)
-            vdot = tvm.tir.call_llvm_pure_intrin(
-                dtype_c,
+            inst = "udot" if dtype == "uint" else "sdot"
+            inst = "llvm.aarch64.neon.%s.v%di32.v%di8" % (
                 inst,
-                tvm.tir.const(2, 'uint32'),
-                vec_c, vec_a, vec_b)
+                int32_lanes,
+                int32_lanes * num_int8_elements,
+            )
+            vdot = tvm.tir.call_llvm_pure_intrin(
+                dtype_c, inst, tvm.tir.const(2, "uint32"), vec_c, vec_a, vec_b
+            )
             ib.emit(outs[0].vstore(0, vdot))
             return ib.get()
 
@@ -548,8 +582,12 @@ def dot_int8_int8_int32(int32_lanes, dtype='uint'):
 
     buffer_params = {"offset_factor": 1}
     return te.decl_tensor_intrin(
-        C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer},
-        default_buffer_params=buffer_params)
+        C.op,
+        _intrin_func,
+        binds={data: a_buffer, kernel: b_buffer},
+        default_buffer_params=buffer_params,
+    )
+
 
 def _q_multiply_shift_arm(op):
     """
@@ -574,31 +612,26 @@ def _q_multiply_shift_arm(op):
         return op
 
     # Case 1, shift is negative
-    sqrdmulh = tvm.tir.call_llvm_intrin(op.dtype,
-                                        'llvm.aarch64.neon.sqrdmulh',
-                                        tvm.tir.const(2, 'uint32'),
-                                        x,
-                                        y)
+    sqrdmulh = tvm.tir.call_llvm_intrin(
+        op.dtype, "llvm.aarch64.neon.sqrdmulh", tvm.tir.const(2, "uint32"), x, y
+    )
 
     fixup = (sqrdmulh & (-s)) >> 31
-    fixed_up_x = (sqrdmulh + fixup)
-    out_1 = tvm.tir.call_llvm_intrin(op.dtype,
-                                     'llvm.aarch64.neon.srshl',
-                                     tvm.tir.const(2, 'uint32'),
-                                     sqrdmulh,
-                                     s)
+    fixed_up_x = sqrdmulh + fixup
+    out_1 = tvm.tir.call_llvm_intrin(
+        op.dtype, "llvm.aarch64.neon.srshl", tvm.tir.const(2, "uint32"), sqrdmulh, s
+    )
 
     # Case 2, shift is positive
     x = x * (1 << (s))
-    out_2 = tvm.tir.call_llvm_intrin(op.dtype,
-                                     'llvm.aarch64.neon.sqrdmulh',
-                                     tvm.tir.const(2, 'uint32'),
-                                     x,
-                                     y)
+    out_2 = tvm.tir.call_llvm_intrin(
+        op.dtype, "llvm.aarch64.neon.sqrdmulh", tvm.tir.const(2, "uint32"), x, y
+    )
 
     # Select depending on the shift
     return tvm.tir.Select(s < 0, out_1, out_2)
 
-tvm.target.intrin.register_intrin_rule("llvm.aarch64",
-                                       "q_multiply_shift",
-                                       _q_multiply_shift_arm, override=True)
+
+tvm.target.intrin.register_intrin_rule(
+    "llvm.aarch64", "q_multiply_shift", _q_multiply_shift_arm, override=True
+)

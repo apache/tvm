@@ -25,6 +25,7 @@
 #ifndef TVM_RUNTIME_CRT_CRT_H_
 #define TVM_RUNTIME_CRT_CRT_H_
 
+#include <inttypes.h>
 #include <tvm/runtime/crt/error_codes.h>
 
 #ifdef __cplusplus
@@ -33,10 +34,14 @@ extern "C" {
 
 /*!
  * \brief Initialize various data structures used by the rutnime.
+ * \param memory_pool Pointer to the global memory pool used by the CRT.
+ * \param memory_pool_size_bytes Size of `memory_pool`, in bytes.
+ * \param page_size_bytes_log2 log2 of the page size, in bytes.
  * \return An error code describing the outcome of intialization. Generally, initialization
  *     is only expected to fail due to a misconfiguration.
  */
-tvm_crt_error_t TVMInitializeRuntime(void);
+tvm_crt_error_t TVMInitializeRuntime(uint8_t* memory_pool, size_t memory_pool_size_bytes,
+                                     size_t page_size_bytes_log2);
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -25,17 +25,19 @@ import tvm
 
 class TypeGeneric:
     """Base class for all the hybrid script typing class"""
+
     def evaluate(self):
         raise TypeError("Cannot get tvm.Type from a generic type")
 
 
 class ConcreteType(TypeGeneric):
     """Hybrid script typing class for uniform Type objects"""
+
     def __init__(self, vtype):
         self.type = vtype
 
     def evaluate(self):
-        return self.type
+        return tvm.ir.PrimType(self.type)
 
 
 class GenericPtrType(TypeGeneric):
@@ -43,6 +45,7 @@ class GenericPtrType(TypeGeneric):
 
     [] operator is overloaded, accepts a ConcreteType and returns a ConcreteType wrapping PtrType
     """
+
     def __getitem__(self, vtype):
         return ConcreteType(tvm.ir.PointerType(vtype.evaluate()))
 
@@ -53,11 +56,12 @@ class GenericTupleType(TypeGeneric):
     [] operator is overloaded, accepts a list of ConcreteType and returns a ConcreteType
     wrapping TupleType
     """
+
     def __getitem__(self, vtypes):
         return ConcreteType(tvm.ir.TupleType([vtype.evaluate() for vtype in vtypes]))
 
 
-int32 = ConcreteType(tvm.ir.PrimType("int32"))
-handle = ConcreteType(tvm.ir.PrimType("handle"))
+int32 = ConcreteType("int32")
+handle = ConcreteType("handle")
 Ptr = GenericPtrType()
 Tuple = GenericTupleType()

@@ -48,8 +48,8 @@ proxy_port = 9090
 key = "iphone"
 
 # Change target configuration, this is setting for iphone6s
-#arch = "x86_64"
-#sdk = "iphonesimulator"
+# arch = "x86_64"
+# sdk = "iphonesimulator"
 arch = "arm64"
 sdk = "iphoneos"
 target_host = "llvm -mtriple=%s-apple-darwin" % arch
@@ -59,25 +59,30 @@ target_host = "llvm -mtriple=%s-apple-darwin" % arch
 def compile_metal(src):
     return xcode.compile_metal(src, sdk=sdk)
 
+
 def prepare_input():
-    img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-    img_name = 'cat.png'
-    synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
-                          '4d0b62f3d01426887599d4f7ede23ee5/raw/',
-                          '596b27d23537e5a1b5751d2b0481ef172f58b539/',
-                          'imagenet1000_clsid_to_human.txt'])
-    synset_name = 'imagenet1000_clsid_to_human.txt'
-    img_path = download_testdata(img_url, 'cat.png', module='data')
-    synset_path = download_testdata(synset_url, synset_name, module='data')
+    img_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
+    img_name = "cat.png"
+    synset_url = "".join(
+        [
+            "https://gist.githubusercontent.com/zhreshold/",
+            "4d0b62f3d01426887599d4f7ede23ee5/raw/",
+            "596b27d23537e5a1b5751d2b0481ef172f58b539/",
+            "imagenet1000_clsid_to_human.txt",
+        ]
+    )
+    synset_name = "imagenet1000_clsid_to_human.txt"
+    img_path = download_testdata(img_url, "cat.png", module="data")
+    synset_path = download_testdata(synset_url, synset_name, module="data")
     with open(synset_path) as f:
         synset = eval(f.read())
         image = Image.open(img_path).resize((224, 224))
 
-    image = np.array(image) - np.array([123., 117., 104.])
+    image = np.array(image) - np.array([123.0, 117.0, 104.0])
     image /= np.array([58.395, 57.12, 57.375])
     image = image.transpose((2, 0, 1))
     image = image[np.newaxis, :]
-    return image.astype('float32'), synset
+    return image.astype("float32"), synset
 
 
 def get_model(model_name, data_shape):
@@ -85,7 +90,9 @@ def get_model(model_name, data_shape):
     mod, params = relay.frontend.from_mxnet(gluon_model, {"data": data_shape})
     # we want a probability so add a softmax operator
     func = mod["main"]
-    func = relay.Function(func.params, relay.nn.softmax(func.body), None, func.type_params, func.attrs)
+    func = relay.Function(
+        func.params, relay.nn.softmax(func.body), None, func.type_params, func.attrs
+    )
 
     return func, params
 
@@ -93,19 +100,17 @@ def get_model(model_name, data_shape):
 def test_mobilenet():
     temp = util.tempdir()
     image, synset = prepare_input()
-    model, params = get_model('mobilenetv2_1.0', image.shape)
+    model, params = get_model("mobilenetv2_1.0", image.shape)
 
     def run(mod, target):
         with relay.build_config(opt_level=3):
-            graph, lib, _params = relay.build(mod, target=target,
-                                             target_host=target_host, params=params)
+            lib = relay.build(mod, target=target, target_host=target_host, params=params)
         path_dso = temp.relpath("deploy.dylib")
         lib.export_library(path_dso, xcode.create_dylib, arch=arch, sdk=sdk)
         xcode.codesign(path_dso)
 
         # Start RPC test server that contains the compiled library.
-        xcode.popen_test_rpc(proxy_host, proxy_port, key,
-                             destination=destination, libs=[path_dso])
+        xcode.popen_test_rpc(proxy_host, proxy_port, key, destination=destination, libs=[path_dso])
 
         # connect to the proxy
         remote = rpc.connect(proxy_host, proxy_port, key=key)
@@ -115,14 +120,13 @@ def test_mobilenet():
         else:
             ctx = remote.cpu(0)
         lib = remote.load_module("deploy.dylib")
-        m = graph_runtime.create(graph, lib, ctx)
+        m = graph_runtime.GraphModule(lib["default"](ctx))
 
-        m.set_input('data', tvm.nd.array(image, ctx))
-        m.set_input(**_params)
+        m.set_input("data", tvm.nd.array(image, ctx))
         m.run()
         tvm_output = m.get_output(0)
         top1 = np.argmax(tvm_output.asnumpy()[0])
-        print('TVM prediction top-1:', top1, synset[top1])
+        print("TVM prediction top-1:", top1, synset[top1])
 
         # evaluate
         ftimer = m.module.time_evaluator("run", ctx, number=3, repeat=10)
@@ -146,14 +150,16 @@ def test_mobilenet():
         mod = tvm.IRModule()
         mod["main"] = func
 
-        seq = tvm.transform.Sequential([
-            transform.SimplifyInference(),
-            transform.FoldConstant(),
-            transform.FoldScaleAxis(),
-            transform.AnnotateTarget(compiler),
-            transform.MergeCompilerRegions(),
-            transform.PartitionGraph()
-        ])
+        seq = tvm.transform.Sequential(
+            [
+                transform.SimplifyInference(),
+                transform.FoldConstant(),
+                transform.FoldScaleAxis(),
+                transform.AnnotateTarget(compiler),
+                transform.MergeCompilerRegions(),
+                transform.PartitionGraph(),
+            ]
+        )
 
         with relay.build_config(opt_level=3):
             mod = seq(mod)
@@ -166,6 +172,7 @@ def test_mobilenet():
     run(model, "metal")
     # CoreML
     run(annotate(model, "coremlcompiler"), target_host)
+
 
 if __name__ == "__main__":
     test_mobilenet()

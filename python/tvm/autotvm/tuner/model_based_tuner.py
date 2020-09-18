@@ -26,13 +26,15 @@ import numpy as np
 from .tuner import Tuner
 from ..env import GLOBAL_SCOPE
 
+
 class FeatureCache(object):
     """Feature cache manager for cache sharing between different cost models"""
+
     def __init__(self):
         self.feature_cache = {}
 
     def get(self, key):
-        """ Get feature cache dictionary for a key
+        """Get feature cache dictionary for a key
 
         Parameters
         ----------
@@ -50,7 +52,7 @@ class FeatureCache(object):
         return self.feature_cache[key]
 
     def size(self, key):
-        """" Get the size of a feature cache dictionary
+        """ " Get the size of a feature cache dictionary
 
         Parameters
         ----------
@@ -78,6 +80,7 @@ class FeatureCache(object):
 
 class CostModel(object):
     """Cost model to predict the speed of a config"""
+
     def __init__(self):
         pass
 
@@ -149,6 +152,7 @@ class CostModel(object):
 
 class ModelOptimizer(object):
     """Optimizer used to find optimal points of cost model"""
+
     def __init__(self):
         pass
 
@@ -207,8 +211,9 @@ class ModelBasedTuner(Tuner):
         self.diversity_filter_ratio = diversity_filter_ratio
 
         if self.diversity_filter_ratio:
-            assert self.diversity_filter_ratio >= 1, "Diversity filter ratio " \
-                                                     "must be larger than one"
+            assert self.diversity_filter_ratio >= 1, (
+                "Diversity filter ratio " "must be larger than one"
+            )
 
         # trial plan
         self.trials = []
@@ -261,19 +266,20 @@ class ModelBasedTuner(Tuner):
                 self.ys.append(0.0)
 
         # if we have enough new training samples
-        if len(self.xs) >= self.plan_size * (self.train_ct + 1) \
-                and self.flops_max > 1e-6:
+        if len(self.xs) >= self.plan_size * (self.train_ct + 1) and self.flops_max > 1e-6:
             self.cost_model.fit(self.xs, self.ys, self.plan_size)
             if self.diversity_filter_ratio:
                 candidate = self.model_optimizer.find_maximums(
-                    self.cost_model, self.plan_size * self.diversity_filter_ratio, self.visited)
+                    self.cost_model, self.plan_size * self.diversity_filter_ratio, self.visited
+                )
                 scores = self.cost_model.predict(candidate)
                 knobs = [point2knob(x, self.dims) for x in candidate]
                 pick_index = submodular_pick(0 * scores, knobs, self.plan_size, knob_weight=1)
                 maximums = np.array(candidate)[pick_index]
             else:
                 maximums = self.model_optimizer.find_maximums(
-                    self.cost_model, self.plan_size, self.visited)
+                    self.cost_model, self.plan_size, self.visited
+                )
 
             self.trials = maximums
             self.trial_pt = 0

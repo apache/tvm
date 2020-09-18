@@ -19,7 +19,7 @@ Micro TVM with TFLite Models
 ============================
 **Author**: `Tom Gall <https://github.com/tom-gall>`_
 
-This tutorial is an introduction to working with MicroTVM and a TFLite 
+This tutorial is an introduction to working with MicroTVM and a TFLite
 model with Relay.
 """
 
@@ -108,9 +108,9 @@ from tvm import relay
 # Load the pretrained TFLite model from a file in your current
 # directory into a buffer
 
-model_url = 'https://people.linaro.org/~tom.gall/sine_model.tflite'
-model_file = 'sine_model.tflite'
-model_path = download_testdata(model_url, model_file, module='data')
+model_url = "https://people.linaro.org/~tom.gall/sine_model.tflite"
+model_file = "sine_model.tflite"
+model_path = download_testdata(model_url, model_file, module="data")
 
 tflite_model_buf = open(model_path, "rb").read()
 
@@ -118,15 +118,17 @@ tflite_model_buf = open(model_path, "rb").read()
 # Using the buffer, transform into a tflite model python object
 try:
     import tflite
+
     tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
 except AttributeError:
     import tflite.Model
+
     tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
 
 ######################################################################
 # Print out the version of the model
 version = tflite_model.Version()
-print ("Model Version: " + str(version))
+print("Model Version: " + str(version))
 
 ######################################################################
 # Parse the python model object to convert it into a relay module
@@ -137,32 +139,14 @@ print ("Model Version: " + str(version))
 # If you are unsure what that might be, this can be discovered by using
 # the visualize.py script within the Tensorflow project.
 # See : How do I inspect a .tflite file? `<https://www.tensorflow.org/lite/guide/faq>`_
- 
+
 input_tensor = "dense_4_input"
 input_shape = (1,)
 input_dtype = "float32"
 
-mod, params = relay.frontend.from_tflite(tflite_model,
-                                         shape_dict={input_tensor: input_shape},
-                                         dtype_dict={input_tensor: input_dtype})
-
-# %%
-# Running on device
-# ----------------------------------------------
-#
-# Setup the device config which is what will be used to communicate
-# with the microcontroller (a STM32F746 Discovery board)
-TARGET = 'c --system-lib  --runtime=c'
-dev_config = micro.device.arm.stm32f746xx.generate_config("127.0.0.1", 6666)
-
-######################################################################
-# Next with the dev_config, we establish a micro session and create
-# a context
-#
-# .. code-block:: python
-#
-#   with micro.Session(dev_config) as sess:
-#       ctx = tvm.micro_dev(0)
+mod, params = relay.frontend.from_tflite(
+    tflite_model, shape_dict={input_tensor: input_shape}, dtype_dict={input_tensor: input_dtype}
+)
 
 ######################################################################
 # Now we create a build config for relay. turning off two options
@@ -171,48 +155,60 @@ dev_config = micro.device.arm.stm32f746xx.generate_config("127.0.0.1", 6666)
 #
 # .. code-block:: python
 #
-#   with tvm.transform.PassContext(opt_level=3, config={'tir.disable_vectorize': True},disabled_pass=['FuseOps']):
-#       graph, c_mod, params = relay.build(mod, target=TARGET, params=params)
+TARGET = tvm.target.target.micro("host")
+
+with tvm.transform.PassContext(
+    opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["FuseOps"]
+):
+    graph, c_mod, c_params = relay.build(mod, target=TARGET, params=params)
+
+
+# %%
+# Running on simulated device
+# ----------------------------------------------
+#
+# First, compile a static microTVM runtime for the targeted device. In this case, the host simulated
+# device is used.
+workspace = tvm.micro.Workspace()
+
+compiler = tvm.micro.DefaultCompiler(target=TARGET)
+opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
+
+micro_binary = tvm.micro.build_static_runtime(
+    # the x86 compiler *expects* you to give the exact same dictionary for both
+    # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
+    # the binary compiler is expecting those mutations to be in bin_opts.
+    # TODO(weberlo) fix this very bizarre behavior
+    workspace,
+    compiler,
+    c_mod,
+    lib_opts=opts["bin_opts"],
+    bin_opts=opts["bin_opts"],
+)
+
 
 ######################################################################
-# With the c_mod that is the handle to our C source code, we create a
-# micro module, followed by a compiled object which behind the scenes
-# is linked to the microTVM runtime for running on the target board
+# Next, establish a session with the simulated device and run the
+# computation. The `with session` line would typically flash an attached
+# microcontroller, but in this tutorial, it simply launches a subprocess
+# to stand in for an attached microcontroller.
 #
 # .. code-block:: python
 #
-#   micro_mod = micro.create_micro_mod(c_mod, dev_config)
-#   mod = graph_runtime.create(graph, micro_mod, ctx)
+flasher = compiler.flasher()
+with tvm.micro.Session(binary=micro_binary, flasher=flasher) as session:
+    graph_mod = tvm.micro.create_local_graph_runtime(
+        graph, session.get_system_lib(), session.context
+    )
 
-######################################################################
-# Pass the weights to get ready to perform inference
-#
-# .. code-block:: python
-#
-#   mod.set_input(**params)
+    # Set the model parameters using the lowered parameters produced by `relay.build`.
+    graph_mod.set_input(**c_params)
 
-######################################################################
-# The model consumes a single float32 value and returns a predicted
-# sine value.
-# To pass the input value we construct a tvm.nd.array object
-# with a single contrived number as input. For this model values of
-# 0 to 2Pi are acceptable.
-#
-# .. code-block:: python
-#
-#   mod.set_input(input_tensor, tvm.nd.array(np.array([0.5], dtype="float32")))
+    # The model consumes a single float32 value and returns a predicted sine value.  To pass the
+    # input value we construct a tvm.nd.array object with a single contrived number as input. For
+    # this model values of 0 to 2Pi are acceptable.
+    graph_mod.set_input(input_tensor, tvm.nd.array(np.array([0.5], dtype="float32")))
+    graph_mod.run()
 
-######################################################################
-# Run the model on device
-#
-# .. code-block:: python
-#
-#   mod.run()
-
-######################################################################
-# Get output from the run and print
-#
-# .. code-block:: python
-#
-#   tvm_output = mod.get_output(0).asnumpy()
-#   print("result is: "+str(tvm_output))
+    tvm_output = graph_mod.get_output(0).asnumpy()
+    print("result is: " + str(tvm_output))

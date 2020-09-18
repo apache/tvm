@@ -230,6 +230,7 @@ BSD 2-clause License + zlib License
 MIT License
 -----------
 
+3rdparty/libcrc
 3rdparty/cma
 3rdparty/compiler-rt/builtin_fp16.h
 

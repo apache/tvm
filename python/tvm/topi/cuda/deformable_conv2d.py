@@ -24,10 +24,14 @@ from ..util import traverse_inline
 
 
 @autotvm.register_topi_compute("deformable_conv2d_nchw.cuda")
-def deformable_conv2d_nchw(cfg, data, offset, kernel, strides, padding, dilation,
-                           deformable_groups, groups, out_dtype):
-    return nn.deformable_conv2d_nchw(data, offset, kernel, strides, padding, dilation,
-                                     deformable_groups, groups, out_dtype)
+def deformable_conv2d_nchw(
+    cfg, data, offset, kernel, strides, padding, dilation, deformable_groups, groups, out_dtype
+):
+    """Deformable Conv2d."""
+    return nn.deformable_conv2d_nchw(
+        data, offset, kernel, strides, padding, dilation, deformable_groups, groups, out_dtype
+    )
+
 
 @autotvm.register_topi_schedule("deformable_conv2d_nchw.cuda")
 def schedule_deformable_conv2d_nchw(cfg, outs):
@@ -51,7 +55,7 @@ def schedule_deformable_conv2d_nchw(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == 'deformable_conv2d_nchw':
+        if op.tag == "deformable_conv2d_nchw":
             _schedule_direct_cuda(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
@@ -71,7 +75,7 @@ def _schedule_direct_cuda(cfg, s, conv):
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
 
     target = tvm.target.Target.current()
-    if target.kind.name in ['nvptx', 'rocm']:
+    if target.kind.name in ["nvptx", "rocm"]:
         cfg.define_knob("unroll_explicit", [1])
     else:
         cfg.define_knob("unroll_explicit", [0, 1])
@@ -79,20 +83,20 @@ def _schedule_direct_cuda(cfg, s, conv):
     data_deform, kernel = s[conv].op.input_tensors
 
     s[data_deform].compute_inline()
-    if isinstance(kernel.op, tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
+    if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
         s[kernel].compute_inline()
 
     if conv.op in s.outputs:
         output = conv
-        OL = s.cache_write(conv, 'local')
+        OL = s.cache_write(conv, "local")
     else:
         output = s.outputs[0].output(0)
-        s[conv].set_scope('local')
+        s[conv].set_scope("local")
         OL = conv
 
     # create cache stage
-    AA = s.cache_read(data_deform, 'shared', [OL])
-    WW = s.cache_read(kernel, 'shared', [OL])
+    AA = s.cache_read(data_deform, "shared", [OL])
+    WW = s.cache_read(kernel, "shared", [OL])
 
     # tile and bind spatial axes
     n, f, y, x = s[output].op.axis
@@ -118,9 +122,9 @@ def _schedule_direct_cuda(cfg, s, conv):
     # tile reduction axes
     n, f, y, x = s[OL].op.axis
     rc, ry, rx = s[OL].op.reduce_axis
-    rco, rci = cfg['tile_rc'].apply(s, OL, rc)
-    ryo, ryi = cfg['tile_ry'].apply(s, OL, ry)
-    rxo, rxi = cfg['tile_rx'].apply(s, OL, rx)
+    rco, rci = cfg["tile_rc"].apply(s, OL, rc)
+    ryo, ryi = cfg["tile_ry"].apply(s, OL, ry)
+    rxo, rxi = cfg["tile_rx"].apply(s, OL, rx)
     s[OL].reorder(rco, ryo, rxo, rci, ryi, rxi, n, f, y, x)
     cfg.define_reorder("reorder_inner", [rco, ryo, rxo], "all")
     cfg["reorder_inner"].apply(s, OL, [rco, ryo, rxo])
@@ -141,5 +145,5 @@ def _schedule_direct_cuda(cfg, s, conv):
         s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
     # unroll
-    s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
-    s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
+    s[output].pragma(kernel_scope, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+    s[output].pragma(kernel_scope, "unroll_explicit", cfg["unroll_explicit"].val)

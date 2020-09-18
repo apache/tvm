@@ -18,5 +18,6 @@
 Common utility functions shared by TVMC modules.
 """
 
+
 class TVMCException(Exception):
     """TVMC Exception"""

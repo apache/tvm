@@ -18,25 +18,26 @@ import tvm
 from tvm import te
 import numpy as np
 
+
 def test_array():
-    a = tvm.runtime.convert([1,2,3])
+    a = tvm.runtime.convert([1, 2, 3])
     assert len(a) == 3
     assert a[-1].value == 3
     a_slice = a[-3:-1]
     assert (a_slice[0].value, a_slice[1].value) == (1, 2)
 
+
 def test_array_save_load_json():
-    a = tvm.runtime.convert([1,2,3])
+    a = tvm.runtime.convert([1, 2, 3])
     json_str = tvm.ir.save_json(a)
     a_loaded = tvm.ir.load_json(json_str)
-    assert(a_loaded[1].value == 2)
+    assert a_loaded[1].value == 2
 
 
 def test_map():
-    a = te.var('a')
-    b = te.var('b')
-    amap = tvm.runtime.convert({a: 2,
-                        b: 3})
+    a = te.var("a")
+    b = te.var("b")
+    amap = tvm.runtime.convert({a: 2, b: 3})
     assert a in amap
     assert len(amap) == 2
     dd = dict(amap.items())
@@ -46,35 +47,35 @@ def test_map():
 
 
 def test_str_map():
-    amap = tvm.runtime.convert({'a': 2, 'b': 3})
-    assert 'a' in amap
+    amap = tvm.runtime.convert({"a": 2, "b": 3})
+    assert "a" in amap
     assert len(amap) == 2
     dd = dict(amap.items())
-    assert amap['a'].value == 2
-    assert 'a' in dd
-    assert 'b' in dd
+    assert amap["a"].value == 2
+    assert "a" in dd
+    assert "b" in dd
 
 
 def test_map_save_load_json():
-    a = te.var('a')
-    b = te.var('b')
-    amap = tvm.runtime.convert({a: 2,
-                        b: 3})
+    a = te.var("a")
+    b = te.var("b")
+    amap = tvm.runtime.convert({a: 2, b: 3})
     json_str = tvm.ir.save_json(amap)
     amap = tvm.ir.load_json(json_str)
     assert len(amap) == 2
-    dd = {kv[0].name : kv[1].value for kv in amap.items()}
-    assert(dd == {"a": 2, "b": 3})
+    dd = {kv[0].name: kv[1].value for kv in amap.items()}
+    assert dd == {"a": 2, "b": 3}
 
 
 def test_in_container():
-    arr = tvm.runtime.convert(['a', 'b', 'c'])
-    assert 'a' in arr
-    assert tvm.tir.StringImm('a') in arr
-    assert 'd' not in arr
+    arr = tvm.runtime.convert(["a", "b", "c"])
+    assert "a" in arr
+    assert tvm.tir.StringImm("a") in arr
+    assert "d" not in arr
+
 
 def test_ndarray_container():
-    x = tvm.nd.array([1,2,3])
+    x = tvm.nd.array([1, 2, 3])
     arr = tvm.runtime.convert([x, x])
     assert arr[0].same_as(x)
     assert arr[1].same_as(x)

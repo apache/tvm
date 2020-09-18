@@ -19,6 +19,7 @@
 from __future__ import absolute_import
 from .. import cpp
 
+
 def lrn(data, size, axis=1, alpha=0.0001, beta=0.75, bias=2):
     """Perform the across channels local response normalisation
     on the input data.

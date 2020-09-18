@@ -29,6 +29,7 @@ from tvm import relay
 
 from util import get_network, print_progress
 
+
 def evaluate_network(network, target, target_host, dtype, repeat):
     # connect to remote device
     tracker = tvm.rpc.connect_tracker(args.host, args.port)
@@ -39,12 +40,12 @@ def evaluate_network(network, target, target_host, dtype, repeat):
 
     print_progress("%-20s building..." % network)
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = relay.build(
-            net, target=target, target_host=target_host, params=params)
+        lib = relay.build(net, target=target, target_host=target_host, params=params)
 
     tmp = tempdir()
-    if 'android' in str(target) or 'android' in str(target_host):
+    if "android" in str(target) or "android" in str(target_host):
         from tvm.contrib import ndk
+
         filename = "%s.so" % network
         lib.export_library(tmp.relpath(filename), ndk.create_shared)
     else:
@@ -57,38 +58,55 @@ def evaluate_network(network, target, target_host, dtype, repeat):
     remote.upload(tmp.relpath(filename))
 
     rlib = remote.load_module(filename)
-    module = runtime.create(graph, rlib, ctx)
+    module = runtime.GraphModule(rlib["default"](ctx))
     data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
-    module.set_input('data', data_tvm)
-    module.set_input(**params)
+    module.set_input("data", data_tvm)
 
     # evaluate
     print_progress("%-20s evaluating..." % network)
     ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=repeat)
     prof_res = np.array(ftimer().results) * 1000  # multiply 1000 for converting to millisecond
-    print("%-20s %-19s (%s)" % (network, "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res)))
+    print(
+        "%-20s %-19s (%s)" % (network, "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res))
+    )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--network", type=str, choices=
-                        ['resnet-18', 'resnet-34', 'resnet-50',
-                         'vgg-16', 'vgg-19', 'densenet-121', 'inception_v3',
-                         'mobilenet', 'squeezenet_v1.0', 'squeezenet_v1.1'],
-                        help='The name of neural network')
-    parser.add_argument("--model", type=str, choices=
-                        ['rk3399'], default='rk3399',
-                        help="The model of the test device. If your device is not listed in "
-                             "the choices list, pick the most similar one as argument.")
-    parser.add_argument("--host", type=str, default='localhost')
+    parser.add_argument(
+        "--network",
+        type=str,
+        choices=[
+            "resnet-18",
+            "resnet-34",
+            "resnet-50",
+            "vgg-16",
+            "vgg-19",
+            "densenet-121",
+            "inception_v3",
+            "mobilenet",
+            "squeezenet_v1.0",
+            "squeezenet_v1.1",
+        ],
+        help="The name of neural network",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        choices=["rk3399"],
+        default="rk3399",
+        help="The model of the test device. If your device is not listed in "
+        "the choices list, pick the most similar one as argument.",
+    )
+    parser.add_argument("--host", type=str, default="localhost")
     parser.add_argument("--port", type=int, default=9190)
     parser.add_argument("--rpc-key", type=str, required=True)
     parser.add_argument("--repeat", type=int, default=30)
-    parser.add_argument("--dtype", type=str, default='float32')
+    parser.add_argument("--dtype", type=str, default="float32")
     args = parser.parse_args()
 
     if args.network is None:
-        networks = ['squeezenet_v1.1', 'mobilenet', 'resnet-18', 'vgg-16']
+        networks = ["squeezenet_v1.1", "mobilenet", "resnet-18", "vgg-16"]
     else:
         networks = [args.network]
 

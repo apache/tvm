@@ -40,7 +40,7 @@ tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
 tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
-tvm_option(USE_MICRO "Build with Micro" OFF)
+tvm_option(USE_MICRO "Build with Micro TVM support" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
 tvm_option(USE_TF_TVMDSOOP "Build with TensorFlow TVMDSOOp" OFF)
@@ -109,6 +109,20 @@ if(MSVC)
       endif(${flag_var} MATCHES "/MD")
     endforeach(flag_var)
   endif()
+  # Disable common MSVC warnings
+  # Integer conversion warnings(e.g. int64 to int)
+  add_compile_options(/wd4244)
+  add_compile_options(/wd4267)
+  # Signed unsigned constant comparison
+  add_compile_options(/wd4018)
+  # Aligned alloc may not met(need c++17)
+  add_compile_options(/wd4316)
+  # unreferenced local variables(usually in exception catch)
+  add_compile_options(/wd4101)
+  # always inline keyword not necessary
+  add_compile_options(/wd4180)
+  # DLL interface warning in c++
+  add_compile_options(/wd4251)
 else(MSVC)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     message(STATUS "Build in Debug mode")
@@ -390,12 +404,12 @@ if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
   set(THREADS_PREFER_PTHREAD_FLAG TRUE)
   find_package(Threads REQUIRED)
-  target_link_libraries(tvm Threads::Threads)
-  target_link_libraries(tvm_runtime Threads::Threads)
+  target_link_libraries(tvm PUBLIC Threads::Threads)
+  target_link_libraries(tvm_runtime PUBLIC Threads::Threads)
 endif()
 
-target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
-target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
 # Related headers
 target_include_directories(
@@ -404,20 +418,27 @@ target_include_directories(
 target_include_directories(
   tvm_objs
   PUBLIC "topi/include")
+set(CRC16_INCLUDE_PATH "3rdparty/libcrc/include")
+target_include_directorieS(
+  tvm_objs
+  PRIVATE "${CRC16_INCLUDE_PATH}")
+target_include_directorieS(
+  tvm_runtime_objs
+  PRIVATE "${CRC16_INCLUDE_PATH}")
 
 set(TVM_TEST_LIBRARY_NAME tvm)
 if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   add_library(tvm_allvisible SHARED $<TARGET_OBJECTS:tvm_objs>)
   target_include_directories(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm,INCLUDE_DIRECTORIES>")
-  target_link_libraries(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm,LINK_LIBRARIES>")
+  target_link_libraries(tvm_allvisible PRIVATE "$<TARGET_PROPERTY:tvm,LINK_LIBRARIES>")
   set(TVM_TEST_LIBRARY_NAME tvm_allvisible)
 
-set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
+  set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
   # Note: 'target_link_options' with 'PRIVATE' keyword would be cleaner
   # but it's not available until CMake 3.13. Switch to 'target_link_options'
   # once minimum CMake version is bumped up to 3.13 or above.
-  target_link_libraries(tvm ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_link_libraries(tvm_runtime ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm_runtime PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
 endif()
 
 # Tests

@@ -17,13 +17,15 @@
 import tvm.testing
 from pytest import ExitCode
 
+
 def pytest_configure(config):
     print("enabled targets:", "; ".join(map(lambda x: x[0], tvm.testing.enabled_targets())))
     print("pytest marker:", config.option.markexpr)
 
+
 def pytest_sessionfinish(session, exitstatus):
     # Don't exit with an error if we select a subset of tests that doesn't
     # include anything
-    if session.config.option.markexpr != '':
+    if session.config.option.markexpr != "":
         if exitstatus == ExitCode.NO_TESTS_COLLECTED:
             session.exitstatus = ExitCode.OK

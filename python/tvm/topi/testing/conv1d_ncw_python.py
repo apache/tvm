@@ -21,7 +21,7 @@ from tvm.topi.nn.util import get_pad_tuple1d
 
 
 def dilate_np(x, dilation):
-    """ 1D dilation using numpy
+    """1D dilation using numpy
 
     Parameters
     ----------
@@ -38,7 +38,7 @@ def dilate_np(x, dilation):
     """
     irange = range(len(x) - 1)
     for d in range(dilation - 1):
-        indices = [(d + 1)*(i + 1) for i in irange]
+        indices = [(d + 1) * (i + 1) for i in irange]
         x = np.insert(x, indices, 0)
     return x
 
@@ -81,13 +81,14 @@ def conv1d_ncw_python(a_np, w_np, stride, padding, dilation):
     out_w = ((in_w - dilated_filter_w + pad_left + pad_right) // stride) + 1
 
     padded_a_np = np.zeros((batch, in_c, in_w + pad_left + pad_right))
-    padded_a_np[:, :, pad_left:(in_w + pad_left)] = a_np
+    padded_a_np[:, :, pad_left : (in_w + pad_left)] = a_np
 
     b_np = np.zeros((batch, out_c, out_w))
     for n in range(batch):
         for f in range(out_c):
             for c in range(in_c):
                 out = np.convolve(
-                    padded_a_np[n, c], np.flip(dilate_np(w_np[f, c], dilation)), mode='valid')
+                    padded_a_np[n, c], np.flip(dilate_np(w_np[f, c], dilation)), mode="valid"
+                )
                 b_np[n, f] += out[::stride]
     return b_np

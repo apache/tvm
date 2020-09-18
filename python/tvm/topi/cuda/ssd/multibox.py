@@ -54,8 +54,7 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
     stmt : Stmt
         The result IR statement.
     """
-    max_threads = int(math.sqrt(
-        tvm.target.Target.current(allow_none=False).max_num_threads))
+    max_threads = int(math.sqrt(tvm.target.Target.current(allow_none=False).max_num_threads))
     tx = te.thread_axis("threadIdx.x")
     ty = te.thread_axis("threadIdx.y")
     bx = te.thread_axis("blockIdx.x")
@@ -89,15 +88,25 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
             center_w = (j + offset_w) * steps_w
 
             for k in range(num_sizes + num_ratios - 1):
-                w = if_then_else(k < num_sizes,
-                                 float(size_ratio_concat[k]) * in_height / in_width / 2.0,
-                                 float(size_ratio_concat[0]) * in_height / in_width *
-                                 math.sqrt(size_ratio_concat[k + 1]) / 2.0)
+                w = if_then_else(
+                    k < num_sizes,
+                    float(size_ratio_concat[k]) * in_height / in_width / 2.0,
+                    float(size_ratio_concat[0])
+                    * in_height
+                    / in_width
+                    * math.sqrt(size_ratio_concat[k + 1])
+                    / 2.0,
+                )
                 h = if_then_else(
-                    k < num_sizes, size_ratio_concat[k] / 2.0,
-                    size_ratio_concat[0] / math.sqrt(size_ratio_concat[k + 1]) / 2.0)
-                count = (i * in_width * (num_sizes + num_ratios - 1) +
-                         j * (num_sizes + num_ratios - 1) + k) * 4
+                    k < num_sizes,
+                    size_ratio_concat[k] / 2.0,
+                    size_ratio_concat[0] / math.sqrt(size_ratio_concat[k + 1]) / 2.0,
+                )
+                count = (
+                    i * in_width * (num_sizes + num_ratios - 1)
+                    + j * (num_sizes + num_ratios - 1)
+                    + k
+                ) * 4
                 p_out[count] = center_w - w
                 p_out[count + 1] = center_h - h
                 p_out[count + 2] = center_w + w
@@ -107,8 +116,7 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
     return body
 
 
-def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1),
-                   offsets=(0.5, 0.5), clip=False):
+def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 0.5), clip=False):
     """Generate prior(anchor) boxes from data, sizes and ratios.
 
     Parameters
@@ -138,15 +146,17 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1),
     """
     num_sizes = len(sizes)
     num_ratios = len(ratios)
-    oshape = (
-        1, data.shape[2] * data.shape[3] * (num_sizes + num_ratios - 1), 4)
-    out = te.extern(oshape, [data], lambda ins, outs:
-                    multibox_prior_ir(
-                        ins[0], outs[0], sizes, ratios, steps, offsets),
-                    tag="multibox_prior")
+    oshape = (1, data.shape[2] * data.shape[3] * (num_sizes + num_ratios - 1), 4)
+    out = te.extern(
+        oshape,
+        [data],
+        lambda ins, outs: multibox_prior_ir(ins[0], outs[0], sizes, ratios, steps, offsets),
+        tag="multibox_prior",
+    )
     if clip:
         out = topi.clip(out, 0, 1)
     return out
+
 
 def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp_score, threshold):
     """Low level IR routing for transform location data preparation.
@@ -192,7 +202,7 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
 
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     nthread_tx = max_threads
-    nthread_bx = (batch_size *  num_anchors) // max_threads + 1
+    nthread_bx = (batch_size * num_anchors) // max_threads + 1
     tx = te.thread_axis("threadIdx.x")
     bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
@@ -221,14 +231,26 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
         with ib.if_scope(tid < batch_size):
             with ib.for_range(0, num_anchors) as k:
                 with ib.if_scope(k > 0):
-                    temp_valid_count[tid * num_anchors + k] += \
-                        temp_valid_count[tid * num_anchors + k - 1]
+                    temp_valid_count[tid * num_anchors + k] += temp_valid_count[
+                        tid * num_anchors + k - 1
+                    ]
             valid_count[i] = temp_valid_count[tid * num_anchors + num_anchors - 1]
 
     return ib.get()
 
-def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score, out, \
-                     clip, variances, batch_size, num_anchors):
+
+def transform_loc_ir(
+    loc_pred,
+    anchor,
+    temp_valid_count,
+    temp_cls_id,
+    temp_score,
+    out,
+    clip,
+    variances,
+    batch_size,
+    num_anchors,
+):
     """Low level IR routing for transform location in multibox_detection operator.
 
     Parameters
@@ -268,9 +290,9 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
     stmt : Stmt
         The result IR statement.
     """
+
     def transform_loc(loc, loc_base_idx, anchor, anchor_base_idx, clip, vx, vy, vw, vh):
-        """Transform prior anchor box to output box through location predictions.
-        """
+        """Transform prior anchor box to output box through location predictions."""
         al = anchor[anchor_base_idx]
         at = anchor[anchor_base_idx + 1]
         ar = anchor[anchor_base_idx + 2]
@@ -287,10 +309,12 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
         oy = py * vy * ah + ay
         ow = exp(pw * vw) * aw / 2.0
         oh = exp(ph * vh) * ah / 2.0
-        return tvm.tir.if_then_else(clip, tvm.te.max(0.0, tvm.te.min(1.0, ox - ow)), ox - ow), \
-            tvm.tir.if_then_else(clip, tvm.te.max(0.0, tvm.te.min(1.0, oy - oh)), oy - oh), \
-            tvm.tir.if_then_else(clip, tvm.te.max(0.0, tvm.te.min(1.0, ox + ow)), ox + ow), \
-            tvm.tir.if_then_else(clip, tvm.te.max(0.0, tvm.te.min(1.0, oy + oh)), oy + oh)
+        return (
+            tvm.tir.if_then_else(clip, tvm.te.max(0.0, tvm.te.min(1.0, ox - ow)), ox - ow),
+            tvm.tir.if_then_else(clip, tvm.te.max(0.0, tvm.te.min(1.0, oy - oh)), oy - oh),
+            tvm.tir.if_then_else(clip, tvm.te.max(0.0, tvm.te.min(1.0, ox + ow)), ox + ow),
+            tvm.tir.if_then_else(clip, tvm.te.max(0.0, tvm.te.min(1.0, oy + oh)), oy + oh),
+        )
 
     ib = tvm.tir.ir_builder.create()
 
@@ -322,26 +346,49 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
                 out_base_idx = i * num_anchors * 6
                 out_loc[out_base_idx] = cls_id[tid] - 1.0
                 out_loc[out_base_idx + 1] = score[tid]
-                out_loc[out_base_idx + 2], out_loc[out_base_idx + 3], out_loc[out_base_idx + 4], \
-                    out_loc[out_base_idx + 5] = transform_loc(loc_pred, tid * 4,
-                                                              anchor, j * 4, clip, variances[0],
-                                                              variances[1], variances[2],
-                                                              variances[3])
+                (
+                    out_loc[out_base_idx + 2],
+                    out_loc[out_base_idx + 3],
+                    out_loc[out_base_idx + 4],
+                    out_loc[out_base_idx + 5],
+                ) = transform_loc(
+                    loc_pred,
+                    tid * 4,
+                    anchor,
+                    j * 4,
+                    clip,
+                    variances[0],
+                    variances[1],
+                    variances[2],
+                    variances[3],
+                )
             with ib.else_scope():
                 out_base_idx = i * num_anchors * 6 + temp_valid_count[tid - 1] * 6
                 out_loc[out_base_idx] = cls_id[tid] - 1.0
                 out_loc[out_base_idx + 1] = score[tid]
-                out_loc[out_base_idx + 2], out_loc[out_base_idx + 3], out_loc[out_base_idx + 4], \
-                    out_loc[out_base_idx + 5] = transform_loc(loc_pred, tid * 4,
-                                                              anchor, j * 4, clip, variances[0],
-                                                              variances[1], variances[2],
-                                                              variances[3])
+                (
+                    out_loc[out_base_idx + 2],
+                    out_loc[out_base_idx + 3],
+                    out_loc[out_base_idx + 4],
+                    out_loc[out_base_idx + 5],
+                ) = transform_loc(
+                    loc_pred,
+                    tid * 4,
+                    anchor,
+                    j * 4,
+                    clip,
+                    variances[0],
+                    variances[1],
+                    variances[2],
+                    variances[3],
+                )
 
     return ib.get()
 
 
-def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, \
-                           threshold=0.01, variances=(0.1, 0.1, 0.2, 0.2)):
+def multibox_transform_loc(
+    cls_prob, loc_pred, anchor, clip=True, threshold=0.01, variances=(0.1, 0.1, 0.2, 0.2)
+):
     """Location transformation for multibox detection
 
     Parameters
@@ -381,46 +428,105 @@ def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, \
     valid_count_dtype = "int32"
     out_loc_dtype = loc_pred.dtype
 
-    valid_count_buf = tvm.tir.decl_buffer((batch_size,), valid_count_dtype,
-                                          "valid_count_buf", data_alignment=4)
-    loc_pred_buf = tvm.tir.decl_buffer(loc_pred.shape, loc_pred.dtype,
-                                       "loc_pred_buf", data_alignment=8)
-    anchor_buf = tvm.tir.decl_buffer(anchor.shape, anchor.dtype,
-                                     "anchor_buf", data_alignment=8)
+    valid_count_buf = tvm.tir.decl_buffer(
+        (batch_size,), valid_count_dtype, "valid_count_buf", data_alignment=4
+    )
+    loc_pred_buf = tvm.tir.decl_buffer(
+        loc_pred.shape, loc_pred.dtype, "loc_pred_buf", data_alignment=8
+    )
+    anchor_buf = tvm.tir.decl_buffer(anchor.shape, anchor.dtype, "anchor_buf", data_alignment=8)
 
     temp_valid_count_buf = tvm.tir.decl_buffer(
-        (batch_size, num_anchors,), valid_count_dtype, "temp_valid_count", data_alignment=8)
+        (
+            batch_size,
+            num_anchors,
+        ),
+        valid_count_dtype,
+        "temp_valid_count",
+        data_alignment=8,
+    )
     temp_cls_id_buf = tvm.tir.decl_buffer(
-        (batch_size, num_anchors,), valid_count_dtype, "temp_cls_id", data_alignment=8)
+        (
+            batch_size,
+            num_anchors,
+        ),
+        valid_count_dtype,
+        "temp_cls_id",
+        data_alignment=8,
+    )
     temp_score_buf = tvm.tir.decl_buffer(
-        (batch_size, num_anchors,), cls_prob.dtype, "temp_score", data_alignment=8)
+        (
+            batch_size,
+            num_anchors,
+        ),
+        cls_prob.dtype,
+        "temp_score",
+        data_alignment=8,
+    )
 
-    valid_count, temp_valid_count, temp_cls_id, temp_score = \
-        te.extern([(batch_size,), (batch_size, num_anchors,), (batch_size, num_anchors,), \
-                   (batch_size, num_anchors,)], [cls_prob],
-                  lambda ins, outs: transform_loc_pre(
-                      ins[0], outs[0], outs[1], outs[2], outs[3], threshold),
-                  dtype=[valid_count_dtype, valid_count_dtype, valid_count_dtype, cls_prob.dtype],
-                  out_buffers=[valid_count_buf, temp_valid_count_buf, \
-                               temp_cls_id_buf, temp_score_buf],
-                  tag="multibox_transform_loc_phase_one")
+    valid_count, temp_valid_count, temp_cls_id, temp_score = te.extern(
+        [
+            (batch_size,),
+            (
+                batch_size,
+                num_anchors,
+            ),
+            (
+                batch_size,
+                num_anchors,
+            ),
+            (
+                batch_size,
+                num_anchors,
+            ),
+        ],
+        [cls_prob],
+        lambda ins, outs: transform_loc_pre(ins[0], outs[0], outs[1], outs[2], outs[3], threshold),
+        dtype=[valid_count_dtype, valid_count_dtype, valid_count_dtype, cls_prob.dtype],
+        out_buffers=[valid_count_buf, temp_valid_count_buf, temp_cls_id_buf, temp_score_buf],
+        tag="multibox_transform_loc_phase_one",
+    )
 
-    out_loc = \
-        te.extern([oshape],
-                  [loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score],
-                  lambda ins, outs: transform_loc_ir(
-                      ins[0], ins[1], ins[2], ins[3], ins[4], outs[0], clip, variances, \
-                      batch_size, num_anchors),
-                  in_buffers=[loc_pred_buf, anchor_buf, temp_valid_count_buf, \
-                              temp_cls_id_buf, temp_score_buf],
-                  dtype=[out_loc_dtype],
-                  tag="multibox_transform_loc")
+    out_loc = te.extern(
+        [oshape],
+        [loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score],
+        lambda ins, outs: transform_loc_ir(
+            ins[0],
+            ins[1],
+            ins[2],
+            ins[3],
+            ins[4],
+            outs[0],
+            clip,
+            variances,
+            batch_size,
+            num_anchors,
+        ),
+        in_buffers=[
+            loc_pred_buf,
+            anchor_buf,
+            temp_valid_count_buf,
+            temp_cls_id_buf,
+            temp_score_buf,
+        ],
+        dtype=[out_loc_dtype],
+        tag="multibox_transform_loc",
+    )
 
     return [out_loc, valid_count]
 
 
-def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nms_threshold=0.5,
-                       force_suppress=False, variances=(0.1, 0.1, 0.2, 0.2), nms_topk=-1):
+def multibox_detection(
+    cls_prob,
+    loc_pred,
+    anchor,
+    clip=True,
+    threshold=0.01,
+    nms_threshold=0.5,
+    force_suppress=False,
+    variances=(0.1, 0.1, 0.2, 0.2),
+    nms_topk=-1,
+):
     """Convert multibox detection predictions.
 
     Parameters
@@ -457,9 +563,15 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
     out : tvm.te.Tensor
         3-D tensor with shape (batch_size, num_anchors, 6)
     """
-    inter_out = multibox_transform_loc(cls_prob, loc_pred, anchor,
-                                       clip, threshold, variances)
-    out = non_max_suppression(inter_out[0], inter_out[1], inter_out[1], max_output_size=-1,
-                              iou_threshold=nms_threshold, force_suppress=force_suppress,
-                              top_k=nms_topk, return_indices=False)
+    inter_out = multibox_transform_loc(cls_prob, loc_pred, anchor, clip, threshold, variances)
+    out = non_max_suppression(
+        inter_out[0],
+        inter_out[1],
+        inter_out[1],
+        max_output_size=-1,
+        iou_threshold=nms_threshold,
+        force_suppress=force_suppress,
+        top_k=nms_topk,
+        return_indices=False,
+    )
     return out

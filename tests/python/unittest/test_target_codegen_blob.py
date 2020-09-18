@@ -24,6 +24,7 @@ from tvm import te
 import ctypes
 import tvm.testing
 
+
 @tvm.testing.uses_gpu
 def test_synthetic():
     for device in ["llvm", "cuda"]:
@@ -36,35 +37,28 @@ def test_synthetic():
     def verify(data):
         mod, params = relay.testing.synthetic.get_workload(input_shape=input_shape)
         with tvm.transform.PassContext(opt_level=3):
-            graph, lib, graph_params = relay.build_module.build(mod, "llvm", params=params)
+            lib = relay.build_module.build(mod, "llvm", params=params)
         ctx = tvm.cpu()
-        module = graph_runtime.create(graph, lib, ctx)
+        module = graph_runtime.GraphModule(lib["default"](ctx))
         module.set_input("data", data)
-        module.set_input(**graph_params)
         module.run()
         out = module.get_output(0).asnumpy()
         return out
 
     synthetic_mod, synthetic_params = relay.testing.synthetic.get_workload(input_shape=input_shape)
     with tvm.transform.PassContext(opt_level=3):
-        graph, synthetic_gpu_lib, graph_params = relay.build_module.build(synthetic_mod, "cuda", params=synthetic_params)
+        synthetic_gpu_lib = relay.build_module.build(synthetic_mod, "cuda", params=synthetic_params)
 
     from tvm.contrib import util
+
     temp = util.tempdir()
     path_lib = temp.relpath("deploy_lib.so")
     synthetic_gpu_lib.export_library(path_lib)
-    with open(temp.relpath("deploy_graph.json"), "w") as fo:
-        fo.write(graph)
-    with open(temp.relpath("deploy_param.params"), "wb") as fo:
-        fo.write(relay.save_param_dict(graph_params))
 
     loaded_lib = tvm.runtime.load_module(path_lib)
-    loaded_json = open(temp.relpath("deploy_graph.json")).read()
-    loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
     data = np.random.uniform(-1, 1, size=input_shape).astype("float32")
     ctx = tvm.gpu()
-    module = graph_runtime.create(loaded_json, loaded_lib, ctx)
-    module.load_params(loaded_params)
+    module = graph_runtime.GraphModule(loaded_lib["default"](ctx))
     module.set_input("data", data)
     module.run()
     out = module.get_output(0).asnumpy()
@@ -81,14 +75,15 @@ def test_cuda_lib():
             return
     nn = 12
     n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name='A')
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     s = te.create_schedule(B.op)
     bx, tx = s[B].split(B.op.axis[0], factor=4)
     s[B].bind(bx, te.thread_axis("blockIdx.x"))
     s[B].bind(tx, te.thread_axis("threadIdx.x"))
 
     from tvm.contrib import util
+
     temp = util.tempdir()
     fn_add = tvm.build(s, [A, B], target="cuda", target_host="llvm", name="add")
     path_lib = temp.relpath("deploy_lib.so")
@@ -96,7 +91,7 @@ def test_cuda_lib():
     m = tvm.runtime.load_module(path_lib)
     a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), ctx)
     b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), ctx)
-    m['add'](a, b)
+    m["add"](a, b)
     np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
 

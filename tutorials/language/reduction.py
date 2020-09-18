@@ -56,7 +56,7 @@ import numpy as np
 #
 n = te.var("n")
 m = te.var("m")
-A = te.placeholder((n, m), name='A')
+A = te.placeholder((n, m), name="A")
 k = te.reduce_axis((0, m), "k")
 B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
 
@@ -136,12 +136,11 @@ print(fcuda.imported_modules[0].get_source())
 # Verify the correctness of result kernel by comparing it to numpy.
 #
 nn = 128
-ctx  = tvm.gpu(0)
+ctx = tvm.gpu(0)
 a = tvm.nd.array(np.random.uniform(size=(nn, nn)).astype(A.dtype), ctx)
 b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), ctx)
 fcuda(a, b)
-tvm.testing.assert_allclose(
-    b.asnumpy(),  np.sum(a.asnumpy(), axis=1), rtol=1e-4)
+tvm.testing.assert_allclose(b.asnumpy(), np.sum(a.asnumpy(), axis=1), rtol=1e-4)
 
 ######################################################################
 # Describe Convolution via 2D Reduction
@@ -149,15 +148,16 @@ tvm.testing.assert_allclose(
 # In TVM, we can describe convolution via 2D reduction in a simple way.
 # Here is an example for 2D convolution with filter size = [3, 3] and strides = [1, 1].
 #
-n = te.var('n')
-Input = te.placeholder((n, n), name='Input')
-Filter = te.placeholder((3, 3), name='Filter')
-di = te.reduce_axis((0, 3), name='di')
-dj = te.reduce_axis((0, 3), name='dj')
+n = te.var("n")
+Input = te.placeholder((n, n), name="Input")
+Filter = te.placeholder((3, 3), name="Filter")
+di = te.reduce_axis((0, 3), name="di")
+dj = te.reduce_axis((0, 3), name="dj")
 Output = te.compute(
     (n - 2, n - 2),
     lambda i, j: te.sum(Input[i + di, j + dj] * Filter[di, dj], axis=[di, dj]),
-    name='Output')
+    name="Output",
+)
 s = te.create_schedule(Output.op)
 print(tvm.lower(s, [Input, Filter, Output], simple_mode=True))
 
@@ -171,13 +171,12 @@ print(tvm.lower(s, [Input, Filter, Output], simple_mode=True))
 # commutative reduction operation by :any:`te.comm_reducer`.
 #
 
-n = te.var('n')
-m = te.var('m')
-product = te.comm_reducer(lambda x, y: x*y,
-    lambda t: tvm.tir.const(1, dtype=t), name="product")
-A = te.placeholder((n, m), name='A')
-k = te.reduce_axis((0, m), name='k')
-B = te.compute((n,), lambda i: product(A[i, k], axis=k), name='B')
+n = te.var("n")
+m = te.var("m")
+product = te.comm_reducer(lambda x, y: x * y, lambda t: tvm.tir.const(1, dtype=t), name="product")
+A = te.placeholder((n, m), name="A")
+k = te.reduce_axis((0, m), name="k")
+B = te.compute((n,), lambda i: product(A[i, k], axis=k), name="B")
 
 ######################################################################
 # .. note::

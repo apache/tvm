@@ -36,6 +36,7 @@ except (RuntimeError, ImportError):
 
 PackedFuncHandle = ctypes.c_void_p
 
+
 class PackedFunc(PackedFuncBase):
     """The PackedFunc object used in TVM.
 
@@ -57,5 +58,6 @@ class PackedFunc(PackedFuncBase):
     tvm.register_func: How to register global function.
     tvm.get_global_func: How to get global function.
     """
+
 
 _set_class_packed_func(PackedFunc)

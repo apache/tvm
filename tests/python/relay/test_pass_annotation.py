@@ -25,18 +25,17 @@ from tvm.relay.expr_functor import ExprMutator
 from tvm.relay import transform
 import tvm.testing
 
+
 def _trace(module, metadata, _):
-    if metadata.name == 'ManifestAlloc':
-        pass # import pdb; pdb.set_trace()
+    if metadata.name == "ManifestAlloc":
+        pass  # import pdb; pdb.set_trace()
 
 
-def check_graph_runtime(target, ref_res, device, func, params, config,
-                        opt_level, expected_index=None):
+def check_graph_runtime(
+    target, ref_res, device, func, params, config, opt_level, expected_index=None
+):
     with tvm.transform.PassContext(opt_level=opt_level, config=config):
-        graph, lib, new_params = relay.build(
-            func,
-            target,
-            params=params)
+        graph, lib, new_params = relay.build(func, target, params=params)
         contexts = [tvm.cpu(0), tvm.context(device)]
         graph_json = json.loads(graph)
         if "device_index" in graph_json["attrs"]:
@@ -49,8 +48,7 @@ def check_graph_runtime(target, ref_res, device, func, params, config,
         tvm.testing.assert_allclose(res, ref_res, rtol=1e-5, atol=1e-5)
 
 
-def check_vm_runtime(target, ref_res, device, func, params, config,
-                     opt_level, expected_index=None):
+def check_vm_runtime(target, ref_res, device, func, params, config, opt_level, expected_index=None):
     with tvm.transform.PassContext(opt_level=opt_level, trace=_trace, config=config):
         mod = tvm.IRModule()
         mod["main"] = func
@@ -59,6 +57,7 @@ def check_vm_runtime(target, ref_res, device, func, params, config,
         vm = tvm.runtime.vm.VirtualMachine(exe, ctx)
         res = vm.invoke("main", **params)
         tvm.testing.assert_allclose(res.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
@@ -84,8 +83,7 @@ def test_redundant_annotation():
         sub2 = relay.subtract(_add2, z)
 
         func = relay.Function([x, y, z], relay.Tuple([sub1, sub2]))
-        func = run_opt_pass(func,
-                            transform.RewriteAnnotatedOps(ctx1.device_type))
+        func = run_opt_pass(func, transform.RewriteAnnotatedOps(ctx1.device_type))
         return func
 
     def expected():
@@ -114,8 +112,7 @@ def test_annotate_expr():
         _add = relay.annotation.on_device(add, ctx1)
         sub = relay.subtract(_add, z)
         _sub = relay.annotation.on_device(sub, ctx2)
-        expr = run_opt_pass(_sub,
-                            transform.RewriteAnnotatedOps(ctx1.device_type))
+        expr = run_opt_pass(_sub, transform.RewriteAnnotatedOps(ctx1.device_type))
         return expr
 
     def expected():
@@ -143,8 +140,7 @@ def test_annotate_all():
         _sub = relay.annotation.on_device(sub, ctx2)
 
         func = relay.Function([x, y, z], _sub)
-        func = run_opt_pass(func,
-                            transform.RewriteAnnotatedOps(ctx1.device_type))
+        func = run_opt_pass(func, transform.RewriteAnnotatedOps(ctx1.device_type))
         return func
 
     def expected():
@@ -169,8 +165,7 @@ def test_annotate_none():
         add = relay.add(x, y)
         sub = relay.subtract(add, z)
         func = relay.Function([x, y, z], sub)
-        func = run_opt_pass(func,
-                            transform.RewriteAnnotatedOps(ctx1.device_type))
+        func = run_opt_pass(func, transform.RewriteAnnotatedOps(ctx1.device_type))
         return func
 
     def expected():
@@ -191,14 +186,14 @@ def check_annotated_graph(annotated_func, expected_func):
 
 
 def test_conv_network():
-    R""" The network is as following:
-             data1     data2
-               |         |
-             conv2d    conv2d
-                \       /
-                   add
-                    |
-                  conv2d
+    R"""The network is as following:
+    data1     data2
+      |         |
+    conv2d    conv2d
+       \       /
+          add
+           |
+         conv2d
     """
     batch_size = 1
     dshape = (batch_size, 64, 56, 56)
@@ -209,60 +204,27 @@ def test_conv_network():
     dev2 = tvm.context(2)
 
     def original():
-        conv2d_1 = relay.nn.conv2d(
-            data1,
-            weight,
-            channels=64,
-            kernel_size=(3, 3),
-            padding=(1, 1))
-        conv2d_2 = relay.nn.conv2d(
-            data2,
-            weight,
-            channels=64,
-            kernel_size=(3, 3),
-            padding=(1, 1))
+        conv2d_1 = relay.nn.conv2d(data1, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
+        conv2d_2 = relay.nn.conv2d(data2, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
         add = relay.add(conv2d_1, conv2d_2)
-        conv2d_3 = relay.nn.conv2d(
-            add,
-            weight,
-            channels=64,
-            kernel_size=(3, 3),
-            padding=(1, 1))
+        conv2d_3 = relay.nn.conv2d(add, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
 
         func = relay.Function([data1, data2, weight], conv2d_3)
-        func = run_opt_pass(
-            func, transform.RewriteAnnotatedOps(tvm.context(3).device_type))
+        func = run_opt_pass(func, transform.RewriteAnnotatedOps(tvm.context(3).device_type))
         return func
 
-
     def annotated():
-        conv2d_1 = relay.nn.conv2d(
-            data1,
-            weight,
-            channels=64,
-            kernel_size=(3, 3),
-            padding=(1, 1))
+        conv2d_1 = relay.nn.conv2d(data1, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
         _conv2d_1 = relay.annotation.on_device(conv2d_1, dev2)
-        conv2d_2 = relay.nn.conv2d(
-            data2,
-            weight,
-            channels=64,
-            kernel_size=(3, 3),
-            padding=(1, 1))
+        conv2d_2 = relay.nn.conv2d(data2, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
         _conv2d_2 = relay.annotation.on_device(conv2d_2, dev2)
         add = relay.add(_conv2d_1, _conv2d_2)
         _add = relay.annotation.on_device(add, dev1)
-        conv2d_3 = relay.nn.conv2d(
-            _add,
-            weight,
-            channels=64,
-            kernel_size=(3, 3),
-            padding=(1, 1))
+        conv2d_3 = relay.nn.conv2d(_add, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
         _conv2d_3 = relay.annotation.on_device(conv2d_3, dev2)
 
         func = relay.Function([data1, data2, weight], _conv2d_3)
-        func = run_opt_pass(
-            func, transform.RewriteAnnotatedOps(tvm.context(3).device_type))
+        func = run_opt_pass(func, transform.RewriteAnnotatedOps(tvm.context(3).device_type))
         return func
 
     class ScheduleConv2d(ExprMutator):
@@ -280,41 +242,26 @@ def test_conv_network():
     def annotate_with_visitor(func):
         sched = ScheduleConv2d(dev2)
         func = sched.visit(func)
-        func = run_opt_pass(
-            func, transform.RewriteAnnotatedOps(dev1.device_type))
+        func = run_opt_pass(func, transform.RewriteAnnotatedOps(dev1.device_type))
         return func
 
     def expected():
-        conv2d_1 = relay.nn.conv2d(
-            data1,
-            weight,
-            channels=64,
-            kernel_size=(3, 3),
-            padding=(1, 1))
+        conv2d_1 = relay.nn.conv2d(data1, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
         device_copy1 = relay.device_copy(conv2d_1, dev2, dev1)
-        conv2d_2 = relay.nn.conv2d(
-            data2,
-            weight,
-            channels=64,
-            kernel_size=(3, 3),
-            padding=(1, 1))
+        conv2d_2 = relay.nn.conv2d(data2, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
         device_copy2 = relay.device_copy(conv2d_2, dev2, dev1)
         add = relay.add(device_copy1, device_copy2)
         device_copy3 = relay.device_copy(add, dev1, dev2)
         conv2d_3 = relay.nn.conv2d(
-            device_copy3,
-            weight,
-            channels=64,
-            kernel_size=(3, 3),
-            padding=(1, 1))
+            device_copy3, weight, channels=64, kernel_size=(3, 3), padding=(1, 1)
+        )
 
         func = relay.Function([data1, data2, weight], conv2d_3)
         return func
 
     def check_storage_and_device_types():
         func = annotated()
-        func = run_opt_pass(func, [transform.RewriteAnnotatedOps(3),
-                                   transform.FuseOps(2)])
+        func = run_opt_pass(func, [transform.RewriteAnnotatedOps(3), transform.FuseOps(2)])
         smap = relay.backend._backend.GraphPlanMemory(func)
         storage_ids = []
         device_types = []
@@ -359,27 +306,21 @@ def test_propogation():
     ctx1 = tvm.context(1)
     ctx2 = tvm.context(2)
 
-    expected_dev_type = {
-        'log': ctx1,
-        'log2': ctx2,
-        'log10': ctx2,
-        'add': ctx2,
-        'tan': ctx1
-    }
+    expected_dev_type = {"log": ctx1, "log2": ctx2, "log10": ctx2, "add": ctx2, "tan": ctx1}
 
     x = relay.var("x", shape=(3,))
 
     def annotated():
         log = relay.log(x)
-        _log = relay.annotation.on_device(log, expected_dev_type['log'])
+        _log = relay.annotation.on_device(log, expected_dev_type["log"])
         log2 = relay.log2(_log)
-        _log2 = relay.annotation.on_device(log2, expected_dev_type['log2'])
+        _log2 = relay.annotation.on_device(log2, expected_dev_type["log2"])
         log10 = relay.log10(_log)
-        _log10 = relay.annotation.on_device(log10, expected_dev_type['log10'])
+        _log10 = relay.annotation.on_device(log10, expected_dev_type["log10"])
         add = relay.add(_log2, _log10)
-        _add = relay.annotation.on_device(add, expected_dev_type['add'])
+        _add = relay.annotation.on_device(add, expected_dev_type["add"])
         tan = relay.tan(_add)
-        _tan = relay.annotation.on_device(tan, expected_dev_type['tan'])
+        _tan = relay.annotation.on_device(tan, expected_dev_type["tan"])
 
         func = run_opt_pass(_tan, transform.RewriteAnnotatedOps(ctx1.device_type))
         return func
@@ -428,8 +369,8 @@ def run_fusible_network(dev, tgt):
     """
     x = relay.var("x", shape=(1, 10))
     y = relay.var("y", shape=(10, 10))
-    x_data = np.random.rand(1, 10).astype('float32')
-    y_data = np.random.rand(10, 10).astype('float32')
+    x_data = np.random.rand(1, 10).astype("float32")
+    y_data = np.random.rand(10, 10).astype("float32")
     tmp_add = x_data + y_data
     tmp_sqrt = np.sqrt(tmp_add)
     tmp_log = np.log(tmp_add)
@@ -464,8 +405,7 @@ def run_fusible_network(dev, tgt):
             _exp = relay.annotation.on_device(exp, dev_ctx)
 
             func = relay.Function([x, y], _exp)
-            func = run_opt_pass(
-                func, transform.RewriteAnnotatedOps(cpu_ctx.device_type))
+            func = run_opt_pass(func, transform.RewriteAnnotatedOps(cpu_ctx.device_type))
             return func
 
         def expected():
@@ -489,11 +429,13 @@ def run_fusible_network(dev, tgt):
         check_annotated_graph(annotated_func, expected_func)
         opt_level = 1
         config = {"relay.fallback_device_type": fallback_device.device_type}
-        check_graph_runtime(target, ref_res, device, annotated_func, params,
-                            config, opt_level, expected_index)
+        check_graph_runtime(
+            target, ref_res, device, annotated_func, params, config, opt_level, expected_index
+        )
         opt_level = 2
-        check_vm_runtime(target, ref_res, device, annotated_func, params,
-                         config, opt_level, expected_index)
+        check_vm_runtime(
+            target, ref_res, device, annotated_func, params, config, opt_level, expected_index
+        )
 
     def test_fuse_all(device, tgt):
         """Fuse all operators."""
@@ -515,8 +457,7 @@ def run_fusible_network(dev, tgt):
             _exp = relay.annotation.on_device(exp, dev_ctx)
 
             func = relay.Function([x, y], _exp)
-            func = run_opt_pass(
-                func, transform.RewriteAnnotatedOps(cpu_ctx.device_type))
+            func = run_opt_pass(func, transform.RewriteAnnotatedOps(cpu_ctx.device_type))
             return func
 
         annotated_func = annotated()
@@ -524,11 +465,9 @@ def run_fusible_network(dev, tgt):
         check_annotated_graph(annotated_func, expected_func)
         opt_level = 1
         config = {"relay.fallback_device_type": fallback_device.device_type}
-        check_graph_runtime(target, ref_res, device, annotated_func, params,
-                            config, opt_level)
+        check_graph_runtime(target, ref_res, device, annotated_func, params, config, opt_level)
         opt_level = 2
-        check_vm_runtime(target, ref_res, device, annotated_func, params,
-                         config, opt_level)
+        check_vm_runtime(target, ref_res, device, annotated_func, params, config, opt_level)
 
     def test_fallback_exp(device, tgt):
         fallback_device = tvm.context("cpu")
@@ -545,8 +484,7 @@ def run_fusible_network(dev, tgt):
             _exp = relay.annotation.on_device(exp, cpu_ctx)
 
             func = relay.Function([x, y], _exp)
-            func = run_opt_pass(
-                func, transform.RewriteAnnotatedOps(dev_ctx.device_type))
+            func = run_opt_pass(func, transform.RewriteAnnotatedOps(dev_ctx.device_type))
             return func
 
         def expected():
@@ -568,11 +506,13 @@ def run_fusible_network(dev, tgt):
         opt_level = 1
         config = {"relay.fallback_device_type": fallback_device.device_type}
         check_annotated_graph(annotated_func, expected_func)
-        check_graph_runtime(target, ref_res, device, annotated_func, params, config,
-                            opt_level, expected_index)
+        check_graph_runtime(
+            target, ref_res, device, annotated_func, params, config, opt_level, expected_index
+        )
         opt_level = 2
-        check_vm_runtime(target, ref_res, device, annotated_func, params, config,
-                         opt_level, expected_index)
+        check_vm_runtime(
+            target, ref_res, device, annotated_func, params, config, opt_level, expected_index
+        )
 
     def test_fallback_all_operators(device, tgt):
         target = {device: tgt, "cpu": "llvm"}
@@ -580,11 +520,8 @@ def run_fusible_network(dev, tgt):
         expected_func = get_func()
         check_annotated_graph(annotated_func, expected_func)
         opt_level = 2
-        check_graph_runtime(target, ref_res, device, annotated_func, params, {},
-                            opt_level)
-        check_vm_runtime(target, ref_res, device, annotated_func, params, {},
-                         opt_level)
-
+        check_graph_runtime(target, ref_res, device, annotated_func, params, {}, opt_level)
+        check_vm_runtime(target, ref_res, device, annotated_func, params, {}, opt_level)
 
     test_fuse_log_add(dev, tgt)
     test_fuse_all(dev, tgt)
@@ -593,22 +530,22 @@ def run_fusible_network(dev, tgt):
 
 
 def run_unpropagatable_graph(dev, tgt):
-    R""" The network is as following:
-            a     b  c     d
-             \   /    \   /
-              add      mul
-                \      /
-                subtract
+    R"""The network is as following:
+    a     b  c     d
+     \   /    \   /
+      add      mul
+        \      /
+        subtract
     """
 
     a = relay.var("a", shape=(10, 10))
     b = relay.var("b", shape=(10, 10))
     c = relay.var("c", shape=(10, 10))
     d = relay.var("d", shape=(10, 10))
-    a_data = np.random.rand(10, 10).astype('float32')
-    b_data = np.random.rand(10, 10).astype('float32')
-    c_data = np.random.rand(10, 10).astype('float32')
-    d_data = np.random.rand(10, 10).astype('float32')
+    a_data = np.random.rand(10, 10).astype("float32")
+    b_data = np.random.rand(10, 10).astype("float32")
+    c_data = np.random.rand(10, 10).astype("float32")
+    d_data = np.random.rand(10, 10).astype("float32")
     tmp_add = a_data + b_data
     tmp_mul = np.multiply(c_data, d_data)
     ref_res = np.subtract(tmp_add, tmp_mul)
@@ -626,8 +563,7 @@ def run_unpropagatable_graph(dev, tgt):
         sub = relay.subtract(_add, _mul)
         _sub = relay.annotation.on_device(sub, dev_ctx)
         func = relay.Function([a, b, c, d], _sub)
-        func = run_opt_pass(
-            func, transform.RewriteAnnotatedOps(dev_ctx.device_type))
+        func = run_opt_pass(func, transform.RewriteAnnotatedOps(dev_ctx.device_type))
         return func
 
     def expected():
@@ -646,12 +582,12 @@ def run_unpropagatable_graph(dev, tgt):
     opt_level = 0
     config = {"relay.fallback_device_type": fallback_device.device_type}
 
-    check_graph_runtime(target, ref_res, dev, annotated_func, params, config,
-                        opt_level, expected_index)
+    check_graph_runtime(
+        target, ref_res, dev, annotated_func, params, config, opt_level, expected_index
+    )
 
     opt_level = 2
-    check_vm_runtime(target, ref_res, dev, annotated_func, params, config,
-                     opt_level)
+    check_vm_runtime(target, ref_res, dev, annotated_func, params, config, opt_level)
 
 
 @tvm.testing.requires_opencl
@@ -701,8 +637,7 @@ def test_tuple_get_item():
         split = relay.TupleWrapper(split, 3)
         sub = split[0] - split[1]
         func = relay.Function(relay.analysis.free_vars(sub), sub)
-        func = run_opt_pass(
-            func, transform.RewriteAnnotatedOps(cpu_ctx.device_type))
+        func = run_opt_pass(func, transform.RewriteAnnotatedOps(cpu_ctx.device_type))
         return func
 
     annotated_func = annotated()

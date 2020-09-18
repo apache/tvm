@@ -17,78 +17,77 @@
 import tvm
 from tvm import te
 
+
 def intrin_vadd(n):
-    x = te.placeholder((n,), name='vx')
-    y = te.placeholder((n,), name='vy')
-    z = te.compute(x.shape, lambda i: x[i] + y[i], name='z')
+    x = te.placeholder((n,), name="vx")
+    y = te.placeholder((n,), name="vy")
+    z = te.compute(x.shape, lambda i: x[i] + y[i], name="z")
+
     def intrin_func(ins, outs):
         xx, yy = ins
         zz = outs[0]
         return tvm.tir.call_packed("vadd", xx, yy, zz)
+
     buffer_params = {"offset_factor": 16}
     return te.decl_tensor_intrin(z.op, intrin_func, default_buffer_params=buffer_params)
 
+
 def intrin_gemv(m, n):
-    w = te.placeholder((m, n), name='w')
-    x = te.placeholder((n,), name='x')
-    k = te.reduce_axis((0, n), name='k')
-    z = te.compute((m,), lambda i:
-                    te.sum(w[i, k] * x[k], axis=k), name='z')
-    Wb = tvm.tir.decl_buffer(w.shape, w.dtype,
-                         name="W",
-                         offset_factor=16,
-                         strides=[te.var('ldw'), 1])
+    w = te.placeholder((m, n), name="w")
+    x = te.placeholder((n,), name="x")
+    k = te.reduce_axis((0, n), name="k")
+    z = te.compute((m,), lambda i: te.sum(w[i, k] * x[k], axis=k), name="z")
+    Wb = tvm.tir.decl_buffer(
+        w.shape, w.dtype, name="W", offset_factor=16, strides=[te.var("ldw"), 1]
+    )
+
     def intrin_func(ins, outs):
         ww, xx = ins
         zz = outs[0]
         ww_ptr = ww.access_ptr("r")
         xx_ptr = xx.access_ptr("r")
         zz_ptr = zz.access_ptr("w")
-        body = tvm.tir.call_packed(
-            "gemv", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
-        reset = tvm.tir.call_packed(
-            "fill_zero", zz_ptr, n)
-        update = tvm.tir.call_packed(
-            "gemv_add", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
+        body = tvm.tir.call_packed("gemv", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
+        reset = tvm.tir.call_packed("fill_zero", zz_ptr, n)
+        update = tvm.tir.call_packed("gemv_add", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
         return body, reset, update
 
     buffer_params = {"offset_factor": 16, "data_alignment": 16}
     return te.decl_tensor_intrin(
-        z.op, intrin_func, binds={w: Wb}, default_buffer_params=buffer_params)
+        z.op, intrin_func, binds={w: Wb}, default_buffer_params=buffer_params
+    )
+
 
 def intrin_gemv_no_reset(m, n):
-    w = te.placeholder((m, n), name='w')
-    x = te.placeholder((n,), name='x')
-    k = te.reduce_axis((0, n), name='k')
-    z = te.compute((m,), lambda i:
-                    te.sum(w[i, k] * x[k], axis=k), name='z')
-    Wb = tvm.tir.decl_buffer(w.shape, w.dtype,
-                         name="W",
-                         offset_factor=16,
-                         strides=[te.var('ldw'), 1])
+    w = te.placeholder((m, n), name="w")
+    x = te.placeholder((n,), name="x")
+    k = te.reduce_axis((0, n), name="k")
+    z = te.compute((m,), lambda i: te.sum(w[i, k] * x[k], axis=k), name="z")
+    Wb = tvm.tir.decl_buffer(
+        w.shape, w.dtype, name="W", offset_factor=16, strides=[te.var("ldw"), 1]
+    )
+
     def intrin_func(ins, outs):
         ww, xx = ins
         zz = outs[0]
         ww_ptr = ww.access_ptr("r")
         xx_ptr = xx.access_ptr("r")
         zz_ptr = zz.access_ptr("w")
-        body = tvm.tir.call_packed(
-            "gemv", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
-        update = tvm.tir.call_packed(
-            "gemv_add", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
+        body = tvm.tir.call_packed("gemv", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
+        update = tvm.tir.call_packed("gemv_add", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
         return body, None, update
-
 
     buffer_params = {"offset_factor": 16, "data_alignment": 16}
     return te.decl_tensor_intrin(
-        z.op, intrin_func, binds={w: Wb}, default_buffer_params=buffer_params)
+        z.op, intrin_func, binds={w: Wb}, default_buffer_params=buffer_params
+    )
 
 
 def test_tensorize_vadd():
     m = 128
-    x = te.placeholder((m,), name='x')
-    y = te.placeholder((m,), name='y')
-    z = te.compute(x.shape, lambda i: x[i] + y[i], name='z')
+    x = te.placeholder((m,), name="x")
+    y = te.placeholder((m,), name="y")
+    z = te.compute(x.shape, lambda i: x[i] + y[i], name="z")
 
     def check(factor):
         s = te.create_schedule(z.op)
@@ -105,9 +104,7 @@ def test_tensorize_vadd():
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[z], out_dom, in_dom, vadd)
         ana = tvm.arith.Analyzer()
-        assert tvm.ir.structural_equal(
-            ana.simplify(body[0]),
-            ana.simplify(vadd.op.body[0]))
+        assert tvm.ir.structural_equal(ana.simplify(body[0]), ana.simplify(vadd.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [x, y, z])
 
@@ -118,11 +115,10 @@ def test_tensorize_matmul():
     n = 1024
     m = n
     l = n
-    A = te.placeholder((n, l), name='A')
-    B = te.placeholder((m, l), name='B')
-    k = te.reduce_axis((0, l), name='k')
-    C = te.compute((n, m), lambda i, j:
-                    te.sum(B[j, k] * A[i, k], axis=k), name='C')
+    A = te.placeholder((n, l), name="A")
+    B = te.placeholder((m, l), name="B")
+    k = te.reduce_axis((0, l), name="k")
+    C = te.compute((n, m), lambda i, j: te.sum(B[j, k] * A[i, k], axis=k), name="C")
 
     def check(factor):
         s = te.create_schedule(C.op)
@@ -141,12 +137,9 @@ def test_tensorize_matmul():
         body = fmatch(s[C], out_dom, in_dom, gemv)
         ana = tvm.arith.Analyzer()
 
-        assert tvm.ir.structural_equal(
-            ana.simplify(body[0]),
-            ana.simplify(gemv.op.body[0]))
+        assert tvm.ir.structural_equal(ana.simplify(body[0]), ana.simplify(gemv.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
-
 
     def check_rfactor(factor, rfactor):
         s = te.create_schedule(C.op)
@@ -167,9 +160,7 @@ def test_tensorize_matmul():
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[C], out_dom, in_dom, gemv)
         ana = tvm.arith.Analyzer()
-        assert tvm.ir.structural_equal(
-            ana.simplify(body[0]),
-            ana.simplify(gemv.op.body[0]))
+        assert tvm.ir.structural_equal(ana.simplify(body[0]), ana.simplify(gemv.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
 
@@ -192,9 +183,7 @@ def test_tensorize_matmul():
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[C], out_dom, in_dom, gemv)
         ana = tvm.arith.Analyzer()
-        assert tvm.ir.structural_equal(
-            ana.simplify(body[0]),
-            ana.simplify(gemv.op.body[0]))
+        assert tvm.ir.structural_equal(ana.simplify(body[0]), ana.simplify(gemv.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
 
@@ -218,9 +207,7 @@ def test_tensorize_matmul():
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[C], out_dom, in_dom, gemv)
         ana = tvm.arith.Analyzer()
-        assert tvm.ir.structural_equal(
-            ana.simplify(body[0]),
-            ana.simplify(gemv.op.body[0]))
+        assert tvm.ir.structural_equal(ana.simplify(body[0]), ana.simplify(gemv.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
 
@@ -228,6 +215,7 @@ def test_tensorize_matmul():
     check_rfactor(16, 16)
     check_rfactor_no_reset(16, 16)
     check_rfactor_no_reset_multi_reduction(16, 16)
+
 
 # This tests whether algorithm and intrinsics expressions are simplified
 # as much as possible first and then checked for equality. See Issue #696
@@ -238,28 +226,26 @@ def test_tensorize_op():
     def op_intrin():
         bh = 9
         bw = 9
-        x = te.placeholder((5, 5), name='A')
-        y = te.compute((bh, bw),
-                        lambda i, j: x[idxd(j,3) + idxm(i,3), idxm(j,3)+ idxd(i,3)])
+        x = te.placeholder((5, 5), name="A")
+        y = te.compute((bh, bw), lambda i, j: x[idxd(j, 3) + idxm(i, 3), idxm(j, 3) + idxd(i, 3)])
 
         def intrin_func(ins, outs):
-            xx, = ins
+            (xx,) = ins
             zz = outs[0]
             return tvm.tir.call_packed("op", xx, zz)
 
-        return te.decl_tensor_intrin(y.op, intrin_func, default_buffer_params={
-            "offset_factor": 2
-        })
+        return te.decl_tensor_intrin(y.op, intrin_func, default_buffer_params={"offset_factor": 2})
 
-    A = te.placeholder((5, 5), name='A')
-    B = te.compute((9,9), lambda i, j: A[idxd(j,3) + idxm(i,3), idxm(j,3) + idxd(i,3)])
+    A = te.placeholder((5, 5), name="A")
+    B = te.compute((9, 9), lambda i, j: A[idxd(j, 3) + idxm(i, 3), idxm(j, 3) + idxd(i, 3)])
     bt = op_intrin()
     s = te.create_schedule(B.op)
 
-    x,y = B.op.axis
+    x, y = B.op.axis
     s[B].tensorize(x, bt)
     s = s.normalize()
     tvm.lower(s, [A, B])
+
 
 # This test asserts that tensorize does not have any effect on
 # TensorComputeOp operations
@@ -268,18 +254,24 @@ def test_tensorize_tensor_compute_op():
     # is a loop of another intrinsic called "vadd"
     def intrin_multivadd(n):
         n_a = te.var("n_a")
-        Ab = tvm.tir.decl_buffer((n, ), "float32", strides=[n_a])
+        Ab = tvm.tir.decl_buffer((n,), "float32", strides=[n_a])
 
         n_b = te.var("n_b")
-        Bb = tvm.tir.decl_buffer((n, ), "float32", strides=[n_b])
+        Bb = tvm.tir.decl_buffer((n,), "float32", strides=[n_b])
 
         n_c = te.var("n_c")
-        Cb = tvm.tir.decl_buffer((n, ), "float32", strides=[n_c])
+        Cb = tvm.tir.decl_buffer((n,), "float32", strides=[n_c])
 
-        z = te.compute((n,), lambda i: tvm.tir.call_extern("float32", 'vadd',
-                                                        Ab.access_ptr("w", offset=n_a*i),
-                                                        Bb.access_ptr("r", offset=n_b*i),
-                                                        Cb.access_ptr("r", offset=n_c*i)))
+        z = te.compute(
+            (n,),
+            lambda i: tvm.tir.call_extern(
+                "float32",
+                "vadd",
+                Ab.access_ptr("w", offset=n_a * i),
+                Bb.access_ptr("r", offset=n_b * i),
+                Cb.access_ptr("r", offset=n_c * i),
+            ),
+        )
 
         # replace the pattern with the multivadd call. I need to figure out
         # how to pass it the right parameters.
@@ -289,36 +281,42 @@ def test_tensorize_tensor_compute_op():
         return te.decl_tensor_intrin(z.op, intrin_func, name="multivadd")
 
     def intrin_vadd(n):
-        dtype = 'float32'
-        x = te.placeholder((n,), dtype=dtype, name='vx')
-        y = te.placeholder((n,), dtype=dtype, name='vy')
-        z = te.compute(x.shape, lambda i: x[i] + y[i], name='z')
+        dtype = "float32"
+        x = te.placeholder((n,), dtype=dtype, name="vx")
+        y = te.placeholder((n,), dtype=dtype, name="vy")
+        z = te.compute(x.shape, lambda i: x[i] + y[i], name="z")
         s = te.create_schedule(z.op)
 
         def create_buffer(t):
-            return tvm.tir.decl_buffer(t.shape, t.dtype, name='W'+t.name, offset_factor=16)
+            return tvm.tir.decl_buffer(t.shape, t.dtype, name="W" + t.name, offset_factor=16)
 
         def intrin_func(ins, outs):
             ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_extern("float32", 'vadd',
-                                    ins[0].access_ptr("r"), ins[1].access_ptr('r'),
-                                    outs[0].access_ptr('wr')))
+            ib.emit(
+                tvm.tir.call_extern(
+                    "float32",
+                    "vadd",
+                    ins[0].access_ptr("r"),
+                    ins[1].access_ptr("r"),
+                    outs[0].access_ptr("wr"),
+                )
+            )
             return ib.get()
-        return te.decl_tensor_intrin(z.op, intrin_func, binds={x: create_buffer(x),
-                                                                y: create_buffer(y),
-                                                                z: create_buffer(z)})
+
+        return te.decl_tensor_intrin(
+            z.op, intrin_func, binds={x: create_buffer(x), y: create_buffer(y), z: create_buffer(z)}
+        )
 
     # cache_read, cache_write
     M = 1024
     factor = 16
-    dtype = 'float32'
+    dtype = "float32"
 
-    A = te.placeholder((M//factor, factor), name="A", dtype=dtype)
-    B = te.placeholder((M//factor, factor), name="B", dtype=dtype)
+    A = te.placeholder((M // factor, factor), name="A", dtype=dtype)
+    B = te.placeholder((M // factor, factor), name="B", dtype=dtype)
 
     vadd = intrin_vadd(factor)
-    C = te.compute((M//factor, factor),
-                    lambda i: vadd(A[i, 0:factor], B[i, 0:factor]), name='C')
+    C = te.compute((M // factor, factor), lambda i: vadd(A[i, 0:factor], B[i, 0:factor]), name="C")
 
     s = te.create_schedule(C.op)
     multivadd = intrin_multivadd(64)
@@ -330,7 +328,6 @@ def test_tensorize_tensor_compute_op():
     # That means tensorize didn't work as expected
     assert isinstance(stmt.body.body, tvm.tir.For)
     assert stmt.body.body.loop_var.name == C.op.axis[0].var.name
-
 
 
 if __name__ == "__main__":

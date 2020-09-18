@@ -153,7 +153,7 @@ class ReadAccessExtractor : public StmtExprVisitor {
   }
 
   // All read accesses to all operations
-  // The innermost vector stores mulit-dimentional indices.
+  // The innermost vector stores multi-dimensional indices.
   // The middle vector stores possible multiple accesses
   OperationMap<std::vector<std::vector<PrimExpr>>> read_access;
   // Whether this expression has branch
@@ -683,8 +683,8 @@ class IndexRewriter : public StmtExprMutator {
       std::unordered_map<std::string, PrimExpr> name_to_arg;
       for (const auto& arg : op->indices) {
         std::string axis_name;
-        if (const auto* pimm = arg.as<IntImmNode>()) {
-          CHECK_EQ(pimm->value, 0);
+        if (const auto* int_imm = arg.as<IntImmNode>()) {
+          CHECK_EQ(int_imm->value, 0);
           axis_name = "IntImm";
         } else {
           axis_name = AxisBaseName(CleanName(Downcast<Var>(arg)->name_hint));
@@ -741,8 +741,8 @@ std::string GetOrigLayout(std::set<std::string>* placeholder_axis_names, const t
   for (const auto& ev : extractor.read_access[placeholder_op]) {
     for (const auto& e : ev) {
       std::string axis_name;
-      if (const auto* pimm = e.as<IntImmNode>()) {
-        CHECK_EQ(pimm->value, 0);
+      if (const auto* int_imm = e.as<IntImmNode>()) {
+        CHECK_EQ(int_imm->value, 0);
         axis_name = "IntImm";
       } else {
         axis_name = AxisBaseName(CleanName(Downcast<Var>(e)->name_hint));
@@ -828,7 +828,7 @@ std::string GetNewLayout(Array<PrimExpr>* new_shape, const State& state, const i
 }
 
 void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
-  ComputeDAGNode* pdag = this->CopyOnWrite();
+  ComputeDAGNode* p_dag = this->CopyOnWrite();
   auto node = make_object<StateNode>();
   node->transform_steps = transform_steps;
   node->concrete = true;
@@ -877,8 +877,8 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
 
       handled_ops.insert(placeholder_op);
 
-      Array<te::Operation> old_ops = pdag->ops;
-      ArrayNode* pops = pdag->ops.CopyOnWrite();
+      Array<te::Operation> old_ops = p_dag->ops;
+      ArrayNode* pops = p_dag->ops.CopyOnWrite();
 
       // Create new placeholder
       te::Operation new_placeholder_op;
@@ -949,10 +949,10 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
         }
       }
 
-      pdag->init_state = State(pdag->ops);
+      p_dag->init_state = State(p_dag->ops);
 
-      Array<te::Tensor> old_tensors = pdag->tensors;
-      ArrayNode* ptensors = pdag->tensors.CopyOnWrite();
+      Array<te::Tensor> old_tensors = p_dag->tensors;
+      ArrayNode* p_tensors = p_dag->tensors.CopyOnWrite();
 
       for (size_t i = 0; i < old_tensors.size(); ++i) {
         const auto& old_tensor = old_tensors[i];
@@ -964,7 +964,7 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
         }
         if (new_op.defined()) {
           auto index = old_tensor->value_index;
-          ptensors->SetItem(i, new_op.output(index));
+          p_tensors->SetItem(i, new_op.output(index));
         }
       }
     }  // end for placeholder

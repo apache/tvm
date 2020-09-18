@@ -83,17 +83,21 @@ class FIFOBufferAttrs(Attrs):
 class UpSamplingAttrs(Attrs):
     """Attributes for nn.upsampling"""
 
+
 @tvm._ffi.register_object("relay.attrs.UpSampling3DAttrs")
 class UpSampling3DAttrs(Attrs):
     """Attributes for nn.upsampling3d"""
+
 
 @tvm._ffi.register_object("relay.attrs.PadAttrs")
 class PadAttrs(Attrs):
     """Attributes for nn.pad"""
 
+
 @tvm._ffi.register_object("relay.attrs.MirrorPadAttrs")
 class MirrorPadAttrs(Attrs):
     """Attributes for nn.mirror_pad"""
+
 
 @tvm._ffi.register_object("relay.attrs.LeakyReluAttrs")
 class LeakyReluAttrs(Attrs):
@@ -189,9 +193,11 @@ class TransposeAttrs(Attrs):
 class ReshapeAttrs(Attrs):
     """Attributes for transform.reshape"""
 
+
 @tvm._ffi.register_object("relay.attrs.GatherAttrs")
 class GatherAttrs(Attrs):
     """Attributes for transform.gather"""
+
 
 @tvm._ffi.register_object("relay.attrs.TakeAttrs")
 class TakeAttrs(Attrs):
@@ -231,6 +237,7 @@ class TileAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.ReverseAttrs")
 class ReverseAttrs(Attrs):
     """Attributes used in reverse operators"""
+
 
 @tvm._ffi.register_object("relay.attrs.ReverseSequenceAttrs")
 class ReverseSequenceAttrs(Attrs):
@@ -361,9 +368,11 @@ class BinaryDenseAttrs(Attrs):
 class Conv2DTransposeAttrs(Attrs):
     """Attributes used in Transposed Conv2D operators"""
 
+
 @tvm._ffi.register_object("relay.attrs.Conv3DTransposeAttrs")
 class Conv3DTransposeAttrs(Attrs):
     """Attributes used in Transposed Conv3D operators"""
+
 
 @tvm._ffi.register_object("relay.attrs.DilateAttrs")
 class DilateAttrs(Attrs):

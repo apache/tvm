@@ -28,6 +28,7 @@ from tvm.relay import GlobalVar, Call
 from tvm.relay.transform import gradient
 from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type
 
+
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
     ctx = tvm.context("llvm", 0)
     intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
@@ -41,19 +42,17 @@ def run_opt_pass(expr, passes):
     mod = tvm.IRModule.from_expr(expr)
     seq = tvm.transform.Sequential(passes)
     with tvm.transform.PassContext(opt_level=3):
-       mod = seq(mod)
+        mod = seq(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
 
 def tipe(expr):
-    return run_opt_pass(expr, [transform.PartialEvaluate(),
-                               transform.InferType()])
+    return run_opt_pass(expr, [transform.PartialEvaluate(), transform.InferType()])
 
 
 def dcpe(expr, mod=None, grad=False):
-    passes = [transform.PartialEvaluate(),
-              transform.DeadCodeElimination(inline_once=True)]
+    passes = [transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)]
     if grad:
         expr = gradient(run_infer_type(expr))
     if mod:
@@ -339,5 +338,5 @@ def test_tuple_match():
     tvm.ir.assert_structural_equal(dcpe(x), const(2))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main([__file__])

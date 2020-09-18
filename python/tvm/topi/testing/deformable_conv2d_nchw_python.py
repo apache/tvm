@@ -20,8 +20,10 @@ import itertools
 import numpy as np
 from tvm.topi.nn.util import get_pad_tuple
 
-def deformable_conv2d_nchw_python(a_np, offset_np, w_np, stride, padding, dilation,
-                                  deformable_groups, groups):
+
+def deformable_conv2d_nchw_python(
+    a_np, offset_np, w_np, stride, padding, dilation, deformable_groups, groups
+):
     """Deformable convolution operator in NCHW layout.
 
     Parameters
@@ -77,7 +79,6 @@ def deformable_conv2d_nchw_python(a_np, offset_np, w_np, stride, padding, dilati
     else:
         dilation_h, dilation_w = dilation
 
-
     def _bilinear(n, c, h, w):
         low_h, low_w = int(h), int(w)
         high_h = min(low_h + 1, in_height - 1)
@@ -89,7 +90,6 @@ def deformable_conv2d_nchw_python(a_np, offset_np, w_np, stride, padding, dilati
         top = (1 - x_lerp) * a_np[n, c, high_h, low_w] + x_lerp * a_np[n, c, high_h, high_w]
         return (1 - y_lerp) * bottom + y_lerp * top
 
-
     a_deform = np.zeros((batch, in_channel, out_height, out_width, kernel_h, kernel_w), dtype=dtype)
     for n, h, w in itertools.product(range(batch), range(out_height), range(out_width)):
         offset = offset_np[n, :, h, w].reshape(deformable_groups, kernel_h, kernel_w, 2)
@@ -99,7 +99,8 @@ def deformable_conv2d_nchw_python(a_np, offset_np, w_np, stride, padding, dilati
         index_h_base, index_w_base = np.meshgrid(
             np.arange(in_h, in_h + kernel_h * dilation_h, dilation_h, dtype=offset_np.dtype),
             np.arange(in_w, in_w + kernel_w * dilation_w, dilation_w, dtype=offset_np.dtype),
-            indexing='ij')
+            indexing="ij",
+        )
 
         for c, kh, kw in itertools.product(range(in_channel), range(kernel_h), range(kernel_w)):
             dg = c // ic_per_dgroup
@@ -112,8 +113,9 @@ def deformable_conv2d_nchw_python(a_np, offset_np, w_np, stride, padding, dilati
             a_deform[n, c, h, w, kh, kw] = _bilinear(n, c, y, x)
 
     b_np = np.zeros((batch, out_channel, out_height, out_width), dtype=dtype)
-    for n, c, f, h, w in itertools.product(range(batch), range(in_channel), range(out_channel),
-                                           range(out_height), range(out_width)):
+    for n, c, f, h, w in itertools.product(
+        range(batch), range(in_channel), range(out_channel), range(out_height), range(out_width)
+    ):
         b_np[n, f, h, w] += np.tensordot(a_deform[n, c, h, w], w_np[f, c])
 
     return b_np

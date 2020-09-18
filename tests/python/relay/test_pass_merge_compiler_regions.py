@@ -38,8 +38,9 @@ def test_diamond_graph_fanouts():
     Note that we can't just merge the three supported operators together,
     otherwise both subgraphs would depend on the other.
     """
+
     def diamond_graph_fanouts():
-        data = relay.var('data', shape=(10, 10))
+        data = relay.var("data", shape=(10, 10))
         cb_1 = compiler_begin(data, "test")
         O_1 = relay.abs(cb_1)
         ce_1 = compiler_end(O_1, "test")
@@ -48,7 +49,6 @@ def test_diamond_graph_fanouts():
         cb_3 = compiler_begin(ce_2, "default")
         O_2 = relay.nn.relu(cb_2)
         ce_3 = compiler_end(O_2, "test")
-
 
         X = relay.tanh(cb_3)
         ce_4 = compiler_end(X, "default")
@@ -62,7 +62,7 @@ def test_diamond_graph_fanouts():
         return diamond
 
     def expected():
-        data = relay.var('data', shape=(10, 10))
+        data = relay.var("data", shape=(10, 10))
         cb_1 = compiler_begin(data, "test")
         O_1 = relay.abs(cb_1)
         ce_2 = compiler_end(O_1, "test")
@@ -92,17 +92,18 @@ def test_example_graph():
     See the RFC here: https://discuss.tvm.ai/t/relay-improved-graph-partitioning-algorithm/5830
     Blue nodes are adds (target: test), red nodes are subtracts (target: default).
     """
+
     def annotated():
-        in_1 = relay.var('in_1', shape=(10, 10), dtype='float32')
-        in_2 = relay.var('in_2', shape=(10, 10), dtype='float32')
-        in_3 = relay.var('in_3', shape=(10, 10), dtype='float32')
-        in_4 = relay.var('in_4', shape=(10, 10), dtype='float32')
-        in_5 = relay.var('in_5', shape=(10, 10), dtype='float32')
-        in_6 = relay.var('in_6', shape=(10, 10), dtype='float32')
-        in_7 = relay.var('in_7', shape=(10, 10), dtype='float32')
-        in_8 = relay.var('in_8', shape=(10, 10), dtype='float32')
-        in_9 = relay.var('in_9', shape=(10, 10), dtype='float32')
-        in_10 = relay.var('in_10', shape=(10, 10), dtype='float32')
+        in_1 = relay.var("in_1", shape=(10, 10), dtype="float32")
+        in_2 = relay.var("in_2", shape=(10, 10), dtype="float32")
+        in_3 = relay.var("in_3", shape=(10, 10), dtype="float32")
+        in_4 = relay.var("in_4", shape=(10, 10), dtype="float32")
+        in_5 = relay.var("in_5", shape=(10, 10), dtype="float32")
+        in_6 = relay.var("in_6", shape=(10, 10), dtype="float32")
+        in_7 = relay.var("in_7", shape=(10, 10), dtype="float32")
+        in_8 = relay.var("in_8", shape=(10, 10), dtype="float32")
+        in_9 = relay.var("in_9", shape=(10, 10), dtype="float32")
+        in_10 = relay.var("in_10", shape=(10, 10), dtype="float32")
 
         begin0 = compiler_begin(in_1, "test")
         begin1 = compiler_begin(in_2, "test")
@@ -154,16 +155,16 @@ def test_example_graph():
         return mod
 
     def expected():
-        in_1 = relay.var('in_1', shape=(10, 10), dtype='float32')
-        in_2 = relay.var('in_2', shape=(10, 10), dtype='float32')
-        in_3 = relay.var('in_3', shape=(10, 10), dtype='float32')
-        in_4 = relay.var('in_4', shape=(10, 10), dtype='float32')
-        in_5 = relay.var('in_5', shape=(10, 10), dtype='float32')
-        in_6 = relay.var('in_6', shape=(10, 10), dtype='float32')
-        in_7 = relay.var('in_7', shape=(10, 10), dtype='float32')
-        in_8 = relay.var('in_8', shape=(10, 10), dtype='float32')
-        in_9 = relay.var('in_9', shape=(10, 10), dtype='float32')
-        in_10 = relay.var('in_10', shape=(10, 10), dtype='float32')
+        in_1 = relay.var("in_1", shape=(10, 10), dtype="float32")
+        in_2 = relay.var("in_2", shape=(10, 10), dtype="float32")
+        in_3 = relay.var("in_3", shape=(10, 10), dtype="float32")
+        in_4 = relay.var("in_4", shape=(10, 10), dtype="float32")
+        in_5 = relay.var("in_5", shape=(10, 10), dtype="float32")
+        in_6 = relay.var("in_6", shape=(10, 10), dtype="float32")
+        in_7 = relay.var("in_7", shape=(10, 10), dtype="float32")
+        in_8 = relay.var("in_8", shape=(10, 10), dtype="float32")
+        in_9 = relay.var("in_9", shape=(10, 10), dtype="float32")
+        in_10 = relay.var("in_10", shape=(10, 10), dtype="float32")
 
         begin0 = compiler_begin(in_1, "test")
         begin1 = compiler_begin(in_2, "test")

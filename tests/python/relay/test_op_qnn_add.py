@@ -21,32 +21,41 @@ from tvm import relay
 
 
 def test_tflite_same_io_qnn_params():
-    data_dtype = 'uint8'
+    data_dtype = "uint8"
 
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
-    z = relay.qnn.op.add(lhs=x, rhs=y,
-                         lhs_scale=relay.const(0.00784314, 'float32'),
-                         lhs_zero_point=relay.const(127, 'int32'),
-                         rhs_scale=relay.const(0.00784314, 'float32'),
-                         rhs_zero_point=relay.const(127, 'int32'),
-                         output_scale=relay.const(0.00784314, 'float32'),
-                         output_zero_point=relay.const(127, 'int32'))
+    z = relay.qnn.op.add(
+        lhs=x,
+        rhs=y,
+        lhs_scale=relay.const(0.00784314, "float32"),
+        lhs_zero_point=relay.const(127, "int32"),
+        rhs_scale=relay.const(0.00784314, "float32"),
+        rhs_zero_point=relay.const(127, "int32"),
+        output_scale=relay.const(0.00784314, "float32"),
+        output_zero_point=relay.const(127, "int32"),
+    )
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
-    x_datas = [np.array((140, 153, 165, 178)).reshape((1, 4)),
-               np.array((25, 153, 178, 216)).reshape((1, 4)),
-               np.array((25, 153, 216, 165)).reshape((1, 4))]
-    y_datas = [np.array((204, 178, 165, 140)).reshape((1, 4)),
-               np.array((204, 178, 191, 25)).reshape((1, 4)),
-               np.array((204, 178, 25, 191)).reshape((1, 4))]
-    golden_outputs = [np.array((217, 204, 203, 191)).reshape((1, 4)),
-                      np.array((102, 204, 242, 114)).reshape((1, 4)),
-                      np.array((102, 204, 114, 229)).reshape((1, 4))]
+    x_datas = [
+        np.array((140, 153, 165, 178)).reshape((1, 4)),
+        np.array((25, 153, 178, 216)).reshape((1, 4)),
+        np.array((25, 153, 216, 165)).reshape((1, 4)),
+    ]
+    y_datas = [
+        np.array((204, 178, 165, 140)).reshape((1, 4)),
+        np.array((204, 178, 191, 25)).reshape((1, 4)),
+        np.array((204, 178, 25, 191)).reshape((1, 4)),
+    ]
+    golden_outputs = [
+        np.array((217, 204, 203, 191)).reshape((1, 4)),
+        np.array((102, 204, 242, 114)).reshape((1, 4)),
+        np.array((102, 204, 114, 229)).reshape((1, 4)),
+    ]
 
     for i in range(0, 3):
         x_data = x_datas[i]
@@ -59,32 +68,41 @@ def test_tflite_same_io_qnn_params():
 
 
 def test_tflite_different_io_qnn_params():
-    data_dtype = 'uint8'
+    data_dtype = "uint8"
 
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
-    z = relay.qnn.op.add(lhs=x, rhs=y,
-                         lhs_scale=relay.const(0.0156863, 'float32'),
-                         lhs_zero_point=relay.const(127, 'int32'),
-                         rhs_scale=relay.const(0.0117647, 'float32'),
-                         rhs_zero_point=relay.const(85, 'int32'),
-                         output_scale=relay.const(0.0235294, 'float32'),
-                         output_zero_point=relay.const(128, 'int32'))
+    z = relay.qnn.op.add(
+        lhs=x,
+        rhs=y,
+        lhs_scale=relay.const(0.0156863, "float32"),
+        lhs_zero_point=relay.const(127, "int32"),
+        rhs_scale=relay.const(0.0117647, "float32"),
+        rhs_zero_point=relay.const(85, "int32"),
+        output_scale=relay.const(0.0235294, "float32"),
+        output_zero_point=relay.const(128, "int32"),
+    )
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
-    x_datas = [np.array((76, 140, 153, 172)).reshape((1, 4)),
-               np.array((133, 140, 146, 153)).reshape((1, 4)),
-               np.array((76, 140, 172, 146)).reshape((1, 4))]
-    y_datas = [np.array((136, 119, 128, 17)).reshape((1, 4)),
-               np.array((136, 119, 111, 94)).reshape((1, 4)),
-               np.array((136, 119, 17, 128)).reshape((1, 4))]
-    golden_outputs = [np.array((120, 154, 167, 124)).reshape((1, 4)),
-                      np.array((158, 154, 154, 150)).reshape((1, 4)),
-                      np.array((120, 154, 124, 163)).reshape((1, 4))]
+    x_datas = [
+        np.array((76, 140, 153, 172)).reshape((1, 4)),
+        np.array((133, 140, 146, 153)).reshape((1, 4)),
+        np.array((76, 140, 172, 146)).reshape((1, 4)),
+    ]
+    y_datas = [
+        np.array((136, 119, 128, 17)).reshape((1, 4)),
+        np.array((136, 119, 111, 94)).reshape((1, 4)),
+        np.array((136, 119, 17, 128)).reshape((1, 4)),
+    ]
+    golden_outputs = [
+        np.array((120, 154, 167, 124)).reshape((1, 4)),
+        np.array((158, 154, 154, 150)).reshape((1, 4)),
+        np.array((120, 154, 124, 163)).reshape((1, 4)),
+    ]
 
     for i in range(0, 3):
         x_data = x_datas[i]
@@ -98,16 +116,19 @@ def test_tflite_different_io_qnn_params():
 
 def test_saturation():
     # Same params
-    data_dtype = 'uint8'
+    data_dtype = "uint8"
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
-    z = relay.qnn.op.add(lhs=x, rhs=y,
-                         lhs_scale=relay.const(0.125, 'float32'),
-                         lhs_zero_point=relay.const(0, 'int32'),
-                         rhs_scale=relay.const(0.125, 'float32'),
-                         rhs_zero_point=relay.const(0, 'int32'),
-                         output_scale=relay.const(0.125, 'float32'),
-                         output_zero_point=relay.const(0, 'int32'))
+    z = relay.qnn.op.add(
+        lhs=x,
+        rhs=y,
+        lhs_scale=relay.const(0.125, "float32"),
+        lhs_zero_point=relay.const(0, "int32"),
+        rhs_scale=relay.const(0.125, "float32"),
+        rhs_zero_point=relay.const(0, "int32"),
+        output_scale=relay.const(0.125, "float32"),
+        output_zero_point=relay.const(0, "int32"),
+    )
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
@@ -123,13 +144,16 @@ def test_saturation():
     np.testing.assert_equal(op_res.asnumpy(), golden_output)
 
     # Same params, different scale
-    z = relay.qnn.op.add(lhs=x, rhs=y,
-                         lhs_scale=relay.const(0.125, 'float32'),
-                         lhs_zero_point=relay.const(0, 'int32'),
-                         rhs_scale=relay.const(0.125, 'float32'),
-                         rhs_zero_point=relay.const(0, 'int32'),
-                         output_scale=relay.const(0.25, 'float32'),
-                         output_zero_point=relay.const(0, 'int32'))
+    z = relay.qnn.op.add(
+        lhs=x,
+        rhs=y,
+        lhs_scale=relay.const(0.125, "float32"),
+        lhs_zero_point=relay.const(0, "int32"),
+        rhs_scale=relay.const(0.125, "float32"),
+        rhs_zero_point=relay.const(0, "int32"),
+        output_scale=relay.const(0.25, "float32"),
+        output_zero_point=relay.const(0, "int32"),
+    )
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
@@ -145,13 +169,16 @@ def test_saturation():
     np.testing.assert_equal(op_res.asnumpy(), golden_output)
 
     # Same io params, different output scale
-    z = relay.qnn.op.add(lhs=x, rhs=y,
-                         lhs_scale=relay.const(0.125, 'float32'),
-                         lhs_zero_point=relay.const(0, 'int32'),
-                         rhs_scale=relay.const(0.125, 'float32'),
-                         rhs_zero_point=relay.const(0, 'int32'),
-                         output_scale=relay.const(0.25, 'float32'),
-                         output_zero_point=relay.const(0, 'int32'))
+    z = relay.qnn.op.add(
+        lhs=x,
+        rhs=y,
+        lhs_scale=relay.const(0.125, "float32"),
+        lhs_zero_point=relay.const(0, "int32"),
+        rhs_scale=relay.const(0.125, "float32"),
+        rhs_zero_point=relay.const(0, "int32"),
+        output_scale=relay.const(0.25, "float32"),
+        output_zero_point=relay.const(0, "int32"),
+    )
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
@@ -167,13 +194,16 @@ def test_saturation():
     np.testing.assert_equal(op_res.asnumpy(), golden_output)
 
     # All params different
-    z = relay.qnn.op.add(lhs=x, rhs=y,
-                         lhs_scale=relay.const(0.5, 'float32'),
-                         lhs_zero_point=relay.const(0, 'int32'),
-                         rhs_scale=relay.const(0.25, 'float32'),
-                         rhs_zero_point=relay.const(0, 'int32'),
-                         output_scale=relay.const(0.125, 'float32'),
-                         output_zero_point=relay.const(0, 'int32'))
+    z = relay.qnn.op.add(
+        lhs=x,
+        rhs=y,
+        lhs_scale=relay.const(0.5, "float32"),
+        lhs_zero_point=relay.const(0, "int32"),
+        rhs_scale=relay.const(0.25, "float32"),
+        rhs_zero_point=relay.const(0, "int32"),
+        output_scale=relay.const(0.125, "float32"),
+        output_zero_point=relay.const(0, "int32"),
+    )
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
@@ -189,7 +219,7 @@ def test_saturation():
     np.testing.assert_equal(op_res.asnumpy(), golden_output)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_tflite_same_io_qnn_params()
     test_tflite_different_io_qnn_params()
     test_saturation()

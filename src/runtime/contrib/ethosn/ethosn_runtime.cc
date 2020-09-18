@@ -120,6 +120,14 @@ Module EthosnModule::LoadFromBinary(void* strm) {
   return Module(n);
 }
 
+void EthosnModule::SaveToFile(const std::string& path, const std::string& format) {
+  std::string data;
+  dmlc::MemoryStringStream writer(&data);
+  dmlc::SeekStream* strm = &writer;
+  SaveToBinary(strm);
+  SaveBinaryToFile(path, data);
+}
+
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_ethos-n")
     .set_body([](TVMArgs args, TVMRetValue* rv) { *rv = EthosnModule::LoadFromBinary(args[0]); });
 }  // namespace ethosn

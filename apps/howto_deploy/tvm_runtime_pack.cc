@@ -60,6 +60,7 @@
 
 // Graph runtime
 #include "../../src/runtime/graph/graph_runtime.cc"
+#include "../../src/runtime/graph/graph_runtime_factory.cc"
 
 // Uncomment the following lines to enable RPC
 // #include "../../src/runtime/rpc/rpc_session.cc"

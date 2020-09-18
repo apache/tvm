@@ -28,7 +28,8 @@ import numpy as np
 from ..util import sample_ints
 from .model_based_tuner import ModelOptimizer, knob2point, point2knob
 
-logger = logging.getLogger('autotvm')
+logger = logging.getLogger("autotvm")
+
 
 class SimulatedAnnealingOptimizer(ModelOptimizer):
     """parallel simulated annealing optimization algorithm
@@ -47,8 +48,17 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
     log_interval: int, optional
         Print log every `log_interval` iterations
     """
-    def __init__(self, task, n_iter=500, temp=(1, 0), persistent=True, parallel_size=128,
-                 early_stop=50, log_interval=50):
+
+    def __init__(
+        self,
+        task,
+        n_iter=500,
+        temp=(1, 0),
+        persistent=True,
+        parallel_size=128,
+        early_stop=50,
+        log_interval=50,
+    ):
         super(SimulatedAnnealingOptimizer, self).__init__()
 
         self.task = task
@@ -64,8 +74,12 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
 
     def find_maximums(self, model, num, exclusive):
         tic = time.time()
-        temp, n_iter, early_stop, log_interval = \
-                self.temp, self.n_iter, self.early_stop, self.log_interval
+        temp, n_iter, early_stop, log_interval = (
+            self.temp,
+            self.n_iter,
+            self.early_stop,
+            self.log_interval,
+        )
 
         if self.persistent and self.points is not None:
             points = self.points
@@ -75,7 +89,7 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
         scores = model.predict(points)
 
         # build heap and insert initial points
-        heap_items = [(float('-inf'), - 1 - i) for i in range(num)]
+        heap_items = [(float("-inf"), -1 - i) for i in range(num)]
         heapq.heapify(heap_items)
         in_heap = set(exclusive)
         in_heap.update([x[1] for x in heap_items])
@@ -121,22 +135,29 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
 
             if log_interval and k % log_interval == 0:
                 t_str = "%.2f" % t
-                logger.debug("SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\ttemp: %s\t"
-                             "elapsed: %.2f",
-                             k, k_last_modify, heap_items[0][0],
-                             np.max([v for v, _ in heap_items]), t_str,
-                             time.time() - tic)
+                logger.debug(
+                    "SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\ttemp: %s\t"
+                    "elapsed: %.2f",
+                    k,
+                    k_last_modify,
+                    heap_items[0][0],
+                    np.max([v for v, _ in heap_items]),
+                    t_str,
+                    time.time() - tic,
+                )
 
         heap_items.sort(key=lambda item: -item[0])
         heap_items = [x for x in heap_items if x[0] >= 0]
-        logger.debug("SA iter: %d\tlast_update: %d\telapsed: %.2f",
-                     k, k_last_modify, time.time() - tic)
+        logger.debug(
+            "SA iter: %d\tlast_update: %d\telapsed: %.2f", k, k_last_modify, time.time() - tic
+        )
         logger.debug("SA Maximums: %s", heap_items)
 
         if self.persistent:
             self.points = points
 
         return [x[1] for x in heap_items]
+
 
 def random_walk(p, dims):
     """random walk as local transition

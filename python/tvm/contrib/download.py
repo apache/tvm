@@ -21,6 +21,7 @@ import time
 import uuid
 import shutil
 
+
 def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=3):
     """Downloads the file from the internet.
     Set the input options correctly to overwrite or do the size comparison
@@ -51,21 +52,22 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
     if os.path.isfile(path) and not overwrite:
         if size_compare:
             import requests
+
             file_size = os.path.getsize(path)
             res_head = requests.head(url)
             res_get = requests.get(url, stream=True)
-            if 'Content-Length' not in res_head.headers:
+            if "Content-Length" not in res_head.headers:
                 res_get = urllib2.urlopen(url)
-            url_file_size = int(res_get.headers['Content-Length'])
+            url_file_size = int(res_get.headers["Content-Length"])
             if url_file_size != file_size:
                 print("exist file got corrupted, downloading %s file freshly..." % path)
                 download(url, path, True, False)
                 return
-        print('File {} exists, skip.'.format(path))
+        print("File {} exists, skip.".format(path))
         return
 
     if verbose >= 1:
-        print('Downloading from url {} to {}'.format(url, path))
+        print("Downloading from url {} to {}".format(url, path))
 
     # Stateful start time
     start_time = time.time()
@@ -76,17 +78,18 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
     tempfile = os.path.join(dirpath, random_uuid)
 
     def _download_progress(count, block_size, total_size):
-        #pylint: disable=unused-argument
-        """Show the download progress.
-        """
+        # pylint: disable=unused-argument
+        """Show the download progress."""
         if count == 0:
             return
         duration = time.time() - start_time
         progress_size = int(count * block_size)
         speed = int(progress_size / (1024 * duration))
         percent = min(int(count * block_size * 100 / total_size), 100)
-        sys.stdout.write("\r...%d%%, %.2f MB, %d KB/s, %d seconds passed" %
-                         (percent, progress_size / (1024.0 * 1024), speed, duration))
+        sys.stdout.write(
+            "\r...%d%%, %.2f MB, %d KB/s, %d seconds passed"
+            % (percent, progress_size / (1024.0 * 1024), speed, duration)
+        )
         sys.stdout.flush()
 
     while retries >= 0:
@@ -109,14 +112,17 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
                 if os.path.exists(tempfile):
                     os.remove(tempfile)
                 raise err
-            print("download failed due to {}, retrying, {} attempt{} left"
-                  .format(repr(err), retries, 's' if retries > 1 else ''))
+            print(
+                "download failed due to {}, retrying, {} attempt{} left".format(
+                    repr(err), retries, "s" if retries > 1 else ""
+                )
+            )
 
 
 if "TEST_DATA_ROOT_PATH" in os.environ:
     TEST_DATA_ROOT_PATH = os.environ.get("TEST_DATA_ROOT_PATH")
 else:
-    TEST_DATA_ROOT_PATH = os.path.join(os.path.expanduser('~'), '.tvm_test_data')
+    TEST_DATA_ROOT_PATH = os.path.join(os.path.expanduser("~"), ".tvm_test_data")
 os.makedirs(TEST_DATA_ROOT_PATH, exist_ok=True)
 
 
@@ -141,7 +147,7 @@ def download_testdata(url, relpath, module=None):
     """
     global TEST_DATA_ROOT_PATH
     if module is None:
-        module_path = ''
+        module_path = ""
     elif isinstance(module, str):
         module_path = module
     elif isinstance(module, (list, tuple)):

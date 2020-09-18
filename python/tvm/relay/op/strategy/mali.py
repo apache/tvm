@@ -21,6 +21,7 @@ from tvm import topi
 from .generic import *
 from .. import op as _op
 
+
 @conv2d_strategy.register("mali")
 def conv2d_strategy_mali(attrs, inputs, out_type, target):
     """conv2d mali strategy"""
@@ -40,24 +41,34 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.mali.conv2d_nchw_spatial_pack),
                     wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_spatial_pack),
-                    name="conv2d_nchw_spatial_pack.mali")
+                    name="conv2d_nchw_spatial_pack.mali",
+                )
                 # check if winograd algorithm is applicable
                 _, _, kh, kw = get_const_tuple(kernel.shape)
-                if kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1 and \
-                   dilation_h == 1 and dilation_w == 1:
+                if (
+                    kh == 3
+                    and kw == 3
+                    and stride_h == 1
+                    and stride_w == 1
+                    and dilation_h == 1
+                    and dilation_w == 1
+                ):
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.mali.conv2d_nchw_winograd),
                         wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_winograd),
                         name="conv2d_nchw_winograd.mali",
-                        plevel=5)
+                        plevel=5,
+                    )
             elif re.match(r"OIHW\d*o", kernel_layout):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.mali.conv2d_nchw_spatial_pack),
                     wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_spatial_pack),
-                    name="conv2d_nchw_spatial_pack.mali")
+                    name="conv2d_nchw_spatial_pack.mali",
+                )
             else:
-                raise RuntimeError("Unsupported weight layout {} for conv2d NCHW".
-                                   format(kernel_layout))
+                raise RuntimeError(
+                    "Unsupported weight layout {} for conv2d NCHW".format(kernel_layout)
+                )
         else:
             raise RuntimeError("Unsupported conv2d layout {} for mali".format(layout))
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
@@ -66,12 +77,14 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.mali.depthwise_conv2d_nchw),
                 wrap_topi_schedule(topi.mali.schedule_depthwise_conv2d_nchw),
-                name="depthwise_conv2d_nchw.mali")
+                name="depthwise_conv2d_nchw.mali",
+            )
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {} for mali".format(layout))
-    else: # group_conv2d
+    else:  # group_conv2d
         raise RuntimeError("group_conv2d is not supported for mali")
     return strategy
+
 
 @conv2d_winograd_without_weight_transfrom_strategy.register("mali")
 def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_type, target):
@@ -90,17 +103,22 @@ def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_ty
         strategy.add_implementation(
             wrap_compute_conv2d(topi.mali.conv2d_nchw_winograd),
             wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_winograd),
-            name="conv2d_nchw_winograd.mali")
+            name="conv2d_nchw_winograd.mali",
+        )
     else:
-        raise RuntimeError("Unsupported conv2d_winograd_without_weight_transfrom layout {}".
-                           format(layout))
+        raise RuntimeError(
+            "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)
+        )
     return strategy
+
 
 @dense_strategy.register("mali")
 def dense_strategy_mali(attrs, inputs, out_type, target):
     """dense mali strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implementation(wrap_compute_dense(topi.mali.dense),
-                                wrap_topi_schedule(topi.mali.schedule_dense),
-                                name="dense.mali")
+    strategy.add_implementation(
+        wrap_compute_dense(topi.mali.dense),
+        wrap_topi_schedule(topi.mali.schedule_dense),
+        name="dense.mali",
+    )
     return strategy
