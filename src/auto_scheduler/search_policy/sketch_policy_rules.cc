@@ -908,6 +908,7 @@ PopulationGenerationRule::ResultKind MutateTileSize::Apply(SketchPolicyNode* pol
       continue;
     }
 
+    // Divide one factor from lengths[src_idx] and multiply it to lengths[dst_idx]
     size_t dst_idx = random_perm[(i + 1) % random_perm.size()];
     const std::vector<int>& factors = policy->split_memo.GetFactors(length);
     CHECK_GE(factors.size(), 1);
@@ -941,6 +942,8 @@ PopulationGenerationRule::ResultKind MutateTileSize::Apply(SketchPolicyNode* pol
         new_lengths.push_back(Integer(lengths[j]));
       }
     }
+
+    CHECK_LE(GetIntImm(new_lengths.back()), max_innermost_split_factor);
 
     StateNode* pstate = state->CopyOnWrite();
     pstate->transform_steps.Set(
@@ -1006,7 +1009,7 @@ PopulationGenerationRule::ResultKind MutateComputeLocation::Apply(SketchPolicyNo
     }
   }
   if (compute_at_steps.empty()) {
-    return PopulationGenerationRule::ResultKind::kValid;
+    return PopulationGenerationRule::ResultKind::kInvalid;
   }
 
   // Randomly pick one step
