@@ -1,7 +1,7 @@
+use super::relay;
 use crate::runtime::String as TString;
 use crate::runtime::{self, external, IsObject, IsObjectRef, Object, ObjectPtr, ObjectRef};
 use crate::DataType;
-use super::relay;
 
 use tvm_macros::Object;
 

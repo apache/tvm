@@ -1,13 +1,13 @@
-use crate::runtime::{external, Object, ObjectRef};
-use crate::runtime::{string::String as TVMString};
-use crate::runtime::function::Result;
 use crate::runtime::array::Array;
+use crate::runtime::function::Result;
 use crate::runtime::map::Map;
+use crate::runtime::string::String as TVMString;
+use crate::runtime::{external, Object, ObjectRef};
 
 use super::expr::GlobalVar;
 use super::function::BaseFunc;
 
-use std::io::{Result as IOResult};
+use std::io::Result as IOResult;
 use std::path::Path;
 
 use tvm_macros::Object;
@@ -25,7 +25,6 @@ pub struct IRModuleNode {
     pub functions: Map<GlobalVar, BaseFunc>,
     pub type_definitions: Map<GlobalTypeVar, TypeData>,
 }
-
 
 external! {
     // Parser functions
@@ -96,9 +95,11 @@ external! {
 
 impl IRModule {
     pub fn parse<N, S>(file_name: N, source: S) -> IRModule
-    where N: Into<TVMString>, S: Into<TVMString> {
-        parse_module(file_name.into(), source.into())
-            .expect("failed to call parser")
+    where
+        N: Into<TVMString>,
+        S: Into<TVMString>,
+    {
+        parse_module(file_name.into(), source.into()).expect("failed to call parser")
     }
 
     pub fn parse_file<P: 'static + AsRef<Path>>(file_path: P) -> IOResult<IRModule> {
@@ -109,7 +110,12 @@ impl IRModule {
         Ok(module)
     }
 
-    pub fn add_def(&mut self, type_name: GlobalTypeVar, type_data: TypeData, update: bool) -> Result<()> {
+    pub fn add_def(
+        &mut self,
+        type_name: GlobalTypeVar,
+        type_data: TypeData,
+        update: bool,
+    ) -> Result<()> {
         module_add_def(self.clone(), type_name, type_data, update)
     }
 
@@ -126,7 +132,9 @@ impl IRModule {
     }
 
     pub fn lookup_str<S>(&self, name: S) -> Result<BaseFunc>
-    where S: Into<TVMString> {
+    where
+        S: Into<TVMString>,
+    {
         module_lookup_str(self.clone(), name.into())
     }
 }

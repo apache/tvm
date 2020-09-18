@@ -1,5 +1,5 @@
-use crate::runtime::{IsObjectRef, IsObject, ObjectRef};
 use crate::ir::relay::ExprNode;
+use crate::runtime::{IsObject, IsObjectRef, ObjectRef};
 
 use tvm_macros::Object;
 

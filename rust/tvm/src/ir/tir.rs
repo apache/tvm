@@ -17,9 +17,9 @@
  * under the License.
  */
 
+use super::{PrimExpr, PrimExprNode};
 use crate::runtime::String as TVMString;
 use crate::DataType;
-use super::{PrimExprNode, PrimExpr};
 
 use tvm_macros::Object;
 

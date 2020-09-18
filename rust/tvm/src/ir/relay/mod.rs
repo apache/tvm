@@ -20,13 +20,13 @@
 use crate::runtime::array::Array;
 use crate::runtime::{object::*, String as TString};
 
-use super::expr::{BaseExprNode};
+use super::expr::BaseExprNode;
 use super::function::BaseFuncNode;
 use super::ty::Type;
 
 use tvm_macros::Object;
 
-pub use super::expr::{GlobalVarNode, GlobalVar};
+pub use super::expr::{GlobalVar, GlobalVarNode};
 
 pub type Attrs = ObjectRef;
 
@@ -50,7 +50,6 @@ impl ExprNode {
     }
 }
 
-
 #[repr(C)]
 #[derive(Object)]
 #[ref_name = "Id"]
@@ -69,7 +68,6 @@ impl Id {
         Id(Some(ObjectPtr::new(node)))
     }
 }
-
 
 #[repr(C)]
 #[derive(Object)]
@@ -138,7 +136,6 @@ impl Var {
     }
 }
 
-
 #[repr(C)]
 #[derive(Object)]
 #[ref_name = "Call"]
@@ -187,7 +184,7 @@ impl Let {
             base: ExprNode::base::<LetNode>(),
             var,
             value,
-            body
+            body,
         };
         Let(Some(ObjectPtr::new(node)))
     }
@@ -269,7 +266,7 @@ impl RefRead {
     pub fn new(ref_value: Expr, _span: ObjectRef) -> RefRead {
         let node = RefReadNode {
             base: ExprNode::base::<RefReadNode>(),
-            ref_value
+            ref_value,
         };
         RefRead(Some(ObjectPtr::new(node)))
     }
@@ -321,14 +318,13 @@ impl Constructor {
 
 // TODO(@jroesch): define the type data
 
-
 #[repr(C)]
 #[derive(Object)]
 #[ref_name = "Pattern"]
 #[type_key = "relay.Pattern"]
 pub struct PatternNode {
     pub base: Object,
-    pub span: ObjectRef
+    pub span: ObjectRef,
 }
 
 impl PatternNode {
@@ -376,7 +372,6 @@ impl PatternVar {
     }
 }
 
-
 #[repr(C)]
 #[derive(Object)]
 #[ref_name = "PatternConstructor"]
@@ -388,7 +383,11 @@ pub struct PatternConstructorNode {
 }
 
 impl PatternConstructor {
-    pub fn new(constructor: Constructor, patterns: Array<Pattern>, _span: ObjectRef) -> PatternConstructor {
+    pub fn new(
+        constructor: Constructor,
+        patterns: Array<Pattern>,
+        _span: ObjectRef,
+    ) -> PatternConstructor {
         let node = PatternConstructorNode {
             base: PatternNode::base::<PatternConstructorNode>(),
             constructor,
@@ -431,7 +430,8 @@ impl Clause {
     pub fn new(lhs: Pattern, rhs: Expr, _span: ObjectRef) -> Clause {
         let node = ClauseNode {
             base: Object::base_object::<ClauseNode>(),
-            lhs, rhs,
+            lhs,
+            rhs,
         };
         Clause(Some(ObjectPtr::new(node)))
     }
@@ -516,7 +516,7 @@ mod tests {
 
     #[test]
     fn test_var() -> Result<()> {
-        let var = Var::new("local".to_string(), ObjectRef::null());
+        let var = Var::new("local".to_string(), Type::null(), ObjectRef::null());
         let text = as_text(var.clone());
         assert!(text.contains("%local"));
         Ok(())
