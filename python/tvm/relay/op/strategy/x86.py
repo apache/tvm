@@ -175,7 +175,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                 name="group_conv2d_nchw.generic",
             )
         elif layout == 'NHWC':
-            # assert kernel_layout == "HWOI"
+            assert kernel_layout == "HWIO"
             logger.warning("group_conv2d is not optimized for x86.")
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.group_conv2d_nhwc, has_groups=True),
