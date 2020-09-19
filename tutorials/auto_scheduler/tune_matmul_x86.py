@@ -61,7 +61,7 @@ def matmul_add(N, L, M, dtype):
 # We then create a search task with N=L=M=128 and dtype="float32"
 # If your machine supports avx instructions, you can
 # - replace "llvm" below with "llvm -mcpu=core-avx2" to enable AVX2
-# - replace "llvm" belwo with "llvm -mcpu=skylake-avx512" to enable AVX-512
+# - replace "llvm" below with "llvm -mcpu=skylake-avx512" to enable AVX-512
 
 target = tvm.target.Target("llvm")
 task = auto_scheduler.create_task(matmul_add, (128, 128, 128, "float32"), target)
@@ -127,7 +127,7 @@ print(
     "Execution time of this operator: %.3f ms"
     % (evaluator(a_tvm, b_tvm, c_tvm, out_tvm).mean * 1000)
 )
- 
+
 
 ######################################################################
 # Using the record file

@@ -39,6 +39,7 @@ def matmul_auto_scheduler_test(N, M, K):
     )
     return [A, B, C]
 
+
 @auto_scheduler.register_workload
 def double_matmul_auto_scheduler_test(N):
     A = te.placeholder((N, N), name="A", dtype="float32")
@@ -50,6 +51,7 @@ def double_matmul_auto_scheduler_test(N):
     E = te.compute((N, N), lambda i, j: te.sum(D[i][k] * C[k][j], axis=[k]), name="E")
 
     return [A, B, C, E]
+
 
 # Test for register_workload with different name
 @auto_scheduler.register_workload("matmul_auto_scheduler_test_rename_1")

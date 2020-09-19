@@ -18,7 +18,7 @@
 .. _auto-scheduler-conv-gpu:
 
 Auto-scheduling a convolution layer for GPU
-=============================================
+===========================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, \
             `Chengfan Jia <https://github.com/jcf94/>`_
 
@@ -79,6 +79,7 @@ print(task.compute_dag)
 #   happended during measurement and avoid other runtime conflicts.
 # * `min_repeat_ms` defines the minimum duration of one "repeat" in every measurement.
 #   This can warmup the GPU, which is necessary to get accurate measurement results.
+#   Typically, we recommend a value > 300 ms.
 # * `num_measure_trials` is the number of measurement trials we can use during the search.
 #   We only make 10 trials in this tutorial for a fast demonstration. In practice, 1000 is a
 #   good value for the search to converge. You can do more trials according to your time budget.
@@ -138,8 +139,8 @@ tvm.testing.assert_allclose(out_np, out_tvm.asnumpy(), rtol=1e-3)
 # Evaluate execution time
 evaluator = func.time_evaluator(func.entry_name, ctx, min_repeat_ms=500)
 print(
-    "Execution time of this operator: %.3f ms" %
-    (evaluator(data_tvm, weight_tvm, bias_tvm, out_tvm).mean * 1000)
+    "Execution time of this operator: %.3f ms"
+    % (evaluator(data_tvm, weight_tvm, bias_tvm, out_tvm).mean * 1000)
 )
 
 ######################################################################
