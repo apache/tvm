@@ -47,7 +47,7 @@ def test_evo_search():
     workload_key = auto_scheduler.make_workload_key(matmul_auto_scheduler_test, (10, 10, 4))
     dag = auto_scheduler.ComputeDAG(workload_key)
     task = auto_scheduler.SearchTask(dag, workload_key, tvm.target.Target("llvm"))
-    policy = auto_scheduler.SketchPolicy(task, schedule_cost_model=MockCostModel(), verbose=0)
+    policy = auto_scheduler.SketchPolicy(task, program_cost_model=MockCostModel(), verbose=0)
     states = policy.sample_initial_population(50)
     pruned_states = []
     for state in states:

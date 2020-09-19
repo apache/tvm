@@ -780,7 +780,9 @@ Array<Iterator> ApplySplitToState(State* state, int stage_id, int iter_id,
       res = Iterator(name, Range(), it->iter_kind, IteratorAnnotation::kNone);
       tosplit_min = NullOpt;
       tosplit_extent = NullOpt;
-      concrete = false;
+      if (!l.defined()) {
+        concrete = false;
+      }
     }
     outs.push_back(std::move(res));
   }
