@@ -36,38 +36,28 @@ For example:
 
 The Bring Your Own Datatypes enables users to plug these datatype implementations into TVM!
 
-In this section, we will use an example library, `Stillwater Universal <https://github.com/stillwater-sc/universal>`_.
-**Posits** are a datatype developed to compete with IEEE 754 floating point numbers.
-We won't go into much detail about the datatype itself.
-If you'd like to learn more, read through John Gustafson's `Beating Floating Point at its Own Game <https://posithub.org/docs/BeatingFloatingPoint.pdf>`_.
+In this section, we will use an example library we have already implemented, located at ``3rdparty/byodt/myfloat.cc``.
+This datatype, which we dubbed "myfloat", is really just a IEE-754 float under-the-hood, but it serves a useful example
+to show that any datatype can be used in the BYODT framework.
 
 Setup
 -----
 
-First, clone the `Stillwater Universal <https://github.com/stillwater-sc/universal>`_ repository anywhere you like.
-Then, build TVM again with ``set (USE_POSIT ON)`` and ``set (UNIVERSAL_PATH ${UNIVERSAL_PATH})`` in the ``config.cmake`` file.
-``UNIVERSAL_PATH`` should point to the universal directory.
+Since we do not use any 3rdparty library, there is no setup needed.
 
-The ``USE_POSIT`` flag includes the Universal repository and the posit wrapper we have built, located at 3rdparty/posit/posit-wrapper.cc.
 If you would like to try this with your own datatype library, first bring the library's functions into the process space with ``CDLL``:
 
 .. code-block :: python
 
     ctypes.CDLL('my-datatype-lib.so', ctypes.RTLD_GLOBAL)
-
-After you are done, please run the following code to make sure TVM is built correctly:
 """
-import tvm
-
-if tvm.support.libinfo()["USE_POSIT"] != "ON":
-    print("Please build TVM with the USE_POSIT flag set to true")
-    raise Exception("TVM not build with USE_POSIT flag")
 
 ######################
 # A Simple TVM Program
 # --------------------
 #
 # We'll begin by writing a simple program in TVM; afterwards, we will re-write it to use custom datatypes.
+import tvm
 from tvm import relay
 
 # Our basic program: Z = X + Y
@@ -105,14 +95,14 @@ print("z: {}".format(z_output))
 # We use the same input variables ``x`` and ``y`` as above, but before adding ``x + y``, we first cast both ``x`` and ``y`` to a custom datatype via the ``relay.cast(...)`` call.
 #
 # Note how we specify the custom datatype: we indicate it using the special ``custom[...]`` syntax.
-# Additionally, note the "16" after the datatype: this is the bitwidth of the custom datatype. This tells TVM that each instance of ``posit`` is 16 bits wide.
+# Additionally, note the "32" after the datatype: this is the bitwidth of the custom datatype. This tells TVM that each instance of ``myfloat`` is 32 bits wide.
 
 try:
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        x_posit = relay.cast(x, dtype="custom[posit]16")
-        y_posit = relay.cast(y, dtype="custom[posit]16")
-        z_posit = x_posit + y_posit
-        z = relay.cast(z_posit, dtype="float32")
+        x_myfloat = relay.cast(x, dtype="custom[myfloat]32")
+        y_myfloat = relay.cast(y, dtype="custom[myfloat]32")
+        z_myfloat = x_myfloat + y_myfloat
+        z = relay.cast(z_myfloat, dtype="float32")
 except tvm.TVMError as e:
     # Print last line of error
     print(str(e).split("\n")[-1])
@@ -122,22 +112,22 @@ except tvm.TVMError as e:
 # TVM does not know how to handle any custom datatype out of the box!
 # We first have to register the custom type with TVM, giving it a name and a type code:
 
-tvm.target.datatype.register("posit", 150)
+tvm.target.datatype.register("myfloat", 150)
 
 ######################################################################
 # Note that the type code, 150, is currently chosen manually by the user.
 # See ``TVMTypeCode::kCustomBegin`` in `include/tvm/runtime/c_runtime_api.h <https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/data_type.h>`_.
 # Now we can generate our program again:
 
-x_posit = relay.cast(x, dtype="custom[posit]16")
-y_posit = relay.cast(y, dtype="custom[posit]16")
-z_posit = x_posit + y_posit
-z = relay.cast(z_posit, dtype="float32")
+x_myfloat = relay.cast(x, dtype="custom[myfloat]32")
+y_myfloat = relay.cast(y, dtype="custom[myfloat]32")
+z_myfloat = x_myfloat + y_myfloat
+z = relay.cast(z_myfloat, dtype="float32")
 program = relay.Function([x, y], z)
 module = tvm.IRModule.from_expr(program)
 
 ######################################################################
-# Now we have a Relay program that uses posits!
+# Now we have a Relay program that uses myfloat!
 print(program)
 
 ######################################################################
@@ -145,8 +135,8 @@ print(program)
 try:
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
         ex = relay.create_executor("graph", mod=module)
-        z_output_posit = ex.evaluate()(x_input, y_input)
-        print("z: {}".format(z_output_posit))
+        z_output_myfloat = ex.evaluate()(x_input, y_input)
+        print("z: {}".format(y_myfloat))
 except tvm.TVMError as e:
     # Print last line of error
     print(str(e).split("\n")[-1])
@@ -165,36 +155,34 @@ except tvm.TVMError as e:
 tvm.target.datatype.register_op(
     tvm.target.datatype.create_lower_func(
         {
-            (32, 32): "FloatToPosit32es2",  # cast from float32 to posit32
-            (32, 16): "FloatToPosit16es2",  # cast from float32 to posit16
-            (32, 8): "FloatToPosit8es2",  # cast from float32 to posit8
+            (32, 32): "FloatToCustom32",  # cast from float32 to myfloat32
         }
     ),
     "Cast",
     "llvm",
     "float",
-    "posit",
+    "myfloat",
 )
 
 ######################################################################
 # The ``register_op(...)`` call takes a lowering function, and a number of parameters which specify exactly the operation which should be lowered with the provided lowering function.
-# In this case, the arguments we pass specify that this lowering function is for lowering a ``Cast`` from ``float`` to ``posit`` for target ``"llvm"``.
+# In this case, the arguments we pass specify that this lowering function is for lowering a ``Cast`` from ``float`` to ``myfloat`` for target ``"llvm"``.
 #
 # The lowering function passed into this call is very general: it should take an operation of the specified type (in this case, `Cast`) and return another operation which only uses datatypes which TVM understands.
 #
 # In the general case, we expect users to implement operations over their custom datatypes using calls to an external library.
-# In our example, our ``posit`` library implements a ``Cast`` from ``float`` to 16-bit ``posit`` in the function ``FloatToPosit16es2``.
+# In our example, our ``myfloat`` library implements a ``Cast`` from ``float`` to 32-bit ``myfloat`` in the function ``FloatToCustom32``.
 # To provide for the general case, we have made a helper function, ``create_lower_func(...)``,
 # which does just this: given a dictionary, it replaces the given operation with a ``Call`` to the appropriate function name provided based on the op and the bit widths.
-# It additionally removes usages of the custom datatype by storing the custom datatype in an opaque ``uint`` of the appropriate width; in our case, a ``uint16_t``.
+# It additionally removes usages of the custom datatype by storing the custom datatype in an opaque ``uint`` of the appropriate width; in our case, a ``uint32_t``.
 # For more information, see `the source code <https://github.com/apache/incubator-tvm/blob/master/python/tvm/target/datatype.py>`_.
 
 # We can now re-try running the program:
 try:
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
         ex = relay.create_executor("graph", mod=module)
-        z_output_posit = ex.evaluate()(x_input, y_input)
-        print("z: {}".format(z_output_posit))
+        z_output_myfloat = ex.evaluate()(x_input, y_input)
+        print("z: {}".format(z_output_myfloat))
 except tvm.TVMError as e:
     # Print last line of error
     print(str(e).split("\n")[-1])
@@ -207,45 +195,37 @@ except tvm.TVMError as e:
 # For ``Cast`` operations, we require a 2-tuple to specify the ``src_bit_length`` and the ``dest_bit_length``,
 # while for all other operations, the bit length is the same between the operands so we only require one integer to specify ``bit_length``.
 tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func(
-        {32: "Posit32es2Add", 16: "Posit16es2Add", 8: "Posit8es2Add"}
-    ),
+    tvm.target.datatype.create_lower_func({32: "Custom32Add"}),
     "Add",
     "llvm",
-    "posit",
+    "myfloat",
 )
 tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func(
-        {
-            (32, 32): "Posit32es2ToFloat",
-            (16, 32): "Posit16es2ToFloat",
-            (8, 32): "Posit8es2ToFloat",
-        }
-    ),
+    tvm.target.datatype.create_lower_func({(32, 32): "Custom32ToFloat"}),
     "Cast",
     "llvm",
-    "posit",
+    "myfloat",
     "float",
 )
 
 # Now, we can run our program without errors.
 with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
     compiled = ex.evaluate(program)
-    z_output_posit = compiled(x_input, y_input)
-print("z: {}".format(z_output_posit))
+    z_output_myfloat = compiled(x_input, y_input)
+print("z: {}".format(z_output_myfloat))
 
 print("x:\t\t{}".format(x_input))
 print("y:\t\t{}".format(y_input))
 print("z (float32):\t{}".format(z_output))
-print("z (posit16):\t{}".format(z_output_posit))
+print("z (myfloat32):\t{}".format(z_output_myfloat))
 
-# Perhaps as expected, the ``posit16`` results are very close to the ``float32`` results, but with some loss in precision!
+# Perhaps as expected, the ``myfloat32`` results and ``float32`` are exactly the same!
 
 ######################################################################
 # Running Models With Custom Datatypes
 # ------------------------------------
 #
-# We will first choose the model which we would like to run with posits.
+# We will first choose the model which we would like to run with myfloat.
 # In this case we use `Mobilenet <https://arxiv.org/abs/1704.04861>`_.
 # We choose Mobilenet due to its small size.
 # In this alpha state of the Bring Your Own Datatypes framework, we have not implemented any software optimizations for running software emulations of custom datatypes; the result is poor performance due to many calls into our datatype emulation library.
@@ -288,7 +268,7 @@ result = ex.evaluate()(input, **params).asnumpy()
 print(result.flatten()[:10])
 
 ######################################################################
-# Now, we would like to change the model to use posits internally. To do so, we need to convert the network. To do this, we first define a function which will help us convert tensors:
+# Now, we would like to change the model to use myfloat internally. To do so, we need to convert the network. To do this, we first define a function which will help us convert tensors:
 
 
 def convert_ndarray(dst_dtype, array):
@@ -305,7 +285,7 @@ def convert_ndarray(dst_dtype, array):
 from tvm.relay.frontend.change_datatype import ChangeDatatype
 
 src_dtype = "float32"
-dst_dtype = "custom[posit]16"
+dst_dtype = "custom[myfloat]32"
 
 # Currently, custom datatypes only work if you run simplify_inference beforehand
 module = tvm.relay.transform.SimplifyInference()(module)
@@ -313,7 +293,7 @@ module = tvm.relay.transform.SimplifyInference()(module)
 # Run type inference before changing datatype
 module = tvm.relay.transform.InferType()(module)
 
-# Change datatype from float to posit and re-infer types
+# Change datatype from float to myfloat and re-infer types
 cdtype = ChangeDatatype(src_dtype, dst_dtype)
 expr = cdtype.visit(module["main"])
 module = tvm.relay.transform.InferType()(module)
@@ -328,97 +308,81 @@ input = convert_ndarray(dst_dtype, input)
 try:
     # Vectorization is not implemented with custom datatypes.
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        result_posit = ex.evaluate(expr)(input, **params)
+        result_myfloat = ex.evaluate(expr)(input, **params)
 except tvm.TVMError as e:
     print(str(e).split("\n")[-1])
 
 ######################################################################
-# When we attempt to run the model, we get a familiar error telling us that more funcions need to be registerd for posits.
+# When we attempt to run the model, we get a familiar error telling us that more funcions need to be registerd for myfloat.
 #
 # Because this is a neural network, many more operations are required.
 # Here, we register all the needed functions:
 
 tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func(
-        {32: "FloatToPosit32es2", 16: "FloatToPosit16es2", 8: "FloatToPosit8es2"}
-    ),
+    tvm.target.datatype.create_lower_func({32: "FloatToCustom32"}),
     "FloatImm",
     "llvm",
-    "posit",
+    "myfloat",
 )
 
 tvm.target.datatype.register_op(
-    tvm.target.datatype.lower_ite, "Call", "llvm", "posit", intrinsic_name="tir.if_then_else"
+    tvm.target.datatype.lower_ite, "Call", "llvm", "myfloat", intrinsic_name="tir.if_then_else"
 )
 
 tvm.target.datatype.register_op(
     tvm.target.datatype.lower_call_pure_extern,
     "Call",
     "llvm",
-    "posit",
+    "myfloat",
     intrinsic_name="tir.call_pure_extern",
 )
 
 tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func(
-        {32: "Posit32es2Mul", 16: "Posit16es2Mul", 8: "Posit8es2Mul"}
-    ),
+    tvm.target.datatype.create_lower_func({32: "Custom32Mul"}),
     "Mul",
     "llvm",
-    "posit",
+    "myfloat",
 )
 tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func(
-        {32: "Posit32es2Div", 16: "Posit16es2Div", 8: "Posit8es2Div"}
-    ),
+    tvm.target.datatype.create_lower_func({32: "Custom32Div"}),
     "Div",
     "llvm",
-    "posit",
+    "myfloat",
 )
 
 tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func(
-        {32: "Posit32es2Sqrt", 16: "Posit16es2Sqrt", 8: "Posit8es2Sqrt"}
-    ),
+    tvm.target.datatype.create_lower_func({32: "Custom32Sqrt"}),
     "Call",
     "llvm",
-    "posit",
+    "myfloat",
     intrinsic_name="tir.sqrt",
 )
 
 tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func(
-        {32: "Posit32es2Sub", 16: "Posit16es2Sub", 8: "Posit8es2Sub"}
-    ),
+    tvm.target.datatype.create_lower_func({32: "Custom32Sub"}),
     "Sub",
     "llvm",
-    "posit",
+    "myfloat",
 )
 
 tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func(
-        {32: "Posit32es2Exp", 16: "Posit16es2Exp", 8: "Posit8es2Exp"}
-    ),
+    tvm.target.datatype.create_lower_func({32: "Custom32Exp"}),
     "Call",
     "llvm",
-    "posit",
+    "myfloat",
     intrinsic_name="tir.exp",
 )
 
 tvm.target.datatype.register_op(
-    tvm.target.datatype.create_lower_func(
-        {32: "Posit32es2Max", 16: "Posit16es2Max", 8: "Posit8es2Max"}
-    ),
+    tvm.target.datatype.create_lower_func({32: "Custom32Max"}),
     "Max",
     "llvm",
-    "posit",
+    "myfloat",
 )
 
 tvm.target.datatype.register_min_func(
-    tvm.target.datatype.create_min_lower_func(
-        {32: "MinPosit32es2", 16: "MinPosit16es2", 8: "MinPosit8es2"}, "posit"
-    ),
-    "posit",
+    tvm.target.datatype.create_min_lower_func({32: "MinCustom32"}, "myfloat"),
+    "myfloat",
 )
 
 ######################################################################
@@ -434,11 +398,11 @@ tvm.target.datatype.register_min_func(
 
 # Vectorization is not implemented with custom datatypes.
 with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-    result_posit = ex.evaluate(expr)(input, **params)
-    result_posit = convert_ndarray(src_dtype, result_posit).asnumpy()
+    result_myfloat = ex.evaluate(expr)(input, **params)
+    result_myfloat = convert_ndarray(src_dtype, result_myfloat).asnumpy()
     # print first 10 elements
-    print(result_posit.flatten()[:10])
+    print(result_myfloat.flatten()[:10])
 
-# Again, note that the output using 16-bit posits is understandably different from that of 32-bit floats,
-# but is still within a sane distance:
-np.testing.assert_allclose(result, result_posit, rtol=1e-2, atol=1e-1)
+# Again, note that the output using 32-bit myfloat exactly the same as 32-bit floats,
+# because myfloat is exactly a float!
+np.testing.assert_array_equal(result, result_myfloat)
