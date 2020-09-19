@@ -6,7 +6,9 @@ import numpy as np
 def create_hardware():
     hardware = hago.Hardware()
     hardware.add_op_desc('concatenate', hago.OpDesc(in_dtypes='float32', out_dtypes='float32'))
+    hardware.add_op_desc('add', hago.OpDesc(in_dtypes='int8', out_dtypes='int32'))
     hardware.add_op_desc('nn.dense', hago.OpDesc(in_dtypes='int8', out_dtypes='int32'))
+    hardware.add_op_desc('nn.conv2d', hago.OpDesc(in_dtypes='int8', out_dtypes='int32'))
     return hardware
 
 def target_and_ctx(device):
@@ -18,15 +20,16 @@ def target_and_ctx(device):
         ctx = tvm.gpu(1)
     return target, ctx
 
-def test_dense(ishape=(32, 16), wshape=(10, 16), batch_num=3, device='cpu'):
+def test_dense(ishape=(8, 16), wshape=(10, 16), batch_num=5, device='cpu'):
     target, ctx = target_and_ctx(device)
     data = relay.var('data', shape=ishape)
     weight = relay.var('weight', shape=wshape)
     out = relay.nn.dense(data, weight)
     func = relay.Function([data, weight], out)
 
-    weight_np = np.random.rand(*wshape).astype('float32')
-
+    # weight_np = np.random.rand(*wshape).astype('float32')
+    weight_np = np.random.normal(size=wshape).astype('float32')
+    
     # generate dataset
     batches = []
     for i in range(batch_num):
@@ -60,8 +63,8 @@ def test_concatenate(ishape=(8, 16), wshape=(10, 16), batch_num=3, device='cpu')
     out = relay.nn.dense(concat, weight1)
     func = relay.Function([data_a, data_b, data_c, data_d, weight0, weight1], out)
 
-    weight0_np = np.random.rand(*w0shape).astype('float32')
-    weight1_np = np.random.rand(*w1shape).astype('float32')
+    weight0_np = np.random.normal(size=w0shape).astype('float32')
+    weight1_np = np.random.normal(size=w1shape).astype('float32')
 
     # generate dataset
     batches = []
@@ -84,15 +87,59 @@ def test_concatenate(ishape=(8, 16), wshape=(10, 16), batch_num=3, device='cpu')
               'weight1': tvm.nd.array(weight1_np)}
     return func, params, dataset
 
+def test_conv2d(ishape=(1,3,224,224), wshape=(32,3,5,5), batch_num=5, device='cpu'):
+    target, ctx = target_and_ctx(device)
+    data = relay.var('data', shape=ishape)
+    weight = relay.var('weight', shape=wshape)
+    out = relay.nn.conv2d(data, weight, kernel_size=(5,5))
+    func = relay.Function([data, weight], out)
+
+    weight_np = np.random.normal(size=wshape).astype('float32')
+
+    # generate dataset
+    batches = []
+    for i in range(batch_num):
+        data_np = np.random.rand(*ishape).astype('float32')
+        ex = relay.create_executor("debug", ctx=ctx, target=target)
+        out_np = ex.evaluate(func)(data_np, weight_np).asnumpy()
+        pred_np = np.argmax(out_np, axis=1)
+        batches.append({'data': tvm.nd.array(data_np), 'label': tvm.nd.array(pred_np)})
+    dataset = hago.CalibrationDataset(batches)
+
+    params = {'weight': tvm.nd.array(weight_np)}
+    return func, params, dataset
+
+def test_add(ishape=(32,32), wshape=(32,32), batch_num=5, device='cpu'):
+    target, ctx = target_and_ctx(device)
+    data = relay.var('data', shape=ishape)
+    weight = relay.var('weight', shape=wshape)
+    out = data + weight
+    func = relay.Function([data, weight], out)
+
+    weight_np = np.random.normal(size=wshape).astype('float32')
+
+    # generate dataset
+    batches = []
+    for i in range(batch_num):
+        data_np = np.random.rand(*ishape).astype('float32')
+        ex = relay.create_executor("debug", ctx=ctx, target=target)
+        out_np = ex.evaluate(func)(data_np, weight_np).asnumpy()
+        pred_np = np.argmax(out_np, axis=1)
+        batches.append({'data': tvm.nd.array(data_np), 'label': tvm.nd.array(pred_np)})
+    dataset = hago.CalibrationDataset(batches)
+
+    params = {'weight': tvm.nd.array(weight_np)}
+    return func, params, dataset
 
 def check_results(func, params, dataset, device='cpu'):
+    original_func = func
     target, ctx = target_and_ctx(device)
     # prepared by user
     hardware = create_hardware()
     
     qconfig = hago.qconfig(skip_conv_layers=[0],
                            log_file='temp.log',
-                           threshold_estimate_method="power_of_two_range")
+                           threshold_estimate_method="kl_estimate")
     with qconfig:
         func = hago.prerequisite_optimize(func, params)
         print('after optimize')
@@ -109,9 +156,15 @@ def check_results(func, params, dataset, device='cpu'):
         print(simulated_graph)
         print(quantized_graph)
 
+    input_data = [ {**data, **params} for data in dataset.batches ]
+    expected = hago.base.evaluate(original_func, input_data)
+    quantized_output = hago.base.evaluate(quantized_graph, input_data)
+
+    tvm.testing.assert_allclose(expected, quantized_output, rtol=0.05)
+
 if __name__ == '__main__':
     device = 'cpu'
-    func, params, dataset = test_concatenate(device=device)
+    func, params, dataset = test_add(device=device)
     print('original model:')
     print(func)
     check_results(func, params, dataset, device)

@@ -122,8 +122,8 @@ class Topology(object):
 
         print('bit limit')
         print(bits)
-        edge2bit = self.build_edge_info(bits)
-        self.print_edge_info(edge2bit)
+        self.edge2bit = self.build_edge_info(bits)
+        self.print_edge_info(self.edge2bit)
 
         choices = [list(reversed(range(4, bit + 1))) for bit in bits]
         # print('bit choices')

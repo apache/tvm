@@ -30,8 +30,6 @@ import numpy as np
 from itertools import islice
 from collections import OrderedDict
 
-# TODO: - Add quantile ranges.
-
 class Stats(object):
     def __init__(self, data):
         """
@@ -101,10 +99,9 @@ def inspect_graph_statistic(func, hardware, strategy, dataset, ctx, target):
     assert isinstance(func, relay.Function)
     assert tvm.ir.structural_hash(func) == strategy.model_hash
     topology = analyze_topology(func, hardware)
-    edge2bit = build_edge_dict(func, strategy.bits, topology.edge_conds)
-    bits = [edge2bit[key] for key in edge2bit]
+    topology.generate_search_space()
+    edge2bit = topology.edge2bit
     print('origin bits: \n{}'.format(strategy.bits))
-    print_edge_dict(func, edge2bit)
 
     def collect_bits(node):
         sub_bits = []
@@ -129,13 +126,14 @@ def inspect_graph_statistic(func, hardware, strategy, dataset, ctx, target):
 
     for graph, sub_bits in funcs:
         print(graph)
-        node2idx = build_node_index(graph)
-        edge2idx = build_edge_index(graph)
+        
+        topology = analyze_topology(graph, hardware)
+        node2idx = topology.node2idx()
+        edge2idx = topology.edge2idx()
         num_nodes = len(node2idx)
         num_edges = len(edge2idx)
         print('num nodes: {}'.format(num_nodes))
         print('num edges: {}'.format(num_edges))
-        topology = analyze_topology(graph, hardware)
 
         # print('bits:')
         # print_edge_dict(graph, edge2bit)
@@ -146,14 +144,14 @@ def inspect_graph_statistic(func, hardware, strategy, dataset, ctx, target):
 
         quantizer = create_quantizer(graph, hardware, sub_strategy)
         simulated_graph = quantizer.simulate()
-        # quantized_graph = quantizer.quantize()
+        quantized_graph = quantizer.quantize()
 
         print('evaluate original graph')
         real_out = evaluate(graph, data_batch, ctx, target)[0][0]
         print('evaluate simulated graph')
         simulated_out = evaluate(simulated_graph, data_batch, ctx, target)[0][0]
         # print('evaluate quantized graph')
-        # quantized_out = evaluate(quantized_graph, data_batch, ctx, target)[0][0]
+        quantized_out = evaluate(quantized_graph, data_batch, ctx, target)[0][0]
         print('compare real_out vs. simulated_out')
         rel_err = compare(real_out, simulated_out)
         if rel_err > 0.05:

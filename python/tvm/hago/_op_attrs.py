@@ -291,11 +291,12 @@ def forward_op(ref_call, args):
 @register_realize("add")
 def realize_addition(node, in_types, out_types):
     lhs, rhs = node.args
+    from tvm.runtime import DataType
     dtype = out_types[0]
     if in_types[0] != dtype:
-        lhs = relay.cast(lhs, dtype)
+        lhs = relay.cast(lhs, DataType(dtype))
     if in_types[1] != dtype:
-        rhs = relay.cast(rhs, dtype)
+        rhs = relay.cast(rhs, DataType(dtype))
     return forward_op(node, [lhs, rhs])
 
 
