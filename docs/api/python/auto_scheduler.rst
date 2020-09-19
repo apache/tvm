@@ -22,3 +22,15 @@ tvm.auto_scheduler
    :imported-members:
    :autosummary:
 
+
+tvm.auto_scheduler.measure
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.auto_scheduler.measure
+
+.. autoclass:: tvm.auto_scheduler.measure.LocalRPCMeasureContext
+
+.. autoclass:: tvm.auto_scheduler.measure.LocalRunner
+
+.. autoclass:: tvm.auto_scheduler.measure.LocalBuilder
+
+.. autoclass:: tvm.auto_scheduler.measure.RPCRunner
