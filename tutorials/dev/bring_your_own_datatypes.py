@@ -55,13 +55,19 @@ If you would like to try this with your own datatype library, first bring the li
 
     ctypes.CDLL('my-datatype-lib.so', ctypes.RTLD_GLOBAL)
 
-
-A Simple TVM Program
---------------------
-
-We'll begin by writing a simple program in TVM; afterwards, we will re-write it to use custom datatypes.
+After you are done, please run the following code to make sure TVM is built correctly:
 """
 import tvm
+
+if tvm.support.libinfo()["USE_POSIT"] != "ON":
+    print("Please build TVM with the USE_POSIT flag set to true")
+    raise Exception("TVM not build with USE_POSIT flag")
+
+######################
+# A Simple TVM Program
+# --------------------
+#
+# We'll begin by writing a simple program in TVM; afterwards, we will re-write it to use custom datatypes.
 from tvm import relay
 
 # Our basic program: Z = X + Y
