@@ -125,7 +125,7 @@ tvm.testing.assert_allclose(out_np, out_tvm.asnumpy(), rtol=1e-3)
 evaluator = func.time_evaluator(func.entry_name, ctx, min_repeat_ms=500)
 print(
     "Execution time of this operator: %.3f ms"
-    % (evaluator(a_tvm, b_tvm, c_tvm, out_tvm).mean * 1000)
+    % (np.median(evaluator(a_tvm, b_tvm, c_tvm, out_tvm).results) * 1000)
 )
 
 

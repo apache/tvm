@@ -408,7 +408,7 @@ void PruneInvalidState(const SearchTask& task, Array<State>* states) {
   }
 
   if (pt == 0) {
-    LOG(INFO) << "All states are invalid.";
+    LOG(FATAL) << "Internal error: All states are invalid.";
   } else {
     states->resize(pt);
   }

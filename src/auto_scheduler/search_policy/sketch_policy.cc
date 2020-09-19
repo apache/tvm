@@ -172,9 +172,7 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
 
       // Infer bound. This is necessary for computing the correct ToStr() for redundancy check
       best_states = search_task->compute_dag.InferBound(best_states);
-      PruneInvalidState(search_task, &best_states);
       random_states = search_task->compute_dag.InferBound(random_states);
-      PruneInvalidState(search_task, &random_states);
 
       // Pick `num_measure_per_iter` states to measure, check hash to remove already measured state
       // Also pick some random states to do eps-greedy
