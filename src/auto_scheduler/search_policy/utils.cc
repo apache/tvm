@@ -67,6 +67,87 @@ Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id) {
   return spatial_split_step_ids;
 }
 
+std::vector<std::pair<int, int>> GetComputeLocationCandidates(const SearchTask& task,
+                                                              const State& state, int stage_id) {
+  int target_stage_id = GetSingleConsumerId(task, state, stage_id);
+  if (target_stage_id < 0) {
+    return {};
+  }
+  const Stage& target_stage = state->stages[target_stage_id];
+
+  std::vector<std::pair<int, int>> candidates;
+  bool target_compute_at_other = target_stage->compute_at == ComputeAtKind::kIter;
+  bool target_is_tiled = IsTiled(target_stage);
+
+  bool visited_reduce = false;
+  // Enumerate compute_at location at target_stage
+  // TODO(merrymercy): More analysis here to make smarter choices
+  for (size_t i = 0; i < target_stage->iters.size(); ++i) {
+    const Iterator& target_iter = target_stage->iters[i];
+    if (target_iter->iter_kind == IteratorKind::kReduction) {
+      visited_reduce = true;
+      if (!target_is_tiled) {  // Do not go into reduce iter
+        break;
+      }
+    } else if (target_iter->iter_kind == IteratorKind::kSpatial) {
+      if (visited_reduce) {  // Do not go into inner tile
+        break;
+      }
+    }
+
+    if (target_iter->annotation == IteratorAnnotation::kUnroll) {
+      // Do not go into the unroll region of const tensor indices
+      break;
+    }
+
+    if (GetExtent(target_iter) == 1) {
+      // Skip iterators with length of 1
+      continue;
+    }
+    if (target_compute_at_other && target_iter->iter_kind == IteratorKind::kSpatial &&
+        StrEndsWith(target_iter->name, ".0")) {
+      // Skip the first level iterators if target stage compute_at another stage
+      // In this case, the lengths of first level iterators are always one
+      continue;
+    }
+    candidates.emplace_back(target_stage_id, i);
+
+    if (state->attach_map->iter_to_attached_stages.count(std::make_pair(target_stage_id, i))) {
+      break;
+    }
+  }
+
+  // if the target_stage is already compute_at another stage X, try also compute_at X
+  // We call stage X as `target_target_stage`
+  if (target_compute_at_other) {
+    int target_target_stage_id;
+    target_target_stage_id = state->attach_map->stage_to_attach_iter.at(target_stage_id).first;
+    const Stage& target_target_stage = state->stages[target_target_stage_id];
+
+    for (size_t i = 0; i < target_target_stage->iters.size(); ++i) {
+      const Iterator& target_target_iter = target_target_stage->iters[i];
+      if (target_target_iter->iter_kind == IteratorKind::kReduction ||
+          state->attach_map->iter_to_attached_stages.count(
+              std::make_pair(target_target_stage_id, i))) {
+        break;
+      }
+
+      if (target_target_iter->annotation == IteratorAnnotation::kUnroll) {
+        // Do not go into the unroll region of const tensor indices
+        break;
+      }
+
+      if (GetExtent(target_target_iter) == 1) {  // skip iterators with length of 1
+        continue;
+      }
+
+      candidates.emplace_back(target_target_stage_id, i);
+    }
+  }
+
+  return candidates;
+}
+
 State DoMultiLevelTiling(const State& state, int stage_id, const std::string& format,
                          std::vector<int>* spatial_split_step_ids) {
   // Temporal object to be used if the input pointer is nullptr
@@ -327,7 +408,7 @@ void PruneInvalidState(const SearchTask& task, Array<State>* states) {
   }
 
   if (pt == 0) {
-    LOG(INFO) << "All states are invalid.";
+    LOG(FATAL) << "Internal error: All states are invalid.";
   } else {
     states->resize(pt);
   }

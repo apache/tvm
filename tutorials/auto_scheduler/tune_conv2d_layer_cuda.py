@@ -15,10 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Auto-scheduling matrix multiplication for CPU
-=============================================
+.. _auto-scheduler-conv-gpu:
+
+Auto-scheduling a convolution layer for GPU
+===========================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, \
             `Chengfan Jia <https://github.com/jcf94/>`_
+
 
 Different from the existing :ref:`autotvm <tutorials-autotvm-sec>` which relies on 
 manual templates to define the search space, the auto-scheduler does not require any templates.
@@ -27,61 +30,70 @@ any schedule commands or templates.
 The auto-scheduler can automatically generate a large
 search space and find a good schedule in the space.
 
-We use matrix multiplication as an example in this tutorial.
+We use a convolution layer as an example in this tutorial.
 """
 
 import numpy as np
 import tvm
-from tvm import te, testing, auto_scheduler
+from tvm import te, testing, auto_scheduler, topi
+from tvm.topi.testing import conv2d_nchw_python
 
 ######################################################################
 # Define the computation
 # ^^^^^^^^^^^^^^^^^^^^^^
-# To begin with, let us define the computation of a matmul with bias add.
+# To begin with, let us define the computation of a convolution layer.
 # The function should return the list of input/output tensors.
 # From these tensors, the auto-scheduler can get the whole computational graph.
 
 
 @auto_scheduler.register_workload
-def matmul_add(N, L, M, dtype):
-    A = te.placeholder((N, L), name="A", dtype=dtype)
-    B = te.placeholder((L, M), name="B", dtype=dtype)
-    C = te.placeholder((N, M), name="C", dtype=dtype)
-
-    k = te.reduce_axis((0, L), name="k")
-    matmul = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name="matmul")
-    out = te.compute((N, M), lambda i, j: matmul[i, j] + C[i, j], name="out")
-
-    return [A, B, C, out]
+def conv2d_layer(N, H, W, CO, CI, KH, KW, stride, padding):
+    data = te.placeholder((N, CI, H, W), name="data")
+    kernel = te.placeholder((CO, CI, KH, KW), name="kernel")
+    bias = te.placeholder((1, CO, 1, 1), name="bias")
+    conv = topi.nn.conv2d_nchw(data, kernel, stride, padding, dilation=1, out_dtype="float32")
+    out = topi.nn.relu(conv + bias)
+    return [data, kernel, bias, out]
 
 
 ######################################################################
 # Create the search task
 # ^^^^^^^^^^^^^^^^^^^^^^
-# We then create a search task with N=L=M=128 and dtype="float32"
-# If your machine supports avx instructions, you can
-# - replace "llvm" below with "llvm -mcpu=core-avx2" to enable AVX2
-# - replace "llvm" below with "llvm -mcpu=skylake-avx512" to enable AVX-512
+# We then create a search task for the last convolution layer in the resnet.
 
-target = tvm.target.Target("llvm")
-task = auto_scheduler.create_task(matmul_add, (128, 128, 128, "float32"), target)
+target = tvm.target.Target("cuda")
+
+# the last layer in resnet
+N, H, W, CO, CI, KH, KW, strides, padding = 1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)
+task = auto_scheduler.create_task(conv2d_layer, (N, H, W, CO, CI, KH, KW, strides, padding), target)
 
 # Inspect the computational graph
 print(task.compute_dag)
 
 ######################################################################
-# Next, we set parameters for the auto-scheduler.
+# Next, we set parameters for the auto-scheduler. These parameters
+# mainly specify how we do the measurement during the search and auto-tuning.
 #
+# * `measure_ctx` launches a different process for measurement. This
+#   provides an isolation. It can protect the master process from GPU crashes
+#   happended during measurement and avoid other runtime conflicts.
+# * `min_repeat_ms` defines the minimum duration of one "repeat" in every measurement.
+#   This can warmup the GPU, which is necessary to get accurate measurement results.
+#   Typically, we recommend a value > 300 ms.
 # * `num_measure_trials` is the number of measurement trials we can use during the search.
 #   We only make 10 trials in this tutorial for a fast demonstration. In practice, 1000 is a
 #   good value for the search to converge. You can do more trials according to your time budget.
-# * In addition, we use `RecordToFile` to dump measurement records into a file `matmul.json`.
+# * In addition, we use `RecordToFile` to dump measurement records into a file `conv2d.json`.
 #   The measurement records can be used to query the history best, resume the search,
 #   and do more analyses later.
-# * see :any:`auto_scheduler.auto_schedule.TuningOptions`: for more parameters
+# * see :any:`auto_scheduler.auto_schedule.TuningOptions`:,
+#   :any:`auto_scheduler.measure.LocalRPCMeasureContext` for more parameters.
 
+measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
 tune_option = auto_scheduler.TuningOptions(
-    num_measure_trials=10, measure_callbacks=[auto_scheduler.RecordToFile("matmul.json")]
+    num_measure_trials=10,
+    runner=measure_ctx.runner,
+    measure_callbacks=[auto_scheduler.RecordToFile("conv2d.json")],
 )
 
 ######################################################################
@@ -96,7 +108,7 @@ sch, args = auto_scheduler.auto_schedule(task, tuning_options=tune_option)
 ######################################################################
 # We can lower the schedule to see the IR after auto-scheduling.
 # The auto-scheduler correctly performs optimizations including multi-level tiling,
-# parallelization, vectorization, unrolling and operator fusion.
+# cooperative fetching, unrolling and operator fusion.
 
 print(tvm.lower(sch, args, simple_mode=True))
 
@@ -105,35 +117,37 @@ print(tvm.lower(sch, args, simple_mode=True))
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 # We build the binary and check its correctness and performance.
 
-func = tvm.build(sch, args)
-a_np = np.random.uniform(size=(128, 128)).astype(np.float32)
-b_np = np.random.uniform(size=(128, 128)).astype(np.float32)
-c_np = np.random.uniform(size=(128, 128)).astype(np.float32)
-out_np = a_np.dot(b_np) + c_np
+func = tvm.build(sch, args, target)
 
-ctx = tvm.cpu()
-a_tvm = tvm.nd.array(a_np, ctx=ctx)
-b_tvm = tvm.nd.array(b_np, ctx=ctx)
-c_tvm = tvm.nd.array(c_np, ctx=ctx)
+# check correctness
+data_np = np.random.uniform(size=(N, CI, H, W)).astype(np.float32)
+weight_np = np.random.uniform(size=(CO, CI, KH, KW)).astype(np.float32)
+bias_np = np.random.uniform(size=(1, CO, 1, 1)).astype(np.float32)
+conv_np = conv2d_nchw_python(data_np, weight_np, strides, padding)
+out_np = np.maximum(conv_np + bias_np, 0.0)
+
+ctx = tvm.gpu()
+data_tvm = tvm.nd.array(data_np, ctx=ctx)
+weight_tvm = tvm.nd.array(weight_np, ctx=ctx)
+bias_tvm = tvm.nd.array(bias_np, ctx=ctx)
 out_tvm = tvm.nd.empty(out_np.shape, ctx=ctx)
-func(a_tvm, b_tvm, c_tvm, out_tvm)
+func(data_tvm, weight_tvm, bias_tvm, out_tvm)
 
 # Check results
 tvm.testing.assert_allclose(out_np, out_tvm.asnumpy(), rtol=1e-3)
 
-# Evaluate execution time.
+# Evaluate execution time
 evaluator = func.time_evaluator(func.entry_name, ctx, min_repeat_ms=500)
 print(
     "Execution time of this operator: %.3f ms"
-    % (np.median(evaluator(a_tvm, b_tvm, c_tvm, out_tvm).results) * 1000)
+    % (np.median(evaluator(data_tvm, weight_tvm, bias_tvm, out_tvm).results) * 1000)
 )
-
 
 ######################################################################
 # Using the record file
 # ^^^^^^^^^^^^^^^^^^^^^
 # During the search, all measuremnt records are dumpped into the record
-# file "matmul.json". The measurement records can be used to re-apply search results,
+# file "conv2d.json". The measurement records can be used to re-apply search results,
 # resume the search, and perform other analyses.
 
 ######################################################################
@@ -141,7 +155,7 @@ print(
 # print the equivalent python schedule API, and build the binary again.
 
 # Load the measuremnt record for the best schedule
-inp, res = auto_scheduler.load_best("matmul.json", task.workload_key)
+inp, res = auto_scheduler.load_best("conv2d.json", task.workload_key)
 
 # Print equivalent python schedule API. This can be used for debugging and
 # learning the behavior of the auto-scheduler.
@@ -151,7 +165,7 @@ print(task.compute_dag.print_python_code_from_state(inp.state))
 # Rebuild the binary. This shows how you can apply the best schedule from a
 # log file without reruning the search again.
 sch, args = task.compute_dag.apply_steps_from_state(inp.state)
-func = tvm.build(sch, args)
+func = tvm.build(sch, args, target)
 
 ######################################################################
 # A more complicated example is to resume the search.
@@ -160,34 +174,18 @@ func = tvm.build(sch, args)
 # In the example below we resume the status and do more 5 trials.
 
 
-def resume_search(task, log_file):
-    cost_model = auto_scheduler.XGBModel()
-    cost_model.update_from_file(log_file)
-    search_policy = auto_scheduler.SketchPolicy(
-        task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file)]
-    )
-    tune_option = auto_scheduler.TuningOptions(
-        num_measure_trials=5, measure_callbacks=[auto_scheduler.RecordToFile(log_file)]
-    )
-    sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
+log_file = "conv2d.json"
+cost_model = auto_scheduler.XGBModel()
+cost_model.update_from_file(log_file)
+search_policy = auto_scheduler.SketchPolicy(
+    task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file)]
+)
+tune_option = auto_scheduler.TuningOptions(
+    num_measure_trials=5,
+    runner=measure_ctx.runner,
+    measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+)
+sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
 
-
-# resume_search(task, "matmul.json")
-
-######################################################################
-# .. note::
-#   We cannot run the line above because of the conflict between
-#   python's multiprocessing and tvm's thread pool.
-#   After running a tvm generated binary the python's multiprocessing library
-#   will hang forever. You have to make sure that you don't run any tvm
-#   generated binaries before calling auot-scheduler's search.
-#   To run the function above, you should comment out all code in
-#   "Check correctness and evaluate performance" section.
-#
-#   You should be careful about this problem in your applications.
-#   There are other workarounds for this problem.
-#   For example, you can start a new thread/process (with the builtin python library
-#   threading or multiprocessing) and run the tvm binaries in the new thread/process.
-#   This provides an isolation and avoids the conflict in the main thread/process.
-#   You can also use :any:`auto_scheduler.measure.LocalRPCMeasureContext` for auto-scheduler,
-#   as shown in the GPU tutorial (:ref:`auto-scheduler-conv-gpu`).
+# kill the measurement process
+del measure_ctx

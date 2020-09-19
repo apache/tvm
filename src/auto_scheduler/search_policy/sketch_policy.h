@@ -34,6 +34,7 @@
 #include <tvm/auto_scheduler/cost_model.h>
 #include <tvm/auto_scheduler/search_policy.h>
 
+#include <memory>
 #include <set>
 #include <string>
 #include <unordered_set>
@@ -88,15 +89,15 @@ struct SketchParamKey {
 class SketchPolicyNode : public SearchPolicyNode {
  public:
   /*! \brief The cost model to estimate the complete schedules. */
-  CostModel schedule_cost_model;
+  CostModel program_cost_model;
   /*! \brief The parameters map for this search policy. */
   Map<String, ObjectRef> params;
   /*! \brief The rules to generate sketches. */
   std::vector<SketchGenerationRule*> sketch_rules;
-  /*! \brief The rules to generate initial states. */
+  /*! \brief The rules to generate initial population. */
   std::vector<PopulationGenerationRule*> init_rules;
-  /*! \brief The rules to mutate states. */
-  std::vector<PopulationMutationRule*> mutation_rules;
+  /*! \brief The rules to mutate states in the evolutionary search. */
+  std::vector<std::shared_ptr<PopulationMutationRule>> mutation_rules;
   /*! \brief Random generator. */
   std::mt19937 rand_gen;
   /*! \brief Memorize split space for Split. */
@@ -154,6 +155,9 @@ class SketchPolicyNode : public SearchPolicyNode {
 
   /*! \brief The number of states to measure per iteration. */
   int num_measure_per_iter_;
+
+  /*! \brief The cached sketches */
+  Array<State> sketch_cache_;
 };
 
 /*!
@@ -165,14 +169,14 @@ class SketchPolicy : public SearchPolicy {
   /*!
    * \brief The constructor.
    * \param task  The SearchTask for the computation declaration.
-   * \param schedule_cost_model The cost model for complete programs.
+   * \param program_cost_model The cost model for complete programs.
    * \param params The parameters map for this search process.
    * \param seed The random seed of this search process.
    * \param verbose Verbose level. 0 for silent, 1 to output information during schedule
    * search.
    * \param init_search_callbacks SearchCallback to be called before schedule search.
    */
-  SketchPolicy(SearchTask task, CostModel schedule_cost_model, Map<String, ObjectRef> params,
+  SketchPolicy(SearchTask task, CostModel program_cost_model, Map<String, ObjectRef> params,
                int seed, int verbose, Optional<Array<SearchCallback>> init_search_callbacks);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SketchPolicy, SearchPolicy, SketchPolicyNode);
