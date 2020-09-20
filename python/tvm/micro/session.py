@@ -22,9 +22,13 @@ import time
 
 from .._ffi import get_global_func
 from ..contrib import graph_runtime
-from .base import _rpc_connect
 from ..rpc import RPCSession
 from .transport import TransportLogger
+
+try:
+    from .base import _rpc_connect
+except ImportError:
+    raise ImportError("micro tvm is not enabled. Set USE_MICRO to ON in config.cmake")
 
 
 class Session:

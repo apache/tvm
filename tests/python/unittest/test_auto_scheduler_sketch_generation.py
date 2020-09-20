@@ -25,6 +25,7 @@ from tvm.auto_scheduler.loop_state import Stage
 
 from test_auto_scheduler_common import (
     matmul_auto_scheduler_test,
+    double_matmul_auto_scheduler_test,
     conv2d_nchw_bn_relu_auto_scheduler_test,
     max_pool2d_auto_scheduler_test,
     min_nm_auto_scheduler_test,
@@ -73,9 +74,9 @@ def assert_has_cross_thread_reduction(state, stage_id):
 def test_cpu_matmul_sketch():
     sketches = generate_sketches(matmul_auto_scheduler_test, (512, 512, 512), "llvm")
     """ 3 multi-level tiling sketches
-        0 - Multi-level tiling
-        1 - Multi-level tiling with cache write on position 0
-        2 - Multi-level tiling with cache write on position 1
+        No.0 : Multi-level tiling
+        No.1 : Multi-level tiling with cache write on position 0
+        No.2 : Multi-level tiling with cache write on position 1
     """
     assert len(sketches) == 3
     # Sketch 0
@@ -92,11 +93,11 @@ def test_cpu_matmul_sketch():
 
     sketches = generate_sketches(matmul_auto_scheduler_test, (8, 8, 512), "llvm")
     """ 2 rfactor sketches + 3 multi-level tiling sketches
-        0 - Rfactor with factor position 0
-        1 - Rfactor with factor position 1
-        2 - Multi-level tiling
-        3 - Multi-level tiling with cache write on position 0
-        4 - Multi-level tiling with cache write on position 1
+        No.0 : Rfactor with factor position 0
+        No.1 : Rfactor with factor position 1
+        No.2 : Multi-level tiling
+        No.3 : Multi-level tiling with cache write on position 0
+        No.4 : Multi-level tiling with cache write on position 1
     """
     assert len(sketches) == 5
     # Sketch 0
@@ -116,15 +117,20 @@ def test_cpu_matmul_sketch():
     assert_compute_at_condition(sketches[4].stages[2], "iter")
     assert sketches[3] != sketches[4]
 
+    sketches = generate_sketches(double_matmul_auto_scheduler_test, (512,), "llvm")
+    """ 3 multi-level tiling sketches for one matmul, so 3 * 3 = 9 sketches in total """
+    assert len(sketches) == 9
+    assert_is_tiled(sketches[8].stages[5])
+
 
 def test_cpu_conv2d_bn_relu_sketch():
     sketches = generate_sketches(
         conv2d_nchw_bn_relu_auto_scheduler_test, (1, 56, 56, 512, 512, 3, 1, 1), "llvm"
     )
     """ 3 multi-level tiling sketches
-        0 - Conv2d multi-level tiling with fusion on position 0
-        1 - Conv2d multi-level tiling with fusion on position 1
-        2 - Conv2d multi-level tiling without fusion
+        No.0 : Conv2d multi-level tiling with fusion on position 0
+        No.1 : Conv2d multi-level tiling with fusion on position 1
+        No.2 : Conv2d multi-level tiling without fusion
     """
     assert len(sketches) == 3
     # Sketch 0
@@ -164,9 +170,9 @@ def test_cpu_max_pool2d_sketch():
 def test_cpu_min_sketch():
     sketches = generate_sketches(min_nm_auto_scheduler_test, (10, 1024), "llvm")
     """ 2 rfactor sketches + 1 default sketch
-        0 - Rfactor with factor position 0
-        1 - Rfactor with factor position 1
-        2 - Default sketch
+        No.0 : Rfactor with factor position 0
+        No.1 : Rfactor with factor position 1
+        No.2 : Default sketch
     """
     assert len(sketches) == 3
     # Sketch 0
@@ -209,9 +215,9 @@ def test_cpu_conv2d_winograd_sketch():
         conv2d_winograd_nhwc_auto_scheduler_test, (1, 28, 28, 128, 128, 3, 1, 1), "llvm"
     )
     """ 3 multi-level tiling sketches
-        0 - Bgemm multi-level tiling
-        1 - Bgemm multi-level tiling with cache write on position 0
-        2 - Bgemm multi-level tiling with cache write on position 1
+        No.0 : Bgemm multi-level tiling
+        No.1 : Bgemm multi-level tiling with cache write on position 0
+        No.2 : Bgemm multi-level tiling with cache write on position 1
     """
     assert len(sketches) == 3
     # Sketch 0
@@ -276,6 +282,12 @@ def test_cuda_matmul_sketch():
     assert_is_tiled(sketches[1].stages[4])
     assert_compute_at_condition(sketches[1].stages[4], "iter")
     assert_is_tiled(sketches[1].stages[5])
+
+    sketches = generate_sketches(double_matmul_auto_scheduler_test, (512,), "cuda")
+    """ 1 multi-level tiling sketch for one matmul, so 1 x 1 = 1 sketch in total """
+    assert len(sketches) == 1
+    assert_compute_at_condition(sketches[0].stages[5], "root")
+    assert_compute_at_condition(sketches[0].stages[6], "iter")
 
 
 @tvm.testing.requires_cuda

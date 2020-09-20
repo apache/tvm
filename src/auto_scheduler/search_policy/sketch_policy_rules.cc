@@ -34,6 +34,9 @@
 namespace tvm {
 namespace auto_scheduler {
 
+static std::vector<int> auto_unroll_configs_cpu = {0, 16, 64, 512};
+static std::vector<int> auto_unroll_configs_gpu = {0, 16, 64, 512, 1024};
+
 /********** Sketch Generation Rule **********/
 /********** RuleSkipStage **********/
 
@@ -472,9 +475,8 @@ PopulationGenerationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* p
   return ResultKind::kValid;
 }
 
-PopulationGenerationRule::ResultKind MutateComputeLocationCommon(SketchPolicyNode* policy,
-                                                                 State* state,
-                                                                 bool infer_bound = true) {
+PopulationGenerationRule::ResultKind InitChangeComputeLocation::Apply(SketchPolicyNode* policy,
+                                                                      State* state) const {
   if (GetIntParam(policy->params, SketchParamKey::disable_change_compute_location)) {
     return PopulationGenerationRule::ResultKind::kValid;
   }
@@ -490,81 +492,8 @@ PopulationGenerationRule::ResultKind MutateComputeLocationCommon(SketchPolicyNod
       continue;
     }
 
-    int target_stage_id = GetSingleConsumerId(policy->search_task, *state, stage_id);
-    if (target_stage_id < 0) {
-      continue;
-    }
-    const Stage& target_stage = (*state)->stages[target_stage_id];
-
-    std::vector<std::pair<int, int>> candidates;
-    bool target_compute_at_other = target_stage->compute_at == ComputeAtKind::kIter;
-    bool target_is_tiled = IsTiled(target_stage);
-
-    bool visited_reduce = false;
-    // enumerate compute_at location at target_stage
-    // TODO(merrymercy): More analysis here to make smarter choices
-    for (size_t i = 0; i < target_stage->iters.size(); ++i) {
-      const Iterator& target_iter = target_stage->iters[i];
-      if (target_iter->iter_kind == IteratorKind::kReduction) {
-        visited_reduce = true;
-        if (!target_is_tiled) {  // Do not go into reduce iter
-          break;
-        }
-      } else if (target_iter->iter_kind == IteratorKind::kSpatial) {
-        if (visited_reduce) {  // Do not go into inner tile
-          break;
-        }
-      }
-
-      if (target_iter->annotation == IteratorAnnotation::kUnroll) {
-        // Do not go into the unroll region of const tensor indices
-        break;
-      }
-
-      if (GetExtent(target_iter) == 1) {
-        // Skip iterators with length of 1
-        continue;
-      }
-      if (target_compute_at_other && target_iter->iter_kind == IteratorKind::kSpatial &&
-          StrEndsWith(target_iter->name, ".0")) {
-        // Skip the first level iterators if target stage compute_at another stage
-        // In this case, the lengths of first level iterators are always one
-        continue;
-      }
-      candidates.emplace_back(target_stage_id, i);
-
-      if ((*state)->attach_map->iter_to_attached_stages.count(std::make_pair(target_stage_id, i))) {
-        break;
-      }
-    }
-
-    // if the target_stage is already compute_at another stage X, try also compute_at X
-    // We call stage X as `target_target_stage`
-    if (target_compute_at_other) {
-      int target_target_stage_id;
-      target_target_stage_id = (*state)->attach_map->stage_to_attach_iter.at(target_stage_id).first;
-      const Stage& target_target_stage = (*state)->stages[target_target_stage_id];
-
-      for (size_t i = 0; i < target_target_stage->iters.size(); ++i) {
-        const Iterator& target_target_iter = target_target_stage->iters[i];
-        if (target_target_iter->iter_kind == IteratorKind::kReduction ||
-            (*state)->attach_map->iter_to_attached_stages.count(
-                std::make_pair(target_target_stage_id, i))) {
-          break;
-        }
-
-        if (target_target_iter->annotation == IteratorAnnotation::kUnroll) {
-          // Do not go into the unroll region of const tensor indices
-          break;
-        }
-
-        if (GetExtent(target_target_iter) == 1) {  // skip iterators with length of 1
-          continue;
-        }
-
-        candidates.emplace_back(target_target_stage_id, i);
-      }
-    }
+    std::vector<std::pair<int, int>> candidates =
+        GetComputeLocationCandidates(policy->search_task, *state, stage_id);
 
     int choice = (policy->rand_gen)() % (candidates.size() + 2);
 
@@ -585,15 +514,8 @@ PopulationGenerationRule::ResultKind MutateComputeLocationCommon(SketchPolicyNod
     }
   }
 
-  if (infer_bound) {
-    *state = policy->search_task->compute_dag.InferBound(*state);
-  }
+  *state = policy->search_task->compute_dag.InferBound(*state);
   return PopulationGenerationRule::ResultKind::kValid;
-}
-
-PopulationGenerationRule::ResultKind InitChangeComputeLocation::Apply(SketchPolicyNode* policy,
-                                                                      State* state) const {
-  return MutateComputeLocationCommon(policy, state, true);
 }
 
 PopulationGenerationRule::ResultKind InitParallel::Apply(SketchPolicyNode* policy,
@@ -663,9 +585,8 @@ PopulationGenerationRule::ResultKind InitParallel::Apply(SketchPolicyNode* polic
 
 PopulationGenerationRule::ResultKind InitUnroll::Apply(SketchPolicyNode* policy,
                                                        State* state) const {
-  std::vector<int> auto_unroll_configs = IsGPUTask(policy->search_task)
-                                             ? std::vector<int>({0, 16, 64, 512, 1024})
-                                             : std::vector<int>({0, 16, 64, 512});
+  std::vector<int>& auto_unroll_configs =
+      IsGPUTask(policy->search_task) ? auto_unroll_configs_gpu : auto_unroll_configs_cpu;
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
     // Skip the inlined stage and placeholder stage
@@ -801,6 +722,10 @@ PopulationGenerationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* pol
 
     // Deal with the cross-thread reduction generated by RuleCrossThreadReduction
     if (HasCrossThreadReduction(*state, stage_id)) {
+      if (stage->compute_at != ComputeAtKind::kRoot) {
+        continue;
+      }
+
       Iterator fused_it;
       *state = std::move(FuseAllOuterSpaceIterators(*state, stage_id, &fused_it));
       state->bind(stage_id, fused_it, IteratorAnnotation::kBlockX);
@@ -983,6 +908,7 @@ PopulationGenerationRule::ResultKind MutateTileSize::Apply(SketchPolicyNode* pol
       continue;
     }
 
+    // Divide one factor from lengths[src_idx] and multiply it to lengths[dst_idx]
     size_t dst_idx = random_perm[(i + 1) % random_perm.size()];
     const std::vector<int>& factors = policy->split_memo.GetFactors(length);
     CHECK_GE(factors.size(), 1);
@@ -1017,6 +943,8 @@ PopulationGenerationRule::ResultKind MutateTileSize::Apply(SketchPolicyNode* pol
       }
     }
 
+    CHECK_LE(GetIntImm(new_lengths.back()), max_innermost_split_factor);
+
     StateNode* pstate = state->CopyOnWrite();
     pstate->transform_steps.Set(
         step_id, SplitStep(ps->stage_id, ps->iter_id, ps->extent,
@@ -1027,39 +955,98 @@ PopulationGenerationRule::ResultKind MutateTileSize::Apply(SketchPolicyNode* pol
   return ResultKind::kInvalid;
 }
 
-PopulationGenerationRule::ResultKind MutateMaxUnrollFactor::Apply(SketchPolicyNode* policy,
-                                                                  State* state) const {
+PopulationGenerationRule::ResultKind MutateAutoUnroll::Apply(SketchPolicyNode* policy,
+                                                             State* state) const {
   // Extract all auto_unroll_max_step pragma steps.
-  std::vector<int> annotate_steps;
+  std::vector<int> pragma_steps;
   for (size_t i = 0; i < (*state)->transform_steps.size(); ++i) {
     if (auto ps = (*state)->transform_steps[i].as<PragmaStepNode>()) {
       if (StrStartsWith(ps->pragma_type, "auto_unroll_max_step")) {
-        annotate_steps.push_back(i);
+        pragma_steps.push_back(i);
       }
     }
   }
-  if (annotate_steps.empty()) {
+  if (pragma_steps.empty()) {
     return ResultKind::kInvalid;
   }
 
-  // Random pick up one unroll factor candidate.
-  auto cands = (IsGPUTask(policy->search_task)) ? &gpu_unroll_cands_ : &cpu_unroll_cands_;
-  auto new_factor = std::to_string((*cands)[(policy->rand_gen)() % cands->size()]);
+  std::vector<int>& auto_unroll_configs =
+      IsGPUTask(policy->search_task) ? auto_unroll_configs_gpu : auto_unroll_configs_cpu;
 
-  // Random pick up and mutate an unroll step.
-  auto step_id = annotate_steps[(policy->rand_gen)() % annotate_steps.size()];
+  // Randomly pick up an auto unroll pragma step
+  auto step_id = pragma_steps[(policy->rand_gen)() % pragma_steps.size()];
   auto ps = (*state)->transform_steps[step_id].as<PragmaStepNode>();
   CHECK(ps);
+
+  // Mutate its value to a random candidates
+  auto val = std::to_string(auto_unroll_configs[(policy->rand_gen)() % auto_unroll_configs.size()]);
   StateNode* pstate = state->CopyOnWrite();
-  pstate->transform_steps.Set(step_id,
-                              PragmaStep(ps->stage_id, ps->iter_id,
-                                         std::string("auto_unroll_max_step") + "$" + new_factor));
+  pstate->transform_steps.Set(step_id, PragmaStep(ps->stage_id, ps->iter_id,
+                                                  std::string("auto_unroll_max_step") + "$" + val));
   return ResultKind::kValid;
 }
 
 PopulationGenerationRule::ResultKind MutateComputeLocation::Apply(SketchPolicyNode* policy,
                                                                   State* state) const {
-  return MutateComputeLocationCommon(policy, state, false);
+  if (GetIntParam(policy->params, SketchParamKey::disable_change_compute_location)) {
+    return PopulationGenerationRule::ResultKind::kInvalid;
+  }
+
+  // Extract all compute_at steps.
+  std::vector<int> compute_at_steps;
+  for (size_t s = 0; s < (*state)->transform_steps.size(); ++s) {
+    if (auto ps = (*state)->transform_steps[s].as<ComputeAtStepNode>()) {
+      int stage_inc = GetTargetStageIDInState(*state, s) - ps->stage_id;
+
+      if (IsTiled((*state)->stages[ps->stage_id + stage_inc])) {
+        continue;
+      }
+
+      if (NeedsMultilevelTiling(policy->search_task, *state, ps->stage_id + stage_inc)) {
+        continue;
+      }
+      compute_at_steps.push_back(s);
+    }
+  }
+  if (compute_at_steps.empty()) {
+    return PopulationGenerationRule::ResultKind::kInvalid;
+  }
+
+  // Randomly pick one step
+  size_t step_id = compute_at_steps[(policy->rand_gen)() % compute_at_steps.size()];
+  auto ps = (*state)->transform_steps[step_id].as<ComputeAtStepNode>();
+  int stage_inc = GetTargetStageIDInState(*state, step_id) - ps->stage_id;
+  CHECK(ps != nullptr);
+
+  std::vector<std::pair<int, int>> candidates =
+      GetComputeLocationCandidates(policy->search_task, *state, ps->stage_id + stage_inc);
+
+  if (candidates.empty()) {
+    return PopulationGenerationRule::ResultKind::kInvalid;
+  }
+
+  int choice = (policy->rand_gen)() % (candidates.size());
+  int new_compute_at_stage_id = candidates[choice].first;
+  int new_compute_at_iter_id = candidates[choice].second;
+
+  // Replay a new state.
+  State tmp_s = policy->search_task->compute_dag->init_state;
+  for (size_t s = 0; s < (*state)->transform_steps.size(); ++s) {
+    if (s == step_id) {
+      tmp_s.CopyOnWrite()->transform_steps.push_back(
+          ComputeAtStep(ps->stage_id, new_compute_at_stage_id - stage_inc, new_compute_at_iter_id));
+    } else {
+      tmp_s.CopyOnWrite()->transform_steps.push_back((*state)->transform_steps[s]);
+    }
+    try {
+      StepApplyToState(tmp_s->transform_steps.back(), &tmp_s, policy->search_task->compute_dag);
+    } catch (dmlc::Error& e) {
+      return PopulationGenerationRule::ResultKind::kInvalid;
+    }
+  }
+
+  *state = tmp_s;
+  return PopulationGenerationRule::ResultKind::kValid;
 }
 
 PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* policy,

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""
+r"""
 Distributed measurement infrastructure to measure the runtime costs of tensor programs.
 
 These functions are responsible for building the tvm module, uploading it to
@@ -25,8 +25,8 @@ We separate the measurement into two steps: build and run.
 A builder builds the executable binary files and a runner runs the binary files to
 get the measurement results. The flow of data structures is
 
-                `ProgramBuilder`                 `ProgramRunner`
-`MeasureInput` -----------------> `BuildResult` ----------------> `MeasureResult`
+  .                `ProgramBuilder`                 `ProgramRunner`
+  `MeasureInput` -----------------> `BuildResult` ----------------> `MeasureResult`
 
 We implement these in python to utilize python's multiprocessing and error handling.
 """
@@ -222,7 +222,7 @@ class LocalRunner(ProgramRunner):
         where the first "1" is warm up and will be discarded.
         The returned result contains `repeat` costs,
         each of which is an average of `number` costs.
-    min_repeat_ms : int = 0
+    min_repeat_ms : int = 100
         The minimum duration of one `repeat` in milliseconds.
         By default, one `repeat` contains `number` runs. If this parameter is set,
         the parameters `number` will be dynamically adjusted to meet the
@@ -244,7 +244,7 @@ class LocalRunner(ProgramRunner):
         timeout=10,
         number=3,
         repeat=1,
-        min_repeat_ms=0,
+        min_repeat_ms=100,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
     ):
@@ -289,7 +289,7 @@ class RPCRunner(ProgramRunner):
         where the first "1" is warm up and will be discarded.
         The returned result contains `repeat` costs,
         each of which is an average of `number` costs.
-    min_repeat_ms : int = 0
+    min_repeat_ms : int = 100
         The minimum duration of one `repeat` in milliseconds.
         By default, one `repeat` contains `number` runs. If this parameter is set,
         the parameters `number` will be dynamically adjusted to meet the
@@ -316,7 +316,7 @@ class RPCRunner(ProgramRunner):
         timeout=10,
         number=3,
         repeat=1,
-        min_repeat_ms=0,
+        min_repeat_ms=100,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
     ):
