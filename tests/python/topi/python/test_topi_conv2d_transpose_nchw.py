@@ -62,23 +62,14 @@ def verify_conv2d_transpose_nchw(
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(
-                device, _conv2d_transpose_nchw_implement
-            )
-            B = fcompute(
-                A,
-                W,
-                [stride_height, stride_width],
-                [pad_top, pad_left, pad_bottom, pad_right],
-                A.dtype,
-                output_padding,
-            )
-            C = topi.nn.relu(B)
-            s1 = fschedule([B])
-            s2 = fschedule([C])
+    def check(fcompute, fschedule, device, ctx):
+        B = fcompute(A, W,
+                     [stride_height, stride_width],
+                     [pad_top, pad_left, pad_bottom, pad_right],
+                     A.dtype, output_padding)
+        C = topi.nn.relu(B)
+        s1 = fschedule([B])
+        s2 = fschedule([C])
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
@@ -91,6 +82,18 @@ def verify_conv2d_transpose_nchw(
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
+    def check_generic(device, ctx):
+        print("Running generic on target: %s" % device)
+        with tvm.target.Target(device):
+            fcompute, fschedule = _conv2d_transpose_nchw_implement["generic"]
+            check(fcompute, fschedule, device, ctx)
+    check_generic("llvm", tvm.cpu(0))
+
+    def check_device(device, ctx):
+        print("Running on target: %s" % device)
+        with tvm.target.Target(device):
+            fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv2d_transpose_nchw_implement)
+            check(fcompute, fschedule, device, ctx)
     for device, ctx in tvm.testing.enabled_targets():
         check_device(device, ctx)
 
