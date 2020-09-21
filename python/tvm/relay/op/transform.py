@@ -1245,8 +1245,9 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
     super_diag_right_align = align[:5] == "RIGHT"
     sub_diag_right_align = align[-5:] == "RIGHT"
 
-    return _make.matrix_set_diag(data, diagonal, k_one, k_two, super_diag_right_align,
-                                 sub_diag_right_align)
+    return _make.matrix_set_diag(
+        data, diagonal, k_one, k_two, super_diag_right_align, sub_diag_right_align
+    )
 
 
 def adv_index(inputs):

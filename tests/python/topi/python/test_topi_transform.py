@@ -719,6 +719,7 @@ def verify_matrix_set_diag(input_shape, diagonal_shape, dtype, k=0, align="RIGHT
     input = te.placeholder(shape=input_shape, name="input", dtype=dtype)
     diagonal = te.placeholder(shape=diagonal_shape, name="diagonal", dtype=dtype)
     matrix_set_diag_result = topi.transform.matrix_set_diag(input, diagonal, k, align)
+
     def check_device(device, ctx):
         ctx = tvm.context(device, 0)
         print("Running on target: %s" % device)
@@ -1161,7 +1162,7 @@ def test_sparse_to_dense():
 
 @tvm.testing.uses_gpu
 def test_matrix_set_diag():
-    for dtype in ['float32', 'int32']:
+    for dtype in ["float32", "int32"]:
         verify_matrix_set_diag((2, 2), (2,), dtype)
         verify_matrix_set_diag((4, 3, 3), (4, 3), dtype)
         verify_matrix_set_diag((2, 3, 4), (2, 3), dtype, 1)

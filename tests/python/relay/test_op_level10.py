@@ -526,10 +526,11 @@ def test_matrix_set_diag():
                 out_relay = intrp.evaluate(func)(input_np, diagonal_np)
                 tvm.testing.assert_allclose(out_relay.asnumpy(), out_np)
 
-    _verify((2, 2), (2,), 'float32')
-    _verify((4, 3, 3), (4, 3), 'int32')
-    _verify((2, 3, 4), (2, 3), 'float32', 1)
-    _verify((2, 3, 4), (2, 4, 3), 'int32', (-1, 2), "LEFT_RIGHT")
+    _verify((2, 2), (2,), "float32")
+    _verify((4, 3, 3), (4, 3), "int32")
+    _verify((2, 3, 4), (2, 3), "float32", 1)
+    _verify((2, 3, 4), (2, 4, 3), "int32", (-1, 2), "LEFT_RIGHT")
+
 
 if __name__ == "__main__":
     test_adaptive_pool()
