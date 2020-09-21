@@ -1078,7 +1078,7 @@ class FallbackConfigEntity(ConfigSpace):
 
         Parameters
         ----------
-        ref_log: List of (MeasureInput, MeasureResult)
+        ref_log: List of (autotvm.measure.MeasureInput, autotvm.measure.MeasureResult)
             The reference log
         """
         knob_names = [x for x in self.space_map.keys() if isinstance(self.space_map[x], SplitSpace)]
