@@ -15,9 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument, no-else-return, E1102
-"""Vitis-AI codegen supported operators"""
+"""Vitis-AI codegen annotation of supported operators"""
 
 import numpy as np
+
+import pyxir
+import pyxir.frontend.tvm
 
 from tvm import relay
 import tvm._ffi
@@ -25,34 +28,24 @@ from tvm.relay.expr import Tuple, TupleGetItem
 from tvm.relay import transform
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 
-import pyxir
-import pyxir.frontend.tvm
-
 
 @transform.function_pass(opt_level=0)
 class VitisAIAnnotationPass:
-    """
-    The VitisAIAnnotationPass is responsible for annotating Relay expressions
-    in the way that they are supported through Vitis-AI accelerators
-    """
+    """Responsible for annotating Relay expressions for Vitis-AI DPU accelerators"""
+
     def __init__(self, compiler, relay_ids):
         self.compiler = compiler
         self.relay_ids = relay_ids
 
     def transform_function(self, func, mod, ctx):
-        """
-        Transform function for annotating Relay module
-        """
+        """Transform function for annotating Relay module"""
         annotator = self
 
         class Annotator(tvm.relay.ExprMutator):
-            """
-            Annotator for Vitis-AI DPU accelerators
-            """
+            """Annotator for Vitis-AI DPU accelerators"""
+
             def visit_tuple(self, tup):
-                """
-                Visit the Tuple expression and add compiler_begin and compiler_end annotations
-                """
+                """Add compiler_begin and compiler_end annotations to Tuple"""
                 field_list = []
                 cond = int(hash(tup))
                 for field in tup.fields:
@@ -66,10 +59,7 @@ class VitisAIAnnotationPass:
                     return Tuple(field_list)
 
             def visit_tuple_getitem(self, op):
-                """
-                Visit the TupleGetItem expression and add compiler_begin and compiler_end
-                annotations
-                """
+                """Add compiler_begin and compiler_end annotations to TupleGetItem"""
                 if  int(hash(op.tuple_value)) in annotator.relay_ids:
                     tuple_value = compiler_begin(super().visit(op.tuple_value),
                                                  annotator.compiler)
@@ -79,10 +69,7 @@ class VitisAIAnnotationPass:
                     return TupleGetItem(tuple_value, op.index)
 
             def visit_call(self, call):
-                """
-                Visit the function Call expression and add compiler_begin and compiler_end
-                annotations
-                """
+                """Add compiler_begin and compiler_end annotations to the Call expr"""
                 if int(hash(call)) in annotator.relay_ids:
                     new_args = []
                     for arg in call.args:
@@ -95,14 +82,12 @@ class VitisAIAnnotationPass:
 
                 else:
                     return super().visit_call(call)
+
         return Annotator().visit(func)
 
 
-
 def annotation(mod, params, target):
-    """
-    Annotate Relay expression for Vitis-AI DPU accelerators
-    """
+    """Annotate Relay expression for Vitis-AI DPU accelerators"""
     xgraph = pyxir.frontend.tvm.from_relay(mod, params, postprocessing=None)
     xgraph = pyxir.partition(xgraph, targets=[target])
 
