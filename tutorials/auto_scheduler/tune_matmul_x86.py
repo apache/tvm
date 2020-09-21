@@ -60,11 +60,12 @@ def matmul_add(N, L, M, dtype):
 # ^^^^^^^^^^^^^^^^^^^^^^
 # We then create a search task with N=L=M=128 and dtype="float32"
 # If your machine supports avx instructions, you can
-# - replace "llvm" below with "llvm -mcpu=core-avx2" to enable AVX2
-# - replace "llvm" below with "llvm -mcpu=skylake-avx512" to enable AVX-512
+#
+#   - replace "llvm" below with "llvm -mcpu=core-avx2" to enable AVX2
+#   - replace "llvm" below with "llvm -mcpu=skylake-avx512" to enable AVX-512
 
 target = tvm.target.Target("llvm")
-task = auto_scheduler.create_task(matmul_add, (128, 128, 128, "float32"), target)
+task = tvm.auto_scheduler.create_task(matmul_add, (128, 128, 128, "float32"), target)
 
 # Inspect the computational graph
 print(task.compute_dag)
@@ -72,13 +73,13 @@ print(task.compute_dag)
 ######################################################################
 # Next, we set parameters for the auto-scheduler.
 #
-# * `num_measure_trials` is the number of measurement trials we can use during the search.
+# * :code:`num_measure_trials` is the number of measurement trials we can use during the search.
 #   We only make 10 trials in this tutorial for a fast demonstration. In practice, 1000 is a
 #   good value for the search to converge. You can do more trials according to your time budget.
-# * In addition, we use `RecordToFile` to dump measurement records into a file `matmul.json`.
+# * In addition, we use :code:`RecordToFile` to dump measurement records into a file `matmul.json`.
 #   The measurement records can be used to query the history best, resume the search,
 #   and do more analyses later.
-# * see :any:`auto_scheduler.auto_schedule.TuningOptions`: for more parameters
+# * see :any:`auto_scheduler.TuningOptions` for more parameters
 
 tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=10, measure_callbacks=[auto_scheduler.RecordToFile("matmul.json")]
@@ -189,5 +190,5 @@ def resume_search(task, log_file):
 #   For example, you can start a new thread/process (with the builtin python library
 #   threading or multiprocessing) and run the tvm binaries in the new thread/process.
 #   This provides an isolation and avoids the conflict in the main thread/process.
-#   You can also use :any:`auto_scheduler.measure.LocalRPCMeasureContext` for auto-scheduler,
+#   You can also use :any:`auto_scheduler.LocalRPCMeasureContext` for auto-scheduler,
 #   as shown in the GPU tutorial (:ref:`auto-scheduler-conv-gpu`).
