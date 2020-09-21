@@ -43,9 +43,6 @@ exclude = '''
     | src\/
     | vta\/
     | web\/
-  )/|python/topi/python/test_topi_pooling.py
-   |python/tvm/topi/testing/pool3d_python.py
-   |tests/lint/add_asf_header.py
-   |tests/lint/check_file_type.py
+  )/
 )
 '''
