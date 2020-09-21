@@ -563,12 +563,19 @@ def infer_value_simulated(input_val, params):
     return output_value
 
 
-def try_infer_value(val, on_success, on_failure):
+def try_infer_value(val, on_success, on_failure=None):
+    """Try running infer_value on the input val, and if successful, pass the inferred value to
+    on_success callback. Otherwise, run on_failure callback if it is provided or return the
+    input val as output. In each case, the second return value indicates whether infer_value has
+    succeeded or not.
+    """
     try:
         ret = infer_value(val, {}).asnumpy()
         return on_success(ret), True
     except Exception:
-        return on_failure(), False
+        if on_failure:
+            return on_failure(), False
+        return val, False
 
 
 def new_var(name_hint, type_annotation=None, shape=None, dtype="float32"):

@@ -187,7 +187,7 @@ def _arange():
             # dtype is a tvm dtype
             if isinstance(val, _expr.Expr):
                 inp = _op.cast(val, dtype)
-                ret, _ = try_infer_value(inp, lambda ret: _expr.const(ret, dtype), lambda: inp)
+                ret, _ = try_infer_value(inp, lambda ret: _expr.const(ret, dtype))
             else:
                 ret = _create_typed_const(val, dtype)
             return ret
@@ -303,9 +303,7 @@ def _slice():
         dim = int(inputs[1])
         stride = int(inputs[4])
         if isinstance(inputs[2], _expr.Call):
-            begin[dim], _ = try_infer_value(
-                inputs[2], lambda ret: np.asscalar(ret.astype(np.int)), lambda: inputs[2]
-            )
+            begin[dim], _ = try_infer_value(inputs[2], lambda ret: np.asscalar(ret.astype(np.int)))
         else:
             begin[dim] = int(inputs[2])
 
@@ -327,7 +325,7 @@ def _slice():
         else:
             if isinstance(inputs[3], _expr.Expr):
                 target_end, _ = try_infer_value(
-                    inputs[3], lambda ret: np.asscalar(ret.astype(np.int)), lambda: inputs[3]
+                    inputs[3], lambda ret: np.asscalar(ret.astype(np.int))
                 )
             else:
                 target_end = inputs[3]
@@ -453,7 +451,7 @@ def _topk():
         sort = bool(inputs[4])
 
         if isinstance(inputs[1], _expr.Expr):
-            k, _ = try_infer_value(inputs[1], lambda ret: ret.tolist(), lambda: inputs[1])
+            k, _ = try_infer_value(inputs[1], lambda ret: ret.tolist())
         else:
             k = inputs[1]
 
@@ -1339,7 +1337,7 @@ def _reshape():
             if isinstance(s, _expr.Constant):
                 tmp_shape.append(int(s.data.asnumpy()))
             elif isinstance(s, _expr.Expr):
-                dim, success = try_infer_value(s, lambda ret: int(ret), lambda: s)
+                dim, success = try_infer_value(s, lambda ret: int(ret))
                 tmp_shape.append(dim)
 
                 if not success:
