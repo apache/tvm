@@ -92,6 +92,19 @@ def init_git_win() {
     }
 }
 
+def cancel_previous_build() {
+    // cancel previous build if it is not on master.
+    if (env.BRANCH_NAME != "master") {
+        def buildNumber = env.BUILD_NUMBER as int
+        // Milestone API allows us to cancel previous build
+        // with the same milestone number
+        if (buildNumber > 1) milestone(buildNumber - 1)
+        milestone(buildNumber)
+    }
+}
+
+cancel_previous_build()
+
 stage("Sanity Check") {
   timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
@@ -112,7 +125,11 @@ def make(docker_type, path, make_flag) {
       sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}"
       // always run cpp test when build
       sh "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh"
-    } catch (exc) {
+    } catch (hudson.AbortException ae) {
+      // script exited due to user abort, directly throw instead of retry
+      if (ae.getMessage().contains('script returned exit code 143')) {
+        throw ae
+      }
       echo 'Incremental compilation failed. Fall back to build from scratch'
       sh "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}"
       sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}"
