@@ -52,6 +52,33 @@ def test_no_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_qnn_binary_no_convert_layout():
+    def before():
+        x = relay.var("x", shape=(2, 2))
+        y = relay.var("y", shape=(1, 2))
+        return relay.Function(
+            [x, y],
+            relay.qnn.op.add(
+                x,
+                y,
+                lhs_scale=relay.const(0.0156863, "float32"),
+                lhs_zero_point=relay.const(127, "int32"),
+                rhs_scale=relay.const(0.0117647, "float32"),
+                rhs_zero_point=relay.const(85, "int32"),
+                output_scale=relay.const(0.0235294, "float32"),
+                output_zero_point=relay.const(128, "int32"),
+            ),
+        )
+
+    def expected():
+        return before()
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({}))
+    b = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_conv_convert_layout():
     def before():
         x = relay.var("x", shape=(1, 56, 56, 64))
@@ -1042,6 +1069,7 @@ def test_different_ops_convert_layout():
 
 
 if __name__ == "__main__":
+    test_qnn_binary_no_convert_layout()
     test_no_convert_layout()
     test_conv_convert_layout()
     test_conv_nhwc_convert_layout()
