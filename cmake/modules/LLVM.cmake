@@ -20,7 +20,7 @@ add_definitions(-DDMLC_USE_FOPEN64=0)
 
 # Test if ${USE_LLVM} is not an explicit boolean false
 # It may be a boolean or a string
-if(NOT ${USE_LLVM} MATCHES IS_BOOLEAN_PATTERN)
+if(NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
   find_llvm(${USE_LLVM})
   include_directories(${LLVM_INCLUDE_DIRS})
   add_definitions(${LLVM_DEFINITIONS})

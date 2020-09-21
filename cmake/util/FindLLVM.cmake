@@ -35,6 +35,9 @@
 # - TVM_INFO_LLVM_VERSION
 #
 macro(find_llvm use_llvm)
+  if(${use_llvm} MATCHES ${IS_FALSE_PATTERN})
+    return()
+  endif()
   set(LLVM_CONFIG ${use_llvm})
   if(${ARGC} EQUAL 2)
     set(llvm_version_required ${ARGV1})
