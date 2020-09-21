@@ -56,16 +56,16 @@ def space_to_batch_nd_python(data, block_shape, pad_before, pad_after):
     # Add the paddings for batch and remaining dims
     paddings = map(list, zip(pad_before, pad_after))
     paddings = [[0, 0]] + list(paddings) + [[0, 0]] * (data.ndim - 1 - M)
-    padded_data = np.pad(data, paddings, mode='constant')
+    padded_data = np.pad(data, paddings, mode="constant")
     padded_shape = padded_data.shape
 
     # Get the reshape shape and transpose axes
     r_shape = []
     trans_axis = []
     r_shape.append(in_batch)
-    for i in range(1, M+1):
-        r_shape.append((int(padded_shape[i] // block_shape[i-1])))
-        r_shape.append(block_shape[i-1])
+    for i in range(1, M + 1):
+        r_shape.append((int(padded_shape[i] // block_shape[i - 1])))
+        r_shape.append(block_shape[i - 1])
         trans_axis.append(len(r_shape) - 1)
 
     axis_len = len(trans_axis)
@@ -75,10 +75,10 @@ def space_to_batch_nd_python(data, block_shape, pad_before, pad_after):
 
     out_shape = []
     out_shape.append(int((in_batch * block_shape_prod)))
-    for i in range(1, M+1):
-        out_shape.append(int(padded_shape[i] // block_shape[i-1]))
+    for i in range(1, M + 1):
+        out_shape.append(int(padded_shape[i] // block_shape[i - 1]))
 
-    for i in range(M+1, len(input_shape)):
+    for i in range(M + 1, len(input_shape)):
         r_shape.append(input_shape[i])
         trans_axis.append(len(r_shape) - 1)
         out_shape.append(input_shape[i])

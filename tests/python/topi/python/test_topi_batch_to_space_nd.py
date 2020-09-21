@@ -32,13 +32,15 @@ def verify_batch_to_space_nd(input_shape, block_shape, crop_begin_list, crop_end
     for i in range(len(block_shape) + 1, len(input_shape)):
         out_shape.append(input_shape[i])
 
-    A = te.placeholder(input_shape, name='A', dtype='float32')
+    A = te.placeholder(input_shape, name="A", dtype="float32")
     dtype = A.dtype
     a_np = np.random.uniform(size=input_shape).astype(dtype)
 
     B = topi.nn.batch_to_space_nd(A, block_shape, crop_begin_list, crop_end_list)
 
-    b_np = tvm.topi.testing.batch_to_space_nd_python(a_np, block_shape, crop_begin_list, crop_end_list)
+    b_np = tvm.topi.testing.batch_to_space_nd_python(
+        a_np, block_shape, crop_begin_list, crop_end_list
+    )
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)

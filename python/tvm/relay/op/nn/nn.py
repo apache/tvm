@@ -3185,6 +3185,7 @@ def space_to_batch_nd(data, block_shape, paddings):
 
     return _make.space_to_batch_nd(data, block_shape, paddings)
 
+
 def batch_to_space_nd(data, block_shape, crops):
     r"""Reshape the batch dimension into spatial dimensions.
 

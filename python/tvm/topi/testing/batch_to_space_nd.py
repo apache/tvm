@@ -19,6 +19,7 @@
 import numpy as np
 from . import strided_slice_python
 
+
 def batch_to_space_nd_python(data, block_shape, crop_begin_list, crop_end_list):
     """Batch to Space operator in python for NHWC layout.
 
@@ -63,7 +64,7 @@ def batch_to_space_nd_python(data, block_shape, crop_begin_list, crop_end_list):
 
     for i in range(1, N):
         axis.append(len(r_shape))
-        if (len(axis) < (M + N)):
+        if len(axis) < (M + N):
             axis.append(len(r_shape) - (M + 1))
         r_shape.append(in_shape[i])
 
@@ -82,7 +83,7 @@ def batch_to_space_nd_python(data, block_shape, crop_begin_list, crop_end_list):
     end_idx = []
     strides = []
 
-    for i in range(len(r_p_shape)):
+    for i, _ in enumerate(r_p_shape):
         strides.append(1)
         if i > 0 and i <= M:
             # begin and end index for spatial dimensions

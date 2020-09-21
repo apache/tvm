@@ -1146,7 +1146,9 @@ def test_space_to_batch_nd():
     def verify_space_to_batch_nd(dshape, block_shape, paddings):
         x_data = np.random.uniform(size=dshape).astype("float32")
         pad_before, pad_after = map(list, zip(*paddings))
-        ref_res = tvm.topi.testing.space_to_batch_nd_python(x_data, block_shape, pad_before, pad_after)
+        ref_res = tvm.topi.testing.space_to_batch_nd_python(
+            x_data, block_shape, pad_before, pad_after
+        )
 
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.nn.space_to_batch_nd(x, block_shape, paddings)
@@ -1171,7 +1173,9 @@ def test_batch_to_space_nd():
     def verify_batch_to_space_nd(dshape, block_shape, crops):
         x_data = np.random.uniform(size=dshape).astype("float32")
         crop_begin_list, crop_end_list = map(list, zip(*crops))
-        ref_res = tvm.topi.testing.batch_to_space_nd_python(x_data, block_shape, crop_begin_list, crop_end_list)
+        ref_res = tvm.topi.testing.batch_to_space_nd_python(
+            x_data, block_shape, crop_begin_list, crop_end_list
+        )
 
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.nn.batch_to_space_nd(x, block_shape, crops)

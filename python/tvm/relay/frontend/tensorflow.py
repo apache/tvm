@@ -1994,13 +1994,12 @@ def _space_to_batch_nd():
                 paddings = np.expand_dims(paddings, axis=0)
             paddings = paddings.tolist()
 
-        attr['block_shape'] = block_shape
-        attr['paddings'] = paddings
-        out = AttrCvt(
-            'space_to_batch_nd',
-            ignores=['Tblock_shape', 'Tpaddings'])([inputs[0]], attr)
+        attr["block_shape"] = block_shape
+        attr["paddings"] = paddings
+        out = AttrCvt("space_to_batch_nd", ignores=["Tblock_shape", "Tpaddings"])([inputs[0]], attr)
 
         return out
+
     return _impl
 
 
@@ -2020,13 +2019,12 @@ def _batch_to_space_nd():
                 crops = np.expand_dims(crops, axis=0)
             crops = crops.tolist()
 
-        attr['block_shape'] = block_shape
-        attr['crops'] = crops
-        out = AttrCvt(
-            'batch_to_space_nd',
-            ignores=['Tblock_shape', 'Tcrops'])([inputs[0]], attr)
+        attr["block_shape"] = block_shape
+        attr["crops"] = crops
+        out = AttrCvt("batch_to_space_nd", ignores=["Tblock_shape", "Tcrops"])([inputs[0]], attr)
 
         return out
+
     return _impl
 
 

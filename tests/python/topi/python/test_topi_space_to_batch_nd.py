@@ -22,16 +22,17 @@ from tvm import topi
 import tvm.testing
 import tvm.topi.testing
 
+
 def verify_space_to_batch_nd(input_shape, block_shape, pad_before, pad_after):
     out_shape = []
     out_shape.append(int((input_shape[0] * np.prod(block_shape))))
     for i in range(1, len(block_shape) + 1):
         pad = pad_before[i - 1] + pad_after[i - 1]
-        out_shape.append(int((input_shape[i] + pad) // block_shape[i-1]))
+        out_shape.append(int((input_shape[i] + pad) // block_shape[i - 1]))
     for i in range(len(block_shape) + 1, len(input_shape)):
         out_shape.append(input_shape[i])
 
-    A = te.placeholder(input_shape, name='A', dtype='float32')
+    A = te.placeholder(input_shape, name="A", dtype="float32")
     dtype = A.dtype
     a_np = np.random.uniform(size=input_shape).astype(dtype)
 

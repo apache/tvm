@@ -17,10 +17,7 @@
 # pylint: disable=invalid-name
 """TVM operator space_to_batch_nd compute."""
 from __future__ import absolute_import
-import tvm
-from tvm import te
 from . import cpp
-from .. import tag
 
 
 def space_to_batch_nd(data, block_shape, pad_before, pad_after):
