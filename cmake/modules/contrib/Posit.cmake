@@ -22,5 +22,6 @@ if(USE_POSIT)
   endif(NOT UNIVERSAL_PATH)
   
   include_directories(${UNIVERSAL_PATH}/include)
-  list(APPEND RUNTIME_SRCS 3rdparty/posit/posit-wrapper.cc)
+else()
+  list(FILTER COMPILER_SRCS EXCLUDE REGEX "src/target/datatype/posit/posit-wrapper.cc")
 endif(USE_POSIT)

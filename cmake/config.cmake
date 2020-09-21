@@ -120,7 +120,7 @@ set(USE_LLVM OFF)
 #---------------------------------------------
 # Contrib libraries
 #---------------------------------------------
-# Whether to include 3rdparty/posit/posit-wrapper.cc file
+# Whether to build with posit custom datatype
 set(USE_POSIT OFF)
 
 # Whether use BLAS, choices: openblas, atlas, apple

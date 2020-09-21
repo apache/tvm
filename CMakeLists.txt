@@ -56,7 +56,7 @@ tvm_option(COMPILER_RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
 tvm_option(PICOJSON_PATH "Path to PicoJSON" "3rdparty/picojson")
 
 # Contrib library options
-tvm_option(USE_POSIT "Build with 3rdparty/posit files" OFF)
+tvm_option(USE_POSIT "Build with posit custom datatype" OFF)
 tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_MKL "MKL root path when use MKL blas" OFF)
 tvm_option(USE_MKLDNN "Build with MKLDNN" OFF)
@@ -256,7 +256,7 @@ if(USE_VM_PROFILER)
   list(APPEND COMPILER_SRCS ${BACKEND_VM_PROFILER_SRCS})
 endif(USE_VM_PROFILER)
 
-file(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
+file(GLOB_RECURSE DATATYPE_SRCS src/target/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 
 file(GLOB RUNTIME_SRCS
@@ -279,8 +279,6 @@ endif()
 if (INDEX_DEFAULT_I64)
   add_definitions(-DTVM_INDEX_DEFAULT_I64=1)
 endif()
-
-list(APPEND RUNTIME_SRCS 3rdparty/byodt/myfloat.cc)
 
 if(USE_RPC)
   message(STATUS "Build with RPC support...")

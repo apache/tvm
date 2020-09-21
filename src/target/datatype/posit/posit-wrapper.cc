@@ -20,6 +20,8 @@
 /*!
  * \file 3rdparty/posit/posit-wrapper.cc
  * \brief Wrapper over the Universal library for Bring Your Own Datatypes tests
+ * Use the SET_POSIT flag to include this file in the build.
+ * 
  * TODO(@gussmith23 @hypercubestart) Link to BYODT docs when they exist?
  */
 #include <tvm/runtime/c_runtime_api.h>
