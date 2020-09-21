@@ -144,7 +144,7 @@ else(MSVC)
       CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
     set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
   endif()
-  include(cmake/modules/clang_flags.cmake)
+  include(cmake/modules/ClangFlags.cmake)
 
   # Detect if we're compiling for Hexagon.
   set(TEST_FOR_HEXAGON_CXX
