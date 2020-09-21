@@ -2770,7 +2770,7 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 3, "input tensors length should be 3"
+        assert len(input_tensors) in (3, 4), "input tensors length should be 3 or 4"
 
         # Input (data) Tensor. NHWC layout
         input_tensor = input_tensors[2]
@@ -2809,7 +2809,7 @@ class OperatorConverter(object):
         # Weights
         weights_tensor_type = weights_tensor.tensor.Type()
         # weights tensor type should be UINT8 (quantization) or FLOAT32
-        assert weights_tensor_type in (TensorType.UINT8, TensorType.FLOAT32)
+        assert weights_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weights_tensor_type)
         weight_value_ohwi = self.get_tensor_value(weights_tensor)
         # Relay kernel_layout should be OIHW
@@ -2831,17 +2831,94 @@ class OperatorConverter(object):
         else:
             padding = (0, 0, 0, 0)
 
-        out = _op.nn.conv2d_transpose(
-            in_expr,
-            weight_expr_iohw,
-            strides=(stride_h, stride_w),
-            padding=padding,
-            channels=int(out_channels),
-            kernel_size=(int(kernel_h), int(kernel_w)),
-            data_layout="NHWC",
-            kernel_layout="OIHW",
-            out_dtype=output_tensor_type_str,
-        )
+        if input_tensor.qnn_params:
+            # Making use of qnn.conv2d
+            # (input and kernel tensors need some transformations before that)
+            # Upsampling (Dilating and Padding) input with zero_point
+            input_zero_point = input_tensor.qnn_params["zero_point"]
+            dilated_in_expr = _op.nn.dilate(
+                in_expr,
+                strides=(1, stride_h, stride_w, 1),
+                dilation_value=float(input_zero_point.data.asnumpy()),
+            )
+            # qnn.conv2d pads with zero_point, so we just calculate the padding width needed
+            pad_top = kernel_h - 1 - padding[0]
+            pad_left = kernel_w - 1 - padding[1]
+            pad_bottom = kernel_h - 1 - padding[2]
+            pad_right = kernel_w - 1 - padding[3]
+            padding = (pad_top, pad_left, pad_bottom, pad_right)
+            # Transforming kernel into OIHW and flipping it (rotating by 180 degrees)
+            weight_value_hwio = np.transpose(weight_value_ohwi, (1, 2, 3, 0))
+            weight_value_hwio = np.flip(weight_value_hwio, (0, 1))
+            weight_expr_oihw = self.exp_tab.new_const(
+                weight_value_hwio, dtype=weight_tensor_type_str
+            )
+            out = _qnn.op.conv2d(
+                dilated_in_expr,
+                weight_expr_oihw,
+                strides=(1, 1),
+                padding=padding,
+                channels=int(out_channels),
+                kernel_size=(int(kernel_h), int(kernel_w)),
+                data_layout="NHWC",
+                kernel_layout="HWIO",
+                input_zero_point=input_zero_point,
+                kernel_zero_point=weights_tensor.qnn_params["zero_point"],
+                out_dtype="int32",
+                input_scale=input_tensor.qnn_params["scale"],
+                kernel_scale=weights_tensor.qnn_params["scale"],
+            )
+        else:
+            out = _op.nn.conv2d_transpose(
+                in_expr,
+                weight_expr_iohw,
+                strides=(stride_h, stride_w),
+                padding=padding,
+                channels=int(out_channels),
+                kernel_size=(int(kernel_h), int(kernel_w)),
+                data_layout="NHWC",
+                kernel_layout="OIHW",
+                out_dtype=output_tensor_type_str,
+            )
+
+        # Checking if there is a fused bias
+        if len(input_tensors) == 4:
+            bias_tensor = input_tensors[3]
+            bias_tensor_type = bias_tensor.tensor.Type()
+            # bias tensor type should be INT32 (quantization) or FLOAT32
+            assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
+            bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
+            bias_expr = self.exp_tab.new_const(
+                self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
+            )
+            channel_axis = 3
+            out = _op.nn.bias_add(out, bias_expr, axis=channel_axis)
+
+        if output_tensor.qnn_params:
+            # Calculate the intermediate scale and zero point of the int32 output.
+            data_scale = input_tensor.qnn_params["scale"]
+            data_scale_val = get_scalar_from_constant(data_scale)
+
+            weight_scale = weights_tensor.qnn_params["scale"]
+            # If weight scale is scalar, it is per-tensor quantization
+            if isinstance(weight_scale, float):
+                weight_scale_val = get_scalar_from_constant(weight_scale)
+            else:
+                weight_scale_val = get_tensor_from_constant(weight_scale)
+
+            new_input_scale_val = data_scale_val * weight_scale_val
+            new_input_scale = relay.const(new_input_scale_val, "float32")
+            new_input_zero_point = relay.const(0, "int32")
+
+            out = _qnn.op.requantize(
+                out,
+                input_scale=new_input_scale,
+                input_zero_point=new_input_zero_point,
+                output_scale=output_tensor.qnn_params["scale"],
+                output_zero_point=output_tensor.qnn_params["zero_point"],
+                out_dtype=output_tensor_type_str,
+                axis=3,
+            )
 
         return out
 

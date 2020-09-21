@@ -55,19 +55,20 @@ PrimExpr all(Array<PrimExpr> args) {
 }
 
 /*!
- * \brief Dilate data with zeros
+ * \brief Dilate data with given dilation value (0 by default).
  *
  * \param x The input tensor, this can have any number of
  * dimensions and any layout.
  * \param strides Dilation stride for each dimension. Stride 1
  * means no dilation.
+ * \param dilation_value Value used to dilate the input.
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
  * \return The output tensor.
  */
-inline Tensor dilate(const Tensor& x, Array<PrimExpr> strides, std::string name = "tensor",
-                     std::string tag = kInjective) {
+inline Tensor dilate(const Tensor& x, Array<PrimExpr> strides, double dilation_value,
+                     std::string name = "tensor", std::string tag = kInjective) {
   auto n = x->shape.size();
   CHECK_EQ(n, strides.size()) << "strides size (" << strides.size()
                               << ") must match dimension of x (" << n << ")";
@@ -94,7 +95,8 @@ inline Tensor dilate(const Tensor& x, Array<PrimExpr> strides, std::string name 
         }
         if (not_zero.size() > 0) {
           auto all_not_zero = all(not_zero);
-          return tvm::if_then_else(all_not_zero, x(index_tuple), make_const(x->dtype, 0));
+          return tvm::if_then_else(all_not_zero, x(index_tuple),
+                                   make_const(x->dtype, dilation_value));
         }
         return x(index_tuple);
       },
