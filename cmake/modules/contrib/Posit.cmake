@@ -22,6 +22,5 @@ if(USE_POSIT)
   endif(NOT UNIVERSAL_PATH)
   
   include_directories(${UNIVERSAL_PATH}/include)
-else()
-  list(FILTER COMPILER_SRCS EXCLUDE REGEX "src/target/datatype/posit/posit-wrapper.cc")
+  list(APPEND COMPILER_SRCS "src/target/datatype/posit/posit-wrapper.cc")
 endif(USE_POSIT)

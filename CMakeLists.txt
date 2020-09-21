@@ -256,8 +256,9 @@ if(USE_VM_PROFILER)
   list(APPEND COMPILER_SRCS ${BACKEND_VM_PROFILER_SRCS})
 endif(USE_VM_PROFILER)
 
-file(GLOB_RECURSE DATATYPE_SRCS src/target/datatype/*.cc)
+file(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
+list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
 
 file(GLOB RUNTIME_SRCS
   src/runtime/*.cc
