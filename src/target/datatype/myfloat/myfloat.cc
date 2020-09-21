@@ -68,7 +68,7 @@ TVM_DLL float Custom32ToFloat(uint32_t in) {
   float custom_datatype = Uint32ToCustom32<float>(in);
   // our custom datatype is float, so the following redundant cast to float
   // is to remind users to cast their own custom datatype to float
-  return (float)custom_datatype;
+  return static_cast<float>(custom_datatype);
 }
 
 TVM_DLL uint32_t FloatToCustom32(float in) {
