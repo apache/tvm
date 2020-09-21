@@ -75,30 +75,11 @@ function(assign_source_group group)
     endforeach()
 endfunction(assign_source_group)
 
-cmake_policy(SET CMP0057 NEW) # Needed for IN_LIST used in conditional
-function(DECOMPOSE_ARG SOURCE_VALUE)
-  set(options)
-  set(oneValueArgs ENABLE_VALUE COMMAND_VALUE)
-  set(multiValueArgs)
-  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-  # First check if SOURCE_VALUE is executable
-  execute_process(COMMAND ${SOURCE_VALUE}
-    RESULT_VARIABLE exit_code
-    OUTPUT_VARIABLE dummy
-    OUTPUT_QUIET ERROR_QUIET)
-  string(TOUPPER ${SOURCE_VALUE} UPPER_CASE_SOURCE_VALUE)
-  set(FALSE_VALUES OFF 0 NO FALSE N IGNORE NOTFOUND)
-  if(${SOURCE_VALUE})
-    # If not executable, is it true
-    set(${ARG_ENABLE_VALUE} ON PARENT_SCOPE)
-    unset(${ARG_COMMAND_VALUE} PARENT_SCOPE)
-  elseif(${UPPER_CASE_SOURCE_VALUE} IN_LIST FALSE_VALUES)
-    set(${ARG_ENABLE_VALUE} OFF PARENT_SCOPE)
-    unset(${ARG_COMMAND_VALUE} PARENT_SCOPE)
-  elseif(${exit_code} MATCHES [0-9]+)
-    set(${ARG_ENABLE_VALUE} ON PARENT_SCOPE)
-    set(${ARG_COMMAND_VALUE} ${SOURCE_VALUE} PARENT_SCOPE)
-  else()
-    message(FATAL_ERROR "argument for cmake flag neither a command nor a boolean")
-  endif()
-endfunction(DECOMPOSE_ARG)
+# From cmake documentation:
+# True if the constant is 1, ON, YES, TRUE, Y, or a non-zero number.
+# False if the constant is 0, OFF, NO, FALSE, N, IGNORE, NOTFOUND, the empty string, or ends in the suffix -NOTFOUND.
+# Named boolean constants are case-insensitive.
+#
+# While this regex does contain a check for an empty string that check does not work
+# cmake's regex is weak
+set(IS_FALSE_PATTERN "^[Oo][Ff][Ff]$|^0$|^[Ff][Aa][Ll][Ss][Ee]$|^[Nn][Oo]$|^[Nn][Oo][Tt][Ff][Oo][Uu][Nn][Dd]$|.*-[Nn][Oo][Tt][Ff][Oo][Uu][Nn][Dd]$|^$")
