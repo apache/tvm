@@ -740,18 +740,24 @@ def test_any_pad():
     verify_any_pad(any_dims(4), ((1, 0), (1, 3), (0, 2), (9, 0)), (13, 11, 3, 1))
 
 
-def verify_any_dilate(data_shape, strides, static_data_shape):
+def verify_any_dilate(data_shape, strides, static_data_shape, dilation_value=None):
     assert len(data_shape) == len(strides)
     mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var("data", shape=data_shape, dtype=dtype)
-    y = relay.nn.dilate(data, strides)
+    if dilation_value is None:
+        y = relay.nn.dilate(data, strides)
+    else:
+        y = relay.nn.dilate(data, strides, dilation_value)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     ref_shape = tuple(
         (static_data_shape[i] - 1) * strides[i] + 1 for i in range(len(static_data_shape))
     )
-    ref_out = np.zeros(shape=ref_shape, dtype=dtype)
+    if dilation_value is None:
+        dilation_value = 0.0
+    ref_out = np.ones(shape=ref_shape, dtype=dtype)
+    ref_out = dilation_value * ref_out
     ref_out[tuple(slice(None, None, strides[i]) for i in range(len(data_shape)))] = data_np
     check_result([data_np], mod, ref_out)
 
@@ -766,6 +772,7 @@ def test_any_dilate():
     verify_any_dilate(any_dims(3), (1, 1, 5), (1, 2, 3))
     verify_any_dilate(any_dims(3), (3, 7, 5), (1, 2, 3))
     verify_any_dilate(any_dims(4), (3, 7, 1, 5), (1, 2, 3, 4))
+    verify_any_dilate(any_dims(4), (3, 7, 1, 5), (1, 2, 3, 4), 1.0)
 
 
 def verify_any_softmax(data_shape, axis, static_data_shape, ref_out_shape):

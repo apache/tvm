@@ -75,7 +75,7 @@ TVM_REGISTER_GLOBAL("topi.nn.batch_matmul").set_body([](TVMArgs args, TVMRetValu
 
 /* Ops from nn/dilate.h */
 TVM_REGISTER_GLOBAL("topi.nn.dilate").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = nn::dilate(args[0], args[1]);
+  *rv = nn::dilate(args[0], args[1], args[2]);
 });
 
 /* Ops from nn/flatten.h */
