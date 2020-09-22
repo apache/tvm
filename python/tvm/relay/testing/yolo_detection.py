@@ -268,7 +268,7 @@ def draw_detections(font_path, im, dets, thresh, names, classes):
 
 
 def show_detections(im, dets, thresh, names, classes):
-    "Draw the markings around the detected region"
+    "Print the markings and the detected region"
     for det in dets:
         valid, detection = get_detections(im, det, thresh, names, classes)
         if valid:

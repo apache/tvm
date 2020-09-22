@@ -195,6 +195,7 @@ with open(coco_path) as f:
 
 names = [x.strip() for x in content]
 
+tvm.relay.testing.yolo_detection.show_detections(img, dets, thresh, names, last_layer.classes)
 tvm.relay.testing.yolo_detection.draw_detections(
     font_path, img, dets, thresh, names, last_layer.classes
 )
