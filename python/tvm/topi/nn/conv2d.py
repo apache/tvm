@@ -827,6 +827,91 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
     )
 
 
+def group_conv2d_nhwc(Input, Filter, stride, padding, dilation, groups, out_dtype=None):
+    """Group convolution operator in NHWC layout.
+
+    Parameters
+    ----------
+    Input : tvm.te.Tensor
+        4-D with shape [batch, in_height, in_width, in_channel]
+
+    Filter : tvm.te.Tensor
+        4-D with shape [filter_height, filter_width, in_channel // groups, num_filter]
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
+
+    dilation : int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+
+    groups : int
+        number of groups
+
+    out_dtype : str
+        The output type. This is used for mixed precision.
+
+    Returns
+    -------
+    Output : tvm.te.Tensor
+        4-D with shape [batch, out_height, out_width, out_channel]
+    """
+    if out_dtype is None:
+        out_dtype = Input.dtype
+    assert isinstance(stride, int) or len(stride) == 2
+    assert isinstance(dilation, int) or len(dilation) == 2
+    if isinstance(stride, int):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
+
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    batch, in_height, in_width, in_channel = get_const_tuple(Input.shape)
+    kernel_h, kernel_w, _, num_filter = get_const_tuple(Filter.shape)
+
+    assert in_channel % groups == 0, "input channels must divide group size"
+    assert num_filter % groups == 0, "output channels must divide group size"
+
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding, (kernel_h, kernel_w))
+    # compute the output shape
+    out_channel = num_filter
+    out_height = simplify(
+        (in_height - (kernel_h - 1) * dilation_h - 1 + pad_top + pad_down) // stride_h + 1
+    )
+    out_width = simplify(
+        (in_width - (kernel_w - 1) * dilation_w - 1 + pad_left + pad_right) // stride_w + 1
+    )
+    # compute graph
+    pad_before = [0, pad_top, pad_left, 0]
+    pad_after = [0, pad_down, pad_right, 0]
+    temp = pad(Input, pad_before, pad_after, name="pad_temp")
+    ry = te.reduce_axis((0, kernel_h), name="ry")
+    rx = te.reduce_axis((0, kernel_w), name="rx")
+    rc = te.reduce_axis((0, in_channel // groups), name="rc")
+    return te.compute(
+        (batch, out_height, out_width, out_channel),
+        lambda nn, yy, xx, ff: te.sum(
+            temp[
+                nn,
+                yy * stride_h + ry * dilation_h,
+                xx * stride_w + rx * dilation_w,
+                ff // (num_filter // groups) * (in_channel // groups) + rc,
+            ].astype(out_dtype)
+            * Filter[ry, rx, rc, ff].astype(out_dtype),
+            axis=[ry, rx, rc],
+        ),
+        tag="group_conv2d_nhwc",
+    )
+
+
 def unpack_NCHWc_to_nchw(packed_out, out_dtype):
     """Unpack conv2d_NCHWc output from layout NCHWc to NCHW
 
