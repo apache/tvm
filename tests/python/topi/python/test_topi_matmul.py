@@ -77,6 +77,7 @@ def test_tensordot():
     verify_tensordot((3, 2, 2), (2, 3, 5), ((1, 0), (0, 1)))
     verify_tensordot((4, 3, 2, 2), (2, 4, 3, 5), ((1, 2, 0), (2, 0, 1)))
 
+
 if __name__ == "__main__":
     test_matmul()
     test_tensordot()
