@@ -31,7 +31,7 @@ Features
 Software Emulation
 ~~~~~~~~~~~~~~~~~~
 
-In software emulation, the most interesting thing is the decorator ``tvm.hybrid.script``.
+In software emulation, the most interesting thing is the decorator ``tvm.te.hybrid.script``.
 This decorator helps 2 things:
 
 1. Importing runtime variables

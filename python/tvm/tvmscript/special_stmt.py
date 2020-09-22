@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Hybrid Script Parser Special Stmt Functions
+"""TVM Script Parser Special Stmt Functions
 This module provides the functions registered into parser under special_stmt category.
 special_stmt functions don't correspond to an IRNode in the AST directly. It is usually
 used for some information that is not suitable to be printed directly.
