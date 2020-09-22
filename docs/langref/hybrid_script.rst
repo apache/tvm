@@ -43,7 +43,7 @@ you need to use ``tvm.te.hybrid.script`` decorator to indicate this is a hybrid 
         for i in range(a.shape[0]):
             for j in range(b.shape[0]):
                 c[i, j] = a[i] * b[j]
-          return c
+        return c
     a = numpy.random.randn(100)
     b = numpy.random.randn(99)
     c = outer_product(a, b)
@@ -76,7 +76,7 @@ or ``tvm.container.Array``, to this function, it returns a op node:
 
    a = tvm.te.placeholder((100, ), name='a')
    b = tvm.te.placeholder((99, ), name='b')
-   c = outer_product(a, b, c) # return the output tensor(s) of the operator
+   c = outer_product(a, b) # return the output tensor(s) of the operator
 
 You can use any methods that can be applied on a TVM ``OpNode``, like create_schedule, although
 so far, the functionality of schedule is as limited as ``ExternOpNode``. At least, it can be built
