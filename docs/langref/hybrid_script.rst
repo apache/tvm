@@ -38,7 +38,7 @@ you need to use ``tvm.te.hybrid.script`` decorator to indicate this is a hybrid 
 .. code-block:: python
 
     @tvm.te.hybrid.script
-    def outer_product(a, b, c):
+    def outer_product(a, b):
         c = output_tensor((100, 99), 'float32')
         for i in range(a.shape[0]):
             for j in range(b.shape[0]):
