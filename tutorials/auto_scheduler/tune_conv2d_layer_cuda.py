@@ -74,20 +74,20 @@ print(task.compute_dag)
 # Next, we set parameters for the auto-scheduler. These parameters
 # mainly specify how we do the measurement during the search and auto-tuning.
 #
-# * `measure_ctx` launches a different process for measurement. This
+# * :code:`measure_ctx` launches a different process for measurement. This
 #   provides an isolation. It can protect the master process from GPU crashes
 #   happended during measurement and avoid other runtime conflicts.
-# * `min_repeat_ms` defines the minimum duration of one "repeat" in every measurement.
+# * :code:`min_repeat_ms` defines the minimum duration of one "repeat" in every measurement.
 #   This can warmup the GPU, which is necessary to get accurate measurement results.
 #   Typically, we recommend a value > 300 ms.
-# * `num_measure_trials` is the number of measurement trials we can use during the search.
+# * :code:`num_measure_trials` is the number of measurement trials we can use during the search.
 #   We only make 10 trials in this tutorial for a fast demonstration. In practice, 1000 is a
 #   good value for the search to converge. You can do more trials according to your time budget.
-# * In addition, we use `RecordToFile` to dump measurement records into a file `conv2d.json`.
+# * In addition, we use :code:`RecordToFile` to dump measurement records into a file `conv2d.json`.
 #   The measurement records can be used to query the history best, resume the search,
 #   and do more analyses later.
-# * see :any:`auto_scheduler.auto_schedule.TuningOptions`:,
-#   :any:`auto_scheduler.measure.LocalRPCMeasureContext` for more parameters.
+# * see :any:`auto_scheduler.TuningOptions`,
+#   :any:`auto_scheduler.LocalRPCMeasureContext` for more parameters.
 
 measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
 tune_option = auto_scheduler.TuningOptions(

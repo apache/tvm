@@ -41,9 +41,9 @@ class RandomModel(CostModel):
 
         Parameters
         ----------
-        inputs : List[MeasureInput]
+        inputs : List[auto_scheduler.measure.MeasureInput]
             The measurement inputs
-        results : List[MeasureResult]
+        results : List[auto_scheduler.measure.MeasureResult]
             The measurement results
         """
         _ffi_api.CostModelUpdate(self, inputs, results)
@@ -112,9 +112,9 @@ class PythonBasedModel(CostModel):
 
         Parameters
         ----------
-        inputs : List[MeasureInput]
+        inputs : List[auto_scheduler.measure.MeasureInput]
             The measurement inputs
-        results : List[MeasureResult]
+        results : List[auto_scheduler.measure.MeasureResult]
             The measurement results
         """
         raise NotImplementedError

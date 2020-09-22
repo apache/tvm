@@ -105,9 +105,11 @@ class SketchPolicy(SearchPolicy):
         Callback functions called before the search process, usually used to do extra
         initializations.
         Possible callbacks:
-            - auto_scheduler.PreloadMeasuredStates
-            - auto_scheduler.PreloadCustomSketchRule
-            TODO(jcf94): Add these search callback implementations.
+
+          - auto_scheduler.PreloadMeasuredStates
+          - auto_scheduler.PreloadCustomSketchRule
+
+        TODO(jcf94): Add these search callback implementations.
     """
 
     DEFAULT_PARAMS = {

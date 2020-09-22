@@ -66,9 +66,9 @@ class RecordReader(Object):
 
         Returns
         -------
-        inputs : List[MeasureInput]
+        inputs : List[auto_scheduler.measure.MeasureInput]
             The MeasureInputs loaded from the log file.
-        results : List[MeasureResult]
+        results : List[auto_scheduler.measure.MeasureResult]
             The MeasureResults loaded from the log file.
         """
         inputs, results = _ffi_api.RecordReaderReadLines(
@@ -95,7 +95,7 @@ def load_records(filename):
 
     Returns
     -------
-    logs : List[MeasureInput, MeasureResult]
+    logs : List[auto_scheduler.measure.MeasureInput, auto_scheduler.measure.MeasureResult]
     """
     return zip(*RecordReader(filename).read_lines())
 
@@ -133,9 +133,9 @@ def load_best(filename, workload_key=None, target=None):
 
     Returns
     -------
-    input : MeasureInput
+    input : auto_scheduler.measure.MeasureInput
         The best State's MeasureInput from this log fine.
-    result : MeasureResult
+    result : auto_scheduler.measure.MeasureResult
         The best State's MeasureResult from this log fine.
     """
     log_reader = RecordReader(filename)
