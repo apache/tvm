@@ -113,7 +113,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     return expr;
   }
 
-#define DEFINE_MUTATE(OP, NodeName)                                              \
+#define DEFINE_MUTATE(OP, NodeName)                                                \
   inline PrimExpr VisitExpr_(const NodeName* op) final {                           \
     auto type_code = op->dtype.code();                                             \
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code); \
