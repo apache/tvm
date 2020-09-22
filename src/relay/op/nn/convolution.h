@@ -816,7 +816,7 @@ bool Conv1DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   IndexExpr pad_w;
   GetPaddingWidth(param->padding, &pad_w);
   Array<IndexExpr> oshape({dshape_ncw[0], channels, 0});
-  if (!dshape_ncw[1].as<tir::AnyNode>()) {
+  if (!dshape_ncw[2].as<tir::AnyNode>()) {
     oshape.Set(2, (param->strides[0] * (dshape_ncw[2] - 1) + dilated_ksize_x - pad_w +
                    param->output_padding[0]));
   } else {
@@ -923,13 +923,13 @@ bool Conv3DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
     oshape.Set(2, dshape_ncdhw[2]);
   }
   if (!dshape_ncdhw[3].as<tir::AnyNode>()) {
-    oshape.Set(3, (param->strides[1] * (dshape_ncdhw[3] - 1) + dilated_ksize_x - pad_h +
+    oshape.Set(3, (param->strides[1] * (dshape_ncdhw[3] - 1) + dilated_ksize_y - pad_h +
                    param->output_padding[1]));
   } else {
     oshape.Set(3, dshape_ncdhw[3]);
   }
   if (!dshape_ncdhw[4].as<tir::AnyNode>()) {
-    oshape.Set(4, (param->strides[2] * (dshape_ncdhw[4] - 1) + dilated_ksize_y - pad_w +
+    oshape.Set(4, (param->strides[2] * (dshape_ncdhw[4] - 1) + dilated_ksize_x - pad_w +
                    param->output_padding[2]));
   } else {
     oshape.Set(4, dshape_ncdhw[4]);
