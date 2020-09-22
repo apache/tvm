@@ -277,7 +277,7 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
 
     fn try_from(ret_value: RetValue) -> Result<ObjectPtr<T>, Self::Error> {
         match ret_value {
-            RetValue::ObjectHandle(handle) | RetValue::NDArrayHandle(handle){
+            RetValue::ObjectHandle(handle) | RetValue::NDArrayHandle(handle) => {
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
                 // println!("back to type {}", optr.count());
@@ -407,37 +407,8 @@ mod tests {
         return o;
     }
 
-    // #[test]
-    // fn test_ref_count_boundary() {
-    //     use super::*;
-    //     use crate::function::{register, Function, Result};
-    //     // 1
-    //     let ptr = ObjectPtr::new(Object::base_object::<Object>());
-    //     assert_eq!(ptr.count(), 1);
-    //     // 2
-    //     let stay = ptr.clone();
-    //     assert_eq!(ptr.count(), 2);
-    //     register(test_fn, "my_func").unwrap();
-    //     let func = Function::get("my_func").unwrap();
-    //     let func = func.to_boxed_fn::<dyn Fn(ObjectPtr<Object>) -> Result<ObjectPtr<Object>>>();
-    //     let same = func(ptr).unwrap();
-    //     drop(func);
-    //     assert_eq!(stay.count(), 4);
-    //     assert_eq!(same.count(), 4);
-    //     drop(same);
-    //     assert_eq!(stay.count(), 3);
-    // }
-
-    // fn test_fn2(o: ArgValue<'static>) -> RetValue {
-    //     // The call machinery adds at least 1 extra count while inside the call.
-    //     match o {
-    //         ArgValue::ObjectHandle(ptr) => RetValue::ObjectHandle(ptr),
-    //         _ => panic!()
-    //     }
-    // }
-
     #[test]
-    fn test_ref_count_boundary2() {
+    fn test_ref_count_boundary3() {
         use super::*;
         use crate::function::{register, Function};
         let ptr = ObjectPtr::new(Object::base_object::<Object>());

@@ -283,20 +283,22 @@ impl NDArray {
 
     /// Allocates and creates an empty NDArray given the shape, context and dtype.
     pub fn empty(shape: &[usize], ctx: Context, dtype: DataType) -> NDArray {
-        // let mut handle = ptr::null_mut() as ffi::TVMArrayHandle;
-        // let dtype: tvm_sys::ffi::DLDataType = dtype.into();
-        // check_call!(ffi::TVMArrayAlloc(
-        //     shape.as_ptr() as *const i64,
-        //     shape.len() as c_int,
-        //     i32::from(dtype.code) as c_int,
-        //     i32::from(dtype.bits) as c_int,
-        //     i32::from(dtype.lanes) as c_int,
-        //     ctx.device_type as c_int,
-        //     ctx.device_id as c_int,
-        //     &mut handle as *mut _,
-        // ));
-        // NDArray::Borrowed { handle: handle }
-        panic!()
+        let mut handle = ptr::null_mut() as ffi::TVMArrayHandle;
+        let dtype: tvm_sys::ffi::DLDataType = dtype.into();
+        check_call!(ffi::TVMArrayAlloc(
+            shape.as_ptr() as *const i64,
+            shape.len() as c_int,
+            i32::from(dtype.code) as c_int,
+            i32::from(dtype.bits) as c_int,
+            i32::from(dtype.lanes) as c_int,
+            ctx.device_type as c_int,
+            ctx.device_id as c_int,
+            &mut handle as *mut _,
+        ));
+        let ptr =
+            ObjectPtr::from_raw(handle as *mut Object).map(|o|
+                o.downcast().expect("this should never fail"));
+        NDArray(ptr)
     }
 }
 
@@ -361,22 +363,22 @@ impl_num32!(i32, u32, f32);
 
 #[cfg(test)]
 mod tests {
-    // use super::*;
+    use super::*;
 
-    // #[test]
-    // fn basics() {
-    //     let shape = &mut [1, 2, 3];
-    //     let ctx = Context::cpu(0);
-    //     let ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
-    //     assert_eq!(ndarray.shape().unwrap(), shape);
-    //     assert_eq!(
-    //         ndarray.size().unwrap(),
-    //         shape.to_vec().into_iter().product()
-    //     );
-    //     assert_eq!(ndarray.ndim(), 3);
-    //     assert!(ndarray.strides().is_none());
-    //     assert_eq!(ndarray.byte_offset(), 0);
-    // }
+    #[test]
+    fn basics() {
+        let shape = &mut [1, 2, 3];
+        let ctx = Context::cpu(0);
+        let ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
+        assert_eq!(ndarray.shape().unwrap(), shape);
+        assert_eq!(
+            ndarray.size().unwrap(),
+            shape.to_vec().into_iter().product()
+        );
+        assert_eq!(ndarray.ndim(), 3);
+        assert!(ndarray.strides().is_none());
+        assert_eq!(ndarray.byte_offset(), 0);
+    }
 
     // #[test]
     // fn copy() {
