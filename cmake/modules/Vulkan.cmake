@@ -29,7 +29,7 @@ tvm_option(USE_VULKAN_VALIDATION "Enable Vulkan API validation layers" OFF
 if(Vulkan_FOUND)
   # always set the includedir
   # avoid global retrigger of cmake
-  include_directories(${Vulkan_INCLUDE_DIRS})
+  include_directories(SYSTEM ${Vulkan_INCLUDE_DIRS})
 endif(Vulkan_FOUND)
 
 if(USE_VULKAN)

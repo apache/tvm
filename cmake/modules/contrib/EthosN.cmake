@@ -24,7 +24,7 @@ if(NOT USE_ETHOSN STREQUAL "OFF")
     message(FATAL_ERROR "Cannot find Ethos-N, USE_ETHOSN=" ${USE_ETHOSN})
 
   else()
-    include_directories(${ETHOSN_INCLUDE_DIRS})
+    include_directories(SYSTEM ${ETHOSN_INCLUDE_DIRS})
     add_definitions(${ETHOSN_DEFINITIONS})
 
     message(STATUS "Build with Ethos-N ${ETHOSN_PACKAGE_VERSION}")
