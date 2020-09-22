@@ -45,7 +45,7 @@ def test_layout_rewrite_correctness():
     workload = matmul_auto_scheduler_test
     workload_key = auto_scheduler.make_workload_key(workload, (N, N, N))
     dag = auto_scheduler.ComputeDAG(workload_key)
-    target = tvm.target.create(target)
+    target = tvm.target.Target(target)
     task = auto_scheduler.SearchTask(dag, workload_key, target)
 
     with tempfile.NamedTemporaryFile() as fp:
