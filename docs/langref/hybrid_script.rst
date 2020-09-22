@@ -230,5 +230,8 @@ Assert statement is supported, you can simply use it as it is in standard Python
 
 Keywords
 ~~~~~~~~
-- For keywords: ``serial``, ``range``, ``unroll``, ``parallel``, ``vectorize``, ``bind``, ``const_expr``
-- Math keywords: ``log``, ``exp``, ``sigmoid``, ``tanh``, ``power``, ``popcount``
+- For keywords: ``serial``, ``range``, ``unroll``, ``parallel``, ``vectorize``, ``bind``, ``const_range``
+- Math keywords: ``log``, ``exp``, ``sqrt``, ``rsqrt``, ``sigmoid``, ``tanh``, ``power``, ``popcount``, ``round``, ``ceil_div``
+- Allocate keywords: ``allocate``, ``output_tensor``
+- Data type keywords: ``uint8``, ``uint16``, ``uint32``, ``uint64``, ``int8``, ``int16``, ``int32``, ``int64``, ``float16``, ``float32``, ``float64``
+- Others: ``max_num_threads``
