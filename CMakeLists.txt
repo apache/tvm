@@ -367,6 +367,13 @@ set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
 add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs>)
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
 
+if(USE_MICRO)
+  # NOTE: cmake doesn't track dependencies at the file level across subdirectories. For the
+  # Unix Makefiles generator, need to add these explicit target-level dependency)
+  add_dependencies(tvm host_standalone_crt)
+  add_dependencies(tvm_runtime host_standalone_crt)
+endif()
+
 if(USE_CPP_RPC)
   add_subdirectory("apps/cpp_rpc")
 endif()
