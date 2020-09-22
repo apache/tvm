@@ -277,7 +277,7 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
 
     fn try_from(ret_value: RetValue) -> Result<ObjectPtr<T>, Self::Error> {
         match ret_value {
-            RetValue::ObjectHandle(handle) => {
+            RetValue::ObjectHandle(handle) | RetValue::NDArrayHandle(handle){
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
                 // println!("back to type {}", optr.count());
@@ -307,13 +307,7 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
 
     fn try_from(arg_value: ArgValue<'a>) -> Result<ObjectPtr<T>, Self::Error> {
         match arg_value {
-            ArgValue::ObjectHandle(handle) => {
-                let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
-                debug_assert!(optr.count() >= 1);
-                // println!("count: {}", optr.count());
-                optr.downcast()
-            },
-            ArgValue::NDArrayHandle(handle) => {
+            ArgValue::ObjectHandle(handle) | ArgValue::NDArrayHandle(handle) => {
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
                 // println!("count: {}", optr.count());
