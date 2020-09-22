@@ -148,7 +148,7 @@ void DeviceAPI::FreeWorkspace(TVMContext ctx, void* ptr) { FreeDataSpace(ctx, pt
 
 TVMStreamHandle DeviceAPI::CreateStream(TVMContext ctx) {
   LOG(FATAL) << "Device does not support stream api.";
-  return 0;
+  return nullptr;
 }
 
 void DeviceAPI::FreeStream(TVMContext ctx, TVMStreamHandle stream) {
@@ -462,7 +462,7 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
   API_BEGIN();
   if (fin == nullptr) {
     *out = new PackedFunc([func, resource_handle](TVMArgs args, TVMRetValue* rv) {
-      int ret = func((TVMValue*)args.values, (int*)args.type_codes,  // NOLINT(*)
+      int ret = func(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
                      args.num_args, rv, resource_handle);
       if (ret != 0) {
         throw dmlc::Error(TVMGetLastError() + ::dmlc::StackTrace());
@@ -473,7 +473,7 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
     // so fin will be called when the lambda went out of scope.
     std::shared_ptr<void> rpack(resource_handle, fin);
     *out = new PackedFunc([func, rpack](TVMArgs args, TVMRetValue* rv) {
-      int ret = func((TVMValue*)args.values, (int*)args.type_codes,  // NOLINT(*)
+      int ret = func(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
                      args.num_args, rv, rpack.get());
       if (ret != 0) {
         throw dmlc::Error(TVMGetLastError() + ::dmlc::StackTrace());

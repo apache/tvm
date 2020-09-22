@@ -360,7 +360,7 @@ struct AttrInitEntry {
   }
   // override fields.
   // This function sets the lower bound of the attribute
-  TSelf& set_lower_bound(DMLC_ATTRIBUTE_UNUSED const T& begin) {
+  TSelf& set_lower_bound(const T& begin) {
     if (this->value_missing_) return *this;
     const T& val = *value_;
     if (begin > val) {
@@ -372,7 +372,7 @@ struct AttrInitEntry {
     return *this;
   }
   // This function sets the upper bound of the attribute
-  TSelf& set_upper_bound(DMLC_ATTRIBUTE_UNUSED const T& end) {
+  TSelf& set_upper_bound(const T& end) {
     if (this->value_missing_) return *this;
     const T& val = *value_;
     if (val > end) {
@@ -384,7 +384,7 @@ struct AttrInitEntry {
     return *this;
   }
   // set default when
-  TSelf& set_default(DMLC_ATTRIBUTE_UNUSED const T& value) {
+  TSelf& set_default(const T& value) {
     if (!value_missing_) return *this;
     *value_ = value;
     value_missing_ = false;
@@ -548,12 +548,12 @@ class AttrDocEntry {
   using TSelf = AttrDocEntry;
 
   explicit AttrDocEntry(ObjectPtr<AttrFieldInfoNode> info) : info_(info) {}
-  TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) {
+  TSelf& describe(const char* str) {
     info_->description = str;
     return *this;
   }
   template <typename T>
-  TSelf& set_default(DMLC_ATTRIBUTE_UNUSED const T& value) {
+  TSelf& set_default(const T& value) {
     std::ostringstream os;
     os << info_->type_info << ", default=" << value;
     info_->type_info = os.str();
