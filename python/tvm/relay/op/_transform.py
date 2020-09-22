@@ -104,7 +104,7 @@ def compute_scatter(attrs, inputs, output_type):
     return [topi.scatter(inputs[0], inputs[1], inputs[2], attrs.axis)]
 
 
-_reg.register_schedule("scatter", strategy.schedule_scatter)
+_reg.register_strategy("scatter", strategy.scatter_strategy)
 
 # scatter_add
 @_reg.register_compute("scatter_add")

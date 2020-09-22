@@ -878,6 +878,7 @@ def test_reverse_sequence():
     )
 
 
+@tvm.testing.uses_gpu
 def test_scatter():
     def ref_scatter(data, indices, updates, axis=0):
         idx = np.indices(indices.shape).reshape(indices.ndim, -1)
@@ -903,8 +904,8 @@ def test_scatter():
         indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
 
         ref_res = ref_scatter(data_np, indices_np, updates_np, axis)
-        # TODO(mbrookhart): expand testing when adding more backend schedules
-        for target, ctx in [("llvm", tvm.cpu())]:
+
+        for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
