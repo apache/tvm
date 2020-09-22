@@ -32,6 +32,7 @@
 #include <tvm/te/operation.h>
 
 #include <algorithm>
+#include <condition_variable>
 #include <set>
 #include <string>
 #include <tuple>
@@ -679,6 +680,20 @@ class SplitFactorizationMemo {
 
  private:
   void DfsEnumerate(int now, int remaining_length, int max_innermost_factor);
+
+  class ReadWriteLock {
+   public:
+    void GetRead();
+    void GetWrite();
+    void UnlockRead();
+    void UnlockWrite();
+
+   private:
+    uint32_t read_count_ = 0;
+    bool is_writing_ = false;
+    std::mutex cv_mutex_;
+    std::condition_variable cv_;
+  } lock_;
 
   std::unordered_map<QueryKey, Array<Array<Integer>>> memory_;
 

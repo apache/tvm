@@ -414,19 +414,52 @@ void PruneInvalidState(const SearchTask& task, Array<State>* states) {
   }
 }
 
+/********** SplitFactorizationMemo **********/
+
+void SplitFactorizationMemo::ReadWriteLock::GetRead() {
+  std::unique_lock<std::mutex> lock(cv_mutex_);
+  cv_.wait(lock, [this](){ return !this->is_writing_; });
+  read_count_++;
+}
+
+void SplitFactorizationMemo::ReadWriteLock::GetWrite() {
+  std::unique_lock<std::mutex> lock(cv_mutex_);
+  cv_.wait(lock, [this](){ return this->read_count_ == 0 && !this->is_writing_; });
+  is_writing_ = true;
+}
+
+void SplitFactorizationMemo::ReadWriteLock::UnlockRead() {
+  std::lock_guard<std::mutex> lock(cv_mutex_);
+  read_count_--;
+  if (read_count_ == 0) {
+    cv_.notify_one();
+  }
+}
+
+void SplitFactorizationMemo::ReadWriteLock::UnlockWrite() {
+  std::lock_guard<std::mutex> lock(cv_mutex_);
+  is_writing_ = false;
+  cv_.notify_one();
+}
+
 const Array<Array<Integer>>& SplitFactorizationMemo::GetFactorizationSchemes(
     int extent, int n_lengths, int max_innermost_factor) {
   QueryKey key = std::make_tuple(extent, n_lengths, max_innermost_factor);
-  auto it = memory_.find(key);
-  if (it != memory_.end()) {
+  const auto& const_memory = memory_;
+  lock_.GetRead();
+  const auto& it = const_memory.find(key);
+  const auto& memory_end = const_memory.end();
+  lock_.UnlockRead();
+  if (it != memory_end) {
     return it->second;
   }
 
+  lock_.GetWrite();
   tmp_stack_ = Array<Integer>(n_lengths, Integer());
   results_ = &memory_[key];
   n_lengths_ = n_lengths;
-
   DfsEnumerate(0, extent, max_innermost_factor);
+  lock_.UnlockWrite();
 
   return *results_;
 }
@@ -463,6 +496,8 @@ const std::vector<int>& SplitFactorizationMemo::GetFactors(int n) {
   std::sort(res.begin(), res.end());
   return res;
 }
+
+/********** Utils interface API for ffi **********/
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsIsTiled")
     .set_body_typed([](const Stage& stage) { return IsTiled(stage); });
