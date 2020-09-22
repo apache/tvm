@@ -2808,7 +2808,7 @@ class OperatorConverter(object):
 
         # Weights
         weights_tensor_type = weights_tensor.tensor.Type()
-        # weights tensor type should be UINT8 (quantization) or FLOAT32
+        # weights tensor type should be INT8/UINT8 (quantization) or FLOAT32
         assert weights_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weights_tensor_type)
         weight_value_ohwi = self.get_tensor_value(weights_tensor)
@@ -2832,8 +2832,14 @@ class OperatorConverter(object):
             padding = (0, 0, 0, 0)
 
         if input_tensor.qnn_params:
-            # Making use of qnn.conv2d
-            # (input and kernel tensors need some transformations before that)
+            # Quantized Transpose Conv can be implemented by using qnn.conv2d
+            # after some transformations of the input and kernel tensors.
+            # These transformations are:
+            # kernel is flipped and transformed and
+            # input is dilated and padded (upsampled)
+            # before passing to qnn.conv2d.
+            # This is equivalent to transpose convolution.
+
             # Upsampling (Dilating and Padding) input with zero_point
             input_zero_point = input_tensor.qnn_params["zero_point"]
             dilated_in_expr = _op.nn.dilate(

@@ -34,7 +34,7 @@ def dilate(data, strides, dilation_value=0.0, name="DilatedInput"):
     strides : list / tuple of n ints
         Dilation stride on each dimension, 1 means no dilation.
 
-    dilation_value : int/float
+    dilation_value : int/float, optional
         Value used to dilate the input.
 
     name : str, optional
