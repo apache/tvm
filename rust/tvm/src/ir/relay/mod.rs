@@ -17,27 +17,29 @@
  * under the License.
  */
 
+pub mod attrs;
+
 use crate::runtime::array::Array;
 use crate::runtime::{object::*, String as TString};
 
+use super::attrs::Attrs;
 use super::expr::BaseExprNode;
 use super::function::BaseFuncNode;
-use super::ty::Type;
+use super::ty::{Type, TypeNode};
 
 use tvm_macros::Object;
+use tvm_rt::NDArray;
 
 pub use super::expr::{GlobalVar, GlobalVarNode};
-
-pub type Attrs = ObjectRef;
 
 #[repr(C)]
 #[derive(Object)]
 #[ref_name = "Expr"]
-#[type_key = "relay.Expr"]
+#[type_key = "RelayExpr"]
 pub struct ExprNode {
     pub base: BaseExprNode,
     pub span: ObjectRef,
-    pub checked_type: ObjectRef,
+    pub checked_type: Type,
 }
 
 impl ExprNode {
@@ -45,7 +47,10 @@ impl ExprNode {
         ExprNode {
             base: BaseExprNode::base::<T>(),
             span: ObjectRef::null(),
-            checked_type: ObjectRef::null(),
+            checked_type: Type::from(TypeNode {
+                base: Object::base_object::<TypeNode>(),
+                span: ObjectRef::null(),
+            }),
         }
     }
 }
@@ -75,11 +80,11 @@ impl Id {
 #[type_key = "relay.Constant"]
 pub struct ConstantNode {
     pub base: ExprNode,
-    pub data: ObjectRef, // make this NDArray.
+    pub data: NDArray,
 }
 
 impl Constant {
-    pub fn new(data: ObjectRef, _span: ObjectRef) -> Constant {
+    pub fn new(data: NDArray, _span: ObjectRef) -> Constant {
         let node = ConstantNode {
             base: ExprNode::base::<ConstantNode>(),
             data: data,

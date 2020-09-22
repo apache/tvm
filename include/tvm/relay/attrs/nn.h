@@ -28,6 +28,7 @@
 #include <tvm/relay/base.h>
 
 #include <string>
+#include "tvm/runtime/container.h"
 
 namespace tvm {
 namespace relay {
@@ -115,9 +116,9 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   int groups;
   IndexExpr channels;
   Array<IndexExpr> kernel_size;
-  std::string data_layout;
-  std::string kernel_layout;
-  std::string out_layout;
+  tvm::String data_layout;
+  tvm::String kernel_layout;
+  tvm::String out_layout;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv2DAttrs, "relay.attrs.Conv2DAttrs") {
