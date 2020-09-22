@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-r"""
+"""
 Distributed measurement infrastructure to measure the runtime costs of tensor programs.
 
 These functions are responsible for building the tvm module, uploading it to
