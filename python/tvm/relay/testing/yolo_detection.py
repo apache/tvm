@@ -212,36 +212,39 @@ def get_detections(im, det, thresh, names, classes):
         valid = True
         imc, imh, imw = im.shape
         width = int(imh * 0.006)
-        offset = category*123457 % classes
+        offset = category * 123457 % classes
         red = _get_color(2, offset, classes)
         green = _get_color(1, offset, classes)
         blue = _get_color(0, offset, classes)
         rgb = [red, green, blue]
         b = det["bbox"]
-        left = int((b.x-b.w/2.)*imw)
-        right = int((b.x+b.w/2.)*imw)
-        top = int((b.y-b.h/2.)*imh)
-        bot = int((b.y+b.h/2.)*imh)
+        left = int((b.x - b.w / 2.0) * imw)
+        right = int((b.x + b.w / 2.0) * imw)
+        top = int((b.y - b.h / 2.0) * imh)
+        bot = int((b.y + b.h / 2.0) * imh)
 
         if left < 0:
             left = 0
-        if right > imw-1:
-            right = imw-1
+        if right > imw - 1:
+            right = imw - 1
         if top < 0:
             top = 0
-        if bot > imh-1:
-            bot = imh-1
+        if bot > imh - 1:
+            bot = imh - 1
 
-        detection = {"category": category,
-                     "labelstr": labelstr,
-                     "left": left,
-                     "top": top,
-                     "right": right,
-                     "bot": bot,
-                     "width": width,
-                     "rgb": rgb}
+        detection = {
+            "category": category,
+            "labelstr": labelstr,
+            "left": left,
+            "top": top,
+            "right": right,
+            "bot": bot,
+            "width": width,
+            "rgb": rgb,
+        }
 
     return valid, detection
+
 
 def draw_detections(font_path, im, dets, thresh, names, classes):
     "Draw the markings around the detected region"
@@ -250,20 +253,18 @@ def draw_detections(font_path, im, dets, thresh, names, classes):
         if valid:
             rgb = detection["rgb"]
             label = _get_label(font_path, "".join(detection["labelstr"]), rgb)
-            _draw_box_width(im,
-                            detection["left"],
-                            detection["top"],
-                            detection["right"],
-                            detection["bot"],
-                            detection["width"],
-                            rgb[0],
-                            rgb[1],
-                            rgb[2])
-            _draw_label(im,
-                        detection["top"] + detection["width"],
-                        detection["left"],
-                        label,
-                        rgb)
+            _draw_box_width(
+                im,
+                detection["left"],
+                detection["top"],
+                detection["right"],
+                detection["bot"],
+                detection["width"],
+                rgb[0],
+                rgb[1],
+                rgb[2],
+            )
+            _draw_label(im, detection["top"] + detection["width"], detection["left"], label, rgb)
 
 
 def show_detections(im, dets, thresh, names, classes):
@@ -271,12 +272,15 @@ def show_detections(im, dets, thresh, names, classes):
     for det in dets:
         valid, detection = get_detections(im, det, thresh, names, classes)
         if valid:
-            print("class:{} left:{} right:{} top:{} bottom:{}"
-                  .format(detection["labelstr"],
-                          detection["left"],
-                          detection["top"],
-                          detection["right"],
-                          detection["bot"]))
+            print(
+                "class:{} left:{} right:{} top:{} bottom:{}".format(
+                    detection["labelstr"],
+                    detection["left"],
+                    detection["top"],
+                    detection["right"],
+                    detection["bot"],
+                )
+            )
 
 
 def _get_pixel(im, x, y, c):
