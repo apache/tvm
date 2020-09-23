@@ -529,17 +529,24 @@ mod tests {
 
     #[test]
     fn test_parse_constant() -> Result<()> {
-        let module = crate::ir::module::IRModule::parse("", r#"
+        let module = crate::ir::module::IRModule::parse(
+            "",
+            r#"
 #[version = "0.0.5"]
 def @main() -> float32 {
   0.01639530062675476f
 }
-"#);
+"#,
+        );
         let main = module
             .lookup(module.get_global_var("main".to_string().into()).unwrap())
             .unwrap();
         let func = main.downcast::<crate::ir::relay::Function>().unwrap();
-        let constant = func.body.clone().downcast::<crate::ir::relay::Constant>().unwrap();
+        let constant = func
+            .body
+            .clone()
+            .downcast::<crate::ir::relay::Constant>()
+            .unwrap();
         let tuple_type = constant
             .clone()
             .upcast::<Expr>()
@@ -548,27 +555,12 @@ def @main() -> float32 {
             .downcast::<crate::ir::ty::TensorType>()
             .unwrap();
         // Test type
-        assert_eq!(
-            tuple_type.shape.len(),
-            0,
-        );
-        assert_eq!(
-            tuple_type.dtype,
-            "float32".parse().unwrap(),
-        );
+        assert_eq!(tuple_type.shape.len(), 0,);
+        assert_eq!(tuple_type.dtype, "float32".parse().unwrap(),);
         // Check that actual data matches up with type
-        assert_eq!(
-            constant.data.dtype(),
-            "float32".parse().unwrap(),
-        );
-        assert_eq!(
-            constant.data.size(),
-            Some(1),
-        );
-        assert_eq!(
-            constant.data.shape().unwrap().len(),
-            0,
-        );
+        assert_eq!(constant.data.dtype(), "float32".parse().unwrap(),);
+        assert_eq!(constant.data.size(), Some(1),);
+        assert_eq!(constant.data.shape().unwrap().len(), 0,);
         Ok(())
     }
 }

@@ -51,16 +51,16 @@ use std::convert::TryInto;
 use std::ffi::c_void;
 use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice, str::FromStr};
 
+use tvm_macros::Object;
 use tvm_sys::ffi::DLTensor;
 use tvm_sys::{ffi, ByteArray, Context, DataType};
-use tvm_macros::Object;
 
 use ndarray::{Array, ArrayD};
 use num_traits::Num;
 
 use crate::errors::NDArrayError;
 
-use crate::object::{Object, ObjectPtr, IsObjectRef};
+use crate::object::{IsObjectRef, Object, ObjectPtr};
 
 /// See the [`module-level documentation`](../ndarray/index.html) for more details.
 #[repr(C)]
@@ -84,11 +84,14 @@ impl NDArrayContainer {
         let object: *mut Object = unsafe { std::mem::transmute(base_ptr) };
         println!("Rust Object {:?}", object);
         let object_ptr = ObjectPtr::from_raw(object);
-        println!("{:?}", crate::object::debug_print(IsObjectRef::from_ptr(object_ptr.clone())));
-        object_ptr
-            .map(|ptr|
-                    ptr.downcast::<NDArrayContainer>()
-                       .expect("we know this is an NDArray container"))
+        println!(
+            "{:?}",
+            crate::object::debug_print(IsObjectRef::from_ptr(object_ptr.clone()))
+        );
+        object_ptr.map(|ptr| {
+            ptr.downcast::<NDArrayContainer>()
+                .expect("we know this is an NDArray container")
+        })
     }
 
     pub fn leak<'a>(object_ptr: ObjectPtr<NDArrayContainer>) -> &'a mut NDArrayContainer
@@ -96,7 +99,12 @@ impl NDArrayContainer {
         NDArrayContainer: 'a,
     {
         let base_offset = memoffset::offset_of!(NDArrayContainer, dl_tensor) as isize;
-        unsafe { &mut *std::mem::ManuallyDrop::new(object_ptr).ptr.as_ptr().offset(base_offset) }
+        unsafe {
+            &mut *std::mem::ManuallyDrop::new(object_ptr)
+                .ptr
+                .as_ptr()
+                .offset(base_offset)
+        }
     }
 }
 
@@ -112,9 +120,7 @@ impl NDArray {
     }
 
     pub(crate) fn as_raw_dltensor(&self) -> *mut DLTensor {
-        unsafe {
-            std::mem::transmute(&self.0.as_ref().unwrap().dl_tensor)
-        }
+        unsafe { std::mem::transmute(&self.0.as_ref().unwrap().dl_tensor) }
     }
 
     pub fn is_view(&self) -> bool {
@@ -318,9 +324,8 @@ impl NDArray {
             &mut handle as *mut _,
         ));
         println!("{:?}", handle);
-        let ptr =
-            NDArrayContainer::from_raw(handle).map(|o|
-                o.downcast().expect("this should never fail"));
+        let ptr = NDArrayContainer::from_raw(handle)
+            .map(|o| o.downcast().expect("this should never fail"));
         NDArray(ptr)
     }
 }

@@ -1,6 +1,6 @@
+use crate::runtime::{Object, ObjectRef};
 use tvm_macros::Object;
 use tvm_rt::{array::Array, DataType};
-use crate::runtime::{ObjectRef, Object};
 
 use super::PrimExpr;
 
