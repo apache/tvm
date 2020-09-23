@@ -373,8 +373,11 @@ inline ObjectPtr<Object> NDArray::FFIDataFromHandle(TVMArrayHandle handle) {
 inline TVMArrayHandle NDArray::FFIGetHandle(const ObjectRef& nd) {
   // NOTE: it is necessary to cast to container then to base
   //       so that the FFI handle uses the ContainerBase address.
-  return reinterpret_cast<TVMArrayHandle>(static_cast<NDArray::ContainerBase*>(
+  std::cout << "Object: " << const_cast<Object*>(nd.get()) << std::endl;
+  auto ptr = reinterpret_cast<TVMArrayHandle>(static_cast<NDArray::ContainerBase*>(
       static_cast<NDArray::Container*>(const_cast<Object*>(nd.get()))));
+  std::cout << "Ptr: " << ptr << std::endl;
+  return ptr;
 }
 
 inline void NDArray::FFIDecRef(TVMArrayHandle handle) {

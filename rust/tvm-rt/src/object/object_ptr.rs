@@ -276,13 +276,22 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
     type Error = Error;
 
     fn try_from(ret_value: RetValue) -> Result<ObjectPtr<T>, Self::Error> {
+        use crate::ndarray::NDArrayContainer;
+        use crate::ffi::DLTensor;
+
         match ret_value {
-            RetValue::ObjectHandle(handle) | RetValue::NDArrayHandle(handle) => {
+            RetValue::ObjectHandle(handle) => {
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
-                // println!("back to type {}", optr.count());
                 optr.downcast()
             }
+            RetValue::NDArrayHandle(handle) => {
+                let optr = NDArrayContainer::from_raw(handle as *mut DLTensor).ok_or(Error::Null)?;
+                debug_assert!(optr.count() >= 1);
+                // (@mwillsey): can we remove this?
+                optr.upcast::<Object>().downcast()
+            }
+            // TODO(@mxwillsey, jared): ObjectHandle is wrong here.
             _ => Err(Error::downcast(format!("{:?}", ret_value), "ObjectHandle")),
         }
     }
@@ -293,11 +302,19 @@ impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
         debug_assert!(object_ptr.count() >= 1);
         let object_ptr = object_ptr.upcast::<Object>();
         let index = object_ptr.type_index;
-        let raw_ptr = ObjectPtr::leak(object_ptr) as *mut Object as *mut std::ffi::c_void;
-        assert!(!raw_ptr.is_null());
         match index {
-            tvm_sys::ffi::TVMArgTypeCode_kTVMNDArrayHandle => ArgValue::NDArrayHandle(raw_ptr),
-            _ => ArgValue::ObjectHandle(raw_ptr)
+            tvm_sys::ffi::TVMArgTypeCode_kTVMNDArrayHandle => {
+                use crate::ndarray::NDArrayContainer;
+                // TODO(this is probably not optimal)
+                let raw_ptr = NDArrayContainer::leak(object_ptr.downcast().unwrap()) as *mut NDArrayContainer as *mut std::ffi::c_void;
+                assert!(!raw_ptr.is_null());
+                ArgValue::NDArrayHandle(raw_ptr)
+            },
+            _ => {
+                let raw_ptr = ObjectPtr::leak(object_ptr) as *mut Object as *mut std::ffi::c_void;
+                assert!(!raw_ptr.is_null());
+                ArgValue::ObjectHandle(raw_ptr)
+            }
         }
     }
 }
@@ -306,13 +323,21 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
     type Error = Error;
 
     fn try_from(arg_value: ArgValue<'a>) -> Result<ObjectPtr<T>, Self::Error> {
+        use crate::ndarray::NDArrayContainer;
+        use crate::ffi::DLTensor;
+
         match arg_value {
-            ArgValue::ObjectHandle(handle) | ArgValue::NDArrayHandle(handle) => {
+            ArgValue::ObjectHandle(handle) => {
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
-                // println!("count: {}", optr.count());
                 optr.downcast()
             },
+            ArgValue::NDArrayHandle(handle) => {
+                let optr = NDArrayContainer::from_raw(handle as *mut DLTensor).ok_or(Error::Null)?;
+                debug_assert!(optr.count() >= 1);
+                // (@mwillsey): can we remove this?
+                optr.upcast::<Object>().downcast()
+            }
             _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
         }
     }

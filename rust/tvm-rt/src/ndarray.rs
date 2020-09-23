@@ -60,7 +60,7 @@ use num_traits::Num;
 
 use crate::errors::NDArrayError;
 
-use crate::object::{Object, ObjectPtr};
+use crate::object::{Object, ObjectPtr, IsObjectRef};
 
 /// See the [`module-level documentation`](../ndarray/index.html) for more details.
 #[repr(C)]
@@ -69,30 +69,52 @@ use crate::object::{Object, ObjectPtr};
 #[type_key = "runtime.NDArray"]
 pub struct NDArrayContainer {
     base: Object,
-    dl_tensor: *mut DLTensor,
+    // Container Base
+    dl_tensor: DLTensor,
     manager_ctx: *mut c_void,
+    // TOOD: shape?
 }
 
+impl NDArrayContainer {
+    pub(crate) fn from_raw(handle: ffi::TVMArrayHandle) -> Option<ObjectPtr<Self>> {
+        let base_offset = memoffset::offset_of!(NDArrayContainer, dl_tensor) as isize;
+        println!("Base Object {:?}", base_offset);
+        let base_ptr = unsafe { (handle as *mut i8).offset(-base_offset) };
+        println!("Base Ptr {:?}", base_ptr);
+        let object: *mut Object = unsafe { std::mem::transmute(base_ptr) };
+        println!("Rust Object {:?}", object);
+        let object_ptr = ObjectPtr::from_raw(object);
+        println!("{:?}", crate::object::debug_print(IsObjectRef::from_ptr(object_ptr.clone())));
+        object_ptr
+            .map(|ptr|
+                    ptr.downcast::<NDArrayContainer>()
+                       .expect("we know this is an NDArray container"))
+    }
+
+    pub fn leak<'a>(object_ptr: ObjectPtr<NDArrayContainer>) -> &'a mut NDArrayContainer
+    where
+        NDArrayContainer: 'a,
+    {
+        let base_offset = memoffset::offset_of!(NDArrayContainer, dl_tensor) as isize;
+        unsafe { &mut *std::mem::ManuallyDrop::new(object_ptr).ptr.as_ptr().offset(base_offset) }
+    }
+}
 
 impl NDArray {
     pub(crate) fn from_raw(handle: ffi::TVMArrayHandle) -> Self {
-        let object: *mut Object = unsafe { std::mem::transmute(handle) };
-        let object_ptr = ObjectPtr::from_raw(object);
-        let ptr = object_ptr
-            .map(|ptr|
-                    ptr.downcast::<NDArrayContainer>()
-                       .expect("we know this is an NDArray container"));
+        let ptr = NDArrayContainer::from_raw(handle);
         NDArray(ptr)
     }
 
+    // I think these should be marked as unsafe functions? projecting a reference is bad news.
     pub fn as_dltensor(&self) -> &DLTensor {
-        unsafe {
-            std::mem::transmute(self.0.as_ref().unwrap().dl_tensor)
-        }
+        &self.0.as_ref().unwrap().dl_tensor
     }
 
     pub(crate) fn as_raw_dltensor(&self) -> *mut DLTensor {
-        self.0.as_ref().unwrap().dl_tensor
+        unsafe {
+            std::mem::transmute(&self.0.as_ref().unwrap().dl_tensor)
+        }
     }
 
     pub fn is_view(&self) -> bool {
@@ -295,8 +317,9 @@ impl NDArray {
             ctx.device_id as c_int,
             &mut handle as *mut _,
         ));
+        println!("{:?}", handle);
         let ptr =
-            ObjectPtr::from_raw(handle as *mut Object).map(|o|
+            NDArrayContainer::from_raw(handle).map(|o|
                 o.downcast().expect("this should never fail"));
         NDArray(ptr)
     }
@@ -369,7 +392,9 @@ mod tests {
     fn basics() {
         let shape = &mut [1, 2, 3];
         let ctx = Context::cpu(0);
+        println!("before empty");
         let ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
+        println!("after empty");
         assert_eq!(ndarray.shape().unwrap(), shape);
         assert_eq!(
             ndarray.size().unwrap(),
@@ -380,52 +405,52 @@ mod tests {
         assert_eq!(ndarray.byte_offset(), 0);
     }
 
-    // #[test]
-    // fn copy() {
-    //     let shape = &mut [4];
-    //     let mut data = vec![1i32, 2, 3, 4];
-    //     let ctx = Context::cpu(0);
-    //     let mut ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
-    //     assert!(ndarray.to_vec::<i32>().is_ok());
-    //     ndarray.copy_from_buffer(&mut data);
-    //     assert_eq!(ndarray.shape().unwrap(), shape);
-    //     assert_eq!(ndarray.to_vec::<i32>().unwrap(), data);
-    //     assert_eq!(ndarray.ndim(), 1);
-    //     assert!(ndarray.is_contiguous().is_ok());
-    //     assert_eq!(ndarray.byte_offset(), 0);
-    //     let shape = vec![4];
-    //     let e = NDArray::empty(
-    //         &shape,
-    //         Context::cpu(0),
-    //         DataType::from_str("int32").unwrap(),
-    //     );
-    //     let nd = ndarray.copy_to_ndarray(e);
-    //     assert!(nd.is_ok());
-    //     assert_eq!(nd.unwrap().to_vec::<i32>().unwrap(), data);
-    // }
+    #[test]
+    fn copy() {
+        let shape = &mut [4];
+        let mut data = vec![1i32, 2, 3, 4];
+        let ctx = Context::cpu(0);
+        let mut ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
+        assert!(ndarray.to_vec::<i32>().is_ok());
+        ndarray.copy_from_buffer(&mut data);
+        assert_eq!(ndarray.shape().unwrap(), shape);
+        assert_eq!(ndarray.to_vec::<i32>().unwrap(), data);
+        assert_eq!(ndarray.ndim(), 1);
+        assert!(ndarray.is_contiguous().is_ok());
+        assert_eq!(ndarray.byte_offset(), 0);
+        let shape = vec![4];
+        let e = NDArray::empty(
+            &shape,
+            Context::cpu(0),
+            DataType::from_str("int32").unwrap(),
+        );
+        let nd = ndarray.copy_to_ndarray(e);
+        assert!(nd.is_ok());
+        assert_eq!(nd.unwrap().to_vec::<i32>().unwrap(), data);
+    }
 
-    // // #[test]
-    // // #[should_panic(expected = "called `Result::unwrap()` on an `Err`")]
-    // // fn copy_wrong_dtype() {
-    // //     let shape = vec![4];
-    // //     let mut data = vec![1f32, 2., 3., 4.];
-    // //     let ctx = Context::cpu(0);
-    // //     let mut nd_float = NDArray::empty(&shape, ctx, DataType::from_str("float32").unwrap());
-    // //     nd_float.copy_from_buffer(&mut data);
-    // //     let empty_int = NDArray::empty(&shape, ctx, DataType::from_str("int32").unwrap());
-    // //     nd_float.copy_to_ndarray(empty_int).unwrap();
-    // // }
+    #[test]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err`")]
+    fn copy_wrong_dtype() {
+        let shape = vec![4];
+        let mut data = vec![1f32, 2., 3., 4.];
+        let ctx = Context::cpu(0);
+        let mut nd_float = NDArray::empty(&shape, ctx, DataType::from_str("float32").unwrap());
+        nd_float.copy_from_buffer(&mut data);
+        let empty_int = NDArray::empty(&shape, ctx, DataType::from_str("int32").unwrap());
+        nd_float.copy_to_ndarray(empty_int).unwrap();
+    }
 
-    // #[test]
-    // fn rust_ndarray() {
-    //     let a = Array::from_shape_vec((2, 2), vec![1f32, 2., 3., 4.])
-    //         .unwrap()
-    //         .into_dyn();
-    //     let nd =
-    //         NDArray::from_rust_ndarray(&a, Context::cpu(0), DataType::from_str("float32").unwrap())
-    //             .unwrap();
-    //     assert_eq!(nd.shape().unwrap(), &mut [2, 2]);
-    //     let rnd: ArrayD<f32> = ArrayD::try_from(&nd).unwrap();
-    //     assert!(rnd.all_close(&a, 1e-8f32));
-    // }
+    #[test]
+    fn rust_ndarray() {
+        let a = Array::from_shape_vec((2, 2), vec![1f32, 2., 3., 4.])
+            .unwrap()
+            .into_dyn();
+        let nd =
+            NDArray::from_rust_ndarray(&a, Context::cpu(0), DataType::from_str("float32").unwrap())
+                .unwrap();
+        assert_eq!(nd.shape().unwrap(), &mut [2, 2]);
+        let rnd: ArrayD<f32> = ArrayD::try_from(&nd).unwrap();
+        assert!(rnd.all_close(&a, 1e-8f32));
+    }
 }
