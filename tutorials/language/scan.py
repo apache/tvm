@@ -25,6 +25,7 @@ Recurrent computing is a typical pattern in neural networks.
 from __future__ import absolute_import, print_function
 
 import tvm
+import tvm.testing
 from tvm import te
 import numpy as np
 
