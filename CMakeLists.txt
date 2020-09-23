@@ -399,7 +399,7 @@ if(BUILD_FOR_HEXAGON)
   set_target_properties(tvm_runtime PROPERTIES LINK_FLAGS
                         "-Wl,--wrap=pthread_create")
 
-  target_include_directories(tvm_runtime
+  target_include_directories(tvm_runtime SYSTEM
     PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/posix"
     PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/qurt"
     PUBLIC "${USE_HEXAGON_SDK}/incs"
@@ -462,7 +462,7 @@ if(GTEST_INCLUDE_DIR AND GTEST_LIB)
     string(REPLACE ".cc" "" __execname ${__srcname})
     add_executable(${__execname} ${__srcpath})
     list(APPEND TEST_EXECS ${__execname})
-    target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR})
+    target_include_directories(${__execname} SYSTEM PUBLIC ${GTEST_INCLUDE_DIR})
     target_link_libraries(${__execname} ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} pthread dl)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
