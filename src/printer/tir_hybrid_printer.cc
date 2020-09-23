@@ -68,7 +68,7 @@ class TIRHybridPrinter : public StmtFunctor<Doc(const Stmt&)>,
   std::unordered_set<const VarNode*> var_not_in_headers;
   /*! \brief buffer collector (buffer defined in BufferMap and BufferAllocation)*/
   std::unordered_set<const BufferNode*> buf_not_in_headers;
-  /*! \breif Map from Var to thread env name */
+  /*! \brief Map from Var to thread env name */
   std::unordered_map<Var, String, ObjectPtrHash, ObjectPtrEqual> var_env_map_;
   /*! \brief Map from Var to Doc */
   std::unordered_map<Var, Doc, ObjectPtrHash, ObjectPtrEqual> memo_var_;

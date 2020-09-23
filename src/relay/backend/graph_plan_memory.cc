@@ -353,7 +353,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
   }
   /*!
    * \brief Check if we can release token.
-   * \tok The token to be released.
+   * \param tok The token to be released.
    */
   void CheckForRelease(StorageToken* tok) {
     CHECK_GE(tok->storage_id, 0);

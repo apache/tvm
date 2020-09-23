@@ -18,33 +18,7 @@
 tvm.auto_scheduler
 ------------------
 .. automodule:: tvm.auto_scheduler
+   :members:
+   :imported-members:
+   :autosummary:
 
-tvm.auto_scheduler.auto_schedule
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.auto_scheduler.auto_schedule
-
-.. autoclass:: tvm.auto_scheduler.auto_schedule.SearchTask
-
-.. autoclass:: tvm.auto_scheduler.auto_schedule.TuningOptions
-
-.. autofunction:: tvm.auto_scheduler.auto_schedule.create_task
-
-.. autofunction:: tvm.auto_scheduler.auto_schedule.auto_schedule
-
-tvm.auto_scheduler.workload_registry
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: tvm.auto_scheduler.workload_registry.register_workload
-
-
-tvm.auto_scheduler.measure
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.auto_scheduler.measure
-
-.. autoclass:: tvm.auto_scheduler.measure.LocalRPCMeasureContext
-
-.. autoclass:: tvm.auto_scheduler.measure.LocalRunner
-
-.. autoclass:: tvm.auto_scheduler.measure.LocalBuilder
-
-.. autoclass:: tvm.auto_scheduler.measure.RPCRunner
