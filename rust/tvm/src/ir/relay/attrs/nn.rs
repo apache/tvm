@@ -25,3 +25,12 @@ pub struct Conv2DAttrsNode {
     pub out_layout: TString,
     pub out_dtype: DataType,
 }
+
+#[repr(C)]
+#[derive(Object)]
+#[ref_name = "BiasAddAttrs"]
+#[type_key = "relay.attrs.BiasAddAttrs"]
+pub struct BiasAddAttrsNode {
+    pub base: BaseAttrsNode,
+    pub axis: i32,
+}
