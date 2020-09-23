@@ -20,7 +20,7 @@ add_definitions(-DDMLC_USE_FOPEN64=0)
 
 if(NOT USE_LLVM STREQUAL "OFF")
   find_llvm(${USE_LLVM})
-  include_directories(${LLVM_INCLUDE_DIRS})
+  include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
   message(STATUS "Build with LLVM " ${LLVM_PACKAGE_VERSION})
   message(STATUS "Set TVM_LLVM_VERSION=" ${TVM_LLVM_VERSION})

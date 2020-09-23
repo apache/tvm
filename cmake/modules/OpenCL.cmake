@@ -21,7 +21,7 @@ find_opencl(${USE_OPENCL})
 if(OpenCL_FOUND)
   # always set the includedir when cuda is available
   # avoid global retrigger of cmake
-  include_directories(${OpenCL_INCLUDE_DIRS})
+  include_directories(SYSTEM ${OpenCL_INCLUDE_DIRS})
 endif(OpenCL_FOUND)
 
 if(USE_SDACCEL)
