@@ -418,12 +418,14 @@ void PruneInvalidState(const SearchTask& task, Array<State>* states) {
 
 void SplitFactorizationMemo::ReadWriteLock::GetRead() {
   std::unique_lock<std::mutex> lock(cv_mutex_);
+  // Wake up and get the mutex lock if there's no writing thread
   cv_.wait(lock, [this]() { return !this->is_writing_; });
   read_count_++;
 }
 
 void SplitFactorizationMemo::ReadWriteLock::GetWrite() {
   std::unique_lock<std::mutex> lock(cv_mutex_);
+  // Wake up and get the mutex lock if there's no reading or writing threads
   cv_.wait(lock, [this]() { return this->read_count_ == 0 && !this->is_writing_; });
   is_writing_ = true;
 }
@@ -431,6 +433,7 @@ void SplitFactorizationMemo::ReadWriteLock::GetWrite() {
 void SplitFactorizationMemo::ReadWriteLock::UnlockRead() {
   std::lock_guard<std::mutex> lock(cv_mutex_);
   read_count_--;
+  // Notify the other blocked threads if this is the last reading thread
   if (read_count_ == 0) {
     cv_.notify_one();
   }
@@ -439,6 +442,7 @@ void SplitFactorizationMemo::ReadWriteLock::UnlockRead() {
 void SplitFactorizationMemo::ReadWriteLock::UnlockWrite() {
   std::lock_guard<std::mutex> lock(cv_mutex_);
   is_writing_ = false;
+  // Notify the other blocked threads
   cv_.notify_one();
 }
 

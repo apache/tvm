@@ -333,12 +333,12 @@ Array<State> SketchPolicyNode::GenerateSketches() {
 }
 
 Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches, int out_size) {
-  std::atomic<int> fail_ct(0);
+  int fail_ct = 0;
   Array<State> out_states;
-  std::vector<std::mt19937> rand_seeds;
-  rand_seeds.reserve(out_size);
+  std::vector<std::mt19937> rand_gens;
+  rand_gens.reserve(out_size);
   for (int i = 0; i < out_size; i++) {
-    rand_seeds.push_back(std::mt19937(rand_gen()));
+    rand_gens.push_back(std::mt19937(rand_gen()));
   }
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
@@ -346,33 +346,31 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
     std::vector<State> temp_states(out_size);
 
     support::parallel_for(0, out_size - out_states.size(),
-                          [this, &temp_states, &sketches, &rand_seeds, &fail_ct](int index) {
+                          [this, &temp_states, &sketches, &rand_gens, &fail_ct](int index) {
                             // Random choose a starting sketch
                             // TODO(jcf94, merrymercy): Maybe choose sketches in different
                             // possibility for they may have different potential on generating state
                             // with better performance
-                            State tmp_s = sketches[(rand_seeds[index])() % sketches.size()];
-
+                            State tmp_s = sketches[(rand_gens[index])() % sketches.size()];
                             // Derivation rule based enumeration
                             bool valid = true;
                             for (const auto& rule : init_rules) {
-                              if (rule->Apply(this, &tmp_s, &rand_seeds[index]) ==
+                              if (rule->Apply(this, &tmp_s, &rand_gens[index]) ==
                                   PopulationGenerationRule::ResultKind::kInvalid) {
                                 valid = false;
                                 break;
                               }
                             }
-
                             if (valid) {
                               temp_states[index] = std::move(tmp_s);
-                            } else {
-                              fail_ct++;
                             }
                           });
 
     for (int i = 0; i < out_size; i++) {
       if (temp_states[i].defined()) {
         out_states.push_back(std::move(temp_states[i]));
+      } else {
+        fail_ct++;
       }
     }
   }
