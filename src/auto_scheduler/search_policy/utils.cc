@@ -418,13 +418,13 @@ void PruneInvalidState(const SearchTask& task, Array<State>* states) {
 
 void SplitFactorizationMemo::ReadWriteLock::GetRead() {
   std::unique_lock<std::mutex> lock(cv_mutex_);
-  cv_.wait(lock, [this](){ return !this->is_writing_; });
+  cv_.wait(lock, [this]() { return !this->is_writing_; });
   read_count_++;
 }
 
 void SplitFactorizationMemo::ReadWriteLock::GetWrite() {
   std::unique_lock<std::mutex> lock(cv_mutex_);
-  cv_.wait(lock, [this](){ return this->read_count_ == 0 && !this->is_writing_; });
+  cv_.wait(lock, [this]() { return this->read_count_ == 0 && !this->is_writing_; });
   is_writing_ = true;
 }
 

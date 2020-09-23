@@ -439,8 +439,7 @@ std::vector<std::pair<State, int>> RuleSpecialComputeLocationGPU::Apply(
 
 /********** Init Population **********/
 
-PopulationGenerationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* policy,
-                                                             State* state,
+PopulationGenerationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* policy, State* state,
                                                              std::mt19937* rand_gen) const {
   StateNode* pstate = state->CopyOnWrite();
   // Scan the transformation history and randomly fill tiles size for all SplitStep
@@ -476,9 +475,8 @@ PopulationGenerationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* p
   return ResultKind::kValid;
 }
 
-PopulationGenerationRule::ResultKind InitChangeComputeLocation::Apply(SketchPolicyNode* policy,
-                                                                      State* state,
-                                                                      std::mt19937* rand_gen) const {
+PopulationGenerationRule::ResultKind InitChangeComputeLocation::Apply(
+    SketchPolicyNode* policy, State* state, std::mt19937* rand_gen) const {
   if (GetIntParam(policy->params, SketchParamKey::disable_change_compute_location)) {
     return PopulationGenerationRule::ResultKind::kValid;
   }
@@ -520,8 +518,7 @@ PopulationGenerationRule::ResultKind InitChangeComputeLocation::Apply(SketchPoli
   return PopulationGenerationRule::ResultKind::kValid;
 }
 
-PopulationGenerationRule::ResultKind InitParallel::Apply(SketchPolicyNode* policy,
-                                                         State* state,
+PopulationGenerationRule::ResultKind InitParallel::Apply(SketchPolicyNode* policy, State* state,
                                                          std::mt19937* rand_gen) const {
   std::function<void(const SketchPolicyNode&, State*, int stage_id, int iter_offset)>
       annotate_parallel;
@@ -586,8 +583,7 @@ PopulationGenerationRule::ResultKind InitParallel::Apply(SketchPolicyNode* polic
   return ResultKind::kValid;
 }
 
-PopulationGenerationRule::ResultKind InitUnroll::Apply(SketchPolicyNode* policy,
-                                                       State* state,
+PopulationGenerationRule::ResultKind InitUnroll::Apply(SketchPolicyNode* policy, State* state,
                                                        std::mt19937* rand_gen) const {
   std::vector<int>& auto_unroll_configs =
       IsGPUTask(policy->search_task) ? auto_unroll_configs_gpu : auto_unroll_configs_cpu;
@@ -698,8 +694,7 @@ PopulationGenerationRule::ResultKind InitVectorization::Apply(SketchPolicyNode* 
   return ResultKind::kValid;
 }
 
-PopulationGenerationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* policy,
-                                                           State* state,
+PopulationGenerationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* policy, State* state,
                                                            std::mt19937* rand_gen) const {
   std::set<int> multi_level_tiling_root_set;
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
@@ -853,8 +848,7 @@ PopulationGenerationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* pol
   return ResultKind::kValid;
 }
 
-PopulationGenerationRule::ResultKind MutateTileSize::Apply(SketchPolicyNode* policy,
-                                                           State* state,
+PopulationGenerationRule::ResultKind MutateTileSize::Apply(SketchPolicyNode* policy, State* state,
                                                            std::mt19937* rand_gen) const {
   int max_innermost_split_factor =
       GetIntParam(policy->params, SketchParamKey::max_innermost_split_factor);
@@ -962,8 +956,7 @@ PopulationGenerationRule::ResultKind MutateTileSize::Apply(SketchPolicyNode* pol
   return ResultKind::kInvalid;
 }
 
-PopulationGenerationRule::ResultKind MutateAutoUnroll::Apply(SketchPolicyNode* policy,
-                                                             State* state,
+PopulationGenerationRule::ResultKind MutateAutoUnroll::Apply(SketchPolicyNode* policy, State* state,
                                                              std::mt19937* rand_gen) const {
   // Extract all auto_unroll_max_step pragma steps.
   std::vector<int> pragma_steps;
@@ -1058,8 +1051,7 @@ PopulationGenerationRule::ResultKind MutateComputeLocation::Apply(SketchPolicyNo
   return PopulationGenerationRule::ResultKind::kValid;
 }
 
-PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* policy,
-                                                           State* state,
+PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* policy, State* state,
                                                            std::mt19937* rand_gen) const {
   // This mutation rule only focuses on a case that parallel was added to
   // the outermost loop and the loop is generated by fusing other loops.
