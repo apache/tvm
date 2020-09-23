@@ -31,6 +31,7 @@
 #ifdef TVM_GRAPH_RUNTIME_ARM_COMPUTE_LIB
 #include <arm_compute/core/Types.h>
 #include <arm_compute/runtime/NEON/functions/NEConvolutionLayer.h>
+#include <arm_compute/runtime/NEON/functions/NEElementwiseOperations.h>
 #include <arm_compute/runtime/NEON/functions/NEFullyConnectedLayer.h>
 #include <arm_compute/runtime/NEON/functions/NEPoolingLayer.h>
 #include <arm_compute/runtime/NEON/functions/NEReshapeLayer.h>
@@ -139,12 +140,13 @@ class ACLRuntime : public JSONRuntimeBase {
           CreateGlobalPoolingLayer(&layer_, node);
         } else if ("reshape" == op_name) {
           CreateReshapeLayer(&layer_, node);
+        } else if ("maximum" == op_name) {
+          CreateMaximumLayer(&layer_, node);
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
       }
     }
-
     this->layer_.function->prepare();
     if (num_pools > 0) mm->populate(this->allocator_, num_pools);
   }
@@ -398,6 +400,21 @@ class ACLRuntime : public JSONRuntimeBase {
     layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
     auto function = std::make_shared<arm_compute::NEReshapeLayer>();
     function->configure(&layer->inputs[0], &layer->outputs[0]);
+    layer->function = function;
+  }
+
+  /*!
+   * \brief Create a maximum layer.
+   *
+   * \param layer The ACL layer to build. Containing inputs, outputs and the ACL function.
+   * \param node The JSON representation of the operator.
+   */
+  void CreateMaximumLayer(CachedLayer* layer, const JSONGraphNode& node) {
+    layer->inputs.push_back(MakeACLTensorFromJSONEntry(node.GetInputs()[0]));
+    layer->inputs.push_back(MakeACLTensorFromJSONEntry(node.GetInputs()[1]));
+    layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
+    auto function = std::make_shared<arm_compute::NEElementwiseMax>();
+    function->configure(&layer->inputs[0], &layer->inputs[1], &layer->outputs[0]);
     layer->function = function;
   }
 
