@@ -346,7 +346,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
     std::vector<State> temp_states(out_size);
 
     support::parallel_for(0, out_size - out_states.size(),
-                          [this, &temp_states, &sketches, &rand_gens, &fail_ct](int index) {
+                          [this, &temp_states, &sketches, &rand_gens](int index) {
                             // Random choose a starting sketch
                             // TODO(jcf94, merrymercy): Maybe choose sketches in different
                             // possibility for they may have different potential on generating state
