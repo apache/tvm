@@ -225,8 +225,9 @@ void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
   llvm::Function* f = module_->getFunction(entry_func_name);
   CHECK(f) << "Function " << entry_func_name << "does not in module";
   llvm::Type* type = llvm::ArrayType::get(t_char_, entry_func_name.length() + 1);
-  llvm::GlobalVariable* global = new llvm::GlobalVariable(
-      *module_, type, true, llvm::GlobalValue::WeakAnyLinkage, 0, runtime::symbol::tvm_module_main);
+  llvm::GlobalVariable* global =
+      new llvm::GlobalVariable(*module_, type, true, llvm::GlobalValue::WeakAnyLinkage, nullptr,
+                               runtime::symbol::tvm_module_main);
 #if TVM_LLVM_VERSION >= 100
   global->setAlignment(llvm::Align(1));
 #else
@@ -349,7 +350,7 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
 
 llvm::GlobalVariable* CodeGenCPU::InitContextPtr(llvm::Type* p_type, std::string name) {
   llvm::GlobalVariable* gv = new llvm::GlobalVariable(
-      *module_, p_type, false, llvm::GlobalValue::LinkOnceAnyLinkage, 0, name);
+      *module_, p_type, false, llvm::GlobalValue::LinkOnceAnyLinkage, nullptr, name);
 #if TVM_LLVM_VERSION >= 100
   gv->setAlignment(llvm::Align(data_layout_->getTypeAllocSize(p_type)));
 #else
@@ -552,8 +553,9 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task) {
 }
 
 llvm::Value* CodeGenCPU::CreateStaticHandle() {
-  llvm::GlobalVariable* gv = new llvm::GlobalVariable(
-      *module_, t_void_p_, false, llvm::GlobalValue::PrivateLinkage, 0, "__tvm_static_handle");
+  llvm::GlobalVariable* gv =
+      new llvm::GlobalVariable(*module_, t_void_p_, false, llvm::GlobalValue::PrivateLinkage,
+                               nullptr, "__tvm_static_handle");
 #if TVM_LLVM_VERSION >= 100
   gv->setAlignment(llvm::Align(data_layout_->getTypeAllocSize(t_void_p_)));
 #else
