@@ -34,3 +34,13 @@ pub struct BiasAddAttrsNode {
     pub base: BaseAttrsNode,
     pub axis: i32,
 }
+
+#[repr(C)]
+#[derive(Object)]
+#[ref_name = "DenseAttrs"]
+#[type_key = "relay.attrs.DenseAttrs"]
+pub struct DenseAttrsNode {
+    pub base: BaseAttrsNode,
+    pub units: IndexExpr,
+    pub out_dtype: DataType,
+}
