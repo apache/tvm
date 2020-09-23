@@ -1235,6 +1235,11 @@ def test_forward_transpose_conv():
             [1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 32, 5], [2, 1], "SAME", quantized
         )
 
+        # asymmetric kernel (3x2)
+        _test_transpose_conv(
+            [4, 32, 32, 16], [3, 2, 5, 16], [4, 34, 33, 5], [1, 1], "VALID", quantized
+        )
+
 
 #######################################################################
 # Reshape
