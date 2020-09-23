@@ -28,6 +28,7 @@ In this tutorial, we will demonstrate how to do reduction in TVM.
 from __future__ import absolute_import, print_function
 
 import tvm
+import tvm.testing
 from tvm import te
 import numpy as np
 
