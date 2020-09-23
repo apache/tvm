@@ -116,11 +116,11 @@ impl NDArray {
 
     // I think these should be marked as unsafe functions? projecting a reference is bad news.
     pub fn as_dltensor(&self) -> &DLTensor {
-        &self.0.as_ref().unwrap().dl_tensor
+        &self.dl_tensor
     }
 
     pub(crate) fn as_raw_dltensor(&self) -> *mut DLTensor {
-        unsafe { std::mem::transmute(&self.0.as_ref().unwrap().dl_tensor) }
+        unsafe { std::mem::transmute(self.as_dltensor()) }
     }
 
     pub fn is_view(&self) -> bool {
@@ -137,9 +137,19 @@ impl NDArray {
         Some(slc)
     }
 
+    /// Returns true if the tensor is empty
+    pub fn is_empty(&self) -> bool {
+        self.as_dltensor().data.is_null()
+    }
+
     /// Returns the total number of entries of the NDArray.
-    pub fn size(&self) -> Option<usize> {
-        self.shape().map(|v| v.iter().product())
+    pub fn len(&self) -> usize {
+        self.shape().unwrap_or(&mut []).iter().product()
+    }
+
+    /// Returns the total bytes taken up by the data.
+    pub fn size(&self) -> usize {
+        self.len() * self.dtype().itemsize()
     }
 
     /// Returns the context which the NDArray was defined.
@@ -224,8 +234,8 @@ impl NDArray {
         );
         let target = self.copy_to_ndarray(earr)?;
         let arr = target.as_dltensor();
-        let sz = self.size().ok_or(NDArrayError::MissingShape)?;
-        let mut v: Vec<T> = Vec::with_capacity(sz * mem::size_of::<T>());
+        let sz = self.size();
+        let mut v: Vec<T> = Vec::with_capacity(sz / mem::size_of::<T>());
         unsafe {
             v.as_mut_ptr()
                 .copy_from_nonoverlapping(arr.data as *const T, sz);
@@ -402,7 +412,7 @@ mod tests {
         println!("after empty");
         assert_eq!(ndarray.shape().unwrap(), shape);
         assert_eq!(
-            ndarray.size().unwrap(),
+            ndarray.size(),
             shape.to_vec().into_iter().product()
         );
         assert_eq!(ndarray.ndim(), 3);

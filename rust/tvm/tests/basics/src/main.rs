@@ -44,7 +44,7 @@ fn main() {
 
     fadd.entry()
         .expect("module must have entry point")
-        .invoke(vec![(&arr).into(), (&arr).into(), (&mut ret).into()])
+        .invoke(vec![(&arr).into(), (&arr).into(), ret.into()])
         .unwrap();
 
     assert_eq!(ret.to_vec::<f32>().unwrap(), vec![6f32, 8.0]);
