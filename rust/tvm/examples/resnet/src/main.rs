@@ -76,7 +76,7 @@ fn main() {
         graph.into(),
         (&lib).into(),
         (&ctx.device_type).into(),
-        (&ctx.device_id).into(),
+        (&(ctx.device_id as i32)).into(),
     ]);
 
     // get graph runtime module
