@@ -137,17 +137,18 @@ class PopulationGenerationRule {
    * \param state The state to apply this rule, update inplace.
    * \return The result of this rule, indicate if there's any valid state generated.
    */
-  virtual ResultKind Apply(SketchPolicyNode* policy, State* state) const = 0;
+  virtual ResultKind Apply(SketchPolicyNode* policy, State* state,
+                           std::mt19937* rand_gen) const = 0;
 
   /*! \brief The deconstructor */
   virtual ~PopulationGenerationRule() = default;
 };
 
 // A helper to define population initialization rules
-#define DEFINE_INIT_POPULATION_RULE(rule_name)                            \
-  class rule_name : public PopulationGenerationRule {                     \
-   public:                                                                \
-    ResultKind Apply(SketchPolicyNode* policy, State* state) const final; \
+#define DEFINE_INIT_POPULATION_RULE(rule_name)                                                    \
+  class rule_name : public PopulationGenerationRule {                                             \
+   public:                                                                                        \
+    ResultKind Apply(SketchPolicyNode* policy, State* state, std::mt19937* rand_gen) const final; \
   };
 
 /*! \brief The rule that fills the incomplete SplitSteps. */
@@ -185,11 +186,11 @@ class PopulationMutationRule : public PopulationGenerationRule {
 };
 
 // A helper to define mutation rules used in the evolutionary search
-#define DEFINE_MUTATE_POPULATION_RULE(rule_name)                          \
-  class rule_name : public PopulationMutationRule {                       \
-   public:                                                                \
-    explicit rule_name(double weight) : PopulationMutationRule(weight) {} \
-    ResultKind Apply(SketchPolicyNode* policy, State* state) const final; \
+#define DEFINE_MUTATE_POPULATION_RULE(rule_name)                                                  \
+  class rule_name : public PopulationMutationRule {                                               \
+   public:                                                                                        \
+    explicit rule_name(double weight) : PopulationMutationRule(weight) {}                         \
+    ResultKind Apply(SketchPolicyNode* policy, State* state, std::mt19937* rand_gen) const final; \
   };
 
 /*! \brief The rule that mutates tile size by randomly dividing a tile size by a factor
