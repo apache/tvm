@@ -74,8 +74,9 @@ def build(target_dir):
         block = get_model("resnet18_v1", pretrained=True)
         net, params = relay.frontend.from_mxnet(block, {"data": data_shape})
         # we want a probability so add a softmax operator
+        func = net["main"]
         net = relay.Function(
-            net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
+            func.params, relay.nn.softmax(func.body), None, func.type_params, func.attrs
         )
     else:
         # use random weights from relay.testing
