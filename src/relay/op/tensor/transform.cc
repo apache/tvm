@@ -3138,6 +3138,10 @@ bool MatrixSetDiagRel(const Array<Type>& types, int num_inputs, const Attrs& att
 
   int d_ndims = diagonal->shape.size();
   int i_ndims = input->shape.size();
+
+  reporter->Assert(input->shape[i_ndims - 2] > -param->k1);
+  reporter->Assert(input->shape[i_ndims - 1] > param->k2);
+
   for (int i = 0; i < d_ndims - 2; i++) {
     reporter->AssertEQ(input->shape[i], diagonal->shape[i]);
   }

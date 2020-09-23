@@ -1541,7 +1541,7 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k
                               const std::string tag = kInjective) {
   size_t ndim = input->shape.size() - 1;
 
-  bool onlyOneDiagonal = k1 == k2;
+  bool only_one_diagonal = k1 == k2;
 
   return compute(
       input->shape,
@@ -1552,7 +1552,7 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k
           for (size_t i = 0; i < ndim - 1; i++) {
             diagonal_indices.push_back(iter_vars[i]);
           }
-          if (onlyOneDiagonal) {
+          if (only_one_diagonal) {
             k = k1;
           } else {
             // Determining which diagonal/sub-diagonal/super-diagonal it is
