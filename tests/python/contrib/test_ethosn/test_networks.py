@@ -58,7 +58,6 @@ def _test_image_network(
     input_dict,
     compile_hash,
     output_count,
-    run=True,
     host_ops=0,
     npu_partitions=1,
 ):
@@ -78,24 +77,15 @@ def _test_image_network(
             )
         return _get_tflite_model(model_path, input_dict, "uint8")
 
-    outputs = []
     inputs = {}
     for input_name in input_dict:
         input_shape = input_dict[input_name]
         inputs[input_name] = tei.get_real_image(input_shape[1], input_shape[2])
 
-    for npu in [False, True]:
-        mod, params = get_model()
-        graph, lib, params = tei.build(
-            mod, params, npu=npu, expected_host_ops=host_ops, npu_partitions=npu_partitions
-        )
-        if npu:
-            tei.assert_lib_hash(lib, compile_hash)
-        if run:
-            outputs.append(tei.run(graph, lib, params, inputs, output_count, npu=npu))
-
-    if run:
-        tei.verify(outputs, 1, verify_saturation=False)
+    mod, params = get_model()
+    m = tei.build(mod, params, npu=True, expected_host_ops=host_ops, npu_partitions=npu_partitions)
+    tei.assert_lib_hash(m.get_lib(), compile_hash)
+    tei.run(m, inputs, output_count, npu=True)
 
 
 def test_mobilenet_v1():
@@ -112,7 +102,6 @@ def test_mobilenet_v1():
         input_dict={"input": (1, 224, 224, 3)},
         compile_hash="81637c89339201a07dc96e3b5dbf836a",
         output_count=1,
-        run=(hw == Available.SW_AND_HW),
         host_ops=3,
         npu_partitions=1,
     )
@@ -131,7 +120,6 @@ def test_inception_v3():
         input_dict={"input": (1, 299, 299, 3)},
         compile_hash="de0e175af610ebd45ccb03d170dc9664",
         output_count=1,
-        run=False,
         host_ops=0,
         npu_partitions=1,
     )
@@ -150,7 +138,6 @@ def test_inception_v4():
         input_dict={"input": (1, 299, 299, 3)},
         compile_hash="06bf6cb56344f3904bcb108e54edfe87",
         output_count=1,
-        run=False,
         host_ops=3,
         npu_partitions=1,
     )
@@ -167,9 +154,8 @@ def test_ssd_mobilenet_v1():
         "models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip",
         model_sub_path="detect.tflite",
         input_dict={"normalized_input_image_tensor": (1, 300, 300, 3)},
-        compile_hash="6211d96103880b016baa85e638abddef",
+        compile_hash={"29aec6b184b09454b4323271aadf89b1", "6211d96103880b016baa85e638abddef"},
         output_count=4,
-        run=False,
         host_ops=28,
         npu_partitions=2,
     )

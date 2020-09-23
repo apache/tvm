@@ -43,11 +43,20 @@ def get_real_image(im_height, im_width):
 
 
 def assert_lib_hash(lib, golden):
+    # Convert str hash into a set of hashes
+    if isinstance(golden, str):
+        golden = {golden}
+
     temp = util.tempdir()
     path = temp.relpath("lib.cmm")
-    lib.imported_modules[1].save(path)
-    lib_hash = md5(open(path, "rb").read()).hexdigest()
-    assert lib_hash == golden, "Expected hash: {} Got hash: {}".format(golden, lib_hash)
+    hash_set = set()
+    for mod in lib.imported_modules:
+        if mod.type_key == "ethos-n":
+            mod.save(path)
+            lib_hash = md5(open(path, "rb").read()).hexdigest()
+            hash_set.add(lib_hash)
+
+    assert hash_set == golden, "Expected hash: {} Got hash: {}".format(golden, hash_set)
 
 
 def make_module(func, params):
@@ -144,7 +153,7 @@ def run(lib, inputs, outputs, npu=True):
     module.run()
     out = [module.get_output(i) for i in range(outputs)]
     if not npu:
-        inference_result(0, out)
+        inference_result(out)
     return out
 
 
@@ -171,12 +180,12 @@ def verify(answers, atol, rtol=1e-07, verify_saturation=True):
             tvm.testing.assert_allclose(outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol)
 
 
-def inference_result(checksum, outputs):
+def inference_result(outputs):
     """Set the expected results of an Ethos inference, if the testing
     infrastructure is available. This assumes that the entire graph
     was offloaded to the neural processor."""
     if tvm.get_global_func("relay.ethos-n.test.infra.inference_result", True):
-        return _infrastructure.inference_result(checksum, *outputs)
+        return _infrastructure.inference_result(*outputs)
     return False
 
 
