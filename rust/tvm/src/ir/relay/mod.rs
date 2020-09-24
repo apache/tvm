@@ -561,7 +561,7 @@ def @main() -> float32 {
         assert_eq!(constant.data.dtype(), "float32".parse().unwrap(),);
         assert_eq!(constant.data.len(), 1);
         assert_eq!(constant.data.size(), 4);
-        assert_eq!(constant.data.shape(), None);
+        assert_eq!(constant.data.shape(), &[]);
         Ok(())
     }
 }

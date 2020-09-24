@@ -60,7 +60,7 @@ fn main() {
     let input = NDArray::from_rust_ndarray(&arr, Context::cpu(0), DataType::float(32, 1)).unwrap();
     println!(
         "input size is {:?}",
-        input.shape().expect("cannot get the input shape")
+        input.shape(),
     );
     let graph =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_graph.json")).unwrap();

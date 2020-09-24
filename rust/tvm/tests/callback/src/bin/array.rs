@@ -37,8 +37,8 @@ use tvm::{
 fn main() {
     fn sum(args: Vec<ArgValue<'static>>) -> Result<RetValue, Error> {
         let mut ret = 0f32;
-        let shape = &mut [2];
-        for arg in args.iter() {
+        let shape = &[2];
+        for arg in args {
             let e = NDArray::empty(shape, Context::cpu(0), DataType::float(32, 1));
             let arg: NDArray = arg.try_into()?;
             let arr = arg.copy_to_ndarray(e)?;
