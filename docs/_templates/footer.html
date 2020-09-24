@@ -1,0 +1,30 @@
+
+
+<footer>
+{% if (theme_prev_next_buttons_location == 'bottom' or theme_prev_next_buttons_location == 'both') and (next or prev) %}
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      {% if next %}
+        <a href="{{ next.link|e }}" class="btn btn-neutral float-right" title="{{ next.title|striptags|e }}" accesskey="n" rel="next">{{ _('Next') }} <span class="fa fa-arrow-circle-right"></span></a>
+      {% endif %}
+      {% if prev %}
+        <a href="{{ prev.link|e }}" class="btn btn-neutral float-left" title="{{ prev.title|striptags|e }}" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> {{ _('Previous') }}</a>
+      {% endif %}
+    </div>
+{% endif %}
+<div id="button" class="backtop"><img src="{{pathto('_static/img/' + 'right.svg', 1)}}" alt="backtop"/> </div>
+<section class="footerSec">
+    <div class="footerHeader">
+      <ul class="d-flex align-md-items-center justify-content-between flex-column flex-md-row">
+        <li class="copywrite d-flex align-items-center">
+          <h5 id="apache-software-foundation--all-right-reserved">© 2020 Apache Software Foundation | All right reserved</h5>
+        </li>
+      </ul>
+  
+    </div>
+  
+    <ul>
+      <li class="footernote">Apache TVM is an effort undergoing incubation at The Apache Software Foundation (ASF), sponsored by the Apache Incubator. Incubation is required of all newly accepted projects until a further review indicates that the infrastructure, communications, and decision making process have stabilized in a manner consistent with other successful ASF projects. While incubation status is not necessarily a reflection of the completeness or stability of the code, it does indicate that the project has yet to be fully endorsed by the ASF. Copyright © 2020 The Apache Software Foundation. Apache TVM, Apache, the Apache feather, and the Apache TVM project logo are either trademarks or registered trademarks of the Apache Software Foundation.</li>
+    </ul>
+  
+</section>
+</footer>

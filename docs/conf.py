@@ -282,4 +282,5 @@ def process_docstring(app, what, name, obj, options, lines):
 
 def setup(app):
     app.connect("autodoc-process-docstring", process_docstring)
-    app.add_css_file("css/tvm_theme.css")
+    app.add_css_file("css/custom.css")
+    app.add_js_file("js/custom.js")
