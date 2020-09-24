@@ -41,6 +41,7 @@
 
 use std::convert::TryFrom;
 use std::fmt::{self, Display, Formatter};
+use std::os::raw::c_int;
 use std::str::FromStr;
 
 use crate::ffi::{self, *};
@@ -143,11 +144,11 @@ impl<'a> From<&DeviceType> for ArgValue<'a> {
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Context {
     pub device_type: DeviceType,
-    pub device_id: usize,
+    pub device_id: c_int,
 }
 
 impl Context {
-    pub fn new(device_type: DeviceType, device_id: usize) -> Context {
+    pub fn new(device_type: DeviceType, device_id: c_int) -> Context {
         Context {
             device_type,
             device_id,
@@ -159,7 +160,7 @@ impl<'a> From<&'a Context> for DLContext {
     fn from(ctx: &'a Context) -> Self {
         Self {
             device_type: ctx.device_type.into(),
-            device_id: ctx.device_id as i32,
+            device_id: ctx.device_id,
         }
     }
 }
@@ -196,7 +197,7 @@ macro_rules! impl_tvm_context {
         impl Context {
             $(
                 $(
-                    pub fn $dev_name(device_id: usize) -> Self {
+                    pub fn $dev_name(device_id: c_int) -> Self {
                         Self {
                             device_type: $dev_type.into(),
                             device_id: device_id,
@@ -228,7 +229,7 @@ impl From<ffi::DLContext> for Context {
     fn from(ctx: ffi::DLContext) -> Self {
         Context {
             device_type: DeviceType::from(ctx.device_type),
-            device_id: ctx.device_id as usize,
+            device_id: ctx.device_id,
         }
     }
 }
@@ -237,7 +238,7 @@ impl From<Context> for ffi::DLContext {
     fn from(ctx: Context) -> Self {
         ffi::DLContext {
             device_type: ctx.device_type.into(),
-            device_id: ctx.device_id as i32,
+            device_id: ctx.device_id,
         }
     }
 }
