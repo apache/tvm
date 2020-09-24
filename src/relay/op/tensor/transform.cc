@@ -3120,6 +3120,8 @@ RELAY_REGISTER_OP("sparse_to_dense")
     .set_attr<FTVMCompute>("FTVMCompute", SparseToDenseCompute);
 
 // relay.matrix_set_diag
+TVM_REGISTER_NODE_TYPE(MatrixSetDiagAttrs);
+
 bool MatrixSetDiagRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
   // `types` contains: [input, diagonal, result]
@@ -3131,13 +3133,28 @@ bool MatrixSetDiagRel(const Array<Type>& types, int num_inputs, const Attrs& att
   const auto* diagonal = types[1].as<TensorTypeNode>();
   CHECK(diagonal);
 
+  const auto param = attrs.as<MatrixSetDiagAttrs>();
+  CHECK_GE(param->k2, param->k1);
+
   int d_ndims = diagonal->shape.size();
-  for (int i = 0; i < d_ndims - 1; i++) {
+  int i_ndims = input->shape.size();
+
+  reporter->Assert(input->shape[i_ndims - 2] > -param->k1);
+  reporter->Assert(input->shape[i_ndims - 1] > param->k2);
+
+  for (int i = 0; i < d_ndims - 2; i++) {
     reporter->AssertEQ(input->shape[i], diagonal->shape[i]);
   }
-  auto min_dim = if_then_else(input->shape[d_ndims - 1] >= input->shape[d_ndims],
-                              input->shape[d_ndims], input->shape[d_ndims - 1]);
-  reporter->Assert(diagonal->shape[d_ndims - 1] >= min_dim);
+  if (param->k1 != param->k2) {
+    reporter->AssertEQ(diagonal->shape[d_ndims - 2], param->k2 - param->k1 + 1);
+  } else if (d_ndims >= 2) {
+    reporter->AssertEQ(input->shape[d_ndims - 2], diagonal->shape[d_ndims - 2]);
+  }
+  auto max_diag_len = if_then_else(input->shape[i_ndims - 2] + (param->k2 > 0 ? param->k2 : 0) <=
+                                       input->shape[i_ndims - 1] + (param->k1 < 0 ? -param->k1 : 0),
+                                   input->shape[i_ndims - 2] + (param->k2 > 0 ? param->k2 : 0),
+                                   input->shape[i_ndims - 1] + (param->k1 < 0 ? -param->k1 : 0));
+  reporter->AssertEQ(diagonal->shape[d_ndims - 1], max_diag_len);
 
   reporter->Assign(types[2], TensorType(input->shape, input->dtype));
   return true;
@@ -3145,22 +3162,37 @@ bool MatrixSetDiagRel(const Array<Type>& types, int num_inputs, const Attrs& att
 
 Array<te::Tensor> MatrixSetDiagCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                        const Type& out_type) {
-  return Array<te::Tensor>{topi::matrix_set_diag(inputs[0], inputs[1])};
+  const auto* param = attrs.as<MatrixSetDiagAttrs>();
+  CHECK(param != nullptr);
+  return Array<te::Tensor>{topi::matrix_set_diag(inputs[0], inputs[1], param->k1, param->k2,
+                                                 param->super_diag_right_align,
+                                                 param->sub_diag_right_align)};
 }
 
-Expr MakeMatrixSetDiag(Expr input, Expr diagonal) {
+Expr MakeMatrixSetDiag(Expr input, Expr diagonal, int k1, int k2, bool super_diag_right_align,
+                       bool sub_diag_right_align) {
+  auto attrs = make_object<MatrixSetDiagAttrs>();
+  attrs->k1 = k1;
+  attrs->k2 = k2;
+  attrs->super_diag_right_align = super_diag_right_align;
+  attrs->sub_diag_right_align = sub_diag_right_align;
   static const Op& op = Op::Get("matrix_set_diag");
-  return Call(op, {input, diagonal}, Attrs(), {});
+  return Call(op, {input, diagonal}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.matrix_set_diag").set_body_typed(MakeMatrixSetDiag);
 
 RELAY_REGISTER_OP("matrix_set_diag")
     .describe(
-        R"code(Returns a tensor with the diagonal of input tensor replaced with the provided diagonal values.
+        R"code(Returns a tensor with the diagonals of input tensor replaced with the provided diagonal values.
         **input** Input tensor.
         **diagonal** Values to be filled in the diagonal.
+        **k1** Lower limit (included) of the range of diagonals.
+        **k2** Upper limit (included) of the range of diagonals.
+        **super_diag_right_align** Bool, true iff super-diagonal is right aligned (left-padded).
+        **sub_diag_right_align** Bool, true iff sub-diagonal is right aligned (left-padded).
     )code" TVM_ADD_FILELINE)
+    .set_attrs_type<MatrixSetDiagAttrs>()
     .set_num_inputs(2)
     .add_argument("input", "Tensor", "Input Tensor.")
     .add_argument("diagonal", "Tensor", "Values to be filled in the diagonal.")
