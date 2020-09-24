@@ -1167,6 +1167,8 @@ def test_matrix_set_diag():
         verify_matrix_set_diag((4, 3, 3), (4, 3), dtype)
         verify_matrix_set_diag((2, 3, 4), (2, 3), dtype, 1)
         verify_matrix_set_diag((2, 3, 4), (2, 4, 3), dtype, (-1, 2), "LEFT_RIGHT")
+        verify_matrix_set_diag((2, 3, 4), (2, 4, 3), dtype, (-1, 2), "LEFT_LEFT")
+        verify_matrix_set_diag((2, 3, 4), (2, 4, 3), dtype, (-1, 2), "RIGHT_RIGHT")
 
 
 @tvm.testing.uses_gpu

@@ -1190,14 +1190,14 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
     diagonal : relay.Expr
         Values to be filled in the diagonal.
 
-    k : int or tuple of int
+    k : int or tuple of int, optional
         Diagonal Offset(s). The diagonal or range of diagonals to set. (0 by default)
         Positive value means superdiagonal, 0 refers to the main diagonal, and
         negative value means subdiagonals. k can be a single integer (for a single diagonal)
         or a pair of integers specifying the low and high ends of a matrix band.
         k[0] must not be larger than k[1].
 
-    align : string
+    align : string, optional
         Some diagonals are shorter than max_diag_len and need to be padded.
         align is a string specifying how superdiagonals and subdiagonals should be aligned,
         respectively. There are four possible alignments: "RIGHT_LEFT" (default), "LEFT_RIGHT",

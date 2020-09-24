@@ -530,6 +530,8 @@ def test_matrix_set_diag():
     _verify((4, 3, 3), (4, 3), "int32")
     _verify((2, 3, 4), (2, 3), "float32", 1)
     _verify((2, 3, 4), (2, 4, 3), "int32", (-1, 2), "LEFT_RIGHT")
+    _verify((2, 3, 4), (2, 4, 3), "int32", (-1, 2), "LEFT_LEFT")
+    _verify((2, 3, 4), (2, 4, 3), "int32", (-1, 2), "RIGHT_RIGHT")
 
 
 if __name__ == "__main__":
