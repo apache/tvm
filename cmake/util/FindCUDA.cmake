@@ -91,7 +91,8 @@ macro(find_cuda use_cuda)
       find_library(CUDA_CUBLAS_LIBRARY cublas
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib)
-      find_library(CUDA_CUBLASLT_LIBRARY cublaslt
+      find_library(CUDA_CUBLASLT_LIBRARY
+        NAMES cublaslt cublasLt
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib)
     endif(MSVC)
