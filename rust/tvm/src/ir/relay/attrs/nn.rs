@@ -44,3 +44,25 @@ pub struct DenseAttrsNode {
     pub units: IndexExpr,
     pub out_dtype: DataType,
 }
+
+#[repr(C)]
+#[derive(Object)]
+#[ref_name = "GlobalPool2DAttrs"]
+#[type_key = "relay.attrs.GlobalPool2DAttrs"]
+pub struct GlobalPool2DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub layout: TString,
+}
+
+#[repr(C)]
+#[derive(Object)]
+#[ref_name = "MaxPool2DAttrs"]
+#[type_key = "relay.attrs.MaxPool2DAttrs"]
+pub struct MaxPool2DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub pool_size: Array<IndexExpr>,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub layout: TString,
+    pub ceil_mode: bool,
+}
