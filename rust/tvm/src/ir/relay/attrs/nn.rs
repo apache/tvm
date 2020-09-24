@@ -66,3 +66,12 @@ pub struct MaxPool2DAttrsNode {
     pub layout: TString,
     pub ceil_mode: bool,
 }
+
+#[repr(C)]
+#[derive(Object)]
+#[ref_name = "SoftmaxAttrs"]
+#[type_key = "relay.attrs.SoftmaxAttrs"]
+pub struct SoftmaxAttrsNode {
+    pub base: BaseAttrsNode,
+    pub axis: i32,
+}
