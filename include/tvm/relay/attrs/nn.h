@@ -682,7 +682,7 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
   Array<IndexExpr> pool_size;
   Array<IndexExpr> strides;
   Array<IndexExpr> padding;
-  std::string layout;
+  tvm::String layout;
   bool ceil_mode;
 
   TVM_DECLARE_ATTRS(MaxPool2DAttrs, "relay.attrs.MaxPool2DAttrs") {
@@ -745,7 +745,7 @@ struct AvgPool2DAttrs : public tvm::AttrsNode<AvgPool2DAttrs> {
 
 /*! \brief Attributes for global pool operator */
 struct GlobalPool2DAttrs : public tvm::AttrsNode<GlobalPool2DAttrs> {
-  std::string layout;
+  tvm::String layout;
 
   TVM_DECLARE_ATTRS(GlobalPool2DAttrs, "relay.attrs.GlobalPool2DAttrs") {
     TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
