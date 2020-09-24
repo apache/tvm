@@ -43,7 +43,7 @@ macro(find_llvm use_llvm)
     set(llvm_version_required ${ARGV1})
   endif()
 
-  if(${LLVM_CONFIG})
+  if(${LLVM_CONFIG} MATCHES ${IS_TRUE_PATTERN})
     find_package(LLVM ${llvm_version_required} REQUIRED CONFIG)
     llvm_map_components_to_libnames(LLVM_LIBS "all")
     if (NOT LLVM_LIBS)
