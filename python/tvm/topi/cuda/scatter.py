@@ -20,6 +20,10 @@ import tvm
 from tvm import te
 
 
+def ceil_div(a, b):
+    return (a + b - 1) // b
+
+
 def gen_ir_1d(data, indices, updates, axis, out):
     """Generate scatter ir for 1d inputs
 
@@ -53,22 +57,25 @@ def gen_ir_1d(data, indices, updates, axis, out):
     out_ptr = ib.buffer_ptr(out)
     data_ptr = ib.buffer_ptr(data)
 
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(bx, "thread_extent", 1)
-
-    with ib.for_range(0, n, name="i") as i:
-        out_ptr[i] = data_ptr[i]
+    with ib.new_scope():
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(bx, "thread_extent", n)
+        out_ptr[bx] = data_ptr[bx]
 
     indices_ptr = ib.buffer_ptr(indices)
     updates_ptr = ib.buffer_ptr(updates)
+
     ni = indices.shape[0]
 
-    with ib.for_range(0, ni, name="i") as i:
-        index = indices_ptr[i]
-        with ib.if_scope(index < 0):
-            out_ptr[index + n] = updates_ptr[i]
-        with ib.else_scope():
-            out_ptr[index] = updates_ptr[i]
+    with ib.new_scope():
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(bx, "thread_extent", 1)
+        with ib.for_range(0, ni, name="i") as i:
+            index = indices_ptr[i]
+            with ib.if_scope(index < 0):
+                out_ptr[index + n] = updates_ptr[i]
+            with ib.else_scope():
+                out_ptr[index] = updates_ptr[i]
 
     return ib.get()
 
@@ -98,41 +105,56 @@ def gen_ir_2d(data, indices, updates, axis, out):
     ret : tir
         The computational ir.
     """
+    warp_size = tvm.target.Target.current(False).thread_warp_size
+
     n = data.shape[0]
     c = data.shape[1]
 
     ib = tvm.tir.ir_builder.create()
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(bx, "thread_extent", 1)
 
     out_ptr = ib.buffer_ptr(out)
     data_ptr = ib.buffer_ptr(data)
-    with ib.for_range(0, n, name="i") as i:
-        with ib.for_range(0, c, name="j") as j:
-            out_ptr[i * c + j] = data_ptr[i * c + j]
+
+    with ib.new_scope():
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(bx, "thread_extent", n)
+        tx = te.thread_axis("threadIdx.x")
+        ib.scope_attr(tx, "thread_extent", warp_size)
+        i = bx
+        with ib.for_range(0, ceil_div(c, warp_size), name="j") as j_:
+            j = j_ * warp_size + tx
+            with ib.if_scope(j < c):
+                idx = bx * c + j
+                out_ptr[idx] = data_ptr[idx]
 
     indices_ptr = ib.buffer_ptr(indices)
     updates_ptr = ib.buffer_ptr(updates)
+
     ni = indices.shape[0]
     ci = indices.shape[1]
 
     if axis == 0:
-        with ib.for_range(0, ni, name="i") as i:
-            with ib.for_range(0, ci, name="j") as j:
-                index = indices_ptr[i * ci + j]
+        with ib.new_scope():
+            j = te.thread_axis("blockIdx.x")
+            ib.scope_attr(j, "thread_extent", ci)
+            with ib.for_range(0, ni, name="i") as i:
+                idx = i * ci + j
+                index = indices_ptr[idx]
                 with ib.if_scope(index < 0):
-                    out_ptr[(index + n) * c + j] = updates_ptr[i * ci + j]
+                    out_ptr[(index + n) * c + j] = updates_ptr[idx]
                 with ib.else_scope():
-                    out_ptr[index * c + j] = updates_ptr[i * ci + j]
+                    out_ptr[index * c + j] = updates_ptr[idx]
     else:
-        with ib.for_range(0, ni, name="i") as i:
+        with ib.new_scope():
+            i = te.thread_axis("blockIdx.x")
+            ib.scope_attr(i, "thread_extent", ni)
             with ib.for_range(0, ci, name="j") as j:
-                index = indices_ptr[i * ci + j]
+                idx = i * ci + j
+                index = indices_ptr[idx]
                 with ib.if_scope(index < 0):
-                    out_ptr[i * c + (index + c)] = updates_ptr[i * ci + j]
+                    out_ptr[i * c + (index + c)] = updates_ptr[idx]
                 with ib.else_scope():
-                    out_ptr[i * c + index] = updates_ptr[i * ci + j]
-
+                    out_ptr[i * c + index] = updates_ptr[idx]
     return ib.get()
 
 
@@ -161,20 +183,29 @@ def gen_ir_3d(data, indices, updates, axis, out):
     ret : tir
         The computational ir.
     """
+    warp_size = tvm.target.Target.current(False).thread_warp_size
+
     n = data.shape[0]
     c = data.shape[1]
     h = data.shape[2]
 
     ib = tvm.tir.ir_builder.create()
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(bx, "thread_extent", 1)
 
     out_ptr = ib.buffer_ptr(out)
     data_ptr = ib.buffer_ptr(data)
-    with ib.for_range(0, n, name="i") as i:
-        with ib.for_range(0, c, name="j") as j:
-            with ib.for_range(0, h, name="k") as k:
-                out_ptr[(i * c + j) * h + k] = data_ptr[(i * c + j) * h + k]
+
+    with ib.new_scope():
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(bx, "thread_extent", n)
+        by = te.thread_axis("blockIdx.y")
+        ib.scope_attr(by, "thread_extent", c)
+        tx = te.thread_axis("threadIdx.x")
+        ib.scope_attr(tx, "thread_extent", warp_size)
+        with ib.for_range(0, ceil_div(h, warp_size), name="k") as k_:
+            k = k_ * warp_size + tx
+            with ib.if_scope(k < h):
+                idx = (bx * c + by) * h + k
+                out_ptr[idx] = data_ptr[idx]
 
     indices_ptr = ib.buffer_ptr(indices)
     updates_ptr = ib.buffer_ptr(updates)
@@ -183,33 +214,50 @@ def gen_ir_3d(data, indices, updates, axis, out):
     hi = indices.shape[2]
 
     if axis == 0:
-        with ib.for_range(0, ni, name="i") as i:
-            with ib.for_range(0, ci, name="j") as j:
-                with ib.for_range(0, hi, name="k") as k:
-                    index = indices_ptr[(i * ci + j) * hi + k]
-                    with ib.if_scope(index < 0):
-                        out_ptr[((index + n) * c + j) * h + k] = updates_ptr[(i * ci + j) * hi + k]
-                    with ib.else_scope():
-                        out_ptr[(index * c + j) * h + k] = updates_ptr[(i * ci + j) * hi + k]
+        with ib.new_scope():
+            j = te.thread_axis("blockIdx.x")
+            ib.scope_attr(j, "thread_extent", ci)
+            tx = te.thread_axis("threadIdx.x")
+            ib.scope_attr(tx, "thread_extent", warp_size)
+            with ib.for_range(0, ni, name="i") as i:
+                with ib.for_range(0, ceil_div(hi, warp_size), name="k") as k_:
+                    k = k_ * warp_size + tx
+                    with ib.if_scope(k < hi):
+                        idx = (i * ci + j) * hi + k
+                        index = indices_ptr[idx]
+                        with ib.if_scope(index < 0):
+                            out_ptr[((index + n) * c + j) * h + k] = updates_ptr[idx]
+                        with ib.else_scope():
+                            out_ptr[(index * c + j) * h + k] = updates_ptr[idx]
     elif axis == 1:
-        with ib.for_range(0, ni, name="i") as i:
+        with ib.new_scope():
+            i = te.thread_axis("blockIdx.x")
+            ib.scope_attr(i, "thread_extent", ni)
+            tx = te.thread_axis("threadIdx.x")
+            ib.scope_attr(tx, "thread_extent", warp_size)
             with ib.for_range(0, ci, name="j") as j:
-                with ib.for_range(0, hi, name="k") as k:
-                    index = indices_ptr[(i * ci + j) * hi + k]
-                    with ib.if_scope(index < 0):
-                        out_ptr[(i * c + (index + c)) * h + k] = updates_ptr[(i * ci + j) * hi + k]
-                    with ib.else_scope():
-                        out_ptr[(i * c + index) * h + k] = updates_ptr[(i * ci + j) * hi + k]
+                with ib.for_range(0, ceil_div(hi, warp_size), name="k") as k_:
+                    k = k_ * warp_size + tx
+                    with ib.if_scope(k < hi):
+                        idx = (i * ci + j) * hi + k
+                        index = indices_ptr[idx]
+                        with ib.if_scope(index < 0):
+                            out_ptr[(i * c + (index + c)) * h + k] = updates_ptr[idx]
+                        with ib.else_scope():
+                            out_ptr[(i * c + index) * h + k] = updates_ptr[idx]
     else:
-        with ib.for_range(0, ni, name="i") as i:
-            with ib.for_range(0, ci, name="j") as j:
-                with ib.for_range(0, hi, name="k") as k:
-                    index = indices_ptr[(i * ci + j) * hi + k]
-                    with ib.if_scope(index < 0):
-                        out_ptr[(i * c + j) * h + (index + h)] = updates_ptr[(i * ci + j) * hi + k]
-                    with ib.else_scope():
-                        out_ptr[(i * c + j) * h + index] = updates_ptr[(i * ci + j) * hi + k]
-
+        with ib.new_scope():
+            i = te.thread_axis("blockIdx.x")
+            ib.scope_attr(i, "thread_extent", ni)
+            j = te.thread_axis("blockIdx.y")
+            ib.scope_attr(j, "thread_extent", ci)
+            with ib.for_range(0, hi, name="k") as k:
+                idx = (i * ci + j) * hi + k
+                index = indices_ptr[idx]
+                with ib.if_scope(index < 0):
+                    out_ptr[(i * c + j) * h + (index + h)] = updates_ptr[idx]
+                with ib.else_scope():
+                    out_ptr[(i * c + j) * h + index] = updates_ptr[idx]
     return ib.get()
 
 
@@ -238,22 +286,31 @@ def gen_ir_4d(data, indices, updates, axis, out):
     ret : tir
         The computational ir.
     """
+    warp_size = tvm.target.Target.current(False).thread_warp_size
+
     n = data.shape[0]
     c = data.shape[1]
     h = data.shape[2]
     w = data.shape[3]
 
     ib = tvm.tir.ir_builder.create()
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(bx, "thread_extent", 1)
 
     out_ptr = ib.buffer_ptr(out)
     data_ptr = ib.buffer_ptr(data)
-    with ib.for_range(0, n, name="i") as i:
-        with ib.for_range(0, c, name="j") as j:
-            with ib.for_range(0, h, name="k") as k:
-                with ib.for_range(0, w, name="l") as l:
-                    out_ptr[((i * c + j) * h + k) * w + l] = data_ptr[((i * c + j) * h + k) * w + l]
+    with ib.new_scope():
+        i = te.thread_axis("blockIdx.x")
+        ib.scope_attr(i, "thread_extent", n)
+        j = te.thread_axis("blockIdx.y")
+        ib.scope_attr(j, "thread_extent", c)
+        k = te.thread_axis("blockIdx.z")
+        ib.scope_attr(k, "thread_extent", h)
+        tx = te.thread_axis("threadIdx.x")
+        ib.scope_attr(tx, "thread_extent", warp_size)
+        with ib.for_range(0, ceil_div(w, warp_size), name="l") as l_:
+            l = l_ * warp_size + tx
+            with ib.if_scope(l < w):
+                idx = ((i * c + j) * h + k) * w + l
+                out_ptr[idx] = data_ptr[idx]
 
     indices_ptr = ib.buffer_ptr(indices)
     updates_ptr = ib.buffer_ptr(updates)
@@ -263,61 +320,74 @@ def gen_ir_4d(data, indices, updates, axis, out):
     wi = indices.shape[3]
 
     if axis == 0:
-        with ib.for_range(0, ni, name="i") as i:
-            with ib.for_range(0, ci, name="j") as j:
-                with ib.for_range(0, hi, name="k") as k:
-                    with ib.for_range(0, wi, name="l") as l:
-                        index = indices_ptr[((i * ci + j) * hi + k) * wi + l]
+        with ib.new_scope():
+            j = te.thread_axis("blockIdx.y")
+            ib.scope_attr(j, "thread_extent", ci)
+            k = te.thread_axis("blockIdx.z")
+            ib.scope_attr(k, "thread_extent", hi)
+            tx = te.thread_axis("threadIdx.x")
+            ib.scope_attr(tx, "thread_extent", warp_size)
+            with ib.for_range(0, ni, name="i") as i:
+                with ib.for_range(0, ceil_div(wi, warp_size), name="l") as l_:
+                    l = l_ * warp_size + tx
+                    with ib.if_scope(l < wi):
+                        idx = ((i * ci + j) * hi + k) * wi + l
+                        index = indices_ptr[idx]
                         with ib.if_scope(index < 0):
-                            out_ptr[(((index + n) * c + j) * h + k) * w + l] = updates_ptr[
-                                ((i * ci + j) * hi + k) * wi + l
-                            ]
+                            out_ptr[(((index + n) * c + j) * h + k) * w + l] = updates_ptr[idx]
                         with ib.else_scope():
-                            out_ptr[((index * c + j) * h + k) * w + l] = updates_ptr[
-                                ((i * ci + j) * hi + k) * wi + l
-                            ]
+                            out_ptr[((index * c + j) * h + k) * w + l] = updates_ptr[idx]
     elif axis == 1:
-        with ib.for_range(0, ni, name="i") as i:
+        with ib.new_scope():
+            i = te.thread_axis("blockIdx.x")
+            ib.scope_attr(i, "thread_extent", ni)
+            k = te.thread_axis("blockIdx.z")
+            ib.scope_attr(k, "thread_extent", hi)
+            tx = te.thread_axis("threadIdx.x")
+            ib.scope_attr(tx, "thread_extent", warp_size)
             with ib.for_range(0, ci, name="j") as j:
-                with ib.for_range(0, hi, name="k") as k:
-                    with ib.for_range(0, wi, name="l") as l:
-                        index = indices_ptr[((i * ci + j) * hi + k) * wi + l]
+                with ib.for_range(0, ceil_div(wi, warp_size), name="l") as l_:
+                    l = l_ * warp_size + tx
+                    with ib.if_scope(l < wi):
+                        idx = ((i * ci + j) * hi + k) * wi + l
+                        index = indices_ptr[idx]
                         with ib.if_scope(index < 0):
-                            out_ptr[((i * c + (index + c)) * h + k) * w + l] = updates_ptr[
-                                ((i * ci + j) * hi + k) * wi + l
-                            ]
+                            out_ptr[((i * c + (index + c)) * h + k) * w + l] = updates_ptr[idx]
                         with ib.else_scope():
-                            out_ptr[((i * c + index) * h + k) * w + l] = updates_ptr[
-                                ((i * ci + j) * hi + k) * wi + l
-                            ]
+                            out_ptr[((i * c + index) * h + k) * w + l] = updates_ptr[idx]
     elif axis == 2:
-        with ib.for_range(0, ni, name="i") as i:
-            with ib.for_range(0, ci, name="j") as j:
-                with ib.for_range(0, hi, name="k") as k:
-                    with ib.for_range(0, wi, name="l") as l:
-                        index = indices_ptr[((i * ci + j) * hi + k) * wi + l]
+        with ib.new_scope():
+            i = te.thread_axis("blockIdx.x")
+            ib.scope_attr(i, "thread_extent", ni)
+            j = te.thread_axis("blockIdx.y")
+            ib.scope_attr(j, "thread_extent", ci)
+            tx = te.thread_axis("threadIdx.x")
+            ib.scope_attr(tx, "thread_extent", warp_size)
+            with ib.for_range(0, hi, name="k") as k:
+                with ib.for_range(0, ceil_div(wi, warp_size), name="l") as l_:
+                    l = l_ * warp_size + tx
+                    with ib.if_scope(l < wi):
+                        idx = ((i * ci + j) * hi + k) * wi + l
+                        index = indices_ptr[idx]
                         with ib.if_scope(index < 0):
-                            out_ptr[((i * c + j) * h + (index + h)) * w + l] = updates_ptr[
-                                ((i * ci + j) * hi + k) * wi + l
-                            ]
+                            out_ptr[((i * c + j) * h + (index + h)) * w + l] = updates_ptr[idx]
                         with ib.else_scope():
-                            out_ptr[((i * c + j) * h + index) * w + l] = updates_ptr[
-                                ((i * ci + j) * hi + k) * wi + l
-                            ]
+                            out_ptr[((i * c + j) * h + index) * w + l] = updates_ptr[idx]
     else:
-        with ib.for_range(0, ni, name="i") as i:
-            with ib.for_range(0, ci, name="j") as j:
-                with ib.for_range(0, hi, name="k") as k:
-                    with ib.for_range(0, wi, name="l") as l:
-                        index = indices_ptr[((i * ci + j) * hi + k) * wi + l]
-                        with ib.if_scope(index < 0):
-                            out_ptr[((i * c + j) * h + k) * w + (index + w)] = updates_ptr[
-                                ((i * ci + j) * hi + k) * wi + l
-                            ]
-                        with ib.else_scope():
-                            out_ptr[((i * c + j) * h + k) * w + index] = updates_ptr[
-                                ((i * ci + j) * hi + k) * wi + l
-                            ]
+        with ib.new_scope():
+            i = te.thread_axis("blockIdx.x")
+            ib.scope_attr(i, "thread_extent", ni)
+            j = te.thread_axis("blockIdx.y")
+            ib.scope_attr(j, "thread_extent", ci)
+            k = te.thread_axis("blockIdx.z")
+            ib.scope_attr(k, "thread_extent", hi)
+            with ib.for_range(0, wi, name="l") as l:
+                idx = ((i * ci + j) * hi + k) * wi + l
+                index = indices_ptr[idx]
+                with ib.if_scope(index < 0):
+                    out_ptr[((i * c + j) * h + k) * w + (index + w)] = updates_ptr[idx]
+                with ib.else_scope():
+                    out_ptr[((i * c + j) * h + k) * w + index] = updates_ptr[idx]
 
     return ib.get()
 

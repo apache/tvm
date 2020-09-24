@@ -919,6 +919,7 @@ def test_scatter():
     verify_scatter((2, 3, 4), (1, 3, 4), 0)
     verify_scatter((2, 3, 4), (2, 1, 4), 1)
     verify_scatter((2, 3, 4), (2, 3, 1), 2)
+    verify_scatter((4, 2, 1), (1, 1, 1), 0)
     verify_scatter((2, 3, 4, 5), (1, 3, 4, 5), 0)
     verify_scatter((6, 3, 4, 5), (2, 3, 4, 5), 1)
     verify_scatter((2, 3, 8, 5), (2, 3, 1, 1), 2)
