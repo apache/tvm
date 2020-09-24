@@ -29,7 +29,7 @@ from .tensor_intrin import (
     mmla_4x4_int8_int8_int32,
     mmla_16x4_int8_int8_int32,
 )
-from .arm_utils import is_aarch64_arm, is_fast_int8_on_arm
+from .arm_utils import is_aarch64_arm, is_dotprod_available
 
 
 def configure_knobs(cfg, M, K):
@@ -48,7 +48,7 @@ def configure_knobs(cfg, M, K):
         cfg["reorder_gemm"] = ReorderEntity([0, 1])
         cfg["A_interleaved_unroll_vec"] = AnnotateEntity(["unroll", "vec"])
 
-    if not is_fast_int8_on_arm():
+    if not is_dotprod_available():
         cfg.define_knob("gemm_quantized_unroll", [True, False])
         cfg.define_knob("gemm_quantized_interleave", [True, False])
 
@@ -76,8 +76,7 @@ def compute_conv2d_gemm_without_weight_transform(
 
     KH, KW = get_const_tuple(kernel_size)
     OC = get_const_int(output_channels)
-
-    K_AREA = KH * KW
+    kernel_area = KH * KW
 
     if isinstance(dilation, int):
         dilation_h = dilation_w = dilation
@@ -101,13 +100,13 @@ def compute_conv2d_gemm_without_weight_transform(
     else:
         data_pad = data
 
-    # --- Im2col
+    # Im2col
     M = OH * OW
-    K = IC * K_AREA
+    K = IC * kernel_area
     N = OC
 
     A_shape = (batches, M, K)
-    if K_AREA == 1:
+    if kernel_area == 1:
         A = tvm.topi.reshape(data_pad, A_shape)
     else:
         A = te.compute(
@@ -121,35 +120,48 @@ def compute_conv2d_gemm_without_weight_transform(
             name="data_im2col",
         )
 
-    # --- Pad if necessary
+    #  Pad if necessary
     N_transformed = B_interleaved_t.shape[0]
     tile_rows_B = B_interleaved_t.shape[2]
     tile_cols_B = B_interleaved_t.shape[3]
 
-    if is_fast_int8_on_arm() and interleave_A:
+    # Select the tiling strategy for A.
+    # The tiling information is chosen to maximize register usage during
+    # the tile computation.
+    #
+    # Please refer to:
+    #   - https://discuss.tvm.apache.org/t/rfc-accelerate-quantized-convolution-through-dot-product
+    #   - Conv2DGemmWeightTransformRel in src/relay/op/nn/convolution.h
+    # In order to have more information
+    #
+    if is_dotprod_available() and interleave_A:
+        # If dot product has been enabled, and we are interleaving A
+        # tile size should be 8x4
         tile_rows_A = 8
         tile_cols_A = 4
     else:
+        # If either there is no dot product or if we are using a native strategy
+        # tile size should be 4x16
         tile_rows_A = 4
         tile_cols_A = 16
 
-    pad_m = 0
-    pad_k = 0
+    pad_M = 0
+    pad_K = 0
 
     if M % tile_rows_A != 0:
-        pad_m = tile_rows_A - (M % tile_rows_A)
+        pad_M = tile_rows_A - (M % tile_rows_A)
 
     if K % tile_cols_A != 0:
-        pad_k = tile_cols_A - (K % tile_cols_A)
+        pad_K = tile_cols_A - (K % tile_cols_A)
 
-    M_padded = M + pad_m
-    K_padded = K + pad_k
+    M_padded = M + pad_M
+    K_padded = K + pad_K
     N_padded = N_transformed * tile_rows_B
 
     pad_before = (0, 0, 0)
-    pad_after = (0, pad_m, pad_k)
+    pad_after = (0, pad_M, pad_K)
 
-    if pad_m != 0 or pad_k != 0:
+    if pad_M != 0 or pad_K != 0:
         A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded")
 
     idxm = tvm.tir.indexmod
@@ -159,13 +171,13 @@ def compute_conv2d_gemm_without_weight_transform(
         # Configuration space
         configure_knobs(cfg, M_padded, K_padded)
 
-        # Pack A
+        # Pack the input data
         A_interleaved = te.compute(
             (batches, M_padded // tile_rows_A, K_padded // tile_cols_A, tile_rows_A, tile_cols_A),
             lambda b, x, y, z, w: A[b, z + tile_rows_A * x, w + tile_cols_A * y],
             name="A_interleaved",
         )
-        # Compute C
+        # Execute GEMM
         C_interleaved = te.compute(
             (batches, M_padded // tile_rows_A, N_transformed, tile_rows_A, tile_rows_B),
             lambda b, x, y, w, z: te.sum(
@@ -175,7 +187,7 @@ def compute_conv2d_gemm_without_weight_transform(
             ),
             name="C_interleaved",
         )
-        # Unpack C
+        # Unpack the result
         C = te.compute(
             (batches, M, N),
             lambda b, x, y: C_interleaved[
@@ -185,7 +197,7 @@ def compute_conv2d_gemm_without_weight_transform(
         )
         zero = tvm.tir.const(0)
     else:
-        # No need to pack/unpack
+        # No need to pack/unpack, execute GEMM directly
         C = te.compute(
             (batches, M_padded, N_padded),
             lambda b, x, y: te.sum(
@@ -197,12 +209,16 @@ def compute_conv2d_gemm_without_weight_transform(
             ),
             name="C",
         )
+
+        # We need to ensure that infer bound pass does not remove the padding
+        # which is necessary for the tensorizations to work. So we need to
+        # add a dummy reference to the padding area of the result
         zero = (
             tvm.tir.const(1, C.dtype) * C[0, M_padded - 1, N_padded - 1]
             - tvm.tir.const(1, C.dtype) * C[0, M_padded - 1, N_padded - 1]
         )
 
-    # --- Produce the conv output
+    # Reshape the result into a convolution output
     out_shape = (batches, OH, OW, OC)
     out = te.compute(
         out_shape,
@@ -212,7 +228,7 @@ def compute_conv2d_gemm_without_weight_transform(
     return out
 
 
-def schedule_conv2d_gemm(cfg, s, out, final_out):
+def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
     """ Schedule the conv2d_gemm interleaved strategy """
     C = out.op.input_tensors[0]
     C_interleaved = C.op.input_tensors[0]
@@ -255,7 +271,7 @@ def schedule_conv2d_gemm(cfg, s, out, final_out):
 
     k = C_interleaved.op.reduce_axis[0]
     _, M, N = C.shape
-    if is_fast_int8_on_arm():
+    if is_dotprod_available():
         mmla = mmla_4x4_int8_int8_int32(in_type)
         xi_outer, yi_outer, xi_inner, yi_inner = s[C_interleaved].tile(
             xi, yi, x_factor=8, y_factor=4
@@ -299,7 +315,7 @@ def schedule_conv2d_gemm(cfg, s, out, final_out):
     return s
 
 
-def schedule_conv2d_gemm_hybrid(cfg, s, out, final_out):
+def schedule_conv2d_gemm_native(cfg, s, out, final_out):
     """ Schedule the conv2d_gemm hybrid strategy """
     C = out.op.input_tensors[0]
     A = C.op.input_tensors[0]

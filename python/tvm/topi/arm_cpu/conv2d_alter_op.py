@@ -27,15 +27,31 @@ from tvm import autotvm
 from ..nn import conv2d_alter_layout
 from ..util import get_const_tuple
 from ..x86.conv2d import _get_default_config as _get_x86_default_config
-from .arm_utils import is_fast_int8_on_arm
+from .arm_utils import get_tiling_B_interleaved_t
 
 logger = logging.getLogger("topi")
 
 
-def interleave_transpose_B(inputs, data, kernel, interleave_A):
-    """Return the new placeholder and the expression that represent
-    the matrix B transposed and interleaved"""
+def interleave_transpose_weights(inputs, data, kernel, interleave_A):
+    """ Transform the weight matrix by reshaping, interleaving and transposing it
 
+    Parameters
+    ----------
+    inputs : tvm.relay.Expr
+        Grouped input symbols
+    data :
+        Input shape and dtype
+    kernel :
+        Input shape and dtype
+    interleave_A: indicates if we expect matrix A to be interleaved
+
+    Returns
+    ----------
+    new_kernel : tvm.te.placeholder
+                 A placeholder with the new shape
+    new_kernel_expr : tvm.relay.Expr
+                The relay expression of the weights
+    """
     assert (
         data.dtype == "int8"
         and kernel.dtype == "int8"
@@ -47,12 +63,8 @@ def interleave_transpose_B(inputs, data, kernel, interleave_A):
     K = KH * KW * IC
     N = OC
 
-    if is_fast_int8_on_arm():
-        tile_rows_B = 12 if interleave_A else 16
-        tile_cols_B = 4
-    else:
-        tile_rows_B = 4
-        tile_cols_B = 16
+    # Get tiling information for the interleaved transposed version of B
+    tile_rows_B, tile_cols_B = get_tiling_B_interleaved_t(interleave_A)
 
     pad_K = 0
     pad_N = 0
@@ -321,12 +333,11 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         )
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_depthwise_conv2d_nchwc(*inputs, **new_attrs)
-    if topi_tmpl == "conv2d_NHWC_quantized.arm_cpu":
+    if topi_tmpl == "conv2d_NHWC_quantized_interleaved.arm_cpu":
         assert data_layout == "NHWC" and kernel_layout == "HWIO"
-        KH, KW, IC, OC = get_const_tuple(kernel.shape)
-        N = OC
-        new_workload_name = "conv2d_NHWC_quantized_without_transform.arm_cpu"
-        new_kernel, new_kernel_expr = interleave_transpose_B(
+        KH, KW, _, OC = get_const_tuple(kernel.shape)
+        new_workload_name = "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu"
+        new_kernel, new_kernel_expr = interleave_transpose_weights(
             inputs, data, kernel, interleave_A=True
         )
         new_workload = autotvm.task.args_to_workload(
@@ -338,12 +349,11 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         return relay.nn.contrib_conv2d_gemm_without_weight_transform(
             inputs[0], new_kernel_expr, **new_attrs
         )
-    if topi_tmpl == "conv2d_NHWC_quantized_hybrid.arm_cpu":
+    if topi_tmpl == "conv2d_NHWC_quantized_native.arm_cpu":
         assert data_layout == "NHWC" and kernel_layout == "HWIO"
-        KH, KW, IC, OC = get_const_tuple(kernel.shape)
-        N = OC
-        new_workload_name = "conv2d_NHWC_quantized_hybrid_without_transform.arm_cpu"
-        new_kernel, new_kernel_expr = interleave_transpose_B(
+        KH, KW, _, OC = get_const_tuple(kernel.shape)
+        new_workload_name = "conv2d_NHWC_quantized_native_without_transform.arm_cpu"
+        new_kernel, new_kernel_expr = interleave_transpose_weights(
             inputs, data, kernel, interleave_A=False
         )
         new_workload = autotvm.task.args_to_workload(

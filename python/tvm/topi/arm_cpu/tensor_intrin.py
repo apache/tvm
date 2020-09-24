@@ -594,10 +594,24 @@ def select_word(vec, lane, dtype_vec):
     The pseudo-code for this operation is:
 
     v = [x0, ..., x15]
-    vsub(i) = v[i:i+3]
-    replicated_v(i) = [vsub(i), vsub(i), vsub(i), vsub(i)]
+    vsub(lane) = v[4*lane:4*lane+3]
+    replicated_v(lane) = [vsub(lane), vsub(lane), vsub(lane), vsub(lane)]
 
-    Note that i can vary between 0 and 3
+    Note that 0<=lane<4
+
+     Parameters
+    ----------
+    vec: tvm.tir.Expr
+         int8x16 vector expression
+    lane: int
+        vector lane we want to replicate
+    dtype_vec: str
+        vector data type (e.g., int8x16)
+
+    Returns
+    ----------
+    output: tvm.tir.Expr
+        replicated vector
     """
     # Reinterpret vec_a as 4 int32 words
     vec_int32 = tvm.tir.call_intrin("int32x4", "tir.reinterpret", vec)
