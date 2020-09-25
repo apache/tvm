@@ -23,7 +23,7 @@ pytest.importorskip("tflite")
 pytest.importorskip("tensorflow")
 
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available, Available
+from tvm.relay.op.contrib.ethosn import ethosn_available
 from tvm.contrib import download
 import tvm.relay.testing.tf as tf_testing
 import tflite.Model
@@ -60,6 +60,7 @@ def _test_image_network(
     output_count,
     host_ops=0,
     npu_partitions=1,
+    run=False,
 ):
     if not ethosn_available():
         return
@@ -85,7 +86,8 @@ def _test_image_network(
     mod, params = get_model()
     m = tei.build(mod, params, npu=True, expected_host_ops=host_ops, npu_partitions=npu_partitions)
     tei.assert_lib_hash(m.get_lib(), compile_hash)
-    tei.run(m, inputs, output_count, npu=True)
+    if run:
+        tei.run(m, inputs, output_count, npu=True)
 
 
 def test_mobilenet_v1():
@@ -94,7 +96,6 @@ def test_mobilenet_v1():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    hw = ethosn_available()
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
@@ -104,6 +105,7 @@ def test_mobilenet_v1():
         output_count=1,
         host_ops=3,
         npu_partitions=1,
+        run=True,
     )
 
 
