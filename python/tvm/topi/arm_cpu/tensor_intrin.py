@@ -677,6 +677,8 @@ def mmla_4x4_int8_int8_int32(dtype):
         C.shape, dtype="int32", name="cc_buffer", offset_factor=1, strides=[te.var("sc"), 1]
     )
 
+    llvm_intrin = "llvm.aarch64.neon.sdot" if dtype == "int8" else "llvm.aarch64.neon.udot"
+
     def _intrin_func(ins, outs):
         def _instr(index):
             ib = tvm.tir.ir_builder.create()
@@ -685,7 +687,7 @@ def mmla_4x4_int8_int8_int32(dtype):
                     ib.emit(outs[0].vstore([i, 0], tvm.tir.const(0, "int32x4")))
                 return ib.get()
 
-            vec_a = ins[0].vload([0, 0])
+            vec_a = ins[0].vload([0, 0], dtype_vec)
             vec_aa = [select_word(vec_a, i, dtype_vec) for i in range(0, 4)]
             vec_b = ins[1].vload([0, 0], dtype_vec)
 
@@ -693,12 +695,7 @@ def mmla_4x4_int8_int8_int32(dtype):
             for i in range(0, 4):
                 vec_c = outs[0].vload([i, 0], "int32x4")
                 vdot = tvm.tir.call_llvm_intrin(
-                    "int32x4",
-                    "llvm.aarch64.neon.sdot",
-                    tvm.tir.const(3, "uint32"),
-                    vec_c,
-                    vec_b,
-                    vec_aa[i],
+                    "int32x4", llvm_intrin, tvm.tir.const(3, "uint32"), vec_c, vec_b, vec_aa[i],
                 )
 
                 # Store the result
@@ -779,6 +776,8 @@ def mmla_16x4_int8_int8_int32(dtype, rows):
         C.shape, dtype="int32", name="cc_buffer", offset_factor=1, strides=[te.var("sc"), 1]
     )
 
+    llvm_intrin = "llvm.aarch64.neon.sdot" if dtype == "int8" else "llvm.aarch64.neon.udot"
+
     def _intrin_func(ins, outs):
         def _instr(index):
             ib = tvm.tir.ir_builder.create()
@@ -797,7 +796,7 @@ def mmla_16x4_int8_int8_int32(dtype, rows):
                         vec_c = outs[0].vload([k, 4 * j], "int32x4")
                         vdot = tvm.tir.call_llvm_intrin(
                             "int32x4",
-                            "llvm.aarch64.neon.sdot",
+                            llvm_intrin,
                             tvm.tir.const(3, "uint32"),
                             vec_c,
                             vec_b,

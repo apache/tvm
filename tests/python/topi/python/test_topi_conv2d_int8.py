@@ -56,48 +56,67 @@ def compile_conv2d_NHWC_gemm_int8_arm(
     W = te.placeholder((kernel, kernel, in_channel, num_filter), name="W", dtype="int8")
     bias = te.placeholder((num_filter,), name="bias", dtype="int8")
     dtype = "int32"
-    device = "llvm --device arm_cpu --mtriple aarch64-linux-gnu"
+    devices = [
+        (
+            "llvm --device arm_cpu --mtriple aarch64-linux-gnu",
+            topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved,
+            topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved,
+        ),
+        (
+            "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.2a,+dotprod",
+            topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved,
+            topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved,
+        ),
+        (
+            "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.2a,+dotprod",
+            topi.arm_cpu.compute_conv2d_NHWC_quantized_native,
+            topi.arm_cpu.schedule_conv2d_NHWC_quantized_native,
+        ),
+    ]
 
-    ctx = tvm.context(device, 0)
-    if not tvm.testing.device_enabled(device):
-        print("Skip because %s is not enabled" % device)
-        return
-    print("Compiling on arm AArch64 target: %s" % device)
-    with tvm.target.Target(device):
-        assert is_aarch64_arm(), "AArch64 target not recognized"
+    for device_tuple in devices:
+        device = device_tuple[0]
+        compute = device_tuple[1]
+        schedule = device_tuple[2]
 
-        C = topi.arm_cpu.compute_conv2d_NHWC_quantized(
-            A, W, (stride, stride), padding, (dilation, dilation), dtype
-        )
+        ctx = tvm.context(device, 0)
+        if not tvm.testing.device_enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Compiling on arm AArch64 target: %s" % device)
+        with tvm.target.Target(device):
+            assert is_aarch64_arm(), "AArch64 target not recognized"
+
+            C = compute(A, W, (stride, stride), padding, (dilation, dilation), dtype)
+            if add_bias:
+                C = topi.add(C, bias)
+            if add_relu:
+                C = topi.nn.relu(C)
+            s = schedule([C])
+
         if add_bias:
-            C = topi.add(C, bias)
-        if add_relu:
-            C = topi.nn.relu(C)
-        s = topi.arm_cpu.schedule_conv2d_NHWC_quantized([C])
-
-    if add_bias:
-        tvm.build(
-            s,
-            [A, W, bias, C],
-            device,
-            name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
-            % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
-        )
-        func = tvm.build(
-            s,
-            [A, W, bias, C],
-            device,
-            name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
-            % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
-        )
-    else:
-        func = tvm.build(
-            s,
-            [A, W, C],
-            device,
-            name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
-            % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
-        )
+            tvm.build(
+                s,
+                [A, W, bias, C],
+                device,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
+                % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
+            )
+            func = tvm.build(
+                s,
+                [A, W, bias, C],
+                device,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
+                % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
+            )
+        else:
+            func = tvm.build(
+                s,
+                [A, W, C],
+                device,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
+                % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
+            )
 
 
 def verify_conv2d_NHWC_gemm_int8(
@@ -155,14 +174,14 @@ def verify_conv2d_NHWC_gemm_int8(
             return
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
-            C = topi.arm_cpu.compute_conv2d_NHWC_quantized(
+            C = topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved(
                 A, W, (stride, stride), padding, (dilation, dilation), dtype
             )
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
                 C = topi.nn.relu(C)
-            s = topi.arm_cpu.schedule_conv2d_NHWC_quantized([C])
+            s = topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved([C])
 
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
