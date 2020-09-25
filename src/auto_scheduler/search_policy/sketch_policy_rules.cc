@@ -519,9 +519,15 @@ PopulationGenerationRule::ResultKind InitChangeComputeLocation::Apply(
   try {
     *state = policy->search_task->compute_dag.InferBound(*state);
   } catch (std::exception& e) {
+<<<<<<< HEAD
     return ResultKind::kInvalid;
   }
   return ResultKind::kValid;
+=======
+    return PopulationGenerationRule::ResultKind::kInvalid;
+  }
+  return PopulationGenerationRule::ResultKind::kValid;
+>>>>>>> [Ansor][FLAKY] Bug fix for compute at mutation error (#6557)
 }
 
 PopulationGenerationRule::ResultKind InitParallel::Apply(SketchPolicyNode* policy, State* state,
