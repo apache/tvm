@@ -1535,7 +1535,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(tir::builtin::shift_left())) {
     if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
       // the operator overload will eagerly constant fold.
-      return op->args[0] & op->args[1];
+      return op->args[0] << op->args[1];
     }
   }
   ExprDeepEqual expr_equal;
