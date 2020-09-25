@@ -32,6 +32,7 @@ use tvm::*;
 
 fn main() {
     let ctx = Context::cpu(0);
+    println!("{}", concat!(env!("CARGO_MANIFEST_DIR"), "/cat.png"));
     let img = image::open(concat!(env!("CARGO_MANIFEST_DIR"), "/cat.png")).unwrap();
     println!("original image dimensions: {:?}", img.dimensions());
     // for bigger size images, one needs to first resize to 256x256
@@ -59,8 +60,10 @@ fn main() {
     // create input tensor from rust's ndarray
     let input = NDArray::from_rust_ndarray(&arr, Context::cpu(0), DataType::float(32, 1)).unwrap();
     println!(
-        "input size is {:?}",
+        "input shape is {:?}, len: {}, size: {}",
         input.shape(),
+        input.len(),
+        input.size(),
     );
     let graph =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_graph.json")).unwrap();
@@ -76,7 +79,8 @@ fn main() {
         graph.into(),
         (&lib).into(),
         (&ctx.device_type).into(),
-        (&ctx.device_id).into(),
+        // NOTE you must pass the device id in as i32 because that's what TVM expects
+        (ctx.device_id as i32).into(),
     ]);
 
     // get graph runtime module
@@ -89,6 +93,7 @@ fn main() {
     // parse parameters and convert to TVMByteArray
     let params: Vec<u8> =
         fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_param.params")).unwrap();
+    println!("param bytes: {}", params.len());
     let barr = ByteArray::from(&params);
     // load the parameters
     load_param_fn.invoke(vec![(&barr).into()]).unwrap();
@@ -98,7 +103,7 @@ fn main() {
         .unwrap();
 
     set_input_fn
-        .invoke(vec!["data".into(), (&input).into()])
+        .invoke(vec!["data".into(), input.into()])
         .unwrap();
 
     // get `run` function from runtime module
@@ -106,7 +111,7 @@ fn main() {
     // execute the run function. Note that it has no argument
     run_fn.invoke(vec![]).unwrap();
     // prepare to get the output
-    let output_shape = &mut [1, 1000];
+    let output_shape = &[1, 1000];
     let output = NDArray::empty(output_shape, Context::cpu(0), DataType::float(32, 1));
     // get the `get_output` function from runtime module
     let ref get_output_fn = graph_runtime_module
@@ -114,21 +119,20 @@ fn main() {
         .unwrap();
     // execute the get output function
     get_output_fn
-        .invoke(vec![(&0).into(), (&output).into()])
+        .invoke(vec![0.into(), (&output).into()])
         .unwrap();
     // flatten the output as Vec<f32>
     let output = output.to_vec::<f32>().unwrap();
     // find the maximum entry in the output and its index
-    let mut argmax = -1;
-    let mut max_prob = 0.;
-    for i in 0..output.len() {
-        if output[i] > max_prob {
-            max_prob = output[i];
-            argmax = i as i32;
-        }
-    }
+    let (argmax, max_prob) = output
+        .iter()
+        .copied()
+        .enumerate()
+        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+        .unwrap();
+
     // create a hash map of (class id, class name)
-    let mut synset: HashMap<i32, String> = HashMap::new();
+    let mut synset: HashMap<usize, String> = HashMap::new();
     let file = File::open("synset.csv").unwrap();
     let mut rdr = csv::ReaderBuilder::new()
         .has_headers(true)
@@ -136,16 +140,16 @@ fn main() {
 
     for result in rdr.records() {
         let record = result.unwrap();
-        let id: i32 = record[0].parse().unwrap();
+        let id: usize = record[0].parse().unwrap();
         let cls = record[1].to_string();
         synset.insert(id, cls);
     }
 
+    let label = synset
+        .get(&argmax)
+        .expect("cannot find the class id for argmax");
     println!(
         "input image belongs to the class `{}` with probability {}",
-        synset
-            .get(&argmax)
-            .expect("cannot find the class id for argmax"),
-        max_prob
+        label, max_prob
     );
 }
