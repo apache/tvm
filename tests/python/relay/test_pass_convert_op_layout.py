@@ -1068,6 +1068,55 @@ def test_different_ops_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_no_desired_layout():
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var("weight1", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(
+            x,
+            weight1,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        rois = relay.var("rois", shape=(32, 5))
+        y = relay.vision.roi_align(
+            y, rois, pooled_size=(14, 14), spatial_scale=0.0625, sample_ratio=2, layout="NCHW"
+        )
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var("weight1", shape=(64, 64, 3, 3))
+        x = relay.layout_transform(x, "NCHW", "NHWC")
+        weight1 = relay.layout_transform(weight1, "OIHW", "HWIO")
+        y = relay.nn.conv2d(
+            x,
+            weight1,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.layout_transform(y, "NHWC", "NCHW")
+        rois = relay.var("rois", shape=(32, 5))
+        y = relay.vision.roi_align(
+            y, rois, pooled_size=(14, 14), spatial_scale=0.0625, sample_ratio=2, layout="NCHW"
+        )
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NHWC", "HWIO"]}))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 if __name__ == "__main__":
     test_qnn_binary_no_convert_layout()
     test_no_convert_layout()
@@ -1089,3 +1138,4 @@ if __name__ == "__main__":
     test_conv_roi_align_convert_layout()
     test_default_keyword()
     test_different_ops_convert_layout()
+    test_no_desired_layout()
