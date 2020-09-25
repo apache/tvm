@@ -247,11 +247,11 @@ Doc TIRTextPrinter::VisitExpr_(const VarNode* op) {
 }
 
 #define TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(OpName, OpString) \
-  Doc TIRTextPrinter::VisitExpr_(const OpName* op) {           \
-    Doc doc;                                                   \
-    doc << "(" << Print(op->a) << OpString;                    \
-    doc << Print(op->b) << ")";                                \
-    return doc;                                                \
+  Doc TIRTextPrinter::VisitExpr_(const OpName* op) {         \
+    Doc doc;                                                 \
+    doc << "(" << Print(op->a) << OpString;                  \
+    doc << Print(op->b) << ")";                              \
+    return doc;                                              \
   }
 
 TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(AddNode, " + ")

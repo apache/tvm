@@ -254,9 +254,7 @@ def get_arg_list(origin_func, category, with_var=False):
             "TVM Script register error : variable keyword argument is not supported now"
         )
     if not len(full_arg_spec.kwonlyargs) == 0:
-        raise RuntimeError(
-            "TVM Script register error : keyword only argument is not supported now"
-        )
+        raise RuntimeError("TVM Script register error : keyword only argument is not supported now")
 
     pos_only = list()
     for arg in args[: len(args) - len(defaults)]:

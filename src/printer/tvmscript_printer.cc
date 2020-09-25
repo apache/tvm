@@ -371,7 +371,7 @@ Doc TVMScriptPrinter::VisitExpr_(const VarNode* op) {
   return meta_.InMeta(var) ? meta_.GetMetaNode(var) : AllocVar(GetRef<Var>(op));
 }
 
-#define TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OpName, OpString)     \
+#define TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OpName, OpString)      \
   Doc TVMScriptPrinter::VisitExpr_(const OpName* op) {             \
     Doc doc;                                                       \
     doc << '(' << Print(op->a) << OpString << Print(op->b) << ")"; \
@@ -615,7 +615,8 @@ Doc TVMScriptPrinter::VisitStmt_(const StoreNode* op) {
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const BufferRealizeNode* op) {
-  LOG(FATAL) << "TVM Script Printer Internal Error: All the BufferRealize should be folded with Attr";
+  LOG(FATAL)
+      << "TVM Script Printer Internal Error: All the BufferRealize should be folded with Attr";
   return Doc();
 }
 

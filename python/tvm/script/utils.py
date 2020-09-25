@@ -79,6 +79,7 @@ def tir(script_in):
 
     raise TypeError("Only function and class are supported")
 
+
 def module(script_in):
     """Decorate a python function or class as tvm script.
 
@@ -90,7 +91,6 @@ def module(script_in):
         The Function or Module in IR.
     """
     return tir(script_in)
-
 
 
 class TVMScriptClass:
