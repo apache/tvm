@@ -47,12 +47,13 @@
 //! [`copy_from_buffer`]:struct.NDArray.html#method.copy_from_buffer
 //! [`copy_to_ctx`]:struct.NDArray.html#method.copy_to_ctx
 
-use std::convert::TryInto;
 use std::ffi::c_void;
+use std::{borrow::Cow, convert::TryInto};
 use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice, str::FromStr};
 
 use tvm_macros::Object;
 use tvm_sys::ffi::DLTensor;
+use mem::size_of;
 use tvm_sys::{ffi, ByteArray, Context, DataType};
 
 use ndarray::{Array, ArrayD};
@@ -79,8 +80,7 @@ impl NDArrayContainer {
     pub(crate) fn from_raw(handle: ffi::TVMArrayHandle) -> Option<ObjectPtr<Self>> {
         let base_offset = memoffset::offset_of!(NDArrayContainer, dl_tensor) as isize;
         let base_ptr = unsafe { (handle as *mut i8).offset(-base_offset) };
-        let object: *mut Object = unsafe { std::mem::transmute(base_ptr) };
-        let object_ptr = ObjectPtr::from_raw(object);
+        let object_ptr = ObjectPtr::from_raw(base_ptr.cast());
         object_ptr.map(|ptr| {
             ptr.downcast::<NDArrayContainer>()
                 .expect("we know this is an NDArray container")
@@ -96,8 +96,24 @@ impl NDArrayContainer {
             &mut *std::mem::ManuallyDrop::new(object_ptr)
                 .ptr
                 .as_ptr()
+                .cast::<u8>()
                 .offset(base_offset)
+                .cast::<NDArrayContainer>()
         }
+    }
+}
+
+fn cow_usize<'a>(slice: &[i64]) -> Cow<'a, [usize]> {
+    if std::mem::size_of::<usize>() == 64 {
+        debug_assert!(slice.iter().all(|&x| x >= 0));
+        let shape: &[usize] = unsafe { std::mem::transmute(slice) };
+        Cow::Borrowed(shape)
+    } else {
+        let shape: Vec<usize> = slice
+            .iter()
+            .map(|&x| usize::try_from(x).unwrap_or_else(|_| panic!("Cannot fit into usize: {}", x)))
+            .collect();
+        Cow::Owned(shape)
     }
 }
 
@@ -121,31 +137,39 @@ impl NDArray {
     }
 
     /// Returns the shape of the NDArray.
-    pub fn shape(&self) -> &[usize] {
+    pub fn shape(&self) -> &[i64] {
         let arr = self.as_dltensor();
         if arr.shape.is_null() || arr.data.is_null() {
             &[]
         } else {
-            let s = unsafe { slice::from_raw_parts(arr.shape.cast(), self.ndim()) };
-            debug_assert!(s.iter().all(|&x| x as i64 >= 0), "negative shape: {:?}", s);
-            s
+            unsafe { slice::from_raw_parts(arr.shape, self.ndim()) }
         }
     }
 
+    /// Returns the shape of the NDArray as a &[usize]
+    ///
+    /// On 64-bit platforms, this is zero-cost and uses the shape from the DLTensor.
+    /// On other platforms, this copies into a buffer.
+    pub fn shape_usize(&self) -> Cow<[usize]> {
+        cow_usize(self.shape())
+    }
+
     /// Returns the strides of the underlying NDArray.
-    pub fn strides(&self) -> Option<&[usize]> {
+    pub fn strides(&self) -> Option<&[i64]> {
         let arr = self.as_dltensor();
         if arr.strides.is_null() {
             None
         } else {
-            let s = unsafe { slice::from_raw_parts(arr.strides.cast(), self.ndim()) };
-            debug_assert!(
-                s.iter().all(|&x| x as i64 >= 0),
-                "negative strides: {:?}",
-                s
-            );
-            Some(s)
+            Some(unsafe { slice::from_raw_parts(arr.strides, self.ndim()) })
         }
+    }
+
+    /// Returns the strides of the NDArray as a &[usize]
+    ///
+    /// On 64-bit platforms, this is zero-cost and uses the strides from the DLTensor.
+    /// On other platforms, this copies into a buffer.
+    pub fn strides_usize(&self) -> Option<Cow<[usize]>> {
+        self.strides().map(cow_usize)
     }
 
     /// Returns true if the tensor is empty
@@ -155,7 +179,8 @@ impl NDArray {
 
     /// Returns the total number of entries of the NDArray.
     pub fn len(&self) -> usize {
-        self.shape().iter().product()
+        let len: i64 = self.shape().iter().product();
+        usize::try_from(len).unwrap_or_else(|_| panic!("bad len: {}", len))
     }
 
     /// Returns the total bytes taken up by the data.
@@ -225,17 +250,14 @@ impl NDArray {
     /// assert_eq!(ndarray.to_vec::<i32>().unwrap(), data);
     /// ```
     pub fn to_vec<T>(&self) -> Result<Vec<T>, NDArrayError> {
-        let earr = NDArray::empty(self.shape(), Context::cpu(0), self.dtype());
-        let target = self.copy_to_ndarray(earr)?;
-        let arr = target.as_dltensor();
-        let len = self.len();
-        let mut v: Vec<T> = Vec::with_capacity(len);
+        let n = self.size() / size_of::<T>();
+        let mut vec: Vec<T> = Vec::with_capacity(n);
+        let ptr = vec.as_mut_ptr();
         unsafe {
-            v.as_mut_ptr()
-                .copy_from_nonoverlapping(arr.data as *const T, len);
-            v.set_len(len);
-        }
-        Ok(v)
+            ptr.copy_from_nonoverlapping(self.as_dltensor().data.cast(), n);
+            vec.set_len(n)
+        };
+        Ok(vec)
     }
 
     /// Converts the NDArray to [`ByteArray`].
@@ -260,7 +282,7 @@ impl NDArray {
     ///
     /// *Note*: if something goes wrong during the copy, it will panic
     /// from TVM side. See `TVMArrayCopyFromBytes` in `include/tvm/runtime/c_runtime_api.h`.
-    pub fn copy_from_buffer<T: Num32>(&mut self, data: &mut [T]) {
+    pub fn copy_from_buffer<T: Num32>(&mut self, data: &[T]) {
         check_call!(ffi::TVMArrayCopyFromBytes(
             self.as_raw_dltensor(),
             data.as_ptr() as *mut _,
@@ -299,7 +321,7 @@ impl NDArray {
         ctx: Context,
         dtype: DataType,
     ) -> Result<Self, NDArrayError> {
-        let shape = rnd.shape().to_vec();
+        let shape: Vec<i64> = rnd.shape().iter().map(|&x| x as i64).collect();
         let mut nd = NDArray::empty(&shape, ctx, dtype);
         let mut buf = Array::from_iter(rnd.into_iter().map(|&v| v as T));
         nd.copy_from_buffer(
@@ -310,11 +332,11 @@ impl NDArray {
     }
 
     /// Allocates and creates an empty NDArray given the shape, context and dtype.
-    pub fn empty(shape: &[usize], ctx: Context, dtype: DataType) -> NDArray {
+    pub fn empty(shape: &[i64], ctx: Context, dtype: DataType) -> NDArray {
         let mut handle = ptr::null_mut() as ffi::TVMArrayHandle;
         let dtype: tvm_sys::ffi::DLDataType = dtype.into();
         check_call!(ffi::TVMArrayAlloc(
-            shape.as_ptr() as *const i64,
+            shape.as_ptr(),
             shape.len() as c_int,
             i32::from(dtype.code) as c_int,
             i32::from(dtype.bits) as c_int,
@@ -336,7 +358,10 @@ macro_rules! impl_from_ndarray_rustndarray {
 
             fn try_from(nd: &NDArray) -> Result<ArrayD<$type>, Self::Error> {
                 assert_eq!(nd.dtype(), DataType::from_str($type_name)?, "Type mismatch");
-                Ok(Array::from_shape_vec(&*nd.shape(), nd.to_vec::<$type>()?)?)
+                Ok(Array::from_shape_vec(
+                    &*nd.shape_usize(),
+                    nd.to_vec::<$type>()?,
+                )?)
             }
         }
 
@@ -345,7 +370,10 @@ macro_rules! impl_from_ndarray_rustndarray {
 
             fn try_from(nd: &mut NDArray) -> Result<ArrayD<$type>, Self::Error> {
                 assert_eq!(nd.dtype(), DataType::from_str($type_name)?, "Type mismatch");
-                Ok(Array::from_shape_vec(&*nd.shape(), nd.to_vec::<$type>()?)?)
+                Ok(Array::from_shape_vec(
+                    &*nd.shape_usize(),
+                    nd.to_vec::<$type>()?,
+                )?)
             }
         }
     };
@@ -388,7 +416,7 @@ mod tests {
         let ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
         println!("after empty");
         assert_eq!(ndarray.shape(), shape);
-        assert_eq!(ndarray.len(), shape.iter().product());
+        assert_eq!(ndarray.len(), shape.iter().product::<i64>() as usize);
         assert_eq!(ndarray.ndim(), 3);
         assert!(ndarray.strides().is_none());
         assert_eq!(ndarray.byte_offset(), 0);
@@ -397,11 +425,11 @@ mod tests {
     #[test]
     fn copy() {
         let shape = &[4];
-        let mut data = vec![1i32, 2, 3, 4];
+        let data = vec![1i32, 2, 3, 4];
         let ctx = Context::cpu(0);
         let mut ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
-        assert!(ndarray.to_vec::<i32>().is_ok());
-        ndarray.copy_from_buffer(&mut data);
+        assert_eq!(ndarray.to_vec::<i32>().unwrap(), vec![0, 0, 0, 0]);
+        ndarray.copy_from_buffer(&data);
         assert_eq!(ndarray.shape(), shape);
         assert_eq!(ndarray.to_vec::<i32>().unwrap(), data);
         assert_eq!(ndarray.ndim(), 1);

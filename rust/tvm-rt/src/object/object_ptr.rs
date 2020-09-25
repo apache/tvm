@@ -300,9 +300,8 @@ impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
     fn from(object_ptr: ObjectPtr<T>) -> ArgValue<'a> {
         debug_assert!(object_ptr.count() >= 1);
         let object_ptr = object_ptr.upcast::<Object>();
-        let index = object_ptr.type_index;
-        match index {
-            tvm_sys::ffi::TVMArgTypeCode_kTVMNDArrayHandle => {
+        match T::TYPE_KEY {
+            "runtime.NDArray" => {
                 use crate::ndarray::NDArrayContainer;
                 // TODO(this is probably not optimal)
                 let raw_ptr = NDArrayContainer::leak(object_ptr.downcast().unwrap())
