@@ -51,9 +51,9 @@ use std::ffi::c_void;
 use std::{borrow::Cow, convert::TryInto};
 use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice, str::FromStr};
 
+use mem::size_of;
 use tvm_macros::Object;
 use tvm_sys::ffi::DLTensor;
-use mem::size_of;
 use tvm_sys::{ffi, ByteArray, Context, DataType};
 
 use ndarray::{Array, ArrayD};
@@ -208,8 +208,8 @@ impl NDArray {
     }
 
     /// Shows whether the underlying ndarray is contiguous in memory or not.
-    pub fn is_contiguous(&self) -> Result<bool, crate::errors::Error> {
-        Ok(match self.strides() {
+    pub fn is_contiguous(&self) -> bool {
+        match self.strides() {
             None => true,
             Some(strides) => {
                 // NDArrayError::MissingShape in case shape is not determined
@@ -227,7 +227,7 @@ impl NDArray {
                     )
                     .0
             }
-        })
+        }
     }
 
     pub fn byte_offset(&self) -> isize {
@@ -252,11 +252,12 @@ impl NDArray {
     pub fn to_vec<T>(&self) -> Result<Vec<T>, NDArrayError> {
         let n = self.size() / size_of::<T>();
         let mut vec: Vec<T> = Vec::with_capacity(n);
+
         let ptr = vec.as_mut_ptr();
-        unsafe {
-            ptr.copy_from_nonoverlapping(self.as_dltensor().data.cast(), n);
-            vec.set_len(n)
-        };
+        let slice = unsafe { slice::from_raw_parts_mut(ptr, n) };
+        self.copy_to_buffer(slice);
+
+        unsafe { vec.set_len(n) };
         Ok(vec)
     }
 
@@ -290,6 +291,29 @@ impl NDArray {
         ));
     }
 
+    pub fn copy_to_buffer<T>(&self, data: &mut [T]) {
+        assert_eq!(self.size(), data.len() * size_of::<T>());
+        check_call!(ffi::TVMArrayCopyToBytes(
+            self.as_raw_dltensor(),
+            data.as_ptr() as *mut _,
+            self.size(),
+        ));
+    }
+
+    pub fn fill_from_iter<T, I>(&mut self, iter: I)
+    where
+        T: Num32,
+        I: ExactSizeIterator<Item = T>,
+    {
+        assert!(self.is_contiguous());
+        assert_eq!(self.size(), size_of::<T>() * iter.len());
+        let mut ptr: *mut T = self.as_dltensor().data.cast();
+        iter.for_each(|x| unsafe {
+            ptr.write(x);
+            ptr = ptr.add(1);
+        })
+    }
+
     /// Copies the NDArray to another target NDArray.
     pub fn copy_to_ndarray(&self, target: NDArray) -> Result<NDArray, NDArrayError> {
         if self.dtype() != target.dtype() {
@@ -317,17 +341,13 @@ impl NDArray {
 
     /// Converts a Rust's ndarray to TVM NDArray.
     pub fn from_rust_ndarray<T: Num32 + Copy>(
-        rnd: &ArrayD<T>,
+        input_nd: &ArrayD<T>,
         ctx: Context,
         dtype: DataType,
     ) -> Result<Self, NDArrayError> {
-        let shape: Vec<i64> = rnd.shape().iter().map(|&x| x as i64).collect();
+        let shape: Vec<i64> = input_nd.shape().iter().map(|&x| x as i64).collect();
         let mut nd = NDArray::empty(&shape, ctx, dtype);
-        let mut buf = Array::from_iter(rnd.into_iter().map(|&v| v as T));
-        nd.copy_from_buffer(
-            buf.as_slice_mut()
-                .expect("Array from iter must be contiguous."),
-        );
+        nd.fill_from_iter(input_nd.iter().copied());
         Ok(nd)
     }
 
