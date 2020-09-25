@@ -668,7 +668,7 @@ reg.register_pattern("nn.cross_entropy", OpPattern.OPAQUE)
 # dilate
 @reg.register_compute("nn.dilate")
 def compute_dilate(attrs, inputs, out_dtype):
-    return [topi.nn.dilate(inputs[0], attrs.strides)]
+    return [topi.nn.dilate(inputs[0], attrs.strides, attrs.dilation_value)]
 
 
 reg.register_broadcast_schedule("nn.dilate")
