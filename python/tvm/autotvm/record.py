@@ -152,7 +152,7 @@ def decode(row, protocol="json"):
         tgt, task_name, task_args, task_kwargs = row["input"]
         tgt = str(tgt)
         if "-target" in tgt:
-            # logger.warning('"-target" is deprecated, use "-mtriple" instead.')
+            logger.warning('"-target" is deprecated, use "-mtriple" instead.')
             tgt = tgt.replace("-target", "-mtriple")
         tgt = Target(str(tgt))
 

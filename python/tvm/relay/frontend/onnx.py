@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
 # pylint: disable=import-outside-toplevel
 """ONNX: Open Neural Network Exchange frontend for Relay."""
-import logging
 import numpy as np
 import tvm
 from tvm.ir import IRModule
@@ -33,8 +32,6 @@ from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels
 from .common import infer_type, get_name
 
-
-logger = logging.getLogger("onnx_frontend")
 
 __all__ = ["from_onnx"]
 
@@ -257,11 +254,8 @@ class Pool(OnnxOpConverter):
                     pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
                     attr["pads"] = pad_tuple
                 else:
-                    warning = (
-                        "Performing dynamic autopadding on Pool. "
-                        + "Pool kernels don't currently support dynamic shapes."
-                    )
-                    logger.warning(warning)
+                    # Warning: Pool does not yet support dynamic shapes,
+                    # one will need to run dynamic_to_static on this model after import
                     data = autopad(data, attr["strides"], attr["kernel_shape"], [1] * ndim, ndim)
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
@@ -382,11 +376,8 @@ class Conv(OnnxOpConverter):
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
-                warning = (
-                    "Performing dynamic autopadding on Conv. "
-                    + "Conv kernels don't currently support dynamic shapes."
-                )
-                logger.warning(warning)
+                # Warning: Convolution does not yet support dynamic shapes,
+                # one will need to run dynamic_to_static on this model after import
                 data = autopad(data, attr["strides"], attr["kernel_shape"], attr["dilations"], ndim)
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
@@ -442,11 +433,8 @@ class ConvTranspose(OnnxOpConverter):
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
-                warning = (
-                    "Performing dynamic autopadding on ConvTranspose. "
-                    + "ConvTranspose kernels don't currently support dynamic shapes."
-                )
-                logger.warning(warning)
+                # Warning: Convolution does not yet support dynamic shapes,
+                # one will need to run dynamic_to_static on this model after import
                 data = autopad(
                     data,
                     attr["strides"],
@@ -616,11 +604,8 @@ class LpPool(OnnxOpConverter):
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
-                warning = (
-                    "Performing dynamic autopadding on LpPool. "
-                    + "LpPool kernels don't currently support dynamic shapes."
-                )
-                logger.warning(warning)
+                # Warning: LpPool does not yet support dynamic shapes,
+                # one will need to run dynamic_to_static on this model after import
                 data = autopad(data, attr["strides"], attr["kernel_shape"], [1] * ndim, ndim)
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
