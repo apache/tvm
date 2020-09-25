@@ -19,6 +19,8 @@
 
 pub mod attrs;
 
+use std::hash::Hash;
+
 use crate::runtime::array::Array;
 use crate::runtime::{object::*, String as TString};
 
@@ -54,6 +56,20 @@ impl ExprNode {
         }
     }
 }
+
+impl Hash for Expr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.as_ptr().unwrap().ptr.hash(state)
+    }
+}
+
+impl PartialEq for Expr {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ptr().unwrap().ptr.eq(&other.as_ptr().unwrap().ptr)
+    }
+}
+
+impl Eq for Expr {}
 
 #[repr(C)]
 #[derive(Object)]
