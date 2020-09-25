@@ -53,7 +53,7 @@ macro(find_vulkan use_vulkan)
 
    # resort to find vulkan of option is on
    if(NOT Vulkan_FOUND)
-     if(__use_vulkan STREQUAL "ON")
+     if(${__use_vulkan} MATCHES ${IS_TRUE_PATTERN})
        find_package(Vulkan QUIET)
      endif()
    endif()
