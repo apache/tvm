@@ -25,6 +25,10 @@ import tvm
 from tvm import relay
 from tvm import transform
 
+# TODO migrate compiler logger to the common logger (@leandron)
+# pylint: disable=invalid-name
+logger = logging.getLogger("TVMC")
+
 
 class TVMCException(Exception):
     """TVMC Exception"""
@@ -90,11 +94,11 @@ def target_from_cli(target):
 
     if os.path.exists(target):
         with open(target) as target_file:
-            logging.info("using target input from file: %s", target)
+            logger.info("using target input from file: %s", target)
             target = "".join(target_file.readlines())
 
     # TODO(@leandron) We don't have an API to collect a list of supported
     #       targets yet
-    logging.debug("creating target from input: %s", target)
+    logger.debug("creating target from input: %s", target)
 
     return tvm.target.Target(target)

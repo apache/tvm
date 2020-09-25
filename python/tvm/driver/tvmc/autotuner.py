@@ -18,18 +18,18 @@
 Provides support to auto-tuning networks using AutoTVM.
 """
 import os.path
+import platform
 import logging
 import time
 
 from tvm import autotvm
-from tvm import relay
 from tvm.autotvm.tuner import GATuner
 from tvm.autotvm.tuner import GridSearchTuner
 from tvm.autotvm.tuner import RandomTuner
 from tvm.autotvm.tuner import XGBTuner
 
 from . import common, frontends
-from .common import TVMCException
+from .common import logger, TVMCException
 from .main import register_parser
 
 
@@ -45,11 +45,14 @@ def add_tune_parser(subparsers):
         help="minimum number of trials before early stopping",
     )
     parser.add_argument("--hostname", help="hostname or IP address of the host machine")
+
+    is_x86 = platform.machine() in ("i386", "AMD64", "x86_64")
     parser.add_argument(
         "--min-repeat-ms",
-        default=1000,
+        default=0 if is_x86 else 1000,
         type=int,
-        help="minimum time to run each trial (in milliseconds)",
+        help="minimum time to run each trial, in milliseconds. "
+        "Defaults to 0 on x86 and 1000 on all other platforms",
     )
     parser.add_argument(
         "--model-format",
@@ -88,7 +91,7 @@ def add_tune_parser(subparsers):
         help="compilation target as plain string, inline JSON or path to a JSON file",
         required=True,
     )
-    parser.add_argument("--timeout", default=10, help="time in seconds before timing out a config")
+    parser.add_argument("--timeout", default=10, help="compilation timeout, in seconds")
     parser.add_argument("--tracker-key", help="the tracker key of the target device")
     parser.add_argument(
         "--trials",
@@ -126,12 +129,6 @@ def drive_tune(args):
     ----------
     args: argparse.Namespace
         Arguments from command line parser.
-
-    Returns
-    --------
-    int
-        Zero if successfully completed
-
     """
 
     target = common.target_from_cli(args.target)
@@ -145,9 +142,9 @@ def drive_tune(args):
     )
 
     if args.hostname:
-        logging.info("starting remote tuning:")
-        logging.info(" hostname: %s", args.hostname)
-        logging.info(" port    : %s", args.port)
+        logger.info("starting remote tuning:")
+        logger.info(" hostname: %s", args.hostname)
+        logger.info(" port    : %s", args.port)
         if not args.tracker_key:
             raise common.TVMCException(
                 "need to provide tracker key (--tracker-key) for remote tuning"
@@ -164,7 +161,7 @@ def drive_tune(args):
             min_repeat_ms=args.min_repeat_ms,
         )
     else:
-        logging.info("starting localhost tuning")
+        logger.info("starting localhost tuning")
         runner = autotvm.LocalRunner(
             number=args.number,
             repeat=args.repeat,
@@ -181,10 +178,9 @@ def drive_tune(args):
         ),
         "tuning_records": args.tuning_records,
     }
-    logging.debug(" tuning options: %s", tuning_option)
+    logger.debug(" tuning options: %s", tuning_option)
 
     tune_tasks(tasks, args.output, **tuning_option)
-    return 0
 
 
 def get_tuning_tasks(mod, params, target, target_host=None, alter_layout=None):
@@ -209,7 +205,6 @@ def get_tuning_tasks(mod, params, target, target_host=None, alter_layout=None):
     -------
     tasks : list of autotvm.Tasks
         list of tasks to be tuned
-
     """
     if not target_host:
         target_host = target
@@ -222,7 +217,6 @@ def get_tuning_tasks(mod, params, target, target_host=None, alter_layout=None):
         target=target,
         target_host=target_host,
         params=params,
-        ops=(relay.op.get("nn.conv2d"),),
     )
 
     return tasks
@@ -257,10 +251,9 @@ def tune_tasks(
     tuning_records: str, optional
         Path to the file produced by the tuning, to be used during
         tuning.
-
     """
     if not tasks:
-        logging.warning("there were no tasks found to be tuned")
+        logger.warning("there were no tasks found to be tuned")
         return
 
     if not early_stopping:
@@ -285,10 +278,10 @@ def tune_tasks(
 
         # If transfer learning is being used, load the existing results
         if tuning_records and os.path.exists(tuning_records):
-            logging.warning("loading tuning records from %s", tuning_records)
+            logger.info("loading tuning records from %s", tuning_records)
             start_time = time.time()
             tuner_obj.load_history(autotvm.record.load_from_file(tuning_records))
-            logging.info("loaded history in %s", str(time.time() - start_time))
+            logging.info("loaded history in %.2f sec(s)", time.time() - start_time)
 
         tuner_obj.tune(
             n_trial=min(trials, len(tsk.config_space)),
