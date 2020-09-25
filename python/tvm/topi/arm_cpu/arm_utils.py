@@ -33,7 +33,7 @@ def is_aarch64_arm():
 
 
 def get_tiling_B_interleaved_t(interleave_A):
-    """ Compute the tiling information for matrix B', where B'
+    """Compute the tiling information for matrix B', where B'
     is the transposed and interleaved version of matrix B in C=A*B.
 
     The tiling information is chosen to maximize register usage during the

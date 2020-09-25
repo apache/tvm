@@ -33,7 +33,7 @@ logger = logging.getLogger("topi")
 
 
 def interleave_transpose_weights(inputs, data, kernel, interleave_A):
-    """ Transform the weight matrix by reshaping, interleaving and transposing it
+    """Transform the weight matrix by reshaping, interleaving and transposing it
 
     Parameters
     ----------
