@@ -267,6 +267,15 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     }
   }
 
+  // If there is no FInferCorrectLayout for the type, then we just assume the layout is correct.
+  static auto finfer_layout = Op::GetAttrMap<FInferCorrectLayout>("FInferCorrectLayout");
+  if (ref_call->op.as<OpNode>()) {
+    Op op = Downcast<Op>(ref_call->op);
+    if (!finfer_layout.count(op)) {
+      return memorizer.CallWithNewLayouts(ref_call, normal_new_args);
+    }
+  }
+
   // old_in, new_in = state[inputs]
   Array<Layout> old_in, old_out, new_in, new_out, new_in2;
   for (auto inp : inputs) {

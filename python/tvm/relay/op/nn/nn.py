@@ -2016,7 +2016,7 @@ def sparse_dense(data, weight):
     data : tvm.relay.Expr
         The input data for the matrix multiplication
 
-    weight : namedtuple.
+    weight : Union[namedtuple, Tuple[ndarray, ndarray, ndarray]].
         The sparse weight matrix for the matrix multiplication.
 
     Returns
@@ -2024,7 +2024,9 @@ def sparse_dense(data, weight):
     result: tvm.relay.Expr
         The computed result.
     """
-    return _make.sparse_dense(data, weight.data, weight.indices, weight.indptr)
+    if hasattr(weight, "indices"):
+        return _make.sparse_dense(data, weight.data, weight.indices, weight.indptr)
+    return _make.sparse_dense(data, weight[0], weight[1], weight[2])
 
 
 def sparse_transpose(x):
