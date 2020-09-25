@@ -60,7 +60,7 @@ def asscript(input_ir, show_meta=False):
     return _ffi_api.AsTVMScript(input_ir, show_meta)
 
 
-def script(script_in):
+def tir(script_in):
     """Decorate a python function or class as tvm script.
 
     The tvm function or parsing support parsing to the internal TIR.
@@ -78,6 +78,19 @@ def script(script_in):
         return TVMScriptClass(script_in)
 
     raise TypeError("Only function and class are supported")
+
+def module(script_in):
+    """Decorate a python function or class as tvm script.
+
+    Alias for tvm.script.tir for now.
+
+    Returns
+    -------
+    output : Union[Function, Module]
+        The Function or Module in IR.
+    """
+    return tir(script_in)
+
 
 
 class TVMScriptClass:

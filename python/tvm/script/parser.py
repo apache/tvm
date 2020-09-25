@@ -755,4 +755,4 @@ def from_source(src, func_lineno=0):
         raise TVMScriptParserError(inject_e)
 
 
-tvm._ffi._init_api("tvmscript", __name__)
+tvm._ffi._init_api("script", __name__)

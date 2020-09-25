@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI APIs for tvm.tvmscript"""
-import tvm._ffi
+"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
 
-tvm._ffi._init_api("tvmscript", __name__)
+from .utils import create_module, asscript, tir, module
+from .parser import from_source
