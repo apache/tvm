@@ -21,13 +21,13 @@
  * \file vitis_ai_runtime.cc
  */
 
+#include "vitis_ai_runtime.h"
+
+#include <tvm/ir/transform.h>
+#include <tvm/runtime/registry.h>
+
 #include <fstream>
 #include <streambuf>
-
-#include <tvm/runtime/registry.h>
-#include <tvm/ir/transform.h>
-
-#include "vitis_ai_runtime.h"
 
 using namespace pyxir::runtime;
 
@@ -45,14 +45,12 @@ TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.vitis_ai.options.export_runtime_modul
 /*! \brief (Optional config) Load PyXIR runtime module from disk */
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.vitis_ai.options.load_runtime_module", String);
 
-
-VitisAIRuntime::VitisAIRuntime(const std::string& symbol_name,
-                               const Array<String> const_names,
+VitisAIRuntime::VitisAIRuntime(const std::string& symbol_name, const Array<String> const_names,
                                const std::string& serialized_rt_mod,
                                const std::string& export_rt_mod_path)
-    : symbol_name_(symbol_name), const_names_(const_names),
+    : symbol_name_(symbol_name),
+      const_names_(const_names),
       export_rt_mod_path_(export_rt_mod_path) {
-
   std::istringstream sstream(serialized_rt_mod);
   rt_mod_.reset(new RuntimeModule());
   rt_mod_->deserialize(sstream);
@@ -60,17 +58,13 @@ VitisAIRuntime::VitisAIRuntime(const std::string& symbol_name,
   out_tensor_names_ = rt_mod_->get_out_tensor_names();
 }
 
-
-VitisAIRuntime::VitisAIRuntime(const std::string& symbol_name,
-                               const std::string& xgraph_str,
-                               const Array<String> const_names,
-                               const std::string& target,
-                               const std::string& build_dir,
-                               const std::string& work_dir,
+VitisAIRuntime::VitisAIRuntime(const std::string& symbol_name, const std::string& xgraph_str,
+                               const Array<String> const_names, const std::string& target,
+                               const std::string& build_dir, const std::string& work_dir,
                                const std::string& export_rt_mod_path)
-    : symbol_name_(symbol_name), const_names_(const_names),
+    : symbol_name_(symbol_name),
+      const_names_(const_names),
       export_rt_mod_path_(export_rt_mod_path) {
-
   std::istringstream xgraph_sstream(xgraph_str);
   pyxir::XGraphHolder xgraph = std::make_shared<pyxir::graph::XGraph>("");
   pyxir::read(xgraph, xgraph_sstream);
@@ -82,38 +76,28 @@ VitisAIRuntime::VitisAIRuntime(const std::string& symbol_name,
   pyxir::RunOptionsHolder run_options(new pyxir::runtime::RunOptions());
   run_options->on_the_fly_quantization = true;
   run_options->build_dir = build_dir;
-  if (!work_dir.empty())
-    run_options->work_dir = work_dir;
-  rt_mod_ = pyxir::build_rt(xgraph, target, in_tensor_names_, out_tensor_names_,
-                            "vai", run_options);
+  if (!work_dir.empty()) run_options->work_dir = work_dir;
+  rt_mod_ =
+      pyxir::build_rt(xgraph, target, in_tensor_names_, out_tensor_names_, "vai", run_options);
 }
 
-
-Module VitisAIRuntimeCreate(const std::string& name,
-                            const std::string& xgraph_str,
-                            const std::string& target,
-                            const std::string& build_dir,
-                            const std::string& work_dir,
-                            const std::string& export_rt_mod_path) {
+Module VitisAIRuntimeCreate(const std::string& name, const std::string& xgraph_str,
+                            const std::string& target, const std::string& build_dir,
+                            const std::string& work_dir, const std::string& export_rt_mod_path) {
   Array<String> const_vars;
-  auto exec = make_object<VitisAIRuntime>(name, xgraph_str, const_vars, target,
-                                          build_dir, work_dir,
+  auto exec = make_object<VitisAIRuntime>(name, xgraph_str, const_vars, target, build_dir, work_dir,
                                           export_rt_mod_path);
   return Module(exec);
 }
 
 TVM_REGISTER_GLOBAL("tvm.vitis_ai_runtime.from_xgraph").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = VitisAIRuntimeCreate(args[0], args[1], args[2],
-                             args[3], args[4], args[5]);
+  *rv = VitisAIRuntimeCreate(args[0], args[1], args[2], args[3], args[4], args[5]);
 });
 
-
-Module VitisAIRuntimeCreate(const std::string& name,
-                            const std::string& serialized_rt_mod,
+Module VitisAIRuntimeCreate(const std::string& name, const std::string& serialized_rt_mod,
                             const std::string& export_rt_mod_path) {
   Array<String> const_vars;
-  auto exec = make_object<VitisAIRuntime>(name, const_vars, serialized_rt_mod,
-                                          export_rt_mod_path);
+  auto exec = make_object<VitisAIRuntime>(name, const_vars, serialized_rt_mod, export_rt_mod_path);
   return Module(exec);
 }
 
@@ -127,7 +111,6 @@ TVM_REGISTER_GLOBAL("tvm.vitis_ai_runtime.from_rt_mod").set_body([](TVMArgs args
   in_file.close();
   *rv = VitisAIRuntimeCreate(args[0], serialized_rt_mod, args[2]);
 });
-
 
 Module VitisAIRuntimeLoadFromBinary(void* strm ) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
@@ -143,8 +126,8 @@ Module VitisAIRuntimeLoadFromBinary(void* strm ) {
   for (const auto& it : const_vars) {
     const_names.push_back(it);
   }
-  auto exec = make_object<VitisAIRuntime>(symbol_name, const_names, serialized_rt_mod,
-                                          export_rt_mod_path);
+  auto exec =
+      make_object<VitisAIRuntime>(symbol_name, const_names, serialized_rt_mod, export_rt_mod_path);
   return Module(exec);
 }
 
@@ -172,7 +155,6 @@ void VitisAIRuntime::SaveToBinary(dmlc::Stream* stream)  {
   }
 }
 
-
 PackedFunc VitisAIRuntime::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
   if (name == "get_symbol") {
@@ -189,34 +171,30 @@ PackedFunc VitisAIRuntime::GetFunction(const std::string& name,
       *rv = 0;
     });
   } else if (this->symbol_name_ == name) {
-    return PackedFunc(
-      [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       // Initialize input tensors
       DLTensor* inputs = args[0];
       std::vector<pyxir::XBufferHolder> in_tensors;
       std::vector<ssize_t> in_shape;
-      for (int i = 0; i < inputs->ndim; ++i)
-        in_shape.push_back(inputs->shape[i]);
-      in_tensors.push_back(
-        std::shared_ptr<pyxir::XBuffer>(new pyxir::XBuffer(reinterpret_cast<void *>(static_cast<float*>(inputs->data)),
-                                        4, "f", in_shape.size(), in_shape, false, false)));
+      for (int i = 0; i < inputs->ndim; ++i) in_shape.push_back(inputs->shape[i]);
+      in_tensors.push_back(std::shared_ptr<pyxir::XBuffer>(
+          new pyxir::XBuffer(reinterpret_cast<void*>(static_cast<float*>(inputs->data)), 4, "f",
+                             in_shape.size(), in_shape, false, false)));
 
       // Initialize output tensors
       std::vector<pyxir::XBufferHolder> out_tensors;
       for (unsigned i = 0; i < out_tensor_names_.size(); ++i) {
-        DLTensor* output_tensor = args[args.size() - out_tensor_names_.size()+i];
+        DLTensor* output_tensor = args[args.size() - out_tensor_names_.size() + i];
         std::vector<ssize_t> out_shape;
-        for (int i = 0; i < output_tensor->ndim; ++i)
-          out_shape.push_back(output_tensor->shape[i]);
-        void* output_data = reinterpret_cast<void *> (static_cast<float*>(output_tensor->data));
-        out_tensors.push_back(
-          std::shared_ptr<pyxir::XBuffer>(new pyxir::XBuffer(output_data, 4, "f", out_shape.size(),
-                                          out_shape, false, false)));
+        for (int i = 0; i < output_tensor->ndim; ++i) out_shape.push_back(output_tensor->shape[i]);
+        void* output_data = reinterpret_cast<void*>(static_cast<float*>(output_tensor->data));
+        out_tensors.push_back(std::shared_ptr<pyxir::XBuffer>(
+            new pyxir::XBuffer(output_data, 4, "f", out_shape.size(), out_shape, false, false)));
       }
 
       // Execute the subgraph.
       rt_mod_->execute(in_tensors, out_tensors);
-      });
+    });
   } else {
     return PackedFunc();
   }
