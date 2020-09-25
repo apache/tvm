@@ -74,3 +74,13 @@ function(assign_source_group group)
         source_group("${group}\\${_source_path_msvc}" FILES "${_source}")
     endforeach()
 endfunction(assign_source_group)
+
+# From cmake documentation:
+# True if the constant is 1, ON, YES, TRUE, Y, or a non-zero number.
+# False if the constant is 0, OFF, NO, FALSE, N, IGNORE, NOTFOUND, the empty string, or ends in the suffix -NOTFOUND.
+# Named boolean constants are case-insensitive.
+#
+# While this regex does contain a check for an empty string that check does not work
+# cmake's regex is weak
+set(IS_FALSE_PATTERN "^[Oo][Ff][Ff]$|^0$|^[Ff][Aa][Ll][Ss][Ee]$|^[Nn][Oo]$|^[Nn][Oo][Tt][Ff][Oo][Uu][Nn][Dd]$|.*-[Nn][Oo][Tt][Ff][Oo][Uu][Nn][Dd]$|^$")
+set(IS_TRUE_PATTERN "^[Oo][Nn]$|^[1-9][0-9]*$|^[Tt][Rr][Uu][Ee]$|^[Yy][Ee][Ss]$|^[Yy]$")

@@ -58,7 +58,7 @@ macro(find_opencl use_opencl)
 
    # No user provided OpenCL include/libs found
    if(NOT OpenCL_FOUND)
-     if(__use_opencl STREQUAL "ON")
+     if(${__use_opencl} MATCHES ${IS_TRUE_PATTERN})
        find_package(OpenCL QUIET)
      endif()
    endif()
