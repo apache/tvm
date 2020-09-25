@@ -24,7 +24,6 @@ fn main() -> Result<()> {
     let output = Command::new("python3")
         .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/src/build_resnet.py"))
         .arg(&format!("--build-dir={}", env!("CARGO_MANIFEST_DIR")))
-        .arg("--pretrained")
         .output()
         .with_context(|| anyhow::anyhow!("failed to run python3"))?;
 

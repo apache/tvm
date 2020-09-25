@@ -270,7 +270,6 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
   auto ndarray = NDArray::Empty(std::vector<int64_t>(shape, shape + ndim), dtype, ctx);
 
   *out = NDArray::Internal::MoveToFFIHandle(ndarray);
-  std::flush(std::cout);
   API_END();
 }
 
