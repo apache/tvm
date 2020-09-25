@@ -514,7 +514,11 @@ PopulationGenerationRule::ResultKind InitChangeComputeLocation::Apply(
     }
   }
 
-  *state = policy->search_task->compute_dag.InferBound(*state);
+  try {
+    *state = policy->search_task->compute_dag.InferBound(*state);
+  } catch (std::exception& e) {
+    return PopulationGenerationRule::ResultKind::kInvalid;
+  }
   return PopulationGenerationRule::ResultKind::kValid;
 }
 
