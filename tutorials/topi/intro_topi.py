@@ -26,6 +26,7 @@ In this tutorial, we will see how TOPI can save us from writing boilerplates cod
 from __future__ import absolute_import, print_function
 
 import tvm
+import tvm.testing
 from tvm import te
 from tvm import topi
 import numpy as np

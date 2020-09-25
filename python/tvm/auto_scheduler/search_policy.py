@@ -91,7 +91,7 @@ class SketchPolicy(SearchPolicy):
     ----------
     task : SearchTask
         The SearchTask for the computation declaration.
-    schedule_cost_model : CostModel = RandomModel()
+    program_cost_model : CostModel = RandomModel()
         The cost model to estimate the complete schedules.
     params : Optional[Dict[str, Any]]
         Parameters of the search policy.
@@ -105,9 +105,11 @@ class SketchPolicy(SearchPolicy):
         Callback functions called before the search process, usually used to do extra
         initializations.
         Possible callbacks:
-            - auto_scheduler.PreloadMeasuredStates
-            - auto_scheduler.PreloadCustomSketchRule
-            TODO(jcf94): Add these search callback implementations.
+
+          - auto_scheduler.PreloadMeasuredStates
+          - auto_scheduler.PreloadCustomSketchRule
+
+        TODO(jcf94): Add these search callback implementations.
     """
 
     DEFAULT_PARAMS = {
@@ -129,7 +131,7 @@ class SketchPolicy(SearchPolicy):
     def __init__(
         self,
         task,
-        schedule_cost_model=RandomModel(),
+        program_cost_model=RandomModel(),
         params=None,
         seed=None,
         verbose=1,
@@ -145,7 +147,7 @@ class SketchPolicy(SearchPolicy):
         self.__init_handle_by_constructor__(
             _ffi_api.SketchPolicy,
             task,
-            schedule_cost_model,
+            program_cost_model,
             params,
             seed or random.randint(1, 1 << 30),
             verbose,

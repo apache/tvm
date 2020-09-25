@@ -337,3 +337,11 @@ def global_avg_pool2d(attrs, args):
     if attrs.layout != "NHWC":
         return False
     return True
+
+
+@tvm.ir.register_op_attr("maximum", "target.arm_compute_lib")
+def maximum(attrs, args):
+    """Check if the external ACL codegen for maximum should be used."""
+    type_a = args[0].checked_type
+    type_b = args[0].checked_type
+    return (type_a.dtype == "float32") and (type_b.dtype == "float32")

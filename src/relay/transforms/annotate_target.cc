@@ -35,9 +35,10 @@ namespace tvm {
 namespace relay {
 namespace annotate_target {
 
-const PackedFunc* make_begin_op =
+static const PackedFunc* make_begin_op =
     runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
-const PackedFunc* make_end_op = runtime::Registry::Get("relay.op.annotation._make.compiler_end");
+static const PackedFunc* make_end_op =
+    runtime::Registry::Get("relay.op.annotation._make.compiler_end");
 
 // A helper class to insert annotation boundaries for a program region that will
 // be handled by a specific compiler.

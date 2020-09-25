@@ -70,6 +70,11 @@ class CostModelNode : public Object {
     LOG(FATAL) << "Not implemented";
   }
 
+  /*!
+   * \brief Default virtual destructor
+   */
+  virtual ~CostModelNode() {}
+
   static constexpr const char* _type_key = "auto_scheduler.CostModel";
   TVM_DECLARE_BASE_OBJECT_INFO(CostModelNode, Object);
 };

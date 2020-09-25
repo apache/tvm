@@ -80,7 +80,7 @@ TVM_DLL bool BasicBlockNormalFormCheck(const Expr& e);
  *
  * For example, the expression `let x = 1 in let x = 2 in 3` bound x twice.
  *
- * `let f = (\x -> x) in let g = (\x -> x + 1) in f(g(2))` also bound x twice,
+ * `let f = (x -> x) in let g = (x -> x + 1) in f(g(2))` also bound x twice,
  * although x is not shadowed.
  *
  * \param expr the expression to check.

@@ -1178,16 +1178,32 @@ def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0
     return _make.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
 
 
-def matrix_set_diag(data, diagonal):
+def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
     """
-    Returns a tensor with the diagonal of input tensor replaced with the provided diagonal values.
+    Returns a tensor with the diagonals of input tensor replaced with the provided diagonal values.
 
     Parameters
     ----------
     data : relay.Expr
         Input Tensor.
+
     diagonal : relay.Expr
         Values to be filled in the diagonal.
+
+    k : int or tuple of int, optional
+        Diagonal Offset(s). The diagonal or range of diagonals to set. (0 by default)
+        Positive value means superdiagonal, 0 refers to the main diagonal, and
+        negative value means subdiagonals. k can be a single integer (for a single diagonal)
+        or a pair of integers specifying the low and high ends of a matrix band.
+        k[0] must not be larger than k[1].
+
+    align : string, optional
+        Some diagonals are shorter than max_diag_len and need to be padded.
+        align is a string specifying how superdiagonals and subdiagonals should be aligned,
+        respectively. There are four possible alignments: "RIGHT_LEFT" (default), "LEFT_RIGHT",
+        "LEFT_LEFT", and "RIGHT_RIGHT". "RIGHT_LEFT" aligns superdiagonals to the right
+        (left-pads the row) and subdiagonals to the left (right-pads the row). It is the packing
+        format LAPACK uses. cuSPARSE uses "LEFT_RIGHT", which is the opposite alignment.
 
     Returns
     -------
@@ -1216,7 +1232,22 @@ def matrix_set_diag(data, diagonal):
               [7, 5, 7, 7],
               [7, 7, 6, 7]]]
     """
-    return _make.matrix_set_diag(data, diagonal)
+    if isinstance(k, (tuple, list)):
+        k_one = k[0]
+        if len(k) >= 2:
+            k_two = k[1]
+        else:
+            k_two = k[0]
+    else:
+        k_one = k
+        k_two = k
+
+    super_diag_right_align = align[:5] == "RIGHT"
+    sub_diag_right_align = align[-5:] == "RIGHT"
+
+    return _make.matrix_set_diag(
+        data, diagonal, k_one, k_two, super_diag_right_align, sub_diag_right_align
+    )
 
 
 def adv_index(inputs):

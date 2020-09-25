@@ -80,11 +80,11 @@ tvm_option(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME "Build with Arm Compute Library gra
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
 include_directories("include")
-include_directories(${DLPACK_PATH})
-include_directories(${DMLC_PATH})
-include_directories(${RANG_PATH})
-include_directories(${COMPILER_RT_PATH})
-include_directories(${PICOJSON_PATH})
+include_directories(SYSTEM ${DLPACK_PATH})
+include_directories(SYSTEM ${DMLC_PATH})
+include_directories(SYSTEM ${RANG_PATH})
+include_directories(SYSTEM ${COMPILER_RT_PATH})
+include_directories(SYSTEM ${PICOJSON_PATH})
 
 # initial variables
 set(TVM_LINKER_LIBS "")
@@ -123,14 +123,15 @@ if(MSVC)
   # DLL interface warning in c++
   add_compile_options(/wd4251)
 else(MSVC)
+  set(WARNING_FLAG -Wall)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     message(STATUS "Build in Debug mode")
-    set(CMAKE_C_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_C_FLAGS "-O0 -g ${WARNING_FLAG} -fPIC ${CMAKE_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-O0 -g ${WARNING_FLAG} -fPIC ${CMAKE_CXX_FLAGS}")
     set(CMAKE_CUDA_FLAGS "-O0 -g -Xcompiler=-Wall -Xcompiler=-fPIC ${CMAKE_CUDA_FLAGS}")
   else()
-    set(CMAKE_C_FLAGS "-O2 -Wall -fPIC ${CMAKE_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_C_FLAGS "-O2 ${WARNING_FLAG} -fPIC ${CMAKE_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-O2 ${WARNING_FLAG} -fPIC ${CMAKE_CXX_FLAGS}")
     set(CMAKE_CUDA_FLAGS "-O2 -Xcompiler=-Wall -Xcompiler=-fPIC ${CMAKE_CUDA_FLAGS}")
     set(TVM_VISIBILITY_FLAG "")
     if (HIDE_PRIVATE_SYMBOLS)
@@ -142,6 +143,7 @@ else(MSVC)
       CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
     set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
   endif()
+  include(cmake/modules/ClangFlags.cmake)
 
   # Detect if we're compiling for Hexagon.
   set(TEST_FOR_HEXAGON_CXX
@@ -365,6 +367,13 @@ set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
 add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs>)
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
 
+if(USE_MICRO)
+  # NOTE: cmake doesn't track dependencies at the file level across subdirectories. For the
+  # Unix Makefiles generator, need to add these explicit target-level dependency)
+  add_dependencies(tvm host_standalone_crt)
+  add_dependencies(tvm_runtime host_standalone_crt)
+endif()
+
 if(USE_CPP_RPC)
   add_subdirectory("apps/cpp_rpc")
 endif()
@@ -390,7 +399,7 @@ if(BUILD_FOR_HEXAGON)
   set_target_properties(tvm_runtime PROPERTIES LINK_FLAGS
                         "-Wl,--wrap=pthread_create")
 
-  target_include_directories(tvm_runtime
+  target_include_directories(tvm_runtime SYSTEM
     PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/posix"
     PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/qurt"
     PUBLIC "${USE_HEXAGON_SDK}/incs"
@@ -453,7 +462,7 @@ if(GTEST_INCLUDE_DIR AND GTEST_LIB)
     string(REPLACE ".cc" "" __execname ${__srcname})
     add_executable(${__execname} ${__srcpath})
     list(APPEND TEST_EXECS ${__execname})
-    target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR})
+    target_include_directories(${__execname} SYSTEM PUBLIC ${GTEST_INCLUDE_DIR})
     target_link_libraries(${__execname} ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} pthread dl)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)

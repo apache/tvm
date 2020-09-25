@@ -197,22 +197,26 @@ class XGBModel(PythonBasedModel):
 
     def predict_stages(self, task, states):
         """Predict the scores of all stages in states. This is the breakdown version of `predict`.
+
         Parameters
         ----------
         search_task : SearchTask
             The search task of states
         statse : List[State]
             The input states
+
         Returns
         -------
         scores: List[float]
             The predicted scores for all stages in all states in the packed format
+
         Note
         ----
         For faster data copy between c++ and python, the python part returns scores in a
         single flatten array using a packed format. The c++ part then unpacks the flatten array.
         The packed format is:
         {
+
           float  scores[N];                 // scores[i] is the score for states[i].
           int    n_stage_0;                 // the number of stages in states[0]
           float  stage_scores_0[[n_stage_0] // the scores for all stages in states[0]
@@ -222,6 +226,7 @@ class XGBModel(PythonBasedModel):
           int    n_stage_i;                 // the number of stages in states[i]
           float  stage_scores_1[n_stage_i]; // the scores for all stages in states[i]
           ...  // untill i == N - 1
+
         }
         To implement this format, we also store int as float, so we can store all numbers
         into a single float array.

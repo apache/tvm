@@ -184,7 +184,7 @@ class ApplyHistoryBest(DispatchContext):
 
     Parameters
     ----------
-    records : str or iterator of (MeasureInput, MeasureResult)
+    records : str or iterator of (autotvm.measure.MeasureInput, autotvm.measure.MeasureResult)
         Collection of tuning records.
         If is str, then it should be the filename of a records log file.
         Each row of this file is an encoded record pair. Otherwise, it is an iterator.
@@ -205,7 +205,7 @@ class ApplyHistoryBest(DispatchContext):
 
         Parameters
         ----------
-        records : str or iterator of (MeasureInput, MeasureResult)
+        records : str or iterator of (autotvm.measure.MeasureInput, autotvm.measure.MeasureResult)
             Collection of tuning records.
             If is str, then it should be the filename of a records log file.
             Each row of this file is an encoded record pair. Otherwise, it is an iterator.
@@ -382,7 +382,7 @@ class ApplyGraphBest(DispatchContext):
         """
         Parameters
         ----------
-        records : str or iterator of (MeasureInput, MeasureResult)
+        records : str or iterator of (autotvm.measure.MeasureInput, autotvm.measure.MeasureResult)
             Collection of tuning records.
             If is str, then it should be the filename of a records log file.
                    Each row of this file is an encoded record pair.

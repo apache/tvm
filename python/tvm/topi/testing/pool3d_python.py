@@ -20,12 +20,20 @@ import math
 import numpy as np
 import tvm
 
-def pool3d_ncdhw_python(np_data, kernel,
-                        strides, padding,
-                        out_shape, pool_type,
-                        count_include_pad=True,
-                        ceil_mode=False, dtype="float32"):
+
+def pool3d_ncdhw_python(
+    np_data,
+    kernel,
+    strides,
+    padding,
+    out_shape,
+    pool_type,
+    count_include_pad=True,
+    ceil_mode=False,
+    dtype="float32",
+):
     """baseline for max_pool3d and avg_pool3d, default layout is "NCDHW"""
+    # fmt: off
     in_n, in_c, in_d, in_h, in_w = in_shape = np_data.shape
     if isinstance(kernel, int):
         k_d = k_h = k_w = kernel
@@ -99,4 +107,5 @@ def pool3d_ncdhw_python(np_data, kernel,
         raise ValueError("pool type {} is not supported".format(pool_type))
 
     ret_np = np.maximum(ret_np, fill_value)
+    # fmt: on
     return ret_np

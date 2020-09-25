@@ -237,7 +237,7 @@ llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, String global_symbo
 
 llvm::GlobalVariable* CodeGenHexagon::InitContextPtr(llvm::Type* p_type, std::string name) {
   llvm::GlobalVariable* gv = new llvm::GlobalVariable(
-      *module_, p_type, false, llvm::GlobalValue::LinkOnceAnyLinkage, 0, name);
+      *module_, p_type, false, llvm::GlobalValue::LinkOnceAnyLinkage, nullptr, name);
 #if TVM_LLVM_VERSION >= 100
   gv->setAlignment(llvm::Align(data_layout_->getTypeAllocSize(p_type)));
 #else

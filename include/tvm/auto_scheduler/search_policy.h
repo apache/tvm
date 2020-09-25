@@ -65,6 +65,7 @@
 #include <tvm/auto_scheduler/search_task.h>
 #include <tvm/node/node.h>
 
+#include <string>
 #include <unordered_set>
 #include <vector>
 
@@ -191,7 +192,7 @@ class SearchPolicyNode : public Object {
    * We store the string format of a state for redundancy check. This is used to make sure a
    * measured state will never be measured again.
    */
-  std::unordered_set<String> measured_states_set_;
+  std::unordered_set<std::string> measured_states_set_;
   /*! \brief The array of already measured states.
    *  The good states can be used as the initial population in evolutionary search. */
   std::vector<State> measured_states_vector_;

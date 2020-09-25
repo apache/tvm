@@ -188,7 +188,7 @@ class Tuner(object):
 
         Parameters
         ----------
-        data_set: Array of (MeasureInput, MeasureResult) pair
+        data_set: Array of (autotvm.measure.MeasureInput, autotvm.measure.MeasureResult) pair
             Previous tuning records
         """
         raise NotImplementedError()
