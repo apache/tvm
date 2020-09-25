@@ -1858,6 +1858,7 @@ def test_prelu():
     verify_prelu([3, 4, 5, 6], [1, 4, 1, 1])
     verify_prelu([1, 8, 5, 6], [1, 8, 1, 1])
     verify_prelu([2, 12, 16, 16], [1, 12, 1, 1])
+    verify_prelu([2, 12, 16, 16], [1])  # Test alpha broadcasting.
 
 
 @tvm.testing.uses_gpu
