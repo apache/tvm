@@ -118,7 +118,7 @@ fn cow_usize<'a>(slice: &[i64]) -> Cow<'a, [usize]> {
 }
 
 impl NDArray {
-    pub(crate) fn from_raw(handle: ffi::TVMArrayHandle) -> Self {
+    pub(crate) fn _from_raw(handle: ffi::TVMArrayHandle) -> Self {
         let ptr = NDArrayContainer::from_raw(handle);
         NDArray(ptr)
     }
