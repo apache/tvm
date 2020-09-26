@@ -18,7 +18,6 @@
 Provides support to auto-tuning networks using AutoTVM.
 """
 import os.path
-import platform
 import logging
 import time
 
@@ -46,13 +45,14 @@ def add_tune_parser(subparsers):
     )
     parser.add_argument("--hostname", help="hostname or IP address of the host machine")
 
-    is_x86 = platform.machine() in ("i386", "AMD64", "x86_64")
+    # There is some extra processing required to define the actual default value
+    # for --min-repeat-ms. This is done in `drive_tune`.
     parser.add_argument(
         "--min-repeat-ms",
-        default=0 if is_x86 else 1000,
+        default=None,
         type=int,
         help="minimum time to run each trial, in milliseconds. "
-        "Defaults to 0 on x86 and 1000 on all other platforms",
+        "Defaults to 0 on x86 and 1000 on all other targets",
     )
     parser.add_argument(
         "--model-format",
@@ -134,6 +134,15 @@ def drive_tune(args):
     target = common.target_from_cli(args.target)
     mod, params = frontends.load_model(args.FILE, args.model_format)
 
+    # min_repeat_ms should be:
+    # a. the value provided by the user, if any, or
+    # b. 0ms in case target is "cpu"; otherwise 1000ms
+    if args.min_repeat_ms is not None:
+        min_repeat_ms = args.min_repeat_ms
+    else:
+        min_repeat_ms = 0 if target.keys[0] == "cpu" else 1000
+        logger.debug("Default --min-repeat-ms for this target is %s", min_repeat_ms)
+
     tasks = get_tuning_tasks(
         mod=mod,
         params=params,
@@ -158,7 +167,7 @@ def drive_tune(args):
             repeat=args.repeat,
             n_parallel=args.parallel,
             timeout=args.timeout,
-            min_repeat_ms=args.min_repeat_ms,
+            min_repeat_ms=min_repeat_ms,
         )
     else:
         logger.info("starting localhost tuning")
@@ -166,7 +175,7 @@ def drive_tune(args):
             number=args.number,
             repeat=args.repeat,
             timeout=args.timeout,
-            min_repeat_ms=args.min_repeat_ms,
+            min_repeat_ms=min_repeat_ms,
         )
 
     tuning_option = {
