@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Helper functions in Hybrid Script Parser"""
+"""Helper functions in TVM Script Parser"""
 
 import inspect
 from tvm import IRModule
@@ -40,7 +40,7 @@ def create_module(functions=None):
     return IRModule(functions=functions)
 
 
-def ashybrid(input_ir, show_meta=False):
+def asscript(input_ir, show_meta=False):
     """Transform a PrimFunc or IRModule to python syntax script
 
     Parameters
@@ -57,13 +57,13 @@ def ashybrid(input_ir, show_meta=False):
         The Python script
     """
 
-    return _ffi_api.AsHybrid(input_ir, show_meta)
+    return _ffi_api.AsTVMScript(input_ir, show_meta)
 
 
-def script(script_in):
-    """Decorate a python function or class as hybrid script.
+def tir(script_in):
+    """Decorate a python function or class as tvm script.
 
-    The hybrid function or parsing support parsing to the internal TIR.
+    The tvm function or parsing support parsing to the internal TIR.
 
     Returns
     -------
@@ -75,22 +75,35 @@ def script(script_in):
         return _parse(script_in)
 
     if inspect.isclass(script_in):
-        return HybridClass(script_in)
+        return TVMScriptClass(script_in)
 
     raise TypeError("Only function and class are supported")
 
 
-class HybridClass:
+def module(script_in):
+    """Decorate a python function or class as tvm script.
+
+    Alias for tvm.script.tir for now.
+
+    Returns
+    -------
+    output : Union[Function, Module]
+        The Function or Module in IR.
+    """
+    return tir(script_in)
+
+
+class TVMScriptClass:
     """Helper class for decorating a class"""
 
     def __init__(self, script_in):
         self.script = script_in
 
     def __call__(self, *args, **kwargs):
-        # call the parser to transform hybrid script into TIR
+        # call the parser to transform tvm script into TIR
         return _parse(self.script)
 
 
 def _parse(script_in):
-    """Helper function to parse hybrid_script into TIR"""
+    """Helper function to parse TVM script into TIR"""
     return from_source(inspect.getsource(script_in), inspect.getsourcelines(script_in)[1])

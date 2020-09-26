@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Hybrid Script Parser Function Registry """
+"""TVM Script Parser Function Registry """
 # pylint: disable=inconsistent-return-statements
 import inspect
 from enum import Enum
@@ -217,14 +217,14 @@ def get_arg_list(origin_func, category, with_var=False):
         if not with_var:
             if len(args) < 3 or args[0] != "parser" or args[1] != "node" or args[2] != "body":
                 raise RuntimeError(
-                    "TVM Hybrid Script register error : the first three arguments of "
+                    "TVM Script register error : the first three arguments of "
                     "this with scope handler must be parser, node, body"
                 )
             args = args[3:]
         else:
             if len(args) < 2 or args[0] != "parser" or args[1] != "node":
                 raise RuntimeError(
-                    "TVM Hybrid Script register error : the first two arguments of "
+                    "TVM Script register error : the first two arguments of "
                     "this with scope handler must be parser, node"
                 )
             args = args[2:]
@@ -237,26 +237,24 @@ def get_arg_list(origin_func, category, with_var=False):
             or args[3] != "loop_vars"
         ):
             raise RuntimeError(
-                "TVM Hybrid Script register error : the first three arguments of for scope handler"
+                "TVM Script register error : the first three arguments of for scope handler"
                 "must be parser, node, body, loop_vars"
             )
         args = args[4:]
     elif category == Category.SPECIAL_STMT:
         if len(args) < 2 or args[0] != "parser" or args[1] != "node":
             raise RuntimeError(
-                "TVM Hybrid Script register error : the first three arguments of special stmt"
+                "TVM Script register error : the first three arguments of special stmt"
                 "must be parser, node"
             )
         args = args[2:]
 
     if full_arg_spec.varkw is not None:
         raise RuntimeError(
-            "TVM Hybrid Script register error : variable keyword argument is not supported now"
+            "TVM Script register error : variable keyword argument is not supported now"
         )
     if not len(full_arg_spec.kwonlyargs) == 0:
-        raise RuntimeError(
-            "TVM Hybrid Script register error : keyword only argument is not supported now"
-        )
+        raise RuntimeError("TVM Script register error : keyword only argument is not supported now")
 
     pos_only = list()
     for arg in args[: len(args) - len(defaults)]:
