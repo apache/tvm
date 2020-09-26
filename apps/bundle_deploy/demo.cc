@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
   gettimeofday(&t1, 0);
 
   float input_storage[1 * 3 * 224 * 224];
-  FILE* fp = fopen(argv[3], "rb");
+  FILE* fp = fopen(argv[4], "rb");
   fread(input_storage, 3 * 224 * 224, 4, fp);
   fclose(fp);
 
