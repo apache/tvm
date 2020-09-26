@@ -19,17 +19,17 @@ import pytest
 
 import tvm
 from tvm import tir
-from tvm.hybrid import ty
-from tvm.hybrid.parser import HybridParserError
+from tvm.script import ty
+from tvm.script.parser import TVMScriptParserError
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 class Module1:
     def buffer_bind_missing_args(a: ty.handle) -> None:
         A = tir.match_buffer((16, 16), "float32")
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 class Module2:
     def range_missing_args(a: ty.handle) -> None:
         A = tir.match_buffer(a, (16, 16), "float32")
@@ -41,7 +41,7 @@ class Module2:
                 A[i, j] = 0.0
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 class Module3:
     def undefined_buffer(a: ty.handle) -> None:
         A = tir.match_buffer(a, (16, 16), "float32")
@@ -53,14 +53,14 @@ class Module3:
                 A[i, j] = 0.0
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 class Module4:
     def unsupported_stmt(a: ty.int32) -> None:
         if a > 0:
             print("I love tvm")
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 class Module5:
     def unsupported_function_call(a: ty.handle) -> None:
         A = tir.match_buffer(a, (16, 16), "float32")
@@ -72,26 +72,26 @@ class Module5:
                 A[i, j] = 0.0
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 class Module6:
     def missing_type_annotation(a) -> None:
         pass
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 class Module7:
     def invalid_concise_scoping() -> None:
         tir.Assert(1.0 > 0.0, "aaaa")
         tir.evaluate(0.0)
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 class Module8:
     def invalid_expr_stmt() -> None:
         tir.max(1, 2)
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 class Module9:
     def invalid_for_function(a: ty.handle) -> None:
         A = tir.match_buffer(a, (16, 16), "float32")
@@ -101,7 +101,7 @@ class Module9:
                 A[i, j] = 0.0
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 class Module10:
     def invalid_block_function(a: ty.handle) -> None:
         A = tir.match_buffer(a, (16, 16), "float32")
@@ -111,7 +111,7 @@ class Module10:
 
 
 def wrap_error(module, lineno):
-    with pytest.raises(HybridParserError) as error:
+    with pytest.raises(TVMScriptParserError) as error:
         mod = module()
     assert error is not None
     e = error.value
