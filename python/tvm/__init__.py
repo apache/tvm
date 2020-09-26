@@ -57,9 +57,6 @@ from .driver import build, lower
 # tvm.parser
 from . import parser
 
-# tvm tir hybrid script
-from . import hybrid
-
 # others
 from . import arith
 
