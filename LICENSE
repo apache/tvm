@@ -209,7 +209,6 @@ for text of these licenses.
 Apache Software Foundation License 2.0
 --------------------------------------
 
-3rdparty/bfloat16/bfloat16.cc
 3rdparty/dlpack
 3rdparty/dmlc-core
 
