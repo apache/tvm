@@ -21,6 +21,8 @@ import os.path
 import logging
 import time
 
+from urllib.parse import urlparse
+
 from tvm import autotvm
 from tvm.autotvm.tuner import GATuner
 from tvm.autotvm.tuner import GridSearchTuner
@@ -43,7 +45,6 @@ def add_tune_parser(subparsers):
         type=int,
         help="minimum number of trials before early stopping",
     )
-    parser.add_argument("--hostname", help="hostname or IP address of the host machine")
 
     # There is some extra processing required to define the actual default value
     # for --min-repeat-ms. This is done in `drive_tune`.
@@ -79,7 +80,6 @@ def add_tune_parser(subparsers):
         type=int,
         help="the maximum number of parallel devices to use when tuning",
     )
-    parser.add_argument("--port", default=9090, type=int, help="the port to connect to")
     parser.add_argument(
         "--repeat",
         type=int,
@@ -87,12 +87,22 @@ def add_tune_parser(subparsers):
         help="how many times to repeat each measurement",
     )
     parser.add_argument(
+        "--rpc-key",
+        nargs=1,
+        help="the RPC tracker key of the target device. Required when --rpc-tracker is provided.",
+    )
+    parser.add_argument(
+        "--rpc-tracker",
+        nargs=1,
+        help="hostname (required) and port (optional, defaults to 9090) of the RPC tracker, "
+        "e.g. '192.168.0.100:9999'",
+    )
+    parser.add_argument(
         "--target",
         help="compilation target as plain string, inline JSON or path to a JSON file",
         required=True,
     )
     parser.add_argument("--timeout", default=10, help="compilation timeout, in seconds")
-    parser.add_argument("--tracker-key", help="the tracker key of the target device")
     parser.add_argument(
         "--trials",
         type=int,
@@ -131,6 +141,20 @@ def drive_tune(args):
         Arguments from command line parser.
     """
 
+    # extra arguments validation before importing the model, so that obvious errors
+    # are pointed in advance.
+    if args.rpc_tracker:
+        parsed_url = urlparse("//%s" % args.rpc_tracker)
+        rpc_hostname = parsed_url.hostname
+        rpc_port = parsed_url.port or 9090
+        logger.info("RPC tracker hostname: %s", rpc_hostname)
+        logger.info("RPC tracker port: %s", rpc_port)
+
+        if not args.rpc_key:
+            raise common.TVMCException(
+                "need to provide an RPC tracker key (--rpc-key) for remote tuning"
+            )
+
     target = common.target_from_cli(args.target)
     mod, params = frontends.load_model(args.FILE, args.model_format)
 
@@ -150,19 +174,12 @@ def drive_tune(args):
         alter_layout=args.desired_layout,
     )
 
-    if args.hostname:
-        logger.info("starting remote tuning:")
-        logger.info(" hostname: %s", args.hostname)
-        logger.info(" port    : %s", args.port)
-        if not args.tracker_key:
-            raise common.TVMCException(
-                "need to provide tracker key (--tracker-key) for remote tuning"
-            )
+    if args.rpc_tracker:
 
         runner = autotvm.RPCRunner(
-            key=args.tracker_key,
-            host=args.hostname,
-            port=args.port,
+            key=args.rpc_key,
+            host=rpc_hostname,
+            port=rpc_port,
             number=args.number,
             repeat=args.repeat,
             n_parallel=args.parallel,
