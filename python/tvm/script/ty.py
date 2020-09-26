@@ -14,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Hybrid Script Parser Typing Class
+"""TVM Script Parser Typing Class
 
-This module provides typing class for hybrid script type annotation usage, it can be viewed as
+This module provides typing class for TVM script type annotation usage, it can be viewed as
 a wrapper for uniform Type system in IR
 """
 # pylint: disable=invalid-name
@@ -24,14 +24,14 @@ import tvm
 
 
 class TypeGeneric:
-    """Base class for all the hybrid script typing class"""
+    """Base class for all the TVM script typing class"""
 
     def evaluate(self):
         raise TypeError("Cannot get tvm.Type from a generic type")
 
 
 class ConcreteType(TypeGeneric):
-    """Hybrid script typing class for uniform Type objects"""
+    """TVM script typing class for uniform Type objects"""
 
     def __init__(self, vtype):
         self.type = vtype
@@ -41,7 +41,7 @@ class ConcreteType(TypeGeneric):
 
 
 class GenericPtrType(TypeGeneric):
-    """Hybrid script typing class generator for PtrType
+    """TVM script typing class generator for PtrType
 
     [] operator is overloaded, accepts a ConcreteType and returns a ConcreteType wrapping PtrType
     """
@@ -51,7 +51,7 @@ class GenericPtrType(TypeGeneric):
 
 
 class GenericTupleType(TypeGeneric):
-    """Hybrid script typing class generator for TupleType
+    """TVM script typing class generator for TupleType
 
     [] operator is overloaded, accepts a list of ConcreteType and returns a ConcreteType
     wrapping TupleType
